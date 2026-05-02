@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AyurXpert — Digital Health Solutions for Ayurveda</title>
+<meta name="description" content="AyurXpert provides secure, cloud-based health information management software for Ayurveda healthcare organisations across India."/>
+<link rel="icon" href="assets/logo.jpeg"/>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#1a4a2e"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--cream:#faf8f3;--white:#fff;
+  --text:#1c2b1f;--muted:#6b7a72;--border:#d4e6da;
+}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);line-height:1.6}
+
+/* NAV */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(26,74,46,0.97);backdrop-filter:blur(10px)}
+.nav-inner{max-width:1080px;margin:0 auto;padding:0 24px;height:62px;display:flex;align-items:center;justify-content:space-between}
+.nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.nav-logo{width:34px;height:34px;border-radius:7px;object-fit:contain}
+.nav-name{font-family:'Cormorant Garamond',serif;font-size:21px;font-weight:600}
+.nav-name span:first-child{color:#fff}
+.nav-name span:last-child{color:var(--gold)}
+.nav-links{display:flex;align-items:center;gap:6px}
+.nav-link{color:rgba(255,255,255,0.6);text-decoration:none;font-size:14px;padding:7px 14px;border-radius:7px;transition:color .2s,background .2s}
+.nav-link:hover{color:#fff;background:rgba(255,255,255,0.08)}
+.nav-login{color:rgba(255,255,255,0.5);font-size:13px;text-decoration:none;padding:7px 12px;border-radius:7px;transition:color .2s}
+.nav-login:hover{color:rgba(255,255,255,0.8)}
+.nav-hamburger{display:none;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer;padding:8px}
+.nav-hamburger span{display:block;width:22px;height:2px;background:rgba(255,255,255,0.75);border-radius:2px;transition:all .3s}
+.nav-mobile{display:none;flex-direction:column;background:#143d24;border-top:1px solid rgba(255,255,255,0.08);padding:12px 24px 18px;gap:2px}
+.nav-mobile.open{display:flex}
+.nav-mobile .nav-link{font-size:15px;padding:11px 14px}
+
+/* HERO */
+.hero{
+  min-height:100vh;background:linear-gradient(155deg,#1a4a2e 0%,#0f2c1b 100%);
+  display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:110px 24px 72px;position:relative;overflow:hidden;
+}
+.hero::before{content:'';position:absolute;top:-80px;right:-80px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(201,144,42,0.09) 0%,transparent 70%)}
+.hero-inner{max-width:680px;margin:0 auto;position:relative;z-index:1}
+.hero-badge{display:inline-flex;align-items:center;gap:7px;background:rgba(201,144,42,0.14);border:1px solid rgba(201,144,42,0.28);color:#e8c878;font-size:12px;font-weight:500;padding:6px 16px;border-radius:20px;margin-bottom:28px;letter-spacing:.3px}
+.hero-title{font-family:'Cormorant Garamond',serif;font-size:clamp(36px,5.5vw,60px);font-weight:600;color:#fff;line-height:1.12;margin-bottom:18px;letter-spacing:-.3px}
+.hero-title em{color:var(--gold);font-style:normal}
+.hero-sub{font-size:clamp(15px,2vw,17px);color:rgba(255,255,255,0.58);line-height:1.8;margin-bottom:36px;font-weight:300}
+.hero-cta{display:inline-block;background:var(--gold);color:#fff;border-radius:10px;padding:13px 30px;font-size:15px;font-weight:500;text-decoration:none;transition:background .2s,box-shadow .2s}
+.hero-cta:hover{background:#b07d22;box-shadow:0 6px 20px rgba(201,144,42,0.35)}
+.hero-sub-link{display:block;margin-top:14px;font-size:13px;color:rgba(255,255,255,0.35);text-decoration:none}
+.hero-sub-link:hover{color:rgba(255,255,255,0.6)}
+
+/* SECTIONS */
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+.section{padding:80px 0}
+.section-label{font-size:11px;font-weight:500;color:var(--gold);text-transform:uppercase;letter-spacing:1.4px;margin-bottom:10px}
+.section-title{font-family:'Cormorant Garamond',serif;font-size:clamp(26px,3.5vw,40px);font-weight:600;color:var(--green);line-height:1.2;margin-bottom:14px}
+.section-body{font-size:15px;color:var(--muted);line-height:1.8;max-width:620px}
+
+/* ABOUT */
+.about-section{background:var(--cream)}
+.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;margin-top:48px}
+.about-text p{font-size:15px;color:var(--muted);line-height:1.85;margin-bottom:16px}
+.about-text p:last-child{margin-bottom:0}
+.about-cards{display:flex;flex-direction:column;gap:14px}
+.about-card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:18px 20px;display:flex;gap:14px;align-items:flex-start}
+.about-card-icon{font-size:22px;flex-shrink:0;margin-top:1px}
+.about-card-title{font-size:14px;font-weight:600;color:var(--green);margin-bottom:3px}
+.about-card-body{font-size:13px;color:var(--muted);line-height:1.5}
+
+/* ABDM */
+.abdm-section{background:var(--green);padding:80px 0}
+.abdm-inner{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
+.abdm-badge{display:inline-flex;align-items:center;gap:7px;background:rgba(201,144,42,0.15);border:1px solid rgba(201,144,42,0.28);color:#e8c878;font-size:12px;padding:5px 14px;border-radius:16px;margin-bottom:18px}
+.abdm-title{font-family:'Cormorant Garamond',serif;font-size:clamp(24px,3vw,36px);font-weight:600;color:#fff;line-height:1.2;margin-bottom:14px}
+.abdm-body{font-size:15px;color:rgba(255,255,255,0.55);line-height:1.8;margin-bottom:24px}
+.abdm-list{display:flex;flex-direction:column;gap:10px}
+.abdm-item{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:rgba(255,255,255,0.7)}
+.abdm-dot{width:5px;height:5px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:8px}
+.abdm-commitment{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:24px}
+.abdm-commit-title{font-size:13px;font-weight:600;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.8px;margin-bottom:16px}
+.abdm-commit-item{display:flex;align-items:center;gap:10px;font-size:14px;color:rgba(255,255,255,0.7);padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.06)}
+.abdm-commit-item:last-child{border-bottom:none;padding-bottom:0}
+.abdm-check{color:var(--gold);font-size:15px;flex-shrink:0}
+
+/* CONTACT */
+.contact-section{background:var(--white)}
+.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin-top:40px}
+.contact-block{background:var(--cream);border:1px solid var(--border);border-radius:14px;padding:28px}
+.contact-block-title{font-size:13px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.7px;margin-bottom:16px}
+.contact-row{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
+.contact-row:last-child{margin-bottom:0}
+.contact-icon{font-size:18px;flex-shrink:0;margin-top:1px}
+.contact-label{font-size:12px;color:var(--muted);margin-bottom:2px}
+.contact-value{font-size:15px;color:var(--text);font-weight:500}
+.contact-value a{color:var(--green-mid);text-decoration:none}
+.contact-value a:hover{color:var(--gold)}
+
+/* DATA PRIVACY */
+.privacy-section{background:var(--cream);padding:56px 0}
+.privacy-box{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:32px;max-width:720px}
+.privacy-box p{font-size:14px;color:var(--muted);line-height:1.85;margin-bottom:12px}
+.privacy-box p:last-child{margin-bottom:0}
+.privacy-box strong{color:var(--green)}
+
+/* FOOTER */
+.footer{background:#0f2318;padding:36px 24px}
+.footer-inner{max-width:1080px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+.footer-brand{display:flex;align-items:center;gap:9px}
+.footer-logo{width:28px;height:28px;border-radius:6px;object-fit:contain}
+.footer-name{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600}
+.footer-name span:first-child{color:#fff}
+.footer-name span:last-child{color:var(--gold)}
+.footer-links{display:flex;gap:20px;flex-wrap:wrap}
+.footer-link{font-size:13px;color:rgba(255,255,255,0.35);text-decoration:none;transition:color .2s}
+.footer-link:hover{color:rgba(255,255,255,0.7)}
+.footer-copy{font-size:12px;color:rgba(255,255,255,0.2);width:100%;text-align:center;margin-top:8px}
+
+/* RESPONSIVE */
+@media(max-width:860px){
+  .nav-links,.nav-login{display:none}
+  .nav-hamburger{display:flex}
+  .about-grid,.abdm-inner,.contact-grid{grid-template-columns:1fr}
+  .about-cards{flex-direction:row;flex-wrap:wrap}
+  .about-card{flex:1;min-width:240px}
+}
+@media(max-width:540px){
+  .section{padding:56px 0}
+  .about-cards{flex-direction:column}
+  .footer-inner{flex-direction:column;align-items:flex-start}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-brand">
+      <img src="assets/logo.jpeg" alt="AyurXpert" class="nav-logo"/>
+      <div class="nav-name"><span>Ayur</span><span>Xpert</span></div>
+    </a>
+    <div class="nav-links">
+      <a href="#about"   class="nav-link">About</a>
+      <a href="#abdm"    class="nav-link">ABDM</a>
+      <a href="#contact" class="nav-link">Contact</a>
+      <a href="login.html" class="nav-login">Staff Login</a>
+    </div>
+    <button class="nav-hamburger" id="nav-hamburger" aria-label="Open menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="nav-mobile" id="nav-mobile">
+    <a href="#about"     class="nav-link" onclick="closeMobile()">About</a>
+    <a href="#abdm"      class="nav-link" onclick="closeMobile()">ABDM</a>
+    <a href="#contact"   class="nav-link" onclick="closeMobile()">Contact</a>
+    <a href="login.html" class="nav-link">Staff Login</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">🛡️&nbsp; ABDM Compliant &nbsp;·&nbsp; Made in India</div>
+    <h1 class="hero-title">
+      Digital Health Solutions<br/>for <em>Ayurveda</em>
+    </h1>
+    <p class="hero-sub">
+      AyurXpert provides secure, cloud-based health information management
+      software for Ayurveda healthcare organisations across India,
+      aligned with the Ayushman Bharat Digital Mission.
+    </p>
+    <a href="#contact" class="hero-cta">Get in Touch</a>
+    <a href="#about" class="hero-sub-link">Learn more about AyurXpert ↓</a>
+  </div>
+</section>
+
+<!-- ABOUT -->
+<section id="about" class="section about-section">
+  <div class="wrap">
+    <div class="section-label">About Us</div>
+    <h2 class="section-title">Healthcare Technology for Ayurveda Practitioners</h2>
+    <div class="about-grid">
+      <div class="about-text">
+        <p>
+          AyurXpert is a healthcare technology company developing digital health
+          management software for Ayurveda healthcare providers across India and
+          internationally. Our platform enables Ayurveda clinics, hospitals, and
+          practitioners to securely manage patient health records and clinical workflows.
+        </p>
+        <p>
+          We are committed to building technology that respects patient privacy,
+          ensures data security, and complies with India's national digital health
+          standards under the Ayushman Bharat Digital Mission (ABDM).
+        </p>
+        <p>
+          Our solutions are designed to support Ayurveda healthcare organisations
+          in their digital transformation journey — from patient registration
+          to clinical documentation — with security and compliance at the core.
+        </p>
+      </div>
+      <div class="about-cards">
+        <div class="about-card">
+          <div class="about-card-icon">🏥</div>
+          <div>
+            <div class="about-card-title">Healthcare Focus</div>
+            <div class="about-card-body">Purpose-built for Ayurveda healthcare providers — clinics, hospitals and practitioners.</div>
+          </div>
+        </div>
+        <div class="about-card">
+          <div class="about-card-icon">🔒</div>
+          <div>
+            <div class="about-card-title">Data Security</div>
+            <div class="about-card-body">Patient health information is stored securely with access controls and audit trails.</div>
+          </div>
+        </div>
+        <div class="about-card">
+          <div class="about-card-icon">🇮🇳</div>
+          <div>
+            <div class="about-card-title">India-First</div>
+            <div class="about-card-body">Designed for Indian healthcare regulations, standards and workflows from the ground up.</div>
+          </div>
+        </div>
+        <div class="about-card">
+          <div class="about-card-icon">☁️</div>
+          <div>
+            <div class="about-card-title">Secure Cloud</div>
+            <div class="about-card-body">Cloud infrastructure with row-level security ensuring each organisation's data remains isolated.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ABDM -->
+<section id="abdm" class="abdm-section">
+  <div class="wrap">
+    <div class="abdm-inner">
+      <div>
+        <div class="abdm-badge">🛡️&nbsp; ABDM — Ayushman Bharat Digital Mission</div>
+        <h2 class="abdm-title">Our Commitment to ABDM Compliance</h2>
+        <p class="abdm-body">
+          AyurXpert is actively working to register as a Health Information Provider (HIP)
+          under the Ayushman Bharat Digital Mission. We are building our platform to
+          align with NHA's standards for digital health data exchange and patient consent.
+        </p>
+        <div class="abdm-list">
+          <div class="abdm-item">
+            <div class="abdm-dot"></div>
+            <span>ABHA Health ID creation and linking for patients</span>
+          </div>
+          <div class="abdm-item">
+            <div class="abdm-dot"></div>
+            <span>FHIR-compatible electronic health records</span>
+          </div>
+          <div class="abdm-item">
+            <div class="abdm-dot"></div>
+            <span>Patient consent management for health data sharing</span>
+          </div>
+          <div class="abdm-item">
+            <div class="abdm-dot"></div>
+            <span>Integration with Health Information Exchange (HIE) infrastructure</span>
+          </div>
+          <div class="abdm-item">
+            <div class="abdm-dot"></div>
+            <span>Compliance with NHA's Health Data Management Policy</span>
+          </div>
+        </div>
+      </div>
+      <div class="abdm-commitment">
+        <div class="abdm-commit-title">Our Commitments</div>
+        <div class="abdm-commit-item"><span class="abdm-check">✓</span><span>No unauthorised sharing of patient data</span></div>
+        <div class="abdm-commit-item"><span class="abdm-check">✓</span><span>Patient consent before any data access</span></div>
+        <div class="abdm-commit-item"><span class="abdm-check">✓</span><span>Data stored within India</span></div>
+        <div class="abdm-commit-item"><span class="abdm-check">✓</span><span>Transparent data usage policies</span></div>
+        <div class="abdm-commit-item"><span class="abdm-check">✓</span><span>Regular security audits</span></div>
+        <div class="abdm-commit-item"><span class="abdm-check">✓</span><span>Right to data deletion upon request</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DATA PRIVACY -->
+<section class="privacy-section">
+  <div class="wrap">
+    <div class="section-label">Privacy</div>
+    <h2 class="section-title" style="margin-bottom:24px">Data Protection Statement</h2>
+    <div class="privacy-box">
+      <p>
+        <strong>AyurXpert</strong> is committed to protecting the privacy and security of patient
+        health information. We collect and process health data solely for the purpose of
+        providing healthcare management services to registered healthcare organisations.
+      </p>
+      <p>
+        All patient data is stored securely on cloud infrastructure with encryption at rest
+        and in transit. Access to patient records is strictly controlled — only authorised
+        staff of the respective healthcare organisation can access their patients' data.
+        No patient data is shared with third parties without explicit consent.
+      </p>
+      <p>
+        We comply with the Information Technology Act, 2000, the IT (Amendment) Act, 2008,
+        and applicable provisions of the Digital Personal Data Protection Act, 2023.
+        Our platform is designed to comply with NHA's Health Data Management Policy
+        under the Ayushman Bharat Digital Mission.
+      </p>
+      <p>
+        For any privacy-related queries, data deletion requests, or to report a concern,
+        please contact us at <strong>privacy@ayurxpert.com</strong>.
+        Full privacy policy available at <a href="privacy.html" style="color:var(--green-mid);text-decoration:none">ayurxpert.com/privacy</a>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact" class="section contact-section">
+  <div class="wrap">
+    <div class="section-label">Contact</div>
+    <h2 class="section-title">Get in Touch</h2>
+    <p class="section-body">For general enquiries, ABDM-related queries, or partnership discussions, reach us at the contacts below.</p>
+    <div class="contact-grid">
+      <div class="contact-block">
+        <div class="contact-block-title">General Enquiries</div>
+        <div class="contact-row">
+          <div class="contact-icon">✉️</div>
+          <div>
+            <div class="contact-label">Email</div>
+            <div class="contact-value"><a href="mailto:admin@ayurxpert.com">admin@ayurxpert.com</a></div>
+          </div>
+        </div>
+        <div class="contact-row">
+          <div class="contact-icon">🌐</div>
+          <div>
+            <div class="contact-label">Website</div>
+            <div class="contact-value"><a href="https://ayurxpert.com">ayurxpert.com</a></div>
+          </div>
+        </div>
+        <div class="contact-row">
+          <div class="contact-icon">🇮🇳</div>
+          <div>
+            <div class="contact-label">Location</div>
+            <div class="contact-value">India</div>
+          </div>
+        </div>
+      </div>
+      <div class="contact-block">
+        <div class="contact-block-title">ABDM &amp; Compliance</div>
+        <div class="contact-row">
+          <div class="contact-icon">🛡️</div>
+          <div>
+            <div class="contact-label">ABDM Queries</div>
+            <div class="contact-value"><a href="mailto:abdm@ayurxpert.com">abdm@ayurxpert.com</a></div>
+          </div>
+        </div>
+        <div class="contact-row">
+          <div class="contact-icon">🔒</div>
+          <div>
+            <div class="contact-label">Privacy &amp; Data Requests</div>
+            <div class="contact-value"><a href="mailto:privacy@ayurxpert.com">privacy@ayurxpert.com</a></div>
+          </div>
+        </div>
+        <div class="contact-row">
+          <div class="contact-icon">📋</div>
+          <div>
+            <div class="contact-label">HIP Registration Reference</div>
+            <div class="contact-value">AyurXpert Technologies</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <img src="assets/logo.jpeg" alt="AyurXpert" class="footer-logo"/>
+      <div class="footer-name"><span>Ayur</span><span>Xpert</span></div>
+    </div>
+    <div class="footer-links">
+      <a href="#about"      class="footer-link">About</a>
+      <a href="#abdm"       class="footer-link">ABDM</a>
+      <a href="#contact"    class="footer-link">Contact</a>
+      <a href="privacy.html" class="footer-link">Privacy Policy</a>
+      <a href="terms.html"  class="footer-link">Terms of Service</a>
+    </div>
+    <div class="footer-copy">&copy; 2026 AyurXpert Technologies. All rights reserved.</div>
+  </div>
+</footer>
+
+<script>
+const btn = document.getElementById('nav-hamburger');
+const mob = document.getElementById('nav-mobile');
+btn.addEventListener('click', () => {
+  btn.classList.toggle('open');
+  mob.classList.toggle('open');
+});
+function closeMobile() {
+  btn.classList.remove('open');
+  mob.classList.remove('open');
+}
+document.addEventListener('click', e => { if (!e.target.closest('.nav')) closeMobile(); });
+</script>
+</body>
+</html>
