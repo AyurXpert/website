@@ -24,9 +24,10 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);
 .nav-inner{max-width:1080px;margin:0 auto;padding:0 24px;height:62px;display:flex;align-items:center;justify-content:space-between}
 .nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none}
 .nav-logo{width:34px;height:34px;border-radius:7px;object-fit:contain}
-.nav-name{font-family:'Cormorant Garamond',serif;font-size:21px;font-weight:600}
+.nav-name{font-family:'Cormorant Garamond',serif;font-size:21px;font-weight:600;display:flex;align-items:baseline}
 .nav-name span:first-child{color:#fff}
-.nav-name span:last-child{color:var(--gold)}
+.nav-name span:nth-child(2){color:var(--gold)}
+.nav-name .n-tech{color:rgba(255,255,255,0.55);font-size:12px;font-weight:400;letter-spacing:.3px;margin-left:4px}
 .nav-links{display:flex;align-items:center;gap:6px}
 .nav-link{color:rgba(255,255,255,0.6);text-decoration:none;font-size:14px;padding:7px 14px;border-radius:7px;transition:color .2s,background .2s}
 .nav-link:hover{color:#fff;background:rgba(255,255,255,0.08)}
@@ -126,9 +127,10 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);
 .footer-inner{max-width:1080px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
 .footer-brand{display:flex;align-items:center;gap:9px}
 .footer-logo{width:28px;height:28px;border-radius:6px;object-fit:contain}
-.footer-name{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600}
+.footer-name{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;display:flex;align-items:baseline}
 .footer-name span:first-child{color:#fff}
-.footer-name span:last-child{color:var(--gold)}
+.footer-name span:nth-child(2){color:var(--gold)}
+.footer-name .n-tech{color:rgba(255,255,255,0.45);font-size:11px;font-weight:400;letter-spacing:.3px;margin-left:3px}
 .footer-links{display:flex;gap:20px;flex-wrap:wrap}
 .footer-link{font-size:13px;color:rgba(255,255,255,0.35);text-decoration:none;transition:color .2s}
 .footer-link:hover{color:rgba(255,255,255,0.7)}
@@ -156,7 +158,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);
   <div class="nav-inner">
     <a href="home.html" class="nav-brand">
       <img src="assets/logo.jpeg" alt="AyurXpert" class="nav-logo"/>
-      <div class="nav-name"><span>Ayur</span><span>Xpert</span></div>
+      <div class="nav-name"><span>Ayur</span><span>Xpert</span><span class="n-tech">Technologies&#8482;</span></div>
     </a>
     <div class="nav-links">
       <a href="#about"   class="nav-link">About</a>
@@ -415,7 +417,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);
   <div class="footer-inner">
     <div class="footer-brand">
       <img src="assets/logo.jpeg" alt="AyurXpert" class="footer-logo"/>
-      <div class="footer-name"><span>Ayur</span><span>Xpert</span></div>
+      <div class="footer-name"><span>Ayur</span><span>Xpert</span><span class="n-tech">Technologies&#8482;</span></div>
     </div>
     <div class="footer-links">
       <a href="#about"      class="footer-link">About</a>
