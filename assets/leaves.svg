@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none">
+  <!-- Main stem -->
+  <path d="M200 390 C190 330 170 270 160 200 C148 120 155 60 180 20" stroke="#c9902a" stroke-width="3" stroke-linecap="round" fill="none"/>
+
+  <!-- Large leaf top-left -->
+  <path d="M180 20 C120 -10 60 30 70 90 C80 150 160 140 180 20Z" fill="#2d7a4f"/>
+  <path d="M180 20 C150 50 110 70 90 90" stroke="#1a4a2e" stroke-width="1.2" fill="none" opacity="0.6"/>
+  <path d="M130 45 C120 65 105 78 95 85" stroke="#1a4a2e" stroke-width="0.8" fill="none" opacity="0.4"/>
+
+  <!-- Leaf mid-left -->
+  <path d="M160 110 C100 90 65 120 78 170 C90 218 155 205 160 110Z" fill="#1a4a2e"/>
+  <path d="M160 110 C135 135 105 155 90 170" stroke="#2d7a4f" stroke-width="1" fill="none" opacity="0.5"/>
+
+  <!-- Leaf right upper -->
+  <path d="M172 65 C210 20 268 40 258 95 C248 148 175 138 172 65Z" fill="#2d7a4f"/>
+  <path d="M172 65 C200 80 230 85 255 95" stroke="#1a4a2e" stroke-width="1" fill="none" opacity="0.5"/>
+
+  <!-- Leaf right mid -->
+  <path d="M163 155 C200 118 255 135 248 183 C240 230 166 220 163 155Z" fill="#1a4a2e"/>
+  <path d="M163 155 C192 162 225 168 245 183" stroke="#2d7a4f" stroke-width="1" fill="none" opacity="0.5"/>
+
+  <!-- Small leaf lower-left -->
+  <path d="M155 230 C110 212 82 238 92 272 C102 305 152 298 155 230Z" fill="#2d7a4f" opacity="0.85"/>
+
+  <!-- Small leaf lower-right -->
+  <path d="M168 245 C205 220 238 240 232 270 C226 298 170 292 168 245Z" fill="#1a4a2e" opacity="0.85"/>
+
+  <!-- Tiny accent leaves -->
+  <path d="M178 310 C162 295 148 305 153 322 C158 338 178 335 178 310Z" fill="#c9902a" opacity="0.7"/>
+  <path d="M185 318 C200 303 214 311 210 327 C206 342 186 340 185 318Z" fill="#c9902a" opacity="0.7"/>
+</svg>
