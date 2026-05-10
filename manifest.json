@@ -1,0 +1,48 @@
+{
+  "name": "AyurXpert",
+  "short_name": "AyurXpert",
+  "description": "Complete digital ecosystem for Ayurveda — clinics, hospitals, pharmacies, colleges and more.",
+  "start_url": "./login.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#faf8f3",
+  "theme_color": "#1a4a2e",
+  "lang": "en-IN",
+  "categories": ["medical", "health", "business"],
+  "icons": [
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/logo.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Reception",
+      "short_name": "Reception",
+      "url": "./reception.html",
+      "icons": [{ "src": "assets/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Queue",
+      "short_name": "Queue",
+      "url": "./doctor.html",
+      "icons": [{ "src": "assets/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Pharmacy",
+      "short_name": "Pharmacy",
+      "url": "./pharmacyPOS.html",
+      "icons": [{ "src": "assets/icon.svg", "sizes": "any" }]
+    }
+  ]
+}
