@@ -264,6 +264,15 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);
 .about-card-title{font-size:14px;font-weight:600;color:var(--green);margin-bottom:3px}
 .about-card-body{font-size:13px;color:var(--muted);line-height:1.5}
 
+/* OBJECTIVES */
+.obj-section{background:var(--white);padding:80px 0}
+.obj-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px;margin-top:48px}
+.obj-card{background:var(--cream);border:1px solid var(--border);border-radius:16px;padding:32px 28px;display:flex;gap:20px;align-items:flex-start;transition:box-shadow .2s}
+.obj-card:hover{box-shadow:0 10px 32px rgba(0,0,0,0.07)}
+.obj-num{font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:600;color:var(--gold);line-height:1;flex-shrink:0;min-width:40px}
+.obj-title{font-size:15px;font-weight:600;color:var(--green);margin-bottom:6px}
+.obj-body{font-size:14px;color:var(--muted);line-height:1.75}
+
 /* ABDM */
 .abdm-section{background:var(--green);padding:80px 0}
 .abdm-inner{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
@@ -378,7 +387,8 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);
 
   .about-grid,
   .abdm-inner,
-  .contact-grid{
+  .contact-grid,
+  .obj-grid{
     grid-template-columns:1fr;
   }
 
@@ -427,10 +437,11 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);
       <img src="assets/AyurXpert_Navbar_Logo.png" alt="AyurXpert Technologies" class="nav-logo-img"/>
     </a>
     <div class="nav-links">
-      <a href="#about"   class="nav-link">About</a>
-      <a href="#abdm"    class="nav-link">ABDM</a>
-      <a href="#contact" class="nav-link">Contact</a>
-      <a href="login.html" class="nav-login">Staff Login</a>
+      <a href="#about"       class="nav-link">About</a>
+      <a href="#objectives"  class="nav-link">Objectives</a>
+      <a href="#abdm"        class="nav-link">ABDM</a>
+      <a href="#contact"     class="nav-link">Contact</a>
+      <a href="https://ayurxpert.com/login.html" class="nav-login">Staff Login</a>
       <a href="#contact" class="nav-cta">Get in Touch</a>
     </div>
     <button class="nav-hamburger" id="nav-hamburger" aria-label="Open menu">
@@ -438,10 +449,11 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);
     </button>
   </div>
   <div class="nav-mobile" id="nav-mobile">
-  <a href="#about" class="nav-link" onclick="closeMobile()">About</a>
-  <a href="#abdm" class="nav-link" onclick="closeMobile()">ABDM</a>
-  <a href="#contact" class="nav-link" onclick="closeMobile()">Contact</a>
-  <a href="login.html" class="nav-link">Staff Login</a>
+  <a href="#about"      class="nav-link" onclick="closeMobile()">About</a>
+  <a href="#objectives" class="nav-link" onclick="closeMobile()">Objectives</a>
+  <a href="#abdm"       class="nav-link" onclick="closeMobile()">ABDM</a>
+  <a href="#contact"    class="nav-link" onclick="closeMobile()">Contact</a>
+  <a href="https://ayurxpert.com/login.html" class="nav-link">Staff Login</a>
   <a href="#contact" class="nav-link mobile-cta" onclick="closeMobile()">Get in Touch</a>
 </div>
 </nav>
@@ -529,6 +541,45 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);
       </div>
       <div class="about-logo">
         <img src="assets/AyurXpert_Transparent_Logo.png" alt="AyurXpert Technologies — Digital Health Platform for Ayurveda"/>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- OBJECTIVES -->
+<section id="objectives" class="obj-section">
+  <div class="wrap">
+    <div class="section-label">Our Objectives</div>
+    <h2 class="section-title">What We Set Out to Achieve</h2>
+    <p class="section-body">AyurXpert Technologies&#8482; is driven by a clear mission — to bring every Ayurveda healthcare provider into the digital age, securely and responsibly.</p>
+    <div class="obj-grid">
+      <div class="obj-card">
+        <div class="obj-num">01</div>
+        <div>
+          <div class="obj-title">Digital Empowerment for Ayurveda</div>
+          <div class="obj-body">To make modern, secure, and cloud-based health information management accessible to every Ayurveda healthcare provider in India — from single-practitioner clinics to multi-branch hospitals — regardless of scale or location.</div>
+        </div>
+      </div>
+      <div class="obj-card">
+        <div class="obj-num">02</div>
+        <div>
+          <div class="obj-title">Honour Clinical Tradition</div>
+          <div class="obj-body">To develop technology that respects the depth of Ayurveda practice — enabling accurate digital documentation of traditional assessments, Panchakarma workflows, and classical treatment protocols.</div>
+        </div>
+      </div>
+      <div class="obj-card">
+        <div class="obj-num">03</div>
+        <div>
+          <div class="obj-title">National Digital Health Integration</div>
+          <div class="obj-body">To ensure every Ayurveda practitioner can participate fully in India's Ayushman Bharat Digital Mission — with ABHA-linked patient records, FHIR-compatible data, and seamless HIE connectivity.</div>
+        </div>
+      </div>
+      <div class="obj-card">
+        <div class="obj-num">04</div>
+        <div>
+          <div class="obj-title">Privacy, Security &amp; Trust</div>
+          <div class="obj-body">To uphold the highest standards of patient data privacy and security — ensuring informed consent, transparent data policies, and full compliance with India's Digital Personal Data Protection Act, 2023.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -638,10 +689,24 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);
           </div>
         </div>
         <div class="contact-row">
-          <div class="contact-icon">🇮🇳</div>
+          <div class="contact-icon">📞</div>
           <div>
-            <div class="contact-label">Location</div>
-            <div class="contact-value">India</div>
+            <div class="contact-label">Phone</div>
+            <div class="contact-value"><a href="tel:+919844210154">+91 98442 10154</a></div>
+          </div>
+        </div>
+        <div class="contact-row">
+          <div class="contact-icon">📍</div>
+          <div>
+            <div class="contact-label">Registered Office</div>
+            <div class="contact-value" style="font-size:14px;line-height:1.6">#226/A, 12th Main, 2nd Cross,<br/>Saraswathipuram, Mysuru – 570 009<br/>Karnataka, India</div>
+          </div>
+        </div>
+        <div class="contact-row">
+          <div class="contact-icon">🏥</div>
+          <div>
+            <div class="contact-label">Clinical Address</div>
+            <div class="contact-value" style="font-size:14px;line-height:1.6">230 Vokkaligara Srirama Mandira,<br/>K R Hospital Road, Mandimohalla,<br/>Mysuru – 570 001, Karnataka, India</div>
           </div>
         </div>
       </div>
