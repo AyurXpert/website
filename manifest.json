@@ -18,9 +18,9 @@
       "purpose": "any"
     },
     {
-      "src": "assets/logo.jpeg",
-      "sizes": "512x512",
-      "type": "image/jpeg",
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
       "purpose": "any"
     }
   ],
