@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>No Connection — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#1a4a2e"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{
+  min-height:100%;font-family:'DM Sans',system-ui,sans-serif;
+  background:#faf8f3;color:#1c2b1f;
+  display:flex;align-items:center;justify-content:center;
+  padding:24px;
+}
+.card{
+  text-align:center;max-width:360px;width:100%;
+  background:#fff;border-radius:18px;padding:40px 28px;
+  box-shadow:0 2px 20px rgba(0,0,0,0.07);
+}
+.icon{font-size:56px;margin-bottom:18px;opacity:.7}
+h1{
+  font-size:24px;font-weight:600;color:#1a4a2e;
+  margin-bottom:10px;line-height:1.3;
+}
+p{font-size:14px;color:#8a9e90;line-height:1.7;margin-bottom:28px}
+.btn{
+  display:inline-block;height:50px;line-height:50px;
+  padding:0 32px;background:#1a4a2e;color:#fff;
+  border:none;border-radius:10px;font-size:15px;font-weight:500;
+  cursor:pointer;text-decoration:none;font-family:inherit;
+  transition:background .2s;
+}
+.btn:hover{background:#1f5c37}
+.retry{font-size:13px;color:#8a9e90;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">📶</div>
+  <h1>No Internet Connection</h1>
+  <p>
+    AyurXpert needs a connection to sync patient data and records.<br>
+    Please check your Wi-Fi or mobile data and try again.
+  </p>
+  <button class="btn" onclick="location.reload()">Try Again</button>
+  <div class="retry">Pages you've already visited will load from cache.</div>
+</div>
+</body>
+</html>

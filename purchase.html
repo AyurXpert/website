@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Receive Stock — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--cream:#faf8f3;--white:#ffffff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+  --success-bg:#e8f5ee;--success-border:#b2d8bf;--success-text:#1a4a2e;
+  --error-bg:#fdecea;--error-border:#f5c6c6;--error-text:#8b1a1a;
+  --red:#c0392b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:960px;margin:0 auto;padding:28px 20px 60px}
+
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.header-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+.btn{height:40px;padding:0 18px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}
+.btn-secondary:hover{background:var(--green-light)}
+.btn-ghost{background:none;border:1.5px solid var(--border);color:var(--text-mid)}
+.btn-ghost:hover{border-color:var(--green-mid);color:var(--green-deep)}
+.btn-gold{background:var(--gold);color:#fff;border:none}
+.btn-gold:hover{background:#b8801e}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--success-bg);color:var(--success-text);border:1px solid var(--success-border)}
+.alert.error{background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border)}
+.alert.info{background:#e8f4fd;color:#1a5276;border:1px solid #aed6f1}
+
+.section-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:18px}
+.section-title{font-size:13px;font-weight:600;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px}
+.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.field{margin-bottom:0}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+.field input,.field select{width:100%;height:42px;padding:0 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-dark);background:var(--white);outline:none;transition:border-color .15s}
+.field input:focus,.field select:focus{border-color:var(--green-mid)}
+.field input[readonly]{background:var(--cream);color:var(--text-muted)}
+
+/* ── Items table ─────────────────────────────────── */
+.items-header{display:grid;grid-template-columns:2fr 1.2fr 1fr 0.8fr 0.8fr 0.8fr 40px;gap:8px;padding:7px 14px;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:1.5px solid var(--border)}
+.line-item{display:grid;grid-template-columns:2fr 1.2fr 1fr 0.8fr 0.8fr 0.8fr 40px;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);align-items:center}
+.line-item:last-child{border-bottom:none}
+.line-item input,.line-item select{width:100%;height:36px;padding:0 8px;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-dark);background:var(--white);outline:none;transition:border-color .15s}
+.line-item input:focus,.line-item select:focus{border-color:var(--green-mid)}
+.btn-remove-line{width:30px;height:30px;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:16px;display:flex;align-items:center;justify-content:center;border-radius:4px}
+.btn-remove-line:hover{color:var(--red);background:var(--error-bg)}
+.add-line-row{padding:10px 14px;border-top:1.5px dashed var(--border);display:flex;gap:8px;align-items:center}
+
+/* Medicine select with barcode scan inline */
+.med-cell{position:relative;display:flex;gap:5px;align-items:center}
+.med-cell select{flex:1}
+.btn-scan-barcode{width:32px;height:36px;background:var(--cream);border:1.5px solid var(--border);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;transition:border-color .15s}
+.btn-scan-barcode:hover{border-color:var(--gold)}
+
+/* ── Summary bar ─────────────────────────────────── */
+.grn-summary{display:flex;gap:24px;padding:14px 18px;background:var(--cream);border-radius:var(--radius);border:1px solid var(--border);margin-bottom:18px;flex-wrap:wrap}
+.grn-sum-item{display:flex;flex-direction:column;gap:2px}
+.grn-sum-label{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
+.grn-sum-value{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700;color:var(--green-deep)}
+.save-bar{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+
+/* ── OCR Modal ───────────────────────────────────── */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;display:none;align-items:center;justify-content:center;padding:16px}
+.modal-backdrop.open{display:flex}
+.modal{background:var(--white);border-radius:12px;padding:28px;width:520px;max-width:100%;max-height:90vh;overflow-y:auto}
+.modal-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep);margin-bottom:6px}
+.modal-sub{font-size:12px;color:var(--text-muted);margin-bottom:20px}
+.ocr-drop-zone{
+  border:2px dashed var(--border);border-radius:var(--radius);padding:32px 20px;
+  text-align:center;cursor:pointer;transition:border-color .15s,background .15s;
+  background:var(--cream);
+}
+.ocr-drop-zone:hover,.ocr-drop-zone.dragover{border-color:var(--gold);background:#fffbf0}
+.ocr-drop-zone-icon{font-size:36px;margin-bottom:10px}
+.ocr-drop-zone-text{font-size:14px;font-weight:500;color:var(--text-mid)}
+.ocr-drop-zone-sub{font-size:12px;color:var(--text-muted);margin-top:4px}
+.ocr-preview{margin-top:14px;position:relative;display:none}
+.ocr-preview img{max-width:100%;border-radius:var(--radius);border:1px solid var(--border);max-height:280px;object-fit:contain}
+.ocr-preview-change{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer}
+.ocr-results{margin-top:16px;display:none}
+.ocr-results-title{font-size:13px;font-weight:600;color:var(--green-deep);margin-bottom:10px}
+.ocr-item{display:grid;grid-template-columns:2fr 0.6fr 0.8fr 0.8fr;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;align-items:center}
+.ocr-item:last-child{border-bottom:none}
+.ocr-item-header{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;padding-bottom:6px;border-bottom:1.5px solid var(--border)}
+.ocr-item input{height:32px;padding:0 8px;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:12px;width:100%;outline:none}
+.ocr-item input:focus{border-color:var(--green-mid)}
+.modal-actions{display:flex;gap:10px;margin-top:20px}
+
+/* ── Barcode scan modal ──────────────────────────── */
+.barcode-modal{background:var(--white);border-radius:12px;padding:24px;width:420px;max-width:100%}
+.barcode-modal-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--green-deep);margin-bottom:14px}
+#barcode-video{width:100%;border-radius:var(--radius);background:#000;display:block}
+.barcode-manual{margin-top:14px}
+.barcode-status{font-size:13px;color:var(--text-mid);text-align:center;padding:8px 0}
+
+@media(max-width:700px){
+  .items-header{display:none}
+  .line-item{grid-template-columns:1fr 1fr;row-gap:8px}
+  .field-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<div class="page-wrap">
+
+  <div class="page-header">
+    <div>
+      <div class="page-title">Receive Stock</div>
+      <div class="page-subtitle">Record a goods receipt note (GRN) from supplier</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-gold" id="btn-scan-receipt">📷 Scan Receipt (AI)</button>
+      <a href="inventory.html" class="btn btn-secondary">← Inventory</a>
+    </div>
+  </div>
+
+  <div class="alert" id="alert"></div>
+
+  <!-- Supplier details -->
+  <div class="section-card">
+    <div class="section-title">Supplier Details</div>
+    <div class="field-grid">
+      <div class="field">
+        <label>Supplier Name <span style="color:var(--red)">*</span></label>
+        <input id="supplier-name" type="text" placeholder="Supplier / distributor name"/>
+      </div>
+      <div class="field">
+        <label>Invoice Number</label>
+        <input id="invoice-number" type="text" placeholder="Supplier invoice no."/>
+      </div>
+      <div class="field">
+        <label>Invoice Date</label>
+        <input id="invoice-date" type="date"/>
+      </div>
+      <div class="field">
+        <label>Remarks</label>
+        <input id="remarks" type="text" placeholder="Optional notes"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- Line items -->
+  <div class="section-card" style="padding:0;overflow:hidden">
+    <div style="padding:16px 20px 10px">
+      <div class="section-title" style="margin-bottom:0">Items Received</div>
+    </div>
+    <div class="items-header">
+      <div>Medicine</div>
+      <div>Batch No.</div>
+      <div>Expiry (MM/YY)</div>
+      <div>Qty</div>
+      <div>Cost (₹)</div>
+      <div>MRP (₹)</div>
+      <div></div>
+    </div>
+    <div id="line-items"></div>
+    <div class="add-line-row">
+      <button class="btn btn-ghost btn-sm" id="btn-add-line">+ Add Item</button>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="grn-summary">
+    <div class="grn-sum-item"><span class="grn-sum-label">Items</span><span class="grn-sum-value" id="sum-items">0</span></div>
+    <div class="grn-sum-item"><span class="grn-sum-label">Total Units</span><span class="grn-sum-value" id="sum-units">0</span></div>
+    <div class="grn-sum-item"><span class="grn-sum-label">Total Cost</span><span class="grn-sum-value" id="sum-cost">₹0</span></div>
+  </div>
+
+  <div class="save-bar">
+    <button class="btn btn-ghost" id="btn-clear">Clear All</button>
+    <button class="btn btn-primary" id="btn-save-grn">Save & Update Stock</button>
+  </div>
+
+</div>
+
+<!-- ── Receipt OCR Modal ─────────────────────────── -->
+<div class="modal-backdrop" id="ocr-modal">
+  <div class="modal">
+    <div class="modal-title">AI Receipt Scanner</div>
+    <div class="modal-sub">Take a photo or upload an image of your supplier invoice. Claude AI will extract the medicines and quantities automatically.</div>
+
+    <div class="ocr-drop-zone" id="ocr-drop-zone">
+      <div class="ocr-drop-zone-icon">📄</div>
+      <div class="ocr-drop-zone-text">Tap to select invoice photo</div>
+      <div class="ocr-drop-zone-sub">Supports JPG, PNG, HEIC · Max 10 MB</div>
+      <input type="file" id="ocr-file-input" accept="image/*" capture="environment" style="display:none"/>
+    </div>
+
+    <div class="ocr-preview" id="ocr-preview">
+      <img id="ocr-preview-img" src="" alt="Receipt preview"/>
+      <button class="ocr-preview-change" id="ocr-change-photo">Change photo</button>
+    </div>
+
+    <div class="ocr-results" id="ocr-results">
+      <div class="ocr-results-title">Extracted Items — Review &amp; Edit Before Adding</div>
+      <div class="ocr-item ocr-item-header">
+        <div>Medicine Name</div><div>Qty</div><div>Cost (₹)</div><div>MRP (₹)</div>
+      </div>
+      <div id="ocr-items-list"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="btn-ocr-extract" disabled style="flex:1">🔍 Extract with AI</button>
+      <button class="btn btn-ghost" id="btn-ocr-cancel">Cancel</button>
+    </div>
+    <div style="display:none" id="btn-ocr-add-wrap">
+      <div class="modal-actions" style="margin-top:0">
+        <button class="btn btn-primary" id="btn-ocr-add-lines" style="flex:1">✓ Add These Items to GRN</button>
+        <button class="btn btn-ghost" id="btn-ocr-rescan">Rescan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Barcode scan modal ─────────────────────────── -->
+<div class="modal-backdrop" id="barcode-modal">
+  <div class="barcode-modal">
+    <div class="barcode-modal-title">Scan Barcode</div>
+    <video id="barcode-video" autoplay playsinline muted></video>
+    <div class="barcode-status" id="barcode-status">Point camera at barcode…</div>
+    <div class="barcode-manual">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">Or enter barcode manually:</div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="barcode-manual-input" placeholder="Barcode number" style="flex:1;height:38px;padding:0 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:13px;outline:none"/>
+        <button class="btn btn-primary btn-sm" id="btn-barcode-manual-ok">Look Up</button>
+      </div>
+    </div>
+    <div style="margin-top:14px;text-align:right">
+      <button class="btn btn-ghost btn-sm" id="btn-barcode-close">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { requireAuth, getCurrentTenantId, getCurrentProfile } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
+initNavbar();
+
+const tenantId = getCurrentTenantId();
+const profile  = getCurrentProfile();
+let _medicines = [];
+let _lineCount = 0;
+let _activeBarcodeLineEl = null;
+let _barcodeStream = null;
+let _barcodeDetector = null;
+let _barcodeScanning = false;
+let _ocrImageBase64 = null;
+let _ocrImageType   = null;
+let _ocrExtractedItems = [];
+
+// ── Load medicines ─────────────────────────────────
+async function loadMedicines() {
+  const { data } = await supabase
+    .from('inventory')
+    .select('medicine_id, mrp, cost_price, gst_percent, profit_percent, medicine:medicines(id, name, is_active, barcode)')
+    .eq('tenant_id', tenantId);
+  _medicines = (data || [])
+    .filter(i => i.medicine?.is_active !== false)
+    .map(i => ({
+      id: i.medicine.id, name: i.medicine.name, barcode: i.medicine.barcode,
+      mrp: i.mrp, cost: i.cost_price,
+      gst: i.gst_percent ?? 0, profit: i.profit_percent ?? 0,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function medOptions(selectedId = '') {
+  return `<option value="">— Select medicine —</option>` +
+    _medicines.map(m =>
+      `<option value="${m.id}" data-mrp="${m.mrp||0}" data-cost="${m.cost||0}" data-barcode="${m.barcode||''}" data-profit="${m.profit||0}" data-gst="${m.gst||0}" ${m.id === selectedId ? 'selected' : ''}>${m.name}</option>`
+    ).join('');
+}
+
+// ── Add line ───────────────────────────────────────
+function addLine(prefill = {}) {
+  _lineCount++;
+  const n = _lineCount;
+  const expDefault = (() => {
+    const d = new Date(); d.setFullYear(d.getFullYear() + 1);
+    return `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getFullYear()).slice(-2)}`;
+  })();
+
+  const div = document.createElement('div');
+  div.className = 'line-item';
+  div.id = `line-${n}`;
+  div.innerHTML = `
+    <div class="med-cell">
+      <select class="sel-med" data-n="${n}">${medOptions(prefill.medId || '')}</select>
+      <button class="btn-scan-barcode" data-n="${n}" title="Scan barcode to auto-select medicine">⬛</button>
+    </div>
+    <input type="text" class="inp-batch" placeholder="Batch no." value="${prefill.batch || ''}"/>
+    <input type="text" class="inp-expiry" placeholder="MM/YY" maxlength="5" value="${prefill.expiry || expDefault}"/>
+    <input type="number" class="inp-qty" min="1" placeholder="Qty" data-n="${n}" value="${prefill.qty || ''}"/>
+    <input type="number" class="inp-cost" min="0" step="0.01" placeholder="0.00" value="${prefill.cost || ''}"/>
+    <input type="number" class="inp-mrp" min="0" step="0.01" placeholder="0.00" value="${prefill.mrp || ''}"/>
+    <button class="btn-remove-line" data-n="${n}">✕</button>
+  `;
+  document.getElementById('line-items').appendChild(div);
+
+  const sel     = div.querySelector('.sel-med');
+  const inpMrp  = div.querySelector('.inp-mrp');
+  const inpCost = div.querySelector('.inp-cost');
+
+  function autocalcCost() {
+    const opt = sel.options[sel.selectedIndex];
+    const mrp = parseFloat(inpMrp.value) || 0;
+    const pct = parseFloat(opt?.dataset?.profit || 0);
+    if (mrp > 0 && pct > 0) inpCost.value = (mrp - mrp * pct / 100).toFixed(2);
+    updateSummary();
+  }
+
+  sel.addEventListener('change', function() {
+    const opt = this.options[this.selectedIndex];
+    if (opt.value) {
+      inpMrp.value = opt.dataset.mrp || '';
+      autocalcCost();
+    }
+    updateSummary();
+  });
+
+  inpMrp.addEventListener('input', autocalcCost);
+
+  // Pre-fill if medId given
+  if (prefill.medId) {
+    const opt = sel.querySelector(`option[value="${prefill.medId}"]`);
+    if (opt) { inpMrp.value = opt.dataset.mrp || ''; autocalcCost(); }
+  }
+
+  div.querySelector('.btn-remove-line').addEventListener('click', () => { div.remove(); updateSummary(); });
+  div.querySelector('.inp-qty').addEventListener('input', updateSummary);
+  inpCost.addEventListener('input', updateSummary);
+  div.querySelector('.btn-scan-barcode').addEventListener('click', () => openBarcodeModal(div));
+
+  // Expiry auto-format: add / after 2 digits
+  const expInput = div.querySelector('.inp-expiry');
+  expInput.addEventListener('input', function() {
+    let v = this.value.replace(/\D/g,'');
+    if (v.length >= 2) v = v.slice(0,2) + '/' + v.slice(2,4);
+    this.value = v;
+  });
+
+  updateSummary();
+  return div;
+}
+
+function updateSummary() {
+  const lines = [...document.querySelectorAll('.line-item')];
+  let units = 0, cost = 0;
+  lines.forEach(l => {
+    units += parseInt(l.querySelector('.inp-qty')?.value) || 0;
+    cost  += (parseInt(l.querySelector('.inp-qty')?.value) || 0) * (parseFloat(l.querySelector('.inp-cost')?.value) || 0);
+  });
+  document.getElementById('sum-items').textContent = lines.length;
+  document.getElementById('sum-units').textContent = units;
+  document.getElementById('sum-cost').textContent  = '₹' + cost.toFixed(2);
+}
+
+document.getElementById('btn-add-line').addEventListener('click', () => addLine());
+document.getElementById('btn-clear').addEventListener('click', () => {
+  if (!confirm('Clear all items?')) return;
+  document.getElementById('line-items').innerHTML = '';
+  ['supplier-name','invoice-number','invoice-date','remarks'].forEach(id => document.getElementById(id).value = '');
+  _lineCount = 0; updateSummary();
+});
+
+// ── Save GRN ──────────────────────────────────────
+document.getElementById('btn-save-grn').addEventListener('click', async () => {
+  const supplier = document.getElementById('supplier-name').value.trim();
+  if (!supplier) { _alert('error', 'Supplier name is required.'); return; }
+  const lines = [...document.querySelectorAll('.line-item')];
+  if (!lines.length) { _alert('error', 'Add at least one item.'); return; }
+
+  const items = []; let hasError = false;
+  lines.forEach((l, idx) => {
+    const medId  = l.querySelector('.sel-med').value;
+    const qty    = parseInt(l.querySelector('.inp-qty').value) || 0;
+    const mrp    = parseFloat(l.querySelector('.inp-mrp').value) || 0;
+    const cost   = parseFloat(l.querySelector('.inp-cost').value) || 0;
+    const batch  = l.querySelector('.inp-batch').value.trim() || null;
+    const expRaw = l.querySelector('.inp-expiry').value.trim();
+    // Convert MM/YY → YYYY-MM-01
+    let expiry = null;
+    if (expRaw && /^\d{2}\/\d{2}$/.test(expRaw)) {
+      const [mm, yy] = expRaw.split('/');
+      expiry = `20${yy}-${mm}-01`;
+    }
+    if (!medId || qty <= 0) { _alert('error', `Row ${idx+1}: select a medicine and enter quantity.`); hasError = true; return; }
+    items.push({ medId, qty, mrp, cost, batch, expiry });
+  });
+  if (hasError) return;
+
+  const btn = document.getElementById('btn-save-grn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const invoiceDate   = document.getElementById('invoice-date').value || null;
+  const invoiceNumber = document.getElementById('invoice-number').value.trim() || null;
+
+  try {
+    for (const item of items) {
+      await supabase.from('stock_batches').insert({
+        tenant_id: tenantId, medicine_id: item.medId,
+        batch_number: item.batch, expiry_date: item.expiry,
+        quantity_received: item.qty, cost_price: item.cost, mrp: item.mrp,
+        supplier_name: supplier, invoice_number: invoiceNumber, invoice_date: invoiceDate,
+        created_by: profile.id,
+      });
+      const { data: inv } = await supabase.from('inventory').select('id, stock_quantity')
+        .eq('tenant_id', tenantId).eq('medicine_id', item.medId).single();
+      if (inv) {
+        const update = { stock_quantity: (inv.stock_quantity || 0) + item.qty };
+        if (item.mrp  > 0) update.mrp        = item.mrp;
+        if (item.cost > 0) update.cost_price  = item.cost;
+        await supabase.from('inventory').update(update).eq('id', inv.id);
+      }
+    }
+    _alert('success', `GRN saved. ${items.length} medicine(s) — stock updated.`);
+    document.getElementById('line-items').innerHTML = '';
+    ['supplier-name','invoice-number','invoice-date','remarks'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('invoice-date').value = new Date().toISOString().split('T')[0];
+    _lineCount = 0; updateSummary();
+  } catch (err) {
+    _alert('error', 'Save failed: ' + (err.message || 'Please try again.'));
+  }
+  btn.disabled = false; btn.textContent = 'Save & Update Stock';
+});
+
+// ── Barcode scanning ──────────────────────────────
+function openBarcodeModal(lineEl) {
+  _activeBarcodeLineEl = lineEl;
+  document.getElementById('barcode-manual-input').value = '';
+  document.getElementById('barcode-status').textContent = 'Starting camera…';
+  document.getElementById('barcode-modal').classList.add('open');
+  startBarcodeCamera();
+}
+
+async function startBarcodeCamera() {
+  try {
+    // Check BarcodeDetector support
+    if (!('BarcodeDetector' in window)) {
+      document.getElementById('barcode-status').textContent = 'Camera scan not supported in this browser. Use manual entry below.';
+      return;
+    }
+    _barcodeDetector = new BarcodeDetector({ formats: ['ean_13','ean_8','code_128','code_39','qr_code','upc_a','upc_e'] });
+    _barcodeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const video = document.getElementById('barcode-video');
+    video.srcObject = _barcodeStream;
+    await video.play();
+    _barcodeScanning = true;
+    document.getElementById('barcode-status').textContent = 'Point camera at barcode…';
+    scanBarcodeLoop(video);
+  } catch (err) {
+    document.getElementById('barcode-status').textContent = 'Camera unavailable. Use manual entry below.';
+  }
+}
+
+async function scanBarcodeLoop(video) {
+  if (!_barcodeScanning) return;
+  try {
+    const barcodes = await _barcodeDetector.detect(video);
+    if (barcodes.length > 0) {
+      const code = barcodes[0].rawValue;
+      _barcodeScanning = false;
+      document.getElementById('barcode-status').textContent = `Detected: ${code}`;
+      resolveBarcodeMatch(code);
+      return;
+    }
+  } catch {}
+  if (_barcodeScanning) requestAnimationFrame(() => scanBarcodeLoop(video));
+}
+
+function resolveBarcodeMatch(code) {
+  stopBarcodeCamera();
+  const match = _medicines.find(m => m.barcode === code);
+  if (match && _activeBarcodeLineEl) {
+    const sel = _activeBarcodeLineEl.querySelector('.sel-med');
+    sel.value = match.id;
+    sel.dispatchEvent(new Event('change'));
+    _alert('success', `Barcode matched: ${match.name}`);
+    closeBarcodeModal();
+  } else {
+    document.getElementById('barcode-status').textContent = `Barcode ${code} not found in inventory. Try manual entry.`;
+    document.getElementById('barcode-manual-input').value = code;
+  }
+}
+
+document.getElementById('btn-barcode-manual-ok').addEventListener('click', () => {
+  const code = document.getElementById('barcode-manual-input').value.trim();
+  if (code) resolveBarcodeMatch(code);
+});
+document.getElementById('barcode-manual-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btn-barcode-manual-ok').click();
+});
+
+function stopBarcodeCamera() {
+  _barcodeScanning = false;
+  if (_barcodeStream) { _barcodeStream.getTracks().forEach(t => t.stop()); _barcodeStream = null; }
+  const video = document.getElementById('barcode-video');
+  video.srcObject = null;
+}
+
+function closeBarcodeModal() {
+  stopBarcodeCamera();
+  document.getElementById('barcode-modal').classList.remove('open');
+  _activeBarcodeLineEl = null;
+}
+
+document.getElementById('btn-barcode-close').addEventListener('click', closeBarcodeModal);
+
+// ── Receipt OCR ───────────────────────────────────
+document.getElementById('btn-scan-receipt').addEventListener('click', openOcrModal);
+
+function openOcrModal() {
+  _ocrImageBase64 = null; _ocrImageType = null; _ocrExtractedItems = [];
+  document.getElementById('ocr-preview').style.display = 'none';
+  document.getElementById('ocr-results').style.display = 'none';
+  document.getElementById('btn-ocr-add-wrap').style.display = 'none';
+  document.getElementById('btn-ocr-extract').disabled = true;
+  document.getElementById('btn-ocr-extract').textContent = '🔍 Extract with AI';
+  document.getElementById('ocr-drop-zone').style.display = '';
+  document.getElementById('ocr-modal').classList.add('open');
+}
+
+function closeOcrModal() {
+  document.getElementById('ocr-modal').classList.remove('open');
+}
+
+document.getElementById('btn-ocr-cancel').addEventListener('click', closeOcrModal);
+
+// Drop zone / file select
+const dropZone = document.getElementById('ocr-drop-zone');
+const fileInput = document.getElementById('ocr-file-input');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) handleOcrFile(file);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) handleOcrFile(fileInput.files[0]);
+});
+document.getElementById('ocr-change-photo').addEventListener('click', () => fileInput.click());
+
+function handleOcrFile(file) {
+  if (!file.type.startsWith('image/')) { _alert('error', 'Please select an image file.'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    const base64  = dataUrl.split(',')[1];
+    _ocrImageBase64 = base64;
+    _ocrImageType   = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    document.getElementById('ocr-preview-img').src = dataUrl;
+    document.getElementById('ocr-preview').style.display = '';
+    document.getElementById('ocr-drop-zone').style.display = 'none';
+    document.getElementById('ocr-results').style.display = 'none';
+    document.getElementById('btn-ocr-add-wrap').style.display = 'none';
+    document.getElementById('btn-ocr-extract').disabled = false;
+    document.getElementById('btn-ocr-extract').textContent = '🔍 Extract with AI';
+  };
+  reader.readAsDataURL(file);
+}
+
+document.getElementById('btn-ocr-extract').addEventListener('click', async () => {
+  if (!_ocrImageBase64) return;
+  const btn = document.getElementById('btn-ocr-extract');
+  btn.disabled = true; btn.textContent = '⏳ Analysing receipt…';
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch('https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/receipt-ocr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ imageBase64: _ocrImageBase64, mediaType: _ocrImageType }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'OCR failed');
+    if (!data.items?.length) {
+      btn.disabled = false; btn.textContent = '🔍 Extract with AI';
+      _alert('error', 'No items detected. Try a clearer photo of the invoice.'); return;
+    }
+    _ocrExtractedItems = data.items;
+    renderOcrResults(data.items);
+  } catch (err) {
+    btn.disabled = false; btn.textContent = '🔍 Extract with AI';
+    _alert('error', 'OCR failed: ' + (err.message || 'Please try again.'));
+  }
+});
+
+function renderOcrResults(items) {
+  const listEl = document.getElementById('ocr-items-list');
+  listEl.innerHTML = items.map((item, i) => `
+    <div class="ocr-item" data-i="${i}">
+      <input type="text" class="ocr-name" value="${item.name || ''}" placeholder="Medicine name"/>
+      <input type="number" class="ocr-qty" min="1" value="${item.quantity || 1}" placeholder="Qty"/>
+      <input type="number" class="ocr-cost" min="0" step="0.01" value="${item.cost || 0}" placeholder="Cost"/>
+      <input type="number" class="ocr-mrp" min="0" step="0.01" value="${item.mrp || 0}" placeholder="MRP"/>
+    </div>
+  `).join('');
+
+  document.getElementById('ocr-results').style.display = '';
+  document.getElementById('btn-ocr-add-wrap').style.display = '';
+  document.getElementById('btn-ocr-extract').textContent = '✓ Extracted';
+}
+
+document.getElementById('btn-ocr-rescan').addEventListener('click', () => {
+  _ocrImageBase64 = null;
+  document.getElementById('ocr-preview').style.display = 'none';
+  document.getElementById('ocr-drop-zone').style.display = '';
+  document.getElementById('ocr-results').style.display = 'none';
+  document.getElementById('btn-ocr-add-wrap').style.display = 'none';
+  document.getElementById('btn-ocr-extract').disabled = true;
+  document.getElementById('btn-ocr-extract').textContent = '🔍 Extract with AI';
+});
+
+document.getElementById('btn-ocr-add-lines').addEventListener('click', () => {
+  const ocrItems = [...document.querySelectorAll('#ocr-items-list .ocr-item')];
+  ocrItems.forEach(el => {
+    const name = el.querySelector('.ocr-name').value.trim();
+    const qty  = parseInt(el.querySelector('.ocr-qty').value) || 1;
+    const cost = parseFloat(el.querySelector('.ocr-cost').value) || 0;
+    const mrp  = parseFloat(el.querySelector('.ocr-mrp').value) || 0;
+    if (!name) return;
+    // Try to match medicine by name
+    const match = _medicines.find(m => m.name.toLowerCase() === name.toLowerCase())
+      || _medicines.find(m => m.name.toLowerCase().includes(name.toLowerCase().slice(0, 8)));
+    addLine({ medId: match?.id || '', qty, cost, mrp });
+  });
+  closeOcrModal();
+  _alert('success', `${ocrItems.length} items added from receipt. Please verify and select medicines.`);
+});
+
+// ── Alert helper ──────────────────────────────────
+function _alert(type, msg) {
+  const el = document.getElementById('alert');
+  el.textContent = msg;
+  el.className = `alert show ${type}`;
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (type !== 'error') setTimeout(() => el.className = 'alert', 5000);
+}
+
+// ── Boot ──────────────────────────────────────────
+document.getElementById('invoice-date').value = new Date().toISOString().split('T')[0];
+await loadMedicines();
+addLine();
+</script>
+</body>
+</html>

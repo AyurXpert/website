@@ -2,792 +2,812 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>AyurXpert Technologies&#8482; — Digital Health Solutions for Ayurveda</title>
-<meta name="description" content="AyurXpert Technologies provides secure, cloud-based health information management software for Ayurveda healthcare organisations across India."/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Dashboard — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
 <link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="assets/icon.svg"/>
 <meta name="theme-color" content="#1a4a2e"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="AyurXpert"/>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --green:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
-  --gold:#c9902a;--cream:#faf8f3;--white:#fff;
-  --text:#1c2b1f;--muted:#6b7a72;--border:#d4e6da;
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;
+  --cream:#faf8f3;--white:#ffffff;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;
+  --error:#dc2626;--error-bg:#fff3f3;
+  --warning:#d97706;--warning-bg:#fffbf0;
+  --radius:14px;--shadow:0 2px 14px rgba(0,0,0,0.07);
 }
-html{scroll-behavior:smooth}
-body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);line-height:1.6}
+html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark)}
 
-/* NAV */
-.nav{
-  position:fixed;
-  top:0;
-  left:0;
-  right:0;
-  z-index:100;
-  background:rgba(10,35,22,0.82);
-  backdrop-filter:blur(18px);
-  border-bottom:1px solid rgba(255,255,255,0.05);
-}
+/* ── Layout ── */
+.dashboard{max-width:1280px;margin:0 auto;padding:28px 20px 80px}
 
-.nav-inner{
-  max-width:1280px;
-  margin:0 auto;
-  padding:0 34px;
-  height:88px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between
+/* ── Welcome banner ── */
+.welcome-banner{
+  background:var(--green-deep);border-radius:var(--radius);
+  padding:26px 28px;margin-bottom:24px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  position:relative;overflow:hidden;
 }
-
-.nav-logo-img{
-  height:64px;
-  width:auto;
-  display:block;
-  object-fit:contain;
+.welcome-banner::before{
+  content:'';position:absolute;top:-60px;right:-60px;
+  width:220px;height:220px;border-radius:50%;
+  background:rgba(201,144,42,0.08);
 }
-.nav-links{
-  display:flex;
-  align-items:center;
-  gap:14px;
+.welcome-banner::after{
+  content:'';position:absolute;bottom:-40px;left:-40px;
+  width:160px;height:160px;border-radius:50%;
+  background:rgba(255,255,255,0.04);
 }
-
-.nav-link{
-  color:rgba(255,255,255,0.78);
-  text-decoration:none;
-  font-size:15px;
-  font-weight:400;
-  padding:10px 16px;
-  border-radius:10px;
-  transition:all .25s ease;
-}
-
-.nav-link:hover{
-  color:#fff;
-  background:rgba(255,255,255,0.06);
-}
-
-.nav-login{
-  color:rgba(255,255,255,0.72);
-  font-size:14px;
-  text-decoration:none;
-  padding:10px 16px;
-}
-
-.nav-cta{
-  background:linear-gradient(135deg,#d8a33d,#b98525);
-  color:#fff;
-  font-size:14px;
-  font-weight:500;
-  text-decoration:none;
-  padding:12px 24px;
-  border-radius:12px;
-  margin-left:10px;
-  box-shadow:0 8px 20px rgba(201,144,42,0.18);
-}
-/*MOBILE MENU*/
-.nav-mobile{
-  display:none;
-}
-
-.nav-hamburger{
-  display:none;
-  flex-direction:column;
-  gap:5px;
-  background:none;
-  border:none;
-  cursor:pointer;
-}
-
-.nav-hamburger span{
-  width:24px;
-  height:2px;
-  background:#fff;
-  border-radius:2px;
-}
-
-.mobile-cta{
-  color:var(--gold)!important;
-}
-
-/* HERO */
-.hero{
-  min-height:100vh;
-  background:
-    radial-gradient(circle at top right, rgba(201,144,42,0.10), transparent 28%),
-    radial-gradient(circle at bottom left, rgba(42,122,79,0.18), transparent 26%),
-    linear-gradient(135deg,#0b2417 0%,#103821 45%,#071c11 100%);
-  display:flex;
-  align-items:center;
-  padding:180px 24px 110px;
-  position:relative;
-  overflow:hidden;
-}
-.hero::before{
-  content:'';
-  position:absolute;
-  top:-80px;
-  right:-80px;
-  width:420px;
-  height:420px;
-  border-radius:50%;
-  background:
-    radial-gradient(circle,
-    rgba(201,144,42,0.09) 0%,
-    transparent 70%);
-}
-
-.hero::after{
-  content:'';
-  position:absolute;
-
-  right:-40px;
-  bottom:-20px;
-
-  width:420px;
-  height:420px;
-
-  background:url('assets/leaves.svg') no-repeat bottom right;
-  background-size:contain;
-
-  opacity:.14;
-
-  pointer-events:none;
-  z-index:1;
-}
-.hero-inner{
-  max-width:1280px;
-  width:100%;
-  margin:0 auto;
-  position:relative;
-  z-index:1;
-}
-.hero-cols{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:72px;
-  align-items:center;
-}
-.hero-logo-card{
-  background:rgba(255,255,255,0.96);
-  border-radius:28px;
-  padding:34px;
-  box-shadow:
-    0 20px 60px rgba(0,0,0,0.35),
-    0 0 0 1px rgba(255,255,255,0.06);
-  backdrop-filter:blur(10px);
-  transform:translateY(-8px);
-}
-.hero-logo-card img{max-width:100%;height:auto;display:block}
-.hero-btns{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:4px}
-.hero-learn{color:rgba(255,255,255,0.75);font-size:15px;font-weight:500;text-decoration:none;display:flex;align-items:center;gap:6px;transition:color .2s}
-.hero-learn:hover{color:#fff}
-.hero-badge{display:inline-flex;align-items:center;gap:7px;background:rgba(201,144,42,0.14);border:1px solid rgba(201,144,42,0.28);color:#e8c878;font-size:12px;font-weight:500;padding:6px 16px;border-radius:20px;margin-bottom:28px;letter-spacing:.3px}
-.hero-title{
+.welcome-left{position:relative;z-index:1}
+.welcome-greeting{
   font-family:'Cormorant Garamond',serif;
-  font-size:clamp(52px,6vw,84px);
-  font-weight:600;
-  color:#fff;
-  line-height:1.02;
-  margin-bottom:24px;
-  letter-spacing:-1px;
-  text-shadow:0 4px 20px rgba(0,0,0,.28);
+  font-size:26px;font-weight:600;color:#fff;margin-bottom:4px;line-height:1.2;
 }
-.hero-left{
-  max-width:620px;
-  position:relative;
-  z-index:2;
+.welcome-date{font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:8px}
+.role-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(201,144,42,0.2);border:1px solid rgba(201,144,42,0.35);
+  color:#e8b84b;font-size:12px;font-weight:500;
+  padding:4px 12px;border-radius:20px;
 }
-.hero-sub{
-  font-size:18px;
-  color:rgba(255,255,255,0.80);
-  line-height:1.9;
-  margin-bottom:42px;
-  max-width:640px;
-  font-weight:300;
+.welcome-right{position:relative;z-index:1;flex-shrink:0}
+.btn-primary-action{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.2);
+  color:#fff;border-radius:10px;padding:10px 18px;
+  font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;
+  text-decoration:none;cursor:pointer;transition:background .2s;
 }
-.hero-cta{display:inline-block;background:var(--gold);color:#fff;border-radius:10px;padding:13px 30px;font-size:15px;font-weight:500;text-decoration:none;transition:background .2s,box-shadow .2s}
-.hero-cta:hover{background:#b07d22;box-shadow:0 6px 20px rgba(201,144,42,0.35)}
-.hero-cta,
-.nav-cta{
-  transition:all .25s ease;
+.btn-primary-action:hover{background:rgba(255,255,255,0.22)}
+
+/* ── Tenant code block (admin banner) ── */
+.code-block{
+  background:rgba(0,0,0,0.22);border:1px solid rgba(255,255,255,0.12);
+  border-radius:12px;padding:14px 18px;text-align:center;min-width:190px;
 }
-
-.hero-cta:hover,
-.nav-cta:hover{
-  transform:translateY(-2px);
+.code-label{font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.code-value{
+  font-size:24px;font-weight:700;color:#e8b84b;
+  letter-spacing:4px;margin-bottom:10px;word-break:break-all;
 }
-.hero-sub-link{display:block;margin-top:14px;font-size:13px;color:rgba(255,255,255,0.35);text-decoration:none}
-.hero-sub-link:hover{color:rgba(255,255,255,0.6)}
-
-/* SECTIONS */
-.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
-.section{padding:80px 0}
-.section-label{font-size:11px;font-weight:500;color:var(--gold);text-transform:uppercase;letter-spacing:1.4px;margin-bottom:10px}
-.section-title{font-family:'Cormorant Garamond',serif;font-size:clamp(26px,3.5vw,40px);font-weight:600;color:var(--green);line-height:1.2;margin-bottom:14px}
-.section-body{font-size:15px;color:var(--muted);line-height:1.8;max-width:620px}
-
-/* FEATURES */
-.features-section{background:var(--green-light);padding:60px 0}
-.features-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:40px}
-.feat-card{
-  background:rgba(255,255,255,0.98);
-  border:1px solid rgba(26,74,46,0.08);
-  border-radius:20px;
-  padding:34px 26px;
-  text-align:left;
-  transition:all .25s ease;
-  box-shadow:0 10px 30px rgba(0,0,0,0.04);
+.code-copy{
+  background:rgba(255,255,255,0.1);color:#fff;
+  border:1px solid rgba(255,255,255,0.18);border-radius:8px;
+  padding:6px 16px;font-family:'DM Sans',sans-serif;font-size:12px;
+  cursor:pointer;transition:background .2s;width:100%;
 }
+.code-copy:hover{background:rgba(255,255,255,0.2)}
+.code-hint{font-size:10px;color:rgba(255,255,255,0.3);margin-top:7px;line-height:1.4}
 
-.feat-card:hover{
-  transform:translateY(-6px);
-  box-shadow:0 18px 40px rgba(0,0,0,0.08);
+/* ── Section heading ── */
+.section{margin-bottom:24px}
+.section-title{font-size:12px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px}
+
+/* ── Stats grid ── */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat-card{
+  background:var(--white);border-radius:var(--radius);padding:18px 20px;
+  box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;
 }
-.feat-icon{font-size:30px;margin-bottom:12px}
-.feat-title{font-size:14px;font-weight:600;color:var(--green);margin-bottom:6px}
-.feat-body{font-size:13px;color:var(--muted);line-height:1.6}
-
-/* ABOUT */
-.about-section{
-  background:#f8f7f2;
+.stat-header{display:flex;align-items:flex-start;justify-content:space-between}
+.stat-icon{
+  width:38px;height:38px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;font-size:18px;
 }
-.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;margin-top:48px}
-.about-text p{font-size:15px;color:var(--muted);line-height:1.85;margin-bottom:16px}
-.about-text p:last-child{margin-bottom:0}
-.about-logo{display:flex;align-items:center;justify-content:center}
-.about-logo img{max-width:440px;width:100%;height:auto}
-.about-cards{display:flex;flex-direction:column;gap:14px}
-.about-card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:18px 20px;display:flex;gap:14px;align-items:flex-start}
-.about-card-icon{font-size:22px;flex-shrink:0;margin-top:1px}
-.about-card-title{font-size:14px;font-weight:600;color:var(--green);margin-bottom:3px}
-.about-card-body{font-size:13px;color:var(--muted);line-height:1.5}
+.stat-icon.green{background:var(--green-light)}
+.stat-icon.gold{background:var(--gold-light)}
+.stat-icon.blue{background:#eff6ff}
+.stat-icon.red{background:#fff1f2}
+.stat-number{
+  font-family:'Cormorant Garamond',serif;
+  font-size:34px;font-weight:600;color:var(--text-dark);line-height:1;
+}
+.stat-number.loading{color:var(--border)}
+.stat-label{font-size:12px;color:var(--text-muted);font-weight:400}
+.stat-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
 
-/* OBJECTIVES */
-.obj-section{background:var(--white);padding:80px 0}
-.obj-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px;margin-top:48px}
-.obj-card{background:var(--cream);border:1px solid var(--border);border-radius:16px;padding:32px 28px;display:flex;gap:20px;align-items:flex-start;transition:box-shadow .2s}
-.obj-card:hover{box-shadow:0 10px 32px rgba(0,0,0,0.07)}
-.obj-num{font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:600;color:var(--gold);line-height:1;flex-shrink:0;min-width:40px}
-.obj-title{font-size:15px;font-weight:600;color:var(--green);margin-bottom:6px}
-.obj-body{font-size:14px;color:var(--muted);line-height:1.75}
+/* ── Quick actions ── */
+.actions-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.action-card{
+  background:var(--white);border:1.5px solid var(--border);
+  border-radius:var(--radius);padding:16px;
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  text-align:center;text-decoration:none;color:var(--text-dark);
+  transition:border-color .2s,box-shadow .2s,transform .15s;cursor:pointer;
+}
+.action-card:hover{border-color:var(--green-mid);box-shadow:0 4px 20px rgba(45,122,79,0.12);transform:translateY(-2px)}
+.action-icon{font-size:28px;line-height:1}
+.action-label{font-size:13px;font-weight:500;color:var(--text-dark)}
+.action-desc{font-size:11px;color:var(--text-muted);line-height:1.4}
 
-/* ABDM */
-.abdm-section{background:var(--green);padding:80px 0}
-.abdm-inner{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
-.abdm-badge{display:inline-flex;align-items:center;gap:7px;background:rgba(201,144,42,0.15);border:1px solid rgba(201,144,42,0.28);color:#e8c878;font-size:12px;padding:5px 14px;border-radius:16px;margin-bottom:18px}
-.abdm-title{font-family:'Cormorant Garamond',serif;font-size:clamp(24px,3vw,36px);font-weight:600;color:#fff;line-height:1.2;margin-bottom:14px}
-.abdm-body{font-size:15px;color:rgba(255,255,255,0.55);line-height:1.8;margin-bottom:24px}
-.abdm-list{display:flex;flex-direction:column;gap:10px}
-.abdm-item{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:rgba(255,255,255,0.7)}
-.abdm-dot{width:5px;height:5px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:8px}
-.abdm-commitment{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:24px}
-.abdm-commit-title{font-size:13px;font-weight:600;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.8px;margin-bottom:16px}
-.abdm-commit-item{display:flex;align-items:center;gap:10px;font-size:14px;color:rgba(255,255,255,0.7);padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.06)}
-.abdm-commit-item:last-child{border-bottom:none;padding-bottom:0}
-.abdm-check{color:var(--gold);font-size:15px;flex-shrink:0}
+/* ── Card section ── */
+.content-card{
+  background:var(--white);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow:hidden;
+}
+.content-card-header{
+  padding:18px 22px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.content-card-title{font-size:15px;font-weight:500;color:var(--text-dark)}
+.badge-count{
+  background:var(--green-light);color:var(--green-deep);
+  font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;
+}
+.badge-count.red{background:var(--error-bg);color:var(--error)}
+.badge-count.gold{background:var(--gold-light);color:var(--gold)}
 
-/* CONTACT */
-.contact-section{background:var(--white)}
-.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin-top:40px}
-.contact-block{background:var(--cream);border:1px solid var(--border);border-radius:14px;padding:28px}
-.contact-block-title{font-size:13px;font-weight:600;color:var(--green);text-transform:uppercase;letter-spacing:.7px;margin-bottom:16px}
-.contact-row{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
-.contact-row:last-child{margin-bottom:0}
-.contact-icon{font-size:18px;flex-shrink:0;margin-top:1px}
-.contact-label{font-size:12px;color:var(--muted);margin-bottom:2px}
-.contact-value{font-size:15px;color:var(--text);font-weight:500}
-.contact-value a{color:var(--green-mid);text-decoration:none}
-.contact-value a:hover{color:var(--gold)}
+/* ── Table ── */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{
+  text-align:left;padding:10px 18px;
+  font-size:11px;font-weight:500;color:var(--text-muted);
+  text-transform:uppercase;letter-spacing:.6px;
+  background:#fafafa;border-bottom:1px solid var(--border);
+}
+td{padding:13px 18px;font-size:14px;border-bottom:1px solid #f0f4f2;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafff8}
 
-/* DATA PRIVACY */
-.privacy-section{background:var(--cream);padding:56px 0}
-.privacy-box{background:var(--white);border:1px solid var(--border);border-radius:14px;padding:32px;max-width:720px}
-.privacy-box p{font-size:14px;color:var(--muted);line-height:1.85;margin-bottom:12px}
-.privacy-box p:last-child{margin-bottom:0}
-.privacy-box strong{color:var(--green)}
-
-/* ATTRIBUTION STRIP */
-.attr-strip{background:var(--cream);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:24px 0}
-.attr-inner{max-width:1080px;margin:0 auto;padding:0 24px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:0}
-.attr-item{display:flex;flex-direction:column;align-items:center;padding:8px 32px;text-align:center}
-.attr-label{font-size:11px;font-weight:500;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
-.attr-value{font-size:14px;color:var(--green);font-weight:500}
-.attr-div{width:1px;height:40px;background:var(--border);flex-shrink:0}
-@media(max-width:640px){
-  .attr-inner{flex-direction:column;gap:0}
-  .attr-div{width:40px;height:1px}
-  .attr-item{padding:12px 24px}
+/* ── Table role chip ── */
+.role-chip{
+  display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;
+  background:var(--green-light);color:var(--green-deep);
 }
 
-/* FOOTER */
-.footer{
-  background:#08150e;
-  padding:42px 24px;
+/* ── Action buttons in table ── */
+.btn-approve{
+  background:var(--green-deep);color:#fff;border:none;border-radius:8px;
+  padding:7px 14px;font-family:'DM Sans',sans-serif;font-size:13px;
+  cursor:pointer;transition:background .2s;margin-right:6px;
 }
-.footer-inner{max-width:1080px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
-.footer-brand{display:flex;align-items:center;gap:9px}
-.footer-logo{width:28px;height:28px;border-radius:6px;object-fit:contain}
-.footer-name{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;display:flex;align-items:baseline}
-.footer-name span:first-child{color:#fff}
-.footer-name span:nth-child(2){color:var(--gold)}
-.footer-name .n-tech{color:rgba(255,255,255,0.45);font-size:11px;font-weight:400;letter-spacing:.3px;margin-left:3px}
-.footer-links{display:flex;gap:20px;flex-wrap:wrap}
-.footer-link{font-size:13px;color:rgba(255,255,255,0.35);text-decoration:none;transition:color .2s}
-.footer-link:hover{color:rgba(255,255,255,0.7)}
-.footer-copy{font-size:12px;color:rgba(255,255,255,0.2);width:100%;text-align:center;margin-top:8px}
-
-/* RESPONSIVE */
-
-@media(max-width:860px){
-
-  .nav-links{
-    display:none;
-  }
-
-  .nav-hamburger{
-    display:flex;
-  }
-
-  .nav-mobile{
-    display:flex;
-    flex-direction:column;
-    gap:14px;
-    padding:22px;
-    background:#0d2418;
-    border-top:1px solid rgba(255,255,255,0.05);
-
-    max-height:0;
-    overflow:hidden;
-    opacity:0;
-
-    transition:all .3s ease;
-  }
-
-  .nav-mobile.open{
-    max-height:400px;
-    opacity:1;
-    padding:22px;
-  }
-
-  .hero-cols{
-    grid-template-columns:1fr;
-    gap:36px;
-    text-align:center;
-  }
-
-  .hero-btns{
-    justify-content:center;
-  }
-
-  .features-grid{
-    grid-template-columns:1fr 1fr;
-  }
-
-  .about-grid,
-  .abdm-inner,
-  .contact-grid,
-  .obj-grid{
-    grid-template-columns:1fr;
-  }
-
-  .hero-logo-card{
-    max-width:580px;
-    margin:auto;
-  }
+.btn-approve:hover{background:#1f5c37}
+.btn-reject{
+  background:#fff;color:var(--error);border:1.5px solid #fca5a5;border-radius:8px;
+  padding:7px 14px;font-family:'DM Sans',sans-serif;font-size:13px;
+  cursor:pointer;transition:background .2s,color .2s;
 }
+.btn-reject:hover{background:var(--error-bg)}
+.btn-approve:disabled,.btn-reject:disabled{opacity:.5;cursor:not-allowed}
 
-@media(max-width:540px){
+/* ── Empty state ── */
+.empty-state{text-align:center;padding:48px 24px}
+.empty-icon{font-size:42px;margin-bottom:12px;opacity:.5}
+.empty-title{font-size:15px;font-weight:500;color:var(--text-mid);margin-bottom:6px}
+.empty-body{font-size:13px;color:var(--text-muted);line-height:1.6}
 
-  .section{
-    padding:56px 0;
-  }
+/* ── Toast ── */
+#toast{
+  position:fixed;bottom:70px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:#1c2b1f;color:#fff;border-radius:10px;
+  padding:11px 20px;font-size:14px;opacity:0;pointer-events:none;
+  transition:opacity .25s,transform .25s;z-index:1100;white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-  .features-grid{
-    grid-template-columns:1fr;
-  }
-
-  .footer-inner{
-    flex-direction:column;
-    align-items:flex-start;
-  }
-
-  .hero-title{
-    font-size:58px;
-    line-height:1.04;
-  }
-
-  .hero-sub{
-    font-size:16px;
-  }
-
-  .nav-logo-img{
-    height:48px;
-  }
+/* ── Responsive ── */
+@media(max-width:900px){
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .actions-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:600px){
+  .dashboard{padding:16px 12px 80px}
+  .welcome-banner{padding:18px;flex-direction:column;align-items:flex-start}
+  .welcome-greeting{font-size:22px}
+  .btn-primary-action{width:100%;justify-content:center}
+  .code-block{min-width:unset;width:100%}
+  .code-value{font-size:20px;letter-spacing:3px}
+  .stats-grid{gap:10px}
+  .stat-number{font-size:28px}
+  .actions-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:400px){
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .actions-grid{grid-template-columns:1fr 1fr}
 }
 </style>
 </head>
 <body>
 
-<!-- NAV -->
-<nav class="nav">
-  <div class="nav-inner">
-    <a href="home.html" class="nav-brand">
-      <img src="assets/AyurXpert_Navbar_Logo.png" alt="AyurXpert Technologies" class="nav-logo-img"/>
-    </a>
-    <div class="nav-links">
-      <a href="#about"       class="nav-link">About</a>
-      <a href="#objectives"  class="nav-link">Objectives</a>
-      <a href="#abdm"        class="nav-link">ABDM</a>
-      <a href="#contact"     class="nav-link">Contact</a>
-      <a href="login.html" class="nav-login">Staff Login</a>
-      <a href="#contact" class="nav-cta">Get in Touch</a>
-    </div>
-    <button class="nav-hamburger" id="nav-hamburger" aria-label="Open menu">
-      <span></span><span></span><span></span>
-    </button>
-  </div>
-  <div class="nav-mobile" id="nav-mobile">
-  <a href="#about"      class="nav-link" onclick="closeMobile()">About</a>
-  <a href="#objectives" class="nav-link" onclick="closeMobile()">Objectives</a>
-  <a href="#abdm"       class="nav-link" onclick="closeMobile()">ABDM</a>
-  <a href="#contact"    class="nav-link" onclick="closeMobile()">Contact</a>
-  <a href="login.html" class="nav-link">Staff Login</a>
-  <a href="#contact" class="nav-link mobile-cta" onclick="closeMobile()">Get in Touch</a>
-</div>
-</nav>
+<div class="dashboard" id="dashboard" style="display:none">
 
-<!-- HERO -->
-<section class="hero">
-  <div class="hero-inner">
-    <div class="hero-cols">
-      <div class="hero-left">
-        <div class="hero-badge">🛡️&nbsp; ABDM Compliant &nbsp;·&nbsp; Made in India</div>
-        <h1 class="hero-title">
-          Digital Health Solutions<br/>for <em>Ayurveda</em>
-        </h1>
-        <p class="hero-sub">
-          AyurXpert Technologies&#8482; provides secure, cloud-based health information management
-          software for Ayurveda healthcare organisations across India,
-          aligned with the Ayushman Bharat Digital Mission.
-        </p>
-        <div class="hero-btns">
-          <a href="#contact" class="hero-cta">Get in Touch</a>
-          <a href="#about" class="hero-learn">Learn More →</a>
-        </div>
-      </div>
-      <div class="hero-right">
-        <div class="hero-logo-card">
-          <img src="assets/AyurXpert_Transparent_Logo.png" alt="AyurXpert Technologies — Digital Health Platform for Ayurveda"/>
-        </div>
-      </div>
+  <!-- Welcome Banner -->
+  <div class="welcome-banner">
+    <div class="welcome-left">
+      <div class="welcome-greeting">Good <span id="time-of-day">morning</span>, <span id="user-name">...</span></div>
+      <div class="welcome-date" id="today-date"></div>
+      <div class="role-badge"><span id="role-label"></span></div>
     </div>
+    <div class="welcome-right" id="banner-action"></div>
   </div>
-</section>
 
-<!-- FEATURES -->
-<section class="features-section">
-  <div class="wrap">
-    <div class="section-label" style="text-align:center">Why AyurXpert Technologies&#8482;</div>
-    <div class="features-grid">
-      <div class="feat-card">
-        <div class="feat-icon">🛡️</div>
-        <div class="feat-title">ABDM Ready</div>
-        <div class="feat-body">Fully aligned with Ayushman Bharat Digital Mission standards and HIP registration.</div>
-      </div>
-      <div class="feat-card">
-        <div class="feat-icon">🌿</div>
-        <div class="feat-title">Ayurveda Focused</div>
-        <div class="feat-body">Built specifically for Ayurveda practitioners, clinics and institutions.</div>
-      </div>
-      <div class="feat-card">
-        <div class="feat-icon">☁️</div>
-        <div class="feat-title">Cloud Based</div>
-        <div class="feat-body">Secure, scalable and accessible from anywhere, anytime.</div>
-      </div>
-      <div class="feat-card">
-        <div class="feat-icon">🏥</div>
-        <div class="feat-title">Multi-clinic Support</div>
-        <div class="feat-body">Manage multiple clinics, practitioners and patients efficiently.</div>
-      </div>
+  <!-- Stats -->
+  <div class="section">
+    <div class="section-title">Today at a glance</div>
+    <div class="stats-grid" id="stats-grid">
+      <!-- injected by JS -->
     </div>
   </div>
-</section>
 
-<!-- ABOUT -->
-<section id="about" class="section about-section">
-  <div class="wrap">
-    <div class="section-label">About Us</div>
-    <h2 class="section-title">Healthcare Technology for Ayurveda Practitioners</h2>
-    <div class="about-grid">
-      <div class="about-text">
-        <p>
-          AyurXpert Technologies&#8482; is a healthcare technology company developing digital health
-          management software for Ayurveda healthcare providers across India and
-          internationally. Our platform enables Ayurveda clinics, hospitals, and
-          practitioners to securely manage patient health records and clinical workflows.
-        </p>
-        <p>
-          We are committed to building technology that respects patient privacy,
-          ensures data security, and complies with India's national digital health
-          standards under the Ayushman Bharat Digital Mission (ABDM).
-        </p>
-        <p>
-          Our solutions are designed to support Ayurveda healthcare organisations
-          in their digital transformation journey — from patient registration
-          to clinical documentation — with security and compliance at the core.
-        </p>
-      </div>
-      <div class="about-logo">
-        <img src="assets/AyurXpert_Transparent_Logo.png" alt="AyurXpert Technologies — Digital Health Platform for Ayurveda"/>
-      </div>
+  <!-- Quick Actions -->
+  <div class="section">
+    <div class="section-title">Quick actions</div>
+    <div class="actions-grid" id="actions-grid">
+      <!-- injected by JS -->
     </div>
   </div>
-</section>
 
-<!-- OBJECTIVES -->
-<section id="objectives" class="obj-section">
-  <div class="wrap">
-    <div class="section-label">Our Objectives</div>
-    <h2 class="section-title">What We Set Out to Achieve</h2>
-    <p class="section-body">AyurXpert Technologies&#8482; is driven by a clear mission — to bring every Ayurveda healthcare provider into the digital age, securely and responsibly.</p>
-    <div class="obj-grid">
-      <div class="obj-card">
-        <div class="obj-num">01</div>
-        <div>
-          <div class="obj-title">Digital Empowerment for Ayurveda</div>
-          <div class="obj-body">To make modern, secure, and cloud-based health information management accessible to every Ayurveda healthcare provider in India — from single-practitioner clinics to multi-branch hospitals — regardless of scale or location.</div>
-        </div>
-      </div>
-      <div class="obj-card">
-        <div class="obj-num">02</div>
-        <div>
-          <div class="obj-title">Honour Clinical Tradition</div>
-          <div class="obj-body">To develop technology that respects the depth of Ayurveda practice — enabling accurate digital documentation of traditional assessments, Panchakarma workflows, and classical treatment protocols.</div>
-        </div>
-      </div>
-      <div class="obj-card">
-        <div class="obj-num">03</div>
-        <div>
-          <div class="obj-title">National Digital Health Integration</div>
-          <div class="obj-body">To ensure every Ayurveda practitioner can participate fully in India's Ayushman Bharat Digital Mission — with ABHA-linked patient records, FHIR-compatible data, and seamless HIE connectivity.</div>
-        </div>
-      </div>
-      <div class="obj-card">
-        <div class="obj-num">04</div>
-        <div>
-          <div class="obj-title">Privacy, Security &amp; Trust</div>
-          <div class="obj-body">To uphold the highest standards of patient data privacy and security — ensuring informed consent, transparent data policies, and full compliance with India's Digital Personal Data Protection Act, 2023.</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
+  <!-- Main content section -->
+  <div id="main-section"></div>
 
-<!-- ABDM -->
-<section id="abdm" class="abdm-section">
-  <div class="wrap">
-    <div class="abdm-inner">
-      <div>
-        <div class="abdm-badge">🛡️&nbsp; ABDM — Ayushman Bharat Digital Mission</div>
-        <h2 class="abdm-title">Our Commitment to ABDM Compliance</h2>
-        <p class="abdm-body">
-          AyurXpert Technologies&#8482; is actively working to register as a Health Information Provider (HIP)
-          under the Ayushman Bharat Digital Mission. We are building our platform to
-          align with NHA's standards for digital health data exchange and patient consent.
-        </p>
-        <div class="abdm-list">
-          <div class="abdm-item">
-            <div class="abdm-dot"></div>
-            <span>ABHA Health ID creation and linking for patients</span>
-          </div>
-          <div class="abdm-item">
-            <div class="abdm-dot"></div>
-            <span>FHIR-compatible electronic health records</span>
-          </div>
-          <div class="abdm-item">
-            <div class="abdm-dot"></div>
-            <span>Patient consent management for health data sharing</span>
-          </div>
-          <div class="abdm-item">
-            <div class="abdm-dot"></div>
-            <span>Integration with Health Information Exchange (HIE) infrastructure</span>
-          </div>
-          <div class="abdm-item">
-            <div class="abdm-dot"></div>
-            <span>Compliance with NHA's Health Data Management Policy</span>
-          </div>
-        </div>
-      </div>
-      <div class="abdm-commitment">
-        <div class="abdm-commit-title">Our Commitments</div>
-        <div class="abdm-commit-item"><span class="abdm-check">✓</span><span>No unauthorised sharing of patient data</span></div>
-        <div class="abdm-commit-item"><span class="abdm-check">✓</span><span>Patient consent before any data access</span></div>
-        <div class="abdm-commit-item"><span class="abdm-check">✓</span><span>Data stored within India</span></div>
-        <div class="abdm-commit-item"><span class="abdm-check">✓</span><span>Transparent data usage policies</span></div>
-        <div class="abdm-commit-item"><span class="abdm-check">✓</span><span>Regular security audits</span></div>
-        <div class="abdm-commit-item"><span class="abdm-check">✓</span><span>Right to data deletion upon request</span></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- DATA PRIVACY -->
-<section class="privacy-section">
-  <div class="wrap">
-    <div class="section-label">Privacy</div>
-    <h2 class="section-title" style="margin-bottom:24px">Data Protection Statement</h2>
-    <div class="privacy-box">
-      <p>
-        <strong>AyurXpert Technologies&#8482;</strong> is committed to protecting the privacy and security of patient
-        health information. We collect and process health data solely for the purpose of
-        providing healthcare management services to registered healthcare organisations.
-      </p>
-      <p>
-        All patient data is stored securely on cloud infrastructure with encryption at rest
-        and in transit. Access to patient records is strictly controlled — only authorised
-        staff of the respective healthcare organisation can access their patients' data.
-        No patient data is shared with third parties without explicit consent.
-      </p>
-      <p>
-        We comply with the Information Technology Act, 2000, the IT (Amendment) Act, 2008,
-        and applicable provisions of the Digital Personal Data Protection Act, 2023.
-        Our platform is designed to comply with NHA's Health Data Management Policy
-        under the Ayushman Bharat Digital Mission.
-      </p>
-      <p>
-        For any privacy-related queries, data deletion requests, or to report a concern,
-        please contact us at <strong>privacy@ayurxpert.com</strong>.
-        Full privacy policy available at <a href="privacy.html" style="color:var(--green-mid);text-decoration:none">ayurxpert.com/privacy</a>.
-      </p>
-    </div>
-  </div>
-</section>
-
-<!-- CONTACT -->
-<section id="contact" class="section contact-section">
-  <div class="wrap">
-    <div class="section-label">Contact</div>
-    <h2 class="section-title">Get in Touch</h2>
-    <p class="section-body">For general enquiries, ABDM-related queries, or partnership discussions, reach us at the contacts below.</p>
-    <div class="contact-grid">
-      <div class="contact-block">
-        <div class="contact-block-title">General Enquiries</div>
-        <div class="contact-row">
-          <div class="contact-icon">✉️</div>
-          <div>
-            <div class="contact-label">Email</div>
-            <div class="contact-value"><a href="mailto:admin@ayurxpert.com">admin@ayurxpert.com</a></div>
-          </div>
-        </div>
-        <div class="contact-row">
-          <div class="contact-icon">🌐</div>
-          <div>
-            <div class="contact-label">Website</div>
-            <div class="contact-value"><a href="https://ayurxpert.com">ayurxpert.com</a></div>
-          </div>
-        </div>
-        <div class="contact-row">
-          <div class="contact-icon">📞</div>
-          <div>
-            <div class="contact-label">Phone</div>
-            <div class="contact-value"><a href="tel:+919844210154">+91 98442 10154</a></div>
-          </div>
-        </div>
-        <div class="contact-row">
-          <div class="contact-icon">📍</div>
-          <div>
-            <div class="contact-label">Registered Office</div>
-            <div class="contact-value" style="font-size:14px;line-height:1.6">#226/A, 12th Main, 2nd Cross,<br/>Saraswathipuram, Mysuru – 570 009<br/>Karnataka, India</div>
-          </div>
-        </div>
-        <div class="contact-row">
-          <div class="contact-icon">🏥</div>
-          <div>
-            <div class="contact-label">Clinical Address</div>
-            <div class="contact-value" style="font-size:14px;line-height:1.6">230 Vokkaligara Srirama Mandira,<br/>K R Hospital Road, Mandimohalla,<br/>Mysuru – 570 001, Karnataka, India</div>
-          </div>
-        </div>
-      </div>
-      <div class="contact-block">
-        <div class="contact-block-title">ABDM &amp; Compliance</div>
-        <div class="contact-row">
-          <div class="contact-icon">🛡️</div>
-          <div>
-            <div class="contact-label">ABDM Queries</div>
-            <div class="contact-value"><a href="mailto:abdm@ayurxpert.com">abdm@ayurxpert.com</a></div>
-          </div>
-        </div>
-        <div class="contact-row">
-          <div class="contact-icon">🔒</div>
-          <div>
-            <div class="contact-label">Privacy &amp; Data Requests</div>
-            <div class="contact-value"><a href="mailto:privacy@ayurxpert.com">privacy@ayurxpert.com</a></div>
-          </div>
-        </div>
-        <div class="contact-row">
-          <div class="contact-icon">📋</div>
-          <div>
-            <div class="contact-label">HIP Registration Reference</div>
-            <div class="contact-value">AyurXpert Technologies&#8482;</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ATTRIBUTION STRIP -->
-<div class="attr-strip">
-  <div class="attr-inner">
-    <div class="attr-item">
-      <span class="attr-label">Built for</span>
-      <span class="attr-value">Ayurveda practice management</span>
-    </div>
-    <div class="attr-div"></div>
-    <div class="attr-item">
-      <span class="attr-label">Powered by</span>
-      <span class="attr-value">Srishti Ayurveda&#8482; &amp; AyurXpert&#8482; HMS</span>
-    </div>
-    <div class="attr-div"></div>
-    <div class="attr-item">
-      <span class="attr-label">Developed in collaboration with</span>
-      <span class="attr-value">Srishti Ayurveda&#8482;</span>
-    </div>
-  </div>
 </div>
 
-<!-- FOOTER -->
-<footer class="footer">
-  <div class="footer-inner">
-    <div class="footer-brand">
-      <img src="assets/icon.svg" alt="AyurXpert" class="footer-logo"/>
-      <div class="footer-name"><span>Ayur</span><span>Xpert</span><span class="n-tech">Technologies&#8482;</span></div>
-    </div>
-    <div class="footer-links">
-      <a href="#about"      class="footer-link">About</a>
-      <a href="#abdm"       class="footer-link">ABDM</a>
-      <a href="#contact"    class="footer-link">Contact</a>
-      <a href="privacy.html" class="footer-link">Privacy Policy</a>
-      <a href="terms.html"  class="footer-link">Terms of Service</a>
-    </div>
-    <div class="footer-copy">&copy; 2026 AyurXpert Technologies&#8482;. All rights reserved.</div>
-  </div>
-</footer>
+<div id="toast"></div>
 
-<script>
-const btn = document.getElementById('nav-hamburger');
-const mob = document.getElementById('nav-mobile');
-btn.addEventListener('click', () => {
-  btn.classList.toggle('open');
-  mob.classList.toggle('open');
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module">
+import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId, getCurrentRole,
+         getPendingApprovals, logout } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase }   from './js/core/db/supabaseClient.js';
+
+// ── Boot ────────────────────────────────────────────────────────────────────
+await requireAuth([], 'home.html');
+initNavbar();
+
+const profile  = getCurrentProfile();
+const tenant   = getCurrentTenant();
+const tenantId = getCurrentTenantId();
+const role     = getCurrentRole();
+
+if (!profile) { window.location.href = 'login.html'; }
+
+document.getElementById('dashboard').style.display = '';
+document.title = `Dashboard — ${tenant?.name || 'AyurXpert'}`;
+
+// ── Greeting ─────────────────────────────────────────────────────────────────
+const h = new Date().getHours();
+const tod = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+document.getElementById('time-of-day').textContent = tod;
+document.getElementById('user-name').textContent   = (profile.full_name || 'there').split(' ')[0];
+document.getElementById('today-date').textContent  = new Date().toLocaleDateString('en-IN', {
+  weekday:'long', day:'numeric', month:'long', year:'numeric'
 });
-function closeMobile() {
-  btn.classList.remove('open');
-  mob.classList.remove('open');
+document.getElementById('role-label').textContent  = _roleLabel(role);
+
+// ── Today range helper ────────────────────────────────────────────────────────
+const todayStr   = new Date().toISOString().split('T')[0];
+const todayStart = todayStr + 'T00:00:00';
+const todayEnd   = todayStr + 'T23:59:59';
+
+// ── Role-specific dashboard setup ─────────────────────────────────────────────
+if (['super_admin','dept_admin'].includes(role)) {
+  await _setupAdmin();
+} else if (role === 'doctor') {
+  await _setupDoctor();
+} else if (['receptionist','nurse'].includes(role)) {
+  await _setupReception();
+} else if (role === 'pharmacist') {
+  await _setupPharmacist();
+} else if (role === 'accountant') {
+  await _setupAccountant();
+} else if (role === 'lab_tech') {
+  await _setupLabTech();
+} else {
+  await _setupDefault();
 }
-document.addEventListener('click', e => { if (!e.target.closest('.nav')) closeMobile(); });
+
+// ════════════════════════════════════════════════════════════════
+// ADMIN  (super_admin / dept_admin)
+// ════════════════════════════════════════════════════════════════
+async function _setupAdmin() {
+  // Show tenant code in banner (admins need this to share with staff)
+  _setBannerAdmin();
+
+  // Stats — fetch in parallel
+  const [pending, staff, visitsToday, revenueToday] = await Promise.all([
+    _count('profiles', [['tenant_id', tenantId], ['status','pending_approval']]),
+    _count('profiles', [['tenant_id', tenantId], ['status','active']]),
+    _countToday('visits'),
+    _sumToday('bills', 'amount_paid'),
+  ]);
+
+  _renderStats([
+    { icon:'⏳', iconClass:'red',   number: pending,    label:'Pending Approvals',  sub:'staff awaiting review' },
+    { icon:'👥', iconClass:'green', number: staff,      label:'Active Staff',       sub:'currently onboarded' },
+    { icon:'🏥', iconClass:'blue',  number: visitsToday,label:'Patients Today',     sub:'visits registered' },
+    { icon:'₹',  iconClass:'gold',  number: _fmt(revenueToday), label:'Revenue Today', sub:'total collected' },
+  ]);
+
+  _renderActions([
+    { icon:'⏳', label:'Approve Staff',   desc:'Review pending requests', href:'#',          id:'btn-approvals' },
+    { icon:'🏥', label:'New Patient',     desc:'Register & add to queue', href:'reception.html' },
+    { icon:'📊', label:'Reports',         desc:'Revenue & analytics',     href:'reports.html' },
+    { icon:'💊', label:'Pharmacy',        desc:'Dispensary & stock',      href:'dispensaryPOS.html' },
+  ]);
+
+  document.getElementById('btn-approvals')?.addEventListener('click', e => {
+    e.preventDefault();
+    document.getElementById('main-section').scrollIntoView({ behavior:'smooth' });
+  });
+
+  await _renderPendingApprovals();
+}
+
+// ════════════════════════════════════════════════════════════════
+// DOCTOR
+// ════════════════════════════════════════════════════════════════
+async function _setupDoctor() {
+  _setBannerAction('Open Queue', 'doctor.html');
+
+  const [waiting, completed, totalVisits] = await Promise.all([
+    _count('visits', [['tenant_id', tenantId], ['status','waiting']], true),
+    _count('visits', [['tenant_id', tenantId], ['status','completed']], true),
+    _count('visits', [['tenant_id', tenantId]]),
+  ]);
+
+  _renderStats([
+    { icon:'⏳', iconClass:'red',   number: waiting,     label:'Waiting Now',        sub:'patients in queue' },
+    { icon:'✅', iconClass:'green', number: completed,   label:'Seen Today',         sub:'consultations done' },
+    { icon:'📋', iconClass:'blue',  number: totalVisits, label:'Total Visits',       sub:'all time in system' },
+    { icon:'📝', iconClass:'gold',  number: '—',         label:'Prescriptions Today',sub:'coming soon' },
+  ]);
+
+  _renderActions([
+    { icon:'🩺', label:'Patient Queue',   desc:'View & start consultation', href:'doctor.html' },
+    { icon:'📋', label:'Consultation',    desc:'Open consultation room',    href:'consultation.html' },
+    { icon:'💊', label:'Prescriptions',   desc:'View recent prescriptions', href:'consultation.html' },
+    { icon:'📊', label:'Reports',         desc:'Patient analytics',         href:'reports.html' },
+  ]);
+
+  _renderWelcomeCard(
+    '🩺',
+    'Your patient queue is ready',
+    'Patients registered at reception will appear in your queue. Click "Patient Queue" to begin your consultations.',
+    'Open Queue', 'doctor.html'
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// RECEPTIONIST / NURSE
+// ════════════════════════════════════════════════════════════════
+async function _setupReception() {
+  _setBannerAction('Register Patient', 'reception.html');
+
+  const [regToday, waiting, pendingBills, collected] = await Promise.all([
+    _countToday('visits'),
+    _count('visits', [['tenant_id', tenantId], ['status','waiting']]),
+    _count('bills', [['tenant_id', tenantId], ['status','pending']]),
+    _sumToday('bills', 'amount_paid'),
+  ]);
+
+  _renderStats([
+    { icon:'🏥', iconClass:'green', number: regToday,     label:'Registered Today',   sub:'patients checked in' },
+    { icon:'⏳', iconClass:'red',   number: waiting,      label:'Waiting Now',        sub:'in queue' },
+    { icon:'📄', iconClass:'gold',  number: pendingBills, label:'Pending Bills',      sub:'awaiting payment' },
+    { icon:'₹',  iconClass:'blue',  number: _fmt(collected), label:'Collected Today', sub:'total payments' },
+  ]);
+
+  _renderActions([
+    { icon:'➕', label:'New Patient',    desc:'Register & add to queue', href:'reception.html' },
+    { icon:'👁', label:'View Queue',     desc:'All waiting patients',    href:'doctor.html' },
+    { icon:'📄', label:'Billing',        desc:'Create or view bills',    href:'reception.html' },
+    { icon:'📊', label:'Today\'s Log',   desc:'All visits today',        href:'reports.html' },
+  ]);
+
+  _renderWelcomeCard(
+    '🏥',
+    'Reception is ready',
+    'Register new patients, manage the OPD queue, and collect payments — all from one place.',
+    'Register a Patient', 'reception.html'
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// PHARMACIST
+// ════════════════════════════════════════════════════════════════
+async function _setupPharmacist() {
+  _setBannerAction('Open POS', 'dispensaryPOS.html');
+
+  const [lowStock, salesToday, purchases] = await Promise.all([
+    _count('inventory', [['tenant_id', tenantId]], false, ['quantity', 'lte', 10]),
+    _sumToday('bills', 'amount_paid'),
+    _countToday('purchase_orders'),
+  ]);
+
+  _renderStats([
+    { icon:'⚠️', iconClass:'red',   number: lowStock,          label:'Low Stock Items',   sub:'quantity ≤ 10' },
+    { icon:'₹',  iconClass:'gold',  number: _fmt(salesToday),  label:'Sales Today',       sub:'pharmacy revenue' },
+    { icon:'🚚', iconClass:'blue',  number: purchases,         label:'Purchases Today',   sub:'stock received' },
+    { icon:'💊', iconClass:'green', number: '—',               label:'Dispensed Today',   sub:'coming soon' },
+  ]);
+
+  _renderActions([
+    { icon:'🛒', label:'POS',          desc:'Dispense & billing',   href:'dispensaryPOS.html' },
+    { icon:'🚚', label:'Purchase',     desc:'Receive new stock',     href:'purchase.html' },
+    { icon:'📦', label:'Inventory',    desc:'Check stock levels',    href:'purchase.html' },
+    { icon:'📊', label:'Reports',      desc:'Sales analytics',       href:'reports.html' },
+  ]);
+
+  _renderWelcomeCard(
+    '💊',
+    'Pharmacy is open',
+    'Dispense medicines against prescriptions, manage your inventory, and record purchases.',
+    'Open POS', 'dispensaryPOS.html'
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// ACCOUNTANT
+// ════════════════════════════════════════════════════════════════
+async function _setupAccountant() {
+  _setBannerAction('View Reports', 'reports.html');
+
+  const [revenueToday, pendingBills, purchasesToday] = await Promise.all([
+    _sumToday('bills', 'amount_paid'),
+    _count('bills', [['tenant_id', tenantId], ['status','pending']]),
+    _sumToday('purchase_orders', 'total_amount'),
+  ]);
+
+  _renderStats([
+    { icon:'₹',  iconClass:'gold',  number: _fmt(revenueToday),   label:'Revenue Today',     sub:'total collected' },
+    { icon:'📄', iconClass:'red',   number: pendingBills,         label:'Pending Bills',     sub:'awaiting payment' },
+    { icon:'🚚', iconClass:'blue',  number: _fmt(purchasesToday), label:'Purchases Today',   sub:'total spent' },
+    { icon:'📊', iconClass:'green', number: '—',                  label:'Net Today',         sub:'revenue − expenses' },
+  ]);
+
+  _renderActions([
+    { icon:'📊', label:'Reports',     desc:'Full analytics',       href:'reports.html' },
+    { icon:'🚚', label:'Purchases',   desc:'Purchase ledger',      href:'purchase.html' },
+    { icon:'📄', label:'Billing',     desc:'Invoices & payments',  href:'reception.html' },
+    { icon:'📋', label:'Statements',  desc:'Monthly summary',      href:'reports.html' },
+  ]);
+
+  _renderWelcomeCard(
+    '📊',
+    'Accounts overview',
+    'Track daily revenue, manage purchase records, and generate financial reports.',
+    'Open Reports', 'reports.html'
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// LAB TECH
+// ════════════════════════════════════════════════════════════════
+async function _setupLabTech() {
+  _setBannerAction('View Reports', 'reports.html');
+
+  _renderStats([
+    { icon:'🧪', iconClass:'blue',  number:'—', label:'Tests Today',    sub:'coming soon' },
+    { icon:'✅', iconClass:'green', number:'—', label:'Completed',      sub:'coming soon' },
+    { icon:'⏳', iconClass:'red',   number:'—', label:'Pending',        sub:'coming soon' },
+    { icon:'📊', iconClass:'gold',  number:'—', label:'This Month',     sub:'coming soon' },
+  ]);
+
+  _renderActions([
+    { icon:'📊', label:'Reports',   desc:'Lab results & analytics', href:'reports.html' },
+  ]);
+
+  _renderWelcomeCard(
+    '🧪',
+    'Lab module coming soon',
+    'The full lab management module is under development. Use Reports to access any existing records.',
+    'Open Reports', 'reports.html'
+  );
+}
+
+// ════════════════════════════════════════════════════════════════
+// STUDENT / DEFAULT
+// ════════════════════════════════════════════════════════════════
+async function _setupDefault() {
+  _renderStats([
+    { icon:'📚', iconClass:'blue',  number:'—', label:'Modules',   sub:'education hub' },
+    { icon:'📝', iconClass:'green', number:'—', label:'Courses',   sub:'enrolled' },
+    { icon:'✅', iconClass:'gold',  number:'—', label:'Completed', sub:'lessons' },
+    { icon:'🏆', iconClass:'red',   number:'—', label:'Progress',  sub:'overall' },
+  ]);
+
+  _renderActions([
+    { icon:'📚', label:'Study',    desc:'Course materials',  href:'#' },
+    { icon:'📝', label:'Practice', desc:'Case studies',      href:'#' },
+  ]);
+
+  _renderWelcomeCard(
+    '🌿',
+    'Welcome to AyurXpert',
+    'Your learning portal is being set up. Please contact your administrator if you need access to any module.',
+    null, null
+  );
+}
+
+
+// ════════════════════════════════════════════════════════════════
+// PENDING APPROVALS (admin only)
+// ════════════════════════════════════════════════════════════════
+async function _renderPendingApprovals() {
+  const approvals = await getPendingApprovals();
+
+  const section = document.getElementById('main-section');
+  section.innerHTML = `
+    <div class="content-card">
+      <div class="content-card-header">
+        <span class="content-card-title">Pending Staff Approvals</span>
+        <span class="badge-count ${approvals.length ? 'red' : ''}" id="approval-count">
+          ${approvals.length}
+        </span>
+      </div>
+      <div class="table-wrap" id="approvals-table-wrap">
+        ${approvals.length ? _approvalsTableHTML(approvals) : _emptyStateHTML('⏳','All clear','No pending staff requests right now.')}
+      </div>
+    </div>
+  `;
+
+  _bindApprovalButtons();
+}
+
+function _approvalsTableHTML(rows) {
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th><th>Role</th><th>Phone</th><th>Applied</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr id="row-${r.id}">
+            <td><strong>${_esc(r.full_name || '—')}</strong></td>
+            <td><span class="role-chip">${_roleLabel(r.role)}</span></td>
+            <td>${_esc(r.phone || '—')}</td>
+            <td>${_relativeDate(r.created_at)}</td>
+            <td>
+              <button class="btn-approve" data-id="${r.id}">Approve</button>
+              <button class="btn-reject"  data-id="${r.id}">Reject</button>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function _bindApprovalButtons() {
+  document.querySelectorAll('.btn-approve').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      _setRowLoading(id, true);
+      // Direct activate for MVP (bypasses dept step)
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          status:      'active',
+          is_active:   true,
+          approved_by: profile.id,
+          approved_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('tenant_id', tenantId);
+
+      if (error) {
+        _toast('Approval failed: ' + error.message, true);
+        _setRowLoading(id, false);
+      } else {
+        _removeRow(id);
+        _toast('Staff approved — they can now log in.');
+        _updateApprovalBadge(-1);
+      }
+    });
+  });
+
+  document.querySelectorAll('.btn-reject').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      _setRowLoading(id, true);
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          status:      'rejected',
+          approved_by: profile.id,
+          approved_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('tenant_id', tenantId);
+
+      if (error) {
+        _toast('Rejection failed: ' + error.message, true);
+        _setRowLoading(id, false);
+      } else {
+        _removeRow(id);
+        _toast('Staff request rejected.');
+        _updateApprovalBadge(-1);
+      }
+    });
+  });
+}
+
+function _setRowLoading(id, on) {
+  const row = document.getElementById('row-' + id);
+  if (!row) return;
+  row.querySelectorAll('button').forEach(b => b.disabled = on);
+}
+
+function _removeRow(id) {
+  const row = document.getElementById('row-' + id);
+  if (!row) return;
+  row.style.transition = 'opacity .3s';
+  row.style.opacity = '0';
+  setTimeout(() => {
+    row.remove();
+    const tbody = document.querySelector('#approvals-table-wrap tbody');
+    if (tbody && !tbody.rows.length) {
+      document.getElementById('approvals-table-wrap').innerHTML =
+        _emptyStateHTML('✅','All done!','All staff requests have been processed.');
+    }
+  }, 320);
+}
+
+function _updateApprovalBadge(delta) {
+  const el = document.getElementById('approval-count');
+  if (!el) return;
+  const n = Math.max(0, (parseInt(el.textContent) || 0) + delta);
+  el.textContent = n;
+  el.className = 'badge-count' + (n ? ' red' : '');
+}
+
+
+// ════════════════════════════════════════════════════════════════
+// UI HELPERS
+// ════════════════════════════════════════════════════════════════
+
+function _setBannerAdmin() {
+  const code = tenant?.tenant_code || '—';
+  const el   = document.getElementById('banner-action');
+  el.innerHTML = `
+    <div class="code-block">
+      <div class="code-label">Organisation Code</div>
+      <div class="code-value">${_esc(code)}</div>
+      <button class="code-copy" id="copy-code-btn">📋 Copy &amp; Share</button>
+      <div class="code-hint">Share this with staff so they can join your portal</div>
+    </div>`;
+  document.getElementById('copy-code-btn').addEventListener('click', () => {
+    navigator.clipboard.writeText(code)
+      .then(() => _toast('Code copied! Share it with your staff.'))
+      .catch(() => _toast('Your code: ' + code));
+  });
+}
+
+function _setBannerAction(label, href) {
+  document.getElementById('banner-action').innerHTML =
+    `<a href="${href}" class="btn-primary-action">${label} &rarr;</a>`;
+}
+
+function _renderStats(cards) {
+  document.getElementById('stats-grid').innerHTML = cards.map(c => `
+    <div class="stat-card">
+      <div class="stat-header">
+        <div class="stat-icon ${c.iconClass}">${c.icon}</div>
+      </div>
+      <div class="stat-number">${c.number ?? '—'}</div>
+      <div class="stat-label">${c.label}</div>
+      ${c.sub ? `<div class="stat-sub">${c.sub}</div>` : ''}
+    </div>`).join('');
+}
+
+function _renderActions(actions) {
+  document.getElementById('actions-grid').innerHTML = actions.map(a => {
+    const attrs = a.id ? `id="${a.id}"` : '';
+    return `<a href="${a.href}" class="action-card" ${attrs}>
+      <div class="action-icon">${a.icon}</div>
+      <div class="action-label">${a.label}</div>
+      <div class="action-desc">${a.desc}</div>
+    </a>`;
+  }).join('');
+}
+
+function _renderWelcomeCard(icon, title, body, btnLabel, btnHref) {
+  document.getElementById('main-section').innerHTML = `
+    <div class="content-card">
+      <div class="empty-state">
+        <div class="empty-icon">${icon}</div>
+        <div class="empty-title" style="font-size:17px">${title}</div>
+        <div class="empty-body" style="max-width:360px;margin:8px auto 0">${body}</div>
+        ${btnLabel ? `<a href="${btnHref}" class="btn-approve" style="display:inline-block;margin-top:20px;text-decoration:none">${btnLabel}</a>` : ''}
+      </div>
+    </div>`;
+}
+
+function _emptyStateHTML(icon, title, body) {
+  return `<div class="empty-state">
+    <div class="empty-icon">${icon}</div>
+    <div class="empty-title">${title}</div>
+    <div class="empty-body">${body}</div>
+  </div>`;
+}
+
+
+// ════════════════════════════════════════════════════════════════
+// SUPABASE QUERY HELPERS
+// ════════════════════════════════════════════════════════════════
+async function _count(table, filters = [], dateFilter = false, extraFilter = null) {
+  try {
+    let q = supabase.from(table).select('*', { count:'exact', head:true });
+    filters.forEach(([col, val]) => { q = q.eq(col, val); });
+    if (dateFilter) {
+      q = q.gte('created_at', todayStart).lte('created_at', todayEnd);
+    }
+    if (extraFilter) {
+      const [col, op, val] = extraFilter;
+      if (op === 'lte') q = q.lte(col, val);
+    }
+    const { count } = await q;
+    return count ?? 0;
+  } catch { return 0; }
+}
+
+async function _countToday(table) {
+  return _count(table, [['tenant_id', tenantId]], true);
+}
+
+async function _sumToday(table, col) {
+  try {
+    const { data } = await supabase
+      .from(table)
+      .select(col)
+      .eq('tenant_id', tenantId)
+      .gte('created_at', todayStart)
+      .lte('created_at', todayEnd);
+    return (data || []).reduce((s, r) => s + (Number(r[col]) || 0), 0);
+  } catch { return 0; }
+}
+
+
+// ════════════════════════════════════════════════════════════════
+// FORMATTING
+// ════════════════════════════════════════════════════════════════
+function _fmt(amount) {
+  if (!amount) return '₹0';
+  if (amount >= 100000) return '₹' + (amount / 100000).toFixed(1) + 'L';
+  if (amount >= 1000)   return '₹' + (amount / 1000).toFixed(1) + 'K';
+  return '₹' + Math.round(amount);
+}
+
+function _roleLabel(r) {
+  return {
+    super_admin:'Super Admin', dept_admin:'Dept. Admin', doctor:'Doctor',
+    receptionist:'Receptionist', pharmacist:'Pharmacist', nurse:'Nurse',
+    lab_tech:'Lab Technician', accountant:'Accountant', student:'Student',
+  }[r] || r;
+}
+
+function _relativeDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const diff = Math.floor((Date.now() - d) / 60000);
+  if (diff < 60)     return diff + 'm ago';
+  if (diff < 1440)   return Math.floor(diff/60) + 'h ago';
+  return Math.floor(diff/1440) + 'd ago';
+}
+
+function _esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function _toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = isError ? '#7f1d1d' : '#1c2b1f';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
 </script>
+
 </body>
 </html>

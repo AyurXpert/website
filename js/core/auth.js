@@ -83,15 +83,13 @@ export async function registerStaff({
   role, tenantCode
 }) {
   try {
-    const { data: tenant, error: tenantError } = await supabase
-      .from('tenants')
-      .select('id, name')
-      .eq('tenant_code', tenantCode)
-      .eq('is_active', true)
-      .single();
+    const { data: tenantRows, error: tenantError } = await supabase
+      .rpc('get_tenant_by_code', { p_code: tenantCode });
 
-    if (tenantError) throw new Error(
-      'Hospital code not found. Please check with your admin.'
+    const tenant = tenantRows?.[0] || null;
+
+    if (tenantError || !tenant) throw new Error(
+      'Organisation code not found. Please check the code with your admin.'
     );
 
     const { data: authData, error: authError } = await supabase.auth.signUp({

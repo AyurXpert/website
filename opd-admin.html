@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>OPD Admin — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--cream:#faf8f3;--white:#ffffff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+  --success-bg:#e8f5ee;--success-border:#b2d8bf;--success-text:#1a4a2e;
+  --error-bg:#fdecea;--error-border:#f5c6c6;--error-text:#8b1a1a;
+  --red:#c0392b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1060px;margin:0 auto;padding:28px 20px 60px}
+
+/* ── Page header ─────────────────────────────────── */
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+
+/* ── Buttons ─────────────────────────────────────── */
+.btn{
+  height:40px;padding:0 18px;border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;
+  cursor:pointer;border:none;transition:background .15s,color .15s;white-space:nowrap;
+}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}
+.btn-secondary:hover{background:var(--green-light)}
+.btn-danger{background:var(--white);color:var(--red);border:1.5px solid var(--error-border)}
+.btn-danger:hover{background:var(--error-bg)}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── Two-column layout ───────────────────────────── */
+.layout{display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start}
+
+/* ── Panel (card container) ──────────────────────── */
+.panel{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius)}
+.panel-header{
+  padding:14px 18px;border-bottom:1.5px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;gap:10px
+}
+.panel-title{font-size:13px;font-weight:600;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px}
+.panel-body{padding:12px}
+
+/* ── OPD list ────────────────────────────────────── */
+.opd-list{display:flex;flex-direction:column;gap:6px}
+.opd-item{
+  padding:12px 14px;border-radius:6px;border:1.5px solid var(--border);
+  cursor:pointer;transition:border-color .15s,background .15s;
+  display:flex;justify-content:space-between;align-items:flex-start;gap:10px;
+}
+.opd-item:hover{border-color:var(--green-mid);background:#f5faf7}
+.opd-item.selected{border-color:var(--green-deep);background:var(--green-light)}
+.opd-item-name{font-size:14px;font-weight:500;color:var(--text-dark)}
+.opd-item-desc{font-size:11px;color:var(--text-muted);margin-top:2px}
+.opd-item-meta{font-size:11px;color:var(--text-muted);margin-top:4px}
+.badge{
+  display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;flex-shrink:0;
+}
+.badge-active{background:var(--success-bg);color:var(--success-text)}
+.badge-inactive{background:#f0f0f0;color:#666}
+.opd-empty{text-align:center;padding:32px 16px;color:var(--text-muted);font-size:13px}
+
+/* ── New OPD form (inline) ───────────────────────── */
+.new-opd-form{
+  padding:12px;background:var(--cream);border-top:1.5px solid var(--border);
+  display:none;
+}
+.new-opd-form.open{display:block}
+.field{margin-bottom:10px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+.field input,.field textarea{
+  width:100%;height:40px;padding:0 12px;
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-dark);
+  background:var(--white);outline:none;transition:border-color .15s;
+}
+.field textarea{height:64px;padding:8px 12px;resize:none;line-height:1.5}
+.field input:focus,.field textarea:focus{border-color:var(--green-mid)}
+.form-actions{display:flex;gap:8px;margin-top:4px}
+
+/* ── Doctors panel ───────────────────────────────── */
+.doctors-empty{text-align:center;padding:48px 20px;color:var(--text-muted)}
+.doctors-empty-icon{font-size:36px;margin-bottom:10px}
+.doctors-empty-title{font-size:14px;font-weight:500;color:var(--text-mid)}
+.doctors-empty-sub{font-size:12px;margin-top:4px}
+
+/* ── Today toggle bar ────────────────────────────── */
+.today-bar{
+  padding:10px 18px;background:var(--cream);border-bottom:1.5px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+}
+.today-bar-label{font-size:12px;color:var(--text-muted)}
+.today-bar-label strong{color:var(--text-dark)}
+
+/* ── Doctor rows ─────────────────────────────────── */
+.doctor-list{display:flex;flex-direction:column;gap:0}
+.doctor-row{
+  padding:12px 18px;border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+}
+.doctor-row:last-child{border-bottom:none}
+.doctor-info{flex:1;min-width:0}
+.doctor-name{font-size:14px;font-weight:500;color:var(--text-dark)}
+.doctor-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+/* ── Active-today toggle ─────────────────────────── */
+.toggle-wrap{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.toggle-label{font-size:12px;color:var(--text-muted);white-space:nowrap}
+.toggle{position:relative;width:40px;height:22px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0;position:absolute}
+.toggle-track{
+  position:absolute;inset:0;background:#ccc;border-radius:11px;
+  cursor:pointer;transition:background .2s;
+}
+.toggle input:checked + .toggle-track{background:var(--green-deep)}
+.toggle-track::after{
+  content:'';position:absolute;width:16px;height:16px;
+  left:3px;top:3px;background:#fff;border-radius:50%;
+  transition:transform .2s;
+}
+.toggle input:checked + .toggle-track::after{transform:translateX(18px)}
+
+/* ── Add doctor row ──────────────────────────────── */
+.add-doctor-row{
+  padding:12px 18px;border-top:1.5px solid var(--border);
+  display:flex;gap:8px;align-items:center;background:var(--cream);
+}
+.add-doctor-row select{
+  flex:1;height:40px;padding:0 10px;
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-dark);
+  background:var(--white);outline:none;
+}
+.add-doctor-row select:focus{border-color:var(--green-mid)}
+
+/* ── Alert ───────────────────────────────────────── */
+.alert{
+  padding:10px 14px;border-radius:var(--radius);font-size:13px;
+  margin-bottom:14px;display:none;
+}
+.alert.show{display:block}
+.alert.success{background:var(--success-bg);color:var(--success-text);border:1px solid var(--success-border)}
+.alert.error{background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border)}
+
+@media(max-width:700px){
+  .layout{grid-template-columns:1fr}
+  .page-header{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<div class="page-wrap">
+
+  <div class="page-header">
+    <div>
+      <div class="page-title">OPD Administration</div>
+      <div class="page-subtitle">Manage OPDs, assign doctors, and mark who is active today</div>
+    </div>
+  </div>
+
+  <div class="alert" id="alert"></div>
+
+  <div class="layout">
+
+    <!-- ── LEFT: OPD list ──────────────────────── -->
+    <div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">OPDs</span>
+          <button class="btn btn-primary btn-sm" id="btn-new-opd">+ New OPD</button>
+        </div>
+
+        <div class="panel-body">
+          <div class="opd-list" id="opd-list">
+            <div class="opd-empty">Loading OPDs…</div>
+          </div>
+        </div>
+
+        <!-- Inline new OPD form -->
+        <div class="new-opd-form" id="new-opd-form">
+          <div class="field">
+            <label>OPD Name <span style="color:var(--red)">*</span></label>
+            <input id="new-opd-name" type="text" placeholder="e.g. General OPD, Panchakarma OPD"/>
+          </div>
+          <div class="field">
+            <label>Description</label>
+            <textarea id="new-opd-desc" placeholder="Optional description"></textarea>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary btn-sm" id="btn-save-opd">Save OPD</button>
+            <button class="btn btn-secondary btn-sm" id="btn-cancel-opd">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RIGHT: Doctors for selected OPD ──────── -->
+    <div>
+      <div class="panel" id="doctors-panel">
+        <div class="panel-header">
+          <span class="panel-title" id="doctors-panel-title">Select an OPD</span>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-secondary btn-sm" id="btn-mark-all" style="display:none">✓ All Active Today</button>
+            <button class="btn btn-danger btn-sm" id="btn-clear-all" style="display:none">✕ Clear Today</button>
+          </div>
+        </div>
+
+        <div id="doctors-content">
+          <div class="doctors-empty">
+            <div class="doctors-empty-icon">👆</div>
+            <div class="doctors-empty-title">Select an OPD from the left</div>
+            <div class="doctors-empty-sub">to manage its doctors and today's availability</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script type="module">
+import { requireAuth, getCurrentTenantId } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['dept_admin', 'super_admin']);
+initNavbar();
+
+const tenantId = getCurrentTenantId();
+let _opds       = [];   // all OPDs for tenant
+let _allDoctors = [];   // all active doctors in tenant
+let _selectedOpd = null; // currently selected OPD object
+
+// ── Load all OPDs ──────────────────────────────────
+async function loadOpds() {
+  const { data, error } = await supabase
+    .from('opds')
+    .select('id, name, description, is_active')
+    .eq('tenant_id', tenantId)
+    .order('name');
+
+  if (error) { _alert('error', 'Failed to load OPDs: ' + error.message); return; }
+  _opds = data || [];
+  renderOpdList();
+}
+
+function renderOpdList() {
+  const el = document.getElementById('opd-list');
+  if (!_opds.length) {
+    el.innerHTML = '<div class="opd-empty">No OPDs yet — create one using the button above.</div>';
+    return;
+  }
+  el.innerHTML = _opds.map(o => `
+    <div class="opd-item${_selectedOpd?.id === o.id ? ' selected' : ''}" data-id="${o.id}">
+      <div style="flex:1;min-width:0">
+        <div class="opd-item-name">${o.name}</div>
+        ${o.description ? `<div class="opd-item-desc">${o.description}</div>` : ''}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
+        <span class="badge ${o.is_active ? 'badge-active' : 'badge-inactive'}">${o.is_active ? 'Active' : 'Inactive'}</span>
+        <button class="btn btn-sm ${o.is_active ? 'btn-danger' : 'btn-secondary'} btn-toggle-opd"
+          data-id="${o.id}" data-active="${o.is_active}" style="height:26px;padding:0 8px;font-size:11px">
+          ${o.is_active ? 'Deactivate' : 'Activate'}
+        </button>
+      </div>
+    </div>
+  `).join('');
+
+  // Click to select
+  el.querySelectorAll('.opd-item').forEach(item => {
+    item.addEventListener('click', e => {
+      if (e.target.closest('.btn-toggle-opd')) return;
+      const opd = _opds.find(o => o.id === item.dataset.id);
+      if (opd) selectOpd(opd);
+    });
+  });
+
+  // Toggle active/inactive
+  el.querySelectorAll('.btn-toggle-opd').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleOpdActive(btn.dataset.id, btn.dataset.active === 'true');
+    });
+  });
+}
+
+// ── Toggle OPD active ──────────────────────────────
+async function toggleOpdActive(opdId, currentlyActive) {
+  const { error } = await supabase
+    .from('opds')
+    .update({ is_active: !currentlyActive })
+    .eq('id', opdId)
+    .eq('tenant_id', tenantId);
+
+  if (error) { _alert('error', 'Failed to update OPD: ' + error.message); return; }
+
+  const o = _opds.find(o => o.id === opdId);
+  if (o) o.is_active = !currentlyActive;
+  renderOpdList();
+  _alert('success', `OPD ${!currentlyActive ? 'activated' : 'deactivated'} successfully.`);
+}
+
+// ── New OPD form ───────────────────────────────────
+const newOpdForm = document.getElementById('new-opd-form');
+document.getElementById('btn-new-opd').addEventListener('click', () => {
+  newOpdForm.classList.toggle('open');
+  document.getElementById('btn-new-opd').textContent =
+    newOpdForm.classList.contains('open') ? '✕ Cancel' : '+ New OPD';
+});
+document.getElementById('btn-cancel-opd').addEventListener('click', () => {
+  newOpdForm.classList.remove('open');
+  document.getElementById('btn-new-opd').textContent = '+ New OPD';
+  document.getElementById('new-opd-name').value = '';
+  document.getElementById('new-opd-desc').value = '';
+});
+document.getElementById('btn-save-opd').addEventListener('click', async () => {
+  const name = document.getElementById('new-opd-name').value.trim();
+  if (!name) { _alert('error', 'OPD name is required.'); return; }
+
+  const btn = document.getElementById('btn-save-opd');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  const { error } = await supabase.from('opds').insert({
+    tenant_id: tenantId, name, description: document.getElementById('new-opd-desc').value.trim() || null, is_active: true
+  });
+
+  btn.disabled = false; btn.textContent = 'Save OPD';
+
+  if (error) { _alert('error', 'Failed to create OPD: ' + error.message); return; }
+
+  document.getElementById('new-opd-name').value = '';
+  document.getElementById('new-opd-desc').value = '';
+  newOpdForm.classList.remove('open');
+  document.getElementById('btn-new-opd').textContent = '+ New OPD';
+  _alert('success', `OPD "${name}" created.`);
+  await loadOpds();
+});
+
+// ── Load all active doctors for tenant ────────────
+async function loadAllDoctors() {
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .eq('tenant_id', tenantId)
+    .eq('role', 'doctor')
+    .eq('status', 'active')
+    .order('full_name');
+  _allDoctors = data || [];
+}
+
+// ── Select OPD → load its doctors ─────────────────
+async function selectOpd(opd) {
+  _selectedOpd = opd;
+  renderOpdList();
+
+  document.getElementById('doctors-panel-title').textContent = opd.name;
+  document.getElementById('btn-mark-all').style.display = '';
+  document.getElementById('btn-clear-all').style.display = '';
+  document.getElementById('doctors-content').innerHTML =
+    '<div class="doctors-empty"><div class="doctors-empty-sub">Loading…</div></div>';
+
+  const { data: opdDocs, error } = await supabase
+    .from('opd_doctors')
+    .select('id, doctor_id, is_active_today')
+    .eq('opd_id', opd.id)
+    .eq('tenant_id', tenantId);
+
+  if (error) { _alert('error', 'Failed to load doctors: ' + error.message); return; }
+  renderDoctors(opdDocs || []);
+}
+
+function renderDoctors(opdDocs) {
+  const assignedIds = opdDocs.map(d => d.doctor_id);
+
+  // Doctors not yet in this OPD (available to add)
+  const unassigned = _allDoctors.filter(d => !assignedIds.includes(d.id));
+
+  const content = document.getElementById('doctors-content');
+
+  if (!opdDocs.length) {
+    content.innerHTML = `
+      <div class="doctors-empty">
+        <div class="doctors-empty-icon">👨‍⚕️</div>
+        <div class="doctors-empty-title">No doctors assigned</div>
+        <div class="doctors-empty-sub">Use the dropdown below to add doctors to this OPD</div>
+      </div>
+      ${_addDoctorRow(unassigned)}
+    `;
+  } else {
+    const rows = opdDocs.map(od => {
+      const doc = _allDoctors.find(d => d.id === od.doctor_id);
+      const name = doc?.full_name || 'Unknown Doctor';
+      return `
+        <div class="doctor-row" data-opd-doc-id="${od.id}">
+          <div class="doctor-info">
+            <div class="doctor-name">${name}</div>
+            <div class="doctor-sub">${od.is_active_today ? 'Active today' : 'Not active today'}</div>
+          </div>
+          <div class="toggle-wrap">
+            <span class="toggle-label">Today</span>
+            <label class="toggle">
+              <input type="checkbox" class="chk-today" data-id="${od.id}"
+                ${od.is_active_today ? 'checked' : ''}/>
+              <div class="toggle-track"></div>
+            </label>
+            <button class="btn btn-danger btn-sm btn-remove-doc" data-id="${od.id}" title="Remove from OPD"
+              style="height:30px;padding:0 10px;font-size:12px">Remove</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    content.innerHTML = `
+      <div class="today-bar">
+        <div class="today-bar-label">
+          <strong>${opdDocs.filter(d => d.is_active_today).length}</strong> of ${opdDocs.length} doctors active today
+        </div>
+      </div>
+      <div class="doctor-list">${rows}</div>
+      ${_addDoctorRow(unassigned)}
+    `;
+  }
+
+  // Toggle is_active_today
+  content.querySelectorAll('.chk-today').forEach(chk => {
+    chk.addEventListener('change', () => toggleActiveToday(chk.dataset.id, chk.checked));
+  });
+
+  // Remove doctor from OPD
+  content.querySelectorAll('.btn-remove-doc').forEach(btn => {
+    btn.addEventListener('click', () => removeDoctor(btn.dataset.id));
+  });
+
+  // Add doctor
+  const addBtn = content.querySelector('#btn-add-doctor');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      const sel = content.querySelector('#select-add-doctor');
+      if (sel?.value) addDoctor(sel.value);
+    });
+  }
+}
+
+function _addDoctorRow(unassigned) {
+  if (!unassigned.length) return `<div style="padding:12px 18px;font-size:12px;color:var(--text-muted);border-top:1.5px solid var(--border);background:var(--cream)">All active doctors are assigned to this OPD.</div>`;
+  return `
+    <div class="add-doctor-row">
+      <select id="select-add-doctor">
+        <option value="">— Add a doctor —</option>
+        ${unassigned.map(d => `<option value="${d.id}">${d.full_name}</option>`).join('')}
+      </select>
+      <button class="btn btn-primary btn-sm" id="btn-add-doctor">Add</button>
+    </div>
+  `;
+}
+
+// ── Toggle active today ────────────────────────────
+async function toggleActiveToday(opdDocId, active) {
+  const { error } = await supabase
+    .from('opd_doctors')
+    .update({ is_active_today: active })
+    .eq('id', opdDocId);
+
+  if (error) { _alert('error', 'Failed to update: ' + error.message); return; }
+
+  // Refresh count display
+  if (_selectedOpd) await selectOpd(_selectedOpd);
+}
+
+// ── Mark all active today ──────────────────────────
+document.getElementById('btn-mark-all').addEventListener('click', async () => {
+  if (!_selectedOpd) return;
+  const { error } = await supabase
+    .from('opd_doctors')
+    .update({ is_active_today: true })
+    .eq('opd_id', _selectedOpd.id)
+    .eq('tenant_id', tenantId);
+
+  if (error) { _alert('error', 'Failed: ' + error.message); return; }
+  _alert('success', 'All doctors marked active today.');
+  await selectOpd(_selectedOpd);
+});
+
+// ── Clear all today ────────────────────────────────
+document.getElementById('btn-clear-all').addEventListener('click', async () => {
+  if (!_selectedOpd) return;
+  const { error } = await supabase
+    .from('opd_doctors')
+    .update({ is_active_today: false })
+    .eq('opd_id', _selectedOpd.id)
+    .eq('tenant_id', tenantId);
+
+  if (error) { _alert('error', 'Failed: ' + error.message); return; }
+  _alert('success', 'All doctors cleared for today.');
+  await selectOpd(_selectedOpd);
+});
+
+// ── Add doctor to OPD ─────────────────────────────
+async function addDoctor(doctorId) {
+  const { error } = await supabase
+    .from('opd_doctors')
+    .insert({ opd_id: _selectedOpd.id, doctor_id: doctorId, tenant_id: tenantId, is_active_today: true });
+
+  if (error) { _alert('error', 'Failed to add doctor: ' + error.message); return; }
+  _alert('success', 'Doctor added and marked active today.');
+  await selectOpd(_selectedOpd);
+}
+
+// ── Remove doctor from OPD ────────────────────────
+async function removeDoctor(opdDocId) {
+  if (!confirm('Remove this doctor from the OPD?')) return;
+  const { error } = await supabase
+    .from('opd_doctors')
+    .delete()
+    .eq('id', opdDocId);
+
+  if (error) { _alert('error', 'Failed to remove: ' + error.message); return; }
+  _alert('success', 'Doctor removed from OPD.');
+  await selectOpd(_selectedOpd);
+}
+
+// ── Alert helper ──────────────────────────────────
+function _alert(type, msg) {
+  const el = document.getElementById('alert');
+  el.textContent = msg;
+  el.className = `alert show ${type}`;
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  setTimeout(() => el.className = 'alert', 4000);
+}
+
+// ── Boot ──────────────────────────────────────────
+await Promise.all([loadOpds(), loadAllDoctors()]);
+</script>
+</body>
+</html>

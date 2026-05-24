@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AyurXpert — India's Complete Ayurveda Management Platform</title>
+<meta name="description" content="Digitise your Ayurveda organisation — clinics, hospitals, panchkarma centres, colleges, pharma companies and more. ABDM-ready, offline-capable, secure."/>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="assets/icon.svg"/>
+<meta name="theme-color" content="#1a4a2e"/>
+<meta property="og:title" content="AyurXpert — India's Complete Ayurveda Platform"/>
+<meta property="og:description" content="ABDM-ready digital management for every Ayurveda stakeholder."/>
+<meta property="og:image" content="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;--gold-dim:rgba(201,144,42,0.2);
+  --cream:#faf8f3;--white:#fff;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;
+}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--white);overflow-x:hidden}
+
+/* ═══ NAV ═══════════════════════════════════════════════════════ */
+.nav{
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  background:rgba(26,74,46,0.96);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid rgba(255,255,255,0.07);
+}
+.nav-inner{
+  max-width:1200px;margin:0 auto;padding:0 24px;
+  height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px;
+}
+.nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0}
+.nav-logo{width:36px;height:36px;border-radius:8px;object-fit:contain}
+.nav-brand-name{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;letter-spacing:.3px}
+.nav-brand-name span:first-child{color:#fff}
+.nav-brand-name span:last-child{color:var(--gold)}
+.nav-links{display:flex;align-items:center;gap:4px}
+.nav-link{color:rgba(255,255,255,0.65);text-decoration:none;font-size:14px;padding:8px 14px;border-radius:8px;transition:color .2s,background .2s}
+.nav-link:hover{color:#fff;background:rgba(255,255,255,0.08)}
+.btn-nav{
+  background:var(--gold);color:#fff;border-radius:9px;
+  padding:9px 20px;font-size:14px;font-weight:500;
+  text-decoration:none;transition:background .2s,box-shadow .2s;white-space:nowrap;
+}
+.btn-nav:hover{background:#b07d22;box-shadow:0 4px 16px rgba(201,144,42,0.35)}
+.nav-hamburger{
+  display:none;flex-direction:column;gap:5px;
+  background:none;border:none;cursor:pointer;padding:8px;border-radius:8px;
+}
+.nav-hamburger span{display:block;width:22px;height:2px;background:rgba(255,255,255,0.8);border-radius:2px;transition:all .3s}
+.nav-hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.nav-hamburger.open span:nth-child(2){opacity:0}
+.nav-hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.nav-mobile{
+  display:none;flex-direction:column;
+  background:#143d24;border-top:1px solid rgba(255,255,255,0.08);
+  padding:12px 24px 20px;gap:4px;
+}
+.nav-mobile.open{display:flex}
+.nav-mobile .nav-link{font-size:15px;padding:12px 16px}
+.nav-mobile .btn-nav{margin-top:8px;text-align:center}
+
+/* ═══ HERO ═══════════════════════════════════════════════════════ */
+.hero{
+  min-height:100vh;
+  background:linear-gradient(160deg,#1a4a2e 0%,#0f2e1a 60%,#1a3a26 100%);
+  display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:120px 24px 80px;
+  position:relative;overflow:hidden;
+}
+.hero::before{
+  content:'';position:absolute;top:-100px;right:-100px;
+  width:500px;height:500px;border-radius:50%;
+  background:radial-gradient(circle,rgba(201,144,42,0.12) 0%,transparent 70%);
+}
+.hero::after{
+  content:'';position:absolute;bottom:-80px;left:-80px;
+  width:400px;height:400px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,0.04) 0%,transparent 70%);
+}
+.hero-inner{max-width:800px;margin:0 auto;position:relative;z-index:1}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(201,144,42,0.15);border:1px solid rgba(201,144,42,0.3);
+  color:#e8c878;font-size:13px;font-weight:500;
+  padding:7px 18px;border-radius:24px;margin-bottom:28px;
+  letter-spacing:.3px;
+}
+.hero-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(38px,6vw,68px);font-weight:600;
+  color:#fff;line-height:1.1;margin-bottom:20px;
+  letter-spacing:-.5px;
+}
+.hero-title .gold{color:var(--gold)}
+.hero-sub{
+  font-size:clamp(15px,2vw,18px);color:rgba(255,255,255,0.6);
+  line-height:1.75;margin-bottom:36px;max-width:600px;margin-left:auto;margin-right:auto;
+  font-weight:300;
+}
+.hero-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:52px}
+.btn-hero-primary{
+  background:var(--gold);color:#fff;
+  border-radius:12px;padding:14px 32px;font-size:16px;font-weight:500;
+  text-decoration:none;transition:background .2s,box-shadow .2s,transform .15s;
+}
+.btn-hero-primary:hover{background:#b07d22;box-shadow:0 6px 24px rgba(201,144,42,0.4);transform:translateY(-2px)}
+.btn-hero-secondary{
+  background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.75);
+  border:1.5px solid rgba(255,255,255,0.15);
+  border-radius:12px;padding:14px 28px;font-size:16px;
+  text-decoration:none;transition:background .2s,color .2s;
+}
+.btn-hero-secondary:hover{background:rgba(255,255,255,0.15);color:#fff}
+.hero-stats{
+  display:flex;justify-content:center;gap:0;
+  border:1px solid rgba(255,255,255,0.1);border-radius:14px;
+  background:rgba(255,255,255,0.04);
+  overflow:hidden;max-width:520px;margin:0 auto;
+}
+.hero-stat{
+  flex:1;padding:16px 12px;text-align:center;
+  border-right:1px solid rgba(255,255,255,0.08);
+}
+.hero-stat:last-child{border-right:none}
+.hero-stat strong{display:block;font-size:20px;font-weight:600;color:#fff;margin-bottom:3px}
+.hero-stat span{font-size:11px;color:rgba(255,255,255,0.45);text-transform:uppercase;letter-spacing:.5px}
+
+/* ═══ SECTION BASE ════════════════════════════════════════════════ */
+.section-inner{max-width:1160px;margin:0 auto;padding:0 24px}
+.section-label{
+  font-size:11px;font-weight:500;color:var(--gold);
+  text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;
+}
+.section-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(28px,4vw,44px);font-weight:600;
+  color:var(--green-deep);line-height:1.2;margin-bottom:12px;
+}
+.section-sub{font-size:15px;color:var(--text-muted);line-height:1.7;max-width:560px}
+
+/* ═══ CHOOSE TYPE ════════════════════════════════════════════════ */
+.choose-section{background:var(--cream);padding:96px 0}
+.choose-section .section-inner{display:flex;flex-direction:column;align-items:center;text-align:center}
+
+.org-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:18px;width:100%;margin-top:48px;
+}
+.org-card{
+  background:var(--white);border:2px solid var(--border);
+  border-radius:18px;padding:30px 20px;
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+  text-decoration:none;color:var(--text-dark);
+  transition:border-color .2s,box-shadow .25s,transform .2s;
+  text-align:center;cursor:pointer;
+}
+.org-card:hover{
+  border-color:var(--gold);
+  box-shadow:0 10px 40px rgba(201,144,42,0.14);
+  transform:translateY(-5px);
+}
+.org-card:hover .org-icon-wrap{background:var(--gold-light);border-color:rgba(201,144,42,0.3)}
+.org-icon-wrap{
+  width:72px;height:72px;border-radius:18px;
+  background:var(--green-light);border:2px solid transparent;
+  display:flex;align-items:center;justify-content:center;
+  font-size:34px;transition:background .2s,border-color .2s;flex-shrink:0;
+}
+.org-name{font-size:16px;font-weight:600;color:var(--green-deep);line-height:1.2}
+.org-desc{font-size:13px;color:var(--text-muted);line-height:1.5}
+.org-arrow{
+  font-size:12px;color:var(--gold);font-weight:500;
+  opacity:0;transform:translateX(-4px);transition:opacity .2s,transform .2s;
+}
+.org-card:hover .org-arrow{opacity:1;transform:translateX(0)}
+
+/* ═══ FEATURES ════════════════════════════════════════════════════ */
+.features-section{background:var(--white);padding:96px 0}
+.features-section .section-inner{
+  display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;
+}
+.features-text{}
+.features-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.feature-card{
+  background:var(--cream);border-radius:14px;padding:20px;
+  border:1px solid var(--border);
+}
+.feature-icon{font-size:24px;margin-bottom:10px}
+.feature-title{font-size:14px;font-weight:600;color:var(--green-deep);margin-bottom:4px}
+.feature-body{font-size:12px;color:var(--text-muted);line-height:1.5}
+
+/* ═══ ABDM ════════════════════════════════════════════════════════ */
+.abdm-section{
+  background:var(--green-deep);padding:80px 0;
+  position:relative;overflow:hidden;
+}
+.abdm-section::before{
+  content:'';position:absolute;top:-60px;right:-60px;
+  width:320px;height:320px;border-radius:50%;
+  background:rgba(201,144,42,0.07);
+}
+.abdm-inner{
+  max-width:1160px;margin:0 auto;padding:0 24px;
+  display:flex;align-items:center;gap:60px;
+}
+.abdm-content{flex:1;position:relative;z-index:1}
+.abdm-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--gold-dim);border:1px solid rgba(201,144,42,0.35);
+  color:#e8c878;font-size:12px;font-weight:500;
+  padding:6px 14px;border-radius:20px;margin-bottom:20px;letter-spacing:.5px;
+}
+.abdm-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(24px,3vw,38px);font-weight:600;color:#fff;
+  line-height:1.2;margin-bottom:14px;
+}
+.abdm-body{font-size:15px;color:rgba(255,255,255,0.6);line-height:1.8;margin-bottom:24px}
+.abdm-points{display:flex;flex-direction:column;gap:10px}
+.abdm-point{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:rgba(255,255,255,0.75)}
+.abdm-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:7px}
+.abdm-visual{
+  flex-shrink:0;width:240px;
+  display:flex;flex-direction:column;gap:12px;position:relative;z-index:1;
+}
+.abdm-card{
+  background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);
+  border-radius:12px;padding:14px 16px;
+  display:flex;align-items:center;gap:12px;
+}
+.abdm-card-icon{font-size:22px;flex-shrink:0}
+.abdm-card-label{font-size:13px;color:rgba(255,255,255,0.8);font-weight:500}
+.abdm-card-sub{font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px}
+
+/* ═══ TESTIMONIAL / INDIA BAR ════════════════════════════════════ */
+.india-bar{
+  background:var(--cream);border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);padding:24px;
+  text-align:center;
+}
+.india-bar p{font-size:14px;color:var(--text-muted)}
+.india-bar strong{color:var(--green-deep)}
+
+/* ═══ FOOTER ═════════════════════════════════════════════════════ */
+.footer{background:#0f2318;padding:60px 0 32px}
+.footer-inner{max-width:1160px;margin:0 auto;padding:0 24px}
+.footer-top{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:48px}
+.footer-brand{}
+.footer-logo-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.footer-logo{width:32px;height:32px;border-radius:7px;object-fit:contain}
+.footer-brand-name{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600}
+.footer-brand-name span:first-child{color:#fff}
+.footer-brand-name span:last-child{color:var(--gold)}
+.footer-tagline{font-size:13px;color:rgba(255,255,255,0.35);line-height:1.7;max-width:240px}
+.footer-col-title{font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px}
+.footer-links{display:flex;flex-direction:column;gap:8px}
+.footer-link{font-size:13px;color:rgba(255,255,255,0.5);text-decoration:none;transition:color .2s}
+.footer-link:hover{color:rgba(255,255,255,0.85)}
+.footer-bottom{
+  border-top:1px solid rgba(255,255,255,0.07);
+  padding-top:24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+}
+.footer-copy{font-size:12px;color:rgba(255,255,255,0.25)}
+.footer-india{font-size:12px;color:rgba(255,255,255,0.3)}
+
+/* ═══ SCROLL CTA ════════════════════════════════════════════════ */
+.scroll-hint{
+  position:absolute;bottom:32px;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  color:rgba(255,255,255,0.3);font-size:12px;letter-spacing:.5px;
+  animation:bounce 2s ease-in-out infinite;
+}
+.scroll-hint::after{
+  content:'↓';font-size:18px;color:rgba(255,255,255,0.25);
+}
+@keyframes bounce{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-6px)}}
+
+/* ═══ RESPONSIVE ════════════════════════════════════════════════ */
+@media(max-width:960px){
+  .nav-links{display:none}
+  .nav-hamburger{display:flex}
+  .org-grid{grid-template-columns:repeat(2,1fr)}
+  .features-section .section-inner{grid-template-columns:1fr;gap:40px}
+  .abdm-inner{flex-direction:column;gap:36px}
+  .abdm-visual{width:100%;flex-direction:row;flex-wrap:wrap}
+  .abdm-card{flex:1;min-width:160px}
+  .footer-top{grid-template-columns:1fr 1fr}
+}
+@media(max-width:600px){
+  .hero{padding:100px 16px 60px}
+  .hero-stats{flex-direction:column;border:none;background:none;gap:0}
+  .hero-stat{border-right:none;border-bottom:1px solid rgba(255,255,255,0.08);padding:12px}
+  .hero-stat:last-child{border-bottom:none}
+  .org-grid{grid-template-columns:1fr 1fr;gap:12px}
+  .org-card{padding:20px 14px;gap:10px;border-radius:14px}
+  .org-icon-wrap{width:56px;height:56px;font-size:26px;border-radius:13px}
+  .org-name{font-size:14px}
+  .org-desc{display:none}
+  .choose-section{padding:64px 0}
+  .features-section{padding:64px 0}
+  .features-grid{grid-template-columns:1fr}
+  .abdm-visual{flex-direction:column}
+  .footer-top{grid-template-columns:1fr}
+  .footer-bottom{flex-direction:column;text-align:center}
+  .scroll-hint{display:none}
+}
+@media(max-width:380px){
+  .org-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ NAVIGATION ═══════════════════════════════════════════════ -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="home.html" class="nav-brand">
+      <img src="assets/icon.svg" alt="AyurXpert" class="nav-logo"/>
+      <div class="nav-brand-name"><span>Ayur</span><span>Xpert</span></div>
+    </a>
+    <div class="nav-links">
+      <a href="#features" class="nav-link">Features</a>
+      <a href="#abdm"     class="nav-link">ABDM</a>
+      <a href="login.html" class="nav-link">Sign In</a>
+      <a href="#choose-type" class="btn-nav">Get Started &rarr;</a>
+    </div>
+    <button class="nav-hamburger" id="nav-hamburger" aria-label="Open menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="nav-mobile" id="nav-mobile">
+    <a href="#features"    class="nav-link" onclick="closeMenu()">Features</a>
+    <a href="#abdm"        class="nav-link" onclick="closeMenu()">ABDM</a>
+    <a href="login.html"   class="nav-link">Sign In</a>
+    <a href="#choose-type" class="btn-nav"  onclick="closeMenu()">Get Started &rarr;</a>
+  </div>
+</nav>
+
+<!-- ═══ HERO ═════════════════════════════════════════════════════ -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">🛡️&nbsp; ABDM Ready &nbsp;·&nbsp; Made in India</div>
+    <h1 class="hero-title">
+      India's Complete<br/>
+      <span class="gold">Ayurveda</span> Management Platform
+    </h1>
+    <p class="hero-sub">
+      Digitise your entire Ayurveda organisation — from patient care and pharmacy
+      to education and research. Built for clinics, hospitals, colleges, pharma companies and more.
+    </p>
+    <div class="hero-actions">
+      <a href="#choose-type" class="btn-hero-primary">Get Started — It's Free &rarr;</a>
+      <a href="login.html"   class="btn-hero-secondary">Already a member? Sign in</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><strong>9+</strong><span>Org Types</span></div>
+      <div class="hero-stat"><strong>ABDM</strong><span>Integrated</span></div>
+      <div class="hero-stat"><strong>PWA</strong><span>Works Offline</span></div>
+      <div class="hero-stat"><strong>RLS</strong><span>Data Secured</span></div>
+    </div>
+  </div>
+  <div class="scroll-hint">Scroll to explore</div>
+</section>
+
+<!-- ═══ CHOOSE ORG TYPE ══════════════════════════════════════════ -->
+<section id="choose-type" class="choose-section">
+  <div class="section-inner">
+    <div class="section-label">Get Started</div>
+    <h2 class="section-title">Who are you?</h2>
+    <p class="section-sub">
+      Select your organisation type. We'll set up the exact modules, workflows,
+      and permissions your organisation needs — automatically.
+    </p>
+
+    <div class="org-grid">
+
+      <a href="register.html?type=hospital" class="org-card">
+        <div class="org-icon-wrap">🏥</div>
+        <div class="org-name">Ayurveda Hospital</div>
+        <div class="org-desc">Full IPD, OPD, departments, beds &amp; staff management</div>
+        <div class="org-arrow">Register →</div>
+      </a>
+
+      <a href="register.html?type=clinic" class="org-card">
+        <div class="org-icon-wrap">🩺</div>
+        <div class="org-name">Ayurveda Clinic</div>
+        <div class="org-desc">Patient records, OPD queue &amp; prescription management</div>
+        <div class="org-arrow">Register →</div>
+      </a>
+
+      <a href="register.html?type=pk_center" class="org-card">
+        <div class="org-icon-wrap">🌿</div>
+        <div class="org-name">Panchkarma Centre</div>
+        <div class="org-desc">Treatment plans, therapist scheduling &amp; bed management</div>
+        <div class="org-arrow">Register →</div>
+      </a>
+
+      <a href="register.html?type=dispensary" class="org-card">
+        <div class="org-icon-wrap">💊</div>
+        <div class="org-name">Dispensary</div>
+        <div class="org-desc">Standalone pharmacy, dispensing &amp; stock management</div>
+        <div class="org-arrow">Register →</div>
+      </a>
+
+      <a href="register.html?type=college" class="org-card">
+        <div class="org-icon-wrap">🎓</div>
+        <div class="org-name">Ayurveda College</div>
+        <div class="org-desc">Student management, clinical training &amp; education hub</div>
+        <div class="org-arrow">Register →</div>
+      </a>
+
+      <a href="register.html?type=pharma" class="org-card">
+        <div class="org-icon-wrap">🏭</div>
+        <div class="org-name">Pharma Company</div>
+        <div class="org-desc">Manufacturing, batch tracking, quality &amp; distribution</div>
+        <div class="org-arrow">Register →</div>
+      </a>
+
+      <a href="register.html?type=supplier" class="org-card">
+        <div class="org-icon-wrap">🌱</div>
+        <div class="org-name">Raw Drug Supplier</div>
+        <div class="org-desc">Inventory, grading, orders &amp; quality documentation</div>
+        <div class="org-arrow">Register →</div>
+      </a>
+
+      <a href="register.html?type=dealer" class="org-card">
+        <div class="org-icon-wrap">🚚</div>
+        <div class="org-name">Dealer / Distributor</div>
+        <div class="org-desc">Distribution network, multi-supplier order management</div>
+        <div class="org-arrow">Register →</div>
+      </a>
+
+      <a href="register.html?type=journal" class="org-card">
+        <div class="org-icon-wrap">📰</div>
+        <div class="org-name">Journal / Publication</div>
+        <div class="org-desc">Research publishing, peer review &amp; knowledge sharing</div>
+        <div class="org-arrow">Register →</div>
+      </a>
+
+    </div>
+
+    <p style="margin-top:28px;font-size:13px;color:var(--text-muted)">
+      Already registered?&nbsp;
+      <a href="login.html" style="color:var(--green-mid);font-weight:500;text-decoration:none">Sign in to your portal &rarr;</a>
+    </p>
+  </div>
+</section>
+
+<!-- ═══ FEATURES ══════════════════════════════════════════════════ -->
+<section id="features" class="features-section">
+  <div class="section-inner">
+    <div>
+      <div class="section-label">Why AyurXpert</div>
+      <h2 class="section-title">Everything your organisation needs, built in</h2>
+      <p class="section-sub" style="margin-bottom:36px">
+        One platform for every Ayurveda stakeholder — no integrations, no plugins,
+        no extra subscriptions. Just login and start.
+      </p>
+      <a href="#choose-type" class="btn-hero-primary" style="display:inline-block;text-decoration:none">
+        Start free trial &rarr;
+      </a>
+    </div>
+    <div class="features-grid">
+
+      <div class="feature-card">
+        <div class="feature-icon">🛡️</div>
+        <div class="feature-title">ABDM Integrated</div>
+        <div class="feature-body">ABHA ID linking, FHIR-compatible records and consent-based health data sharing.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">📱</div>
+        <div class="feature-title">Installs as App</div>
+        <div class="feature-body">Add to home screen on any phone. Works offline — no internet? No problem.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">👥</div>
+        <div class="feature-title">Role-Based Access</div>
+        <div class="feature-body">Doctor, receptionist, pharmacist, admin — everyone sees only what they need.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🏢</div>
+        <div class="feature-title">Multi-Location</div>
+        <div class="feature-body">Manage multiple branches from one account. Centralised reports and billing.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🇮🇳</div>
+        <div class="feature-title">Built for India</div>
+        <div class="feature-body">GST billing, UPI payments, all Indian states, Devanagari support and ABDM compliance.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🔒</div>
+        <div class="feature-title">Fully Secure</div>
+        <div class="feature-body">Row-level security on every table. Your patients' data is only visible to your team.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══ ABDM ══════════════════════════════════════════════════════ -->
+<section id="abdm" class="abdm-section">
+  <div class="abdm-inner">
+    <div class="abdm-content">
+      <div class="abdm-badge">🛡️&nbsp; ABDM — Ayushman Bharat Digital Mission</div>
+      <h2 class="abdm-title">Fully ABDM-Ready from Day One</h2>
+      <p class="abdm-body">
+        AyurXpert is built to comply with India's national digital health framework.
+        Your patients get ABHA IDs, their records are stored in FHIR R4 format,
+        and consent-based data sharing is built into every clinical workflow.
+      </p>
+      <div class="abdm-points">
+        <div class="abdm-point"><div class="abdm-dot"></div><span>ABHA Health ID creation and linking for every patient</span></div>
+        <div class="abdm-point"><div class="abdm-dot"></div><span>FHIR R4-compatible patient records and prescriptions</span></div>
+        <div class="abdm-point"><div class="abdm-dot"></div><span>HIP / HIU consent flow for health data sharing</span></div>
+        <div class="abdm-point"><div class="abdm-dot"></div><span>ABDM-registered HIP credentials integration</span></div>
+      </div>
+    </div>
+    <div class="abdm-visual">
+      <div class="abdm-card">
+        <div class="abdm-card-icon">🪪</div>
+        <div>
+          <div class="abdm-card-label">ABHA ID</div>
+          <div class="abdm-card-sub">14-digit Health ID for every patient</div>
+        </div>
+      </div>
+      <div class="abdm-card">
+        <div class="abdm-card-icon">📋</div>
+        <div>
+          <div class="abdm-card-label">FHIR Records</div>
+          <div class="abdm-card-sub">International standard health data format</div>
+        </div>
+      </div>
+      <div class="abdm-card">
+        <div class="abdm-card-icon">🔐</div>
+        <div>
+          <div class="abdm-card-label">Consent Flow</div>
+          <div class="abdm-card-sub">Patient controls who sees their data</div>
+        </div>
+      </div>
+      <div class="abdm-card">
+        <div class="abdm-card-icon">🏥</div>
+        <div>
+          <div class="abdm-card-label">HIP Registered</div>
+          <div class="abdm-card-sub">Registered Health Information Provider</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ INDIA BAR ══════════════════════════════════════════════════ -->
+<div class="india-bar">
+  <p>🇮🇳 &nbsp; Built in India for the global Ayurveda ecosystem &nbsp;·&nbsp;
+     <strong>ayurxpert.com</strong> &nbsp;·&nbsp;
+     <a href="mailto:support@ayurxpert.in" style="color:var(--green-mid);text-decoration:none">support@ayurxpert.in</a>
+  </p>
+</div>
+
+<!-- ═══ FOOTER ════════════════════════════════════════════════════ -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <div class="footer-logo-row">
+          <img src="assets/icon.svg" alt="AyurXpert" class="footer-logo"/>
+          <div class="footer-brand-name"><span>Ayur</span><span>Xpert</span></div>
+        </div>
+        <p class="footer-tagline">
+          A complete digital ecosystem for every Ayurveda stakeholder in India and abroad.
+        </p>
+      </div>
+      <div>
+        <div class="footer-col-title">Platform</div>
+        <div class="footer-links">
+          <a href="#choose-type" class="footer-link">Register Organisation</a>
+          <a href="login.html"   class="footer-link">Sign In</a>
+          <a href="signup.html"  class="footer-link">Join as Staff</a>
+          <a href="#features"    class="footer-link">Features</a>
+        </div>
+      </div>
+      <div>
+        <div class="footer-col-title">Compliance</div>
+        <div class="footer-links">
+          <a href="#abdm" class="footer-link">ABDM Integration</a>
+          <a href="#"     class="footer-link">Privacy Policy</a>
+          <a href="#"     class="footer-link">Terms of Service</a>
+          <a href="#"     class="footer-link">Data Security</a>
+        </div>
+      </div>
+      <div>
+        <div class="footer-col-title">Contact</div>
+        <div class="footer-links">
+          <a href="mailto:support@ayurxpert.in" class="footer-link">support@ayurxpert.in</a>
+          <a href="mailto:abdm@ayurxpert.in"    class="footer-link">abdm@ayurxpert.in</a>
+          <a href="#" class="footer-link">ayurxpert.com</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="footer-copy">&copy; 2026 AyurXpert. All rights reserved.</div>
+      <div class="footer-india">Made with 🌿 in India</div>
+    </div>
+  </div>
+</footer>
+
+<script>
+// Mobile nav toggle
+const hamburger = document.getElementById('nav-hamburger');
+const mobileNav = document.getElementById('nav-mobile');
+hamburger.addEventListener('click', () => {
+  hamburger.classList.toggle('open');
+  mobileNav.classList.toggle('open');
+});
+function closeMenu() {
+  hamburger.classList.remove('open');
+  mobileNav.classList.remove('open');
+}
+// Close on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.nav')) closeMenu();
+});
+</script>
+</body>
+</html>

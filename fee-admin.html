@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Fee Administration — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="assets/icon.svg"/>
+<meta name="theme-color" content="#1a4a2e"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e8;--cream:#faf8f3;--white:#ffffff;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--radius:10px;
+  --error-bg:#fff3f3;--error-border:#f5b8b8;--error-text:#8b1a1a;
+  --success-bg:#f0f9f4;--success-border:#b8ddc6;--success-text:#1a4a2e;
+  --blue:#2563eb;--blue-light:#eff6ff;--blue-border:#bfdbfe;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+
+/* ── Page wrap ─────────────────────────────────── */
+.page-wrap{max-width:1200px;margin:0 auto;padding:28px 20px 80px}
+@media(max-width:600px){.page-wrap{padding:16px 12px 60px}}
+
+/* ── Page header ───────────────────────────────── */
+.page-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;gap:16px;flex-wrap:wrap}
+.page-hdr-left{}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:600;color:var(--green-deep);line-height:1.1}
+.page-sub{font-size:13px;color:var(--text-muted);margin-top:4px}
+.role-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;margin-top:6px}
+.role-badge.accountant{background:#fff7ed;color:#92400e;border:1px solid #fcd34d}
+.role-badge.dept_admin{background:var(--blue-light);color:var(--blue);border:1px solid var(--blue-border)}
+.role-badge.super_admin{background:var(--gold-light);color:#7a5a10;border:1px solid #e8d08a}
+
+/* ── Stats ─────────────────────────────────────── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+@media(max-width:700px){.stats-row{grid-template-columns:repeat(2,1fr)}}
+.stat-card{background:var(--white);border-radius:12px;padding:16px 18px;box-shadow:0 1px 8px rgba(0,0,0,0.05)}
+.stat-val{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:600;color:var(--green-deep)}
+.stat-lbl{font-size:11px;color:var(--text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.6px}
+.stat-card.gold .stat-val{color:var(--gold)}
+.stat-card.blue .stat-val{color:var(--blue)}
+
+/* ── Toolbar ────────────────────────────────────── */
+.toolbar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.search-wrap{position:relative;flex:1;min-width:180px}
+.search-wrap input{width:100%;height:40px;padding:0 14px 0 38px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-dark);background:var(--white);outline:none}
+.search-wrap input:focus{border-color:var(--green-mid);box-shadow:0 0 0 3px rgba(45,122,79,.1)}
+.search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:14px}
+
+.cat-tabs{display:flex;gap:4px;flex-wrap:wrap}
+.cat-tab{height:36px;padding:0 14px;border:1.5px solid var(--border);border-radius:8px;background:var(--white);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-mid);cursor:pointer;transition:all .15s;white-space:nowrap}
+.cat-tab:hover{border-color:var(--green-mid);color:var(--green-deep)}
+.cat-tab.active{background:var(--green-deep);border-color:var(--green-deep);color:var(--white)}
+
+.btn-add{height:40px;padding:0 20px;background:var(--green-deep);color:var(--white);border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .2s}
+.btn-add:hover{background:#1f5c37}
+
+/* ── Table card ─────────────────────────────────── */
+.table-card{background:var(--white);border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,0.06);overflow:hidden}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead{background:var(--green-light)}
+th{padding:12px 16px;font-size:11px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.7px;text-align:left;white-space:nowrap}
+td{padding:14px 16px;font-size:14px;color:var(--text-dark);border-bottom:1px solid var(--green-light);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(232,245,238,.4)}
+
+.fee-label{font-weight:500}
+.fee-notes{font-size:12px;color:var(--text-muted);margin-top:2px}
+.fee-amount{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;color:var(--green-deep)}
+
+/* ── Category badges ────────────────────────────── */
+.cat-badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:500}
+.cat-opd{background:#e8f5ee;color:#1a4a2e}
+.cat-ipd{background:#eff6ff;color:#1e40af}
+.cat-lab{background:#f5f3ff;color:#6d28d9}
+.cat-procedure{background:#fff7ed;color:#c2410c}
+.cat-radiology{background:#f0fdf4;color:#166534}
+.cat-custom{background:#fdf4ff;color:#7e22ce}
+
+/* ── Status badges ──────────────────────────────── */
+.status-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;white-space:nowrap}
+.status-pending{background:var(--gold-light);color:#7a5a10;border:1px solid #e8d08a}
+.status-dept_approved{background:var(--blue-light);color:var(--blue);border:1px solid var(--blue-border)}
+.status-active{background:var(--success-bg);color:var(--success-text);border:1px solid var(--success-border)}
+.status-rejected{background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border)}
+
+/* ── Action buttons ─────────────────────────────── */
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.act-btn{height:30px;padding:0 12px;border-radius:6px;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;border:1.5px solid;transition:all .15s;white-space:nowrap}
+.act-approve{background:var(--success-bg);color:var(--success-text);border-color:var(--success-border)}
+.act-approve:hover{background:var(--green-mid);color:var(--white);border-color:var(--green-mid)}
+.act-activate{background:var(--green-deep);color:var(--white);border-color:var(--green-deep)}
+.act-activate:hover{background:#1f5c37}
+.act-bypass{background:var(--gold-light);color:#7a5a10;border-color:#e8d08a}
+.act-bypass:hover{background:var(--gold);color:var(--white);border-color:var(--gold)}
+.act-reject{background:var(--error-bg);color:var(--error-text);border-color:var(--error-border)}
+.act-reject:hover{background:#c0392b;color:var(--white);border-color:#c0392b}
+.act-edit{background:var(--cream);color:var(--text-mid);border-color:var(--border)}
+.act-edit:hover{border-color:var(--green-mid);color:var(--green-deep)}
+.act-delete{background:var(--cream);color:var(--text-muted);border-color:var(--border)}
+.act-delete:hover{background:var(--error-bg);color:var(--error-text);border-color:var(--error-border)}
+
+/* ── Empty state ────────────────────────────────── */
+.empty{text-align:center;padding:64px 20px}
+.empty-icon{font-size:40px;margin-bottom:12px}
+.empty-text{font-size:15px;color:var(--text-muted)}
+
+/* ── Modal ──────────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:1000;padding:16px}
+.modal-overlay.open{display:flex}
+.modal{background:var(--white);border-radius:16px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:slideUp .25s ease}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid var(--border)}
+.modal-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep)}
+.modal-close{width:32px;height:32px;border:none;background:var(--cream);border-radius:8px;cursor:pointer;font-size:16px;color:var(--text-muted);display:flex;align-items:center;justify-content:center}
+.modal-close:hover{background:var(--border);color:var(--text-dark)}
+.modal-body{padding:20px 24px 24px;display:flex;flex-direction:column;gap:16px}
+
+.field label{display:block;font-size:11px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+.req{color:var(--gold)}
+.field input,.field select,.field textarea{
+  width:100%;padding:0 14px;border:1.5px solid var(--border);border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:15px;color:var(--text-dark);
+  background:var(--cream);outline:none;-webkit-appearance:none;appearance:none;
+  transition:border-color .2s,box-shadow .2s,background .2s
+}
+.field input,.field select{height:48px}
+.field textarea{padding:12px 14px;height:80px;resize:vertical}
+.field select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a9e90' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;cursor:pointer
+}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--green-mid);background:var(--white);box-shadow:0 0 0 3px rgba(45,122,79,.1)}
+.field input.err{border-color:#e87b7b;background:#fff8f8}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* Approval note in modal */
+.approval-note{background:var(--gold-light);border:1px solid #e8d08a;border-radius:8px;padding:12px 14px;font-size:12px;color:#7a5a10;line-height:1.6}
+.approval-note strong{display:block;margin-bottom:4px}
+
+.btn-save{width:100%;height:52px;background:var(--green-deep);color:var(--white);border:none;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:16px;font-weight:500;cursor:pointer;transition:background .2s;position:relative;overflow:hidden}
+.btn-save:hover:not(:disabled){background:#1f5c37}
+.btn-save:disabled{opacity:.7;cursor:not-allowed}
+.btn-save .btn-text{transition:opacity .2s}
+.btn-save .btn-spinner{display:none;position:absolute;inset:0;align-items:center;justify-content:center}
+.btn-save.loading .btn-text{opacity:0}
+.btn-save.loading .btn-spinner{display:flex}
+.spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+
+/* Toast */
+.toast{
+  position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;
+  font-size:14px;font-weight:500;color:var(--white);z-index:9999;
+  transform:translateY(80px);opacity:0;transition:all .3s ease;pointer-events:none
+}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.success{background:var(--green-deep)}
+.toast.error{background:#c0392b}
+
+/* Facility banner */
+.facility-banner{
+  background:var(--white);border:1.5px solid var(--border);border-radius:12px;
+  padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;
+  justify-content:space-between;gap:16px;box-shadow:0 1px 6px rgba(0,0,0,.04)
+}
+.fac-type{font-size:15px;font-weight:500;color:var(--text-dark)}
+.fac-cats{font-size:12px;color:var(--text-muted);margin-top:3px}
+.btn-quicksetup{
+  height:36px;padding:0 16px;background:var(--gold-light);color:#7a5a10;
+  border:1.5px solid #e8d08a;border-radius:8px;font-family:'DM Sans',sans-serif;
+  font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .15s
+}
+.btn-quicksetup:hover{background:var(--gold);color:var(--white);border-color:var(--gold)}
+
+/* Quick setup modal */
+.qs-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:8px}
+@media(max-width:480px){.qs-grid{grid-template-columns:1fr}}
+.qs-item{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+  border:1.5px solid var(--border);border-radius:8px;cursor:pointer;
+  transition:all .15s;background:var(--cream)
+}
+.qs-item:hover{border-color:var(--green-mid);background:var(--green-light)}
+.qs-item.selected{border-color:var(--green-mid);background:var(--green-light)}
+.qs-item input[type=checkbox]{width:16px;height:16px;accent-color:var(--green-mid);flex-shrink:0}
+.qs-item-info{flex:1}
+.qs-item-name{font-size:13px;font-weight:500;color:var(--text-dark)}
+.qs-item-cat{font-size:11px;color:var(--text-muted);margin-top:1px}
+.qs-item-amt{
+  font-family:'Cormorant Garamond',serif;font-size:15px;
+  font-weight:600;color:var(--green-deep);flex-shrink:0
+}
+.qs-note{font-size:12px;color:var(--text-muted);padding:10px 0 4px;line-height:1.6}
+.modal-2{max-width:620px}
+
+/* Bypass banner */
+.bypass-banner{
+  background:linear-gradient(135deg,var(--gold-light),#fff8e0);
+  border:1px solid #e8d08a;border-radius:12px;padding:14px 18px;
+  margin-bottom:20px;display:flex;align-items:center;gap:12px
+}
+.bypass-icon{font-size:20px}
+.bypass-text{flex:1;font-size:13px;color:#7a5a10;line-height:1.5}
+.bypass-text strong{color:#5a3e10;display:block;margin-bottom:2px}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+
+<div id="navbar-root"></div>
+
+<div class="page-wrap">
+
+  <!-- ── Header ──────────────────────────────────── -->
+  <div class="page-hdr">
+    <div class="page-hdr-left">
+      <div class="page-title">Fee Administration</div>
+      <div class="page-sub">Manage all hospital services and charges across departments</div>
+      <div class="role-badge" id="role-badge"></div>
+    </div>
+    <button class="btn-add" id="btn-add-top" onclick="openModal()">+ Add Service</button>
+  </div>
+
+  <!-- ── Facility profile banner ─────────────────── -->
+  <div class="facility-banner" id="facility-banner">
+    <div class="fac-left">
+      <div class="fac-type" id="fac-type">—</div>
+      <div class="fac-cats" id="fac-cats"></div>
+    </div>
+    <button class="btn-quicksetup" id="btn-quicksetup" onclick="openQuickSetup()">
+      ⚡ Quick Setup
+    </button>
+  </div>
+
+  <!-- ── Super Admin bypass banner ───────────────── -->
+  <div class="bypass-banner" id="bypass-banner" style="display:none">
+    <div class="bypass-icon">⚡</div>
+    <div class="bypass-text">
+      <strong>Super Admin Mode</strong>
+      You can activate fees directly without waiting for department approval. Use "Bypass &amp; Activate" on any pending fee.
+    </div>
+  </div>
+
+  <!-- ── Stats ────────────────────────────────────── -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-val" id="stat-active">—</div>
+      <div class="stat-lbl">Active Fees</div>
+    </div>
+    <div class="stat-card gold">
+      <div class="stat-val" id="stat-pending">—</div>
+      <div class="stat-lbl">Pending Review</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-val" id="stat-dept">—</div>
+      <div class="stat-lbl">Dept. Approved</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val" id="stat-total">—</div>
+      <div class="stat-lbl">Total Services</div>
+    </div>
+  </div>
+
+  <!-- ── Toolbar ───────────────────────────────────── -->
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="search" id="search-input" placeholder="Search services…" oninput="filterFees()"/>
+    </div>
+    <div class="cat-tabs">
+      <button class="cat-tab active" data-cat="all" onclick="setTab(this,'all')">All</button>
+      <button class="cat-tab" data-cat="opd"       onclick="setTab(this,'opd')">OPD</button>
+      <button class="cat-tab" data-cat="ipd"       onclick="setTab(this,'ipd')">IPD</button>
+      <button class="cat-tab" data-cat="lab"       onclick="setTab(this,'lab')">Lab</button>
+      <button class="cat-tab" data-cat="procedure" onclick="setTab(this,'procedure')">Procedure</button>
+      <button class="cat-tab" data-cat="radiology" onclick="setTab(this,'radiology')">Radiology</button>
+      <button class="cat-tab" data-cat="custom"    onclick="setTab(this,'custom')">Custom</button>
+    </div>
+  </div>
+
+  <!-- ── Table ─────────────────────────────────────── -->
+  <div class="table-card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Service / Label</th>
+            <th>Category</th>
+            <th>OPD / Dept</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="fee-tbody">
+          <tr><td colspan="6"><div class="empty"><div class="empty-icon">⏳</div><div class="empty-text">Loading fees…</div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Add / Edit Modal ──────────────────────────── -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-title" id="modal-title">Add New Service</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="field">
+        <label>Service / Label <span class="req">*</span></label>
+        <input id="m-label" type="text" placeholder="e.g. General OPD Consultation"/>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Category <span class="req">*</span></label>
+          <select id="m-category" onchange="onCategoryChange()">
+            <option value="">— Select —</option>
+            <option value="opd">OPD</option>
+            <option value="ipd">IPD / Inpatient</option>
+            <option value="lab">Lab &amp; Diagnostics</option>
+            <option value="procedure">Procedure / Therapy</option>
+            <option value="radiology">Radiology</option>
+            <option value="custom">Custom Service</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Amount (₹) <span class="req">*</span></label>
+          <input id="m-amount" type="number" min="0" step="0.01" placeholder="0.00"/>
+        </div>
+      </div>
+
+      <div class="field" id="m-type-wrap">
+        <label>Fee Type <span class="req">*</span></label>
+        <select id="m-type-select" style="display:none"></select>
+        <input id="m-type-input" type="text" placeholder="e.g. Blood CBC, X-Ray Chest" style="display:none"/>
+      </div>
+
+      <div class="field" id="m-opd-wrap" style="display:none">
+        <label>Linked OPD (optional)</label>
+        <select id="m-opd">
+          <option value="">— All OPDs / General —</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Notes / Description</label>
+        <textarea id="m-notes" placeholder="Any additional details about this charge…"></textarea>
+      </div>
+
+      <div class="approval-note" id="m-approval-note">
+        <strong>Approval Workflow</strong>
+        <span id="m-approval-text"></span>
+      </div>
+
+      <button class="btn-save" id="btn-save" onclick="saveFee()">
+        <span class="btn-text" id="btn-save-text">Submit for Approval</span>
+        <span class="btn-spinner"><span class="spinner"></span></span>
+      </button>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Quick Setup Modal ─────────────────────────── -->
+<div class="modal-overlay" id="qs-overlay">
+  <div class="modal modal-2">
+    <div class="modal-hdr">
+      <div class="modal-title" id="qs-title">Quick Setup</div>
+      <button class="modal-close" onclick="closeQuickSetup()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="qs-note" id="qs-note"></div>
+      <div class="qs-grid" id="qs-grid"></div>
+      <div class="qs-note" style="padding-top:0">
+        Amounts shown are <strong>suggested defaults</strong> — you can edit each fee after setup.
+        All fees will be saved as <strong>pending approval</strong> (or active if you are Super Admin).
+      </div>
+      <button class="btn-save" id="btn-qs-save" onclick="runQuickSetup()">
+        <span class="btn-text" id="btn-qs-text">Add Selected Fees</span>
+        <span class="btn-spinner"><span class="spinner"></span></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module">
+import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId, getCurrentRole } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['accountant','dept_admin','super_admin']);
+initNavbar();
+
+const profile   = getCurrentProfile();
+const tenant    = getCurrentTenant();
+const tenantId  = getCurrentTenantId();
+const role      = getCurrentRole();
+const userId    = profile.id;
+const facType   = tenant?.type || 'clinic';
+
+// ── State ─────────────────────────────────────────
+let _allFees   = [];
+let _opds      = [];
+let _editId    = null;
+let _activeTab = 'all';
+
+// ── Facility profile ──────────────────────────────
+const FAC_PROFILE = {
+  clinic:     { label:'Clinic',              icon:'🏥', cats:['opd','lab','procedure','custom'],                       color:'#1a4a2e' },
+  hospital:   { label:'Hospital',            icon:'🏨', cats:['opd','ipd','lab','procedure','radiology','custom'],     color:'#1e40af' },
+  pk_center:  { label:'Panchakarma Centre',  icon:'🌿', cats:['opd','procedure','custom'],                            color:'#6d28d9' },
+  dispensary: { label:'Dispensary',          icon:'💊', cats:['opd','custom'],                                        color:'#b45309' },
+  college:    { label:'Ayurveda College',    icon:'🎓', cats:['opd','lab','procedure','radiology','custom'],          color:'#0f766e' },
+  pharma:     { label:'Pharma',              icon:'🔬', cats:['custom'],                                              color:'#374151' },
+  supplier:   { label:'Supplier',            icon:'📦', cats:['custom'],                                              color:'#374151' },
+  dealer:     { label:'Dealer',              icon:'🏪', cats:['custom'],                                              color:'#374151' },
+};
+const fac = FAC_PROFILE[facType] || FAC_PROFILE.clinic;
+
+// Show facility banner
+document.getElementById('fac-type').textContent  = `${fac.icon} ${fac.label}`;
+document.getElementById('fac-cats').textContent  =
+  fac.cats.map(c => ({ opd:'OPD', ipd:'IPD', lab:'Lab & Diagnostics',
+    procedure:'Procedures', radiology:'Radiology', custom:'Custom Services' })[c]).join(' · ');
+
+// Show/dim category tabs based on facility type
+document.querySelectorAll('.cat-tab[data-cat]').forEach(btn => {
+  const cat = btn.dataset.cat;
+  if (cat === 'all') return;
+  if (!fac.cats.includes(cat)) {
+    btn.style.opacity = '0.4';
+    btn.title = `Not typical for ${fac.label}`;
+  }
+});
+
+// ── Role UI setup ─────────────────────────────────
+const roleBadge = document.getElementById('role-badge');
+const roleLabels = {
+  accountant:  { text: 'Accountant — Can create fees', cls: 'accountant' },
+  dept_admin:  { text: 'Dept. Admin — Can approve fees', cls: 'dept_admin' },
+  super_admin: { text: 'Super Admin — Full control', cls: 'super_admin' }
+};
+const rl = roleLabels[role] || { text: role, cls: '' };
+roleBadge.textContent = rl.text;
+roleBadge.classList.add(rl.cls);
+
+if (role === 'super_admin') {
+  document.getElementById('bypass-banner').style.display = 'flex';
+}
+
+// ── Category helpers ──────────────────────────────
+const CAT_LABELS = { opd:'OPD', ipd:'IPD', lab:'Lab', procedure:'Procedure', radiology:'Radiology', custom:'Custom' };
+const CAT_TYPES = {
+  opd: [
+    { value:'registration',       label:'Registration Fee' },
+    { value:'consultation',       label:'Consultation Fee' },
+    { value:'on_request_surcharge',label:'On-Request Surcharge' }
+  ],
+  ipd: [
+    { value:'admission',          label:'Admission Charge' },
+    { value:'room_general',       label:'Room — General Ward' },
+    { value:'room_semi_private',  label:'Room — Semi-Private' },
+    { value:'room_private',       label:'Room — Private' },
+    { value:'room_icu',           label:'Room — ICU / HDU' },
+    { value:'nursing',            label:'Nursing Care (per day)' },
+    { value:'attendant_bed',      label:'Attendant Bed (per night)' }
+  ],
+  lab: [
+    { value:'blood_cbc',          label:'Blood — CBC' },
+    { value:'blood_lft',          label:'Blood — LFT' },
+    { value:'blood_rft',          label:'Blood — RFT' },
+    { value:'blood_lipid',        label:'Blood — Lipid Profile' },
+    { value:'blood_thyroid',      label:'Blood — Thyroid (T3/T4/TSH)' },
+    { value:'blood_sugar_fasting',label:'Blood Sugar — Fasting' },
+    { value:'blood_sugar_pp',     label:'Blood Sugar — PP' },
+    { value:'urine_routine',      label:'Urine — Routine' },
+    { value:'stool_routine',      label:'Stool — Routine' },
+    { value:'culture_sensitivity',label:'Culture & Sensitivity' },
+    { value:'biopsy',             label:'Biopsy' },
+    { value:'other_lab',          label:'Other Lab Test' }
+  ],
+  procedure: [
+    { value:'pk_abhyanga',        label:'Panchakarma — Abhyanga' },
+    { value:'pk_shirodhara',      label:'Panchakarma — Shirodhara' },
+    { value:'pk_vasti',           label:'Panchakarma — Vasti' },
+    { value:'pk_kizhi',           label:'Panchakarma — Kizhi' },
+    { value:'pk_nasya',           label:'Panchakarma — Nasya' },
+    { value:'pk_pizhichil',       label:'Panchakarma — Pizhichil' },
+    { value:'physiotherapy',      label:'Physiotherapy Session' },
+    { value:'wound_dressing',     label:'Wound Dressing' },
+    { value:'injection',          label:'Injection (IM/SC)' },
+    { value:'iv_cannula',         label:'IV Cannula / Fluid' },
+    { value:'nebulization',       label:'Nebulization' },
+    { value:'other_procedure',    label:'Other Procedure' }
+  ],
+  radiology: [
+    { value:'xray',               label:'X-Ray' },
+    { value:'ultrasound',         label:'Ultrasound (USG)' },
+    { value:'ct_scan',            label:'CT Scan' },
+    { value:'mri',                label:'MRI' },
+    { value:'ecg',                label:'ECG' },
+    { value:'echo',               label:'Echo (2D Echo)' },
+    { value:'other_radiology',    label:'Other Radiology' }
+  ],
+  custom: []
+};
+
+// ── Approval text per role ────────────────────────
+const APPROVAL_TEXT = {
+  accountant:  'Your submission will be sent to the Department Admin for approval before it becomes active.',
+  dept_admin:  'Your submission will go to you for approval. You can approve it immediately after saving.',
+  super_admin: 'As Super Admin, you can activate this fee immediately or save it as active directly.'
+};
+
+// ── Load OPDs ─────────────────────────────────────
+async function loadOPDs() {
+  const { data } = await supabase
+    .from('opds')
+    .select('id, name')
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .order('name');
+  _opds = data || [];
+  const sel = document.getElementById('m-opd');
+  sel.innerHTML = '<option value="">— All OPDs / General —</option>';
+  _opds.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o.id; opt.textContent = o.name;
+    sel.appendChild(opt);
+  });
+}
+
+// ── Load fees ─────────────────────────────────────
+async function loadFees() {
+  const { data, error } = await supabase
+    .from('fee_structures')
+    .select('*, opds(name), creator:created_by(full_name)')
+    .eq('tenant_id', tenantId)
+    .order('category')
+    .order('label');
+
+  if (error) { console.error(error); return; }
+  _allFees = data || [];
+  updateStats();
+  renderTable();
+}
+
+function updateStats() {
+  const active  = _allFees.filter(f => f.approval_status === 'active').length;
+  const pending = _allFees.filter(f => f.approval_status === 'pending').length;
+  const dept    = _allFees.filter(f => f.approval_status === 'dept_approved').length;
+  document.getElementById('stat-active').textContent  = active;
+  document.getElementById('stat-pending').textContent = pending;
+  document.getElementById('stat-dept').textContent    = dept;
+  document.getElementById('stat-total').textContent   = _allFees.length;
+}
+
+// ── Tab filter ─────────────────────────────────────
+window.setTab = function(btn, cat) {
+  document.querySelectorAll('.cat-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _activeTab = cat;
+  renderTable();
+};
+
+window.filterFees = function() { renderTable(); };
+
+function renderTable() {
+  const q   = document.getElementById('search-input').value.toLowerCase();
+  const rows = _allFees.filter(f => {
+    if (_activeTab !== 'all' && f.category !== _activeTab) return false;
+    if (q && !f.label?.toLowerCase().includes(q) &&
+             !f.fee_type?.toLowerCase().includes(q) &&
+             !f.notes?.toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('fee-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty">
+      <div class="empty-icon">📋</div>
+      <div class="empty-text">No fees found</div></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(f => {
+    const catCls   = 'cat-' + (f.category || 'custom');
+    const catLabel = CAT_LABELS[f.category] || f.category;
+    const opdName  = f.opds?.name || '—';
+    const amount   = `₹${parseFloat(f.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    const status   = f.approval_status || 'pending';
+    const statusLabel = { pending:'Pending', dept_approved:'Dept. Approved', active:'Active', rejected:'Rejected' }[status] || status;
+    const creator  = f.creator?.full_name || '—';
+
+    const actions = buildActions(f);
+
+    return `<tr data-id="${f.id}">
+      <td>
+        <div class="fee-label">${f.label || '—'}</div>
+        ${f.notes ? `<div class="fee-notes">${f.notes}</div>` : ''}
+        <div class="fee-notes" style="margin-top:2px;color:var(--text-muted)">By ${creator}</div>
+      </td>
+      <td><span class="cat-badge ${catCls}">${catLabel}</span></td>
+      <td style="color:var(--text-mid);font-size:13px">${opdName}</td>
+      <td><span class="fee-amount">${amount}</span></td>
+      <td><span class="status-badge status-${status}">${statusLabel}</span></td>
+      <td><div class="actions">${actions}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+function buildActions(f) {
+  const s   = f.approval_status;
+  const own = f.created_by === userId;
+  let btns  = '';
+
+  if (role === 'accountant') {
+    if (own && s === 'pending') {
+      btns += `<button class="act-btn act-edit" onclick="openEdit('${f.id}')">Edit</button>`;
+      btns += `<button class="act-btn act-delete" onclick="deleteFee('${f.id}')">Delete</button>`;
+    }
+  }
+
+  if (role === 'dept_admin') {
+    if (s === 'pending') {
+      btns += `<button class="act-btn act-approve" onclick="approveFee('${f.id}')">✓ Approve</button>`;
+      btns += `<button class="act-btn act-reject"  onclick="rejectFee('${f.id}')">✗ Reject</button>`;
+    }
+    if (s === 'dept_approved') {
+      btns += `<button class="act-btn act-reject" onclick="rejectFee('${f.id}')">✗ Reject</button>`;
+    }
+    if (own && s === 'pending') {
+      btns += `<button class="act-btn act-edit" onclick="openEdit('${f.id}')">Edit</button>`;
+    }
+  }
+
+  if (role === 'super_admin') {
+    btns += `<button class="act-btn act-edit" onclick="openEdit('${f.id}')">Edit</button>`;
+    if (s !== 'active') {
+      if (s === 'dept_approved') {
+        btns += `<button class="act-btn act-activate" onclick="activateFee('${f.id}',false)">⚡ Activate</button>`;
+      }
+      if (s === 'pending') {
+        btns += `<button class="act-btn act-bypass" onclick="activateFee('${f.id}',true)">⚡ Bypass &amp; Activate</button>`;
+      }
+    }
+    if (s === 'active') {
+      btns += `<button class="act-btn act-reject" onclick="deactivateFee('${f.id}')">Deactivate</button>`;
+    }
+    if (s !== 'rejected' && s !== 'active') {
+      btns += `<button class="act-btn act-reject" onclick="rejectFee('${f.id}')">✗ Reject</button>`;
+    }
+    btns += `<button class="act-btn act-delete" onclick="deleteFee('${f.id}')">Delete</button>`;
+  }
+
+  return btns || '<span style="font-size:12px;color:var(--text-muted)">—</span>';
+}
+
+// ── Approval actions ──────────────────────────────
+window.approveFee = async function(id) {
+  await supabase.from('fee_structures').update({
+    approval_status: 'dept_approved',
+    approved_by_dept: userId
+  }).eq('id', id);
+  toast('Fee approved by department.', 'success');
+  loadFees();
+};
+
+window.activateFee = async function(id, bypass) {
+  await supabase.from('fee_structures').update({
+    approval_status: 'active',
+    is_active: true,
+    approved_by_super: userId
+  }).eq('id', id);
+  toast(bypass ? 'Fee bypassed and activated.' : 'Fee activated.', 'success');
+  loadFees();
+};
+
+window.deactivateFee = async function(id) {
+  await supabase.from('fee_structures').update({
+    approval_status: 'pending',
+    is_active: false,
+    approved_by_super: null
+  }).eq('id', id);
+  toast('Fee deactivated.', 'success');
+  loadFees();
+};
+
+window.rejectFee = async function(id) {
+  if (!confirm('Reject this fee? It will be marked as rejected.')) return;
+  await supabase.from('fee_structures').update({
+    approval_status: 'rejected',
+    is_active: false
+  }).eq('id', id);
+  toast('Fee rejected.', 'success');
+  loadFees();
+};
+
+window.deleteFee = async function(id) {
+  if (!confirm('Delete this fee permanently?')) return;
+  await supabase.from('fee_structures').delete().eq('id', id);
+  toast('Fee deleted.', 'success');
+  loadFees();
+};
+
+// ── Modal ─────────────────────────────────────────
+window.openModal = function() {
+  _editId = null;
+  document.getElementById('modal-title').textContent = 'Add New Service';
+  document.getElementById('m-label').value   = '';
+  document.getElementById('m-category').value = '';
+  document.getElementById('m-amount').value  = '';
+  document.getElementById('m-notes').value   = '';
+  document.getElementById('m-opd-wrap').style.display = 'none';
+  document.getElementById('m-type-wrap').style.display = 'none';
+  document.getElementById('m-approval-note').style.display = 'block';
+  document.getElementById('m-approval-text').textContent = APPROVAL_TEXT[role] || '';
+
+  const btnTxt = document.getElementById('btn-save-text');
+  btnTxt.textContent = role === 'super_admin' ? 'Save & Activate' : 'Submit for Approval';
+
+  document.getElementById('modal-overlay').classList.add('open');
+};
+
+window.openEdit = function(id) {
+  const f = _allFees.find(x => x.id === id);
+  if (!f) return;
+  _editId = id;
+  document.getElementById('modal-title').textContent = 'Edit Service';
+  document.getElementById('m-label').value    = f.label || '';
+  document.getElementById('m-category').value = f.category || '';
+  document.getElementById('m-amount').value   = f.amount || '';
+  document.getElementById('m-notes').value    = f.notes || '';
+  document.getElementById('m-opd').value      = f.opd_id || '';
+  onCategoryChange();
+  document.getElementById('m-opd').value      = f.opd_id || '';
+  // Set fee_type
+  const sel = document.getElementById('m-type-select');
+  const inp = document.getElementById('m-type-input');
+  if (sel.style.display !== 'none') sel.value = f.fee_type || '';
+  if (inp.style.display !== 'none') inp.value = f.fee_type || '';
+
+  document.getElementById('m-approval-note').style.display = 'none';
+  document.getElementById('btn-save-text').textContent = 'Save Changes';
+  document.getElementById('modal-overlay').classList.add('open');
+};
+
+window.closeModal = function() {
+  document.getElementById('modal-overlay').classList.remove('open');
+};
+
+window.onCategoryChange = function() {
+  const cat     = document.getElementById('m-category').value;
+  const typeWrap = document.getElementById('m-type-wrap');
+  const opdWrap  = document.getElementById('m-opd-wrap');
+  const sel      = document.getElementById('m-type-select');
+  const inp      = document.getElementById('m-type-input');
+
+  if (!cat) { typeWrap.style.display = 'none'; opdWrap.style.display = 'none'; return; }
+
+  typeWrap.style.display = 'block';
+  opdWrap.style.display  = cat === 'opd' ? 'block' : 'none';
+
+  const types = CAT_TYPES[cat];
+  if (cat === 'custom' || !types || types.length === 0) {
+    sel.style.display = 'none';
+    inp.style.display = 'block';
+    inp.placeholder   = 'Enter service type / name';
+  } else {
+    inp.style.display = 'none';
+    sel.style.display = 'block';
+    sel.innerHTML = '<option value="">— Select fee type —</option>' +
+      types.map(t => `<option value="${t.value}">${t.label}</option>`).join('');
+    sel.onchange = function() {
+      const found = types.find(t => t.value === sel.value);
+      if (found && !document.getElementById('m-label').value) {
+        document.getElementById('m-label').value = found.label;
+      }
+    };
+  }
+};
+
+// ── Save fee ──────────────────────────────────────
+window.saveFee = async function() {
+  const label    = document.getElementById('m-label').value.trim();
+  const category = document.getElementById('m-category').value;
+  const amount   = parseFloat(document.getElementById('m-amount').value);
+  const notes    = document.getElementById('m-notes').value.trim();
+  const opdId    = document.getElementById('m-opd').value || null;
+
+  const sel  = document.getElementById('m-type-select');
+  const inp  = document.getElementById('m-type-input');
+  const feeType = sel.style.display !== 'none' ? sel.value : inp.value.trim();
+
+  if (!label)    { toast('Please enter a service label.', 'error'); return; }
+  if (!category) { toast('Please select a category.', 'error'); return; }
+  if (isNaN(amount) || amount < 0) { toast('Please enter a valid amount.', 'error'); return; }
+
+  const btn = document.getElementById('btn-save');
+  btn.classList.add('loading'); btn.disabled = true;
+
+  const isSuperAdmin = role === 'super_admin';
+  const payload = {
+    tenant_id:       tenantId,
+    label,
+    category,
+    fee_type:        feeType || category,
+    amount,
+    notes:           notes || null,
+    opd_id:          opdId,
+    approval_status: isSuperAdmin ? 'active' : 'pending',
+    is_active:       isSuperAdmin,
+    created_by:      userId,
+    ...(isSuperAdmin ? { approved_by_super: userId } : {})
+  };
+
+  let error;
+  if (_editId) {
+    ({ error } = await supabase.from('fee_structures').update(payload).eq('id', _editId));
+  } else {
+    ({ error } = await supabase.from('fee_structures').insert(payload));
+  }
+
+  btn.classList.remove('loading'); btn.disabled = false;
+
+  if (error) { toast('Error saving fee: ' + error.message, 'error'); return; }
+
+  toast(_editId ? 'Fee updated.' : (isSuperAdmin ? 'Fee saved and activated.' : 'Fee submitted for approval.'), 'success');
+  closeModal();
+  loadFees();
+};
+
+// ── Quick Setup ───────────────────────────────────
+const QS_TEMPLATES = {
+  clinic: [
+    { label:'Registration Fee',          category:'opd', fee_type:'registration',        amount:100,  notes:'One-time new patient registration' },
+    { label:'OPD Consultation',          category:'opd', fee_type:'consultation',         amount:300  },
+    { label:'On-Request Surcharge',      category:'opd', fee_type:'on_request_surcharge', amount:150,  notes:'Extra charge when non-scheduled doctor consulted' },
+    { label:'Blood — CBC',               category:'lab', fee_type:'blood_cbc',            amount:250  },
+    { label:'Urine — Routine',           category:'lab', fee_type:'urine_routine',        amount:150  },
+    { label:'Wound Dressing',            category:'procedure', fee_type:'wound_dressing', amount:200  },
+    { label:'Injection (IM/SC)',         category:'procedure', fee_type:'injection',       amount:100  },
+  ],
+  pk_center: [
+    { label:'Initial Assessment',        category:'opd', fee_type:'registration',        amount:500,  notes:'Prakriti assessment and treatment planning' },
+    { label:'OPD Consultation',          category:'opd', fee_type:'consultation',         amount:400  },
+    { label:'Panchakarma — Abhyanga',    category:'procedure', fee_type:'pk_abhyanga',    amount:1200 },
+    { label:'Panchakarma — Shirodhara', category:'procedure', fee_type:'pk_shirodhara',  amount:1500 },
+    { label:'Panchakarma — Vasti',       category:'procedure', fee_type:'pk_vasti',       amount:2000 },
+    { label:'Panchakarma — Kizhi',       category:'procedure', fee_type:'pk_kizhi',       amount:1800 },
+    { label:'Panchakarma — Nasya',       category:'procedure', fee_type:'pk_nasya',       amount:1000 },
+    { label:'Panchakarma — Pizhichil',   category:'procedure', fee_type:'pk_pizhichil',   amount:3500 },
+  ],
+  hospital: [
+    { label:'Registration Fee',          category:'opd', fee_type:'registration',        amount:200  },
+    { label:'OPD Consultation',          category:'opd', fee_type:'consultation',         amount:500  },
+    { label:'On-Request Surcharge',      category:'opd', fee_type:'on_request_surcharge', amount:200  },
+    { label:'Admission Charge',          category:'ipd', fee_type:'admission',            amount:1000 },
+    { label:'Room — General Ward',       category:'ipd', fee_type:'room_general',         amount:800,  notes:'Per day' },
+    { label:'Room — Semi-Private',       category:'ipd', fee_type:'room_semi_private',    amount:1500, notes:'Per day' },
+    { label:'Room — Private',            category:'ipd', fee_type:'room_private',         amount:2500, notes:'Per day' },
+    { label:'Nursing Care',              category:'ipd', fee_type:'nursing',              amount:500,  notes:'Per day' },
+    { label:'Blood — CBC',               category:'lab', fee_type:'blood_cbc',            amount:300  },
+    { label:'Blood — LFT',               category:'lab', fee_type:'blood_lft',            amount:600  },
+    { label:'Urine — Routine',           category:'lab', fee_type:'urine_routine',        amount:200  },
+    { label:'X-Ray',                     category:'radiology', fee_type:'xray',           amount:400  },
+    { label:'Ultrasound (USG)',          category:'radiology', fee_type:'ultrasound',      amount:800  },
+    { label:'ECG',                       category:'radiology', fee_type:'ecg',             amount:300  },
+    { label:'Panchakarma — Abhyanga',    category:'procedure', fee_type:'pk_abhyanga',    amount:1200 },
+    { label:'Panchakarma — Shirodhara', category:'procedure', fee_type:'pk_shirodhara',  amount:1500 },
+    { label:'Injection (IM/SC)',         category:'procedure', fee_type:'injection',       amount:100  },
+    { label:'IV Cannula / Fluid',        category:'procedure', fee_type:'iv_cannula',      amount:300  },
+  ],
+  dispensary: [
+    { label:'Registration Fee',          category:'opd', fee_type:'registration',        amount:50   },
+    { label:'OPD Consultation',          category:'opd', fee_type:'consultation',         amount:150  },
+  ],
+  college: [
+    { label:'Registration Fee',          category:'opd', fee_type:'registration',        amount:100  },
+    { label:'OPD Consultation',          category:'opd', fee_type:'consultation',         amount:200,  notes:'Student OPD consultation' },
+    { label:'Blood — CBC',               category:'lab', fee_type:'blood_cbc',            amount:200  },
+    { label:'Urine — Routine',           category:'lab', fee_type:'urine_routine',        amount:100  },
+    { label:'X-Ray',                     category:'radiology', fee_type:'xray',           amount:300  },
+    { label:'Panchakarma — Abhyanga',    category:'procedure', fee_type:'pk_abhyanga',    amount:800  },
+    { label:'Panchakarma — Shirodhara', category:'procedure', fee_type:'pk_shirodhara',  amount:1000 },
+  ],
+};
+QS_TEMPLATES.pharma     = [];
+QS_TEMPLATES.supplier   = [];
+QS_TEMPLATES.dealer     = [];
+
+const CAT_LABEL_MAP = { opd:'OPD', ipd:'IPD', lab:'Lab', procedure:'Procedure', radiology:'Radiology', custom:'Custom' };
+
+window.openQuickSetup = function() {
+  const tpl = QS_TEMPLATES[facType] || [];
+  if (!tpl.length) { toast('No quick-setup template for this facility type.', 'error'); return; }
+
+  document.getElementById('qs-title').textContent = `Quick Setup — ${fac.icon} ${fac.label}`;
+  document.getElementById('qs-note').textContent  =
+    `Select the services you offer. Suggested default fees are shown — you can edit amounts after saving.`;
+
+  const grid = document.getElementById('qs-grid');
+  grid.innerHTML = tpl.map((t, i) => `
+    <label class="qs-item" for="qs-${i}">
+      <input type="checkbox" id="qs-${i}" value="${i}" checked/>
+      <div class="qs-item-info">
+        <div class="qs-item-name">${t.label}</div>
+        <div class="qs-item-cat">${CAT_LABEL_MAP[t.category] || t.category}</div>
+      </div>
+      <div class="qs-item-amt">₹${t.amount}</div>
+    </label>`).join('');
+
+  document.getElementById('qs-overlay').classList.add('open');
+};
+
+window.closeQuickSetup = function() {
+  document.getElementById('qs-overlay').classList.remove('open');
+};
+
+window.runQuickSetup = async function() {
+  const tpl      = QS_TEMPLATES[facType] || [];
+  const checked  = [...document.querySelectorAll('#qs-grid input[type=checkbox]:checked')];
+  const selected = checked.map(cb => tpl[parseInt(cb.value)]).filter(Boolean);
+
+  if (!selected.length) { toast('Select at least one service.', 'error'); return; }
+
+  const btn = document.getElementById('btn-qs-save');
+  btn.classList.add('loading'); btn.disabled = true;
+
+  const isSA = role === 'super_admin';
+  const rows = selected.map(t => ({
+    tenant_id:       tenantId,
+    label:           t.label,
+    category:        t.category,
+    fee_type:        t.fee_type,
+    amount:          t.amount,
+    notes:           t.notes || null,
+    opd_id:          null,
+    approval_status: isSA ? 'active' : 'pending',
+    is_active:       isSA,
+    created_by:      userId,
+    ...(isSA ? { approved_by_super: userId } : {})
+  }));
+
+  const { error } = await supabase.from('fee_structures').insert(rows);
+
+  btn.classList.remove('loading'); btn.disabled = false;
+
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+
+  toast(`${selected.length} service${selected.length > 1 ? 's' : ''} added successfully.`, 'success');
+  closeQuickSetup();
+  loadFees();
+};
+
+// ── Toast ─────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast ${type} show`;
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── Boot ──────────────────────────────────────────
+window.toast = toast;
+await loadOPDs();
+await loadFees();
+</script>
+</body>
+</html>

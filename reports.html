@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Reports — AyurXpert</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--cream:#faf8f3;--white:#ffffff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+  --success-bg:#e8f5ee;--success-border:#b2d8bf;--success-text:#1a4a2e;
+  --error-bg:#fdecea;--error-text:#8b1a1a;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1060px;margin:0 auto;padding:28px 20px 48px}
+
+/* ── Page header ─────────────────────────────────── */
+.page-header{margin-bottom:24px}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep);line-height:1.2}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+
+/* ── Tab bar ─────────────────────────────────────── */
+.tab-bar{display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:24px}
+.tab-btn{
+  padding:9px 18px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;
+  color:var(--text-muted);background:none;border:none;border-bottom:2px solid transparent;
+  margin-bottom:-2px;cursor:pointer;transition:color .15s,border-color .15s;white-space:nowrap;
+}
+.tab-btn.active{color:var(--green-deep);border-bottom-color:var(--green-deep);font-weight:600}
+.tab-btn:hover:not(.active){color:var(--text-mid)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* ── Summary cards ───────────────────────────────── */
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:24px}
+.summary-card{
+  background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);
+  padding:16px;display:flex;flex-direction:column;gap:4px;
+}
+.summary-card .sc-label{font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
+.summary-card .sc-value{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700;color:var(--green-deep);line-height:1}
+.summary-card .sc-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+.summary-card.gold .sc-value{color:var(--gold)}
+
+/* ── Section card ────────────────────────────────── */
+.section-card{
+  background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);
+  padding:20px;margin-bottom:16px;
+}
+.section-title{font-size:13px;font-weight:600;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px}
+
+/* ── Table ───────────────────────────────────────── */
+.data-table{width:100%;border-collapse:collapse;font-size:13px}
+.data-table th{text-align:left;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;padding:6px 10px;border-bottom:1.5px solid var(--border)}
+.data-table td{padding:9px 10px;border-bottom:1px solid var(--border);color:var(--text-dark);vertical-align:middle}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:#f5faf7}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.tag-paid{background:var(--success-bg);color:var(--success-text)}
+.tag-pending{background:#fff8ec;color:#7a5c1a}
+.tag-cancelled{background:#fdecea;color:var(--error-text)}
+
+/* ── Date filter bar ─────────────────────────────── */
+.filter-bar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.filter-bar label{font-size:12px;font-weight:500;color:var(--text-mid)}
+.filter-bar input[type=date]{
+  height:36px;padding:0 10px;border:1.5px solid var(--border);border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-dark);background:var(--white);
+}
+.btn-filter{
+  height:36px;padding:0 14px;background:var(--green-deep);color:#fff;
+  border:none;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;
+  cursor:pointer;transition:background .15s;
+}
+.btn-filter:hover{background:#1f5c37}
+
+/* ── Placeholder (lab_tech coming soon) ─────────── */
+.placeholder{
+  text-align:center;padding:60px 20px;color:var(--text-muted);
+}
+.placeholder-icon{font-size:48px;margin-bottom:12px}
+.placeholder-title{font-size:16px;font-weight:600;color:var(--text-mid);margin-bottom:6px}
+.placeholder-body{font-size:13px;line-height:1.6;max-width:400px;margin:0 auto}
+
+/* ── Empty state ─────────────────────────────────── */
+.empty{text-align:center;padding:28px;color:var(--text-muted);font-size:13px}
+
+/* ── Status bar ──────────────────────────────────── */
+.status-row{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:16px}
+.status-item{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-width:80px}
+.status-item .si-count{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:700}
+.status-item .si-label{font-size:11px;color:var(--text-muted)}
+.si-paid{color:var(--green-deep)}
+.si-pending{color:var(--gold)}
+.si-cancelled{color:#c0392b}
+
+@media(max-width:600px){
+  .summary-grid{grid-template-columns:1fr 1fr}
+  .filter-bar{flex-direction:column;align-items:flex-start}
+}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<div class="page-wrap">
+
+  <div class="page-header">
+    <div class="page-title">Reports</div>
+    <div class="page-subtitle" id="page-subtitle">Loading…</div>
+  </div>
+
+  <!-- Tab bar — rendered conditionally by role -->
+  <div class="tab-bar" id="tab-bar" style="display:none"></div>
+
+  <!-- ── ACCOUNTANT VIEW ────────────────────────── -->
+  <div id="panel-billing" class="tab-panel">
+
+    <div class="filter-bar">
+      <label>From</label>
+      <input type="date" id="date-from"/>
+      <label>To</label>
+      <input type="date" id="date-to"/>
+      <button class="btn-filter" id="btn-apply">Apply</button>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="sc-label">Total Revenue</div>
+        <div class="sc-value" id="s-revenue">₹0</div>
+        <div class="sc-sub" id="s-rev-sub">in selected range</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Total Bills</div>
+        <div class="sc-value" id="s-bills">0</div>
+        <div class="sc-sub" id="s-bills-sub">paid</div>
+      </div>
+      <div class="summary-card gold">
+        <div class="sc-label">Pending Amount</div>
+        <div class="sc-value" id="s-pending">₹0</div>
+        <div class="sc-sub">unpaid / partial</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Avg Bill</div>
+        <div class="sc-value" id="s-avg">₹0</div>
+        <div class="sc-sub">per paid bill</div>
+      </div>
+    </div>
+
+    <!-- Bill status breakdown -->
+    <div class="section-card">
+      <div class="section-title">Bill Status Breakdown</div>
+      <div class="status-row">
+        <div class="status-item"><div class="si-count si-paid" id="st-paid">0</div><div class="si-label">Paid</div></div>
+        <div class="status-item"><div class="si-count si-pending" id="st-pending">0</div><div class="si-label">Pending</div></div>
+        <div class="status-item"><div class="si-count si-cancelled" id="st-cancelled">0</div><div class="si-label">Cancelled</div></div>
+        <div class="status-item"><div class="si-count si-pending" id="st-partial">0</div><div class="si-label">Partial</div></div>
+      </div>
+    </div>
+
+    <!-- Recent bills -->
+    <div class="section-card">
+      <div class="section-title">Recent Bills</div>
+      <div id="bills-table-wrap">
+        <div class="empty">Loading bills…</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── LAB TECH VIEW ──────────────────────────── -->
+  <div id="panel-lab" class="tab-panel">
+    <div class="placeholder">
+      <div class="placeholder-icon">🔬</div>
+      <div class="placeholder-title">Lab Investigation Orders</div>
+      <div class="placeholder-body">
+        The lab investigations module is under development. Once built, you will see
+        ordered tests, pending samples, and results to upload here.
+      </div>
+    </div>
+  </div>
+
+</div><!-- page-wrap -->
+
+<script type="module">
+import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId, getCurrentRole } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['lab_tech', 'accountant', 'dept_admin', 'super_admin']);
+initNavbar();
+
+const role     = getCurrentRole();
+const tenantId = getCurrentTenantId();
+
+// ── Set up tabs based on role ──────────────────────
+const tabBar    = document.getElementById('tab-bar');
+const isAcct    = ['accountant','dept_admin','super_admin'].includes(role);
+const isLabTech = role === 'lab_tech';
+
+document.getElementById('page-subtitle').textContent =
+  isLabTech ? 'Lab investigation orders and results' : 'Billing and revenue reports';
+
+if (isAcct && isLabTech) {
+  // super_admin can see both (edge case)
+  tabBar.style.display = 'flex';
+  tabBar.innerHTML = `
+    <button class="tab-btn active" data-panel="billing">Billing</button>
+    <button class="tab-btn" data-panel="lab">Lab</button>
+  `;
+} else if (isAcct) {
+  document.getElementById('panel-billing').classList.add('active');
+} else {
+  document.getElementById('panel-lab').classList.add('active');
+}
+
+// For super_admin, show both tabs
+if (role === 'super_admin') {
+  tabBar.style.display = 'flex';
+  tabBar.innerHTML = `
+    <button class="tab-btn active" data-panel="billing">Billing</button>
+    <button class="tab-btn" data-panel="lab">Lab</button>
+  `;
+  document.getElementById('panel-billing').classList.add('active');
+}
+
+tabBar.addEventListener('click', e => {
+  const btn = e.target.closest('.tab-btn');
+  if (!btn) return;
+  tabBar.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-' + btn.dataset.panel).classList.add('active');
+});
+
+// ── Date defaults (last 30 days) ────────────────────
+const today = new Date();
+const from30 = new Date(today); from30.setDate(today.getDate() - 29);
+const toISO   = today.toISOString().split('T')[0];
+const fromISO = from30.toISOString().split('T')[0];
+document.getElementById('date-from').value = fromISO;
+document.getElementById('date-to').value   = toISO;
+
+// ── Load billing data ───────────────────────────────
+async function loadBilling() {
+  const from = document.getElementById('date-from').value;
+  const to   = document.getElementById('date-to').value;
+  if (!from || !to) return;
+
+  const toEnd = to + 'T23:59:59';
+
+  const { data: bills, error } = await supabase
+    .from('bills')
+    .select('id, total_amount, final_amount, status, bill_type, created_at, patient_id')
+    .eq('tenant_id', tenantId)
+    .gte('created_at', from + 'T00:00:00')
+    .lte('created_at', toEnd)
+    .order('created_at', { ascending: false });
+
+  if (error) { console.error(error); return; }
+  const rows = bills || [];
+
+  // Summary
+  const paid      = rows.filter(b => b.status === 'paid');
+  const pending   = rows.filter(b => b.status === 'pending');
+  const cancelled = rows.filter(b => b.status === 'cancelled');
+  const partial   = rows.filter(b => b.status === 'partial');
+
+  const paidRevenue = paid.reduce((s, b) => s + Number(b.final_amount || b.total_amount || 0), 0);
+  const pendAmt     = [...pending, ...partial].reduce((s, b) => s + Number(b.final_amount || b.total_amount || 0), 0);
+
+  document.getElementById('s-revenue').textContent  = '₹' + paidRevenue.toLocaleString('en-IN');
+  document.getElementById('s-bills').textContent    = paid.length;
+  document.getElementById('s-pending').textContent  = '₹' + pendAmt.toLocaleString('en-IN');
+  document.getElementById('s-avg').textContent      = paid.length
+    ? '₹' + Math.round(paidRevenue / paid.length).toLocaleString('en-IN')
+    : '₹0';
+
+  document.getElementById('st-paid').textContent      = paid.length;
+  document.getElementById('st-pending').textContent   = pending.length;
+  document.getElementById('st-cancelled').textContent = cancelled.length;
+  document.getElementById('st-partial').textContent   = partial.length;
+
+  // Recent bills table
+  const wrap = document.getElementById('bills-table-wrap');
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty">No bills in selected date range.</div>';
+    return;
+  }
+
+  // Get patient names
+  const patientIds = [...new Set(rows.map(b => b.patient_id).filter(Boolean))];
+  const { data: patients } = patientIds.length
+    ? await supabase.from('patients').select('id, name').in('id', patientIds)
+    : { data: [] };
+  const patMap = Object.fromEntries((patients || []).map(p => [p.id, p.name]));
+
+  const statusTag = s => {
+    if (s === 'paid')      return `<span class="tag tag-paid">Paid</span>`;
+    if (s === 'cancelled') return `<span class="tag tag-cancelled">Cancelled</span>`;
+    return `<span class="tag tag-pending">${s.charAt(0).toUpperCase() + s.slice(1)}</span>`;
+  };
+
+  const rows50 = rows.slice(0, 50);
+  wrap.innerHTML = `
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Patient</th>
+          <th>Type</th>
+          <th>Amount</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows50.map(b => `
+          <tr>
+            <td>${new Date(b.created_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
+            <td>${patMap[b.patient_id] || '—'}</td>
+            <td style="text-transform:capitalize">${(b.bill_type || 'opd').replace(/_/g,' ')}</td>
+            <td>₹${Number(b.final_amount || b.total_amount || 0).toLocaleString('en-IN')}</td>
+            <td>${statusTag(b.status)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    ${rows.length > 50 ? `<div class="empty" style="padding:10px">Showing 50 of ${rows.length} bills.</div>` : ''}
+  `;
+}
+
+if (isAcct || role === 'super_admin') {
+  loadBilling();
+  document.getElementById('btn-apply').addEventListener('click', loadBilling);
+}
+</script>
+</body>
+</html>

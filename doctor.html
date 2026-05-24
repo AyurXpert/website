@@ -1,0 +1,2483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Doctor — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#1a4a2e"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fffbf2;--cream:#faf8f3;--white:#fff;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--radius:10px;
+  --red:#c0392b;--red-light:#fff3f3;--amber:#e67e22;
+  --success-bg:#f0f9f4;--success-border:#b8ddc6;
+  --error-bg:#fff3f3;--error-border:#f5b8b8;--error-text:#8b1a1a;
+  --nav-h:64px;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);overflow:hidden}
+
+/* ── Two-column full-height layout ──────────────── */
+.page{
+  display:grid;
+  grid-template-columns:320px 1fr;
+  grid-template-rows:calc(100vh - var(--nav-h));
+  height:calc(100vh - var(--nav-h));margin-top:var(--nav-h);
+  overflow:hidden
+}
+@media(max-width:860px){
+  body{overflow:auto}
+  .page{display:block;margin-top:var(--nav-h)}
+  .q-panel{height:auto!important;overflow:visible;min-height:0}
+  .q-list{overflow:visible;height:auto}
+  /* collapse c-panel — NOT display:none (that traps fixed children) */
+  .welcome{display:none!important}
+  .c-panel{height:0!important;overflow:hidden;min-height:0}
+  /* full-screen overlay when consultation open */
+  .c-active.mobile-full{
+    position:fixed;top:var(--nav-h);left:0;right:0;bottom:0;
+    z-index:200;background:var(--cream);
+    display:flex!important;flex-direction:column;overflow:hidden
+  }
+  .c-active.mobile-full .tab-body{
+    overflow-y:auto;flex:1;min-height:0;padding-bottom:80px
+  }
+  .action-bar{left:0!important}
+  /* back button — !important needed: base display:none comes later in file */
+  .btn-mobile-back{
+    display:flex!important;align-items:center;gap:8px;flex-shrink:0;
+    width:100%;padding:11px 16px;
+    background:var(--green-deep);color:#fff;
+    border:none;font-size:14px;font-weight:500;cursor:pointer;
+    font-family:'DM Sans',sans-serif;letter-spacing:.2px
+  }
+  /* responsive form grids — !important needed: base rules come later in file */
+  .field-row.col2{grid-template-columns:1fr!important}
+  .field-row.col3{grid-template-columns:1fr 1fr!important}
+  .vitals-grid{grid-template-columns:1fr 1fr!important}
+  .vital-card{min-width:0}
+  .vital-inputs input{min-width:0;font-size:13px}
+  .systemic-grid{grid-template-columns:1fr!important}
+  .asta-grid{grid-template-columns:1fr 1fr!important}
+  /* prescription rows — wrap on mobile */
+  .rx-row{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
+  .rx-row>.rx-col:first-child{flex:0 0 100%}
+  .rx-row>.rx-col{flex:1 1 calc(50% - 4px);min-width:70px}
+  .rx-row>.btn-rm-rx{align-self:flex-start;margin-top:18px}
+}
+
+/* ── Queue panel ─────────────────────────────────── */
+.q-panel{
+  display:flex;flex-direction:column;
+  border-right:1px solid var(--border);background:var(--white);
+  overflow:hidden;min-height:0;height:calc(100vh - var(--nav-h))
+}
+.q-hdr{
+  padding:16px 20px 12px;border-bottom:1px solid var(--border);flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between
+}
+.q-hdr-left .panel-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--green-deep)}
+.q-hdr-left .panel-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+.q-hdr-right{display:flex;align-items:center;gap:8px}
+.q-count{
+  background:var(--green-deep);color:#fff;
+  font-size:12px;font-weight:600;min-width:26px;height:22px;
+  border-radius:11px;display:flex;align-items:center;justify-content:center;padding:0 8px
+}
+.alert-btn{
+  position:relative;background:none;border:1.5px solid var(--gold);
+  border-radius:8px;width:34px;height:34px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+  transition:background .15s
+}
+.alert-btn:hover{background:var(--gold-light)}
+.alert-dot{
+  position:absolute;top:-5px;right:-5px;
+  background:var(--red);color:#fff;font-size:9px;font-weight:700;
+  min-width:16px;height:16px;border-radius:8px;
+  display:none;align-items:center;justify-content:center;padding:0 3px;
+  border:2px solid #fff
+}
+.alert-dot.show{display:flex}
+
+.q-list{flex:1;overflow-y:auto;padding:8px 12px}
+.q-empty{text-align:center;padding:48px 16px;color:var(--text-muted)}
+.q-empty-icon{margin-bottom:10px}
+.q-empty-icon img{width:60px;height:60px;opacity:.5;object-fit:contain}
+
+.q-card{
+  padding:12px 10px;border-radius:10px;border:1.5px solid transparent;
+  cursor:pointer;transition:all .15s;margin-bottom:6px;
+  background:var(--cream)
+}
+.q-card:hover{border-color:var(--green-mid);background:var(--green-light)}
+.q-card.active{border-color:var(--green-deep);background:var(--green-light)}
+.q-card.in-progress{border-color:var(--gold);background:var(--gold-light)}
+.q-card-top{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.q-token{
+  min-width:36px;height:36px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;
+  background:var(--green-light);color:var(--green-deep)
+}
+.q-token.gold{background:var(--gold);color:#fff}
+.q-token.red{background:var(--red);color:#fff}
+.q-name{font-size:14px;font-weight:500;color:var(--text-dark);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q-wait{font-size:11px;color:var(--text-muted);flex-shrink:0}
+.q-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:44px}
+.q-complaint{font-size:12px;color:var(--text-muted);margin-left:44px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge{display:inline-block;padding:1px 7px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:.4px}
+.badge-cat {background:var(--green-light);color:var(--green-deep)}
+.badge-onreq{background:#fff3de;color:var(--gold)}
+.badge-emerg{background:var(--red-light);color:var(--red)}
+.badge-active{background:var(--gold-light);color:var(--gold)}
+
+.q-foot{padding:8px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);flex-shrink:0}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green-mid);animation:pulse 2s ease-in-out infinite;flex-shrink:0}
+
+/* ── Consultation panel ───────────────────────────── */
+.c-panel{display:flex;flex-direction:column;overflow:hidden;background:var(--cream);min-height:0;height:calc(100vh - var(--nav-h))}
+
+/* Welcome state */
+.welcome{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:12px;padding:40px;text-align:center
+}
+.welcome-icon img{width:80px;height:80px;opacity:.55;object-fit:contain}
+.welcome-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep)}
+.welcome-sub{font-size:14px;color:var(--text-muted);max-width:280px;line-height:1.6}
+
+/* Back button — mobile only */
+.btn-mobile-back{display:none}
+
+/* Active consultation */
+.c-active{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+
+/* Patient header */
+.pt-hdr{
+  padding:12px 24px;background:var(--white);border-bottom:1px solid var(--border);
+  flex-shrink:0
+}
+.pt-hdr-row1{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.pt-token{
+  min-width:44px;height:44px;border-radius:10px;
+  background:var(--green-deep);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;flex-shrink:0
+}
+.pt-name-block{flex:1;min-width:0}
+.pt-name{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--green-deep)}
+.pt-complaint{font-size:12px;color:var(--text-muted);margin-top:1px}
+.pt-hdr-row2{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.pt-meta{font-size:11px;color:var(--text-muted)}
+.pt-meta span{color:var(--text-dark);font-weight:500}
+.prakriti-pill{
+  padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;
+  background:var(--gold-light);color:var(--gold);border:1px solid #e8c77a
+}
+
+/* Tabs */
+.tabs{
+  display:flex;border-bottom:2px solid var(--border);
+  background:var(--white);flex-shrink:0;overflow-x:auto
+}
+.tab{
+  padding:10px 18px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;
+  color:var(--text-muted);border:none;background:none;cursor:pointer;
+  border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;
+  transition:color .15s,border-color .15s
+}
+.tab:hover{color:var(--green-mid)}
+.tab.active{color:var(--green-deep);border-bottom-color:var(--green-deep);font-weight:600}
+.tab.gated{display:none}
+
+/* Tab content */
+.tab-body{flex:1;min-height:0;overflow-y:auto;padding:20px 24px 80px}
+
+/* Action bar — fixed at viewport bottom, inside right panel */
+.action-bar{
+  position:fixed;bottom:0;left:320px;right:0;
+  padding:12px 24px;background:var(--white);border-top:1px solid var(--border);
+  display:flex;gap:10px;z-index:100
+}
+.btn-complete{
+  flex:1;height:46px;background:var(--green-deep);color:#fff;border:none;
+  border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:14px;
+  font-weight:500;cursor:pointer;transition:background .2s
+}
+.btn-complete:hover:not(:disabled){background:#1f5c37}
+.btn-complete:disabled{opacity:.6;cursor:not-allowed}
+.btn-print-rx{
+  height:46px;padding:0 20px;background:var(--white);color:var(--green-deep);
+  border:1.5px solid var(--green-deep);border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;
+  transition:background .15s;white-space:nowrap
+}
+.btn-print-rx:hover{background:var(--green-light)}
+.btn-close-consult{
+  height:46px;width:46px;background:var(--cream);color:var(--text-muted);
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  font-size:18px;cursor:pointer;transition:background .15s;flex-shrink:0
+}
+.btn-close-consult:hover{background:#ffe8e8;color:var(--red);border-color:var(--red)}
+
+/* ── Form elements ───────────────────────────────── */
+.section{margin-bottom:24px}
+.section-title{
+  font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;
+  color:var(--green-deep);margin-bottom:12px;padding-bottom:6px;
+  border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px
+}
+.section-sub{
+  font-family:'DM Sans',sans-serif;font-size:11px;font-weight:400;
+  color:var(--text-muted);margin-left:auto
+}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px}
+.field input,.field select,.field textarea{
+  width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-dark);
+  background:var(--cream);outline:none;transition:border-color .2s,background .2s;
+  -webkit-appearance:none;appearance:none
+}
+.field select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a9e90' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;cursor:pointer
+}
+.field textarea{min-height:72px;resize:vertical;line-height:1.5}
+.field input:focus,.field select:focus,.field textarea:focus{
+  border-color:var(--green-mid);background:var(--white);box-shadow:0 0 0 3px rgba(45,122,79,.1)
+}
+.field-row{display:grid;gap:12px}
+.field-row.col2{grid-template-columns:1fr 1fr}
+.field-row.col3{grid-template-columns:1fr 1fr 1fr}
+
+/* ── Exam sub-sections ───────────────────────────── */
+.exam-block{
+  border:1px solid var(--border);border-radius:12px;
+  margin-bottom:16px;overflow:hidden
+}
+.exam-block-hdr{
+  padding:12px 16px;background:var(--white);
+  font-family:'Cormorant Garamond',serif;font-size:15px;font-weight:600;
+  color:var(--green-deep);display:flex;align-items:center;gap:8px;
+  border-bottom:1px solid var(--border);cursor:pointer;user-select:none
+}
+.exam-block-hdr .hdr-tag{
+  font-size:10px;font-weight:600;padding:2px 8px;border-radius:12px;
+  font-family:'DM Sans',sans-serif;letter-spacing:.5px
+}
+.tag-modern{background:#e8f4fd;color:#1a5276}
+.tag-ayurveda{background:var(--green-light);color:var(--green-deep)}
+.exam-block-body{padding:16px;background:var(--cream)}
+.exam-toggle-icon{margin-left:auto;color:var(--text-muted);font-size:14px;transition:transform .2s}
+.exam-block.collapsed .exam-block-body{display:none}
+.exam-block.collapsed .exam-toggle-icon{transform:rotate(-90deg)}
+
+/* ── Vitals grid ─────────────────────────────────── */
+.vitals-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:4px}
+.vital-card{
+  background:var(--white);border:1.5px solid var(--border);
+  border-radius:var(--radius);padding:10px 12px
+}
+.vital-lbl{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.vital-inputs{display:flex;align-items:center;gap:4px}
+.vital-inputs input{
+  flex:1;height:36px;padding:0 8px;border:1.5px solid var(--border);
+  border-radius:8px;font-size:15px;font-weight:500;background:var(--white);
+  color:var(--text-dark);outline:none;font-family:'DM Sans',sans-serif;text-align:center
+}
+.vital-inputs input:focus{border-color:var(--green-mid)}
+.vital-sep{color:var(--text-muted);font-size:16px;font-weight:300}
+.vital-unit{font-size:11px;color:var(--text-muted);flex-shrink:0}
+
+/* ── Systemic accordion ──────────────────────────── */
+.systemic-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sys-item{}
+.sys-item label{display:block;font-size:10px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.sys-item select{
+  width:100%;height:36px;padding:0 10px;border:1.5px solid var(--border);
+  border-radius:8px;font-size:13px;background:var(--white);color:var(--text-dark);
+  outline:none;-webkit-appearance:none;appearance:none;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a9e90' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 8px center;padding-right:26px;
+  transition:border-color .2s
+}
+.sys-item select:focus{border-color:var(--green-mid);background-color:var(--white)}
+
+/* ── Ashtasthana Pariksha ────────────────────────── */
+.asta-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.asta-item label{display:block;font-size:10px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px}
+.asta-item select{
+  width:100%;height:36px;padding:0 10px;border:1.5px solid var(--border);
+  border-radius:8px;font-size:13px;background:var(--white);color:var(--text-dark);
+  outline:none;-webkit-appearance:none;appearance:none;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a9e90' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 8px center;padding-right:26px;
+  transition:border-color .2s
+}
+.asta-item select:focus{border-color:var(--green-mid);background-color:var(--white)}
+
+/* ── Assessment — differential list ─────────────── */
+.diff-list{list-style:none;margin-bottom:10px}
+.diff-item{
+  display:flex;align-items:center;gap:8px;padding:6px 0;
+  border-bottom:1px solid var(--border)
+}
+.diff-item:last-child{border-bottom:none}
+.diff-item input[type=text]{
+  flex:1;height:34px;padding:0 10px;border:1.5px solid var(--border);
+  border-radius:8px;font-size:13px;background:var(--white);
+  color:var(--text-dark);outline:none;font-family:'DM Sans',sans-serif
+}
+.diff-item input[type=text]:focus{border-color:var(--green-mid)}
+.diff-item select{
+  width:110px;height:34px;padding:0 8px;border:1.5px solid var(--border);
+  border-radius:8px;font-size:12px;background:var(--white);color:var(--text-dark);
+  outline:none;cursor:pointer;-webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a9e90' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 6px center;padding-right:22px
+}
+.diff-item select:focus{border-color:var(--green-mid)}
+.btn-rm-diff{
+  width:28px;height:28px;border-radius:6px;border:1.5px solid var(--border);
+  background:var(--white);color:var(--text-muted);cursor:pointer;
+  font-size:15px;display:flex;align-items:center;justify-content:center;
+  transition:background .15s,border-color .15s,color .15s;flex-shrink:0
+}
+.btn-rm-diff:hover{background:var(--red-light);border-color:var(--red);color:var(--red)}
+.btn-add-diff{
+  height:34px;padding:0 14px;border:1.5px dashed var(--green-mid);
+  border-radius:8px;background:none;color:var(--green-mid);
+  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;
+  cursor:pointer;display:inline-flex;align-items:center;gap:5px;
+  transition:background .15s
+}
+.btn-add-diff:hover{background:var(--green-light)}
+
+/* ── NAMASTE / ICD autocomplete ──────────────────── */
+.dx-search-wrap{position:relative;margin-bottom:4px}
+.dx-search-input{
+  width:100%;box-sizing:border-box;height:38px;padding:0 38px 0 12px;
+  border:1.5px solid var(--border);border-radius:8px;font-size:13px;
+  background:var(--white);color:var(--text-dark);outline:none;
+  font-family:'DM Sans',sans-serif;transition:border-color .15s
+}
+.dx-search-input:focus{border-color:var(--green-mid)}
+.dx-search-icon{
+  position:absolute;right:12px;top:50%;transform:translateY(-50%);
+  font-size:15px;pointer-events:none;opacity:.5
+}
+.dx-dropdown{
+  position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:300;
+  background:var(--white);border:1.5px solid var(--green-mid);border-radius:10px;
+  box-shadow:0 6px 24px rgba(0,0,0,.12);max-height:240px;overflow-y:auto;
+  display:none
+}
+.dx-dropdown.open{display:block}
+.dx-item{
+  padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);
+  transition:background .12s
+}
+.dx-item:last-child{border-bottom:none}
+.dx-item:hover{background:var(--green-light)}
+.dx-item-code{
+  font-size:11px;font-weight:600;color:var(--green-deep);letter-spacing:.4px;
+  background:rgba(26,74,46,.08);padding:1px 6px;border-radius:4px;margin-right:6px
+}
+.dx-item-term{font-size:13px;color:var(--text-dark);font-weight:500}
+.dx-item-sub{font-size:11px;color:var(--text-mid);margin-top:2px}
+.dx-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--green-light);border:1.5px solid var(--green-mid);
+  border-radius:8px;padding:7px 12px;font-size:12px;margin-top:6px;width:100%;
+  box-sizing:border-box
+}
+.dx-badge-code{font-weight:700;color:var(--green-deep);font-size:11px;white-space:nowrap}
+.dx-badge-label{flex:1;color:var(--text-dark)}
+.dx-badge-icd11{font-size:10px;color:var(--text-mid);white-space:nowrap}
+.dx-badge-clear{
+  margin-left:auto;width:20px;height:20px;border-radius:50%;border:none;
+  background:var(--border);color:var(--text-mid);cursor:pointer;font-size:13px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0
+}
+.dx-badge-clear:hover{background:var(--red-light);color:var(--red)}
+.dx-hint{font-size:11px;color:var(--text-mid);margin-top:4px}
+
+/* Red flags */
+.flag-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.flag-chip{
+  padding:4px 12px;border-radius:20px;font-size:12px;cursor:pointer;
+  border:1px solid var(--border);background:var(--white);color:var(--text-mid);
+  transition:all .15s
+}
+.flag-chip:hover,.flag-chip.on{border-color:var(--red);background:var(--red-light);color:var(--red);font-weight:500}
+
+/* ── Prescription rows ───────────────────────────── */
+.rx-row{
+  display:grid;grid-template-columns:2fr 80px 100px 80px 1fr 32px;
+  gap:8px;align-items:center;padding:8px 10px;
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  background:var(--white);margin-bottom:6px;position:relative
+}
+.rx-row input,.rx-row select{
+  height:34px;padding:0 8px;border:1.5px solid var(--border);
+  border-radius:8px;font-size:13px;background:var(--cream);
+  color:var(--text-dark);outline:none;width:100%;
+  -webkit-appearance:none;appearance:none;font-family:'DM Sans',sans-serif
+}
+.rx-row select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a9e90' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 6px center;padding-right:22px;cursor:pointer
+}
+.rx-row input:focus,.rx-row select:focus{border-color:var(--green-mid)}
+.rx-lbl{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;display:block}
+.btn-rm-rx{
+  width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);
+  background:var(--white);color:var(--text-muted);cursor:pointer;
+  font-size:16px;display:flex;align-items:center;justify-content:center;
+  transition:background .15s,border-color .15s,color .15s;flex-shrink:0
+}
+.btn-rm-rx:hover{background:var(--red-light);border-color:var(--red);color:var(--red)}
+.rx-col label{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:2px}
+.stock-badge{font-size:10px;font-weight:600;margin-top:3px;padding:1px 6px;border-radius:10px;display:inline-block}
+.stock-in  {background:#d4f5e4;color:#1a5c38}
+.stock-low {background:#fff3de;color:#8a5a00}
+.stock-out {background:var(--red-light);color:var(--red)}
+
+/* Typeahead */
+.rx-wrap{position:relative}
+.typeahead{
+  position:absolute;top:calc(100% + 2px);left:0;right:0;
+  background:var(--white);border:1.5px solid var(--green-mid);
+  border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.12);
+  z-index:200;max-height:220px;overflow-y:auto;display:none
+}
+.typeahead.show{display:block}
+.ta-item{
+  padding:8px 12px;font-size:13px;cursor:pointer;
+  border-bottom:1px solid var(--border);transition:background .1s;
+  display:flex;justify-content:space-between;align-items:center
+}
+.ta-item:last-child{border-bottom:none}
+.ta-item:hover{background:var(--green-light)}
+.ta-name{color:var(--text-dark);font-weight:500}
+.ta-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.ta-mrp{font-size:11px;color:var(--text-muted)}
+
+.btn-add-rx{
+  width:100%;height:40px;border:1.5px dashed var(--green-mid);
+  border-radius:var(--radius);background:none;color:var(--green-mid);
+  font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;
+  transition:background .15s,color .15s;margin-top:4px
+}
+.btn-add-rx:hover{background:var(--green-light)}
+
+/* ── Advice / Pathya chips ───────────────────────── */
+.pathya-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.chip{
+  padding:4px 12px;border-radius:20px;font-size:12px;cursor:pointer;
+  border:1px solid var(--border);background:var(--white);color:var(--text-mid);
+  transition:all .15s
+}
+.chip:hover,.chip.on{border-color:var(--green-mid);background:var(--green-light);color:var(--green-deep)}
+
+/* ── Disposition (outcome) ───────────────────────── */
+.disposition-options{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+.disp-opt{
+  display:flex;align-items:flex-start;gap:12px;
+  padding:14px 16px;border:1.5px solid var(--border);border-radius:var(--radius);
+  cursor:pointer;transition:all .15s;background:var(--white)
+}
+.disp-opt:hover{border-color:var(--green-mid);background:var(--green-light)}
+.disp-opt.selected{border-color:var(--green-deep);background:var(--green-light)}
+.disp-opt input[type=radio]{accent-color:var(--green-deep);margin-top:2px;flex-shrink:0}
+.disp-opt-text{}
+.disp-opt-label{font-size:14px;font-weight:500;color:var(--text-dark)}
+.disp-opt-desc{font-size:12px;color:var(--text-muted);margin-top:2px}
+
+/* ── Toast notifications ─────────────────────────── */
+.toast{
+  position:fixed;bottom:24px;right:24px;z-index:1000;
+  display:flex;flex-direction:column;gap:8px;pointer-events:none
+}
+.toast-item{
+  padding:12px 16px;border-radius:10px;font-size:13px;max-width:300px;
+  box-shadow:0 4px 20px rgba(0,0,0,.15);pointer-events:auto;
+  animation:slideIn .3s ease;display:flex;gap:10px;align-items:flex-start
+}
+.toast-item.info{background:var(--green-deep);color:#fff}
+.toast-item.alert{background:var(--gold);color:#fff}
+.toast-item.error{background:var(--red);color:#fff}
+.toast-icon{font-size:16px;flex-shrink:0}
+
+/* ── Misc ────────────────────────────────────────── */
+.spinner{width:22px;height:22px;border:2px solid rgba(26,74,46,.2);border-top-color:var(--green-deep);border-radius:50%;animation:spin .7s linear infinite}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+@keyframes slideIn{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* ── Print styles ────────────────────────────────── */
+@media print{
+  #navbar-root,.q-panel,.tabs,.action-bar,.toast,.btn-close-consult,
+  .btn-add-rx,.btn-rm-rx,#tab-hist,#tab-exam,#tab-assess,#tab-diag,#tab-advice,#tab-disp,#tab-pk,#tab-adm{display:none!important}
+  body{overflow:auto;background:#fff}
+  .page{display:block;height:auto;margin-top:0}
+  .c-panel{display:block;overflow:visible}
+  .c-active{display:block;height:auto}
+  .tab-body{overflow:visible;padding:0}
+  #tab-rx{display:block!important}
+  .pt-hdr{border:none;padding:0 0 16px}
+  .rx-row{border:1px solid #ccc;break-inside:avoid;background:#fff}
+  .rx-row select,.rx-row input{border:none;padding:0;background:transparent;height:auto;font-size:13px}
+  .print-header{display:block!important}
+  .exam-block-body{display:block!important}
+}
+.print-header{display:none}
+</style>
+</head>
+<body>
+
+<div id="navbar-root"></div>
+
+<div class="page">
+
+  <!-- ── Queue Panel ────────────────────────────── -->
+  <aside class="q-panel">
+    <div class="q-hdr">
+      <div class="q-hdr-left">
+        <div class="panel-title">My Queue</div>
+        <div class="panel-sub" id="q-date"></div>
+      </div>
+      <div class="q-hdr-right">
+        <button class="alert-btn" id="btn-alerts" title="On-request alerts">
+          🔔
+          <div class="alert-dot" id="alert-dot">0</div>
+        </button>
+        <div class="q-count" id="q-count">0</div>
+      </div>
+    </div>
+
+    <div class="q-list" id="q-list">
+      <div class="q-empty"><div class="q-empty-icon">⏳</div>Loading…</div>
+    </div>
+
+    <div class="q-foot">
+      <div class="live-dot"></div>
+      Live · real-time updates
+    </div>
+  </aside>
+
+  <!-- ── Consultation Panel ─────────────────────── -->
+  <main class="c-panel">
+
+    <!-- Welcome state -->
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon"><img src="assets/AyurXpert_Tree_Only.png" alt="AyurXpert"></div>
+      <div class="welcome-title">Ready for Consultations</div>
+      <div class="welcome-sub">Select a patient from the queue on the left to begin</div>
+    </div>
+
+    <!-- Active consultation -->
+    <div class="c-active" id="c-active" style="display:none">
+
+      <!-- Back to queue (mobile only) -->
+      <button class="btn-mobile-back" id="btn-mobile-back">← Back to Queue</button>
+
+      <!-- Printable header (hidden on screen) -->
+      <div class="print-header" id="print-header"></div>
+
+      <!-- Patient header -->
+      <div class="pt-hdr" id="pt-hdr">
+        <div class="pt-hdr-row1">
+          <div class="pt-token" id="pt-token">—</div>
+          <div class="pt-name-block">
+            <div class="pt-name" id="pt-name">—</div>
+            <div class="pt-complaint" id="pt-complaint">—</div>
+          </div>
+        </div>
+        <div class="pt-hdr-row2">
+          <div class="pt-meta">UHID: <span id="pt-uhid">—</span></div>
+          <div class="pt-meta">Phone: <span id="pt-phone">—</span></div>
+          <div class="pt-meta" id="pt-abha-wrap" style="display:none">ABHA: <span id="pt-abha">—</span></div>
+          <div class="prakriti-pill" id="pt-prakriti" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-tab="hist">📝 History</button>
+        <button class="tab" data-tab="exam">🩺 Examination</button>
+        <button class="tab" data-tab="assess">🔍 Assessment</button>
+        <button class="tab" data-tab="diag">📋 Diagnosis</button>
+        <button class="tab" data-tab="rx">💊 Prescription</button>
+        <button class="tab" data-tab="advice">🌿 Advice</button>
+        <button class="tab" data-tab="disp">📤 Disposition</button>
+        <button class="tab gated" data-tab="pk" id="tab-btn-pk">🌸 Panchakarma</button>
+        <button class="tab gated" data-tab="adm" id="tab-btn-adm">🏥 Admission</button>
+      </div>
+
+      <!-- Scrollable content -->
+      <div class="tab-body">
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- TAB 1: HISTORY                              -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div id="tab-hist">
+
+          <div class="section">
+            <div class="section-title">Chief Complaint</div>
+            <div class="field">
+              <label>Main Complaint</label>
+              <input id="h-complaint" type="text" placeholder="e.g. Joint pain, Fever, Headache"/>
+            </div>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Duration</label>
+                <input id="h-duration" type="text" placeholder="e.g. 3 days, 2 weeks, 6 months"/>
+              </div>
+              <div class="field">
+                <label>Severity</label>
+                <select id="h-severity">
+                  <option value="">— Select —</option>
+                  <option>Mild</option><option>Moderate</option><option>Severe</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">History of Present Illness</div>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Onset</label>
+                <select id="h-onset">
+                  <option value="">— Select —</option>
+                  <option>Sudden / Acute</option>
+                  <option>Gradual / Insidious</option>
+                  <option>Recurrent</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Progression</label>
+                <select id="h-progression">
+                  <option value="">— Select —</option>
+                  <option>Improving</option>
+                  <option>Worsening</option>
+                  <option>Static / Unchanged</option>
+                  <option>Intermittent</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Aggravating Factors</label>
+                <input id="h-aggravating" type="text" placeholder="e.g. Cold, Exertion, Morning"/>
+              </div>
+              <div class="field">
+                <label>Relieving Factors</label>
+                <input id="h-relieving" type="text" placeholder="e.g. Rest, Warmth, Medications"/>
+              </div>
+            </div>
+            <div class="field">
+              <label>Associated Symptoms</label>
+              <textarea id="h-associated" placeholder="Other symptoms present along with the chief complaint…" style="min-height:64px"></textarea>
+            </div>
+            <div class="field">
+              <label>History Details / Clinical Narrative</label>
+              <textarea id="h-history" placeholder="Detailed history of present illness, previous treatments tried…" style="min-height:80px"></textarea>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Past History</div>
+            <div class="field-row col3">
+              <div class="field">
+                <label>Diabetes</label>
+                <select id="ph-dm">
+                  <option value="">—</option><option>No</option><option>Yes — Type 1</option>
+                  <option>Yes — Type 2</option><option>Pre-diabetic</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Hypertension</label>
+                <select id="ph-htn">
+                  <option value="">—</option><option>No</option><option>Yes — Controlled</option>
+                  <option>Yes — Uncontrolled</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Thyroid</label>
+                <select id="ph-thyroid">
+                  <option value="">—</option><option>No</option><option>Hypothyroid</option>
+                  <option>Hyperthyroid</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Surgery / Hospitalisation</label>
+                <input id="ph-surgery" type="text" placeholder="Details of past surgery or hospitalisation"/>
+              </div>
+              <div class="field">
+                <label>Other Significant Illness</label>
+                <input id="ph-other" type="text" placeholder="Asthma, cardiac disease, etc."/>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Drug & Allergy History</div>
+            <div class="field">
+              <label>Current Medications</label>
+              <textarea id="dh-current" placeholder="Name, dose, frequency of all current medicines including OTC…" style="min-height:60px"></textarea>
+            </div>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Known Allergies</label>
+                <input id="dh-allergy" type="text" placeholder="Drug / food allergies if any"/>
+              </div>
+              <div class="field">
+                <label>Adverse Drug Reactions</label>
+                <input id="dh-adr" type="text" placeholder="Reactions to specific medicines"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Family History</div>
+            <div class="field">
+              <textarea id="fh-notes" placeholder="DM, HTN, cardiac disease, cancer, or hereditary conditions in family…" style="min-height:60px"></textarea>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Personal &amp; Occupational History</div>
+            <div class="field-row col3">
+              <div class="field">
+                <label>Diet</label>
+                <select id="pers-diet">
+                  <option value="">—</option><option>Vegetarian</option>
+                  <option>Non-vegetarian</option><option>Eggetarian</option><option>Vegan</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Sleep</label>
+                <select id="pers-sleep">
+                  <option value="">—</option><option>Normal (6–8 hrs)</option>
+                  <option>Disturbed</option><option>Reduced (&lt;5 hrs)</option>
+                  <option>Excessive (&gt;9 hrs)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Exercise</label>
+                <select id="pers-exercise">
+                  <option value="">—</option><option>Sedentary</option><option>Light</option>
+                  <option>Moderate</option><option>Active</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-row col3">
+              <div class="field">
+                <label>Bowel Habits</label>
+                <select id="pers-bowel">
+                  <option value="">—</option><option>Regular</option>
+                  <option>Constipation</option><option>Loose / Diarrhoea</option>
+                  <option>Irregular</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Appetite</label>
+                <select id="pers-appetite">
+                  <option value="">—</option><option>Good</option>
+                  <option>Reduced</option><option>Excessive</option><option>Anorexia</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Addiction</label>
+                <select id="pers-addiction">
+                  <option value="">—</option><option>None</option>
+                  <option>Tobacco / Smoking</option><option>Alcohol</option>
+                  <option>Tobacco + Alcohol</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label>Occupation</label>
+              <input id="pers-occupation" type="text" placeholder="Type of work, work hours, occupational hazards"/>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Ayurveda History <span class="section-sub">Constitutional &amp; Causative Factors</span></div>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Prakriti (Constitution)</label>
+                <select id="ay-prakriti">
+                  <option value="">— Not assessed —</option>
+                  <option>Vata</option><option>Pitta</option><option>Kapha</option>
+                  <option>Vata-Pitta</option><option>Pitta-Kapha</option>
+                  <option>Vata-Kapha</option><option>Sama / Tridosha</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Agni (Digestive Fire)</label>
+                <select id="ay-agni">
+                  <option value="">—</option>
+                  <option>Sama (balanced)</option><option>Vishama (irregular)</option>
+                  <option>Tikshna (sharp/excess)</option><option>Manda (slow/low)</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Koshta (Bowel Reactivity)</label>
+                <select id="ay-koshta">
+                  <option value="">—</option>
+                  <option>Mridu (soft / sensitive)</option>
+                  <option>Madhyama (moderate)</option>
+                  <option>Krura (hard / resistant)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Nidra (Sleep Quality)</label>
+                <select id="ay-nidra">
+                  <option value="">—</option>
+                  <option>Normal / Sukha nidra</option>
+                  <option>Disturbed / Alpanidra</option>
+                  <option>Excessive / Atinidra</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label>Nidana (Causative Factors / Aetiology)</label>
+              <textarea id="ay-nidana" placeholder="Dietary factors, lifestyle factors, seasonal factors contributing to the illness…" style="min-height:60px"></textarea>
+            </div>
+            <div class="field">
+              <label>Ahara (Dietary habits relevant to condition)</label>
+              <input id="ay-ahara" type="text" placeholder="Specific food habits, timing, quantity, quality of food"/>
+            </div>
+            <div class="field">
+              <label>Vihara (Lifestyle habits relevant to condition)</label>
+              <input id="ay-vihara" type="text" placeholder="Activity pattern, stress levels, daily routine"/>
+            </div>
+          </div>
+
+          <div style="height:20px"></div>
+        </div><!-- /tab-hist -->
+
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- TAB 2: EXAMINATION                          -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div id="tab-exam" hidden>
+
+          <!-- MODERN EXAMINATION BLOCK -->
+          <div class="exam-block" id="block-modern">
+            <div class="exam-block-hdr" onclick="toggleBlock('block-modern')">
+              General &amp; Systemic Examination
+              <span class="hdr-tag tag-modern">Modern</span>
+              <span class="exam-toggle-icon">▼</span>
+            </div>
+            <div class="exam-block-body">
+
+              <div class="section">
+                <div class="section-title" style="font-size:14px">General Examination — Vital Signs</div>
+                <div class="vitals-grid">
+                  <div class="vital-card">
+                    <div class="vital-lbl">Blood Pressure</div>
+                    <div class="vital-inputs">
+                      <input id="v-bp-s" type="number" placeholder="120" min="60" max="250"/>
+                      <span class="vital-sep">/</span>
+                      <input id="v-bp-d" type="number" placeholder="80" min="40" max="150"/>
+                      <span class="vital-unit">mmHg</span>
+                    </div>
+                  </div>
+                  <div class="vital-card">
+                    <div class="vital-lbl">Pulse Rate</div>
+                    <div class="vital-inputs">
+                      <input id="v-pulse" type="number" placeholder="72" min="30" max="250"/>
+                      <span class="vital-unit">bpm</span>
+                    </div>
+                  </div>
+                  <div class="vital-card">
+                    <div class="vital-lbl">Temperature</div>
+                    <div class="vital-inputs">
+                      <input id="v-temp" type="number" placeholder="98.6" step="0.1" min="90" max="110"/>
+                      <span class="vital-unit">°F</span>
+                    </div>
+                  </div>
+                  <div class="vital-card">
+                    <div class="vital-lbl">Weight</div>
+                    <div class="vital-inputs">
+                      <input id="v-weight" type="number" placeholder="65" step="0.1" min="1" max="300"/>
+                      <span class="vital-unit">kg</span>
+                    </div>
+                  </div>
+                  <div class="vital-card">
+                    <div class="vital-lbl">SpO2</div>
+                    <div class="vital-inputs">
+                      <input id="v-spo2" type="number" placeholder="98" min="70" max="100"/>
+                      <span class="vital-unit">%</span>
+                    </div>
+                  </div>
+                  <div class="vital-card">
+                    <div class="vital-lbl">Resp. Rate</div>
+                    <div class="vital-inputs">
+                      <input id="v-rr" type="number" placeholder="16" min="8" max="60"/>
+                      <span class="vital-unit">/min</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="section">
+                <div class="section-title" style="font-size:14px">Systemic Examination</div>
+                <div class="systemic-grid">
+                  <div class="sys-item">
+                    <label>CVS (Cardiovascular)</label>
+                    <select id="sys-cvs">
+                      <option value="">— Normal / Not examined —</option>
+                      <option>Normal — S1 S2 heard, no murmur</option>
+                      <option>Murmur present</option>
+                      <option>Irregular rhythm</option>
+                      <option>Peripheral oedema</option>
+                      <option>Abnormal — see notes</option>
+                    </select>
+                  </div>
+                  <div class="sys-item">
+                    <label>RS (Respiratory)</label>
+                    <select id="sys-rs">
+                      <option value="">— Normal / Not examined —</option>
+                      <option>Normal — air entry bilateral, no added sounds</option>
+                      <option>Wheeze present</option>
+                      <option>Crepitations present</option>
+                      <option>Reduced air entry</option>
+                      <option>Rhonchi present</option>
+                      <option>Abnormal — see notes</option>
+                    </select>
+                  </div>
+                  <div class="sys-item">
+                    <label>CNS (Neurological)</label>
+                    <select id="sys-cns">
+                      <option value="">— Normal / Not examined —</option>
+                      <option>Alert, oriented, normal tone and reflexes</option>
+                      <option>Altered consciousness</option>
+                      <option>Focal neurological deficit</option>
+                      <option>Abnormal reflexes</option>
+                      <option>Abnormal — see notes</option>
+                    </select>
+                  </div>
+                  <div class="sys-item">
+                    <label>P/A (Abdomen)</label>
+                    <select id="sys-pa">
+                      <option value="">— Normal / Not examined —</option>
+                      <option>Soft, non-tender, no organomegaly</option>
+                      <option>Tenderness present</option>
+                      <option>Hepatomegaly</option>
+                      <option>Splenomegaly</option>
+                      <option>Distension / Ascites</option>
+                      <option>Abnormal — see notes</option>
+                    </select>
+                  </div>
+                  <div class="sys-item">
+                    <label>Musculoskeletal</label>
+                    <select id="sys-msk">
+                      <option value="">— Normal / Not examined —</option>
+                      <option>Normal ROM, no swelling or tenderness</option>
+                      <option>Joint swelling</option>
+                      <option>Restricted ROM</option>
+                      <option>Muscle wasting</option>
+                      <option>Tenderness on palpation</option>
+                      <option>Abnormal — see notes</option>
+                    </select>
+                  </div>
+                  <div class="sys-item">
+                    <label>Skin / Integument</label>
+                    <select id="sys-skin">
+                      <option value="">— Normal / Not examined —</option>
+                      <option>Normal — no lesions</option>
+                      <option>Rash / Erythema</option>
+                      <option>Pigmentation changes</option>
+                      <option>Oedema</option>
+                      <option>Dry / Scaling</option>
+                      <option>Jaundice</option>
+                      <option>Abnormal — see notes</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field" style="margin-top:12px">
+                  <label>Examination Notes</label>
+                  <textarea id="exam-modern-notes" placeholder="Relevant systemic examination findings, local examination details, measurements…" style="min-height:64px"></textarea>
+                </div>
+              </div>
+
+            </div>
+          </div><!-- /block-modern -->
+
+          <!-- AYURVEDA EXAMINATION BLOCK -->
+          <div class="exam-block" id="block-ayurveda">
+            <div class="exam-block-hdr" onclick="toggleBlock('block-ayurveda')">
+              Ayurveda Examination
+              <span class="hdr-tag tag-ayurveda">Ayurveda</span>
+              <span class="exam-toggle-icon">▼</span>
+            </div>
+            <div class="exam-block-body">
+
+              <div class="section">
+                <div class="section-title" style="font-size:14px">Ashtasthana Pariksha <span style="font-size:11px;font-weight:400;color:var(--text-muted);font-family:'DM Sans',sans-serif">8-fold examination</span></div>
+                <div class="asta-grid">
+                  <div class="asta-item">
+                    <label>Nadi (Pulse)</label>
+                    <select id="a-nadi">
+                      <option value="">— Select —</option>
+                      <option>Vata (thin, irregular, fast)</option>
+                      <option>Pitta (sharp, strong, moderate)</option>
+                      <option>Kapha (slow, steady, thick)</option>
+                      <option>Vata-Pitta</option><option>Pitta-Kapha</option>
+                      <option>Vata-Kapha</option><option>Tridosha</option>
+                    </select>
+                  </div>
+                  <div class="asta-item">
+                    <label>Mala (Stool)</label>
+                    <select id="a-mala">
+                      <option value="">— Select —</option>
+                      <option>Normal</option><option>Constipated</option>
+                      <option>Loose / Diarrhoea</option><option>Irregular</option>
+                      <option>Mucoid</option>
+                    </select>
+                  </div>
+                  <div class="asta-item">
+                    <label>Mutra (Urine)</label>
+                    <select id="a-mutra">
+                      <option value="">— Select —</option>
+                      <option>Normal</option><option>Increased frequency</option>
+                      <option>Decreased</option><option>Burning / Dysuria</option>
+                      <option>Coloured / Haematuria</option>
+                    </select>
+                  </div>
+                  <div class="asta-item">
+                    <label>Jihwa (Tongue)</label>
+                    <select id="a-jihwa">
+                      <option value="">— Select —</option>
+                      <option>Clean / Nirama</option><option>Coated white / Sama</option>
+                      <option>Dry</option><option>Trembling</option>
+                      <option>Red / Inflamed</option>
+                    </select>
+                  </div>
+                  <div class="asta-item">
+                    <label>Shabda (Voice)</label>
+                    <select id="a-shabda">
+                      <option value="">— Select —</option>
+                      <option>Normal / Clear</option><option>Hoarse</option>
+                      <option>Weak</option><option>Aphonia</option>
+                    </select>
+                  </div>
+                  <div class="asta-item">
+                    <label>Sparsha (Touch / Skin)</label>
+                    <select id="a-sparsha">
+                      <option value="">— Select —</option>
+                      <option>Normal</option><option>Dry / Rough (Vata)</option>
+                      <option>Oily / Sweaty</option><option>Cold</option>
+                      <option>Warm / Hot</option><option>Oedematous</option>
+                    </select>
+                  </div>
+                  <div class="asta-item">
+                    <label>Druk (Eyes)</label>
+                    <select id="a-druk">
+                      <option value="">— Select —</option>
+                      <option>Normal</option><option>Pale / Anaemia</option>
+                      <option>Red / Congested</option><option>Icteric / Yellow</option>
+                      <option>Sunken</option><option>Watery</option>
+                    </select>
+                  </div>
+                  <div class="asta-item">
+                    <label>Akriti (Build / Form)</label>
+                    <select id="a-akriti">
+                      <option value="">— Select —</option>
+                      <option>Normal / Madhyama</option><option>Lean / Krisha</option>
+                      <option>Obese / Sthula</option><option>Muscular / Bali</option>
+                      <option>Weak / Emaciated</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="section">
+                <div class="section-title" style="font-size:14px">Vikruti — Current Dosha State</div>
+                <div class="field-row col3">
+                  <div class="field">
+                    <label>Vata</label>
+                    <select id="d-vata">
+                      <option value="">—</option>
+                      <option>Normal</option><option>Increased</option><option>Decreased</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Pitta</label>
+                    <select id="d-pitta">
+                      <option value="">—</option>
+                      <option>Normal</option><option>Increased</option><option>Decreased</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Kapha</label>
+                    <select id="d-kapha">
+                      <option value="">—</option>
+                      <option>Normal</option><option>Increased</option><option>Decreased</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field-row col2">
+                  <div class="field">
+                    <label>Agni (Current state)</label>
+                    <select id="d-agni">
+                      <option value="">—</option>
+                      <option>Sama (balanced)</option><option>Vishama (irregular)</option>
+                      <option>Tikshna (sharp)</option><option>Manda (slow)</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Ama (Toxins)</label>
+                    <select id="d-ama">
+                      <option value="">—</option>
+                      <option>Nirama (no Ama)</option><option>Sama (with Ama)</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Ayurveda Examination Notes</label>
+                  <textarea id="exam-ayurveda-notes" placeholder="Dashavidha Pariksha findings, Dushya, Desha, Kala, Bala, additional Ayurveda findings…" style="min-height:64px"></textarea>
+                </div>
+              </div>
+
+            </div>
+          </div><!-- /block-ayurveda -->
+
+          <div style="height:20px"></div>
+        </div><!-- /tab-exam -->
+
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- TAB 3: ASSESSMENT                           -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div id="tab-assess" hidden>
+
+          <div class="section">
+            <div class="section-title">Provisional Diagnosis</div>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Provisional Modern Diagnosis</label>
+                <input id="as-provisional-modern" type="text" placeholder="Most likely diagnosis based on history &amp; exam"/>
+              </div>
+              <div class="field">
+                <label>Provisional Ayurveda Diagnosis</label>
+                <input id="as-provisional-ayurveda" type="text" placeholder="Likely Roga / Dosha imbalance"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              Differential Diagnosis
+              <button class="btn-add-diff" onclick="addDiff()">+ Add</button>
+            </div>
+            <ul class="diff-list" id="diff-list"></ul>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px">List alternative diagnoses to be ruled out</div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Red Flag Indicators</div>
+            <div class="flag-chips" id="flag-chips">
+              <span class="flag-chip" data-val="Unexplained weight loss">Wt. loss</span>
+              <span class="flag-chip" data-val="Night sweats">Night sweats</span>
+              <span class="flag-chip" data-val="Haemoptysis">Haemoptysis</span>
+              <span class="flag-chip" data-val="Altered consciousness">Altered consciousness</span>
+              <span class="flag-chip" data-val="Chest pain / pressure">Chest pain</span>
+              <span class="flag-chip" data-val="Severe headache sudden onset">Sudden severe headache</span>
+              <span class="flag-chip" data-val="Focal neurological deficit">Focal neuro deficit</span>
+              <span class="flag-chip" data-val="High-grade fever >104°F">High fever &gt;104°F</span>
+              <span class="flag-chip" data-val="Haematuria">Haematuria</span>
+              <span class="flag-chip" data-val="Melaena / Rectal bleeding">GI bleeding</span>
+            </div>
+            <div class="field">
+              <textarea id="as-redflags" placeholder="Document any red flag symptoms identified…" style="min-height:48px"></textarea>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Investigations Recommended</div>
+            <div class="field">
+              <label>Lab Tests</label>
+              <input id="as-inv-lab" type="text" placeholder="CBC, ESR, CRP, HbA1c, Vitamin D, LFT, KFT, Lipid profile…"/>
+            </div>
+            <div class="field">
+              <label>Imaging</label>
+              <input id="as-inv-imaging" type="text" placeholder="X-ray, USG, MRI, CT scan — specify region"/>
+            </div>
+            <div class="field">
+              <label>Ayurveda Assessments</label>
+              <input id="as-inv-ayurveda" type="text" placeholder="Roga Bala, Rogi Bala, specific Dosha assessment…"/>
+            </div>
+            <div class="field">
+              <label>Clinical Reasoning</label>
+              <textarea id="as-reasoning" placeholder="Clinical reasoning, why these investigations are needed, what you expect to confirm or rule out…" style="min-height:72px"></textarea>
+            </div>
+          </div>
+
+          <div style="height:20px"></div>
+        </div><!-- /tab-assess -->
+
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- TAB 4: DIAGNOSIS                            -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div id="tab-diag" hidden>
+
+          <div class="section">
+            <div class="section-title">NAMASTE Ayurveda Diagnosis</div>
+
+            <!-- NAMC search -->
+            <div class="field">
+              <label>Search Ayurveda Diagnosis <span style="font-weight:400;color:var(--text-mid)">(Sanskrit / English keyword or NAMC code)</span></label>
+              <div class="dx-search-wrap">
+                <input id="d-namc-search" class="dx-search-input" type="text"
+                       placeholder="e.g. Sandhigata, joint pain, AY-DIS…" autocomplete="off"/>
+                <span class="dx-search-icon">🔍</span>
+                <div id="d-namc-dropdown" class="dx-dropdown" role="listbox"></div>
+              </div>
+              <div id="d-namc-badge" style="display:none"></div>
+              <div class="dx-hint">Type at least 2 characters — searches Sanskrit transliteration, English name and NAMC code</div>
+            </div>
+
+            <!-- hidden bound values -->
+            <input type="hidden" id="d-namc-code"/>
+            <input type="hidden" id="d-namc-label"/>
+            <input type="hidden" id="d-icd11-code"/>
+
+            <!-- Modern diagnosis (free text, auto-filled from NAMC selection) -->
+            <div class="field" style="margin-top:12px">
+              <label>Modern / Biomedical Diagnosis</label>
+              <input id="d-modern" type="text" placeholder="e.g. Osteoarthritis Knee, Type 2 DM, Migraine"/>
+            </div>
+
+            <!-- ICD-10 search -->
+            <div class="field" style="margin-top:12px">
+              <label>ICD-10 Code <span style="font-weight:400;color:var(--text-mid)">(optional — search by code or keyword)</span></label>
+              <div class="dx-search-wrap">
+                <input id="d-icd10-search" class="dx-search-input" type="text"
+                       placeholder="e.g. M19, cholera, A00…" autocomplete="off"/>
+                <span class="dx-search-icon">🔍</span>
+                <div id="d-icd10-dropdown" class="dx-dropdown" role="listbox"></div>
+              </div>
+              <div id="d-icd10-badge" style="display:none"></div>
+            </div>
+
+            <!-- hidden ICD-10 bound values -->
+            <input type="hidden" id="d-icd10-code"/>
+            <input type="hidden" id="d-icd10-label"/>
+
+            <!-- keep legacy d-icd for backward compat with save logic -->
+            <input type="hidden" id="d-icd"/>
+
+            <div class="field-row col2" style="margin-top:12px">
+              <div class="field">
+                <label>Ayurvedic Diagnosis (free text override)</label>
+                <input id="d-ayurveda" type="text" placeholder="Override if not in NAMASTE list…"/>
+              </div>
+              <div class="field">
+                <label>Diagnosis Certainty</label>
+                <select id="d-certainty">
+                  <option value="">—</option>
+                  <option>Confirmed</option>
+                  <option>Probable</option>
+                  <option>Possible</option>
+                  <option>Awaiting Investigations</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Diagnostic Notes / Reasoning</label>
+              <textarea id="d-notes" placeholder="How this diagnosis was reached, key differentiating findings, correlation with investigations…"></textarea>
+            </div>
+          </div>
+
+          <div style="height:20px"></div>
+        </div><!-- /tab-diag -->
+
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- TAB 5: PRESCRIPTION                         -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div id="tab-rx" hidden>
+          <div class="section">
+            <div class="section-title">Medicines <span class="section-sub">Internal / Oral medications</span></div>
+            <div id="rx-rows"></div>
+            <button class="btn-add-rx" id="btn-add-rx">+ Add Medicine</button>
+          </div>
+          <div class="section" style="margin-top:16px">
+            <div class="section-title">Special Instructions</div>
+            <div class="field">
+              <textarea id="rx-instructions" placeholder="e.g. Take medicines after food. Avoid cold water. Rest advised…" style="min-height:64px"></textarea>
+            </div>
+          </div>
+          <div style="height:20px"></div>
+        </div><!-- /tab-rx -->
+
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- TAB 6: ADVICE & FOLLOW-UP                   -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div id="tab-advice" hidden>
+          <div class="section">
+            <div class="section-title">Pathya (To Follow)</div>
+            <div class="pathya-chips" id="pathya-chips">
+              <span class="chip" data-val="Warm water throughout the day">Warm water</span>
+              <span class="chip" data-val="Light, easily digestible food">Light food</span>
+              <span class="chip" data-val="Regular meal timings">Regular meals</span>
+              <span class="chip" data-val="Early to bed, early to rise">Early sleep</span>
+              <span class="chip" data-val="Gentle yoga and pranayama">Yoga / Pranayama</span>
+              <span class="chip" data-val="Avoid stress">Avoid stress</span>
+              <span class="chip" data-val="Sesame oil massage (Abhyanga) daily">Abhyanga</span>
+              <span class="chip" data-val="Warm milk at bedtime">Warm milk at night</span>
+            </div>
+            <div class="field">
+              <textarea id="adv-pathya" placeholder="Diet and lifestyle recommendations…" style="min-height:72px"></textarea>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Apathya (To Avoid)</div>
+            <div class="pathya-chips" id="apathya-chips">
+              <span class="chip" data-val="Cold water and cold food">Cold food/water</span>
+              <span class="chip" data-val="Spicy and oily food">Spicy/oily food</span>
+              <span class="chip" data-val="Day sleep">Day sleep</span>
+              <span class="chip" data-val="Late night meals">Late night meals</span>
+              <span class="chip" data-val="Excess physical exertion">Excess exertion</span>
+              <span class="chip" data-val="Alcohol and smoking">Alcohol / Smoking</span>
+              <span class="chip" data-val="Sour and fermented foods">Sour foods</span>
+              <span class="chip" data-val="Suppression of natural urges">Suppressing urges</span>
+            </div>
+            <div class="field">
+              <textarea id="adv-apathya" placeholder="Foods and activities to avoid…" style="min-height:72px"></textarea>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Follow-up</div>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Review Date</label>
+                <input id="fu-date" type="date"/>
+              </div>
+              <div class="field">
+                <label>Review After</label>
+                <select id="fu-quick" onchange="setFollowup(this.value)">
+                  <option value="">— Quick select —</option>
+                  <option value="7">7 days</option>
+                  <option value="14">14 days</option>
+                  <option value="21">21 days</option>
+                  <option value="30">1 month</option>
+                  <option value="60">2 months</option>
+                  <option value="90">3 months</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label>Follow-up Instructions</label>
+              <input id="fu-notes" type="text" placeholder="e.g. Review with CBC report, return if symptoms worsen"/>
+            </div>
+          </div>
+
+          <div style="height:20px"></div>
+        </div><!-- /tab-advice -->
+
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- TAB 7: DISPOSITION                          -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div id="tab-disp" hidden>
+
+          <div class="section">
+            <div class="section-title">Where does this patient go next?</div>
+            <div class="disposition-options">
+
+              <label class="disp-opt selected" id="disp-opd">
+                <input type="radio" name="disposition" value="opd" checked onchange="onDispChange(this.value)"/>
+                <div class="disp-opt-text">
+                  <div class="disp-opt-label">OPD — Home with Prescription</div>
+                  <div class="disp-opt-desc">Patient is stable, managed as outpatient. Prescription sent to pharmacy. Review on a future date.</div>
+                </div>
+              </label>
+
+              <label class="disp-opt" id="disp-pk-opt">
+                <input type="radio" name="disposition" value="pk" onchange="onDispChange(this.value)"/>
+                <div class="disp-opt-text">
+                  <div class="disp-opt-label">Panchakarma Treatment</div>
+                  <div class="disp-opt-desc" id="disp-pk-desc">Patient requires Panchakarma therapies — plan therapies in the Panchakarma tab.</div>
+                </div>
+              </label>
+
+              <label class="disp-opt" id="disp-adm-opt">
+                <input type="radio" name="disposition" value="admission" onchange="onDispChange(this.value)"/>
+                <div class="disp-opt-text">
+                  <div class="disp-opt-label">Admission — IPD</div>
+                  <div class="disp-opt-desc" id="disp-adm-desc">Patient requires in-patient care — complete admission details in the Admission tab.</div>
+                </div>
+              </label>
+
+              <label class="disp-opt" id="disp-ref-opt">
+                <input type="radio" name="disposition" value="referral" onchange="onDispChange(this.value)"/>
+                <div class="disp-opt-text">
+                  <div class="disp-opt-label">Referral — External / Internal</div>
+                  <div class="disp-opt-desc">Patient needs a specialist or higher-centre opinion — fill referral details below.</div>
+                </div>
+              </label>
+
+            </div>
+          </div>
+
+          <!-- Referral details — shown only when Referral is selected -->
+          <div class="section" id="referral-section" style="display:none">
+            <div class="section-title">Referral Details</div>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Referred To (Doctor / Specialist)</label>
+                <input id="ref-doctor" type="text" placeholder="Dr. Name, Speciality"/>
+              </div>
+              <div class="field">
+                <label>Referred To (Hospital / Centre)</label>
+                <input id="ref-hospital" type="text" placeholder="Hospital or clinic name"/>
+              </div>
+            </div>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Referral Type</label>
+                <select id="ref-type">
+                  <option value="">— Select —</option>
+                  <option>Internal — Same Organisation</option>
+                  <option>External — Another Hospital</option>
+                  <option>External — Government / Tertiary Centre</option>
+                  <option>External — Specialist Clinic</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Urgency</label>
+                <select id="ref-urgency">
+                  <option value="">— Select —</option>
+                  <option>Routine (within a week)</option>
+                  <option>Semi-urgent (within 48 hrs)</option>
+                  <option>Urgent (same day)</option>
+                  <option>Emergency (immediate)</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label>Reason for Referral</label>
+              <textarea id="ref-reason" placeholder="Clinical indication for referral, investigations to be done there, specific opinion required…" style="min-height:72px"></textarea>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Disposition Notes</div>
+            <div class="field">
+              <textarea id="disp-notes" placeholder="Emergency instructions, what to watch for at home, transport advice, accompanying person required…" style="min-height:72px"></textarea>
+            </div>
+          </div>
+
+          <div style="height:20px"></div>
+        </div><!-- /tab-disp -->
+
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- TAB 8: PANCHAKARMA (tenant-gated)           -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div id="tab-pk" hidden>
+          <div class="section">
+            <button type="button" onclick="_switchTab('disp')" style="display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:var(--green-deep);font-size:13px;font-weight:500;cursor:pointer;padding:0 0 12px;font-family:'DM Sans',sans-serif">← Back to Disposition</button>
+            <div class="section-title">Panchakarma Treatment Plan <span class="section-sub">Tenant feature</span></div>
+            <div class="field">
+              <label>Purvakarma (Preparatory procedures)</label>
+              <div class="pathya-chips" id="pk-purva-chips">
+                <span class="chip" data-val="Abhyanga (Oil massage)">Abhyanga</span>
+                <span class="chip" data-val="Swedana (Sudation)">Swedana</span>
+                <span class="chip" data-val="Snehapana (Internal oleation)">Snehapana</span>
+                <span class="chip" data-val="Shirodhara">Shirodhara</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>Panchakarma Procedures</label>
+              <div class="pathya-chips" id="pk-main-chips">
+                <span class="chip" data-val="Vamana (Emesis)">Vamana</span>
+                <span class="chip" data-val="Virechana (Purgation)">Virechana</span>
+                <span class="chip" data-val="Basti (Enema)">Basti</span>
+                <span class="chip" data-val="Nasya (Nasal admin.)">Nasya</span>
+                <span class="chip" data-val="Raktamokshana (Bloodletting)">Raktamokshana</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>Other Therapies</label>
+              <div class="pathya-chips" id="pk-other-chips">
+                <span class="chip" data-val="Pizhichil (Oil bath)">Pizhichil</span>
+                <span class="chip" data-val="Kizhi (Poultice)">Kizhi</span>
+                <span class="chip" data-val="Njavara Kizhi">Njavara Kizhi</span>
+                <span class="chip" data-val="Netra Tarpana (Eye care)">Netra Tarpana</span>
+                <span class="chip" data-val="Karna Poorana (Ear oil)">Karna Poorana</span>
+              </div>
+            </div>
+            <div class="field-row col2" style="margin-top:8px">
+              <div class="field">
+                <label>Start Date</label>
+                <input id="pk-start" type="date"/>
+              </div>
+              <div class="field">
+                <label>Duration (days)</label>
+                <input id="pk-duration" type="number" placeholder="7" min="1" max="60"/>
+              </div>
+            </div>
+            <div class="field">
+              <label>Oils / Materials</label>
+              <input id="pk-oils" type="text" placeholder="e.g. Dhanwantharam Taila, Ksheerabala, Mahanarayan…"/>
+            </div>
+            <div class="field">
+              <label>Panchakarma Notes / Instructions</label>
+              <textarea id="pk-notes" placeholder="Specific instructions for Panchakarma team, diet during treatment, rest requirements…" style="min-height:72px"></textarea>
+            </div>
+          </div>
+          <div style="height:20px"></div>
+        </div><!-- /tab-pk -->
+
+
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- TAB 9: ADMISSION (tenant-gated)             -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div id="tab-adm" hidden>
+          <div class="section">
+            <button type="button" onclick="_switchTab('disp')" style="display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:var(--green-deep);font-size:13px;font-weight:500;cursor:pointer;padding:0 0 12px;font-family:'DM Sans',sans-serif">← Back to Disposition</button>
+            <div class="section-title">Admission Order <span class="section-sub">Hospital feature</span></div>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Admission Type</label>
+                <select id="adm-type">
+                  <option value="">— Select —</option>
+                  <option>Planned / Elective</option>
+                  <option>Emergency</option>
+                  <option>Day Care Procedure</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Tentative Duration</label>
+                <input id="adm-duration" type="text" placeholder="e.g. 5–7 days, 2 weeks"/>
+              </div>
+            </div>
+            <div class="field">
+              <label>Indication for Admission</label>
+              <textarea id="adm-indication" placeholder="Clinical reason requiring in-patient care…" style="min-height:60px"></textarea>
+            </div>
+            <div class="field">
+              <label>Ward Preference / Instructions</label>
+              <input id="adm-ward" type="text" placeholder="General / Private / ICU — specify if any"/>
+            </div>
+            <div class="field">
+              <label>Nursing Instructions</label>
+              <textarea id="adm-nursing" placeholder="Monitoring frequency, positioning, diet restrictions, IV line, oxygen…" style="min-height:60px"></textarea>
+            </div>
+            <div class="field">
+              <label>Diet Plan for Inpatient</label>
+              <input id="adm-diet" type="text" placeholder="e.g. Soft diet, Liquid diet, NPO, Diabetic diet"/>
+            </div>
+          </div>
+          <div style="height:20px"></div>
+        </div><!-- /tab-adm -->
+
+      </div><!-- /tab-body -->
+
+      <!-- Action bar -->
+      <div class="action-bar">
+        <button class="btn-complete" id="btn-complete">✓ Complete &amp; Send to Pharmacy</button>
+        <button class="btn-print-rx" id="btn-print-rx">🖨 Print</button>
+        <button class="btn-close-consult" id="btn-close" title="Close without saving">✕</button>
+      </div>
+
+    </div><!-- /c-active -->
+  </main>
+
+</div>
+
+<!-- Toast container -->
+<div class="toast" id="toast"></div>
+
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module">
+import { requireAuth, getCurrentProfile, getCurrentTenantId, getCurrentTenant } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+import { logAudit } from './js/core/auditLogger.js';
+
+await requireAuth(['doctor', 'super_admin', 'dept_admin']);
+initNavbar();
+
+const profile  = getCurrentProfile();
+const tenantId = getCurrentTenantId();
+const userId   = profile.id;
+const _ctx     = { tenantId, userId, userName: profile.full_name };
+
+// ── Tenant feature gating ─────────────────────────
+// All 4 Disposition options are always visible.
+// The PK and Admission DETAIL TABS are tenant-gated.
+const PK_TYPES  = ['pk_center', 'hospital', 'college'];
+const ADM_TYPES = ['hospital', 'college'];
+
+let _hasPK  = false;
+let _hasAdm = false;
+
+function _gateFeatures() {
+  try {
+    const tenant = getCurrentTenant?.() || JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
+    const type   = (tenant.type || '').toLowerCase();
+
+    _hasPK  = PK_TYPES.includes(type);
+    _hasAdm = ADM_TYPES.includes(type);
+
+    if (_hasPK) {
+      document.getElementById('tab-btn-pk').classList.remove('gated');
+      document.getElementById('tab-btn-pk').style.display = '';
+    }
+    if (_hasAdm) {
+      document.getElementById('tab-btn-adm').classList.remove('gated');
+      document.getElementById('tab-btn-adm').style.display = '';
+    }
+
+    // Update disposition descriptions based on tenant capabilities
+    if (!_hasPK) {
+      document.getElementById('disp-pk-desc').textContent =
+        'Patient requires Panchakarma therapies — note details below and refer to a Panchakarma centre.';
+    }
+    if (!_hasAdm) {
+      document.getElementById('disp-adm-desc').textContent =
+        'Patient requires in-patient care — note below and refer to a hospital for admission.';
+    }
+  } catch {}
+}
+_gateFeatures();
+
+// ── State ─────────────────────────────────────────
+let _activeVisitId = null;
+let _activePatient = null;
+let _activeVisit   = null;
+let _inventory     = [];
+
+// ── Date label ────────────────────────────────────
+document.getElementById('q-date').textContent = new Date().toLocaleDateString('en-IN', {
+  weekday: 'long', day: 'numeric', month: 'long'
+});
+
+// ── UHID formatter ────────────────────────────────
+function _uhid(uuid) {
+  return `AYX-${new Date().getFullYear()}-${(uuid||'').replace(/-/g,'').slice(-6).toUpperCase()}`;
+}
+
+// ── Wait time ─────────────────────────────────────
+function _wait(createdAt) {
+  const m = Math.floor((Date.now() - new Date(createdAt)) / 60000);
+  if (m < 1) return 'Just arrived';
+  if (m < 60) return `${m}m`;
+  return `${Math.floor(m/60)}h ${m%60}m`;
+}
+
+// ── Load inventory for prescription typeahead ─────
+async function loadInventory() {
+  try {
+    const { data } = await supabase
+      .from('inventory')
+      .select('id, stock_quantity, mrp, medicine:medicines(id,name)')
+      .eq('tenant_id', tenantId);
+    _inventory = (data || []).filter(i => i.medicine?.name);
+  } catch (e) {
+    _inventory = [];
+  }
+}
+
+// ── Load queue ────────────────────────────────────
+async function loadQueue() {
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+
+  const { data } = await supabase
+    .from('visits')
+    .select('id, token_number, status, chief_complaint, created_at, is_on_request, visit_category, patients(id, name, phone, abha_number)')
+    .eq('tenant_id', tenantId)
+    .eq('doctor_id', userId)
+    .in('status', ['waiting', 'in_progress'])
+    .gte('created_at', start.toISOString())
+    .order('token_number', { ascending: true });
+
+  const count = data ? data.length : 0;
+  document.getElementById('q-count').textContent = count;
+
+  const list = document.getElementById('q-list');
+  if (!count) {
+    list.innerHTML = `<div class="q-empty"><div class="q-empty-icon"><img src="assets/AyurXpert_Tree_Only.png" alt=""></div>No patients waiting</div>`;
+    return;
+  }
+
+  const catLabel = { opd:'OPD', followup:'Follow-up', panchakarma:'Panchakarma', emergency:'Emergency', teleconsultation:'Teleconsult', camp:'Camp' };
+
+  list.innerHTML = data.map(v => {
+    const isActive    = v.id === _activeVisitId;
+    const inProgress  = v.status === 'in_progress';
+    const isEmergency = v.visit_category === 'emergency';
+    const tokenClass  = isEmergency ? 'red' : inProgress ? 'gold' : '';
+    const cardClass   = isActive ? 'q-card active' : inProgress ? 'q-card in-progress' : 'q-card';
+    const cat         = catLabel[v.visit_category] || 'OPD';
+    return `<div class="${cardClass}" onclick="startConsultation('${v.id}')">
+      <div class="q-card-top">
+        <div class="q-token ${tokenClass}">${v.token_number}</div>
+        <div class="q-name">${v.patients?.name || '—'}</div>
+        <div class="q-wait">${_wait(v.created_at)}</div>
+      </div>
+      <div class="q-meta">
+        <span class="badge badge-cat">${cat}</span>
+        ${v.is_on_request ? '<span class="badge badge-onreq">ON REQ</span>' : ''}
+        ${inProgress ? '<span class="badge badge-active">IN PROGRESS</span>' : ''}
+        ${isEmergency ? '<span class="badge badge-emerg">EMERGENCY</span>' : ''}
+      </div>
+      <div class="q-complaint">${v.chief_complaint || '—'}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Load unread alerts ────────────────────────────
+async function loadAlerts() {
+  const { count } = await supabase
+    .from('doctor_alerts')
+    .select('id', { count: 'exact', head: true })
+    .eq('doctor_id', userId)
+    .eq('is_read', false);
+
+  const dot = document.getElementById('alert-dot');
+  if (count > 0) {
+    dot.textContent = count;
+    dot.classList.add('show');
+  } else {
+    dot.classList.remove('show');
+  }
+}
+
+// ── Realtime subscription ─────────────────────────
+function subscribeRealtime() {
+  supabase.channel('doctor-live')
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'visits',
+      filter: `tenant_id=eq.${tenantId}`
+    }, () => loadQueue())
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'doctor_alerts',
+      filter: `doctor_id=eq.${userId}`
+    }, payload => {
+      loadAlerts();
+      _toast(`New on-request: ${payload.new.patient_name} — ${payload.new.message}`, 'alert');
+    })
+    .subscribe();
+}
+
+// ── Start consultation ────────────────────────────
+window.startConsultation = async function(visitId) {
+  _activeVisitId = visitId;
+
+  await supabase.from('visits').update({ status: 'in_progress' }).eq('id', visitId);
+
+  const { data: visit } = await supabase
+    .from('visits')
+    .select('*, patients(id, name, phone, abha_number)')
+    .eq('id', visitId)
+    .single();
+
+  _activeVisit   = visit;
+  _activePatient = visit?.patients;
+
+  document.getElementById('pt-token').textContent    = visit.token_number;
+  document.getElementById('pt-name').textContent     = _activePatient?.name || '—';
+  document.getElementById('pt-complaint').textContent = visit.chief_complaint || '—';
+  document.getElementById('pt-uhid').textContent     = _uhid(_activePatient?.id);
+  document.getElementById('pt-phone').textContent    = _activePatient?.phone || '—';
+
+  const abhaWrap = document.getElementById('pt-abha-wrap');
+  if (_activePatient?.abha_number) {
+    document.getElementById('pt-abha').textContent = _activePatient.abha_number;
+    abhaWrap.style.display = '';
+  } else {
+    abhaWrap.style.display = 'none';
+  }
+
+  const prakritiPill = document.getElementById('pt-prakriti');
+  if (_activePatient?.prakriti) {
+    prakritiPill.textContent = _activePatient.prakriti;
+    prakritiPill.style.display = '';
+  } else {
+    prakritiPill.style.display = 'none';
+  }
+
+  // Pre-fill chief complaint from visit
+  document.getElementById('h-complaint').value = visit.chief_complaint || '';
+
+  document.getElementById('welcome').style.display  = 'none';
+  document.getElementById('c-active').style.display = 'flex';
+
+  if (window.innerWidth <= 860) {
+    document.getElementById('c-active').classList.add('mobile-full');
+    window.scrollTo(0, 0);
+  }
+
+  _switchTab('hist');
+  loadQueue();
+};
+
+// ── Tabs ──────────────────────────────────────────
+const ALL_TABS = ['hist','exam','assess','diag','rx','advice','disp','pk','adm'];
+
+document.getElementById('tabs').addEventListener('click', e => {
+  const btn = e.target.closest('.tab');
+  if (btn && btn.dataset.tab) _switchTab(btn.dataset.tab);
+});
+
+function _switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  ALL_TABS.forEach(id => {
+    const el = document.getElementById(`tab-${id}`);
+    if (el) el.hidden = id !== name;
+  });
+}
+window._switchTab = _switchTab;
+
+// ── Exam block toggle (collapse/expand) ───────────
+window.toggleBlock = function(id) {
+  document.getElementById(id).classList.toggle('collapsed');
+};
+
+// ── Disposition change ────────────────────────────
+window.onDispChange = function(val) {
+  document.querySelectorAll('.disp-opt').forEach(el => el.classList.remove('selected'));
+  const radio = document.querySelector(`input[name=disposition][value="${val}"]`);
+  if (radio) radio.closest('.disp-opt').classList.add('selected');
+
+  // Show/hide referral details section
+  document.getElementById('referral-section').style.display = val === 'referral' ? '' : 'none';
+
+  const completeBtn = document.getElementById('btn-complete');
+  if (val === 'pk') {
+    completeBtn.textContent = '✓ Complete & Plan Panchakarma';
+    if (_hasPK) _switchTab('pk');
+  } else if (val === 'admission') {
+    completeBtn.textContent = '✓ Complete & Initiate Admission';
+    if (_hasAdm) _switchTab('adm');
+  } else if (val === 'referral') {
+    completeBtn.textContent = '✓ Complete & Generate Referral';
+  } else {
+    completeBtn.textContent = '✓ Complete & Send to Pharmacy';
+  }
+};
+
+// ── NAMASTE + ICD-10 dual-coding search ──────────
+function _dxSearch(inputId, dropdownId, badgeId, table, codeField, termField, subField, onSelect) {
+  const inp = document.getElementById(inputId);
+  const dd  = document.getElementById(dropdownId);
+  let _timer;
+
+  inp.addEventListener('input', () => {
+    clearTimeout(_timer);
+    const q = inp.value.trim();
+    if (q.length < 2) { dd.classList.remove('open'); dd.innerHTML = ''; return; }
+    _timer = setTimeout(async () => {
+      const orStr = `${codeField}.ilike.%${q}%,${termField}.ilike.%${q}%${subField ? ',' + subField + '.ilike.%' + q + '%' : ''}`;
+      const { data, error: dbErr } = await supabase.from(table)
+        .select('*')
+        .or(orStr)
+        .limit(8);
+      if (dbErr) { console.error('dx-search error:', table, dbErr); }
+      if (!data || data.length === 0) {
+        dd.innerHTML = '<div class="dx-item" style="color:var(--text-mid);cursor:default">No matches found</div>';
+        dd.classList.add('open'); return;
+      }
+      dd.innerHTML = data.map(r => {
+        const code  = r[codeField] || '';
+        const term  = r[termField] || '';
+        const sub   = subField ? (r[subField] || '') : '';
+        return `<div class="dx-item" data-code="${code}" data-term="${term}" data-row='${JSON.stringify(r)}'>
+          <span class="dx-item-code">${code}</span><span class="dx-item-term">${term}</span>
+          ${sub ? `<div class="dx-item-sub">${sub}</div>` : ''}
+        </div>`;
+      }).join('');
+      dd.querySelectorAll('.dx-item[data-code]').forEach(el => {
+        el.addEventListener('mousedown', e => {
+          e.preventDefault();
+          const row = JSON.parse(el.dataset.row);
+          onSelect(row);
+          dd.classList.remove('open'); dd.innerHTML = '';
+          inp.value = '';
+        });
+      });
+      dd.classList.add('open');
+    }, 280);
+  });
+
+  inp.addEventListener('blur', () => setTimeout(() => { dd.classList.remove('open'); }, 200));
+}
+
+function _initNamaste() {
+  _dxSearch(
+    'd-namc-search', 'd-namc-dropdown', 'd-namc-badge',
+    'namaste_codes', 'namc_code', 'namc_term', 'name_english',
+    row => {
+      document.getElementById('d-namc-code').value  = row.namc_code || '';
+      document.getElementById('d-namc-label').value = row.namc_term || '';
+      document.getElementById('d-icd11-code').value = row.name_english || '';
+      // Auto-fill modern diagnosis with English name (if empty)
+      const modEl = document.getElementById('d-modern');
+      if (!modEl.value) modEl.value = row.name_english || '';
+      // Show badge
+      const badge = document.getElementById('d-namc-badge');
+      const icd11 = row.name_english ? `· ${row.name_english}` : '';
+      badge.style.display = '';
+      badge.innerHTML = `<div class="dx-badge">
+        <span class="dx-badge-code">${row.namc_code}</span>
+        <span class="dx-badge-label">${row.namc_term}</span>
+        <span class="dx-badge-icd11">${icd11}</span>
+        <button class="dx-badge-clear" title="Clear" onclick="_clearNamaste()">×</button>
+      </div>`;
+    }
+  );
+}
+
+window._clearNamaste = function() {
+  ['d-namc-code','d-namc-label','d-icd11-code','d-namc-search'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('d-namc-badge').style.display = 'none';
+};
+
+function _initIcd10() {
+  _dxSearch(
+    'd-icd10-search', 'd-icd10-dropdown', 'd-icd10-badge',
+    'icd10_codes', 'icd10_code', 'icd10_term', 'chapter_name',
+    row => {
+      document.getElementById('d-icd10-code').value  = row.icd10_code || '';
+      document.getElementById('d-icd10-label').value = row.icd10_term || '';
+      document.getElementById('d-icd').value         = row.icd10_code || '';
+      const badge = document.getElementById('d-icd10-badge');
+      badge.style.display = '';
+      badge.innerHTML = `<div class="dx-badge">
+        <span class="dx-badge-code">${row.icd10_code}</span>
+        <span class="dx-badge-label">${row.icd10_term}</span>
+        <span class="dx-badge-icd11">${row.chapter_name || ''}</span>
+        <button class="dx-badge-clear" title="Clear" onclick="_clearIcd10()">×</button>
+      </div>`;
+    }
+  );
+}
+
+window._clearIcd10 = function() {
+  ['d-icd10-code','d-icd10-label','d-icd10-search','d-icd'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('d-icd10-badge').style.display = 'none';
+};
+
+// ── Differential diagnosis rows ───────────────────
+window.addDiff = function() {
+  const id = Date.now();
+  const li = document.createElement('li');
+  li.className = 'diff-item';
+  li.id = `diff-${id}`;
+  li.innerHTML = `
+    <input type="text" placeholder="Differential diagnosis to be ruled out…"/>
+    <select>
+      <option value="">— Likelihood —</option>
+      <option>Likely</option><option>Possible</option><option>Unlikely</option><option>Ruled out</option>
+    </select>
+    <button class="btn-rm-diff" onclick="this.closest('li').remove()">×</button>
+  `;
+  document.getElementById('diff-list').appendChild(li);
+};
+
+// ── Red flag chips ────────────────────────────────
+document.querySelectorAll('.flag-chip').forEach(chip => {
+  chip.addEventListener('click', function() {
+    this.classList.toggle('on');
+    const val  = this.dataset.val;
+    const on   = this.classList.contains('on');
+    const ta   = document.getElementById('as-redflags');
+    const curr = ta.value;
+    ta.value = on
+      ? (curr ? curr + '\n' + val : val)
+      : curr.split('\n').filter(l => l !== val).join('\n');
+  });
+});
+
+// ── Follow-up quick select ────────────────────────
+window.setFollowup = function(days) {
+  if (!days) return;
+  const d = new Date();
+  d.setDate(d.getDate() + parseInt(days));
+  document.getElementById('fu-date').value = d.toISOString().split('T')[0];
+};
+
+// ── Pathya / Apathya chips ────────────────────────
+['pathya-chips', 'apathya-chips', 'pk-purva-chips', 'pk-main-chips', 'pk-other-chips'].forEach(containerId => {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const ta = container.closest('.section')?.querySelector('textarea');
+  if (!ta) return;
+  container.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', function() {
+      this.classList.toggle('on');
+      const val  = this.dataset.val;
+      const on   = this.classList.contains('on');
+      const curr = ta.value;
+      ta.value = on
+        ? (curr ? curr + '\n' + val : val)
+        : curr.split('\n').filter(l => l !== val).join('\n');
+    });
+  });
+});
+
+// ── Prescription rows ─────────────────────────────
+let _rxRows = [];
+
+document.getElementById('btn-add-rx').addEventListener('click', () => addRxRow());
+
+function addRxRow(data = {}) {
+  const id = Date.now();
+  _rxRows.push(id);
+
+  const div = document.createElement('div');
+  div.className = 'rx-row';
+  div.id = `rx-${id}`;
+  div.innerHTML = `
+    <div class="rx-col">
+      <label>Medicine Name</label>
+      <div class="rx-wrap">
+        <input type="text" class="rx-name" placeholder="Start typing…" value="${data.name||''}" autocomplete="off"/>
+        <div class="typeahead" id="ta-${id}"></div>
+      </div>
+      <div class="stock-badge" id="sb-${id}" style="display:none"></div>
+    </div>
+    <div class="rx-col">
+      <label>Dosage</label>
+      <input type="text" class="rx-dose" placeholder="e.g. 3g" value="${data.dose||''}"/>
+    </div>
+    <div class="rx-col">
+      <label>Frequency</label>
+      <select class="rx-freq">
+        <option value="OD" ${data.freq==='OD'?'selected':''}>OD</option>
+        <option value="BD" ${data.freq==='BD'?'selected':''}>BD</option>
+        <option value="TDS" ${data.freq==='TDS'?'selected':''}>TDS</option>
+        <option value="QID" ${data.freq==='QID'?'selected':''}>QID</option>
+        <option value="SOS" ${data.freq==='SOS'?'selected':''}>SOS</option>
+        <option value="HS" ${data.freq==='HS'?'selected':''}>HS</option>
+        <option value="QAM" ${data.freq==='QAM'?'selected':''}>Morning</option>
+        <option value="QPM" ${data.freq==='QPM'?'selected':''}>Evening</option>
+      </select>
+    </div>
+    <div class="rx-col">
+      <label>Duration</label>
+      <input type="text" class="rx-dur" placeholder="e.g. 30d" value="${data.dur||''}"/>
+    </div>
+    <div class="rx-col">
+      <label>Anupana (Vehicle)</label>
+      <input type="text" class="rx-anupana" placeholder="Warm water, Milk…" value="${data.anupana||''}"/>
+    </div>
+    <button class="btn-rm-rx" onclick="removeRxRow(${id})">×</button>
+  `;
+
+  document.getElementById('rx-rows').appendChild(div);
+
+  const nameInput = div.querySelector('.rx-name');
+  const ta = document.getElementById(`ta-${id}`);
+  const sb = document.getElementById(`sb-${id}`);
+
+  nameInput.addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim();
+    if (q.length < 2 || !_inventory.length) { ta.classList.remove('show'); return; }
+    const results = _inventory.filter(i => i.medicine.name.toLowerCase().includes(q)).slice(0, 8);
+    if (!results.length) { ta.classList.remove('show'); return; }
+    ta.innerHTML = results.map(i => {
+      const stock = i.stock_quantity;
+      const cls   = stock <= 0 ? 'stock-out' : stock < 10 ? 'stock-low' : 'stock-in';
+      const label = stock <= 0 ? 'Out of Stock' : stock < 10 ? `Low (${stock})` : 'In Stock';
+      return `<div class="ta-item" data-name="${i.medicine.name}" data-stock="${stock}" data-mrp="${i.mrp||0}" data-cls="${cls}" data-label="${label}">
+        <span class="ta-name">${i.medicine.name}</span>
+        <div class="ta-right">
+          <span class="ta-mrp">₹${i.mrp||0}</span>
+          <span class="stock-badge ${cls}">${label}</span>
+        </div>
+      </div>`;
+    }).join('');
+    ta.classList.add('show');
+  });
+
+  ta.addEventListener('click', e => {
+    const item = e.target.closest('.ta-item');
+    if (!item) return;
+    nameInput.value = item.dataset.name;
+    sb.className = `stock-badge ${item.dataset.cls}`;
+    sb.textContent = item.dataset.label;
+    sb.style.display = 'inline-block';
+    ta.classList.remove('show');
+  });
+
+  nameInput.addEventListener('blur', () => setTimeout(() => ta.classList.remove('show'), 200));
+}
+
+window.removeRxRow = function(id) {
+  document.getElementById(`rx-${id}`)?.remove();
+  _rxRows = _rxRows.filter(r => r !== id);
+};
+
+function _getRxData() {
+  return [...document.querySelectorAll('#rx-rows .rx-row')].map(row => ({
+    name:    row.querySelector('.rx-name')?.value?.trim()    || '',
+    dose:    row.querySelector('.rx-dose')?.value?.trim()    || '',
+    freq:    row.querySelector('.rx-freq')?.value            || '',
+    dur:     row.querySelector('.rx-dur')?.value?.trim()     || '',
+    anupana: row.querySelector('.rx-anupana')?.value?.trim() || ''
+  })).filter(r => r.name);
+}
+
+// ── Collect differential list ─────────────────────
+function _getDiffList() {
+  return [...document.querySelectorAll('#diff-list .diff-item')].map(li => ({
+    diagnosis:  li.querySelector('input[type=text]')?.value?.trim() || '',
+    likelihood: li.querySelector('select')?.value || ''
+  })).filter(d => d.diagnosis);
+}
+
+// ── Complete consultation ─────────────────────────
+document.getElementById('btn-complete').addEventListener('click', completeConsultation);
+
+async function completeConsultation() {
+  if (!_activeVisitId) return;
+
+  const btn = document.getElementById('btn-complete');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    const disposition = document.querySelector('input[name=disposition]:checked')?.value || 'opd';
+    const chiefComplaint = document.getElementById('h-complaint').value.trim();
+
+    // chief_complaint lives in visits table, not consultation_notes
+    if (chiefComplaint) {
+      await supabase.from('visits').update({ chief_complaint: chiefComplaint }).eq('id', _activeVisitId);
+    }
+
+    const notes = {
+      // History
+      duration:            document.getElementById('h-duration').value.trim(),
+      severity:            document.getElementById('h-severity').value,
+      onset:               document.getElementById('h-onset').value,
+      progression:         document.getElementById('h-progression').value,
+      aggravating_factors: document.getElementById('h-aggravating').value.trim(),
+      relieving_factors:   document.getElementById('h-relieving').value.trim(),
+      associated_symptoms: document.getElementById('h-associated').value.trim(),
+      history_notes:       document.getElementById('h-history').value.trim(),
+      // Past history
+      past_dm:             document.getElementById('ph-dm').value,
+      past_htn:            document.getElementById('ph-htn').value,
+      past_thyroid:        document.getElementById('ph-thyroid').value,
+      past_surgery:        document.getElementById('ph-surgery').value.trim(),
+      past_other:          document.getElementById('ph-other').value.trim(),
+      // Drug/Allergy
+      current_medications: document.getElementById('dh-current').value.trim(),
+      allergies:           document.getElementById('dh-allergy').value.trim(),
+      adr:                 document.getElementById('dh-adr').value.trim(),
+      family_history:      document.getElementById('fh-notes').value.trim(),
+      // Personal
+      diet_type:           document.getElementById('pers-diet').value,
+      sleep_pattern:       document.getElementById('pers-sleep').value,
+      exercise_level:      document.getElementById('pers-exercise').value,
+      bowel_habits:        document.getElementById('pers-bowel').value,
+      appetite:            document.getElementById('pers-appetite').value,
+      addiction:           document.getElementById('pers-addiction').value,
+      occupation:          document.getElementById('pers-occupation').value.trim(),
+      // Ayurveda history
+      prakriti:            document.getElementById('ay-prakriti').value,
+      agni_history:        document.getElementById('ay-agni').value,
+      koshta:              document.getElementById('ay-koshta').value,
+      nidra:               document.getElementById('ay-nidra').value,
+      nidana:              document.getElementById('ay-nidana').value.trim(),
+      ahara:               document.getElementById('ay-ahara').value.trim(),
+      vihara:              document.getElementById('ay-vihara').value.trim(),
+      // Modern vitals
+      bp_systolic:         parseInt(document.getElementById('v-bp-s').value)    || null,
+      bp_diastolic:        parseInt(document.getElementById('v-bp-d').value)    || null,
+      pulse_rate:          parseInt(document.getElementById('v-pulse').value)   || null,
+      temperature:         parseFloat(document.getElementById('v-temp').value)  || null,
+      weight:              parseFloat(document.getElementById('v-weight').value) || null,
+      spo2:                parseInt(document.getElementById('v-spo2').value)    || null,
+      resp_rate:           parseInt(document.getElementById('v-rr').value)      || null,
+      // Systemic
+      sys_cvs:             document.getElementById('sys-cvs').value,
+      sys_rs:              document.getElementById('sys-rs').value,
+      sys_cns:             document.getElementById('sys-cns').value,
+      sys_pa:              document.getElementById('sys-pa').value,
+      sys_msk:             document.getElementById('sys-msk').value,
+      sys_skin:            document.getElementById('sys-skin').value,
+      exam_modern_notes:   document.getElementById('exam-modern-notes').value.trim(),
+      // Ashtasthana
+      nadi:                document.getElementById('a-nadi').value,
+      mala:                document.getElementById('a-mala').value,
+      mutra:               document.getElementById('a-mutra').value,
+      jihwa:               document.getElementById('a-jihwa').value,
+      shabda:              document.getElementById('a-shabda').value,
+      sparsha:             document.getElementById('a-sparsha').value,
+      druk:                document.getElementById('a-druk').value,
+      akriti:              document.getElementById('a-akriti').value,
+      // Vikruti
+      vata_state:          document.getElementById('d-vata').value,
+      pitta_state:         document.getElementById('d-pitta').value,
+      kapha_state:         document.getElementById('d-kapha').value,
+      agni_state:          document.getElementById('d-agni').value,
+      ama_state:           document.getElementById('d-ama').value,
+      exam_ayurveda_notes: document.getElementById('exam-ayurveda-notes').value.trim(),
+      // Assessment
+      provisional_modern:  document.getElementById('as-provisional-modern').value.trim(),
+      provisional_ayurveda:document.getElementById('as-provisional-ayurveda').value.trim(),
+      differential_list:   _getDiffList(),
+      red_flags:           document.getElementById('as-redflags').value.trim(),
+      inv_lab:             document.getElementById('as-inv-lab').value.trim(),
+      inv_imaging:         document.getElementById('as-inv-imaging').value.trim(),
+      inv_ayurveda:        document.getElementById('as-inv-ayurveda').value.trim(),
+      clinical_reasoning:  document.getElementById('as-reasoning').value.trim(),
+      // Diagnosis
+      modern_diagnosis:      document.getElementById('d-modern').value.trim(),
+      ayurveda_diagnosis:    document.getElementById('d-ayurveda').value.trim() || document.getElementById('d-namc-label').value.trim(),
+      diagnosis_namc_code:   document.getElementById('d-namc-code').value.trim(),
+      diagnosis_namc_label:  document.getElementById('d-namc-label').value.trim(),
+      diagnosis_icd10_code:  document.getElementById('d-icd10-code').value.trim(),
+      diagnosis_icd10_label: document.getElementById('d-icd10-label').value.trim(),
+      diagnosis_certainty:   document.getElementById('d-certainty').value,
+      clinical_notes:        document.getElementById('d-notes').value.trim(),
+      // Prescription
+      prescription_json:   _getRxData(),
+      rx_instructions:     document.getElementById('rx-instructions').value.trim(),
+      // Advice
+      pathya:              document.getElementById('adv-pathya').value.trim(),
+      apathya:             document.getElementById('adv-apathya').value.trim(),
+      followup_date:       document.getElementById('fu-date').value || null,
+      followup_notes:      document.getElementById('fu-notes').value.trim(),
+      // Disposition
+      disposition,
+      disp_notes:          document.getElementById('disp-notes').value.trim(),
+      // Referral
+      ref_doctor:          document.getElementById('ref-doctor').value.trim(),
+      ref_hospital:        document.getElementById('ref-hospital').value.trim(),
+      ref_type:            document.getElementById('ref-type').value,
+      ref_urgency:         document.getElementById('ref-urgency').value,
+      ref_reason:          document.getElementById('ref-reason').value.trim(),
+    };
+
+    // Save to consultation_notes
+    const { error: cnErr } = await supabase.from('consultation_notes').insert({
+      visit_id:  _activeVisitId,
+      tenant_id: tenantId,
+      doctor_id: userId,
+      ...notes
+    });
+    if (cnErr) {
+      console.error('consultation_notes error — message:', cnErr.message, '| details:', cnErr.details, '| hint:', cnErr.hint, '| code:', cnErr.code);
+      throw cnErr;
+    }
+
+    // Create prescription record for pharmacy
+    const rx = _getRxData();
+    if (rx.length > 0) {
+      const { data: presc, error: pErr } = await supabase
+        .from('prescriptions')
+        .insert({ visit_id: _activeVisitId, tenant_id: tenantId, patient_id: _activePatient.id })
+        .select('id').single();
+
+      if (!pErr && presc) {
+        await supabase.from('prescription_items').insert(
+          rx.map(r => ({
+            prescription_id: presc.id,
+            medicine_id: null,
+            medicine_name: r.name,
+            dosage: r.dose,
+            frequency: r.freq,
+            duration: r.dur,
+            anupana: r.anupana,
+            quantity: 1
+          }))
+        );
+      }
+    }
+
+    // Mark visit completed
+    await supabase.from('visits').update({ status: 'completed' }).eq('id', _activeVisitId);
+
+    await logAudit('complete_consultation', 'visits', _activeVisitId, {
+      patient_name: _activePatient?.name,
+      modern_diagnosis: notes.modern_diagnosis,
+      ayurveda_diagnosis: notes.ayurveda_diagnosis,
+      disposition,
+      medicines_count: rx.length
+    }, _ctx);
+
+    const dispMsg = disposition === 'pk' ? 'Panchakarma plan saved'
+      : disposition === 'admission' ? 'Admission order created'
+      : disposition === 'referral'  ? 'Referral noted'
+      : 'sent to pharmacy';
+    _toast(`${_activePatient?.name} — consultation complete, ${dispMsg}`, 'info');
+    _closeConsult();
+    loadQueue();
+
+  } catch (err) {
+    console.error('completeConsultation caught:', err?.message, err?.details, err?.hint);
+    _toast('Error saving: ' + (err.message || JSON.stringify(err) || 'Please try again'), 'error');
+    btn.disabled = false;
+    btn.textContent = '✓ Complete & Send to Pharmacy';
+  }
+}
+
+// ── Print ─────────────────────────────────────────
+document.getElementById('btn-print-rx').addEventListener('click', () => {
+  if (!_activePatient) return;
+
+  const tenant = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
+  const rx   = _getRxData();
+  const date = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+
+  document.getElementById('print-header').innerHTML = `
+    <div style="text-align:center;margin-bottom:16px;border-bottom:2px solid #1a4a2e;padding-bottom:12px">
+      <h2 style="font-family:'Cormorant Garamond',serif;font-size:24px;color:#1a4a2e;margin:0">${tenant.name || 'AyurXpert Clinic'}</h2>
+      <p style="font-size:12px;color:#8a9e90;margin-top:4px">${tenant.city || ''} ${tenant.state || ''}</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;font-size:12px">
+      <div>Patient: <strong>${_activePatient.name}</strong></div>
+      <div style="text-align:right">Date: <strong>${date}</strong></div>
+      <div>UHID: <strong>${_uhid(_activePatient.id)}</strong></div>
+      <div style="text-align:right">Token: <strong>#${_activeVisit?.token_number}</strong></div>
+      <div>Doctor: <strong>${profile.full_name}</strong></div>
+      <div style="text-align:right">Phone: <strong>${_activePatient.phone || '—'}</strong></div>
+    </div>
+    ${document.getElementById('d-modern').value || document.getElementById('d-ayurveda').value ? `
+    <div style="background:#f0f9f4;padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:12px">
+      ${document.getElementById('d-modern').value ? `Diagnosis: <strong>${document.getElementById('d-modern').value}</strong>` : ''}
+      ${document.getElementById('d-ayurveda').value ? ` / <strong>${document.getElementById('d-ayurveda').value}</strong>` : ''}
+    </div>` : ''}
+    <div style="font-size:12px;font-weight:600;color:#1a4a2e;margin-bottom:8px;border-bottom:1px solid #d4e6da;padding-bottom:4px">&#8478; Medicines</div>
+    ${rx.map((r,i) => `<div style="padding:6px 0;border-bottom:1px dashed #d4e6da;font-size:12px">
+      <strong>${i+1}. ${r.name}</strong> — ${r.dose} ${r.freq} × ${r.dur}
+      ${r.anupana ? `<span style="color:#8a9e90"> (with ${r.anupana})</span>` : ''}
+    </div>`).join('')}
+    ${document.getElementById('rx-instructions').value ? `<p style="font-size:11px;color:#4a6352;margin-top:8px">${document.getElementById('rx-instructions').value}</p>` : ''}
+    ${document.getElementById('adv-pathya').value ? `<div style="margin-top:12px;font-size:11px"><strong>Pathya:</strong> ${document.getElementById('adv-pathya').value}</div>` : ''}
+    ${document.getElementById('adv-apathya').value ? `<div style="font-size:11px"><strong>Apathya:</strong> ${document.getElementById('adv-apathya').value}</div>` : ''}
+    ${document.getElementById('fu-date').value ? `<div style="font-size:11px;margin-top:8px">Review on: <strong>${new Date(document.getElementById('fu-date').value).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</strong> ${document.getElementById('fu-notes').value ? '— '+document.getElementById('fu-notes').value : ''}</div>` : ''}
+    <div style="margin-top:24px;text-align:right;font-size:11px;color:#8a9e90">
+      <div style="border-top:1px solid #ccc;width:160px;display:inline-block;padding-top:6px">${profile.full_name}<br>AyurXpert HMS</div>
+    </div>
+  `;
+  window.print();
+});
+
+// ── Close consultation ────────────────────────────
+document.getElementById('btn-close').addEventListener('click', _closeConsult);
+document.getElementById('btn-mobile-back').addEventListener('click', _closeConsult);
+
+function _closeConsult() {
+  _activeVisitId = null;
+  _activePatient = null;
+  _activeVisit   = null;
+  document.getElementById('c-active').style.display = 'none';
+  document.getElementById('c-active').classList.remove('mobile-full');
+  document.getElementById('welcome').style.display  = '';
+  _clearForm();
+  loadQueue();
+}
+
+function _clearForm() {
+  const textInputs = [
+    'h-complaint','h-duration','h-aggravating','h-relieving','h-associated','h-history',
+    'ph-surgery','ph-other','dh-current','dh-allergy','dh-adr','fh-notes','pers-occupation',
+    'ay-nidana','ay-ahara','ay-vihara',
+    'exam-modern-notes','exam-ayurveda-notes',
+    'as-provisional-modern','as-provisional-ayurveda','as-redflags',
+    'as-inv-lab','as-inv-imaging','as-inv-ayurveda','as-reasoning',
+    'd-modern','d-ayurveda','d-namc-search','d-namc-code','d-namc-label','d-icd11-code',
+    'd-icd10-search','d-icd10-code','d-icd10-label','d-icd','d-notes',
+    'rx-instructions','adv-pathya','adv-apathya','fu-date','fu-notes',
+    'disp-notes','pk-oils','pk-notes','pk-start','pk-duration',
+    'adm-ward','adm-nursing','adm-diet','adm-duration','adm-indication',
+    'ref-doctor','ref-hospital','ref-reason'
+  ];
+  textInputs.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  const selects = [
+    'h-severity','h-onset','h-progression',
+    'ph-dm','ph-htn','ph-thyroid',
+    'pers-diet','pers-sleep','pers-exercise','pers-bowel','pers-appetite','pers-addiction',
+    'ay-prakriti','ay-agni','ay-koshta','ay-nidra',
+    'sys-cvs','sys-rs','sys-cns','sys-pa','sys-msk','sys-skin',
+    'a-nadi','a-mala','a-mutra','a-jihwa','a-shabda','a-sparsha','a-druk','a-akriti',
+    'd-vata','d-pitta','d-kapha','d-agni','d-ama',
+    'd-certainty','adm-type','fu-quick','ref-type','ref-urgency'
+  ];
+  selects.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  document.getElementById('rx-rows').innerHTML = '';
+  document.getElementById('diff-list').innerHTML = '';
+  document.getElementById('d-namc-badge').style.display  = 'none';
+  document.getElementById('d-icd10-badge').style.display = 'none';
+  document.querySelectorAll('.chip.on, .flag-chip.on').forEach(c => c.classList.remove('on'));
+  _rxRows = [];
+
+  // Reset disposition + hide referral section
+  document.getElementById('referral-section').style.display = 'none';
+  const opdRadio = document.querySelector('input[name=disposition][value="opd"]');
+  if (opdRadio) { opdRadio.checked = true; onDispChange('opd'); }
+}
+
+// ── Alert button ──────────────────────────────────
+document.getElementById('btn-alerts').addEventListener('click', async () => {
+  await supabase.from('doctor_alerts')
+    .update({ is_read: true })
+    .eq('doctor_id', userId).eq('is_read', false);
+  loadAlerts();
+  _toast('All alerts marked as read', 'info');
+});
+
+// ── Toast ─────────────────────────────────────────
+function _toast(msg, type = 'info') {
+  const icon = type === 'alert' ? '🔔' : type === 'error' ? '⚠' : '✓';
+  const el = document.createElement('div');
+  el.className = `toast-item ${type}`;
+  el.innerHTML = `<span class="toast-icon">${icon}</span><span>${msg}</span>`;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+// ── Boot ──────────────────────────────────────────
+_initNamaste();
+_initIcd10();
+await Promise.all([loadQueue(), loadAlerts(), loadInventory()]);
+subscribeRealtime();
+</script>
+</body>
+</html>

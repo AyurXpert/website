@@ -1,0 +1,1537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Inventory — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--cream:#faf8f3;--white:#ffffff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+  --success-bg:#e8f5ee;--success-border:#b2d8bf;--success-text:#1a4a2e;
+  --error-bg:#fdecea;--error-border:#f5c6c6;--error-text:#8b1a1a;
+  --warn-bg:#fff8ec;--warn-border:#f0d080;--warn-text:#7a5c1a;
+  --red:#c0392b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1400px;margin:0 auto;padding:28px 20px 60px}
+
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.header-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+.btn{height:38px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .15s,color .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}
+.btn-secondary:hover{background:var(--green-light)}
+.btn-ghost{background:none;border:1.5px solid var(--border);color:var(--text-mid)}
+.btn-ghost:hover{border-color:var(--green-mid);color:var(--green-deep)}
+.btn-sm{height:30px;padding:0 11px;font-size:12px}
+.btn-xs{height:26px;padding:0 9px;font-size:11px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--success-bg);color:var(--success-text);border:1px solid var(--success-border)}
+.alert.error{background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border)}
+.alert.warning{background:var(--warn-bg);color:var(--warn-text);border:1px solid var(--warn-border)}
+
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:20px}
+.summary-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:12px 16px}
+.sc-label{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
+.sc-value{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep);line-height:1.1;margin-top:3px}
+.sc-value.warn{color:var(--gold)}
+.sc-value.danger{color:var(--red)}
+
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.search-wrap{position:relative;flex:1;min-width:180px}
+.search-wrap input{width:100%;height:38px;padding:0 12px 0 34px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;background:var(--white);outline:none;transition:border-color .15s}
+.search-wrap input:focus{border-color:var(--green-mid)}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:15px;pointer-events:none}
+.filter-select{height:38px;padding:0 10px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-dark);background:var(--white);outline:none}
+.filter-select:focus{border-color:var(--green-mid)}
+
+/* ── Table ──────────────────────────────────────── */
+/* overflow:clip clips corners for border-radius but does NOT create a scroll container,
+   so position:sticky inside .table-scroll still works relative to .table-scroll, not viewport */
+.table-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:clip}
+.table-scroll{overflow:auto;max-height:calc(100vh - 330px);min-height:200px}
+/* border-separate is required for position:sticky to work correctly in all browsers */
+.data-table{width:100%;min-width:1600px;border-collapse:separate;border-spacing:0;font-size:12px}
+.data-table th{
+  text-align:left;padding:8px 10px;font-size:10px;font-weight:600;
+  color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;
+  background:var(--cream);white-space:nowrap;position:relative;
+  border-bottom:1.5px solid var(--border);
+}
+.data-table td{
+  padding:8px 10px;border-bottom:1px solid var(--border);
+  vertical-align:middle;white-space:nowrap;
+}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tbody tr:hover td{background:#f5faf7}
+
+/* ── Sticky header row ───────────────────────────── */
+.data-table thead th{
+  position:sticky;top:0;z-index:4;
+  background:var(--cream);
+}
+
+/* ── Sticky first 3 columns ─────────────────────── */
+.data-table td:nth-child(1),.data-table th:nth-child(1){
+  position:sticky;left:0;z-index:2;
+  background:var(--white);
+  min-width:72px;
+}
+.data-table td:nth-child(2),.data-table th:nth-child(2){
+  position:sticky;left:72px;z-index:2;
+  background:var(--white);
+  min-width:52px;
+}
+.data-table td:nth-child(3),.data-table th:nth-child(3){
+  position:sticky;left:124px;z-index:2;
+  background:var(--white);
+  min-width:180px;
+  box-shadow:2px 0 4px -1px rgba(0,0,0,.08); /* right shadow = frozen pane indicator */
+}
+/* header+column intersection: needs both top AND left and highest z */
+.data-table thead th:nth-child(1){position:sticky;top:0;left:0;z-index:6;background:var(--cream)}
+.data-table thead th:nth-child(2){position:sticky;top:0;left:72px;z-index:6;background:var(--cream)}
+.data-table thead th:nth-child(3){position:sticky;top:0;left:124px;z-index:6;background:var(--cream);box-shadow:2px 0 4px -1px rgba(0,0,0,.08)}
+/* hover & inactive bg override for sticky cells */
+.data-table tbody tr:hover td:nth-child(1),
+.data-table tbody tr:hover td:nth-child(2),
+.data-table tbody tr:hover td:nth-child(3){background:#f5faf7}
+.inactive-row td:nth-child(1),
+.inactive-row td:nth-child(2),
+.inactive-row td:nth-child(3){background:var(--white)}
+
+/* ── Column header tooltips ──────────────────────── */
+.data-table th[data-tip]{cursor:help}
+.data-table th[data-tip]::after{
+  content:attr(data-tip);
+  position:absolute;top:calc(100% + 5px);left:50%;transform:translateX(-50%);
+  background:var(--green-deep);color:#fff;
+  padding:5px 10px;border-radius:6px;font-size:11px;font-weight:400;
+  white-space:nowrap;letter-spacing:0;text-transform:none;
+  opacity:0;pointer-events:none;transition:opacity .15s;z-index:99;
+  box-shadow:0 2px 8px rgba(0,0,0,.25);
+}
+.data-table th[data-tip]:hover::after{opacity:1}
+.med-name{font-weight:600;color:var(--text-dark);font-size:12px;max-width:160px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal}
+.btn-status-toggle{cursor:pointer;border:none;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;padding:1px 8px;border-radius:8px;transition:opacity .15s}
+.btn-status-toggle:hover{opacity:.7}
+.med-sub{font-size:10px;color:var(--text-muted)}
+.stock-ok{color:var(--green-deep);font-weight:700}
+.stock-low{color:var(--gold);font-weight:700}
+.stock-out{color:var(--red);font-weight:700}
+.stock-badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:500}
+.sb-ok{background:var(--success-bg);color:var(--success-text)}
+.sb-low{background:var(--warn-bg);color:var(--warn-text)}
+.sb-out{background:var(--error-bg);color:var(--error-text)}
+.inactive-row td{opacity:.45}
+.table-empty{text-align:center;padding:40px;color:var(--text-muted);font-size:13px}
+.med-id-badge{font-size:10px;color:var(--text-muted);font-family:monospace}
+
+/* Medicine image */
+.med-thumb{width:32px;height:32px;border-radius:6px;object-fit:cover;border:1px solid var(--border);vertical-align:middle}
+.med-thumb-ph{width:32px;height:32px;border-radius:6px;background:var(--green-light);display:inline-flex;align-items:center;justify-content:center;font-size:16px;border:1px solid var(--success-border);vertical-align:middle}
+
+/* Indication pills in table */
+.ind-pill{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;background:#f0f0f0;color:var(--text-mid);margin:1px 1px 1px 0;white-space:nowrap}
+
+/* Calculated field highlight */
+.calc-val{color:var(--green-deep);font-weight:700}
+.profit-val{color:#1a5c8a;font-weight:700}
+
+/* ── Slide-over panel ──────────────────────────── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;display:none}
+.overlay.open{display:block}
+.slide-panel{position:fixed;top:0;right:0;bottom:0;width:520px;max-width:96vw;background:var(--white);z-index:201;box-shadow:-4px 0 24px rgba(0,0,0,.12);transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column}
+.slide-panel.open{transform:translateX(0)}
+.panel-head{padding:16px 20px;border-bottom:1.5px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.panel-head-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--green-deep)}
+.btn-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);line-height:1;padding:4px}
+.btn-close:hover{color:var(--text-dark)}
+.panel-body{flex:1;overflow-y:auto;padding:18px 20px}
+.panel-footer{padding:14px 20px;border-top:1.5px solid var(--border);display:flex;gap:10px;flex-shrink:0}
+
+.field{margin-bottom:12px}
+.field label{display:block;font-size:10px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;height:40px;padding:0 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-dark);background:var(--white);outline:none;transition:border-color .15s}
+.field textarea{height:60px;padding:8px 12px;resize:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--green-mid)}
+.field input[readonly]{background:#f0f7f3;color:var(--green-deep);font-weight:600;cursor:default}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.field-hint{font-size:10px;color:var(--text-muted);margin-top:3px}
+.section-divider{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin:16px 0 10px;padding-bottom:5px;border-bottom:1px solid var(--border)}
+
+/* Pricing calc panel */
+.calc-box{background:#f0f7f3;border:1.5px solid var(--success-border);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px}
+.calc-box-title{font-size:10px;font-weight:600;color:var(--green-deep);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px}
+.calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.calc-item{display:flex;justify-content:space-between;align-items:center;padding:4px 0}
+.calc-label{font-size:11px;color:var(--text-mid)}
+.calc-result{font-size:13px;font-weight:700;color:var(--green-deep)}
+
+/* Tag input */
+.tag-input-wrap{border:1.5px solid var(--border);border-radius:var(--radius);padding:7px 9px;background:var(--white);min-height:44px;transition:border-color .15s;cursor:text}
+.tag-input-wrap:focus-within{border-color:var(--green-mid)}
+.tags-area{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:5px}
+.tag-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 8px 2px 9px;background:var(--green-light);border:1px solid var(--success-border);border-radius:10px;font-size:11px;color:var(--green-deep);font-weight:500}
+.tag-chip button{background:none;border:none;cursor:pointer;color:var(--green-mid);font-size:13px;line-height:1;padding:0}
+.tag-chip button:hover{color:var(--red)}
+.tag-input-row{display:flex;gap:6px;align-items:center}
+.tag-input-row input{border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-dark);flex:1;background:transparent;height:26px;padding:0 4px}
+.tag-add-btn{height:24px;padding:0 9px;background:var(--green-deep);color:#fff;border:none;border-radius:5px;font-size:11px;cursor:pointer;flex-shrink:0}
+.tag-add-btn:disabled{opacity:.4;cursor:not-allowed}
+.tag-count{font-size:10px;color:var(--text-muted);margin-top:4px}
+
+/* Image upload */
+.img-upload-area{border:2px dashed var(--border);border-radius:var(--radius);padding:12px;text-align:center;cursor:pointer;transition:border-color .15s;position:relative;background:var(--cream)}
+.img-upload-area:hover{border-color:var(--green-mid)}
+.img-upload-area input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.img-preview{width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border);margin-bottom:4px}
+.img-upload-label{font-size:12px;color:var(--text-muted)}
+.img-upload-hint{font-size:10px;color:var(--text-muted);margin-top:2px}
+
+/* Adjust stock modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:300;display:none;align-items:center;justify-content:center}
+.modal-backdrop.open{display:flex}
+.modal{background:var(--white);border-radius:12px;padding:24px;width:340px;max-width:90vw}
+.modal-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--green-deep);margin-bottom:14px}
+.modal-actions{display:flex;gap:10px;margin-top:18px}
+.adj-btns{display:flex;gap:8px;margin-top:6px}
+.adj-btn{flex:1;height:38px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-dark)}
+.adj-btn.selected{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
+
+/* Import progress bar */
+.import-prog-wrap{margin-top:14px;display:none}
+.import-prog-wrap.show{display:block}
+.import-prog-bar{height:10px;background:var(--border);border-radius:5px;overflow:hidden}
+.import-prog-fill{height:100%;background:var(--green-deep);border-radius:5px;width:0%;transition:width .2s}
+.import-prog-text{font-size:12px;color:var(--text-mid);margin-top:6px;text-align:center}
+
+/* Import CSV modal */
+.import-modal{background:var(--white);border-radius:12px;padding:24px;width:680px;max-width:95vw;max-height:88vh;display:flex;flex-direction:column}
+.import-modal-body{flex:1;overflow-y:auto;margin-top:12px}
+.import-drop{border:2px dashed var(--border);border-radius:var(--radius);padding:30px;text-align:center;cursor:pointer;transition:border-color .15s;background:var(--cream);position:relative}
+.import-drop:hover,.import-drop.drag-over{border-color:var(--green-mid);background:var(--green-light)}
+.import-drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.import-drop-icon{font-size:32px;margin-bottom:6px}
+.import-drop-label{font-size:14px;font-weight:500;color:var(--text-dark)}
+.import-drop-hint{font-size:12px;color:var(--text-muted);margin-top:3px}
+.import-summary{background:var(--success-bg);border:1px solid var(--success-border);border-radius:var(--radius);padding:10px 14px;font-size:13px;color:var(--success-text);margin-top:12px;display:none}
+.import-summary.show{display:block}
+.import-preview{margin-top:12px;overflow-x:auto;max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius)}
+.import-preview table{width:100%;border-collapse:collapse;font-size:11px}
+.import-preview th{background:var(--cream);padding:5px 8px;text-align:left;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;position:sticky;top:0}
+.import-preview td{padding:5px 8px;border-top:1px solid var(--border)}
+.import-preview .row-new{background:#f0fff4}
+.import-preview .row-update{background:#fffbe6}
+.import-opts{margin-top:12px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-mid)}
+.import-opts input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--green-deep)}
+.import-err{color:var(--red);font-size:12px;margin-top:8px;display:none}
+.import-err.show{display:block}
+.badge-new{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;background:var(--success-bg);color:var(--success-text);font-weight:600}
+.badge-update{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;background:var(--warn-bg);color:var(--warn-text);font-weight:600}
+
+@media(max-width:600px){
+  .toolbar{flex-direction:column;align-items:stretch}
+  .field-row,.field-row3{grid-template-columns:1fr}
+  .slide-panel{width:100%}
+}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<div class="page-wrap">
+
+  <div class="page-header">
+    <div>
+      <div class="page-title">Medicine Inventory</div>
+      <div class="page-subtitle">Master register — pricing, stock levels, indications and batch tracking</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost btn-sm" id="btn-export-csv">↓ Export CSV</button>
+      <button class="btn btn-ghost btn-sm" id="btn-import-csv">↑ Import CSV</button>
+      <a href="purchase-order.html" class="btn btn-ghost btn-sm" style="color:var(--gold);border-color:var(--gold)">📋 Generate PO</a>
+      <a href="purchase.html" class="btn btn-secondary btn-sm">↑ Receive Stock (GRN)</a>
+      <button class="btn btn-primary btn-sm" id="btn-add-med">+ Add Medicine</button>
+    </div>
+  </div>
+
+  <div class="alert" id="alert"></div>
+
+  <div class="summary-grid">
+    <div class="summary-card"><div class="sc-label">Total Active</div><div class="sc-value" id="s-total">—</div></div>
+    <div class="summary-card"><div class="sc-label">Low Stock</div><div class="sc-value warn" id="s-low">—</div></div>
+    <div class="summary-card"><div class="sc-label">Out of Stock</div><div class="sc-value danger" id="s-out">—</div></div>
+    <div class="summary-card"><div class="sc-label">Inactive</div><div class="sc-value" id="s-inactive" style="color:var(--text-muted)">—</div></div>
+    <div class="summary-card"><div class="sc-label">Expiring Soon</div><div class="sc-value warn" id="s-expiry">—</div></div>
+  </div>
+
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input type="text" id="search" placeholder="Search name, brand, indication…" autocomplete="off"/>
+    </div>
+    <select class="filter-select" id="filter-cat">
+      <option value="">All Categories</option>
+      <option value="tablet">Tablet / Capsule</option>
+      <option value="churna">Churna</option>
+      <option value="kwatha">Kwatha / Kashayam</option>
+      <option value="asava">Asava / Arishta</option>
+      <option value="ghrita">Ghrita / Taila</option>
+      <option value="bhasma">Bhasma / Rasa</option>
+      <option value="leha">Leha / Avaleha</option>
+      <option value="syrup">Syrup / Liquid</option>
+      <option value="cream">Cream / Ointment</option>
+      <option value="injection">Injection</option>
+      <option value="other">Other</option>
+    </select>
+    <select class="filter-select" id="filter-stock">
+      <option value="">All Stock Levels</option>
+      <option value="out">Out of Stock</option>
+      <option value="low">Low Stock</option>
+      <option value="ok">In Stock</option>
+    </select>
+    <select class="filter-select" id="filter-status">
+      <option value="active">Active Only</option>
+      <option value="inactive">Inactive Only</option>
+      <option value="">All (incl. inactive)</option>
+    </select>
+    <button class="btn btn-sm" id="btn-bulk-del"
+      style="display:none;background:var(--error-bg);color:var(--error-text);border:1.5px solid var(--error-border)">
+      Delete Selected (<span id="bulk-count">0</span>)
+    </button>
+  </div>
+
+  <div class="table-card">
+    <div class="table-scroll">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th data-tip="Medicine ID — auto-generated"><input type="checkbox" id="chk-all" title="Select / deselect all visible" style="cursor:pointer;accent-color:var(--green-deep);vertical-align:middle;margin-right:5px"/>Med ID</th>
+          <th>Img</th>
+          <th>Medicine</th>
+          <th>Brand</th>
+          <th data-tip="Pack size / unit (e.g. 100 Nos, 200 ml)">Unit</th>
+          <th data-tip="Current stock on hand">Stock</th>
+          <th data-tip="Base Price = MRP ÷ (1 + GST%)">BP (₹)</th>
+          <th data-tip="Goods & Services Tax percentage">GST%</th>
+          <th data-tip="Tax Amount = MRP − Base Price">TA (₹)</th>
+          <th data-tip="Maximum Retail Price (printed on pack)">MRP (₹)</th>
+          <th data-tip="Profit % set in medicine master">P%</th>
+          <th data-tip="Profit Amount = MRP × P%">PA (₹)</th>
+          <th data-tip="Cost Price = MRP − Profit Amount">CP (₹)</th>
+          <th data-tip="Date medicine was received into stock">Inward</th>
+          <th data-tip="Batch expiry date">Expiry</th>
+          <th data-tip="Batch number of current stock">Batch</th>
+          <th data-tip="Low stock alert threshold (reorder level)">Low</th>
+          <th data-tip="Maximum stock level for this medicine">Max</th>
+          <th>Supplier</th>
+          <th>Status</th>
+          <th style="text-align:right">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="med-tbody">
+        <tr><td colspan="21" class="table-empty">Loading inventory…</td></tr>
+      </tbody>
+    </table>
+    </div><!-- /.table-scroll -->
+  </div>
+
+</div>
+
+<!-- Slide-over panel -->
+<div class="overlay" id="overlay"></div>
+<div class="slide-panel" id="slide-panel">
+  <div class="panel-head">
+    <div class="panel-head-title" id="panel-title">Add Medicine</div>
+    <button class="btn-close" id="btn-close-panel">✕</button>
+  </div>
+  <div class="panel-body">
+    <input type="hidden" id="edit-inv-id"/>
+    <input type="hidden" id="edit-med-id"/>
+    <input type="hidden" id="edit-image-url"/>
+
+    <!-- Med ID (display only when editing) -->
+    <div class="field" id="med-id-display" style="display:none">
+      <label>Med ID</label>
+      <input id="f-med-id" type="text" readonly/>
+    </div>
+
+    <div class="section-divider">Medicine Details</div>
+
+    <!-- Image upload -->
+    <div class="field-row" style="align-items:flex-start">
+      <div class="field" style="margin-bottom:0">
+        <label>Photo</label>
+        <div class="img-upload-area" id="img-upload-area">
+          <input type="file" id="f-image" accept="image/*"/>
+          <img id="img-preview" class="img-preview" style="display:none"/>
+          <div id="img-placeholder">
+            <div style="font-size:24px">📷</div>
+            <div class="img-upload-label">Upload photo</div>
+            <div class="img-upload-hint">JPG / PNG (max 2 MB)</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="field">
+          <label>Medicine Name <span style="color:var(--red)">*</span></label>
+          <input id="f-name" type="text" placeholder="e.g. Annabhedisinduram Capsule"/>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>Category</label>
+          <select id="f-cat">
+            <option value="">— Select —</option>
+            <option value="tablet">Tablet / Capsule</option>
+            <option value="churna">Churna</option>
+            <option value="kwatha">Kwatha / Kashayam</option>
+            <option value="asava">Asava / Arishta</option>
+            <option value="ghrita">Ghrita / Taila</option>
+            <option value="bhasma">Bhasma / Rasa</option>
+            <option value="leha">Leha / Avaleha</option>
+            <option value="syrup">Syrup / Liquid</option>
+            <option value="cream">Cream / Ointment</option>
+            <option value="injection">Injection</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="field-row" style="margin-top:10px">
+      <div class="field">
+        <label>Brand</label>
+        <input id="f-brand" type="text" placeholder="e.g. AVS, Kottakkal, SDM"/>
+      </div>
+      <div class="field">
+        <label>Unit / Pack</label>
+        <input id="f-unit" type="text" placeholder="e.g. 100 Nos, 200 ml, 1 kg"/>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Barcode</label>
+        <input id="f-barcode" type="text" placeholder="EAN / barcode"/>
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select id="f-active">
+          <option value="true">Active</option>
+          <option value="false">Inactive</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Indications -->
+    <div class="section-divider">Indications <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px">(diseases/conditions this medicine treats)</span></div>
+    <div class="field">
+      <div class="tag-input-wrap" id="tag-wrap">
+        <div class="tags-area" id="tags-area"></div>
+        <div class="tag-input-row">
+          <input type="text" id="tag-input" placeholder="Type indication, press Enter…" maxlength="50"/>
+          <button class="tag-add-btn" id="tag-add-btn" disabled>Add</button>
+        </div>
+      </div>
+      <div class="tag-count" id="tag-count">0 / 10 indications</div>
+      <div class="field-hint">e.g. Fever, Arthritis, Stress, Constipation, Diabetes, Skin disorders</div>
+    </div>
+
+    <!-- Pricing -->
+    <div class="section-divider">Pricing — enter MRP, GST% and P%, rest auto-calculated</div>
+    <div class="field-row3">
+      <div class="field">
+        <label>MRP (₹) <span style="color:var(--red)">*</span></label>
+        <input id="f-mrp" type="number" min="0" step="0.01" placeholder="0.00"/>
+      </div>
+      <div class="field">
+        <label>GST %</label>
+        <input id="f-gst" type="number" min="0" max="100" step="0.01" placeholder="0"/>
+      </div>
+      <div class="field">
+        <label>P% (Profit %)</label>
+        <input id="f-profit" type="number" min="0" max="100" step="0.1" placeholder="0"/>
+      </div>
+    </div>
+
+    <!-- Auto-calc result box -->
+    <div class="calc-box">
+      <div class="calc-box-title">Auto-Calculated Values</div>
+      <div class="calc-grid">
+        <div class="calc-item">
+          <span class="calc-label">BP — Base Price (excl. GST)</span>
+          <span class="calc-result" id="c-bp">₹0.00</span>
+        </div>
+        <div class="calc-item">
+          <span class="calc-label">TA — Tax Amount (GST ₹)</span>
+          <span class="calc-result" id="c-ta">₹0.00</span>
+        </div>
+        <div class="calc-item">
+          <span class="calc-label">PA — Profit Amount (₹)</span>
+          <span class="calc-result" id="c-pa" style="color:#1a5c8a">₹0.00</span>
+        </div>
+        <div class="calc-item">
+          <span class="calc-label">CP — Cost Price (₹)</span>
+          <span class="calc-result" id="c-cp">₹0.00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stock & Dates -->
+    <div class="section-divider">Stock &amp; Dates</div>
+
+    <div id="opening-stock-section">
+      <div class="field">
+        <label>Opening Stock (units)</label>
+        <input id="f-stock" type="number" min="0" placeholder="0"/>
+        <div class="field-hint">Current physical stock on hand</div>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>Max Stock</label>
+        <input id="f-max" type="number" min="0" placeholder="0"/>
+      </div>
+      <div class="field">
+        <label>Low Stock (Reorder at)</label>
+        <input id="f-reorder" type="number" min="0" placeholder="0"/>
+        <div class="field-hint">Auto-filled as half of Max; you can change it</div>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Inward Date</label>
+        <input id="f-inward" type="date"/>
+      </div>
+      <div class="field">
+        <label>Expiry Date</label>
+        <input id="f-expiry" type="date"/>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Batch Number</label>
+        <input id="f-batch" type="text" placeholder="e.g. BT2024001, B-456"/>
+        <div class="field-hint">Batch from GRN / supplier invoice</div>
+      </div>
+      <div class="field">
+        <label>Supplier</label>
+        <input id="f-supplier" type="text" placeholder="e.g. AVS, Kottakkal"/>
+      </div>
+    </div>
+  </div>
+  <div class="panel-footer">
+    <button class="btn btn-primary" id="btn-save-med" style="flex:1">Save Medicine</button>
+    <button class="btn btn-ghost" id="btn-cancel-panel">Cancel</button>
+  </div>
+</div>
+
+<!-- Adjust stock modal -->
+<div class="modal-backdrop" id="adj-modal">
+  <div class="modal">
+    <div class="modal-title" id="adj-modal-title">Adjust Stock</div>
+    <input type="hidden" id="adj-inv-id"/>
+    <div class="field">
+      <label>Adjustment Type</label>
+      <div class="adj-btns">
+        <button class="adj-btn selected" id="adj-add">+ Add Stock</button>
+        <button class="adj-btn" id="adj-remove">− Remove Stock</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Quantity</label>
+      <input id="adj-qty" type="number" min="1" placeholder="Enter quantity"/>
+    </div>
+    <div class="field">
+      <label>Reason (optional)</label>
+      <input id="adj-reason" type="text" placeholder="e.g. Stock count correction"/>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="btn-adj-confirm" style="flex:1">Confirm</button>
+      <button class="btn btn-ghost" id="btn-adj-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import CSV modal -->
+<div class="modal-backdrop" id="import-modal">
+  <div class="import-modal">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="modal-title" style="margin-bottom:0">Import Inventory CSV</div>
+      <button class="btn-close" id="btn-close-import">✕</button>
+    </div>
+
+    <!-- Options + progress pinned below title, always visible -->
+    <div class="import-opts" style="margin:10px 0 0;padding:10px 12px;background:var(--cream);border-radius:var(--radius);border:1px solid var(--border)">
+      <input type="checkbox" id="import-replace-stock"/>
+      <label for="import-replace-stock">Replace stock quantity from CSV <span style="color:var(--text-muted)">(unchecked = keep existing stock, only update pricing/details)</span></label>
+    </div>
+    <div class="import-prog-wrap" id="import-prog-wrap" style="margin-top:10px">
+      <div class="import-prog-bar"><div class="import-prog-fill" id="import-prog-fill"></div></div>
+      <div class="import-prog-text" id="import-prog-text">Preparing…</div>
+    </div>
+
+    <div class="import-modal-body">
+      <div class="import-drop" id="import-drop">
+        <input type="file" id="import-file" accept=".csv"/>
+        <div class="import-drop-icon">📂</div>
+        <div class="import-drop-label">Click or drag a CSV file here</div>
+        <div class="import-drop-hint">Use the exported CSV format. Med ID column is optional — if absent a new ID is assigned.</div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">
+        <a id="btn-dl-template" href="#" style="color:var(--green-mid)">↓ Download blank template</a>
+        &nbsp;·&nbsp; Matching: Med ID first, then medicine name (case-insensitive). Name match = update, no match = new record.
+      </div>
+      <div class="import-summary" id="import-summary"></div>
+      <div class="import-err" id="import-err"></div>
+      <div class="import-preview" id="import-preview" style="display:none"></div>
+    </div>
+    <div class="modal-actions" style="border-top:1px solid var(--border);padding-top:14px;margin-top:8px">
+      <button class="btn btn-primary" id="btn-do-import" disabled style="flex:1">Import</button>
+      <button class="btn btn-ghost" id="btn-cancel-import">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { requireAuth, getCurrentTenantId } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
+initNavbar();
+
+const tenantId = getCurrentTenantId();
+let _items  = [];
+let _adjType = 'add';
+let _tags   = [];
+let _imgUploading = false;
+const TODAY = new Date().toISOString().split('T')[0];
+const IN_90_DAYS = new Date(Date.now() + 90*86400000).toISOString().split('T')[0];
+
+const CAT_LABELS = {
+  tablet:'Tablet / Capsule', churna:'Churna', kwatha:'Kwatha / Kashayam',
+  asava:'Asava / Arishta', ghrita:'Ghrita / Taila', bhasma:'Bhasma / Rasa',
+  leha:'Leha / Avaleha', syrup:'Syrup / Liquid', cream:'Cream / Ointment',
+  injection:'Injection', other:'Other',
+};
+
+// ── Pricing calculations ─────────────────────────────
+function calcPricing() {
+  const mrp     = parseFloat(document.getElementById('f-mrp').value)    || 0;
+  const gstPct  = parseFloat(document.getElementById('f-gst').value)    || 0;
+  const profPct = parseFloat(document.getElementById('f-profit').value) || 0;
+
+  const bp = mrp > 0 ? mrp / (1 + gstPct / 100) : 0;
+  const ta = mrp - bp;
+  const pa = mrp * profPct / 100;
+  const cp = mrp - pa;
+
+  document.getElementById('c-bp').textContent = '₹' + bp.toFixed(2);
+  document.getElementById('c-ta').textContent = '₹' + ta.toFixed(2);
+  document.getElementById('c-pa').textContent = '₹' + pa.toFixed(2);
+  document.getElementById('c-cp').textContent = '₹' + cp.toFixed(2);
+}
+window._calcPricing = calcPricing;
+
+// Bind input + change + keyup on all three pricing number inputs
+['input','change','keyup'].forEach(ev => {
+  document.getElementById('f-mrp').addEventListener(ev, calcPricing);
+  document.getElementById('f-gst').addEventListener(ev, calcPricing);
+  document.getElementById('f-profit').addEventListener(ev, calcPricing);
+});
+
+// Auto-suggest Low = floor(Max/2) when Max is entered
+['input','change'].forEach(ev => {
+  document.getElementById('f-max').addEventListener(ev, () => {
+    const max = parseInt(document.getElementById('f-max').value) || 0;
+    const reorderEl = document.getElementById('f-reorder');
+    const suggested = max > 0 ? Math.floor(max / 2) : '';
+    // Only auto-fill if field is empty or still matches previous auto-value
+    if (!reorderEl.dataset.manuallySet) reorderEl.value = suggested;
+  });
+});
+document.getElementById('f-reorder').addEventListener('input', () => {
+  document.getElementById('f-reorder').dataset.manuallySet = '1';
+});
+
+// ── Load inventory ──────────────────────────────────
+async function loadInventory() {
+  const { data, error } = await supabase
+    .from('inventory')
+    .select(`id, stock_quantity, mrp, cost_price, gst_percent, reorder_level,
+             profit_percent, max_stock, expiry_date, inward_date, supplier_name, batch_number,
+             medicine:medicines(id, name, category, is_active, indications, barcode, med_id, brand, unit, image_url)`)
+    .eq('tenant_id', tenantId);
+
+  if (error) { console.error('loadInventory error:', error); _alert('error', 'Failed to load inventory: ' + error.message); return; }
+  console.log('inventory rows:', data?.length, '| with medicine:', (data||[]).filter(i=>i.medicine).length, '| null medicine:', (data||[]).filter(i=>!i.medicine).length);
+  _items = (data || []).filter(i => i.medicine)
+    .sort((a, b) => a.medicine.name.localeCompare(b.medicine.name));
+  renderSummary();
+  renderTable();
+}
+
+function renderSummary() {
+  const active   = _items.filter(i => i.medicine.is_active !== false);
+  const inactive = _items.filter(i => i.medicine.is_active === false);
+  const low      = active.filter(i => { const t = i.reorder_level || 0; return i.stock_quantity > 0 && i.stock_quantity <= t && t > 0; });
+  const out      = active.filter(i => i.stock_quantity <= 0);
+  const expiring = active.filter(i => i.expiry_date && i.expiry_date <= IN_90_DAYS && i.expiry_date >= TODAY);
+  document.getElementById('s-total').textContent    = active.length;
+  document.getElementById('s-low').textContent      = low.length;
+  document.getElementById('s-out').textContent      = out.length;
+  document.getElementById('s-inactive').textContent = inactive.length;
+  document.getElementById('s-expiry').textContent   = expiring.length;
+}
+
+function renderTable() {
+  const search    = document.getElementById('search').value.toLowerCase().trim();
+  const filterCat = document.getElementById('filter-cat').value;
+  const filterStk = document.getElementById('filter-stock').value;
+  const filterSts = document.getElementById('filter-status').value;
+
+  let rows = _items;
+
+  if (filterSts === 'active')   rows = rows.filter(i => i.medicine.is_active !== false);
+  else if (filterSts === 'inactive') rows = rows.filter(i => i.medicine.is_active === false);
+
+  if (filterCat) rows = rows.filter(i => i.medicine.category === filterCat);
+
+  if (filterStk === 'out')  rows = rows.filter(i => i.stock_quantity <= 0);
+  else if (filterStk === 'low') rows = rows.filter(i => { const t = i.reorder_level || 0; return i.stock_quantity > 0 && i.stock_quantity <= t && t > 0; });
+  else if (filterStk === 'ok')  rows = rows.filter(i => i.stock_quantity > (i.reorder_level || 0));
+
+  if (search) rows = rows.filter(i => {
+    const inds = Array.isArray(i.medicine.indications) ? i.medicine.indications : [];
+    return i.medicine.name.toLowerCase().includes(search)
+      || (i.medicine.brand || '').toLowerCase().includes(search)
+      || inds.some(ind => ind.toLowerCase().includes(search));
+  });
+
+  const tbody = document.getElementById('med-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="21" class="table-empty">No medicines found.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(i => {
+    const reorder = i.reorder_level || 0;
+    const qty     = i.stock_quantity ?? 0;
+    let stockClass = 'stock-ok', badgeClass = 'sb-ok', badgeText = 'OK';
+    if (qty <= 0)                    { stockClass = 'stock-out'; badgeClass = 'sb-out'; badgeText = 'Out'; }
+    else if (reorder > 0 && qty <= reorder) { stockClass = 'stock-low'; badgeClass = 'sb-low'; badgeText = 'Low'; }
+
+    const isActive  = i.medicine.is_active !== false;
+    const mrp       = Number(i.mrp || 0);
+    const gstPct    = Number(i.gst_percent || 0);
+    const profPct   = Number(i.profit_percent || 0);
+    const bp        = mrp / (1 + gstPct / 100);
+    const ta        = mrp - bp;
+    const pa        = mrp * profPct / 100;
+    const cp        = mrp - pa;
+
+    const imgHtml = i.medicine.image_url
+      ? `<img src="${i.medicine.image_url}" class="med-thumb" loading="lazy"/>`
+      : `<img src="assets/icon.svg" class="med-thumb" style="padding:5px;background:var(--green-light)" loading="lazy"/>`;
+
+    const inds = Array.isArray(i.medicine.indications) ? i.medicine.indications : [];
+    const indHtml = inds.slice(0, 2).map(t => `<span class="ind-pill">${t}</span>`).join('')
+      + (inds.length > 2 ? `<span style="font-size:10px;color:var(--text-muted)">+${inds.length-2}</span>` : '');
+
+    const expiryHtml = i.expiry_date
+      ? `<span style="color:${i.expiry_date <= IN_90_DAYS ? 'var(--red)' : 'inherit'}">${_fmtDate(i.expiry_date)}</span>`
+      : '<span style="color:var(--text-muted)">—</span>';
+
+    return `
+      <tr class="${isActive ? '' : 'inactive-row'}">
+        <td><input type="checkbox" class="row-chk" data-id="${i.id}" style="cursor:pointer;accent-color:var(--green-deep);vertical-align:middle;margin-right:5px"/><span class="med-id-badge">${i.medicine.med_id || '—'}</span></td>
+        <td>${imgHtml}</td>
+        <td>
+          <div class="med-name" title="${i.medicine.name}">${i.medicine.name}</div>
+          <div class="med-sub">${CAT_LABELS[i.medicine.category] || ''}</div>
+          ${inds.length ? `<div style="margin-top:2px">${indHtml}</div>` : ''}
+        </td>
+        <td style="color:var(--text-mid)">${i.medicine.brand || '—'}</td>
+        <td style="color:var(--text-muted)">${i.medicine.unit || '—'}</td>
+        <td>
+          <span class="${stockClass}">${qty}</span>
+          <span class="stock-badge ${badgeClass}" style="margin-left:3px">${badgeText}</span>
+        </td>
+        <td class="calc-val">₹${bp.toFixed(2)}</td>
+        <td style="color:var(--text-muted)">${gstPct}%</td>
+        <td style="color:var(--text-muted)">₹${ta.toFixed(2)}</td>
+        <td style="font-weight:600">₹${mrp.toFixed(2)}</td>
+        <td class="profit-val">${profPct}%</td>
+        <td class="profit-val">₹${pa.toFixed(2)}</td>
+        <td class="calc-val">₹${cp.toFixed(2)}</td>
+        <td style="color:var(--text-muted);font-size:11px">${i.inward_date ? _fmtDate(i.inward_date) : '—'}</td>
+        <td style="font-size:11px">${expiryHtml}</td>
+        <td style="color:var(--text-muted);font-size:11px;font-family:monospace">${i.batch_number || '<span style="color:#ccc">—</span>'}</td>
+        <td style="color:var(--text-muted)">${reorder}</td>
+        <td style="color:var(--text-muted)">${i.max_stock ?? 0}</td>
+        <td style="color:var(--text-muted);max-width:90px;overflow:hidden;text-overflow:ellipsis">${i.supplier_name || '—'}</td>
+        <td><button class="btn-status-toggle stock-badge ${isActive ? 'sb-ok' : ''}" data-med-id="${i.medicine.id}" data-active="${isActive}" style="${isActive ? '' : 'background:#f0f0f0;color:#666'}" title="Click to toggle Active / Inactive">${isActive ? 'Active' : 'Inactive'}</button></td>
+        <td>
+          <div style="display:flex;gap:4px;justify-content:flex-end">
+            <button class="btn btn-ghost btn-xs btn-adj" data-id="${i.id}" data-name="${i.medicine.name}">±</button>
+            <button class="btn btn-secondary btn-xs btn-edit" data-id="${i.id}">Edit</button>
+            <button class="btn btn-xs btn-del" data-id="${i.id}" data-name="${i.medicine.name}" style="background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border)">Del</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', () => openEdit(btn.dataset.id)));
+  tbody.querySelectorAll('.btn-adj').forEach(btn => btn.addEventListener('click', () => openAdjust(btn.dataset.id, btn.dataset.name)));
+  tbody.querySelectorAll('.btn-del').forEach(btn => btn.addEventListener('click', () => deleteMedicine(btn.dataset.id, btn.dataset.name)));
+
+  tbody.querySelectorAll('.btn-status-toggle').forEach(btn =>
+    btn.addEventListener('click', () => toggleStatus(btn.dataset.medId, btn.dataset.active === 'true'))
+  );
+
+  // Re-attach row checkbox listeners after each render
+  tbody.querySelectorAll('.row-chk').forEach(chk => {
+    if (_selectedIds.has(chk.dataset.id)) chk.checked = true;
+    chk.addEventListener('change', () => {
+      chk.checked ? _selectedIds.add(chk.dataset.id) : _selectedIds.delete(chk.dataset.id);
+      _updateBulkBar();
+    });
+  });
+  _updateBulkBar();
+}
+
+function _fmtDate(d) {
+  if (!d) return '—';
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y.slice(2)}`;
+}
+
+// ── Filters ─────────────────────────────────────────
+['search','filter-cat','filter-stock','filter-status'].forEach(id =>
+  document.getElementById(id).addEventListener(id === 'search' ? 'input' : 'change', renderTable)
+);
+
+// ── CSV Export ──────────────────────────────────────
+document.getElementById('btn-export-csv').addEventListener('click', () => {
+  const filterSts = document.getElementById('filter-status').value;
+  const rows = _items.filter(i => {
+    if (filterSts === 'active') return i.medicine.is_active !== false;
+    if (filterSts === 'inactive') return i.medicine.is_active === false;
+    return true;
+  });
+
+  const header = ['Med ID','Name','Category','Brand','Unit','Barcode','Stock','BP(₹)','GST%','TA(₹)','MRP(₹)','P%','PA(₹)','CP(₹)','Inward','Expiry','Batch','Reorder(Low)','Max','Supplier','Status','Indications'];
+  const csvRows = [header, ...rows.map(i => {
+    const mrp = Number(i.mrp || 0), gst = Number(i.gst_percent || 0), pct = Number(i.profit_percent || 0);
+    const bp = mrp / (1 + gst/100), ta = mrp - bp, pa = mrp * pct / 100, cp = mrp - pa;
+    const inds = Array.isArray(i.medicine.indications) ? i.medicine.indications.join(' | ') : '';
+    return [
+      i.medicine.med_id || '',
+      `"${i.medicine.name}"`,
+      CAT_LABELS[i.medicine.category] || '',
+      `"${i.medicine.brand || ''}"`,
+      `"${i.medicine.unit || ''}"`,
+      i.medicine.barcode || '',
+      i.stock_quantity ?? 0,
+      bp.toFixed(2), `${gst}%`, ta.toFixed(2), mrp.toFixed(2),
+      `${pct}%`, pa.toFixed(2), cp.toFixed(2),
+      i.inward_date || '', i.expiry_date || '',
+      `"${i.batch_number || ''}"`,
+      i.reorder_level ?? 0, i.max_stock ?? 0,
+      `"${i.supplier_name || ''}"`,
+      i.medicine.is_active !== false ? 'Active' : 'Inactive',
+      `"${inds}"`,
+    ];
+  })];
+
+  const csv  = csvRows.map(r => r.join(',')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `inventory_${TODAY}.csv`; a.click();
+  URL.revokeObjectURL(url);
+  _alert('success', 'CSV exported.');
+});
+
+// ── Tag input ────────────────────────────────────────
+const tagInput  = document.getElementById('tag-input');
+const tagAddBtn = document.getElementById('tag-add-btn');
+const tagsArea  = document.getElementById('tags-area');
+const tagCount  = document.getElementById('tag-count');
+
+tagInput.addEventListener('input', () => {
+  tagAddBtn.disabled = !tagInput.value.trim() || _tags.length >= 10;
+});
+tagInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } });
+tagAddBtn.addEventListener('click', addTag);
+
+function addTag() {
+  const val = tagInput.value.trim();
+  if (!val || _tags.length >= 10) return;
+  if (_tags.map(t => t.toLowerCase()).includes(val.toLowerCase())) { tagInput.value = ''; return; }
+  _tags.push(val);
+  tagInput.value = '';
+  tagAddBtn.disabled = true;
+  renderTags();
+}
+function removeTag(idx) {
+  _tags.splice(idx, 1);
+  renderTags();
+  tagAddBtn.disabled = !tagInput.value.trim() || _tags.length >= 10;
+}
+function renderTags() {
+  tagsArea.innerHTML = _tags.map((t, i) =>
+    `<span class="tag-chip">${t}<button onclick="window._removeTag(${i})" title="Remove">×</button></span>`
+  ).join('');
+  tagCount.textContent = `${_tags.length} / 10 indications`;
+  tagInput.placeholder = _tags.length >= 10 ? 'Maximum 10 reached' : 'Type indication, press Enter…';
+  tagInput.disabled = _tags.length >= 10;
+}
+window._removeTag = removeTag;
+
+// ── Image upload ─────────────────────────────────────
+document.getElementById('f-image').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { _alert('error', 'Image must be under 2 MB.'); return; }
+
+  _imgUploading = true;
+  const ext = file.name.split('.').pop().toLowerCase();
+  const path = `${tenantId}/${Date.now()}.${ext}`;
+
+  const { data, error } = await supabase.storage
+    .from('medicine-images').upload(path, file, { upsert: true });
+
+  _imgUploading = false;
+  if (error) { _alert('error', 'Image upload failed: ' + error.message); return; }
+
+  const { data: { publicUrl } } = supabase.storage.from('medicine-images').getPublicUrl(data.path);
+  document.getElementById('edit-image-url').value = publicUrl;
+  document.getElementById('img-preview').src = publicUrl;
+  document.getElementById('img-preview').style.display = 'block';
+  document.getElementById('img-placeholder').style.display = 'none';
+});
+
+// ── Slide panel ──────────────────────────────────────
+document.getElementById('btn-add-med').addEventListener('click', () => openPanel(null));
+
+function openPanel(invId) {
+  const isEdit = !!invId;
+  document.getElementById('panel-title').textContent = isEdit ? 'Edit Medicine' : 'Add Medicine';
+  document.getElementById('opening-stock-section').style.display = isEdit ? 'none' : '';
+  document.getElementById('med-id-display').style.display = isEdit ? '' : 'none';
+
+  // Reset image
+  document.getElementById('edit-image-url').value = '';
+  document.getElementById('img-preview').style.display = 'none';
+  document.getElementById('img-placeholder').style.display = '';
+  document.getElementById('f-image').value = '';
+
+  _tags = [];
+
+  if (isEdit) {
+    const item = _items.find(i => i.id === invId);
+    if (!item) return;
+    document.getElementById('edit-inv-id').value  = item.id;
+    document.getElementById('edit-med-id').value  = item.medicine.id;
+    document.getElementById('f-med-id').value     = item.medicine.med_id || '';
+    document.getElementById('f-name').value       = item.medicine.name;
+    document.getElementById('f-cat').value        = item.medicine.category || '';
+    document.getElementById('f-brand').value      = item.medicine.brand || '';
+    document.getElementById('f-unit').value       = item.medicine.unit || '';
+    document.getElementById('f-barcode').value    = item.medicine.barcode || '';
+    document.getElementById('f-active').value     = String(item.medicine.is_active !== false);
+    document.getElementById('f-mrp').value        = item.mrp || '';
+    document.getElementById('f-gst').value        = item.gst_percent ?? 0;
+    document.getElementById('f-profit').value     = item.profit_percent || '';
+    document.getElementById('f-reorder').value     = item.reorder_level ?? '';
+    document.getElementById('f-reorder').dataset.manuallySet = item.reorder_level ? '1' : '';
+    document.getElementById('f-max').value         = item.max_stock ?? '';
+    document.getElementById('f-inward').value     = item.inward_date || '';
+    document.getElementById('f-expiry').value     = item.expiry_date || '';
+    document.getElementById('f-batch').value      = item.batch_number || '';
+    document.getElementById('f-supplier').value   = item.supplier_name || '';
+    _tags = Array.isArray(item.medicine.indications) ? [...item.medicine.indications] : [];
+    if (item.medicine.image_url) {
+      document.getElementById('edit-image-url').value = item.medicine.image_url;
+      document.getElementById('img-preview').src = item.medicine.image_url;
+      document.getElementById('img-preview').style.display = 'block';
+      document.getElementById('img-placeholder').style.display = 'none';
+    }
+  } else {
+    document.getElementById('edit-inv-id').value = '';
+    document.getElementById('edit-med-id').value = '';
+    ['f-name','f-brand','f-unit','f-barcode','f-mrp','f-profit','f-supplier','f-batch'].forEach(id =>
+      document.getElementById(id).value = '');
+    document.getElementById('f-stock').value  = '';
+    document.getElementById('f-cat').value    = '';
+    document.getElementById('f-active').value = 'true';
+    document.getElementById('f-gst').value    = '0';
+    document.getElementById('f-reorder').value = '';
+    document.getElementById('f-reorder').dataset.manuallySet = '';
+    document.getElementById('f-max').value    = '';
+    document.getElementById('f-inward').value = TODAY;
+    document.getElementById('f-expiry').value = '';
+  }
+  renderTags();
+  window._calcPricing();
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('slide-panel').classList.add('open');
+}
+
+function closePanel() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('slide-panel').classList.remove('open');
+}
+
+document.getElementById('overlay').addEventListener('click', closePanel);
+document.getElementById('btn-close-panel').addEventListener('click', closePanel);
+document.getElementById('btn-cancel-panel').addEventListener('click', closePanel);
+function openEdit(invId) { openPanel(invId); }
+
+// ── Save medicine ────────────────────────────────────
+document.getElementById('btn-save-med').addEventListener('click', async () => {
+  const name    = document.getElementById('f-name').value.trim();
+  const mrp     = parseFloat(document.getElementById('f-mrp').value) || 0;
+  if (!name)    { _alert('error', 'Medicine name is required.'); return; }
+  if (mrp <= 0) { _alert('error', 'MRP must be greater than 0.'); return; }
+  if (_imgUploading) { _alert('warning', 'Image upload in progress — please wait.'); return; }
+
+  const invId    = document.getElementById('edit-inv-id').value;
+  const medId    = document.getElementById('edit-med-id').value;
+  const cat      = document.getElementById('f-cat').value || null;
+  const brand    = document.getElementById('f-brand').value.trim() || null;
+  const unit     = document.getElementById('f-unit').value.trim() || null;
+  const barcode  = document.getElementById('f-barcode').value.trim() || null;
+  const active   = document.getElementById('f-active').value === 'true';
+  const gstPct   = parseFloat(document.getElementById('f-gst').value) || 0;
+  const profPct  = parseFloat(document.getElementById('f-profit').value) || 0;
+  const maxStock = parseInt(document.getElementById('f-max').value) || 0;
+  const reorder  = parseInt(document.getElementById('f-reorder').value) || 0;
+  const cp       = mrp - (mrp * profPct / 100);
+  const inward   = document.getElementById('f-inward').value || null;
+  const expiry   = document.getElementById('f-expiry').value || null;
+  const batch    = document.getElementById('f-batch').value.trim() || null;
+  const supplier = document.getElementById('f-supplier').value.trim() || null;
+  const imageUrl = document.getElementById('edit-image-url').value || null;
+  const stock    = parseInt(document.getElementById('f-stock')?.value) || 0;
+
+  const btn = document.getElementById('btn-save-med');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  try {
+    if (invId && medId) {
+      const { error: me } = await supabase.from('medicines')
+        .update({ name, category: cat, brand, unit, is_active: active,
+                  indications: _tags, barcode, image_url: imageUrl })
+        .eq('id', medId);
+      if (me) throw me;
+      const { error: ie } = await supabase.from('inventory')
+        .update({ mrp, cost_price: cp, gst_percent: gstPct, profit_percent: profPct,
+                  reorder_level: reorder, max_stock: maxStock,
+                  inward_date: inward, expiry_date: expiry, batch_number: batch, supplier_name: supplier })
+        .eq('id', invId).eq('tenant_id', tenantId);
+      if (ie) throw ie;
+      _alert('success', `"${name}" updated.`);
+    } else {
+      const exists = _items.find(i => i.medicine.name.toLowerCase() === name.toLowerCase());
+      if (exists) { _alert('error', `"${name}" already exists.`); btn.disabled = false; btn.textContent = 'Save Medicine'; return; }
+      const { data: med, error: me } = await supabase.from('medicines')
+        .insert({ name, category: cat, brand, unit, is_active: active,
+                  indications: _tags, barcode, image_url: imageUrl })
+        .select('id').single();
+      if (me) throw me;
+      const { error: ie } = await supabase.from('inventory').insert({
+        tenant_id: tenantId, medicine_id: med.id,
+        stock_quantity: stock, mrp, cost_price: cp, gst_percent: gstPct,
+        profit_percent: profPct, reorder_level: reorder, max_stock: maxStock,
+        inward_date: inward, expiry_date: expiry, batch_number: batch, supplier_name: supplier
+      });
+      if (ie) throw ie;
+      _alert('success', `"${name}" added to inventory.`);
+    }
+    closePanel();
+    await loadInventory();
+  } catch (err) {
+    _alert('error', 'Save failed: ' + (err.message || err.details || 'Please try again.'));
+  }
+  btn.disabled = false; btn.textContent = 'Save Medicine';
+});
+
+// ── Adjust stock modal ────────────────────────────────
+function openAdjust(invId, name) {
+  document.getElementById('adj-modal-title').textContent = `Adjust Stock — ${name}`;
+  document.getElementById('adj-inv-id').value = invId;
+  document.getElementById('adj-qty').value    = '';
+  document.getElementById('adj-reason').value = '';
+  _adjType = 'add';
+  document.getElementById('adj-add').classList.add('selected');
+  document.getElementById('adj-remove').classList.remove('selected');
+  document.getElementById('adj-modal').classList.add('open');
+}
+document.getElementById('adj-add').addEventListener('click', () => {
+  _adjType = 'add';
+  document.getElementById('adj-add').classList.add('selected');
+  document.getElementById('adj-remove').classList.remove('selected');
+});
+document.getElementById('adj-remove').addEventListener('click', () => {
+  _adjType = 'remove';
+  document.getElementById('adj-remove').classList.add('selected');
+  document.getElementById('adj-add').classList.remove('selected');
+});
+document.getElementById('btn-adj-cancel').addEventListener('click', () =>
+  document.getElementById('adj-modal').classList.remove('open')
+);
+document.getElementById('btn-adj-confirm').addEventListener('click', async () => {
+  const qty   = parseInt(document.getElementById('adj-qty').value);
+  const invId = document.getElementById('adj-inv-id').value;
+  if (!qty || qty <= 0) { _alert('error', 'Enter a valid quantity.'); return; }
+  const item  = _items.find(i => i.id === invId);
+  if (!item) return;
+  const newQty = _adjType === 'add'
+    ? (item.stock_quantity ?? 0) + qty
+    : Math.max(0, (item.stock_quantity ?? 0) - qty);
+  const btn = document.getElementById('btn-adj-confirm');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const { error } = await supabase.from('inventory')
+    .update({ stock_quantity: newQty }).eq('id', invId).eq('tenant_id', tenantId);
+  btn.disabled = false; btn.textContent = 'Confirm';
+  if (error) { _alert('error', 'Failed: ' + error.message); return; }
+  document.getElementById('adj-modal').classList.remove('open');
+  _alert('success', `Stock updated to ${newQty} units.`);
+  await loadInventory();
+});
+
+// ── Delete medicine from inventory ───────────────────
+async function deleteMedicine(invId, name) {
+  if (!confirm(`Remove "${name}" from inventory?\n\nThis deletes the stock record for your dispensary. The medicine name stays in the catalogue.`)) return;
+  const { error } = await supabase.from('inventory')
+    .delete().eq('id', invId).eq('tenant_id', tenantId);
+  if (error) { _alert('error', 'Delete failed: ' + error.message); return; }
+  _selectedIds.delete(invId);
+  _alert('success', `"${name}" removed from inventory.`);
+  await loadInventory();
+}
+
+// ── Toggle active / inactive directly in row ─────────
+async function toggleStatus(medId, isActive) {
+  const { error } = await supabase.from('medicines')
+    .update({ is_active: !isActive }).eq('id', medId);
+  if (error) { _alert('error', 'Status update failed: ' + error.message); return; }
+  if (isActive) {
+    // Switching to Inactive — auto-show All so row stays visible
+    document.getElementById('filter-status').value = '';
+    _alert('warning', 'Marked Inactive — filter switched to All so you can still see it.');
+  } else {
+    _alert('success', 'Marked Active.');
+  }
+  await loadInventory();
+}
+
+// ── Bulk delete ───────────────────────────────────────
+const _selectedIds = new Set();
+
+function _updateBulkBar() {
+  const n   = _selectedIds.size;
+  const btn = document.getElementById('btn-bulk-del');
+  document.getElementById('bulk-count').textContent = n;
+  btn.style.display = n > 0 ? '' : 'none';
+  const chkAll = document.getElementById('chk-all');
+  if (chkAll) {
+    const visible = document.querySelectorAll('.row-chk').length;
+    chkAll.indeterminate = n > 0 && n < visible;
+    chkAll.checked = visible > 0 && n >= visible;
+  }
+}
+
+document.getElementById('chk-all').addEventListener('change', function() {
+  document.querySelectorAll('.row-chk').forEach(chk => {
+    chk.checked = this.checked;
+    this.checked ? _selectedIds.add(chk.dataset.id) : _selectedIds.delete(chk.dataset.id);
+  });
+  _updateBulkBar();
+});
+
+document.getElementById('btn-bulk-del').addEventListener('click', async () => {
+  const ids = [..._selectedIds];
+  if (!ids.length) return;
+  if (!confirm(`Remove ${ids.length} medicine(s) from inventory?\n\nStock records will be deleted. Medicine names stay in the catalogue.`)) return;
+  const { error } = await supabase.from('inventory')
+    .delete().in('id', ids).eq('tenant_id', tenantId);
+  if (error) { _alert('error', 'Bulk delete failed: ' + error.message); return; }
+  _selectedIds.clear();
+  _alert('success', `${ids.length} medicine(s) removed from inventory.`);
+  await loadInventory();
+});
+
+function _alert(type, msg) {
+  const el = document.getElementById('alert');
+  el.textContent = msg;
+  el.className = `alert show ${type}`;
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (type !== 'error') setTimeout(() => el.className = 'alert', 4000);
+}
+
+// ── CSV Import ────────────────────────────────────────
+let _importRows = [];  // parsed rows ready to import
+
+function _closeImport() {
+  document.getElementById('import-modal').classList.remove('open');
+  document.getElementById('import-file').value = '';
+  _importRows = [];
+  document.getElementById('import-summary').className = 'import-summary';
+  document.getElementById('import-err').className = 'import-err';
+  document.getElementById('import-preview').style.display = 'none';
+  document.getElementById('import-preview').innerHTML = '';
+  document.getElementById('btn-do-import').disabled = true;
+  document.getElementById('btn-do-import').textContent = 'Import';
+  document.getElementById('btn-cancel-import').disabled = false;
+  document.getElementById('import-prog-wrap').classList.remove('show');
+  document.getElementById('import-prog-fill').style.width = '0%';
+  document.getElementById('import-prog-text').textContent = 'Preparing…';
+}
+
+document.getElementById('btn-import-csv').addEventListener('click', () => {
+  _closeImport();
+  document.getElementById('import-modal').classList.add('open');
+});
+document.getElementById('btn-close-import').addEventListener('click', _closeImport);
+document.getElementById('btn-cancel-import').addEventListener('click', _closeImport);
+
+// Drag-over visual
+const dropEl = document.getElementById('import-drop');
+dropEl.addEventListener('dragover', e => { e.preventDefault(); dropEl.classList.add('drag-over'); });
+dropEl.addEventListener('dragleave', () => dropEl.classList.remove('drag-over'));
+dropEl.addEventListener('drop', e => {
+  e.preventDefault(); dropEl.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) _parseImportFile(file);
+});
+document.getElementById('import-file').addEventListener('change', e => {
+  if (e.target.files[0]) _parseImportFile(e.target.files[0]);
+});
+
+// Download blank template
+document.getElementById('btn-dl-template').addEventListener('click', e => {
+  e.preventDefault();
+  const header = 'Med ID,Name,Category,Brand,Unit,Barcode,Stock,MRP(₹),GST%,P%,Inward,Expiry,Batch,Reorder(Low),Max,Supplier,Status,Indications';
+  const example = ',"Ashwagandha Capsule",tablet,"Himalaya","60 Nos",,100,150,5,20,2024-01-01,2026-12-31,BT20240101,20,100,"AVS",Active,"Stress | Immunity"';
+  const blob = new Blob([header + '\n' + example], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'inventory_template.csv'; a.click();
+});
+
+function _parseCSVLine(line) {
+  const result = []; let cur = ''; let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQ = !inQ; }
+    else if (c === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+    else { cur += c; }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+function _parseDate(s) {
+  if (!s) return null;
+  s = s.trim().replace(/\s+/g, '');
+  if (!s) return null;
+  // YYYY-MM-DD or YYYY/MM/DD
+  if (/^\d{4}[-\/]\d{2}[-\/]\d{2}$/.test(s)) return s.replace(/\//g, '-');
+  // DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY (Indian formats)
+  const m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if (m) {
+    const yr = m[3].length === 2 ? '20' + m[3] : m[3];
+    return `${yr}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  return null;
+}
+
+async function _parseImportFile(file) {
+  const errEl = document.getElementById('import-err');
+  const sumEl = document.getElementById('import-summary');
+  errEl.className = 'import-err'; sumEl.className = 'import-summary';
+  document.getElementById('import-preview').style.display = 'none';
+  document.getElementById('btn-do-import').disabled = true;
+  _importRows = [];
+
+  const text = await file.text();
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) { errEl.textContent = 'CSV has no data rows.'; errEl.className = 'import-err show'; return; }
+
+  const headers = _parseCSVLine(lines[0]).map(h => h.replace(/[₹()\s]/g,'').toLowerCase());
+
+  // Column index helpers
+  const ci = name => headers.findIndex(h => h.includes(name));
+  const iMedId    = ci('medid');
+  const iName     = ci('name');
+  const iCat      = ci('category');
+  const iBrand    = ci('brand');
+  const iUnit     = ci('unit');
+  const iBarcode  = ci('barcode');
+  const iStock    = ci('stock');
+  const iMrp      = headers.findIndex(h => h === 'mrp' || h === 'mrp');
+  const iGst      = ci('gst');
+  const iProfit   = ci('p%') >= 0 ? ci('p%') : headers.findIndex(h => h === 'p');
+  const iInward   = ci('inward');
+  const iExpiry   = ci('expiry');
+  const iBatch    = ci('batch');
+  const iReorder  = ci('reorder') >= 0 ? ci('reorder') : ci('low');
+  const iMax      = ci('max');
+  const iSupplier = ci('supplier');
+  const iStatus   = ci('status');
+  const iInds     = ci('indication');
+
+  if (iName < 0) {
+    errEl.textContent = 'CSV must have a "Name" column.';
+    errEl.className = 'import-err show'; return;
+  }
+
+  // Build lookup maps from current loaded inventory
+  const byMedId = {};
+  const byName  = {};
+  _items.forEach(i => {
+    if (i.medicine.med_id) byMedId[i.medicine.med_id.toUpperCase()] = i;
+    byName[i.medicine.name.toLowerCase().trim()] = i;
+  });
+
+  let countNew = 0, countUpdate = 0, countSkip = 0;
+  const preview = [];
+
+  for (let r = 1; r < lines.length; r++) {
+    const cols = _parseCSVLine(lines[r]);
+    const rawName = iName >= 0 ? (cols[iName] || '').trim() : '';
+    if (!rawName) { countSkip++; continue; }
+
+    const rawMedId  = iMedId >= 0  ? (cols[iMedId]  || '').trim().toUpperCase() : '';
+    const mrpRaw    = iMrp >= 0    ? parseFloat(cols[iMrp]   || 0) : 0;
+    const gstRaw    = iGst >= 0    ? parseFloat((cols[iGst]  || '0').replace('%','')) : 0;
+    const profRaw   = iProfit >= 0 ? parseFloat((cols[iProfit]|| '0').replace('%','')) : 0;
+    const stockRaw  = iStock >= 0  ? parseInt(cols[iStock]  || 0) : 0;
+    const maxRaw    = iMax >= 0    ? parseInt(cols[iMax]    || 0) : 0;
+    const reorderRaw= iReorder >= 0? parseInt(cols[iReorder]|| 0) : 0;
+    const statusRaw = iStatus >= 0 ? (cols[iStatus]||'Active').trim().toLowerCase() : 'active';
+    const indsRaw   = iInds >= 0   ? (cols[iInds]  ||'').split('|').map(s=>s.trim()).filter(Boolean) : [];
+    const batchRaw  = iBatch >= 0  ? (cols[iBatch] ||'').trim() : '';
+
+    // Match existing record
+    let existing = null;
+    if (rawMedId && byMedId[rawMedId]) existing = byMedId[rawMedId];
+    else if (byName[rawName.toLowerCase()]) existing = byName[rawName.toLowerCase()];
+
+    const action = existing ? 'update' : 'new';
+    if (action === 'new') countNew++; else countUpdate++;
+
+    const TODAY_ISO = new Date().toISOString().slice(0, 10);
+    const parsedInward = _parseDate(iInward >= 0 ? cols[iInward] : '');
+    const autoReorder  = (reorderRaw === 0 && maxRaw > 0) ? Math.floor(maxRaw / 2) : reorderRaw;
+
+    _importRows.push({
+      action, existing,
+      name: rawName,
+      category: iCat >= 0 ? (cols[iCat]||'').trim().toLowerCase() || null : null,
+      brand: iBrand >= 0 ? (cols[iBrand]||'').trim() || null : null,
+      unit: iUnit >= 0 ? (cols[iUnit]||'').trim() || null : null,
+      barcode: iBarcode >= 0 ? (cols[iBarcode]||'').trim() || null : null,
+      is_active: statusRaw !== 'inactive',
+      indications: indsRaw,
+      mrp: mrpRaw, gst_percent: gstRaw, profit_percent: profRaw,
+      cost_price: mrpRaw - (mrpRaw * profRaw / 100),
+      stock_quantity: stockRaw, max_stock: maxRaw, reorder_level: autoReorder,
+      inward_date: parsedInward || TODAY_ISO,
+      expiry_date: _parseDate(iExpiry >= 0 ? cols[iExpiry] : ''),
+      batch_number: batchRaw || null,
+      supplier_name: iSupplier >= 0 ? (cols[iSupplier]||'').trim() || null : null,
+    });
+
+    if (preview.length < 10) preview.push({ action, name: rawName, mrp: mrpRaw, stock: stockRaw, batch: batchRaw });
+  }
+
+  if (!_importRows.length) {
+    errEl.textContent = 'No valid rows found in CSV.'; errEl.className = 'import-err show'; return;
+  }
+
+  sumEl.innerHTML = `Ready to import <strong>${_importRows.length}</strong> rows — <span class="badge-new">${countNew} new</span> &nbsp;<span class="badge-update">${countUpdate} update</span>${countSkip ? ` · ${countSkip} blank rows skipped` : ''}`;
+  sumEl.className = 'import-summary show';
+
+  // Preview table
+  const prevEl = document.getElementById('import-preview');
+  prevEl.style.display = 'block';
+  prevEl.innerHTML = `<table>
+    <thead><tr><th>Action</th><th>Name</th><th>MRP (₹)</th><th>Stock</th><th>Batch</th></tr></thead>
+    <tbody>${preview.map(p => `
+      <tr class="row-${p.action}">
+        <td><span class="badge-${p.action}">${p.action === 'new' ? 'NEW' : 'UPDATE'}</span></td>
+        <td>${p.name}</td><td>${p.mrp}</td><td>${p.stock}</td><td>${p.batch || '—'}</td>
+      </tr>`).join('')}
+    ${_importRows.length > 10 ? `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);font-style:italic">…and ${_importRows.length - 10} more rows</td></tr>` : ''}
+    </tbody></table>`;
+
+  document.getElementById('btn-do-import').disabled = false;
+}
+
+document.getElementById('btn-do-import').addEventListener('click', async () => {
+  if (!_importRows.length) return;
+  const replaceStock = document.getElementById('import-replace-stock').checked;
+
+  const btn       = document.getElementById('btn-do-import');
+  const cancelBtn = document.getElementById('btn-cancel-import');
+  const progWrap  = document.getElementById('import-prog-wrap');
+  const progFill  = document.getElementById('import-prog-fill');
+  const progText  = document.getElementById('import-prog-text');
+
+  btn.disabled = true; btn.textContent = 'Importing…';
+  cancelBtn.disabled = true;
+  progWrap.classList.add('show');
+
+  const total   = _importRows.length;
+  let done = 0, added = 0, updated = 0, skipped = 0, errors = 0;
+
+  function _setProgress(label) {
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    progFill.style.width = pct + '%';
+    progText.textContent = label || `Processing ${done} / ${total}…`;
+  }
+  _setProgress('Starting…');
+
+  // ── Separate new vs update ──
+  const newRows    = _importRows.filter(r => r.action === 'new');
+  const updateRows = _importRows.filter(r => r.action === 'update');
+
+  const CHUNK = 50;  // batch size
+
+  // ── 1. Batch-insert new medicines ──────────────────
+  if (newRows.length > 0) {
+    for (let i = 0; i < newRows.length; i += CHUNK) {
+      const chunk = newRows.slice(i, i + CHUNK);
+      const medPayload = chunk.map(r => ({
+        name: r.name, category: r.category, brand: r.brand,
+        unit: r.unit, barcode: r.barcode, is_active: r.is_active,
+        indications: r.indications,
+      }));
+
+      const { data: meds, error: me } = await supabase
+        .from('medicines').insert(medPayload).select('id, name');
+
+      if (me) {
+        console.error('Batch medicine insert error:', me);
+        errors += chunk.length;
+        done   += chunk.length;
+        _setProgress(`Inserting medicines… ${done}/${total}`);
+        continue;
+      }
+
+      // Map name → id (case-insensitive)
+      const nameToId = {};
+      (meds || []).forEach(m => { nameToId[m.name.toLowerCase()] = m.id; });
+
+      const invPayload = chunk.map(r => {
+        const medId = nameToId[r.name.toLowerCase()];
+        if (!medId) { errors++; return null; }
+        return {
+          tenant_id: tenantId, medicine_id: medId,
+          stock_quantity: r.stock_quantity,
+          mrp: r.mrp, cost_price: r.cost_price,
+          gst_percent: r.gst_percent, profit_percent: r.profit_percent,
+          max_stock: r.max_stock, reorder_level: r.reorder_level,
+          inward_date: r.inward_date, expiry_date: r.expiry_date,
+          batch_number: r.batch_number, supplier_name: r.supplier_name,
+        };
+      }).filter(Boolean);
+
+      if (invPayload.length) {
+        const { error: ie } = await supabase.from('inventory').insert(invPayload);
+        if (ie) { console.error('Batch inventory insert error:', ie); errors += invPayload.length; }
+        else    added += invPayload.length;
+      }
+
+      done += chunk.length;
+      _setProgress(`Adding new medicines… ${done}/${total}`);
+    }
+  }
+
+  // ── 2. Update existing medicines — 10 in parallel ──
+  const UPDATE_BATCH = 10;
+  for (let i = 0; i < updateRows.length; i += UPDATE_BATCH) {
+    const batch = updateRows.slice(i, i + UPDATE_BATCH);
+    await Promise.all(batch.map(async row => {
+      try {
+        const inv = row.existing;
+
+        const medPatch = { name: row.name, is_active: row.is_active };
+        if (row.category !== null)    medPatch.category   = row.category;
+        if (row.brand    !== null)    medPatch.brand      = row.brand;
+        if (row.unit     !== null)    medPatch.unit       = row.unit;
+        if (row.barcode  !== null)    medPatch.barcode    = row.barcode;
+        if (row.indications.length)  medPatch.indications = row.indications;
+
+        const { error: me } = await supabase.from('medicines').update(medPatch).eq('id', inv.medicine.id);
+        if (me) throw me;
+
+        const invPatch = {};
+        if (row.mrp > 0)             { invPatch.mrp = row.mrp; invPatch.cost_price = row.cost_price; }
+        if (row.gst_percent > 0)     invPatch.gst_percent    = row.gst_percent;
+        if (row.profit_percent > 0)  invPatch.profit_percent = row.profit_percent;
+        if (row.max_stock > 0)       invPatch.max_stock      = row.max_stock;
+        if (row.reorder_level > 0)   invPatch.reorder_level  = row.reorder_level;
+        if (row.inward_date)         invPatch.inward_date    = row.inward_date;
+        if (row.expiry_date)         invPatch.expiry_date    = row.expiry_date;
+        if (row.batch_number)        invPatch.batch_number   = row.batch_number;
+        if (row.supplier_name)       invPatch.supplier_name  = row.supplier_name;
+        if (replaceStock)            invPatch.stock_quantity = row.stock_quantity;
+
+        if (Object.keys(invPatch).length) {
+          const { error: ie } = await supabase.from('inventory')
+            .update(invPatch).eq('id', inv.id).eq('tenant_id', tenantId);
+          if (ie) throw ie;
+        }
+        updated++;
+      } catch (err) {
+        console.error('Update error:', row.name, err);
+        errors++;
+      }
+      done++;
+    }));
+    _setProgress(`Updating existing records… ${done}/${total}`);
+  }
+
+  // ── Done ───────────────────────────────────────────
+  progFill.style.width = '100%';
+  progText.textContent = 'Finalising…';
+  await loadInventory();
+
+  // Build result summary
+  const parts = [];
+  if (added)   parts.push(`✅ ${added} added`);
+  if (updated) parts.push(`✏️ ${updated} updated`);
+  if (skipped) parts.push(`⏭ ${skipped} skipped`);
+  if (errors)  parts.push(`❌ ${errors} failed`);
+  const resultMsg = `Import complete — ${parts.join('  ·  ')}`;
+
+  _closeImport();
+  cancelBtn.disabled = false;
+  _alert(errors > 0 ? 'warning' : 'success', resultMsg);
+});
+
+await loadInventory();
+</script>
+</body>
+</html>

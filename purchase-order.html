@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Purchase Order — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--cream:#faf8f3;--white:#ffffff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+  --success-bg:#e8f5ee;--success-border:#b2d8bf;--success-text:#1a4a2e;
+  --error-bg:#fdecea;--error-border:#f5c6c6;--error-text:#8b1a1a;
+  --warn-bg:#fff8ec;--warn-border:#f0d080;--warn-text:#7a5c1a;
+  --red:#c0392b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1100px;margin:0 auto;padding:28px 20px 80px}
+
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.header-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+.btn{height:38px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}
+.btn-secondary:hover{background:var(--green-light)}
+.btn-ghost{background:none;border:1.5px solid var(--border);color:var(--text-mid)}
+.btn-ghost:hover{border-color:var(--green-mid);color:var(--green-deep)}
+.btn-gold{background:var(--gold);color:#fff;border:none}
+.btn-gold:hover{background:#b8801e}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn-xs{height:26px;padding:0 9px;font-size:11px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--success-bg);color:var(--success-text);border:1px solid var(--success-border)}
+.alert.error{background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border)}
+
+/* Summary bar */
+.summary-bar{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 20px;margin-bottom:20px;display:flex;gap:24px;flex-wrap:wrap;align-items:center}
+.sum-item{text-align:center}
+.sum-label{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
+.sum-val{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700;color:var(--green-deep);line-height:1.1;margin-top:2px}
+.sum-val.gold{color:var(--gold)}
+.sum-divider{width:1px;background:var(--border);align-self:stretch}
+
+/* Empty state */
+.empty-state{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:56px 24px;text-align:center}
+.empty-icon{font-size:48px;margin-bottom:12px}
+.empty-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep);margin-bottom:8px}
+.empty-sub{font-size:13px;color:var(--text-muted)}
+
+/* Supplier group card */
+.supplier-group{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);margin-bottom:16px;overflow:hidden}
+.sg-head{background:var(--green-deep);color:#fff;padding:12px 18px;display:flex;justify-content:space-between;align-items:center}
+.sg-name{font-weight:600;font-size:14px;letter-spacing:.2px}
+.sg-sub{font-size:11px;opacity:.8;margin-top:1px}
+.sg-subtotal{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700}
+
+.po-table{width:100%;border-collapse:collapse;font-size:12px}
+.po-table th{text-align:left;padding:8px 14px;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:1.5px solid var(--border);background:var(--cream)}
+.po-table td{padding:9px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+.po-table tr:last-child td{border-bottom:none}
+.po-table tbody tr:hover td{background:#f5faf7}
+.med-name-cell{font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.med-id-badge{font-size:10px;color:var(--text-muted);font-family:monospace}
+.stock-low{color:var(--gold);font-weight:700}
+.stock-out{color:var(--red);font-weight:700}
+.line-total{font-weight:700;color:var(--green-deep)}
+.cp-cell{color:var(--text-muted)}
+
+/* Qty input in table */
+.inp-po-qty{width:70px;height:32px;padding:0 8px;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;color:var(--green-deep);text-align:center;outline:none}
+.inp-po-qty:focus{border-color:var(--green-mid)}
+
+/* Remove row btn */
+.btn-remove-row{background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:14px;padding:2px 4px;line-height:1}
+.btn-remove-row:hover{color:var(--red)}
+
+/* Supplier group footer */
+.sg-footer{padding:10px 14px;background:#f5faf7;border-top:1.5px solid var(--border);display:flex;justify-content:flex-end;align-items:center;gap:6px;font-size:12px;color:var(--text-mid)}
+.sg-footer-total{font-weight:700;color:var(--green-deep);font-size:14px}
+
+/* Grand total bar */
+.grand-total-bar{background:var(--green-deep);color:#fff;border-radius:var(--radius);padding:16px 24px;display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.gt-label{font-size:13px;opacity:.85}
+.gt-items{font-size:12px;opacity:.7;margin-top:2px}
+.gt-value{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700}
+
+/* Add medicine modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:300;display:none;align-items:center;justify-content:center}
+.modal-backdrop.open{display:flex}
+.modal{background:var(--white);border-radius:12px;width:400px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.18);overflow:hidden}
+.modal-head{background:var(--green-deep);color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
+.modal-head-title{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600}
+.modal-btn-close{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;padding:0;opacity:.8}
+.modal-btn-close:hover{opacity:1}
+.modal-body{padding:18px 20px}
+.modal-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end}
+
+.field{margin-bottom:12px}
+.field label{display:block;font-size:10px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.field input{width:100%;height:40px;padding:0 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:border-color .15s}
+.field input:focus{border-color:var(--green-mid)}
+.field input[readonly]{background:#f0f7f3;color:var(--green-deep);font-weight:600;cursor:default}
+
+/* Search results list */
+.search-results{border:1.5px solid var(--border);border-radius:var(--radius);max-height:200px;overflow-y:auto;background:var(--white);margin-top:4px;display:none}
+.search-results.open{display:block}
+.sr-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s}
+.sr-item:last-child{border-bottom:none}
+.sr-item:hover{background:var(--green-light)}
+.sr-item-name{font-weight:500;font-size:13px}
+.sr-item-meta{font-size:11px;color:var(--text-muted);margin-top:1px}
+
+/* print styles */
+@media print{
+  #navbar-placeholder,.header-actions,.btn-gold,.btn-remove-row,.inp-po-qty{display:none!important}
+  body{background:#fff}
+  .page-wrap{padding:12px}
+  .supplier-group{border:1px solid #ccc;margin-bottom:10px;page-break-inside:avoid}
+  .sg-head{background:#1a4a2e!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .grand-total-bar{background:#1a4a2e!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .po-qty-display{display:block!important}
+}
+.po-qty-display{display:none}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<div class="page-wrap">
+
+  <div class="page-header">
+    <div>
+      <div class="page-title">Purchase Order</div>
+      <div class="page-subtitle" id="po-date-line">Auto-generated from low stock medicines</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-primary btn-sm" id="btn-add-med">+ Add Medicine</button>
+      <button class="btn btn-ghost btn-sm" id="btn-export-csv">↓ Export CSV</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨 Print PO</button>
+      <a href="inventory.html" class="btn btn-secondary btn-sm">← Inventory</a>
+    </div>
+  </div>
+
+  <div class="alert" id="alert"></div>
+
+  <div class="summary-bar" id="summary-bar" style="display:none">
+    <div class="sum-item"><div class="sum-label">Suppliers</div><div class="sum-val" id="s-suppliers">0</div></div>
+    <div class="sum-divider"></div>
+    <div class="sum-item"><div class="sum-label">Medicines</div><div class="sum-val" id="s-meds">0</div></div>
+    <div class="sum-divider"></div>
+    <div class="sum-item"><div class="sum-label">Total Units</div><div class="sum-val" id="s-units">0</div></div>
+    <div class="sum-divider"></div>
+    <div class="sum-item"><div class="sum-label">Est. Invoice Value</div><div class="sum-val gold" id="s-total">₹0</div></div>
+  </div>
+
+  <div id="po-container"></div>
+
+</div>
+
+<!-- Grand total (appended after groups) -->
+<template id="tmpl-grand-total">
+  <div class="grand-total-bar" id="grand-total-bar">
+    <div>
+      <div class="gt-label">Grand Total — All Suppliers</div>
+      <div class="gt-items" id="gt-items-label"></div>
+    </div>
+    <div class="gt-value" id="gt-value">₹0.00</div>
+  </div>
+</template>
+
+<!-- Add medicine modal -->
+<div class="modal-backdrop" id="add-med-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-head-title">Add Medicine to PO</div>
+      <button class="modal-btn-close" id="btn-modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Search Medicine</label>
+        <input type="text" id="med-search-input" placeholder="Type medicine name…" autocomplete="off"/>
+        <div class="search-results" id="search-results"></div>
+      </div>
+      <div id="med-add-form" style="display:none">
+        <input type="hidden" id="sel-med-id"/>
+        <input type="hidden" id="sel-inv-id"/>
+        <div class="field">
+          <label>Selected Medicine</label>
+          <input id="sel-med-name" type="text" readonly/>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="field">
+            <label>Current Stock</label>
+            <input id="sel-current-stock" type="text" readonly/>
+          </div>
+          <div class="field">
+            <label>Max Stock</label>
+            <input id="sel-max-stock" type="text" readonly/>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="field">
+            <label>Qty to Order <span style="color:var(--red)">*</span></label>
+            <input type="number" id="sel-qty" min="1" placeholder="0" oninput="window._updateLineTotal()"/>
+          </div>
+          <div class="field">
+            <label>Cost Price (₹/unit)</label>
+            <input type="number" id="sel-cp" min="0" step="0.01" placeholder="0.00" oninput="window._updateLineTotal()"/>
+          </div>
+        </div>
+        <div class="field">
+          <label>Line Total (₹)</label>
+          <input id="sel-line-total" type="text" readonly/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" id="btn-modal-cancel">Cancel</button>
+      <button class="btn btn-primary btn-sm" id="btn-modal-add" disabled>Add to PO</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { requireAuth, getCurrentTenantId } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
+initNavbar();
+
+const tenantId = getCurrentTenantId();
+const TODAY    = new Date().toISOString().split('T')[0];
+document.getElementById('po-date-line').textContent =
+  `Purchase Order · Generated ${new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}`;
+
+// _poItems: array of {invId, medId, medIdDisplay, name, unit, brand, supplier, currentStock, maxStock, toOrder, costPrice, isManual}
+let _poItems = [];
+let _allInventory = []; // all active inventory (for add modal search)
+
+// ── Load data ─────────────────────────────────────────
+async function loadData() {
+  const { data, error } = await supabase
+    .from('inventory')
+    .select(`id, stock_quantity, cost_price, max_stock, reorder_level, supplier_name,
+             medicine:medicines(id, name, med_id, unit, brand, is_active)`)
+    .eq('tenant_id', tenantId);
+
+  if (error) { _alert('error', 'Failed to load: ' + error.message); return; }
+
+  const allItems = (data || []).filter(i => i.medicine?.is_active !== false);
+  _allInventory  = allItems;
+
+  // Low stock = stock <= reorder_level (admin-set), and reorder_level must be set
+  _poItems = allItems
+    .filter(i => {
+      const threshold = i.reorder_level || 0;
+      return threshold > 0 && (i.stock_quantity ?? 0) <= threshold;
+    })
+    .map(i => _makePoItem(i, i.max_stock - (i.stock_quantity ?? 0)));
+
+  render();
+}
+
+function _makePoItem(inv, qtyToOrder) {
+  return {
+    invId:    inv.id,
+    medId:    inv.medicine.id,
+    medIdDisplay: inv.medicine.med_id || '',
+    name:     inv.medicine.name,
+    unit:     inv.medicine.unit || '',
+    brand:    inv.medicine.brand || '',
+    supplier: inv.supplier_name || 'No Supplier',
+    currentStock: inv.stock_quantity ?? 0,
+    maxStock: inv.max_stock || 0,
+    toOrder:  Math.max(1, qtyToOrder),
+    costPrice: Number(inv.cost_price || 0),
+    isManual: false,
+  };
+}
+
+// ── Render ─────────────────────────────────────────────
+function render() {
+  const container = document.getElementById('po-container');
+  container.innerHTML = '';
+
+  if (!_poItems.length) {
+    document.getElementById('summary-bar').style.display = 'none';
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">✅</div>
+        <div class="empty-title">All Medicines Well Stocked</div>
+        <div class="empty-sub">No medicines are below the low stock threshold (50% of max).<br>
+          Use "Add Medicine" to manually add items to this PO.</div>
+      </div>`;
+    updateSummary();
+    return;
+  }
+
+  // Group by supplier
+  const groups = {};
+  _poItems.forEach(item => {
+    if (!groups[item.supplier]) groups[item.supplier] = [];
+    groups[item.supplier].push(item);
+  });
+
+  Object.entries(groups)
+    .sort(([a],[b]) => (a === 'No Supplier' ? 1 : b === 'No Supplier' ? -1 : a.localeCompare(b)))
+    .forEach(([supplier, items]) => {
+      container.appendChild(renderGroup(supplier, items));
+    });
+
+  // Grand total
+  const tmpl = document.getElementById('tmpl-grand-total').content.cloneNode(true);
+  container.appendChild(tmpl);
+  updateTotals();
+  document.getElementById('summary-bar').style.display = '';
+}
+
+function renderGroup(supplier, items) {
+  const div = document.createElement('div');
+  div.className = 'supplier-group';
+  div.dataset.supplier = supplier;
+
+  const subtotal = items.reduce((s, i) => s + i.toOrder * i.costPrice, 0);
+  const totalUnits = items.reduce((s, i) => s + i.toOrder, 0);
+
+  div.innerHTML = `
+    <div class="sg-head">
+      <div>
+        <div class="sg-name">🏭 ${supplier}</div>
+        <div class="sg-sub">${items.length} medicine${items.length !== 1 ? 's' : ''} · ${totalUnits} units</div>
+      </div>
+      <div class="sg-subtotal" data-subtotal>₹${subtotal.toFixed(2)}</div>
+    </div>
+    <table class="po-table">
+      <thead>
+        <tr>
+          <th>Med ID</th>
+          <th>Medicine</th>
+          <th>Unit</th>
+          <th>Brand</th>
+          <th>In Stock</th>
+          <th>Max</th>
+          <th>To Order</th>
+          <th>CP (₹/unit)</th>
+          <th style="text-align:right">Line Total (₹)</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody data-group-body="${supplier}">
+        ${items.map(item => renderRow(item)).join('')}
+      </tbody>
+    </table>
+    <div class="sg-footer">
+      Supplier subtotal:&nbsp;<span class="sg-footer-total" data-sg-total-val="${supplier}">₹${subtotal.toFixed(2)}</span>
+    </div>
+  `;
+
+  // Bind qty inputs
+  div.querySelectorAll('.inp-po-qty').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const invId = inp.dataset.invid;
+      const item  = _poItems.find(i => i.invId === invId);
+      if (item) {
+        item.toOrder = Math.max(0, parseInt(inp.value) || 0);
+        const row = inp.closest('tr');
+        const lt  = item.toOrder * item.costPrice;
+        row.querySelector('[data-linetotal]').textContent = '₹' + lt.toFixed(2);
+        updateTotals();
+      }
+    });
+  });
+
+  // Bind remove buttons
+  div.querySelectorAll('.btn-remove-row').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const invId = btn.dataset.invid;
+      _poItems = _poItems.filter(i => i.invId !== invId);
+      render();
+    });
+  });
+
+  return div;
+}
+
+function renderRow(item) {
+  const lt    = item.toOrder * item.costPrice;
+  const stkClass = item.currentStock <= 0 ? 'stock-out' : 'stock-low';
+  return `
+    <tr>
+      <td><span class="med-id-badge">${item.medIdDisplay}</span></td>
+      <td><div class="med-name-cell" title="${item.name}">${item.name}</div></td>
+      <td style="color:var(--text-muted)">${item.unit || '—'}</td>
+      <td style="color:var(--text-muted)">${item.brand || '—'}</td>
+      <td><span class="${stkClass}">${item.currentStock}</span></td>
+      <td style="color:var(--text-muted)">${item.maxStock}</td>
+      <td>
+        <input class="inp-po-qty" type="number" min="0" value="${item.toOrder}" data-invid="${item.invId}"/>
+        <span class="po-qty-display">${item.toOrder}</span>
+      </td>
+      <td class="cp-cell">₹${item.costPrice.toFixed(2)}</td>
+      <td style="text-align:right"><span class="line-total" data-linetotal>₹${lt.toFixed(2)}</span></td>
+      <td><button class="btn-remove-row" data-invid="${item.invId}" title="Remove from PO">✕</button></td>
+    </tr>
+  `;
+}
+
+function updateTotals() {
+  const groups = {};
+  _poItems.forEach(item => {
+    if (!groups[item.supplier]) groups[item.supplier] = 0;
+    groups[item.supplier] += item.toOrder * item.costPrice;
+  });
+
+  // Update supplier subtotals
+  Object.entries(groups).forEach(([supplier, total]) => {
+    const el = document.querySelector(`[data-sg-total-val="${supplier}"]`);
+    const hd = document.querySelector(`[data-supplier="${supplier}"] [data-subtotal]`);
+    if (el)  el.textContent  = '₹' + total.toFixed(2);
+    if (hd)  hd.textContent  = '₹' + total.toFixed(2);
+    const sub = document.querySelector(`[data-supplier="${supplier}"] .sg-sub`);
+    if (sub) {
+      const items = _poItems.filter(i => i.supplier === supplier);
+      const units = items.reduce((s, i) => s + i.toOrder, 0);
+      sub.textContent = `${items.length} medicine${items.length !== 1 ? 's' : ''} · ${units} units`;
+    }
+  });
+
+  // Grand total
+  const grand = _poItems.reduce((s, i) => s + i.toOrder * i.costPrice, 0);
+  const units = _poItems.reduce((s, i) => s + i.toOrder, 0);
+  const el = document.getElementById('gt-value');
+  const lbl = document.getElementById('gt-items-label');
+  if (el)  el.textContent  = '₹' + grand.toFixed(2);
+  if (lbl) lbl.textContent = `${_poItems.length} medicines · ${units} units`;
+
+  updateSummary();
+}
+
+function updateSummary() {
+  const suppliers = new Set(_poItems.map(i => i.supplier)).size;
+  const units     = _poItems.reduce((s, i) => s + i.toOrder, 0);
+  const total     = _poItems.reduce((s, i) => s + i.toOrder * i.costPrice, 0);
+  document.getElementById('s-suppliers').textContent = suppliers;
+  document.getElementById('s-meds').textContent      = _poItems.length;
+  document.getElementById('s-units').textContent     = units;
+  document.getElementById('s-total').textContent     = '₹' + total.toFixed(2);
+}
+
+// ── CSV Export ─────────────────────────────────────────
+document.getElementById('btn-export-csv').addEventListener('click', () => {
+  if (!_poItems.length) { _alert('error', 'No items in PO.'); return; }
+  const header = ['Supplier','Med ID','Medicine','Unit','Brand','In Stock','Max','To Order','CP (₹)','Line Total (₹)'];
+  const rows = _poItems.map(i => [
+    `"${i.supplier}"`, i.medIdDisplay, `"${i.name}"`,
+    `"${i.unit}"`, `"${i.brand}"`,
+    i.currentStock, i.maxStock, i.toOrder,
+    i.costPrice.toFixed(2), (i.toOrder * i.costPrice).toFixed(2)
+  ]);
+  const grand = _poItems.reduce((s, i) => s + i.toOrder * i.costPrice, 0);
+  rows.push(['','','','','','','','','Grand Total','₹' + grand.toFixed(2)]);
+
+  const csv = [header, ...rows].map(r => r.join(',')).join('\n');
+  const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url;
+  a.download = `PO_${TODAY}.csv`; a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ── Add Medicine Modal ─────────────────────────────────
+let _selectedInv = null;
+
+document.getElementById('btn-add-med').addEventListener('click', openAddModal);
+document.getElementById('btn-modal-close').addEventListener('click', closeAddModal);
+document.getElementById('btn-modal-cancel').addEventListener('click', closeAddModal);
+
+function openAddModal() {
+  _selectedInv = null;
+  document.getElementById('med-search-input').value = '';
+  document.getElementById('search-results').classList.remove('open');
+  document.getElementById('med-add-form').style.display = 'none';
+  document.getElementById('btn-modal-add').disabled = true;
+  document.getElementById('add-med-modal').classList.add('open');
+  setTimeout(() => document.getElementById('med-search-input').focus(), 100);
+}
+function closeAddModal() {
+  document.getElementById('add-med-modal').classList.remove('open');
+}
+
+// Search input live filtering
+document.getElementById('med-search-input').addEventListener('input', function() {
+  const q = this.value.toLowerCase().trim();
+  const results = document.getElementById('search-results');
+  if (!q) { results.classList.remove('open'); return; }
+
+  // Exclude already-in-PO
+  const inPo = new Set(_poItems.map(i => i.invId));
+  const matches = _allInventory
+    .filter(i => !inPo.has(i.id) && i.medicine.name.toLowerCase().includes(q))
+    .slice(0, 8);
+
+  if (!matches.length) {
+    results.innerHTML = `<div class="sr-item" style="color:var(--text-muted)">No medicines found</div>`;
+    results.classList.add('open');
+    return;
+  }
+
+  results.innerHTML = matches.map(i => {
+    const threshold = i.reorder_level || 0;
+    const stockTag  = threshold > 0 && (i.stock_quantity ?? 0) <= threshold ? ' 🔴 Low' : ` · Stock: ${i.stock_quantity ?? 0}`;
+    return `<div class="sr-item" data-invid="${i.id}">
+      <div class="sr-item-name">${i.medicine.name}</div>
+      <div class="sr-item-meta">${i.medicine.brand || ''} ${i.medicine.unit || ''}${stockTag} · Max: ${i.max_stock || '—'} · CP: ₹${Number(i.cost_price || 0).toFixed(2)}</div>
+    </div>`;
+  }).join('');
+  results.classList.add('open');
+
+  results.querySelectorAll('.sr-item[data-invid]').forEach(el => {
+    el.addEventListener('click', () => selectMedicine(el.dataset.invid));
+  });
+});
+
+function selectMedicine(invId) {
+  const inv = _allInventory.find(i => i.id === invId);
+  if (!inv) return;
+  _selectedInv = inv;
+  document.getElementById('search-results').classList.remove('open');
+  document.getElementById('med-search-input').value = inv.medicine.name;
+  document.getElementById('med-add-form').style.display = '';
+  document.getElementById('sel-med-id').value     = inv.medicine.id;
+  document.getElementById('sel-inv-id').value     = inv.id;
+  document.getElementById('sel-med-name').value   = inv.medicine.name;
+  document.getElementById('sel-current-stock').value = inv.stock_quantity ?? 0;
+  document.getElementById('sel-max-stock').value  = inv.max_stock || '—';
+  const defaultQty = Math.max(1, (inv.max_stock || 0) - (inv.stock_quantity ?? 0));
+  document.getElementById('sel-qty').value        = defaultQty;
+  document.getElementById('sel-cp').value         = Number(inv.cost_price || 0).toFixed(2);
+  window._updateLineTotal();
+  document.getElementById('btn-modal-add').disabled = false;
+  document.getElementById('sel-qty').focus();
+}
+
+window._updateLineTotal = function() {
+  const qty = parseInt(document.getElementById('sel-qty').value) || 0;
+  const cp  = parseFloat(document.getElementById('sel-cp').value) || 0;
+  document.getElementById('sel-line-total').value = '₹' + (qty * cp).toFixed(2);
+};
+
+document.getElementById('btn-modal-add').addEventListener('click', () => {
+  if (!_selectedInv) return;
+  const qty = parseInt(document.getElementById('sel-qty').value) || 0;
+  const cp  = parseFloat(document.getElementById('sel-cp').value) || 0;
+  if (qty <= 0) { _alert('error', 'Enter quantity to order.'); return; }
+
+  const newItem = {
+    invId:    _selectedInv.id,
+    medId:    _selectedInv.medicine.id,
+    medIdDisplay: _selectedInv.medicine.med_id || '',
+    name:     _selectedInv.medicine.name,
+    unit:     _selectedInv.medicine.unit || '',
+    brand:    _selectedInv.medicine.brand || '',
+    supplier: _selectedInv.supplier_name || 'No Supplier',
+    currentStock: _selectedInv.stock_quantity ?? 0,
+    maxStock: _selectedInv.max_stock || 0,
+    toOrder:  qty,
+    costPrice: cp,
+    isManual: true,
+  };
+  _poItems.push(newItem);
+  closeAddModal();
+  render();
+});
+
+// Close on backdrop click
+document.getElementById('add-med-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('add-med-modal')) closeAddModal();
+});
+
+function _alert(type, msg) {
+  const el = document.getElementById('alert');
+  el.textContent = msg;
+  el.className = `alert show ${type}`;
+  if (type !== 'error') setTimeout(() => el.className = 'alert', 4000);
+}
+
+await loadData();
+</script>
+</body>
+</html>

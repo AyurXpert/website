@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Dispensary — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#1a4a2e"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fffbf2;--cream:#faf8f3;--white:#fff;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--radius:10px;
+  --red:#c0392b;--red-light:#fff3f3;
+  --blue:#1a5276;--blue-light:#e8f4fd;
+  --nav-h:64px;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);overflow:hidden}
+
+.page{
+  display:grid;grid-template-columns:340px 1fr;
+  height:calc(100vh - var(--nav-h));margin-top:var(--nav-h)
+}
+@media(max-width:860px){
+  body{overflow:auto}
+  .page{grid-template-columns:1fr;height:auto}
+}
+
+/* ── Queue panel ─────────────────────────────────── */
+.q-panel{
+  display:flex;flex-direction:column;
+  border-right:1px solid var(--border);background:var(--white);overflow:hidden
+}
+.q-hdr{
+  padding:16px 20px 12px;border-bottom:1px solid var(--border);flex-shrink:0
+}
+.q-hdr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.panel-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--green-deep)}
+.panel-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+.q-count{
+  background:var(--green-deep);color:#fff;font-size:12px;font-weight:600;
+  min-width:26px;height:22px;border-radius:11px;
+  display:flex;align-items:center;justify-content:center;padding:0 8px
+}
+.q-filters{display:flex;gap:6px}
+.q-filter{
+  padding:4px 12px;border-radius:20px;font-size:11px;font-weight:500;
+  border:1px solid var(--border);background:var(--white);color:var(--text-muted);
+  cursor:pointer;transition:all .15s
+}
+.q-filter.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
+
+.q-list{flex:1;overflow-y:auto;padding:8px 12px}
+.q-empty{text-align:center;padding:48px 16px;color:var(--text-muted)}
+.q-empty-icon img{width:60px;height:60px;opacity:.5;object-fit:contain;margin-bottom:10px}
+
+.rx-card{
+  padding:12px 10px;border-radius:10px;border:1.5px solid transparent;
+  cursor:pointer;transition:all .15s;margin-bottom:6px;background:var(--cream)
+}
+.rx-card:hover{border-color:var(--green-mid);background:var(--green-light)}
+.rx-card.active{border-color:var(--green-deep);background:var(--green-light)}
+.rx-card.done{opacity:.55;cursor:default}
+.rx-card-top{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.rx-token{
+  min-width:36px;height:36px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;
+  background:var(--green-light);color:var(--green-deep)
+}
+.rx-token.done{background:#e8e8e8;color:#888}
+.rx-name{font-size:14px;font-weight:500;color:var(--text-dark);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rx-time{font-size:11px;color:var(--text-muted);flex-shrink:0}
+.rx-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:44px;margin-top:3px}
+.badge{display:inline-block;padding:1px 7px;border-radius:20px;font-size:10px;font-weight:600;letter-spacing:.4px}
+.badge-pending{background:#e8f4fd;color:var(--blue)}
+.badge-done{background:#f0f0f0;color:#888}
+.badge-meds{background:var(--green-light);color:var(--green-deep)}
+
+.q-foot{padding:8px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);flex-shrink:0}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green-mid);animation:pulse 2s ease-in-out infinite;flex-shrink:0}
+
+/* ── Dispensing panel ────────────────────────────── */
+.d-panel{display:flex;flex-direction:column;overflow:hidden;background:var(--cream)}
+
+.welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px;text-align:center}
+.welcome-icon img{width:80px;height:80px;opacity:.55;object-fit:contain}
+.welcome-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep)}
+.welcome-sub{font-size:14px;color:var(--text-muted);max-width:280px;line-height:1.6}
+
+.d-active{display:flex;flex-direction:column;height:100%;overflow:hidden}
+
+/* Patient / Rx header */
+.pt-hdr{
+  padding:12px 24px;background:var(--white);border-bottom:1px solid var(--border);flex-shrink:0
+}
+.pt-hdr-row1{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.pt-token{
+  min-width:44px;height:44px;border-radius:10px;background:var(--green-deep);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;flex-shrink:0
+}
+.pt-name-block{flex:1;min-width:0}
+.pt-name{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--green-deep)}
+.pt-sub{font-size:12px;color:var(--text-muted);margin-top:1px}
+.pt-hdr-row2{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.pt-meta{font-size:11px;color:var(--text-muted)}
+.pt-meta span{color:var(--text-dark);font-weight:500}
+
+/* Scrollable body */
+.d-body{flex:1;overflow-y:auto;padding:20px 24px 80px}
+
+/* Section */
+.section{margin-bottom:20px}
+.section-title{
+  font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:600;
+  color:var(--green-deep);margin-bottom:12px;padding-bottom:6px;
+  border-bottom:1px solid var(--border)
+}
+
+/* Prescribed medicines */
+.rx-list{display:flex;flex-direction:column;gap:8px;margin-bottom:8px}
+.rx-item{
+  display:grid;grid-template-columns:1fr 120px 80px 90px;
+  gap:10px;align-items:center;
+  padding:10px 12px;border:1.5px solid var(--border);
+  border-radius:var(--radius);background:var(--white)
+}
+.rx-item.out-of-stock{border-color:var(--red);background:var(--red-light)}
+.rx-item-name{font-size:13px;font-weight:500;color:var(--text-dark)}
+.rx-item-detail{font-size:11px;color:var(--text-muted);margin-top:2px}
+.rx-item-stock{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;text-align:center}
+.stock-in {background:#d4f5e4;color:#1a5c38}
+.stock-low{background:#fff3de;color:#8a5a00}
+.stock-out{background:var(--red-light);color:var(--red)}
+.rx-item-qty input{
+  width:100%;height:36px;padding:0 8px;border:1.5px solid var(--border);
+  border-radius:8px;font-size:14px;font-weight:500;text-align:center;
+  background:var(--cream);color:var(--text-dark);outline:none;
+  font-family:'DM Sans',sans-serif
+}
+.rx-item-qty input:focus{border-color:var(--green-mid);background:var(--white)}
+.rx-item-price{font-size:13px;font-weight:500;color:var(--text-dark);text-align:right}
+
+/* Manual search */
+.search-wrap{position:relative}
+.search-wrap input{
+  width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-dark);
+  background:var(--white);outline:none;transition:border-color .2s
+}
+.search-wrap input:focus{border-color:var(--green-mid)}
+.typeahead{
+  position:absolute;top:calc(100% + 2px);left:0;right:0;
+  background:var(--white);border:1.5px solid var(--green-mid);
+  border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.12);
+  z-index:200;max-height:200px;overflow-y:auto;display:none
+}
+.typeahead.show{display:block}
+.ta-item{
+  padding:8px 12px;font-size:13px;cursor:pointer;
+  border-bottom:1px solid var(--border);transition:background .1s;
+  display:flex;justify-content:space-between;align-items:center
+}
+.ta-item:last-child{border-bottom:none}
+.ta-item:hover{background:var(--green-light)}
+.ta-name{color:var(--text-dark);font-weight:500}
+
+/* Totals */
+.totals-box{
+  background:var(--white);border:1.5px solid var(--border);
+  border-radius:var(--radius);padding:14px 16px
+}
+.totals-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13px}
+.totals-row:last-child{margin-bottom:0;font-size:15px;font-weight:600;color:var(--green-deep);padding-top:8px;border-top:1px solid var(--border)}
+.totals-row label{color:var(--text-mid)}
+.discount-input{
+  width:80px;height:32px;padding:0 8px;border:1.5px solid var(--border);
+  border-radius:8px;font-size:13px;text-align:center;
+  background:var(--cream);color:var(--text-dark);outline:none;
+  font-family:'DM Sans',sans-serif
+}
+.discount-input:focus{border-color:var(--green-mid)}
+
+/* Payment methods */
+.pay-methods{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+.pay-btn{
+  padding:8px 18px;border-radius:var(--radius);font-size:13px;font-weight:500;
+  border:1.5px solid var(--border);background:var(--white);color:var(--text-mid);
+  cursor:pointer;transition:all .15s
+}
+.pay-btn:hover{border-color:var(--green-mid);color:var(--green-deep)}
+.pay-btn.active{border-color:var(--green-deep);background:var(--green-light);color:var(--green-deep);font-weight:600}
+
+/* Action bar */
+.action-bar{
+  padding:12px 24px;background:var(--white);border-top:1px solid var(--border);
+  display:flex;gap:10px;flex-shrink:0;position:sticky;bottom:0;z-index:10
+}
+.btn-dispense{
+  flex:1;height:46px;background:var(--green-deep);color:#fff;border:none;
+  border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:14px;
+  font-weight:500;cursor:pointer;transition:background .2s
+}
+.btn-dispense:hover:not(:disabled){background:#1f5c37}
+.btn-dispense:disabled{opacity:.6;cursor:not-allowed}
+.btn-close-rx{
+  height:46px;width:46px;background:var(--cream);color:var(--text-muted);
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  font-size:18px;cursor:pointer;transition:background .15s;flex-shrink:0
+}
+.btn-close-rx:hover{background:#ffe8e8;color:var(--red);border-color:var(--red)}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;z-index:1000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast-item{padding:12px 16px;border-radius:10px;font-size:13px;max-width:300px;box-shadow:0 4px 20px rgba(0,0,0,.15);pointer-events:auto;animation:slideIn .3s ease;display:flex;gap:10px;align-items:flex-start}
+.toast-item.info{background:var(--green-deep);color:#fff}
+.toast-item.error{background:var(--red);color:#fff}
+.toast-icon{font-size:16px;flex-shrink:0}
+
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
+@keyframes slideIn{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* Print */
+@media print{
+  #navbar-root,.q-panel,.action-bar,.toast{display:none!important}
+  body{overflow:auto;background:#fff}
+  .page{display:block;height:auto;margin-top:0}
+  .d-panel{display:block;overflow:visible}
+  .d-active{display:block;height:auto}
+  .d-body{overflow:visible;padding:0}
+  .print-header{display:block!important}
+}
+.print-header{display:none}
+</style>
+</head>
+<body>
+
+<div id="navbar-root"></div>
+
+<div class="page">
+
+  <!-- ── Prescription Queue ─────────────────────── -->
+  <aside class="q-panel">
+    <div class="q-hdr">
+      <div class="q-hdr-top">
+        <div>
+          <div class="panel-title">Prescription Queue</div>
+          <div class="panel-sub" id="q-date"></div>
+        </div>
+        <div class="q-count" id="q-count">0</div>
+      </div>
+      <div class="q-filters">
+        <button class="q-filter active" data-filter="pending" onclick="setFilter('pending',this)">Pending</button>
+        <button class="q-filter" data-filter="all" onclick="setFilter('all',this)">All Today</button>
+      </div>
+    </div>
+
+    <div class="q-list" id="q-list">
+      <div class="q-empty"><div class="q-empty-icon"><img src="assets/AyurXpert_Tree_Only.png" alt=""></div>Loading…</div>
+    </div>
+
+    <div class="q-foot">
+      <div class="live-dot"></div>
+      Live · real-time updates
+    </div>
+  </aside>
+
+  <!-- ── Dispensing Panel ───────────────────────── -->
+  <main class="d-panel">
+
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon"><img src="assets/AyurXpert_Tree_Only.png" alt="AyurXpert"></div>
+      <div class="welcome-title">Dispensary</div>
+      <div class="welcome-sub">Select a prescription from the queue to begin dispensing</div>
+    </div>
+
+    <div class="d-active" id="d-active" style="display:none">
+
+      <div class="print-header" id="print-header"></div>
+
+      <!-- Patient / Rx header -->
+      <div class="pt-hdr">
+        <div class="pt-hdr-row1">
+          <div class="pt-token" id="pt-token">—</div>
+          <div class="pt-name-block">
+            <div class="pt-name" id="pt-name">—</div>
+            <div class="pt-sub" id="pt-sub">—</div>
+          </div>
+        </div>
+        <div class="pt-hdr-row2">
+          <div class="pt-meta">Phone: <span id="pt-phone">—</span></div>
+          <div class="pt-meta">Doctor: <span id="pt-doctor">—</span></div>
+          <div class="pt-meta" id="pt-diag-wrap" style="display:none">Dx: <span id="pt-diag">—</span></div>
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="d-body">
+
+        <!-- Prescribed medicines -->
+        <div class="section">
+          <div class="section-title">Prescribed Medicines</div>
+          <div class="rx-list" id="rx-list"></div>
+        </div>
+
+        <!-- Add extra item -->
+        <div class="section">
+          <div class="section-title">Add Item Manually</div>
+          <div class="search-wrap">
+            <input id="med-search" type="text" placeholder="Search medicine to add…" autocomplete="off"/>
+            <div class="typeahead" id="med-ta"></div>
+          </div>
+        </div>
+
+        <!-- Totals + Payment -->
+        <div class="section">
+          <div class="section-title">Bill Summary</div>
+          <div class="totals-box">
+            <div class="totals-row">
+              <label>Subtotal</label>
+              <span id="subtotal">₹0</span>
+            </div>
+            <div class="totals-row">
+              <label>Discount (₹)</label>
+              <input class="discount-input" id="discount" type="number" placeholder="0" min="0" value="0" oninput="recalcTotal()"/>
+            </div>
+            <div class="totals-row">
+              <label>Total Payable</label>
+              <span id="total-payable">₹0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Payment Method</div>
+          <div class="pay-methods" id="pay-methods">
+            <button class="pay-btn active" data-method="Cash" onclick="selectPay(this)">Cash</button>
+            <button class="pay-btn" data-method="Card" onclick="selectPay(this)">Card</button>
+            <button class="pay-btn" data-method="UPI" onclick="selectPay(this)">UPI</button>
+            <button class="pay-btn" data-method="Credit" onclick="selectPay(this)">Credit / Due</button>
+          </div>
+        </div>
+
+        <div style="height:20px"></div>
+      </div>
+
+      <!-- Action bar -->
+      <div class="action-bar">
+        <button class="btn-dispense" id="btn-dispense">✓ Dispense &amp; Generate Bill</button>
+        <button class="btn-close-rx" id="btn-close" title="Close">✕</button>
+      </div>
+
+    </div>
+  </main>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module">
+import { requireAuth, getCurrentProfile, getCurrentTenantId } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+import { logAudit } from './js/core/auditLogger.js';
+
+await requireAuth(['pharmacist', 'super_admin', 'dept_admin']);
+initNavbar();
+
+const profile  = getCurrentProfile();
+const tenantId = getCurrentTenantId();
+const userId   = profile.id;
+const _ctx     = { tenantId, userId, userName: profile.full_name };
+
+// ── State ─────────────────────────────────────────
+let _inventory      = [];
+let _activeRxId     = null;
+let _activeRx       = null;
+let _cartItems      = [];    // {medicine_id, name, price, qty, fromRx}
+let _filter         = 'pending';
+
+// ── Date ──────────────────────────────────────────
+document.getElementById('q-date').textContent = new Date().toLocaleDateString('en-IN', {
+  weekday:'long', day:'numeric', month:'long'
+});
+
+// ── Helpers ───────────────────────────────────────
+function _uhid(uuid) {
+  return `AYX-${new Date().getFullYear()}-${(uuid||'').replace(/-/g,'').slice(-6).toUpperCase()}`;
+}
+function _timeAgo(ts) {
+  const m = Math.floor((Date.now() - new Date(ts)) / 60000);
+  if (m < 1) return 'Just now';
+  if (m < 60) return `${m}m ago`;
+  return `${Math.floor(m/60)}h ${m%60}m ago`;
+}
+
+// ── Load inventory ────────────────────────────────
+async function loadInventory() {
+  try {
+    const { data } = await supabase
+      .from('inventory')
+      .select('id, medicine_id, stock_quantity, mrp, cost_price, gst_percent, medicine:medicines(id,name)')
+      .eq('tenant_id', tenantId);
+    _inventory = (data || []).filter(i => i.medicine?.name);
+  } catch { _inventory = []; }
+}
+
+// ── Match medicine name to inventory ─────────────
+function _matchInventory(name) {
+  if (!name) return null;
+  const n = name.toLowerCase().trim();
+  return _inventory.find(i => i.medicine.name.toLowerCase() === n)
+      || _inventory.find(i => i.medicine.name.toLowerCase().includes(n))
+      || null;
+}
+
+// ── Load prescription queue ───────────────────────
+async function loadQueue() {
+  const start = new Date(); start.setHours(0,0,0,0);
+
+  const { data, error: qErr } = await supabase
+    .from('prescriptions')
+    .select(`
+      id, created_at, status,
+      visit:visits(id, token_number, chief_complaint, doctor_id),
+      patient:patients(id, name, phone),
+      items:prescription_items(id, medicine_name, medicine_id, dosage, frequency, duration)
+    `)
+    .eq('tenant_id', tenantId)
+    .gte('created_at', start.toISOString())
+    .order('created_at', { ascending: true });
+
+  if (qErr) console.error('pharmacy loadQueue error:', qErr.message, qErr.details, qErr.hint);
+  const rows = data || [];
+  const pending = rows.filter(r => r.status !== 'dispensed');
+  document.getElementById('q-count').textContent = pending.length;
+
+  const list = document.getElementById('q-list');
+  const filtered = _filter === 'pending' ? pending : rows;
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="q-empty"><div class="q-empty-icon"><img src="assets/AyurXpert_Tree_Only.png" alt=""></div>${_filter==='pending' ? 'No pending prescriptions' : 'No prescriptions today'}</div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(rx => {
+    const isDone   = rx.status === 'dispensed';
+    const isActive = rx.id === _activeRxId;
+    const medCount = (rx.items || []).length;
+    const cardClass = isDone ? 'rx-card done' : isActive ? 'rx-card active' : 'rx-card';
+    const tokClass  = isDone ? 'rx-token done' : 'rx-token';
+    return `<div class="${cardClass}" onclick="${isDone ? '' : `openRx('${rx.id}')`}">
+      <div class="rx-card-top">
+        <div class="${tokClass}">${rx.visit?.token_number || '—'}</div>
+        <div class="rx-name">${rx.patient?.name || '—'}</div>
+        <div class="rx-time">${_timeAgo(rx.created_at)}</div>
+      </div>
+      <div class="rx-meta">
+        ${isDone ? '<span class="badge badge-done">Dispensed</span>' : '<span class="badge badge-pending">Pending</span>'}
+        ${medCount ? `<span class="badge badge-meds">${medCount} medicine${medCount>1?'s':''}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Filter ────────────────────────────────────────
+window.setFilter = function(f, btn) {
+  _filter = f;
+  document.querySelectorAll('.q-filter').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadQueue();
+};
+
+// ── Open a prescription ───────────────────────────
+window.openRx = async function(rxId) {
+  _activeRxId = rxId;
+  _cartItems  = [];
+
+  const { data: rx } = await supabase
+    .from('prescriptions')
+    .select(`
+      id, created_at, status,
+      visit:visits(id, token_number, chief_complaint, doctor_id,
+        notes:consultation_notes(modern_diagnosis, ayurveda_diagnosis)),
+      patient:patients(id, name, phone),
+      items:prescription_items(id, medicine_name, medicine_id, dosage, frequency, duration, anupana, quantity)
+    `)
+    .eq('id', rxId)
+    .single();
+
+  _activeRx = rx;
+
+  // Load doctor name
+  let doctorName = '—';
+  if (rx.visit?.doctor_id) {
+    const { data: doc } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', rx.visit.doctor_id)
+      .single();
+    doctorName = doc?.full_name || '—';
+  }
+
+  // Get diagnosis from consultation_notes
+  const notes = rx.visit?.notes?.[0] || rx.visit?.notes || null;
+  const diag  = [notes?.modern_diagnosis, notes?.ayurveda_diagnosis].filter(Boolean).join(' / ');
+
+  // Populate header
+  document.getElementById('pt-token').textContent  = rx.visit?.token_number || '—';
+  document.getElementById('pt-name').textContent   = rx.patient?.name || '—';
+  document.getElementById('pt-sub').textContent    = `UHID: ${_uhid(rx.patient?.id)} · Rx #${rx.id.slice(-6).toUpperCase()}`;
+  document.getElementById('pt-phone').textContent  = rx.patient?.phone || '—';
+  document.getElementById('pt-doctor').textContent = doctorName;
+
+  const diagWrap = document.getElementById('pt-diag-wrap');
+  if (diag) {
+    document.getElementById('pt-diag').textContent = diag;
+    diagWrap.style.display = '';
+  } else {
+    diagWrap.style.display = 'none';
+  }
+
+  // Build cart from prescription items
+  (rx.items || []).forEach(item => {
+    const inv = _matchInventory(item.medicine_name);
+    _cartItems.push({
+      id:         item.id,
+      medicine_id: inv?.medicine_id || item.medicine_id || null,
+      name:       item.medicine_name || '—',
+      price:      inv?.mrp || 0,
+      stock:      inv?.stock_quantity ?? null,
+      gst_pct:    inv?.gst_percent || 0,
+      cost_price: inv?.cost_price || 0,
+      qty:        item.quantity || 1,
+      dosage:     item.dosage || '',
+      frequency:  item.frequency || '',
+      duration:   item.duration || '',
+      anupana:    item.anupana || '',
+      fromRx:     true
+    });
+  });
+
+  // Reset payment
+  document.querySelector('.pay-btn[data-method="Cash"]').click();
+  document.getElementById('discount').value = '0';
+
+  document.getElementById('welcome').style.display  = 'none';
+  document.getElementById('d-active').style.display = 'flex';
+
+  renderRxList();
+  loadQueue();
+};
+
+// ── Render prescribed medicines list ─────────────
+function renderRxList() {
+  const container = document.getElementById('rx-list');
+  if (!_cartItems.length) {
+    container.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:12px 0">No medicines in this prescription</div>';
+    recalcTotal();
+    return;
+  }
+
+  container.innerHTML = _cartItems.map((item, i) => {
+    const noStock    = item.stock !== null && item.stock <= 0;
+    const lowStock   = item.stock !== null && item.stock > 0 && item.stock < 10;
+    const stockClass = noStock ? 'stock-out' : lowStock ? 'stock-low' : 'stock-in';
+    const stockLabel = item.stock === null ? '—'
+      : item.stock <= 0  ? 'Out of stock'
+      : item.stock < 10  ? `Low (${item.stock})`
+      : `In stock (${item.stock})`;
+    const lineTotal = (item.qty * item.price).toFixed(2);
+    const detail = [item.dosage, item.frequency, item.duration, item.anupana ? `with ${item.anupana}` : ''].filter(Boolean).join(' · ');
+    return `
+      <div class="rx-item${noStock ? ' out-of-stock' : ''}" id="rxitem-${i}">
+        <div>
+          <div class="rx-item-name">${item.name}</div>
+          ${detail ? `<div class="rx-item-detail">${detail}</div>` : ''}
+          ${item.price ? `<div class="rx-item-detail" style="margin-top:2px">₹${item.price} / unit</div>` : '<div class="rx-item-detail" style="color:var(--gold)">Not in inventory — enter price manually</div>'}
+        </div>
+        <div class="rx-item-stock"><span class="stock-badge ${stockClass}">${stockLabel}</span></div>
+        <div class="rx-item-qty">
+          <input type="number" min="0" value="${item.qty}" onchange="updateQty(${i},this.value)" placeholder="Qty"/>
+        </div>
+        <div class="rx-item-price">₹${lineTotal}</div>
+      </div>`;
+  }).join('');
+
+  recalcTotal();
+}
+
+window.updateQty = function(i, val) {
+  _cartItems[i].qty = Math.max(0, parseInt(val) || 0);
+  renderRxList();
+};
+
+// ── Totals ────────────────────────────────────────
+window.recalcTotal = function() {
+  const subtotal = _cartItems.reduce((s, c) => s + c.qty * c.price, 0);
+  const discount = parseFloat(document.getElementById('discount').value) || 0;
+  const total    = Math.max(0, subtotal - discount);
+  document.getElementById('subtotal').textContent    = `₹${subtotal.toFixed(2)}`;
+  document.getElementById('total-payable').textContent = `₹${total.toFixed(2)}`;
+};
+
+// ── Payment method ────────────────────────────────
+window.selectPay = function(btn) {
+  document.querySelectorAll('.pay-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+};
+
+// ── Manual medicine search ────────────────────────
+const medSearch = document.getElementById('med-search');
+const medTa     = document.getElementById('med-ta');
+
+medSearch.addEventListener('input', function() {
+  const q = this.value.toLowerCase().trim();
+  if (q.length < 2) { medTa.classList.remove('show'); return; }
+  const results = _inventory.filter(i => i.medicine.name.toLowerCase().includes(q)).slice(0, 8);
+  if (!results.length) { medTa.classList.remove('show'); return; }
+  medTa.innerHTML = results.map(i => {
+    const cls = i.stock_quantity <= 0 ? 'stock-out' : i.stock_quantity < 10 ? 'stock-low' : 'stock-in';
+    const lbl = i.stock_quantity <= 0 ? 'Out' : `${i.stock_quantity} in stock`;
+    return `<div class="ta-item" data-mid="${i.medicine_id}" data-name="${i.medicine.name}" data-price="${i.mrp||0}" data-stock="${i.stock_quantity}" data-gst="${i.gst_percent||0}" data-cost="${i.cost_price||0}">
+      <span class="ta-name">${i.medicine.name}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--text-muted)">₹${i.mrp||0}</span>
+        <span class="stock-badge ${cls}">${lbl}</span>
+      </div>
+    </div>`;
+  }).join('');
+  medTa.classList.add('show');
+});
+
+medTa.addEventListener('click', e => {
+  const item = e.target.closest('.ta-item');
+  if (!item) return;
+  _cartItems.push({
+    medicine_id: item.dataset.mid,
+    name:        item.dataset.name,
+    price:       parseFloat(item.dataset.price) || 0,
+    stock:       parseInt(item.dataset.stock) ?? null,
+    gst_pct:     parseFloat(item.dataset.gst) || 0,
+    cost_price:  parseFloat(item.dataset.cost) || 0,
+    qty:         1,
+    dosage:'', frequency:'', duration:'', anupana:'',
+    fromRx: false
+  });
+  medSearch.value = '';
+  medTa.classList.remove('show');
+  renderRxList();
+});
+medSearch.addEventListener('blur', () => setTimeout(() => medTa.classList.remove('show'), 200));
+
+// ── Dispense ──────────────────────────────────────
+document.getElementById('btn-dispense').addEventListener('click', dispense);
+
+async function dispense() {
+  if (!_activeRxId || !_activeRx) return;
+
+  const payable = _cartItems.filter(c => c.qty > 0);
+  if (!payable.length) { _toast('Add at least one medicine to dispense', 'error'); return; }
+
+  const payMethod = document.querySelector('.pay-btn.active')?.dataset.method || 'Cash';
+  const discount  = parseFloat(document.getElementById('discount').value) || 0;
+  const subtotal  = payable.reduce((s, c) => s + c.qty * c.price, 0);
+  const total     = Math.max(0, subtotal - discount);
+
+  const btn = document.getElementById('btn-dispense');
+  btn.disabled = true;
+  btn.textContent = 'Processing…';
+
+  try {
+    // 1. Create bill
+    const { data: bill, error: bErr } = await supabase
+      .from('bills')
+      .insert({
+        tenant_id:      tenantId,
+        patient_id:     _activeRx.patient.id,
+        visit_id:       _activeRx.visit.id,
+        total_amount:   subtotal,
+        final_amount:   total,
+        status:         payMethod === 'Credit' ? 'partial' : 'paid',
+        bill_type:      'pharmacy',
+        payment_method: payMethod
+      })
+      .select('id').single();
+    if (bErr) throw bErr;
+
+    // 2. Bill items
+    const billItems = payable.map(c => ({
+      bill_id:     bill.id,
+      medicine_id: c.medicine_id || null,
+      quantity:    c.qty,
+      price:       c.price,
+      total:       c.qty * c.price,
+      tenant_id:   tenantId
+    }));
+    await supabase.from('bill_items').insert(billItems);
+
+    // 3. Deduct stock
+    for (const c of payable) {
+      if (!c.medicine_id) continue;
+      const { data: invList } = await supabase
+        .from('inventory')
+        .select('id, stock_quantity')
+        .eq('medicine_id', c.medicine_id)
+        .eq('tenant_id', tenantId);
+
+      let remaining = c.qty;
+      for (const inv of (invList || [])) {
+        if (remaining <= 0) break;
+        const deduct   = Math.min(inv.stock_quantity, remaining);
+        await supabase.from('inventory')
+          .update({ stock_quantity: inv.stock_quantity - deduct })
+          .eq('id', inv.id);
+        remaining -= deduct;
+      }
+    }
+
+    // 4. Mark prescription dispensed
+    await supabase.from('prescriptions')
+      .update({ status: 'dispensed' })
+      .eq('id', _activeRxId);
+
+    // 5. Audit
+    await logAudit('dispense_prescription', 'prescriptions', _activeRxId, {
+      patient_name:   _activeRx.patient?.name,
+      medicines_count: payable.length,
+      total_amount:   total,
+      payment_method: payMethod
+    }, _ctx);
+
+    // 6. Print invoice
+    _printInvoice(bill.id, payable, subtotal, discount, total, payMethod);
+
+    _toast(`${_activeRx.patient?.name} — dispensed, bill generated`, 'info');
+    _closeRx();
+    loadQueue();
+
+  } catch (err) {
+    console.error(err);
+    _toast('Error: ' + (err.message || 'Please try again'), 'error');
+    btn.disabled = false;
+    btn.textContent = '✓ Dispense & Generate Bill';
+  }
+}
+
+// ── Print invoice ─────────────────────────────────
+function _printInvoice(billId, items, subtotal, discount, total, payMethod) {
+  const tenant = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
+  const date   = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+  const time   = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
+
+  document.getElementById('print-header').innerHTML = `
+    <div style="text-align:center;margin-bottom:12px;border-bottom:2px solid #1a4a2e;padding-bottom:10px">
+      <h2 style="font-family:'Cormorant Garamond',serif;font-size:22px;color:#1a4a2e;margin:0">${tenant.name||'AyurXpert Dispensary'}</h2>
+      <p style="font-size:11px;color:#8a9e90;margin-top:2px">${tenant.city||''} ${tenant.state||''}</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;margin-bottom:10px">
+      <div>Patient: <strong>${_activeRx.patient?.name}</strong></div>
+      <div style="text-align:right">Date: <strong>${date} ${time}</strong></div>
+      <div>Phone: <strong>${_activeRx.patient?.phone||'—'}</strong></div>
+      <div style="text-align:right">Bill #: <strong>${billId.slice(-8).toUpperCase()}</strong></div>
+      <div>Token: <strong>#${_activeRx.visit?.token_number||'—'}</strong></div>
+      <div style="text-align:right">Payment: <strong>${payMethod}</strong></div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px">
+      <thead>
+        <tr style="border-bottom:1px solid #1a4a2e">
+          <th style="text-align:left;padding:4px 0;color:#1a4a2e">#</th>
+          <th style="text-align:left;padding:4px 0;color:#1a4a2e">Medicine</th>
+          <th style="text-align:right;padding:4px 0;color:#1a4a2e">Qty</th>
+          <th style="text-align:right;padding:4px 0;color:#1a4a2e">Rate</th>
+          <th style="text-align:right;padding:4px 0;color:#1a4a2e">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items.map((c,i) => `
+          <tr style="border-bottom:1px dashed #d4e6da">
+            <td style="padding:4px 0">${i+1}</td>
+            <td style="padding:4px 0">${c.name}</td>
+            <td style="padding:4px 0;text-align:right">${c.qty}</td>
+            <td style="padding:4px 0;text-align:right">₹${c.price.toFixed(2)}</td>
+            <td style="padding:4px 0;text-align:right">₹${(c.qty*c.price).toFixed(2)}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+    <div style="text-align:right;font-size:11px">
+      <div>Subtotal: ₹${subtotal.toFixed(2)}</div>
+      ${discount > 0 ? `<div>Discount: ₹${discount.toFixed(2)}</div>` : ''}
+      <div style="font-size:13px;font-weight:600;color:#1a4a2e;border-top:1px solid #1a4a2e;margin-top:4px;padding-top:4px">Total: ₹${total.toFixed(2)}</div>
+    </div>
+    <div style="margin-top:16px;font-size:10px;color:#8a9e90;text-align:center">Dispensed by: ${profile.full_name} · AyurXpert HMS</div>
+  `;
+  window.print();
+}
+
+// ── Close ─────────────────────────────────────────
+document.getElementById('btn-close').addEventListener('click', _closeRx);
+
+function _closeRx() {
+  _activeRxId = null;
+  _activeRx   = null;
+  _cartItems  = [];
+  document.getElementById('d-active').style.display = 'none';
+  document.getElementById('welcome').style.display  = '';
+  document.getElementById('discount').value = '0';
+  loadQueue();
+}
+
+// ── Realtime ──────────────────────────────────────
+function subscribeRealtime() {
+  supabase.channel('pharmacy-live')
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'prescriptions',
+      filter: `tenant_id=eq.${tenantId}`
+    }, payload => {
+      loadQueue();
+      _toast('New prescription received', 'info');
+    })
+    .subscribe();
+}
+
+// ── Toast ─────────────────────────────────────────
+function _toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast-item ${type}`;
+  el.innerHTML = `<span class="toast-icon">${type==='error'?'⚠':'✓'}</span><span>${msg}</span>`;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+// ── Boot ──────────────────────────────────────────
+await Promise.all([loadInventory(), loadQueue()]);
+subscribeRealtime();
+</script>
+</body>
+</html>

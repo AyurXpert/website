@@ -28,7 +28,7 @@ export const ROLE_HOME = {
   dept_admin:   'index.html',
   doctor:       'doctor.html',
   receptionist: 'reception.html',
-  pharmacist:   'pharmacyPOS.html',
+  pharmacist:   'dispensaryPOS.html',
   nurse:        'reception.html',
   lab_tech:     'reports.html',
   accountant:   'fee-admin.html',
