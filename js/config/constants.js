@@ -24,16 +24,16 @@ export const ROLES = {
 
 // ── Where each role lands after login ──
 export const ROLE_HOME = {
-  super_admin:  'index.html',
-  dept_admin:   'index.html',
+  super_admin:  'admin.html',
+  dept_admin:   'admin.html',
   doctor:       'doctor.html',
   receptionist: 'reception.html',
   pharmacist:   'dispensaryPOS.html',
   nurse:        'reception.html',
   lab_tech:     'reports.html',
   accountant:   'fee-admin.html',
-  student:      'index.html',
-  public:       'index.html',
+  student:      'admin.html',
+  public:       'admin.html',
 };
 
 // ── Pages that do NOT need login ──

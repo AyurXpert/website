@@ -21,7 +21,7 @@ export function initNavbar() {
 // ── Nav links per role ───────────────────────────────────────────────────────
 function _getLinks(role) {
   const all = [
-    { href: 'index.html',        label: 'Dashboard',  roles: ['super_admin','dept_admin','doctor','receptionist','pharmacist','nurse','lab_tech','accountant'] },
+    { href: 'admin.html',        label: 'Dashboard',  roles: ['super_admin','dept_admin','doctor','receptionist','pharmacist','nurse','lab_tech','accountant'] },
     { href: 'reception.html',    label: 'Reception',  roles: ['super_admin','dept_admin','receptionist','nurse'] },
     { href: 'doctor.html',       label: 'Queue',      roles: ['super_admin','dept_admin','doctor','nurse'] },
     { href: 'dispensaryPOS.html',  label: 'Dispensary', roles: ['super_admin','dept_admin','pharmacist'] },
@@ -35,7 +35,7 @@ function _getLinks(role) {
 // ── Navbar ───────────────────────────────────────────────────────────────────
 function _injectNavbar(profile, tenant, role) {
   const links       = _getLinks(role);
-  const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+  const currentPage = window.location.pathname.split('/').pop() || 'admin.html';
 
   const logoHTML = tenant.logo_url
     ? `<img src="${tenant.logo_url}" alt="${tenant.name}" class="ax-logo"/>`

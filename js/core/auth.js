@@ -174,7 +174,7 @@ export async function login({ email, password }) {
       { tenantId: profile.tenant_id, userId: profile.id, userName: profile.full_name }
     );
 
-    const destination = ROLE_HOME[profile.role] || 'index.html';
+    const destination = ROLE_HOME[profile.role] || 'admin.html';
     window.location.href = destination;
 
     return { success: true };
@@ -360,7 +360,7 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html') 
     const role = getCurrentRole();
     // super_admin can access any protected page
     if (role !== ROLES.SUPER_ADMIN && !allowedRoles.includes(role)) {
-      window.location.href = ROLE_HOME[role] || 'index.html';
+      window.location.href = ROLE_HOME[role] || 'admin.html';
     }
   }
 }
