@@ -71,7 +71,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 }
 .badge-active{background:var(--success-bg);color:var(--success-text)}
 .badge-inactive{background:#f0f0f0;color:#666}
+.badge-ncism{background:#fff3cd;color:#7a5a00;border:1px solid #e0c060;font-weight:700}
 .opd-empty{text-align:center;padding:32px 16px;color:var(--text-muted);font-size:13px}
+
+/* ── Gold button ─────────────────────────────────── */
+.btn-gold{background:var(--gold);color:#fff}
+.btn-gold:hover{background:#a87422}
+
+/* ── NCISM banner ────────────────────────────────── */
+.ncism-banner{
+  background:#fff3cd;border:1.5px solid #e0c060;border-radius:var(--radius);
+  padding:10px 14px;font-size:12px;color:#7a5a00;margin-bottom:14px;display:none;
+}
+.ncism-banner.show{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.ncism-banner-text{flex:1}
+.ncism-banner strong{font-weight:700}
 
 /* ── New OPD form (inline) ───────────────────────── */
 .new-opd-form{
@@ -81,14 +95,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .new-opd-form.open{display:block}
 .field{margin-bottom:10px}
 .field label{display:block;font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
-.field input,.field textarea{
+.field input,.field textarea,.field select{
   width:100%;height:40px;padding:0 12px;
   border:1.5px solid var(--border);border-radius:var(--radius);
   font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-dark);
   background:var(--white);outline:none;transition:border-color .15s;
 }
 .field textarea{height:64px;padding:8px 12px;resize:none;line-height:1.5}
-.field input:focus,.field textarea:focus{border-color:var(--green-mid)}
+.field select{
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a9485'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;
+}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--green-mid)}
 .form-actions{display:flex;gap:8px;margin-top:4px}
 
 /* ── Doctors panel ───────────────────────────────── */
@@ -170,9 +189,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="page-title">OPD Administration</div>
       <div class="page-subtitle">Manage OPDs, assign doctors, and mark who is active today</div>
     </div>
+    <button class="btn btn-gold" id="btn-seed-ncism">&#9670; Seed NCISM OPDs</button>
   </div>
 
   <div class="alert" id="alert"></div>
+  <div class="ncism-banner" id="ncism-banner">
+    <div class="ncism-banner-text" id="ncism-banner-text"></div>
+  </div>
 
   <div class="layout">
 
@@ -195,6 +218,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <div class="field">
             <label>OPD Name <span style="color:var(--red)">*</span></label>
             <input id="new-opd-name" type="text" placeholder="e.g. General OPD, Panchakarma OPD"/>
+          </div>
+          <div class="field">
+            <label>NCISM Code (optional)</label>
+            <select id="new-opd-ncism">
+              <option value="">— None / General —</option>
+            </select>
           </div>
           <div class="field">
             <label>Description</label>
@@ -241,21 +270,63 @@ await requireAuth(['dept_admin', 'super_admin']);
 initNavbar();
 
 const tenantId = getCurrentTenantId();
-let _opds       = [];   // all OPDs for tenant
-let _allDoctors = [];   // all active doctors in tenant
-let _selectedOpd = null; // currently selected OPD object
+let _opds       = [];
+let _allDoctors = [];
+let _selectedOpd = null;
+
+const NCISM_OPDS = [
+  { code:'KAYACHIKITSA',       name:'Kayachikitsa OPD',                desc:'Internal Medicine — NCISM Mandatory' },
+  { code:'PANCHAKARMA',        name:'Panchakarma OPD',                 desc:'Panchakarma & Upakarma — NCISM Mandatory' },
+  { code:'SHALYA_TANTRA',      name:'Shalya Tantra OPD',               desc:'Surgery — NCISM Mandatory' },
+  { code:'SHALAKYA_NETRA',     name:'Shalakya Netra Roga OPD',         desc:'Ophthalmology — NCISM Mandatory' },
+  { code:'SHALAKYA_KNM',       name:'Shalakya KNM OPD',                desc:'ENT & Oral Surgery — NCISM Mandatory' },
+  { code:'STRI_ROGA_PRASUTI',  name:'Stri Roga & Prasuti Tantra OPD',  desc:'OBG — NCISM Mandatory' },
+  { code:'KAUMARABHRITYA',     name:'Kaumarabhritya OPD',              desc:'Paediatrics — NCISM Mandatory' },
+  { code:'SWASTHAVRITTA_YOGA', name:'Swasthavritta & Yoga OPD',        desc:'Lifestyle & Preventive — NCISM Mandatory' },
+  { code:'SCREENING_OPD',      name:'Screening OPD',                   desc:'Triage & Screening — NCISM Mandatory' },
+  { code:'AGADA_TANTRA',       name:'Agada Tantra OPD',                desc:'Toxicology — NCISM Mandatory' },
+];
+
+// ── Populate NCISM select in new-OPD form ──────────
+function _populateNcismSelect() {
+  const sel = document.getElementById('new-opd-ncism');
+  sel.innerHTML = '<option value="">— None / General —</option>';
+  NCISM_OPDS.forEach(n => {
+    const o = document.createElement('option');
+    o.value = n.code;
+    o.textContent = '★ ' + n.name.replace(' OPD','');
+    sel.appendChild(o);
+  });
+}
+
+// ── NCISM compliance check ─────────────────────────
+function checkNcismCompliance() {
+  const existingCodes = new Set(_opds.filter(o => o.is_active).map(o => o.ncism_code).filter(Boolean));
+  const missing = NCISM_OPDS.filter(n => !existingCodes.has(n.code));
+  const banner  = document.getElementById('ncism-banner');
+  const text    = document.getElementById('ncism-banner-text');
+  if (missing.length) {
+    text.innerHTML = `<strong>NCISM Compliance:</strong> ${missing.length} mandatory OPD(s) not configured — `
+      + missing.map(m => m.name.replace(' OPD','')).join(', ')
+      + '. Click <strong>"Seed NCISM OPDs"</strong> to create them.';
+    banner.classList.add('show');
+  } else {
+    banner.classList.remove('show');
+  }
+}
 
 // ── Load all OPDs ──────────────────────────────────
 async function loadOpds() {
   const { data, error } = await supabase
     .from('opds')
-    .select('id, name, description, is_active')
+    .select('id, name, description, is_active, ncism_code')
     .eq('tenant_id', tenantId)
     .order('name');
 
   if (error) { _alert('error', 'Failed to load OPDs: ' + error.message); return; }
   _opds = data || [];
   renderOpdList();
+  checkNcismCompliance();
 }
 
 function renderOpdList() {
@@ -268,7 +339,8 @@ function renderOpdList() {
     <div class="opd-item${_selectedOpd?.id === o.id ? ' selected' : ''}" data-id="${o.id}">
       <div style="flex:1;min-width:0">
         <div class="opd-item-name">${o.name}</div>
-        ${o.description ? `<div class="opd-item-desc">${o.description}</div>` : ''}
+        ${o.ncism_code ? `<span class="badge badge-ncism" style="margin-top:4px;display:inline-block">NCISM</span>` : ''}
+        ${o.description ? `<div class="opd-item-desc" style="margin-top:3px">${o.description}</div>` : ''}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
         <span class="badge ${o.is_active ? 'badge-active' : 'badge-inactive'}">${o.is_active ? 'Active' : 'Inactive'}</span>
@@ -320,22 +392,40 @@ document.getElementById('btn-new-opd').addEventListener('click', () => {
   newOpdForm.classList.toggle('open');
   document.getElementById('btn-new-opd').textContent =
     newOpdForm.classList.contains('open') ? '✕ Cancel' : '+ New OPD';
+  if (newOpdForm.classList.contains('open')) _populateNcismSelect();
 });
 document.getElementById('btn-cancel-opd').addEventListener('click', () => {
   newOpdForm.classList.remove('open');
   document.getElementById('btn-new-opd').textContent = '+ New OPD';
   document.getElementById('new-opd-name').value = '';
+  document.getElementById('new-opd-ncism').value = '';
   document.getElementById('new-opd-desc').value = '';
 });
+
+// Auto-fill name when NCISM code is picked
+document.getElementById('new-opd-ncism').addEventListener('change', function() {
+  if (!this.value) return;
+  const entry = NCISM_OPDS.find(n => n.code === this.value);
+  if (entry && !document.getElementById('new-opd-name').value.trim()) {
+    document.getElementById('new-opd-name').value = entry.name;
+    document.getElementById('new-opd-desc').value = entry.desc;
+  }
+});
+
 document.getElementById('btn-save-opd').addEventListener('click', async () => {
-  const name = document.getElementById('new-opd-name').value.trim();
+  const name  = document.getElementById('new-opd-name').value.trim();
+  const ncism = document.getElementById('new-opd-ncism').value;
+  const desc  = document.getElementById('new-opd-desc').value.trim();
   if (!name) { _alert('error', 'OPD name is required.'); return; }
 
   const btn = document.getElementById('btn-save-opd');
   btn.disabled = true; btn.textContent = 'Saving…';
 
   const { error } = await supabase.from('opds').insert({
-    tenant_id: tenantId, name, description: document.getElementById('new-opd-desc').value.trim() || null, is_active: true
+    tenant_id: tenantId, name,
+    ncism_code: ncism || null,
+    description: desc || null,
+    is_active: true,
   });
 
   btn.disabled = false; btn.textContent = 'Save OPD';
@@ -343,10 +433,42 @@ document.getElementById('btn-save-opd').addEventListener('click', async () => {
   if (error) { _alert('error', 'Failed to create OPD: ' + error.message); return; }
 
   document.getElementById('new-opd-name').value = '';
+  document.getElementById('new-opd-ncism').value = '';
   document.getElementById('new-opd-desc').value = '';
   newOpdForm.classList.remove('open');
   document.getElementById('btn-new-opd').textContent = '+ New OPD';
   _alert('success', `OPD "${name}" created.`);
+  await loadOpds();
+});
+
+// ── Seed NCISM OPDs ────────────────────────────────
+document.getElementById('btn-seed-ncism').addEventListener('click', async () => {
+  const existingCodes = new Set(_opds.map(o => o.ncism_code).filter(Boolean));
+  const toCreate = NCISM_OPDS.filter(n => !existingCodes.has(n.code));
+
+  if (!toCreate.length) {
+    _alert('success', 'All 10 NCISM mandatory OPDs are already configured.');
+    return;
+  }
+
+  if (!confirm(`Create ${toCreate.length} missing NCISM OPD(s)?\n\n` + toCreate.map(n => '• ' + n.name).join('\n'))) return;
+
+  const btn = document.getElementById('btn-seed-ncism');
+  btn.disabled = true; btn.textContent = 'Creating…';
+
+  const rows = toCreate.map(n => ({
+    tenant_id:  tenantId,
+    name:       n.name,
+    ncism_code: n.code,
+    description: n.desc,
+    is_active:  true,
+  }));
+
+  const { error } = await supabase.from('opds').insert(rows);
+  btn.disabled = false; btn.textContent = '◇ Seed NCISM OPDs';
+
+  if (error) { _alert('error', 'Seed failed: ' + error.message); return; }
+  _alert('success', `${rows.length} NCISM OPD(s) created.`);
   await loadOpds();
 });
 
@@ -543,6 +665,7 @@ function _alert(type, msg) {
 }
 
 // ── Boot ──────────────────────────────────────────
+_populateNcismSelect();
 await Promise.all([loadOpds(), loadAllDoctors()]);
 </script>
 </body>

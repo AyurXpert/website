@@ -71,6 +71,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   .rx-row>.rx-col:first-child{flex:0 0 100%}
   .rx-row>.rx-col{flex:1 1 calc(50% - 4px);min-width:70px}
   .rx-row>.btn-rm-rx{align-self:flex-start;margin-top:18px}
+  /* mobile hint — show below queue */
+  .q-mobile-hint{display:block;padding:10px 20px;font-size:12px;color:var(--text-muted);text-align:center;font-style:italic;border-top:1px solid var(--border)}
 }
 
 /* ── Queue panel ─────────────────────────────────── */
@@ -154,8 +156,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .welcome-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep)}
 .welcome-sub{font-size:14px;color:var(--text-muted);max-width:280px;line-height:1.6}
 
-/* Back button — mobile only */
+/* Mobile-only elements */
 .btn-mobile-back{display:none}
+.q-mobile-hint{display:none}
 
 /* Active consultation */
 .c-active{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
@@ -481,6 +484,22 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 }
 .btn-add-rx:hover{background:var(--green-light)}
 
+/* ── Rx suggestion cards ─────────────────────────── */
+.rx-sugg-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:flex-start}
+.sugg-section-label{width:100%;font-size:10px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.6px;padding:4px 0 0;margin-top:2px}
+.sugg-section-label:first-child{margin-top:0}
+.sugg-section-classical{color:var(--gold)}
+.rx-sugg-card{background:var(--cream);border:1.5px solid var(--green-light);border-radius:var(--radius);padding:8px 12px;cursor:pointer;display:flex;flex-direction:column;gap:3px;min-width:160px;max-width:260px;transition:border-color .15s,background .15s}
+.rx-sugg-card:hover{border-color:var(--green-mid);background:#edf7f1}
+.rx-sugg-card-name{font-size:13px;font-weight:600;color:var(--green-deep)}
+.rx-sugg-card-meta{font-size:11px;color:var(--text-muted)}
+.rx-sugg-card-add{font-size:11px;font-weight:600;color:var(--green-mid);text-align:right;margin-top:2px}
+/* Classical (gold) card variant */
+.rx-sugg-classical{background:#fffbf0!important;border-color:#f0d080!important}
+.rx-sugg-classical:hover{border-color:var(--gold)!important;background:#fff5d6!important}
+.rx-sugg-classical .rx-sugg-card-name{color:var(--gold)}
+.rx-sugg-classical .rx-sugg-card-add{color:var(--gold)}
+
 /* ── Advice / Pathya chips ───────────────────────── */
 .pathya-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .chip{
@@ -569,6 +588,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
     <div class="q-list" id="q-list">
       <div class="q-empty"><div class="q-empty-icon">⏳</div>Loading…</div>
+    </div>
+
+    <!-- Mobile-only hint — hidden on desktop via CSS -->
+    <div class="q-mobile-hint" id="q-mobile-hint">
+      Tap a patient card above to open consultation
     </div>
 
     <div class="q-foot">
@@ -1320,6 +1344,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <!-- TAB 5: PRESCRIPTION                         -->
         <!-- ═══════════════════════════════════════════ -->
         <div id="tab-rx" hidden>
+          <!-- Suggested medicines based on NAMC diagnosis code -->
+          <div id="rx-suggestions" class="section" style="display:none;margin-bottom:4px;background:var(--green-light);border:1.5px solid var(--green-mid);border-radius:var(--radius);padding:12px">
+            <div class="section-title" style="margin-bottom:0">Suggested for <span id="rx-sugg-label" style="color:var(--green-mid)"></span> <span class="section-sub">click to add</span></div>
+            <div id="rx-sugg-list" class="rx-sugg-list"></div>
+          </div>
+
           <div class="section">
             <div class="section-title">Medicines <span class="section-sub">Internal / Oral medications</span></div>
             <div id="rx-rows"></div>
@@ -1597,6 +1627,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
               <input id="adm-diet" type="text" placeholder="e.g. Soft diet, Liquid diet, NPO, Diabetic diet"/>
             </div>
           </div>
+
+          <div class="section" style="background:var(--green-light);border:1.5px solid var(--green-mid);border-radius:8px;padding:14px 16px">
+            <div style="font-size:12px;font-weight:600;color:var(--green-deep);margin-bottom:10px">Ready to assign a bed?</div>
+            <div style="font-size:12px;color:var(--text-mid);margin-bottom:12px">Complete the admission order above, then open the IPD module to pick a bed and formally admit the patient.</div>
+            <button type="button" onclick="openIPDAdmission()"
+              style="height:38px;padding:0 20px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px">
+              &#8599; Open IPD Admission
+            </button>
+          </div>
           <div style="height:20px"></div>
         </div><!-- /tab-adm -->
 
@@ -1700,7 +1739,7 @@ async function loadInventory() {
   try {
     const { data } = await supabase
       .from('inventory')
-      .select('id, stock_quantity, mrp, medicine:medicines(id,name)')
+      .select('id, stock_quantity, mrp, medicine:medicines(id,name,indications,anupana,dosage_text,classical_reference)')
       .eq('tenant_id', tenantId);
     _inventory = (data || []).filter(i => i.medicine?.name);
   } catch (e) {
@@ -1832,9 +1871,11 @@ window.startConsultation = async function(visitId) {
 
   document.getElementById('welcome').style.display  = 'none';
   document.getElementById('c-active').style.display = 'flex';
+  document.getElementById('btn-complete').disabled   = true;
 
   if (window.innerWidth <= 860) {
     document.getElementById('c-active').classList.add('mobile-full');
+    document.getElementById('q-mobile-hint').style.display = 'none';
     window.scrollTo(0, 0);
   }
 
@@ -1856,12 +1897,20 @@ function _switchTab(name) {
     const el = document.getElementById(`tab-${id}`);
     if (el) el.hidden = id !== name;
   });
+  if (name === 'rx') refreshRxSuggestions();
 }
 window._switchTab = _switchTab;
 
 // ── Exam block toggle (collapse/expand) ───────────
 window.toggleBlock = function(id) {
   document.getElementById(id).classList.toggle('collapsed');
+};
+
+// ── Open IPD Admission in new tab ─────────────────
+window.openIPDAdmission = function() {
+  if (!_activePatient) return;
+  const url = `ipd.html?patient_id=${encodeURIComponent(_activePatient.id)}&name=${encodeURIComponent(_activePatient.name)}&visit_id=${encodeURIComponent(_activeVisitId||'')}`;
+  window.open(url, '_blank');
 };
 
 // ── Disposition change ────────────────────────────
@@ -2106,6 +2155,7 @@ function addRxRow(data = {}) {
   const sb = document.getElementById(`sb-${id}`);
 
   nameInput.addEventListener('input', function() {
+    _updateCompleteBtn();
     const q = this.value.toLowerCase().trim();
     if (q.length < 2 || !_inventory.length) { ta.classList.remove('show'); return; }
     const results = _inventory.filter(i => i.medicine.name.toLowerCase().includes(q)).slice(0, 8);
@@ -2133,15 +2183,101 @@ function addRxRow(data = {}) {
     sb.textContent = item.dataset.label;
     sb.style.display = 'inline-block';
     ta.classList.remove('show');
+    _updateCompleteBtn();
   });
 
   nameInput.addEventListener('blur', () => setTimeout(() => ta.classList.remove('show'), 200));
+
+  // If row was added with a pre-filled name (e.g. from suggestion card), enable button immediately
+  if (data.name) _updateCompleteBtn();
+}
+
+window.addRxRow = addRxRow;
+
+// Enable Complete button only when at least one named medicine row exists
+function _updateCompleteBtn() {
+  const hasRx = [...document.querySelectorAll('#rx-rows .rx-name')]
+    .some(inp => inp.value.trim().length > 0);
+  document.getElementById('btn-complete').disabled = !hasRx;
 }
 
 window.removeRxRow = function(id) {
   document.getElementById(`rx-${id}`)?.remove();
   _rxRows = _rxRows.filter(r => r !== id);
+  _updateCompleteBtn();
 };
+
+// ── Suggested medicines from NAMC diagnosis ───────
+async function refreshRxSuggestions() {
+  const namcCode  = document.getElementById('d-namc-code').value.trim();
+  const namcLabel = document.getElementById('d-namc-label').value.trim();
+  const panel     = document.getElementById('rx-suggestions');
+  const list      = document.getElementById('rx-sugg-list');
+
+  if (!namcCode) { panel.style.display = 'none'; return; }
+
+  // 1. Inventory matches (local, fast)
+  const inventoryMatches = _inventory.filter(i => {
+    const inds = i.medicine?.indications;
+    return Array.isArray(inds) && inds.includes(namcCode);
+  });
+
+  // 2. Classical formulations from DB (ayush_formulations via junction)
+  const { data: classicalRows } = await supabase
+    .from('formulation_indications')
+    .select('formulation:ayush_formulations(id,name_common,name_sanskrit,ingredients,standard_dosage,dosage_unit,anupana,classical_source,publication_ref)')
+    .eq('namc_code', namcCode);
+  const classicalMatches = (classicalRows || []).map(r => r.formulation).filter(Boolean);
+
+  if (!inventoryMatches.length && !classicalMatches.length) { panel.style.display = 'none'; return; }
+
+  document.getElementById('rx-sugg-label').textContent = namcLabel || namcCode;
+
+  let html = '';
+
+  // ── Inventory section ──
+  if (inventoryMatches.length) {
+    html += `<div class="sugg-section-label">From your pharmacy</div>`;
+    html += inventoryMatches.map(i => {
+      const m        = i.medicine;
+      const stock    = i.stock_quantity;
+      const stockCls = stock <= 0 ? 'stock-out' : stock < 10 ? 'stock-low' : 'stock-in';
+      const stockLbl = stock <= 0 ? 'Out of stock' : stock < 10 ? `Low (${stock})` : `${stock} in stock`;
+      const anupana  = (m.anupana || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const dose     = (m.dosage_text || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const ref      = m.classical_reference || '';
+      const nameEsc  = m.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const tip      = [m.anupana && `Anupana: ${m.anupana}`, m.dosage_text && `Dosage: ${m.dosage_text}`, ref && `Ref: ${ref}`].filter(Boolean).join(' · ');
+      return `<div class="rx-sugg-card" onclick="addRxRow({name:'${nameEsc}',anupana:'${anupana}',dose:'${dose}'})" title="${tip}">
+        <div class="rx-sugg-card-name">${m.name}</div>
+        <div class="rx-sugg-card-meta"><span class="stock-badge ${stockCls}" style="font-size:10px">${stockLbl}</span>${m.anupana ? ` · ${m.anupana}` : ''}</div>
+        ${m.dosage_text || ref ? `<div class="rx-sugg-card-meta" style="font-style:italic">${[m.dosage_text, ref].filter(Boolean).join(' · ')}</div>` : ''}
+        <div class="rx-sugg-card-add">+ Add to prescription</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Classical formulations section ──
+  if (classicalMatches.length) {
+    html += `<div class="sugg-section-label sugg-section-classical">Classical reference · AFI/API · Source: PCIM&H, Ministry of AYUSH</div>`;
+    html += classicalMatches.map(f => {
+      const nameEsc = (f.name_common || f.name_sanskrit).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const dose    = `${f.standard_dosage || ''} ${f.dosage_unit || ''}`.trim().replace(/'/g, "\\'");
+      const anupana = (f.anupana || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      const ingr    = (f.ingredients || []).slice(0, 4).join(', ') + ((f.ingredients?.length > 4) ? ` +${f.ingredients.length - 4} more` : '');
+      return `<div class="rx-sugg-card rx-sugg-classical" onclick="addRxRow({name:'${nameEsc}',dose:'${dose}',anupana:'${anupana}'})" title="${f.publication_ref || ''}">
+        <div class="rx-sugg-card-name">${f.name_common} <span style="font-size:10px;font-weight:400;opacity:.7">${f.name_sanskrit || ''}</span></div>
+        ${ingr ? `<div class="rx-sugg-card-meta">${ingr}</div>` : ''}
+        ${dose ? `<div class="rx-sugg-card-meta">Dose: ${dose}${f.anupana ? ` · ${f.anupana}` : ''}</div>` : ''}
+        <div class="rx-sugg-card-meta" style="font-style:italic">📖 ${f.classical_source || 'AFI'}</div>
+        <div class="rx-sugg-card-add">+ Add to prescription</div>
+      </div>`;
+    }).join('');
+  }
+
+  list.innerHTML = html;
+  panel.style.display = '';
+}
 
 function _getRxData() {
   return [...document.querySelectorAll('#rx-rows .rx-row')].map(row => ({
@@ -2402,6 +2538,7 @@ function _closeConsult() {
   document.getElementById('c-active').style.display = 'none';
   document.getElementById('c-active').classList.remove('mobile-full');
   document.getElementById('welcome').style.display  = '';
+  document.getElementById('q-mobile-hint').style.display = '';
   _clearForm();
   loadQueue();
 }

@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>IPD — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --cream:#faf8f3;--white:#ffffff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+  --success-bg:#e8f5ee;--success-border:#b2d8bf;--success-text:#1a4a2e;
+  --error-bg:#fdecea;--error-border:#f5c6c6;--error-text:#8b1a1a;
+  --red:#c0392b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1200px;margin:0 auto;padding:28px 20px 80px}
+
+/* ── Header ── */
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+
+/* ── Buttons ── */
+.btn{
+  height:40px;padding:0 18px;border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;
+  cursor:pointer;border:none;transition:background .15s,color .15s;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}
+.btn-secondary:hover{background:var(--green-light)}
+.btn-danger{background:var(--white);color:var(--red);border:1.5px solid var(--error-border)}
+.btn-danger:hover{background:var(--error-bg)}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── Alert ── */
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--success-bg);color:var(--success-text);border:1px solid var(--success-border)}
+.alert.error{background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border)}
+
+/* ── Stats ── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+.stat-value{font-size:28px;font-weight:700;color:var(--green-deep);line-height:1}
+.stat-label{font-size:11px;color:var(--text-muted);margin-top:5px;text-transform:uppercase;letter-spacing:.4px}
+.stat-card.gold .stat-value{color:var(--gold)}
+
+/* ── Filter bar ── */
+.filter-bar{
+  display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+  margin-bottom:16px;background:var(--white);
+  border:1.5px solid var(--border);border-radius:var(--radius);padding:10px 14px;
+}
+.filter-bar select,.filter-bar input{
+  height:34px;padding:0 10px;border:1.5px solid var(--border);border-radius:6px;
+  font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-dark);
+  background:var(--cream);outline:none;
+}
+.filter-bar input{width:200px}
+.filter-bar select:focus,.filter-bar input:focus{border-color:var(--green-mid)}
+.filter-spacer{flex:1}
+
+/* ── Admissions table ── */
+.admissions-table{width:100%;border-collapse:collapse;background:var(--white);border-radius:var(--radius);overflow:hidden;border:1.5px solid var(--border)}
+.admissions-table th{
+  padding:10px 14px;text-align:left;font-size:11px;font-weight:600;
+  color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;
+  background:var(--cream);border-bottom:1.5px solid var(--border);
+}
+.admissions-table td{padding:12px 14px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle}
+.admissions-table tr:last-child td{border-bottom:none}
+.admissions-table tr:hover td{background:#f5faf7}
+.pt-name{font-weight:600;color:var(--text-dark)}
+.pt-meta{font-size:11px;color:var(--text-muted);margin-top:2px}
+.bed-chip{
+  display:inline-block;padding:3px 9px;border-radius:5px;font-size:12px;font-weight:600;
+  background:var(--green-light);color:var(--green-deep);border:1px solid var(--success-border);
+}
+.days-chip{
+  display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;
+  background:#eee;color:var(--text-mid);
+}
+.status-badge{
+  display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;
+}
+.status-admitted{background:var(--success-bg);color:var(--success-text);border:1px solid var(--success-border)}
+.status-discharged{background:#f0f0f0;color:#555}
+.status-lama{background:var(--gold-light);color:#7a5a00;border:1px solid #e0c060}
+.status-transferred{background:#e3f0ff;color:#1a4080;border:1px solid #a8c8f0}
+.status-deceased{background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border)}
+.table-empty{text-align:center;padding:48px 20px;color:var(--text-muted);font-size:13px}
+
+/* ── Row actions ── */
+.row-actions{display:flex;gap:5px}
+.icon-btn{
+  width:30px;height:30px;border:1.5px solid var(--border);border-radius:5px;
+  background:var(--white);cursor:pointer;font-size:13px;display:inline-flex;align-items:center;justify-content:center;
+  transition:background .15s,border-color .15s;
+}
+.icon-btn:hover{background:var(--cream);border-color:var(--green-mid)}
+.icon-btn.danger:hover{background:var(--error-bg);border-color:var(--error-border);color:var(--red)}
+
+/* ── Drawer ── */
+.drawer-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:200;
+  opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.drawer-overlay.open{opacity:1;pointer-events:all}
+.drawer{
+  position:fixed;right:0;top:0;bottom:0;width:480px;max-width:100vw;
+  background:var(--white);box-shadow:-4px 0 24px rgba(0,0,0,.12);
+  display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1);z-index:201;
+}
+.drawer-overlay.open .drawer{transform:translateX(0)}
+.drawer-header{
+  padding:18px 20px 14px;border-bottom:1.5px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;flex-shrink:0;
+}
+.drawer-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--green-deep)}
+.drawer-close{width:32px;height:32px;border:none;background:none;cursor:pointer;font-size:20px;color:var(--text-muted);border-radius:6px}
+.drawer-close:hover{background:var(--cream);color:var(--text-dark)}
+.drawer-body{flex:1;overflow-y:auto;padding:18px 20px}
+.drawer-footer{
+  padding:14px 20px;border-top:1.5px solid var(--border);
+  display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;background:var(--cream);
+}
+
+/* ── Drawer steps ── */
+.step-indicator{display:flex;gap:0;margin-bottom:20px}
+.step{
+  flex:1;padding:8px 0;text-align:center;font-size:11px;font-weight:600;
+  color:var(--text-muted);border-bottom:2px solid var(--border);
+  text-transform:uppercase;letter-spacing:.4px;cursor:pointer;
+}
+.step.active{color:var(--green-deep);border-bottom-color:var(--green-deep)}
+.step.done{color:var(--green-mid);border-bottom-color:var(--green-mid)}
+
+.step-panel{display:none}
+.step-panel.active{display:block}
+
+/* ── Form fields ── */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+.field input,.field select,.field textarea{
+  width:100%;height:40px;padding:0 12px;
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-dark);
+  background:var(--white);outline:none;transition:border-color .15s;
+}
+.field textarea{height:72px;padding:8px 12px;resize:none;line-height:1.5}
+.field select{
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a9485'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;
+}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--green-mid)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.req{color:var(--red)}
+.field-note{font-size:11px;color:var(--text-muted);margin-top:4px}
+
+/* ── Patient search ── */
+.search-box{position:relative}
+.search-box input{padding-right:40px}
+.search-spinner{
+  position:absolute;right:12px;top:50%;transform:translateY(-50%);
+  width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--green-mid);
+  border-radius:50%;animation:spin .7s linear infinite;display:none;
+}
+.search-spinner.show{display:block}
+@keyframes spin{to{transform:translateY(-50%) rotate(360deg)}}
+
+.patient-results{margin-top:6px;display:none}
+.patient-results.show{display:block}
+.patient-result-item{
+  padding:10px 12px;border:1.5px solid var(--border);border-radius:6px;cursor:pointer;
+  margin-bottom:5px;transition:border-color .15s,background .15s;
+}
+.patient-result-item:hover{border-color:var(--green-mid);background:#f5faf7}
+.patient-result-item.selected{border-color:var(--green-deep);background:var(--green-light)}
+.pr-name{font-size:13px;font-weight:600;color:var(--text-dark)}
+.pr-meta{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+.selected-patient-tag{
+  background:var(--green-light);border:1.5px solid var(--success-border);
+  border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;display:none;
+}
+.selected-patient-tag.show{display:flex;justify-content:space-between;align-items:center}
+.spt-name{font-size:13px;font-weight:600;color:var(--green-deep)}
+.spt-meta{font-size:11px;color:var(--text-mid);margin-top:2px}
+.spt-clear{
+  background:none;border:none;cursor:pointer;color:var(--text-muted);
+  font-size:16px;padding:2px 4px;border-radius:4px;
+}
+.spt-clear:hover{color:var(--red)}
+
+/* ── Bed picker ── */
+.bed-picker-label{font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px}
+.bed-picker{
+  display:flex;flex-wrap:wrap;gap:6px;
+  background:var(--cream);border:1.5px solid var(--border);border-radius:var(--radius);
+  padding:10px;min-height:52px;margin-bottom:14px;
+}
+.bed-option{
+  padding:5px 11px;border-radius:5px;border:1.5px solid var(--border);
+  font-size:12px;font-weight:600;cursor:pointer;background:var(--white);
+  transition:border-color .15s,background .15s;
+}
+.bed-option:hover{border-color:var(--green-mid);background:#f5faf7}
+.bed-option.selected{border-color:var(--green-deep);background:var(--green-light);color:var(--green-deep)}
+.bed-option.pk{border-color:#a8c8f0;background:#e3f0ff;color:#1a4080}
+.bed-option.pk.selected{border-color:#1a4080;background:#1a4080;color:#fff}
+.bed-picker-empty{font-size:12px;color:var(--text-muted);padding:4px 2px}
+
+/* ── Discharge type ── */
+.discharge-options{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.discharge-opt{
+  padding:10px 12px;border:2px solid var(--border);border-radius:var(--radius);cursor:pointer;
+  text-align:center;font-size:12px;font-weight:600;color:var(--text-mid);
+  transition:border-color .15s,background .15s;
+}
+.discharge-opt:hover{border-color:var(--green-mid);background:#f5faf7}
+.discharge-opt.selected{border-color:var(--green-deep);background:var(--green-light);color:var(--green-deep)}
+.discharge-opt.lama.selected{border-color:var(--gold);background:var(--gold-light);color:#7a5a00}
+.discharge-opt.transferred.selected{border-color:#4080c0;background:#e3f0ff;color:#1a4080}
+.discharge-opt.deceased.selected{border-color:var(--red);background:var(--error-bg);color:var(--red)}
+
+/* ── Admission detail card ── */
+.adm-detail-card{
+  background:var(--cream);border:1.5px solid var(--border);border-radius:var(--radius);
+  padding:12px 14px;margin-bottom:14px;font-size:12px;
+}
+.adm-detail-row{display:flex;justify-content:space-between;padding:3px 0;color:var(--text-mid)}
+.adm-detail-row strong{color:var(--text-dark)}
+
+@media(max-width:700px){
+  .stats-row{grid-template-columns:1fr 1fr}
+  .drawer{width:100vw}
+  .admissions-table th:nth-child(4),.admissions-table td:nth-child(4),
+  .admissions-table th:nth-child(5),.admissions-table td:nth-child(5){display:none}
+}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<!-- ══════════════════════════════════════════════════════
+     ADMIT DRAWER — 2 steps
+     ══════════════════════════════════════════════════════ -->
+<div class="drawer-overlay" id="admit-overlay">
+  <div class="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title">Admit Patient</span>
+      <button class="drawer-close" onclick="closeAdmitDrawer()">&#x2715;</button>
+    </div>
+    <div class="drawer-body">
+      <div class="step-indicator">
+        <div class="step active" id="step-lbl-1" onclick="goStep(1)">1 · Patient</div>
+        <div class="step" id="step-lbl-2" onclick="goStep(2)">2 · Clinical</div>
+      </div>
+
+      <!-- Step 1: Patient search -->
+      <div class="step-panel active" id="step-1">
+        <div class="selected-patient-tag" id="spt">
+          <div>
+            <div class="spt-name" id="spt-name"></div>
+            <div class="spt-meta" id="spt-meta"></div>
+          </div>
+          <button class="spt-clear" onclick="clearPatientSelection()" title="Change patient">&#x2715;</button>
+        </div>
+
+        <div id="search-area">
+          <div class="field">
+            <label>Search by Phone or Name</label>
+            <div class="search-box">
+              <input id="pt-search" type="text" placeholder="Enter phone number or patient name"
+                oninput="onPatientSearch(this.value)" autocomplete="off"/>
+              <div class="search-spinner" id="search-spinner"></div>
+            </div>
+          </div>
+          <div class="patient-results" id="patient-results"></div>
+          <div class="field-note" style="margin-top:2px">New patients should be registered at Reception first.</div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:20px">
+          <button class="btn btn-primary" id="btn-step1-next" onclick="goStep(2)" disabled>Next →</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Clinical details -->
+      <div class="step-panel" id="step-2">
+        <div class="selected-patient-tag show" id="spt2" style="margin-bottom:16px">
+          <div>
+            <div class="spt-name" id="spt2-name"></div>
+            <div class="spt-meta" id="spt2-meta"></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Department <span class="req">*</span></label>
+          <select id="adm-dept" onchange="loadVacantBeds()">
+            <option value="">— Select department —</option>
+          </select>
+        </div>
+
+        <div class="bed-picker-label">Select Vacant Bed <span class="req">*</span></div>
+        <div class="bed-picker" id="bed-picker">
+          <span class="bed-picker-empty">Select a department first</span>
+        </div>
+        <input type="hidden" id="adm-bed-id"/>
+
+        <div class="field">
+          <label>Admitting Doctor <span class="req">*</span></label>
+          <select id="adm-doctor">
+            <option value="">— Select doctor —</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Primary Diagnosis</label>
+          <input id="adm-diagnosis" type="text" placeholder="e.g. Amavata / Rheumatoid Arthritis"/>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label>Admission Date <span class="req">*</span></label>
+            <input id="adm-date" type="date"/>
+          </div>
+          <div class="field">
+            <label>Diet Type</label>
+            <select id="adm-diet">
+              <option value="">— Not specified —</option>
+              <option value="pathya">Pathya (Ayurvedic)</option>
+              <option value="vegetarian">Vegetarian</option>
+              <option value="non_vegetarian">Non-Vegetarian</option>
+              <option value="liquid">Liquid Only</option>
+              <option value="diabetic">Diabetic</option>
+              <option value="nil_by_mouth">Nil by Mouth</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Notes</label>
+          <textarea id="adm-notes" placeholder="Allergy history, special instructions, referring doctor…"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" id="btn-admit-back" onclick="goStep(1)" style="display:none">← Back</button>
+      <button class="btn btn-secondary" onclick="closeAdmitDrawer()">Cancel</button>
+      <button class="btn btn-primary" id="btn-admit-save" onclick="saveAdmission()" style="display:none">Admit Patient</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     DISCHARGE DRAWER
+     ══════════════════════════════════════════════════════ -->
+<div class="drawer-overlay" id="discharge-overlay">
+  <div class="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title">Discharge Patient</span>
+      <button class="drawer-close" onclick="closeDischargeDrawer()">&#x2715;</button>
+    </div>
+    <div class="drawer-body">
+      <input type="hidden" id="dis-adm-id"/>
+      <input type="hidden" id="dis-bed-id"/>
+
+      <div class="adm-detail-card" id="dis-detail-card"></div>
+
+      <div class="field">
+        <label>Discharge Type <span class="req">*</span></label>
+        <div class="discharge-options">
+          <div class="discharge-opt selected" data-val="discharged" onclick="selectDischargeType(this)">Discharged</div>
+          <div class="discharge-opt lama" data-val="lama" onclick="selectDischargeType(this)">LAMA</div>
+          <div class="discharge-opt transferred" data-val="transferred" onclick="selectDischargeType(this)">Transferred</div>
+          <div class="discharge-opt deceased" data-val="deceased" onclick="selectDischargeType(this)">Deceased</div>
+        </div>
+        <input type="hidden" id="dis-type" value="discharged"/>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Discharge Date <span class="req">*</span></label>
+          <input id="dis-date" type="date"/>
+        </div>
+        <div class="field">
+          <label>Condition at Discharge</label>
+          <select id="dis-condition">
+            <option value="">— Select —</option>
+            <option value="improved">Improved</option>
+            <option value="recovered">Fully Recovered</option>
+            <option value="unchanged">Unchanged</option>
+            <option value="deteriorated">Deteriorated</option>
+            <option value="referred">Referred</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Discharge Summary</label>
+        <textarea id="dis-summary" placeholder="Treatment given, response, follow-up instructions…" style="height:100px"></textarea>
+      </div>
+
+      <div class="field" id="dis-transfer-field" style="display:none">
+        <label>Transfer To (Hospital Name)</label>
+        <input id="dis-transfer-to" type="text" placeholder="Name of receiving facility"/>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" onclick="closeDischargeDrawer()">Cancel</button>
+      <button class="btn btn-primary" id="btn-discharge-save" onclick="saveDischarge()">Confirm Discharge</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     NOTES DRAWER (view-only)
+     ══════════════════════════════════════════════════════ -->
+<div class="drawer-overlay" id="notes-overlay">
+  <div class="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title">Admission Details</span>
+      <button class="drawer-close" onclick="document.getElementById('notes-overlay').classList.remove('open')">&#x2715;</button>
+    </div>
+    <div class="drawer-body" id="notes-body"></div>
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" onclick="document.getElementById('notes-overlay').classList.remove('open')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     MAIN PAGE
+     ══════════════════════════════════════════════════════ -->
+<div class="page-wrap">
+
+  <div class="page-header">
+    <div>
+      <div class="page-title">In-Patient Department (IPD)</div>
+      <div class="page-subtitle">Admissions, discharges, and bed occupancy</div>
+    </div>
+    <button class="btn btn-primary" onclick="openAdmitDrawer()">+ Admit Patient</button>
+  </div>
+
+  <div class="alert" id="alert"></div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-admitted">—</div>
+      <div class="stat-label">Currently Admitted</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-vacant">—</div>
+      <div class="stat-label">Vacant Beds</div>
+    </div>
+    <div class="stat-card gold">
+      <div class="stat-value" id="stat-avg-los">—</div>
+      <div class="stat-label">Avg LOS (days)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-today-dis">—</div>
+      <div class="stat-label">Discharges Today</div>
+    </div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <input id="filter-search" type="text" placeholder="Search patient name…"
+      oninput="applyFilters()" style="width:200px"/>
+    <select id="filter-dept" onchange="applyFilters()">
+      <option value="">All Departments</option>
+    </select>
+    <select id="filter-status" onchange="applyFilters()">
+      <option value="admitted">Current Admissions</option>
+      <option value="">All Statuses</option>
+      <option value="discharged">Discharged</option>
+      <option value="lama">LAMA</option>
+      <option value="transferred">Transferred</option>
+    </select>
+    <div class="filter-spacer"></div>
+    <button class="btn btn-secondary btn-sm" onclick="loadAll()">&#8635; Refresh</button>
+  </div>
+
+  <!-- Table -->
+  <table class="admissions-table" id="adm-table">
+    <thead>
+      <tr>
+        <th>Patient</th>
+        <th>Bed</th>
+        <th>Department</th>
+        <th>Doctor</th>
+        <th>Admitted</th>
+        <th>Status</th>
+        <th style="width:80px"></th>
+      </tr>
+    </thead>
+    <tbody id="adm-tbody">
+      <tr><td colspan="7" class="table-empty">Loading…</td></tr>
+    </tbody>
+  </table>
+
+</div><!-- end page-wrap -->
+
+<script type="module">
+import { requireAuth, getCurrentTenantId } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+/*
+  SQL to run in Supabase (one time) before using this page:
+
+  ALTER TABLE departments ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE beds ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE ipd_admissions ENABLE ROW LEVEL SECURITY;
+
+  CREATE POLICY "tenant_departments" ON departments FOR ALL TO authenticated
+    USING (tenant_id = (SELECT tenant_id FROM profiles WHERE id = auth.uid()));
+  CREATE POLICY "tenant_beds" ON beds FOR ALL TO authenticated
+    USING (tenant_id = (SELECT tenant_id FROM profiles WHERE id = auth.uid()));
+  CREATE POLICY "tenant_ipd" ON ipd_admissions FOR ALL TO authenticated
+    USING (tenant_id = (SELECT tenant_id FROM profiles WHERE id = auth.uid()));
+*/
+
+await requireAuth(['super_admin','dept_admin','doctor','receptionist','nurse']);
+initNavbar();
+const tenantId = getCurrentTenantId();
+
+let _admissions = [];
+let _depts      = [];
+let _allBeds    = [];
+let _doctors    = [];
+let _selectedPatient = null;
+let _searchTimer     = null;
+
+// ── Load all ──────────────────────────────────────────────────────────────────
+async function loadAll() {
+  const [admRes, deptRes, bedRes, docRes] = await Promise.all([
+    supabase
+      .from('ipd_admissions')
+      .select(`
+        id, tenant_id, admission_date, admitted_at, discharged_at,
+        status, diagnosis_primary, diet_type, notes,
+        patients(id, name, phone, abha_number, age, gender),
+        beds(id, bed_number, ward_name, bed_type, department_id),
+        departments(id, name, ncism_code),
+        profiles!admitting_doctor_id(id, full_name)
+      `)
+      .eq('tenant_id', tenantId)
+      .order('admitted_at', { ascending: false }),
+    supabase.from('departments').select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true).order('name'),
+    supabase.from('beds').select('id,bed_number,ward_name,bed_type,department_id,is_pg_allocated,status').eq('tenant_id', tenantId).order('bed_number'),
+    supabase.from('profiles').select('id,full_name').eq('tenant_id', tenantId).eq('role','doctor').eq('is_active', true).order('full_name'),
+  ]);
+
+  if (admRes.error) {
+    _alert('error', 'Failed to load admissions: ' + admRes.error.message
+      + (admRes.error.code === '42501' ? ' — Run the RLS SQL in the browser console comments.' : ''));
+    return;
+  }
+
+  _admissions = admRes.data || [];
+  _depts      = deptRes.data || [];
+  _allBeds    = bedRes.data || [];
+  _doctors    = docRes.data || [];
+
+  _populateDeptFilters();
+  _populateDoctorSelect();
+  renderStats();
+  applyFilters();
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function renderStats() {
+  const admitted   = _admissions.filter(a => a.status === 'admitted').length;
+  const vacant     = _allBeds.filter(b => b.status === 'vacant').length;
+  const today      = new Date().toISOString().slice(0, 10);
+  const todayDis   = _admissions.filter(a =>
+    a.discharged_at && a.discharged_at.slice(0,10) === today
+  ).length;
+
+  const currentAdm = _admissions.filter(a => a.status === 'admitted');
+  let avgLos = '—';
+  if (currentAdm.length) {
+    const now = Date.now();
+    const totalDays = currentAdm.reduce((sum, a) => {
+      const ms = now - new Date(a.admitted_at).getTime();
+      return sum + ms / 86400000;
+    }, 0);
+    avgLos = (totalDays / currentAdm.length).toFixed(1);
+  }
+
+  document.getElementById('stat-admitted').textContent   = admitted;
+  document.getElementById('stat-vacant').textContent     = vacant;
+  document.getElementById('stat-avg-los').textContent    = avgLos;
+  document.getElementById('stat-today-dis').textContent  = todayDis;
+}
+
+// ── Populate selects ──────────────────────────────────────────────────────────
+function _populateDeptFilters() {
+  ['filter-dept','adm-dept'].forEach(id => {
+    const sel = document.getElementById(id);
+    const saved = sel.value;
+    const isFilter = id === 'filter-dept';
+    sel.innerHTML = isFilter ? '<option value="">All Departments</option>' : '<option value="">— Select department —</option>';
+    _depts.forEach(d => {
+      const o = document.createElement('option');
+      o.value = d.id;
+      o.textContent = d.name;
+      sel.appendChild(o);
+    });
+    if (saved) sel.value = saved;
+  });
+}
+
+function _populateDoctorSelect() {
+  const sel = document.getElementById('adm-doctor');
+  sel.innerHTML = '<option value="">— Select doctor —</option>';
+  _doctors.forEach(d => {
+    const o = document.createElement('option');
+    o.value = d.id;
+    o.textContent = d.full_name;
+    sel.appendChild(o);
+  });
+}
+
+// ── Filter + render table ─────────────────────────────────────────────────────
+window.applyFilters = function() {
+  const search     = document.getElementById('filter-search').value.toLowerCase();
+  const deptFilter = document.getElementById('filter-dept').value;
+  const statFilter = document.getElementById('filter-status').value;
+
+  let rows = _admissions;
+  if (statFilter) rows = rows.filter(a => a.status === statFilter);
+  else if (statFilter === '') rows = rows; // all
+  if (deptFilter) rows = rows.filter(a => a.departments?.id === deptFilter);
+  if (search) rows = rows.filter(a => (a.patients?.name || '').toLowerCase().includes(search));
+
+  renderTable(rows);
+};
+
+function renderTable(rows) {
+  const tbody = document.getElementById('adm-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="table-empty">No admissions found.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(a => {
+    const pt      = a.patients || {};
+    const bed     = a.beds || {};
+    const dept    = a.departments || {};
+    const doctor  = a.profiles || {};
+    const days    = _daysSince(a.admitted_at);
+    const canDischarge = a.status === 'admitted';
+
+    const genderAge = [pt.gender, pt.age ? pt.age+'y' : ''].filter(Boolean).join(' · ');
+
+    return `<tr>
+      <td>
+        <div class="pt-name">${_esc(pt.name || '—')}</div>
+        <div class="pt-meta">${_esc(pt.phone || '')}${genderAge ? ' · ' + genderAge : ''}</div>
+      </td>
+      <td>
+        <span class="bed-chip">${_esc(bed.bed_number || '—')}</span>
+        ${bed.ward_name ? `<div class="pt-meta" style="margin-top:4px">${_esc(bed.ward_name)}</div>` : ''}
+      </td>
+      <td>${_esc(dept.name || '—')}</td>
+      <td>${_esc(doctor.full_name || '—')}</td>
+      <td>
+        <div>${_fmt(a.admission_date)}</div>
+        <span class="days-chip">${days}d</span>
+      </td>
+      <td><span class="status-badge status-${a.status}">${_statusLabel(a.status)}</span></td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" onclick="openNotesDrawer('${a.id}')" title="View details">&#128203;</button>
+          ${canDischarge ? `<button class="icon-btn danger" onclick="openDischargeDrawer('${a.id}')" title="Discharge">&#10006;</button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Admit drawer ──────────────────────────────────────────────────────────────
+window.openAdmitDrawer = function() {
+  _selectedPatient = null;
+  document.getElementById('pt-search').value = '';
+  document.getElementById('patient-results').innerHTML = '';
+  document.getElementById('patient-results').classList.remove('show');
+  document.getElementById('spt').classList.remove('show');
+  document.getElementById('search-area').style.display = '';
+  document.getElementById('btn-step1-next').disabled = true;
+  document.getElementById('adm-dept').value    = '';
+  document.getElementById('adm-doctor').value  = '';
+  document.getElementById('adm-diagnosis').value = '';
+  document.getElementById('adm-notes').value   = '';
+  document.getElementById('adm-diet').value    = '';
+  document.getElementById('adm-bed-id').value  = '';
+  document.getElementById('adm-date').value    = new Date().toISOString().slice(0,10);
+  document.getElementById('bed-picker').innerHTML = '<span class="bed-picker-empty">Select a department first</span>';
+  goStep(1);
+  document.getElementById('admit-overlay').classList.add('open');
+};
+
+window.closeAdmitDrawer = function() {
+  document.getElementById('admit-overlay').classList.remove('open');
+};
+
+window.goStep = function(n) {
+  if (n === 2 && !_selectedPatient) return;
+
+  [1,2].forEach(i => {
+    document.getElementById(`step-${i}`).classList.toggle('active', i === n);
+    document.getElementById(`step-lbl-${i}`).className = 'step' + (i === n ? ' active' : i < n ? ' done' : '');
+  });
+
+  document.getElementById('btn-admit-back').style.display  = n === 2 ? '' : 'none';
+  document.getElementById('btn-admit-save').style.display  = n === 2 ? '' : 'none';
+
+  if (n === 2 && _selectedPatient) {
+    document.getElementById('spt2-name').textContent = _selectedPatient.name;
+    const meta = [_selectedPatient.phone, _selectedPatient.gender, _selectedPatient.age ? _selectedPatient.age+'y' : ''].filter(Boolean).join(' · ');
+    document.getElementById('spt2-meta').textContent = meta;
+  }
+};
+
+// ── Patient search ─────────────────────────────────────────────────────────────
+window.onPatientSearch = function(val) {
+  clearTimeout(_searchTimer);
+  if (val.length < 2) {
+    document.getElementById('patient-results').classList.remove('show');
+    return;
+  }
+  document.getElementById('search-spinner').classList.add('show');
+  _searchTimer = setTimeout(() => _doSearch(val), 350);
+};
+
+async function _doSearch(val) {
+  const isPhone = /^\d+$/.test(val.trim());
+  let query = supabase.from('patients').select('id,name,phone,abha_number,age,gender').eq('tenant_id', tenantId).limit(8);
+  if (isPhone) query = query.ilike('phone', val + '%');
+  else         query = query.ilike('name', '%' + val + '%');
+
+  const { data } = await query;
+  document.getElementById('search-spinner').classList.remove('show');
+  const res = document.getElementById('patient-results');
+
+  if (!data || !data.length) {
+    res.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:6px 0">No patients found. Register at Reception first.</div>`;
+    res.classList.add('show');
+    return;
+  }
+
+  res.innerHTML = data.map(p => {
+    const meta = [p.phone, p.gender, p.age ? p.age+'y' : '', p.abha_number ? 'ABHA' : ''].filter(Boolean).join(' · ');
+    return `<div class="patient-result-item" onclick="selectPatient(${JSON.stringify(p).replace(/"/g,'&quot;')})">
+      <div class="pr-name">${_esc(p.name)}</div>
+      <div class="pr-meta">${_esc(meta)}</div>
+    </div>`;
+  }).join('');
+  res.classList.add('show');
+}
+
+window.selectPatient = function(p) {
+  _selectedPatient = p;
+  document.getElementById('spt-name').textContent = p.name;
+  const meta = [p.phone, p.gender, p.age ? p.age+'y' : ''].filter(Boolean).join(' · ');
+  document.getElementById('spt-meta').textContent = meta;
+  document.getElementById('spt').classList.add('show');
+  document.getElementById('search-area').style.display = 'none';
+  document.getElementById('patient-results').classList.remove('show');
+  document.getElementById('btn-step1-next').disabled = false;
+};
+
+window.clearPatientSelection = function() {
+  _selectedPatient = null;
+  document.getElementById('spt').classList.remove('show');
+  document.getElementById('search-area').style.display = '';
+  document.getElementById('pt-search').value = '';
+  document.getElementById('patient-results').classList.remove('show');
+  document.getElementById('btn-step1-next').disabled = true;
+};
+
+// ── Bed picker ────────────────────────────────────────────────────────────────
+window.loadVacantBeds = function() {
+  const deptId  = document.getElementById('adm-dept').value;
+  const picker  = document.getElementById('bed-picker');
+  document.getElementById('adm-bed-id').value = '';
+
+  if (!deptId) {
+    picker.innerHTML = '<span class="bed-picker-empty">Select a department first</span>';
+    return;
+  }
+
+  const vacant = _allBeds.filter(b => b.department_id === deptId && b.status === 'vacant');
+  if (!vacant.length) {
+    picker.innerHTML = '<span class="bed-picker-empty">No vacant beds in this department</span>';
+    return;
+  }
+
+  picker.innerHTML = vacant.map(b => {
+    const isPk = b.bed_type === 'pk_treatment';
+    return `<div class="bed-option${isPk ? ' pk' : ''}" data-id="${b.id}" onclick="pickBed(this,'${b.id}')">
+      ${_esc(b.bed_number)}${b.ward_name ? '<br><span style="font-size:9px;font-weight:400">'+_esc(b.ward_name)+'</span>' : ''}
+    </div>`;
+  }).join('');
+};
+
+window.pickBed = function(el, bedId) {
+  document.querySelectorAll('.bed-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('adm-bed-id').value = bedId;
+};
+
+// ── Save admission ─────────────────────────────────────────────────────────────
+window.saveAdmission = async function() {
+  if (!_selectedPatient) { _alert('error','Select a patient first.'); return; }
+  const deptId    = document.getElementById('adm-dept').value;
+  const bedId     = document.getElementById('adm-bed-id').value;
+  const doctorId  = document.getElementById('adm-doctor').value;
+  const diagnosis = document.getElementById('adm-diagnosis').value.trim();
+  const admDate   = document.getElementById('adm-date').value;
+  const diet      = document.getElementById('adm-diet').value;
+  const notes     = document.getElementById('adm-notes').value.trim();
+
+  if (!deptId)   { _alert('error','Select a department.'); return; }
+  if (!bedId)    { _alert('error','Select a bed.'); return; }
+  if (!doctorId) { _alert('error','Select an admitting doctor.'); return; }
+  if (!admDate)  { _alert('error','Enter admission date.'); return; }
+
+  const btn = document.getElementById('btn-admit-save');
+  btn.disabled = true; btn.textContent = 'Admitting…';
+
+  const { error: admErr } = await supabase.from('ipd_admissions').insert({
+    tenant_id:           tenantId,
+    patient_id:          _selectedPatient.id,
+    bed_id:              bedId,
+    department_id:       deptId,
+    admitting_doctor_id: doctorId,
+    admission_date:      admDate,
+    admitted_at:         new Date().toISOString(),
+    status:              'admitted',
+    diagnosis_primary:   diagnosis || null,
+    diet_type:           diet || null,
+    notes:               notes || null,
+  });
+
+  if (admErr) {
+    btn.disabled = false; btn.textContent = 'Admit Patient';
+    _alert('error', 'Admission failed: ' + admErr.message); return;
+  }
+
+  // Mark bed occupied
+  await supabase.from('beds').update({ status: 'occupied' }).eq('id', bedId);
+
+  btn.disabled = false; btn.textContent = 'Admit Patient';
+  closeAdmitDrawer();
+  _alert('success', `${_selectedPatient.name} admitted successfully.`);
+  await loadAll();
+};
+
+// ── Discharge drawer ──────────────────────────────────────────────────────────
+window.openDischargeDrawer = function(admId) {
+  const adm = _admissions.find(a => a.id === admId);
+  if (!adm) return;
+
+  document.getElementById('dis-adm-id').value = admId;
+  document.getElementById('dis-bed-id').value  = adm.beds?.id || '';
+  document.getElementById('dis-date').value    = new Date().toISOString().slice(0,10);
+  document.getElementById('dis-summary').value = '';
+  document.getElementById('dis-condition').value = '';
+  document.getElementById('dis-transfer-to').value = '';
+  document.getElementById('dis-type').value    = 'discharged';
+  document.getElementById('dis-transfer-field').style.display = 'none';
+
+  document.querySelectorAll('.discharge-opt').forEach(o => {
+    o.classList.toggle('selected', o.dataset.val === 'discharged');
+  });
+
+  const pt   = adm.patients || {};
+  const bed  = adm.beds || {};
+  const dept = adm.departments || {};
+  const days = _daysSince(adm.admitted_at);
+  document.getElementById('dis-detail-card').innerHTML = `
+    <div class="adm-detail-row"><span>Patient</span><strong>${_esc(pt.name||'—')}</strong></div>
+    <div class="adm-detail-row"><span>Bed</span><strong>${_esc(bed.bed_number||'—')}</strong></div>
+    <div class="adm-detail-row"><span>Department</span><strong>${_esc(dept.name||'—')}</strong></div>
+    <div class="adm-detail-row"><span>Admitted</span><strong>${_fmt(adm.admission_date)} (${days} days)</strong></div>
+    ${adm.diagnosis_primary ? `<div class="adm-detail-row"><span>Diagnosis</span><strong>${_esc(adm.diagnosis_primary)}</strong></div>` : ''}
+  `;
+
+  document.getElementById('discharge-overlay').classList.add('open');
+};
+window.closeDischargeDrawer = function() {
+  document.getElementById('discharge-overlay').classList.remove('open');
+};
+
+window.selectDischargeType = function(el) {
+  document.querySelectorAll('.discharge-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('dis-type').value = el.dataset.val;
+  document.getElementById('dis-transfer-field').style.display =
+    el.dataset.val === 'transferred' ? '' : 'none';
+};
+
+window.saveDischarge = async function() {
+  const admId   = document.getElementById('dis-adm-id').value;
+  const bedId   = document.getElementById('dis-bed-id').value;
+  const disType = document.getElementById('dis-type').value;
+  const disDate = document.getElementById('dis-date').value;
+  const summary = document.getElementById('dis-summary').value.trim();
+
+  if (!disDate) { _alert('error','Enter discharge date.'); return; }
+
+  const btn = document.getElementById('btn-discharge-save');
+  btn.disabled = true; btn.textContent = 'Discharging…';
+
+  const { error } = await supabase.from('ipd_admissions').update({
+    status:       disType,
+    discharged_at: new Date().toISOString(),
+    notes: summary || null,
+  }).eq('id', admId);
+
+  if (error) {
+    btn.disabled = false; btn.textContent = 'Confirm Discharge';
+    _alert('error', 'Discharge failed: ' + error.message); return;
+  }
+
+  // Free the bed
+  if (bedId) await supabase.from('beds').update({ status: 'vacant' }).eq('id', bedId);
+
+  btn.disabled = false; btn.textContent = 'Confirm Discharge';
+  closeDischargeDrawer();
+  _alert('success', 'Patient discharged successfully.');
+  await loadAll();
+};
+
+// ── Notes drawer ──────────────────────────────────────────────────────────────
+window.openNotesDrawer = function(admId) {
+  const adm = _admissions.find(a => a.id === admId);
+  if (!adm) return;
+  const pt   = adm.patients || {};
+  const bed  = adm.beds || {};
+  const dept = adm.departments || {};
+  const doc  = adm.profiles || {};
+  const days = _daysSince(adm.admitted_at);
+
+  document.getElementById('notes-body').innerHTML = `
+    <div class="adm-detail-card" style="margin-bottom:14px">
+      <div class="adm-detail-row"><span>Patient</span><strong>${_esc(pt.name||'—')}</strong></div>
+      <div class="adm-detail-row"><span>Phone</span><strong>${_esc(pt.phone||'—')}</strong></div>
+      ${pt.age||pt.gender ? `<div class="adm-detail-row"><span>Age / Gender</span><strong>${[pt.age?pt.age+'y':'',pt.gender].filter(Boolean).join(' · ')}</strong></div>` : ''}
+      ${pt.abha_number ? `<div class="adm-detail-row"><span>ABHA</span><strong>${_esc(pt.abha_number)}</strong></div>` : ''}
+    </div>
+    <div class="adm-detail-card" style="margin-bottom:14px">
+      <div class="adm-detail-row"><span>Bed</span><strong>${_esc(bed.bed_number||'—')}</strong></div>
+      ${bed.ward_name ? `<div class="adm-detail-row"><span>Ward</span><strong>${_esc(bed.ward_name)}</strong></div>` : ''}
+      <div class="adm-detail-row"><span>Department</span><strong>${_esc(dept.name||'—')}</strong></div>
+      <div class="adm-detail-row"><span>Doctor</span><strong>${_esc(doc.full_name||'—')}</strong></div>
+      <div class="adm-detail-row"><span>Admitted</span><strong>${_fmt(adm.admission_date)} (${days} days)</strong></div>
+      <div class="adm-detail-row"><span>Status</span><strong>${_statusLabel(adm.status)}</strong></div>
+    </div>
+    ${adm.diagnosis_primary || adm.diet_type || adm.notes ? `
+    <div class="adm-detail-card">
+      ${adm.diagnosis_primary ? `<div class="adm-detail-row"><span>Diagnosis</span><strong>${_esc(adm.diagnosis_primary)}</strong></div>` : ''}
+      ${adm.diet_type ? `<div class="adm-detail-row"><span>Diet</span><strong>${_esc(adm.diet_type)}</strong></div>` : ''}
+      ${adm.notes ? `<div style="margin-top:8px;font-size:12px;color:var(--text-mid)"><strong>Notes:</strong><br>${_esc(adm.notes)}</div>` : ''}
+    </div>` : ''}
+    ${adm.discharged_at ? `<div class="adm-detail-card" style="margin-top:14px">
+      <div class="adm-detail-row"><span>Discharged</span><strong>${new Date(adm.discharged_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</strong></div>
+    </div>` : ''}
+  `;
+  document.getElementById('notes-overlay').classList.add('open');
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function _daysSince(isoTs) {
+  if (!isoTs) return 0;
+  return Math.max(0, Math.floor((Date.now() - new Date(isoTs).getTime()) / 86400000));
+}
+function _fmt(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+}
+function _statusLabel(s) {
+  return {admitted:'Admitted',discharged:'Discharged',lama:'LAMA',transferred:'Transferred',deceased:'Deceased'}[s] || s;
+}
+function _esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function _alert(type, msg) {
+  const el = document.getElementById('alert');
+  el.className = `alert show ${type}`;
+  el.textContent = msg;
+  if (type === 'success') setTimeout(() => el.classList.remove('show'), 3500);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Close on overlay click
+['admit-overlay','discharge-overlay','notes-overlay'].forEach(id => {
+  document.getElementById(id).addEventListener('click', e => {
+    if (e.target.id === id) document.getElementById(id).classList.remove('open');
+  });
+});
+
+await loadAll();
+
+// Auto-open admit drawer when arriving from doctor.html via "Open IPD Admission"
+const _qp        = new URLSearchParams(window.location.search);
+const _qPatientId = _qp.get('patient_id');
+if (_qPatientId) {
+  const { data: _qPt } = await supabase
+    .from('patients')
+    .select('id,name,phone,gender,age,abha_number')
+    .eq('id', _qPatientId)
+    .single();
+  if (_qPt) {
+    openAdmitDrawer();
+    selectPatient(_qPt);
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Screening OPD — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --red:#c0392b;--red-light:#fdecea;--red-border:#f5c6c6;
+  --cream:#faf8f3;--white:#fff;--border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+  --urgent-bg:#fff3cd;--urgent-border:#e0c060;
+  --emergency-bg:#fdecea;--emergency-border:#f5c6c6;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+
+/* ── Layout ── */
+.main-wrap{display:grid;grid-template-columns:360px 1fr;height:calc(100vh - 56px)}
+.queue-col{
+  background:var(--white);border-right:1.5px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.form-col{
+  background:var(--cream);overflow-y:auto;
+  display:flex;flex-direction:column;
+}
+
+/* ── Queue header ── */
+.queue-header{
+  padding:14px 16px 10px;border-bottom:1.5px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+.queue-title{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;color:var(--green-deep)}
+.queue-subtitle{font-size:11px;color:var(--text-muted);margin-top:2px}
+.queue-count{
+  background:var(--green-deep);color:#fff;font-size:11px;font-weight:700;
+  padding:3px 9px;border-radius:10px;
+}
+
+/* ── Queue list ── */
+.queue-list{flex:1;overflow-y:auto;padding:8px}
+.queue-item{
+  padding:12px 12px 10px;border-radius:var(--radius);border:1.5px solid var(--border);
+  margin-bottom:6px;cursor:pointer;transition:border-color .15s,background .15s;background:var(--white);
+}
+.queue-item:hover{border-color:var(--green-mid);background:var(--green-light)}
+.queue-item.active{border-color:var(--green-deep);background:var(--green-light)}
+.qi-top{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.qi-token{
+  background:var(--green-deep);color:#fff;font-size:11px;font-weight:700;
+  padding:2px 8px;border-radius:5px;flex-shrink:0;
+}
+.qi-name{font-weight:600;font-size:13px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qi-triage{font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;flex-shrink:0}
+.qi-triage.emergency{background:var(--emergency-bg);color:var(--red);border:1px solid var(--emergency-border)}
+.qi-triage.urgent{background:var(--urgent-bg);color:#7a5a00;border:1px solid var(--urgent-border)}
+.qi-triage.routine{background:var(--green-light);color:var(--green-deep);border:1px solid var(--border)}
+.qi-meta{font-size:11px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qi-cc{font-size:12px;color:var(--text-mid);margin-top:4px;line-height:1.4;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.queue-empty{
+  padding:40px 16px;text-align:center;
+  font-size:13px;color:var(--text-muted);line-height:1.8;
+}
+
+/* ── Refresh btn ── */
+.btn-refresh{
+  height:30px;padding:0 10px;border-radius:var(--radius);border:1.5px solid var(--border);
+  background:var(--white);color:var(--text-mid);font-size:11px;font-weight:600;cursor:pointer;
+  display:inline-flex;align-items:center;gap:4px;
+}
+.btn-refresh:hover{background:var(--green-light)}
+
+/* ── Empty state (form col) ── */
+.form-empty{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  color:var(--text-muted);text-align:center;padding:40px;
+}
+.form-empty-icon{font-size:48px;margin-bottom:12px}
+.form-empty-title{font-size:16px;font-weight:600;color:var(--text-mid);margin-bottom:6px}
+.form-empty-sub{font-size:13px;line-height:1.6}
+
+/* ── Screening form ── */
+.form-wrap{padding:20px 24px 40px;max-width:720px}
+.pt-banner{
+  background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);
+  padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;gap:14px;
+}
+.pt-avatar{
+  width:40px;height:40px;border-radius:50%;background:var(--green-deep);
+  color:#fff;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.pt-details{flex:1}
+.pt-name-lg{font-weight:700;font-size:15px;color:var(--text-dark)}
+.pt-meta-lg{font-size:12px;color:var(--text-muted);margin-top:2px}
+
+.section{margin-bottom:20px}
+.section-title{
+  font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--text-mid);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border);
+}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--text-mid);margin-bottom:5px}
+.field input,.field textarea,.field select{
+  width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:13px;background:var(--white);outline:none;
+}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--green-mid)}
+.field textarea{min-height:72px;resize:vertical}
+.field-row{display:grid;gap:14px}
+.field-row.col2{grid-template-columns:1fr 1fr}
+
+/* ── Triage chips ── */
+.triage-options{display:flex;gap:8px;flex-wrap:wrap}
+.triage-opt{
+  padding:8px 16px;border-radius:var(--radius);border:1.5px solid var(--border);
+  font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;background:var(--white);
+}
+.triage-opt.active-emergency{background:var(--emergency-bg);border-color:#e57373;color:var(--red)}
+.triage-opt.active-urgent{background:var(--urgent-bg);border-color:var(--urgent-border);color:#7a5a00}
+.triage-opt.active-semi{background:#e3f0ff;border-color:#90b8e8;color:#1a4080}
+.triage-opt.active-routine{background:var(--green-light);border-color:var(--green-mid);color:var(--green-deep)}
+.triage-opt:not([class*="active"]):hover{background:var(--green-light)}
+
+/* ── Action bar ── */
+.action-bar{
+  position:sticky;bottom:0;padding:12px 24px;
+  background:var(--white);border-top:1.5px solid var(--border);
+  display:flex;align-items:center;gap:10px;
+}
+.btn-route{
+  height:40px;padding:0 24px;background:var(--green-deep);color:#fff;
+  border:none;border-radius:var(--radius);font-family:'DM Sans',sans-serif;
+  font-size:14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;
+}
+.btn-route:hover{background:#1f5c37}
+.btn-route:disabled{opacity:.5;cursor:not-allowed}
+.btn-cancel{
+  height:40px;padding:0 16px;background:none;color:var(--text-mid);
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;
+}
+.btn-cancel:hover{background:var(--cream)}
+
+/* ── Alert ── */
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid var(--border)}
+.alert.error{background:var(--red-light);color:var(--red);border:1px solid var(--red-border)}
+
+/* ── Stats strip ── */
+.stats-strip{
+  background:var(--white);border-bottom:1.5px solid var(--border);
+  padding:10px 24px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;flex-shrink:0;
+}
+.strip-stat{font-size:12px;color:var(--text-muted)}
+.strip-stat strong{color:var(--text-dark);margin-right:4px}
+.strip-date{font-size:12px;font-weight:600;color:var(--text-mid);margin-left:auto}
+
+/* ── Mobile ── */
+@media(max-width:800px){
+  .main-wrap{grid-template-columns:1fr;height:auto}
+  .queue-col{height:auto;border-right:none;border-bottom:1.5px solid var(--border)}
+  .queue-list{max-height:300px}
+  .form-empty{display:none}
+}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="main-wrap">
+
+  <!-- ── Left: Screening Queue ── -->
+  <div class="queue-col">
+    <div class="queue-header">
+      <div>
+        <div class="queue-title">Screening OPD</div>
+        <div class="queue-subtitle" id="q-date">Today</div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span class="queue-count" id="q-count">0</span>
+        <button class="btn-refresh" onclick="loadQueue()">&#8635; Refresh</button>
+      </div>
+    </div>
+    <div class="queue-list" id="queue-list">
+      <div class="queue-empty">Loading queue…</div>
+    </div>
+  </div>
+
+  <!-- ── Right: Screening Form ── -->
+  <div class="form-col">
+
+    <!-- Stats strip (always visible) -->
+    <div class="stats-strip" id="stats-strip">
+      <div class="strip-stat"><strong id="ss-waiting">0</strong>Waiting</div>
+      <div class="strip-stat"><strong id="ss-screened">0</strong>Screened today</div>
+      <div class="strip-stat"><strong id="ss-emergency">0</strong>Emergency</div>
+      <div class="strip-date" id="ss-date"></div>
+    </div>
+
+    <!-- Empty state -->
+    <div class="form-empty" id="form-empty">
+      <div class="form-empty-icon">&#128203;</div>
+      <div class="form-empty-title">Select a patient to screen</div>
+      <div class="form-empty-sub">
+        Patients arrive through Reception.<br>
+        Select one from the queue on the left to begin screening.<br><br>
+        <span style="font-size:11px;background:var(--green-light);padding:4px 10px;border-radius:6px;color:var(--green-deep)">
+          NCISM Flow: Reception → <strong>Screening OPD</strong> → Specialty OPD
+        </span>
+      </div>
+    </div>
+
+    <!-- Screening form (hidden until patient selected) -->
+    <div id="screening-form" style="display:none;flex:1;flex-direction:column">
+      <div class="form-wrap">
+        <div class="alert" id="alert"></div>
+
+        <!-- Patient banner -->
+        <div class="pt-banner">
+          <div class="pt-avatar" id="pt-avatar">?</div>
+          <div class="pt-details">
+            <div class="pt-name-lg" id="pt-name">—</div>
+            <div class="pt-meta-lg" id="pt-meta">—</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:11px;color:var(--text-muted)">Token</div>
+            <div style="font-size:20px;font-weight:700;color:var(--green-deep)" id="pt-token">—</div>
+          </div>
+        </div>
+
+        <!-- Triage -->
+        <div class="section">
+          <div class="section-title">1. Triage Level</div>
+          <div class="triage-options">
+            <div class="triage-opt" data-triage="Routine" onclick="selectTriage(this)">Routine</div>
+            <div class="triage-opt" data-triage="Semi-urgent" onclick="selectTriage(this)">Semi-urgent</div>
+            <div class="triage-opt" data-triage="Urgent" onclick="selectTriage(this)">Urgent</div>
+            <div class="triage-opt" data-triage="Emergency" onclick="selectTriage(this)">&#9940; Emergency</div>
+          </div>
+        </div>
+
+        <!-- Chief Complaint -->
+        <div class="section">
+          <div class="section-title">2. Chief Complaint</div>
+          <div class="field">
+            <textarea id="scr-cc" placeholder="Chief complaint as stated by patient…" style="min-height:56px"></textarea>
+          </div>
+        </div>
+
+        <!-- Preliminary Findings -->
+        <div class="section">
+          <div class="section-title">3. Preliminary Findings</div>
+          <div class="field-row col2">
+            <div class="field">
+              <label>Pulse (rate/min)</label>
+              <input id="scr-pulse" type="text" placeholder="e.g. 82 / min"/>
+            </div>
+            <div class="field">
+              <label>Blood Pressure</label>
+              <input id="scr-bp" type="text" placeholder="e.g. 130/84 mmHg"/>
+            </div>
+          </div>
+          <div class="field-row col2">
+            <div class="field">
+              <label>Temperature</label>
+              <input id="scr-temp" type="text" placeholder="e.g. 98.6 °F"/>
+            </div>
+            <div class="field">
+              <label>SpO₂</label>
+              <input id="scr-spo2" type="text" placeholder="e.g. 98 %"/>
+            </div>
+          </div>
+          <div class="field">
+            <label>Screening Observations</label>
+            <textarea id="scr-notes" placeholder="General appearance, visible signs, relevant history noted at screening…" style="min-height:72px"></textarea>
+          </div>
+        </div>
+
+        <!-- Referral Department -->
+        <div class="section">
+          <div class="section-title">4. Route to Specialty OPD</div>
+          <div class="field">
+            <label>Target Department / OPD <span style="color:var(--red)">*</span></label>
+            <select id="scr-dept" onchange="onDeptChange()">
+              <option value="">— Select department —</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Instructions for Specialty OPD Doctor</label>
+            <textarea id="scr-instructions" placeholder="Specific concerns to address, preliminary impression, tests to order…" style="min-height:56px"></textarea>
+          </div>
+        </div>
+
+      </div><!-- /form-wrap -->
+
+      <!-- Action bar -->
+      <div class="action-bar">
+        <button class="btn-route" id="btn-route" onclick="routePatient()" disabled>
+          &#8599; Route to OPD
+        </button>
+        <button class="btn-cancel" onclick="clearSelection()">Cancel</button>
+        <div style="flex:1"></div>
+        <div style="font-size:11px;color:var(--text-muted)">
+          Screening visit will be marked complete. A new visit will open in the selected OPD queue.
+        </div>
+      </div>
+    </div><!-- /screening-form -->
+
+  </div><!-- /form-col -->
+</div><!-- /main-wrap -->
+
+<script type="module">
+import { requireAuth, getCurrentTenantId, getCurrentProfile } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['doctor','nurse','super_admin','dept_admin']);
+initNavbar();
+const tenantId = getCurrentTenantId();
+const profile  = getCurrentProfile();
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let _screeningOpdId = null;
+let _departments    = [];    // { id, name, ncism_code, opd_id }
+let _queue          = [];    // visits with patients
+let _activeVisit    = null;
+let _triage         = 'Routine';
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+const today = new Date().toISOString().slice(0,10);
+document.getElementById('q-date').textContent = new Date(today + 'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short'});
+document.getElementById('ss-date').textContent = new Date(today + 'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+
+// Get Screening OPD id for this tenant
+const { data: screenOpd } = await supabase
+  .from('opds')
+  .select('id')
+  .eq('tenant_id', tenantId)
+  .eq('ncism_code', 'SCREENING_OPD')
+  .single();
+
+if (!screenOpd) {
+  document.getElementById('queue-list').innerHTML = `
+    <div class="queue-empty">
+      <strong>Screening OPD not configured.</strong><br><br>
+      Go to OPD Admin and ensure the Screening OPD (NCISM code: SCREENING_OPD) is active for your organisation.
+    </div>`;
+} else {
+  _screeningOpdId = screenOpd.id;
+  await loadDepartments();
+  await loadQueue();
+}
+
+// ── Load departments for routing ──────────────────────────────────────────────
+async function loadDepartments() {
+  const { data } = await supabase
+    .from('departments')
+    .select('id,name,ncism_code,opd_id')
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .order('name');
+
+  _departments = (data || []).filter(d => d.opd_id);  // only depts with an OPD
+
+  const sel = document.getElementById('scr-dept');
+  _departments.forEach(d => {
+    const o = document.createElement('option');
+    o.value = d.id;
+    o.textContent = d.name + (d.ncism_code ? ` (${d.ncism_code})` : '');
+    sel.appendChild(o);
+  });
+}
+
+// ── Load today's screening queue ──────────────────────────────────────────────
+window.loadQueue = async function() {
+  if (!_screeningOpdId) return;
+  document.getElementById('queue-list').innerHTML = '<div class="queue-empty">Loading…</div>';
+
+  const { data, error } = await supabase
+    .from('visits')
+    .select('id,status,chief_complaint,token_number,created_at,patients(id,name,phone,age,gender,abha_number)')
+    .eq('tenant_id', tenantId)
+    .eq('opd_id', _screeningOpdId)
+    .in('status', ['waiting','in_progress'])
+    .gte('created_at', today + 'T00:00:00')
+    .lte('created_at', today + 'T23:59:59')
+    .order('token_number');
+
+  if (error) {
+    document.getElementById('queue-list').innerHTML = `<div class="queue-empty">Error: ${error.message}</div>`;
+    return;
+  }
+
+  _queue = data || [];
+  _renderQueue();
+  _updateStats();
+};
+
+function _renderQueue() {
+  const list = document.getElementById('queue-list');
+  document.getElementById('q-count').textContent = _queue.length;
+
+  if (!_queue.length) {
+    list.innerHTML = '<div class="queue-empty">No patients waiting for screening.<br><br>When Reception registers a patient and selects the Screening OPD, they will appear here.</div>';
+    return;
+  }
+
+  list.innerHTML = _queue.map(v => {
+    const pt   = v.patients || {};
+    const meta = [pt.phone, pt.gender, pt.age ? pt.age + 'y' : ''].filter(Boolean).join(' · ');
+    const isActive = _activeVisit?.id === v.id;
+    return `
+      <div class="queue-item${isActive ? ' active' : ''}" onclick="selectVisit('${v.id}')">
+        <div class="qi-top">
+          <span class="qi-token">#${v.token_number || '?'}</span>
+          <span class="qi-name">${_esc(pt.name || 'Unknown')}</span>
+        </div>
+        <div class="qi-meta">${_esc(meta)}</div>
+        ${v.chief_complaint ? `<div class="qi-cc">${_esc(v.chief_complaint)}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+async function _updateStats() {
+  // Count screened today (completed visits from screening OPD today)
+  const { count: screened } = await supabase
+    .from('visits')
+    .select('id', { count:'exact', head:true })
+    .eq('tenant_id', tenantId)
+    .eq('opd_id', _screeningOpdId)
+    .eq('status', 'completed')
+    .gte('created_at', today + 'T00:00:00')
+    .lte('created_at', today + 'T23:59:59');
+
+  document.getElementById('ss-waiting').textContent  = _queue.length + ' ';
+  document.getElementById('ss-screened').textContent = (screened || 0) + ' ';
+  document.getElementById('ss-emergency').textContent = '0 ';  // tracked after triage added
+}
+
+// ── Select patient from queue ─────────────────────────────────────────────────
+window.selectVisit = function(visitId) {
+  _activeVisit = _queue.find(v => v.id === visitId);
+  if (!_activeVisit) return;
+
+  const pt   = _activeVisit.patients || {};
+  const meta = [pt.phone, pt.gender, pt.age ? pt.age + 'y' : ''].filter(Boolean).join(' · ');
+
+  document.getElementById('pt-avatar').textContent = (pt.name || '?').charAt(0).toUpperCase();
+  document.getElementById('pt-name').textContent   = pt.name || '—';
+  document.getElementById('pt-meta').textContent   = meta || '—';
+  document.getElementById('pt-token').textContent  = '#' + (_activeVisit.token_number || '?');
+  document.getElementById('scr-cc').value          = _activeVisit.chief_complaint || '';
+
+  // Reset form
+  _triage = 'Routine';
+  document.querySelectorAll('.triage-opt').forEach(el => el.className = 'triage-opt');
+  document.querySelector('[data-triage="Routine"]').classList.add('active-routine');
+  document.getElementById('scr-pulse').value        = '';
+  document.getElementById('scr-bp').value           = '';
+  document.getElementById('scr-temp').value         = '';
+  document.getElementById('scr-spo2').value         = '';
+  document.getElementById('scr-notes').value        = '';
+  document.getElementById('scr-dept').value         = '';
+  document.getElementById('scr-instructions').value = '';
+  document.getElementById('btn-route').disabled     = true;
+
+  // Show form
+  document.getElementById('form-empty').style.display    = 'none';
+  document.getElementById('screening-form').style.display = 'flex';
+  document.getElementById('alert').classList.remove('show');
+
+  _renderQueue();  // re-render to highlight active
+};
+
+window.clearSelection = function() {
+  _activeVisit = null;
+  _triage      = 'Routine';
+  document.getElementById('form-empty').style.display     = 'flex';
+  document.getElementById('screening-form').style.display = 'none';
+  _renderQueue();
+};
+
+// ── Triage selection ──────────────────────────────────────────────────────────
+window.selectTriage = function(el) {
+  _triage = el.dataset.triage;
+  document.querySelectorAll('.triage-opt').forEach(t => t.className = 'triage-opt');
+  const clsMap = { Emergency:'active-emergency', Urgent:'active-urgent', 'Semi-urgent':'active-semi', Routine:'active-routine' };
+  el.classList.add(clsMap[_triage] || 'active-routine');
+};
+
+// ── Enable route button when dept is selected ─────────────────────────────────
+window.onDeptChange = function() {
+  const dept = document.getElementById('scr-dept').value;
+  const btn  = document.getElementById('btn-route');
+  btn.disabled = !dept;
+  if (dept) {
+    const d = _departments.find(d => d.id === dept);
+    btn.textContent = '▙ Route to ' + (d ? d.name : 'OPD');
+  } else {
+    btn.textContent = '▙ Route to OPD';
+  }
+};
+
+// ── Route patient ─────────────────────────────────────────────────────────────
+window.routePatient = async function() {
+  if (!_activeVisit) return;
+
+  const deptId = document.getElementById('scr-dept').value;
+  if (!deptId) { _alert('error', 'Select a target department first.'); return; }
+
+  const dept         = _departments.find(d => d.id === deptId);
+  const cc           = document.getElementById('scr-cc').value.trim()          || _activeVisit.chief_complaint || '';
+  const pulse        = document.getElementById('scr-pulse').value.trim();
+  const bp           = document.getElementById('scr-bp').value.trim();
+  const temp         = document.getElementById('scr-temp').value.trim();
+  const spo2         = document.getElementById('scr-spo2').value.trim();
+  const notes        = document.getElementById('scr-notes').value.trim();
+  const instructions = document.getElementById('scr-instructions').value.trim();
+
+  // Build screening summary to pass to specialty OPD
+  const vitals = [pulse && `PR: ${pulse}`, bp && `BP: ${bp}`, temp && `Temp: ${temp}`, spo2 && `SpO₂: ${spo2}`].filter(Boolean).join(', ');
+  let screeningSummary = `[Triage: ${_triage}]`;
+  if (vitals)   screeningSummary += ` | Vitals: ${vitals}`;
+  if (notes)    screeningSummary += ` | Screening note: ${notes}`;
+  if (instructions) screeningSummary += ` | Instructions: ${instructions}`;
+
+  const btn = document.getElementById('btn-route');
+  btn.disabled = true; btn.textContent = 'Routing…';
+
+  // Get next token number for target OPD today
+  const { data: lastToken } = await supabase
+    .from('visits')
+    .select('token_number')
+    .eq('tenant_id', tenantId)
+    .eq('opd_id', dept.opd_id)
+    .gte('created_at', today + 'T00:00:00')
+    .lte('created_at', today + 'T23:59:59')
+    .order('token_number', { ascending: false })
+    .limit(1);
+
+  const nextToken = lastToken?.[0]?.token_number ? lastToken[0].token_number + 1 : 1;
+
+  // 1. Mark screening visit as completed
+  const { error: errComplete } = await supabase
+    .from('visits')
+    .update({ status: 'completed', chief_complaint: cc })
+    .eq('id', _activeVisit.id);
+
+  if (errComplete) {
+    _alert('error', 'Failed to complete screening visit: ' + errComplete.message);
+    btn.disabled = false; btn.textContent = '↗ Route to OPD'; return;
+  }
+
+  // 2. Create new visit in target OPD queue
+  const newVisit = {
+    tenant_id:        tenantId,
+    patient_id:       _activeVisit.patients.id,
+    opd_id:           dept.opd_id,
+    status:           'waiting',
+    chief_complaint:  cc ? cc + '\n' + screeningSummary : screeningSummary,
+    token_number:     nextToken,
+    is_on_request:    false,
+  };
+
+  // Assign doctor if logged-in user is a doctor
+  if (profile?.role === 'doctor') newVisit.doctor_id = profile.id;
+
+  const { error: errNew } = await supabase.from('visits').insert(newVisit);
+
+  if (errNew) {
+    // Rollback — revert screening visit to waiting
+    await supabase.from('visits').update({ status: 'waiting' }).eq('id', _activeVisit.id);
+    _alert('error', 'Failed to create specialty OPD visit: ' + errNew.message);
+    btn.disabled = false; btn.textContent = '↗ Route to OPD'; return;
+  }
+
+  _alert('success', `${_activeVisit.patients?.name} routed to ${dept.name}. Token #${nextToken} created.`);
+  _activeVisit = null;
+  document.getElementById('form-empty').style.display     = 'flex';
+  document.getElementById('screening-form').style.display = 'none';
+  await loadQueue();
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function _esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function _alert(type, msg) {
+  const el = document.getElementById('alert');
+  el.className = `alert show ${type}`;
+  el.textContent = msg;
+  if (type === 'success') setTimeout(() => el.classList.remove('show'), 4000);
+}
+</script>
+</body>
+</html>

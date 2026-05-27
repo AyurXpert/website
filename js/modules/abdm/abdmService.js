@@ -164,16 +164,18 @@ export async function searchAbhaAddress(abhaAddress) {
   return callABDM('abha_addr_search', { abhaAddress });
 }
 
-// Step 2: Init OTP for ABHA address login
-export async function initAbhaAddressLogin(transactionId) {
-  return callABDM('abha_addr_init', { transactionId });
+// Step 2: Send OTP for ABHA address login — encrypts abhaAddress as loginId
+export async function initAbhaAddressLogin(abhaAddress) {
+  const { publicKey } = await callABDM('get_cert');
+  const encAbhaAddress = await encryptWithABDMCert(abhaAddress, publicKey);
+  return callABDM('abha_addr_init', { encAbhaAddress });
 }
 
 // Step 3: Verify OTP → returns profile + accessToken
-export async function verifyAbhaAddressOtp(transactionId, otp) {
+export async function verifyAbhaAddressOtp(txnId, otp) {
   const { publicKey } = await callABDM('get_cert');
   const encOtp = await encryptWithABDMCert(otp, publicKey);
-  return callABDM('abha_addr_verify', { transactionId, encOtp });
+  return callABDM('abha_addr_verify', { txnId, encOtp });
 }
 
 // Download PHR Card (ABHA Address login)

@@ -18,6 +18,7 @@ export const ROLES = {
   NURSE:         'nurse',
   LAB_TECH:      'lab_tech',
   ACCOUNTANT:    'accountant',
+  THERAPIST:     'therapist',
   STUDENT:       'student',
   PUBLIC:        'public',
 };
@@ -32,6 +33,7 @@ export const ROLE_HOME = {
   nurse:        'reception.html',
   lab_tech:     'reports.html',
   accountant:   'fee-admin.html',
+  therapist:    'therapist.html',
   student:      'admin.html',
   public:       'admin.html',
 };

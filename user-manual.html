@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AyurXpert HMS — User Manual</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);display:flex;min-height:100vh}
+
+/* ── Sidebar ── */
+.sidebar{
+  width:260px;min-width:260px;background:var(--green-deep);color:#fff;
+  position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0;
+}
+.sidebar-brand{
+  padding:22px 20px 16px;border-bottom:1px solid rgba(255,255,255,.1);
+}
+.sidebar-brand-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700;color:#fff}
+.sidebar-brand-sub{font-size:11px;color:rgba(255,255,255,.55);margin-top:3px;text-transform:uppercase;letter-spacing:.6px}
+.sidebar-nav{padding:12px 0}
+.nav-section{padding:14px 20px 5px;font-size:10px;font-weight:600;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.8px}
+.nav-link{
+  display:block;padding:8px 20px;font-size:13px;color:rgba(255,255,255,.8);
+  text-decoration:none;transition:background .15s,color .15s;border-left:3px solid transparent;
+}
+.nav-link:hover{background:rgba(255,255,255,.08);color:#fff;border-left-color:rgba(255,255,255,.3)}
+.nav-link.active{background:rgba(255,255,255,.12);color:#fff;border-left-color:var(--gold)}
+
+/* ── Main content ── */
+.main{flex:1;padding:40px 48px 80px;max-width:900px}
+.main-title{
+  font-family:'Cormorant Garamond',serif;font-size:38px;font-weight:700;
+  color:var(--green-deep);margin-bottom:6px;line-height:1.1;
+}
+.main-subtitle{font-size:14px;color:var(--text-muted);margin-bottom:32px}
+
+/* ── Sections ── */
+.section{margin-bottom:48px;scroll-margin-top:32px}
+.section-title{
+  font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;
+  color:var(--green-deep);padding-bottom:10px;border-bottom:2px solid var(--border);margin-bottom:20px;
+}
+.subsection{margin-bottom:28px}
+.subsection-title{font-size:16px;font-weight:600;color:var(--green-deep);margin-bottom:10px}
+.subsection-sub{font-size:14px;font-weight:600;color:var(--text-mid);margin:14px 0 8px}
+
+p{font-size:14px;line-height:1.75;color:var(--text-mid);margin-bottom:10px}
+p:last-child{margin-bottom:0}
+
+/* ── Role cards ── */
+.role-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:14px 0}
+.role-card{
+  background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);
+  padding:14px 16px;
+}
+.role-name{font-size:13px;font-weight:700;color:var(--green-deep);margin-bottom:4px}
+.role-home{font-size:11px;color:var(--text-muted);margin-bottom:8px;font-family:monospace}
+.role-desc{font-size:12px;color:var(--text-mid);line-height:1.5}
+
+/* ── Steps ── */
+.steps{counter-reset:step;margin:14px 0}
+.step{
+  display:flex;gap:14px;margin-bottom:14px;align-items:flex-start;
+}
+.step-num{
+  counter-increment:step;
+  width:28px;height:28px;border-radius:50%;background:var(--green-deep);color:#fff;
+  font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;margin-top:1px;
+}
+.step-num::before{content:counter(step)}
+.step-body{flex:1}
+.step-title{font-size:13px;font-weight:600;color:var(--text-dark);margin-bottom:3px}
+.step-desc{font-size:13px;color:var(--text-mid);line-height:1.6}
+
+/* ── Feature table ── */
+.feature-table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+.feature-table th{
+  padding:8px 12px;text-align:left;background:var(--green-deep);color:#fff;
+  font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;
+}
+.feature-table td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text-mid);vertical-align:top;line-height:1.5}
+.feature-table tr:last-child td{border-bottom:none}
+.feature-table tr:nth-child(even) td{background:#f7fbf8}
+.feature-table td:first-child{font-weight:600;color:var(--text-dark);white-space:nowrap}
+
+/* ── Flow diagram ── */
+.flow{display:flex;align-items:center;gap:0;flex-wrap:wrap;margin:14px 0}
+.flow-box{
+  background:var(--white);border:1.5px solid var(--border);border-radius:6px;
+  padding:8px 14px;font-size:12px;font-weight:600;color:var(--green-deep);text-align:center;
+  white-space:nowrap;
+}
+.flow-box.gold{background:var(--gold-light);border-color:#e0c060;color:#7a5a00}
+.flow-box.blue{background:#e3f0ff;border-color:#a8c8f0;color:#1a4080}
+.flow-arrow{font-size:16px;color:var(--text-muted);padding:0 6px;flex-shrink:0}
+
+/* ── Tip / note / warning ── */
+.tip,.note,.warn{border-radius:var(--radius);padding:10px 14px;font-size:13px;margin:12px 0;line-height:1.6}
+.tip{background:#e8f5ee;border-left:3px solid var(--green-mid);color:var(--text-dark)}
+.note{background:#e3f0ff;border-left:3px solid #4080c0;color:#1a3060}
+.warn{background:#fff3cd;border-left:3px solid var(--gold);color:#7a5a00}
+.tip strong,.note strong,.warn strong{font-weight:700}
+
+/* ── Badge ── */
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;margin-right:4px}
+.badge-role{background:var(--green-light);color:var(--green-deep)}
+.badge-new{background:#fff3cd;color:#7a5a00}
+.badge-ncism{background:#fff3cd;color:#7a5a00;border:1px solid #e0c060}
+
+/* ── Print ── */
+@media print{
+  .sidebar{display:none}
+  .main{padding:20px;max-width:100%}
+}
+@media(max-width:900px){
+  body{flex-direction:column}
+  .sidebar{width:100%;height:auto;position:relative}
+  .main{padding:24px 20px 60px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<nav class="sidebar">
+  <div class="sidebar-brand">
+    <div class="sidebar-brand-title">AyurXpert</div>
+    <div class="sidebar-brand-sub">HMS User Manual</div>
+  </div>
+  <div class="sidebar-nav">
+    <div class="nav-section">Overview</div>
+    <a class="nav-link" href="#overview">System Overview</a>
+    <a class="nav-link" href="#roles">Roles & Access</a>
+    <a class="nav-link" href="#workflow">Master Workflow</a>
+
+    <div class="nav-section">Setup (Admin)</div>
+    <a class="nav-link" href="#setup-org">1. Register Organisation</a>
+    <a class="nav-link" href="#setup-staff">2. Add Staff</a>
+    <a class="nav-link" href="#setup-opd">3. Configure OPDs</a>
+    <a class="nav-link" href="#setup-fees">4. Fee Structures</a>
+    <a class="nav-link" href="#setup-inventory">5. Medicine Inventory</a>
+    <a class="nav-link" href="#setup-ipd">6. IPD / Bed Setup</a>
+
+    <div class="nav-section">Daily Operations</div>
+    <a class="nav-link" href="#reception">Reception</a>
+    <a class="nav-link" href="#doctor">Doctor / Queue</a>
+    <a class="nav-link" href="#dispensary">Dispensary</a>
+    <a class="nav-link" href="#ipd-ops">IPD Operations</a>
+    <a class="nav-link" href="#therapy">PK Therapy</a>
+
+    <div class="nav-section">Admin Modules</div>
+    <a class="nav-link" href="#reports">Reports</a>
+    <a class="nav-link" href="#purchase">Purchasing</a>
+    <a class="nav-link" href="#dashboard">Dashboard</a>
+
+    <div class="nav-section">ABDM / ABHA</div>
+    <a class="nav-link" href="#abha">ABHA Features</a>
+
+    <div class="nav-section">Reference</div>
+    <a class="nav-link" href="#quick-ref">Quick Reference</a>
+  </div>
+</nav>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<main class="main">
+
+  <div class="main-title">AyurXpert HMS</div>
+  <div class="main-subtitle">Complete User Manual — v1.0 · May 2026</div>
+
+  <!-- ══════════════════════════════════════════════
+       OVERVIEW
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="overview">
+    <div class="section-title">System Overview</div>
+
+    <p>AyurXpert is a <strong>multi-tenant, cloud-based Hospital Management System</strong> built specifically for the Ayurveda ecosystem — clinics, hospitals, Panchakarma centres, teaching institutions, and dispensaries. Every organisation (called a <strong>tenant</strong>) gets its own isolated data, branding, and staff, all on the same shared platform.</p>
+
+    <div class="subsection">
+      <div class="subsection-title">What AyurXpert Manages</div>
+      <table class="feature-table">
+        <tr><th>Module</th><th>What it does</th></tr>
+        <tr><td>Reception</td><td>Patient registration, OPD visit creation, fee collection, ABHA enrollment</td></tr>
+        <tr><td>Doctor Queue</td><td>Live waiting list, full 9-tab clinical documentation, NAMASTE + ICD-10 dual coding, prescription writing</td></tr>
+        <tr><td>Dispensary POS</td><td>Prescription fulfilment, stock deduction, dispensary invoice</td></tr>
+        <tr><td>Inventory</td><td>Medicine master, stock levels, expiry tracking, CSV import/export</td></tr>
+        <tr><td>Purchasing</td><td>Goods Receipt Notes (GRN), supplier management, barcode scan, AI receipt OCR, auto Purchase Orders</td></tr>
+        <tr><td>IPD</td><td>Bed allocation, admission, discharge, length-of-stay tracking</td></tr>
+        <tr><td>Panchakarma Therapy</td><td>Session scheduling, phase tracking, therapist assignment, gender-pairing compliance</td></tr>
+        <tr><td>Fee Admin</td><td>Fee structure creation with 3-level approval workflow</td></tr>
+        <tr><td>OPD Admin</td><td>OPD creation, NCISM seeding, doctor assignment, daily availability</td></tr>
+        <tr><td>IPD Setup</td><td>Department configuration, bed matrix, NCISM compliance monitoring</td></tr>
+        <tr><td>Reports</td><td>Billing dashboard, date-range collections, role-filtered views</td></tr>
+        <tr><td>Dashboard</td><td>Staff approval, tenant summary, module shortcuts</td></tr>
+        <tr><td>ABDM / ABHA</td><td>ABHA enrollment via Aadhaar OTP, all 4 verify methods, Scan &amp; Share QR</td></tr>
+      </table>
+    </div>
+
+    <div class="tip"><strong>Access URL:</strong> Open a browser and go to <code>http://127.0.0.1:5500/login.html</code> (local development via VS Code Live Server). Production URL is <strong>ayurxpert.com/login.html</strong> once deployed.</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       ROLES
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="roles">
+    <div class="section-title">Roles &amp; Access</div>
+
+    <p>Every staff member has exactly one role. The role controls which pages they can open and what they can do. A <strong>super_admin</strong> can access every page in the system.</p>
+
+    <div class="role-grid">
+      <div class="role-card">
+        <div class="role-name">Super Admin</div>
+        <div class="role-home">→ admin.html</div>
+        <div class="role-desc">Full access to all modules. Approves staff and fees. Typically the owner or IT manager.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">Dept Admin</div>
+        <div class="role-home">→ admin.html</div>
+        <div class="role-desc">Department-level management. Can approve fees at dept level, manage OPDs and IPD setup.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">Doctor</div>
+        <div class="role-home">→ doctor.html</div>
+        <div class="role-desc">Views patient queue, records consultation notes, writes prescriptions, requests IPD admission.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">Receptionist</div>
+        <div class="role-home">→ reception.html</div>
+        <div class="role-desc">Registers patients, creates visits, collects fees, enrolls ABHA, manages live queue.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">Pharmacist</div>
+        <div class="role-home">→ dispensaryPOS.html</div>
+        <div class="role-desc">Dispenses prescriptions, manages inventory, handles GRN and purchase orders.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">Nurse</div>
+        <div class="role-home">→ reception.html</div>
+        <div class="role-desc">Same access as receptionist. Can also view doctor queue to assist patients.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">Therapist</div>
+        <div class="role-home">→ therapist.html</div>
+        <div class="role-desc">Views and manages their own Panchakarma therapy sessions for the day.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">Accountant</div>
+        <div class="role-home">→ fee-admin.html</div>
+        <div class="role-desc">Creates fee structures (pending approval), views billing reports and collections.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">Lab Tech</div>
+        <div class="role-home">→ reports.html</div>
+        <div class="role-desc">Access to lab-related reports (placeholder for future lab module).</div>
+      </div>
+    </div>
+
+    <div class="note"><strong>Note:</strong> A staff member's role is assigned when they join via the signup flow and is approved by the super_admin or dept_admin before they can log in.</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       MASTER WORKFLOW
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="workflow">
+    <div class="section-title">Master Workflow</div>
+
+    <p>This is the complete end-to-end journey of a patient through AyurXpert — from arrival to discharge. Each arrow represents a handoff between departments.</p>
+
+    <div class="subsection">
+      <div class="subsection-title">OPD Patient Journey</div>
+      <div class="flow">
+        <div class="flow-box">Patient Arrives</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box gold">Reception<br><small>register + bill</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">Doctor Queue<br><small>waiting</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box gold">Doctor<br><small>consult + Rx</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">Dispensary<br><small>medicines</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">Patient Leaves</div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">IPD + Panchakarma Journey</div>
+      <div class="flow">
+        <div class="flow-box gold">Doctor<br><small>admit order</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box blue">IPD<br><small>bed allotment</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box blue">Therapy<br><small>PK sessions</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box blue">Discharge<br><small>summary</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">Billing<br><small>final invoice</small></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Staff + Admin Setup Flow (One-time)</div>
+      <div class="flow">
+        <div class="flow-box">Register Org<br><small>register.html</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">Add Staff<br><small>signup.html</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box gold">Approve Staff<br><small>admin.html</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">Setup OPDs<br><small>opd-admin</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">Setup Fees<br><small>fee-admin</small></div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box">Add Medicines<br><small>inventory</small></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SETUP — ORG REGISTRATION
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="setup-org">
+    <div class="section-title">1. Register Your Organisation</div>
+    <p>Done once by the owner/super_admin. Opens <strong>register.html</strong> — no login required.</p>
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Go to register.html</div><div class="step-desc">Fill in organisation name, type (clinic / hospital / PK centre / dispensary / college), city, state, owner full name, email, and password.</div></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Submit the form</div><div class="step-desc">AyurXpert creates your organisation record and assigns you the <strong>super_admin</strong> role automatically.</div></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Note your Tenant Code</div><div class="step-desc">After registration, your unique Tenant Code appears (e.g. <code>SRST-4821</code>). Share this code with all staff so they can join your organisation.</div></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Log in</div><div class="step-desc">Go to login.html, enter your email → your name and role appear → enter password. You land on admin.html.</div></div></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SETUP — STAFF
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="setup-staff">
+    <div class="section-title">2. Add Staff Members</div>
+
+    <div class="subsection">
+      <div class="subsection-title">Staff Sign Up (signup.html)</div>
+      <p>Each staff member does this on their own device. They do <strong>not</strong> need a pre-created account.</p>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Open signup.html</div><div class="step-desc">Enter their full name, phone, email, password, and the <strong>Tenant Code</strong> given by the admin.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Select role</div><div class="step-desc">Choose from the role list: doctor, receptionist, pharmacist, nurse, therapist, lab_tech, accountant, etc.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Submit</div><div class="step-desc">Account is created with status <strong>pending_approval</strong>. They cannot log in until approved.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Approve Staff (admin.html)</div>
+      <p>Super admin or dept_admin approves pending staff from the Dashboard.</p>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Open admin.html</div><div class="step-desc">The "Pending Approvals" section shows all staff awaiting approval with their name, role, and phone.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click Approve or Reject</div><div class="step-desc">Approved staff status changes to <strong>active</strong> and they can log in immediately.</div></div></div>
+      </div>
+    </div>
+
+    <div class="tip"><strong>Tip:</strong> Doctors need to have their <strong>qualification</strong> and <strong>registration number</strong> set in their profile (super_admin can edit this) — these print on prescriptions.</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SETUP — OPD
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="setup-opd">
+    <div class="section-title">3. Configure OPDs</div>
+    <p>Page: <strong>opd-admin.html</strong> &nbsp;|&nbsp; Access: super_admin, dept_admin</p>
+
+    <div class="subsection">
+      <div class="subsection-title">Seed NCISM OPDs (Teaching Hospitals)</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click "Seed NCISM OPDs" (gold button, top right)</div><div class="step-desc">AyurXpert checks which of the <strong>10 mandatory NCISM OPDs</strong> are missing and shows a confirmation list. Click OK to create them all at once.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Verify the compliance banner disappears</div><div class="step-desc">Once all 10 are active, the amber NCISM compliance warning banner goes away.</div></div></div>
+      </div>
+      <div class="warn"><strong>NCISM Mandatory OPDs (10):</strong> Kayachikitsa · Panchakarma · Shalya Tantra · Shalakya Netra Roga · Shalakya KNM · Stri Roga &amp; Prasuti Tantra · Kaumarabhritya · Swasthavritta &amp; Yoga · Screening OPD · Agada Tantra</div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Add a Custom OPD</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click "+ New OPD"</div><div class="step-desc">An inline form opens. Enter the OPD name and optionally select an NCISM code from the dropdown (it auto-fills the name and description).</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Save OPD</div><div class="step-desc">The OPD appears in the left list with a green Active badge (or a gold NCISM badge if coded).</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Assign Doctors to an OPD</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click an OPD from the left list</div><div class="step-desc">The right panel loads the doctors currently assigned to that OPD.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Use "Add a doctor" dropdown</div><div class="step-desc">Select a doctor from the dropdown (shows all active doctors not yet assigned) and click Add. The doctor is added and marked active for today.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Toggle "Active Today"</div><div class="step-desc">Each morning, toggle which doctors are present. Only active-today doctors appear in the Reception OPD dropdown.</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SETUP — FEES
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="setup-fees">
+    <div class="section-title">4. Fee Structures</div>
+    <p>Page: <strong>fee-admin.html</strong> &nbsp;|&nbsp; Access: super_admin, dept_admin, accountant</p>
+    <p>Fees have a <strong>3-level approval workflow</strong>: Accountant creates → Dept Admin approves → Super Admin activates.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Create a fee (Accountant / Dept Admin)</div><div class="step-desc">Click "+ New Fee". Select OPD, fee type (Registration / Consultation / Procedure / Investigation / Package), enter amount, label. Status = <strong>pending</strong>.</div></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Dept Admin approval</div><div class="step-desc">Dept admin sees pending fees and clicks "Dept Approve". Status → <strong>dept_approved</strong>.</div></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Super Admin activation</div><div class="step-desc">Super admin sees dept-approved fees and clicks "Activate". Status → <strong>active</strong>. Now this fee appears in Reception when creating a bill.</div></div></div>
+    </div>
+
+    <div class="tip"><strong>Shortcut:</strong> Super admin can bypass dept approval and directly activate any fee.</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SETUP — INVENTORY
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="setup-inventory">
+    <div class="section-title">5. Medicine Inventory Setup</div>
+    <p>Page: <strong>inventory.html</strong> &nbsp;|&nbsp; Access: super_admin, dept_admin, pharmacist</p>
+
+    <div class="subsection">
+      <div class="subsection-title">Adding a Medicine</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click "+ Add Medicine"</div><div class="step-desc">Fill in the medicine name, brand, unit (tablet/ml/gm), category, and classical reference if applicable.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Set pricing</div><div class="step-desc">Enter MRP. Set profit% — the system auto-calculates your selling price. Set reorder level and max stock.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Add NAMC indications (optional)</div><div class="step-desc">Tag the medicine with NAMASTE codes (e.g. Jvara, Amavata). These connect it to doctor.html classical Rx suggestions.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Upload image (optional)</div><div class="step-desc">Upload a product image — stored in Supabase and shown in the dispensary.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">CSV Import (Bulk)</div>
+      <p>Download the CSV template, fill it with your medicine list (name, brand, unit, MRP, stock, etc.), and upload. AyurXpert imports all rows at once.</p>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Stock Adjustment</div>
+      <p>Click the <strong>± Adjust</strong> button on any medicine row to add or subtract stock manually (e.g. after a stocktake). Every adjustment is logged.</p>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Receiving Stock — Purchase (GRN)</div>
+      <p>Page: <strong>purchase.html</strong>. When goods arrive from a supplier:</p>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Select supplier, enter invoice number and date</div><div class="step-desc"></div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Add line items</div><div class="step-desc">Search medicine by name or scan barcode. Enter quantity, batch number, expiry date, purchase rate.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">AI Receipt OCR (optional)</div><div class="step-desc">Take a photo of the supplier invoice and upload — Claude AI extracts all medicine names, quantities, and rates automatically.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Save GRN</div><div class="step-desc">Stock levels update automatically across the system.</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SETUP — IPD
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="setup-ipd">
+    <div class="section-title">6. IPD &amp; Bed Setup</div>
+    <p>Page: <strong>bed-admin.html</strong> &nbsp;|&nbsp; Access: super_admin, dept_admin</p>
+
+    <div class="subsection">
+      <div class="subsection-title">Create Departments</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click "Seed NCISM Depts" (gold button)</div><div class="step-desc">For teaching hospitals — creates all 10 mandatory NCISM departments in one click. The NCISM compliance banner shows which are still missing.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Or click "+ New Department"</div><div class="step-desc">Fill name, select NCISM code (optional), link to an OPD, and toggle PG status. If PG, enter sanctioned seats — AyurXpert calculates the beds required (seats × 4).</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Add Beds</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Bulk Add (recommended for new setup)</div><div class="step-desc">Click "+ Bulk Add Beds". Select department, enter prefix (e.g. "A"), count (e.g. 20), start number (e.g. 1). Preview shows A-01, A-02… Click Add Beds.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Or add single beds</div><div class="step-desc">Click "+ Bed" on a department card. Set bed number, ward, type (General / ICU / Private / PK Treatment), floor, and whether it counts as a PG-allocated bed.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Bed Matrix View</div>
+      <p>Switch to the <strong>Bed Matrix</strong> tab to see all beds as colour-coded cards: <span style="color:#2d7a4f;font-weight:600">Green = Vacant</span>, <span style="color:#c0392b;font-weight:600">Red = Occupied</span>, <span style="color:#7a9485;font-weight:600">Grey = Maintenance</span>, <span style="color:#c9902a;font-weight:600">Gold = Reserved</span>. A small blue dot marks PG-allocated beds. Filter by department, status, or bed type.</p>
+    </div>
+
+    <div class="warn"><strong>NCISM Ratio:</strong> PG departments need <strong>4 beds per PG seat</strong> with ≥80% occupancy. Departments violating this show a red <strong>⚠ Ratio</strong> badge on the card.</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       RECEPTION
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="reception">
+    <div class="section-title">Reception</div>
+    <p>Page: <strong>reception.html</strong> &nbsp;|&nbsp; Access: receptionist, nurse, dept_admin, super_admin</p>
+    <p>This is where every patient's day begins. The receptionist creates a <strong>visit</strong>, generates a <strong>bill</strong>, collects payment, and the patient joins the doctor's queue.</p>
+
+    <div class="subsection">
+      <div class="subsection-title">Registering a New Patient</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Enter phone number</div><div class="step-desc">Type the patient's mobile number in the search box. AyurXpert searches for existing patients with that number (up to 6 family members with the same phone can appear).</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Select or create patient</div><div class="step-desc">If the patient exists, click their name card — all fields auto-fill. If new, enter name, age, gender, date of birth, and blood group.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Select OPD and Doctor</div><div class="step-desc">Choose from active OPDs. Doctors shown are only those marked "active today" for that OPD.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Chief complaint</div><div class="step-desc">Briefly enter the patient's main complaint (e.g. "Knee pain since 3 months"). This travels with the visit to the doctor.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Bill &amp; payment</div><div class="step-desc">Registration fee and consultation fee auto-populate from active fee structures. Add any additional charges. Select payment mode (Cash / UPI / Card / Credit) and click Pay.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Done</div><div class="step-desc">Patient gets a token number and appears in the doctor's queue as "Waiting".</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Family Members</div>
+      <p>Multiple patients can share the same phone number (family). When you search a phone, all family members appear as separate name cards. Select the right person — their individual records (age, gender, ABHA) are kept separate.</p>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">ABHA Enrollment (National Health ID)</div>
+      <p>Below the patient form there is an <strong>ABHA Enrollment</strong> panel. Use this to link the patient's Ayushman Bharat Health Account:</p>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click "Enroll via Aadhaar OTP"</div><div class="step-desc">Enter the patient's Aadhaar number. An OTP is sent to their Aadhaar-linked mobile.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Enter OTP → Verify</div><div class="step-desc">After OTP verification, the patient's ABHA number (14-digit) and ABHA address (@sbx) are created and saved to their record.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">ABHA Verify Panel</div>
+      <p>For patients who already have an ABHA, use the Verify panel to pull their demographic data. Four methods are supported:</p>
+      <table class="feature-table">
+        <tr><th>Method</th><th>How to use</th></tr>
+        <tr><td>ABHA Number</td><td>Enter 14-digit ABHA number → Send OTP → Verify. Demographics auto-fill.</td></tr>
+        <tr><td>Aadhaar OTP</td><td>Enter Aadhaar → OTP → Verify. Fastest for returning patients.</td></tr>
+        <tr><td>Mobile OTP</td><td>Enter mobile number → OTP from ABDM → Verify.</td></tr>
+        <tr><td>ABHA Address</td><td>Enter @sbx or @abdm address → Verify. (Sandbox limitation: returns empty for @sbx addresses — expected behaviour, shown in FT Report.)</td></tr>
+      </table>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Scan &amp; Share QR</div>
+      <p>Patients can share their ABHA profile by scanning a QR code (from the ABHA app):</p>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click "Scan &amp; Share QR"</div><div class="step-desc">A QR code appears on screen. The patient opens their ABHA mobile app and scans it.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Auto-fill</div><div class="step-desc">Within 2 seconds of the patient scanning, their name, DOB, gender, and ABHA number auto-fill into the registration form via real-time subscription.</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       DOCTOR
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="doctor">
+    <div class="section-title">Doctor / Clinical Queue</div>
+    <p>Page: <strong>doctor.html</strong> &nbsp;|&nbsp; Access: doctor, nurse, dept_admin, super_admin</p>
+    <p>The doctor sees a live list of waiting patients on the left. Clicking a patient opens a full <strong>9-tab clinical documentation</strong> panel on the right.</p>
+
+    <div class="subsection">
+      <div class="subsection-title">The 9 Clinical Tabs</div>
+      <table class="feature-table">
+        <tr><th>Tab</th><th>What to fill</th></tr>
+        <tr><td>1. History</td><td>Chief complaint (from reception), history of present illness, past medical history, personal history (diet, lifestyle, habits), family history.</td></tr>
+        <tr><td>2. Vitals</td><td>BP, pulse, temperature, weight, height, BMI (auto-calculated), SpO₂, respiratory rate.</td></tr>
+        <tr><td>3. Ashtasthana Pariksha</td><td>8-fold Ayurvedic examination: Nadi (pulse), Mutra (urine), Mala (stool), Jihwa (tongue), Shabda (voice), Sparsha (skin), Drik (eyes), Akriti (appearance).</td></tr>
+        <tr><td>4. Dashavidha Pariksha</td><td>10-point patient constitution examination: Prakriti, Vikruti, Sara, Samhanana, Pramana, Satmya, Sattva, Ahara Shakti, Vyayama Shakti, Vaya.</td></tr>
+        <tr><td>5. Systemic Exam</td><td>Cardiovascular, respiratory, GI, CNS, musculoskeletal, and local examination findings.</td></tr>
+        <tr><td>6. Diagnosis</td><td>NAMASTE dual-coding: search and select both a <strong>NAMC code</strong> (Ayurvedic) and an <strong>ICD-10 code</strong> (international). Both are saved and appear on the prescription.</td></tr>
+        <tr><td>7. Prescription</td><td>Add medicines by name (free text or from inventory). Set dosage, frequency, duration. Classical Rx suggestions (green = from your stock, gold = AFI formulations) appear based on the diagnosis NAMC code.</td></tr>
+        <tr><td>8. Advice</td><td>Pathya-Apathya (dietary dos and don'ts), yoga, lifestyle advice, follow-up date.</td></tr>
+        <tr><td>9. Disposition</td><td>Mark visit as complete, refer to another department, or initiate IPD admission.</td></tr>
+      </table>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">NAMASTE Dual Coding (Diagnosis Tab)</div>
+      <p>Type the disease in English or Sanskrit (e.g. "Jvara" or "fever") in the NAMC search box. A dropdown shows matching Ayurvedic terms. Select one. The ICD-10 equivalent auto-suggests — confirm or search for a different one. Both codes are saved together on the consultation record.</p>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Classical Rx Suggestions (Prescription Tab)</div>
+      <p>Once a NAMC diagnosis is selected, two types of suggestions appear automatically:</p>
+      <ul style="margin:8px 0 8px 20px;font-size:13px;color:var(--text-mid);line-height:1.8">
+        <li><strong style="color:var(--green-deep)">Green cards</strong> — Medicines from your own dispensary inventory tagged with this NAMC code</li>
+        <li><strong style="color:var(--gold)">Gold cards</strong> — Classical AFI (Ayurvedic Formulary of India) formulations linked to this condition</li>
+      </ul>
+      <p>Click a card to add it directly to the prescription.</p>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Sending to Dispensary</div>
+      <p>When the prescription is complete, click <strong>"Send to Dispensary"</strong>. This creates a prescription record that immediately appears in the Dispensary POS queue. The visit status changes to "completed".</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       DISPENSARY
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="dispensary">
+    <div class="section-title">Dispensary</div>
+    <p>Page: <strong>dispensaryPOS.html</strong> &nbsp;|&nbsp; Access: pharmacist, dept_admin, super_admin</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Prescription queue</div><div class="step-desc">All prescriptions sent from doctor.html appear here in real-time with patient name, doctor, and medicines listed.</div></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click a prescription to dispense</div><div class="step-desc">The medicines are shown with current stock levels. If a medicine is out of stock it is flagged in red.</div></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Confirm quantities and dispense</div><div class="step-desc">Adjust quantities if partial dispensing. Click "Dispense" — stock levels reduce automatically.</div></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Print invoice</div><div class="step-desc">A dispensary invoice is generated and printable from printInvoice.html. Includes medicines, quantities, and amount.</div></div></div>
+    </div>
+
+    <div class="tip"><strong>Low stock alerts:</strong> Medicines below their reorder level are highlighted. Use <strong>purchase-order.html</strong> to auto-generate a Purchase Order for all low-stock items grouped by supplier.</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       IPD OPERATIONS
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="ipd-ops">
+    <div class="section-title">IPD Operations</div>
+    <p>Page: <strong>ipd.html</strong> &nbsp;|&nbsp; Access: super_admin, dept_admin, doctor, receptionist, nurse</p>
+
+    <div class="subsection">
+      <div class="subsection-title">Admitting a Patient</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click "+ Admit Patient"</div><div class="step-desc">A 2-step drawer opens.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Step 1 — Search patient</div><div class="step-desc">Type the patient's phone number or name. Select the correct patient from the results. (Patient must already be registered at Reception.)</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Step 2 — Clinical details</div><div class="step-desc">Select department → the vacant bed picker loads. Click a bed to select it (green = vacant, PK beds shown in blue). Select admitting doctor. Enter primary diagnosis, diet type, admission date, and notes.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click "Admit Patient"</div><div class="step-desc">The IPD admission is created. The selected bed status changes to <strong>Occupied</strong> automatically. The patient appears in the admissions table.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Admissions Table</div>
+      <p>The main table shows all current admissions (default filter) with patient name, bed number, department, doctor, admission date, length of stay, and status. Use the filters to view by department, status (admitted / discharged / LAMA / transferred), or search by patient name.</p>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Discharging a Patient</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click the red ✖ icon</div><div class="step-desc">On the admission row in the table. The discharge drawer opens showing admission summary.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Select discharge type</div><div class="step-desc"><strong>Discharged</strong> (regular) · <strong>LAMA</strong> (Left Against Medical Advice) · <strong>Transferred</strong> (to another facility) · <strong>Deceased</strong>. For transfers, a hospital name field appears.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Enter discharge date, condition, and summary</div><div class="step-desc">Discharge summary is saved with the admission record for 7-year NABH retention.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click "Confirm Discharge"</div><div class="step-desc">The bed is automatically freed (status → Vacant) and the admission status updates.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Stats Dashboard</div>
+      <p>The top row shows: <strong>Currently Admitted</strong> · <strong>Vacant Beds</strong> · <strong>Average Length of Stay</strong> (live calculation) · <strong>Discharges Today</strong>.</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       THERAPY
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="therapy">
+    <div class="section-title">Panchakarma Therapy Sessions</div>
+    <p>Page: <strong>therapist.html</strong> &nbsp;|&nbsp; Access: super_admin, dept_admin, doctor, therapist, nurse</p>
+    <p>This page manages the <strong>daily schedule of Panchakarma therapy sessions</strong> for both IPD and OPD patients.</p>
+
+    <div class="subsection">
+      <div class="subsection-title">Date Navigator</div>
+      <p>Use the ‹ › arrows or the date picker to move between days. Click <strong>Today</strong> to return to the current date. All session counts and the table reload for the selected date.</p>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Scheduling a Session</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click "+ Schedule Session"</div><div class="step-desc">The scheduling drawer opens.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Select patient source</div><div class="step-desc"><strong>IPD Admission</strong> — picks from currently admitted inpatients (shows bed number). <strong>OPD</strong> — for outpatient PK therapy.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Select therapy phase and name</div><div class="step-desc">Phase: Purvakarma (prep) / Pradhanakarma (main) / Paschatkarma (post). Therapy name has a 20+ item autocomplete list (Abhyanga, Shirodhara, Basti, Nasya, etc.) or type any custom therapy.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Assign therapist</div><div class="step-desc">Therapists are grouped by gender (Male / Female) in the dropdown. The note below shows current M/F count vs NCISM requirement of 2M + 2F per department.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Set date, time, doctor clearance</div><div class="step-desc">Tick "Doctor clearance given" if the treating doctor has cleared the patient for this procedure.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Managing Sessions</div>
+      <table class="feature-table">
+        <tr><th>Action</th><th>How</th></tr>
+        <tr><td>▶ Start</td><td>Click the play button — session status → In Progress, start time is recorded.</td></tr>
+        <tr><td>✓ Complete</td><td>Click the check button — opens completion drawer. Enter actual start/end time, therapist notes, confirm doctor clearance.</td></tr>
+        <tr><td>✗ Skip</td><td>Click the X button — opens skip drawer. Enter reason (patient unwell, refused, etc.).</td></tr>
+        <tr><td>📋 View Notes</td><td>Click the clipboard icon — shows full session details in a read-only drawer.</td></tr>
+      </table>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Therapist Self-View</div>
+      <p>When a staff member with the <strong>therapist</strong> role logs in, they see <strong>only their own sessions</strong> for the day. Doctors and admins see all therapists' sessions.</p>
+    </div>
+
+    <div class="warn"><strong>NCISM Requirement:</strong> Each PK department must have <strong>4 therapists (2 Male + 2 Female)</strong>. The scheduling drawer shows a live count and warns if this ratio is not met.</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       REPORTS
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="reports">
+    <div class="section-title">Reports</div>
+    <p>Page: <strong>reports.html</strong> &nbsp;|&nbsp; Access: super_admin, dept_admin, accountant</p>
+
+    <div class="subsection">
+      <div class="subsection-title">Billing Dashboard (Accountant View)</div>
+      <p>Shows total collections for a selected date range. Filterable by payment method (Cash / UPI / Card / Credit). Displays individual bill records with patient name, visit details, amount, and payment status.</p>
+    </div>
+
+    <div class="tip"><strong>Date range:</strong> Use the From and To date pickers. Click "This Month" or "Today" for quick filters. The total collection updates instantly.</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       PURCHASE
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="purchase">
+    <div class="section-title">Purchasing Module</div>
+
+    <div class="subsection">
+      <div class="subsection-title">Auto Purchase Orders — purchase-order.html</div>
+      <p>Access: super_admin, dept_admin, pharmacist, accountant</p>
+      <p>AyurXpert automatically identifies all medicines whose stock has fallen below the reorder level. It groups them by supplier and generates a ready-to-send Purchase Order. Click <strong>"Generate PO"</strong> → review items → Print or Export CSV to send to the supplier.</p>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Goods Receipt Note — purchase.html</div>
+      <p>Access: super_admin, dept_admin, pharmacist, accountant</p>
+      <p>When the ordered goods arrive, create a GRN:</p>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Enter supplier name, invoice number, and date</div><div class="step-desc"></div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Add medicines</div><div class="step-desc">Search by name or scan barcode. Enter received quantity, batch number, expiry date, purchase rate, and MRP.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">AI OCR (optional)</div><div class="step-desc">Take a photo of the paper invoice. The AI (Claude Haiku) reads the invoice and extracts all line items automatically — saving manual entry time.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Save GRN</div><div class="step-desc">All inventory quantities and batch records update immediately.</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       DASHBOARD
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="dashboard">
+    <div class="section-title">Dashboard (admin.html)</div>
+    <p>Access: all roles (role-filtered content)</p>
+    <p>The dashboard shows each user what is relevant to their role:</p>
+    <table class="feature-table">
+      <tr><th>Role</th><th>What they see</th></tr>
+      <tr><td>Super Admin</td><td>Pending staff approvals, pending fee approvals, tenant code, module shortcut cards, organisation summary.</td></tr>
+      <tr><td>Dept Admin</td><td>Pending fee approvals (dept level), OPD and IPD setup shortcuts.</td></tr>
+      <tr><td>Doctor</td><td>Today's queue count, shortcuts to doctor.html and IPD.</td></tr>
+      <tr><td>Receptionist / Nurse</td><td>Quick links to reception and today's queue.</td></tr>
+      <tr><td>Pharmacist</td><td>Pending prescription count, low-stock alerts, dispensary shortcut.</td></tr>
+      <tr><td>Accountant</td><td>Today's collections, pending fee structures, reports shortcut.</td></tr>
+    </table>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       ABHA
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="abha">
+    <div class="section-title">ABDM / ABHA Features</div>
+    <p>AyurXpert is an ABDM-integrated system (Sandbox ID: SBXID_033899). All ABHA features are available from <strong>reception.html</strong>.</p>
+
+    <table class="feature-table">
+      <tr><th>Feature</th><th>Purpose</th><th>Where</th></tr>
+      <tr><td>ABHA Enrollment</td><td>Create a new ABHA (Health ID) for a patient using their Aadhaar number and OTP verification</td><td>Reception → ABHA panel</td></tr>
+      <tr><td>ABHA Verify — ABHA Number</td><td>Verify and pull demographics of an existing ABHA holder by their 14-digit ABHA number</td><td>Reception → Verify tab</td></tr>
+      <tr><td>ABHA Verify — Aadhaar</td><td>Verify using Aadhaar OTP</td><td>Reception → Verify tab</td></tr>
+      <tr><td>ABHA Verify — Mobile</td><td>Verify using mobile OTP</td><td>Reception → Verify tab</td></tr>
+      <tr><td>ABHA Verify — ABHA Address</td><td>Verify using @abdm address (e.g. name@abdm)</td><td>Reception → Verify tab</td></tr>
+      <tr><td>Scan &amp; Share QR</td><td>Patient scans a QR code in their ABHA app — profile auto-fills in 2 seconds via real-time push</td><td>Reception → Scan &amp; Share</td></tr>
+    </table>
+
+    <div class="note"><strong>Sandbox vs Production:</strong> The system is currently operating in ABDM Sandbox mode. ABHA addresses end in <code>@sbx</code>. In production after M1 approval, real ABHA addresses (<code>@abdm</code> or <code>@ayurxpert</code>) will be used.</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       QUICK REFERENCE
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="quick-ref">
+    <div class="section-title">Quick Reference</div>
+
+    <div class="subsection">
+      <div class="subsection-title">All Pages &amp; Who Can Access Them</div>
+      <table class="feature-table">
+        <tr><th>Page</th><th>Who Can Access</th></tr>
+        <tr><td>login.html</td><td>Everyone (no login required)</td></tr>
+        <tr><td>register.html</td><td>Everyone (creates new org)</td></tr>
+        <tr><td>signup.html</td><td>Everyone (joins existing org)</td></tr>
+        <tr><td>admin.html</td><td>All roles (role-filtered content)</td></tr>
+        <tr><td>reception.html</td><td>receptionist, nurse, dept_admin, super_admin</td></tr>
+        <tr><td>doctor.html</td><td>doctor, nurse, dept_admin, super_admin</td></tr>
+        <tr><td>dispensaryPOS.html</td><td>pharmacist, dept_admin, super_admin</td></tr>
+        <tr><td>inventory.html</td><td>pharmacist, dept_admin, super_admin</td></tr>
+        <tr><td>purchase.html</td><td>pharmacist, accountant, dept_admin, super_admin</td></tr>
+        <tr><td>purchase-order.html</td><td>pharmacist, accountant, dept_admin, super_admin</td></tr>
+        <tr><td>fee-admin.html</td><td>accountant, dept_admin, super_admin</td></tr>
+        <tr><td>opd-admin.html</td><td>dept_admin, super_admin</td></tr>
+        <tr><td>reports.html</td><td>accountant, dept_admin, super_admin</td></tr>
+        <tr><td>bed-admin.html</td><td>dept_admin, super_admin</td></tr>
+        <tr><td>ipd.html</td><td>doctor, receptionist, nurse, dept_admin, super_admin</td></tr>
+        <tr><td>therapist.html</td><td>therapist, doctor, nurse, dept_admin, super_admin</td></tr>
+      </table>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Common Issues &amp; Solutions</div>
+      <table class="feature-table">
+        <tr><th>Problem</th><th>Solution</th></tr>
+        <tr><td>Page shows "Not authorised"</td><td>Your role doesn't have access. Ask super_admin to check your role assignment.</td></tr>
+        <tr><td>OPD dropdown empty at Reception</td><td>No doctors marked "Active Today" in opd-admin.html, or no active OPDs.</td></tr>
+        <tr><td>Bill fees not showing</td><td>Fee structures not yet active. Go to fee-admin.html and ensure fees are in "active" status.</td></tr>
+        <tr><td>Medicines not in dispensary queue</td><td>Doctor hasn't clicked "Send to Dispensary" in doctor.html. Or prescription status is already "dispensed".</td></tr>
+        <tr><td>Bed picker empty in IPD</td><td>No vacant beds in the selected department. Check bed-admin.html → Bed Matrix.</td></tr>
+        <tr><td>ABHA OTP not received</td><td>ABDM sandbox rate limit (3 OTPs per 15 min). Wait 15 minutes and retry.</td></tr>
+        <tr><td>Session data not saving</td><td>Logged out due to inactivity. Log in again — data from the current form will need to be re-entered.</td></tr>
+        <tr><td>Always open via Live Server</td><td>Never open HTML files directly (file://). Always use http://127.0.0.1:5500/. Use Ctrl+Shift+R to hard-refresh after updates.</td></tr>
+      </table>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Key Keyboard / Navigation Tips</div>
+      <table class="feature-table">
+        <tr><td>Ctrl + Shift + R</td><td>Hard refresh (clears service worker cache after updates)</td></tr>
+        <tr><td>Phone search in Reception</td><td>Type at least 3 digits — results appear automatically after 350ms</td></tr>
+        <tr><td>Print prescription</td><td>Doctor.html → Prescription tab → "Print". Opens printPrescription.html in a new tab.</td></tr>
+        <tr><td>Print dispensary invoice</td><td>Dispensary → after dispensing → "Print Invoice". Opens printInvoice.html.</td></tr>
+        <tr><td>Navbar — Tenant Code</td><td>Visible in the navbar subtitle on every page (for staff onboarding reference)</td></tr>
+      </table>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Support</div>
+      <p>For technical support: <strong>support@ayurxpert.com</strong><br/>
+      For ABDM / ABHA queries: <strong>abdm@ayurxpert.com</strong><br/>
+      Privacy inquiries: <strong>privacy@ayurxpert.com</strong></p>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// Highlight active nav link on scroll
+const links = document.querySelectorAll('.nav-link');
+const sections = document.querySelectorAll('.section');
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('active'));
+      const active = document.querySelector(`.nav-link[href="#${e.target.id}"]`);
+      if (active) active.classList.add('active');
+    }
+  });
+}, { rootMargin: '-20% 0px -60% 0px' });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

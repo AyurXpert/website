@@ -197,6 +197,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .tag-add-btn:disabled{opacity:.4;cursor:not-allowed}
 .tag-count{font-size:10px;color:var(--text-muted);margin-top:4px}
 
+/* NAMC autocomplete suggestions */
+.namc-suggestions{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid var(--green-mid);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.10);z-index:50;display:none;max-height:200px;overflow-y:auto}
+.namc-sugg-item{padding:7px 10px;cursor:pointer;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}
+.namc-sugg-item:last-child{border-bottom:none}
+.namc-sugg-item:hover{background:var(--cream)}
+.namc-sugg-code{font-size:10px;font-weight:600;color:var(--green-mid);background:var(--green-light);border-radius:4px;padding:1px 5px;flex-shrink:0}
+.namc-sugg-term{font-size:12px;color:var(--text-dark)}
+
 /* Image upload */
 .img-upload-area{border:2px dashed var(--border);border-radius:var(--radius);padding:12px;text-align:center;cursor:pointer;transition:border-color .15s;position:relative;background:var(--cream)}
 .img-upload-area:hover{border-color:var(--green-mid)}
@@ -442,13 +450,31 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div class="field">
       <div class="tag-input-wrap" id="tag-wrap">
         <div class="tags-area" id="tags-area"></div>
-        <div class="tag-input-row">
-          <input type="text" id="tag-input" placeholder="Type indication, press Enter…" maxlength="50"/>
+        <div class="tag-input-row" style="position:relative">
+          <input type="text" id="tag-input" placeholder="Search NAMC disease / indication…" maxlength="80" autocomplete="off"/>
           <button class="tag-add-btn" id="tag-add-btn" disabled>Add</button>
+          <div id="namc-suggestions" class="namc-suggestions"></div>
         </div>
       </div>
       <div class="tag-count" id="tag-count">0 / 10 indications</div>
-      <div class="field-hint">e.g. Fever, Arthritis, Stress, Constipation, Diabetes, Skin disorders</div>
+      <div class="field-hint">Search by disease name (e.g. Constipation, Jwara, Sandhivata) — select from NAMC dropdown or press Enter for free text</div>
+    </div>
+
+    <!-- Classical Reference -->
+    <div class="section-divider">Classical Reference <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px">(shown as hover tooltip in doctor prescription)</span></div>
+    <div class="field-row">
+      <div class="field">
+        <label>Anupana (Vehicle)</label>
+        <input id="f-anupana" type="text" placeholder="e.g. Warm water, Honey, Warm milk"/>
+      </div>
+      <div class="field">
+        <label>Standard Dosage</label>
+        <input id="f-dosage" type="text" placeholder="e.g. 3–6g twice daily before meals"/>
+      </div>
+    </div>
+    <div class="field">
+      <label>Classical Text Reference</label>
+      <input id="f-classical-ref" type="text" placeholder="e.g. Sharangdhara Samhita, Madhyama Khanda"/>
     </div>
 
     <!-- Pricing -->
@@ -620,6 +646,7 @@ const tenantId = getCurrentTenantId();
 let _items  = [];
 let _adjType = 'add';
 let _tags   = [];
+let _namcLabels = {};
 let _imgUploading = false;
 const TODAY = new Date().toISOString().split('T')[0];
 const IN_90_DAYS = new Date(Date.now() + 90*86400000).toISOString().split('T')[0];
@@ -676,7 +703,7 @@ async function loadInventory() {
     .from('inventory')
     .select(`id, stock_quantity, mrp, cost_price, gst_percent, reorder_level,
              profit_percent, max_stock, expiry_date, inward_date, supplier_name, batch_number,
-             medicine:medicines(id, name, category, is_active, indications, barcode, med_id, brand, unit, image_url)`)
+             medicine:medicines(id, name, category, is_active, indications, barcode, med_id, brand, unit, image_url, anupana, classical_reference, dosage_text)`)
     .eq('tenant_id', tenantId);
 
   if (error) { console.error('loadInventory error:', error); _alert('error', 'Failed to load inventory: ' + error.message); return; }
@@ -876,11 +903,80 @@ const tagAddBtn = document.getElementById('tag-add-btn');
 const tagsArea  = document.getElementById('tags-area');
 const tagCount  = document.getElementById('tag-count');
 
+const namcSugg = document.getElementById('namc-suggestions');
+let _namcTimer = null;
+
 tagInput.addEventListener('input', () => {
-  tagAddBtn.disabled = !tagInput.value.trim() || _tags.length >= 10;
+  const q = tagInput.value.trim();
+  tagAddBtn.disabled = !q || _tags.length >= 10;
+  clearTimeout(_namcTimer);
+  if (q.length < 2) { hideSugg(); return; }
+  _namcTimer = setTimeout(() => searchNamc(q), 280);
 });
-tagInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } });
-tagAddBtn.addEventListener('click', addTag);
+tagInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); addTag(); hideSugg(); }
+  if (e.key === 'Escape') hideSugg();
+});
+tagAddBtn.addEventListener('click', () => { addTag(); hideSugg(); });
+
+// Common Indian-English → IAST transliteration fixes
+function _namcNorm(q) {
+  return q
+    .replace(/jw/gi,  'jv')   // jwara → jvara
+    .replace(/shw/gi, 'sv')   // shwasa → svasa
+    .replace(/sh/gi,  'S')    // shiro → Siro
+    .replace(/th/gi,  'T')    // tritha → triTa
+    .replace(/aa/gi,  'A')    // kapha→ same, but raasa → rAsa
+    .replace(/ee/gi,  'I')    // arshee → arSI
+    .replace(/oo/gi,  'U');   // dosha → same
+}
+
+async function searchNamc(q) {
+  const norm = _namcNorm(q);
+  // Build OR across both original and transliteration-normalised query
+  const terms = [...new Set([q, norm])];
+  const orParts = terms.flatMap(t => [
+    `namc_term.ilike.%${t}%`,
+    `name_english.ilike.%${t}%`,
+    `name_english_index.ilike.%${t}%`
+  ]).join(',');
+
+  const { data, error } = await supabase
+    .from('namaste_codes')
+    .select('namc_code, namc_term, name_english, name_english_index')
+    .or(orParts)
+    .limit(10);
+  if (error) { console.error('NAMC search error:', error); hideSugg(); return; }
+  if (!data?.length) { hideSugg(); return; }
+
+  namcSugg.innerHTML = data.map(r => {
+    const eng = (r.name_english_index || r.name_english || '').split('/')[0].split('(')[0].split('⇒')[0].trim();
+    const label = eng || r.namc_term;
+    return `<div class="namc-sugg-item" data-code="${r.namc_code}" data-label="${label.replace(/"/g,'&quot;')}">
+      <span class="namc-sugg-code">${r.namc_code}</span>
+      <span class="namc-sugg-term">${label} <span style="color:var(--text-muted);font-size:10px;font-style:italic">${r.namc_term}</span></span>
+    </div>`;
+  }).join('');
+  namcSugg.style.display = 'block';
+}
+
+namcSugg.addEventListener('mousedown', e => {
+  const item = e.target.closest('.namc-sugg-item');
+  if (!item) return;
+  e.preventDefault();
+  const code = item.dataset.code;
+  const label = item.dataset.label;
+  if (_tags.length >= 10 || _tags.includes(code)) { tagInput.value = ''; hideSugg(); return; }
+  _tags.push(code);
+  _namcLabels[code] = label;
+  tagInput.value = '';
+  tagAddBtn.disabled = true;
+  hideSugg();
+  renderTags();
+});
+
+function hideSugg() { namcSugg.style.display = 'none'; namcSugg.innerHTML = ''; }
+document.addEventListener('click', e => { if (!e.target.closest('.tag-input-wrap')) hideSugg(); });
 
 function addTag() {
   const val = tagInput.value.trim();
@@ -897,11 +993,12 @@ function removeTag(idx) {
   tagAddBtn.disabled = !tagInput.value.trim() || _tags.length >= 10;
 }
 function renderTags() {
-  tagsArea.innerHTML = _tags.map((t, i) =>
-    `<span class="tag-chip">${t}<button onclick="window._removeTag(${i})" title="Remove">×</button></span>`
-  ).join('');
+  tagsArea.innerHTML = _tags.map((t, i) => {
+    const label = _namcLabels[t] || t;
+    return `<span class="tag-chip" title="${t}">${label}<button onclick="window._removeTag(${i})" title="Remove">×</button></span>`;
+  }).join('');
   tagCount.textContent = `${_tags.length} / 10 indications`;
-  tagInput.placeholder = _tags.length >= 10 ? 'Maximum 10 reached' : 'Type indication, press Enter…';
+  tagInput.placeholder = _tags.length >= 10 ? 'Maximum 10 reached' : 'Search NAMC disease / indication…';
   tagInput.disabled = _tags.length >= 10;
 }
 window._removeTag = removeTag;
@@ -969,6 +1066,9 @@ function openPanel(invId) {
     document.getElementById('f-batch').value      = item.batch_number || '';
     document.getElementById('f-supplier').value   = item.supplier_name || '';
     _tags = Array.isArray(item.medicine.indications) ? [...item.medicine.indications] : [];
+    document.getElementById('f-anupana').value       = item.medicine.anupana || '';
+    document.getElementById('f-classical-ref').value = item.medicine.classical_reference || '';
+    document.getElementById('f-dosage').value        = item.medicine.dosage_text || '';
     if (item.medicine.image_url) {
       document.getElementById('edit-image-url').value = item.medicine.image_url;
       document.getElementById('img-preview').src = item.medicine.image_url;
@@ -978,7 +1078,7 @@ function openPanel(invId) {
   } else {
     document.getElementById('edit-inv-id').value = '';
     document.getElementById('edit-med-id').value = '';
-    ['f-name','f-brand','f-unit','f-barcode','f-mrp','f-profit','f-supplier','f-batch'].forEach(id =>
+    ['f-name','f-brand','f-unit','f-barcode','f-mrp','f-profit','f-supplier','f-batch','f-anupana','f-classical-ref','f-dosage'].forEach(id =>
       document.getElementById(id).value = '');
     document.getElementById('f-stock').value  = '';
     document.getElementById('f-cat').value    = '';
@@ -1014,9 +1114,12 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
   if (mrp <= 0) { _alert('error', 'MRP must be greater than 0.'); return; }
   if (_imgUploading) { _alert('warning', 'Image upload in progress — please wait.'); return; }
 
-  const invId    = document.getElementById('edit-inv-id').value;
-  const medId    = document.getElementById('edit-med-id').value;
-  const cat      = document.getElementById('f-cat').value || null;
+  const invId       = document.getElementById('edit-inv-id').value;
+  const medId       = document.getElementById('edit-med-id').value;
+  const cat         = document.getElementById('f-cat').value || null;
+  const anupana     = document.getElementById('f-anupana').value.trim() || null;
+  const classicalRef= document.getElementById('f-classical-ref').value.trim() || null;
+  const dosageText  = document.getElementById('f-dosage').value.trim() || null;
   const brand    = document.getElementById('f-brand').value.trim() || null;
   const unit     = document.getElementById('f-unit').value.trim() || null;
   const barcode  = document.getElementById('f-barcode').value.trim() || null;
@@ -1040,7 +1143,8 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
     if (invId && medId) {
       const { error: me } = await supabase.from('medicines')
         .update({ name, category: cat, brand, unit, is_active: active,
-                  indications: _tags, barcode, image_url: imageUrl })
+                  indications: _tags, barcode, image_url: imageUrl,
+                  anupana, classical_reference: classicalRef, dosage_text: dosageText })
         .eq('id', medId);
       if (me) throw me;
       const { error: ie } = await supabase.from('inventory')
@@ -1055,7 +1159,8 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
       if (exists) { _alert('error', `"${name}" already exists.`); btn.disabled = false; btn.textContent = 'Save Medicine'; return; }
       const { data: med, error: me } = await supabase.from('medicines')
         .insert({ name, category: cat, brand, unit, is_active: active,
-                  indications: _tags, barcode, image_url: imageUrl })
+                  indications: _tags, barcode, image_url: imageUrl,
+                  anupana, classical_reference: classicalRef, dosage_text: dosageText })
         .select('id').single();
       if (me) throw me;
       const { error: ie } = await supabase.from('inventory').insert({

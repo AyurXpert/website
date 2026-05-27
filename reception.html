@@ -522,6 +522,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <div class="pt-grid">
               <div class="pt-item">UHID: <span id="pt-uhid">—</span></div>
               <div class="pt-item">Visits: <span id="pt-visits">—</span></div>
+              <div class="pt-item">Age / Gender: <span id="pt-demog">—</span></div>
               <div class="pt-item">Last Visit: <span id="pt-lastvisit">—</span></div>
               <div class="pt-item pt-balance">Balance: <span id="pt-balance">₹0</span></div>
             </div>
@@ -743,6 +744,39 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="field">
         <label>Patient Name <span class="req">*</span></label>
         <input id="name" type="text" placeholder="Full name" autocomplete="off"/>
+      </div>
+
+      <!-- Demographics -->
+      <div class="field-row">
+        <div class="field">
+          <label>Age <span class="req">*</span></label>
+          <input id="f-age" type="number" min="0" max="120" placeholder="Years"/>
+        </div>
+        <div class="field">
+          <label>Gender <span class="req">*</span></label>
+          <select id="f-gender">
+            <option value="">— Select —</option>
+            <option value="M">Male</option>
+            <option value="F">Female</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Date of Birth <span style="font-size:10px;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0">auto-fills age</span></label>
+          <input id="f-dob" type="date"/>
+        </div>
+        <div class="field">
+          <label>Blood Group</label>
+          <select id="f-blood">
+            <option value="">— Unknown —</option>
+            <option>A+</option><option>A-</option>
+            <option>B+</option><option>B-</option>
+            <option>AB+</option><option>AB-</option>
+            <option>O+</option><option>O-</option>
+          </select>
+        </div>
       </div>
 
       <!-- Complaint -->
@@ -1206,6 +1240,11 @@ function _updateTotal() {
   document.getElementById(id).addEventListener('input', _updateTotal)
 );
 
+// ── DOB → Age auto-calculator ─────────────────────
+document.getElementById('f-dob').addEventListener('change', function() {
+  _calcAgeFromDob(this.value);
+});
+
 // ── Phone search ──────────────────────────────────
 let _phoneTimer = null;
 let _newFamilyMember = false;
@@ -1220,7 +1259,7 @@ async function _searchPhone(phone) {
   _newFamilyMember = false;
   const { data } = await supabase
     .from('patients')
-    .select('id, name, abha_number')
+    .select('id, name, abha_number, age, gender, date_of_birth, blood_group')
     .eq('tenant_id', tenantId)
     .eq('phone', phone)
     .limit(6);
@@ -1245,6 +1284,12 @@ async function _selectPatient(patient) {
   document.getElementById('name').value = patient.name;
   document.getElementById('patient-picker').classList.remove('show');
 
+  // Populate demographics fields from saved record
+  document.getElementById('f-age').value    = patient.age    || '';
+  document.getElementById('f-gender').value = patient.gender || '';
+  document.getElementById('f-dob').value    = patient.date_of_birth || '';
+  document.getElementById('f-blood').value  = patient.blood_group   || '';
+
   const [{ count }, { data: lastVisitRows }, { data: pendingBills }] = await Promise.all([
     supabase.from('visits').select('id', { count: 'exact', head: true }).eq('patient_id', patient.id),
     supabase.from('visits').select('created_at').eq('patient_id', patient.id).order('created_at', { ascending: false }).limit(1),
@@ -1261,6 +1306,9 @@ async function _selectPatient(patient) {
   document.getElementById('pt-visits').textContent = count || 0;
   document.getElementById('pt-lastvisit').textContent = lastVisit;
   document.getElementById('pt-balance').textContent = balance > 0 ? `₹${balance.toLocaleString('en-IN')}` : '₹0';
+  const gLabel = { M: 'Male', F: 'Female', other: 'Other' }[patient.gender] || '—';
+  document.getElementById('pt-demog').textContent =
+    patient.age ? `${patient.age} yrs · ${gLabel}` : (patient.gender ? gLabel : '—');
   document.getElementById('patient-tag').classList.add('show');
 
   if (patient.abha_number) {
@@ -1320,6 +1368,10 @@ function _clearTag() {
   document.getElementById('patient-tag').classList.remove('show');
   document.getElementById('patient-picker').classList.remove('show');
   document.getElementById('abha').value = '';
+  document.getElementById('f-age').value    = '';
+  document.getElementById('f-gender').value = '';
+  document.getElementById('f-dob').value    = '';
+  document.getElementById('f-blood').value  = '';
   _clearAbhaNote();
 }
 
@@ -1337,6 +1389,12 @@ async function handleSubmit() {
   const visitCat    = document.getElementById('visit-category').value;
   const opdId       = document.getElementById('opd').value;
   const doctorId    = document.getElementById('doctor').value;
+  const demographics = {
+    age:           parseInt(document.getElementById('f-age').value)    || null,
+    gender:        document.getElementById('f-gender').value           || null,
+    date_of_birth: document.getElementById('f-dob').value             || null,
+    blood_group:   document.getElementById('f-blood').value           || null
+  };
   const isOnReq     = onRequestChk.checked;
   const regFee      = parseFloat(document.getElementById('reg-fee').value)  || 0;
   const consFee     = parseFloat(document.getElementById('fee').value)      || 0;
@@ -1358,14 +1416,25 @@ async function handleSubmit() {
     if (!patient) {
       if (_newFamilyMember) {
         // Receptionist explicitly chose "new family member" — always create fresh
-        patient = await createPatient(name, phone, tenantId, abha);
+        patient = await createPatient(name, phone, tenantId, abha, demographics);
       } else {
         const { data: found } = await supabase
-          .from('patients').select('id, name')
+          .from('patients').select('id, name, age, gender, date_of_birth, blood_group')
           .eq('phone', phone).eq('tenant_id', tenantId).limit(1);
         patient = (found && found.length > 0)
           ? found[0]
-          : await createPatient(name, phone, tenantId, abha);
+          : await createPatient(name, phone, tenantId, abha, demographics);
+      }
+
+      // Backfill demographics on existing patient if fields were blank
+      if (patient && (demographics.age || demographics.gender || demographics.date_of_birth || demographics.blood_group)) {
+        const upd = {};
+        if (demographics.age           && !patient.age)           upd.age           = demographics.age;
+        if (demographics.gender        && !patient.gender)        upd.gender        = demographics.gender;
+        if (demographics.date_of_birth && !patient.date_of_birth) upd.date_of_birth = demographics.date_of_birth;
+        if (demographics.blood_group   && !patient.blood_group)   upd.blood_group   = demographics.blood_group;
+        if (Object.keys(upd).length > 0)
+          await supabase.from('patients').update(upd).eq('id', patient.id);
       }
     }
 
@@ -1662,8 +1731,29 @@ function _showAbhaProfile(prof, abhaNumber, tToken) {
   if (tToken) _lastTToken = tToken;
   document.getElementById('btn-download-abha-card').style.display = _lastTToken ? '' : 'none';
 
+  // Auto-fill demographics from ABHA profile
+  if (prof?.gender) document.getElementById('f-gender').value = prof.gender; // M/F/O
+  const rawDob = prof?.dob ?? prof?.dateOfBirth;
+  if (rawDob) {
+    const parts = String(rawDob).split('-');
+    // Convert DD-MM-YYYY → YYYY-MM-DD for date input
+    const iso = parts[0].length === 4 ? rawDob : `${parts[2]}-${parts[1]}-${parts[0]}`;
+    document.getElementById('f-dob').value = iso;
+    _calcAgeFromDob(iso);
+  }
+
   // Run demographic match check for returning patients
   _checkDemographicMatch(prof);
+}
+
+function _calcAgeFromDob(isoDate) {
+  if (!isoDate) return;
+  const dob   = new Date(isoDate);
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  if (today.getMonth() < dob.getMonth() ||
+     (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate())) age--;
+  if (age >= 0) document.getElementById('f-age').value = age;
 }
 
 // ── Download ABHA Card ────────────────────────────
@@ -2121,11 +2211,11 @@ document.getElementById('btn-addr-search').addEventListener('click', async () =>
   _setVerifyMsg('info', 'Searching ABHA address…');
   try {
     const searchRes = await searchAbhaAddress(addr);
-    _addrTxnId = searchRes.transactionId ?? searchRes.txnId;
-    if (!_addrTxnId) throw new Error('ABHA address not found.');
-    // Init OTP
-    const initRes  = await initAbhaAddressLogin(_addrTxnId);
-    _addrTxnId = initRes.transactionId ?? _addrTxnId;
+    if (!searchRes.abhaAddress && !searchRes.status) throw new Error('ABHA address not found in ABDM records.');
+    // Search only confirms address exists — send OTP using the ABHA address itself as loginId
+    const initRes = await initAbhaAddressLogin(addr);
+    _addrTxnId = initRes.txnId ?? initRes.transactionId;
+    if (!_addrTxnId) throw new Error('Could not send OTP. Please try again.');
     document.getElementById('addr-step-1').style.display = 'none';
     document.getElementById('addr-step-2').style.display = '';
     _setVerifyMsg('info', `✓ OTP sent to registered mobile for ${addr}.`);

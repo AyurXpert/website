@@ -24,10 +24,15 @@ function _getLinks(role) {
     { href: 'admin.html',        label: 'Dashboard',  roles: ['super_admin','dept_admin','doctor','receptionist','pharmacist','nurse','lab_tech','accountant'] },
     { href: 'reception.html',    label: 'Reception',  roles: ['super_admin','dept_admin','receptionist','nurse'] },
     { href: 'doctor.html',       label: 'Queue',      roles: ['super_admin','dept_admin','doctor','nurse'] },
+    { href: 'screening.html',    label: 'Screening',  roles: ['super_admin','dept_admin','doctor','nurse'] },
     { href: 'dispensaryPOS.html',  label: 'Dispensary', roles: ['super_admin','dept_admin','pharmacist'] },
     { href: 'inventory.html',    label: 'Inventory',  roles: ['super_admin','dept_admin','pharmacist'] },
     { href: 'purchase.html',     label: 'Purchase',   roles: ['super_admin','dept_admin','pharmacist','accountant'] },
     { href: 'reports.html',      label: 'Reports',    roles: ['super_admin','dept_admin','accountant'] },
+    { href: 'ipd.html',          label: 'IPD',        roles: ['super_admin','dept_admin','doctor','receptionist','nurse'] },
+    { href: 'therapist.html',    label: 'Therapy',    roles: ['super_admin','dept_admin','doctor','therapist','nurse'] },
+    { href: 'bed-admin.html',       label: 'IPD Setup',   roles: ['super_admin','dept_admin'] },
+    { href: 'ncism-compliance.html', label: 'Compliance',  roles: ['super_admin','dept_admin'] },
   ];
   return all.filter(l => l.roles.includes(role));
 }

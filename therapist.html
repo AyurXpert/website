@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Therapy Sessions — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --blue:#1a4080;--blue-light:#e3f0ff;
+  --cream:#faf8f3;--white:#ffffff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+  --success-bg:#e8f5ee;--success-border:#b2d8bf;--success-text:#1a4a2e;
+  --error-bg:#fdecea;--error-border:#f5c6c6;--error-text:#8b1a1a;
+  --red:#c0392b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1200px;margin:0 auto;padding:28px 20px 80px}
+
+/* ── Header ── */
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+
+/* ── Buttons ── */
+.btn{
+  height:40px;padding:0 18px;border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;
+  cursor:pointer;border:none;transition:background .15s,color .15s;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}
+.btn-secondary:hover{background:var(--green-light)}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── Alert ── */
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--success-bg);color:var(--success-text);border:1px solid var(--success-border)}
+.alert.error{background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border)}
+
+/* ── Stats ── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+.stat-value{font-size:28px;font-weight:700;color:var(--green-deep);line-height:1}
+.stat-label{font-size:11px;color:var(--text-muted);margin-top:5px;text-transform:uppercase;letter-spacing:.4px}
+.stat-card.blue .stat-value{color:var(--blue)}
+.stat-card.gold .stat-value{color:var(--gold)}
+
+/* ── Date navigator ── */
+.date-nav{
+  display:flex;align-items:center;gap:10px;
+  background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);
+  padding:10px 14px;margin-bottom:16px;flex-wrap:wrap;
+}
+.date-nav-btn{
+  width:32px;height:32px;border:1.5px solid var(--border);border-radius:6px;
+  background:var(--white);cursor:pointer;font-size:16px;
+  display:inline-flex;align-items:center;justify-content:center;
+  transition:background .15s;
+}
+.date-nav-btn:hover{background:var(--cream);border-color:var(--green-mid)}
+.date-display{font-size:15px;font-weight:600;color:var(--text-dark);min-width:180px;text-align:center}
+.date-input{
+  height:34px;padding:0 10px;border:1.5px solid var(--border);border-radius:6px;
+  font-family:'DM Sans',sans-serif;font-size:13px;background:var(--cream);outline:none;
+}
+.date-input:focus{border-color:var(--green-mid)}
+.today-badge{
+  padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;
+  background:var(--green-light);color:var(--green-deep);cursor:pointer;
+  border:1px solid var(--success-border);
+}
+.filter-spacer{flex:1}
+.filter-select{
+  height:34px;padding:0 10px;border:1.5px solid var(--border);border-radius:6px;
+  font-family:'DM Sans',sans-serif;font-size:13px;background:var(--cream);outline:none;
+}
+.filter-select:focus{border-color:var(--green-mid)}
+
+/* ── Sessions table ── */
+.sessions-table{width:100%;border-collapse:collapse;background:var(--white);border-radius:var(--radius);overflow:hidden;border:1.5px solid var(--border)}
+.sessions-table th{
+  padding:10px 14px;text-align:left;font-size:11px;font-weight:600;
+  color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;
+  background:var(--cream);border-bottom:1.5px solid var(--border);
+}
+.sessions-table td{padding:12px 14px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle}
+.sessions-table tr:last-child td{border-bottom:none}
+.sessions-table tr:hover td{background:#f5faf7}
+.pt-name{font-weight:600;color:var(--text-dark)}
+.pt-meta{font-size:11px;color:var(--text-muted);margin-top:2px}
+.time-cell{font-size:14px;font-weight:600;color:var(--text-dark);white-space:nowrap}
+.time-end{font-size:11px;color:var(--text-muted);margin-top:2px}
+.therapy-name{font-weight:600;color:var(--text-dark)}
+.phase-badge{
+  display:inline-block;padding:2px 7px;border-radius:8px;font-size:10px;font-weight:600;margin-top:3px;
+}
+.phase-purvakarma{background:#fff8e8;color:#7a5a00;border:1px solid #e0c060}
+.phase-pradhanakarma{background:var(--blue-light);color:var(--blue);border:1px solid #a8c8f0}
+.phase-paschatkarma{background:var(--success-bg);color:var(--success-text);border:1px solid var(--success-border)}
+.status-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.status-scheduled{background:#f0f0f0;color:#555}
+.status-in_progress{background:var(--blue-light);color:var(--blue);border:1px solid #a8c8f0}
+.status-completed{background:var(--success-bg);color:var(--success-text);border:1px solid var(--success-border)}
+.status-skipped{background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border)}
+.clearance-dot{
+  display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:4px;
+  background:#ccc;flex-shrink:0;
+}
+.clearance-dot.ok{background:var(--green-mid)}
+.table-empty{text-align:center;padding:48px 20px;color:var(--text-muted);font-size:13px}
+.row-actions{display:flex;gap:5px;justify-content:flex-end}
+.icon-btn{
+  width:30px;height:30px;border:1.5px solid var(--border);border-radius:5px;
+  background:var(--white);cursor:pointer;font-size:13px;display:inline-flex;align-items:center;justify-content:center;
+  transition:background .15s,border-color .15s;
+}
+.icon-btn:hover{background:var(--cream);border-color:var(--green-mid)}
+.icon-btn.start{color:var(--blue)}
+.icon-btn.start:hover{background:var(--blue-light);border-color:var(--blue)}
+.icon-btn.complete{color:var(--green-mid)}
+.icon-btn.complete:hover{background:var(--success-bg);border-color:var(--green-mid)}
+.icon-btn.skip{color:var(--red)}
+.icon-btn.skip:hover{background:var(--error-bg);border-color:var(--error-border)}
+
+/* ── Drawer ── */
+.drawer-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:200;
+  opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.drawer-overlay.open{opacity:1;pointer-events:all}
+.drawer{
+  position:fixed;right:0;top:0;bottom:0;width:480px;max-width:100vw;
+  background:var(--white);box-shadow:-4px 0 24px rgba(0,0,0,.12);
+  display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1);z-index:201;
+}
+.drawer-overlay.open .drawer{transform:translateX(0)}
+.drawer-header{
+  padding:18px 20px 14px;border-bottom:1.5px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;flex-shrink:0;
+}
+.drawer-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--green-deep)}
+.drawer-close{width:32px;height:32px;border:none;background:none;cursor:pointer;font-size:20px;color:var(--text-muted);border-radius:6px}
+.drawer-close:hover{background:var(--cream)}
+.drawer-body{flex:1;overflow-y:auto;padding:18px 20px}
+.drawer-footer{
+  padding:14px 20px;border-top:1.5px solid var(--border);
+  display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;background:var(--cream);
+}
+
+/* ── Form fields ── */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+.field input,.field select,.field textarea{
+  width:100%;height:40px;padding:0 12px;
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-dark);
+  background:var(--white);outline:none;transition:border-color .15s;
+}
+.field textarea{height:80px;padding:8px 12px;resize:none;line-height:1.5}
+.field select{
+  appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a9485'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;
+}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--green-mid)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.req{color:var(--red)}
+.field-note{font-size:11px;color:var(--text-muted);margin-top:4px}
+input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);vertical-align:middle;margin-right:6px}
+.check-label{font-size:13px;color:var(--text-dark);cursor:pointer;display:flex;align-items:center;gap:6px}
+
+/* ── Detail card ── */
+.detail-card{background:var(--cream);border:1.5px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px;font-size:12px}
+.detail-row{display:flex;justify-content:space-between;padding:3px 0;color:var(--text-mid)}
+.detail-row strong{color:var(--text-dark)}
+
+/* ── Section divider ── */
+.section-label{font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin:18px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+
+@media(max-width:700px){
+  .stats-row{grid-template-columns:1fr 1fr}
+  .drawer{width:100vw}
+  .sessions-table th:nth-child(4),.sessions-table td:nth-child(4){display:none}
+}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<!-- ══════════════════════════════════════════════════════
+     SCHEDULE DRAWER
+     ══════════════════════════════════════════════════════ -->
+<div class="drawer-overlay" id="sched-overlay">
+  <div class="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title">Schedule Session</span>
+      <button class="drawer-close" onclick="closeSchedDrawer()">&#x2715;</button>
+    </div>
+    <div class="drawer-body">
+
+      <!-- Patient source -->
+      <div class="field">
+        <label>Patient Source <span class="req">*</span></label>
+        <select id="sched-source" onchange="onSourceChange()">
+          <option value="ipd">IPD Admission (Current Inpatient)</option>
+          <option value="opd">OPD Visit (Outpatient)</option>
+        </select>
+      </div>
+
+      <div id="ipd-patient-field">
+        <div class="field">
+          <label>IPD Patient <span class="req">*</span></label>
+          <select id="sched-admission">
+            <option value="">— Select admitted patient —</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="opd-patient-field" style="display:none">
+        <div class="field">
+          <label>OPD Patient <span class="req">*</span></label>
+          <select id="sched-opd-patient">
+            <option value="">— Select patient —</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="section-label">Therapy Details</div>
+
+      <div class="field">
+        <label>Therapy Phase <span class="req">*</span></label>
+        <select id="sched-phase">
+          <option value="purvakarma">Purvakarma (Preparatory)</option>
+          <option value="pradhanakarma">Pradhanakarma (Main Treatment)</option>
+          <option value="paschatkarma">Paschatkarma (Post-Treatment)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Therapy Name <span class="req">*</span></label>
+        <input id="sched-therapy" type="text" list="therapy-list" placeholder="e.g. Abhyanga, Shirodhara…"/>
+        <datalist id="therapy-list">
+          <option value="Abhyanga (Oil Massage)"/>
+          <option value="Swedana (Steam Therapy)"/>
+          <option value="Shirodhara"/>
+          <option value="Pizhichil"/>
+          <option value="Navarakizhi"/>
+          <option value="Pinda Sweda"/>
+          <option value="Elakizhi (Podikizhi)"/>
+          <option value="Vamana (Emesis)"/>
+          <option value="Virechana (Purgation)"/>
+          <option value="Basti – Anuvasana (Oil Enema)"/>
+          <option value="Basti – Niruha (Decoction Enema)"/>
+          <option value="Nasya (Nasal Administration)"/>
+          <option value="Raktamokshana"/>
+          <option value="Akshi Tarpana (Eye Treatment)"/>
+          <option value="Karna Purana (Ear Treatment)"/>
+          <option value="Udwartana (Powder Massage)"/>
+          <option value="Takradhara"/>
+          <option value="Kashyadhara"/>
+          <option value="Netra Dhara"/>
+          <option value="Greeva Basti"/>
+          <option value="Kati Basti"/>
+          <option value="Janu Basti"/>
+          <option value="Hrid Basti"/>
+        </datalist>
+      </div>
+
+      <div class="field">
+        <label>Department <span class="req">*</span></label>
+        <select id="sched-dept">
+          <option value="">— Select department —</option>
+        </select>
+      </div>
+
+      <div class="section-label">Assignment & Timing</div>
+
+      <div class="field">
+        <label>Therapist <span class="req">*</span></label>
+        <select id="sched-therapist">
+          <option value="">— Select therapist —</option>
+        </select>
+        <div class="field-note" id="therapist-note"></div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Date <span class="req">*</span></label>
+          <input id="sched-date" type="date"/>
+        </div>
+        <div class="field">
+          <label>Time</label>
+          <input id="sched-time" type="time"/>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="check-label">
+          <input type="checkbox" id="sched-clearance"/>
+          Doctor clearance given
+        </label>
+      </div>
+
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" onclick="closeSchedDrawer()">Cancel</button>
+      <button class="btn btn-primary" id="btn-sched-save" onclick="saveSession()">Schedule</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     COMPLETE SESSION DRAWER
+     ══════════════════════════════════════════════════════ -->
+<div class="drawer-overlay" id="complete-overlay">
+  <div class="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title" id="complete-title">Complete Session</span>
+      <button class="drawer-close" onclick="closeCompleteDrawer()">&#x2715;</button>
+    </div>
+    <div class="drawer-body">
+      <input type="hidden" id="comp-session-id"/>
+
+      <div class="detail-card" id="comp-detail-card"></div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Actual Start Time</label>
+          <input id="comp-start" type="time"/>
+        </div>
+        <div class="field">
+          <label>Actual End Time</label>
+          <input id="comp-end" type="time"/>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Therapist Notes</label>
+        <textarea id="comp-notes" placeholder="Patient response, observations, any adverse events…" style="height:100px"></textarea>
+      </div>
+
+      <div class="field">
+        <label class="check-label">
+          <input type="checkbox" id="comp-clearance"/>
+          Doctor clearance confirmed
+        </label>
+      </div>
+
+      <div id="skip-reason-field" style="display:none">
+        <div class="field">
+          <label>Reason for Skipping</label>
+          <input id="comp-skip-reason" type="text" placeholder="Patient refused, unwell, doctor order…"/>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" onclick="closeCompleteDrawer()">Cancel</button>
+      <button class="btn btn-primary" id="btn-complete-save" onclick="saveCompletion()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     MAIN PAGE
+     ══════════════════════════════════════════════════════ -->
+<div class="page-wrap">
+
+  <div class="page-header">
+    <div>
+      <div class="page-title">Panchakarma Therapy Sessions</div>
+      <div class="page-subtitle">Schedule, track, and complete therapy sessions</div>
+    </div>
+    <button class="btn btn-primary" onclick="openSchedDrawer()">+ Schedule Session</button>
+  </div>
+
+  <div class="alert" id="alert"></div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-total">—</div>
+      <div class="stat-label">Today's Sessions</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-scheduled">—</div>
+      <div class="stat-label">Scheduled</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-value" id="stat-inprogress">—</div>
+      <div class="stat-label">In Progress</div>
+    </div>
+    <div class="stat-card gold">
+      <div class="stat-value" id="stat-completed">—</div>
+      <div class="stat-label">Completed</div>
+    </div>
+  </div>
+
+  <!-- Date navigator + filters -->
+  <div class="date-nav">
+    <button class="date-nav-btn" onclick="shiftDate(-1)" title="Previous day">&#8249;</button>
+    <div class="date-display" id="date-display">—</div>
+    <button class="date-nav-btn" onclick="shiftDate(1)" title="Next day">&#8250;</button>
+    <input class="date-input" type="date" id="date-picker" onchange="onDatePick()"/>
+    <span class="today-badge" onclick="goToday()">Today</span>
+    <div class="filter-spacer"></div>
+    <select class="filter-select" id="filter-therapist" onchange="applyFilters()">
+      <option value="">All Therapists</option>
+    </select>
+    <select class="filter-select" id="filter-dept" onchange="applyFilters()">
+      <option value="">All Departments</option>
+    </select>
+    <select class="filter-select" id="filter-status" onchange="applyFilters()">
+      <option value="">All Statuses</option>
+      <option value="scheduled">Scheduled</option>
+      <option value="in_progress">In Progress</option>
+      <option value="completed">Completed</option>
+      <option value="skipped">Skipped</option>
+    </select>
+  </div>
+
+  <!-- Table -->
+  <table class="sessions-table" id="sessions-table">
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Patient</th>
+        <th>Therapy</th>
+        <th>Therapist</th>
+        <th>Dept</th>
+        <th>Status</th>
+        <th style="width:100px"></th>
+      </tr>
+    </thead>
+    <tbody id="sessions-tbody">
+      <tr><td colspan="7" class="table-empty">Loading…</td></tr>
+    </tbody>
+  </table>
+
+</div>
+
+<script type="module">
+import { requireAuth, getCurrentTenantId, getCurrentRole, getCurrentProfile } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+/*
+  SQL to run once in Supabase:
+
+  -- 1. Add therapist to profiles role check
+  ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
+  ALTER TABLE profiles ADD CONSTRAINT profiles_role_check
+    CHECK (role IN ('super_admin','dept_admin','doctor','receptionist','pharmacist',
+                    'nurse','lab_tech','accountant','therapist','student','public'));
+
+  -- 2. Enable RLS on pk_therapy_sessions
+  ALTER TABLE pk_therapy_sessions ENABLE ROW LEVEL SECURITY;
+  DROP POLICY IF EXISTS "tenant_pk_sessions" ON pk_therapy_sessions;
+  CREATE POLICY "tenant_pk_sessions" ON pk_therapy_sessions FOR ALL TO authenticated
+    USING (tenant_id = (SELECT tenant_id FROM profiles WHERE id = auth.uid()));
+*/
+
+await requireAuth(['super_admin','dept_admin','doctor','therapist','nurse']);
+initNavbar();
+const tenantId   = getCurrentTenantId();
+const role       = getCurrentRole();
+const myProfile  = getCurrentProfile();
+
+let _sessions    = [];
+let _admissions  = [];
+let _therapists  = [];
+let _depts       = [];
+let _opdPatients = [];
+let _viewDate    = new Date().toISOString().slice(0,10);
+
+// ── Load ──────────────────────────────────────────────────────────────────────
+async function loadAll() {
+  _updateDateDisplay();
+
+  const [sessRes, admRes, thRes, deptRes] = await Promise.all([
+    supabase
+      .from('pk_therapy_sessions')
+      .select(`
+        id, therapy_phase, therapy_name, scheduled_date, scheduled_time,
+        actual_start, actual_end, status, therapist_notes, doctor_clearance,
+        patients(id, name, phone, age, gender),
+        profiles!therapist_id(id, full_name, gender),
+        departments(id, name)
+      `)
+      .eq('tenant_id', tenantId)
+      .eq('scheduled_date', _viewDate)
+      .order('scheduled_time', { ascending: true, nullsFirst: false }),
+    supabase
+      .from('ipd_admissions')
+      .select('id, patients(id,name,phone,age,gender), beds(bed_number), departments(name)')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'admitted'),
+    supabase
+      .from('profiles')
+      .select('id,full_name,gender')
+      .eq('tenant_id', tenantId)
+      .eq('role','therapist')
+      .eq('is_active', true)
+      .order('full_name'),
+    supabase
+      .from('departments')
+      .select('id,name')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('name'),
+  ]);
+
+  if (sessRes.error) {
+    _alert('error', 'Failed to load sessions: ' + sessRes.error.message
+      + (sessRes.error.code === '42501' ? ' — Run the RLS SQL shown in source comments.' : ''));
+    return;
+  }
+
+  _sessions   = sessRes.data || [];
+  _admissions = admRes.data  || [];
+  _therapists = thRes.data   || [];
+  _depts      = deptRes.data || [];
+
+  // If logged in as therapist, only show own sessions
+  if (role === 'therapist') {
+    _sessions = _sessions.filter(s => s.profiles?.id === myProfile?.id);
+  }
+
+  _populateFilterSelects();
+  _populateSchedSelects();
+  renderStats();
+  applyFilters();
+}
+
+// ── Date nav ──────────────────────────────────────────────────────────────────
+window.shiftDate = function(n) {
+  const d = new Date(_viewDate);
+  d.setDate(d.getDate() + n);
+  _viewDate = d.toISOString().slice(0,10);
+  document.getElementById('date-picker').value = _viewDate;
+  loadAll();
+};
+window.goToday = function() {
+  _viewDate = new Date().toISOString().slice(0,10);
+  document.getElementById('date-picker').value = _viewDate;
+  loadAll();
+};
+window.onDatePick = function() {
+  _viewDate = document.getElementById('date-picker').value;
+  loadAll();
+};
+function _updateDateDisplay() {
+  const d = new Date(_viewDate + 'T00:00:00');
+  const today = new Date().toISOString().slice(0,10);
+  const label = _viewDate === today ? 'Today · ' : '';
+  document.getElementById('date-display').textContent =
+    label + d.toLocaleDateString('en-IN', { weekday:'short', day:'2-digit', month:'long', year:'numeric' });
+  document.getElementById('date-picker').value = _viewDate;
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function renderStats() {
+  const all = _sessions;
+  document.getElementById('stat-total').textContent      = all.length;
+  document.getElementById('stat-scheduled').textContent  = all.filter(s=>s.status==='scheduled').length;
+  document.getElementById('stat-inprogress').textContent = all.filter(s=>s.status==='in_progress').length;
+  document.getElementById('stat-completed').textContent  = all.filter(s=>s.status==='completed').length;
+}
+
+// ── Populate filters + sched selects ─────────────────────────────────────────
+function _populateFilterSelects() {
+  const ft = document.getElementById('filter-therapist');
+  const ft_val = ft.value;
+  ft.innerHTML = '<option value="">All Therapists</option>';
+  _therapists.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t.id; o.textContent = t.full_name;
+    ft.appendChild(o);
+  });
+  if (ft_val) ft.value = ft_val;
+
+  const fd = document.getElementById('filter-dept');
+  const fd_val = fd.value;
+  fd.innerHTML = '<option value="">All Departments</option>';
+  _depts.forEach(d => {
+    const o = document.createElement('option');
+    o.value = d.id; o.textContent = d.name;
+    fd.appendChild(o);
+  });
+  if (fd_val) fd.value = fd_val;
+}
+
+function _populateSchedSelects() {
+  // Admissions
+  const sa = document.getElementById('sched-admission');
+  sa.innerHTML = '<option value="">— Select admitted patient —</option>';
+  _admissions.forEach(a => {
+    const pt  = a.patients || {};
+    const bed = a.beds || {};
+    const o = document.createElement('option');
+    o.value = JSON.stringify({ admId: a.id, patientId: pt.id, patientName: pt.name });
+    o.textContent = `${pt.name} — Bed ${bed.bed_number || '?'}`;
+    sa.appendChild(o);
+  });
+
+  // Depts
+  const sd = document.getElementById('sched-dept');
+  sd.innerHTML = '<option value="">— Select department —</option>';
+  _depts.forEach(d => {
+    const o = document.createElement('option');
+    o.value = d.id; o.textContent = d.name;
+    sd.appendChild(o);
+  });
+
+  // Therapists
+  _populateTherapistSelect();
+}
+
+function _populateTherapistSelect() {
+  const st = document.getElementById('sched-therapist');
+  const note = document.getElementById('therapist-note');
+  st.innerHTML = '<option value="">— Select therapist —</option>';
+
+  const males   = _therapists.filter(t => t.gender === 'M');
+  const females = _therapists.filter(t => t.gender === 'F');
+  const unknown = _therapists.filter(t => !t.gender);
+
+  [
+    { group: 'Male Therapists', list: males },
+    { group: 'Female Therapists', list: females },
+    { group: 'Therapists', list: unknown },
+  ].forEach(({ group, list }) => {
+    if (!list.length) return;
+    const og = document.createElement('optgroup');
+    og.label = group;
+    list.forEach(t => {
+      const o = document.createElement('option');
+      o.value = t.id; o.textContent = t.full_name;
+      og.appendChild(o);
+    });
+    st.appendChild(og);
+  });
+
+  if (!_therapists.length) {
+    note.textContent = 'No therapists registered yet. Add staff with role "therapist" via the signup flow.';
+    note.style.color = 'var(--gold)';
+  } else {
+    const m = males.length, f = females.length;
+    note.textContent = `${_therapists.length} therapist(s) available — ${m}M / ${f}F (NCISM needs 2M+2F per dept)`;
+    note.style.color = (m >= 2 && f >= 2) ? 'var(--green-mid)' : 'var(--gold)';
+  }
+}
+
+// ── Render table ──────────────────────────────────────────────────────────────
+window.applyFilters = function() {
+  const ft = document.getElementById('filter-therapist').value;
+  const fd = document.getElementById('filter-dept').value;
+  const fs = document.getElementById('filter-status').value;
+
+  let rows = _sessions;
+  if (ft) rows = rows.filter(s => s.profiles?.id === ft);
+  if (fd) rows = rows.filter(s => s.departments?.id === fd);
+  if (fs) rows = rows.filter(s => s.status === fs);
+
+  renderTable(rows);
+};
+
+function renderTable(rows) {
+  const tbody = document.getElementById('sessions-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="table-empty">No sessions for this date.<br>Use "+ Schedule Session" to add one.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(s => {
+    const pt        = s.patients || {};
+    const therapist = s.profiles || {};
+    const dept      = s.departments || {};
+    const timeStr   = s.scheduled_time ? s.scheduled_time.slice(0,5) : '—';
+    const canStart  = s.status === 'scheduled';
+    const canComplete = s.status === 'scheduled' || s.status === 'in_progress';
+    const canSkip   = s.status === 'scheduled';
+
+    const ptMeta = [pt.gender, pt.age ? pt.age+'y' : ''].filter(Boolean).join(' · ');
+
+    return `<tr>
+      <td>
+        <div class="time-cell">${timeStr}</div>
+        ${s.actual_start ? `<div class="time-end">Started ${s.actual_start.slice(11,16)}</div>` : ''}
+      </td>
+      <td>
+        <div class="pt-name">${_esc(pt.name||'—')}</div>
+        ${ptMeta ? `<div class="pt-meta">${ptMeta}</div>` : ''}
+      </td>
+      <td>
+        <div class="therapy-name">${_esc(s.therapy_name||'—')}</div>
+        <span class="phase-badge phase-${s.therapy_phase}">${_phaseLabel(s.therapy_phase)}</span>
+      </td>
+      <td>
+        <div>${_esc(therapist.full_name||'—')}</div>
+        ${therapist.gender ? `<div class="pt-meta">${therapist.gender === 'M' ? 'Male' : 'Female'}</div>` : ''}
+      </td>
+      <td>${_esc(dept.name||'—')}</td>
+      <td>
+        <span class="status-badge status-${s.status}">
+          ${_statusLabel(s.status)}
+          <span class="clearance-dot${s.doctor_clearance ? ' ok' : ''}" title="${s.doctor_clearance ? 'Doctor clearance given' : 'Awaiting doctor clearance'}"></span>
+        </span>
+      </td>
+      <td>
+        <div class="row-actions">
+          ${canStart ? `<button class="icon-btn start" onclick="quickStart('${s.id}')" title="Mark In Progress">&#9654;</button>` : ''}
+          ${canComplete ? `<button class="icon-btn complete" onclick="openCompleteDrawer('${s.id}',false)" title="Complete">&#10003;</button>` : ''}
+          ${canSkip ? `<button class="icon-btn skip" onclick="openCompleteDrawer('${s.id}',true)" title="Skip">&#10007;</button>` : ''}
+          <button class="icon-btn" onclick="openCompleteDrawer('${s.id}',false,true)" title="Notes">&#128203;</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Schedule drawer ───────────────────────────────────────────────────────────
+window.openSchedDrawer = function(prefillAdmId) {
+  document.getElementById('sched-source').value    = 'ipd';
+  document.getElementById('sched-phase').value     = 'purvakarma';
+  document.getElementById('sched-therapy').value   = '';
+  document.getElementById('sched-therapist').value = '';
+  document.getElementById('sched-clearance').checked = false;
+  document.getElementById('sched-date').value      = _viewDate;
+  document.getElementById('sched-time').value      = '';
+  document.getElementById('sched-dept').value      = '';
+  document.getElementById('sched-admission').value = '';
+  onSourceChange();
+  if (prefillAdmId) {
+    const opts = document.getElementById('sched-admission').options;
+    for (const o of opts) {
+      try { if (JSON.parse(o.value).admId === prefillAdmId) { o.selected = true; break; } }
+      catch {}
+    }
+  }
+  document.getElementById('sched-overlay').classList.add('open');
+};
+window.closeSchedDrawer = function() {
+  document.getElementById('sched-overlay').classList.remove('open');
+};
+
+window.onSourceChange = function() {
+  const src = document.getElementById('sched-source').value;
+  document.getElementById('ipd-patient-field').style.display = src === 'ipd' ? '' : 'none';
+  document.getElementById('opd-patient-field').style.display = src === 'opd' ? '' : 'none';
+};
+
+window.saveSession = async function() {
+  const source    = document.getElementById('sched-source').value;
+  const phase     = document.getElementById('sched-phase').value;
+  const therapy   = document.getElementById('sched-therapy').value.trim();
+  const therapist = document.getElementById('sched-therapist').value;
+  const deptId    = document.getElementById('sched-dept').value;
+  const date      = document.getElementById('sched-date').value;
+  const time      = document.getElementById('sched-time').value;
+  const clearance = document.getElementById('sched-clearance').checked;
+
+  if (!therapy)   { _alert('error','Enter therapy name.'); return; }
+  if (!therapist) { _alert('error','Select a therapist.'); return; }
+  if (!deptId)    { _alert('error','Select a department.'); return; }
+  if (!date)      { _alert('error','Enter a date.'); return; }
+
+  let patientId  = null;
+  let admId      = null;
+
+  if (source === 'ipd') {
+    const raw = document.getElementById('sched-admission').value;
+    if (!raw) { _alert('error','Select an IPD patient.'); return; }
+    try {
+      const obj = JSON.parse(raw);
+      patientId = obj.patientId;
+      admId     = obj.admId;
+    } catch { _alert('error','Invalid patient selection.'); return; }
+  } else {
+    patientId = document.getElementById('sched-opd-patient').value;
+    if (!patientId) { _alert('error','Select a patient.'); return; }
+  }
+
+  const btn = document.getElementById('btn-sched-save');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  const { error } = await supabase.from('pk_therapy_sessions').insert({
+    tenant_id:          tenantId,
+    patient_id:         patientId,
+    ipd_admission_id:   admId || null,
+    therapist_id:       therapist,
+    department_id:      deptId,
+    therapy_phase:      phase,
+    therapy_name:       therapy,
+    scheduled_date:     date,
+    scheduled_time:     time || null,
+    doctor_clearance:   clearance,
+    status:             'scheduled',
+  });
+
+  btn.disabled = false; btn.textContent = 'Schedule';
+  if (error) { _alert('error','Save failed: ' + error.message); return; }
+  closeSchedDrawer();
+  _alert('success','Session scheduled.');
+  await loadAll();
+};
+
+// ── Quick start ───────────────────────────────────────────────────────────────
+window.quickStart = async function(id) {
+  const now = new Date();
+  const timeStr = now.toTimeString().slice(0,5);
+  const { error } = await supabase.from('pk_therapy_sessions')
+    .update({ status: 'in_progress', actual_start: now.toISOString() })
+    .eq('id', id);
+  if (error) { _alert('error', error.message); return; }
+  _alert('success', 'Session marked in progress.');
+  await loadAll();
+};
+
+// ── Complete drawer ───────────────────────────────────────────────────────────
+window.openCompleteDrawer = function(id, isSkip, viewOnly) {
+  const s  = _sessions.find(x => x.id === id);
+  if (!s) return;
+  const pt        = s.patients || {};
+  const therapist = s.profiles || {};
+
+  document.getElementById('comp-session-id').value   = id;
+  document.getElementById('comp-start').value         = s.actual_start ? s.actual_start.slice(11,16) : '';
+  document.getElementById('comp-end').value           = s.actual_end ? s.actual_end.slice(11,16) : '';
+  document.getElementById('comp-notes').value         = s.therapist_notes || '';
+  document.getElementById('comp-clearance').checked   = s.doctor_clearance || false;
+  document.getElementById('comp-skip-reason').value   = '';
+  document.getElementById('skip-reason-field').style.display = isSkip ? '' : 'none';
+
+  const titleEl = document.getElementById('complete-title');
+  const saveBtn = document.getElementById('btn-complete-save');
+
+  if (viewOnly || s.status === 'completed' || s.status === 'skipped') {
+    titleEl.textContent = 'Session Notes';
+    saveBtn.style.display = 'none';
+    document.getElementById('comp-start').disabled = true;
+    document.getElementById('comp-end').disabled   = true;
+    document.getElementById('comp-notes').disabled = true;
+  } else {
+    titleEl.textContent = isSkip ? 'Skip Session' : 'Complete Session';
+    saveBtn.textContent  = isSkip ? 'Mark Skipped' : 'Mark Completed';
+    saveBtn.style.display = '';
+    document.getElementById('comp-start').disabled = false;
+    document.getElementById('comp-end').disabled   = false;
+    document.getElementById('comp-notes').disabled = false;
+  }
+  saveBtn.dataset.skip = isSkip ? '1' : '0';
+
+  document.getElementById('comp-detail-card').innerHTML = `
+    <div class="detail-row"><span>Patient</span><strong>${_esc(pt.name||'—')}</strong></div>
+    <div class="detail-row"><span>Therapy</span><strong>${_esc(s.therapy_name)}</strong></div>
+    <div class="detail-row"><span>Phase</span><strong>${_phaseLabel(s.therapy_phase)}</strong></div>
+    <div class="detail-row"><span>Therapist</span><strong>${_esc(therapist.full_name||'—')}</strong></div>
+    <div class="detail-row"><span>Scheduled</span><strong>${s.scheduled_time ? s.scheduled_time.slice(0,5) : '—'}</strong></div>
+  `;
+
+  document.getElementById('complete-overlay').classList.add('open');
+};
+window.closeCompleteDrawer = function() {
+  document.getElementById('complete-overlay').classList.remove('open');
+};
+
+window.saveCompletion = async function() {
+  const id      = document.getElementById('comp-session-id').value;
+  const isSkip  = document.getElementById('btn-complete-save').dataset.skip === '1';
+  const start   = document.getElementById('comp-start').value;
+  const end     = document.getElementById('comp-end').value;
+  const notes   = document.getElementById('comp-notes').value.trim();
+  const clear   = document.getElementById('comp-clearance').checked;
+  const today   = _viewDate;
+
+  const patch = {
+    status:           isSkip ? 'skipped' : 'completed',
+    therapist_notes:  notes || null,
+    doctor_clearance: clear,
+  };
+  if (!isSkip) {
+    if (start) patch.actual_start = `${today}T${start}:00`;
+    if (end)   patch.actual_end   = `${today}T${end}:00`;
+  }
+
+  const btn = document.getElementById('btn-complete-save');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  const { error } = await supabase.from('pk_therapy_sessions').update(patch).eq('id', id);
+  btn.disabled = false;
+  btn.textContent = isSkip ? 'Mark Skipped' : 'Mark Completed';
+
+  if (error) { _alert('error', error.message); return; }
+  closeCompleteDrawer();
+  _alert('success', isSkip ? 'Session skipped.' : 'Session completed.');
+  await loadAll();
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function _phaseLabel(p) {
+  return { purvakarma:'Purvakarma', pradhanakarma:'Pradhanakarma', paschatkarma:'Paschatkarma' }[p] || p;
+}
+function _statusLabel(s) {
+  return { scheduled:'Scheduled', in_progress:'In Progress', completed:'Completed', skipped:'Skipped' }[s] || s;
+}
+function _esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function _alert(type, msg) {
+  const el = document.getElementById('alert');
+  el.className = `alert show ${type}`;
+  el.textContent = msg;
+  if (type === 'success') setTimeout(() => el.classList.remove('show'), 3500);
+  window.scrollTo({ top:0, behavior:'smooth' });
+}
+
+// Close on overlay click
+['sched-overlay','complete-overlay'].forEach(id => {
+  document.getElementById(id).addEventListener('click', e => {
+    if (e.target.id === id) document.getElementById(id).classList.remove('open');
+  });
+});
+
+// Init date picker
+document.getElementById('date-picker').value = _viewDate;
+await loadAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>IPD Setup — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --cream:#faf8f3;--white:#ffffff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+  --success-bg:#e8f5ee;--success-border:#b2d8bf;--success-text:#1a4a2e;
+  --error-bg:#fdecea;--error-border:#f5c6c6;--error-text:#8b1a1a;
+  --red:#c0392b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1200px;margin:0 auto;padding:28px 20px 80px}
+
+/* ── Header ── */
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.header-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ── Buttons ── */
+.btn{
+  height:40px;padding:0 18px;border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;
+  cursor:pointer;border:none;transition:background .15s,color .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;
+}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}
+.btn-secondary:hover{background:var(--green-light)}
+.btn-gold{background:var(--gold);color:#fff}
+.btn-gold:hover{background:#a87422}
+.btn-danger{background:var(--white);color:var(--red);border:1.5px solid var(--error-border)}
+.btn-danger:hover{background:var(--error-bg)}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── Alert ── */
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--success-bg);color:var(--success-text);border:1px solid var(--success-border)}
+.alert.error{background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border)}
+
+/* ── Stats row ── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+.stat-value{font-size:28px;font-weight:700;color:var(--green-deep);line-height:1}
+.stat-label{font-size:11px;color:var(--text-muted);margin-top:5px;text-transform:uppercase;letter-spacing:.4px}
+.stat-card.warn .stat-value{color:var(--gold)}
+.stat-card.danger .stat-value{color:var(--red)}
+
+/* ── Tab bar ── */
+.tab-bar{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px}
+.tab{
+  padding:10px 22px;font-size:13px;font-weight:500;color:var(--text-muted);
+  cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s;
+}
+.tab.active{color:var(--green-deep);border-bottom-color:var(--green-deep)}
+.tab:hover:not(.active){color:var(--text-mid)}
+
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* ── Section header ── */
+.section-header{
+  display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:14px;gap:10px;flex-wrap:wrap;
+}
+.section-title{font-size:14px;font-weight:600;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px}
+
+/* ── NCISM violation banner ── */
+.ncism-banner{
+  background:var(--gold-light);border:1.5px solid #e0c060;border-radius:var(--radius);
+  padding:10px 14px;font-size:12px;color:#7a5a00;margin-bottom:16px;display:none;
+}
+.ncism-banner.show{display:block}
+
+/* ── Department cards ── */
+.dept-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.dept-card{
+  background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);
+  padding:14px 16px;transition:border-color .15s;
+}
+.dept-card:hover{border-color:var(--green-mid)}
+.dept-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.dept-name{font-size:14px;font-weight:600;color:var(--text-dark)}
+.dept-code{font-size:10px;color:var(--text-muted);margin-top:2px;font-family:monospace}
+.dept-badges{display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap}
+.badge{
+  display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;
+}
+.badge-mandatory{background:#fff3cd;color:#7a5a00;border:1px solid #e0c060}
+.badge-pg{background:#e3f0ff;color:#1a4080;border:1px solid #a8c8f0}
+.badge-active{background:var(--success-bg);color:var(--success-text)}
+.badge-inactive{background:#f0f0f0;color:#666}
+.badge-violation{background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border)}
+.dept-stats{display:flex;gap:14px;margin-top:10px;font-size:12px;color:var(--text-muted)}
+.dept-stat strong{color:var(--text-dark)}
+.dept-actions{display:flex;gap:6px;margin-top:12px;border-top:1px solid var(--border);padding-top:10px}
+.dept-empty{text-align:center;padding:48px 20px;color:var(--text-muted);font-size:13px}
+
+/* ── Beds tab ── */
+.bed-filter-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.bed-filter-bar select{
+  height:36px;padding:0 10px;border:1.5px solid var(--border);border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-dark);background:var(--white);outline:none;
+}
+.bed-filter-bar select:focus{border-color:var(--green-mid)}
+
+/* ── Bed grid ── */
+.bed-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
+.bed-card{
+  border-radius:var(--radius);border:2px solid transparent;padding:10px 8px;text-align:center;cursor:pointer;
+  transition:border-color .15s,transform .1s;position:relative;
+}
+.bed-card:hover{transform:translateY(-1px)}
+.bed-card.vacant{background:#f0faf4;border-color:#b2d8bf}
+.bed-card.occupied{background:#fdecea;border-color:#f5c6c6}
+.bed-card.maintenance{background:#f5f5f5;border-color:#ccc}
+.bed-card.reserved{background:var(--gold-light);border-color:#e0c060}
+.bed-card.pk_treatment{background:#e3f0ff;border-color:#a8c8f0}
+.bed-num{font-size:16px;font-weight:700;color:var(--text-dark)}
+.bed-ward{font-size:9px;color:var(--text-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bed-type-badge{font-size:9px;font-weight:600;margin-top:4px;padding:1px 5px;border-radius:8px;display:inline-block}
+.bed-type-badge.general{background:#e8f5ee;color:#1a4a2e}
+.bed-type-badge.icu{background:#fdecea;color:#8b1a1a}
+.bed-type-badge.private{background:#f3e8ff;color:#5a1a8b}
+.bed-type-badge.semi_private{background:#e8f0ff;color:#1a308b}
+.bed-type-badge.day_care{background:#fff8e8;color:#7a5a00}
+.bed-type-badge.pk_treatment{background:#e3f0ff;color:#1a4080}
+.bed-pg-dot{
+  position:absolute;top:5px;right:5px;width:7px;height:7px;
+  background:#1a4080;border-radius:50%;
+}
+.bed-empty{text-align:center;padding:48px 20px;color:var(--text-muted);font-size:13px;grid-column:1/-1}
+
+/* ── Bed legend ── */
+.bed-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--text-muted);margin-bottom:14px}
+.legend-dot{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:4px;vertical-align:middle}
+.legend-dot.vacant{background:#f0faf4;border:1.5px solid #b2d8bf}
+.legend-dot.occupied{background:#fdecea;border:1.5px solid #f5c6c6}
+.legend-dot.maintenance{background:#f5f5f5;border:1.5px solid #ccc}
+.legend-dot.reserved{background:var(--gold-light);border:1.5px solid #e0c060}
+
+/* ── Drawer overlay ── */
+.drawer-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:200;
+  opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.drawer-overlay.open{opacity:1;pointer-events:all}
+.drawer{
+  position:fixed;right:0;top:0;bottom:0;width:420px;max-width:100vw;
+  background:var(--white);box-shadow:-4px 0 24px rgba(0,0,0,.12);
+  display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1);
+  z-index:201;
+}
+.drawer-overlay.open .drawer{transform:translateX(0)}
+.drawer-header{
+  padding:18px 20px 14px;border-bottom:1.5px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;flex-shrink:0;
+}
+.drawer-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--green-deep)}
+.drawer-close{
+  width:32px;height:32px;border:none;background:none;cursor:pointer;
+  font-size:20px;color:var(--text-muted);border-radius:6px;
+}
+.drawer-close:hover{background:var(--cream);color:var(--text-dark)}
+.drawer-body{flex:1;overflow-y:auto;padding:18px 20px}
+.drawer-footer{
+  padding:14px 20px;border-top:1.5px solid var(--border);
+  display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;background:var(--cream);
+}
+
+/* ── Form fields (inside drawer) ── */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+.field input,.field select,.field textarea{
+  width:100%;height:40px;padding:0 12px;
+  border:1.5px solid var(--border);border-radius:var(--radius);
+  font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-dark);
+  background:var(--white);outline:none;transition:border-color .15s;
+}
+.field textarea{height:70px;padding:8px 12px;resize:none;line-height:1.5}
+.field select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a9485'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--green-mid)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field-note{font-size:11px;color:var(--text-muted);margin-top:4px}
+.req{color:var(--red)}
+.field-group{background:var(--cream);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px}
+.field-group-title{font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px}
+input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(--green-deep);vertical-align:middle}
+.check-label{font-size:13px;color:var(--text-dark);cursor:pointer;display:flex;align-items:center;gap:6px}
+.pg-fields{display:none;margin-top:10px}
+.pg-fields.show{display:block}
+.beds-required-note{
+  background:var(--gold-light);border:1px solid #e0c060;border-radius:6px;
+  padding:8px 12px;font-size:12px;color:#7a5a00;margin-top:8px;display:none;
+}
+.beds-required-note.show{display:block}
+
+/* ── Bulk add preview ── */
+.bulk-preview{
+  background:var(--cream);border:1.5px dashed var(--border);border-radius:var(--radius);
+  padding:12px;font-size:12px;color:var(--text-mid);margin-bottom:12px;min-height:60px;
+  display:flex;flex-wrap:wrap;gap:6px;
+}
+.preview-chip{
+  background:var(--white);border:1.5px solid var(--border);border-radius:4px;
+  padding:3px 9px;font-size:11px;font-weight:500;color:var(--text-dark);
+}
+
+/* ── Edit / delete micro-buttons ── */
+.icon-btn{
+  width:28px;height:28px;border:1.5px solid var(--border);border-radius:5px;
+  background:var(--white);cursor:pointer;font-size:13px;display:inline-flex;align-items:center;justify-content:center;
+  transition:background .15s,border-color .15s;
+}
+.icon-btn:hover{background:var(--cream);border-color:var(--green-mid)}
+.icon-btn.del:hover{background:var(--error-bg);border-color:var(--error-border)}
+
+@media(max-width:700px){
+  .stats-row{grid-template-columns:1fr 1fr}
+  .drawer{width:100vw}
+  .bed-grid{grid-template-columns:repeat(auto-fill,minmax(80px,1fr))}
+}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<!-- ── Dept Drawer ── -->
+<div class="drawer-overlay" id="dept-overlay">
+  <div class="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title" id="dept-drawer-title">New Department</span>
+      <button class="drawer-close" onclick="closeDeptDrawer()">&#x2715;</button>
+    </div>
+    <div class="drawer-body">
+      <input type="hidden" id="dept-id"/>
+
+      <div class="field">
+        <label>Department Name <span class="req">*</span></label>
+        <input id="dept-name" type="text" placeholder="e.g. Kayachikitsa"/>
+      </div>
+
+      <div class="field">
+        <label>NCISM Code</label>
+        <select id="dept-ncism">
+          <option value="">— General / Administrative —</option>
+        </select>
+        <div class="field-note">Mandatory for NCISM-regulated teaching hospitals</div>
+      </div>
+
+      <div class="field">
+        <label>Linked OPD (optional)</label>
+        <select id="dept-opd">
+          <option value="">— None / IPD-only dept —</option>
+        </select>
+      </div>
+
+      <div class="field-group">
+        <label class="check-label">
+          <input type="checkbox" id="dept-is-pg" onchange="_togglePgFields()"/>
+          This is a PG (Post-Graduate) department
+        </label>
+        <div class="pg-fields" id="pg-fields">
+          <div class="field" style="margin-top:10px;margin-bottom:0">
+            <label>PG Seats Sanctioned <span class="req">*</span></label>
+            <input id="dept-pg-seats" type="number" min="1" max="50" placeholder="e.g. 4"
+              oninput="_updateBedsRequired()"/>
+            <div class="beds-required-note" id="beds-required-note"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="check-label">
+          <input type="checkbox" id="dept-mandatory"/>
+          NCISM Mandatory (10 core departments)
+        </label>
+      </div>
+      <div class="field">
+        <label class="check-label">
+          <input type="checkbox" id="dept-active" checked/>
+          Active
+        </label>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" onclick="closeDeptDrawer()">Cancel</button>
+      <button class="btn btn-primary" id="btn-save-dept" onclick="saveDept()">Save Department</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Bed Drawer ── -->
+<div class="drawer-overlay" id="bed-overlay">
+  <div class="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title" id="bed-drawer-title">New Bed</span>
+      <button class="drawer-close" onclick="closeBedDrawer()">&#x2715;</button>
+    </div>
+    <div class="drawer-body">
+      <input type="hidden" id="bed-id"/>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Bed Number <span class="req">*</span></label>
+          <input id="bed-num" type="text" placeholder="e.g. A-101"/>
+        </div>
+        <div class="field">
+          <label>Floor</label>
+          <input id="bed-floor" type="number" min="0" max="20" placeholder="0 = Ground"/>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Ward Name</label>
+        <input id="bed-ward" type="text" placeholder="e.g. Male General Ward"/>
+      </div>
+
+      <div class="field">
+        <label>Department <span class="req">*</span></label>
+        <select id="bed-dept">
+          <option value="">— Select department —</option>
+        </select>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Bed Type</label>
+          <select id="bed-type">
+            <option value="general">General</option>
+            <option value="private">Private</option>
+            <option value="semi_private">Semi-Private</option>
+            <option value="icu">ICU</option>
+            <option value="day_care">Day Care</option>
+            <option value="pk_treatment">PK Treatment</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select id="bed-status">
+            <option value="vacant">Vacant</option>
+            <option value="occupied">Occupied</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="reserved">Reserved</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="check-label">
+          <input type="checkbox" id="bed-pg"/>
+          PG-allocated bed (counts toward NCISM ratio)
+        </label>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" onclick="closeBedDrawer()">Cancel</button>
+      <button class="btn btn-primary" id="btn-save-bed" onclick="saveBed()">Save Bed</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Bulk Add Drawer ── -->
+<div class="drawer-overlay" id="bulk-overlay">
+  <div class="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title">Bulk Add Beds</span>
+      <button class="drawer-close" onclick="closeBulkDrawer()">&#x2715;</button>
+    </div>
+    <div class="drawer-body">
+      <div class="field">
+        <label>Department <span class="req">*</span></label>
+        <select id="bulk-dept">
+          <option value="">— Select department —</option>
+        </select>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Prefix <span class="req">*</span></label>
+          <input id="bulk-prefix" type="text" placeholder="e.g. A" oninput="updateBulkPreview()"/>
+          <div class="field-note">e.g. A → A-01, A-02…</div>
+        </div>
+        <div class="field">
+          <label>Count <span class="req">*</span></label>
+          <input id="bulk-count" type="number" min="1" max="100" placeholder="10" oninput="updateBulkPreview()"/>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Start Number</label>
+          <input id="bulk-start" type="number" min="1" value="1" oninput="updateBulkPreview()"/>
+        </div>
+        <div class="field">
+          <label>Floor</label>
+          <input id="bulk-floor" type="number" min="0" max="20" placeholder="0"/>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Bed Type</label>
+          <select id="bulk-type">
+            <option value="general">General</option>
+            <option value="private">Private</option>
+            <option value="semi_private">Semi-Private</option>
+            <option value="icu">ICU</option>
+            <option value="day_care">Day Care</option>
+            <option value="pk_treatment">PK Treatment</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Ward Name</label>
+          <input id="bulk-ward" type="text" placeholder="Optional"/>
+        </div>
+      </div>
+      <div class="field">
+        <label class="check-label">
+          <input type="checkbox" id="bulk-pg"/>
+          Mark all as PG-allocated
+        </label>
+      </div>
+
+      <div style="font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Preview</div>
+      <div class="bulk-preview" id="bulk-preview">
+        <span style="color:var(--text-muted)">Enter prefix and count to preview bed IDs</span>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" onclick="closeBulkDrawer()">Cancel</button>
+      <button class="btn btn-primary" id="btn-bulk-save" onclick="bulkAddBeds()">Add Beds</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Main page ── -->
+<div class="page-wrap">
+
+  <div class="page-header">
+    <div>
+      <div class="page-title">IPD Setup</div>
+      <div class="page-subtitle">Configure departments, bed inventory, and NCISM compliance</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-gold" id="btn-seed" onclick="seedNcismDepts()">&#9670; Seed NCISM Depts</button>
+      <button class="btn btn-secondary" onclick="openBulkDrawer()">+ Bulk Add Beds</button>
+      <button class="btn btn-primary" onclick="openDeptDrawer()">+ New Department</button>
+    </div>
+  </div>
+
+  <div class="alert" id="alert"></div>
+  <div class="ncism-banner" id="ncism-banner"></div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-depts">—</div>
+      <div class="stat-label">Departments</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-total-beds">—</div>
+      <div class="stat-label">Total Beds</div>
+    </div>
+    <div class="stat-card warn">
+      <div class="stat-value" id="stat-occupied">—</div>
+      <div class="stat-label">Occupied</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" id="stat-occupancy">—%</div>
+      <div class="stat-label">Occupancy Rate</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <div class="tab active" data-tab="dept" onclick="switchTab('dept')">Departments</div>
+    <div class="tab" data-tab="beds" onclick="switchTab('beds')">Bed Matrix</div>
+  </div>
+
+  <!-- Departments tab -->
+  <div class="tab-panel active" id="tab-dept">
+    <div class="section-header">
+      <span class="section-title" id="dept-count-label">Departments</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="openDeptDrawer()">+ Add Department</button>
+      </div>
+    </div>
+    <div class="dept-grid" id="dept-grid">
+      <div class="dept-empty">Loading departments…</div>
+    </div>
+  </div>
+
+  <!-- Beds tab -->
+  <div class="tab-panel" id="tab-beds">
+    <div class="section-header">
+      <div class="bed-filter-bar">
+        <select id="filter-dept" onchange="renderBeds()">
+          <option value="">All Departments</option>
+        </select>
+        <select id="filter-status" onchange="renderBeds()">
+          <option value="">All Statuses</option>
+          <option value="vacant">Vacant</option>
+          <option value="occupied">Occupied</option>
+          <option value="maintenance">Maintenance</option>
+          <option value="reserved">Reserved</option>
+        </select>
+        <select id="filter-type" onchange="renderBeds()">
+          <option value="">All Types</option>
+          <option value="general">General</option>
+          <option value="icu">ICU</option>
+          <option value="private">Private</option>
+          <option value="semi_private">Semi-Private</option>
+          <option value="day_care">Day Care</option>
+          <option value="pk_treatment">PK Treatment</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openBedDrawer()">+ Add Bed</button>
+    </div>
+    <div class="bed-legend">
+      <span><span class="legend-dot vacant"></span>Vacant</span>
+      <span><span class="legend-dot occupied"></span>Occupied</span>
+      <span><span class="legend-dot maintenance"></span>Maintenance</span>
+      <span><span class="legend-dot reserved"></span>Reserved</span>
+      <span style="font-size:11px;color:var(--text-muted)">&#9679; Blue dot = PG-allocated</span>
+    </div>
+    <div class="bed-grid" id="bed-grid">
+      <div class="bed-empty">Loading beds…</div>
+    </div>
+  </div>
+
+</div><!-- end page-wrap -->
+
+<script type="module">
+import { requireAuth, getCurrentTenantId } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['super_admin', 'dept_admin']);
+initNavbar();
+const tenantId = getCurrentTenantId();
+
+const NCISM_CODES = [
+  { code:'KAYACHIKITSA',      label:'Kayachikitsa (Internal Medicine)',     mandatory:true  },
+  { code:'PANCHAKARMA',       label:'Panchakarma & Upakarma',               mandatory:true  },
+  { code:'SHALYA_TANTRA',     label:'Shalya Tantra (Surgery)',              mandatory:true  },
+  { code:'SHALAKYA_NETRA',    label:'Shalakya – Netra Roga (Ophthalmology)',mandatory:true  },
+  { code:'SHALAKYA_KNM',      label:'Shalakya – KNM (ENT & Oral)',          mandatory:true  },
+  { code:'STRI_ROGA_PRASUTI', label:'Stri Roga & Prasuti Tantra (OBG)',     mandatory:true  },
+  { code:'KAUMARABHRITYA',    label:'Kaumarabhritya (Paediatrics)',          mandatory:true  },
+  { code:'SWASTHAVRITTA_YOGA',label:'Swasthavritta & Yoga (Lifestyle)',      mandatory:true  },
+  { code:'SCREENING_OPD',     label:'Screening / Triage OPD',               mandatory:true  },
+  { code:'AGADA_TANTRA',      label:'Agada Tantra (Toxicology)',             mandatory:true  },
+  { code:'RASAYANA_VAJIKARANA',label:'Rasayana & Vajikarana',               mandatory:false },
+  { code:'MANASAROGA',        label:'Manasaroga & Manovijnana (Psychiatry)', mandatory:false },
+  { code:'ROGANIDANA',        label:'Roganidana & Vikritivijnana',           mandatory:false },
+  { code:'DRAVYAGUNA',        label:'Dravyaguna Vijnana',                   mandatory:false },
+  { code:'RASASHASTRA_BK',    label:'Rasashastra & Bhaishajya Kalpana',     mandatory:false },
+  { code:'GENERAL',           label:'General / Administrative',              mandatory:false },
+];
+
+let _depts = [];
+let _beds  = [];
+let _opds  = [];
+
+// ── Populate NCISM select ─────────────────────────────────────────────────────
+function _populateNcismSelect() {
+  const sel = document.getElementById('dept-ncism');
+  sel.innerHTML = '<option value="">— None / Custom —</option>';
+  NCISM_CODES.forEach(n => {
+    const opt = document.createElement('option');
+    opt.value = n.code;
+    opt.textContent = (n.mandatory ? '★ ' : '◇ ') + n.label;
+    sel.appendChild(opt);
+  });
+}
+
+// ── Populate dept selects (bed + bulk) ───────────────────────────────────────
+function populateDeptSelects() {
+  ['bed-dept','bulk-dept','filter-dept'].forEach(id => {
+    const sel = document.getElementById(id);
+    const current = sel.value;
+    const isFilter = id === 'filter-dept';
+    sel.innerHTML = isFilter
+      ? '<option value="">All Departments</option>'
+      : '<option value="">— Select department —</option>';
+    _depts.filter(d => d.is_active).forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = d.name;
+      sel.appendChild(opt);
+    });
+    if (current) sel.value = current;
+  });
+}
+
+// ── Load all data ─────────────────────────────────────────────────────────────
+async function loadAll() {
+  const [dRes, bRes, oRes] = await Promise.all([
+    supabase.from('departments').select('*').eq('tenant_id', tenantId).order('name'),
+    supabase.from('beds').select('*').eq('tenant_id', tenantId).order('bed_number'),
+    supabase.from('opds').select('id,name').eq('tenant_id', tenantId).eq('is_active', true).order('name'),
+  ]);
+
+  if (dRes.error) { _alert('error', 'Failed to load departments: ' + dRes.error.message); return; }
+  if (bRes.error) { _alert('error', 'Failed to load beds: ' + bRes.error.message); return; }
+
+  _depts = dRes.data || [];
+  _beds  = bRes.data || [];
+  _opds  = oRes.data || [];
+
+  _populateOpdSelect();
+  populateDeptSelects();
+  renderStats();
+  renderDepts();
+  renderBeds();
+  checkNcismCompliance();
+}
+
+// ── Populate OPD select in dept drawer ───────────────────────────────────────
+function _populateOpdSelect() {
+  const sel = document.getElementById('dept-opd');
+  sel.innerHTML = '<option value="">— None / IPD-only dept —</option>';
+  _opds.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o.id;
+    opt.textContent = o.name;
+    sel.appendChild(opt);
+  });
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function renderStats() {
+  const total    = _beds.length;
+  const occupied = _beds.filter(b => b.status === 'occupied').length;
+  const pct      = total ? Math.round(occupied / total * 100) : 0;
+
+  document.getElementById('stat-depts').textContent      = _depts.filter(d => d.is_active).length;
+  document.getElementById('stat-total-beds').textContent = total;
+  document.getElementById('stat-occupied').textContent   = occupied;
+  document.getElementById('stat-occupancy').textContent  = pct + '%';
+
+  const occCard = document.getElementById('stat-occupancy').closest('.stat-card');
+  occCard.className = 'stat-card' + (pct >= 80 ? ' ' : pct >= 60 ? ' warn' : ' danger');
+}
+
+// ── NCISM compliance check ────────────────────────────────────────────────────
+function checkNcismCompliance() {
+  const existingCodes = new Set(_depts.filter(d => d.is_active).map(d => d.ncism_code).filter(Boolean));
+  const missing = NCISM_CODES.filter(n => n.mandatory && !existingCodes.has(n.code));
+  const banner = document.getElementById('ncism-banner');
+
+  if (missing.length) {
+    banner.textContent = `NCISM Compliance: ${missing.length} mandatory department(s) not configured — `
+      + missing.map(m => m.label.split(' ')[0]).join(', ')
+      + '. Click "Seed NCISM Depts" to add them all.';
+    banner.classList.add('show');
+  } else {
+    banner.classList.remove('show');
+  }
+}
+
+// ── Render departments ────────────────────────────────────────────────────────
+function renderDepts() {
+  const grid = document.getElementById('dept-grid');
+  document.getElementById('dept-count-label').textContent = `Departments (${_depts.length})`;
+
+  if (!_depts.length) {
+    grid.innerHTML = `<div class="dept-empty">No departments yet.<br>Click "Seed NCISM Depts" to start.</div>`;
+    return;
+  }
+
+  grid.innerHTML = _depts.map(d => {
+    const deptBeds   = _beds.filter(b => b.department_id === d.id);
+    const occupied   = deptBeds.filter(b => b.status === 'occupied').length;
+    const pct        = deptBeds.length ? Math.round(occupied / deptBeds.length * 100) : 0;
+    const pgBeds     = deptBeds.filter(b => b.is_pg_allocated).length;
+    const pgRequired = d.is_pg_dept ? d.pg_seats_sanctioned * 4 : 0;
+    const ncismInfo  = d.ncism_code ? NCISM_CODES.find(n => n.code === d.ncism_code) : null;
+
+    const violates   = d.is_pg_dept && pgRequired > 0 && (pgBeds < pgRequired || pct < 80);
+
+    return `<div class="dept-card">
+      <div class="dept-card-head">
+        <div>
+          <div class="dept-name">${_esc(d.name)}</div>
+          ${ncismInfo ? `<div class="dept-code">${d.ncism_code}</div>` : ''}
+        </div>
+        <div class="dept-badges">
+          ${d.is_mandatory ? `<span class="badge badge-mandatory">NCISM</span>` : ''}
+          ${d.is_pg_dept   ? `<span class="badge badge-pg">PG</span>` : ''}
+          ${violates       ? `<span class="badge badge-violation">⚠ Ratio</span>` : ''}
+          <span class="badge ${d.is_active ? 'badge-active' : 'badge-inactive'}">${d.is_active ? 'Active' : 'Inactive'}</span>
+        </div>
+      </div>
+      <div class="dept-stats">
+        <span>Beds: <strong>${deptBeds.length}</strong></span>
+        <span>Occupied: <strong>${occupied}</strong></span>
+        <span>Occ%: <strong>${deptBeds.length ? pct + '%' : '—'}</strong></span>
+        ${d.is_pg_dept ? `<span>PG beds: <strong>${pgBeds}/${pgRequired}</strong></span>` : ''}
+      </div>
+      <div class="dept-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openBedDrawer(null,'${d.id}')">+ Bed</button>
+        <button class="icon-btn" onclick="openDeptDrawer('${d.id}')" title="Edit">&#9998;</button>
+        <button class="icon-btn del" onclick="deleteDept('${d.id}')" title="Delete">&#128465;</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Render bed matrix ─────────────────────────────────────────────────────────
+function renderBeds() {
+  const grid       = document.getElementById('bed-grid');
+  const deptFilter = document.getElementById('filter-dept').value;
+  const statFilter = document.getElementById('filter-status').value;
+  const typeFilter = document.getElementById('filter-type').value;
+
+  let beds = _beds;
+  if (deptFilter) beds = beds.filter(b => b.department_id === deptFilter);
+  if (statFilter) beds = beds.filter(b => b.status === statFilter);
+  if (typeFilter) beds = beds.filter(b => b.bed_type === typeFilter);
+
+  if (!beds.length) {
+    grid.innerHTML = `<div class="bed-empty">No beds match the current filter.<br>Use "+ Add Bed" or "Bulk Add Beds" to configure the ward.</div>`;
+    return;
+  }
+
+  const deptMap = Object.fromEntries(_depts.map(d => [d.id, d.name]));
+
+  grid.innerHTML = beds.map(b => {
+    const statusCls = b.status === 'pk_treatment' ? 'pk_treatment' : b.status;
+    const typeLabel = b.bed_type.replace('_', ' ');
+    return `<div class="bed-card ${statusCls}" onclick="openBedDrawer('${b.id}')" title="${_esc(b.bed_number)} — ${b.status}">
+      ${b.is_pg_allocated ? '<div class="bed-pg-dot" title="PG-allocated"></div>' : ''}
+      <div class="bed-num">${_esc(b.bed_number)}</div>
+      <div class="bed-ward">${_esc(b.ward_name || deptMap[b.department_id] || '—')}</div>
+      <div class="bed-type-badge ${b.bed_type}">${typeLabel}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+window.switchTab = function(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+};
+
+// ── Dept drawer ───────────────────────────────────────────────────────────────
+window.openDeptDrawer = function(id) {
+  _populateNcismSelect();
+  const dept = id ? _depts.find(d => d.id === id) : null;
+  document.getElementById('dept-drawer-title').textContent = dept ? 'Edit Department' : 'New Department';
+  document.getElementById('dept-id').value        = dept ? dept.id : '';
+  document.getElementById('dept-name').value      = dept ? dept.name : '';
+  document.getElementById('dept-ncism').value     = dept?.ncism_code || '';
+  document.getElementById('dept-opd').value       = dept?.opd_id || '';
+  document.getElementById('dept-is-pg').checked   = dept?.is_pg_dept || false;
+  document.getElementById('dept-pg-seats').value  = dept?.pg_seats_sanctioned || '';
+  document.getElementById('dept-mandatory').checked = dept?.is_mandatory || false;
+  document.getElementById('dept-active').checked  = dept ? dept.is_active : true;
+  _togglePgFields();
+  document.getElementById('dept-overlay').classList.add('open');
+};
+window.closeDeptDrawer = function() {
+  document.getElementById('dept-overlay').classList.remove('open');
+};
+
+window._togglePgFields = function() {
+  const show = document.getElementById('dept-is-pg').checked;
+  document.getElementById('pg-fields').classList.toggle('show', show);
+  _updateBedsRequired();
+};
+
+window._updateBedsRequired = function() {
+  const seats = parseInt(document.getElementById('dept-pg-seats').value) || 0;
+  const note  = document.getElementById('beds-required-note');
+  if (seats > 0) {
+    note.textContent = `NCISM requires ${seats * 4} beds (4 per PG seat) with ≥80% occupancy for PG departments.`;
+    note.classList.add('show');
+  } else {
+    note.classList.remove('show');
+  }
+};
+
+window.saveDept = async function() {
+  const id       = document.getElementById('dept-id').value;
+  const name     = document.getElementById('dept-name').value.trim();
+  const ncism    = document.getElementById('dept-ncism').value;
+  const opdId    = document.getElementById('dept-opd').value;
+  const isPg     = document.getElementById('dept-is-pg').checked;
+  const pgSeats  = parseInt(document.getElementById('dept-pg-seats').value) || 0;
+  const mandatory= document.getElementById('dept-mandatory').checked;
+  const isActive = document.getElementById('dept-active').checked;
+
+  if (!name) { _alert('error', 'Department name is required.'); return; }
+  if (isPg && pgSeats < 1) { _alert('error', 'Enter PG seats sanctioned.'); return; }
+
+  const btn = document.getElementById('btn-save-dept');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  const payload = {
+    tenant_id:           tenantId,
+    name,
+    ncism_code:          ncism || null,
+    opd_id:              opdId || null,
+    is_pg_dept:          isPg,
+    pg_seats_sanctioned: isPg ? pgSeats : 0,
+    is_mandatory:        mandatory,
+    is_active:           isActive,
+  };
+
+  let error;
+  if (id) {
+    ({ error } = await supabase.from('departments').update(payload).eq('id', id));
+  } else {
+    ({ error } = await supabase.from('departments').insert(payload));
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Save Department';
+
+  if (error) { _alert('error', 'Save failed: ' + error.message); return; }
+  closeDeptDrawer();
+  _alert('success', id ? 'Department updated.' : 'Department created.');
+  await loadAll();
+};
+
+window.deleteDept = async function(id) {
+  const dept = _depts.find(d => d.id === id);
+  const bedCount = _beds.filter(b => b.department_id === id).length;
+  let msg = `Delete department "${dept?.name}"?`;
+  if (bedCount) msg += ` This will also remove its ${bedCount} bed(s).`;
+  if (!confirm(msg)) return;
+
+  const { error } = await supabase.from('departments').delete().eq('id', id);
+  if (error) { _alert('error', 'Delete failed: ' + error.message); return; }
+  _alert('success', 'Department deleted.');
+  await loadAll();
+};
+
+// ── Bed drawer ────────────────────────────────────────────────────────────────
+window.openBedDrawer = function(id, preDeptId) {
+  const bed = id ? _beds.find(b => b.id === id) : null;
+  document.getElementById('bed-drawer-title').textContent = bed ? 'Edit Bed' : 'New Bed';
+  document.getElementById('bed-id').value     = bed ? bed.id : '';
+  document.getElementById('bed-num').value    = bed ? bed.bed_number : '';
+  document.getElementById('bed-floor').value  = bed?.floor_number ?? '';
+  document.getElementById('bed-ward').value   = bed?.ward_name || '';
+  document.getElementById('bed-dept').value   = bed?.department_id || preDeptId || '';
+  document.getElementById('bed-type').value   = bed?.bed_type || 'general';
+  document.getElementById('bed-status').value = bed?.status || 'vacant';
+  document.getElementById('bed-pg').checked   = bed?.is_pg_allocated || false;
+  document.getElementById('bed-overlay').classList.add('open');
+};
+window.closeBedDrawer = function() {
+  document.getElementById('bed-overlay').classList.remove('open');
+};
+
+window.saveBed = async function() {
+  const id      = document.getElementById('bed-id').value;
+  const num     = document.getElementById('bed-num').value.trim().toUpperCase();
+  const floor   = document.getElementById('bed-floor').value;
+  const ward    = document.getElementById('bed-ward').value.trim();
+  const deptId  = document.getElementById('bed-dept').value;
+  const type    = document.getElementById('bed-type').value;
+  const status  = document.getElementById('bed-status').value;
+  const isPg    = document.getElementById('bed-pg').checked;
+
+  if (!num)    { _alert('error', 'Bed number is required.'); return; }
+  if (!deptId) { _alert('error', 'Department is required.'); return; }
+
+  const btn = document.getElementById('btn-save-bed');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  const payload = {
+    tenant_id:       tenantId,
+    department_id:   deptId,
+    bed_number:      num,
+    floor_number:    floor !== '' ? parseInt(floor) : null,
+    ward_name:       ward || null,
+    bed_type:        type,
+    status,
+    is_pg_allocated: isPg,
+  };
+
+  let error;
+  if (id) {
+    ({ error } = await supabase.from('beds').update(payload).eq('id', id));
+  } else {
+    ({ error } = await supabase.from('beds').insert(payload));
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Save Bed';
+
+  if (error) {
+    const msg = error.code === '23505'
+      ? `Bed number "${num}" already exists in this facility.`
+      : 'Save failed: ' + error.message;
+    _alert('error', msg);
+    return;
+  }
+  closeBedDrawer();
+  _alert('success', id ? 'Bed updated.' : 'Bed added.');
+  await loadAll();
+};
+
+// ── Bulk add ──────────────────────────────────────────────────────────────────
+window.openBulkDrawer = function() {
+  document.getElementById('bulk-dept').value   = '';
+  document.getElementById('bulk-prefix').value = '';
+  document.getElementById('bulk-count').value  = '';
+  document.getElementById('bulk-start').value  = '1';
+  document.getElementById('bulk-floor').value  = '';
+  document.getElementById('bulk-ward').value   = '';
+  document.getElementById('bulk-type').value   = 'general';
+  document.getElementById('bulk-pg').checked   = false;
+  updateBulkPreview();
+  document.getElementById('bulk-overlay').classList.add('open');
+};
+window.closeBulkDrawer = function() {
+  document.getElementById('bulk-overlay').classList.remove('open');
+};
+
+window.updateBulkPreview = function() {
+  const prefix = document.getElementById('bulk-prefix').value.trim().toUpperCase();
+  const count  = parseInt(document.getElementById('bulk-count').value) || 0;
+  const start  = parseInt(document.getElementById('bulk-start').value) || 1;
+  const preview = document.getElementById('bulk-preview');
+
+  if (!prefix || count < 1) {
+    preview.innerHTML = '<span style="color:var(--text-muted)">Enter prefix and count to preview</span>';
+    return;
+  }
+
+  const chips = [];
+  for (let i = 0; i < Math.min(count, 30); i++) {
+    const n = String(start + i).padStart(2, '0');
+    chips.push(`<span class="preview-chip">${prefix}-${n}</span>`);
+  }
+  if (count > 30) chips.push(`<span class="preview-chip" style="color:var(--text-muted)">+${count-30} more</span>`);
+  preview.innerHTML = chips.join('');
+};
+
+window.bulkAddBeds = async function() {
+  const deptId = document.getElementById('bulk-dept').value;
+  const prefix = document.getElementById('bulk-prefix').value.trim().toUpperCase();
+  const count  = parseInt(document.getElementById('bulk-count').value) || 0;
+  const start  = parseInt(document.getElementById('bulk-start').value) || 1;
+  const floor  = document.getElementById('bulk-floor').value;
+  const ward   = document.getElementById('bulk-ward').value.trim();
+  const type   = document.getElementById('bulk-type').value;
+  const isPg   = document.getElementById('bulk-pg').checked;
+
+  if (!deptId) { _alert('error', 'Select a department.'); return; }
+  if (!prefix) { _alert('error', 'Prefix is required.'); return; }
+  if (count < 1 || count > 100) { _alert('error', 'Count must be between 1 and 100.'); return; }
+
+  const rows = [];
+  for (let i = 0; i < count; i++) {
+    const n = String(start + i).padStart(2, '0');
+    rows.push({
+      tenant_id:       tenantId,
+      department_id:   deptId,
+      bed_number:      `${prefix}-${n}`,
+      floor_number:    floor !== '' ? parseInt(floor) : null,
+      ward_name:       ward || null,
+      bed_type:        type,
+      status:          'vacant',
+      is_pg_allocated: isPg,
+    });
+  }
+
+  const btn = document.getElementById('btn-bulk-save');
+  btn.disabled = true;
+  btn.textContent = `Adding ${count} beds…`;
+
+  const { error } = await supabase.from('beds').insert(rows);
+  btn.disabled = false;
+  btn.textContent = 'Add Beds';
+
+  if (error) {
+    const msg = error.code === '23505'
+      ? 'Some bed numbers already exist. Adjust prefix or start number.'
+      : 'Bulk insert failed: ' + error.message;
+    _alert('error', msg);
+    return;
+  }
+  closeBulkDrawer();
+  _alert('success', `${count} beds added successfully.`);
+  await loadAll();
+};
+
+// ── Seed NCISM departments ────────────────────────────────────────────────────
+window.seedNcismDepts = async function() {
+  const existing = new Set(_depts.map(d => d.ncism_code).filter(Boolean));
+  const toSeed = NCISM_CODES.filter(n => !existing.has(n.code));
+
+  if (!toSeed.length) {
+    _alert('success', 'All NCISM departments are already configured.');
+    return;
+  }
+
+  if (!confirm(`This will create ${toSeed.length} NCISM department(s). Continue?`)) return;
+
+  const btn = document.getElementById('btn-seed');
+  btn.disabled = true;
+  btn.textContent = 'Seeding…';
+
+  const rows = toSeed.map(n => ({
+    tenant_id:    tenantId,
+    name:         n.label,
+    ncism_code:   n.code,
+    is_mandatory: n.mandatory,
+    is_pg_dept:   false,
+    is_active:    true,
+  }));
+
+  const { error } = await supabase.from('departments').insert(rows);
+  btn.disabled = false;
+  btn.textContent = '◇ Seed NCISM Depts';
+
+  if (error) { _alert('error', 'Seed failed: ' + error.message); return; }
+  _alert('success', `${rows.length} departments created.`);
+  await loadAll();
+};
+
+// ── Alert helper ──────────────────────────────────────────────────────────────
+function _alert(type, msg) {
+  const el = document.getElementById('alert');
+  el.className = `alert show ${type}`;
+  el.textContent = msg;
+  if (type === 'success') setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ── Escape HTML ───────────────────────────────────────────────────────────────
+function _esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Close drawers on overlay click ───────────────────────────────────────────
+['dept-overlay','bed-overlay','bulk-overlay'].forEach(id => {
+  document.getElementById(id).addEventListener('click', e => {
+    if (e.target.id === id) {
+      if (id === 'dept-overlay')  closeDeptDrawer();
+      if (id === 'bed-overlay')   closeBedDrawer();
+      if (id === 'bulk-overlay')  closeBulkDrawer();
+    }
+  });
+});
+
+await loadAll();
+</script>
+</body>
+</html>

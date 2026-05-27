@@ -19,14 +19,18 @@ export async function findPatient(phone, name, tenantId) {
 }
 
 // ➕ Create new patient
-export async function createPatient(name, phone, tenantId, abhaNumber = null) {
+export async function createPatient(name, phone, tenantId, abhaNumber = null, demographics = {}) {
   const { data, error } = await supabase
     .from('patients')
     .insert({
-      name:        name.trim(),
-      phone:       phone.trim(),
-      tenant_id:   tenantId,
-      abha_number: abhaNumber || null
+      name:           name.trim(),
+      phone:          phone.trim(),
+      tenant_id:      tenantId,
+      abha_number:    abhaNumber || null,
+      age:            demographics.age            || null,
+      gender:         demographics.gender         || null,
+      date_of_birth:  demographics.date_of_birth  || null,
+      blood_group:    demographics.blood_group    || null
     })
     .select()
     .single()

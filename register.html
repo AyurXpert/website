@@ -24,70 +24,192 @@
 }
 html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark)}
 
-/* HEADER */
+/* ── HEADER ── */
 .header{background:var(--green-deep);padding:18px 24px;display:flex;align-items:center;justify-content:center;gap:14px}
 .header-logo{width:44px;height:44px;object-fit:contain;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.3)}
 .header-brand{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;letter-spacing:.3px}
 .header-brand span:first-child{color:var(--white)}
 .header-brand span:last-child{color:var(--gold)}
 
-/* MAIN */
-.main{max-width:620px;margin:36px auto;padding:0 16px 60px}
+/* ── MAIN WRAPPER ── */
+.main{max-width:720px;margin:0 auto;padding:0 16px 60px}
 
-/* PROGRESS */
-.progress{display:flex;align-items:center;margin-bottom:28px}
+/* ═══════════════════════════════
+   ORG TYPE SELECTOR
+═══════════════════════════════ */
+#org-type-selector{padding-top:32px}
+.sel-head{text-align:center;margin-bottom:30px}
+.sel-head h1{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:600;color:var(--green-deep);margin-bottom:8px}
+.sel-head p{font-size:14px;color:var(--text-muted);line-height:1.6}
+
+.org-category{margin-bottom:28px}
+.cat-label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:12px;padding-bottom:7px;border-bottom:2px solid var(--border);display:flex;align-items:center;gap:8px}
+.cat-label-pill{display:inline-block;background:var(--green-light);color:var(--green-deep);border-radius:10px;padding:2px 8px;font-size:10px;font-weight:600;letter-spacing:.4px}
+
+.tiles-row{display:flex;flex-wrap:wrap;gap:12px}
+
+/* Individual tile */
+.org-tile{
+  position:relative;width:160px;flex-shrink:0;
+  background:var(--white);border:2px solid var(--border);border-radius:14px;
+  padding:20px 12px 16px;text-align:center;cursor:pointer;overflow:hidden;
+  transition:border-color .2s,box-shadow .2s,transform .15s;
+  -webkit-tap-highlight-color:transparent;
+}
+@media(hover:hover){
+  .org-tile:hover{border-color:var(--green-mid);box-shadow:0 6px 20px rgba(26,74,46,.15);transform:translateY(-2px)}
+}
+.tile-icon{
+  width:54px;height:54px;border-radius:14px;margin:0 auto 11px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;font-weight:700;color:var(--white);letter-spacing:.5px;
+  transition:transform .2s;
+}
+.org-tile:hover .tile-icon{transform:scale(1.05)}
+/* Icon colour by category */
+.cat-clinical  .tile-icon{background:var(--green-deep)}
+.cat-education .tile-icon{background:var(--gold)}
+.cat-diag      .tile-icon{background:#2a5f8b}
+.cat-pharma    .tile-icon{background:#4a6272}
+.cat-trade     .tile-icon{background:#6a5580}
+
+.tile-name{font-size:13px;font-weight:600;color:var(--text-dark);margin-bottom:3px;line-height:1.3}
+.tile-tag{font-size:11px;color:var(--text-muted);line-height:1.4}
+.tile-badge{display:inline-block;background:var(--gold);color:var(--white);font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;margin-top:5px;letter-spacing:.5px;text-transform:uppercase}
+
+/* Feature overlay */
+.tile-features{
+  position:absolute;inset:0;border-radius:12px;
+  background:var(--green-deep);color:var(--white);
+  padding:14px 12px 12px;
+  display:flex;flex-direction:column;justify-content:space-between;
+  opacity:0;transform:translateY(8px);pointer-events:none;
+  transition:opacity .22s ease,transform .22s ease;
+}
+@media(hover:hover){
+  .org-tile:hover .tile-features{opacity:1;transform:translateY(0);pointer-events:all}
+}
+.org-tile.show-features .tile-features{opacity:1;transform:translateY(0);pointer-events:all}
+.tf-title{font-size:10px;font-weight:600;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.tf-list{list-style:none;flex:1}
+.tf-list li{font-size:11.5px;padding:2px 0;display:flex;align-items:flex-start;gap:5px;line-height:1.35;text-align:left}
+.tf-list li::before{content:'✓';font-size:9px;color:var(--gold);flex-shrink:0;margin-top:2px;font-weight:700}
+.tf-btn{
+  display:block;width:100%;height:32px;margin-top:8px;
+  background:var(--gold);border:none;border-radius:7px;
+  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;
+  color:var(--white);cursor:pointer;letter-spacing:.2px;
+  transition:background .15s;
+}
+.tf-btn:hover{background:#b07a20}
+
+/* Mobile tap hint */
+.tile-tap-hint{font-size:10px;color:var(--text-muted);margin-top:6px;transition:opacity .2s}
+@media(hover:hover){.tile-tap-hint{display:none}}
+
+/* ═══════════════════════════════
+   REGISTRATION FORM WRAPPER
+═══════════════════════════════ */
+#reg-form{padding-top:24px}
+
+/* Selected type chip */
+.sel-chip{
+  display:flex;align-items:center;gap:12px;
+  background:var(--white);border:2px solid var(--green-mid);
+  border-radius:12px;padding:10px 14px;margin-bottom:18px;
+  max-width:620px;margin-left:auto;margin-right:auto;
+  animation:fadeUp .4s ease both;
+}
+.sc-icon{
+  width:38px;height:38px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:var(--white);flex-shrink:0;
+}
+.sc-info{flex:1;min-width:0}
+.sc-name{font-size:15px;font-weight:600;color:var(--green-deep);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc-tag{font-size:11px;color:var(--text-muted)}
+.sc-change{
+  background:none;border:1.5px solid var(--border);border-radius:8px;
+  padding:6px 11px;font-size:12px;color:var(--text-mid);
+  cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0;
+  transition:border-color .2s,background .2s;white-space:nowrap;
+}
+.sc-change:hover{border-color:var(--green-mid);background:var(--green-light)}
+
+/* ── PROGRESS BAR ── */
+.progress{display:flex;align-items:center;margin-bottom:24px;max-width:620px;margin-left:auto;margin-right:auto}
 .step-item{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;position:relative}
 .step-item:not(:last-child)::after{content:'';position:absolute;top:16px;left:50%;width:100%;height:2px;background:var(--border);z-index:0;transition:background .4s}
 .step-item.done:not(:last-child)::after{background:var(--green-mid)}
+.step-item.no-connector::after{display:none!important}
 .step-circle{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;border:2px solid var(--border);background:var(--white);color:var(--text-muted);position:relative;z-index:1;transition:all .3s}
 .step-item.active .step-circle{border-color:var(--green-mid);background:var(--green-mid);color:var(--white)}
 .step-item.done .step-circle{border-color:var(--green-deep);background:var(--green-deep);color:var(--white)}
-.step-label{font-size:11px;color:var(--text-muted);font-weight:500;text-align:center;transition:color .3s}
+.step-label{font-size:10px;color:var(--text-muted);font-weight:500;text-align:center;transition:color .3s}
 .step-item.active .step-label{color:var(--green-mid)}
 .step-item.done .step-label{color:var(--green-deep)}
 
-/* CARD */
-.card{background:var(--white);border-radius:16px;padding:32px;box-shadow:0 2px 16px rgba(0,0,0,0.06);animation:fadeUp .5s ease both}
+/* ── FORM CARD ── */
+.card{background:var(--white);border-radius:16px;padding:32px;box-shadow:0 2px 16px rgba(0,0,0,0.06);animation:fadeUp .5s ease both;max-width:620px;margin-left:auto;margin-right:auto}
 .card-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep);margin-bottom:6px}
-.card-subtitle{font-size:14px;color:var(--text-muted);margin-bottom:28px;line-height:1.6}
+.card-subtitle{font-size:14px;color:var(--text-muted);margin-bottom:26px;line-height:1.6}
 
-/* FIELDS */
+/* ── FIELDS ── */
 .field{margin-bottom:18px}
 .field label{display:block;font-size:11px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.8px;margin-bottom:7px}
 .opt{font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0;font-size:11px}
 .field input,.field select,.field textarea{width:100%;height:50px;padding:0 16px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:16px;color:var(--text-dark);background:var(--cream);outline:none;-webkit-appearance:none;appearance:none;transition:border-color .2s,box-shadow .2s,background .2s}
 .field textarea{height:84px;padding:12px 16px;resize:none;line-height:1.5}
 .field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a9e90' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;cursor:pointer}
-.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--green-mid);background:var(--white);box-shadow:0 0 0 3px rgba(45,122,79,0.1)}
-.field input.error,.field select.error{border-color:#e87b7b;background:#fff8f8}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--green-mid);background:var(--white);box-shadow:0 0 0 3px rgba(45,122,79,.1)}
 .row-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 
-/* PASSWORD */
+/* ── FAQ ── */
+.faq-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:15px;height:15px;border-radius:50%;
+  background:var(--text-muted);color:var(--white);
+  font-size:9px;font-weight:700;border:none;cursor:pointer;
+  margin-left:5px;vertical-align:middle;flex-shrink:0;
+  transition:background .15s;
+}
+.faq-btn:hover{background:var(--green-mid)}
+.faq-box{
+  display:none;
+  background:linear-gradient(135deg,#e8f5ee,#f4fbf7);
+  border:1px solid var(--border);border-radius:8px;
+  padding:10px 13px;font-size:13px;color:var(--text-mid);
+  margin-top:7px;line-height:1.65;
+}
+.faq-box.open{display:block}
+.faq-box strong{color:var(--green-deep)}
+
+/* ── PASSWORD ── */
 .pw-wrap{position:relative}
 .pw-wrap input{padding-right:52px}
 .toggle-pw{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:flex-end;padding:0}
 .toggle-pw:hover{color:var(--green-mid)}
 
-/* ALERT */
+/* ── ALERT ── */
 .alert{display:none;padding:12px 16px;border-radius:10px;font-size:14px;line-height:1.5;margin-bottom:20px;border:1px solid transparent}
 .alert.show{display:flex;align-items:flex-start;gap:10px}
 .alert-icon{font-size:15px;flex-shrink:0;margin-top:1px}
 .alert-error{background:var(--error-bg);color:var(--error-text);border-color:var(--error-border)}
 
-/* BUTTONS */
+/* ── BUTTONS ── */
 .btn-row{display:flex;gap:12px;margin-top:8px}
 .btn-primary{flex:1;height:52px;background:var(--green-deep);color:var(--white);border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:16px;font-weight:500;cursor:pointer;letter-spacing:.3px;transition:background .2s,box-shadow .2s;position:relative;overflow:hidden}
-@media(hover:hover){.btn-primary:hover:not(:disabled){background:#1f5c37;box-shadow:0 4px 16px rgba(26,74,46,0.3)}}
+@media(hover:hover){.btn-primary:hover:not(:disabled){background:#1f5c37;box-shadow:0 4px 16px rgba(26,74,46,.3)}}
 .btn-primary:disabled{opacity:.7;cursor:not-allowed}
 .btn-primary .btn-text{transition:opacity .2s}
 .btn-primary .btn-spinner{display:none;position:absolute;inset:0;align-items:center;justify-content:center}
 .btn-primary.loading .btn-text{opacity:0}
 .btn-primary.loading .btn-spinner{display:flex}
-.spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+.spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
 .btn-back{height:52px;padding:0 24px;flex-shrink:0;background:transparent;color:var(--text-mid);border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:500;cursor:pointer;transition:border-color .2s,background .2s}
 .btn-back:hover{border-color:var(--green-mid);background:var(--green-light)}
 
-/* LOGO UPLOAD */
+/* ── LOGO UPLOAD ── */
 .logo-upload{border:2px dashed var(--border);border-radius:12px;padding:24px 16px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;position:relative}
 .logo-upload:hover{border-color:var(--green-mid);background:var(--green-light)}
 .logo-upload input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
@@ -95,7 +217,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 .logo-upload-text{font-size:14px;color:var(--text-muted);line-height:1.6}
 .logo-upload-text strong{color:var(--green-mid)}
 
-/* LOCATION */
+/* ── LOCATION ── */
 .location-row{display:flex;gap:10px;align-items:flex-end}
 .location-row .field{flex:1;margin:0}
 .btn-gps{height:50px;padding:0 14px;flex-shrink:0;background:var(--green-light);color:var(--green-deep);border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .2s,border-color .2s,color .2s}
@@ -103,19 +225,66 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 .gps-status{font-size:12px;color:var(--text-muted);margin-top:6px;min-height:18px}
 .gps-status.ok{color:var(--green-mid)}
 
-/* SUCCESS */
+/* ═══════════════════════════════
+   NCISM SETUP (STEP 4)
+═══════════════════════════════ */
+.ncism-info{background:linear-gradient(135deg,#e8f5ee,#f0faf4);border:1.5px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:24px;font-size:13px;color:var(--text-mid);line-height:1.8}
+.ncism-info strong{color:var(--green-deep)}
+.intake-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+.intake-card{border:2px solid var(--border);border-radius:12px;padding:18px 12px;text-align:center;cursor:pointer;transition:all .2s;background:var(--cream);user-select:none}
+.intake-card:hover{border-color:var(--green-mid);background:var(--green-light)}
+.intake-card.selected{border-color:var(--green-deep);background:var(--green-light);box-shadow:0 0 0 3px rgba(26,74,46,.12)}
+.intake-num{font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:600;color:var(--green-deep);line-height:1}
+.intake-unit{font-size:11px;color:var(--text-muted);margin:4px 0 8px}
+.intake-stats{font-size:11px;color:var(--text-mid);background:var(--white);border-radius:6px;padding:4px 10px;display:inline-block;transition:all .2s}
+.intake-card.selected .intake-stats{background:var(--green-deep);color:var(--white)}
+.pg-section{border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-top:8px}
+.pg-hdr{padding:9px 14px;background:var(--green-light);font-size:11px;font-weight:600;color:var(--green-deep);text-transform:uppercase;letter-spacing:.6px}
+.pg-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid var(--border)}
+.pg-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--green-mid);flex-shrink:0;cursor:pointer}
+.pg-name{flex:1;font-size:14px;color:var(--text-dark)}
+.pg-row.off .pg-name{color:var(--text-muted)}
+.pg-seats{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.pg-seats-lbl{font-size:11px;color:var(--text-muted)}
+.pg-seats-input{width:52px;height:32px;padding:0 6px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;text-align:center;background:var(--cream);color:var(--text-dark);font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s}
+.pg-seats-input:focus{border-color:var(--green-mid);background:var(--white)}
+.pg-row.off .pg-seats-input{opacity:.4;pointer-events:none}
+.preview-box{border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-top:22px}
+.preview-hdr{padding:10px 16px;background:var(--green-deep);color:var(--white);font-size:12px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+.preview-summary{display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1.5px solid var(--border)}
+.pv-stat{padding:12px 8px;text-align:center;border-right:1px solid var(--border)}
+.pv-stat:last-child{border-right:none}
+.pv-val{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep)}
+.pv-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.pv-table{width:100%;border-collapse:collapse;font-size:13px}
+.pv-table th{padding:8px 12px;background:var(--green-light);color:var(--text-mid);font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.4px;text-align:left}
+.pv-table th.r,.pv-table td.r{text-align:right}
+.pv-table td{padding:7px 12px;border-top:1px solid var(--border);color:var(--text-dark)}
+.pv-table td.r{color:var(--green-mid);font-weight:500}
+.pv-table td.rt{text-align:right;color:var(--green-deep);font-weight:600}
+.pv-table tr.trow td{background:var(--green-light);font-weight:600}
+.pv-empty{padding:18px;text-align:center;color:var(--text-muted);font-size:13px;font-style:italic}
+.seed-prog{background:var(--green-light);border:1.5px solid var(--border);border-radius:12px;padding:14px 18px;margin-top:16px}
+.seed-prog-title{font-size:13px;font-weight:600;color:var(--green-deep);margin-bottom:10px}
+.seed-item{font-size:13px;color:var(--text-muted);padding:3px 0;transition:color .2s}
+.seed-item.active{color:var(--gold);font-weight:500}
+.seed-item.done{color:var(--green-deep)}
+.seed-item.err{color:#8b1a1a}
+
+/* ── SUCCESS ── */
 .success-screen{display:none;text-align:center;padding:8px 0;animation:fadeUp .5s ease both}
-.success-icon{font-size:56px;margin-bottom:16px}
+.success-icon{font-size:52px;margin-bottom:16px}
 .success-title{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;color:var(--green-deep);margin-bottom:8px}
-.success-subtitle{font-size:14px;color:var(--text-muted);margin-bottom:28px;line-height:1.7}
+.success-subtitle{font-size:14px;color:var(--text-muted);margin-bottom:24px;line-height:1.7}
+.ncism-badge{display:inline-block;background:var(--green-light);border:1.5px solid var(--border);border-radius:8px;padding:8px 18px;font-size:13px;color:var(--green-deep);margin-bottom:20px}
 .tenant-code-box{background:var(--green-deep);border-radius:14px;padding:22px 32px;display:inline-block;margin-bottom:28px}
-.tenant-code-label{font-size:11px;color:rgba(255,255,255,0.55);margin-bottom:8px;letter-spacing:1px;text-transform:uppercase}
+.tenant-code-label{font-size:11px;color:rgba(255,255,255,.55);margin-bottom:8px;letter-spacing:1px;text-transform:uppercase}
 .tenant-code{font-family:'Cormorant Garamond',serif;font-size:38px;font-weight:600;letter-spacing:5px;color:var(--gold)}
-.tenant-code-hint{font-size:12px;color:rgba(255,255,255,0.45);margin-top:6px}
+.tenant-code-hint{font-size:12px;color:rgba(255,255,255,.45);margin-top:6px}
 .btn-goto-login{display:inline-block;height:52px;line-height:52px;padding:0 40px;background:var(--green-deep);color:var(--white);border-radius:10px;text-decoration:none;font-family:'DM Sans',sans-serif;font-size:16px;font-weight:500;transition:background .2s}
 .btn-goto-login:hover{background:#1f5c37}
 
-/* FOOTER */
+/* ── FOOTER LINK ── */
 .footer-link{text-align:center;font-size:13px;color:var(--text-muted);margin-top:24px}
 .footer-link a{color:var(--green-mid);font-weight:500;text-decoration:none}
 .footer-link a:hover{color:var(--gold)}
@@ -127,14 +296,19 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
   .header{padding:14px 16px}
   .header-logo{width:36px;height:36px}
   .header-brand{font-size:20px}
-  .main{margin:20px auto}
-  .card{padding:22px 18px}
+  .main{padding:0 12px 60px}
+  .card{padding:22px 16px}
   .card-title{font-size:22px}
   .row-2{grid-template-columns:1fr}
   .btn-row{flex-direction:column-reverse}
   .btn-back{width:100%;text-align:center}
   .location-row{flex-direction:column;align-items:stretch}
   .btn-gps{width:100%}
+  .sel-head h1{font-size:26px}
+  .org-tile{width:calc(50% - 6px)}
+  .intake-grid{grid-template-columns:1fr 1fr}
+  .preview-summary{grid-template-columns:1fr 1fr 1fr}
+  .pv-val{font-size:20px}
 }
 </style>
 </head>
@@ -147,265 +321,601 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 
 <div class="main">
 
-  <div class="progress" id="progress">
-    <div class="step-item active" id="step-ind-1">
-      <div class="step-circle">1</div>
-      <div class="step-label">Organisation</div>
+  <!-- ═══════════════════════════════════════
+       ORG TYPE SELECTOR
+  ════════════════════════════════════════ -->
+  <div id="org-type-selector">
+    <div class="sel-head">
+      <h1>Register Your Organisation</h1>
+      <p>Select your type — AyurXpert will pre-configure the right modules for you.<br>
+        <small>Hover (desktop) or tap (mobile) to see included features.</small>
+      </p>
     </div>
-    <div class="step-item" id="step-ind-2">
-      <div class="step-circle">2</div>
-      <div class="step-label">Admin Account</div>
-    </div>
-    <div class="step-item" id="step-ind-3">
-      <div class="step-circle">3</div>
-      <div class="step-label">Branding</div>
-    </div>
+    <div id="tiles-container"></div>
+    <div class="footer-link">Already registered? <a href="login.html">Sign in here</a></div>
   </div>
 
-  <div class="card">
+  <!-- ═══════════════════════════════════════
+       REGISTRATION FORM
+  ════════════════════════════════════════ -->
+  <div id="reg-form" style="display:none">
 
-    <div class="alert alert-error" id="alert">
-      <span class="alert-icon">&#9888;</span>
-      <span id="alert-text"></span>
+    <!-- Selected type chip -->
+    <div class="sel-chip" id="sel-chip">
+      <div class="sc-icon" id="sc-icon">CL</div>
+      <div class="sc-info">
+        <div class="sc-name" id="sc-name">Clinic</div>
+        <div class="sc-tag" id="sc-tag">OPD practice</div>
+      </div>
+      <button class="sc-change" onclick="changeOrgType()" type="button">&larr; Change type</button>
     </div>
 
-    <!-- STEP 1 -->
-    <div id="step-1">
-      <div class="card-title">Your Organisation</div>
-      <div class="card-subtitle">Select your organisation type — we'll automatically set up the right modules for you.</div>
-
-      <div class="field">
-        <label>Organisation Type</label>
-        <select id="org-type">
-          <option value="">— Select type —</option>
-          <optgroup label="Clinical">
-            <option value="clinic">Clinic (OPD practice)</option>
-            <option value="hospital">Hospital (Full setup with IPD)</option>
-            <option value="pk_center">Panchkarma Center (Daycare therapies)</option>
-            <option value="dispensary">Dispensary (Medicine dispensing only)</option>
-          </optgroup>
-          <optgroup label="Diagnostics">
-            <option value="laboratory">Diagnostic Laboratory</option>
-          </optgroup>
-          <optgroup label="Education">
-            <option value="college">Ayurveda College</option>
-          </optgroup>
-          <optgroup label="Pharmaceuticals">
-            <option value="pharma">Pharmaceutical Company</option>
-            <option value="raw_drug_supplier">Raw Drug Supplier</option>
-            <option value="instrument_supplier">Instrument Supplier</option>
-            <option value="chemical_supplier">Chemical Supplier</option>
-          </optgroup>
-          <optgroup label="Trade">
-            <option value="dealer">Dealer / Distributor</option>
-          </optgroup>
-          <optgroup label="Research">
-            <option value="journal">Journal / Publication</option>
-          </optgroup>
-        </select>
+    <!-- Progress bar -->
+    <div class="progress" id="progress">
+      <div class="step-item active" id="step-ind-1">
+        <div class="step-circle">1</div>
+        <div class="step-label">Details</div>
       </div>
-
-      <div class="field">
-        <label>Organisation Name</label>
-        <input type="text" id="org-name" placeholder="e.g. Srishti Ayurveda Hospital"/>
+      <div class="step-item" id="step-ind-2">
+        <div class="step-circle">2</div>
+        <div class="step-label">Admin Account</div>
       </div>
-
-      <div class="row-2">
-        <div class="field">
-          <label>State</label>
-          <select id="org-state">
-            <option value="">— Select state —</option>
-            <option>Andhra Pradesh</option><option>Arunachal Pradesh</option>
-            <option>Assam</option><option>Bihar</option><option>Chhattisgarh</option>
-            <option>Goa</option><option>Gujarat</option><option>Haryana</option>
-            <option>Himachal Pradesh</option><option>Jharkhand</option>
-            <option>Karnataka</option><option>Kerala</option>
-            <option>Madhya Pradesh</option><option>Maharashtra</option>
-            <option>Manipur</option><option>Meghalaya</option><option>Mizoram</option>
-            <option>Nagaland</option><option>Odisha</option><option>Punjab</option>
-            <option>Rajasthan</option><option>Sikkim</option>
-            <option>Tamil Nadu</option><option>Telangana</option>
-            <option>Tripura</option><option>Uttar Pradesh</option>
-            <option>Uttarakhand</option><option>West Bengal</option>
-            <option>Delhi</option><option>Jammu &amp; Kashmir</option>
-            <option>Ladakh</option><option>Puducherry</option>
-            <option>International</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>City</label>
-          <input type="text" id="org-city" placeholder="City / District"/>
-        </div>
+      <div class="step-item no-connector" id="step-ind-3">
+        <div class="step-circle">3</div>
+        <div class="step-label">Branding</div>
       </div>
-
-      <div class="row-2">
-        <div class="field">
-          <label>Phone</label>
-          <input type="tel" id="org-phone" placeholder="+91 98765 43210" inputmode="tel"/>
-        </div>
-        <div class="field">
-          <label>GSTIN <span class="opt">(optional)</span></label>
-          <input type="text" id="org-gstin" placeholder="22AAAAA0000A1Z5" maxlength="15"/>
-        </div>
-      </div>
-
-      <div class="btn-row">
-        <button class="btn-primary" onclick="nextStep(1)">
-          <span class="btn-text">Continue &rarr;</span>
-        </button>
+      <div class="step-item" id="step-ind-4" style="display:none">
+        <div class="step-circle">4</div>
+        <div class="step-label">NCISM Setup</div>
       </div>
     </div>
 
-    <!-- STEP 2 -->
-    <div id="step-2" style="display:none">
-      <div class="card-title">Admin Account</div>
-      <div class="card-subtitle">This will be the Super Admin account — the owner with full access to your organisation's portal.</div>
+    <div class="card">
 
-      <div class="field">
-        <label>Full Name</label>
-        <input type="text" id="admin-name" placeholder="Dr. Ramesh Sharma" autocomplete="name"/>
+      <div class="alert alert-error" id="alert">
+        <span class="alert-icon">&#9888;</span>
+        <span id="alert-text"></span>
       </div>
 
-      <div class="field">
-        <label>Email Address</label>
-        <input type="email" id="admin-email" placeholder="admin@yourhospital.com" inputmode="email" autocomplete="email"/>
-      </div>
+      <!-- ── STEP 1 — Details ── -->
+      <div id="step-1">
+        <div class="card-title">Organisation Details</div>
+        <div class="card-subtitle">Basic information used on all prescriptions, bills, and ABDM health records.</div>
 
-      <div class="field">
-        <label>Phone</label>
-        <input type="tel" id="admin-phone" placeholder="+91 98765 43210" inputmode="tel"/>
-      </div>
-
-      <div class="field">
-        <label>Password</label>
-        <div class="pw-wrap">
-          <input type="password" id="admin-password" placeholder="Minimum 8 characters" autocomplete="new-password"/>
-          <button class="toggle-pw" type="button" onclick="togglePw('admin-password',this)" aria-label="Show password">&#128065;</button>
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Confirm Password</label>
-        <div class="pw-wrap">
-          <input type="password" id="admin-confirm" placeholder="Re-enter your password" autocomplete="new-password"/>
-          <button class="toggle-pw" type="button" onclick="togglePw('admin-confirm',this)" aria-label="Show password">&#128065;</button>
-        </div>
-      </div>
-
-      <div class="btn-row">
-        <button class="btn-back" onclick="goBack(1)">&larr; Back</button>
-        <button class="btn-primary" onclick="nextStep(2)">
-          <span class="btn-text">Continue &rarr;</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- STEP 3 -->
-    <div id="step-3" style="display:none">
-      <div class="card-title">Your Branding</div>
-      <div class="card-subtitle">Make the portal look like your own. All fields here are optional — you can update them anytime from Settings.</div>
-
-      <div class="field">
-        <label>Organisation Logo <span class="opt">(optional — PNG or JPG, max 2 MB)</span></label>
-        <div class="logo-upload">
-          <input type="file" id="logo-file" accept="image/*" onchange="previewLogo(this)"/>
-          <img id="logo-preview" class="logo-preview" alt="Logo preview"/>
-          <div class="logo-upload-text" id="logo-upload-text">
-            <strong>Click to upload</strong> your organisation logo<br>
-            <span style="font-size:12px">Recommended: square image, 200×200 px or larger</span>
+        <div class="field">
+          <label>Organisation Name <button type="button" class="faq-btn" onclick="toggleFaq('faq-orgname')">?</button></label>
+          <input type="text" id="org-name" placeholder="e.g. Srishti Ayurveda Hospital"/>
+          <div class="faq-box" id="faq-orgname">
+            <strong>Why we ask:</strong> This name appears on all prescriptions, bills, and ABDM health records. Use your official name exactly as in your PCIM&H recognition or state licence.
           </div>
         </div>
-      </div>
 
-      <div class="field">
-        <label>Tagline <span class="opt">(optional)</span></label>
-        <input type="text" id="org-tagline" placeholder="e.g. Holistic Healing for Modern Life"/>
-      </div>
-
-      <div class="field">
-        <label>Full Address <span class="opt">(optional)</span></label>
-        <textarea id="org-address" placeholder="Door no., Street, Area, City, State — PIN code"></textarea>
-      </div>
-
-      <div class="field">
-        <label>Location <span class="opt">(helps other Ayurveda firms discover and network with you)</span></label>
-        <div class="location-row">
+        <div class="row-2">
           <div class="field">
-            <input type="text" id="org-location" placeholder="Click Detect GPS or add later" readonly/>
+            <label>State <button type="button" class="faq-btn" onclick="toggleFaq('faq-state')">?</button></label>
+            <select id="org-state">
+              <option value="">— Select state —</option>
+              <option>Andhra Pradesh</option><option>Arunachal Pradesh</option>
+              <option>Assam</option><option>Bihar</option><option>Chhattisgarh</option>
+              <option>Goa</option><option>Gujarat</option><option>Haryana</option>
+              <option>Himachal Pradesh</option><option>Jharkhand</option>
+              <option>Karnataka</option><option>Kerala</option>
+              <option>Madhya Pradesh</option><option>Maharashtra</option>
+              <option>Manipur</option><option>Meghalaya</option><option>Mizoram</option>
+              <option>Nagaland</option><option>Odisha</option><option>Punjab</option>
+              <option>Rajasthan</option><option>Sikkim</option>
+              <option>Tamil Nadu</option><option>Telangana</option>
+              <option>Tripura</option><option>Uttar Pradesh</option>
+              <option>Uttarakhand</option><option>West Bengal</option>
+              <option>Delhi</option><option>Jammu &amp; Kashmir</option>
+              <option>Ladakh</option><option>Puducherry</option>
+              <option>International</option>
+            </select>
+            <div class="faq-box" id="faq-state">
+              <strong>Required for:</strong> ABDM facility ID (HFRID) registration and NCISM compliance reporting. Select where your organisation is physically located.
+            </div>
           </div>
-          <button class="btn-gps" type="button" onclick="detectLocation()">&#127758; Detect GPS</button>
+          <div class="field">
+            <label>City / District <button type="button" class="faq-btn" onclick="toggleFaq('faq-city')">?</button></label>
+            <input type="text" id="org-city" placeholder="City / District"/>
+            <div class="faq-box" id="faq-city">
+              <strong>Used for:</strong> AyurXpert directory — so other practitioners can find and refer patients to your facility.
+            </div>
+          </div>
         </div>
-        <div class="gps-status" id="gps-status"></div>
+
+        <div class="row-2">
+          <div class="field">
+            <label>Phone <button type="button" class="faq-btn" onclick="toggleFaq('faq-phone')">?</button></label>
+            <input type="tel" id="org-phone" placeholder="+91 98765 43210" inputmode="tel"/>
+            <div class="faq-box" id="faq-phone">
+              <strong>Purpose:</strong> Organisation's main contact number. Appears on patient-facing documents and the AyurXpert directory. Use your reception line, not a personal number.
+            </div>
+          </div>
+          <div class="field">
+            <label>GSTIN <span class="opt">(optional)</span> <button type="button" class="faq-btn" onclick="toggleFaq('faq-gstin')">?</button></label>
+            <input type="text" id="org-gstin" placeholder="22AAAAA0000A1Z5" maxlength="15"/>
+            <div class="faq-box" id="faq-gstin">
+              <strong>When needed:</strong> Only if you raise GST invoices. Most healthcare services are GST-exempt — check with your CA. You can add this from Settings anytime after registration.
+            </div>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn-primary" onclick="nextStep(1)">
+            <span class="btn-text">Continue &rarr;</span>
+          </button>
+        </div>
       </div>
 
-      <div class="btn-row">
-        <button class="btn-back" onclick="goBack(2)">&larr; Back</button>
-        <button class="btn-primary" id="btn-register" onclick="handleRegister()">
-          <span class="btn-text">Register &amp; Start</span>
-          <span class="btn-spinner"><span class="spinner"></span></span>
-        </button>
+      <!-- ── STEP 2 — Admin Account ── -->
+      <div id="step-2" style="display:none">
+        <div class="card-title">Admin Account</div>
+        <div class="card-subtitle">This becomes the Super Admin — full access to your organisation's portal.</div>
+
+        <div class="field">
+          <label>Full Name <button type="button" class="faq-btn" onclick="toggleFaq('faq-aname')">?</button></label>
+          <input type="text" id="admin-name" placeholder="Dr. Ramesh Sharma" autocomplete="name"/>
+          <div class="faq-box" id="faq-aname">
+            <strong>Purpose:</strong> Appears on official communications, audit logs, and system-generated letters. Use your full name as you want it printed on prescriptions.
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Email Address <button type="button" class="faq-btn" onclick="toggleFaq('faq-email')">?</button></label>
+          <input type="email" id="admin-email" placeholder="admin@yourhospital.com" inputmode="email" autocomplete="email"/>
+          <div class="faq-box" id="faq-email">
+            <strong>Critical:</strong> Used for login and security alerts. A working, monitored email is essential — OTPs, password resets, and compliance alerts go here. Cannot be changed easily later.
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Phone <button type="button" class="faq-btn" onclick="toggleFaq('faq-aphone')">?</button></label>
+          <input type="tel" id="admin-phone" placeholder="+91 98765 43210" inputmode="tel"/>
+          <div class="faq-box" id="faq-aphone">
+            <strong>Used for:</strong> Account recovery and two-factor authentication. Not shown to patients — this is your personal admin contact.
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Password <button type="button" class="faq-btn" onclick="toggleFaq('faq-pw')">?</button></label>
+          <div class="pw-wrap">
+            <input type="password" id="admin-password" placeholder="Minimum 8 characters" autocomplete="new-password"/>
+            <button class="toggle-pw" type="button" onclick="togglePw('admin-password',this)" aria-label="Show password">&#128065;</button>
+          </div>
+          <div class="faq-box" id="faq-pw">
+            <strong>Security:</strong> This account has full access to all patient data across your organisation. Use at least 8 characters with a mix of letters, numbers, and symbols. Never share this password.
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Confirm Password</label>
+          <div class="pw-wrap">
+            <input type="password" id="admin-confirm" placeholder="Re-enter your password" autocomplete="new-password"/>
+            <button class="toggle-pw" type="button" onclick="togglePw('admin-confirm',this)" aria-label="Show password">&#128065;</button>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn-back" onclick="goBack(1)">&larr; Back</button>
+          <button class="btn-primary" onclick="nextStep(2)">
+            <span class="btn-text">Continue &rarr;</span>
+          </button>
+        </div>
       </div>
-    </div>
 
-    <!-- SUCCESS -->
-    <div class="success-screen" id="success-screen">
-      <div class="success-icon">&#127807;</div>
-      <div class="success-title">Welcome to AyurXpert!</div>
-      <div class="success-subtitle">
-        Your organisation has been registered successfully.<br>
-        Share the code below with your staff so they can join your portal.
+      <!-- ── STEP 3 — Branding ── -->
+      <div id="step-3" style="display:none">
+        <div class="card-title">Your Branding</div>
+        <div class="card-subtitle">All optional — makes the portal look like your own. Update anytime from Settings.</div>
+
+        <div class="field">
+          <label>Organisation Logo <span class="opt">(optional)</span> <button type="button" class="faq-btn" onclick="toggleFaq('faq-logo')">?</button></label>
+          <div class="logo-upload">
+            <input type="file" id="logo-file" accept="image/*" onchange="previewLogo(this)"/>
+            <img id="logo-preview" class="logo-preview" alt="Logo preview"/>
+            <div class="logo-upload-text" id="logo-upload-text">
+              <strong>Click to upload</strong> your organisation logo<br>
+              <span style="font-size:12px">PNG or JPG, max 2 MB — square image recommended (200&times;200 px or larger)</span>
+            </div>
+          </div>
+          <div class="faq-box" id="faq-logo">
+            <strong>Appears on:</strong> Prescriptions, bills, patient portal, and the staff dashboard header. Square images (400&times;400 px) look best. You can upload or change it anytime.
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Tagline <span class="opt">(optional)</span> <button type="button" class="faq-btn" onclick="toggleFaq('faq-tagline')">?</button></label>
+          <input type="text" id="org-tagline" placeholder="e.g. Holistic Healing for Modern Life"/>
+          <div class="faq-box" id="faq-tagline">
+            <strong>Shown on:</strong> Your portal dashboard and patient-facing pages below the organisation name. Keep it short — under 60 characters.
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Full Address <span class="opt">(optional)</span> <button type="button" class="faq-btn" onclick="toggleFaq('faq-addr')">?</button></label>
+          <textarea id="org-address" placeholder="Door no., Street, Area, City, State — PIN code"></textarea>
+          <div class="faq-box" id="faq-addr">
+            <strong>Printed on:</strong> Prescriptions and bills. Include your PIN code — it is used for ABDM address mapping. You can add this later.
+          </div>
+        </div>
+
+        <div class="field">
+          <label>GPS Location <span class="opt">(optional)</span> <button type="button" class="faq-btn" onclick="toggleFaq('faq-gps')">?</button></label>
+          <div class="location-row">
+            <div class="field">
+              <input type="text" id="org-location" placeholder="Click Detect GPS or add later" readonly/>
+            </div>
+            <button class="btn-gps" type="button" onclick="detectLocation()">&#127758; Detect GPS</button>
+          </div>
+          <div class="gps-status" id="gps-status"></div>
+          <div class="faq-box" id="faq-gps">
+            <strong>Used for:</strong> AyurXpert directory listing — lets nearby practitioners and patients discover your facility. Coordinates are never shared without your consent.
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn-back" onclick="goBack(2)">&larr; Back</button>
+          <button class="btn-primary" id="btn-step3" onclick="handleStep3Btn(this)">
+            <span class="btn-text">Register &amp; Start</span>
+            <span class="btn-spinner"><span class="spinner"></span></span>
+          </button>
+        </div>
       </div>
-      <div class="tenant-code-box">
-        <div class="tenant-code-label">Your Organisation Code</div>
-        <div class="tenant-code" id="tenant-code-display">——</div>
-        <div class="tenant-code-hint">Staff enter this code when signing up</div>
+
+      <!-- ── STEP 4 — NCISM Setup ── -->
+      <div id="step-4" style="display:none">
+        <div class="card-title">NCISM Setup</div>
+        <div class="card-subtitle">Configure your college per NCISM norms. AyurXpert will automatically seed 10 mandatory OPDs, all departments, and the complete bed matrix.</div>
+
+        <div class="ncism-info">
+          <strong>NCISM 1:2 ratio</strong> — minimum OPD/day = 2 &times; UG intake (Table-7)<br>
+          <strong>Bed distribution</strong> — department-wise per NCISM Table-8 percentages<br>
+          <strong>PG beds</strong> — 4 dedicated beds per sanctioned PG seat per clinical dept
+        </div>
+
+        <div class="field">
+          <label>UG Intake &nbsp;<span class="opt">NCISM-approved annual intake</span> <button type="button" class="faq-btn" onclick="toggleFaq('faq-ugintake')">?</button></label>
+          <div class="faq-box" id="faq-ugintake">
+            <strong>NCISM Table-7:</strong> Your approved UG intake determines the minimum OPD patients per day (ratio 1:2) and the minimum bed count for your hospital. This cannot be self-declared — it must match your NCISM recognition letter.
+          </div>
+          <div class="intake-grid" style="margin-top:12px">
+            <div class="intake-card" onclick="selectIntake(60,this)">
+              <div class="intake-num">60</div>
+              <div class="intake-unit">students / year</div>
+              <div class="intake-stats">120 OPD/day &middot; 60 beds</div>
+            </div>
+            <div class="intake-card" onclick="selectIntake(100,this)">
+              <div class="intake-num">100</div>
+              <div class="intake-unit">students / year</div>
+              <div class="intake-stats">200 OPD/day &middot; 100 beds</div>
+            </div>
+            <div class="intake-card" onclick="selectIntake(150,this)">
+              <div class="intake-num">150</div>
+              <div class="intake-unit">students / year</div>
+              <div class="intake-stats">300 OPD/day &middot; 150 beds</div>
+            </div>
+            <div class="intake-card" onclick="selectIntake(200,this)">
+              <div class="intake-num">200</div>
+              <div class="intake-unit">students / year</div>
+              <div class="intake-stats">400 OPD/day &middot; 200 beds</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:22px">
+          <label>PG Departments &nbsp;<span class="opt">optional</span></label>
+          <div class="pg-section">
+            <div class="pg-hdr">Clinical — adds 4 IPD beds per sanctioned seat</div>
+            <div class="pg-row off" id="pgd-KAY"><input type="checkbox" id="pg-KAY" value="KAY" class="pg-cb" onchange="togglePGDept(this,'KAY')"><label class="pg-name" for="pg-KAY">Kayachikitsa</label><div class="pg-seats"><input type="number" id="pgs-KAY" class="pg-seats-input" min="1" max="30" value="3" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-PK"><input type="checkbox" id="pg-PK" value="PK" class="pg-cb" onchange="togglePGDept(this,'PK')"><label class="pg-name" for="pg-PK">Panchakarma</label><div class="pg-seats"><input type="number" id="pgs-PK" class="pg-seats-input" min="1" max="30" value="3" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-SHAL"><input type="checkbox" id="pg-SHAL" value="SHAL" class="pg-cb" onchange="togglePGDept(this,'SHAL')"><label class="pg-name" for="pg-SHAL">Shalya Tantra</label><div class="pg-seats"><input type="number" id="pgs-SHAL" class="pg-seats-input" min="1" max="30" value="2" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-SHAK"><input type="checkbox" id="pg-SHAK" value="SHAK" class="pg-cb" onchange="togglePGDept(this,'SHAK')"><label class="pg-name" for="pg-SHAK">Shalakya Tantra</label><div class="pg-seats"><input type="number" id="pgs-SHAK" class="pg-seats-input" min="1" max="30" value="2" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-KAU"><input type="checkbox" id="pg-KAU" value="KAU" class="pg-cb" onchange="togglePGDept(this,'KAU')"><label class="pg-name" for="pg-KAU">Kaumarabhritya</label><div class="pg-seats"><input type="number" id="pgs-KAU" class="pg-seats-input" min="1" max="30" value="2" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-PST"><input type="checkbox" id="pg-PST" value="PST" class="pg-cb" onchange="togglePGDept(this,'PST')"><label class="pg-name" for="pg-PST">Prasuti &amp; Stri Roga</label><div class="pg-seats"><input type="number" id="pgs-PST" class="pg-seats-input" min="1" max="30" value="3" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-hdr" style="border-top:1px solid var(--border)">Non-Clinical — no additional beds</div>
+            <div class="pg-row off" id="pgd-RNV"><input type="checkbox" id="pg-RNV" value="RNV" class="pg-cb" onchange="togglePGDept(this,'RNV')"><label class="pg-name" for="pg-RNV">Rog Nidana &amp; Vikruti Vigyana</label><div class="pg-seats"><input type="number" id="pgs-RNV" class="pg-seats-input" min="1" max="30" value="3" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-DG"><input type="checkbox" id="pg-DG" value="DG" class="pg-cb" onchange="togglePGDept(this,'DG')"><label class="pg-name" for="pg-DG">Dravyaguna</label><div class="pg-seats"><input type="number" id="pgs-DG" class="pg-seats-input" min="1" max="30" value="3" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-RBK"><input type="checkbox" id="pg-RBK" value="RBK" class="pg-cb" onchange="togglePGDept(this,'RBK')"><label class="pg-name" for="pg-RBK">Rasashastra &amp; Bhaishajya Kalpana</label><div class="pg-seats"><input type="number" id="pgs-RBK" class="pg-seats-input" min="1" max="30" value="3" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-SW"><input type="checkbox" id="pg-SW" value="SW" class="pg-cb" onchange="togglePGDept(this,'SW')"><label class="pg-name" for="pg-SW">Swasthavritta &amp; Yoga</label><div class="pg-seats"><input type="number" id="pgs-SW" class="pg-seats-input" min="1" max="30" value="2" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
+          </div>
+        </div>
+
+        <div class="preview-box">
+          <div class="preview-hdr">HMS Configuration Preview</div>
+          <div class="preview-summary">
+            <div class="pv-stat"><div class="pv-val" id="pv-opd-day">—</div><div class="pv-lbl">OPD / Day</div></div>
+            <div class="pv-stat"><div class="pv-val" id="pv-opd-year">—</div><div class="pv-lbl">Annual Target</div></div>
+            <div class="pv-stat"><div class="pv-val" id="pv-total-beds">—</div><div class="pv-lbl">Total Beds</div></div>
+          </div>
+          <table class="pv-table">
+            <thead><tr><th>Department</th><th class="r">UG</th><th class="r">PG</th><th class="r">Total</th></tr></thead>
+            <tbody id="pv-tbody"><tr><td colspan="4" class="pv-empty">Select UG intake above to see bed configuration</td></tr></tbody>
+          </table>
+        </div>
+
+        <div class="seed-prog" id="seed-prog" style="display:none">
+          <div class="seed-prog-title">Setting up NCISM-compliant HMS&hellip;</div>
+          <div class="seed-item" id="si-1">&#9675; Configuring college parameters</div>
+          <div class="seed-item" id="si-2">&#9675; Creating 10 mandatory OPDs</div>
+          <div class="seed-item" id="si-3">&#9675; Setting up NCISM departments</div>
+          <div class="seed-item" id="si-4">&#9675; Creating bed matrix</div>
+          <div class="seed-item" id="si-5">&#9675; Finalising setup</div>
+        </div>
+
+        <div class="btn-row" style="margin-top:22px">
+          <button class="btn-back" onclick="goBack(3)">&larr; Back</button>
+          <button class="btn-primary" id="btn-register" onclick="handleRegister(this)">
+            <span class="btn-text">Register &amp; Configure HMS</span>
+            <span class="btn-spinner"><span class="spinner"></span></span>
+          </button>
+        </div>
       </div>
-      <br/>
-      <a href="login.html" class="btn-goto-login">Go to Login &rarr;</a>
-    </div>
 
-  </div>
+      <!-- ── SUCCESS ── -->
+      <div class="success-screen" id="success-screen">
+        <div class="success-icon">&#127807;</div>
+        <div class="success-title">Welcome to AyurXpert!</div>
+        <div class="success-subtitle" id="success-subtitle">
+          Your organisation has been registered successfully.<br>
+          Share the code below with your staff so they can join your portal.
+        </div>
+        <div class="ncism-badge" id="ncism-badge" style="display:none">
+          NCISM-compliant HMS configured — OPDs, departments &amp; beds are ready
+        </div>
+        <div class="tenant-code-box">
+          <div class="tenant-code-label">Your Organisation Code</div>
+          <div class="tenant-code" id="tenant-code-display">——</div>
+          <div class="tenant-code-hint">Staff enter this code when signing up</div>
+        </div>
+        <br/>
+        <a href="login.html" class="btn-goto-login">Go to Login &rarr;</a>
+      </div>
 
-  <div class="footer-link">Already registered? <a href="login.html">Sign in here</a></div>
+    </div><!-- /card -->
 
-</div>
+    <div class="footer-link">Already registered? <a href="login.html">Sign in here</a></div>
+  </div><!-- /reg-form -->
+
+</div><!-- /main -->
 
 <script type="module" src="./js/pwa/register-sw.js"></script>
 <script type="module">
 import { registerTenant } from './js/core/auth.js';
 import { supabase } from './js/core/db/supabaseClient.js';
 
-let gpsCoords = null;
+/* ─────────────────────────────────────────
+   ORG TYPE DATA
+───────────────────────────────────────── */
+const ORG_DATA = {
+  clinic: {
+    name: 'Clinic', tag: 'OPD practice', abbr: 'CL', cat: 'clinical',
+    features: ['Token-based OPD queue','Doctor consultation + NAMASTE coding','ABHA enrollment & Scan & Share','Pharmacy dispensing + billing','Prescription printing']
+  },
+  hospital: {
+    name: 'Hospital', tag: 'Full setup with IPD', abbr: 'HO', cat: 'clinical',
+    features: ['All Clinic features','IPD admissions + bed management','NCISM compliance dashboard','Multi-department routing','Panchakarma therapy module'],
+    ncism: true
+  },
+  pk_center: {
+    name: 'Panchakarma Centre', tag: 'Daycare therapies', abbr: 'PK', cat: 'clinical',
+    features: ['Therapy scheduling calendar','Purva / Pradhana / Paschatkarma phases','Therapist assignment','Session & package tracking','Day-care management']
+  },
+  dispensary: {
+    name: 'Dispensary', tag: 'Medicine dispensing', abbr: 'DI', cat: 'clinical',
+    features: ['Prescription-based dispensing','AFI formulation database (275+)','Stock + expiry tracking','Purchase order management','Billing + invoices']
+  },
+  college: {
+    name: 'Ayurveda College', tag: 'NCISM-regulated teaching', abbr: 'AC', cat: 'education',
+    features: ['All Hospital features','NCISM auto-setup (OPDs + beds)','Screening OPD mandatory routing','Student exposure tracking','Table-7 & Table-8 compliance'],
+    ncism: true
+  },
+  laboratory: {
+    name: 'Diagnostic Lab', tag: 'Pathology & diagnostics', abbr: 'LA', cat: 'diag',
+    features: ['Lab order intake','Result entry + QC','Digital report delivery','OPD integration','Sample tracking']
+  },
+  pharma: {
+    name: 'Pharma Company', tag: 'Manufacturing & sales', abbr: 'PH', cat: 'pharma',
+    features: ['Product catalogue management','Batch & expiry tracking','GRN / purchase orders','Dealer-distributor network','AFI formulation reference']
+  },
+  raw_drug_supplier: {
+    name: 'Raw Drug Supplier', tag: 'Dravya supply chain', abbr: 'RD', cat: 'pharma',
+    features: ['Supplier product catalogue','Stock management','Quality batch tracking','Purchase order management','Retailer network']
+  },
+  instrument_supplier: {
+    name: 'Instrument Supplier', tag: 'Surgical & diagnostic', abbr: 'IS', cat: 'pharma',
+    features: ['Equipment catalogue','Order management','Service & AMC tracking','Hospital supply network','Invoice management']
+  },
+  chemical_supplier: {
+    name: 'Chemical Supplier', tag: 'Lab chemicals & reagents', abbr: 'CS', cat: 'pharma',
+    features: ['Chemical catalogue','Batch certification','Order management','Lab network integration','Invoice & compliance']
+  },
+  dealer: {
+    name: 'Dealer / Distributor', tag: 'Medicine distribution', abbr: 'DD', cat: 'trade',
+    features: ['Multi-brand stock management','Retailer order processing','Invoice + credit notes','Expiry batch tracking','Pharma network integration']
+  },
+  journal: {
+    name: 'Journal / Publication', tag: 'Academic publishing', abbr: 'JP', cat: 'trade',
+    features: ['Article submission portal','Peer review workflow','Author management','Publication archive','DOI integration (planned)']
+  },
+};
 
-// Pre-select org type if arriving from home.html card click
-(function() {
-  const params = new URLSearchParams(window.location.search);
-  const type = params.get('type');
-  if (type) {
-    const sel = document.getElementById('org-type');
-    if (sel) {
-      sel.value = type;
-      // Auto-advance to step 2 if type is valid
-      if (sel.value === type) {
-        // Small delay so the page renders first
-        setTimeout(() => document.getElementById('org-name')?.focus(), 300);
-      }
+const CATEGORIES = [
+  { key: 'clinical',   label: 'Clinical Organisations',     types: ['clinic','hospital','pk_center','dispensary'] },
+  { key: 'education',  label: 'Education',                  badge: 'NCISM', types: ['college'] },
+  { key: 'diag',       label: 'Diagnostics',                types: ['laboratory'] },
+  { key: 'pharma',     label: 'Pharmaceuticals & Supply',   types: ['pharma','raw_drug_supplier','instrument_supplier','chemical_supplier'] },
+  { key: 'trade',      label: 'Trade & Research',           types: ['dealer','journal'] },
+];
+
+/* ─────────────────────────────────────────
+   RENDER TILES
+───────────────────────────────────────── */
+(function renderTiles() {
+  const container = document.getElementById('tiles-container');
+  CATEGORIES.forEach(cat => {
+    const group = document.createElement('div');
+    group.className = 'org-category';
+
+    const hdr = document.createElement('div');
+    hdr.className = `cat-label cat-${cat.key}`;
+    hdr.textContent = cat.label;
+    if (cat.badge) {
+      const pill = document.createElement('span');
+      pill.className = 'cat-label-pill';
+      pill.textContent = cat.badge;
+      hdr.appendChild(pill);
     }
-  }
+    group.appendChild(hdr);
+
+    const row = document.createElement('div');
+    row.className = 'tiles-row';
+
+    cat.types.forEach(typeKey => {
+      const d = ORG_DATA[typeKey];
+      const tile = document.createElement('div');
+      tile.className = `org-tile cat-${cat.key}`;
+      tile.dataset.type = typeKey;
+
+      const featureItems = d.features.map(f => `<li>${f}</li>`).join('');
+      tile.innerHTML = `
+        <div class="tile-icon cat-${cat.key}">${d.abbr}</div>
+        <div class="tile-name">${d.name}</div>
+        <div class="tile-tag">${d.tag}</div>
+        ${d.ncism ? '<div class="tile-badge">NCISM</div>' : ''}
+        <div class="tile-tap-hint" style="font-size:10px;color:var(--text-muted);margin-top:6px">Tap to see features</div>
+        <div class="tile-features">
+          <div class="tf-title">What's included</div>
+          <ul class="tf-list">${featureItems}</ul>
+          <button class="tf-btn" onclick="selectOrgType('${typeKey}')">Select ${d.name} &rarr;</button>
+        </div>`;
+
+      tile.addEventListener('click', function(e) {
+        if (e.target.classList.contains('tf-btn')) return;
+        const isTouchDevice = !window.matchMedia('(hover:hover)').matches;
+        if (isTouchDevice && !tile.classList.contains('show-features')) {
+          document.querySelectorAll('.org-tile').forEach(t => t.classList.remove('show-features'));
+          tile.classList.add('show-features');
+          e.stopPropagation();
+          return;
+        }
+        if (!isTouchDevice) selectOrgType(typeKey);
+      });
+
+      row.appendChild(tile);
+    });
+
+    group.appendChild(row);
+    container.appendChild(group);
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.org-tile')) {
+      document.querySelectorAll('.org-tile').forEach(t => t.classList.remove('show-features'));
+    }
+  });
 })();
 
+/* ─────────────────────────────────────────
+   STATE
+───────────────────────────────────────── */
+let selectedOrgType = null;
+let selectedIntake  = null;
+let gpsCoords       = null;
+
+const CLINICAL_CODES = new Set(['KAY','PK','SHAL','SHAK','KAU','PST','AGD']);
+const UG_BED_RATIOS  = { KAY:.20, PK:.25, SHAL:.20, SHAK:.10, KAU:.10, AGD:.05, PST:.10 };
+const WARD_NAMES     = { KAY:'General Ward', PK:'Panchakarma Ward', SHAL:'Surgical Ward', SHAK:'ENT Ward', KAU:'Paediatric Ward', AGD:'General Ward', PST:'Maternity Ward' };
+
+const NCISM_OPDS = [
+  { name:'Screening OPD',           ncism_code:'SCREEN', description:'Mandatory triage for all new patients before specialty routing' },
+  { name:'Kayachikitsa OPD',        ncism_code:'KAY',    description:'Internal Medicine' },
+  { name:'Panchakarma OPD',         ncism_code:'PK',     description:'Panchakarma therapies' },
+  { name:'Shalya Tantra OPD',       ncism_code:'SHAL',   description:'Surgery' },
+  { name:'Shalakya Tantra OPD',     ncism_code:'SHAK',   description:'ENT & Ophthalmology' },
+  { name:'Kaumarabhritya OPD',      ncism_code:'KAU',    description:'Paediatrics' },
+  { name:'Swasthavritta OPD',       ncism_code:'SW',     description:'Preventive & Social Medicine' },
+  { name:'Prasuti & Stri Roga OPD', ncism_code:'PST',    description:'Obstetrics & Gynaecology' },
+  { name:'Agada Tantra OPD',        ncism_code:'AGD',    description:'Toxicology & Forensic Medicine' },
+  { name:'Rog Nidana OPD',          ncism_code:'RNV',    description:'Pathology & Diagnosis' },
+];
+
+const NCISM_DEPTS = [
+  { name:'Kayachikitsa',                    ncism_code:'KAY',  type:'clinical' },
+  { name:'Panchakarma',                     ncism_code:'PK',   type:'clinical' },
+  { name:'Shalya Tantra',                   ncism_code:'SHAL', type:'clinical' },
+  { name:'Shalakya Tantra',                 ncism_code:'SHAK', type:'clinical' },
+  { name:'Kaumarabhritya',                  ncism_code:'KAU',  type:'clinical' },
+  { name:'Prasuti & Stri Roga',             ncism_code:'PST',  type:'clinical' },
+  { name:'Agada Tantra',                    ncism_code:'AGD',  type:'clinical' },
+  { name:'Swasthavritta & Yoga',            ncism_code:'SW',   type:'para_clinical' },
+  { name:'Rog Nidana & Vikruti Vigyana',    ncism_code:'RNV',  type:'para_clinical' },
+  { name:'Dravyaguna',                      ncism_code:'DG',   type:'pre_clinical' },
+  { name:'Rasashastra & Bhaishajya Kalpana',ncism_code:'RBK',  type:'pre_clinical' },
+  { name:'Sanskrit & Samhita',              ncism_code:'SS',   type:'pre_clinical' },
+  { name:'Rachana & Kriya Sharir',          ncism_code:'RS',   type:'para_clinical' },
+];
+
+function isNCISMType(t) { return t === 'college' || t === 'hospital'; }
+
+/* ─────────────────────────────────────────
+   URL PARAM AUTO-SELECT
+───────────────────────────────────────── */
+(function() {
+  const t = new URLSearchParams(window.location.search).get('type');
+  if (t && ORG_DATA[t]) selectOrgType(t);
+})();
+
+/* ─────────────────────────────────────────
+   ORG TYPE SELECTION
+───────────────────────────────────────── */
+window.selectOrgType = function(type) {
+  if (!ORG_DATA[type]) return;
+  selectedOrgType = type;
+  const d = ORG_DATA[type];
+
+  document.getElementById('sc-icon').textContent  = d.abbr;
+  document.getElementById('sc-icon').className    = `sc-icon cat-${d.cat}`;
+  document.getElementById('sc-name').textContent  = d.name;
+  document.getElementById('sc-tag').textContent   = d.tag;
+
+  const ind3 = document.getElementById('step-ind-3');
+  const ind4 = document.getElementById('step-ind-4');
+  if (isNCISMType(type)) {
+    ind4.style.display = '';
+    ind3.classList.remove('no-connector');
+  } else {
+    ind4.style.display = 'none';
+    ind3.classList.add('no-connector');
+  }
+
+  document.getElementById('org-type-selector').style.display = 'none';
+  document.getElementById('reg-form').style.display = 'block';
+  showStep(1);
+};
+
+window.changeOrgType = function() {
+  selectedOrgType = null;
+  selectedIntake  = null;
+  document.querySelectorAll('.intake-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('org-type-selector').style.display = 'block';
+  document.getElementById('reg-form').style.display = 'none';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+/* ─────────────────────────────────────────
+   STEP NAVIGATION
+───────────────────────────────────────── */
 window.nextStep = function(from) {
   clearAlert();
   if (from === 1) {
-    const type  = document.getElementById('org-type').value;
     const name  = document.getElementById('org-name').value.trim();
     const state = document.getElementById('org-state').value;
     const city  = document.getElementById('org-city').value.trim();
     const phone = document.getElementById('org-phone').value.trim();
-    if (!type)  return showAlert('Please select your organisation type.');
     if (!name)  return showAlert('Please enter your organisation name.');
     if (!state) return showAlert('Please select your state.');
-    if (!city)  return showAlert('Please enter your city.');
+    if (!city)  return showAlert('Please enter your city or district.');
     if (!phone) return showAlert('Please enter your phone number.');
     showStep(2);
   } else if (from === 2) {
@@ -423,75 +933,172 @@ window.nextStep = function(from) {
   }
 };
 
-window.goBack = function(to) {
-  clearAlert();
-  showStep(to);
-};
+window.goBack = function(to) { clearAlert(); showStep(to); };
 
 function showStep(n) {
-  [1, 2, 3].forEach(i => {
-    document.getElementById(`step-${i}`).style.display = i === n ? 'block' : 'none';
+  [1,2,3,4].forEach(i => {
+    const el = document.getElementById(`step-${i}`);
+    if (el) el.style.display = i === n ? 'block' : 'none';
     const ind = document.getElementById(`step-ind-${i}`);
-    ind.classList.remove('active', 'done');
-    if (i < n)   ind.classList.add('done');
-    if (i === n) ind.classList.add('active');
+    if (ind) {
+      ind.classList.remove('active','done');
+      if (i < n)   ind.classList.add('done');
+      if (i === n) ind.classList.add('active');
+    }
   });
+  if (n === 3) {
+    const btn = document.getElementById('btn-step3');
+    if (btn) btn.querySelector('.btn-text').textContent =
+      isNCISMType(selectedOrgType) ? 'Next: NCISM Setup →' : 'Register & Start';
+  }
+  if (n === 4 && selectedIntake) updatePreview();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-window.togglePw = function(inputId, btn) {
-  const input = document.getElementById(inputId);
-  const isText = input.type === 'text';
-  input.type = isText ? 'password' : 'text';
-  btn.innerHTML = isText ? '&#128065;' : '&#128584;';
-};
-
-window.previewLogo = function(input) {
-  if (!input.files || !input.files[0]) return;
-  const file = input.files[0];
-  if (file.size > 2 * 1024 * 1024) {
-    showAlert('Logo must be under 2 MB. Please choose a smaller image.');
-    input.value = '';
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = e => {
-    const preview = document.getElementById('logo-preview');
-    preview.src = e.target.result;
-    preview.style.display = 'block';
-    document.getElementById('logo-upload-text').style.display = 'none';
-  };
-  reader.readAsDataURL(file);
-};
-
-window.detectLocation = function() {
-  const statusEl = document.getElementById('gps-status');
-  statusEl.textContent = 'Detecting your location…';
-  statusEl.className = 'gps-status';
-  if (!navigator.geolocation) {
-    statusEl.textContent = 'GPS not supported. Please enter your address manually.';
-    return;
-  }
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      gpsCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      document.getElementById('org-location').value =
-        `${gpsCoords.lat.toFixed(6)}, ${gpsCoords.lng.toFixed(6)}`;
-      statusEl.textContent = '✓ Location detected successfully';
-      statusEl.className = 'gps-status ok';
-    },
-    () => { statusEl.textContent = 'Could not detect GPS. You can add it later from Settings.'; }
-  );
-};
-
-window.handleRegister = async function() {
+window.handleStep3Btn = async function(btn) {
   clearAlert();
-  const btn = document.getElementById('btn-register');
+  if (isNCISMType(selectedOrgType)) {
+    showStep(4);
+  } else {
+    await handleRegister(btn);
+  }
+};
+
+/* ─────────────────────────────────────────
+   NCISM STEP 4
+───────────────────────────────────────── */
+window.selectIntake = function(val, el) {
+  selectedIntake = val;
+  document.querySelectorAll('.intake-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  updatePreview();
+};
+
+window.togglePGDept = function(cb, code) {
+  const row   = document.getElementById(`pgd-${code}`);
+  const input = document.getElementById(`pgs-${code}`);
+  if (cb.checked) { row.classList.remove('off'); input.disabled = false; }
+  else            { row.classList.add('off');    input.disabled = true; }
+  updatePreview();
+};
+
+function getSelectedPGDepts() {
+  const result = [];
+  document.querySelectorAll('.pg-cb:checked').forEach(cb => {
+    const code  = cb.value;
+    const seats = parseInt(document.getElementById(`pgs-${code}`)?.value) || 0;
+    result.push({ code, seats, isClinical: CLINICAL_CODES.has(code) });
+  });
+  return result;
+}
+
+function updatePreview() {
+  if (!selectedIntake) return;
+  const ug = selectedIntake;
+  const pg = getSelectedPGDepts();
+  const depts = [
+    { name:'Kayachikitsa',        code:'KAY'  },
+    { name:'Panchakarma',         code:'PK'   },
+    { name:'Shalya Tantra',       code:'SHAL' },
+    { name:'Shalakya Tantra',     code:'SHAK' },
+    { name:'Kaumarabhritya',      code:'KAU'  },
+    { name:'Agada Tantra',        code:'AGD'  },
+    { name:'Prasuti & Stri Roga', code:'PST'  },
+  ];
+  let totalBeds = 0;
+  const rows = depts.map(d => {
+    const ugB = Math.round(ug * (UG_BED_RATIOS[d.code] || 0));
+    const pgD = pg.find(p => p.code === d.code);
+    const pgB = pgD ? pgD.seats * 4 : 0;
+    const tot = ugB + pgB;
+    totalBeds += tot;
+    return `<tr><td>${d.name}</td><td class="r">${ugB}</td><td class="r">${pgB||'—'}</td><td class="rt">${tot}</td></tr>`;
+  });
+  rows.push(`<tr class="trow"><td>Total</td><td class="r"></td><td class="r"></td><td class="rt">${totalBeds}</td></tr>`);
+  document.getElementById('pv-tbody').innerHTML      = rows.join('');
+  document.getElementById('pv-opd-day').textContent  = ug * 2;
+  document.getElementById('pv-opd-year').textContent = (ug * 2 * 300).toLocaleString('en-IN');
+  document.getElementById('pv-total-beds').textContent = totalBeds;
+}
+
+function seedMark(i, state) {
+  const el = document.getElementById(`si-${i}`);
+  if (!el) return;
+  const icons = { active:'&#9654; ', done:'&#10003; ', err:'&#10007; ' };
+  el.className = `seed-item ${state}`;
+  const txt = el.textContent.replace(/^.\s/, '');
+  el.innerHTML = (icons[state] || '&#9675; ') + txt;
+}
+
+async function seedNCISMData(tenantId, ugIntake) {
+  document.getElementById('seed-prog').style.display = 'block';
+  const pg = getSelectedPGDepts();
+  const totalPGSeats = pg.reduce((s,d) => s + d.seats, 0);
+
+  seedMark(1,'active');
+  try {
+    await supabase.from('tenants').update({
+      ug_intake: ugIntake, opd_daily_target: ugIntake * 2,
+      working_days_per_week: 6, pg_student_strength: totalPGSeats,
+    }).eq('id', tenantId);
+  } catch(e) { console.warn('NCISM tenant columns not yet added — run §15c SQL:', e); }
+  seedMark(1,'done');
+
+  seedMark(2,'active');
+  const opdRows = NCISM_OPDS.map(o => ({ tenant_id:tenantId, name:o.name, description:o.description, is_active:true, ncism_code:o.ncism_code }));
+  const { data: cOPDs } = await supabase.from('opds').insert(opdRows).select('id,ncism_code');
+  const opdMap = {};
+  if (cOPDs) cOPDs.forEach(o => { opdMap[o.ncism_code] = o.id; });
+  seedMark(2,'done');
+
+  seedMark(3,'active');
+  const deptRows = NCISM_DEPTS.map(d => {
+    const p = pg.find(x => x.code === d.ncism_code);
+    return { tenant_id:tenantId, name:d.name, ncism_code:d.ncism_code, type:d.type, is_active:true,
+      pg_seats_sanctioned: p ? p.seats : 0, is_pg_dept: p ? true : false,
+      opd_id: opdMap[d.ncism_code] || null };
+  });
+  const { data: cDepts } = await supabase.from('departments').insert(deptRows).select('id,ncism_code,type');
+  seedMark(3,'done');
+
+  seedMark(4,'active');
+  if (cDepts) {
+    const bedRows = [];
+    cDepts.forEach(dept => {
+      if (!CLINICAL_CODES.has(dept.ncism_code)) return;
+      const ugB  = Math.round(ugIntake * (UG_BED_RATIOS[dept.ncism_code] || 0));
+      const pgD  = pg.find(p => p.code === dept.ncism_code);
+      const pgB  = pgD ? pgD.seats * 4 : 0;
+      const ward = WARD_NAMES[dept.ncism_code] || 'General Ward';
+      for (let i = 1; i <= ugB + pgB; i++) {
+        bedRows.push({ tenant_id:tenantId, department_id:dept.id,
+          bed_number:`${dept.ncism_code}-${String(i).padStart(2,'0')}`,
+          ward_name:ward, bed_type:'general', status:'vacant', floor_number:1 });
+      }
+    });
+    if (bedRows.length) await supabase.from('beds').insert(bedRows);
+  }
+  seedMark(4,'done');
+
+  seedMark(5,'active');
+  await new Promise(r => setTimeout(r,400));
+  seedMark(5,'done');
+}
+
+/* ─────────────────────────────────────────
+   REGISTRATION
+───────────────────────────────────────── */
+window.handleRegister = async function(btn) {
+  clearAlert();
   setLoading(btn, true);
+  if (isNCISMType(selectedOrgType) && !selectedIntake) {
+    showAlert('Please select your UG intake strength above.');
+    setLoading(btn, false); return;
+  }
   try {
     const result = await registerTenant({
       tenantName: document.getElementById('org-name').value.trim(),
-      tenantType: document.getElementById('org-type').value,
+      tenantType: selectedOrgType,
       fullName:   document.getElementById('admin-name').value.trim(),
       email:      document.getElementById('admin-email').value.trim(),
       password:   document.getElementById('admin-password').value,
@@ -499,12 +1106,7 @@ window.handleRegister = async function() {
       city:       document.getElementById('org-city').value.trim(),
       state:      document.getElementById('org-state').value,
     });
-
-    if (!result.success) {
-      showAlert(result.error || 'Registration failed. Please try again.');
-      setLoading(btn, false);
-      return;
-    }
+    if (!result.success) { showAlert(result.error || 'Registration failed. Please try again.'); setLoading(btn,false); return; }
 
     const updates = {};
     const tagline = document.getElementById('org-tagline').value.trim();
@@ -519,40 +1121,87 @@ window.handleRegister = async function() {
     if (logoFile) {
       const ext  = logoFile.name.split('.').pop().toLowerCase();
       const path = `${result.tenant.id}/logo.${ext}`;
-      const { error: uploadErr } = await supabase.storage
-        .from('tenant-logos').upload(path, logoFile, { upsert: true });
+      const { error: uploadErr } = await supabase.storage.from('tenant-logos').upload(path, logoFile, { upsert:true });
       if (!uploadErr) {
         const { data: urlData } = supabase.storage.from('tenant-logos').getPublicUrl(path);
         updates.logo_url = urlData.publicUrl;
       }
     }
+    if (Object.keys(updates).length) await supabase.from('tenants').update(updates).eq('id', result.tenant.id);
 
-    if (Object.keys(updates).length > 0) {
-      await supabase.from('tenants').update(updates).eq('id', result.tenant.id);
+    if (isNCISMType(selectedOrgType) && selectedIntake) {
+      btn.disabled = true;
+      await seedNCISMData(result.tenant.id, selectedIntake);
     }
 
-    document.getElementById('tenant-code-display').textContent =
-      result.tenant.tenant_code || '—';
-    document.getElementById('progress').style.display = 'none';
-    [1, 2, 3].forEach(i => document.getElementById(`step-${i}`).style.display = 'none');
+    document.getElementById('tenant-code-display').textContent = result.tenant.tenant_code || '—';
+    if (isNCISMType(selectedOrgType)) {
+      document.getElementById('ncism-badge').style.display = 'inline-block';
+      document.getElementById('success-subtitle').innerHTML =
+        `Your Ayurveda college portal is live.<br>Share the code below with your staff so they can join.`;
+    }
+    document.getElementById('progress').style.display  = 'none';
+    document.getElementById('sel-chip').style.display  = 'none';
+    [1,2,3,4].forEach(i => { const el = document.getElementById(`step-${i}`); if(el) el.style.display='none'; });
     document.getElementById('alert').classList.remove('show');
     document.getElementById('success-screen').style.display = 'block';
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top:0, behavior:'smooth' });
 
-  } catch (err) {
+  } catch(err) {
     console.error('Registration error:', err);
     showAlert('Something went wrong. Please check your details and try again.');
     setLoading(btn, false);
   }
 };
 
+/* ─────────────────────────────────────────
+   UTILITIES
+───────────────────────────────────────── */
+window.toggleFaq = function(id) {
+  document.getElementById(id)?.classList.toggle('open');
+};
+
+window.togglePw = function(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const isText = input.type === 'text';
+  input.type = isText ? 'password' : 'text';
+  btn.innerHTML = isText ? '&#128065;' : '&#128584;';
+};
+
+window.previewLogo = function(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if (file.size > 2 * 1024 * 1024) { showAlert('Logo must be under 2 MB. Please choose a smaller image.'); input.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById('logo-preview');
+    preview.src = e.target.result; preview.style.display = 'block';
+    document.getElementById('logo-upload-text').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+};
+
+window.detectLocation = function() {
+  const statusEl = document.getElementById('gps-status');
+  statusEl.textContent = 'Detecting your location…'; statusEl.className = 'gps-status';
+  if (!navigator.geolocation) { statusEl.textContent = 'GPS not supported. Please enter your address manually.'; return; }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      gpsCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      document.getElementById('org-location').value = `${gpsCoords.lat.toFixed(6)}, ${gpsCoords.lng.toFixed(6)}`;
+      statusEl.textContent = '✓ Location detected successfully'; statusEl.className = 'gps-status ok';
+    },
+    () => { statusEl.textContent = 'Could not detect GPS. You can add it later from Settings.'; }
+  );
+};
+
 function showAlert(msg) {
   document.getElementById('alert-text').textContent = msg;
   document.getElementById('alert').classList.add('show');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  window.scrollTo({ top:0, behavior:'smooth' });
 }
 function clearAlert() { document.getElementById('alert').classList.remove('show'); }
-function setLoading(btn, on) { btn.classList.toggle('loading', on); btn.disabled = on; }
+function setLoading(btn, on) { if(btn) { btn.classList.toggle('loading',on); btn.disabled = on; } }
 </script>
 </body>
 </html>
