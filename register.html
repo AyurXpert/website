@@ -220,6 +220,52 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
 .ov-btn:hover{background:#b07d22;transform:scale(.98)}
 
 /* ═══════════════════════════════
+   CONTACT OVERLAY (registration inactive)
+═══════════════════════════════ */
+#contact-overlay{
+  position:fixed;inset:0;z-index:500;
+  background:rgba(10,26,16,0.88);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  display:flex;align-items:center;justify-content:center;padding:24px;
+  animation:coFadeIn .2s ease;
+}
+.contact-modal{
+  background:var(--white);border-radius:24px;padding:44px 36px;
+  max-width:460px;width:100%;text-align:center;
+  box-shadow:0 32px 80px rgba(0,0,0,.32);
+  animation:fadeUp .3s ease;
+}
+.contact-icon{font-size:48px;margin-bottom:14px}
+.contact-title{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;color:var(--green-deep);margin-bottom:6px;line-height:1.2}
+.contact-org{font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:16px}
+.contact-body{font-size:14px;color:var(--text-muted);line-height:1.75;margin-bottom:26px;max-width:340px;margin-left:auto;margin-right:auto}
+.contact-cta{display:flex;flex-direction:column;gap:10px;margin-bottom:20px}
+.contact-email-btn{
+  display:block;padding:14px 20px;background:var(--green-deep);color:#fff;
+  border-radius:12px;text-decoration:none;font-size:14px;font-weight:500;letter-spacing:.2px;
+  transition:background .2s;
+}
+.contact-email-btn:hover{background:#1f5c37}
+.contact-phone-btn{
+  display:block;padding:14px 20px;background:var(--green-light);color:var(--green-deep);
+  border:1.5px solid var(--border);border-radius:12px;text-decoration:none;
+  font-size:14px;font-weight:500;transition:background .2s,border-color .2s;
+}
+.contact-phone-btn:hover{background:#d0ebd9;border-color:var(--green-mid)}
+.contact-hint{font-size:12px;color:var(--text-muted);margin-bottom:24px;line-height:1.6}
+.contact-back{
+  background:none;border:1.5px solid var(--border);border-radius:10px;
+  padding:10px 28px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-mid);cursor:pointer;
+  transition:border-color .2s,background .2s;
+}
+.contact-back:hover{border-color:var(--green-mid);background:var(--green-light)}
+@keyframes coFadeIn{from{opacity:0}to{opacity:1}}
+@media(max-width:480px){
+  .contact-modal{padding:32px 20px;border-radius:18px}
+  .contact-title{font-size:24px}
+}
+
+/* ═══════════════════════════════
    FEATURES
 ═══════════════════════════════ */
 .features-section{background:var(--white);padding:96px 0}
@@ -762,6 +808,29 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
 
 </div><!-- /marketing-page -->
 
+<!-- CONTACT OVERLAY — registration inactive until copyright + launch ready -->
+<!-- TODO §17: To activate registration, remove the display:flex block in selectOrgType and uncomment the activation block -->
+<div id="contact-overlay" style="display:none" onclick="if(event.target===this)closeContactOverlay()">
+  <div class="contact-modal">
+    <div class="contact-icon">&#127807;</div>
+    <div class="contact-title">Registration Opening Soon</div>
+    <div class="contact-org" id="contact-org-name">Organisation</div>
+    <p class="contact-body">
+      We're putting the finishing touches on onboarding.<br>
+      Write or call us — we'll get you set up personally.
+    </p>
+    <div class="contact-cta">
+      <a href="mailto:registration@ayurxpert.com" class="contact-email-btn">
+        &#9993;&nbsp; registration@ayurxpert.com
+      </a>
+      <a href="tel:+919844210154" class="contact-phone-btn">
+        &#128222;&nbsp; +91 98442 10154
+      </a>
+    </div>
+    <p class="contact-hint">Mention your organisation name and type — we'll respond within 24 hours.</p>
+    <button class="contact-back" onclick="closeContactOverlay()">&larr; Back</button>
+  </div>
+</div>
 
 <!-- ═══════════════════════════════════════
      REGISTRATION FORM PAGE
@@ -1231,13 +1300,29 @@ const CARD_ICONS = {
   instrument_supplier:'🔧', chemical_supplier:'⚗️', dealer:'🚚', journal:'📰',
 };
 
+const CARD_MARKETING = {
+  clinic:['See more patients with smart token queues','ABHA Health ID linked in under 60 seconds','E-prescriptions sent to pharmacy instantly','Works offline — no internet, no problem','ABDM-compliant from your very first patient'],
+  hospital:['Full OPD & IPD managed in one platform','Every patient gets an ABHA Health ID','Dept-wise routing & live bed availability','NCISM compliance reports at one click','From admission to discharge, fully digital'],
+  pk_center:['Purva, Pradhana & Paschatkarma — all tracked','Therapist schedules & assignments at a glance','ABHA-linked treatment records per patient','Day-care session & package documentation','Digital consent forms & therapy notes'],
+  dispensary:['Dispense prescriptions in seconds, not minutes','275+ AFI classical formulations built in','Expiry alerts before stock becomes a problem','GST billing & professional invoices instantly','Connected to prescribing doctors in real time'],
+  college:['NCISM OPDs, depts & beds — set up for you','Patient exposure tracking for every student','1:2 OPD ratio compliance, always in check','Mandatory Screening OPD flow built in','Table-7 & Table-8 reports ready to submit'],
+  laboratory:['Lab orders arrive the moment a doctor sends them','Digital reports delivered to patients instantly','Quality control & sample tracking built in','Integrated with OPD — no double entry','Barcode-based sample management'],
+  pharma:['Your entire product catalogue, digitised','Batch tracking from manufacturing to delivery','GRN & purchase orders handled automatically','Direct link to your dealer-distributor network','AFI formulation reference always at hand'],
+  raw_drug_supplier:['Manage your full Dravya catalogue digitally','Quality batch documentation, always ready','Order fulfilment tracked end-to-end','Direct supply to hospitals & dispensaries','Digital delivery records, audit-ready'],
+  instrument_supplier:['Full equipment catalogue & spec sheets online','AMC & service schedules tracked automatically','Order delivery tracked from quote to receipt','Connected to hospital procurement teams','Professional invoicing & documentation'],
+  chemical_supplier:['Chemical & reagent catalogue, always current','Batch certification records, digitally stored','Lab supply orders managed in one place','Compliance documentation, always ready','Secure order tracking for every shipment'],
+  dealer:['Every brand, every stock level — one dashboard','Retailer orders processed & tracked digitally','Expiry batch alerts before they become a problem','Automated invoicing & credit note management','Direct integration with pharma suppliers'],
+  journal:['Receive & review submissions entirely online','Peer review workflow, structured & trackable','Author & reviewer database, always organised','Digital publication archive, searchable forever','DOI integration — coming soon'],
+};
+
 (function renderOrgCards() {
   const container = document.getElementById('org-cards-container');
   if (!container) return;
 
   Object.entries(ORG_DATA).forEach(([typeKey, d]) => {
     const icon = CARD_ICONS[typeKey] || '🏢';
-    const featItems = d.features.map(f => `<li>${f}</li>`).join('');
+    const benefits = CARD_MARKETING[typeKey] || d.features;
+    const featItems = benefits.map(f => `<li>${f}</li>`).join('');
     const ncismBadge = d.ncism ? '<div class="org-ncism-badge">NCISM</div>' : '';
 
     const card = document.createElement('div');
@@ -1298,28 +1383,36 @@ const CARD_ICONS = {
 ───────────────────────────────────────── */
 window.selectOrgType = function(type) {
   if (!ORG_DATA[type]) return;
-  selectedOrgType = type;
   const d = ORG_DATA[type];
 
-  document.getElementById('sc-icon').textContent  = d.abbr;
-  document.getElementById('sc-icon').className    = `sc-icon cat-${d.cat}`;
-  document.getElementById('sc-name').textContent  = d.name;
-  document.getElementById('sc-tag').textContent   = d.tag;
+  // ── REGISTRATION INACTIVE ── TODO §17 ─────────────────────────────────────
+  // Registration is currently closed. Shows contact card instead of form.
+  // To activate: delete the 4 lines below (up to and including `return`)
+  // and uncomment the ACTIVATION BLOCK further down.
+  document.getElementById('contact-org-name').textContent = d.name;
+  document.getElementById('contact-overlay').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  return;
 
-  const ind3 = document.getElementById('step-ind-3');
-  const ind4 = document.getElementById('step-ind-4');
-  if (isNCISMType(type)) {
-    ind4.style.display = '';
-    ind3.classList.remove('no-connector');
-  } else {
-    ind4.style.display = 'none';
-    ind3.classList.add('no-connector');
-  }
+  // ── ACTIVATION BLOCK — uncomment everything below when ready to open ───────
+  // selectedOrgType = type;
+  // document.getElementById('sc-icon').textContent  = d.abbr;
+  // document.getElementById('sc-icon').className    = `sc-icon cat-${d.cat}`;
+  // document.getElementById('sc-name').textContent  = d.name;
+  // document.getElementById('sc-tag').textContent   = d.tag;
+  // const ind3 = document.getElementById('step-ind-3');
+  // const ind4 = document.getElementById('step-ind-4');
+  // if (isNCISMType(type)) { ind4.style.display=''; ind3.classList.remove('no-connector'); }
+  // else { ind4.style.display='none'; ind3.classList.add('no-connector'); }
+  // document.getElementById('marketing-page').style.display = 'none';
+  // document.getElementById('reg-form').style.display = 'block';
+  // showStep(1);
+  // window.scrollTo({ top:0, behavior:'smooth' });
+};
 
-  document.getElementById('marketing-page').style.display = 'none';
-  document.getElementById('reg-form').style.display = 'block';
-  showStep(1);
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+window.closeContactOverlay = function() {
+  document.getElementById('contact-overlay').style.display = 'none';
+  document.body.style.overflow = '';
 };
 
 window.changeOrgType = function() {
