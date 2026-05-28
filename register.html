@@ -12,107 +12,289 @@
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="AyurXpert"/>
+<meta name="description" content="Register your Ayurveda organisation on AyurXpert — clinics, hospitals, colleges, pharma companies and more. ABDM-ready, free to start."/>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
-  --gold:#c9902a;--cream:#faf8f3;--white:#ffffff;
+  --gold:#c9902a;--gold-light:#fdf3e2;--gold-dim:rgba(201,144,42,0.2);
+  --cream:#faf8f3;--white:#ffffff;
   --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
   --border:#d4e6da;
   --error-bg:#fff3f3;--error-text:#8b1a1a;--error-border:#f5b8b8;
 }
-html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark)}
-
-/* ── HEADER ── */
-.header{background:var(--green-deep);padding:18px 24px;display:flex;align-items:center;justify-content:center;gap:14px}
-.header-logo{width:44px;height:44px;object-fit:contain;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,0.3)}
-.header-brand{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;letter-spacing:.3px}
-.header-brand span:first-child{color:var(--white)}
-.header-brand span:last-child{color:var(--gold)}
-
-/* ── MAIN WRAPPER ── */
-.main{max-width:720px;margin:0 auto;padding:0 16px 60px}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--white);overflow-x:hidden}
 
 /* ═══════════════════════════════
-   ORG TYPE SELECTOR
+   MARKETING NAV
 ═══════════════════════════════ */
-#org-type-selector{padding-top:32px}
-.sel-head{text-align:center;margin-bottom:30px}
-.sel-head h1{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:600;color:var(--green-deep);margin-bottom:8px}
-.sel-head p{font-size:14px;color:var(--text-muted);line-height:1.6}
-
-.org-category{margin-bottom:28px}
-.cat-label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:12px;padding-bottom:7px;border-bottom:2px solid var(--border);display:flex;align-items:center;gap:8px}
-.cat-label-pill{display:inline-block;background:var(--green-light);color:var(--green-deep);border-radius:10px;padding:2px 8px;font-size:10px;font-weight:600;letter-spacing:.4px}
-
-.tiles-row{display:flex;flex-wrap:wrap;gap:12px}
-
-/* Individual tile */
-.org-tile{
-  position:relative;width:160px;flex-shrink:0;
-  background:var(--white);border:2px solid var(--border);border-radius:14px;
-  padding:20px 12px 16px;text-align:center;cursor:pointer;overflow:hidden;
-  transition:border-color .2s,box-shadow .2s,transform .15s;
-  -webkit-tap-highlight-color:transparent;
+.mkt-nav{
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  background:rgba(26,74,46,0.97);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid rgba(255,255,255,0.07);
 }
-@media(hover:hover){
-  .org-tile:hover{border-color:var(--green-mid);box-shadow:0 6px 20px rgba(26,74,46,.15);transform:translateY(-2px)}
+.mkt-nav-inner{
+  max-width:1200px;margin:0 auto;padding:0 24px;
+  height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px;
 }
-.tile-icon{
-  width:54px;height:54px;border-radius:14px;margin:0 auto 11px;
+.mkt-brand{display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0}
+.mkt-logo{width:36px;height:36px;border-radius:8px;object-fit:contain}
+.mkt-brand-name{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;letter-spacing:.3px}
+.mkt-brand-name span:first-child{color:#fff}
+.mkt-brand-name span:last-child{color:var(--gold)}
+.mkt-links{display:flex;align-items:center;gap:4px}
+.mkt-link{color:rgba(255,255,255,0.65);text-decoration:none;font-size:14px;padding:8px 14px;border-radius:8px;transition:color .2s,background .2s}
+.mkt-link:hover{color:#fff;background:rgba(255,255,255,0.08)}
+.btn-mkt-cta{
+  background:var(--gold);color:#fff;border-radius:9px;
+  padding:9px 20px;font-size:14px;font-weight:500;
+  text-decoration:none;transition:background .2s,box-shadow .2s;white-space:nowrap;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;
+}
+.btn-mkt-cta:hover{background:#b07d22;box-shadow:0 4px 16px rgba(201,144,42,0.35)}
+.mkt-hamburger{
+  display:none;flex-direction:column;gap:5px;
+  background:none;border:none;cursor:pointer;padding:8px;border-radius:8px;
+}
+.mkt-hamburger span{display:block;width:22px;height:2px;background:rgba(255,255,255,0.8);border-radius:2px;transition:all .3s}
+.mkt-hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.mkt-hamburger.open span:nth-child(2){opacity:0}
+.mkt-hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+.mkt-nav-mobile{
+  display:none;flex-direction:column;
+  background:#143d24;border-top:1px solid rgba(255,255,255,0.08);
+  padding:12px 24px 20px;gap:4px;
+}
+.mkt-nav-mobile.open{display:flex}
+.mkt-nav-mobile .mkt-link{font-size:15px;padding:12px 16px}
+.mkt-nav-mobile .btn-mkt-cta{margin-top:8px;text-align:center;display:block}
+
+/* ═══════════════════════════════
+   HERO
+═══════════════════════════════ */
+.hero{
+  min-height:100vh;
+  background:linear-gradient(160deg,#1a4a2e 0%,#0f2e1a 60%,#1a3a26 100%);
   display:flex;align-items:center;justify-content:center;
-  font-size:15px;font-weight:700;color:var(--white);letter-spacing:.5px;
-  transition:transform .2s;
+  text-align:center;padding:120px 24px 80px;
+  position:relative;overflow:hidden;
 }
-.org-tile:hover .tile-icon{transform:scale(1.05)}
-/* Icon colour by category */
-.cat-clinical  .tile-icon{background:var(--green-deep)}
-.cat-education .tile-icon{background:var(--gold)}
-.cat-diag      .tile-icon{background:#2a5f8b}
-.cat-pharma    .tile-icon{background:#4a6272}
-.cat-trade     .tile-icon{background:#6a5580}
-
-.tile-name{font-size:13px;font-weight:600;color:var(--text-dark);margin-bottom:3px;line-height:1.3}
-.tile-tag{font-size:11px;color:var(--text-muted);line-height:1.4}
-.tile-badge{display:inline-block;background:var(--gold);color:var(--white);font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;margin-top:5px;letter-spacing:.5px;text-transform:uppercase}
-
-/* Feature overlay */
-.tile-features{
-  position:absolute;inset:0;border-radius:12px;
-  background:var(--green-deep);color:var(--white);
-  padding:14px 12px 12px;
-  display:flex;flex-direction:column;justify-content:space-between;
-  opacity:0;transform:translateY(8px);pointer-events:none;
-  transition:opacity .22s ease,transform .22s ease;
+.hero::before{
+  content:'';position:absolute;top:-100px;right:-100px;
+  width:500px;height:500px;border-radius:50%;
+  background:radial-gradient(circle,rgba(201,144,42,0.12) 0%,transparent 70%);
 }
-@media(hover:hover){
-  .org-tile:hover .tile-features{opacity:1;transform:translateY(0);pointer-events:all}
+.hero::after{
+  content:'';position:absolute;bottom:-80px;left:-80px;
+  width:400px;height:400px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,0.04) 0%,transparent 70%);
 }
-.org-tile.show-features .tile-features{opacity:1;transform:translateY(0);pointer-events:all}
-.tf-title{font-size:10px;font-weight:600;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
-.tf-list{list-style:none;flex:1}
-.tf-list li{font-size:11.5px;padding:2px 0;display:flex;align-items:flex-start;gap:5px;line-height:1.35;text-align:left}
-.tf-list li::before{content:'✓';font-size:9px;color:var(--gold);flex-shrink:0;margin-top:2px;font-weight:700}
-.tf-btn{
-  display:block;width:100%;height:32px;margin-top:8px;
-  background:var(--gold);border:none;border-radius:7px;
-  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;
-  color:var(--white);cursor:pointer;letter-spacing:.2px;
-  transition:background .15s;
+.hero-inner{max-width:800px;margin:0 auto;position:relative;z-index:1}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(201,144,42,0.15);border:1px solid rgba(201,144,42,0.3);
+  color:#e8c878;font-size:13px;font-weight:500;
+  padding:7px 18px;border-radius:24px;margin-bottom:28px;letter-spacing:.3px;
 }
-.tf-btn:hover{background:#b07a20}
-
-/* Mobile tap hint */
-.tile-tap-hint{font-size:10px;color:var(--text-muted);margin-top:6px;transition:opacity .2s}
-@media(hover:hover){.tile-tap-hint{display:none}}
+.hero-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(38px,6vw,64px);font-weight:600;
+  color:#fff;line-height:1.1;margin-bottom:20px;letter-spacing:-.5px;
+}
+.hero-title .gold{color:var(--gold)}
+.hero-sub{
+  font-size:clamp(15px,2vw,18px);color:rgba(255,255,255,0.6);
+  line-height:1.75;margin-bottom:36px;max-width:580px;margin-left:auto;margin-right:auto;font-weight:300;
+}
+.hero-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:52px}
+.btn-hero-primary{
+  background:var(--gold);color:#fff;
+  border-radius:12px;padding:14px 32px;font-size:16px;font-weight:500;
+  text-decoration:none;border:none;font-family:'DM Sans',sans-serif;cursor:pointer;
+  transition:background .2s,box-shadow .2s,transform .15s;display:inline-block;
+}
+.btn-hero-primary:hover{background:#b07d22;box-shadow:0 6px 24px rgba(201,144,42,0.4);transform:translateY(-2px)}
+.btn-hero-secondary{
+  background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.75);
+  border:1.5px solid rgba(255,255,255,0.15);
+  border-radius:12px;padding:14px 28px;font-size:16px;
+  text-decoration:none;transition:background .2s,color .2s;display:inline-block;
+}
+.btn-hero-secondary:hover{background:rgba(255,255,255,0.15);color:#fff}
+.hero-stats{
+  display:flex;justify-content:center;gap:0;
+  border:1px solid rgba(255,255,255,0.1);border-radius:14px;
+  background:rgba(255,255,255,0.04);
+  overflow:hidden;max-width:520px;margin:0 auto;
+}
+.hero-stat{flex:1;padding:16px 12px;text-align:center;border-right:1px solid rgba(255,255,255,0.08)}
+.hero-stat:last-child{border-right:none}
+.hero-stat strong{display:block;font-size:20px;font-weight:600;color:#fff;margin-bottom:3px}
+.hero-stat span{font-size:11px;color:rgba(255,255,255,0.45);text-transform:uppercase;letter-spacing:.5px}
+.scroll-hint{
+  position:absolute;bottom:32px;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  color:rgba(255,255,255,0.3);font-size:12px;letter-spacing:.5px;
+  animation:sbounce 2s ease-in-out infinite;
+}
+.scroll-hint::after{content:'↓';font-size:18px;color:rgba(255,255,255,0.25)}
+@keyframes sbounce{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-6px)}}
 
 /* ═══════════════════════════════
-   REGISTRATION FORM WRAPPER
+   SECTION BASE
 ═══════════════════════════════ */
-#reg-form{padding-top:24px}
+.section-inner{max-width:1160px;margin:0 auto;padding:0 24px}
+.section-label{font-size:11px;font-weight:500;color:var(--gold);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px}
+.section-title{font-family:'Cormorant Garamond',serif;font-size:clamp(28px,4vw,44px);font-weight:600;color:var(--green-deep);line-height:1.2;margin-bottom:12px}
+.section-sub{font-size:15px;color:var(--text-muted);line-height:1.7;max-width:560px}
 
-/* Selected type chip */
+/* ═══════════════════════════════
+   CHOOSE ORG TYPE
+═══════════════════════════════ */
+.choose-section{background:var(--cream);padding:96px 0}
+.choose-section .section-inner{display:flex;flex-direction:column;align-items:center;text-align:center}
+.org-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;width:100%;margin-top:48px}
+.org-card{
+  background:var(--white);border:2px solid var(--border);
+  border-radius:20px;padding:30px 22px 24px;
+  display:flex;flex-direction:column;align-items:center;gap:11px;
+  color:var(--text-dark);position:relative;overflow:hidden;
+  transition:border-color .2s,box-shadow .3s,transform .2s;
+  text-align:center;cursor:pointer;
+  box-shadow:0 2px 12px rgba(26,74,46,.05);
+}
+.org-card:hover{
+  border-color:var(--gold);
+  box-shadow:0 12px 40px rgba(201,144,42,0.16);
+  transform:translateY(-6px);
+}
+.org-icon-wrap{
+  width:72px;height:72px;border-radius:20px;
+  border:2px solid transparent;
+  display:flex;align-items:center;justify-content:center;
+  font-size:34px;transition:background .2s,border-color .2s,transform .2s;flex-shrink:0;
+}
+.org-card:hover .org-icon-wrap{transform:scale(1.08)}
+/* Category icon backgrounds */
+.org-card.cat-clinical  .org-icon-wrap{background:#e4f3eb;border-color:rgba(45,122,79,.15)}
+.org-card.cat-education .org-icon-wrap{background:#fdf3e2;border-color:rgba(201,144,42,.2)}
+.org-card.cat-diag      .org-icon-wrap{background:#e6edf5;border-color:rgba(42,95,139,.15)}
+.org-card.cat-pharma    .org-icon-wrap{background:#edf2f4;border-color:rgba(74,98,114,.15)}
+.org-card.cat-trade     .org-icon-wrap{background:#f2eff5;border-color:rgba(106,85,128,.15)}
+/* Category top accent */
+.org-card.cat-clinical {border-top:3px solid var(--green-mid)}
+.org-card.cat-education{border-top:3px solid var(--gold)}
+.org-card.cat-diag     {border-top:3px solid #2a5f8b}
+.org-card.cat-pharma   {border-top:3px solid #4a6272}
+.org-card.cat-trade    {border-top:3px solid #6a5580}
+.org-name{font-size:15px;font-weight:600;color:var(--green-deep);line-height:1.2}
+.org-desc{font-size:12.5px;color:var(--text-muted);line-height:1.55}
+.org-arrow{font-size:12px;color:var(--gold);font-weight:500;opacity:0;transform:translateX(-4px);transition:opacity .2s,transform .2s}
+.org-card:hover .org-arrow{opacity:1;transform:translateX(0)}
+.org-ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.5px;text-transform:uppercase}
+/* ── HOVER FEATURES OVERLAY ── */
+.org-overlay{
+  position:absolute;inset:0;border-radius:18px;
+  background:linear-gradient(155deg,#1a4a2e 0%,#0d2819 100%);
+  padding:20px 18px 16px;
+  display:flex;flex-direction:column;
+  opacity:0;transform:translateY(14px);pointer-events:none;
+  transition:opacity .25s ease,transform .25s ease;
+}
+@media(hover:hover){.org-card:hover .org-overlay{opacity:1;transform:translateY(0);pointer-events:all}}
+.org-card.show-overlay .org-overlay{opacity:1;transform:translateY(0);pointer-events:all}
+.ov-label{font-size:9.5px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.9px;margin-bottom:8px}
+.ov-name{font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;color:#fff;margin-bottom:10px;line-height:1.2}
+.ov-list{list-style:none;flex:1}
+.ov-list li{font-size:12px;padding:2.5px 0;display:flex;align-items:flex-start;gap:7px;line-height:1.4;color:rgba(255,255,255,.82);text-align:left}
+.ov-list li::before{content:'✓';color:var(--gold);font-size:9.5px;flex-shrink:0;margin-top:2px;font-weight:700}
+.ov-btn{
+  display:block;width:100%;height:34px;margin-top:11px;flex-shrink:0;
+  background:var(--gold);border:none;border-radius:8px;
+  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;
+  color:#fff;cursor:pointer;letter-spacing:.2px;
+  transition:background .15s,transform .1s;
+}
+.ov-btn:hover{background:#b07d22;transform:scale(.98)}
+
+/* ═══════════════════════════════
+   FEATURES
+═══════════════════════════════ */
+.features-section{background:var(--white);padding:96px 0}
+.features-section .section-inner{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center}
+.features-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.feature-card{background:var(--cream);border-radius:14px;padding:20px;border:1px solid var(--border)}
+.feature-icon{font-size:24px;margin-bottom:10px}
+.feature-title{font-size:14px;font-weight:600;color:var(--green-deep);margin-bottom:4px}
+.feature-body{font-size:12px;color:var(--text-muted);line-height:1.5}
+
+/* ═══════════════════════════════
+   ABDM
+═══════════════════════════════ */
+.abdm-section{background:var(--green-deep);padding:80px 0;position:relative;overflow:hidden}
+.abdm-section::before{content:'';position:absolute;top:-60px;right:-60px;width:320px;height:320px;border-radius:50%;background:rgba(201,144,42,0.07)}
+.abdm-inner{max-width:1160px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:60px}
+.abdm-content{flex:1;position:relative;z-index:1}
+.abdm-badge{display:inline-flex;align-items:center;gap:8px;background:var(--gold-dim);border:1px solid rgba(201,144,42,0.35);color:#e8c878;font-size:12px;font-weight:500;padding:6px 14px;border-radius:20px;margin-bottom:20px;letter-spacing:.5px}
+.abdm-title{font-family:'Cormorant Garamond',serif;font-size:clamp(24px,3vw,38px);font-weight:600;color:#fff;line-height:1.2;margin-bottom:14px}
+.abdm-body{font-size:15px;color:rgba(255,255,255,0.6);line-height:1.8;margin-bottom:24px}
+.abdm-points{display:flex;flex-direction:column;gap:10px}
+.abdm-point{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:rgba(255,255,255,0.75)}
+.abdm-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:7px}
+.abdm-visual{flex-shrink:0;width:240px;display:flex;flex-direction:column;gap:12px;position:relative;z-index:1}
+.abdm-card{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px}
+.abdm-card-icon{font-size:22px;flex-shrink:0}
+.abdm-card-label{font-size:13px;color:rgba(255,255,255,0.8);font-weight:500}
+.abdm-card-sub{font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px}
+
+/* ═══════════════════════════════
+   INDIA BAR + FOOTER
+═══════════════════════════════ */
+.india-bar{background:var(--cream);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:24px;text-align:center}
+.india-bar p{font-size:14px;color:var(--text-muted)}
+.india-bar strong{color:var(--green-deep)}
+.mkt-footer{background:#0f2318;padding:60px 0 32px}
+.mkt-footer-inner{max-width:1160px;margin:0 auto;padding:0 24px}
+.mkt-footer-top{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:48px}
+.mkt-footer-logo-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.mkt-footer-logo{width:32px;height:32px;border-radius:7px;object-fit:contain}
+.mkt-footer-brand{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600}
+.mkt-footer-brand span:first-child{color:#fff}
+.mkt-footer-brand span:last-child{color:var(--gold)}
+.mkt-footer-tagline{font-size:13px;color:rgba(255,255,255,0.35);line-height:1.7;max-width:240px}
+.mkt-footer-col-title{font-size:11px;font-weight:500;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px}
+.mkt-footer-links{display:flex;flex-direction:column;gap:8px}
+.mkt-footer-link{font-size:13px;color:rgba(255,255,255,0.5);text-decoration:none;transition:color .2s;cursor:pointer;background:none;border:none;font-family:'DM Sans',sans-serif;text-align:left;padding:0}
+.mkt-footer-link:hover{color:rgba(255,255,255,0.85)}
+.mkt-footer-bottom{border-top:1px solid rgba(255,255,255,0.07);padding-top:24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.mkt-footer-copy{font-size:12px;color:rgba(255,255,255,0.25)}
+.mkt-footer-india{font-size:12px;color:rgba(255,255,255,0.3)}
+
+/* ═══════════════════════════════
+   FORM HEADER (form mode)
+═══════════════════════════════ */
+.form-header{
+  background:var(--green-deep);padding:15px 24px;
+  display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100;
+}
+.fh-logo{width:38px;height:38px;object-fit:contain;border-radius:9px;box-shadow:0 4px 12px rgba(0,0,0,0.3)}
+.fh-brand{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;letter-spacing:.3px}
+.fh-brand span:first-child{color:#fff}
+.fh-brand span:last-child{color:var(--gold)}
+.fh-sep{color:rgba(255,255,255,0.25);font-size:18px;margin:0 2px}
+.fh-title{font-size:13px;color:rgba(255,255,255,0.55);letter-spacing:.2px}
+
+/* ═══════════════════════════════
+   FORM MAIN WRAPPER
+═══════════════════════════════ */
+.main{max-width:720px;margin:0 auto;padding:0 16px 60px;background:var(--cream)}
+
+/* ═══════════════════════════════
+   ORG TYPE CHIP
+═══════════════════════════════ */
+#reg-form-inner{padding-top:24px}
 .sel-chip{
   display:flex;align-items:center;gap:12px;
   background:var(--white);border:2px solid var(--green-mid);
@@ -135,6 +317,13 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
   transition:border-color .2s,background .2s;white-space:nowrap;
 }
 .sc-change:hover{border-color:var(--green-mid);background:var(--green-light)}
+
+/* Icon colour by category */
+.cat-clinical  .sc-icon,.cat-clinical  .tile-icon{background:var(--green-deep)}
+.cat-education .sc-icon,.cat-education .tile-icon{background:var(--gold)}
+.cat-diag      .sc-icon,.cat-diag      .tile-icon{background:#2a5f8b}
+.cat-pharma    .sc-icon,.cat-pharma    .tile-icon{background:#4a6272}
+.cat-trade     .sc-icon,.cat-trade     .tile-icon{background:#6a5580}
 
 /* ── PROGRESS BAR ── */
 .progress{display:flex;align-items:center;margin-bottom:24px;max-width:620px;margin-left:auto;margin-right:auto}
@@ -284,18 +473,49 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 .btn-goto-login{display:inline-block;height:52px;line-height:52px;padding:0 40px;background:var(--green-deep);color:var(--white);border-radius:10px;text-decoration:none;font-family:'DM Sans',sans-serif;font-size:16px;font-weight:500;transition:background .2s}
 .btn-goto-login:hover{background:#1f5c37}
 
-/* ── FOOTER LINK ── */
+/* ── FOOTER LINK (form mode) ── */
 .footer-link{text-align:center;font-size:13px;color:var(--text-muted);margin-top:24px}
 .footer-link a{color:var(--green-mid);font-weight:500;text-decoration:none}
 .footer-link a:hover{color:var(--gold)}
 
+/* ── ANIMATIONS ── */
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 
-@media(max-width:580px){
-  .header{padding:14px 16px}
-  .header-logo{width:36px;height:36px}
-  .header-brand{font-size:20px}
+/* ═══════════════════════════════
+   RESPONSIVE
+═══════════════════════════════ */
+@media(max-width:960px){
+  .mkt-links{display:none}
+  .mkt-hamburger{display:flex}
+  .org-grid{grid-template-columns:repeat(2,1fr)}
+  .features-section .section-inner{grid-template-columns:1fr;gap:40px}
+  .abdm-inner{flex-direction:column;gap:36px}
+  .abdm-visual{width:100%;flex-direction:row;flex-wrap:wrap}
+  .abdm-card{flex:1;min-width:160px}
+  .mkt-footer-top{grid-template-columns:1fr 1fr}
+}
+@media(max-width:600px){
+  .hero{padding:100px 16px 60px}
+  .hero-stats{flex-direction:column;border:none;background:none;gap:0}
+  .hero-stat{border-right:none;border-bottom:1px solid rgba(255,255,255,0.08);padding:12px}
+  .hero-stat:last-child{border-bottom:none}
+  .org-grid{grid-template-columns:1fr 1fr;gap:12px}
+  .org-card{padding:20px 14px;gap:10px;border-radius:16px}
+  .org-icon-wrap{width:56px;height:56px;font-size:26px;border-radius:14px}
+  .org-name{font-size:14px}
+  .org-desc{display:none}
+  .org-overlay{border-radius:14px}
+  .choose-section{padding:64px 0}
+  .features-section{padding:64px 0}
+  .features-grid{grid-template-columns:1fr}
+  .abdm-visual{flex-direction:column}
+  .mkt-footer-top{grid-template-columns:1fr}
+  .mkt-footer-bottom{flex-direction:column;text-align:center}
+  .scroll-hint{display:none}
+  /* Form responsive */
+  .form-header{padding:12px 16px}
+  .fh-title{display:none}
   .main{padding:0 12px 60px}
   .card{padding:22px 16px}
   .card-title{font-size:22px}
@@ -304,44 +524,263 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
   .btn-back{width:100%;text-align:center}
   .location-row{flex-direction:column;align-items:stretch}
   .btn-gps{width:100%}
-  .sel-head h1{font-size:26px}
-  .org-tile{width:calc(50% - 6px)}
-  .intake-grid{grid-template-columns:1fr 1fr}
-  .preview-summary{grid-template-columns:1fr 1fr 1fr}
-  .pv-val{font-size:20px}
+}
+@media(max-width:380px){
+  .org-grid{grid-template-columns:1fr}
 }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <img src="assets/icon.svg" alt="AyurXpert" class="header-logo"/>
-  <div class="header-brand"><span>Ayur</span><span>Xpert</span></div>
-</div>
+<!-- ═══════════════════════════════════════
+     MARKETING PAGE
+════════════════════════════════════════ -->
+<div id="marketing-page">
 
-<div class="main">
+  <!-- NAV -->
+  <nav class="mkt-nav">
+    <div class="mkt-nav-inner">
+      <a href="home.html" class="mkt-brand">
+        <img src="assets/AyurXpert_Navbar_Logo.png" alt="AyurXpert" class="mkt-logo"
+             onerror="this.src='assets/icon.svg'"/>
+        <div class="mkt-brand-name"><span>Ayur</span><span>Xpert</span></div>
+      </a>
+      <div class="mkt-links">
+        <a href="#features" class="mkt-link">Features</a>
+        <a href="#abdm"     class="mkt-link">ABDM</a>
+        <a href="login.html" class="mkt-link">Sign In</a>
+        <button class="btn-mkt-cta" onclick="document.getElementById('choose-type').scrollIntoView({behavior:'smooth'})">Sign Up Your Organisation &rarr;</button>
+      </div>
+      <button class="mkt-hamburger" id="mkt-hamburger" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+    <div class="mkt-nav-mobile" id="mkt-nav-mobile">
+      <a href="#features" class="mkt-link" onclick="closeMktMenu()">Features</a>
+      <a href="#abdm"     class="mkt-link" onclick="closeMktMenu()">ABDM</a>
+      <a href="login.html" class="mkt-link">Sign In</a>
+      <button class="btn-mkt-cta" onclick="closeMktMenu();document.getElementById('choose-type').scrollIntoView({behavior:'smooth'})">Sign Up Your Organisation &rarr;</button>
+    </div>
+  </nav>
 
-  <!-- ═══════════════════════════════════════
-       ORG TYPE SELECTOR
-  ════════════════════════════════════════ -->
-  <div id="org-type-selector">
-    <div class="sel-head">
-      <h1>Register Your Organisation</h1>
-      <p>Select your type — AyurXpert will pre-configure the right modules for you.<br>
-        <small>Hover (desktop) or tap (mobile) to see included features.</small>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-badge">&#128737;&#65039;&nbsp; ABDM Ready &nbsp;&middot;&nbsp; Made in India</div>
+      <h1 class="hero-title">
+        Register Your<br/>
+        <span class="gold">Ayurveda</span> Organisation
+      </h1>
+      <p class="hero-sub">
+        Set up your digital HMS in minutes. Choose your organisation type below —
+        AyurXpert pre-configures every module, workflow, and permission automatically.
+        Free to start.
+      </p>
+      <div class="hero-actions">
+        <button class="btn-hero-primary" onclick="document.getElementById('choose-type').scrollIntoView({behavior:'smooth'})">Choose Your Type &darr;</button>
+        <a href="login.html" class="btn-hero-secondary">Already registered? Sign in</a>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat"><strong>9+</strong><span>Org Types</span></div>
+        <div class="hero-stat"><strong>ABDM</strong><span>Integrated</span></div>
+        <div class="hero-stat"><strong>PWA</strong><span>Works Offline</span></div>
+        <div class="hero-stat"><strong>RLS</strong><span>Data Secured</span></div>
+      </div>
+    </div>
+    <div class="scroll-hint">Scroll to explore</div>
+  </section>
+
+  <!-- CHOOSE ORG TYPE -->
+  <section id="choose-type" class="choose-section">
+    <div class="section-inner">
+      <div class="section-label">Get Started</div>
+      <h2 class="section-title">Who are you?</h2>
+      <p class="section-sub">
+        Select your organisation type. We'll set up the exact modules, workflows,
+        and permissions your organisation needs — automatically.
+      </p>
+
+      <div class="org-grid" id="org-cards-container"></div>
+
+      <p style="margin-top:28px;font-size:13px;color:var(--text-muted)">
+        Already registered?&nbsp;
+        <a href="login.html" style="color:var(--green-mid);font-weight:500;text-decoration:none">Sign in to your portal &rarr;</a>
       </p>
     </div>
-    <div id="tiles-container"></div>
-    <div class="footer-link">Already registered? <a href="login.html">Sign in here</a></div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features" class="features-section">
+    <div class="section-inner">
+      <div>
+        <div class="section-label">Why AyurXpert</div>
+        <h2 class="section-title">Everything your organisation needs, built in</h2>
+        <p class="section-sub" style="margin-bottom:36px">
+          One platform for every Ayurveda stakeholder — no integrations, no plugins,
+          no extra subscriptions. Log in and start from day one.
+        </p>
+        <button class="btn-hero-primary" onclick="document.getElementById('choose-type').scrollIntoView({behavior:'smooth'})" style="display:inline-block">
+          Start free &rarr;
+        </button>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">&#128737;&#65039;</div>
+          <div class="feature-title">ABDM Integrated</div>
+          <div class="feature-body">ABHA ID linking, FHIR-compatible records and consent-based health data sharing.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#128242;</div>
+          <div class="feature-title">Installs as App</div>
+          <div class="feature-body">Add to home screen on any phone. Works offline — no internet? No problem.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#128101;</div>
+          <div class="feature-title">Role-Based Access</div>
+          <div class="feature-body">Doctor, receptionist, pharmacist, admin — everyone sees only what they need.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#127970;</div>
+          <div class="feature-title">Multi-Location</div>
+          <div class="feature-body">Manage multiple branches from one account. Centralised reports and billing.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#127470;&#127475;</div>
+          <div class="feature-title">Built for India</div>
+          <div class="feature-body">GST billing, UPI payments, all Indian states, Devanagari support and ABDM.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">&#128274;</div>
+          <div class="feature-title">Fully Secure</div>
+          <div class="feature-body">Row-level security on every table. Your patients' data is only visible to your team.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ABDM -->
+  <section id="abdm" class="abdm-section">
+    <div class="abdm-inner">
+      <div class="abdm-content">
+        <div class="abdm-badge">&#128737;&#65039;&nbsp; ABDM — Ayushman Bharat Digital Mission</div>
+        <h2 class="abdm-title">Fully ABDM-Ready from Day One</h2>
+        <p class="abdm-body">
+          AyurXpert is built to comply with India's national digital health framework.
+          Your patients get ABHA IDs, their records are stored in FHIR R4 format,
+          and consent-based data sharing is built into every clinical workflow.
+        </p>
+        <div class="abdm-points">
+          <div class="abdm-point"><div class="abdm-dot"></div><span>ABHA Health ID creation and linking for every patient</span></div>
+          <div class="abdm-point"><div class="abdm-dot"></div><span>FHIR R4-compatible patient records and prescriptions</span></div>
+          <div class="abdm-point"><div class="abdm-dot"></div><span>HIP / HIU consent flow for health data sharing</span></div>
+          <div class="abdm-point"><div class="abdm-dot"></div><span>ABDM-registered Bridge System / HRP integration</span></div>
+        </div>
+      </div>
+      <div class="abdm-visual">
+        <div class="abdm-card">
+          <div class="abdm-card-icon">&#129314;</div>
+          <div>
+            <div class="abdm-card-label">ABHA ID</div>
+            <div class="abdm-card-sub">14-digit Health ID for every patient</div>
+          </div>
+        </div>
+        <div class="abdm-card">
+          <div class="abdm-card-icon">&#128203;</div>
+          <div>
+            <div class="abdm-card-label">FHIR Records</div>
+            <div class="abdm-card-sub">International standard health data format</div>
+          </div>
+        </div>
+        <div class="abdm-card">
+          <div class="abdm-card-icon">&#128272;</div>
+          <div>
+            <div class="abdm-card-label">Consent Flow</div>
+            <div class="abdm-card-sub">Patient controls who sees their data</div>
+          </div>
+        </div>
+        <div class="abdm-card">
+          <div class="abdm-card-icon">&#127973;</div>
+          <div>
+            <div class="abdm-card-label">HIP Registered</div>
+            <div class="abdm-card-sub">Registered Health Information Provider</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INDIA BAR -->
+  <div class="india-bar">
+    <p>&#127470;&#127475;&nbsp; Built in India for the global Ayurveda ecosystem &nbsp;&middot;&nbsp;
+       <strong>ayurxpert.com</strong> &nbsp;&middot;&nbsp;
+       <a href="mailto:support@ayurxpert.com" style="color:var(--green-mid);text-decoration:none">support@ayurxpert.com</a>
+    </p>
   </div>
 
-  <!-- ═══════════════════════════════════════
-       REGISTRATION FORM
-  ════════════════════════════════════════ -->
-  <div id="reg-form" style="display:none">
+  <!-- FOOTER -->
+  <footer class="mkt-footer">
+    <div class="mkt-footer-inner">
+      <div class="mkt-footer-top">
+        <div>
+          <div class="mkt-footer-logo-row">
+            <img src="assets/icon.svg" alt="AyurXpert" class="mkt-footer-logo"/>
+            <div class="mkt-footer-brand"><span>Ayur</span><span>Xpert</span></div>
+          </div>
+          <p class="mkt-footer-tagline">A complete digital ecosystem for every Ayurveda stakeholder in India and abroad.</p>
+        </div>
+        <div>
+          <div class="mkt-footer-col-title">Platform</div>
+          <div class="mkt-footer-links">
+            <button class="mkt-footer-link" onclick="document.getElementById('choose-type').scrollIntoView({behavior:'smooth'})">Register Organisation</button>
+            <a href="login.html"  class="mkt-footer-link">Sign In</a>
+            <a href="signup.html" class="mkt-footer-link">Join as Staff</a>
+            <a href="#features"   class="mkt-footer-link">Features</a>
+          </div>
+        </div>
+        <div>
+          <div class="mkt-footer-col-title">Compliance</div>
+          <div class="mkt-footer-links">
+            <a href="#abdm"        class="mkt-footer-link">ABDM Integration</a>
+            <a href="privacy.html" class="mkt-footer-link">Privacy Policy</a>
+            <a href="terms.html"   class="mkt-footer-link">Terms of Service</a>
+          </div>
+        </div>
+        <div>
+          <div class="mkt-footer-col-title">Contact</div>
+          <div class="mkt-footer-links">
+            <a href="mailto:support@ayurxpert.com" class="mkt-footer-link">support@ayurxpert.com</a>
+            <a href="mailto:abdm@ayurxpert.com"    class="mkt-footer-link">abdm@ayurxpert.com</a>
+          </div>
+        </div>
+      </div>
+      <div class="mkt-footer-bottom">
+        <div class="mkt-footer-copy">&copy; 2026 AyurXpert Technologies&#8482;. All rights reserved.</div>
+        <div class="mkt-footer-india">Made with &#127807; in India</div>
+      </div>
+    </div>
+  </footer>
+
+</div><!-- /marketing-page -->
+
+
+<!-- ═══════════════════════════════════════
+     REGISTRATION FORM PAGE
+════════════════════════════════════════ -->
+<div id="reg-form" style="display:none">
+
+  <!-- Minimal sticky header -->
+  <div class="form-header">
+    <img src="assets/AyurXpert_Navbar_Logo.png" alt="AyurXpert" class="fh-logo"
+         onerror="this.src='assets/icon.svg'"/>
+    <div class="fh-brand"><span>Ayur</span><span>Xpert</span></div>
+    <div class="fh-sep">&middot;</div>
+    <div class="fh-title">Register Your Organisation</div>
+  </div>
+
+  <div class="main">
 
     <!-- Selected type chip -->
-    <div class="sel-chip" id="sel-chip">
+    <div class="sel-chip" id="sel-chip" style="margin-top:20px">
       <div class="sc-icon" id="sc-icon">CL</div>
       <div class="sc-info">
         <div class="sc-name" id="sc-name">Clinic</div>
@@ -457,7 +896,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
           <label>Full Name <button type="button" class="faq-btn" onclick="toggleFaq('faq-aname')">?</button></label>
           <input type="text" id="admin-name" placeholder="Dr. Ramesh Sharma" autocomplete="name"/>
           <div class="faq-box" id="faq-aname">
-            <strong>Purpose:</strong> Appears on official communications, audit logs, and system-generated letters. Use your full name as you want it printed on prescriptions.
+            <strong>Purpose:</strong> Appears on official communications, audit logs, and system-generated letters.
           </div>
         </div>
 
@@ -465,7 +904,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
           <label>Email Address <button type="button" class="faq-btn" onclick="toggleFaq('faq-email')">?</button></label>
           <input type="email" id="admin-email" placeholder="admin@yourhospital.com" inputmode="email" autocomplete="email"/>
           <div class="faq-box" id="faq-email">
-            <strong>Critical:</strong> Used for login and security alerts. A working, monitored email is essential — OTPs, password resets, and compliance alerts go here. Cannot be changed easily later.
+            <strong>Critical:</strong> Used for login and security alerts. OTPs, password resets, and compliance alerts go here.
           </div>
         </div>
 
@@ -473,7 +912,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
           <label>Phone <button type="button" class="faq-btn" onclick="toggleFaq('faq-aphone')">?</button></label>
           <input type="tel" id="admin-phone" placeholder="+91 98765 43210" inputmode="tel"/>
           <div class="faq-box" id="faq-aphone">
-            <strong>Used for:</strong> Account recovery and two-factor authentication. Not shown to patients — this is your personal admin contact.
+            <strong>Used for:</strong> Account recovery and two-factor authentication.
           </div>
         </div>
 
@@ -484,7 +923,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
             <button class="toggle-pw" type="button" onclick="togglePw('admin-password',this)" aria-label="Show password">&#128065;</button>
           </div>
           <div class="faq-box" id="faq-pw">
-            <strong>Security:</strong> This account has full access to all patient data across your organisation. Use at least 8 characters with a mix of letters, numbers, and symbols. Never share this password.
+            <strong>Security:</strong> This account has full access to all patient data across your organisation.
           </div>
         </div>
 
@@ -516,11 +955,11 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
             <img id="logo-preview" class="logo-preview" alt="Logo preview"/>
             <div class="logo-upload-text" id="logo-upload-text">
               <strong>Click to upload</strong> your organisation logo<br>
-              <span style="font-size:12px">PNG or JPG, max 2 MB — square image recommended (200&times;200 px or larger)</span>
+              <span style="font-size:12px">PNG or JPG, max 2 MB — square image recommended</span>
             </div>
           </div>
           <div class="faq-box" id="faq-logo">
-            <strong>Appears on:</strong> Prescriptions, bills, patient portal, and the staff dashboard header. Square images (400&times;400 px) look best. You can upload or change it anytime.
+            <strong>Appears on:</strong> Prescriptions, bills, patient portal, and the staff dashboard header.
           </div>
         </div>
 
@@ -528,7 +967,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
           <label>Tagline <span class="opt">(optional)</span> <button type="button" class="faq-btn" onclick="toggleFaq('faq-tagline')">?</button></label>
           <input type="text" id="org-tagline" placeholder="e.g. Holistic Healing for Modern Life"/>
           <div class="faq-box" id="faq-tagline">
-            <strong>Shown on:</strong> Your portal dashboard and patient-facing pages below the organisation name. Keep it short — under 60 characters.
+            <strong>Shown on:</strong> Your portal dashboard below the organisation name. Keep it under 60 characters.
           </div>
         </div>
 
@@ -536,7 +975,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
           <label>Full Address <span class="opt">(optional)</span> <button type="button" class="faq-btn" onclick="toggleFaq('faq-addr')">?</button></label>
           <textarea id="org-address" placeholder="Door no., Street, Area, City, State — PIN code"></textarea>
           <div class="faq-box" id="faq-addr">
-            <strong>Printed on:</strong> Prescriptions and bills. Include your PIN code — it is used for ABDM address mapping. You can add this later.
+            <strong>Printed on:</strong> Prescriptions and bills. Include your PIN code for ABDM address mapping.
           </div>
         </div>
 
@@ -550,7 +989,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
           </div>
           <div class="gps-status" id="gps-status"></div>
           <div class="faq-box" id="faq-gps">
-            <strong>Used for:</strong> AyurXpert directory listing — lets nearby practitioners and patients discover your facility. Coordinates are never shared without your consent.
+            <strong>Used for:</strong> AyurXpert directory listing. Coordinates are never shared without your consent.
           </div>
         </div>
 
@@ -577,7 +1016,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
         <div class="field">
           <label>UG Intake &nbsp;<span class="opt">NCISM-approved annual intake</span> <button type="button" class="faq-btn" onclick="toggleFaq('faq-ugintake')">?</button></label>
           <div class="faq-box" id="faq-ugintake">
-            <strong>NCISM Table-7:</strong> Your approved UG intake determines the minimum OPD patients per day (ratio 1:2) and the minimum bed count for your hospital. This cannot be self-declared — it must match your NCISM recognition letter.
+            <strong>NCISM Table-7:</strong> Your approved UG intake determines the minimum OPD patients per day and minimum bed count. Must match your NCISM recognition letter.
           </div>
           <div class="intake-grid" style="margin-top:12px">
             <div class="intake-card" onclick="selectIntake(60,this)">
@@ -674,10 +1113,11 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 
     </div><!-- /card -->
 
-    <div class="footer-link">Already registered? <a href="login.html">Sign in here</a></div>
-  </div><!-- /reg-form -->
+    <div class="footer-link" style="margin-bottom:24px">Already registered? <a href="login.html">Sign in here</a></div>
+  </div><!-- /main -->
 
-</div><!-- /main -->
+</div><!-- /reg-form -->
+
 
 <script type="module" src="./js/pwa/register-sw.js"></script>
 <script type="module">
@@ -740,82 +1180,6 @@ const ORG_DATA = {
   },
 };
 
-const CATEGORIES = [
-  { key: 'clinical',   label: 'Clinical Organisations',     types: ['clinic','hospital','pk_center','dispensary'] },
-  { key: 'education',  label: 'Education',                  badge: 'NCISM', types: ['college'] },
-  { key: 'diag',       label: 'Diagnostics',                types: ['laboratory'] },
-  { key: 'pharma',     label: 'Pharmaceuticals & Supply',   types: ['pharma','raw_drug_supplier','instrument_supplier','chemical_supplier'] },
-  { key: 'trade',      label: 'Trade & Research',           types: ['dealer','journal'] },
-];
-
-/* ─────────────────────────────────────────
-   RENDER TILES
-───────────────────────────────────────── */
-(function renderTiles() {
-  const container = document.getElementById('tiles-container');
-  CATEGORIES.forEach(cat => {
-    const group = document.createElement('div');
-    group.className = 'org-category';
-
-    const hdr = document.createElement('div');
-    hdr.className = `cat-label cat-${cat.key}`;
-    hdr.textContent = cat.label;
-    if (cat.badge) {
-      const pill = document.createElement('span');
-      pill.className = 'cat-label-pill';
-      pill.textContent = cat.badge;
-      hdr.appendChild(pill);
-    }
-    group.appendChild(hdr);
-
-    const row = document.createElement('div');
-    row.className = 'tiles-row';
-
-    cat.types.forEach(typeKey => {
-      const d = ORG_DATA[typeKey];
-      const tile = document.createElement('div');
-      tile.className = `org-tile cat-${cat.key}`;
-      tile.dataset.type = typeKey;
-
-      const featureItems = d.features.map(f => `<li>${f}</li>`).join('');
-      tile.innerHTML = `
-        <div class="tile-icon cat-${cat.key}">${d.abbr}</div>
-        <div class="tile-name">${d.name}</div>
-        <div class="tile-tag">${d.tag}</div>
-        ${d.ncism ? '<div class="tile-badge">NCISM</div>' : ''}
-        <div class="tile-tap-hint" style="font-size:10px;color:var(--text-muted);margin-top:6px">Tap to see features</div>
-        <div class="tile-features">
-          <div class="tf-title">What's included</div>
-          <ul class="tf-list">${featureItems}</ul>
-          <button class="tf-btn" onclick="selectOrgType('${typeKey}')">Select ${d.name} &rarr;</button>
-        </div>`;
-
-      tile.addEventListener('click', function(e) {
-        if (e.target.classList.contains('tf-btn')) return;
-        const isTouchDevice = !window.matchMedia('(hover:hover)').matches;
-        if (isTouchDevice && !tile.classList.contains('show-features')) {
-          document.querySelectorAll('.org-tile').forEach(t => t.classList.remove('show-features'));
-          tile.classList.add('show-features');
-          e.stopPropagation();
-          return;
-        }
-        if (!isTouchDevice) selectOrgType(typeKey);
-      });
-
-      row.appendChild(tile);
-    });
-
-    group.appendChild(row);
-    container.appendChild(group);
-  });
-
-  document.addEventListener('click', function(e) {
-    if (!e.target.closest('.org-tile')) {
-      document.querySelectorAll('.org-tile').forEach(t => t.classList.remove('show-features'));
-    }
-  });
-})();
-
 /* ─────────────────────────────────────────
    STATE
 ───────────────────────────────────────── */
@@ -859,6 +1223,69 @@ const NCISM_DEPTS = [
 function isNCISMType(t) { return t === 'college' || t === 'hospital'; }
 
 /* ─────────────────────────────────────────
+   RENDER ORG CARDS
+───────────────────────────────────────── */
+const CARD_ICONS = {
+  clinic:'🩺', hospital:'🏥', pk_center:'🌿', dispensary:'💊',
+  college:'🎓', laboratory:'🔬', pharma:'🏭', raw_drug_supplier:'🌿',
+  instrument_supplier:'🔧', chemical_supplier:'⚗️', dealer:'🚚', journal:'📰',
+};
+
+(function renderOrgCards() {
+  const container = document.getElementById('org-cards-container');
+  if (!container) return;
+
+  Object.entries(ORG_DATA).forEach(([typeKey, d]) => {
+    const icon = CARD_ICONS[typeKey] || '🏢';
+    const featItems = d.features.map(f => `<li>${f}</li>`).join('');
+    const ncismBadge = d.ncism ? '<div class="org-ncism-badge">NCISM</div>' : '';
+
+    const card = document.createElement('div');
+    card.className = `org-card cat-${d.cat}`;
+    card.innerHTML = `
+      <div class="org-icon-wrap">${icon}</div>
+      <div class="org-name">${d.name}</div>
+      <div class="org-desc">${d.tag}</div>
+      ${ncismBadge}
+      <div class="org-arrow">Register &rarr;</div>
+      <div class="org-overlay">
+        <div class="ov-label">What's included</div>
+        <div class="ov-name">${d.name}</div>
+        <ul class="ov-list">${featItems}</ul>
+        <button class="ov-btn" data-type="${typeKey}">Register ${d.name} &rarr;</button>
+      </div>`;
+
+    card.querySelector('.ov-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      selectOrgType(typeKey);
+    });
+
+    card.addEventListener('click', function(e) {
+      if (e.target.closest('.ov-btn')) return;
+      const isTouch = !window.matchMedia('(hover:hover)').matches;
+      if (isTouch) {
+        if (!card.classList.contains('show-overlay')) {
+          document.querySelectorAll('.org-card').forEach(c => c.classList.remove('show-overlay'));
+          card.classList.add('show-overlay');
+        } else {
+          selectOrgType(typeKey);
+        }
+        return;
+      }
+      selectOrgType(typeKey);
+    });
+
+    container.appendChild(card);
+  });
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.org-card')) {
+      document.querySelectorAll('.org-card').forEach(c => c.classList.remove('show-overlay'));
+    }
+  });
+})();
+
+/* ─────────────────────────────────────────
    URL PARAM AUTO-SELECT
 ───────────────────────────────────────── */
 (function() {
@@ -889,18 +1316,21 @@ window.selectOrgType = function(type) {
     ind3.classList.add('no-connector');
   }
 
-  document.getElementById('org-type-selector').style.display = 'none';
+  document.getElementById('marketing-page').style.display = 'none';
   document.getElementById('reg-form').style.display = 'block';
   showStep(1);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
 window.changeOrgType = function() {
   selectedOrgType = null;
   selectedIntake  = null;
   document.querySelectorAll('.intake-card').forEach(c => c.classList.remove('selected'));
-  document.getElementById('org-type-selector').style.display = 'block';
+  document.getElementById('marketing-page').style.display = '';
   document.getElementById('reg-form').style.display = 'none';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  setTimeout(() => {
+    document.getElementById('choose-type').scrollIntoView({ behavior: 'smooth' });
+  }, 50);
 };
 
 /* ─────────────────────────────────────────
@@ -1202,6 +1632,25 @@ function showAlert(msg) {
 }
 function clearAlert() { document.getElementById('alert').classList.remove('show'); }
 function setLoading(btn, on) { if(btn) { btn.classList.toggle('loading',on); btn.disabled = on; } }
+
+/* ─────────────────────────────────────────
+   MOBILE NAV
+───────────────────────────────────────── */
+const hamburger = document.getElementById('mkt-hamburger');
+const mobileNav = document.getElementById('mkt-nav-mobile');
+if (hamburger) {
+  hamburger.addEventListener('click', () => {
+    hamburger.classList.toggle('open');
+    mobileNav.classList.toggle('open');
+  });
+}
+window.closeMktMenu = function() {
+  hamburger?.classList.remove('open');
+  mobileNav?.classList.remove('open');
+};
+document.addEventListener('click', e => {
+  if (!e.target.closest('.mkt-nav')) window.closeMktMenu();
+});
 </script>
 </body>
 </html>
