@@ -41,10 +41,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
   height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px;
 }
 .mkt-brand{display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0}
-.mkt-logo{width:36px;height:36px;border-radius:8px;object-fit:contain}
-.mkt-brand-name{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;letter-spacing:.3px}
-.mkt-brand-name span:first-child{color:#fff}
-.mkt-brand-name span:last-child{color:var(--gold)}
+.mkt-logo{height:54px;width:auto;display:block;object-fit:contain}
 .mkt-links{display:flex;align-items:center;gap:4px}
 .mkt-link{color:rgba(255,255,255,0.65);text-decoration:none;font-size:14px;padding:8px 14px;border-radius:8px;transition:color .2s,background .2s}
 .mkt-link:hover{color:#fff;background:rgba(255,255,255,0.08)}
@@ -586,12 +583,12 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
   <!-- NAV -->
   <nav class="mkt-nav">
     <div class="mkt-nav-inner">
-      <a href="home.html" class="mkt-brand">
+      <a href="index.html" class="mkt-brand">
         <img src="assets/AyurXpert_Navbar_Logo.png" alt="AyurXpert" class="mkt-logo"
              onerror="this.src='assets/icon.svg'"/>
-        <div class="mkt-brand-name"><span>Ayur</span><span>Xpert</span></div>
       </a>
       <div class="mkt-links">
+        <a href="index.html" class="mkt-link">Home</a>
         <a href="#features" class="mkt-link">Features</a>
         <a href="#abdm"     class="mkt-link">ABDM</a>
         <a href="login.html" class="mkt-link">Sign In</a>
@@ -602,6 +599,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
       </button>
     </div>
     <div class="mkt-nav-mobile" id="mkt-nav-mobile">
+      <a href="index.html" class="mkt-link" onclick="closeMktMenu()">Home</a>
       <a href="#features" class="mkt-link" onclick="closeMktMenu()">Features</a>
       <a href="#abdm"     class="mkt-link" onclick="closeMktMenu()">ABDM</a>
       <a href="login.html" class="mkt-link">Sign In</a>
