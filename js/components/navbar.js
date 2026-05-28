@@ -214,7 +214,7 @@ function _injectStyles() {
   .ax-tagline { color: rgba(255,255,255,0.45); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
 
   /* Nav links */
-  .ax-links { display: flex; align-items: center; gap: 2px; flex: 1; justify-content: center; }
+  .ax-links { display: flex; align-items: center; gap: 1px; flex: 1; justify-content: center; min-width: 0; overflow: hidden; }
   .ax-link  { color: rgba(255,255,255,0.65); text-decoration: none; font-size: 14px; font-weight: 500; padding: 7px 13px; border-radius: 8px; transition: background .2s, color .2s; white-space: nowrap; }
   .ax-link:hover  { background: rgba(255,255,255,0.1); color: #fff; }
   .ax-link.active { background: rgba(201,144,42,0.18); color: #c9902a; }
@@ -309,16 +309,30 @@ function _injectStyles() {
   }
 
   /* ── RESPONSIVE BREAKPOINTS ── */
-  @media (max-width: 900px) {
+
+  /* Step 1 — tighten link padding on wide-but-crowded screens */
+  @media (max-width: 1400px) {
+    .ax-link { padding: 6px 10px; font-size: 13.5px; }
+    .ax-name { max-width: 150px; }
+  }
+  /* Step 2 — compress further, hide role label */
+  @media (max-width: 1200px) {
+    .ax-link { padding: 6px 7px; font-size: 13px; }
+    .ax-user-role { display: none; }
+    .ax-logout-btn { padding: 6px 10px; font-size: 12px; }
+    .ax-name { max-width: 120px; }
+    .ax-tagline { display: none; }
+  }
+  /* Step 3 — collapse to hamburger */
+  @media (max-width: 1024px) {
     .ax-links    { display: none; }
     .ax-user-info { display: none; }
     .ax-logout-btn { display: none; }
     .ax-hamburger  { display: flex; }
-    .ax-tagline    { display: none; }
   }
   @media (max-width: 480px) {
     .ax-inner  { padding: 0 14px; height: 56px; }
-    .ax-name   { max-width: 140px; font-size: 14px; }
+    .ax-name   { max-width: 130px; font-size: 14px; }
     .ax-logo, .ax-logo-fallback { width: 30px; height: 30px; }
     body       { padding-top: 56px !important; }
     #ax-watermark { bottom: 10px; right: 10px; font-size: 10px; padding: 4px 9px; }
