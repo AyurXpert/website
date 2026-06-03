@@ -255,13 +255,13 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
       </button>
     </div>
 
-    <!-- STEP 2: Role preview + Password (hidden until email verified) -->
+    <!-- STEP 2: Password (email-only chip — no database info shown) -->
     <div id="step-password" style="display:none">
       <div class="role-card" id="role-card">
-        <div class="role-avatar" id="role-avatar"></div>
+        <div class="role-avatar">&#128100;</div>
         <div class="role-info">
           <div class="role-info-name" id="role-name-display"></div>
-          <div class="role-info-sub" id="role-sub-display"></div>
+          <div class="role-info-sub" style="font-size:11px;color:var(--text-muted)">Enter your password to continue</div>
         </div>
         <button class="btn-change" id="btn-change-email" type="button">Change</button>
       </div>
@@ -429,29 +429,15 @@ btnContinue.addEventListener('click', handleContinue);
 emailEl.addEventListener('keydown', e => { if (e.key === 'Enter') handleContinue(); });
 emailEl.addEventListener('input', clearAlerts);
 
-async function handleContinue() {
+function handleContinue() {
   clearAlerts();
   const email = emailEl.value.trim();
   if (!email) { showAlert('Please enter your email address.'); emailEl.focus(); return; }
 
-  _setLoading(btnContinue, true);
-  const { data, error } = await supabase.rpc('get_profile_by_email', { p_email: email });
-  _setLoading(btnContinue, false);
-
   _verifiedEmail = email;
-  const p = (!error && data && data.length > 0) ? data[0] : null;
-
-  // Always advance to step 2 regardless of whether email exists —
-  // revealing email-exists vs not-exists is username enumeration.
-  if (p) {
-    document.getElementById('role-avatar').textContent       = _roleIcon(p.role);
-    document.getElementById('role-name-display').textContent = `${p.full_name} · ${_roleLabel(p.role)}`;
-    document.getElementById('role-sub-display').textContent  = `${_tenantTypeLabel(p.tenant_type)} · ${p.tenant_name}`;
-    document.getElementById('role-card').style.display = '';
-  } else {
-    document.getElementById('role-card').style.display = 'none';
-  }
-
+  // Show only the email they typed — no database lookup here (prevents enumeration).
+  // The role card displays their email so they know which account they're signing into.
+  document.getElementById('role-name-display').textContent = email;
   document.getElementById('step-email').style.display    = 'none';
   document.getElementById('step-password').style.display = '';
   passwordEl.focus();
@@ -491,31 +477,6 @@ async function handleLogin() {
   }
 }
 
-// ── Role helpers ──────────────────────────────────────────────────────────────
-function _roleLabel(role) {
-  const map = {
-    super_admin:'Super Admin', dept_admin:'Dept. Admin', doctor:'Doctor',
-    receptionist:'Receptionist', pharmacist:'Pharmacist', nurse:'Nurse',
-    lab_tech:'Lab Technician', accountant:'Accountant', student:'Student',
-  };
-  return map[role] || role;
-}
-function _roleIcon(role) {
-  const map = {
-    super_admin:'🏛', dept_admin:'📋', doctor:'🩺',
-    receptionist:'📝', pharmacist:'💊', nurse:'💉',
-    lab_tech:'🔬', accountant:'📊', student:'📚',
-  };
-  return map[role] || '👤';
-}
-function _tenantTypeLabel(type) {
-  const map = {
-    clinic:'Clinic', hospital:'Hospital', pk_center:'Panchakarma Center',
-    dispensary:'Dispensary', college:'Ayurveda College', pharma:'Pharmaceutical Co.',
-    supplier:'Supplier', dealer:'Dealer', journal:'Journal',
-  };
-  return map[type] || type || 'Healthcare';
-}
 </script>
 
 </body>
