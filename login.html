@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.supabase.co https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<meta name="referrer" content="strict-origin-when-cross-origin"/>
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, private"/>
+<script>if(window!==window.top)window.top.location.href=window.location.href;</script>
 <title>Sign In — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
 <link rel="manifest" href="manifest.json"/>
@@ -434,7 +439,7 @@ async function handleContinue() {
   _setLoading(btnContinue, false);
 
   if (error || !data || data.length === 0) {
-    showAlert('No active account found for this email. Contact your administrator.');
+    showAlert('Unable to sign in. Please check your credentials or contact your administrator.');
     emailEl.classList.add('error');
     return;
   }

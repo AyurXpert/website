@@ -80,17 +80,27 @@ export async function registerTenant({
 
 export async function registerStaff({
   fullName, email, password, phone,
-  role, tenantCode
+  role, tenantCode, hprId = null, stateRegId = null, departmentId = null
 }) {
   try {
-    const { data: tenantRows, error: tenantError } = await supabase
-      .rpc('get_tenant_by_code', { p_code: tenantCode });
+    const { data: subRows, error: tenantError } = await supabase
+      .rpc('get_tenant_subscription_info', { p_code: tenantCode });
 
-    const tenant = tenantRows?.[0] || null;
+    const info = subRows?.[0] || null;
 
-    if (tenantError || !tenant) throw new Error(
+    if (tenantError || !info) throw new Error(
       'Organisation code not found. Please check the code with your admin.'
     );
+
+    // Subscription checks
+    if (info.subscription_status === 'suspended')
+      throw new Error('This organisation\'s account is suspended. Please contact your administrator.');
+    if (info.subscription_status === 'expired')
+      throw new Error('This organisation\'s subscription has expired. Please ask your admin to renew.');
+    if (info.max_users && info.current_user_count >= info.max_users)
+      throw new Error(`Organisation has reached its staff limit (${info.max_users} users). Ask your admin to upgrade the plan.`);
+
+    const tenant = { id: info.tenant_id, name: info.tenant_name, type: info.tenant_type };
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
@@ -109,6 +119,9 @@ export async function registerStaff({
         phone,
         status:    'pending_approval',
         is_active: false,
+        ...(hprId        ? { hpr_id:         hprId        } : {}),
+        ...(stateRegId   ? { state_reg_id:   stateRegId   } : {}),
+        ...(departmentId ? { department_id:  departmentId } : {}),
       });
     if (profileError) throw profileError;
 
@@ -147,19 +160,19 @@ export async function login({ email, password }) {
     );
 
     if (profile.status === 'pending_approval') {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'global' });
       throw new Error('Your account is pending approval. Please wait for your administrator to activate it.');
     }
     if (profile.status === 'approved') {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'global' });
       throw new Error('Your account is approved but department access has not been assigned yet. Please wait.');
     }
     if (profile.status === 'rejected') {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'global' });
       throw new Error('Your account request was not approved. Please contact your administrator.');
     }
     if (profile.status === 'suspended') {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'global' });
       throw new Error('Your account has been suspended. Please contact your administrator.');
     }
 
@@ -191,9 +204,10 @@ export async function login({ email, password }) {
 // ═══════════════════════════════════════════════════════════
 
 export async function logout() {
-  await supabase.auth.signOut();
+  clearTimeout(_inactivityTimer);
+  await supabase.auth.signOut({ scope: 'global' }); // invalidate ALL sessions on all devices
   sessionStorage.clear();
-  window.location.href = 'login.html';
+  window.location.replace('login.html'); // replace prevents back-button returning to protected page
 }
 
 
@@ -325,9 +339,59 @@ export function getCurrentTenant() {
 //    await requireAuth(['doctor', 'receptionist']);
 // ═══════════════════════════════════════════════════════════
 
+// --- Security hardening (WASA remediation) ---
+
+// Inject security meta tags once per page load
+function _injectSecurityMeta() {
+  if (document.querySelector('meta[name="ax-sec"]')) return;
+  const head = document.head;
+  const add = (attrs) => {
+    const m = document.createElement('meta');
+    Object.entries(attrs).forEach(([k, v]) => m.setAttribute(k, v));
+    head.appendChild(m);
+  };
+  // CSP — allow our own origins + Supabase + CDNs we use; block objects & plugins
+  add({ 'http-equiv': 'Content-Security-Policy',
+        content: "default-src 'self' https://*.supabase.co https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';" });
+  // Prevent MIME sniffing
+  add({ 'http-equiv': 'X-Content-Type-Options', content: 'nosniff' });
+  // Referrer policy
+  add({ name: 'referrer', content: 'strict-origin-when-cross-origin' });
+  // Prevent caching of authenticated pages (back-button after logout)
+  add({ 'http-equiv': 'Cache-Control', content: 'no-store, no-cache, must-revalidate, private' });
+  add({ 'http-equiv': 'Pragma', content: 'no-cache' });
+  add({ name: 'ax-sec', content: '1' }); // sentinel
+}
+
+// Clickjacking frame-buster
+function _frameGuard() {
+  if (window !== window.top) {
+    window.top.location.href = window.location.href;
+  }
+}
+
+// 30-minute inactivity auto-logout
+let _inactivityTimer = null;
+const _INACTIVITY_MS = 30 * 60 * 1000;
+
+function _resetInactivity() {
+  clearTimeout(_inactivityTimer);
+  _inactivityTimer = setTimeout(() => logout(), _INACTIVITY_MS);
+}
+
+function _startInactivityWatch() {
+  ['click', 'keydown', 'touchstart', 'scroll'].forEach(ev =>
+    document.addEventListener(ev, _resetInactivity, { passive: true })
+  );
+  _resetInactivity();
+}
+
 export async function requireAuth(allowedRoles = [], redirectTo = 'login.html') {
+  _frameGuard();
+  _injectSecurityMeta();
+
   const currentPage = window.location.pathname.split('/').pop();
-  if (PUBLIC_PAGES.includes(currentPage)) return;
+  if (PUBLIC_PAGES.includes(currentPage) || PUBLIC_PAGES.includes(currentPage + '.html')) return;
 
   const { data: { session } } = await supabase.auth.getSession();
 
@@ -345,7 +409,7 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html') 
       .single();
 
     if (!profile || profile.status !== 'active') {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'global' });
       window.location.href = 'login.html';
       return;
     }
@@ -363,6 +427,8 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html') 
       window.location.href = ROLE_HOME[role] || 'admin.html';
     }
   }
+
+  _startInactivityWatch(); // auto-logout after 30 min inactivity
 }
 
 
