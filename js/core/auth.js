@@ -352,7 +352,7 @@ function _injectSecurityMeta() {
   };
   // CSP — allow our own origins + Supabase + CDNs we use; block objects & plugins
   add({ 'http-equiv': 'Content-Security-Policy',
-        content: "default-src 'self' https://*.supabase.co https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';" });
+        content: "default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';" });
   // Prevent MIME sniffing
   add({ 'http-equiv': 'X-Content-Type-Options', content: 'nosniff' });
   // Referrer policy
