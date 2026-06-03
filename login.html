@@ -438,21 +438,20 @@ async function handleContinue() {
   const { data, error } = await supabase.rpc('get_profile_by_email', { p_email: email });
   _setLoading(btnContinue, false);
 
-  if (error || !data || data.length === 0) {
-    showAlert('Unable to sign in. Please check your credentials or contact your administrator.');
-    emailEl.classList.add('error');
-    return;
+  _verifiedEmail = email;
+  const p = (!error && data && data.length > 0) ? data[0] : null;
+
+  // Always advance to step 2 regardless of whether email exists —
+  // revealing email-exists vs not-exists is username enumeration.
+  if (p) {
+    document.getElementById('role-avatar').textContent       = _roleIcon(p.role);
+    document.getElementById('role-name-display').textContent = `${p.full_name} · ${_roleLabel(p.role)}`;
+    document.getElementById('role-sub-display').textContent  = `${_tenantTypeLabel(p.tenant_type)} · ${p.tenant_name}`;
+    document.getElementById('role-card').style.display = '';
+  } else {
+    document.getElementById('role-card').style.display = 'none';
   }
 
-  const p = data[0];
-  _verifiedEmail = email;
-
-  // Populate role card
-  document.getElementById('role-avatar').textContent  = _roleIcon(p.role);
-  document.getElementById('role-name-display').textContent = `${p.full_name} · ${_roleLabel(p.role)}`;
-  document.getElementById('role-sub-display').textContent  = `${_tenantTypeLabel(p.tenant_type)} · ${p.tenant_name}`;
-
-  // Switch to step 2
   document.getElementById('step-email').style.display    = 'none';
   document.getElementById('step-password').style.display = '';
   passwordEl.focus();
@@ -481,7 +480,13 @@ async function handleLogin() {
   const result = await login({ email: _verifiedEmail, password });
   _setLoading(btnLogin, false);
   if (!result.success) {
-    showAlert(result.error || 'Sign in failed. Please try again.');
+    // Always generic — prevents distinguishing wrong-password from unknown-email
+    const msg = result.error || '';
+    if (msg.includes('pending') || msg.includes('approved') || msg.includes('department access') || msg.includes('suspended') || msg.includes('not approved')) {
+      showAlert(msg);
+    } else {
+      showAlert('Invalid email or password. Please try again.');
+    }
     passwordEl.classList.add('error');
   }
 }

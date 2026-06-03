@@ -9,6 +9,7 @@ import {
   ROLE_HOME,
   PUBLIC_PAGES,
   SESSION_KEYS,
+  DEFAULT_MODULES,
 } from '../config/constants.js';
 import { logAudit } from './auditLogger.js';
 
@@ -182,6 +183,11 @@ export async function login({ email, password }) {
     sessionStorage.setItem(SESSION_KEYS.TENANT_ID, profile.tenant_id);
     sessionStorage.setItem(SESSION_KEYS.ROLE,      profile.role);
 
+    // §7h — compute effective modules: type defaults merged with tenant overrides
+    const _defMods = DEFAULT_MODULES[profile.tenants?.type] || {};
+    const _tenMods = profile.tenants?.modules || {};
+    sessionStorage.setItem(SESSION_KEYS.MODULES, JSON.stringify({ ..._defMods, ..._tenMods }));
+
     await logAudit('login', 'profiles', profile.id,
       { role: profile.role, tenant: profile.tenants?.name },
       { tenantId: profile.tenant_id, userId: profile.id, userName: profile.full_name }
@@ -331,6 +337,20 @@ export function getCurrentTenant() {
   return raw ? JSON.parse(raw) : null;
 }
 
+// §7h — returns true if module is enabled for this tenant.
+// Defaults to true when no modules are stored (backwards-compatible).
+export function hasModule(key) {
+  const raw = sessionStorage.getItem(SESSION_KEYS.MODULES);
+  if (!raw) return true;
+  const mods = JSON.parse(raw);
+  return mods[key] !== false;
+}
+
+export function getCurrentModules() {
+  const raw = sessionStorage.getItem(SESSION_KEYS.MODULES);
+  return raw ? JSON.parse(raw) : {};
+}
+
 
 // ═══════════════════════════════════════════════════════════
 // 7. ROUTE GUARD
@@ -387,17 +407,23 @@ function _startInactivityWatch() {
 }
 
 export async function requireAuth(allowedRoles = [], redirectTo = 'login.html') {
+  // Hide page content immediately — prevents cached page flashing after logout (WASA 5.7)
+  document.documentElement.style.visibility = 'hidden';
+
   _frameGuard();
   _injectSecurityMeta();
 
   const currentPage = window.location.pathname.split('/').pop();
-  if (PUBLIC_PAGES.includes(currentPage) || PUBLIC_PAGES.includes(currentPage + '.html')) return;
+  if (PUBLIC_PAGES.includes(currentPage) || PUBLIC_PAGES.includes(currentPage + '.html')) {
+    document.documentElement.style.visibility = '';
+    return;
+  }
 
   const { data: { session } } = await supabase.auth.getSession();
 
   if (!session) {
     sessionStorage.clear();
-    window.location.href = redirectTo;
+    window.location.replace(redirectTo);
     return;
   }
 
@@ -410,7 +436,7 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html') 
 
     if (!profile || profile.status !== 'active') {
       await supabase.auth.signOut({ scope: 'global' });
-      window.location.href = 'login.html';
+      window.location.replace('login.html');
       return;
     }
 
@@ -424,10 +450,12 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html') 
     const role = getCurrentRole();
     // super_admin can access any protected page
     if (role !== ROLES.SUPER_ADMIN && !allowedRoles.includes(role)) {
-      window.location.href = ROLE_HOME[role] || 'admin.html';
+      window.location.replace(ROLE_HOME[role] || 'admin.html');
+      return;
     }
   }
 
+  document.documentElement.style.visibility = ''; // show page — auth confirmed
   _startInactivityWatch(); // auto-logout after 30 min inactivity
 }
 

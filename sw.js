@@ -4,8 +4,23 @@
 //   - Local assets (JS/CSS/images) → Cache first → network → cache update
 //   - External APIs (Supabase, Google Fonts, CDN) → Network only, no caching
 
-const CACHE      = 'ayurxpert-v2';
+const CACHE      = 'ayurxpert-v4';
 const OFFLINE    = './offline.html';
+
+// Security headers injected on every navigation response
+const SEC_HEADERS = [
+  ['X-Frame-Options',            'DENY'],
+  ['X-Content-Type-Options',     'nosniff'],
+  ['Referrer-Policy',            'strict-origin-when-cross-origin'],
+  ['Cache-Control',              'no-store, no-cache, must-revalidate, private'],
+  ['Content-Security-Policy',    "frame-ancestors 'none'; default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';"],
+];
+
+function withSecHeaders(res) {
+  const h = new Headers(res.headers);
+  SEC_HEADERS.forEach(([k, v]) => h.set(k, v));
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+}
 
 const PRECACHE = [
   './offline.html',
@@ -61,18 +76,22 @@ self.addEventListener('fetch', event => {
   if (req.method !== 'GET') return;
   if (isExternal(req.url))  return;
 
-  // Navigation requests → network first
+  // Navigation requests → network first + security headers
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req)
         .then(res => {
-          const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(req, clone));
-          return res;
+          if (!res.ok) return caches.match(req).then(c => c || caches.match(OFFLINE));
+          // Only cache public entry pages; never cache authenticated/protected pages
+          const isPublic = PRECACHE.some(p => req.url.includes(p.replace('./', '')));
+          if (isPublic) {
+            caches.open(CACHE).then(c => c.put(req, res.clone()));
+          }
+          return withSecHeaders(res);
         })
         .catch(() =>
           caches.match(req)
-            .then(cached => cached || caches.match(OFFLINE))
+            .then(cached => cached ? withSecHeaders(cached) : caches.match(OFFLINE))
         )
     );
     return;
