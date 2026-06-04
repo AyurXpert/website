@@ -1,8 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <title>Dispensary — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
 <link rel="manifest" href="manifest.json"/>
@@ -257,11 +259,40 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="q-filters">
         <button class="q-filter active" data-filter="pending" onclick="setFilter('pending',this)">Pending</button>
         <button class="q-filter" data-filter="all" onclick="setFilter('all',this)">All Today</button>
+        <button class="q-filter" data-filter="register" onclick="setFilter('register',this)">📋 Register</button>
       </div>
     </div>
 
     <div class="q-list" id="q-list">
       <div class="q-empty"><div class="q-empty-icon"><img src="assets/AyurXpert_Tree_Only.png" alt=""></div>Loading…</div>
+    </div>
+
+    <!-- §21u — Dispensing Register panel (shown when Register filter active) -->
+    <div id="register-panel" style="display:none;padding:12px;flex:1;overflow-y:auto">
+      <div style="font-weight:600;font-size:13px;color:var(--green-deep);margin-bottom:8px">📋 Dispensing Register</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">NCISM — Separate OPD &amp; IPD dispensing registers mandatory</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+        <input type="date" id="reg-date" style="height:30px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit" onchange="loadRegisterTable()"/>
+        <select id="reg-type" style="height:30px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit" onchange="loadRegisterTable()">
+          <option value="">All</option>
+          <option value="opd">OPD Only</option>
+          <option value="ipd">IPD Only</option>
+        </select>
+        <button onclick="exportRegisterCSV()" style="height:30px;padding:0 10px;border:1.5px solid var(--green-mid);background:#fff;color:var(--green-mid);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">Print/CSV</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#f5faf7">
+            <th style="padding:6px 8px;text-align:left;border-bottom:1.5px solid var(--border)">#</th>
+            <th style="padding:6px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Time</th>
+            <th style="padding:6px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Patient</th>
+            <th style="padding:6px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Doctor</th>
+            <th style="padding:6px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Complaint</th>
+            <th style="padding:6px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Type</th>
+          </tr></thead>
+          <tbody id="reg-tbody"></tbody>
+        </table>
+      </div>
     </div>
 
     <div class="q-foot">
@@ -401,13 +432,21 @@ function _timeAgo(ts) {
 }
 
 // ── Load inventory ────────────────────────────────
+let _formularyNames = new Set();
+
 async function loadInventory() {
   try {
-    const { data } = await supabase
-      .from('inventory')
-      .select('id, medicine_id, stock_quantity, mrp, cost_price, gst_percent, medicine:medicines(id,name)')
-      .eq('tenant_id', tenantId);
-    _inventory = (data || []).filter(i => i.medicine?.name);
+    const [invRes, fRes] = await Promise.all([
+      supabase.from('inventory')
+        .select('id, medicine_id, stock_quantity, mrp, cost_price, gst_percent, is_student_batch, medicine:medicines(id,name)')
+        .eq('tenant_id', tenantId),
+      supabase.from('hospital_formulary')
+        .select('medicine_name')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true),
+    ]);
+    _inventory = (invRes.data || []).filter(i => i.medicine?.name && !i.is_student_batch);
+    _formularyNames = new Set((fRes.data || []).map(f => f.medicine_name.toLowerCase()));
   } catch { _inventory = []; }
 }
 
@@ -455,15 +494,17 @@ async function loadQueue() {
     const medCount = (rx.items || []).length;
     const cardClass = isDone ? 'rx-card done' : isActive ? 'rx-card active' : 'rx-card';
     const tokClass  = isDone ? 'rx-token done' : 'rx-token';
+    const isPkTherapy = !rx.visit;
     return `<div class="${cardClass}" onclick="${isDone ? '' : `openRx('${rx.id}')`}">
       <div class="rx-card-top">
-        <div class="${tokClass}">${rx.visit?.token_number || '—'}</div>
+        <div class="${tokClass}">${rx.visit?.token_number || '💊'}</div>
         <div class="rx-name">${rx.patient?.name || '—'}</div>
         <div class="rx-time">${_timeAgo(rx.created_at)}</div>
       </div>
       <div class="rx-meta">
         ${isDone ? '<span class="badge badge-done">Dispensed</span>' : '<span class="badge badge-pending">Pending</span>'}
-        ${medCount ? `<span class="badge badge-meds">${medCount} medicine${medCount>1?'s':''}</span>` : ''}
+        ${isPkTherapy ? '<span class="badge" style="background:#e8f5ee;color:#1a4a2e;border:1px solid #b8ddc6">PK Therapy</span>' : ''}
+        ${medCount ? `<span class="badge badge-meds">${medCount} item${medCount>1?'s':''}</span>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -474,8 +515,50 @@ window.setFilter = function(f, btn) {
   _filter = f;
   document.querySelectorAll('.q-filter').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  if (f === 'register') { loadDispensingRegister(); return; }
+  document.getElementById('q-list').innerHTML = '<div class="q-empty">Loading…</div>';
+  document.getElementById('register-panel').style.display = 'none';
   loadQueue();
 };
+
+// ── §21u Dispensing Register (NCISM — separate OPD/IPD registers mandatory) ──
+window.loadDispensingRegister = async function() {
+  const qList = document.getElementById('q-list');
+  const panel = document.getElementById('register-panel');
+  qList.innerHTML = '';
+  panel.style.display = '';
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('reg-date').value = today;
+  await loadRegisterTable();
+};
+
+window.loadRegisterTable = async function() {
+  const date = document.getElementById('reg-date').value;
+  const type = document.getElementById('reg-type').value;
+  const tbody = document.getElementById('reg-tbody');
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--text-muted)">Loading…</td></tr>';
+  let q = supabase.from('prescriptions')
+    .select('id,created_at,patient_type,patients(name),profiles!doctor_id(full_name),visits(chief_complaint)')
+    .eq('tenant_id', tenantId)
+    .gte('created_at', date + 'T00:00:00')
+    .lte('created_at', date + 'T23:59:59')
+    .order('created_at', { ascending: false });
+  if (type) q = q.eq('patient_type', type);
+  const { data, error } = await q;
+  if (error) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:16px;color:#c0392b">${error.message}</td></tr>`; return; }
+  if (!data?.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--text-muted)">No dispensing records for this date/filter</td></tr>'; return; }
+  let serial = 1;
+  tbody.innerHTML = data.map(p => `<tr>
+    <td style="padding:8px 10px;border-bottom:1px solid #f0f4f2;color:var(--text-muted)">${serial++}</td>
+    <td style="padding:8px 10px;border-bottom:1px solid #f0f4f2">${new Date(p.created_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</td>
+    <td style="padding:8px 10px;border-bottom:1px solid #f0f4f2;font-weight:500">${p.patients?.name||'—'}</td>
+    <td style="padding:8px 10px;border-bottom:1px solid #f0f4f2">${p.profiles?.full_name||'—'}</td>
+    <td style="padding:8px 10px;border-bottom:1px solid #f0f4f2">${p.visits?.chief_complaint||'—'}</td>
+    <td style="padding:8px 10px;border-bottom:1px solid #f0f4f2"><span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${(p.patient_type||'opd')==='ipd'?'#dbeafe':'#e8f5ee'};color:${(p.patient_type||'opd')==='ipd'?'#1a4080':'#1a4a2e'}">${(p.patient_type||'OPD').toUpperCase()}</span></td>
+  </tr>`).join('');
+};
+
+window.exportRegisterCSV = function() { alert('Use browser Print (Ctrl+P) to save as PDF for the NCISM register'); };
 
 // ── Open a prescription ───────────────────────────
 window.openRx = async function(rxId) {
@@ -621,13 +704,14 @@ const medTa     = document.getElementById('med-ta');
 medSearch.addEventListener('input', function() {
   const q = this.value.toLowerCase().trim();
   if (q.length < 2) { medTa.classList.remove('show'); return; }
-  const results = _inventory.filter(i => i.medicine.name.toLowerCase().includes(q)).slice(0, 8);
+  const results = _inventory.filter(i => i.medicine.name.toLowerCase().includes(q) && !i.is_student_batch).slice(0, 8);
   if (!results.length) { medTa.classList.remove('show'); return; }
   medTa.innerHTML = results.map(i => {
     const cls = i.stock_quantity <= 0 ? 'stock-out' : i.stock_quantity < 10 ? 'stock-low' : 'stock-in';
     const lbl = i.stock_quantity <= 0 ? 'Out' : `${i.stock_quantity} in stock`;
+    const inFormulary = _formularyNames.has(i.medicine.name.toLowerCase());
     return `<div class="ta-item" data-mid="${i.medicine_id}" data-name="${i.medicine.name}" data-price="${i.mrp||0}" data-stock="${i.stock_quantity}" data-gst="${i.gst_percent||0}" data-cost="${i.cost_price||0}">
-      <span class="ta-name">${i.medicine.name}</span>
+      <span class="ta-name">${i.medicine.name}${inFormulary ? ' <span style="font-size:10px;font-weight:700;background:#e8f5ee;color:#1a4a2e;border-radius:4px;padding:1px 5px;vertical-align:middle">📋 Formulary</span>' : ''}</span>
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:11px;color:var(--text-muted)">₹${i.mrp||0}</span>
         <span class="stock-badge ${cls}">${lbl}</span>

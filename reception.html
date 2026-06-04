@@ -1,8 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <title>Reception — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
 <link rel="manifest" href="manifest.json"/>
@@ -76,6 +78,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .pt-item{font-size:11px;color:var(--text-muted)}
 .pt-item span{color:var(--text-dark);font-weight:500}
 .pt-balance{color:var(--red)!important}
+.pt-prakriti{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;background:#fdf3e2;border:1px solid #e8c97a;color:#7a5200}
+.pt-prakriti.none{background:#f5f5f5;border-color:#ddd;color:#888;font-weight:400}
 .pt-family-btn{
   margin-top:8px;font-size:11px;color:var(--green-mid);
   background:none;border:none;cursor:pointer;padding:0;
@@ -294,6 +298,43 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .btn-submit.loading .btn-spinner{display:flex}
 .spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
 
+/* ── Active package card ─────────────────────────── */
+.pkg-card{margin-top:8px;padding:10px 14px;background:#fdf3e2;border:1.5px solid #e8c97a;border-radius:8px;display:none;gap:10px;align-items:flex-start}
+.pkg-card.show{display:flex}
+.pkg-card-icon{font-size:20px;flex-shrink:0}
+.pkg-card-body{flex:1;min-width:0}
+.pkg-card-name{font-size:13px;font-weight:600;color:#8a5200}
+.pkg-card-meta{font-size:11px;color:#a06c10;margin-top:2px}
+.pkg-sessions-bar{height:4px;background:#f0dba8;border-radius:4px;margin-top:5px}
+.pkg-sessions-fill{height:4px;background:#c9902a;border-radius:4px;transition:width .3s}
+.pkg-use-row{display:flex;align-items:center;gap:8px;margin-top:7px}
+.pkg-use-chk{width:16px;height:16px;accent-color:var(--gold);cursor:pointer}
+.pkg-use-label{font-size:12px;font-weight:500;color:#8a5200;cursor:pointer}
+
+/* ── Mode toggle ─────────────────────────────────── */
+.mode-toggle{display:flex;gap:8px;padding:12px 24px;border-bottom:1px solid var(--border);background:#f9fdf9}
+.mode-btn{flex:1;height:36px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:500;color:var(--text-muted);background:var(--white);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .2s}
+.mode-btn.active{background:var(--green-deep);border-color:var(--green-deep);color:#fff}
+.mode-btn:hover:not(.active){border-color:var(--green-mid);color:var(--green-mid)}
+
+/* ── Appointment items in queue ───────────────────── */
+.queue-tabs{display:flex;border-bottom:1px solid var(--border)}
+.q-tab{flex:1;padding:10px 8px;font-size:12px;font-weight:500;text-align:center;color:var(--text-muted);cursor:pointer;border:none;border-bottom:2px solid transparent;background:none;font-family:'DM Sans',sans-serif;transition:all .2s}
+.q-tab.active{color:var(--green-deep);border-bottom-color:var(--green-deep)}
+.appt-item{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)}
+.appt-item:last-child{border-bottom:none}
+.appt-time-badge{background:var(--blue-light);color:var(--blue);font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;min-width:56px;text-align:center;flex-shrink:0}
+.appt-pt-name{font-size:13px;font-weight:600}
+.appt-pt-meta{font-size:11px;color:var(--text-muted);margin-top:1px}
+.btn-checkin{background:var(--green-mid);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;flex-shrink:0}
+.btn-checkin:hover{background:var(--green-deep)}
+.appt-s-badge{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;flex-shrink:0}
+.appt-s-scheduled{background:#f0f0ff;color:#4a4adf}
+.appt-s-arrived{background:var(--green-light);color:var(--green-deep)}
+.appt-s-completed{background:#f0f0f0;color:#666}
+.appt-s-cancelled{background:#fff0f0;color:#c0392b}
+.appt-s-no_show{background:#fff8ee;color:var(--gold)}
+
 /* ── Alert ───────────────────────────────────────── */
 .alert{
   margin-top:12px;padding:11px 14px;border-radius:8px;
@@ -506,15 +547,31 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   <!-- ── Registration Form ──────────────────────── -->
   <div class="panel">
     <div class="panel-hdr">
-      <div class="panel-title">New Patient Visit</div>
-      <div class="panel-sub">Register a patient and add them to today's queue</div>
+      <div class="panel-title" id="panel-title">New Patient Visit</div>
+      <div class="panel-sub" id="panel-sub">Register a patient and add them to today's queue</div>
+    </div>
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="btn-walkin" type="button">🚶 Walk-in</button>
+      <button class="mode-btn" id="btn-appt" type="button">📅 Book Appointment</button>
     </div>
     <div class="form-body">
 
-      <!-- Phone -->
+      <!-- Appointment date/time (appointment mode only) -->
+      <div id="appt-when-row" class="field-row" style="display:none">
+        <div class="field">
+          <label>Appointment Date <span class="req">*</span></label>
+          <input type="date" id="appt-date"/>
+        </div>
+        <div class="field">
+          <label>Appointment Time <span class="req">*</span></label>
+          <input type="time" id="appt-time"/>
+        </div>
+      </div>
+
+      <!-- Phone / Name / UHID -->
       <div class="field">
-        <label>Phone / UHID / Name Search <span class="req">*</span></label>
-        <input id="phone" type="tel" inputmode="tel" placeholder="Enter phone number to search" maxlength="15"/>
+        <label>Phone / Name / UHID Search <span class="req">*</span></label>
+        <input id="phone" type="text" inputmode="search" placeholder="Phone number, patient name, or UHID (AYX-…)" maxlength="50"/>
         <div class="patient-tag" id="patient-tag">
           <span class="pt-icon">👤</span>
           <div class="pt-info">
@@ -526,10 +583,25 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
               <div class="pt-item">Last Visit: <span id="pt-lastvisit">—</span></div>
               <div class="pt-item pt-balance">Balance: <span id="pt-balance">₹0</span></div>
             </div>
+            <div id="pt-prakriti" class="pt-prakriti none" style="display:none"></div>
             <button id="btn-diff-family" type="button" class="pt-family-btn">+ Different family member with same number</button>
           </div>
         </div>
         <div class="patient-picker" id="patient-picker"></div>
+
+        <!-- Active package card -->
+        <div class="pkg-card" id="pkg-card">
+          <div class="pkg-card-icon">📦</div>
+          <div class="pkg-card-body">
+            <div class="pkg-card-name" id="pkg-card-name"></div>
+            <div class="pkg-card-meta" id="pkg-card-meta"></div>
+            <div class="pkg-sessions-bar"><div class="pkg-sessions-fill" id="pkg-sessions-fill" style="width:0%"></div></div>
+            <div class="pkg-use-row">
+              <input type="checkbox" class="pkg-use-chk" id="pkg-use-chk" onchange="togglePkgUse()"/>
+              <label class="pkg-use-label" for="pkg-use-chk">Use 1 session from this package (sets fees to ₹0)</label>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- ABHA -->
@@ -756,8 +828,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <label>Gender <span class="req">*</span></label>
           <select id="f-gender">
             <option value="">— Select —</option>
-            <option value="M">Male</option>
-            <option value="F">Female</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
             <option value="other">Other</option>
           </select>
         </div>
@@ -803,6 +875,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <select id="opd">
             <option value="">— General —</option>
           </select>
+          <div id="opd-routing-hint" style="display:none;font-size:11px;margin-top:4px;font-weight:500"></div>
         </div>
       </div>
 
@@ -856,7 +929,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <option value="cash">Cash</option>
             <option value="upi">UPI</option>
             <option value="card">Card</option>
-            <option value="insurance">Insurance</option>
+            <option value="insurance">Insurance / TPA</option>
             <option value="credit">Credit / Due</option>
             <option value="package">Package</option>
           </select>
@@ -876,6 +949,50 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         </div>
       </div>
 
+      <!-- Insurance / TPA Details (shown when payment mode = Insurance) -->
+      <div id="insurance-section" style="display:none;border:1.5px solid #f0c060;border-radius:10px;padding:14px 14px 6px;margin-bottom:13px;background:#fffdf5">
+        <div style="font-size:11px;font-weight:600;color:var(--gold);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">🏥 Insurance / TPA Details</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Insurer Name <span class="req">*</span></label>
+            <input id="insurer-name" type="text" placeholder="e.g. Star Health, ICICI Lombard"/>
+          </div>
+          <div class="field">
+            <label>TPA Name</label>
+            <input id="tpa-name" type="text" placeholder="e.g. Medi Assist, Vidal Health"/>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Policy / Member No. <span class="req">*</span></label>
+            <input id="policy-number" type="text" placeholder="Policy or member ID"/>
+          </div>
+          <div class="field">
+            <label>Pre-Auth No.</label>
+            <input id="pre-auth-number" type="text" placeholder="If already received"/>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Pre-Auth Status</label>
+            <select id="pre-auth-status">
+              <option value="not_required">Not Required</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved ✓</option>
+              <option value="rejected">Rejected ✗</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Coverage Amount (₹)</label>
+            <input id="insurance-coverage" type="number" min="0" step="0.01" placeholder="0"/>
+          </div>
+        </div>
+        <div class="fee-summary" id="liability-row" style="display:none;margin-top:0;margin-bottom:8px">
+          <span class="fs-label">Patient Liability (after coverage)</span>
+          <span class="fs-amount" id="patient-liability">₹0</span>
+        </div>
+      </div>
+
       <!-- Submit -->
       <button class="btn-submit" id="btn-submit" type="button">
         <span class="btn-text">Register &amp; Create Visit</span>
@@ -891,6 +1008,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="receipt-card" id="receipt-card">
         <div class="receipt-title" id="receipt-title">✓ Visit Registered</div>
         <div id="receipt-rows"></div>
+        <div id="receipt-tele-block" style="display:none"></div>
+        <div id="receipt-feedback-block" style="display:none"></div>
         <div class="receipt-actions">
           <button class="btn-rcpt btn-rcpt-print" id="btn-print">🖨 Print Receipt</button>
           <button class="btn-rcpt btn-rcpt-sms" disabled title="SMS not configured">✉ Send SMS</button>
@@ -900,17 +1019,24 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     </div>
   </div>
 
-  <!-- ── Today's Queue ──────────────────────────── -->
+  <!-- ── Today's Queue / Appointments ─────────────── -->
   <div class="panel" style="display:flex;flex-direction:column">
     <div class="queue-hdr">
       <div>
-        <div class="panel-title">Today's Queue</div>
+        <div class="panel-title">Today</div>
         <div class="panel-sub" id="queue-date"></div>
       </div>
       <div class="queue-badge" id="queue-count">0</div>
     </div>
+    <div class="queue-tabs">
+      <button class="q-tab active" id="tab-queue" type="button">🕐 Queue</button>
+      <button class="q-tab" id="tab-appts" type="button">📅 Appointments <span id="appt-count"></span></button>
+    </div>
     <div class="queue-body" id="queue-list">
       <div class="q-empty"><div class="q-empty-icon">⏳</div><div class="q-empty-text">Loading…</div></div>
+    </div>
+    <div class="queue-body" id="appt-list" style="display:none">
+      <div class="q-empty"><div class="q-empty-icon">📅</div><div class="q-empty-text">Loading…</div></div>
     </div>
     <div class="refresh-foot">
       <div class="live-dot"></div>
@@ -1003,6 +1129,9 @@ document.getElementById('queue-date').textContent = new Date().toLocaleDateStrin
 // ── Fee state ─────────────────────────────────────
 let _surchargeDefault = 0;
 let _patient = null;
+let _activePackage = null;
+let _screeningOpdId = null;
+let _kaumarOpdId    = null;
 const _doctorMap = {};
 
 // ── Verhoeff checksum validation for Aadhaar ─────
@@ -1123,18 +1252,35 @@ function _waitTime(createdAt) {
 async function loadOPDs() {
   const { data } = await supabase
     .from('opds')
-    .select('id, name')
+    .select('id, name, ncism_code')
     .eq('tenant_id', tenantId)
     .eq('is_active', true)
     .order('name');
 
   const sel = document.getElementById('opd');
+  _screeningOpdId = null;
+  _kaumarOpdId    = null;
+
   (data || []).forEach(o => {
+    if (!_screeningOpdId && (
+      o.ncism_code?.toUpperCase() === 'SCR' ||
+      o.name?.toLowerCase().includes('screening')
+    )) {
+      _screeningOpdId = o.id;
+    }
+    if (!_kaumarOpdId && (
+      o.ncism_code?.toUpperCase() === 'KAU' ||
+      o.name?.toLowerCase().includes('kaumar')
+    )) {
+      _kaumarOpdId = o.id;
+    }
     const opt = document.createElement('option');
     opt.value = o.id;
     opt.textContent = o.name;
     sel.appendChild(opt);
   });
+
+  _applyOpdRule();
 }
 
 // ── Load doctors (OPD-filtered) ───────────────────
@@ -1208,6 +1354,42 @@ async function loadFees(opdId) {
   _updateTotal();
 }
 
+// ── OPD routing rule ──────────────────────────────
+// Walk-in OPD patients must go to Screening OPD first (NCISM Section 40)
+function _applyOpdRule() {
+  const sel     = document.getElementById('opd');
+  const cat     = document.getElementById('visit-category').value;
+  const isOnReq = document.getElementById('on-request')?.checked;
+  const hint    = document.getElementById('opd-routing-hint');
+
+  const lockToScreening = (cat === 'opd') && !isOnReq;
+
+  if (lockToScreening && _screeningOpdId) {
+    sel.value    = _screeningOpdId;
+    sel.disabled = true;
+    if (hint) {
+      hint.textContent = '🔒 Walk-ins go to Screening OPD first';
+      hint.style.color   = 'var(--green-mid)';
+      hint.style.display = '';
+    }
+    loadDoctors(_screeningOpdId);
+    loadFees(_screeningOpdId);
+  } else if (lockToScreening && !_screeningOpdId) {
+    sel.disabled = false;
+    if (hint) {
+      hint.textContent = '⚠ Screening OPD not set up — select OPD manually';
+      hint.style.color   = 'var(--gold)';
+      hint.style.display = '';
+    }
+  } else {
+    sel.disabled = false;
+    if (hint) hint.style.display = 'none';
+  }
+}
+
+// ── Visit category change ─────────────────────────
+document.getElementById('visit-category').addEventListener('change', _applyOpdRule);
+
 // ── OPD change ────────────────────────────────────
 document.getElementById('opd').addEventListener('change', async function() {
   await Promise.all([loadDoctors(this.value), loadFees(this.value)]);
@@ -1225,6 +1407,7 @@ onRequestWrap.addEventListener('click', function(e) {
   surchargeRow.style.display = on ? '' : 'none';
   document.getElementById('surcharge').value = on ? (_surchargeDefault || '') : '';
   _updateTotal();
+  _applyOpdRule();
 });
 
 // ── Total ─────────────────────────────────────────
@@ -1237,29 +1420,71 @@ function _updateTotal() {
     '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 ['reg-fee', 'fee', 'surcharge'].forEach(id =>
-  document.getElementById(id).addEventListener('input', _updateTotal)
+  document.getElementById(id).addEventListener('input', () => { _updateTotal(); _updateLiability(); })
 );
+
+// ── Insurance section toggle ───────────────────────
+document.getElementById('payment-mode').addEventListener('change', function() {
+  const isIns = this.value === 'insurance';
+  document.getElementById('insurance-section').style.display = isIns ? '' : 'none';
+  _updateLiability();
+});
+
+document.getElementById('insurance-coverage').addEventListener('input', _updateLiability);
+
+function _updateLiability() {
+  const payMode  = document.getElementById('payment-mode').value;
+  const coverage = parseFloat(document.getElementById('insurance-coverage').value) || 0;
+  const reg      = parseFloat(document.getElementById('reg-fee').value)  || 0;
+  const cons     = parseFloat(document.getElementById('fee').value)      || 0;
+  const sur      = onRequestChk.checked ? (parseFloat(document.getElementById('surcharge').value) || 0) : 0;
+  const total    = reg + cons + sur;
+  const liabilityRow = document.getElementById('liability-row');
+  if (payMode === 'insurance' && coverage > 0) {
+    const liability = Math.max(0, total - coverage);
+    document.getElementById('patient-liability').textContent =
+      '₹' + liability.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    liabilityRow.style.display = '';
+  } else {
+    liabilityRow.style.display = 'none';
+  }
+}
 
 // ── DOB → Age auto-calculator ─────────────────────
 document.getElementById('f-dob').addEventListener('change', function() {
   _calcAgeFromDob(this.value);
 });
 
-// ── Phone search ──────────────────────────────────
+function _ageFromDob(dob) {
+  if (!dob) return null;
+  const today = new Date(), birth = new Date(dob);
+  let age = today.getFullYear() - birth.getFullYear();
+  if (today.getMonth() < birth.getMonth() ||
+     (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+// ── Patient search (phone / name / UHID) ──────────
 let _phoneTimer = null;
 let _newFamilyMember = false;
 document.getElementById('phone').addEventListener('input', function() {
   clearTimeout(_phoneTimer);
-  const phone = this.value.trim();
-  if (phone.length < 6) { _clearTag(); return; }
-  _phoneTimer = setTimeout(() => _searchPhone(phone), 350);
+  const val = this.value.trim();
+  if (!val) { _clearTag(); return; }
+  const isUhid  = val.toUpperCase().startsWith('AYX-');
+  const isPhone = /^[+\d\s\-]{6,}$/.test(val) && !isUhid;
+  const isName  = !isPhone && !isUhid && val.length >= 3;
+  if (isPhone)     _phoneTimer = setTimeout(() => _searchPhone(val), 350);
+  else if (isUhid && val.length >= 10) _phoneTimer = setTimeout(() => _searchUhid(val), 350);
+  else if (isName) _phoneTimer = setTimeout(() => _searchName(val), 350);
+  else _clearTag();
 });
 
 async function _searchPhone(phone) {
   _newFamilyMember = false;
   const { data } = await supabase
     .from('patients')
-    .select('id, name, abha_number, age, gender, date_of_birth, blood_group')
+    .select('id, name, abha_number, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
     .eq('tenant_id', tenantId)
     .eq('phone', phone)
     .limit(6);
@@ -1270,12 +1495,33 @@ async function _searchPhone(phone) {
     if (opdId) await loadFees(opdId);
     return;
   }
+  if (data.length === 1) await _selectPatient(data[0]);
+  else _showPicker(data, phone);
+}
 
-  if (data.length === 1) {
-    await _selectPatient(data[0]);
-  } else {
-    _showPicker(data, phone);
-  }
+async function _searchName(query) {
+  _newFamilyMember = false;
+  const { data } = await supabase
+    .from('patients')
+    .select('id, name, abha_number, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
+    .eq('tenant_id', tenantId)
+    .ilike('name', `%${query}%`)
+    .limit(8);
+
+  if (!data || data.length === 0) { _clearTag(); return; }
+  if (data.length === 1) await _selectPatient(data[0]);
+  else _showPicker(data, query);
+}
+
+async function _searchUhid(uhid) {
+  _newFamilyMember = false;
+  const suffix = uhid.replace(/-/g,'').slice(-6).toLowerCase();
+  const { data } = await supabase
+    .rpc('search_patient_by_uhid', { p_tenant_id: tenantId, p_uhid_suffix: suffix });
+
+  if (!data || data.length === 0) { _clearTag(); return; }
+  if (data.length === 1) await _selectPatient(data[0]);
+  else _showPicker(data, uhid);
 }
 
 async function _selectPatient(patient) {
@@ -1311,6 +1557,18 @@ async function _selectPatient(patient) {
     patient.age ? `${patient.age} yrs · ${gLabel}` : (patient.gender ? gLabel : '—');
   document.getElementById('patient-tag').classList.add('show');
 
+  // §12a — Prakriti badge
+  const pkEl = document.getElementById('pt-prakriti');
+  const pkResult = patient.prakriti_data?.result;
+  if (pkResult) {
+    pkEl.textContent = '🌿 ' + pkResult;
+    pkEl.className = 'pt-prakriti';
+  } else {
+    pkEl.textContent = 'Prakriti not assessed';
+    pkEl.className = 'pt-prakriti none';
+  }
+  pkEl.style.display = 'inline-flex';
+
   if (patient.abha_number) {
     document.getElementById('abha').value = patient.abha_number;
     _setAbhaNote('verified', `ABHA on record: ${patient.abha_number}`);
@@ -1318,6 +1576,34 @@ async function _selectPatient(patient) {
 
   document.getElementById('reg-fee').value = '0';
   _updateTotal();
+
+  // Check for active package
+  _activePackage = null;
+  document.getElementById('pkg-card').classList.remove('show');
+  document.getElementById('pkg-use-chk').checked = false;
+  const today = new Date().toISOString().slice(0,10);
+  const { data: pkgs } = await supabase
+    .from('patient_packages')
+    .select('*, packages(name,package_type,sessions_total)')
+    .eq('patient_id', patient.id)
+    .eq('tenant_id', tenantId)
+    .eq('status', 'active')
+    .lte('start_date', today)
+    .gte('end_date', today)
+    .order('end_date', { ascending: true })
+    .limit(1);
+
+  if (pkgs?.length) {
+    _activePackage = pkgs[0];
+    const pp = _activePackage;
+    const remaining = pp.sessions_total - pp.sessions_used;
+    const pct = Math.round(pp.sessions_used / pp.sessions_total * 100);
+    const typeLabel = {panchakarma:'Panchakarma',consultation:'Consultation',wellness:'Wellness',combined:'Combined'}[pp.packages?.package_type] || '';
+    document.getElementById('pkg-card-name').textContent = `📦 ${pp.packages?.name || 'Package'} · ${remaining} session${remaining!==1?'s':''} remaining`;
+    document.getElementById('pkg-card-meta').textContent = `${typeLabel} · Expires ${pp.end_date} · ${pp.sessions_used}/${pp.sessions_total} used`;
+    document.getElementById('pkg-sessions-fill').style.width = pct + '%';
+    document.getElementById('pkg-card').classList.add('show');
+  }
 }
 
 function _showPicker(patients, phone) {
@@ -1362,11 +1648,24 @@ function _startNewFamilyMember() {
 
 document.getElementById('btn-diff-family').addEventListener('click', _startNewFamilyMember);
 
+function togglePkgUse() {
+  const checked = document.getElementById('pkg-use-chk').checked;
+  if (checked) {
+    document.getElementById('reg-fee').value = '0';
+    document.getElementById('fee').value = '0';
+    _updateTotal();
+  }
+}
+
 function _clearTag() {
   _patient = null;
+  _activePackage = null;
   _newFamilyMember = false;
   document.getElementById('patient-tag').classList.remove('show');
+  document.getElementById('pkg-card').classList.remove('show');
+  document.getElementById('pkg-use-chk').checked = false;
   document.getElementById('patient-picker').classList.remove('show');
+  document.getElementById('pt-prakriti').style.display = 'none';
   document.getElementById('abha').value = '';
   document.getElementById('f-age').value    = '';
   document.getElementById('f-gender').value = '';
@@ -1376,11 +1675,15 @@ function _clearTag() {
 }
 
 // ── Submit ────────────────────────────────────────
-document.getElementById('btn-submit').addEventListener('click', handleSubmit);
+document.getElementById('btn-submit').addEventListener('click', () => {
+  if (_mode === 'appointment') bookAppointment();
+  else handleSubmit();
+});
 
 async function handleSubmit() {
   _hideAlert();
   document.getElementById('receipt-card').classList.remove('show');
+  document.getElementById('receipt-feedback-block').style.display = 'none';
 
   const phone       = document.getElementById('phone').value.trim();
   const name        = document.getElementById('name').value.trim();
@@ -1403,9 +1706,28 @@ async function handleSubmit() {
   const payMode     = document.getElementById('payment-mode').value;
   const payStatus   = document.querySelector('input[name="payment"]:checked').value;
 
+  const isInsurance    = payMode === 'insurance';
+  const insurerName    = isInsurance ? document.getElementById('insurer-name').value.trim()    : null;
+  const tpaName        = isInsurance ? document.getElementById('tpa-name').value.trim()        : null;
+  const policyNumber   = isInsurance ? document.getElementById('policy-number').value.trim()   : null;
+  const preAuthNumber  = isInsurance ? document.getElementById('pre-auth-number').value.trim() : null;
+  const preAuthStatus  = isInsurance ? document.getElementById('pre-auth-status').value        : null;
+  const insCoverage    = isInsurance ? (parseFloat(document.getElementById('insurance-coverage').value) || 0) : 0;
+
   if (!phone)     return _alert('error', 'Please enter the patient\'s phone number.');
   if (!name)      return _alert('error', 'Please enter the patient\'s name.');
   if (!complaint) return _alert('error', 'Please enter the chief complaint.');
+  if (isInsurance && !insurerName)  return _alert('error', 'Please enter the insurer name.');
+  if (isInsurance && !policyNumber) return _alert('error', 'Please enter the policy / member number.');
+
+  // §18aa — NCISM: Kaumarabhritya OPD is for patients up to 18 years
+  if (_kaumarOpdId && opdId === _kaumarOpdId) {
+    const age = demographics.age || _patient?.age || _ageFromDob(demographics.date_of_birth || _patient?.date_of_birth);
+    if (age && age >= 18) {
+      const ok = confirm(`Kaumarabhritya OPD is for patients up to 18 years.\nPatient age: ${age} years.\n\nConfirm routing to Kaumarabhritya OPD?`);
+      if (!ok) return;
+    }
+  }
 
   const btn = document.getElementById('btn-submit');
   _loading(btn, true);
@@ -1467,20 +1789,29 @@ async function handleSubmit() {
     const nextToken = (lastToken && lastToken.length > 0) ? lastToken[0].token_number + 1 : 1;
 
     // 5. Create visit
+    const isTele = visitCat === 'teleconsultation';
     const { data: visit, error: vErr } = await supabase
       .from('visits').insert({
-        patient_id:      patient.id,
-        tenant_id:       tenantId,
-        doctor_id:       doctorId || null,
-        opd_id:          opdId    || null,
-        status:          'waiting',
-        chief_complaint: complaint,
-        token_number:    nextToken,
-        is_on_request:   isOnReq,
-        visit_category:  visitCat
+        patient_id:           patient.id,
+        tenant_id:            tenantId,
+        doctor_id:            doctorId || null,
+        opd_id:               opdId    || null,
+        status:               'waiting',
+        chief_complaint:      complaint,
+        token_number:         nextToken,
+        is_on_request:        isOnReq,
+        visit_category:       visitCat,
+        is_teleconsultation:  isTele,
       }).select().single();
 
     if (vErr) throw vErr;
+
+    // Generate meeting URL for tele visits
+    let meetingUrl = null;
+    if (isTele) {
+      meetingUrl = `https://meet.jit.si/AyurXpert-${tenant?.tenant_code||tenantId.slice(0,6)}-${visit.id.slice(0,8)}`;
+      await supabase.from('visits').update({ meeting_url: meetingUrl }).eq('id', visit.id);
+    }
 
     await logAudit('create_visit', 'visits', visit.id, {
       patient_name: patient.name, token_number: nextToken,
@@ -1488,35 +1819,55 @@ async function handleSubmit() {
     }, _ctx);
 
     // 6. Create bill
+    const billPayload = {
+      tenant_id:            tenantId,
+      patient_id:           patient.id,
+      visit_id:             visit.id,
+      registration_fee:     regFee,
+      consultation_fee:     consFee,
+      on_request_surcharge: surcharge,
+      total_amount:         total,
+      final_amount:         total,
+      payment_mode:         payMode,
+      status:               payStatus,
+      bill_type:            'consultation'
+    };
+    if (isInsurance) {
+      billPayload.insurer_name       = insurerName;
+      billPayload.tpa_name           = tpaName     || null;
+      billPayload.policy_number      = policyNumber;
+      billPayload.pre_auth_number    = preAuthNumber || null;
+      billPayload.pre_auth_status    = preAuthStatus;
+      billPayload.insurance_coverage = insCoverage;
+    }
     const { data: bill, error: bErr } = await supabase
-      .from('bills').insert({
-        tenant_id:            tenantId,
-        patient_id:           patient.id,
-        visit_id:             visit.id,
-        registration_fee:     regFee,
-        consultation_fee:     consFee,
-        on_request_surcharge: surcharge,
-        total_amount:         total,
-        final_amount:         total,
-        payment_mode:         payMode,
-        status:               payStatus,
-        bill_type:            'consultation'
-      }).select('id').single();
+      .from('bills').insert(billPayload).select('id').single();
 
     if (bErr) throw bErr;
 
     await logAudit('create_bill', 'bills', bill.id, {
       patient_name: patient.name, total_amount: total,
       reg_fee: regFee, cons_fee: consFee, surcharge,
-      payment_mode: payMode, status: payStatus
+      payment_mode: payMode, status: payStatus,
+      ...(isInsurance && { insurer: insurerName, policy: policyNumber })
     }, _ctx);
 
-    // 7. Doctor alert for on-request
+    // 7a. Doctor alert for on-request
     if (isOnReq && doctorId) {
       await supabase.from('doctor_alerts').insert({
         tenant_id: tenantId, doctor_id: doctorId, visit_id: visit.id,
         patient_name: patient.name,
         message: `On-request visit — Token #${nextToken}. ${complaint}`,
+        is_read: false
+      });
+    }
+
+    // 7b. Doctor alert for tele visit with meeting link
+    if (isTele && doctorId && meetingUrl) {
+      await supabase.from('doctor_alerts').insert({
+        tenant_id: tenantId, doctor_id: doctorId, visit_id: visit.id,
+        patient_name: patient.name,
+        message: `🎥 Tele visit — Token #${nextToken}. Join: ${meetingUrl}`,
         is_read: false
       });
     }
@@ -1530,7 +1881,8 @@ async function handleSubmit() {
       uhid: _uhid(patient.id), abha: abha || patient.abha_number || null,
       opd: opdName, doctor: doctorName,
       category: catLabel, complaint, regFee, consFee, surcharge,
-      total, payMode, payStatus,
+      total, payMode, payStatus, meetingUrl, visitId: visit.id,
+      isInsurance, insurerName, tpaName, policyNumber, preAuthNumber, preAuthStatus, insCoverage,
       date: new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     });
 
@@ -1550,7 +1902,7 @@ async function handleSubmit() {
 }
 
 // ── Receipt ───────────────────────────────────────
-function _showReceipt(d) {
+async function _showReceipt(d) {
   const fmt  = n => n > 0 ? `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—';
   const rows = [
     { l: 'Token',          v: `<strong>#${d.token}</strong>` },
@@ -1566,7 +1918,14 @@ function _showReceipt(d) {
     { l: 'Consultation Fee', v: fmt(d.consFee) },
     d.surcharge > 0 ? { l: 'On-Request Surcharge', v: fmt(d.surcharge) } : null,
     { l: 'Total',          v: `<strong>₹${d.total.toLocaleString('en-IN')}</strong>` },
-    { l: 'Payment Mode',   v: d.payMode.charAt(0).toUpperCase() + d.payMode.slice(1) },
+    { l: 'Payment Mode',   v: d.isInsurance ? 'Insurance / TPA' : (d.payMode.charAt(0).toUpperCase() + d.payMode.slice(1)) },
+    d.isInsurance ? { l: 'Insurer',          v: d.insurerName } : null,
+    d.tpaName     ? { l: 'TPA',              v: d.tpaName }     : null,
+    d.isInsurance ? { l: 'Policy / Member No.', v: d.policyNumber } : null,
+    d.preAuthNumber ? { l: 'Pre-Auth No.',   v: d.preAuthNumber } : null,
+    d.isInsurance ? { l: 'Pre-Auth Status',  v: d.preAuthStatus.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) } : null,
+    d.insCoverage > 0 ? { l: 'Insurance Coverage', v: fmt(d.insCoverage) } : null,
+    d.insCoverage > 0 ? { l: 'Patient Liability',  v: fmt(Math.max(0, d.total - d.insCoverage)) } : null,
     { l: 'Payment Status', v: d.payStatus === 'paid' ? '✓ Paid' : '⏳ Pending' },
     { l: 'Date & Time',    v: d.date },
   ].filter(Boolean);
@@ -1575,12 +1934,53 @@ function _showReceipt(d) {
     `<div class="receipt-row"><span class="receipt-lbl">${r.l}</span><span class="receipt-val">${r.v}</span></div>`
   ).join('');
 
+  // Tele meeting link block
+  const meetBlock = document.getElementById('receipt-tele-block');
+  if (d.meetingUrl) {
+    meetBlock.style.display = '';
+    meetBlock.innerHTML = `
+      <div style="background:#dbeafe;border:1.5px solid #93c5fd;border-radius:10px;padding:12px 14px;margin-top:12px">
+        <div style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🎥 Teleconsultation Video Link</div>
+        <div style="font-size:12px;color:#1e40af;word-break:break-all;margin-bottom:8px">${d.meetingUrl}</div>
+        <button onclick="navigator.clipboard.writeText('${d.meetingUrl}').then(()=>this.textContent='✓ Copied!')" style="background:#2563eb;color:#fff;border:none;border-radius:7px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">📋 Copy Link for Patient</button>
+        <div style="font-size:11px;color:#3b82f6;margin-top:6px">Share this link with the patient via WhatsApp / SMS before the appointment.</div>
+      </div>`;
+  } else {
+    meetBlock.style.display = 'none';
+  }
+
+  // Feedback link block
+  if (d.visitId) {
+    const feedbackUrl = `${window.location.origin}/feedback.html?visit=${d.visitId}`;
+    const feedBlock = document.getElementById('receipt-feedback-block');
+    if (feedBlock) {
+      feedBlock.style.display = '';
+      feedBlock.innerHTML = `
+        <div style="background:#fdf8f0;border:1.5px solid var(--gold);border-radius:10px;padding:12px 14px;margin-top:12px">
+          <div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">⭐ Patient Feedback</div>
+          <div style="font-size:12px;color:var(--text-mid);margin-bottom:8px">Share this link with the patient to collect feedback after their visit.</div>
+          <button onclick="navigator.clipboard.writeText('${feedbackUrl}').then(()=>this.textContent='✓ Copied!')" style="background:var(--gold);color:#fff;border:none;border-radius:7px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">📋 Copy Feedback Link</button>
+        </div>`;
+    }
+  }
+
   const payBadge = d.payStatus === 'paid'
     ? `<span class="pay-confirm">₹${d.total.toLocaleString('en-IN')} Paid · ${d.payMode.charAt(0).toUpperCase() + d.payMode.slice(1)}</span>`
     : `<span class="pay-pending">₹${d.total.toLocaleString('en-IN')} Pending</span>`;
   document.getElementById('receipt-title').innerHTML = `✓ Visit Registered ${payBadge}`;
-
   document.getElementById('receipt-card').classList.add('show');
+
+  // Deduct package session if used
+  if (_activePackage && document.getElementById('pkg-use-chk').checked) {
+    const newUsed = (_activePackage.sessions_used || 0) + 1;
+    const newStatus = newUsed >= _activePackage.sessions_total ? 'completed' : 'active';
+    await supabase.from('patient_packages')
+      .update({ sessions_used: newUsed, status: newStatus })
+      .eq('id', _activePackage.id);
+    _activePackage = null;
+    document.getElementById('pkg-card').classList.remove('show');
+    document.getElementById('pkg-use-chk').checked = false;
+  }
 }
 
 document.getElementById('btn-print').addEventListener('click', () => window.print());
@@ -1688,9 +2088,16 @@ function _resetForm() {
   onRequestChk.checked = false;
   onRequestWrap.classList.remove('active');
   surchargeRow.style.display = 'none';
+  document.getElementById('insurance-section').style.display = 'none';
+  ['insurer-name','tpa-name','policy-number','pre-auth-number','insurance-coverage'].forEach(id =>
+    document.getElementById(id).value = '');
+  document.getElementById('pre-auth-status').value = 'not_required';
+  document.getElementById('liability-row').style.display = 'none';
   document.getElementById('opd').value = '';
+  document.getElementById('opd').disabled = false;
   _clearTag();
   _updateTotal();
+  _applyOpdRule();
 }
 
 function _alert(type, msg) {
@@ -1732,7 +2139,10 @@ function _showAbhaProfile(prof, abhaNumber, tToken) {
   document.getElementById('btn-download-abha-card').style.display = _lastTToken ? '' : 'none';
 
   // Auto-fill demographics from ABHA profile
-  if (prof?.gender) document.getElementById('f-gender').value = prof.gender; // M/F/O
+  if (prof?.gender) {
+    const gMap = { M:'male', F:'female', O:'other', male:'male', female:'female', other:'other' };
+    document.getElementById('f-gender').value = gMap[prof.gender] || 'other';
+  }
   const rawDob = prof?.dob ?? prof?.dateOfBirth;
   if (rawDob) {
     const parts = String(rawDob).split('-');
@@ -2379,11 +2789,203 @@ function _closeScanPanel() {
   _scanRequestId = null;
 }
 
+// ── Walk-in / Appointment mode ─────────────────────
+let _mode = 'walkin';
+
+document.getElementById('btn-walkin').addEventListener('click', () => _setMode('walkin'));
+document.getElementById('btn-appt').addEventListener('click',   () => _setMode('appointment'));
+
+function _setMode(mode) {
+  _mode = mode;
+  const isAppt = mode === 'appointment';
+  document.getElementById('btn-walkin').classList.toggle('active', !isAppt);
+  document.getElementById('btn-appt').classList.toggle('active',    isAppt);
+  document.getElementById('appt-when-row').style.display = isAppt ? '' : 'none';
+  document.getElementById('panel-title').textContent = isAppt ? 'Book Appointment' : 'New Patient Visit';
+  document.getElementById('panel-sub').textContent   = isAppt
+    ? 'Schedule a future appointment for a patient'
+    : 'Register a patient and add them to today\'s queue';
+  const btn = document.getElementById('btn-submit');
+  btn.querySelector('.btn-text').textContent = isAppt ? '📅 Book Appointment' : 'Register & Create Visit';
+  if (isAppt && !document.getElementById('appt-date').value) {
+    document.getElementById('appt-date').value = new Date().toISOString().slice(0,10);
+  }
+}
+
+// ── Queue / Appointments tabs ──────────────────────
+document.getElementById('tab-queue').addEventListener('click', () => {
+  document.getElementById('tab-queue').classList.add('active');
+  document.getElementById('tab-appts').classList.remove('active');
+  document.getElementById('queue-list').style.display = '';
+  document.getElementById('appt-list').style.display  = 'none';
+});
+document.getElementById('tab-appts').addEventListener('click', () => {
+  document.getElementById('tab-appts').classList.add('active');
+  document.getElementById('tab-queue').classList.remove('active');
+  document.getElementById('queue-list').style.display  = 'none';
+  document.getElementById('appt-list').style.display   = '';
+  loadTodaysAppointments();
+});
+
+// ── Book Appointment ───────────────────────────────
+async function bookAppointment() {
+  _hideAlert();
+  const apptDate = document.getElementById('appt-date').value;
+  const apptTime = document.getElementById('appt-time').value;
+  const name     = document.getElementById('name').value.trim();
+  const phone    = document.getElementById('phone').value.trim();
+  const complaint= document.getElementById('complaint').value.trim();
+  const opdId    = document.getElementById('opd').value    || null;
+  const doctorId = document.getElementById('doctor').value || null;
+
+  if (!apptDate) return _alert('error', 'Please select an appointment date.');
+  if (!apptTime) return _alert('error', 'Please select an appointment time.');
+  if (!opdId)    return _alert('error', 'Please select an OPD / Department for the appointment.');
+  if (!name)     return _alert('error', 'Please enter the patient\'s name.');
+  if (!phone)    return _alert('error', 'Please enter the patient\'s phone number.');
+
+  const btn = document.getElementById('btn-submit');
+  _loading(btn, true);
+  try {
+    // Find or create patient
+    let patient = _patient;
+    if (!patient) {
+      const { data: found } = await supabase
+        .from('patients').select('id,name')
+        .eq('phone', phone).eq('tenant_id', tenantId).limit(1);
+      patient = found?.length ? found[0]
+        : await createPatient(name, phone, tenantId, null, {});
+    }
+
+    const { data: appt, error } = await supabase
+      .from('appointments')
+      .insert({
+        tenant_id: tenantId,
+        patient_id: patient.id,
+        doctor_id: doctorId,
+        opd_id: opdId,
+        appointment_date: apptDate,
+        appointment_time: apptTime,
+        status: 'scheduled',
+        chief_complaint: complaint || null,
+        created_by: profile.id
+      })
+      .select('id')
+      .single();
+
+    if (error) throw error;
+
+    const opdSel  = document.getElementById('opd');
+    const opdName = opdSel.options[opdSel.selectedIndex]?.text || '';
+
+    document.getElementById('receipt-card').classList.add('show');
+    document.getElementById('receipt-title').textContent = '✓ Appointment Booked';
+    document.getElementById('receipt-rows').innerHTML = `
+      <div style="font-size:13px;color:var(--text-mid);line-height:1.8">
+        <strong>${patient.name}</strong><br>
+        🏥 ${opdName}<br>
+        📅 ${new Date(apptDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}
+        &nbsp;·&nbsp; 🕐 ${_fmt12(apptTime)}<br>
+        ${doctorId ? `👨‍⚕️ ${_doctorMap[doctorId] || ''}` : '⚕ No doctor preference'}
+      </div>`;
+    document.getElementById('receipt-tele-block').style.display = 'none';
+    _resetForm();
+  } catch(err) {
+    _alert('error', 'Could not book appointment: ' + (err.message || 'Please try again.'));
+  } finally {
+    _loading(btn, false);
+  }
+}
+
+function _fmt12(t) {
+  if (!t) return '';
+  const [h,m] = t.split(':').map(Number);
+  return `${h%12||12}:${String(m).padStart(2,'0')} ${h<12?'AM':'PM'}`;
+}
+
+// ── Today's Appointments ───────────────────────────
+async function loadTodaysAppointments() {
+  const today = new Date().toISOString().slice(0,10);
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('id, appointment_time, status, chief_complaint, patients(name), profiles!doctor_id(full_name), opds(name)')
+    .eq('tenant_id', tenantId)
+    .eq('appointment_date', today)
+    .order('appointment_time', { ascending: true });
+
+  const list = document.getElementById('appt-list');
+  const badge = document.getElementById('appt-count');
+
+  if (error || !data || !data.length) {
+    badge.textContent = '';
+    list.innerHTML = `<div class="q-empty"><div class="q-empty-icon">📅</div><div class="q-empty-text">No appointments scheduled for today</div></div>`;
+    return;
+  }
+
+  const pending = data.filter(a => ['scheduled','confirmed'].includes(a.status)).length;
+  badge.textContent = pending ? `(${pending})` : '';
+
+  list.innerHTML = data.map(a => {
+    const statusClass = `appt-s-${a.status}`;
+    const statusLabel = {scheduled:'Scheduled',confirmed:'Confirmed',arrived:'Arrived',completed:'Done',cancelled:'Cancelled',no_show:'No Show'}[a.status] || a.status;
+    const canCheckin  = ['scheduled','confirmed'].includes(a.status);
+    return `<div class="appt-item">
+      <div class="appt-time-badge">${_fmt12(a.appointment_time)}</div>
+      <div style="flex:1;min-width:0">
+        <div class="appt-pt-name">${a.patients?.name || '—'}</div>
+        <div class="appt-pt-meta">
+          ${a.profiles?.full_name ? `👨‍⚕️ ${a.profiles.full_name}` : ''}
+          ${a.opds?.name ? ` · ${a.opds.name}` : ''}
+          ${a.chief_complaint ? ` · ${a.chief_complaint}` : ''}
+        </div>
+      </div>
+      <span class="appt-s-badge ${statusClass}">${statusLabel}</span>
+      ${canCheckin ? `<button class="btn-checkin" onclick="checkIn('${a.id}')">Check In</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function checkIn(apptId) {
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('patient_id, doctor_id, opd_id, chief_complaint')
+    .eq('id', apptId).single();
+  if (!appt) return;
+
+  // Mark appointment arrived
+  await supabase.from('appointments').update({ status: 'arrived' }).eq('id', apptId);
+
+  // Pre-fill the walk-in form and switch to walk-in mode
+  _setMode('walkin');
+
+  const { data: patient } = await supabase
+    .from('patients')
+    .select('id, name, abha_number, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
+    .eq('id', appt.patient_id).single();
+
+  if (patient) {
+    document.getElementById('phone').value = patient.phone || '';
+    await _selectPatient(patient);
+  }
+  if (appt.chief_complaint) document.getElementById('complaint').value = appt.chief_complaint;
+  if (appt.opd_id)   document.getElementById('opd').value    = appt.opd_id;
+  if (appt.doctor_id) document.getElementById('doctor').value = appt.doctor_id;
+
+  // Switch view back to queue tab and scroll form into view
+  document.getElementById('tab-queue').click();
+  document.querySelector('.panel').scrollIntoView({ behavior: 'smooth' });
+  _alert('info', `✓ Patient pre-filled from appointment. Complete registration to add to queue.`);
+  loadTodaysAppointments();
+}
+window.checkIn = checkIn;
+
 // ── Boot ──────────────────────────────────────────
 await loadOPDs();
 await loadDoctors('');
 await loadQueue();
+await loadTodaysAppointments();
 setInterval(loadQueue, 30_000);
+setInterval(loadTodaysAppointments, 30_000);
 </script>
 </body>
 </html>
