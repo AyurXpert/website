@@ -4,7 +4,7 @@
 //   - Local assets (JS/CSS/images) → Cache first → network → cache update
 //   - External APIs (Supabase, Google Fonts, CDN) → Network only, no caching
 
-const CACHE      = 'ayurxpert-v4';
+const CACHE      = 'ayurxpert-v5';
 const OFFLINE    = './offline.html';
 
 // Security headers injected on every navigation response
@@ -13,7 +13,7 @@ const SEC_HEADERS = [
   ['X-Content-Type-Options',     'nosniff'],
   ['Referrer-Policy',            'strict-origin-when-cross-origin'],
   ['Cache-Control',              'no-store, no-cache, must-revalidate, private'],
-  ['Content-Security-Policy',    "frame-ancestors 'none'; default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';"],
+  ['Content-Security-Policy',    "frame-ancestors 'none'; default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com https://static.cloudflareinsights.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';"],
 ];
 
 function withSecHeaders(res) {
@@ -82,10 +82,11 @@ self.addEventListener('fetch', event => {
       fetch(req)
         .then(res => {
           if (!res.ok) return caches.match(req).then(c => c || caches.match(OFFLINE));
-          // Only cache public entry pages; never cache authenticated/protected pages
+          // Clone BEFORE withSecHeaders consumes res.body — fixes "body already used" error
           const isPublic = PRECACHE.some(p => req.url.includes(p.replace('./', '')));
-          if (isPublic) {
-            caches.open(CACHE).then(c => c.put(req, res.clone()));
+          const cacheRes = isPublic ? res.clone() : null;
+          if (cacheRes) {
+            caches.open(CACHE).then(c => c.put(req, cacheRes));
           }
           return withSecHeaders(res);
         })
