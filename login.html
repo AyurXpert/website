@@ -429,18 +429,26 @@ btnContinue.addEventListener('click', handleContinue);
 emailEl.addEventListener('keydown', e => { if (e.key === 'Enter') handleContinue(); });
 emailEl.addEventListener('input', clearAlerts);
 
-function handleContinue() {
+async function handleContinue() {
   clearAlerts();
   const email = emailEl.value.trim();
   if (!email) { showAlert('Please enter your email address.'); emailEl.focus(); return; }
-  // Basic format check — does not query DB, so no username enumeration risk
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     showAlert('Please enter a valid email address.'); emailEl.focus(); return;
   }
 
+  _setLoading(btnContinue, true);
+  const { data } = await supabase.rpc('get_profile_by_email', { p_email: email });
+  _setLoading(btnContinue, false);
+
+  if (!data) {
+    showAlert('This email is not registered with AyurXpert. Please use the "Join as staff" link below to request access.');
+    emailEl.focus();
+    return;
+  }
+
   _verifiedEmail = email;
-  // Show only the email they typed — no database lookup here (prevents enumeration).
-  // The role card displays their email so they know which account they're signing into.
+  // Show email only — role/name not shown to limit data disclosure
   document.getElementById('role-name-display').textContent = email;
   document.getElementById('step-email').style.display    = 'none';
   document.getElementById('step-password').style.display = '';
