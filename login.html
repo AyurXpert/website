@@ -441,7 +441,8 @@ async function handleContinue() {
   const { data } = await supabase.rpc('get_profile_by_email', { p_email: email });
   _setLoading(btnContinue, false);
 
-  if (!data) {
+  const found = data && !(Array.isArray(data) && data.length === 0);
+  if (!found) {
     showAlert('This email is not registered with AyurXpert. Please use the "Join as staff" link below to request access.');
     emailEl.focus();
     return;
