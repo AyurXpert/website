@@ -433,6 +433,10 @@ function handleContinue() {
   clearAlerts();
   const email = emailEl.value.trim();
   if (!email) { showAlert('Please enter your email address.'); emailEl.focus(); return; }
+  // Basic format check — does not query DB, so no username enumeration risk
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    showAlert('Please enter a valid email address.'); emailEl.focus(); return;
+  }
 
   _verifiedEmail = email;
   // Show only the email they typed — no database lookup here (prevents enumeration).
