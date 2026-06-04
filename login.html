@@ -438,11 +438,14 @@ async function handleContinue() {
   }
 
   _setLoading(btnContinue, true);
-  const { data } = await supabase.rpc('get_profile_by_email', { p_email: email });
+  const { data, error } = await supabase.rpc('get_profile_by_email', { p_email: email });
   _setLoading(btnContinue, false);
 
-  const found = data && !(Array.isArray(data) && data.length === 0);
-  if (!found) {
+  // Normalise: RPC can return null / {} / [] / [{...}] depending on Postgres return type
+  const profile = Array.isArray(data) ? data[0] : data;
+  const registered = !error && profile && profile.role;
+
+  if (!registered) {
     showAlert('This email is not registered with AyurXpert. Please use the "Join as staff" link below to request access.');
     emailEl.focus();
     return;
