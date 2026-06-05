@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, private"/>
@@ -257,6 +257,11 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 
     <!-- STEP 2: Password (email-only chip — no database info shown) -->
     <div id="step-password" style="display:none">
+      <!-- Hidden username field: tells password manager which account's password to suggest.
+           Synced to the verified email before step-2 is shown. -->
+      <input type="text" id="username-hint" autocomplete="username"
+             aria-hidden="true" tabindex="-1"
+             style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;overflow:hidden;"/>
       <div class="role-card" id="role-card">
         <div class="role-avatar">&#128100;</div>
         <div class="role-info">
@@ -452,6 +457,10 @@ async function handleContinue() {
   }
 
   _verifiedEmail = email;
+  // Sync hidden username field so browser fills the right saved password for this email
+  document.getElementById('username-hint').value = email;
+  // Clear any stale autofill from a previous user's saved credentials
+  passwordEl.value = '';
   // Show email only — role/name not shown to limit data disclosure
   document.getElementById('role-name-display').textContent = email;
   document.getElementById('step-email').style.display    = 'none';
@@ -464,6 +473,7 @@ document.getElementById('btn-change-email').addEventListener('click', () => {
   _verifiedEmail = '';
   clearAlerts();
   passwordEl.value = '';
+  document.getElementById('username-hint').value = '';
   document.getElementById('step-password').style.display = 'none';
   document.getElementById('step-email').style.display    = '';
   emailEl.focus();

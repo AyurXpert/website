@@ -374,7 +374,7 @@ function _injectSecurityMeta() {
   add({ 'http-equiv': 'Content-Security-Policy',
         content: [
           "default-src 'none'",
-          "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
+          "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com",
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
           "img-src 'self' data: blob: https://*.supabase.co",
           "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com",
@@ -440,7 +440,14 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html') 
     return;
   }
 
-  if (!sessionStorage.getItem(SESSION_KEYS.PROFILE)) {
+  // Check if cached profile belongs to the current session user.
+  // On shared computers, a different user's cached data must be evicted.
+  const cachedRaw = sessionStorage.getItem(SESSION_KEYS.PROFILE);
+  const cachedProfile = cachedRaw ? JSON.parse(cachedRaw) : null;
+  const needsFetch = !cachedProfile || cachedProfile.id !== session.user.id;
+
+  if (needsFetch) {
+    sessionStorage.clear(); // evict any stale cross-user data
     const { data: profile } = await supabase
       .from('profiles')
       .select('*, tenants(*)')
