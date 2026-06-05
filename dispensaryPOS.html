@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <title>Dispensary — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
@@ -254,7 +254,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <div class="panel-title">Prescription Queue</div>
           <div class="panel-sub" id="q-date"></div>
         </div>
-        <div class="q-count" id="q-count">0</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="q-count" id="q-count">0</div>
+          <button onclick="openNDPSTab()" style="font-size:10px;padding:3px 8px;background:#e3f0ff;color:#1a4080;border:1px solid #a8c8f0;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:600">Sch-H</button>
+        </div>
       </div>
       <div class="q-filters">
         <button class="q-filter active" data-filter="pending" onclick="setFilter('pending',this)">Pending</button>
@@ -302,7 +305,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   </aside>
 
   <!-- ── Dispensing Panel ───────────────────────── -->
-  <main class="d-panel">
+  <main class="d-panel" id="main-panel">
 
     <div class="welcome" id="welcome">
       <div class="welcome-icon"><img src="assets/AyurXpert_Tree_Only.png" alt="AyurXpert"></div>
@@ -328,6 +331,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <div class="pt-meta">Doctor: <span id="pt-doctor">—</span></div>
           <div class="pt-meta" id="pt-diag-wrap" style="display:none">Dx: <span id="pt-diag">—</span></div>
         </div>
+      </div>
+
+      <!-- NABH Allergy Banner -->
+      <div id="allergy-banner" style="display:none;padding:9px 16px;background:#fff3cd;border:2px solid #e0a800;border-radius:8px;margin:10px 16px 0;font-size:12.5px;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:15px">⚠️</span>
+        <strong style="color:#7a4a00">PATIENT ALLERGIES:</strong>
+        <span id="allergy-banner-text" style="color:#7a4a00"></span>
       </div>
 
       <!-- Body -->
@@ -438,7 +448,7 @@ async function loadInventory() {
   try {
     const [invRes, fRes] = await Promise.all([
       supabase.from('inventory')
-        .select('id, medicine_id, stock_quantity, mrp, cost_price, gst_percent, is_student_batch, medicine:medicines(id,name)')
+        .select('id, medicine_id, stock_quantity, mrp, cost_price, gst_percent, is_student_batch, is_high_risk, is_lasa, lasa_pair, is_schedule_h, medicine:medicines(id,name)')
         .eq('tenant_id', tenantId),
       supabase.from('hospital_formulary')
         .select('medicine_name')
@@ -609,6 +619,20 @@ window.openRx = async function(rxId) {
     diagWrap.style.display = 'none';
   }
 
+  // NABH — Check patient allergies and show banner
+  const allergyBanner = document.getElementById('allergy-banner');
+  allergyBanner.style.display = 'none';
+  if (rx.patient?.id) {
+    const { data: allergies } = await supabase.from('patient_allergies')
+      .select('allergen,severity').eq('patient_id', rx.patient.id)
+      .eq('tenant_id', tenantId).eq('status','active');
+    if (allergies?.length) {
+      allergyBanner.style.display = 'flex';
+      document.getElementById('allergy-banner-text').textContent =
+        allergies.map(a => `${a.allergen}${a.severity ? ' ('+a.severity+')' : ''}`).join(' · ');
+    }
+  }
+
   // Build cart from prescription items
   (rx.items || []).forEach(item => {
     const inv = _matchInventory(item.medicine_name);
@@ -671,6 +695,9 @@ function renderRxList() {
           <input type="number" min="0" value="${item.qty}" onchange="updateQty(${i},this.value)" placeholder="Qty"/>
         </div>
         <div class="rx-item-price">₹${lineTotal}</div>
+        <div style="display:flex;flex-direction:column;gap:3px;padding-left:4px">
+          <button onclick='printMedLabel(${JSON.stringify({id:item.id,name:item.name,dose:item.dosage,route:item.route||"",freq:item.frequency,anupana:item.anupana,expiry:item.expiry_date||"",qty:item.qty,unit:item.unit||"",is_high_risk:item.is_high_risk||false})})' title="Print Label (NABH MOM.6)" style="font-size:9px;padding:2px 6px;background:#e8f5ee;color:#1a4a2e;border:1px solid #b8ddc6;border-radius:4px;cursor:pointer;font-family:inherit">🏷 Label</button>
+        </div>
       </div>`;
   }).join('');
 
@@ -750,6 +777,17 @@ async function dispense() {
   const payable = _cartItems.filter(c => c.qty > 0);
   if (!payable.length) { _toast('Add at least one medicine to dispense', 'error'); return; }
 
+  // NABH MOM.3 CORE — High-risk double verification
+  const highRiskItems = payable.filter(c => {
+    const inv = _inventory.find(i => i.id === c.id || i.medicine_id === c.medicine_id);
+    return inv?.is_high_risk || inv?.is_schedule_h;
+  });
+  if (highRiskItems.length) {
+    const names = highRiskItems.map(c => c.name).join(', ');
+    const ok = confirm(`⚠ HIGH-RISK MEDICATION — NABH Double Verification Required\n\nThe following require a second check before dispensing:\n${names}\n\nConfirm:\n✅ Prescription verified against original order\n✅ Patient identity confirmed (2 identifiers)\n✅ Dose and route are correct\n\nProceed with dispensing?`);
+    if (!ok) return;
+  }
+
   const payMethod = document.querySelector('.pay-btn.active')?.dataset.method || 'Cash';
   const discount  = parseFloat(document.getElementById('discount').value) || 0;
   const subtotal  = payable.reduce((s, c) => s + c.qty * c.price, 0);
@@ -771,7 +809,9 @@ async function dispense() {
         final_amount:   total,
         status:         payMethod === 'Credit' ? 'partial' : 'paid',
         bill_type:      'pharmacy',
-        payment_method: payMethod
+        payment_method: payMethod,
+        updated_by:     userId,
+        update_reason:  'pharmacy_dispense'
       })
       .select('id').single();
     if (bErr) throw bErr;
@@ -923,6 +963,176 @@ function _toast(msg, type = 'info') {
 // ── Boot ──────────────────────────────────────────
 await Promise.all([loadInventory(), loadQueue()]);
 subscribeRealtime();
+
+// ── NABH MOM.6 CORE — Medication Label Printing ──────────────────────────────
+window.printMedLabel = function(item) {
+  const pt    = _activeRx?.patient;
+  const uhid  = pt?.id ? `AYX-${pt.id.replace(/-/g,'').slice(0,8).toUpperCase()}` : '—';
+  const today = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  const w = window.open('','_blank','width=350,height=500');
+  w.document.write(`<!DOCTYPE html><html><head>
+    <style>
+      body{font-family:'DM Sans',Arial,sans-serif;font-size:11px;margin:0;padding:10px;width:300px;color:#000}
+      .lbl-org{font-size:10px;font-weight:600;text-align:center;border-bottom:1px solid #000;padding-bottom:4px;margin-bottom:6px}
+      .lbl-patient{font-size:13px;font-weight:700;margin-bottom:2px}
+      .lbl-uhid{font-size:10px;color:#333;margin-bottom:6px}
+      .lbl-med{font-size:12px;font-weight:700;color:#1a4a2e;margin-bottom:2px}
+      .lbl-row{display:flex;gap:6px;margin-bottom:2px}
+      .lbl-key{font-weight:600;min-width:60px}
+      .lbl-divider{border-top:1px dashed #aaa;margin:6px 0}
+      .lbl-warn{font-size:9px;font-weight:700;color:#8b1a1a;text-align:center;border:1px solid #f5b8b8;padding:2px;margin-top:4px}
+      @media print{body{margin:0}}
+    </style></head><body onload="window.print();window.close()">
+    <div class="lbl-org">${_esc(tenant?.name||'Ayurveda Hospital')}</div>
+    <div class="lbl-patient">${_esc(pt?.name||'—')}</div>
+    <div class="lbl-uhid">UHID: ${uhid} | Date: ${today}</div>
+    <div class="lbl-divider"></div>
+    <div class="lbl-med">${_esc(item.name)}</div>
+    ${item.dose?`<div class="lbl-row"><span class="lbl-key">Dose:</span><span>${_esc(item.dose)}</span></div>`:''}
+    ${item.route?`<div class="lbl-row"><span class="lbl-key">Route:</span><span>${_esc(item.route)}</span></div>`:''}
+    ${item.freq?`<div class="lbl-row"><span class="lbl-key">Frequency:</span><span>${_esc(item.freq)}</span></div>`:''}
+    ${item.anupana?`<div class="lbl-row"><span class="lbl-key">Anupana:</span><span>${_esc(item.anupana)}</span></div>`:''}
+    ${item.expiry?`<div class="lbl-row"><span class="lbl-key">Expiry:</span><span>${_esc(item.expiry)}</span></div>`:''}
+    <div class="lbl-row"><span class="lbl-key">Qty:</span><span>${item.qty} ${item.unit||''}</span></div>
+    ${item.is_high_risk?'<div class="lbl-warn">⚠ HIGH-RISK MEDICATION — DOUBLE CHECK</div>':''}
+  </body></html>`);
+  w.document.close();
+};
+
+// ── NABH MOM.3 CORE — NDPS / Schedule H Register ─────────────────────────────
+let _ndpsMeds = [];
+
+window.openNDPSTab = async function() {
+  document.getElementById('ndps-panel').style.display = '';
+  document.getElementById('main-panel').style.display = 'none';
+  await loadNDPSMeds();
+  await loadNDPSRegister();
+};
+
+window.closeNDPSTab = function() {
+  document.getElementById('ndps-panel').style.display = 'none';
+  document.getElementById('main-panel').style.display = '';
+};
+
+async function loadNDPSMeds() {
+  const { data } = await supabase.from('inventory')
+    .select('id,medicine_id,stock_quantity,medicine:medicines(name)')
+    .eq('tenant_id',tenantId).eq('is_schedule_h',true);
+  _ndpsMeds = data || [];
+  const sel = document.getElementById('ndps-med-sel');
+  sel.innerHTML = '<option value="">— Select Schedule H drug —</option>' +
+    _ndpsMeds.map(m => `<option value="${m.id}">${m.medicine?.name||'—'} (Stock: ${m.stock_quantity||0})</option>`).join('');
+}
+
+async function loadNDPSRegister() {
+  const { data } = await supabase.from('ndps_register')
+    .select('*,profiles!created_by(full_name)')
+    .eq('tenant_id',tenantId)
+    .order('transaction_date',{ascending:false})
+    .limit(50);
+  const el = document.getElementById('ndps-list');
+  if (!data?.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px">No entries yet.</div>'; return; }
+  const typeColor = {received:'#27ae60',dispensed:'#e74c3c',returned:'#f39c12',written_off:'#888'};
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#f5faf7"><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Date</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Drug</th><th style="padding:6px 10px;text-align:center;border-bottom:1.5px solid var(--border)">Type</th><th style="padding:6px 10px;text-align:right;border-bottom:1.5px solid var(--border)">Qty</th><th style="padding:6px 10px;text-align:right;border-bottom:1.5px solid var(--border)">Balance</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">By</th></tr></thead>
+    <tbody>${data.map(r=>`<tr><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${r.transaction_date}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;font-weight:600">${r.medicine_name}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;text-align:center"><span style="font-size:10px;font-weight:700;color:${typeColor[r.transaction_type]||'#888'};background:${typeColor[r.transaction_type]||'#888'}18;padding:2px 7px;border-radius:10px;text-transform:uppercase">${r.transaction_type}</span></td>
+      <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;text-align:right">${r.quantity} ${r.unit||''}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;text-align:right;font-weight:700">${r.balance}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;color:var(--text-muted)">${r.profiles?.full_name||'—'}</td></tr>`).join('')}
+    </tbody></table>`;
+}
+
+window._ndpsUpdateBalance = async function() {
+  const invId = document.getElementById('ndps-med-sel').value;
+  if (!invId) return;
+  const { data } = await supabase.from('ndps_register')
+    .select('balance').eq('tenant_id',tenantId)
+    .eq('medicine_id', _ndpsMeds.find(m=>m.id===invId)?.medicine_id)
+    .order('created_at',{ascending:false}).limit(1).maybeSingle();
+  const inv = _ndpsMeds.find(m=>m.id===invId);
+  const bal = data?.balance ?? inv?.stock_quantity ?? 0;
+  document.getElementById('ndps-current-balance').textContent = bal;
+};
+
+window.saveNDPSEntry = async function() {
+  const invId  = document.getElementById('ndps-med-sel').value;
+  const type   = document.getElementById('ndps-type').value;
+  const qty    = parseFloat(document.getElementById('ndps-qty').value);
+  const notes  = document.getElementById('ndps-notes').value.trim();
+  if (!invId || !qty) { _toast('Select drug and enter quantity','error'); return; }
+  const inv = _ndpsMeds.find(m => m.id === invId);
+  if (!inv) return;
+  const currentBalance = parseFloat(document.getElementById('ndps-current-balance').textContent) || inv.stock_quantity || 0;
+  const newBalance = type === 'received' ? currentBalance + qty : currentBalance - qty;
+  if (newBalance < 0) { _toast('Insufficient balance in register','error'); return; }
+  const { error } = await supabase.from('ndps_register').insert({
+    tenant_id: tenantId, medicine_id: inv.medicine_id, medicine_name: inv.medicine?.name,
+    transaction_type: type, quantity: qty, unit: 'units', balance: newBalance,
+    notes: notes || null, created_by: userId, transaction_date: new Date().toISOString().slice(0,10),
+  });
+  if (error) { _toast(error.message,'error'); return; }
+  _toast('NDPS entry saved','success');
+  document.getElementById('ndps-qty').value = '';
+  document.getElementById('ndps-notes').value = '';
+  await loadNDPSRegister();
+};
 </script>
+
+<!-- NABH MOM.3 CORE — NDPS / Schedule H Narcotic Register Panel -->
+<div id="ndps-panel" style="display:none;position:fixed;inset:0;background:var(--cream);z-index:200;overflow-y:auto;padding:20px">
+  <div style="max-width:900px;margin:0 auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep)">💊 Schedule H / NDPS Register</div>
+        <div style="font-size:12px;color:var(--text-muted)">NABH MOM.3 CORE — Narcotic and Psychotropic Substances Act 1985 compliance</div>
+      </div>
+      <button onclick="closeNDPSTab()" style="height:36px;padding:0 16px;border:1.5px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px">← Back to Dispensary</button>
+    </div>
+
+    <!-- Entry form -->
+    <div style="background:#fff;border:1.5px solid #a8c8f0;border-radius:12px;padding:18px 20px;margin-bottom:20px">
+      <div style="font-weight:600;font-size:14px;color:#1a4080;margin-bottom:12px">New Register Entry</div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:3px;text-transform:uppercase">Drug *</label>
+          <select id="ndps-med-sel" onchange="_ndpsUpdateBalance()" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"></select>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:3px;text-transform:uppercase">Transaction *</label>
+          <select id="ndps-type" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit">
+            <option value="received">Received (stock in)</option>
+            <option value="dispensed">Dispensed (to patient)</option>
+            <option value="returned">Returned</option>
+            <option value="written_off">Written Off</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:3px;text-transform:uppercase">Quantity *</label>
+          <input id="ndps-qty" type="number" min="0.01" step="0.01" placeholder="e.g. 10" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:3px;text-transform:uppercase">Current Balance</label>
+          <div id="ndps-current-balance" style="height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:15px;font-weight:700;color:var(--green-deep);background:#f5faf7;display:flex;align-items:center">—</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:3px;text-transform:uppercase">Notes (patient name / prescription no. / supplier)</label>
+          <input id="ndps-notes" type="text" placeholder="e.g. Dispensed to Ramesh Kumar — Rx #REF123 / Received from Sun Pharma" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
+        </div>
+        <button onclick="saveNDPSEntry()" style="height:36px;padding:0 20px;background:#1a4080;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Save Entry</button>
+      </div>
+    </div>
+
+    <!-- Register list -->
+    <div style="background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:18px 20px">
+      <div style="font-weight:600;font-size:14px;color:var(--green-deep);margin-bottom:12px">Register (last 50 entries)</div>
+      <div id="ndps-list"><div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

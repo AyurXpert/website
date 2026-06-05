@@ -370,9 +370,22 @@ function _injectSecurityMeta() {
     Object.entries(attrs).forEach(([k, v]) => m.setAttribute(k, v));
     head.appendChild(m);
   };
-  // CSP — allow our own origins + Supabase + CDNs we use; block objects & plugins
+  // CSP — dedicated directives per WASA retest requirement (unsafe-eval removed)
   add({ 'http-equiv': 'Content-Security-Policy',
-        content: "default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';" });
+        content: [
+          "default-src 'none'",
+          "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
+          "img-src 'self' data: blob: https://*.supabase.co",
+          "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com",
+          "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com",
+          "manifest-src 'self'",
+          "worker-src 'self'",
+          "object-src 'none'",
+          "base-uri 'self'",
+          "form-action 'self'"
+        ].join('; ')
+      });
   // Prevent MIME sniffing
   add({ 'http-equiv': 'X-Content-Type-Options', content: 'nosniff' });
   // Referrer policy

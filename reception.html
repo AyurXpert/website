@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <title>Reception — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
@@ -851,6 +851,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         </div>
       </div>
 
+      <!-- NABH Allergy Panel -->
+      <div class="field" id="allergy-panel" style="display:none">
+        <label style="display:flex;justify-content:space-between;align-items:center">
+          <span>⚠️ Known Allergies <span style="font-size:10px;font-weight:400;color:var(--text-muted)">(NABH Patient Safety)</span></span>
+          <button type="button" onclick="openReceptionAllergyModal()" style="font-size:11px;padding:2px 10px;background:var(--green-deep);color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:inherit">+ Add / View</button>
+        </label>
+        <div id="reception-allergy-display" style="min-height:32px;border:1.5px solid #e0a800;border-radius:7px;padding:6px 10px;font-size:12px;background:#fffdf0">
+          <span style="color:var(--text-muted)">No allergies on record</span>
+        </div>
+      </div>
+
       <!-- Complaint -->
       <div class="field">
         <label>Chief Complaint <span class="req">*</span></label>
@@ -1535,6 +1546,9 @@ async function _selectPatient(patient) {
   document.getElementById('f-gender').value = patient.gender || '';
   document.getElementById('f-dob').value    = patient.date_of_birth || '';
   document.getElementById('f-blood').value  = patient.blood_group   || '';
+
+  // NABH — Load patient allergies
+  _loadReceptionAllergies(patient.id);
 
   const [{ count }, { data: lastVisitRows }, { data: pendingBills }] = await Promise.all([
     supabase.from('visits').select('id', { count: 'exact', head: true }).eq('patient_id', patient.id),
@@ -2986,6 +3000,93 @@ await loadQueue();
 await loadTodaysAppointments();
 setInterval(loadQueue, 30_000);
 setInterval(loadTodaysAppointments, 30_000);
+
+// ── NABH Allergy System (Reception) ──────────────────────────
+let _receptionPatientId = null;
+let _receptionAllergies = [];
+
+async function _loadReceptionAllergies(patientId) {
+  _receptionPatientId = patientId;
+  const panel   = document.getElementById('allergy-panel');
+  const display = document.getElementById('reception-allergy-display');
+  panel.style.display = '';
+  const { data } = await supabase.from('patient_allergies')
+    .select('id,allergen,allergen_type,severity,status')
+    .eq('patient_id', patientId).eq('tenant_id', tenantId).eq('status','active')
+    .order('created_at', { ascending: false });
+  _receptionAllergies = data || [];
+  if (!_receptionAllergies.length) {
+    display.innerHTML = '<span style="color:var(--text-muted)">No allergies on record — add if known</span>';
+    return;
+  }
+  const sevColor = { mild:'#f39c12', moderate:'#e67e22', severe:'#e74c3c', anaphylaxis:'#c0392b' };
+  display.innerHTML = _receptionAllergies.map(a =>
+    `<span style="display:inline-flex;align-items:center;gap:3px;background:${sevColor[a.severity]||'#e74c3c'}18;border:1px solid ${sevColor[a.severity]||'#e74c3c'};border-radius:12px;padding:2px 8px;margin:2px;font-size:11px">
+      <strong>${a.allergen}</strong>${a.severity ? ` <span style="color:${sevColor[a.severity]}"> [${a.severity}]</span>` : ''}
+    </span>`
+  ).join('');
+}
+
+window.openReceptionAllergyModal = function() {
+  if (!_receptionPatientId) return;
+  document.getElementById('rx-allergy-modal').style.display = 'flex';
+  renderReceptionAllergyList();
+};
+window.closeReceptionAllergyModal = function() {
+  document.getElementById('rx-allergy-modal').style.display = 'none';
+};
+function renderReceptionAllergyList() {
+  const el = document.getElementById('rx-allergy-list');
+  if (!_receptionAllergies.length) { el.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:8px 0">None recorded</div>'; return; }
+  const sevColor = { mild:'#f39c12', moderate:'#e67e22', severe:'#e74c3c', anaphylaxis:'#c0392b' };
+  el.innerHTML = _receptionAllergies.map(a =>
+    `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">
+      <span style="flex:1;font-size:13px"><strong>${a.allergen}</strong> <span style="color:var(--text-muted)">(${a.allergen_type})</span></span>
+      ${a.severity ? `<span style="font-size:11px;font-weight:600;color:${sevColor[a.severity]||'#e74c3c'}">${a.severity}</span>` : ''}
+    </div>`
+  ).join('');
+}
+window.saveReceptionAllergy = async function() {
+  const allergen = document.getElementById('rx-new-allergen').value.trim();
+  if (!allergen || !_receptionPatientId) return;
+  await supabase.from('patient_allergies').insert({
+    tenant_id: tenantId, patient_id: _receptionPatientId,
+    allergen, allergen_type: document.getElementById('rx-new-type').value,
+    severity: document.getElementById('rx-new-severity').value || null,
+  });
+  await supabase.from('patients').update({ has_allergies: true }).eq('id', _receptionPatientId);
+  document.getElementById('rx-new-allergen').value = '';
+  await _loadReceptionAllergies(_receptionPatientId);
+  renderReceptionAllergyList();
+};
 </script>
+
+<!-- NABH Allergy Modal — Reception -->
+<div id="rx-allergy-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:22px;max-width:440px;width:100%;margin:16px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <span style="font-weight:600;font-size:15px">⚠️ Patient Allergy Register</span>
+      <button onclick="closeReceptionAllergyModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted)">&times;</button>
+    </div>
+    <div id="rx-allergy-list" style="margin-bottom:14px"></div>
+    <div style="border-top:1.5px solid var(--border);padding-top:12px">
+      <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--green-deep)">Add Allergy</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+        <input id="rx-new-allergen" type="text" placeholder="Allergen *" style="height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
+        <select id="rx-new-type" style="height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:13px;font-family:inherit">
+          <option value="drug">Drug</option><option value="food">Food</option>
+          <option value="environmental">Environmental</option><option value="other">Other</option>
+        </select>
+        <select id="rx-new-severity" style="height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:13px;font-family:inherit">
+          <option value="">Severity</option><option value="mild">Mild</option>
+          <option value="moderate">Moderate</option><option value="severe">Severe</option>
+          <option value="anaphylaxis">Anaphylaxis</option>
+        </select>
+      </div>
+      <button onclick="saveReceptionAllergy()" style="width:100%;height:38px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Save</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

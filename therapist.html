@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <title>Therapy Sessions — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
@@ -961,6 +961,51 @@ window.saveSession = async function() {
   if (!therapist) { _alert('error','Select a therapist.'); return; }
   if (!deptId)    { _alert('error','Select a department.'); return; }
   if (!date)      { _alert('error','Enter a date.'); return; }
+
+  // NABH PRE.2 ATWC CORE — Female therapist for female patients
+  let patientGender = null;
+  if (source === 'ipd') {
+    const raw = document.getElementById('sched-admission').value;
+    if (raw) {
+      try { const obj = JSON.parse(raw); const adm = _admissions.find(a=>a.id===obj.admId); patientGender = adm?.patients?.gender; } catch {}
+    }
+  } else {
+    const patientId = document.getElementById('sched-opd-patient').value;
+    if (patientId) {
+      const { data: pt } = await supabase.from('patients').select('gender').eq('id',patientId).single();
+      patientGender = pt?.gender;
+    }
+  }
+  const therapistData = _therapists.find(t => t.id === therapist);
+  if (patientGender === 'F' && therapistData?.gender === 'M') {
+    const override = confirm('⚠ NABH PRE.2 ATWC CORE — Gender Mismatch\n\nFemale patients must be treated by female therapists.\n\nThis patient is female and the selected therapist is male.\n\nContinue only with documented medical justification?');
+    if (!override) return;
+  }
+
+  // NABH PRE.3 ATWC CORE — PK Consent 6-month validity check
+  if (source === 'ipd' || source === 'opd') {
+    const ptId = source === 'ipd'
+      ? (() => { try { return JSON.parse(document.getElementById('sched-admission').value).patientId; } catch { return null; } })()
+      : document.getElementById('sched-opd-patient').value;
+    if (ptId) {
+      const sixMonthsAgo = new Date(Date.now() - 180*86400000).toISOString();
+      const { data: consentData } = await supabase.from('consent_records')
+        .select('id,consent_datetime,valid_until')
+        .eq('patient_id', ptId).eq('tenant_id', tenantId)
+        .eq('consent_type','panchakarma')
+        .order('consent_datetime',{ascending:false}).limit(1).maybeSingle();
+      if (!consentData) {
+        const ok = confirm('⚠ NABH PRE.3 ATWC CORE — No PK Consent on Record\n\nNo Panchakarma consent found for this patient. Consent is mandatory before first session.\n\nProceed anyway? (You must record consent separately.)');
+        if (!ok) return;
+      } else {
+        const expiry = consentData.valid_until ? new Date(consentData.valid_until) : new Date(new Date(consentData.consent_datetime).getTime() + 180*86400000);
+        if (expiry < new Date()) {
+          const renew = confirm(`⚠ NABH — PK Consent Expired\n\nConsent given on ${new Date(consentData.consent_datetime).toLocaleDateString('en-IN')} has expired.\n\nFresh consent is required. Proceed anyway?`);
+          if (!renew) return;
+        }
+      }
+    }
+  }
 
   // NCISM §47(a)(xv) — Raktamokshana must be in Anushastra Karma unit, not regular therapy room
   const therapyLower = therapy.toLowerCase();

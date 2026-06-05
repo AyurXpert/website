@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <title>Master Control — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
@@ -393,6 +393,17 @@ tr:hover td{background:#fafff8}
       <div id="opd-compliance-banner"></div>
       <div id="ipd-compliance-banner"></div>
       <div id="ncism-setup-checklist"></div>
+
+      <!-- NABH KPI Dashboard shortcut -->
+      <div class="cc" style="margin-bottom:16px;background:linear-gradient(135deg,#fffdf0 60%,#fef9e7);border:1.5px solid #e8d08a">
+        <div class="cc-hd">
+          <span class="cc-title" style="color:#7a4a00">📊 NABH KPI Dashboard</span>
+          <a href="nabh-kpi.html" class="btn-outline btn-sm" style="color:#7a4a00;border-color:#e8d08a">Open Dashboard →</a>
+        </div>
+        <div style="padding:12px 20px;font-size:12px;color:#7a4a00">
+          22 mandatory quality indicators (PSQ.3 CORE) — medication errors, falls, consent compliance, stock-outs, patient satisfaction and more. Updated monthly.
+        </div>
+      </div>
 
       <!-- §21x — NABH Accreditation Status -->
       <div class="cc" id="nabh-card" style="margin-bottom:16px">

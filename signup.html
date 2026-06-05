@@ -1,8 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
 <title>Join Your Organisation — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
 <link rel="manifest" href="manifest.json"/>
@@ -115,6 +117,12 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
   <div class="card">
 
     <div id="form-view">
+      <!-- Recruitment join-link welcome banner (shown only when ?token param present) -->
+      <div id="invite-banner" style="display:none;background:var(--green-light);border:1.5px solid var(--green-mid);border-radius:8px;padding:14px 16px;margin-bottom:18px">
+        <div style="font-size:14px;font-weight:600;color:var(--green-deep);margin-bottom:4px">🎉 Welcome — You've been invited!</div>
+        <div id="invite-banner-text" style="font-size:12.5px;color:var(--text-mid);line-height:1.6"></div>
+      </div>
+
       <div class="card-title">Join Your Organisation</div>
       <div class="card-subtitle">Enter the organisation code given by your admin, fill in your details, and your request will be sent for approval.</div>
 
@@ -125,22 +133,47 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 
       <div class="field code-field">
         <label>Organisation Code</label>
-        <input type="text" id="tenant-code" placeholder="e.g. SRSH4821" maxlength="10" autocomplete="off" oninput="this.value=this.value.toUpperCase()"/>
+        <input type="text" id="tenant-code" placeholder="e.g. SRSH4821" maxlength="10" autocomplete="off" oninput="this.value=this.value.toUpperCase()" onblur="onCodeBlur()"/>
         <div class="code-hint">Ask your hospital / clinic admin for this code</div>
       </div>
 
       <div class="field">
         <label>Your Role</label>
-        <select id="staff-role">
+        <select id="staff-role" onchange="onRoleChange(this.value)">
           <option value="">— Select your role —</option>
           <option value="doctor">Doctor</option>
           <option value="receptionist">Receptionist</option>
           <option value="pharmacist">Pharmacist</option>
           <option value="nurse">Nurse</option>
           <option value="lab_tech">Lab Technician</option>
+          <option value="therapist">Therapist</option>
           <option value="accountant">Accountant</option>
           <option value="student">Student</option>
         </select>
+      </div>
+
+      <div class="field" id="dept-field" style="display:none">
+        <label>Department</label>
+        <select id="staff-dept">
+          <option value="">— Select your department —</option>
+        </select>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:5px">Your primary department at this organisation</div>
+      </div>
+
+      <div class="field" id="hpr-field" style="display:none">
+        <label>HPR ID <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">(Health Professional Registry — optional)</span></label>
+        <input type="text" id="staff-hpr" placeholder="e.g. 27-1234-5678-9012" autocomplete="off" inputmode="numeric"/>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:5px;line-height:1.5">
+          Your 14-digit HPR ID from <strong>hpr.abdm.gov.in</strong>. Leave blank if not yet registered.
+        </div>
+      </div>
+
+      <div class="field" id="state-reg-field" style="display:none">
+        <label>State Registration No. <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">(State Medical Council — optional)</span></label>
+        <input type="text" id="staff-state-reg" placeholder="e.g. KAR/AYU/12345/2020" autocomplete="off"/>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:5px;line-height:1.5">
+          Your registration number issued by the State Ayurveda / Medical Council.
+        </div>
       </div>
 
       <div class="field">
@@ -205,22 +238,102 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 <script type="module" src="./js/pwa/register-sw.js"></script>
 <script type="module">
 import { registerStaff } from './js/core/auth.js';
+import { supabase } from './js/core/db/supabaseClient.js';
 
-// Pre-fill org code from URL ?t=CODE or sessionStorage
-(function() {
-  const params = new URLSearchParams(window.location.search);
-  const code   = params.get('t') || sessionStorage.getItem('pending_tenant_code') || '';
-  if (code) {
-    const el = document.getElementById('tenant-code');
-    if (el) el.value = code.toUpperCase();
+// Pre-fill from URL params
+// Supports: ?t=CODE (legacy), ?org=CODE&role=ROLE&token=UUID (recruitment join link)
+const _urlParams   = new URLSearchParams(window.location.search);
+const _joinToken   = _urlParams.get('token') || null;
+const _prefillCode = (_urlParams.get('org') || _urlParams.get('t') || sessionStorage.getItem('pending_tenant_code') || '').toUpperCase();
+const _prefillRole = _urlParams.get('role') || '';
+
+(function _prefill() {
+  const codeEl = document.getElementById('tenant-code');
+  const roleEl = document.getElementById('staff-role');
+  if (_prefillCode && codeEl) {
+    codeEl.value = _prefillCode;
+    if (_joinToken) {
+      // Lock org code so candidate can't change it
+      codeEl.readOnly = true;
+      codeEl.style.cssText += ';background:#f8fdf9;cursor:not-allowed;color:var(--text-mid)';
+    }
+  }
+  if (_prefillRole && roleEl) {
+    roleEl.value = _prefillRole;
+    if (_joinToken) {
+      roleEl.disabled = true;
+      roleEl.style.cssText += ';background:#f8fdf9;cursor:not-allowed';
+    }
+    // Trigger role-dependent field visibility
+    window.onRoleChange && window.onRoleChange(_prefillRole);
+  }
+  if (_prefillCode && _prefillRole) {
+    // Auto-load departments for dept-requiring roles
+    window._loadDepts && window._loadDepts();
   }
 })();
+
+// Show welcome banner and look up org name for join-link arrivals
+if (_joinToken && _prefillCode) {
+  (async function _showInviteBanner() {
+    const banner   = document.getElementById('invite-banner');
+    const bannerTx = document.getElementById('invite-banner-text');
+    banner.style.display = '';
+    // Get org name from tenant code
+    const { data } = await supabase.rpc('get_tenant_by_code', { p_code: _prefillCode });
+    const orgName  = data?.name || _prefillCode;
+    const roleLabel = {
+      doctor:'Doctor / Vaidya', receptionist:'Receptionist', pharmacist:'Pharmacist',
+      nurse:'Nurse', lab_tech:'Lab Technician', therapist:'Therapist',
+      accountant:'Accountant', student:'PG Student / Intern',
+    }[_prefillRole] || _prefillRole;
+    bannerTx.innerHTML = `Your appointment letter from <strong>${orgName}</strong> has pre-filled your organisation code and role (<strong>${roleLabel}</strong>).<br/>
+      Complete the form below to set up your account — your admin will be notified for final approval.`;
+  })();
+}
 
 window.togglePw = function(inputId, btn) {
   const input = document.getElementById(inputId);
   const isText = input.type === 'text';
   input.type = isText ? 'password' : 'text';
   btn.innerHTML = isText ? '&#128065;' : '&#128584;';
+};
+
+const HPR_ROLES  = ['doctor','nurse','pharmacist','lab_tech','therapist'];
+const DEPT_ROLES = ['doctor','nurse','therapist','lab_tech','student'];
+let _depts = [];
+
+window._loadDepts = async function _loadDepts() {
+  const code = document.getElementById('tenant-code').value.trim();
+  const role = document.getElementById('staff-role').value;
+  const field = document.getElementById('dept-field');
+  if (!code || !DEPT_ROLES.includes(role)) return;
+  const sel = document.getElementById('staff-dept');
+  sel.innerHTML = '<option value="">— Loading… —</option>';
+  field.style.display = '';
+  const { data } = await supabase.rpc('get_departments_for_signup', { p_tenant_code: code });
+  _depts = data || [];
+  if (!_depts.length) {
+    field.style.display = 'none';
+    return;
+  }
+  sel.innerHTML = '<option value="">— Select your department —</option>' +
+    _depts.map(d => `<option value="${d.id}">${d.name}${d.ncism_code ? ' ('+d.ncism_code+')' : ''}</option>`).join('');
+};
+
+window.onCodeBlur = function() {
+  if (DEPT_ROLES.includes(document.getElementById('staff-role').value)) window._loadDepts();
+};
+
+window.onRoleChange = function(role) {
+  const showHpr = HPR_ROLES.includes(role) ? '' : 'none';
+  document.getElementById('hpr-field').style.display       = showHpr;
+  document.getElementById('state-reg-field').style.display = showHpr;
+  if (DEPT_ROLES.includes(role)) {
+    _loadDepts();
+  } else {
+    document.getElementById('dept-field').style.display = 'none';
+  }
 };
 
 window.handleSignup = async function() {
@@ -233,9 +346,14 @@ window.handleSignup = async function() {
   const phone    = document.getElementById('staff-phone').value.trim();
   const pw       = document.getElementById('staff-password').value;
   const confirm  = document.getElementById('staff-confirm').value;
+  const hprId    = document.getElementById('staff-hpr').value.trim();
+  const stateReg = document.getElementById('staff-state-reg').value.trim();
+  const deptId   = DEPT_ROLES.includes(role) ? document.getElementById('staff-dept').value : null;
 
   if (!code)          return showError('Please enter your organisation code.');
   if (!role)          return showError('Please select your role.');
+  if (DEPT_ROLES.includes(role) && _depts.length && !deptId)
+                      return showError('Please select your department.');
   if (!name)          return showError('Please enter your full name.');
   if (!email)         return showError('Please enter your email address.');
   if (!phone)         return showError('Please enter your phone number.');
@@ -246,18 +364,30 @@ window.handleSignup = async function() {
   setLoading(btn, true);
 
   const result = await registerStaff({
-    fullName:   name,
+    fullName:     name,
     email,
-    password:   pw,
+    password:     pw,
     phone,
     role,
-    tenantCode: code,
+    tenantCode:   code,
+    hprId:        hprId    || null,
+    stateRegId:   stateReg || null,
+    departmentId: deptId   || null,
   });
 
   if (!result.success) {
     showError(result.error || 'Signup failed. Please check your details and try again.');
     setLoading(btn, false);
     return;
+  }
+
+  // If arrived via recruitment join link, mark application as joined
+  if (_joinToken) {
+    try {
+      await supabase.from('job_applications')
+        .update({ status: 'joined', join_date: new Date().toISOString().slice(0,10) })
+        .eq('join_token', _joinToken);
+    } catch (_) { /* non-critical — silent fail */ }
   }
 
   document.getElementById('form-view').style.display = 'none';

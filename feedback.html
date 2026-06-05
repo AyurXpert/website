@@ -1,0 +1,384 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<title>Share Your Feedback — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#1a4a2e"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--cream:#faf8f3;--white:#fff;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;
+  --success-bg:#f0f9f4;--success-text:#1a4a2e;--success-border:#b8ddc6;
+}
+html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark)}
+
+.header{background:var(--green-deep);padding:18px 24px;display:flex;align-items:center;justify-content:center;gap:14px}
+.header-logo{width:40px;height:40px;object-fit:contain;border-radius:9px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.header-brand{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600}
+.header-brand span:first-child{color:#fff}
+.header-brand span:last-child{color:var(--gold)}
+
+.main{max-width:460px;margin:36px auto;padding:0 16px 60px}
+
+.card{background:var(--white);border-radius:16px;padding:28px;box-shadow:0 2px 16px rgba(0,0,0,.06)}
+.card-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep);margin-bottom:6px}
+.card-sub{font-size:13.5px;color:var(--text-muted);margin-bottom:24px;line-height:1.6}
+
+/* Visit info strip */
+.visit-strip{background:var(--green-light);border-radius:8px;padding:10px 14px;margin-bottom:22px;font-size:13px;color:var(--text-mid);display:none}
+.visit-strip strong{color:var(--green-deep)}
+
+/* Rating section */
+.rating-section{margin-bottom:20px}
+.rating-label{font-size:12px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.7px;margin-bottom:8px}
+.stars{display:flex;gap:8px}
+.star{font-size:32px;cursor:pointer;transition:transform .12s,opacity .12s;user-select:none;-webkit-user-select:none;line-height:1;color:#d4d4d4}
+.star.selected,.star.hover{color:#f5c842;transform:scale(1.1)}
+.star:active{transform:scale(.96)}
+.rating-hint{font-size:11px;color:var(--text-muted);margin-top:5px;min-height:16px;font-style:italic}
+
+/* Would recommend */
+.recommend-row{display:flex;gap:10px;margin-bottom:20px;align-items:center;flex-wrap:wrap}
+.recommend-label{font-size:13px;color:var(--text-mid);font-weight:500;flex:0 0 auto}
+.recommend-opts{display:flex;gap:8px}
+.rec-btn{padding:8px 22px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-mid);transition:all .15s}
+.rec-btn.active-yes{background:#e8f5ee;border-color:#2d7a4f;color:#1a4a2e}
+.rec-btn.active-no{background:#fff0f0;border-color:#e57373;color:#8b1a1a}
+
+/* Comments */
+.field{margin-bottom:16px}
+.field label{display:block;font-size:12px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.7px;margin-bottom:7px}
+.field textarea{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;color:var(--text-dark);background:var(--cream);outline:none;resize:vertical;min-height:90px;transition:border-color .2s}
+.field textarea:focus{border-color:var(--green-mid);background:var(--white)}
+
+/* Privacy note */
+.privacy{font-size:11.5px;color:var(--text-muted);margin-bottom:18px;line-height:1.6}
+
+/* Submit */
+.btn-submit{width:100%;height:52px;background:var(--green-deep);color:var(--white);border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:16px;font-weight:500;cursor:pointer;transition:background .2s;position:relative;overflow:hidden}
+.btn-submit:hover:not(:disabled){background:#1f5c37}
+.btn-submit:disabled{opacity:.65;cursor:not-allowed}
+.btn-submit .btn-text{transition:opacity .2s}
+.btn-submit.loading .btn-text{opacity:0}
+.btn-submit .spinner-wrap{display:none;position:absolute;inset:0;align-items:center;justify-content:center}
+.btn-submit.loading .spinner-wrap{display:flex}
+.spinner{width:20px;height:20px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+
+/* Success */
+.success-screen{display:none;text-align:center;padding:8px 0}
+.success-icon{font-size:56px;margin-bottom:14px}
+.success-title{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:600;color:var(--green-deep);margin-bottom:10px}
+.success-body{font-size:14px;color:var(--text-muted);line-height:1.8;margin-bottom:24px}
+.ayur-quote{font-family:'Cormorant Garamond',serif;font-size:15px;font-style:italic;color:var(--text-mid);background:var(--green-light);border-radius:8px;padding:14px 18px;margin-top:16px}
+
+/* Invalid state */
+.invalid-screen{display:none;text-align:center;padding:8px 0}
+.invalid-icon{font-size:48px;margin-bottom:14px}
+.invalid-title{font-family:'Cormorant Garamond',serif;font-size:24px;color:var(--text-dark);margin-bottom:10px}
+.invalid-body{font-size:13.5px;color:var(--text-muted);line-height:1.7}
+
+/* Error */
+.alert-error{display:none;background:#fff3f3;border:1px solid #f5b8b8;color:#8b1a1a;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px}
+.alert-error.show{display:flex;gap:8px;align-items:flex-start}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:520px){
+  .header{padding:14px 16px}
+  .star{font-size:28px}
+  .card{padding:20px 16px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="assets/icon.svg" alt="AyurXpert" class="header-logo"/>
+  <div class="header-brand"><span>Ayur</span><span>Xpert</span></div>
+</div>
+
+<div class="main">
+  <div class="card">
+
+    <!-- INVALID STATE -->
+    <div class="invalid-screen" id="invalid-screen">
+      <div class="invalid-icon">🔗</div>
+      <div class="invalid-title">Link Not Valid</div>
+      <div class="invalid-body">This feedback link is invalid or has already been submitted.<br/><br/>If you visited our clinic recently, please ask reception for a new feedback link.</div>
+    </div>
+
+    <!-- FORM -->
+    <div id="form-view" style="display:none">
+      <div class="card-title">How was your visit?</div>
+      <div class="card-sub">Your feedback helps us serve you better. This takes about 1 minute.</div>
+
+      <div class="visit-strip" id="visit-strip">
+        Visit at <strong id="visit-date-lbl"></strong> · <strong id="visit-doctor-lbl"></strong>
+      </div>
+
+      <div class="alert-error" id="alert-error">
+        <span>⚠</span><span id="alert-error-text"></span>
+      </div>
+
+      <!-- Overall -->
+      <div class="rating-section">
+        <div class="rating-label">Overall Experience</div>
+        <div class="stars" id="stars-overall" data-key="overall"></div>
+        <div class="rating-hint" id="hint-overall"></div>
+      </div>
+
+      <!-- Doctor -->
+      <div class="rating-section">
+        <div class="rating-label">Doctor / Vaidya</div>
+        <div class="stars" id="stars-doctor" data-key="doctor"></div>
+        <div class="rating-hint" id="hint-doctor"></div>
+      </div>
+
+      <!-- Staff -->
+      <div class="rating-section">
+        <div class="rating-label">Staff &amp; Reception</div>
+        <div class="stars" id="stars-staff" data-key="staff"></div>
+        <div class="rating-hint" id="hint-staff"></div>
+      </div>
+
+      <!-- Facility -->
+      <div class="rating-section">
+        <div class="rating-label">Facility &amp; Cleanliness</div>
+        <div class="stars" id="stars-facility" data-key="facility"></div>
+        <div class="rating-hint" id="hint-facility"></div>
+      </div>
+
+      <!-- Wait Time -->
+      <div class="rating-section">
+        <div class="rating-label">Wait Time</div>
+        <div class="stars" id="stars-wait" data-key="wait_time"></div>
+        <div class="rating-hint" id="hint-wait_time"></div>
+      </div>
+
+      <!-- Would Recommend -->
+      <div class="recommend-row">
+        <div class="recommend-label">Would you recommend us?</div>
+        <div class="recommend-opts">
+          <button class="rec-btn" id="rec-yes" onclick="setRecommend(true)">👍 Yes</button>
+          <button class="rec-btn" id="rec-no"  onclick="setRecommend(false)">👎 No</button>
+        </div>
+      </div>
+
+      <!-- Comments -->
+      <div class="field">
+        <label>Comments <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-muted)">(optional)</span></label>
+        <textarea id="fb-comments" placeholder="Tell us what we did well or how we can improve…"></textarea>
+      </div>
+
+      <div class="privacy">Your feedback is anonymous and confidential. It will only be used to improve patient care at this facility.</div>
+
+      <button class="btn-submit" id="btn-submit" onclick="submitFeedback()">
+        <span class="btn-text">Submit Feedback</span>
+        <span class="spinner-wrap"><span class="spinner"></span></span>
+      </button>
+    </div>
+
+    <!-- SUCCESS -->
+    <div class="success-screen" id="success-screen">
+      <div class="success-icon">🙏</div>
+      <div class="success-title">Thank You!</div>
+      <div class="success-body">
+        Your feedback has been recorded.<br/>
+        It helps us provide better care for everyone.
+      </div>
+      <div class="ayur-quote">
+        "Swasthya eva param lābham" — Good health is the greatest wealth.<br/>
+        <em style="font-size:12px">— Ashtanga Hridayam</em>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { ENV } from './js/config/env.js';
+
+const supabase = createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY);
+
+const params  = new URLSearchParams(window.location.search);
+const visitId = params.get('visit') || null;
+
+// ── Star ratings state ────────────────────────────────────────────
+const RATING_KEYS  = ['overall','doctor','staff','facility','wait_time'];
+const RATING_HINTS = {
+  1: 'Very poor',
+  2: 'Poor',
+  3: 'Average',
+  4: 'Good',
+  5: 'Excellent',
+};
+const _ratings = { overall:0, doctor:0, staff:0, facility:0, wait_time:0 };
+let _recommend = null;
+
+function _buildStars(containerEl, key) {
+  for (let i = 1; i <= 5; i++) {
+    const s = document.createElement('span');
+    s.className = 'star';
+    s.textContent = '★';
+    s.dataset.val = i;
+    s.addEventListener('mouseenter', () => _hoverStars(containerEl, key, i));
+    s.addEventListener('mouseleave', () => _hoverStars(containerEl, key, _ratings[key]));
+    s.addEventListener('click',      () => _selectStar(containerEl, key, i));
+    s.addEventListener('touchstart', (e) => { e.preventDefault(); _selectStar(containerEl, key, i); }, { passive:false });
+    containerEl.appendChild(s);
+  }
+}
+
+function _hoverStars(container, key, val) {
+  const stars = container.querySelectorAll('.star');
+  stars.forEach((s, idx) => {
+    s.classList.toggle('hover', idx < val);
+    s.classList.toggle('selected', false);
+  });
+  const hint = document.getElementById(`hint-${key}`);
+  if (hint) hint.textContent = val > 0 ? RATING_HINTS[val] : '';
+}
+
+function _selectStar(container, key, val) {
+  _ratings[key] = val;
+  const stars = container.querySelectorAll('.star');
+  stars.forEach((s, idx) => {
+    s.classList.toggle('selected', idx < val);
+    s.classList.toggle('hover', false);
+  });
+  const hint = document.getElementById(`hint-${key}`);
+  if (hint) hint.textContent = RATING_HINTS[val];
+}
+
+window.setRecommend = function(val) {
+  _recommend = val;
+  document.getElementById('rec-yes').className = 'rec-btn' + (val === true  ? ' active-yes' : '');
+  document.getElementById('rec-no').className  = 'rec-btn' + (val === false ? ' active-no'  : '');
+};
+
+// ── Load visit info ───────────────────────────────────────────────
+async function init() {
+  if (!visitId) { _showInvalid(); return; }
+
+  // Check visit exists and hasn't already received feedback
+  const { data: visit, error } = await supabase
+    .from('visits')
+    .select('id,created_at,tenant_id,profiles!doctor_id(full_name)')
+    .eq('id', visitId)
+    .maybeSingle();
+
+  if (error || !visit) { _showInvalid(); return; }
+
+  // Check if feedback already submitted for this visit
+  const { data: existing } = await supabase
+    .from('patient_feedback')
+    .select('id')
+    .eq('visit_id', visitId)
+    .maybeSingle();
+
+  if (existing) { _showAlreadySubmitted(); return; }
+
+  // Show form
+  document.getElementById('form-view').style.display = '';
+
+  // Show visit strip
+  const strip     = document.getElementById('visit-strip');
+  const dateLabel = document.getElementById('visit-date-lbl');
+  const docLabel  = document.getElementById('visit-doctor-lbl');
+  if (visit.created_at) {
+    const d = new Date(visit.created_at);
+    dateLabel.textContent = d.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+  }
+  if (visit.profiles?.full_name) {
+    docLabel.textContent = 'Dr. ' + visit.profiles.full_name;
+    strip.style.display = '';
+  }
+
+  // Build star widgets
+  RATING_KEYS.forEach(key => {
+    const containerId = `stars-${key === 'wait_time' ? 'wait' : key}`;
+    const el = document.getElementById(containerId);
+    if (el) _buildStars(el, key);
+  });
+}
+
+// ── Submit ────────────────────────────────────────────────────────
+window.submitFeedback = async function() {
+  clearError();
+  if (!_ratings.overall) return showError('Please rate your overall experience.');
+
+  // Resolve tenant_id from visit
+  const { data: visit } = await supabase
+    .from('visits')
+    .select('tenant_id, patient_id')
+    .eq('id', visitId)
+    .maybeSingle();
+
+  if (!visit) return showError('Something went wrong. Please try again.');
+
+  const btn = document.getElementById('btn-submit');
+  btn.classList.add('loading');
+  btn.disabled = true;
+
+  const payload = {
+    tenant_id:       visit.tenant_id,
+    visit_id:        visitId,
+    patient_id:      visit.patient_id || null,
+    overall_rating:  _ratings.overall   || null,
+    doctor_rating:   _ratings.doctor    || null,
+    staff_rating:    _ratings.staff     || null,
+    facility_rating: _ratings.facility  || null,
+    wait_time_rating:_ratings.wait_time || null,
+    comments:        document.getElementById('fb-comments').value.trim() || null,
+    would_recommend: _recommend,
+  };
+
+  const { error } = await supabase.from('patient_feedback').insert(payload);
+  if (error) {
+    showError('Could not save feedback. Please try again.');
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    return;
+  }
+
+  document.getElementById('form-view').style.display = 'none';
+  document.getElementById('success-screen').style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+// ── Helpers ───────────────────────────────────────────────────────
+function _showInvalid() {
+  document.getElementById('invalid-screen').style.display = 'block';
+}
+
+function _showAlreadySubmitted() {
+  const el = document.getElementById('invalid-screen');
+  el.querySelector('.invalid-title').textContent = 'Already Submitted';
+  el.querySelector('.invalid-body').innerHTML =
+    'Feedback for this visit has already been recorded.<br/><br/>Thank you for helping us improve patient care!';
+  el.style.display = 'block';
+}
+
+function showError(msg) {
+  document.getElementById('alert-error-text').textContent = msg;
+  document.getElementById('alert-error').classList.add('show');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function clearError() {
+  document.getElementById('alert-error').classList.remove('show');
+}
+
+init();
+</script>
+</body>
+</html>

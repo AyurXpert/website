@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <title>Doctor — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
@@ -889,6 +889,14 @@ body.medcert-print #mc-print{display:block!important}
         <button class="ref-banner-accept" onclick="_acceptReferral()">Mark Seen ✓</button>
       </div>
 
+      <!-- NABH — Allergy alert banner -->
+      <div id="allergy-banner" style="display:none;padding:9px 20px;background:#fff3cd;border-bottom:2px solid #e0a800;font-size:12.5px;display:none;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer" onclick="openAllergyModal()">
+        <span style="font-size:15px">⚠️</span>
+        <strong style="color:#7a4a00">KNOWN ALLERGIES:</strong>
+        <span id="allergy-banner-text" style="color:#7a4a00"></span>
+        <span style="margin-left:auto;font-size:11px;color:#a07000;text-decoration:underline">Manage →</span>
+      </div>
+
       <!-- §18y — High-Risk Pregnancy alert (shown whenever patient has a high-risk ANC visit) -->
       <div id="anc-risk-banner" style="display:none" class="anc-risk-banner">
         <span>🚨 <strong>HIGH-RISK PREGNANCY</strong></span>
@@ -935,6 +943,21 @@ body.medcert-print #mc-print{display:block!important}
                   <option value="">— Select —</option>
                   <option>Mild</option><option>Moderate</option><option>Severe</option>
                 </select>
+              </div>
+            </div>
+            <!-- NABH COP.9 — Pain Assessment (NRS) -->
+            <div class="field" style="margin-top:6px">
+              <label style="display:flex;justify-content:space-between;align-items:center">
+                <span>Pain Score (NRS 0–10)</span>
+                <span id="pain-score-display" style="font-size:13px;font-weight:700;color:var(--green-deep)">—</span>
+              </label>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+                <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">0 No pain</span>
+                <input id="h-pain-score" type="range" min="0" max="10" step="1" value="" style="flex:1;accent-color:var(--green-deep)" oninput="_updatePainDisplay(this.value)"/>
+                <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">10 Worst</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);padding:0 2px;margin-top:2px">
+                <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
               </div>
             </div>
           </div>
@@ -1027,8 +1050,14 @@ body.medcert-print #mc-print{display:block!important}
             </div>
             <div class="field-row col2">
               <div class="field">
-                <label>Known Allergies</label>
-                <input id="dh-allergy" type="text" placeholder="Drug / food allergies if any"/>
+                <label style="display:flex;justify-content:space-between;align-items:center">
+                  Known Allergies (NABH)
+                  <button type="button" onclick="openAllergyModal()" style="font-size:11px;padding:2px 8px;background:var(--green-deep);color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:inherit">+ Add</button>
+                </label>
+                <div id="dh-allergy-list" style="min-height:36px;border:1.5px solid var(--border);border-radius:7px;padding:6px 10px;font-size:12px;background:#fafafa">
+                  <span style="color:var(--text-muted)">No known allergies recorded</span>
+                </div>
+                <input type="hidden" id="dh-allergy"/>
               </div>
               <div class="field">
                 <label>Adverse Drug Reactions</label>
@@ -1147,7 +1176,7 @@ body.medcert-print #mc-print{display:block!important}
             </div>
             <div class="field">
               <label>Nidana (Causative Factors / Aetiology)</label>
-              <textarea id="ay-nidana" placeholder="Dietary factors, lifestyle factors, seasonal factors contributing to the illness…" style="min-height:60px"></textarea>
+              <textarea id="ay-nidana" placeholder="Dietary factors, lifestyle factors, seasonal factors contributing to the illness…" style="min-height:52px"></textarea>
             </div>
             <div class="field">
               <label>Ahara (Dietary habits relevant to condition)</label>
@@ -1156,6 +1185,31 @@ body.medcert-print #mc-print{display:block!important}
             <div class="field">
               <label>Vihara (Lifestyle habits relevant to condition)</label>
               <input id="ay-vihara" type="text" placeholder="Activity pattern, stress levels, daily routine"/>
+            </div>
+
+            <!-- NABH AAC.3 — Nidana Panchaka (5-fold aetiological examination) -->
+            <div style="margin-top:8px;padding:12px 14px;background:#f5faf7;border:1.5px solid var(--border);border-radius:8px">
+              <div style="font-size:12px;font-weight:600;color:var(--green-deep);margin-bottom:10px">Nidana Panchaka <span style="font-size:10px;font-weight:400;color:var(--text-muted);font-family:'DM Sans',sans-serif">5-fold examination — NABH AAC.3 Ayush Standard</span></div>
+              <div class="field-row col2">
+                <div class="field">
+                  <label>Purvarupa (Premonitory Symptoms)</label>
+                  <textarea id="np-purvarupa" placeholder="Early warning signs before full manifestation of disease…" style="min-height:44px"></textarea>
+                </div>
+                <div class="field">
+                  <label>Rupa (Signs &amp; Symptoms)</label>
+                  <textarea id="np-rupa" placeholder="Current presenting signs and symptoms in detail…" style="min-height:44px"></textarea>
+                </div>
+              </div>
+              <div class="field-row col2">
+                <div class="field">
+                  <label>Samprapti (Pathogenesis)</label>
+                  <textarea id="np-samprapti" placeholder="Dosha-Dushya sammurchhana, srotas involved, disease progression…" style="min-height:44px"></textarea>
+                </div>
+                <div class="field">
+                  <label>Upashaya / Anupashaya (Relieving / Aggravating)</label>
+                  <textarea id="np-upashaya" placeholder="What relieves — e.g. warm application, rest. What aggravates — e.g. cold, exertion…" style="min-height:44px"></textarea>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1484,7 +1538,81 @@ body.medcert-print #mc-print{display:block!important}
                 </div>
                 <div class="field">
                   <label>Ayurveda Examination Notes</label>
-                  <textarea id="exam-ayurveda-notes" placeholder="Dashavidha Pariksha findings, Dushya, Desha, Kala, Bala, additional Ayurveda findings…" style="min-height:64px"></textarea>
+                  <textarea id="exam-ayurveda-notes" placeholder="Dushya, Desha, Kala, Bala, additional Ayurveda findings…" style="min-height:64px"></textarea>
+                </div>
+              </div>
+
+              <!-- NABH — Dashavidha Pariksha -->
+              <div class="section">
+                <div class="section-title" style="font-size:14px">Dashavidha Pariksha <span style="font-size:11px;font-weight:400;color:var(--text-muted);font-family:'DM Sans',sans-serif">10-fold patient examination — NABH Ayush Standard</span></div>
+                <div class="field-row col3">
+                  <div class="field">
+                    <label>Sara (Tissue Quality)</label>
+                    <select id="dasha-sara" style="font-size:12px">
+                      <option value="">—</option>
+                      <option>Tvak Sara (Skin)</option><option>Rakta Sara (Blood)</option>
+                      <option>Mamsa Sara (Muscle)</option><option>Meda Sara (Fat)</option>
+                      <option>Asthi Sara (Bone)</option><option>Majja Sara (Marrow)</option>
+                      <option>Shukra Sara (Reproductive)</option><option>Satva Sara (Mental)</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Samhanana (Body Build)</label>
+                    <select id="dasha-samhanana" style="font-size:12px">
+                      <option value="">—</option>
+                      <option>Pravara (Excellent)</option><option>Madhyama (Moderate)</option><option>Avara (Poor)</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Pramana (Proportions)</label>
+                    <select id="dasha-pramana" style="font-size:12px">
+                      <option value="">—</option>
+                      <option>Pravara (Well-proportioned)</option><option>Madhyama</option><option>Avara (Disproportionate)</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field-row col3">
+                  <div class="field">
+                    <label>Satmya (Dietary Adaptation)</label>
+                    <select id="dasha-satmya" style="font-size:12px">
+                      <option value="">—</option>
+                      <option>Sarvarasa Satmya (All tastes)</option><option>Ekadasha Satmya (One taste)</option><option>Madhyama</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Satva (Mental Strength)</label>
+                    <select id="dasha-satva" style="font-size:12px">
+                      <option value="">—</option>
+                      <option>Pravara (Strong)</option><option>Madhyama (Moderate)</option><option>Avara (Weak)</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Vaya (Age Class)</label>
+                    <select id="dasha-vaya" style="font-size:12px">
+                      <option value="">—</option>
+                      <option>Bala (Child &lt;16yr)</option><option>Madhya (Adult 16–60yr)</option><option>Vriddha (Elderly &gt;60yr)</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field-row col3">
+                  <div class="field">
+                    <label>Vikriti (Current Imbalance)</label>
+                    <input id="dasha-vikriti" type="text" placeholder="e.g. Vata-Pitta predominant" style="font-size:12px"/>
+                  </div>
+                  <div class="field">
+                    <label>Ahara Shakti (Digestive Capacity)</label>
+                    <select id="dasha-ahara" style="font-size:12px">
+                      <option value="">—</option>
+                      <option>Pravara (Strong digestion)</option><option>Madhyama</option><option>Avara (Weak digestion)</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Vyayama Shakti (Exercise Tolerance)</label>
+                    <select id="dasha-vyayama" style="font-size:12px">
+                      <option value="">—</option>
+                      <option>Pravara (High endurance)</option><option>Madhyama</option><option>Avara (Low endurance)</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -2561,6 +2689,12 @@ body.medcert-print #mc-print{display:block!important}
             <!-- keep legacy d-icd for backward compat with save logic -->
             <input type="hidden" id="d-icd"/>
 
+            <!-- §23y Notifiable Disease Alert (ROM.1 ATWC) -->
+            <div id="notifiable-alert" style="display:none;margin-top:10px;padding:10px 14px;background:#fff8e1;border:1.5px solid #f0c040;border-radius:8px;font-size:13px;font-weight:500;color:#7a5200">
+              🔔 <strong>Notifiable Disease</strong> — This condition is reportable to the PHC/CMO/CDMO under the Integrated Disease Surveillance Programme (IDSP). Document in OPD register and notify within 24 hours.
+              <div id="notifiable-disease-name" style="font-size:12px;margin-top:4px;font-weight:400"></div>
+            </div>
+
             <div class="field-row col2" style="margin-top:12px">
               <div class="field">
                 <label>Ayurvedic Diagnosis (free text override)</label>
@@ -2671,6 +2805,8 @@ body.medcert-print #mc-print{display:block!important}
 
           <div class="section">
             <div class="section-title">Medicines <span class="section-sub">Internal / Oral medications</span></div>
+            <!-- DDI Alert — MOM.4 CORE -->
+            <div id="ddi-warn" style="display:none;margin-bottom:10px;padding:10px 14px;background:#fff8e1;border:1.5px solid #f0c040;border-radius:8px;font-size:12px;color:#7a5200;line-height:1.6"><strong>⚠ Interaction Alert (MOM.4):</strong> <span id="ddi-warn-text"></span></div>
             <div id="rx-rows"></div>
             <button class="btn-add-rx" id="btn-add-rx">+ Add Medicine</button>
           </div>
@@ -2761,6 +2897,42 @@ body.medcert-print #mc-print{display:block!important}
         <!-- TAB 7: DISPOSITION                          -->
         <!-- ═══════════════════════════════════════════ -->
         <div id="tab-disp" hidden>
+
+          <!-- NABH — Informed Consent -->
+          <div class="section" style="background:#f0f9f4;border:1.5px solid #b8ddc6;border-radius:10px;padding:14px 16px;margin-bottom:14px">
+            <div class="section-title" style="color:var(--green-deep);margin-bottom:10px">📋 Informed Consent <span style="font-size:11px;font-weight:400;font-family:'DM Sans',sans-serif;color:var(--text-muted)">NABH Standard — Required before treatment</span></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Consent Type</label>
+                <select id="consent-type" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit">
+                  <option value="general_treatment">General Treatment</option>
+                  <option value="panchakarma">Panchakarma Therapy</option>
+                  <option value="invasive_procedure">Invasive Procedure</option>
+                  <option value="high_risk_procedure">High-Risk Procedure</option>
+                  <option value="photography">Clinical Photography</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Consent By (Name)</label>
+                <input id="consent-by" type="text" placeholder="Patient / Guardian name" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Relationship</label>
+                <select id="consent-relationship" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit">
+                  <option value="self">Self</option><option value="spouse">Spouse</option>
+                  <option value="parent">Parent</option><option value="child">Child</option>
+                  <option value="guardian">Guardian</option><option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="consent-risks" style="accent-color:var(--green-deep)"/> Risks explained</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="consent-alts" style="accent-color:var(--green-deep)"/> Alternatives discussed</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="consent-questions" style="accent-color:var(--green-deep)"/> Patient questions answered</label>
+            </div>
+            <button onclick="saveOpdConsent()" style="height:34px;padding:0 20px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Record Consent ✓</button>
+            <span id="consent-saved-msg" style="display:none;margin-left:10px;font-size:12px;color:var(--green-mid);font-weight:600">✅ Consent recorded</span>
+          </div>
 
           <div class="section">
             <div class="section-title">Where does this patient go next?</div>
@@ -2856,6 +3028,36 @@ body.medcert-print #mc-print{display:block!important}
             <div class="section-title">Disposition Notes</div>
             <div class="field">
               <textarea id="disp-notes" placeholder="Emergency instructions, what to watch for at home, transport advice, accompanying person required…" style="min-height:72px"></textarea>
+            </div>
+          </div>
+
+          <!-- §23z Patient Education Records (PRE.5 / PRE.4 ATWC) -->
+          <div class="section" style="background:#f0f9f4;border:1.5px solid #b8ddc6;border-radius:10px;padding:14px 16px;margin-bottom:14px">
+            <div class="section-title" style="color:var(--green-deep);margin-bottom:10px">📚 Patient Education <span style="font-size:11px;font-weight:400;font-family:'DM Sans',sans-serif;color:var(--text-muted)">NABH PRE.5 / ATWC PRE.4 — Record what was explained to the patient</span></div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px 20px;margin-bottom:12px">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="edu-disease" style="accent-color:var(--green-deep)"/> Disease process explained</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="edu-meds" style="accent-color:var(--green-deep)"/> Medications and Anupana explained</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="edu-adr" style="accent-color:var(--green-deep)"/> ADR risks discussed</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="edu-pathya" style="accent-color:var(--green-deep)"/> Pathya-Apathya (diet) counselled</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="edu-dina" style="accent-color:var(--green-deep)"/> Dinacharya / lifestyle explained</label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="edu-followup" style="accent-color:var(--green-deep)"/> Follow-up instructions given</label>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Language Used</label>
+                <select id="edu-language" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit">
+                  <option>Kannada</option><option>Hindi</option><option>English</option>
+                  <option>Tamil</option><option>Telugu</option><option>Malayalam</option>
+                  <option>Marathi</option><option>Bengali</option><option>Other</option>
+                </select>
+              </div>
+              <div style="display:flex;align-items:flex-end;padding-bottom:2px">
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="edu-ack" style="accent-color:var(--green-deep)"/> Patient acknowledged / understood</label>
+              </div>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Education Notes</label>
+              <textarea id="edu-notes" placeholder="Specific counselling points, patient concerns addressed, written materials given…" style="width:100%;min-height:60px;border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
             </div>
           </div>
 
@@ -3949,6 +4151,9 @@ window.startConsultation = async function(visitId) {
   _isPst = isPst;
   document.getElementById('obsgyn-section').style.display = isPst ? '' : 'none';
 
+  // NABH — Load patient allergies and show banner
+  _loadPatientAllergies(_activePatient?.id);
+
   // §18y — High-Risk Pregnancy banner (shown on any OPD when patient has a high-risk ANC record)
   const ancRiskBanner = document.getElementById('anc-risk-banner');
   ancRiskBanner.style.display = 'none';
@@ -4136,6 +4341,8 @@ function _initNamaste() {
       // Auto-fill modern diagnosis with English name (if empty)
       const modEl = document.getElementById('d-modern');
       if (!modEl.value) modEl.value = row.name_english || '';
+      // §23y — notifiable disease check via English name
+      _checkNotifiable(null, row.name_english || '');
       // Show badge
       const badge = document.getElementById('d-namc-badge');
       const icd11 = row.name_english ? `· ${row.name_english}` : '';
@@ -4155,6 +4362,62 @@ window._clearNamaste = function() {
     document.getElementById(id).value = '';
   });
   document.getElementById('d-namc-badge').style.display = 'none';
+  document.getElementById('notifiable-alert').style.display = 'none';
+};
+
+// §23y — Notifiable disease detection (ROM.1 ATWC)
+const NOTIFIABLE_ICD = [
+  { prefix:'A00', name:'Cholera' },
+  { prefix:'A01', name:'Typhoid / Paratyphoid' },
+  { prefix:'A02', name:'Salmonella Infection' },
+  { prefix:'A15', name:'Respiratory Tuberculosis' },
+  { prefix:'A16', name:'Pulmonary Tuberculosis' },
+  { prefix:'A17', name:'TB of Nervous System' },
+  { prefix:'A18', name:'TB of Other Organs' },
+  { prefix:'A19', name:'Miliary Tuberculosis' },
+  { prefix:'A27', name:'Leptospirosis' },
+  { prefix:'A30', name:'Leprosy (Hansen\'s Disease)' },
+  { prefix:'A33', name:'Neonatal Tetanus' },
+  { prefix:'A34', name:'Obstetrical Tetanus' },
+  { prefix:'A35', name:'Other Tetanus' },
+  { prefix:'A36', name:'Diphtheria' },
+  { prefix:'A37', name:'Whooping Cough (Pertussis)' },
+  { prefix:'A80', name:'Acute Poliomyelitis' },
+  { prefix:'A82', name:'Rabies' },
+  { prefix:'A90', name:'Dengue Fever' },
+  { prefix:'A91', name:'Dengue Haemorrhagic Fever' },
+  { prefix:'A95', name:'Yellow Fever' },
+  { prefix:'B01', name:'Chickenpox / Varicella' },
+  { prefix:'B05', name:'Measles' },
+  { prefix:'B16', name:'Acute Hepatitis B' },
+  { prefix:'B17', name:'Other Acute Viral Hepatitis' },
+  { prefix:'B50', name:'Malaria (Plasmodium falciparum)' },
+  { prefix:'B51', name:'Malaria (P. vivax)' },
+  { prefix:'B52', name:'Malaria (P. malariae)' },
+  { prefix:'B53', name:'Other Malaria' },
+  { prefix:'B54', name:'Unspecified Malaria' },
+  { prefix:'U07', name:'COVID-19' },
+];
+const NOTIFIABLE_KEYWORDS = ['cholera','typhoid','tuberculosis','leprosy','rabies','dengue','malaria','measles','diphtheria','pertussis','whooping','polio','tetanus','hepatitis','leptospirosis','plague','meningitis','encephalitis','yellow fever','chickenpox','varicella'];
+
+window._checkNotifiable = function(icd10Code, termText) {
+  const banner = document.getElementById('notifiable-alert');
+  const nameEl = document.getElementById('notifiable-disease-name');
+  let match = null;
+  if (icd10Code) {
+    match = NOTIFIABLE_ICD.find(n => icd10Code.startsWith(n.prefix));
+  }
+  if (!match && termText) {
+    const lower = termText.toLowerCase();
+    const kw = NOTIFIABLE_KEYWORDS.find(k => lower.includes(k));
+    if (kw) match = { name: termText };
+  }
+  if (match) {
+    banner.style.display = '';
+    nameEl.textContent   = `Disease identified: ${match.name}`;
+  } else {
+    banner.style.display = 'none';
+  }
 };
 
 function _initIcd10() {
@@ -4165,6 +4428,8 @@ function _initIcd10() {
       document.getElementById('d-icd10-code').value  = row.icd10_code || '';
       document.getElementById('d-icd10-label').value = row.icd10_term || '';
       document.getElementById('d-icd').value         = row.icd10_code || '';
+      // §23y — notifiable disease check via ICD-10
+      _checkNotifiable(row.icd10_code || '', row.icd10_term || '');
       const badge = document.getElementById('d-icd10-badge');
       badge.style.display = '';
       badge.innerHTML = `<div class="dx-badge">
@@ -4327,12 +4592,13 @@ function addRxRow(data = {}) {
     sb.style.display = 'inline-block';
     ta.classList.remove('show');
     _updateCompleteBtn();
+    _checkDDI();
   });
 
   nameInput.addEventListener('blur', () => setTimeout(() => ta.classList.remove('show'), 200));
 
   // If row was added with a pre-filled name (e.g. from suggestion card), enable button immediately
-  if (data.name) _updateCompleteBtn();
+  if (data.name) { _updateCompleteBtn(); _checkDDI(); }
 }
 
 window.addRxRow = addRxRow;
@@ -4344,10 +4610,54 @@ function _updateCompleteBtn() {
   document.getElementById('btn-complete').disabled = !hasRx;
 }
 
+// ── Drug-Drug Interaction (DDI) Check — MOM.4 ────────────────────
+const _DDI_PAIRS = [
+  { drugs:['ashwagandha','withania'], interacts:['lorazepam','diazepam','clonazepam','alprazolam','zolpidem','phenobarbitone','valproate','clonazepam'], msg:'Ashwagandha + CNS sedatives → additive sedation; monitor for excess CNS depression.' },
+  { drugs:['ashwagandha','withania'], interacts:['levothyroxine','thyronorm','eltroxin','thyroxine'], msg:'Ashwagandha may alter thyroid hormone levels; monitor TSH when combined.' },
+  { drugs:['guggulu','guggul'], interacts:['levothyroxine','thyronorm','propylthiouracil','carbimazole'], msg:'Guggulu affects thyroid hormone synthesis; monitor thyroid function.' },
+  { drugs:['guggulu','guggul'], interacts:['warfarin','acitrom','heparin','aspirin','clopidogrel'], msg:'Guggulu may potentiate anticoagulant effect; monitor INR and bleeding risk.' },
+  { drugs:['triphala','haritaki','amalaki','bibhitaki','amla'], interacts:['warfarin','acitrom','heparin','aspirin','clopidogrel'], msg:'Triphala/Amla may increase bleeding risk with anticoagulants; monitor INR.' },
+  { drugs:['shatavari','asparagus'], interacts:['furosemide','hydrochlorothiazide','spironolactone','torsemide'], msg:'Shatavari has mild diuretic properties; additive diuretic effect — watch electrolytes.' },
+  { drugs:['brahmi','bacopa'], interacts:['phenobarbitone','phenytoin','valproate','carbamazepine','levetiracetam'], msg:'Brahmi may have additive CNS depressant effects with antiepileptics; monitor closely.' },
+  { drugs:['punarnava','boerhavia'], interacts:['furosemide','hydrochlorothiazide','spironolactone'], msg:'Punarnava enhances diuretic effect; watch for electrolyte imbalance.' },
+  { drugs:['punarnava','boerhavia'], interacts:['lithium'], msg:'Diuretic herbs may reduce lithium excretion or increase toxicity; monitor lithium levels.' },
+  { drugs:['yashtimadhu','licorice','glycyrrhiza'], interacts:['amlodipine','atenolol','metoprolol','ramipril','enalapril','losartan','telmisartan'], msg:'Yashtimadhu (Licorice) causes sodium retention and can raise BP; may reduce antihypertensive efficacy.' },
+  { drugs:['yashtimadhu','licorice','glycyrrhiza'], interacts:['prednisolone','dexamethasone','hydrocortisone','betamethasone'], msg:'Yashtimadhu potentiates corticosteroid effect; monitor for Cushingoid features.' },
+  { drugs:['haridra','curcumin','turmeric'], interacts:['warfarin','acitrom','heparin','aspirin','clopidogrel'], msg:'Haridra/Curcumin inhibits platelet aggregation; increased bleeding risk with anticoagulants.' },
+  { drugs:['haridra','curcumin'], interacts:['metformin','glibenclamide','glipizide','sitagliptin','insulin'], msg:'Haridra may potentiate hypoglycaemic effect; monitor blood glucose closely.' },
+  { drugs:['methi','fenugreek','trigonella'], interacts:['metformin','glibenclamide','glipizide','insulin'], msg:'Methi seeds have hypoglycaemic activity; risk of additive glucose-lowering with antidiabetics.' },
+  { drugs:['karela','bitter melon','momordica'], interacts:['metformin','glibenclamide','glipizide','insulin'], msg:'Karela has insulin-like effect; risk of hypoglycaemia when combined with antidiabetics.' },
+  { drugs:['shunthi','ginger','zingiber'], interacts:['warfarin','aspirin','clopidogrel','heparin'], msg:'Ginger has mild antiplatelet effect; increased bleeding risk with anticoagulants.' },
+  { drugs:['pushkarmool','inula'], interacts:['digoxin'], msg:'Pushkarmool may potentiate digoxin activity; monitor for digoxin toxicity.' },
+  { drugs:['arjuna','terminalia arjuna'], interacts:['digoxin','warfarin','amiodarone'], msg:'Arjuna has cardiac glycoside-like activity; potential additive effect with cardiac medications.' },
+  { drugs:['kali mirch','piperine','black pepper','marich'], interacts:['phenytoin','carbamazepine','cyclosporine','rifampicin'], msg:'Piperine inhibits CYP3A4 metabolism; may increase plasma levels of certain drugs.' },
+  { drugs:['vijayasar','pterocarpus'], interacts:['metformin','glibenclamide','insulin'], msg:'Vijayasar has significant antidiabetic activity; risk of hypoglycaemia when combined.' },
+];
+
+function _checkDDI() {
+  const names = [...document.querySelectorAll('#rx-rows .rx-name')]
+    .map(i => i.value.trim().toLowerCase()).filter(Boolean);
+  if (names.length < 2) { document.getElementById('ddi-warn').style.display='none'; return; }
+  const alerts = [];
+  for (const pair of _DDI_PAIRS) {
+    const hasDrug = names.some(n => pair.drugs.some(d => n.includes(d)));
+    const hasInteract = names.some(n => pair.interacts.some(d => n.includes(d)));
+    if (hasDrug && hasInteract) alerts.push(pair.msg);
+  }
+  const warn = document.getElementById('ddi-warn');
+  if (alerts.length) {
+    document.getElementById('ddi-warn-text').textContent = alerts.join(' | ');
+    warn.style.display = 'block';
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
 window.removeRxRow = function(id) {
   document.getElementById(`rx-${id}`)?.remove();
   _rxRows = _rxRows.filter(r => r !== id);
   _updateCompleteBtn();
+  _checkDDI();
 };
 
 // ── Suggested medicines from NAMC diagnosis ───────
@@ -4454,9 +4764,12 @@ async function completeConsultation() {
     const disposition = document.querySelector('input[name=disposition]:checked')?.value || 'opd';
     const chiefComplaint = document.getElementById('h-complaint').value.trim();
 
-    // chief_complaint lives in visits table, not consultation_notes
-    if (chiefComplaint) {
-      await supabase.from('visits').update({ chief_complaint: chiefComplaint }).eq('id', _activeVisitId);
+    // chief_complaint and pain_score live in visits table, not consultation_notes
+    const painVal = document.getElementById('h-pain-score').value;
+    const visitUpd = { chief_complaint: chiefComplaint || undefined };
+    if (painVal !== '') visitUpd.pain_score = parseInt(painVal);
+    if (Object.keys(visitUpd).length) {
+      await supabase.from('visits').update(visitUpd).eq('id', _activeVisitId);
     }
 
     const notes = {
@@ -4496,6 +4809,11 @@ async function completeConsultation() {
       nidana:              document.getElementById('ay-nidana').value.trim(),
       ahara:               document.getElementById('ay-ahara').value.trim(),
       vihara:              document.getElementById('ay-vihara').value.trim(),
+      // Nidana Panchaka (NABH AAC.3)
+      purvarupa:           document.getElementById('np-purvarupa').value.trim(),
+      rupa:                document.getElementById('np-rupa').value.trim(),
+      samprapti:           document.getElementById('np-samprapti').value.trim(),
+      upashaya:            document.getElementById('np-upashaya').value.trim(),
       // Modern vitals
       bp_systolic:         parseInt(document.getElementById('v-bp-s').value)    || null,
       bp_diastolic:        parseInt(document.getElementById('v-bp-d').value)    || null,
@@ -4528,6 +4846,16 @@ async function completeConsultation() {
       agni_state:          document.getElementById('d-agni').value,
       ama_state:           document.getElementById('d-ama').value,
       exam_ayurveda_notes: document.getElementById('exam-ayurveda-notes').value.trim(),
+      // Dashavidha Pariksha (NABH Ayush Standard)
+      dasha_vikriti:        document.getElementById('dasha-vikriti').value.trim(),
+      dasha_sara:           document.getElementById('dasha-sara').value,
+      dasha_samhanana:      document.getElementById('dasha-samhanana').value,
+      dasha_pramana:        document.getElementById('dasha-pramana').value,
+      dasha_satmya:         document.getElementById('dasha-satmya').value,
+      dasha_satva:          document.getElementById('dasha-satva').value,
+      dasha_vaya:           document.getElementById('dasha-vaya').value,
+      dasha_ahara_shakti:   document.getElementById('dasha-ahara').value,
+      dasha_vyayama_shakti: document.getElementById('dasha-vyayama').value,
       // Assessment
       provisional_modern:  document.getElementById('as-provisional-modern').value.trim(),
       provisional_ayurveda:document.getElementById('as-provisional-ayurveda').value.trim(),
@@ -4612,6 +4940,26 @@ async function completeConsultation() {
           }))
         );
       }
+    }
+
+    // §23z — Save patient education record if any checkbox ticked
+    const eduAny = ['edu-disease','edu-meds','edu-adr','edu-pathya','edu-dina','edu-followup'].some(id => document.getElementById(id)?.checked);
+    if (eduAny) {
+      await supabase.from('patient_education_records').insert({
+        tenant_id:               tenantId,
+        visit_id:                _activeVisitId,
+        patient_id:              _activePatient.id,
+        doctor_id:               userId,
+        disease_explained:       document.getElementById('edu-disease')?.checked || false,
+        medications_explained:   document.getElementById('edu-meds')?.checked    || false,
+        adr_risks_explained:     document.getElementById('edu-adr')?.checked     || false,
+        pathya_apathya_explained:document.getElementById('edu-pathya')?.checked  || false,
+        dinacharya_explained:    document.getElementById('edu-dina')?.checked    || false,
+        followup_explained:      document.getElementById('edu-followup')?.checked|| false,
+        language_used:           document.getElementById('edu-language')?.value  || 'Kannada',
+        patient_acknowledged:    document.getElementById('edu-ack')?.checked     || false,
+        education_notes:         document.getElementById('edu-notes')?.value.trim() || null,
+      });
     }
 
     // Mark visit completed
@@ -5642,8 +5990,10 @@ function _closeConsult() {
 function _clearForm() {
   const textInputs = [
     'h-complaint','h-duration','h-aggravating','h-relieving','h-associated','h-history',
+    'np-purvarupa','np-rupa','np-samprapti','np-upashaya',
     'ph-surgery','ph-other','dh-current','dh-allergy','dh-adr','fh-notes','pers-occupation',
     'ay-nidana','ay-ahara','ay-vihara',
+    'np-purvarupa','np-rupa','np-samprapti','np-upashaya',
     'exam-modern-notes','exam-ayurveda-notes',
     'as-provisional-modern','as-provisional-ayurveda','as-redflags',
     'as-inv-lab','as-inv-imaging','as-inv-ayurveda','as-reasoning',
@@ -5669,6 +6019,7 @@ function _clearForm() {
     'sys-cvs','sys-rs','sys-cns','sys-pa','sys-msk','sys-skin',
     'a-nadi','a-mala','a-mutra','a-jihwa','a-shabda','a-sparsha','a-druk','a-akriti',
     'd-vata','d-pitta','d-kapha','d-agni','d-ama',
+    'dasha-sara','dasha-samhanana','dasha-pramana','dasha-satmya','dasha-satva','dasha-vaya','dasha-ahara','dasha-vyayama',
     'd-certainty','adm-type','fu-quick','ref-type','ref-urgency','ref-target-opd'
   ];
   selects.forEach(id => {
@@ -6451,6 +6802,157 @@ async function _loadSwarnaprashanHistory(patientId) {
   el.innerHTML = '<div style="font-size:11px;color:var(--text-muted);margin-top:6px">Recent records:</div>' +
     data.map(r => `<div style="font-size:12px;padding:4px 0;border-bottom:1px solid #f0f4f2">${r.administration_date} — ${r.dose_type} ${r.child_age_months?'('+r.child_age_months+' months)':''} ${r.next_dose_date?'· Next: '+r.next_dose_date:''}</div>`).join('');
 }
+
+// ── NABH Consent Management ──────────────────────────────────────────────────
+window.saveOpdConsent = async function() {
+  if (!_activePatient?.id || !_activeVisitId) { alert('No active consultation'); return; }
+  const consentBy = document.getElementById('consent-by').value.trim();
+  if (!consentBy) { alert('Enter the name of who is giving consent'); return; }
+  const { error } = await supabase.from('consent_records').insert({
+    tenant_id:             tenantId,
+    patient_id:            _activePatient.id,
+    visit_id:              _activeVisitId,
+    consent_type:          document.getElementById('consent-type').value,
+    consent_given:         true,
+    consent_by:            consentBy,
+    relationship:          document.getElementById('consent-relationship').value,
+    risks_explained:       document.getElementById('consent-risks').checked,
+    alternatives_explained:document.getElementById('consent-alts').checked,
+    questions_answered:    document.getElementById('consent-questions').checked,
+    doctor_id:             profile.id,
+  });
+  if (error) { alert(error.message); return; }
+  document.getElementById('consent-saved-msg').style.display = '';
+  setTimeout(() => { document.getElementById('consent-saved-msg').style.display = 'none'; }, 3000);
+};
+
+// ── NABH Pain Score Display ───────────────────────────────────────────────────
+function _updatePainDisplay(val) {
+  const labels = ['0 — No pain','1','2','3 — Mild','4','5 — Moderate','6','7 — Severe','8','9','10 — Worst'];
+  const colors = ['#27ae60','#27ae60','#f39c12','#f39c12','#e67e22','#e67e22','#e74c3c','#e74c3c','#c0392b','#c0392b','#8b1a1a'];
+  const el = document.getElementById('pain-score-display');
+  el.textContent = labels[val] || val;
+  el.style.color = colors[val] || 'var(--green-deep)';
+}
+
+// ── NABH Allergy System ───────────────────────────────────────────────────────
+let _patientAllergies = [];
+
+async function _loadPatientAllergies(patientId) {
+  const banner = document.getElementById('allergy-banner');
+  const list   = document.getElementById('dh-allergy-list');
+  banner.style.display = 'none';
+  if (!patientId) return;
+  const { data } = await supabase.from('patient_allergies')
+    .select('id,allergen,allergen_type,severity,reaction,status')
+    .eq('patient_id', patientId).eq('tenant_id', tenantId).eq('status','active')
+    .order('created_at', { ascending: false });
+  _patientAllergies = data || [];
+  if (!_patientAllergies.length) {
+    list.innerHTML = '<span style="color:var(--text-muted)">No known allergies recorded</span>';
+    document.getElementById('dh-allergy').value = '';
+    return;
+  }
+  const sevColor = { mild:'#f39c12', moderate:'#e67e22', severe:'#e74c3c', anaphylaxis:'#c0392b' };
+  list.innerHTML = _patientAllergies.map(a =>
+    `<span style="display:inline-flex;align-items:center;gap:4px;background:${sevColor[a.severity]||'#e74c3c'}20;border:1px solid ${sevColor[a.severity]||'#e74c3c'};border-radius:12px;padding:2px 8px;margin:2px;font-size:11px;color:#333">
+      <strong>${a.allergen}</strong>${a.severity?` <span style="color:${sevColor[a.severity]||'#e74c3c'};font-size:10px">[${a.severity}]</span>`:''}
+    </span>`
+  ).join('');
+  document.getElementById('dh-allergy').value = _patientAllergies.map(a => a.allergen).join(', ');
+  banner.style.display = 'flex';
+  document.getElementById('allergy-banner-text').textContent =
+    _patientAllergies.map(a => `${a.allergen}${a.severity ? ' ('+a.severity+')' : ''}`).join(' · ');
+}
+
+window.openAllergyModal = function() {
+  if (!_activePatient?.id) return;
+  const modal = document.getElementById('allergy-modal');
+  modal.style.display = 'flex';
+  renderAllergyList();
+};
+window.closeAllergyModal = function() {
+  document.getElementById('allergy-modal').style.display = 'none';
+};
+function renderAllergyList() {
+  const el = document.getElementById('allergy-modal-list');
+  if (!_patientAllergies.length) { el.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:8px 0">None recorded</div>'; return; }
+  const sevColor = { mild:'#f39c12', moderate:'#e67e22', severe:'#e74c3c', anaphylaxis:'#c0392b' };
+  el.innerHTML = _patientAllergies.map(a =>
+    `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">
+      <span style="flex:1;font-size:13px"><strong>${a.allergen}</strong> <span style="color:var(--text-muted)">(${a.allergen_type})</span>${a.reaction ? ' — '+a.reaction : ''}</span>
+      ${a.severity ? `<span style="font-size:11px;font-weight:600;color:${sevColor[a.severity]||'#e74c3c'};background:${sevColor[a.severity]||'#e74c3c'}15;padding:2px 7px;border-radius:10px">${a.severity}</span>` : ''}
+      <button onclick="resolveAllergy('${a.id}')" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);background:#fff;border-radius:5px;cursor:pointer;color:var(--text-muted)">Resolved</button>
+    </div>`
+  ).join('');
+}
+window.resolveAllergy = async function(allergyId) {
+  await supabase.from('patient_allergies').update({ status:'resolved' }).eq('id', allergyId);
+  await _loadPatientAllergies(_activePatient.id);
+  renderAllergyList();
+};
+window.saveAllergy = async function() {
+  const allergen = document.getElementById('new-allergen').value.trim();
+  if (!allergen) { alert('Allergen name required'); return; }
+  const { error } = await supabase.from('patient_allergies').insert({
+    tenant_id:     tenantId,
+    patient_id:    _activePatient.id,
+    allergen,
+    allergen_type: document.getElementById('new-allergen-type').value,
+    severity:      document.getElementById('new-severity').value || null,
+    reaction:      document.getElementById('new-reaction').value.trim() || null,
+    recorded_by:   profile.id,
+  });
+  if (error) { alert(error.message); return; }
+  // Update has_allergies flag on patients table
+  await supabase.from('patients').update({ has_allergies: true }).eq('id', _activePatient.id);
+  document.getElementById('new-allergen').value   = '';
+  document.getElementById('new-reaction').value   = '';
+  document.getElementById('new-severity').value   = '';
+  await _loadPatientAllergies(_activePatient.id);
+  renderAllergyList();
+};
 </script>
+
+<!-- NABH Allergy Management Modal -->
+<div id="allergy-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:22px;max-width:480px;width:100%;margin:16px;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div>
+        <div style="font-weight:600;font-size:15px">⚠️ Allergy Register</div>
+        <div style="font-size:11px;color:var(--text-muted)">NABH Standard — Patient Safety</div>
+      </div>
+      <button onclick="closeAllergyModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted)">&times;</button>
+    </div>
+    <div id="allergy-modal-list" style="margin-bottom:16px"></div>
+    <div style="border-top:1.5px solid var(--border);padding-top:14px">
+      <div style="font-weight:600;font-size:13px;margin-bottom:10px;color:var(--green-deep)">Add New Allergy</div>
+      <div style="display:grid;gap:8px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase">Allergen *</label>
+            <input id="new-allergen" type="text" placeholder="e.g. Penicillin, Sulfa, Peanut" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase">Type</label>
+            <select id="new-allergen-type" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit">
+              <option value="drug">Drug</option><option value="food">Food</option>
+              <option value="environmental">Environmental</option><option value="contrast">Contrast</option>
+              <option value="latex">Latex</option><option value="other">Other</option>
+            </select></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase">Severity</label>
+            <select id="new-severity" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit">
+              <option value="">Unknown</option><option value="mild">Mild</option>
+              <option value="moderate">Moderate</option><option value="severe">Severe</option>
+              <option value="anaphylaxis">Anaphylaxis</option>
+            </select></div>
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase">Reaction</label>
+            <input id="new-reaction" type="text" placeholder="e.g. Rash, Swelling, Anaphylaxis" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+        </div>
+        <button onclick="saveAllergy()" style="height:38px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Save Allergy</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

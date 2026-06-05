@@ -1,8 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
 <title>Register Your Organisation — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
 <link rel="manifest" href="manifest.json"/>
@@ -152,7 +154,8 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
 ═══════════════════════════════ */
 .choose-section{background:var(--cream);padding:96px 0}
 .choose-section .section-inner{display:flex;flex-direction:column;align-items:center;text-align:center}
-.org-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;width:100%;margin-top:48px}
+.org-grid{display:flex;flex-direction:column;gap:20px;width:100%;margin-top:48px}
+.org-row-1{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
 .org-card{
   background:var(--white);border:2px solid var(--border);
   border-radius:20px;padding:30px 22px 24px;
@@ -186,11 +189,14 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
 .org-card.cat-diag     {border-top:3px solid #2a5f8b}
 .org-card.cat-pharma   {border-top:3px solid #4a6272}
 .org-card.cat-trade    {border-top:3px solid #6a5580}
-.org-name{font-size:15px;font-weight:600;color:var(--green-deep);line-height:1.2}
-.org-desc{font-size:12.5px;color:var(--text-muted);line-height:1.55}
+.org-name{font-size:16px;font-weight:700;color:var(--green-deep);line-height:1.2}
+.org-system-name{font-size:12px;color:var(--text-mid);line-height:1.4;font-weight:500}
+.org-desc{font-size:11.5px;color:var(--text-muted);line-height:1.5}
+.org-badges{display:flex;gap:5px;flex-wrap:wrap;justify-content:center}
 .org-arrow{font-size:12px;color:var(--gold);font-weight:500;opacity:0;transform:translateX(-4px);transition:opacity .2s,transform .2s}
 .org-card:hover .org-arrow{opacity:1;transform:translateX(0)}
-.org-ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.5px;text-transform:uppercase}
+.org-ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.5px;text-transform:uppercase}
+.org-nabh-badge{display:inline-block;background:#2a5f8b;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.5px;text-transform:uppercase}
 /* ── HOVER FEATURES OVERLAY ── */
 .org-overlay{
   position:absolute;inset:0;border-radius:18px;
@@ -531,7 +537,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
 @media(max-width:960px){
   .mkt-links{display:none}
   .mkt-hamburger{display:flex}
-  .org-grid{grid-template-columns:repeat(2,1fr)}
+  .org-row-1{grid-template-columns:repeat(2,1fr)}
   .features-section .section-inner{grid-template-columns:1fr;gap:40px}
   .abdm-inner{flex-direction:column;gap:36px}
   .abdm-visual{width:100%;flex-direction:row;flex-wrap:wrap}
@@ -543,7 +549,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
   .hero-stats{flex-direction:column;border:none;background:none;gap:0}
   .hero-stat{border-right:none;border-bottom:1px solid rgba(255,255,255,0.08);padding:12px}
   .hero-stat:last-child{border-bottom:none}
-  .org-grid{grid-template-columns:1fr 1fr;gap:12px}
+  .org-row-1{grid-template-columns:1fr 1fr;gap:12px}
   .org-card{padding:20px 14px;gap:10px;border-radius:16px}
   .org-icon-wrap{width:56px;height:56px;font-size:26px;border-radius:14px}
   .org-name{font-size:14px}
@@ -569,7 +575,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
   .btn-gps{width:100%}
 }
 @media(max-width:380px){
-  .org-grid{grid-template-columns:1fr}
+  .org-row-1{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -1072,7 +1078,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
       <!-- ── STEP 4 — NCISM Setup ── -->
       <div id="step-4" style="display:none">
         <div class="card-title">NCISM Setup</div>
-        <div class="card-subtitle">Configure your college per NCISM norms. AyurXpert will automatically seed 10 mandatory OPDs, all departments, and the complete bed matrix.</div>
+        <div class="card-subtitle">Configure your institution per NCISM norms. AyurXpert will automatically seed 10 mandatory OPDs, all departments, and the complete bed matrix based on your UG intake.</div>
 
         <div class="ncism-info">
           <strong>NCISM 1:2 ratio</strong> — minimum OPD/day = 2 &times; UG intake (Table-7)<br>
@@ -1142,7 +1148,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
 
         <div class="seed-prog" id="seed-prog" style="display:none">
           <div class="seed-prog-title">Setting up NCISM-compliant HMS&hellip;</div>
-          <div class="seed-item" id="si-1">&#9675; Configuring college parameters</div>
+          <div class="seed-item" id="si-1">&#9675; Configuring institution parameters</div>
           <div class="seed-item" id="si-2">&#9675; Creating 10 mandatory OPDs</div>
           <div class="seed-item" id="si-3">&#9675; Setting up NCISM departments</div>
           <div class="seed-item" id="si-4">&#9675; Creating bed matrix</div>
@@ -1195,55 +1201,73 @@ import { supabase } from './js/core/db/supabaseClient.js';
    ORG TYPE DATA
 ───────────────────────────────────────── */
 const ORG_DATA = {
+  /* ── Row 1 — Clinical Patient Care ── */
   clinic: {
-    name: 'Clinic', tag: 'OPD practice', abbr: 'CL', cat: 'clinical',
+    name: 'Clinic', system: 'Clinic Management System',
+    tag: 'OPD · Prescription · Billing', abbr: 'CL', cat: 'clinical', nabh: true,
     features: ['Token-based OPD queue','Doctor consultation + NAMASTE coding','ABHA enrollment & Scan & Share','Pharmacy dispensing + billing','Prescription printing']
   },
-  hospital: {
-    name: 'Hospital', tag: 'Full setup with IPD', abbr: 'HO', cat: 'clinical',
-    features: ['All Clinic features','IPD admissions + bed management','NCISM compliance dashboard','Multi-department routing','Panchakarma therapy module'],
-    ncism: true
-  },
   pk_center: {
-    name: 'Panchakarma Centre', tag: 'Daycare therapies', abbr: 'PK', cat: 'clinical',
-    features: ['Therapy scheduling calendar','Purva / Pradhana / Paschatkarma phases','Therapist assignment','Session & package tracking','Day-care management']
+    name: 'Panchakarma Center', system: 'Panchakarma Management System',
+    tag: 'Therapy · Scheduling · Palha Diet', abbr: 'PK', cat: 'clinical', nabh: true,
+    features: ['Purva / Pradhana / Paschatkarma tracking','Therapist assignment & scheduling','ABHA-linked treatment records','Day-care session documentation','Palha diet & PK feedback loop']
   },
+  hospital: {
+    name: 'Ayurveda Hospital', system: 'Hospital Management System',
+    tag: 'OPD · IPD · Beds · Multi-dept', abbr: 'HO', cat: 'clinical', nabh: true,
+    features: ['All Clinic features + full IPD management','Bed allocation & live availability','Multi-department OPD routing','Panchakarma therapy module','Pharmacy + purchase management']
+  },
+  /* ── Row 2 — NCISM / Academic / Publishing ── */
+  college: {
+    name: 'College', system: 'College Management System',
+    tag: 'Academic · NCISM Compliant', abbr: 'AC', cat: 'education', nabh: true, ncism: true,
+    features: ['NCISM academic compliance tracking','Faculty & student management','Academic calendar & timetable','Examination management','Attendance & exposure records']
+  },
+  teaching_hospital: {
+    name: 'Teaching Hospital', system: 'Hospital Management System',
+    tag: 'NCISM Mandatory · OPD · IPD · UG/PG', abbr: 'TH', cat: 'education', nabh: true, ncism: true,
+    features: ['All Hospital features + NCISM compliance','10 mandatory OPDs auto-seeded on setup','1:2 OPD ratio monitoring — Table-7','Department-wise bed matrix — Table-8','Screening OPD mandatory routing']
+  },
+  journal: {
+    name: 'Journal / Publication', system: 'Journal Management System',
+    tag: 'Academic publishing · Peer review', abbr: 'JP', cat: 'trade',
+    features: ['Article submission portal','Peer review workflow','Author management','Publication archive','DOI integration (planned)']
+  },
+  /* ── Row 3 — Support & Commercial ── */
   dispensary: {
-    name: 'Dispensary', tag: 'Medicine dispensing', abbr: 'DI', cat: 'clinical',
+    name: 'Dispensary', system: 'Dispensary Management System',
+    tag: 'Medicine dispensing · Billing', abbr: 'DI', cat: 'clinical', nabh: true,
     features: ['Prescription-based dispensing','AFI formulation database (275+)','Stock + expiry tracking','Purchase order management','Billing + invoices']
   },
-  college: {
-    name: 'Ayurveda College', tag: 'NCISM-regulated teaching', abbr: 'AC', cat: 'education',
-    features: ['All Hospital features','NCISM auto-setup (OPDs + beds)','Screening OPD mandatory routing','Student exposure tracking','Table-7 & Table-8 compliance'],
-    ncism: true
-  },
   laboratory: {
-    name: 'Diagnostic Lab', tag: 'Pathology & diagnostics', abbr: 'LA', cat: 'diag',
-    features: ['Lab order intake','Result entry + QC','Digital report delivery','OPD integration','Sample tracking']
+    name: 'Diagnostic Lab', system: 'Laboratory Management System',
+    tag: 'Pathology · Diagnostics', abbr: 'LA', cat: 'diag', nabh: true,
+    features: ['Lab order intake from OPD','Result entry + QC','Digital report delivery','Sample tracking','Barcode-based sample management']
   },
   pharma: {
-    name: 'Pharma Company', tag: 'Manufacturing & sales', abbr: 'PH', cat: 'pharma',
+    name: 'Pharma Company', system: 'Pharma Management System',
+    tag: 'Manufacturing · Sales · Distribution', abbr: 'PH', cat: 'pharma',
     features: ['Product catalogue management','Batch & expiry tracking','GRN / purchase orders','Dealer-distributor network','AFI formulation reference']
   },
   raw_drug_supplier: {
-    name: 'Raw Drug Supplier', tag: 'Dravya supply chain', abbr: 'RD', cat: 'pharma',
+    name: 'Raw Drug Supplier', system: 'Supplier Management System',
+    tag: 'Dravya supply chain', abbr: 'RD', cat: 'pharma',
     features: ['Supplier product catalogue','Stock management','Quality batch tracking','Purchase order management','Retailer network']
   },
   instrument_supplier: {
-    name: 'Instrument Supplier', tag: 'Surgical & diagnostic', abbr: 'IS', cat: 'pharma',
+    name: 'Instrument Supplier', system: 'Supplier Management System',
+    tag: 'Surgical & diagnostic equipment', abbr: 'IS', cat: 'pharma',
     features: ['Equipment catalogue','Order management','Service & AMC tracking','Hospital supply network','Invoice management']
   },
   chemical_supplier: {
-    name: 'Chemical Supplier', tag: 'Lab chemicals & reagents', abbr: 'CS', cat: 'pharma',
+    name: 'Chemical Supplier', system: 'Supplier Management System',
+    tag: 'Lab chemicals & reagents', abbr: 'CS', cat: 'pharma',
     features: ['Chemical catalogue','Batch certification','Order management','Lab network integration','Invoice & compliance']
   },
   dealer: {
-    name: 'Dealer / Distributor', tag: 'Medicine distribution', abbr: 'DD', cat: 'trade',
+    name: 'Dealer / Distributor', system: 'Distribution Management System',
+    tag: 'Medicine distribution · Trade', abbr: 'DD', cat: 'trade',
     features: ['Multi-brand stock management','Retailer order processing','Invoice + credit notes','Expiry batch tracking','Pharma network integration']
-  },
-  journal: {
-    name: 'Journal / Publication', tag: 'Academic publishing', abbr: 'JP', cat: 'trade',
-    features: ['Article submission portal','Peer review workflow','Author management','Publication archive','DOI integration (planned)']
   },
 };
 
@@ -1287,24 +1311,32 @@ const NCISM_DEPTS = [
   { name:'Rachana & Kriya Sharir',          ncism_code:'RS',   type:'para_clinical' },
 ];
 
-function isNCISMType(t) { return t === 'college' || t === 'hospital'; }
+function isNCISMType(t) { return t === 'college' || t === 'teaching_hospital'; }
 
 /* ─────────────────────────────────────────
    RENDER ORG CARDS
 ───────────────────────────────────────── */
 const CARD_ICONS = {
-  clinic:'🩺', hospital:'🏥', pk_center:'🌿', dispensary:'💊',
-  college:'🎓', laboratory:'🔬', pharma:'🏭', raw_drug_supplier:'🌿',
-  instrument_supplier:'🔧', chemical_supplier:'⚗️', dealer:'🚚', journal:'📰',
+  clinic:'🩺', pk_center:'🌿', hospital:'🏥',
+  college:'🎓', teaching_hospital:'🏛', journal:'📰',
+  dispensary:'💊', laboratory:'🔬', pharma:'🏭',
+  raw_drug_supplier:'🌱', instrument_supplier:'🔧', chemical_supplier:'⚗️', dealer:'🚚',
 };
 
 const CARD_MARKETING = {
   clinic:['See more patients with smart token queues','ABHA Health ID linked in under 60 seconds','E-prescriptions sent to pharmacy instantly','Works offline — no internet, no problem','ABDM-compliant from your very first patient'],
-  hospital:['Full OPD & IPD managed in one platform','Every patient gets an ABHA Health ID','Dept-wise routing & live bed availability','NCISM compliance reports at one click','From admission to discharge, fully digital'],
-  pk_center:['Purva, Pradhana & Paschatkarma — all tracked','Therapist schedules & assignments at a glance','ABHA-linked treatment records per patient','Day-care session & package documentation','Digital consent forms & therapy notes'],
-  dispensary:['Dispense prescriptions in seconds, not minutes','275+ AFI classical formulations built in','Expiry alerts before stock becomes a problem','GST billing & professional invoices instantly','Connected to prescribing doctors in real time'],
-  college:['NCISM OPDs, depts & beds — set up for you','Patient exposure tracking for every student','1:2 OPD ratio compliance, always in check','Mandatory Screening OPD flow built in','Table-7 & Table-8 reports ready to submit'],
+  pk_center:['Purva, Pradhana & Paschatkarma — all tracked','Therapist schedules & assignments at a glance','ABHA-linked treatment records per patient','Palha diet indent & kitchen management','PK feedback loop — therapy → doctor alert'],
+  hospital:['Full OPD & IPD managed in one platform','Every patient gets an ABHA Health ID','Dept-wise routing & live bed availability','From admission to discharge, fully digital','Panchakarma therapy module built in'],
+  college:['NCISM academic compliance built in','Faculty, student & attendance management','Academic timetable & examination records','Integrated with Teaching Hospital HMS','College Management System — NCISM ready'],
+  teaching_hospital:['NCISM OPDs, depts & beds — auto-seeded','1:2 OPD ratio compliance always in check','Mandatory Screening OPD flow built in','Table-7 & Table-8 reports ready to submit','PG seat tracking & ward round notes'],
+  journal:['Article submission portal','Peer review workflow management','Author & editorial management','Publication archive with search','DOI integration (planned)'],
+  dispensary:['Dispense prescriptions in seconds','275+ AFI classical formulations built in','Expiry alerts before stock is a problem','GST billing & professional invoices','Connected to prescribing doctors in real time'],
   laboratory:['Lab orders arrive the moment a doctor sends them','Digital reports delivered to patients instantly','Quality control & sample tracking built in','Integrated with OPD — no double entry','Barcode-based sample management'],
+  pharma:['Product catalogue management','Batch & expiry tracking','GRN / purchase orders','Dealer-distributor network','AFI formulation reference built in'],
+  raw_drug_supplier:['Manage your full Dravya catalogue digitally','Quality batch documentation, always ready','Order fulfilment tracked end-to-end','Direct supply to hospitals & dispensaries','Digital delivery records, audit-ready'],
+  instrument_supplier:['Full equipment catalogue & spec sheets online','AMC & service schedules tracked automatically','Order delivery tracked from quote to receipt','Connected to hospital procurement teams','Professional invoicing & documentation'],
+  chemical_supplier:['Chemical catalogue with batch certification','Lab network integration','Order management & invoicing','Quality & compliance documentation','Retailer network management'],
+  dealer:['Multi-brand stock management','Retailer order processing','Invoice + credit notes','Expiry batch tracking','Pharma network integration'],
   pharma:['Your entire product catalogue, digitised','Batch tracking from manufacturing to delivery','GRN & purchase orders handled automatically','Direct link to your dealer-distributor network','AFI formulation reference always at hand'],
   raw_drug_supplier:['Manage your full Dravya catalogue digitally','Quality batch documentation, always ready','Order fulfilment tracked end-to-end','Direct supply to hospitals & dispensaries','Digital delivery records, audit-ready'],
   instrument_supplier:['Full equipment catalogue & spec sheets online','AMC & service schedules tracked automatically','Order delivery tracked from quote to receipt','Connected to hospital procurement teams','Professional invoicing & documentation'],
@@ -1317,19 +1349,28 @@ const CARD_MARKETING = {
   const container = document.getElementById('org-cards-container');
   if (!container) return;
 
-  Object.entries(ORG_DATA).forEach(([typeKey, d]) => {
-    const icon = CARD_ICONS[typeKey] || '🏢';
+  const ROW1 = ['clinic', 'pk_center', 'hospital'];
+  const ROW2 = ['college', 'teaching_hospital', 'journal'];
+  const ROW3 = ['dispensary', 'laboratory', 'pharma', 'raw_drug_supplier', 'instrument_supplier', 'chemical_supplier', 'dealer'];
+
+  function buildCard(typeKey) {
+    const d = ORG_DATA[typeKey];
+    const icon     = CARD_ICONS[typeKey] || '🏢';
     const benefits = CARD_MARKETING[typeKey] || d.features;
     const featItems = benefits.map(f => `<li>${f}</li>`).join('');
-    const ncismBadge = d.ncism ? '<div class="org-ncism-badge">NCISM</div>' : '';
+    const badges = [
+      '<span class="org-nabh-badge">NABH</span>',
+      d.ncism ? '<span class="org-ncism-badge">NCISM</span>' : ''
+    ].join('');
 
     const card = document.createElement('div');
     card.className = `org-card cat-${d.cat}`;
     card.innerHTML = `
       <div class="org-icon-wrap">${icon}</div>
       <div class="org-name">${d.name}</div>
+      <div class="org-system-name">${d.system}</div>
+      <div class="org-badges">${badges}</div>
       <div class="org-desc">${d.tag}</div>
-      ${ncismBadge}
       <div class="org-arrow">Register &rarr;</div>
       <div class="org-overlay">
         <div class="ov-label">What's included</div>
@@ -1342,7 +1383,6 @@ const CARD_MARKETING = {
       e.stopPropagation();
       selectOrgType(typeKey);
     });
-
     card.addEventListener('click', function(e) {
       if (e.target.closest('.ov-btn')) return;
       const isTouch = !window.matchMedia('(hover:hover)').matches;
@@ -1357,14 +1397,33 @@ const CARD_MARKETING = {
       }
       selectOrgType(typeKey);
     });
+    return card;
+  }
 
-    container.appendChild(card);
-  });
+  const row1 = document.createElement('div');
+  row1.className = 'org-row-1';
+  ROW1.forEach(k => row1.appendChild(buildCard(k)));
+
+  const row2 = document.createElement('div');
+  row2.className = 'org-row-1';
+  ROW2.forEach(k => row2.appendChild(buildCard(k)));
+
+  const row3 = document.createElement('div');
+  row3.className = 'org-row-1';
+  ROW3.forEach(k => row3.appendChild(buildCard(k)));
+
+  const row3label = document.createElement('div');
+  row3label.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin-top:12px;margin-bottom:-4px;padding-left:2px';
+  row3label.textContent = 'Dispensary, Diagnostics & Commercial';
+
+  container.appendChild(row1);
+  container.appendChild(row2);
+  container.appendChild(row3label);
+  container.appendChild(row3);
 
   document.addEventListener('click', e => {
-    if (!e.target.closest('.org-card')) {
+    if (!e.target.closest('.org-card'))
       document.querySelectorAll('.org-card').forEach(c => c.classList.remove('show-overlay'));
-    }
   });
 })();
 
@@ -1383,29 +1442,19 @@ window.selectOrgType = function(type) {
   if (!ORG_DATA[type]) return;
   const d = ORG_DATA[type];
 
-  // ── REGISTRATION INACTIVE ── TODO §17 ─────────────────────────────────────
-  // Registration is currently closed. Shows contact card instead of form.
-  // To activate: delete the 4 lines below (up to and including `return`)
-  // and uncomment the ACTIVATION BLOCK further down.
-  document.getElementById('contact-org-name').textContent = d.name;
-  document.getElementById('contact-overlay').style.display = 'flex';
-  document.body.style.overflow = 'hidden';
-  return;
-
-  // ── ACTIVATION BLOCK — uncomment everything below when ready to open ───────
-  // selectedOrgType = type;
-  // document.getElementById('sc-icon').textContent  = d.abbr;
-  // document.getElementById('sc-icon').className    = `sc-icon cat-${d.cat}`;
-  // document.getElementById('sc-name').textContent  = d.name;
-  // document.getElementById('sc-tag').textContent   = d.tag;
-  // const ind3 = document.getElementById('step-ind-3');
-  // const ind4 = document.getElementById('step-ind-4');
-  // if (isNCISMType(type)) { ind4.style.display=''; ind3.classList.remove('no-connector'); }
-  // else { ind4.style.display='none'; ind3.classList.add('no-connector'); }
-  // document.getElementById('marketing-page').style.display = 'none';
-  // document.getElementById('reg-form').style.display = 'block';
-  // showStep(1);
-  // window.scrollTo({ top:0, behavior:'smooth' });
+  selectedOrgType = type;
+  document.getElementById('sc-icon').textContent  = d.abbr;
+  document.getElementById('sc-icon').className    = `sc-icon cat-${d.cat}`;
+  document.getElementById('sc-name').textContent  = d.name;
+  document.getElementById('sc-tag').textContent   = d.tag;
+  const ind3 = document.getElementById('step-ind-3');
+  const ind4 = document.getElementById('step-ind-4');
+  if (isNCISMType(type)) { ind4.style.display=''; ind3.classList.remove('no-connector'); }
+  else { ind4.style.display='none'; ind3.classList.add('no-connector'); }
+  document.getElementById('marketing-page').style.display = 'none';
+  document.getElementById('reg-form').style.display = 'block';
+  showStep(1);
+  window.scrollTo({ top:0, behavior:'smooth' });
 };
 
 window.closeContactOverlay = function() {
@@ -1567,10 +1616,11 @@ async function seedNCISMData(tenantId, ugIntake) {
 
   seedMark(2,'active');
   const opdRows = NCISM_OPDS.map(o => ({ tenant_id:tenantId, name:o.name, description:o.description, is_active:true, ncism_code:o.ncism_code }));
-  const { data: cOPDs } = await supabase.from('opds').insert(opdRows).select('id,ncism_code');
+  const { data: cOPDs, error: opdErr } = await supabase.from('opds').insert(opdRows).select('id,ncism_code');
+  if (opdErr) { console.error('OPD seeding failed:', opdErr.message); seedMark(2,'err'); }
+  else { seedMark(2,'done'); }
   const opdMap = {};
   if (cOPDs) cOPDs.forEach(o => { opdMap[o.ncism_code] = o.id; });
-  seedMark(2,'done');
 
   seedMark(3,'active');
   const deptRows = NCISM_DEPTS.map(d => {
@@ -1579,15 +1629,16 @@ async function seedNCISMData(tenantId, ugIntake) {
       pg_seats_sanctioned: p ? p.seats : 0, is_pg_dept: p ? true : false,
       opd_id: opdMap[d.ncism_code] || null };
   });
-  const { data: cDepts } = await supabase.from('departments').insert(deptRows).select('id,ncism_code,type');
-  seedMark(3,'done');
+  const { data: cDepts, error: deptErr } = await supabase.from('departments').insert(deptRows).select('id,ncism_code,type');
+  if (deptErr) { console.error('Department seeding failed:', deptErr.message); seedMark(3,'err'); }
+  else { seedMark(3,'done'); }
 
   seedMark(4,'active');
   if (cDepts) {
     const bedRows = [];
     cDepts.forEach(dept => {
       if (!CLINICAL_CODES.has(dept.ncism_code)) return;
-      const ugB  = Math.round(ugIntake * (UG_BED_RATIOS[dept.ncism_code] || 0));
+      const ugB  = Math.floor(ugIntake * (UG_BED_RATIOS[dept.ncism_code] || 0));
       const pgD  = pg.find(p => p.code === dept.ncism_code);
       const pgB  = pgD ? pgD.seats * 4 : 0;
       const ward = WARD_NAMES[dept.ncism_code] || 'General Ward';
@@ -1597,9 +1648,12 @@ async function seedNCISMData(tenantId, ugIntake) {
           ward_name:ward, bed_type:'general', status:'vacant', floor_number:1 });
       }
     });
-    if (bedRows.length) await supabase.from('beds').insert(bedRows);
-  }
-  seedMark(4,'done');
+    if (bedRows.length) {
+      const { error: bedErr } = await supabase.from('beds').insert(bedRows);
+      if (bedErr) { console.error('Bed seeding failed:', bedErr.message); seedMark(4,'err'); }
+      else seedMark(4,'done');
+    } else seedMark(4,'done');
+  } else seedMark(4,'done');
 
   seedMark(5,'active');
   await new Promise(r => setTimeout(r,400));
@@ -1652,7 +1706,18 @@ window.handleRegister = async function(btn) {
 
     if (isNCISMType(selectedOrgType) && selectedIntake) {
       btn.disabled = true;
-      await seedNCISMData(result.tenant.id, selectedIntake);
+      document.getElementById('seed-prog').style.display = 'block';
+      seedMark(1,'active');
+      const { error: seedErr } = await supabase.rpc('seed_ncism_data', {
+        p_tenant_id: result.tenant.id,
+        p_ug_intake: selectedIntake
+      });
+      if (seedErr) {
+        console.error('NCISM seeding failed:', seedErr.message);
+        [1,2,3,4,5].forEach(i => seedMark(i,'err'));
+      } else {
+        [1,2,3,4,5].forEach(i => seedMark(i,'done'));
+      }
     }
 
     document.getElementById('tenant-code-display').textContent = result.tenant.tenant_code || '—';

@@ -1,0 +1,328 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<title>Consultant Availability — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;
+  --cream:#faf8f3;--white:#ffffff;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--radius:14px;--shadow:0 2px 14px rgba(0,0,0,0.07);
+}
+html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark)}
+
+/* ── Header ── */
+.pub-header{background:var(--green-deep);padding:32px 24px;text-align:center}
+.pub-header h1{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;color:#fff;margin-bottom:4px}
+.org-type-lbl{font-size:13px;color:rgba(255,255,255,.6);margin-bottom:6px}
+.org-tagline{font-size:13px;color:rgba(255,255,255,.75);font-style:italic;margin-bottom:10px}
+.ncism-tag{display:inline-block;background:rgba(201,144,42,.2);border:1px solid rgba(201,144,42,.4);color:#e8b84b;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;letter-spacing:.4px}
+
+.today-banner{background:var(--gold-light);border-bottom:2px solid #e8c97a;padding:10px 24px;text-align:center;font-size:13px;color:#a06c10;font-weight:500}
+
+/* ── Page ── */
+.page{max-width:940px;margin:0 auto;padding:32px 16px 64px}
+.section-head{text-align:center;margin-bottom:28px}
+.section-head h2{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:var(--green-deep);margin-bottom:4px}
+.section-head p{font-size:13px;color:var(--text-muted);line-height:1.5}
+
+/* ── Action buttons ── */
+.actions{display:flex;justify-content:center;gap:12px;margin-bottom:28px;flex-wrap:wrap}
+.btn-act{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:background .2s}
+.btn-print{background:var(--green-light);color:var(--green-deep)}
+.btn-print:hover{background:#cce8d5}
+.btn-copy{background:var(--gold-light);color:#a06c10}
+.btn-copy:hover{background:#f0dba8}
+
+/* ── Doctor cards grid ── */
+.doctors-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:18px;margin-bottom:32px}
+.doc-card{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;border:1.5px solid var(--border);transition:border-color .2s}
+.doc-card.available-today{border-color:var(--green-mid)}
+.doc-card-head{background:var(--green-deep);padding:14px 18px;display:flex;align-items:center;gap:12px}
+.doc-avatar{width:42px;height:42px;background:rgba(255,255,255,.15);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.doc-name{font-weight:600;font-size:15px;color:#fff;line-height:1.3}
+.doc-avail{font-size:11px;color:rgba(255,255,255,.55);margin-top:2px}
+.doc-avail.today-yes{color:#86efac;font-weight:500}
+.doc-slots{padding:12px 16px}
+.slot-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f4f2}
+.slot-row:last-child{border-bottom:none}
+.day-chip{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:3px 10px;border-radius:20px;min-width:40px;text-align:center;flex-shrink:0}
+.day-chip.is-today{background:var(--green-deep);color:#fff}
+.day-chip.not-today{background:var(--green-light);color:var(--green-mid)}
+.slot-time{font-size:13px;color:var(--text-dark);font-weight:500;flex:1}
+.slot-max{font-size:11px;color:var(--text-muted);white-space:nowrap}
+.no-today-tag{font-size:11px;color:var(--text-muted);padding:10px 0 2px;text-align:center}
+
+/* ── Book section ── */
+.book-card{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:28px 24px;text-align:center;margin-bottom:24px;border:1.5px solid var(--border)}
+.book-card h3{font-family:'Cormorant Garamond',serif;font-size:21px;font-weight:600;color:var(--green-deep);margin-bottom:8px}
+.book-card p{font-size:13px;color:var(--text-mid);line-height:1.6;max-width:480px;margin:0 auto}
+.book-steps{display:flex;justify-content:center;gap:24px;flex-wrap:wrap;margin-top:22px}
+.book-step{text-align:center;max-width:140px}
+.step-num{width:34px;height:34px;background:var(--green-light);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--green-deep);margin:0 auto 8px}
+.step-label{font-size:12px;color:var(--text-mid);line-height:1.5}
+
+/* ── Footer ── */
+.pub-footer{text-align:center;padding:24px 16px 32px;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);margin-top:8px}
+.pub-footer a{color:var(--green-mid);text-decoration:none}
+.footer-org{font-weight:600;color:var(--text-dark);font-size:13px}
+
+/* ── Error / empty states ── */
+.state-wrap{display:flex;align-items:center;justify-content:center;min-height:60vh;padding:24px}
+.state-card{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:48px 32px;text-align:center;max-width:460px;width:100%}
+.state-ico{font-size:42px;margin-bottom:16px}
+.state-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep);margin-bottom:8px}
+.state-msg{font-size:13px;color:var(--text-muted);line-height:1.6}
+.empty-grid{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);padding:48px 24px;text-align:center;grid-column:1/-1}
+.empty-ico{font-size:36px;margin-bottom:12px}
+.empty-title{font-size:15px;font-weight:600;color:var(--text-dark);margin-bottom:6px}
+.empty-sub{font-size:13px;color:var(--text-muted)}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a4a2e;color:#fff;padding:12px 22px;border-radius:10px;font-size:13px;font-weight:500;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+
+/* ── Print ── */
+@media print{
+  .actions,.pub-footer .no-print{display:none!important}
+  .pub-header,.doc-card-head{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{background:#fff}
+  .doc-card{break-inside:avoid}
+}
+
+@media(max-width:600px){
+  .pub-header h1{font-size:24px}
+  .book-steps{gap:16px}
+  .book-step{max-width:120px}
+}
+</style>
+</head>
+<body>
+
+<!-- Public header — no navbar -->
+<div class="pub-header">
+  <h1 id="org-name">Loading…</h1>
+  <div class="org-type-lbl" id="org-type"></div>
+  <div class="org-tagline" id="org-tagline" style="display:none"></div>
+  <div class="ncism-tag">📡 Teleconsultation Availability · NCISM §18ar</div>
+</div>
+
+<div class="today-banner" id="today-banner"></div>
+
+<!-- Main content -->
+<div class="page" id="main-page" style="display:none">
+
+  <div class="section-head">
+    <h2>Our Consultants</h2>
+    <p>Weekly teleconsultation availability — contact reception to confirm your appointment</p>
+  </div>
+
+  <div class="actions">
+    <button class="btn-act btn-print" onclick="window.print()">🖨 Print Schedule</button>
+    <button class="btn-act btn-copy" id="btn-copy-link">🔗 Copy Link</button>
+  </div>
+
+  <div class="doctors-grid" id="doctors-grid"></div>
+
+  <div class="book-card">
+    <h3>How to Book a Teleconsultation</h3>
+    <p>Choose a doctor and a time slot from the schedule above, then follow these steps:</p>
+    <div class="book-steps">
+      <div class="book-step">
+        <div class="step-num">1</div>
+        <div class="step-label">Call or visit our reception to register and confirm your slot</div>
+      </div>
+      <div class="book-step">
+        <div class="step-num">2</div>
+        <div class="step-label">Receive a unique video meeting link before your appointment</div>
+      </div>
+      <div class="book-step">
+        <div class="step-num">3</div>
+        <div class="step-label">Join at the scheduled time — no app download needed</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Error state -->
+<div id="error-state" style="display:none">
+  <div class="state-wrap">
+    <div class="state-card">
+      <div class="state-ico">🏥</div>
+      <div class="state-title" id="err-title">Organisation Not Found</div>
+      <div class="state-msg" id="err-msg">Please check the link and try again.</div>
+    </div>
+  </div>
+</div>
+
+<div class="pub-footer">
+  <div class="footer-org" id="footer-org"></div>
+  <div style="margin-top:6px">Teleconsultation Schedule &nbsp;·&nbsp; Updated in real-time</div>
+  <div style="margin-top:10px">
+    Powered by <a href="https://ayurxpert.com" target="_blank">AyurXpert Technologies™</a> &nbsp;·&nbsp; NCISM Compliant HMS
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './js/config/constants.js';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const DAYS      = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DAYS_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const TYPE_LABEL = {
+  clinic:'Ayurveda Clinic', hospital:'Hospital', pk_center:'Panchakarma Centre',
+  dispensary:'Dispensary', college:'Ayurveda College & Hospital',
+  teaching_hospital:'Teaching Hospital', platform:'Platform'
+};
+
+const todayDow = new Date().getDay();
+
+function fmtTime(t) {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  const ampm = h < 12 ? 'AM' : 'PM';
+  const hr = h % 12 || 12;
+  return `${hr}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+document.getElementById('btn-copy-link').addEventListener('click', () => {
+  navigator.clipboard.writeText(window.location.href)
+    .then(() => showToast('Link copied to clipboard!'))
+    .catch(() => showToast('Could not copy — please copy the URL manually'));
+});
+
+function showError(title, msg) {
+  document.getElementById('org-name').textContent = 'AyurXpert';
+  document.getElementById('org-type').textContent = '';
+  document.getElementById('today-banner').style.display = 'none';
+  document.getElementById('err-title').textContent = title;
+  document.getElementById('err-msg').textContent = msg;
+  document.getElementById('error-state').style.display = '';
+}
+
+function renderDoctors(slots) {
+  const grid = document.getElementById('doctors-grid');
+
+  if (!slots || slots.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-grid">
+        <div class="empty-ico">📡</div>
+        <div class="empty-title">No schedules configured yet</div>
+        <div class="empty-sub">Please contact the reception for teleconsultation availability</div>
+      </div>`;
+    return;
+  }
+
+  // Group slots by doctor name
+  const doctors = {};
+  for (const s of slots) {
+    if (!doctors[s.doctor_name]) doctors[s.doctor_name] = [];
+    doctors[s.doctor_name].push(s);
+  }
+
+  grid.innerHTML = '';
+
+  for (const [name, dslots] of Object.entries(doctors)) {
+    dslots.sort((a, b) => a.day_of_week - b.day_of_week);
+    const hasToday = dslots.some(s => s.day_of_week === todayDow);
+
+    const slotsHtml = dslots.map(s => `
+      <div class="slot-row">
+        <span class="day-chip ${s.day_of_week === todayDow ? 'is-today' : 'not-today'}">${DAYS[s.day_of_week]}</span>
+        <span class="slot-time">${fmtTime(s.start_time)} – ${fmtTime(s.end_time)}</span>
+        <span class="slot-max">${s.max_patients} slot${s.max_patients !== 1 ? 's' : ''}</span>
+      </div>`).join('');
+
+    const card = document.createElement('div');
+    card.className = `doc-card${hasToday ? ' available-today' : ''}`;
+    card.innerHTML = `
+      <div class="doc-card-head">
+        <div class="doc-avatar">👨‍⚕️</div>
+        <div>
+          <div class="doc-name">${name}</div>
+          <div class="doc-avail ${hasToday ? 'today-yes' : ''}">
+            ${hasToday ? '✓ Available today' : `${dslots.length} day${dslots.length !== 1 ? 's' : ''} per week`}
+          </div>
+        </div>
+      </div>
+      <div class="doc-slots">${slotsHtml}</div>`;
+    grid.appendChild(card);
+  }
+}
+
+async function init() {
+  const params = new URLSearchParams(window.location.search);
+  const code = (params.get('tenant') || '').trim().toUpperCase();
+
+  if (!code) {
+    showError('No Organisation Specified',
+      'Please use a link in the format:\nconsultant-availability.html?tenant=YOUR_CODE\n\nContact AyurXpert support if you need help.');
+    return;
+  }
+
+  // Load tenant (anon access already granted on tenants table)
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('name, type, tagline, is_active')
+    .eq('tenant_code', code)
+    .single();
+
+  if (!tenant || !tenant.is_active) {
+    showError('Organisation Not Found',
+      `No active organisation found with code "${code}". Please check the link or contact AyurXpert support.`);
+    return;
+  }
+
+  document.getElementById('org-name').textContent = tenant.name;
+  document.getElementById('org-type').textContent = TYPE_LABEL[tenant.type] || tenant.type;
+  document.getElementById('footer-org').textContent = tenant.name;
+  document.title = `Teleconsultation — ${tenant.name}`;
+
+  if (tenant.tagline) {
+    const el = document.getElementById('org-tagline');
+    el.textContent = `"${tenant.tagline}"`;
+    el.style.display = '';
+  }
+
+  document.getElementById('today-banner').textContent =
+    `📅 Today is ${DAYS_FULL[todayDow]} — slots available today are highlighted in green`;
+
+  // Load availability via RPC (SECURITY DEFINER — safe for anon)
+  const { data: slots, error } = await supabase
+    .rpc('get_consultant_availability', { p_tenant_code: code });
+
+  if (error) {
+    showError('Unable to Load Schedule',
+      'Could not retrieve the consultation schedule at this time. Please try again later or contact the reception.');
+    console.error('get_consultant_availability:', error.message);
+    return;
+  }
+
+  document.getElementById('main-page').style.display = '';
+  renderDoctors(slots);
+}
+
+init();
+</script>
+</body>
+</html>
