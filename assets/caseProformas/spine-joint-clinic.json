@@ -1,0 +1,116 @@
+{
+  "ncism_code": "spine-joint-clinic",
+  "title": "Sandhivata / Spine & Joint Clinic Proforma",
+  "subtitle": "Specialty Clinic — Kayachikitsa (Vata Vyadhi / Musculoskeletal)",
+  "sections": [
+    {
+      "id": "presenting_joint",
+      "title": "Presenting Complaint",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Sandhivata (Vataja degeneration) must be distinguished from Amavata (inflammatory — Ama + Vata). Key difference: Amavata = morning stiffness >30 min + tender warm joints + systemic features + positive RA factor. Sandhivata = mechanical pain, crepitus, worse on activity, improved by rest." },
+        { "type": "note", "tone": "warning", "content": "⚠ Red flags requiring urgent referral: Night pain + weight loss (malignancy). Saddle anaesthesia + bladder changes (Cauda Equina — surgical emergency). Fever + severe back pain (spinal infection). Wrist drop/foot drop (nerve compression)." },
+        { "id": "primary_site", "label": "Primary Site", "type": "select", "half": true,
+          "options": ["Cervical spine", "Thoracic spine", "Lumbar spine", "Sacroiliac joint", "Shoulder (R)", "Shoulder (L)", "Elbow (R)", "Elbow (L)", "Wrist (R)", "Wrist (L)", "Hip (R)", "Hip (L)", "Knee (R)", "Knee (L)", "Ankle (R)", "Ankle (L)", "Multiple joints"] },
+        { "id": "pain_character", "label": "Pain Character", "type": "checkbox_group",
+          "options": ["Aching", "Throbbing", "Shooting / radiating", "Burning", "Stabbing", "Stiffness-predominant", "Worse morning (inflammatory)", "Worse movement (mechanical)", "Nocturnal pain"] },
+        { "id": "onset_type", "label": "Onset", "type": "select", "half": true,
+          "options": ["Acute (<2 weeks)", "Sub-acute (2–6 weeks)", "Chronic (>6 weeks)"] },
+        { "id": "pain_vas", "label": "Pain VAS (0–10)", "type": "number", "half": true, "placeholder": "0 = none, 10 = worst" }
+      ]
+    },
+    {
+      "id": "clinical_examination",
+      "title": "Clinical Examination",
+      "fields": [
+        { "id": "tenderness", "label": "Tenderness Grade", "type": "select", "half": true,
+          "options": ["Absent", "Grade 1 (mild on palpation)", "Grade 2 (winces on palpation)", "Grade 3 (withdraws on palpation)", "Grade 4 (refuses palpation)"] },
+        { "id": "swelling", "label": "Swelling", "type": "select", "half": true,
+          "options": ["Absent", "Mild (soft tissue)", "Moderate (joint effusion)", "Severe (gross effusion)"] },
+        { "id": "rom_flexion", "label": "ROM — Flexion (°)", "type": "number", "half": true, "placeholder": "" },
+        { "id": "rom_extension", "label": "ROM — Extension (°)", "type": "number", "half": true, "placeholder": "" },
+        { "id": "rom_notes", "label": "ROM — Other movements", "type": "text", "half": true, "placeholder": "Lateral / rotation / abduction" },
+        { "id": "deformity", "label": "Deformity", "type": "checkbox_group",
+          "options": ["None", "Varus", "Valgus", "Fixed flexion", "Subluxation", "Muscle wasting"] }
+      ]
+    },
+    {
+      "id": "special_tests",
+      "title": "Special Tests",
+      "fields": [
+        { "id": "slr", "label": "Straight Leg Raise (Gridhrasi)", "type": "select", "half": true,
+          "options": ["Not tested", "Negative", "Positive R (° ___)", "Positive L (° ___)", "Positive bilateral"] },
+        { "id": "bragards", "label": "Bragard's Sign", "type": "select", "half": true,
+          "options": ["Not tested", "Negative", "Positive R", "Positive L"] },
+        { "id": "faber_test", "label": "FABER / Patrick Test (Hip)", "type": "select", "half": true,
+          "options": ["Not tested", "Negative", "Positive R", "Positive L"] },
+        { "id": "spondylosis_signs", "label": "Spondylosis Signs", "type": "checkbox_group",
+          "options": ["Spurling (cervical)", "Lhermitte's sign", "Compression test +ve", "Distraction test +ve", "Schober test reduced"] }
+      ]
+    },
+    {
+      "id": "ayurveda_classification",
+      "title": "Ayurveda — Vata Vyadhi Assessment",
+      "fields": [
+        { "id": "vata_type", "label": "Clinical Diagnosis (Ayurveda)", "type": "select",
+          "options": ["Sandhivata (osteoarthritis equivalent)", "Amavata (rheumatoid equivalent)", "Gridhrasi (sciatica)", "Manyastambha (cervical spondylosis)", "Katigraha / Katisoola (lumbago)", "Vishwachi (brachialgia)", "Pakshavadha (hemiplegia)", "Grudhrasi with Ama", "Vatakantaka (heel spur)"] },
+        { "id": "ama_presence", "label": "Aama (Srotorodha)", "type": "select", "half": true,
+          "options": ["Nirama Vata (no Ama)", "Saama Vata (Ama present — mild)", "Saama Vata (Ama — moderate)", "Saama Vata (Ama — severe)"] },
+        { "id": "dosha_dominance", "label": "Dosha Dominance", "type": "radio",
+          "options": ["Vata", "Vata-Kapha", "Vata-Pitta", "Tridoshaja"] },
+        { "id": "dhatupaka", "label": "Dhatu Kshaya (Tissue depletion)", "type": "checkbox_group",
+          "options": ["Asthikshaya (bone loss)", "Majjakshaya (marrow)", "Mamsasosha (muscle wasting)", "Ojokshaya (debility)"] },
+        { "id": "vata_notes", "label": "Samprapti / Treatment Notes", "type": "textarea",
+          "placeholder": "Sroto involved, Sthana Samshraya, PK suitability notes…" }
+      ]
+    },
+    {
+      "id": "investigations_msk",
+      "title": "Investigations",
+      "fields": [
+        { "id": "xray_findings", "label": "X-Ray Findings", "type": "text", "placeholder": "e.g. Joint space narrowing, osteophytes, disc collapse" },
+        { "id": "mri_findings", "label": "MRI / CT Findings", "type": "text", "placeholder": "e.g. L4-L5 disc prolapse, PIVD, cord compression" },
+        { "id": "ra_factor", "label": "RA Factor", "type": "select", "half": true,
+          "options": ["Not done", "Negative", "Positive (titre: ___)", "Weakly positive"] },
+        { "id": "esr", "label": "ESR (mm/hr)", "type": "number", "half": true },
+        { "id": "s_uric_acid", "label": "S.Uric Acid (mg/dL)", "type": "number", "half": true },
+        { "id": "crp", "label": "CRP", "type": "select", "half": true,
+          "options": ["Not done", "Normal (<5 mg/L)", "Elevated (5–20)", "High (>20)"] }
+      ]
+    }
+  ],
+  "exam_guide": {
+    "title": "Sandhivata / Spine & Joint — Examination Protocol",
+    "steps": [
+      {
+        "step": 1, "title": "Gait & Posture (Chankramana Pariksha)",
+        "items": ["Antalgic gait — lean away from painful side", "Trendelenburg sign — hip abductor weakness (hip OA)", "Waddling gait — bilateral hip disease", "Steppage gait — foot drop (L4-L5 root compression)", "Posture — kyphosis, scoliosis, loss of lumbar lordosis"]
+      },
+      {
+        "step": 2, "title": "Inspection of Joint / Spine",
+        "items": ["Swelling — bony (osteophytes) vs soft tissue vs effusion", "Deformity — varus/valgus (knee), fixed flexion, subluxation", "Muscle wasting — quadriceps (knee OA), thenar/hypothenar (cervical myelopathy)", "Skin changes over joint — erythema (acute inflammatory), psoriatic plaques"]
+      },
+      {
+        "step": 3, "title": "Palpation (Sparsha Pariksha)",
+        "items": ["Joint line tenderness (medial/lateral meniscus — knee)", "Spinous process tenderness — level of pathology", "Paraspinal muscle spasm / trigger points", "Effusion test — patella tap / bulge sign (knee)", "Temperature — warm = active inflammation (Saama / Pittaja)"]
+      },
+      {
+        "step": 4, "title": "Range of Motion",
+        "items": ["Schober test — lumbar flexion (mark L5+10cm, flexion <15cm = restricted)", "Cervical ROM — flexion 45°, extension 45°, lateral 45°, rotation 60°", "Knee — full extension (0°) to flexion (135°)", "Hip — flexion 120°, abduction 45°, internal/external rotation 45°", "Always compare bilateral; note pain at end-range vs throughout"]
+      },
+      {
+        "step": 5, "title": "Neurological Assessment",
+        "items": ["Motor power — MRC grading 0–5 in relevant myotomes", "Reflexes — patellar (L3-L4), Achilles (S1), supinator (C5-C6)", "Sensation — light touch, pin-prick along dermatomes", "Upper motor neuron signs — Babinski, clonus (spinal cord compression)"]
+      },
+      {
+        "step": 6, "title": "Special Tests (site-specific)",
+        "items": ["SLR (Lasègue) — L4/L5/S1 root; positive <60° (Gridhrasi)", "Bragard — SLR + dorsiflexion (increases radicular pain)", "Spurling — cervical compression (cervical radiculopathy)", "FABER/Patrick — hip pathology (groin pain)", "Thomas test — fixed flexion deformity of hip", "McMurray test — meniscal tear (knee)"]
+      }
+    ],
+    "reference_values": [
+      { "test": "Schober (lumbar flexion)", "unit": "cm increase", "normal": "≥5 cm", "borderline": "3–5 cm (mild restriction)", "abnormal": "<3 cm (severe restriction / ankylosing spondylitis)" },
+      { "test": "ESR", "unit": "mm/hr", "normal": "M <15, F <20", "borderline": "20–40 (mild elevation)", "abnormal": ">40 (active inflammation)" },
+      { "test": "S.Uric Acid", "unit": "mg/dL", "normal": "M <7.0, F <6.0", "borderline": "7–9 (asymptomatic hyperuricaemia)", "abnormal": ">9 or gout attack at any level" },
+      { "test": "RA Factor", "unit": "IU/mL", "normal": "<20 (negative)", "borderline": "20–40 (weakly positive)", "abnormal": ">40 (positive — confirm with anti-CCP)" }
+    ]
+  }
+}

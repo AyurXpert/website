@@ -1,0 +1,147 @@
+{
+  "ncism_code": "KAY",
+  "title": "Kayachikitsa Case Proforma",
+  "subtitle": "NCISM — Internal Medicine (Kaya Chikitsa)",
+  "sections": [
+    {
+      "id": "rogi_bala",
+      "title": "Rogi Bala Pariksha — Patient Strength Assessment",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Rogi Bala determines the intensity of treatment. Pravara Bala tolerates Shodhana; Avara Bala needs Shamana only. Assess all 8 parameters before deciding chikitsa." },
+        { "type": "heading", "label": "Dashavidha Pariksha (10-fold examination basis)" },
+        { "id": "prakriti", "label": "Prakriti (Baseline constitution)", "type": "select", "half": true,
+          "options": ["Vata", "Pitta", "Kapha", "Vata-Pitta", "Pitta-Kapha", "Vata-Kapha", "Sama (Tridosha)"] },
+        { "id": "vaya", "label": "Vaya (Age group)", "type": "select", "half": true,
+          "options": ["Bala (0–16 yr)", "Madhya (16–70 yr)", "Vriddha (>70 yr)"],
+          "hint": "Vriddha + Avara Saara = contraindication for intensive Shodhana" },
+        { "id": "saara", "label": "Saara (Tissue quality — 7-Dhatu assessment)", "type": "select", "half": true,
+          "options": ["Pravara (All 7 Dhatus — best prognosis)", "Madhyama (Most Dhatus good)", "Avara (Majority poor)"],
+          "hint": "Best: Tvak Saara (skin) + Majja Saara (nails, teeth) both Pravara" },
+        { "id": "samhanana", "label": "Samhanana (Body compactness)", "type": "select", "half": true,
+          "options": ["Pravara (Well-knit joints + muscles)", "Madhyama", "Avara (Loose / atrophic)"] },
+        { "id": "pramana", "label": "Pramana (Body proportions)", "type": "select", "half": true,
+          "options": ["Normal (symmetric proportions)", "Obese (Sthula — Kapha excess)", "Emaciated (Krisha — Vata/disease)"] },
+        { "id": "satwa", "label": "Satwa (Mental resilience)", "type": "select", "half": true,
+          "options": ["Pravara (Strong — bears pain well)", "Madhyama (Moderate)", "Avara (Weak — cries, anxious)"],
+          "hint": "Avara Satwa: use Sattvavajaya before Shodhana" },
+        { "id": "satmya", "label": "Satmya (Habituation to diet/lifestyle)", "type": "select", "half": true,
+          "options": ["Sarva Satmya (All foods/climates tolerated)", "Bahula Satmya (Most tolerated)", "Eka Satmya (Only 1–2 foods tolerated — Avara)"] },
+        { "id": "aharashakti_abhy", "label": "Aharashakti — Abhyavaharana (Food intake capacity)", "type": "select", "half": true,
+          "options": ["Pravara (Eats full meals regularly)", "Madhyama", "Avara (Poor appetite / eats little)"] },
+        { "id": "aharashakti_jar", "label": "Aharashakti — Jarana (Digestive capacity)", "type": "select", "half": true,
+          "options": ["Pravara (Digests well, no bloating)", "Madhyama (Occasional complaints)", "Avara (Ama formation — Mandagni)"],
+          "hint": "Mandagni + Avara Jarana = Shodhana contraindicated until Ama cleared" },
+        { "id": "vyayamashakti", "label": "Vyayamashakti (Exercise tolerance)", "type": "select", "half": true,
+          "options": ["Pravara (Regular exercise, high stamina)", "Madhyama (Moderate tolerance)", "Avara (Cannot sustain activity)"] }
+      ]
+    },
+    {
+      "id": "roga_bala",
+      "title": "Roga Bala — Disease Strength & Context",
+      "fields": [
+        { "id": "roga_bala", "label": "Roga Bala", "type": "select", "half": true,
+          "options": ["Pravara (Strong disease — intensive chikitsa needed)", "Madhyama (Moderate)", "Avara (Mild — Shamana sufficient)"] },
+        { "id": "desha", "label": "Desha (Habitat / Origin)", "type": "select", "half": true,
+          "options": ["Jangala (Dry/arid — Vata-Pitta constitution tends)", "Anupa (Marshy/humid — Kapha-Vata tendency)", "Sadharana (Mixed terrain — balanced)"],
+          "hint": "Anupa Desha + Kapha Prakriti = high risk for obesity, DM, respiratory" },
+        { "id": "kala", "label": "Kala (Season of manifestation)", "type": "select", "half": true,
+          "options": ["Vasanta (Spring — Kapha aggravation)", "Grishma (Summer — Pitta rises, Vata aggravates)", "Varsha (Monsoon — Vata peak, Agni weakens)", "Sharad (Autumn — Pitta peak)", "Hemanta (Early winter — Agni strongest)", "Shishira (Late winter — Kapha accumulation)"] },
+        { "id": "nidana_type", "label": "Nidana Panchaka — Cause types", "type": "checkbox_group",
+          "options": ["Aaharaja (Diet — Viruddha/Asatmya/Adhyashana)", "Viharaja (Lifestyle — Divaswapna/Vegadharana)", "Manasika (Chinta/Shoka/Bhaya/Krodha)", "Agantuja (External — injury/environment/infection)", "Swabhavaja (Constitutional/genetic)"] },
+        { "id": "nidana_detail", "label": "Specific Causative Nidana (free text)", "type": "text",
+          "placeholder": "e.g. Excessive Guru/Snigdha Ahara, night shifts, grief event" }
+      ]
+    },
+    {
+      "id": "samprapti",
+      "title": "Samprapti Ghatakas — Complete Pathogenesis Map",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Document all 9 Ghatakas. Incomplete Samprapti leads to incomplete Chikitsa. The Samprapti map directly determines which Shodhana/Shamana to apply and at which Kriyakala stage." },
+        { "type": "heading", "label": "Dosha, Dushya & Channels", "tone": "ayurveda" },
+        { "id": "dosha", "label": "Dosha (Vitiated)", "type": "checkbox_group",
+          "options": ["Vata", "Pitta", "Kapha", "Vata-Pitta", "Pitta-Kapha", "Vata-Kapha", "Tridosha", "Vata (Pradhana)", "Pitta (Pradhana)", "Kapha (Pradhana)"] },
+        { "id": "dosha_gati", "label": "Dosha Gati (Direction of spread)", "type": "select", "half": true,
+          "options": ["Sthanasamshraya (Localised)", "Paribhramana (Circulating)", "Pratiloma (Retrograde — Urdhva)", "Anuloma (Downward — Adho)"] },
+        { "id": "dushya", "label": "Dushya (Dhatu/Mala vitiated)", "type": "checkbox_group",
+          "options": ["Rasa (Plasma/lymph)", "Rakta (Blood)", "Mamsa (Muscle)", "Meda (Fat/adipose)", "Asthi (Bone)", "Majja (Marrow/nerves)", "Shukra/Artava (Reproductive)", "Oja (Immunity/essence)", "Purisha (Stool)", "Mutra (Urine)", "Sweda (Sweat)"] },
+        { "id": "srotas", "label": "Srotas involved", "type": "checkbox_group",
+          "options": ["Annavaha (GI)", "Rasavaha (Lymph/plasma)", "Raktavaha (Blood)", "Mamsavaha (Muscle)", "Medovaha (Fat/metabolic)", "Pranavaha (Respiratory)", "Udakavaha (Water metabolism)", "Asthivaha (Bone)", "Majjavaha (Nervous)", "Shukravaha (Reproductive)", "Purishavaha (Large intestine)", "Mutravaha (Urinary)", "Swedavaha (Sweat glands)", "Manovaha (CNS/mind)"] },
+        { "id": "sroto_dushthi", "label": "Srotodushthi — Channel pathology", "type": "checkbox_group",
+          "options": ["Sanga (Obstruction — pain, constipation)", "Atipravritti (Excess flow — diarrhoea, haemorrhage)", "Vimarga Gamana (Wrong pathway — bleeding, abscess)", "Siragranthi (Tumour/cyst in channel)"],
+          "hint": "Sanga = Vataja primarily; Atipravritti = Pittaja; Siragranthi = Kaphaja/Rakta" },
+        { "type": "heading", "label": "Agni, Ama & Roga Context", "tone": "ayurveda" },
+        { "id": "roga_marga", "label": "Roga Marga (Disease pathway)", "type": "select", "half": true,
+          "options": ["Bahya Marga / Shakha (Peripheral — skin, muscles)", "Madhyama Marga / Koshtha (GI/viscera — responds well)", "Abhyantara Marga / Marma-Asthi-Sandhi (Vital/deep — Asadhya risk)"],
+          "hint": "Koshtha Marga diseases respond best to Shodhana; Shakha needs Shamana" },
+        { "id": "adhisthana", "label": "Adhisthana (Primary seat of disease)", "type": "text", "half": true,
+          "placeholder": "e.g. Pakwashaya, Hridaya, Yakrut, Parshwa" },
+        { "id": "vyanjaka_hetu", "label": "Vyanjaka Hetu (Precipitating cause)", "type": "text", "half": true,
+          "placeholder": "e.g. Stress event, seasonal change, dietary error" },
+        { "id": "kriyakala", "label": "Kriyakala (Stage of pathogenesis)", "type": "select", "half": true,
+          "options": ["Sanchaya (Accumulation — Stage 1)", "Prakopa (Aggravation — Stage 2)", "Prasara (Spread — Stage 3)", "Sthanasamshraya (Localisation — Stage 4)", "Vyakti (Manifestation — Stage 5)", "Bheda (Complication — Stage 6)"],
+          "hint": "Stages 1–3: Shodhana most effective. Stages 4–5: Shamana + targeted. Stage 6: Palliative" }
+      ]
+    },
+    {
+      "id": "agni_pariksha",
+      "title": "Agni Pariksha — Digestive Fire Assessment",
+      "fields": [
+        { "id": "jatharagni", "label": "Jatharagni state", "type": "select", "half": true,
+          "options": ["Samagni (Regular hunger, good digestion, regular stool)", "Vishamagni (Irregular — sometimes constipated, sometimes loose)", "Tikshnagni (Excessive hunger, hyperacidity, loose stools)", "Mandagni (Poor hunger, heaviness, bloating, Ama)"],
+          "hint": "Mandagni: treat Ama first (Langhana/Deepana) before any Shodhana" },
+        { "id": "aama", "label": "Aama presence", "type": "select", "half": true,
+          "options": ["Nirama (No Ama — clear tongue, no heaviness)", "Saama-mild (Slight coating)", "Saama-moderate (Thick tongue coat, Gaurava, Hrillasa)", "Saama-severe (Contra for Shodhana)"] },
+        { "id": "koshtha", "label": "Koshtha (Bowel nature)", "type": "select", "half": true,
+          "options": ["Krura (Constipated — needs Tikshna Virechana drugs)", "Mridu (Loose — Mrudu Virechana only)", "Madhyama (Normal)"],
+          "hint": "Krura Koshtha: Castor oil / Snuhi-based Virechana. Mridu: Trivrit Leha sufficient" },
+        { "id": "agni_symptoms", "label": "Agni symptoms", "type": "checkbox_group",
+          "options": ["Ajeerna (Indigestion)", "Adhmana (Flatulence)", "Hrillasa (Nausea)", "Trushna (Excessive thirst)", "Anorexia (Aruchi)", "Atiloha (Excessive hunger)", "Daurbalya (Weakness after eating)"] }
+      ]
+    },
+    {
+      "id": "ashtasthana",
+      "title": "Ashtasthana Pariksha (8-fold Ayurvedic Examination)",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Ashtasthana Pariksha is the cardinal examination in Ayurveda. Nadi is the most important — examine before breakfast, after bath, in calm state." },
+        { "id": "nadi", "label": "Nadi Pariksha (Pulse diagnosis)", "type": "select",
+          "options": ["Vata (Snake-like — irregular, thin, fast, cold)", "Pitta (Frog-like — forceful, warm, moderate speed)", "Kapha (Swan-like — slow, full, heavy, smooth)", "Vata-Pitta", "Pitta-Kapha", "Vata-Kapha", "Sama (Balanced)", "Irregular/difficult to assess"],
+          "hint": "Feel at radial artery — index finger = Vata, middle = Pitta, ring = Kapha position" },
+        { "id": "mala", "label": "Mala Pariksha (Stool)", "type": "select", "half": true,
+          "options": ["Normal (formed, brown, sinks)", "Vataja (Dry, hard, dark, floats, painful)", "Pittaja (Loose, yellow-green, burning, foul)", "Kaphaja (Mucoid, pale, heavy, sinks)", "Saama (Ama — foul, undigested food, slimy)"] },
+        { "id": "mutra", "label": "Mutra Pariksha (Urine)", "type": "select", "half": true,
+          "options": ["Normal (pale yellow, clear)", "Vataja (Colourless, scanty, frothy)", "Pittaja (Dark yellow/orange, burning, strong odour)", "Kaphaja (Turbid, whitish, mucoid)", "Raktaja (Red-tinged)"] },
+        { "id": "jihwa", "label": "Jihwa Pariksha (Tongue)", "type": "checkbox_group",
+          "options": ["Normal (pink, moist, thin coat)", "Dry/cracked (Vata)", "Red/inflamed (Pitta)", "White thick coat (Kapha — Ama)", "Pale (Rakta kshaya)", "Trembling (Vata — CNS)", "Deviated (Pakshavata)"] },
+        { "id": "shabda", "label": "Shabda Pariksha (Voice/sounds)", "type": "select", "half": true,
+          "options": ["Normal (clear voice)", "Hoarse/dry (Vata)", "Sharp/loud (Pitta)", "Heavy/muffled (Kapha)", "Wheeze / crackles (Pranavaha)", "Borborygmi (Annavaha Srotas)"] },
+        { "id": "sparsha", "label": "Sparsha Pariksha (Touch/skin)", "type": "select", "half": true,
+          "options": ["Normal (warm, moist)", "Cold/rough/dry (Vata)", "Hot/inflamed (Pitta)", "Cold/oily/moist (Kapha)", "Very cold (Vata kshaya — poor circulation)"] },
+        { "id": "dhruk", "label": "Dhruk Pariksha (Eyes)", "type": "checkbox_group",
+          "options": ["Normal (bright, clear sclerae)", "Dry/sunken (Vata dehydration)", "Red/inflamed (Pitta)", "Oily/swollen (Kapha)", "Pale sclerae (Anaemia)", "Jaundiced (Rakta/Pitta)", "Ptosis/deviation (neurological)"] },
+        { "id": "akriti", "label": "Akriti (Overall appearance/build)", "type": "select", "half": true,
+          "options": ["Healthy (Prasanna — bright, alert, well-nourished)", "Emaciated (Krisha — Vata/disease)", "Obese (Sthula — Kapha/Meda)", "Cachectic (Extreme kshaya — serious disease)", "Oedematous (Shotha — Kapha/Rakta/kidney)"] }
+      ]
+    },
+    {
+      "id": "prognosis",
+      "title": "Sadhya-Asadhyata (Prognosis) & Chikitsa Sutra",
+      "fields": [
+        { "type": "heading", "label": "Prognosis", "tone": "ayurveda" },
+        { "id": "prognosis", "label": "Prognosis", "type": "select", "half": true,
+          "options": ["Sadhya (Curable — respond to treatment)", "Krichrasadhya (Difficult — long treatment, relapse risk)", "Yapya (Manageable — palliable, not curable)", "Asadhya (Incurable — supportive care only)"],
+          "hint": "Sadhya: all ghatakas favourable. Asadhya: vital Marma involved + Stage 6" },
+        { "id": "prognosis_notes", "label": "Prognosis basis", "type": "textarea", "rows": 2,
+          "placeholder": "Favourable: good Bala, early stage, Koshtha Marga. Unfavourable: Marma involved, Asadhya Dushya, Stage 6…" },
+        { "type": "heading", "label": "Chikitsa Sutra (Treatment Plan)", "tone": "ayurveda" },
+        { "id": "chikitsa_line", "label": "Primary Chikitsa approach", "type": "select", "half": true,
+          "options": ["Shodhana (Panchakarma — Pravara/Madhyama Bala + Nirama)", "Shamana (Palliative — Avara Bala OR Saama condition)", "Nidana Parivarjana (Remove cause — essential in all cases)", "Rasayana (Rejuvenation — post-Shodhana or chronic disease)", "Satvavajaya (Psychological — Manasika Dosha primary)"] },
+        { "id": "shodhana_indicated", "label": "Shodhana type indicated", "type": "checkbox_group",
+          "options": ["Vamana (Kapha disorders + Urdhva Srotas)", "Virechana (Pitta disorders + Koshtha Marga)", "Basti (Vata disorders — all Basti types)", "Nasya (Urdhvajatrugata — head/neck)", "Raktamokshana (Raktaja disorders + skin)"] },
+        { "id": "shodhana_contraindications", "label": "Shodhana contraindications present", "type": "checkbox_group",
+          "options": ["None — Shodhana safe", "Aama (must clear first)", "Avara Bala (Shamana only)", "Pregnancy", "Extreme Vriddha", "Active infection/fever", "Severe debility (Atikrisha)"] },
+        { "id": "pathya", "label": "Pathya (Dietary / lifestyle prescriptions)", "type": "textarea", "rows": 2,
+          "placeholder": "Ahara: e.g. light/warm foods, avoid Viruddha. Vihara: e.g. no Divaswapna, Yoga/Pranayama, sleep schedule…" }
+      ]
+    }
+  ]
+}

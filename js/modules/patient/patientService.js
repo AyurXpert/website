@@ -36,7 +36,7 @@ export async function createPatient(name, phone, tenantId, abhaNumber = null, de
     .single()
 
   if (error) {
-    console.error("Error creating patient:", error)
+    console.error("Error creating patient:", error.message, error.details, error.hint)
     throw error
   }
 

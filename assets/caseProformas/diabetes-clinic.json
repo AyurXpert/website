@@ -1,0 +1,115 @@
+{
+  "ncism_code": "diabetes-clinic",
+  "title": "Madhumeha / Diabetes Clinic Proforma",
+  "subtitle": "Specialty Clinic — Kayachikitsa (Prameha / DM)",
+  "sections": [
+    {
+      "id": "dm_history",
+      "title": "Diabetes History",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Madhumeha is the 20th and most severe Prameha. It is predominantly Vataja (with Sahaja/genetic component in Type 1). Kaphaja Prameha (Type 2 equivalent) is earlier and reversible with Shodhana. Assess Prameha type and stage before planning Chikitsa." },
+        { "type": "note", "tone": "warning", "content": "⚠ Every Diabetes visit: measure BP, check feet (Krichra Vrana risk), record weight. These are the Big 3 for preventing complications (Upadrava)." },
+        { "id": "dm_type", "label": "Type of Diabetes", "type": "select", "half": true,
+          "options": ["Type 1 DM", "Type 2 DM", "Pre-diabetes (IFG/IGT)", "Gestational DM", "MODY / Secondary", "Unknown"] },
+        { "id": "dm_duration", "label": "Known Duration", "type": "text", "half": true, "placeholder": "e.g. 5 years, 8 months" },
+        { "id": "dm_current_rx", "label": "Current Medications", "type": "checkbox_group",
+          "options": ["Metformin", "Sulphonylurea", "DPP-4 inhibitor", "SGLT-2 inhibitor", "Insulin (Basal)", "Insulin (Bolus)", "Ayurveda only", "None"] },
+        { "id": "dm_family_hx", "label": "Family History of DM", "type": "radio",
+          "options": ["None", "Parent", "Sibling", "Both parents", "Grandparent"] }
+      ]
+    },
+    {
+      "id": "investigations",
+      "title": "Investigations",
+      "fields": [
+        { "id": "fbs", "label": "FBS (mg/dL)", "type": "number", "half": true, "placeholder": "Fasting Blood Sugar",
+          "hint": "Normal <100. Pre-DM: 100–125. Diabetic: ≥126 (on 2 occasions)" },
+        { "id": "ppbs", "label": "PPBS (mg/dL)", "type": "number", "half": true, "placeholder": "Post-prandial" },
+        { "id": "hba1c", "label": "HbA1c (%)", "type": "number", "half": true, "placeholder": "Glycated Hb",
+          "hint": "Target on treatment: <7%. Prediabetes: 5.7–6.4%. DM diagnosis: ≥6.5%" },
+        { "id": "urine_glucose", "label": "Urine Glucose", "type": "select", "half": true,
+          "options": ["Absent", "Trace", "+", "++", "+++"] },
+        { "id": "s_creatinine", "label": "S.Creatinine (mg/dL)", "type": "number", "half": true, "placeholder": "" },
+        { "id": "urine_microalbumin", "label": "Urine Microalbumin", "type": "select", "half": true,
+          "options": ["Not done", "Normal (<30 mg/g)", "Microalbuminuria (30–300)", "Macroalbuminuria (>300)"] }
+      ]
+    },
+    {
+      "id": "complications",
+      "title": "Complications Screening",
+      "fields": [
+        { "id": "retinopathy", "label": "Diabetic Retinopathy", "type": "select", "half": true,
+          "options": ["Not assessed", "Absent", "Non-proliferative (mild)", "Non-proliferative (moderate)", "Non-proliferative (severe)", "Proliferative", "Macular oedema"] },
+        { "id": "neuropathy", "label": "Peripheral Neuropathy", "type": "select", "half": true,
+          "options": ["Not assessed", "Absent", "Mild (tingling only)", "Moderate (loss of sensation)", "Severe (painful neuropathy)"] },
+        { "id": "nephropathy", "label": "Nephropathy", "type": "select", "half": true,
+          "options": ["Not assessed", "Absent", "Stage 1 (hyperfiltration)", "Stage 2 (microalbuminuria)", "Stage 3 (overt proteinuria)", "Stage 4 (reduced GFR)", "Stage 5 (ESRD)"] },
+        { "id": "cvd_risk", "label": "Cardiovascular Risk", "type": "select", "half": true,
+          "options": ["Low", "Moderate", "High", "Very high (known CVD)"] }
+      ]
+    },
+    {
+      "id": "foot_exam",
+      "title": "Diabetic Foot Examination",
+      "fields": [
+        { "id": "foot_skin", "label": "Foot Skin", "type": "checkbox_group",
+          "options": ["Normal", "Dry / cracked", "Callus", "Maceration", "Ulcer present"] },
+        { "id": "foot_sensation", "label": "10g Monofilament Sensation", "type": "select", "half": true,
+          "options": ["Not tested", "Intact bilaterally", "Reduced (R)", "Reduced (L)", "Absent (R)", "Absent (L)"] },
+        { "id": "foot_pulse", "label": "Dorsalis Pedis Pulse", "type": "select", "half": true,
+          "options": ["Present bilaterally", "Diminished (R)", "Diminished (L)", "Absent (R)", "Absent (L)"] },
+        { "id": "wagner_grade", "label": "Wagner Ulcer Grade (if ulcer)", "type": "select", "half": true,
+          "options": ["No ulcer", "Grade 0 (pre-ulcer)", "Grade 1 (superficial)", "Grade 2 (deep, no abscess)", "Grade 3 (deep + abscess)", "Grade 4 (forefoot gangrene)", "Grade 5 (whole foot)"] }
+      ]
+    },
+    {
+      "id": "ayurveda_prameha",
+      "title": "Ayurveda — Prameha Assessment",
+      "fields": [
+        { "id": "prameha_type", "label": "Prameha Classification", "type": "select", "half": true,
+          "options": ["Kaphaja Prameha (early, reversible)", "Pittaja Prameha (intermediate)", "Vataja Prameha / Madhumeha (established DM)", "Sahaja (congenital / Type 1 equivalent)"] },
+        { "id": "dhatupaka_stage", "label": "Dhatupaka (Tissue depletion) Stage", "type": "select", "half": true,
+          "options": ["Stage 1 — Rasa/Rakta", "Stage 2 — Mamsa/Meda", "Stage 3 — Asthi/Majja", "Stage 4 — Shukra/Oja (Ojakshaya)"] },
+        { "id": "medoroga_signs", "label": "Medoroga Signs", "type": "checkbox_group",
+          "options": ["Atisthaulya (obesity)", "Kshudhaadhikya (polyphagia)", "Trishna (polydipsia)", "Daurbalya (weakness)", "Swedadhikya (excess sweating)", "Kanda-katigraha (lumbosacral stiffness)"] },
+        { "id": "ama_status", "label": "Aama Status", "type": "select", "half": true,
+          "options": ["Nirama (no Ama)", "Saama — mild", "Saama — moderate", "Saama — severe"] },
+        { "id": "agni_status", "label": "Agni (Digestive fire)", "type": "select", "half": true,
+          "options": ["Sama (balanced)", "Vishama (irregular)", "Tikshna (sharp)", "Manda (weak — Mandagni dominant)"] },
+        { "id": "prameha_notes", "label": "Samprapti / Clinical Notes", "type": "textarea", "placeholder": "Specific Dosha involvement, Dushya affected, treatment approach…" }
+      ]
+    }
+  ],
+  "exam_guide": {
+    "title": "Madhumeha / Diabetes — Examination Protocol",
+    "steps": [
+      {
+        "step": 1, "title": "General Inspection & Anthropometry",
+        "items": ["Weight, Height, BMI (target <23 kg/m²)", "Waist circumference (M >90 cm, F >80 cm = central obesity)", "Acanthosis nigricans — nape, axilla, groin (insulin resistance marker)", "Lipodystrophy at injection sites (insulin users)", "Vitiligo, skin infections, carbuncles"]
+      },
+      {
+        "step": 2, "title": "Vital Signs (Nadi-Shwasa-Tapa)",
+        "items": ["BP — both arms; lying + standing (orthostatic drop = autonomic neuropathy)", "Resting HR (>100 = autonomic neuropathy risk)", "SpO₂, RR", "Temperature (elevated = infection / Charcot foot)"]
+      },
+      {
+        "step": 3, "title": "Ashtasthana Pariksha (Ayurveda)",
+        "items": ["Nadi — Vata-Kapha predominant in Kaphaja Prameha; irregular/thin in Vataja Madhumeha", "Mala — hard, dry stools (Vata-Kapha), loose (Pitta-Prameha)", "Mutra — polyuria, turbid, sweet-smelling (Madhumeha)", "Jihwa — white/thick coating (Ama / Kapha), dry (Vataja)", "Sparsha — dry, rough skin (Vata); oily, cool (Kapha)", "Dhruk — pallor (anaemia), jaundice (hepatic)", "Akriti — emaciated (Vataja/Sahaja) or obese (Kaphaja)"]
+      },
+      {
+        "step": 4, "title": "Diabetic Foot Examination (mandatory every visit)",
+        "items": ["Inspect all surfaces including between toes — colour, cracks, ulcers, callus", "10g Semmes-Weinstein monofilament — 4 sites per foot (loss = high risk)", "Vibration sense — 128Hz tuning fork on great toe", "Dorsalis pedis + posterior tibial pulses", "Wagner grading if ulcer present (0–5)"]
+      },
+      {
+        "step": 5, "title": "Targeted Systems (as indicated)",
+        "items": ["Fundoscopy / refer Netra OPD — annual retinopathy screen", "Urinary dipstick — protein, ketones, infection", "Abdomen — hepatomegaly (NAFLD), Pancreatic tenderness", "Peripheral reflexes — ankle jerk (lost early in neuropathy)"]
+      }
+    ],
+    "reference_values": [
+      { "test": "FBS (fasting)", "unit": "mg/dL", "normal": "<100", "borderline": "100–125 (prediabetes)", "abnormal": "≥126 (DM)" },
+      { "test": "PPBS (2hr post-meal)", "unit": "mg/dL", "normal": "<140", "borderline": "140–199 (prediabetes)", "abnormal": "≥200 (DM)" },
+      { "test": "HbA1c", "unit": "%", "normal": "<5.7", "borderline": "5.7–6.4 (prediabetes)", "abnormal": "≥6.5 (DM) · Target <7% on treatment" },
+      { "test": "BMI (Asian)", "unit": "kg/m²", "normal": "18.5–22.9", "borderline": "23–24.9 (overweight)", "abnormal": "≥25 (obese)" },
+      { "test": "BP target (DM)", "unit": "mmHg", "normal": "<130/80", "borderline": "130–139/80–89", "abnormal": "≥140/90 (treat)" }
+    ]
+  }
+}

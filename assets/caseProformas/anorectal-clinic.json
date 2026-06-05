@@ -1,0 +1,105 @@
+{
+  "ncism_code": "anorectal-clinic",
+  "title": "Arshas / Anorectal Clinic Proforma",
+  "subtitle": "Specialty Clinic — Shalya Tantra (Arshas / Bhagandara / Parikartika)",
+  "sections": [
+    {
+      "id": "presenting_complaint",
+      "title": "Presenting Complaint",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Shalya Tantra Chikitsa Sutra for Anorectal: Bhaishajya (medical) for Kaphaja Grade I–II Arshas; Ksharakarma (Sarava or Sutra) for Grades II–III and Bhagandara; Sastrakarma (surgery) for Grade III–IV and recurrent. Never start Ksharasutra without confirming fistula tract anatomy." },
+        { "type": "note", "tone": "warning", "content": "⚠ Red flags requiring urgent referral: Change in bowel habit + weight loss + rectal bleeding in >40 yrs = Colorectal cancer screen. Single unilateral polyp in adult = biopsy before treatment. Fistula in Crohn's = specialist management." },
+        { "id": "main_complaint", "label": "Primary Complaint", "type": "checkbox_group",
+          "options": ["Bleeding per rectum", "Prolapse", "Pain (perianal)", "Itching (Kandu)", "Discharge (mucous / serous)", "Constipation", "Swelling / lump", "Fistulous opening"] },
+        { "id": "bleeding_character", "label": "Bleeding Character (if present)", "type": "select", "half": true,
+          "options": ["Not present", "Drops after defaecation", "Streaks on stool", "Spurting", "Mixed with stool", "Occult only"] },
+        { "id": "duration", "label": "Duration of Symptoms", "type": "text", "half": true, "placeholder": "e.g. 6 months, 2 years" },
+        { "id": "previous_treatment", "label": "Previous Treatment", "type": "checkbox_group",
+          "options": ["None", "Medical / stool softeners", "Banding (rubber band ligation)", "Sclerotherapy", "Haemorrhoidectomy", "Ksharasutra previously", "Fistulotomy", "Ayurveda only"] }
+      ]
+    },
+    {
+      "id": "clinical_exam",
+      "title": "Anorectal Examination",
+      "fields": [
+        { "id": "external_findings", "label": "Perianal Inspection", "type": "checkbox_group",
+          "options": ["Normal", "Skin tags (sentinel pile)", "External pile(s)", "Fistulous external opening", "Excoriation", "Anal fissure visible", "Condylomata", "Rectal prolapse"] },
+        { "id": "pile_degree", "label": "Piles Degree (Arshas Grade)", "type": "select", "half": true,
+          "options": ["Not applicable / No piles", "Grade I (bleed, no prolapse)", "Grade II (prolapse on straining, reduces spontaneously)", "Grade III (prolapse on straining, manual reduction needed)", "Grade IV (irreducible prolapse)"] },
+        { "id": "sphincter_tone", "label": "Sphincter Tone", "type": "select", "half": true,
+          "options": ["Normal", "Reduced / lax", "Hypertonic (tight)", "Unable to assess"] },
+        { "id": "proctoscopy", "label": "Proctoscopy Findings", "type": "text", "placeholder": "Position (3/7/11 o'clock), mucosal appearance, internal piles, polyp, mass…" }
+      ]
+    },
+    {
+      "id": "bhagandara_arshas",
+      "title": "Bhagandara / Fistula-in-Ano Assessment",
+      "fields": [
+        { "id": "fistula_present", "label": "Fistula-in-Ano", "type": "select", "half": true,
+          "options": ["Not present", "Present — details below"] },
+        { "id": "fistula_classification", "label": "Parks Classification", "type": "select", "half": true,
+          "options": ["Not applicable", "Intersphincteric", "Transsphincteric", "Suprasphincteric", "Extrasphincteric"] },
+        { "id": "bhagandara_type", "label": "Bhagandara Type (Ayurveda)", "type": "select",
+          "options": ["Not applicable", "Shatapona (Vataja — straight, clean)", "Unmargi (Pittaja — curved, purulent)", "Parisravi (Kaphaja — indurated, watery discharge)", "Shambukavarta (Tridoshaja — spiral / complex)", "Usthrasheershaka (Agantuja — mixed / trauma)"] },
+        { "id": "fistula_external_opening", "label": "External Opening", "type": "text", "half": true, "placeholder": "Position in clock-face from anus" },
+        { "id": "goodsall_rule", "label": "Goodsall Rule", "type": "select", "half": true,
+          "options": ["Not assessed", "Anterior — straight track likely", "Posterior — curved track likely"] }
+      ]
+    },
+    {
+      "id": "ksharasutra",
+      "title": "Ksharasutra Treatment Details (if applicable)",
+      "fields": [
+        { "id": "ks_applied", "label": "Ksharasutra Applied", "type": "select", "half": true,
+          "options": ["Not applicable", "First application today", "In progress — change today", "Completed — review visit"] },
+        { "id": "ks_thread_no", "label": "Thread Change Number", "type": "number", "half": true, "placeholder": "e.g. 3rd change" },
+        { "id": "ks_cutting_rate", "label": "Cutting Rate (cm/week)", "type": "number", "half": true, "placeholder": "" },
+        { "id": "ks_healing", "label": "Wound Healing Assessment", "type": "select", "half": true,
+          "options": ["Not applicable", "Good (granulation visible)", "Moderate (slough present)", "Poor (no granulation)", "Re-infection / pus"] },
+        { "id": "ks_notes", "label": "Ksharasutra Notes", "type": "textarea", "placeholder": "Thread type used, complications, patient compliance, diet restrictions…" }
+      ]
+    },
+    {
+      "id": "ayurveda_assessment",
+      "title": "Ayurveda Assessment",
+      "fields": [
+        { "id": "arshas_dosha", "label": "Arshas — Doshic Type", "type": "select", "half": true,
+          "options": ["Vataja (dry, hard, painful, dark)", "Pittaja (soft, bleeding, inflamed)", "Kaphaja (pale, mucoid, non-bleeding)", "Sannipataja (all three)", "Sahaja (congenital)"] },
+        { "id": "mandagni", "label": "Mandagni (Weak digestion)", "type": "select", "half": true,
+          "options": ["Absent", "Mild", "Moderate", "Severe (constipation-predominant)"] },
+        { "id": "treatment_line", "label": "Chikitsa Sutra (Treatment approach)", "type": "select",
+          "options": ["Bhaishajya Chikitsa (medical — Kaphaja, Grade I-II)", "Ksharakarma (chemical cauterisation)", "Agnikarma (thermal cauterisation)", "Sastrakarma (surgical — Grade III-IV)", "Ksharasutra (fistula / fissure)", "Combined Ayurveda + surgical"] },
+        { "id": "anorectal_notes", "label": "Clinical Notes", "type": "textarea", "placeholder": "Pre-op notes, Snehana / Swedana given, Virechana status…" }
+      ]
+    }
+  ],
+  "exam_guide": {
+    "title": "Arshas / Anorectal — Examination Protocol",
+    "steps": [
+      {
+        "step": 1, "title": "Patient Positioning & Preparation",
+        "items": ["Preferred: Left lateral (Sim's) position — standard for most anorectal exams", "Knee-chest position — better view for high lesions", "Lithotomy — for combined vaginal + anorectal examination (Prasuti)", "Ensure adequate lighting; explain procedure to patient; ensure privacy"]
+      },
+      {
+        "step": 2, "title": "Perianal Inspection (Bahya Pariksha)",
+        "items": ["Skin tags — sentinel pile at 6 o'clock (fissure), tags at 3/7/11 o'clock (piles)", "External haemorrhoids — dark blue-red, painful if thrombosed", "Fistulous external openings — discharge, granulation tissue", "Anal fissure — longitudinal tear, usually posterior midline (6 o'clock)", "Condylomata / warts, excoriation (perianal itching)"]
+      },
+      {
+        "step": 3, "title": "Digital Rectal Examination (DRE)",
+        "items": ["Lubricate well; insert finger gently with patient breathing out", "Sphincter tone — normal (can grip), lax (obstetric injury / neurological), hypertonic (fissure, anxiety)", "Anterior wall — prostate (M), rectovaginal septum (F)", "Mucosa — smooth vs nodular vs mass vs external compression", "Blood on glove — colour (fresh red vs dark = higher lesion)"]
+      },
+      {
+        "step": 4, "title": "Proctoscopy (Guda Shodhana Yantra Pariksha)",
+        "items": ["Lubricate scope; insert to 10–12 cm depth", "Withdraw slowly while rotating — systematic view of all walls", "Internal haemorrhoids — 3, 7, 11 o'clock positions (in lithotomy)", "Mucosal appearance — normal pink vs inflamed vs polyp vs ulcer", "Internal openings of fistula — probe gently with fistula probe if identified"]
+      },
+      {
+        "step": 5, "title": "Ksharasutra Assessment (if thread in situ)",
+        "items": ["Check thread position — still cutting through tissue vs displaced", "Measure thread change (cutting rate = distance cut / days since last change)", "Granulation tissue quality — good (pink, healthy) vs slough / infection", "Do NOT pull thread forcibly — confirm position before changing", "Document thread number and estimated remaining distance to complete"]
+      }
+    ],
+    "reference_values": [
+      { "test": "Piles Grade", "unit": "classification", "normal": "Grade I–II: medical / Ksharakarma", "borderline": "Grade III: Ksharasutra / banding", "abnormal": "Grade IV: surgical (Sastrakarma)" },
+      { "test": "Ksharasutra cutting rate", "unit": "cm/week", "normal": "0.7–1.0 (ideal)", "borderline": "0.4–0.6 (slow — change thread type)", "abnormal": "<0.4 (ineffective) or >1.5 (too fast — pain)" }
+    ]
+  }
+}

@@ -1,0 +1,143 @@
+{
+  "ncism_code": "male-infertility-clinic",
+  "title": "Vandhyatva / Klaibya — Male Infertility & Sexual Dysfunction Proforma",
+  "subtitle": "Specialty Clinic — Vajikarana (Shukra Dosha / Male Reproductive Health)",
+  "sections": [
+    {
+      "id": "chief_complaint",
+      "title": "Chief Complaint & Reproductive History",
+      "fields": [
+        { "id": "primary_complaint", "label": "Primary Complaint", "type": "checkbox_group",
+          "options": ["Inability to conceive (Infertility)", "Erectile dysfunction (Klaibya)", "Premature ejaculation (Shukra Atipravrutti)", "Reduced / absent libido (Kama Shosha)", "Azoospermia / poor semen quality", "Delayed ejaculation / anorgasmia", "Penile curvature / pain", "Scrotal pain / swelling"] },
+        { "id": "marriage_duration", "label": "Duration of Marriage / Partnership", "type": "text", "half": true, "placeholder": "e.g. 3 years" },
+        { "id": "unprotected_duration", "label": "Duration of Unprotected Intercourse", "type": "text", "half": true, "placeholder": "e.g. 18 months" },
+        { "id": "infertility_type", "label": "Infertility Type", "type": "select", "half": true,
+          "options": ["Not applicable (sexual dysfunction only)", "Primary infertility (never conceived)", "Secondary infertility (prior conception)"] },
+        { "id": "wife_status", "label": "Partner / Wife Evaluation", "type": "select", "half": true,
+          "options": ["Not yet evaluated", "Normal — no female factor", "Female factor also present", "Partner under separate treatment"] },
+        { "id": "previous_treatment", "label": "Previous Treatment", "type": "checkbox_group",
+          "options": ["None", "Ayurveda / Vajikarana previously", "Homeopathy", "Allopathy (hormone supplements)", "IUI attempted", "IVF / ICSI attempted", "Varicocelectomy", "TESE / PESA"] }
+      ]
+    },
+    {
+      "id": "sexual_history",
+      "title": "Sexual Function Assessment",
+      "fields": [
+        { "type": "note", "tone": "info", "content": "ℹ The IIEF-5 is a validated 5-question self-reported score for erectile dysfunction severity. Ask the patient to answer each question based on the past 6 months. Score 5–25." },
+        {
+          "id": "iief5_total_score",
+          "type": "score_calculator",
+          "label": "IIEF-5 Erectile Function Score",
+          "calculator_id": "iief5"
+        },
+        { "id": "ed_type", "label": "ED Type (if present)", "type": "select", "half": true,
+          "options": ["Not applicable", "Psychogenic (normal nocturnal erections — Manasika Klaibya)", "Vasculogenic (arterial insufficiency — Vataja + Raktavaha)", "Neurogenic (spinal / diabetic neuropathy — Majja Dushti)", "Hormonal (hypogonadism — Shukra kshaya)", "Mixed", "Post-surgery / radiation (Agantuja Klaibya)"],
+          "hint": "Psychogenic ED: nocturnal erections preserved, VAS anxiety high, younger patient" },
+        { "id": "ejaculation", "label": "Ejaculation (Shukra Pravrutti)", "type": "select", "half": true,
+          "options": ["Normal", "Premature ejaculation — IELT <1 min (Shukra Atipravrutti)", "Premature ejaculation — IELT 1–2 min", "Delayed ejaculation >30 min", "Absent / anejaculation (Shukra Avarodha)", "Retrograde ejaculation (urine cloudy post-coitus)"],
+          "hint": "Retrograde ejaculation: check post-ejaculate urine for sperm — DM/retroperitoneal surgery cause" },
+        { "id": "coital_frequency", "label": "Coital frequency (Mithuna Kala)", "type": "select", "half": true,
+          "options": ["Regular (2–3×/week — peri-ovulation period)", "Occasional (<1×/week)", "Infrequent (<1×/month)", "Abstaining currently"] },
+        { "id": "libido", "label": "Libido (Kama Shakti)", "type": "select", "half": true,
+          "options": ["Normal (Pravara Kama)", "Mildly reduced", "Significantly reduced (Kama Shosha)", "Absent (Klaibya complete)"],
+          "hint": "Low libido + fatigue + low testosterone = hypogonadism — check LH/FSH/T levels" }
+      ]
+    },
+    {
+      "id": "medical_history",
+      "title": "Relevant Medical & Surgical History",
+      "fields": [
+        { "id": "comorbidities", "label": "Comorbidities", "type": "checkbox_group",
+          "options": ["Diabetes mellitus (Madhumeha)", "Hypertension", "Obesity (Medaroga)", "Thyroid disorder", "Chronic kidney disease", "Liver disease", "Spinal cord injury", "Psychiatric disorder"] },
+        { "id": "medications", "label": "Medications Affecting Fertility / Potency", "type": "checkbox_group",
+          "options": ["Antihypertensives (beta-blockers, thiazides)", "Antidepressants / SSRI", "Antipsychotics", "Anabolic steroids / testosterone", "Chemotherapy / radiation history", "Finasteride / 5-alpha reductase inhibitors", "None"] },
+        { "id": "surgical_history", "label": "Relevant Surgeries", "type": "checkbox_group",
+          "options": ["None", "Orchidopexy (undescended testis)", "Herniorrhaphy (inguinal)", "Vasectomy / reversal", "Prostatectomy", "Retroperitoneal surgery", "Pelvic / rectal surgery"] },
+        { "id": "childhood_hx", "label": "Childhood History", "type": "checkbox_group",
+          "options": ["None relevant", "Mumps orchitis", "Undescended testis (cryptorchidism)", "Congenital absence of vas deferens", "Hypospadias", "Recurrent STIs"] },
+        { "id": "lifestyle", "label": "Lifestyle Factors", "type": "checkbox_group",
+          "options": ["Smoking (Dhumapana)", "Alcohol (Madyapana)", "Cannabis / recreational drugs", "Anabolic steroids", "Heat exposure (sauna, hot bath, laptop on lap)", "Sedentary work", "High stress / burnout (Manasika Shranta)", "Night shifts / disturbed sleep"] }
+      ]
+    },
+    {
+      "id": "semen_analysis",
+      "title": "Semen Analysis (Latest)",
+      "fields": [
+        { "id": "semen_volume", "label": "Volume (mL)", "type": "number", "half": true, "placeholder": "WHO normal ≥1.4" },
+        { "id": "total_count", "label": "Total Sperm Count (×10⁶)", "type": "number", "half": true, "placeholder": "WHO normal ≥39M" },
+        { "id": "concentration", "label": "Concentration (×10⁶/mL)", "type": "number", "half": true, "placeholder": "WHO normal ≥16M/mL" },
+        { "id": "motility_pr", "label": "Progressive Motility PR (%)", "type": "number", "half": true, "placeholder": "WHO normal ≥30%" },
+        { "id": "motility_total", "label": "Total Motility PR+NP (%)", "type": "number", "half": true, "placeholder": "WHO normal ≥42%" },
+        { "id": "morphology", "label": "Normal Morphology % (Kruger strict)", "type": "number", "half": true, "placeholder": "WHO normal ≥4%" },
+        { "id": "semen_diagnosis", "label": "Semen Diagnosis", "type": "select",
+          "options": ["Normozoospermia (all normal)", "Oligozoospermia (low count)", "Asthenozoospermia (poor motility)", "Teratozoospermia (poor morphology)", "OAT (combined)", "Azoospermia (no sperm)", "Aspermia (no ejaculate)", "Leucocytospermia (infection)", "Hypospermia (low volume)", "Not done"] },
+        { "id": "dna_fragmentation", "label": "DNA Fragmentation Index (DFI)", "type": "select", "half": true,
+          "options": ["Not done", "<15% (good)", "15–30% (moderate)", ">30% (poor — Rasayana priority)"] }
+      ]
+    },
+    {
+      "id": "ayurveda_vajikarana",
+      "title": "Ayurveda — Vajikarana & Shukra Assessment",
+      "fields": [
+        { "id": "klaibya_type", "label": "Klaibya Type (Ayurveda classification)", "type": "select",
+          "options": ["Vataja Klaibya (psychological / neurogenic ED)", "Pittaja Klaibya (heat / inflammation causing ED)", "Kaphaja Klaibya (obesity / Kapha obstruction)", "Kshayaja Klaibya (Shukra / Dhatu depletion — poor semen)", "Sahaja Klaibya (congenital / constitutional)", "Beejopaghataja Klaibya (spermatogenic failure — Beeja dosha)", "Agantuja Klaibya (drug / surgery / trauma induced)"] },
+        { "id": "shukra_dosha", "label": "Shukra Dosha Type", "type": "checkbox_group",
+          "options": ["Vataja (frothy, thin, scanty — asthenospermia)", "Pittaja (yellow, foul-smelling, hot)", "Kaphaja (thick, heavy, white — OAT)", "Kshaya (reduced quantity — oligospermia)", "Dushti (contaminated — leucocytospermia)"] },
+        { "id": "dhatu_kshaya", "label": "Dhatu Poshana (affected Dhatu)", "type": "checkbox_group",
+          "options": ["Rasa kshaya (general debility)", "Rakta kshaya (pallor, tiredness)", "Mamsa kshaya (muscle wasting)", "Meda kshaya (emaciation) OR Medo vriddhi (obesity)", "Shukra kshaya (reduced semen volume/count)"] },
+        { "id": "ojas_bala", "label": "Ojas / Bala Assessment", "type": "select", "half": true,
+          "options": ["Pravara (good vitality — good prognosis)", "Madhyama (moderate vitality)", "Avara (poor vitality — intensive Rasayana needed)"] },
+        { "id": "manasika", "label": "Manasika (Psychological) Factors", "type": "checkbox_group",
+          "options": ["Performance anxiety", "Relationship conflict (Mithuna Dvesha)", "Depression / low mood (Vishada)", "Stress / burnout (Manasantapa)", "History of sexual trauma", "None"] },
+        { "id": "vajikarana_plan", "label": "Vajikarana Treatment Plan", "type": "textarea",
+          "placeholder": "Shodhana suitability (Virechana for Pittaja / Vasti for Vataja Klaibya), Rasayana (Ashwagandha, Kapikacchu, Shilajit, Gokshura, Amalaki), Pathya (diet/sleep/exercise), Manasika Chikitsa plan…" }
+      ]
+    },
+    {
+      "id": "hormonal_investigations",
+      "title": "Hormonal & Other Investigations",
+      "fields": [
+        { "id": "fsh", "label": "FSH (IU/L)", "type": "number", "half": true, "placeholder": "Normal 1.5–12.4" },
+        { "id": "lh", "label": "LH (IU/L)", "type": "number", "half": true, "placeholder": "Normal 1.7–8.6" },
+        { "id": "testosterone_total", "label": "Total Testosterone (ng/dL)", "type": "number", "half": true, "placeholder": "Normal ≥300" },
+        { "id": "prolactin", "label": "Prolactin (ng/mL)", "type": "number", "half": true, "placeholder": "Normal <18" },
+        { "id": "tsh", "label": "TSH (mIU/L)", "type": "number", "half": true, "placeholder": "Normal 0.4–4.0" },
+        { "id": "scrotal_usg", "label": "Scrotal USG Findings", "type": "text", "placeholder": "Testicular volume, varicocele (grade), hydrocele, epididymal changes" },
+        { "id": "karyotype", "label": "Karyotype / Genetic (if done)", "type": "select", "half": true,
+          "options": ["Not done", "46XY — normal", "47XXY — Klinefelter", "Y chromosome microdeletion", "Other chromosomal anomaly"] }
+      ]
+    }
+  ],
+  "exam_guide": {
+    "title": "Vandhyatva / Klaibya — Examination Protocol",
+    "steps": [
+      {
+        "step": 1, "title": "General Inspection & Body Habitus",
+        "items": ["Body build — eunuchoidal (span > height, pubis-floor > pubis-crown = hypogonadism)", "BMI, waist-hip ratio (central obesity = Medaroga = low testosterone)", "Hair distribution — axillary, pubic, facial (reduced = hypogonadism)", "Gynaecomastia — breast tissue enlargement (hyperprolactinaemia, oestrogen excess, Klinefelter)", "Skin — acne, oiliness (androgen excess vs deficiency)"]
+      },
+      {
+        "step": 2, "title": "Genital Examination (Upastha Pariksha)",
+        "items": ["Penis — size, phimosis, hypospadias, chordee, Peyronie's plaques (hard cord on shaft)", "Testes — volume (orchidometer: normal >15mL adult), consistency (firm = normal, soft/small = atrophy)", "Epididymis — fullness (obstruction), tenderness (epididymo-orchitis), cyst", "Vas deferens — palpable bilaterally (absent vas = CBAVD — cystic fibrosis related)", "Varicocele — examine standing + Valsalva (grade 1: palpable on Valsalva; grade 3: visible 'bag of worms')"]
+      },
+      {
+        "step": 3, "title": "Neurological Assessment (ED related)",
+        "items": ["Bulbocavernosus reflex — squeeze glans, feel anal contraction (S3-S4 integrity)", "Perineal sensation — saddle area (pudendal nerve)", "Lower limb reflexes — patellar, Achilles (peripheral neuropathy in DM)", "Blood pressure — lying + standing (autonomic neuropathy = postural drop >20/10mmHg)"]
+      },
+      {
+        "step": 4, "title": "Nadi Pariksha — Shukra Dhatu",
+        "items": ["Nadi quality in Vataja Klaibya — thin, irregular, moving like a leech (Jalachara)", "Nadi in Kaphaja Klaibya — slow, heavy, cool, uniform (Hamsa/Manduka gati)", "Nadi in Pittaja — forceful, hot, irritable (Sarpa gati)", "Shukra Nadi — assess at 3rd finger position (Kapha finger — Shukra Sthana)", "Bala (vitality) from Nadi — thin/feeble = Kshaya; full/regular = good reserve"]
+      },
+      {
+        "step": 5, "title": "Systemic Review Points",
+        "items": ["Blood pressure — hypertension is major cause of vasculogenic ED", "Cardiovascular — ED is often the first sign of cardiovascular disease (arterial insufficiency)", "Prostate — DRE in men >40 years (enlarged/nodular = BPH / CaP; affects ejaculation)", "Thyroid — goitre, tremor (hyperthyroidism → ED; hypothyroidism → low testosterone)"]
+      }
+    ],
+    "reference_values": [
+      { "test": "Semen Volume", "unit": "mL", "normal": "≥1.4", "borderline": "1.0–1.3 (hypospermia)", "abnormal": "<1.0 (retrograde / obstruction)" },
+      { "test": "Sperm Concentration", "unit": "×10⁶/mL", "normal": "≥16", "borderline": "5–15 (mild oligospermia)", "abnormal": "<5 (severe oligospermia)" },
+      { "test": "Progressive Motility (PR)", "unit": "%", "normal": "≥30", "borderline": "20–29", "abnormal": "<20 (asthenospermia)" },
+      { "test": "Total Testosterone", "unit": "ng/dL", "normal": "≥300 (400–800 optimal)", "borderline": "200–299 (borderline low)", "abnormal": "<200 (hypogonadism — treat)" },
+      { "test": "FSH (azoospermia)", "unit": "IU/L", "normal": "<7.6 (obstructive azoospermia likely)", "borderline": "7.6–12 (check biopsy)", "abnormal": ">12 (non-obstructive — Sertoli only / Klinefelter)" }
+    ]
+  }
+}

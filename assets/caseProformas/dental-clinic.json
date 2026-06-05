@@ -1,0 +1,122 @@
+{
+  "ncism_code": "dental-clinic",
+  "title": "Danta Chikitsa — Dental / Oral Health Proforma",
+  "subtitle": "Specialty Clinic — Shalakya Tantra / Oral Medicine (Mukha Roga / Danta Roga)",
+  "sections": [
+    {
+      "id": "chief_complaint",
+      "title": "Chief Complaint",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Danta Chikitsa Sutra: Gandusha (oil pulling with Tila taila or Triphala decoction — 5–10 min daily) is the most important Ayurveda Mukha Rogahar. For Sheetada (gingivitis): Pratisarana with Saindhava + Madhu. For Krimidanta (caries): Khadira/Karanja Kashaya rinses. Dantadhavana (tooth cleaning) with Neem/Khadira twigs — mandatory Dinacharya." },
+        { "type": "note", "tone": "warning", "content": "⚠ Oral Cancer Red Flags — refer immediately: White/red patch (Leucoplakia/Erythroplakia) not resolving in 2 weeks. Ulcer >2 weeks that does not heal. Submucosal fibrosis (OSMF — betel nut users). Trismus with oral lesion. Any lump on tongue/floor of mouth. These need biopsy before treatment." },
+        { "id": "primary_complaint", "label": "Primary Complaint", "type": "checkbox_group",
+          "options": ["Toothache (Danta Shoola)", "Sensitivity to hot/cold (Danta Harsha)", "Bleeding gums (Sheetada / Danta Veshta)", "Swelling — gum / face (Danta Mula Shotha)", "Loose tooth / tooth mobility (Danta Chalana)", "Bad breath (Mukha Daurgandhya)", "Tooth discolouration", "Fractured / broken tooth", "Mouth ulcer (Mukha Pakka)", "Jaw pain / clicking (TMJ — Hanusandhi Shoola)", "Dry mouth (Mukha Shosha)", "Difficulty chewing (Bhaksha Kashta)"] },
+        { "id": "pain_onset", "label": "Onset of Pain", "type": "select", "half": true,
+          "options": ["Not applicable", "Acute (<24 hours)", "Subacute (1–7 days)", "Chronic (>1 week)"] },
+        { "id": "pain_trigger", "label": "Pain Trigger", "type": "checkbox_group",
+          "options": ["Spontaneous (pulpitis)", "Hot (irreversible pulpitis)", "Cold (reversible pulpitis / dentine hypersensitivity)", "Biting / pressure (periapical abscess)", "Sweet foods", "At night (worsens lying down = abscess)"] },
+        { "id": "pain_vas", "label": "Pain VAS (0–10)", "type": "number", "half": true }
+      ]
+    },
+    {
+      "id": "dental_chart",
+      "title": "Dental Chart (FDI Two-Digit Notation)",
+      "fields": [
+        { "id": "affected_teeth", "label": "Affected Tooth / Teeth (FDI notation)", "type": "text", "placeholder": "e.g. 16, 36, 11 — use FDI two-digit system (11–18 upper right, 21–28 upper left, 31–38 lower left, 41–48 lower right)" },
+        { "id": "tooth_condition", "label": "Condition of Affected Tooth", "type": "checkbox_group",
+          "options": ["Dental caries (Krimidanta) — cavitation", "Existing restoration (filling / crown / bridge)", "Root canal treated", "Fractured / cracked", "Completely erupted", "Partially erupted / impacted", "Missing", "Rotated / malposed"] },
+        { "id": "caries_depth", "label": "Caries Depth (ICDAS / Clinical)", "type": "select", "half": true,
+          "options": ["Not applicable", "Initial / enamel only (non-cavitated)", "Enamel caries (cavitated)", "Dentine caries (mild — within outer 1/3 dentine)", "Dentine caries (deep — approaching pulp)", "Pulpitis (reversible)", "Pulpitis (irreversible) / Pulp necrosis", "Periapical abscess (Paridara)"] },
+        { "id": "occlusion", "label": "Occlusion / Bite Assessment", "type": "select", "half": true,
+          "options": ["Class I (normal)", "Class II Div 1 (overjet)", "Class II Div 2 (deep bite)", "Class III (underbite)", "Cross-bite", "Open bite", "Not assessed"] }
+      ]
+    },
+    {
+      "id": "periodontal",
+      "title": "Periodontal Assessment (Danta Veshta / Sheetada)",
+      "fields": [
+        { "id": "gingival_health", "label": "Gingival Appearance", "type": "checkbox_group",
+          "options": ["Healthy — pink, firm, stippled (Swastha Danta Mula)", "Inflamed — red, swollen (Sheetada / Gingivitis)", "Bleeding on probing (BOP positive)", "Receded gums (Gingival recession)", "Hyperplastic / overgrown gingiva", "Pale / anaemic (systemic)"] },
+        { "id": "pocket_depth", "label": "Deepest Pocket (mm)", "type": "number", "half": true, "placeholder": "Normal <3mm" },
+        { "id": "bpe_score", "label": "BPE Score (Basic Periodontal Exam)", "type": "select", "half": true,
+          "options": ["Not assessed", "Code 0 — Healthy", "Code 1 — Bleeding on probing", "Code 2 — Calculus / overhangs", "Code 3 — Pocket 4–5mm", "Code 4 — Pocket ≥6mm (Danta Veshta)"] },
+        { "id": "calculus", "label": "Calculus (Danta Mala) Deposits", "type": "select", "half": true,
+          "options": ["None", "Supragingival only (mild)", "Sub + supragingival (moderate)", "Heavy calculus (Supra + sub, generalised)"] },
+        { "id": "tooth_mobility", "label": "Tooth Mobility (Danta Chalana)", "type": "select", "half": true,
+          "options": ["None (Grade 0)", "Grade I (<1mm horizontal)", "Grade II (>1mm horizontal)", "Grade III (vertical mobility also — extract)"] }
+      ]
+    },
+    {
+      "id": "mukha_pariksha",
+      "title": "Mukha Pariksha (Oral Cavity Examination)",
+      "fields": [
+        { "id": "lips", "label": "Oshtha (Lips)", "type": "checkbox_group",
+          "options": ["Normal", "Dry / cracked (Vataja)", "Pallor (anaemia)", "Angular cheilitis (B-complex deficiency / candida)", "Herpes labialis (cold sore)", "Pigmentation", "Leucoplakia / suspicious lesion"] },
+        { "id": "tongue", "label": "Jivha (Tongue)", "type": "checkbox_group",
+          "options": ["Normal — pink, moist, papillae present", "Coated (white — Ama / Kapha)", "Dry / red (Pitta / dehydration)", "Geographic tongue (Bhramyamana)", "Smooth / atrophic (anaemia / B12 deficiency)", "Enlarged (Sthula — hypothyroid / Kapha)", "Ulcer / fissure", "Pigmented / suspicious lesion"] },
+        { "id": "buccal_mucosa", "label": "Buccal Mucosa & Palate", "type": "checkbox_group",
+          "options": ["Normal", "Aphthous ulcer (Mukha Paka)", "White patch (leucoplakia — precancer)", "Red patch (erythroplakia — precancer)", "Submucosal fibrosis (OSMF — betel-nut related)", "Candidiasis (white curd-like — immunocompromised)", "ANUG / Vincent's (punched-out ulcers)", "Petechiae (thrombocytopaenia / trauma)"] },
+        { "id": "salivary_flow", "label": "Salivary Glands / Flow", "type": "select", "half": true,
+          "options": ["Normal", "Xerostomia (Mukha Shosha — dry mouth)", "Hypersalivation (Lalaasrava)", "Swollen parotid / submandibular"] },
+        { "id": "tmj", "label": "TMJ (Hanusandhi)", "type": "checkbox_group",
+          "options": ["Normal", "Clicking / popping on opening", "Crepitus (grating)", "Limited mouth opening (<35mm)", "Deviation on opening", "Pain on palpation of TMJ / masseter"] }
+      ]
+    },
+    {
+      "id": "danta_roga_ayurveda",
+      "title": "Danta Roga — Ayurveda Classification",
+      "fields": [
+        { "id": "danta_roga_type", "label": "Danta Roga Type (Ayurveda)", "type": "select",
+          "options": ["Danta Shoola — Vataja (severe, radiating pain)", "Danta Shoola — Pittaja (burning, inflammation)", "Danta Shoola — Kaphaja (mild, dull, sticky)", "Danta Shoola — Sannipataja (all three Doshas)", "Krimidanta (caries — worm-caused concept = decay)", "Danta Bheda (cracked tooth — Vata)", "Danta Harsha (sensitivity — Vata + Pitta)", "Sheetada (gingivitis — Rakta + Pitta)", "Danta Veshta (periodontitis — Kapha + Rakta)", "Paridara (alveolar abscess)", "Kapalika (palatal ulcer)", "Adantaka (toothlessness — Edentulous)"] },
+        { "id": "dosha_mukha", "label": "Predominant Dosha", "type": "radio",
+          "options": ["Vataja (dry mouth, sensitivity, pain)", "Pittaja (burning, bleeding, hot sensation)", "Kaphaja (swelling, discharge, bad breath)", "Sannipataja"] },
+        { "id": "mukha_daurgandhya_cause", "label": "Mukha Daurgandhya (Bad breath) Cause", "type": "select", "half": true,
+          "options": ["Not present", "Poor oral hygiene (most common)", "Gingivitis / periodontitis", "Tongue coating (Ama)", "GERD / gastrointestinal", "Systemic (DM — sweet; Uraemia — fishy; Liver failure — fetor)"] },
+        { "id": "dental_notes", "label": "Ayurveda Treatment Notes", "type": "textarea",
+          "placeholder": "Gandusha (oil pulling — Tila taila / Triphala), Dantadhavana (tooth powder — Triphala, charcoal), Pratisarana (gum massage with Saindhava + honey for Sheetada), local Lepa for abscess, Nasya for TMJ pain…" }
+      ]
+    },
+    {
+      "id": "investigations_dental",
+      "title": "Investigations",
+      "fields": [
+        { "id": "xray_type", "label": "Radiograph Taken", "type": "checkbox_group",
+          "options": ["None required", "Periapical (PA) — individual tooth", "Bitewing — caries detection (posterior)", "OPG (orthopantomogram) — full arch view", "CBCT — 3D (implants / wisdom teeth / TMJ)"] },
+        { "id": "xray_findings", "label": "Radiograph Findings", "type": "text", "placeholder": "e.g. Periapical radiolucency 36 (abscess), caries 16 approaching pulp, bone loss generalised 30%" },
+        { "id": "vitality_test", "label": "Pulp Vitality Test", "type": "select", "half": true,
+          "options": ["Not done", "Positive (vital pulp)", "Negative (necrotic pulp — needs RCT)", "Inconclusive"] }
+      ]
+    }
+  ],
+  "exam_guide": {
+    "title": "Danta Chikitsa / Oral Medicine — Examination Protocol",
+    "steps": [
+      {
+        "step": 1, "title": "Extra-oral Inspection (Bahya Mukha Pariksha)",
+        "items": ["Facial symmetry — swelling, asymmetry (abscess / cellulitis / parotid)", "Skin — sinus tracts / fistulae on cheek / chin (chronic dental abscess)", "Lymph nodes — submandibular, cervical (infected teeth drain here)", "Lips — colour, dryness, lesions, angular cheilitis", "TMJ palpation — lateral pole of condyle (just anterior to tragus) + masseter muscles"]
+      },
+      {
+        "step": 2, "title": "Intra-oral Inspection (Mukha Pariksha)",
+        "items": ["Soft tissues first — lips, cheek, tongue, floor of mouth, palate, oropharynx", "LOOK for red/white patches (pre-malignant), ulcers, swellings before touching", "Saliva assessment — pooling normal; xerostomia = minimal (medication / Sjögren's)", "Occlusion — ask patient to bite together; observe class + crossbite + open bite", "Oral hygiene — plaque index, staining, calculus deposits"]
+      },
+      {
+        "step": 3, "title": "Tooth Examination (Danta Pariksha)",
+        "items": ["Explorer probe — tactile caries detection (soft/sticky dentine vs hard enamel)", "Percussion test — tap with mirror handle; vertical pain = periapical inflammation; horizontal = PDL disease", "Mobility test — push tooth faciolingually; grade 0–III", "Probing — BPE pocket depth at 6 sites per tooth if periodontal disease suspected", "Transillumination — detect cracks (CEREC / fibre-optic light from lingual side)"]
+      },
+      {
+        "step": 4, "title": "Gandusha (Mukha Rasa Pariksha — Ayurveda)",
+        "items": ["Inspect tongue coating — white/thick = Ama/Kapha; red/dry = Pitta; brown = Vata", "Smell (Rasa/Sparsha) — fetor = dental/systemic; fruity = DM (Madhumeha)", "Jivha Sparsha — rough/dry (Vata), smooth/wet (Kapha), cracked/hot (Pitta)", "Talu (palate) — Kaphaja lesions tend here (Kapalika, Rohini, Putimamsaka)", "Ostha — dryness suggests Vataja Mukha Roga; bleeding = Pittaja"]
+      },
+      {
+        "step": 5, "title": "TMJ Assessment (Hanusandhi Pariksha)",
+        "items": ["Mouth opening — normal ≥35mm (three finger breadths); <25mm = limited = trismus or ankylosis", "Deviation on opening — towards affected side (disc displacement / masseter spasm)", "Auscultation — stethoscope over TMJ during opening: clicking (disc displacement), crepitus (osteoarthritis)", "Muscle palpation — masseter (extraoral), medial pterygoid (intraoral / pharynx), temporalis (temple)"]
+      }
+    ],
+    "reference_values": [
+      { "test": "Pocket depth", "unit": "mm", "normal": "1–3 mm (healthy sulcus)", "borderline": "4–5 mm (early periodontitis)", "abnormal": "≥6 mm (severe periodontitis — bone loss)" },
+      { "test": "Mouth opening", "unit": "mm", "normal": "≥40 mm", "borderline": "25–39 mm (mild limitation)", "abnormal": "<25 mm (trismus — investigate cause)" },
+      { "test": "BPE Code", "unit": "0–4", "normal": "0–1 (healthy / BOP only)", "borderline": "2–3 (calculus / 4-5mm pocket)", "abnormal": "4 (≥6mm pocket — specialist referral)" },
+      { "test": "Tooth mobility", "unit": "grade", "normal": "Grade 0 (no movement)", "borderline": "Grade I (<1mm horizontal)", "abnormal": "Grade II–III (extract / splint)" }
+    ]
+  }
+}

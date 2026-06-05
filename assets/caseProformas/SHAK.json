@@ -1,0 +1,126 @@
+{
+  "ncism_code": "SHAK",
+  "title": "Shalakya Tantra Case Proforma",
+  "subtitle": "NCISM — Ophthalmology (Netra Roga) & ENT (Karna-Naasa-Mukha Roga)",
+  "sections": [
+    {
+      "id": "visual_assessment",
+      "title": "Netra Pariksha — Visual Assessment",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Netra Pariksha in Ayurveda has 6 parts: Spashta Drishti (Clarity), Varna Grihana (Colour perception), Kshetra (Field), Dura Drishti (Distance), Samipa (Near), Ratra Drishti (Night vision). Correlate with modern tests below." },
+        { "type": "heading", "label": "Visual Acuity (Drishti Pramana)", "tone": "modern" },
+        { "id": "va_r_far", "label": "Visual Acuity — Right (distance)", "type": "text", "half": true,
+          "placeholder": "e.g. 6/6, 6/18, CF, HM, PL, NPL",
+          "hint": "Normal: 6/6. Impaired: 6/18. Moderate VI: <6/18 to 6/60. Severe: <6/60. Blind: <3/60 or <10° field" },
+        { "id": "va_l_far", "label": "Visual Acuity — Left (distance)", "type": "text", "half": true,
+          "placeholder": "e.g. 6/6, 6/36, HM, No PL" },
+        { "id": "va_r_near", "label": "Near Vision — Right (Samipa Drishti)", "type": "select", "half": true,
+          "options": ["N5 (normal)", "N6", "N8", "N10", "N12", "N18", "N24", "N36", "CF", "HM", "PL", "No PL", "Not tested"] },
+        { "id": "va_l_near", "label": "Near Vision — Left", "type": "select", "half": true,
+          "options": ["N5 (normal)", "N6", "N8", "N10", "N12", "N18", "N24", "N36", "CF", "HM", "PL", "No PL", "Not tested"] },
+        { "id": "color_vision", "label": "Colour vision (Varna Grihana)", "type": "select", "half": true,
+          "options": ["Normal (Ishihara 14/14)", "Mild red-green defect", "Moderate R-G defect", "Blue-yellow defect", "Total colour blindness", "Not tested"] },
+        { "id": "field_vision", "label": "Visual field (Kshetra)", "type": "select", "half": true,
+          "options": ["Normal (confrontation test)", "Constricted (Glaucoma/RP)", "Hemianopia — R or L", "Central scotoma (Macular/Optic neuritis)", "Peripheral ring scotoma", "Not tested"],
+          "hint": "Bitemporal hemianopia = pituitary/chiasmal lesion; homonymous = post-chiasmal" }
+      ]
+    },
+    {
+      "id": "external_eye",
+      "title": "Netra — External & Slit-lamp Examination",
+      "fields": [
+        { "type": "heading", "label": "External Examination", "tone": "modern" },
+        { "id": "lids", "label": "Eyelids (Vartma)", "type": "select", "half": true,
+          "options": ["Normal", "Ptosis (unilateral/bilateral)", "Entropion (lashes → cornea)", "Ectropion (lid turns out)", "Trichiasis (aberrant lashes)", "Lid swelling/oedema", "Chalazion (Kaphaja)", "Hordeolum stye (Pittaja)", "Blepharitis (Vataja — dry margins)"] },
+        { "id": "conjunctiva", "label": "Conjunctiva (Shukla Mandala)", "type": "select", "half": true,
+          "options": ["Normal", "Congested (Abhishyanda — Pittaja/infective)", "Mucopurulent discharge", "Follicles (viral/chlamydial)", "Papillae (allergic)", "Pterygium (Arma — towards cornea)", "Subconjunctival haemorrhage (Raktapitta)", "Chemosis (Sotha)"] },
+        { "id": "cornea", "label": "Cornea (Krishna Mandala)", "type": "select", "half": true,
+          "options": ["Clear and transparent", "Opacity/nebula (faint, Vataja)", "Macula (moderate density)", "Leucoma (dense, Asadhya)", "Corneal ulcer — document zone", "Oedema (bullous keratopathy)", "Vascularisation (pannus — chronic inflammation)", "Keratoconus (Vataja deformity)"],
+          "hint": "Central corneal ulcer = sight-threatening; refer urgently if descemetocele/impending perforation" },
+        { "id": "pupil_r", "label": "Pupil — Right", "type": "select", "half": true,
+          "options": ["PERL — Normal (3–5mm)", "Miosis (<2mm — Pilocarpine/opioid/Horner's)", "Mydriasis (>6mm — Atropine/CN III palsy)", "Irregular (iridocyclitis/posterior synechiae)", "Fixed dilated (globe injury/Glaucoma crisis)", "RAPD present (Optic nerve/retinal disease)"] },
+        { "id": "pupil_l", "label": "Pupil — Left", "type": "select", "half": true,
+          "options": ["PERL — Normal", "Miosis", "Mydriasis", "Irregular (synechiae)", "Fixed dilated", "RAPD present"] },
+        { "id": "ant_chamber", "label": "Anterior Chamber (Abhishyanda zone)", "type": "select", "half": true,
+          "options": ["Normal (deep, clear)", "Shallow (Glaucoma/post-trauma)", "Deep (aphakia/lens subluxation)", "Hyphaema (blood — Raktapitta/trauma)", "Hypopyon (pus — Pittaja/fungal ulcer)", "Flare/cells (Iridocyclitis — Adhimantha)"],
+          "hint": "Hypopyon = infective/inflammatory emergency; Hyphaema = trauma/clotting disorder" },
+        { "id": "lens", "label": "Lens (Drishti Patala)", "type": "select", "half": true,
+          "options": ["Clear", "Immature cataract (Linganasha — early)", "Mature cataract (Surgery indicated)", "Hypermature/Morgagnian (high risk — urgent surgery)", "Subluxated", "Aphakic (no lens)", "IOL in situ (post-ECCE)"],
+          "hint": "Ayurveda: Timira (early) → Kacha → Linganasha (mature/blindness = Asadhya without surgery)" },
+        { "id": "iop_r", "label": "IOP — Right", "type": "number", "half": true,
+          "unit": "mmHg", "placeholder": "10–21",
+          "hint": "Normal 10–21 mmHg. >21 = suspect Glaucoma (Adhimantha). >40 = acute angle closure (emergency)" },
+        { "id": "iop_l", "label": "IOP — Left", "type": "number", "half": true, "unit": "mmHg", "placeholder": "10–21" },
+        { "id": "fundus", "label": "Fundus (Drishti Pariksha)", "type": "textarea",
+          "placeholder": "Disc: C/D ratio (normal <0.4), pallor, cupping (Glaucoma/Adhimantha); Vessels: AV nipping (Hypertension), haemorrhage (Pitta); Macula: normal/ARMD/macular oedema; Background…" }
+      ]
+    },
+    {
+      "id": "netra_ayurveda",
+      "title": "Netra Roga — Ayurveda Classification",
+      "fields": [
+        { "type": "ayurveda_divider", "label": "Netra Roga Classification" },
+        { "id": "netra_roga_type", "label": "Netra Roga (Ayurveda diagnosis)", "type": "select",
+          "options": ["Abhishyanda (conjunctivitis — Vataja/Pittaja/Kaphaja/Raktaja)", "Adhimantha (acute inflammatory glaucoma — severe form)", "Timira (dim vision — early/mild — Sadhya)", "Kacha (cataract — early stage — Krichrasadhya)", "Linganasha (mature cataract/blindness — Asadhya without surgery)", "Arma (pterygium — Kaphaja)", "Savranashukra (corneal ulcer)", "Shushkakshipaka (dry eye)", "Pothaki (follicular conjunctivitis)", "Akshipakshma Kosha Roga (eyelid diseases)"] },
+        { "id": "kriyakalpa", "label": "Kriyakalpa indicated (Netra)", "type": "checkbox_group",
+          "options": ["Netra Tarpana (medicated ghee bath — dry eye, Timira)", "Netra Purana (filling with medicated oil)", "Netra Bidalaka (Lepa around eyes — conjunctivitis)", "Netra Prakshalana (wash — discharge/infection)", "Anjana (collyrium — Vataja/Pittaja conditions)", "Netra Dhara (stream wash — Pittaja)"] }
+      ]
+    },
+    {
+      "id": "ear_exam",
+      "title": "Karna Pariksha — Ear Examination",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Karna Roga Ayurveda: Vataja (dry, ringing, pain without discharge), Pittaja (purulent, hot), Kaphaja (watery discharge, progressive loss). Assess Karna Purana (Tila taila drops) need." },
+        { "id": "ear_r", "label": "Ear — Right (Otoscopy)", "type": "select", "half": true,
+          "options": ["NAD (Normal)", "Wax (Karnamala — impacted)", "ASOM (Pittaja — red, painful, intact TM)", "CSOM (Kaphaja — perforation + discharge)", "CSOM with polyp", "Cholesteatoma (Asadhya — bone erosion)", "Otomycosis (Kaphaja fungal)", "Foreign body"] },
+        { "id": "ear_l", "label": "Ear — Left", "type": "select", "half": true,
+          "options": ["NAD (Normal)", "Wax impacted", "ASOM", "CSOM with perforation", "CSOM with polyp", "Cholesteatoma", "Otomycosis", "Foreign body"] },
+        { "id": "hearing", "label": "Hearing status", "type": "select", "half": true,
+          "options": ["Normal bilaterally", "Reduced — Right only", "Reduced — Left only", "Reduced — bilateral", "Profound loss (bilateral)"],
+          "hint": "Sudden SNHL = emergency; refer audiology + MRI. Conductive = treatable surgically" },
+        { "id": "rinne_r", "label": "Rinne Test — Right", "type": "select", "half": true,
+          "options": ["Positive (AC>BC — normal/SNHL)", "Negative (BC>AC — CHL)", "False negative (total SNHL)", "Not done"] },
+        { "id": "rinne_l", "label": "Rinne Test — Left", "type": "select", "half": true,
+          "options": ["Positive (normal/SNHL)", "Negative (CHL)", "False negative", "Not done"] },
+        { "id": "weber", "label": "Weber Test", "type": "select", "half": true,
+          "options": ["Central (normal / bilateral equal)", "Lateralised — Right (R-CHL or L-SNHL)", "Lateralised — Left (L-CHL or R-SNHL)", "Not done"],
+          "hint": "Rule: Weber lateralises to BETTER side in SNHL; to WORSE side in CHL" },
+        { "id": "audiometry", "label": "Audiometry result", "type": "select", "half": true,
+          "options": ["Normal hearing", "Mild CHL (26–40dB)", "Moderate CHL (41–55dB)", "Severe CHL (56–70dB)", "Mild SNHL", "Moderate SNHL", "Severe/Profound SNHL", "Mixed HL", "Not done"] }
+      ]
+    },
+    {
+      "id": "nose_exam",
+      "title": "Nasa Pariksha — Nasal Examination",
+      "fields": [
+        { "id": "septum", "label": "Nasal septum", "type": "select", "half": true,
+          "options": ["Central (normal)", "DNS to Right — Grade I (mild)", "DNS to Right — Grade II (moderate)", "DNS to Right — Grade III (severe obstruction)", "DNS to Left — Grade I/II/III", "Septal perforation (Vataja kshaya/trauma)"],
+          "hint": "DNS Grade III (near-complete obstruction) = septoplasty indicated if conservative fails" },
+        { "id": "turbinates", "label": "Inferior turbinates", "type": "select", "half": true,
+          "options": ["Normal", "Hypertrophied bilateral (Kaphaja/allergic)", "Hypertrophied R only", "Hypertrophied L only", "Atrophic (Ozaena — Vataja Pratinahana — foul Asadhya)", "Pale/boggy (allergic Kaphaja)", "Congested red (Pittaja/URTI)"] },
+        { "id": "nasal_discharge", "label": "Nasal discharge (Peenas / Pratishyaya)", "type": "select", "half": true,
+          "options": ["None", "Watery (Vataja Pratishyaya — acute)", "Mucoid (Kaphaja)", "Mucopurulent (Pittaja/Kaphaja — sinusitis)", "Bloody (Raktapitta/trauma)", "Crusting (atrophic rhinitis — Asadhya)"] },
+        { "id": "sinus_tenderness", "label": "Sinus tenderness (Peenas)", "type": "checkbox_group",
+          "options": ["None", "Right maxillary (tooth pain too — odontogenic?)", "Left maxillary", "Frontal", "Ethmoid (between eyes)", "Multiple (pansinusitis)"] },
+        { "id": "polyp", "label": "Nasal polyp (Nasagata Arbuda)", "type": "select", "half": true,
+          "options": ["Absent", "Unilateral polyp (suspect neoplasm if single)", "Bilateral polyps (Kaphaja — allergic)", "Multiple/filling nasal cavity"] }
+      ]
+    },
+    {
+      "id": "throat_exam",
+      "title": "Gala Pariksha — Throat Examination",
+      "fields": [
+        { "id": "tonsils", "label": "Tonsil size (Tundikeri/Gilayu)", "type": "select", "half": true,
+          "options": ["T0 (absent/tonsillectomy)", "T1 (within tonsillar pillars — normal)", "T2 (at level of pillars)", "T3 (beyond pillars into pharynx)", "T4 (kissing tonsils — complete obstruction)"],
+          "hint": "T3–T4 with OSA symptoms = tonsillectomy/adenoidectomy indicated in children" },
+        { "id": "tonsil_condition", "label": "Tonsil condition", "type": "select", "half": true,
+          "options": ["Normal", "Acutely inflamed (Pittaja Tundikeri)", "Hypertrophied with crypt debris (Kaphaja)", "Tonsilliths (calculi in crypts)", "Exudate/pus (Pittaja acute)", "Peritonsillar bulge/abscess (Vidradhi — emergency I&D)"] },
+        { "id": "ppw", "label": "Posterior pharyngeal wall", "type": "select", "half": true,
+          "options": ["Normal", "Congested (Galagraha — Pittaja)", "Lymph follicles (Vataja/Kaphaja — chronic)", "Cobblestone (chronic pharyngitis)", "Postnasal drip (Vataja — Nasa→Gala)"] },
+        { "id": "voice", "label": "Voice quality (Swarabheda)", "type": "select", "half": true,
+          "options": ["Normal", "Hoarse (Swarabheda — Vataja/Kaphaja)", "Muffled/hot potato (quinsy/peritonsillar)", "Nasal (rhinolalia — DNS/adenoids)", "Breathy (vocal cord palsy)", "Aphonia (complete loss — Vataja severe)"],
+          "hint": "Hoarseness >3 weeks in adult: always laryngoscopy to exclude malignancy" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "ncism_code": "skin-clinic",
+  "title": "Kushtha / Skin Clinic Proforma",
+  "subtitle": "Specialty Clinic — Kayachikitsa (Twak Rogas / Dermatology)",
+  "sections": [
+    {
+      "id": "lesion_description",
+      "title": "Lesion Characterisation",
+      "fields": [
+        { "id": "lesion_site", "label": "Site(s) of Lesion", "type": "checkbox_group",
+          "options": ["Scalp", "Face", "Neck", "Chest", "Back", "Abdomen", "Upper limbs", "Lower limbs", "Palms", "Soles", "Genitalia", "Generalised"] },
+        { "id": "primary_lesion", "label": "Primary Lesion Type", "type": "checkbox_group",
+          "options": ["Macule", "Papule", "Plaque", "Vesicle", "Bulla", "Pustule", "Nodule", "Wheal", "Patch", "Telangiectasia"] },
+        { "id": "secondary_lesion", "label": "Secondary Changes", "type": "checkbox_group",
+          "options": ["Scaling", "Crusting", "Erosion", "Ulceration", "Excoriation", "Lichenification", "Hyperpigmentation", "Hypopigmentation", "Atrophy", "Scarring"] },
+        { "id": "lesion_distribution", "label": "Distribution", "type": "select", "half": true,
+          "options": ["Localised", "Regional", "Generalised", "Flexural", "Extensor", "Seborrhoeic", "Photo-exposed", "Dermatomal"] },
+        { "id": "pruritus", "label": "Pruritus (Itching)", "type": "select", "half": true,
+          "options": ["Absent", "Mild", "Moderate", "Severe (disturbs sleep)"] }
+      ]
+    },
+    {
+      "id": "kushtha_classification",
+      "title": "Kushtha Classification (Ayurveda)",
+      "fields": [
+        { "id": "kushtha_type", "label": "Maha Kushtha Type (if applicable)", "type": "select",
+          "options": ["Not applicable", "Kapala", "Audumbara", "Mandala", "Rishyajihwa", "Pundareeka", "Sidhma", "Kakanaka"] },
+        { "id": "kshudra_kushtha", "label": "Kshudra Kushtha Type (if applicable)", "type": "select",
+          "options": ["Not applicable", "Ekakushtha", "Charmadala", "Kitibha", "Vipadika", "Alasaka", "Dadru", "Charmakhya", "Pama", "Visphotaka", "Shatapadee", "Sthularaja"] },
+        { "id": "kushtha_dosha", "label": "Predominant Dosha", "type": "radio",
+          "options": ["Vata-predominant", "Pitta-predominant", "Kapha-predominant", "Tridoshaja"] },
+        { "id": "kushtha_chronicity", "label": "Chronicity", "type": "select", "half": true,
+          "options": ["Acute (<1 month)", "Subacute (1–3 months)", "Chronic (>3 months)"] },
+        { "id": "kushtha_recurrence", "label": "Recurrence Pattern", "type": "select", "half": true,
+          "options": ["First episode", "Recurrent (seasonal)", "Recurrent (continuous)", "Relapsing-remitting"] }
+      ]
+    },
+    {
+      "id": "twak_pariksha",
+      "title": "Twak Pariksha (Skin Examination)",
+      "fields": [
+        { "id": "twak_varna", "label": "Twak Varna (Colour)", "type": "checkbox_group",
+          "options": ["Normal", "Erythematous (Rakta)", "Hyperpigmented (Shyava)", "Hypopigmented (Pandu)", "White/Depigmented (Shweta)"] },
+        { "id": "twak_sparsha", "label": "Twak Sparsha (Texture on touch)", "type": "checkbox_group",
+          "options": ["Rough (Khara — Vata)", "Dry (Ruksha)", "Moist/oily (Snigdha — Kapha)", "Warm (Ushna — Pitta)", "Thick (Sthula)", "Thin (Sukshma)"] },
+        { "id": "twak_drava", "label": "Moisture / Exudate", "type": "select", "half": true,
+          "options": ["Dry", "Moist without exudate", "Serous exudate", "Purulent exudate", "Sero-sanguineous"] },
+        { "id": "kandu", "label": "Kandu (Itching character)", "type": "select", "half": true,
+          "options": ["Absent", "Mild (occasional)", "Moderate (frequent)", "Severe (constant / nocturnal)"] }
+      ]
+    },
+    {
+      "id": "pasi_score",
+      "title": "PASI Calculator — Psoriasis Severity (Ekakushtha / Kitibha)",
+      "fields": [
+        { "type": "note", "tone": "info", "content": "ℹ PASI (Psoriasis Area & Severity Index) is the validated severity score for psoriasis. Score each of 4 body regions: Area (0–6) × sum of Erythema + Induration + Scaling (each 0–4). Weighted total = PASI 0–72." },
+        {
+          "id": "pasi_total_score",
+          "type": "score_calculator",
+          "label": "PASI Score Calculator",
+          "calculator_id": "pasi"
+        },
+        { "id": "dlqi_score", "label": "DLQI (Dermatology Life Quality Index) — optional", "type": "number", "half": true,
+          "placeholder": "0–30",
+          "hint": "DLQI 0–1: no effect. 2–10: small-moderate. 11–20: large effect. 21–30: extremely large" },
+        { "id": "skin_disease_type", "label": "Specific skin condition", "type": "select", "half": true,
+          "options": ["Psoriasis Vulgaris (Ekakushtha)", "Guttate Psoriasis", "Scalp Psoriasis", "Palmoplantar Psoriasis", "Eczema/Dermatitis (Vicharchika)", "Contact Dermatitis (Agantuja)", "Tinea / Dermatophytosis (Dadru)", "Vitiligo (Shvitra — Kilasa)", "Lichen Planus (Pama)", "Urticaria (Sheetapitta)", "Acne (Mukhadushika — Pittaja)", "Other"] }
+      ]
+    },
+    {
+      "id": "triggers_history",
+      "title": "Triggers & Aggravating Factors",
+      "fields": [
+        { "id": "triggers", "label": "Identified Triggers", "type": "checkbox_group",
+          "options": ["Foods (Viruddha Ahara)", "Stress (Manasika)", "Sun exposure", "Cold / humidity", "Chemicals / soap / detergent", "Infection (fungal / bacterial)", "Drugs / medications", "Hormonal changes", "Unknown"] },
+        { "id": "skin_notes", "label": "Clinical Notes / Treatment History", "type": "textarea",
+          "placeholder": "Previous treatments, response to therapy, Shodhana history, Lepas used…" }
+      ]
+    }
+  ],
+  "exam_guide": {
+    "title": "Kushtha / Skin — Examination Protocol",
+    "steps": [
+      {
+        "step": 1, "title": "Darshana — Systematic Skin Survey",
+        "items": ["Good lighting (natural preferred)", "Examine head to toe — scalp, face, oral mucosa, trunk, limbs, palms, soles, nails, genitalia", "Document distribution: localised / regional / generalised / flexural / extensor / dermatomal", "Note primary lesion type: macule, papule, plaque, vesicle, bulla, pustule, nodule, wheal", "Note secondary changes: scaling, crust, erosion, ulcer, lichenification, pigment change"]
+      },
+      {
+        "step": 2, "title": "Twak Pariksha — Sparsha (Palpation)",
+        "items": ["Temperature — warm (Pitta/infected), cool (Vata/ischaemic)", "Texture — rough/dry (Vata-Kushtha), smooth/oily (Kapha-Kushtha)", "Tenderness on palpation (Pitta)", "Scale character — fine/pityriasiform, silvery (psoriasis), lamellar", "Induration / infiltration depth", "Diascopy — blanches (vascular) vs persists (purpura / fixed drug)"]
+      },
+      {
+        "step": 3, "title": "Special Examinations",
+        "items": ["Köbner phenomenon — scratch test for psoriasis / lichen planus", "Nikolsky sign — gentle pressure separates epidermis (pemphigus)", "Wood's lamp (UV) — ash-leaf white (tuberous sclerosis), coral-red (erythrasma), yellow-green (tinea versicolor)", "KOH mount — skin scraping for fungal hyphae (before antifungal treatment)", "Dermoscopy — pigmented lesions, dermoscopic features"]
+      },
+      {
+        "step": 4, "title": "Nails & Hair (Nakha-Kesha Pariksha)",
+        "items": ["Nail pitting, onycholysis, subungual hyperkeratosis (psoriasis)", "Nail discolouration — yellow (fungal), white (Terry's), koilonychia (Fe deficiency)", "Hair loss pattern — diffuse, patterned, alopecia areata (patch)", "Scalp — scaling, inflammation, folliculitis"]
+      },
+      {
+        "step": 5, "title": "Lymph Nodes & Systemic",
+        "items": ["Regional lymphadenopathy (inflammatory / malignant)", "Mucous membranes — oral ulcers (Behcet's, SLE), Wickham's striae (lichen planus)", "Joints — psoriatic arthritis screen (Sandhishula + skin)"]
+      }
+    ],
+    "reference_values": [
+      { "test": "PASI Score", "unit": "0–72", "normal": "0 (clear)", "borderline": "1–10 (mild)", "abnormal": ">10 moderate / >20 severe" },
+      { "test": "DLQI", "unit": "0–30", "normal": "0–1 (no effect)", "borderline": "2–10 (small–moderate effect)", "abnormal": ">10 (large–very large effect)" },
+      { "test": "SCORAD (Eczema)", "unit": "0–103", "normal": "0 (clear)", "borderline": "<25 mild / 25–50 moderate", "abnormal": ">50 severe" }
+    ]
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "ncism_code": "SHAL",
+  "title": "Shalya Tantra Case Proforma",
+  "subtitle": "NCISM — Surgery, Wound Management & Ayurveda Operative Procedures",
+  "sections": [
+    {
+      "id": "vrana_pariksha",
+      "title": "Vrana / Lesion Pariksha — Local Examination",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Shalya Tantra uses 8-fold Vrana Pariksha (Ashtavidha Vrana Pariksha): Varna, Gandha, Srava, Vedana, Sparsha, Pramana, Akruti, Samstha. Document all 8 before deciding chikitsa." },
+        { "id": "vrana_type", "label": "Vrana type (origin)", "type": "select", "half": true,
+          "options": ["Nija Vrana (Intrinsic — metabolic/dosha origin)", "Agantuja Vrana (Extrinsic — trauma, surgery, burn)", "Nija + Agantuja (Mixed)"] },
+        { "id": "site", "label": "Site / Adhisthana", "type": "text", "half": true,
+          "placeholder": "e.g. Right inguinal, perianal, plantar" },
+        { "id": "size", "label": "Size (Pramana — L × W cm)", "type": "text", "half": true,
+          "placeholder": "e.g. 3×2 cm" },
+        { "id": "shape", "label": "Shape (Akruti)", "type": "select", "half": true,
+          "options": ["Round/Oval (Vataja — smooth)", "Linear", "Irregular (Sannipataja)", "Stellate", "Punched-out (Pittaja — clean edge)", "Sinus/Fistula (Kaphaja — indurated)"] },
+        { "type": "heading", "label": "Ashtavidha Vrana Assessment", "tone": "ayurveda" },
+        { "id": "colour", "label": "Varna (Colour)", "type": "select", "half": true,
+          "options": ["Pale/slough (Kaphaja)", "Red/inflamed (Pittaja)", "Dark/discoloured (Vataja)", "Healthy pink/granulating (healing)", "Black/necrotic (Asadhya risk)"],
+          "hint": "Healthy granulation = pink/red, moist. Pale = poor blood supply / Kapha excess" },
+        { "id": "discharge", "label": "Srava (Discharge)", "type": "select", "half": true,
+          "options": ["None (dry wound)", "Serous (clear — Sadhya)", "Serosanguineous", "Purulent/foul (Pittaja — infected)", "Haemorrhagic", "Watery + slimy (Kaphaja — Krichrasadhya)", "Mixed"],
+          "hint": "Foul-smelling = infected; Watery/thin = Vataja; Thick/viscid = Kaphaja" },
+        { "id": "smell", "label": "Gandha (Smell)", "type": "select", "half": true,
+          "options": ["None/normal", "Slightly offensive", "Foul (Pittaja/Kaphaja infected)", "Sweet (diabetic wound — Prameha)", "Putrid (Asadhya — necrosis)"] },
+        { "id": "vedana", "label": "Vedana (Pain)", "type": "select", "half": true,
+          "options": ["None", "Mild (Kaphaja)", "Moderate burning (Pittaja)", "Severe, shooting (Vataja)", "Pulsating (abscess forming)", "No pain despite deep wound (neuropathic/Vataja kshaya)"],
+          "hint": "Painless deep wound = neuropathy (DM/leprosy) — investigate systemic cause" },
+        { "id": "edge", "label": "Wound Edge / Margin", "type": "select", "half": true,
+          "options": ["Smooth, regular (healing/Sadhya)", "Irregular", "Undermined (Vataja — deep cavity)", "Everted (sloughing)", "Rolled/raised (carcinomatous — Asadhya)","Sloping (healing edge)"] },
+        { "id": "floor", "label": "Wound Floor", "type": "select", "half": true,
+          "options": ["Healthy granulation (progressing well)", "Slough (Kapha — clean before treating)", "Necrotic tissue (debride first)", "Muscle exposed", "Bone/cartilage exposed (deep Marma involvement)", "Clean (post-excision)"] },
+        { "id": "depth", "label": "Depth (Gahana)", "type": "select", "half": true,
+          "options": ["Superficial (skin only)", "Dermis", "Subcutaneous fat", "Muscle/fascia", "Bone/Joint (Asthi Sandhi — Asadhya risk)", "Body cavity involved"],
+          "hint": "Marma involvement (Vital points): Talhridaya, Vitapa, Kakshadhara, Kurpara etc — always document" },
+        { "id": "dosha_predominance", "label": "Dosha predominance", "type": "select", "half": true,
+          "options": ["Vataja (dry, dark, rough, severe pain, no discharge)", "Pittaja (red, hot, burning, yellow/green discharge)", "Kaphaja (white, cold, oily, slow-healing, minimal pain)", "Sannipataja (all signs — complex, Krichrasadhya)", "Raktaja (profuse bleeding, red, inflamed)"] }
+      ]
+    },
+    {
+      "id": "staging",
+      "title": "Wound Classification & Surgical Assessment",
+      "fields": [
+        { "type": "note", "tone": "warning", "content": "⚠ NCISM SURGICAL SAFETY: Confirm consent obtained + surgical site marking + implant record before OT. Document ASA status. Ksharasutra/Agnikarma can be done in clinic; Sastrakarma requires OT suite (§47 compliance)." },
+        { "id": "sadhya_asadhyata", "label": "Sadhya-Asadhyata (Prognosis)", "type": "select", "half": true,
+          "options": ["Sadhya — Agantu + clean + short duration", "Krichrasadhya — infected/chronic", "Yapya — palliable (diabetic ulcer, neuropathic)", "Asadhya — Marma involvement / carcinomatous edge"],
+          "hint": "Asadhya criteria: Marma involvement, Gandusharasa (foul), black/necrotic, prolonged" },
+        { "id": "surgical_required", "label": "Intervention required?", "type": "select", "half": true,
+          "options": ["Conservative Ayurveda only (Shodhana/Ropana)", "Agnikarma (thermal cauterisation)", "Kshara karma (chemical — topical or Sutra)", "Jalaukavacharana (Leech therapy)", "Minor surgery — OPD (I&D, excision)", "Major surgery — OT (elective)", "Emergency surgery — urgent OT"] },
+        { "id": "agnikarma_type", "label": "Agnikarma type (if indicated)", "type": "select", "half": true,
+          "options": ["Not indicated", "Vatika (wax/stick)", "Pita (butter/ghee)", "Oushadha (medicinal paste + heat)", "Kshaudraja (honey + heat)", "Sarala (pine resin)"],
+          "hint": "Agnikarma contraindicated: Pittaja/Raktapitta conditions, summer, weak patients" },
+        { "id": "ksharasutra_type", "label": "Kshara Karma type (if indicated)", "type": "select", "half": true,
+          "options": ["Not indicated", "Sarava Kshara (topical — Arshas/granuloma)", "Kshara Sutra (fistula/fissure treatment)", "Pratisarana (rubbing — Danta/skin)"] },
+        { "id": "staging_notes", "label": "Staging / classification notes", "type": "textarea",
+          "placeholder": "Wagner grade (diabetic foot 0–5), Fistula classification (Parks), Haemorrhoid grade (I–IV), TNM staging if malignant…" }
+      ]
+    },
+    {
+      "id": "preop",
+      "title": "Pre-operative Assessment (Karma Poorvakarma)",
+      "fields": [
+        { "type": "heading", "label": "Modern Surgical Fitness", "tone": "modern" },
+        { "id": "asa_status", "label": "ASA Physical Status", "type": "select", "half": true,
+          "options": ["ASA I — Healthy, no disease", "ASA II — Mild systemic disease (well-controlled)", "ASA III — Severe systemic disease", "ASA IV — Life-threatening systemic disease", "ASA V — Not expected to survive 24hr without surgery"],
+          "hint": "ASA I–II: safe for most surgery. ASA III+: multidisciplinary fitness needed" },
+        { "id": "anaesthesia_type", "label": "Planned anaesthesia", "type": "select", "half": true,
+          "options": ["Local anaesthesia", "Regional (spinal/epidural)", "General anaesthesia", "IV sedation", "No anaesthesia (topical Kshara)"] },
+        { "id": "surgical_fitness", "label": "Surgical fitness verdict", "type": "select", "half": true,
+          "options": ["Fit for surgery", "Fit with caution (document)", "Unfit — optimise comorbidity first", "Emergency — fitness secondary to urgency"] },
+        { "id": "consent", "label": "Informed consent status", "type": "select", "half": true,
+          "options": ["Obtained (signed)", "Pending", "Patient refused", "Surrogate/guardian consent (minor/incapacitated)"] },
+        { "type": "heading", "label": "Ayurveda Pre-operative Preparation", "tone": "ayurveda" },
+        { "id": "preop_snehana", "label": "Pre-operative Snehana/Abhyanga given?", "type": "select", "half": true,
+          "options": ["Not required", "Bahya Snehana (Abhyanga × 3 days)", "Abhyantara + Bahya (for Marma procedures)", "Not given — emergency"] },
+        { "id": "agni_status_preop", "label": "Agni status (pre-op)", "type": "select", "half": true,
+          "options": ["Samagni — proceed", "Mandagni — brief Deepana given", "Saama — defer if possible, treat Ama first"] }
+      ]
+    },
+    {
+      "id": "shalya_history",
+      "title": "Shalya-specific History",
+      "fields": [
+        { "id": "duration_complaint", "label": "Duration of complaint", "type": "text", "half": true,
+          "placeholder": "e.g. 3 weeks, 6 months, 2 years" },
+        { "id": "previous_surgery", "label": "Previous surgeries at this site", "type": "text", "half": true,
+          "placeholder": "None / specify procedure + year + outcome" },
+        { "id": "trauma_history", "label": "Trauma / injury mechanism", "type": "textarea",
+          "placeholder": "Mechanism (blunt/penetrating/burn), site, time of injury, contamination, first aid given…" },
+        { "id": "diabetes_vascular", "label": "Diabetes / vascular disease assessment", "type": "checkbox_group",
+          "options": ["No comorbidity", "Diabetes (note HbA1c + current control)", "Peripheral arterial disease (ABI < 0.9)", "Venous insufficiency", "Neuropathy (loss of protective sensation)", "Immunocompromised (HIV/steroid/chemo)"],
+          "hint": "Diabetic wound + ABI <0.6 = refer vascular surgery before wound care" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "ncism_code": "PK",
+  "title": "Panchakarma Case Proforma",
+  "subtitle": "NCISM — Panchakarma Specialty Sheet (§47 Compliance)",
+  "sections": [
+    {
+      "id": "dashavidha",
+      "title": "Dashavidha Pariksha — 10-fold Assessment",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 NCISM §47 mandates pre-PK fitness documentation. Assess ALL 10 parameters before scheduling any Pradhana Karma. ECG mandatory for all Snehapana patients (§47 — PK consultation room requirement)." },
+        { "id": "prakriti", "label": "Prakriti (Constitution)", "type": "select", "half": true,
+          "options": ["Vata", "Pitta", "Kapha", "Vata-Pitta", "Pitta-Kapha", "Vata-Kapha", "Sama (Balanced)"] },
+        { "id": "vikriti", "label": "Vikriti (Current imbalance — clinical presentation)", "type": "text", "half": true,
+          "placeholder": "e.g. Vata-Kapha predominant (Sanchaya in Koshtha)" },
+        { "id": "saara", "label": "Saara (Tissue quality)", "type": "select", "half": true,
+          "options": ["Pravara (Good — Shodhana well tolerated)", "Madhyama (Average)", "Avara (Poor — Shamana only)"],
+          "hint": "Avara Saara = contraindication for intensive Shodhana; consider Ksheerabala Basti instead" },
+        { "id": "samhanana", "label": "Samhanana (Body compactness)", "type": "select", "half": true,
+          "options": ["Pravara (Well-knit)", "Madhyama", "Avara (Loose/wasted)"] },
+        { "id": "pramana", "label": "Pramana (Body build/BMI)", "type": "select", "half": true,
+          "options": ["Normal", "Overweight / Sthula (dose adjustment needed)", "Underweight / Krisha (Brimhana first)", "Obese (Karshana PK priority)"] },
+        { "id": "satmya", "label": "Satmya (Habituation)", "type": "select", "half": true,
+          "options": ["Sarva Satmya (All tolerated)", "Bahula", "Eka (Very limited — careful)"] },
+        { "id": "satwa", "label": "Satwa (Mental resilience)", "type": "select", "half": true,
+          "options": ["Pravara (Bears procedure well)", "Madhyama", "Avara (Anxious — Sattvavajaya first)"],
+          "hint": "Avara Satwa: give Manasa Shodana support, explain procedures fully before starting" },
+        { "id": "aharashakti", "label": "Aharashakti (Digestive capacity)", "type": "select", "half": true,
+          "options": ["Pravara", "Madhyama", "Avara — treat Mandagni first"] },
+        { "id": "vyayamashakti", "label": "Vyayamashakti (Exercise capacity)", "type": "select", "half": true,
+          "options": ["Pravara (Active)", "Madhyama (Moderate)", "Avara (Sedentary / bed-ridden)"] },
+        { "id": "vaya", "label": "Vaya (Age group)", "type": "select", "half": true,
+          "options": ["Bala (Child — gentle procedures only)", "Madhya (Adult — all indicated)", "Vriddha (Elderly — Mrudu Shodhana only)"] }
+      ]
+    },
+    {
+      "id": "fitness_assessment",
+      "title": "Pre-PK Fitness Assessment (NCISM §47 Mandatory)",
+      "fields": [
+        { "type": "note", "tone": "critical", "content": "⚠ NCISM §47(vii): Pre-PK fitness must be certified by the PK consultant. ECG required before Snehapana. Document Yogya-Ayogya decision here." },
+        { "id": "ecg_done", "label": "ECG (Pre-Snehapana — §47 mandatory)", "type": "select", "half": true,
+          "options": ["Normal — cleared for Snehapana", "Abnormal — cardiology consult needed", "Not done — must be done before proceeding"] },
+        { "id": "bp", "label": "Blood Pressure", "type": "text", "half": true, "placeholder": "e.g. 118/74 mmHg",
+          "hint": "BP >160/100 = relative contraindication for Vamana; check with PK consultant" },
+        { "id": "fitness_verdict", "label": "Yogya-Ayogya verdict (PK fitness)", "type": "select", "half": true,
+          "options": ["Yogya — fit for Shodhana", "Yogya with caution (modified protocol)", "Ayogya — Shamana only", "Defer — treat comorbidity first"] },
+        { "id": "fitness_notes", "label": "Fitness notes / precautions", "type": "textarea", "rows": 2,
+          "placeholder": "e.g. Reduce Snehapana dose by 25% due to Avara Saara; monitor BP daily…" },
+        { "type": "heading", "label": "Contraindications Checklist", "tone": "modern" },
+        { "id": "contraindications", "label": "Contraindications present", "type": "checkbox_group",
+          "options": ["None — proceed", "Pregnancy", "Fever / acute illness", "Extreme debility (Atikrisha)", "Vriddha >80 yr", "Recent surgery <4 weeks", "Active cardiac disease", "Active bleeding / haemorrhage", "Active infection (Saama condition)", "Severe Mandagni (Ama not cleared)"] }
+      ]
+    },
+    {
+      "id": "poorvakarma",
+      "title": "Poorvakarma — Preparatory Procedures",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Poorvakarma prepares the channels (Srotas) for Pradhana Karma. Snehana softens the Doshas; Swedana mobilises them toward the GI tract for elimination. Without adequate Poorvakarma, Pradhana Karma is ineffective." },
+        { "type": "heading", "label": "Snehana (Oleation)", "tone": "ayurveda" },
+        { "id": "snehana_type", "label": "Snehana type", "type": "select", "half": true,
+          "options": ["Not required", "Abhyantara only (Internal oleation — Snehapana)", "Bahya only (External — Abhyanga)", "Ubhaya (Both internal + external)"] },
+        { "id": "sneha_dravya", "label": "Sneha dravya", "type": "select", "half": true,
+          "options": ["Go Ghrita (Cow ghee — Pitta + Vata disorders)", "Tila Taila (Sesame oil — Vata dominant)", "Vasa (Animal fat — Vata-Kapha, chronic)", "Majja (Bone marrow — extreme Vata kshaya)", "Medicated Ghrita (condition-specific)", "Medicated Taila"],
+          "hint": "Ghrita = best for Pitta, intelligence, eyes. Taila = best for Vata, skin, joints" },
+        { "id": "snehapana_days", "label": "Snehapana plan (duration + dose schedule)", "type": "text", "half": true,
+          "placeholder": "e.g. Day 1: 30mL, Day 2: 60mL, Day 3: 90mL… (Arohana Matra)",
+          "hint": "Standard: 3–7 days arohana (ascending) dose. Pravara Koshtha: 3 days; Mridu: 5–7 days" },
+        { "id": "samyak_snehana", "label": "Samyak Snehana signs achieved?", "type": "select", "half": true,
+          "options": ["Yes — all signs present (Snigdha, Mrudu, Varchah Snigdha, Agni Samata, Laghutwa)", "Partial — extend 1–2 days", "No — reassess dose/duration", "Not applicable"] },
+        { "type": "heading", "label": "Swedana (Sudation)", "tone": "ayurveda" },
+        { "id": "swedana_type", "label": "Swedana type", "type": "select", "half": true,
+          "options": ["Not required", "Bashpa Sweda (Steam box/cabinet)", "Nadi Sweda (Tube steam — localised)", "Pinda Sweda (Bolus — Shashtika Shali / Ela kizhi)", "Parisheka (Pouring — Dhara)", "Avagaha (Immersion bath)", "Combination (Sarvanga + Nadi)"],
+          "hint": "Contraindicate Sweda in: Pitta excess, Raktapitta, exhaustion, fever, Mada" },
+        { "id": "swedana_duration", "label": "Swedana plan (duration + days)", "type": "text", "half": true,
+          "placeholder": "e.g. 20 min/day × 5 days before Virechana" }
+      ]
+    },
+    {
+      "id": "pradhana_karma",
+      "title": "Pradhana Karma — Primary Procedure",
+      "fields": [
+        { "id": "selected_karma", "label": "Pradhana Karma selected", "type": "select", "half": true,
+          "options": ["Vamana (Kapha disorders — Urdhvajatrugata)", "Virechana (Pitta disorders — Koshtha Marga)", "Niruha Basti (Decoction enema — Vata disorders)", "Anuvasana Basti (Oil enema — supplementary)", "Yoga Basti (Niruha + Anuvasana combination)", "Kala Basti (Extended 15-Basti schedule)", "Karma Basti (Full 30-Basti)", "Nasya (Urdhvajatrugata — head/neck)", "Raktamokshana (Blood-letting — Pittaja skin/joints)"] },
+        { "id": "yoga_dravya", "label": "Yoga dravya (Main formulation)", "type": "text", "half": true,
+          "placeholder": "e.g. Madanaphala + Yashtimadhu Kalpa (Vamana); Trivrit + Haritaki (Virechana)" },
+        { "id": "dose_quantity", "label": "Dose / quantity planned", "type": "text", "half": true,
+          "placeholder": "e.g. 250 mL Vamana Yoga; 96 Basti (Karma Basti)",
+          "hint": "Vamana dose: Hrasva 500mL / Madhyama 750mL / Uttama 1000mL based on Koshtha" },
+        { "id": "samyak_yoga_signs", "label": "Samyak Yoga signs (expected outcome)", "type": "textarea", "rows": 2,
+          "placeholder": "Vamana: 4–8 episodes, Kapha/Pitta in vomitus, Laghuta after. Virechana: 20–30 stools, clean Mala…" },
+        { "id": "therapy_room", "label": "Therapy Room Number (NCISM §47 requirement)", "type": "text", "half": true,
+          "placeholder": "e.g. PK Room 3 (numbered, not named)",
+          "hint": "NCISM §47(xiii): rooms must be numbered, not named by therapy type" }
+      ]
+    },
+    {
+      "id": "paschatkarma",
+      "title": "Paschatkarma — Post-procedure Care & Samsarjana Krama",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Samsarjana Krama is the gradual dietary re-introduction after Shodhana. Skipping this step causes premature Agni overload and Shodhana complications. Follow strictly for minimum 7 days." },
+        { "id": "samsarjana_stage", "label": "Current Samsarjana stage", "type": "select", "half": true,
+          "options": ["Day 1 — Peya (Thin rice gruel)", "Day 2 — Vilepi (Thick gruel)", "Day 3 — Akrita Yusa (Unseasoned soup)", "Day 4 — Krita Yusa (Seasoned soup)", "Day 5 — Akrita Mamsarasa (Plain meat soup)", "Day 6 — Krita Mamsarasa (Seasoned)", "Day 7+ — Normal diet (gradually)"] },
+        { "id": "samsarjana_tolerance", "label": "Tolerating Samsarjana Krama?", "type": "select", "half": true,
+          "options": ["Yes — as expected", "No — bowel complaints", "No — nausea/weakness (advancing too fast)", "Skipped to normal diet (document reason)"] },
+        { "id": "rasayana_plan", "label": "Post-Shodhana Rasayana plan", "type": "textarea", "rows": 2,
+          "placeholder": "e.g. Chyavanaprasha 10g BD × 3 months; Ashwagandha Ghrita; Triphala Rasayana. Timing: after Samsarjana complete." },
+        { "id": "followup_plan", "label": "Follow-up & maintenance plan", "type": "textarea", "rows": 2,
+          "placeholder": "Seasonal Shodhana plan, maintenance Basti, Rasayana cycle, Pathya-Apathya instructions…" }
+      ]
+    }
+  ]
+}

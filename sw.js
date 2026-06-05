@@ -41,11 +41,13 @@ const PRECACHE = [
 // ── External origins that should never be cached ────────────────────────────
 function isExternal(url) {
   return (
-    url.includes('supabase.co')       ||
-    url.includes('googleapis.com')    ||
-    url.includes('gstatic.com')       ||
-    url.includes('jsdelivr.net')      ||
-    url.includes('fonts.gstatic.com') ||
+    url.includes('supabase.co')            ||
+    url.includes('googleapis.com')         ||
+    url.includes('gstatic.com')            ||
+    url.includes('jsdelivr.net')           ||
+    url.includes('cdnjs.cloudflare.com')   ||
+    url.includes('cloudflareinsights.com') ||
+    url.includes('fonts.gstatic.com')      ||
     url.includes('chrome-extension')
   );
 }

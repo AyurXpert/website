@@ -1,0 +1,119 @@
+{
+  "ncism_code": "KAU",
+  "title": "Kaumarabhritya Case Proforma",
+  "subtitle": "NCISM — Paediatrics (Bala Roga / Kaumara Bhritya)",
+  "sections": [
+    {
+      "id": "birth_history",
+      "title": "Janma Vrittanta — Birth History",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Kaumarabhritya covers 3 phases: Kumara (0–1 yr), Bala (1–8 yr), Kishora (9–16 yr). NCISM: Kaumarabhritya OPD is for patients up to 18 years. Birth history and Sutikagraha (postnatal care) are essential for neonatal/infant presentations." },
+        { "id": "delivery_type", "label": "Mode of delivery", "type": "select", "half": true,
+          "options": ["Normal Vaginal Delivery (NVD)", "LSCS", "Forceps delivery", "Vacuum delivery", "Breech delivery"] },
+        { "id": "gestational_age", "label": "Gestational age at birth", "type": "select", "half": true,
+          "options": ["Term (37–42 weeks)", "Preterm (<37 weeks — Anupurnajata)", "Post-term (>42 weeks)"],
+          "hint": "Preterm = higher risk for neonatal infections, feeding difficulty, jaundice" },
+        { "id": "birth_weight", "label": "Birth weight", "type": "number", "half": true, "unit": "kg", "placeholder": "2.5–4.0",
+          "hint": "LBW <2.5 kg; VLBW <1.5 kg. LBW = risk for hypoglycaemia, hypothermia, infection" },
+        { "id": "birth_cry", "label": "Birth cry (Prathamaja Shabda)", "type": "select", "half": true,
+          "options": ["Immediate (< 1 min)", "Delayed (>1 min)", "Absent — neonatal resuscitation done", "Absent — no resuscitation"] },
+        { "id": "apgar_1min", "label": "APGAR at 1 min", "type": "number", "half": true, "placeholder": "0–10",
+          "hint": "7–10 = good. 4–6 = moderate. 0–3 = severe — immediate resuscitation" },
+        { "id": "apgar_5min", "label": "APGAR at 5 min", "type": "number", "half": true, "placeholder": "0–10" },
+        { "id": "nicu_admission", "label": "NICU admission", "type": "select", "half": true,
+          "options": ["No", "Yes — <7 days", "Yes — 7–14 days", "Yes — >14 days (severe neonatal illness)"] },
+        { "id": "neonatal_issues", "label": "Neonatal problems", "type": "checkbox_group",
+          "options": ["None", "Neonatal jaundice (Kamala)", "Birth asphyxia (Vataja)", "Neonatal sepsis", "Hypoglycaemia", "Congenital malformation", "Respiratory distress (TTNB/RDS)", "Birth trauma"] }
+      ]
+    },
+    {
+      "id": "developmental_milestones",
+      "title": "Balavikasa — Developmental Milestones",
+      "fields": [
+        { "type": "note", "tone": "info", "content": "ℹ Expected milestones are guides — individual variation ±2 months is normal. Red flags: no smile by 3m, no sitting by 9m, no single words by 18m, loss of any achieved milestone (regression = urgent)." },
+        { "type": "heading", "label": "Gross Motor (Sthaulya / Physical)", "tone": "modern" },
+        { "id": "neck_holding", "label": "Neck holding", "type": "number", "half": true, "unit": "months", "placeholder": "Expected: 3–4" },
+        { "id": "sitting_support", "label": "Sitting with support", "type": "number", "half": true, "unit": "months", "placeholder": "Expected: 6" },
+        { "id": "sitting_alone", "label": "Sitting independently", "type": "number", "half": true, "unit": "months", "placeholder": "Expected: 8–9" },
+        { "id": "standing_support", "label": "Standing with support", "type": "number", "half": true, "unit": "months", "placeholder": "Expected: 9–10" },
+        { "id": "walking", "label": "Walking independently", "type": "number", "half": true, "unit": "months", "placeholder": "Expected: 12–15",
+          "hint": "Not walking by 18 months: refer for formal assessment (CP, hypotonia, muscular dystrophy)" },
+        { "type": "heading", "label": "Speech & Social", "tone": "modern" },
+        { "id": "social_smile", "label": "Social smile", "type": "number", "half": true, "unit": "months", "placeholder": "Expected: 2–3 months" },
+        { "id": "first_words", "label": "First meaningful words", "type": "number", "half": true, "unit": "months", "placeholder": "Expected: 12",
+          "hint": "No words by 18 months = refer speech therapy. No babbling by 12m = hearing test urgently" },
+        { "id": "two_word_sentences", "label": "Two-word sentences", "type": "number", "half": true, "unit": "months", "placeholder": "Expected: 18–24" },
+        { "id": "milestone_status", "label": "Overall milestone assessment", "type": "select", "half": true,
+          "options": ["Normal for age", "Mildly delayed — reassure, follow up at 3 months", "Moderately delayed — refer developmental paediatrics", "Severely delayed — urgent multidisciplinary assessment", "Regression — urgent investigation (metabolic/neurological)"] },
+        { "type": "ayurveda_divider", "label": "Ayurveda Milestones (Masanumasika Vikasa)" },
+        { "id": "bala_vikasa_notes", "label": "Masanumasika Vikasa (month-wise development — Ayurveda)", "type": "textarea", "rows": 2,
+          "placeholder": "Month 1: Cheshtavaan (movements), Month 3: Ksheerasannihita (oral reflexes), Month 6: Baladrida, Month 12: Gamana…" }
+      ]
+    },
+    {
+      "id": "immunization",
+      "title": "Tikadaan — Immunization Status (UIP Schedule)",
+      "fields": [
+        { "type": "note", "tone": "info", "content": "ℹ Always check immunization card. Give missed vaccines today. Catch-up vaccinations are safe — give all overdue vaccines simultaneously unless contraindicated." },
+        { "id": "bcg", "label": "BCG (birth)", "type": "select", "half": true,
+          "options": ["Done (scar visible)", "Done (no scar — Mantoux/retest)", "Not done"] },
+        { "id": "opv_ipv", "label": "OPV / IPV", "type": "select", "half": true,
+          "options": ["Complete (3 primary + 2 boosters)", "Primary complete (3 doses)", "Partial", "Not done"] },
+        { "id": "hep_b", "label": "Hepatitis B (3 doses)", "type": "select", "half": true,
+          "options": ["Complete", "2 doses only", "1 dose only", "Not done"] },
+        { "id": "dpt_penta", "label": "DPT / Pentavalent", "type": "select", "half": true,
+          "options": ["Complete (3 primary + 2 boosters)", "3 primary only", "2 doses", "1 dose", "Not done"] },
+        { "id": "measles_mmr", "label": "Measles / MMR (2 doses)", "type": "select", "half": true,
+          "options": ["Both doses done (9m + 15–18m)", "1st dose only (9m)", "Not done"] },
+        { "id": "typhoid", "label": "Typhoid vaccine", "type": "select", "half": true,
+          "options": ["Done", "Not done", "Not yet due (<2 yr)"] },
+        { "id": "immunization_overall", "label": "Immunization status", "type": "select", "half": true,
+          "options": ["Complete for age", "Incomplete — catch-up given today", "Incomplete — referral to immunization clinic", "Not vaccinated — counselled, referral given"] }
+      ]
+    },
+    {
+      "id": "growth_assessment",
+      "title": "Poshana Pariksha — Growth & Nutritional Assessment",
+      "fields": [
+        { "id": "current_weight", "label": "Weight", "type": "number", "half": true, "unit": "kg" },
+        { "id": "current_height", "label": "Height / Length", "type": "number", "half": true, "unit": "cm" },
+        { "id": "head_circumference", "label": "Head circumference", "type": "number", "half": true, "unit": "cm",
+          "hint": "Normal at birth: ~34cm; 6m: ~44cm; 1yr: ~47cm. Macrocephaly/microcephaly: investigate" },
+        { "id": "muac", "label": "MUAC (Mid-upper arm circumference)", "type": "number", "half": true, "unit": "mm",
+          "hint": "SAM: <115mm (Red). MAM: 115–125mm (Yellow). Normal: >125mm (Green)" },
+        { "id": "weight_for_age", "label": "Weight for age (WHO Z-score)", "type": "select", "half": true,
+          "options": ["Normal (>-1 SD)", "Mild underweight (-1 to -2 SD)", "Moderate underweight (-2 to -3 SD = MAM)", "Severe underweight (<-3 SD = SAM)", "Overweight (>+2 SD)", "Obese (>+3 SD)"] },
+        { "id": "stunting", "label": "Height for age (stunting)", "type": "select", "half": true,
+          "options": ["Normal (>-2 SD)", "Mild stunting (-1 to -2 SD)", "Moderate stunting (-2 to -3 SD)", "Severe stunting (<-3 SD — chronic malnutrition)"] },
+        { "id": "wasting", "label": "Weight for height (wasting)", "type": "select", "half": true,
+          "options": ["Normal (>-2 SD)", "Mild wasting (-1 to -2 SD)", "Moderate wasting (MAM)", "Severe acute malnutrition (SAM — requires admission)"] },
+        { "id": "oedema", "label": "Bilateral pitting oedema?", "type": "select", "half": true,
+          "options": ["No", "Present (mild — +)", "Present (moderate — ++)", "Present (severe — +++)"],
+          "hint": "Bilateral pitting oedema = Kwashiorkor. Always admit + treat regardless of weight" }
+      ]
+    },
+    {
+      "id": "feeding_ayurveda",
+      "title": "Ahara Vrittanta & Ayurveda Assessment",
+      "fields": [
+        { "id": "breastfeeding", "label": "Breastfeeding status", "type": "select", "half": true,
+          "options": ["Exclusive BF ≥6 months (Ksheerada — ideal)", "Partial BF", "Formula-fed only (Ksheerapana — monitor growth)", "Not breastfed at all"] },
+        { "id": "complementary_food", "label": "Complementary food initiation", "type": "select", "half": true,
+          "options": ["Appropriate (6 months, 3 times/day, thick consistency)", "Started early (<6 months — Agni not ready)", "Started late (>9 months — growth faltering risk)", "Not started yet"] },
+        { "id": "diet_quality", "label": "Dietary diversity (current)", "type": "checkbox_group",
+          "options": ["Cereals/grains (Shali)", "Pulses/legumes (Mudga)", "Dairy (Kshira/Dadhi)", "Fruits/vegetables", "Eggs/meat/fish (if non-veg)", "Junk food/processed (Viruddha — document)"] },
+        { "type": "ayurveda_divider", "label": "Kaumarabhritya Ayurveda Assessment" },
+        { "id": "kaumar_prakriti", "label": "Child's Prakriti", "type": "select", "half": true,
+          "options": ["Vata (thin, hyperactive, dry, fearful)", "Pitta (sharp, impatient, sweaty)", "Kapha (calm, heavy, slow, loving)", "Vata-Pitta", "Pitta-Kapha", "Vata-Kapha", "Sama (balanced)"] },
+        { "id": "agni_child", "label": "Child's Agni", "type": "select", "half": true,
+          "options": ["Samagni (eats well, regular stools, no complaints)", "Vishamagni (irregular hunger, alternating constipation/loose)", "Tikshnagni (always hungry, hyperacidity)", "Mandagni (poor appetite, bloating, Ama — common in Kapha children)"] },
+        { "id": "balagraha", "label": "Balagraha (Childhood spirit diseases — if relevant)", "type": "select", "half": true,
+          "options": ["Not applicable", "Skanda Graha (crying, arching — colic)", "Vishakha Graha (fever, rashes)", "Putana Graha (vomiting, refusal of breast)", "Andha Putana (sudden eye symptoms)", "Seeta Putana (shivering, pallor)", "Mukha Mandika (oral disease)"],
+          "hint": "Balagraha = classical Ayurveda classification of infant/child illness clusters" },
+        { "id": "dashapushpa_rasayana", "label": "Swarnaprashana / Rasayana given?", "type": "select", "half": true,
+          "options": ["Not given", "Swarnaprashana (gold + honey + ghee — immunity)", "Brahmi Ghrita (memory/development)", "Ashwagandha Ksheera (growth)", "Dhatri Lehya (Amalaki — immunity)"],
+          "hint": "NCISM-approved preventive Rasayana for children — document if given" }
+      ]
+    }
+  ]
+}

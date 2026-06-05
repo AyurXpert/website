@@ -1,0 +1,82 @@
+{
+  "ncism_code": "RNV",
+  "title": "Rog Nidana & Vikruti Vigyana Proforma",
+  "subtitle": "NCISM — Pathology & Ayurveda Diagnosis (Nidana Panchaka + Samprapti)",
+  "sections": [
+    {
+      "id": "nidana_panchaka",
+      "title": "Nidana Panchaka — Fivefold Diagnostic Framework",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Nidana Panchaka is the 5-pillar Ayurveda diagnostic tool: (1) Nidana (cause), (2) Purvarupa (premonitory signs), (3) Rupa (clinical features), (4) Upashaya (relieving factors), (5) Samprapti (pathogenesis). Documenting all 5 allows complete Samprapti Vighatana (treatment targeting)." },
+        { "id": "nidana", "label": "Nidana (Causative factors)", "type": "textarea", "rows": 3,
+          "placeholder": "Aaharaja: Viruddha, Guru, Amla, Ushna excess. Viharaja: Divaswapna, Vegadharana, overexertion. Manasika: Chinta, Shoka, Bhaya, Krodha, Lobha. Agantuja: trauma, infection, toxin. Swabhavaja: constitutional/hereditary…",
+          "hint": "Always document Vyanjaka Hetu (precipitating cause) separately — what triggered this episode?" },
+        { "id": "purvarupa", "label": "Purvarupa (Premonitory symptoms — before disease manifests)", "type": "textarea", "rows": 2,
+          "placeholder": "Early warning signs appearing weeks/months before main disease. e.g. Timira (blurring) before Linganasha; Udgara (belching) before Amlapitta; Gaurava (heaviness) before Ama fever…",
+          "hint": "Purvarupa = Stage 4 Sthanasamshraya in Kriyakala — treating here can prevent full disease" },
+        { "id": "rupa", "label": "Rupa (Clinical features — Vyanjaka Lakshana)", "type": "textarea", "rows": 3,
+          "placeholder": "Specific symptoms characteristic of this disease. Include: Pratyatma Lakshana (pathognomonic sign unique to this disease) + Samanya Lakshana (general signs). e.g. Shwasa (breathlessness) + Kapha Samshlishta Srotas (sticky channels) + Sadanashraya (heaviness) in Tamaka Shwasa…" },
+        { "id": "upashaya", "label": "Upashaya (Relieving factors — Diagnostic clue)", "type": "textarea", "rows": 2,
+          "placeholder": "Ahara/Vihara/Aushadha that relieves symptoms. e.g. Hot food + dry conditions relieves Kaphaja; cold/cooling relieves Pittaja; oily/warm relieves Vataja. Upashaya = confirms Dosha when opposite relieves.",
+          "hint": "Upashaya by Vipareeta (opposites): warming relieves Vata; cooling relieves Pitta; drying relieves Kapha" },
+        { "id": "anupashaya", "label": "Anupashaya (Aggravating factors)", "type": "textarea", "rows": 2,
+          "placeholder": "What worsens the condition. e.g. Cold, dry foods worsen Vataja; hot, spicy worsen Pittaja; oily, sweet, heavy worsen Kaphaja. Anupashaya = same quality as Dosha involved." }
+      ]
+    },
+    {
+      "id": "samprapti",
+      "title": "Samprapti Vighatana — Pathogenesis Map",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Samprapti = complete pathological chain. Samprapti Vighatana (disrupting the chain) is the core of Ayurveda chikitsa. Identify which Ghataka to target: if Agni is poor → Deepana first; if Ama present → Pachana; if Srotas obstructed → Shodhana." },
+        { "id": "samprapti_narrative", "label": "Samprapti narrative (step-by-step chain)", "type": "textarea", "rows": 4,
+          "placeholder": "E.g.: Mandagni (weak digestion) → Ama formation → Vata aggravation → Ama+Vata accumulate in Pakwashaya → spread via Rasavaha Srotas → Sthana Samshraya in Hridaya → Vatika Hridroga manifestation…" },
+        { "type": "heading", "label": "Samprapti Ghatakas (9 Components)", "tone": "ayurveda" },
+        { "id": "dosha", "label": "Dosha (Vitiated)", "type": "checkbox_group",
+          "options": ["Vata", "Pitta", "Kapha", "Vata-Pitta", "Pitta-Kapha", "Vata-Kapha", "Tridosha"] },
+        { "id": "dushya", "label": "Dushya (Dhatu/Mala vitiated)", "type": "checkbox_group",
+          "options": ["Rasa (plasma/lymph)", "Rakta (blood)", "Mamsa (muscle)", "Meda (fat/adipose)", "Asthi (bone)", "Majja (marrow/CNS)", "Shukra/Artava (reproductive)", "Oja (immunity/essence)", "Purisha", "Mutra", "Sweda"] },
+        { "id": "srotas", "label": "Srotas (Channels involved)", "type": "checkbox_group",
+          "options": ["Annavaha (GI)", "Rasavaha (lymph)", "Raktavaha (blood)", "Mamsavaha", "Medovaha (metabolic)", "Pranavaha (respiratory)", "Udakavaha (water)", "Asthivaha (bone)", "Majjavaha (nervous)", "Shukravaha", "Purishavaha", "Mutravaha", "Swedavaha", "Manovaha (CNS/mind)"] },
+        { "id": "sroto_dushthi", "label": "Srotodushthi type", "type": "select", "half": true,
+          "options": ["Sanga (obstruction — Vataja/Kaphaja)", "Atipravritti (excess flow — Pittaja)", "Vimarga Gamana (wrong pathway — Raktapitta/abscess)", "Siragranthi (tumour/growth — Kaphaja/Raktaja)"] },
+        { "id": "agni", "label": "Agni status", "type": "select", "half": true,
+          "options": ["Samagni (normal)", "Vishamagni (irregular)", "Tikshnagni (hyperactive)", "Mandagni (weak)"] },
+        { "id": "ama", "label": "Ama (Undigested toxins)", "type": "select", "half": true,
+          "options": ["Nirama (no Ama)", "Saama mild", "Saama moderate", "Saama severe (contra for Shodhana)"] },
+        { "id": "roga_marga", "label": "Roga Marga", "type": "select", "half": true,
+          "options": ["Shakha (peripheral/skin/muscles — Shamana)", "Koshtha (GI/viscera — Shodhana best)", "Marma-Asthi-Sandhi (vital — Asadhya risk)"] },
+        { "id": "vyadhi_type", "label": "Vyadhi origin", "type": "select", "half": true,
+          "options": ["Nija (intrinsic — Dosha-Dushya)", "Agantuja (extrinsic — infection/trauma)", "Manasika (psychosomatic)", "Swabhavika (constitutional/genetic)"] },
+        { "id": "kriyakala", "label": "Kriyakala stage", "type": "select", "half": true,
+          "options": ["1 — Sanchaya (accumulation)", "2 — Prakopa (aggravation)", "3 — Prasara (spread)", "4 — Sthanasamshraya (localisation)", "5 — Vyakti (full manifestation)", "6 — Bheda (complication/chronicity)"],
+          "hint": "Best time to treat: Stages 2–3 (Purvarupa stage). Stage 6 = Krichrasadhya/Asadhya" }
+      ]
+    },
+    {
+      "id": "modern_correlation",
+      "title": "Adhunika Nidana — Modern Pathological Correlation",
+      "fields": [
+        { "type": "heading", "label": "Modern Diagnosis & Investigation", "tone": "modern" },
+        { "id": "modern_diagnosis", "label": "Modern correlating diagnosis", "type": "text", "half": true,
+          "placeholder": "ICD-10 aligned diagnosis" },
+        { "id": "pathological_basis", "label": "Pathological mechanism (modern)", "type": "text",
+          "placeholder": "e.g. Type 2 hypersensitivity (autoimmune); chronic inflammation → fibrosis; insulin resistance → hyperglycaemia" },
+        { "id": "investigation_plan", "label": "Investigation plan (Pariksha)", "type": "textarea", "rows": 3,
+          "placeholder": "Primary screen (CBC, LFT, RFT, lipids, urine). Specific (HbA1c, ANA, ANCA, tumour markers). Imaging (USG, X-ray, CT/MRI). Histopathology (biopsy, FNAC, bone marrow). Monitoring parameters (follow-up interval + tests)…" },
+        { "id": "gold_standard_test", "label": "Gold-standard confirmatory test", "type": "text", "half": true,
+          "placeholder": "e.g. Bone marrow biopsy (Leukaemia), Endoscopy + biopsy (IBD), HbA1c ≥6.5% (DM)" },
+        { "id": "classical_reference", "label": "Classical text reference", "type": "text", "half": true,
+          "placeholder": "e.g. Charaka Chikitsa 16/5; Madhava Nidana 22/4; Sushruta Nidana 7/3" },
+        { "type": "heading", "label": "Differential Diagnosis", "tone": "modern" },
+        { "id": "differential_1", "label": "Differential diagnosis 1 (most likely)", "type": "text", "half": true,
+          "placeholder": "First differential — highest probability" },
+        { "id": "differential_2", "label": "Differential diagnosis 2", "type": "text", "half": true,
+          "placeholder": "Second differential" },
+        { "id": "differential_3", "label": "Differential diagnosis 3", "type": "text", "half": true,
+          "placeholder": "Third differential — less likely" },
+        { "id": "ayurveda_differential", "label": "Ayurveda differential (Vyadhi Visheshana)", "type": "textarea", "rows": 2,
+          "placeholder": "Dosha-specific differentiation: e.g. Vataja Gulma vs Pittaja Gulma vs Kaphaja Gulma — distinguishing features, key Nadi/Rupa differences…" }
+      ]
+    }
+  ]
+}

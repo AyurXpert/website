@@ -1,0 +1,118 @@
+{
+  "ncism_code": "cancer-clinic",
+  "title": "Karkatarbhuda / Cancer Clinic Proforma",
+  "subtitle": "Specialty Clinic — Integrative Oncology (Arbuda / Karkatarbhuda)",
+  "sections": [
+    {
+      "id": "tumour_history",
+      "title": "Tumour History",
+      "fields": [
+        { "type": "note", "tone": "critical", "content": "⚠ Integrative Oncology Principle: Ayurveda in cancer is SUPPORTIVE/ADJUVANT — reduces treatment toxicity, improves quality of life, enhances immunity. NEVER advise stopping conventional oncology treatment. NEVER claim Ayurveda cures cancer. Always coordinate with the treating oncologist." },
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Karkatarbhuda Chikitsa Sutra: (1) Oja Raksha — protect vital essence. (2) Deepana-Pachana — clear Ama if ECOG 0–1. (3) Rasayana — Ashwagandha, Guduchi, Amalaki to restore Dhatu after chemo/radiation. (4) Sattvavajaya — psychological support essential. (5) Shamana only — Shodhana contraindicated in Asadhya/debilitated stage." },
+        { "id": "cancer_site", "label": "Primary Site", "type": "select", "half": true,
+          "options": ["Breast", "Cervix / Uterus", "Oral cavity / Oropharynx", "Lung", "Colorectal", "Stomach / GI", "Liver / Hepatobiliary", "Oesophagus", "Thyroid", "Blood / Lymphoma / Leukaemia", "Prostate", "Ovary", "Kidney / Bladder", "Brain / CNS", "Bone / Soft tissue", "Skin / Melanoma", "Unknown primary"] },
+        { "id": "cancer_histology", "label": "Histological Type (if known)", "type": "text", "half": true, "placeholder": "e.g. Adenocarcinoma, SCC, TNBC, AML" },
+        { "id": "cancer_stage", "label": "Stage (TNM / Clinical)", "type": "select", "half": true,
+          "options": ["Not staged yet", "Stage I", "Stage II", "Stage III", "Stage IVA", "Stage IVB", "Stage IVC", "Recurrence / Relapse"] },
+        { "id": "cancer_diagnosis_date", "label": "Date of Diagnosis", "type": "date", "half": true },
+        { "id": "previous_treatment", "label": "Previous Oncology Treatment", "type": "checkbox_group",
+          "options": ["Surgery (curative)", "Surgery (palliative / debulking)", "Chemotherapy", "Radiation therapy", "Immunotherapy / Targeted therapy", "Hormonal therapy", "Bone marrow transplant", "None — newly diagnosed"] },
+        { "id": "treatment_status", "label": "Current Treatment Status", "type": "select",
+          "options": ["Newly diagnosed — treatment not started", "On active treatment (chemo / radiation)", "Treatment completed — surveillance", "Treatment completed — remission", "Recurrence — on second-line", "Palliative / supportive care only", "Declined conventional treatment"] }
+      ]
+    },
+    {
+      "id": "symptom_burden",
+      "title": "Symptom Burden Assessment",
+      "fields": [
+        { "id": "pain_vas", "label": "Pain VAS (0–10)", "type": "number", "half": true, "placeholder": "0 = none, 10 = worst" },
+        { "id": "pain_character", "label": "Pain Character", "type": "checkbox_group",
+          "options": ["Aching / dull", "Burning (Daaha)", "Shooting / neuropathic", "Colicky", "Bone pain", "Headache"] },
+        { "id": "fatigue_grade", "label": "Cancer-related Fatigue", "type": "select", "half": true,
+          "options": ["None", "Mild (does not affect activity)", "Moderate (reduces activity)", "Severe (cannot perform daily activities)"] },
+        { "id": "appetite", "label": "Appetite / Aharashakti", "type": "select", "half": true,
+          "options": ["Normal", "Reduced (Arochaka)", "Very poor (eating <50% normal)", "Anorexia / not eating"] },
+        { "id": "weight_loss", "label": "Weight Loss (past 3 months)", "type": "select", "half": true,
+          "options": ["None", "<5% body weight", "5–10% body weight", ">10% body weight (cachexia)"] },
+        { "id": "nausea_vomiting", "label": "Nausea / Vomiting", "type": "select", "half": true,
+          "options": ["None", "Mild nausea only", "Nausea + occasional vomiting", "Severe / daily vomiting"] },
+        { "id": "other_symptoms", "label": "Other Symptoms", "type": "checkbox_group",
+          "options": ["Haemoptysis / bleeding", "Dysphagia", "Jaundice", "Ascites / abdominal distension", "Lymphoedema", "Peripheral neuropathy (chemo)", "Mucositis / oral ulcers", "Constipation / opioid-related"] }
+      ]
+    },
+    {
+      "id": "performance_status",
+      "title": "Performance Status",
+      "fields": [
+        { "id": "ecog", "label": "ECOG Performance Status", "type": "select",
+          "options": ["ECOG 0 — Fully active, no restriction", "ECOG 1 — Restricted in strenuous activity; ambulatory; light work", "ECOG 2 — Ambulatory >50% of waking hrs; capable of self-care; no work", "ECOG 3 — Limited self-care; confined to bed/chair >50% waking hrs", "ECOG 4 — Completely disabled; no self-care; totally confined to bed/chair"] },
+        { "id": "karnofsky", "label": "Karnofsky Score (%)", "type": "select", "half": true,
+          "options": ["100 — Normal; no complaints", "90 — Normal activity; minor signs", "80 — Normal activity with effort", "70 — Cares for self; unable to do normal work", "60 — Requires occasional assistance", "50 — Requires considerable assistance", "40 — Disabled; special care needed", "30 — Severely disabled; hospitalisation indicated", "20 — Very sick; active treatment necessary", "10 — Moribund"] }
+      ]
+    },
+    {
+      "id": "ayurveda_arbuda",
+      "title": "Ayurveda — Arbuda / Karkatarbhuda Assessment",
+      "fields": [
+        { "id": "arbuda_type", "label": "Arbuda Classification", "type": "select",
+          "options": ["Vataja Arbuda (dry, hard, immobile, less pain)", "Pittaja Arbuda (inflamed, hot, burning, suppurates)", "Kaphaja Arbuda (soft, oily, slow-growing, itching)", "Raktaja Arbuda (vascular, bleeding tendency)", "Mansaja Arbuda (fleshy, solid, large — sarcoma equivalent)", "Medaja Arbuda (lipomatous / adipose)", "Sannipataja / Karkatarbhuda (malignant — Tridoshaja + Saptadhatu)"] },
+        { "id": "granthi_arbuda", "label": "Granthi vs Arbuda distinction", "type": "select", "half": true,
+          "options": ["Granthi (Vataja — small, mobile, benign)", "Granthi (Pittaja — inflamed, suppurating)", "Granthi (Kaphaja — painless, slow)", "Arbuda (larger, rooted, harder)", "Karkatarbhuda (malignant features)"] },
+        { "id": "dosha_involved", "label": "Dosha Involvement (Samprapti)", "type": "checkbox_group",
+          "options": ["Vata (cachexia, neurological)", "Pitta (inflammation, fever, bleeding)", "Kapha (mucus, hypertrophy, obstruction)", "Rakta (vascular spread)", "Oja kshaya (immune depletion)"] },
+        { "id": "dushya_affected", "label": "Dushya (Tissues affected)", "type": "checkbox_group",
+          "options": ["Rasa (lymph / plasma)", "Rakta (blood / vascular)", "Mamsa (muscle / solid organ)", "Meda (adipose / soft tissue)", "Asthi (bone / skeletal)", "Majja (marrow / CNS)", "Shukra / Artava (gonadal / reproductive)"] },
+        { "id": "oja_status", "label": "Ojakshaya Level", "type": "select", "half": true,
+          "options": ["Manda (mild — treatment well tolerated)", "Madhyama (moderate — selective Ayurveda)", "Ati kshaya (severe — only Rasayana / palliative)"] },
+        { "id": "agni_bala", "label": "Agni & Bala for Treatment Planning", "type": "select", "half": true,
+          "options": ["Pravara — Shodhana possible", "Madhyama — Shamana only", "Avara — Rasayana / Brumhana only", "Durbala — supportive / palliative Ayurveda"] },
+        { "id": "cancer_notes", "label": "Integrative Treatment Notes", "type": "textarea",
+          "placeholder": "Rasayana plan (Ashwagandha / Guduchi / Amalaki), Sattvavajaya counselling, contraindications for Shodhana, pain management (Agni Karma / Lepas), coordination with oncologist…" }
+      ]
+    },
+    {
+      "id": "current_medications",
+      "title": "Current Medications & Supportive Care",
+      "fields": [
+        { "id": "chemo_drugs", "label": "Chemotherapy / Targeted Drugs (if on treatment)", "type": "text", "placeholder": "e.g. Paclitaxel + Carboplatin, Trastuzumab, FOLFOX" },
+        { "id": "steroids", "label": "Steroids / Dexamethasone", "type": "select", "half": true,
+          "options": ["Not on steroids", "Low dose (≤10mg/day pred equiv)", "High dose (>10mg/day)", "Tapering"] },
+        { "id": "opioids", "label": "Opioid Analgesia", "type": "select", "half": true,
+          "options": ["None", "Tramadol / Codeine (weak opioid)", "Morphine / Oxycodone (strong)", "Fentanyl patch", "Patient-controlled analgesia"] },
+        { "id": "drug_interaction_note", "label": "Ayurveda–Drug Interaction Note", "type": "textarea",
+          "placeholder": "Herbs to avoid during chemo (e.g. St John's wort, high-dose antioxidants during radiation), immunostimulants contraindicated during immunosuppression…" }
+      ]
+    }
+  ],
+  "exam_guide": {
+    "title": "Karkatarbhuda / Cancer — Examination Protocol",
+    "steps": [
+      {
+        "step": 1, "title": "General Inspection — Cancer Signs",
+        "items": ["Cachexia — temporal wasting, muscle loss, sunken eyes", "Pallor (anaemia — chemo / disease), jaundice (hepatic / haemolytic)", "Lymphoedema — arm (breast CA post-axillary dissection), leg (cervical CA / inguinal nodes)", "Skin — radiation fibrosis, chemotherapy pigmentation, radiation dermatitis, alopecia", "Venous access devices — port-a-cath, PICC line (note site + condition)"]
+      },
+      {
+        "step": 2, "title": "Lymph Node Survey (mandatory)",
+        "items": ["Cervical — anterior / posterior / submandibular / supraclavicular (Virchow's node = gastric / lung)", "Axillary — levels I/II/III (breast CA sentinel nodes)", "Inguinal — inguinal + femoral chains (lower limb / genital / rectal)", "Characteristics — size, consistency (hard = malignant, soft = reactive), mobility, matting, tenderness", "Note ALL palpable nodes — any node >1cm in cancer patient is suspicious"]
+      },
+      {
+        "step": 3, "title": "Primary Site Examination",
+        "items": ["Breast — quadrant, size (cm), consistency, fixity to skin/muscle, nipple discharge, peau d'orange", "Oral cavity — floor of mouth, tongue, buccal mucosa, palate; measure lesion in 2 dimensions", "Abdomen — liver size (Yakrut Pramana), ascites (shifting dullness, fluid thrill), masses", "Rectal — digital examination for rectal / prostate CA", "Skin lesion — ABCDE rule; measure, photograph if possible"]
+      },
+      {
+        "step": 4, "title": "Ayurveda — Bala & Ojakshaya Assessment",
+        "items": ["Nadi — assess for Oja kshaya (thin, irregular, depleted quality)", "Sparsha — skin temperature, turgor, muscle mass (Mamsa/Meda kshaya)", "Dhruk — colour, icterus, pallor (Rakta kshaya)", "Akriti — cachexia grade (mild/moderate/severe), body composition loss", "Satwa — mental resilience (important for Sattvavajaya therapy planning)"]
+      },
+      {
+        "step": 5, "title": "Treatment Toxicity Assessment (if on chemotherapy)",
+        "items": ["Peripheral neuropathy — glove-stocking sensory loss (taxanes, platinum)", "Mucositis — oral mucosa grade (WHO 0–4)", "Hand-foot syndrome — palmar/plantar erythema, blisters", "Bowel — diarrhoea (irinotecan), constipation (vinca alkaloids / opioids)", "Cardiac — ankle oedema, JVP (cardiotoxic agents: anthracyclines, Herceptin)"]
+      }
+    ],
+    "reference_values": [
+      { "test": "ECOG Performance Status", "unit": "grade", "normal": "0–1 (fit for treatment)", "borderline": "2 (assess carefully)", "abnormal": "3–4 (palliative intent only)" },
+      { "test": "Haemoglobin (chemo patients)", "unit": "g/dL", "normal": "≥11 (proceed with chemo)", "borderline": "8–10.9 (transfusion consider)", "abnormal": "<8 (transfuse before chemo)" },
+      { "test": "ANC (Absolute Neutrophil Count)", "unit": "cells/µL", "normal": "≥1500 (safe for chemo)", "borderline": "1000–1499 (reduce dose)", "abnormal": "<1000 (defer chemo / G-CSF)" },
+      { "test": "Pain VAS", "unit": "0–10", "normal": "0–3 (mild)", "borderline": "4–6 (moderate — step-up analgesia)", "abnormal": "7–10 (severe — opioid + Ayurveda pain management)" }
+    ]
+  }
+}

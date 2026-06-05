@@ -1,0 +1,123 @@
+{
+  "ncism_code": "respiratory-clinic",
+  "title": "Shwasa / Respiratory Clinic Proforma",
+  "subtitle": "Specialty Clinic — Kayachikitsa (Shwasa Roga / Pulmonology)",
+  "sections": [
+    {
+      "id": "respiratory_history",
+      "title": "Respiratory History",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Tamaka Shwasa (Bronchial Asthma) is the most common Pranavaha Srotas Roga. It is predominantly Vata-Kapha with Kapha obstruction in Pranavaha Srotas. Key Ayurveda distinction: Tamaka Shwasa is worse in Vasanta + Hemanta (Kapha seasons) and on cold exposure. Vamana is the primary Shodhana; Nasya + Dhoomapana are supplementary." },
+        { "type": "note", "tone": "warning", "content": "⚠ Danger signs requiring emergency: SpO₂ <90%; RR >30/min; unable to complete sentences; pulsus paradoxus; silent chest on auscultation (no wheeze = total obstruction). These are life-threatening — IV bronchodilators + O₂ first." },
+        { "id": "diagnosis", "label": "Clinical Diagnosis", "type": "select", "half": true,
+          "options": ["Bronchial Asthma", "COPD", "Allergic Rhinitis + Asthma", "Chronic Bronchitis", "Bronchiectasis", "ILD / Pulmonary fibrosis", "Pleural effusion", "Pneumonia (resolved)", "TB (active / treated)", "Undifferentiated"] },
+        { "id": "dyspnoea_mrc", "label": "Dyspnoea — MRC Grade", "type": "select", "half": true,
+          "options": ["Grade 0 — No dyspnoea (exertion only)", "Grade 1 — On hurrying or uphill", "Grade 2 — Walk slower than peers on level", "Grade 3 — Stops after 100m on level", "Grade 4 — Cannot leave house / breathless at rest"] },
+        { "id": "cough_type", "label": "Cough", "type": "select", "half": true,
+          "options": ["Absent", "Dry / irritating", "Productive (white sputum)", "Productive (yellow / green)", "Productive (blood-tinged)", "Nocturnal predominantly"] },
+        { "id": "wheeze", "label": "Wheeze", "type": "select", "half": true,
+          "options": ["Absent", "Occasional", "Frequent", "Continuous", "Only nocturnal"] },
+        { "id": "nocturnal_sx", "label": "Nocturnal Symptoms", "type": "select", "half": true,
+          "options": ["None", "Occasional awakening", "Frequent awakening", "Every night"] },
+        { "id": "duration_sx", "label": "Duration of Symptoms", "type": "text", "half": true, "placeholder": "e.g. 3 years, since childhood" }
+      ]
+    },
+    {
+      "id": "shwasa_classification",
+      "title": "Shwasa Classification (Ayurveda)",
+      "fields": [
+        { "id": "shwasa_type", "label": "Shwasa Type", "type": "select",
+          "options": ["Maha Shwasa (Cheyne-Stokes / severe obstruction)", "Urdhva Shwasa (prolonged expiration — expiratory wheeze)", "Chinna Shwasa (Cheyne-Stokes / periodic — critical)", "Tamaka Shwasa (bronchial asthma equivalent)", "Ksudra Shwasa (exertional dyspnoea — mild)"] },
+        { "id": "shwasa_dosha", "label": "Dominant Dosha", "type": "radio",
+          "options": ["Vata-predominant (dry, variable)", "Kapha-predominant (productive, morning worse)", "Pitta-predominant (hot, burning sensation)", "Vata-Kapha (most common in Tamaka Shwasa)"] },
+        { "id": "ama_status", "label": "Aama Status", "type": "select", "half": true,
+          "options": ["Nirama", "Saama (mild)", "Saama (moderate)", "Saama (severe — contraindication for Shodhana)"] },
+        { "id": "pranashtavaha_sroto", "label": "Pranavaha Srotas Dushthi", "type": "checkbox_group",
+          "options": ["Sanga (obstruction / wheeze)", "Atipravritti (excessive secretion)", "Vimargagamana (wrong pathway — haemoptysis)"] }
+      ]
+    },
+    {
+      "id": "triggers",
+      "title": "Triggers & Aggravating Factors",
+      "fields": [
+        { "id": "triggers", "label": "Identified Triggers", "type": "checkbox_group",
+          "options": ["Dust / pollen (Rajas)", "Cold air / Sheeta", "Exercise / exertion", "Smoke / fumes", "Animal dander", "Strong smells / perfumes", "Upper respiratory infection", "Foods (Viruddha Ahara)", "Stress / emotions", "Seasonal (Vasanta / Sharad)", "Unknown"] },
+        { "id": "seasonal_pattern", "label": "Seasonal Pattern", "type": "select", "half": true,
+          "options": ["No seasonal variation", "Worse Vasanta (Spring)", "Worse Sharad (Autumn)", "Worse Hemanta / Shishira (Winter)", "Year-round"] }
+      ]
+    },
+    {
+      "id": "examination",
+      "title": "Respiratory Examination",
+      "fields": [
+        { "id": "spo2", "label": "SpO₂ (%)", "type": "number", "half": true, "placeholder": "Resting" },
+        { "id": "rr", "label": "Respiratory Rate (/min)", "type": "number", "half": true },
+        { "id": "auscultation", "label": "Auscultation Findings", "type": "checkbox_group",
+          "options": ["Clear bilaterally", "Wheeze (expiratory)", "Wheeze (inspiratory + expiratory)", "Crackles (fine)", "Crackles (coarse)", "Reduced air entry (R)", "Reduced air entry (L)", "Bronchial breathing"] },
+        { "id": "chest_shape", "label": "Chest Shape", "type": "select", "half": true,
+          "options": ["Normal", "Barrel chest (COPD)", "Hyperinflated", "Pigeon chest", "Kyphoscoliosis"] },
+        { "id": "clubbing", "label": "Clubbing", "type": "select", "half": true,
+          "options": ["Absent", "Grade 1 (soft tissue only)", "Grade 2 (loss of angle)", "Grade 3 (drumstick)"] }
+      ]
+    },
+    {
+      "id": "spirometry",
+      "title": "Spirometry / PFT",
+      "fields": [
+        { "id": "fev1", "label": "FEV₁ (% predicted)", "type": "number", "half": true },
+        { "id": "fvc", "label": "FVC (% predicted)", "type": "number", "half": true },
+        { "id": "fev1_fvc_ratio", "label": "FEV₁/FVC Ratio", "type": "number", "half": true, "placeholder": "e.g. 0.72" },
+        { "id": "pefr", "label": "PEFR (L/min)", "type": "number", "half": true },
+        { "id": "pft_pattern", "label": "PFT Pattern", "type": "select", "half": true,
+          "options": ["Not done", "Normal", "Obstructive", "Restrictive", "Mixed"] },
+        { "id": "reversibility", "label": "Bronchodilator Reversibility", "type": "select", "half": true,
+          "options": ["Not tested", "Reversible (≥12% + 200mL improvement)", "Partially reversible", "Non-reversible (fixed obstruction)"] }
+      ]
+    },
+    {
+      "id": "respiratory_notes",
+      "title": "Treatment Notes",
+      "fields": [
+        { "id": "current_inhalers", "label": "Current Inhalers / Bronchodilators", "type": "text", "placeholder": "e.g. Salbutamol MDI, Budesonide 200mcg BD" },
+        { "id": "ayurveda_rx_plan", "label": "Ayurveda Treatment Plan Notes", "type": "textarea",
+          "placeholder": "Vamana / Virechana suitability, Shirodhara, Nasya, Rasayana plan, Pranayama prescription…" }
+      ]
+    }
+  ],
+  "exam_guide": {
+    "title": "Shwasa / Respiratory — Examination Protocol",
+    "steps": [
+      {
+        "step": 1, "title": "Inspection (Darshana — Chest & Breathing)",
+        "items": ["Respiratory rate (normal 12–20/min; >25 = significant distress)", "Accessory muscle use — sternocleidomastoid, scalenes, intercostals (severe obstruction)", "Pursed-lip breathing — COPD pattern (auto-PEEP)", "Paradoxical breathing — diaphragmatic fatigue", "Chest shape — barrel (COPD / hyperinflation), pigeon, kyphoscoliosis", "Intercostal recession, tracheal tug"]
+      },
+      {
+        "step": 2, "title": "Palpation (Sparsha)",
+        "items": ["Tracheal position — midline vs deviated (effusion pushes away, fibrosis/collapse pulls toward)", "Chest expansion — both hands on lower chest; normal >5 cm symmetric expansion", "Vocal fremitus — increased (consolidation), decreased (effusion/pneumothorax)", "Rib tenderness (fracture / Tietze)"]
+      },
+      {
+        "step": 3, "title": "Percussion",
+        "items": ["Resonant (normal lung)", "Hyper-resonant (emphysema, pneumothorax)", "Stony dull (pleural effusion)", "Dull (consolidation, collapse, mass)", "Liver/cardiac dullness position — check for hyperinflation (pushing down)"]
+      },
+      {
+        "step": 4, "title": "Auscultation (Shravana)",
+        "items": ["Vesicular breath sounds (normal) — soft, inspiratory-predominant", "Bronchial breath sounds — consolidation, cavity", "Wheeze (Ronchi) — expiratory = lower airway obstruction (asthma/COPD)", "Fine crackles — ILD, pulmonary oedema (Kaphadhikya)", "Coarse crackles — bronchiectasis, retained secretions", "Pleural rub — pleuritis, pleural effusion"]
+      },
+      {
+        "step": 5, "title": "Pranavaha Srotas Pariksha (Ayurveda)",
+        "items": ["Shwasa observation — count rate; note depth, regularity, nostril dominance", "Pranayama capacity test — ask patient to take a deep breath; note wheeze on forced expiration", "Kantha (throat) — dryness, hoarseness (Vataja), phlegm (Kaphaja), burning (Pittaja)", "Nadi — Vata-Kapha (irregular, slow, heavy) in Tamaka Shwasa", "Ama signs — white tongue coating, heaviness, morning chest tightness worse (Kaphaja Ama)"]
+      },
+      {
+        "step": 6, "title": "Peak Flow / SpO₂ Measurement",
+        "items": ["SpO₂ resting (normal ≥95%; <90% = significant hypoxia)", "SpO₂ on exertion — 6-minute walk test drop >4% = significant", "PEFR — three attempts, record best (compare to predicted by age/height/gender)", "Diurnal variation >20% = asthma (morning dip characteristic of Tamaka Shwasa)"]
+      }
+    ],
+    "reference_values": [
+      { "test": "SpO₂", "unit": "%", "normal": "≥95", "borderline": "92–94 (monitor closely)", "abnormal": "<92 (supplemental O₂ / urgent review)" },
+      { "test": "FEV₁/FVC ratio", "unit": "ratio", "normal": "≥0.70 (no obstruction)", "borderline": "0.60–0.69 (mild obstruction)", "abnormal": "<0.60 (moderate–severe obstruction)" },
+      { "test": "FEV₁ % predicted", "unit": "%", "normal": "≥80", "borderline": "60–79 (mild–moderate)", "abnormal": "<60 (severe obstruction)" },
+      { "test": "PEFR % predicted", "unit": "%", "normal": "≥80", "borderline": "60–80 (yellow zone)", "abnormal": "<60 (red zone — act)" },
+      { "test": "RR (adult)", "unit": "/min", "normal": "12–20", "borderline": "21–25 (mild tachypnoea)", "abnormal": ">25 (respiratory distress)" }
+    ]
+  }
+}

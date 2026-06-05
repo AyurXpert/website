@@ -8,7 +8,7 @@ export async function createBill(tenantId, patientId, amount) {
       tenant_id: tenantId,
       patient_id: patientId,
       total_amount: amount,
-      status: 'unpaid'
+      status: 'pending'
     })
     .select()
     .single()

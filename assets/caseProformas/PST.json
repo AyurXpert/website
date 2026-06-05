@@ -1,0 +1,94 @@
+{
+  "ncism_code": "PST",
+  "title": "Prasuti & Stri Roga Case Proforma",
+  "subtitle": "NCISM — Obstetrics & Gynaecology (Prasuti Tantra / Stri Roga)",
+  "sections": [
+    {
+      "id": "menstrual_history",
+      "title": "Rutukala Vrittanta — Menstrual History",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Artava (menstrual blood) is considered the primary Dushya in Stri Roga. Normal Artava: Indragopasamvarna (red like Indragopa insect), Snigdha (non-sticky), Gambhira (deep odour), Agandha (non-foul), lasts 3–5 days, appears every 28–30 days. Document all deviations." },
+        { "id": "menarche_age", "label": "Age at menarche (Pratham Rutukala)", "type": "number", "half": true, "unit": "years", "placeholder": "11–16",
+          "hint": "Menarche <10 = precocious puberty. >16 = primary amenorrhoea — investigate" },
+        { "id": "lmp", "label": "LMP (Last Menstrual Period)", "type": "date", "half": true },
+        { "id": "cycle_regularity", "label": "Cycle regularity", "type": "select", "half": true,
+          "options": ["Regular (21–35 days cycle)", "Irregular", "Oligomenorrhoea (>35 days — Vataja/Kaphaja)", "Polymenorrhoea (<21 days — Pittaja/Raktaja)", "Amenorrhoea (>6 months)", "Post-menopausal"],
+          "hint": "Oligomenorrhoea + weight gain + acne = suspect PCOS (Sthoulya + Artava Kshaya)" },
+        { "id": "cycle_length", "label": "Cycle length", "type": "number", "half": true, "unit": "days", "placeholder": "21–35" },
+        { "id": "flow_duration", "label": "Duration of flow", "type": "number", "half": true, "unit": "days", "placeholder": "2–7",
+          "hint": "Flow >7 days = Asrigdhara (Menorrhagia). <2 days = Kshina Artava (scanty)" },
+        { "id": "flow_amount", "label": "Flow amount (Artava Pramana)", "type": "select", "half": true,
+          "options": ["Normal (3–5 pads/day, no clots)", "Scanty — Kshina (<2 pads, Vataja/Kaphaja)", "Heavy — Asrigdhara (>6 pads, Pittaja/Raktaja)", "Flooding with clots (Udara Roga or fibroid)"] },
+        { "id": "dysmenorrhoea", "label": "Dysmenorrhoea (Kashtartava)", "type": "select", "half": true,
+          "options": ["None", "Mild — no activity restriction (normal Vataja colicky)", "Moderate — restricts activity (primary dysmenorrhoea)", "Severe — bedridden + analgesia (secondary — Endometriosis/Udavarta)"],
+          "hint": "Severe dysmenorrhoea + dyschezia: suspect Endometriosis (Udavarta) — USG pelvis" },
+        { "id": "imb", "label": "Inter-menstrual / post-coital bleeding", "type": "select", "half": true,
+          "options": ["None", "Post-coital bleeding (contact bleeding — cervical cause)", "Mid-cycle spotting (Pradar)", "Irregular heavy IMB (Asrigdhara)", "Post-menopausal bleeding — URGENT investigation"],
+          "hint": "Post-menopausal bleeding: endometrial carcinoma until proven otherwise — urgent TVS+biopsy" },
+        { "id": "menopause", "label": "Menopause status (Rajonivritti)", "type": "select", "half": true,
+          "options": ["Pre-menopausal", "Perimenopausal (irregular + vasomotor symptoms)", "Post-menopausal — natural (>12 months amenorrhoea)", "Surgical menopause (oophorectomy)", "Premature menopause (<40 yr — Vataja kshaya)"] }
+      ]
+    },
+    {
+      "id": "obstetric_history",
+      "title": "Garbha Vrittanta — Obstetric History",
+      "fields": [
+        { "type": "note", "tone": "ayurveda", "content": "🌿 Masanumasika Pathya (month-wise Garbhini care) is a unique Ayurveda protocol. Month 1: Kshira (milk). Month 2: Kshira + Madhura Dravya. Month 3: Kshira + Shadanga Paniya + Honey + Ghrita. Months 4–6: increasing Brimhana. Months 7–9: Basti (Anuvasana), Picchu (vaginal tampon)." },
+        { "id": "gravida", "label": "G (Gravida — total pregnancies)", "type": "number", "half": true },
+        { "id": "para", "label": "P (Para — deliveries ≥20 weeks)", "type": "number", "half": true },
+        { "id": "abortion", "label": "A (Abortion/miscarriage)", "type": "number", "half": true },
+        { "id": "living", "label": "L (Living children)", "type": "number", "half": true },
+        { "id": "current_pregnancy", "label": "Current pregnancy?", "type": "select", "half": true,
+          "options": ["Not pregnant", "Currently pregnant — details below", "Suspecting pregnancy — urine β-hCG pending"] },
+        { "id": "gestational_weeks", "label": "Gestational age (if pregnant)", "type": "number", "half": true, "unit": "weeks",
+          "hint": "EDD = LMP + 9 months + 7 days (Naegele's). Confirm with USG in 1st trimester" },
+        { "id": "edd", "label": "Expected Date of Delivery (EDD)", "type": "date", "half": true },
+        { "id": "anc_visits", "label": "ANC visits completed", "type": "number", "half": true,
+          "hint": "WHO recommendation: ≥8 ANC contacts. GoI minimum: 4 visits (1st trimester, 14-26w, 28-34w, 36w+)" },
+        { "id": "garbhini_masanumasika", "label": "Current Garbhini month (for Ayurveda care)", "type": "select", "half": true,
+          "options": ["Not applicable", "Month 1 — Kshira dominant", "Month 2 — Kshira + Madhura", "Month 3 — Shadanga Paniya + Honey + Ghrita", "Month 4 — Brumhana Dravya + Butter", "Month 5 — Mamsa Rasa + Ghrita + Kshira", "Month 6 — Ghrita + Madhura + Amla", "Month 7 — Anuvasana Basti begins", "Month 8 — Basti + Picchu (vaginal) + Sthanika Abhyanga", "Month 9 — Preparations for delivery, Niruha Basti"] },
+        { "id": "high_risk_factors", "label": "High-risk pregnancy factors (Garbhini Apada)", "type": "checkbox_group",
+          "options": ["None", "Age <18 or >35 (Balavritta)", "Grand multipara (G4+)", "Previous LSCS (uterine scar)", "Previous PPH", "Pre-eclampsia/Hypertension", "Gestational DM (Madhumeha)", "Anaemia (Hb <7g/dL)", "Multiple pregnancy (Yuktagarbha)", "Foetal malpresentation", "Oligohydramnios / Polyhydramnios", "IUGR (Garbhavritta Kshaya)"] },
+        { "id": "obstetric_notes", "label": "Previous pregnancy complications / notes", "type": "textarea",
+          "placeholder": "LSCS indication + scar thickness, PPH history, pre-eclampsia, GDM, IUGR, stillbirth, neonatal death…" }
+      ]
+    },
+    {
+      "id": "gynaecological",
+      "title": "Stri Roga Pariksha — Gynaecological Examination",
+      "fields": [
+        { "id": "vaginal_discharge", "label": "Vaginal discharge (Pradar / Shweta Pradar)", "type": "select", "half": true,
+          "options": ["None (normal leucorrhoea acceptable)", "Shweta Pradar (white, Kaphaja — physiological or chronic)", "Yellow-green purulent (Pittaja — infective)", "Rakta Pradar (bloody — Pittaja/Raktaja)", "Mixed/foul-smelling (Sannipataja — BV/PID)"],
+          "hint": "Curdy white = Candida (Kaphaja). Thin grey/fishy = BV (Vataja). Yellow-green = Trichomoniasis" },
+        { "id": "discharge_consistency", "label": "Discharge character", "type": "select", "half": true,
+          "options": ["Watery (clear — Vataja / PROM if pregnant)", "Mucoid (normal leucorrhoea)", "Purulent thick (Pittaja — infective)", "Cheesy/curdy (Kaphaja — Candida)", "Fishy odour (Vataja BV — Gardnerella)"] },
+        { "id": "pruritus", "label": "Pruritus vulvae (Kandu)", "type": "select", "half": true,
+          "options": ["None", "Mild", "Moderate (Candida/lichen simplex)", "Severe (Kandu — DM screen!)"],
+          "hint": "Severe pruritus + recurrent Candida: always screen for Diabetes (Madhumeha)" },
+        { "id": "pelvic_pain", "label": "Pelvic pain (Shula)", "type": "select", "half": true,
+          "options": ["None", "Mild cyclic (Vataja — premenstrual)", "Moderate cyclic (dysmenorrhoea — primary)", "Moderate constant (PID / Granthi)", "Severe sudden (ectopic/torsion — EMERGENCY)", "Deep dyspareunia (Endometriosis/POD)"] },
+        { "id": "uterine_size", "label": "Uterine size (bimanual)", "type": "select", "half": true,
+          "options": ["Normal size (pear-shaped, 7.5×5×2.5 cm)", "6-week equivalent", "8-week", "10-week", "12-week", "14-week", ">14-week (fibroid/adenomyosis)"],
+          "hint": "Bulky tender uterus + heavy periods = Adenomyosis (Garbhashaya Roga)" },
+        { "id": "uterine_tenderness", "label": "Tenderness on examination", "type": "select", "half": true,
+          "options": ["None", "Uterine tenderness only", "Cervical motion tenderness (CMT — PID emergency)", "Right adnexal mass/tenderness", "Left adnexal mass/tenderness", "Bilateral adnexal tenderness (PID)"],
+          "hint": "CMT + fever + vaginal discharge = PID (Pittaja Yoni Vyapad) — start antibiotics immediately" }
+      ]
+    },
+    {
+      "id": "prasuti_ayurveda",
+      "title": "Prasuti & Stri Roga — Ayurveda Assessment",
+      "fields": [
+        { "type": "ayurveda_divider", "label": "Artava & Yoni Roga Classification" },
+        { "id": "artava_nature", "label": "Artava nature (Ayurveda)", "type": "select", "half": true,
+          "options": ["Sama Artava (normal — colour, quantity, timing all normal)", "Vataja Artava (thin, black, scant, painful, irregular)", "Pittaja Artava (yellow/blue/green, burning, profuse, early)", "Kaphaja Artava (white, mucoid, heavy, late, non-foul)", "Raktaja Artava (profuse red, hot, clots — Raktapitta)", "Kshina Artava (very scanty, pale — Dhatu kshaya)", "Dushta Artava (foul, abnormal colour — Krichrasadhya)"] },
+        { "id": "yoni_vyapad", "label": "Yoni Vyapad type (if applicable)", "type": "select",
+          "options": ["Not applicable", "Vataja (dry, thin discharge, pain)", "Pittaja (burning, yellow, inflamed)", "Kaphaja (white, thick, cold)", "Sannipataja (mixed)", "Karnini (growths in vagina)", "Udavarta (reverse Vata — PCOS/endometriosis pattern)", "Acharana (trauma)", "Phalini (ovarian cyst equivalent)", "Putraghni (recurrent miscarriage)"] },
+        { "id": "garbhashaya_roga", "label": "Garbhashaya Roga (Uterine condition)", "type": "select", "half": true,
+          "options": ["Not applicable", "Fibroid (Garbhashaya Granthi — Kaphaja)", "Adenomyosis (Vataja + Raktaja)", "Endometriosis (Udavarta + Raktaja)", "Endometrial polyp", "Retroverted uterus (Garbhashaya Parvritti — Vataja)"] },
+        { "id": "stri_pathya", "label": "Stri Pathya (Ayurveda regimen advice)", "type": "textarea", "rows": 2,
+          "placeholder": "Rutumati Paricharya (post-menstrual care: day 1–4 rest + Laghu Ahara), Shatavari Ghrita for Artava kshaya, Ashoka/Lodhra for Asrigdhara, Phala Ghrita for infertility…" }
+      ]
+    }
+  ]
+}

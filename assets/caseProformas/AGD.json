@@ -1,0 +1,92 @@
+{
+  "ncism_code": "AGD",
+  "title": "Agada Tantra Case Proforma",
+  "subtitle": "NCISM — Toxicology, Forensic Medicine & Medico-Legal (Visha Chikitsa)",
+  "sections": [
+    {
+      "id": "poisoning_details",
+      "title": "Visha Pariksha — Poisoning / Toxin Exposure Details",
+      "fields": [
+        { "type": "note", "tone": "critical", "content": "⚠ MEDICO-LEGAL: All suspected poisoning cases are MLC (Medico-Legal Cases) by law. Register MLC immediately. Police intimation is mandatory for criminal/intentional cases (IPC §304A/§328). Preserve gastric washings/blood as medico-legal specimens." },
+        { "id": "poison_type", "label": "Poison / Toxin type", "type": "select", "half": true,
+          "options": ["Organic — plant/vegetable (Sthavara Visha)", "Inorganic — metal/mineral (Dhatu Visha)", "Drug/pharmaceutical (accidental overdose)", "Drug overdose (intentional)", "Animal — snake bite (Jangama — Sarpa Visha)", "Animal — scorpion sting", "Animal — spider/insect", "Food poisoning (Ahara Visha)", "Industrial chemical", "Alcohol poisoning (Madya)", "Unknown"] },
+        { "id": "visha_type_ayurveda", "label": "Visha type (Ayurveda)", "type": "select", "half": true,
+          "options": ["Sthavara Visha (plant-based — Vatsakadi)", "Jangama Visha (animal — Sarpa/Koota/Damshodbhava)", "Kritima/Gara Visha (artificial — slow acting)", "Dooshivisha (accumulated sub-lethal — chronic)", "Garavisha (adulterated/intentional — criminal)"],
+          "hint": "Garavisha = adulterated / intentional slow poison — CRIMINAL — mandatory police reporting" },
+        { "id": "route", "label": "Route of exposure", "type": "select", "half": true,
+          "options": ["Oral (ingested — most common)", "Inhalation (CO, gases, fumes)", "Dermal (skin absorption — OP pesticide)", "Envenomation (snake/scorpion bite/sting)", "Intravenous (drug abuse)", "Ocular (eye splash — acid/alkali)", "Unknown"] },
+        { "id": "time_exposure", "label": "Time of exposure (note for stomach emptying window)", "type": "text", "half": true,
+          "placeholder": "e.g. 2:00 PM today — 4 hours ago",
+          "hint": "Gastric lavage effective within 1 hour. Activated charcoal effective up to 2–4 hours" },
+        { "id": "duration_since", "label": "Duration since exposure", "type": "number", "half": true,
+          "unit": "hours", "placeholder": "0–72" },
+        { "id": "quantity", "label": "Quantity ingested/exposed (approx.)", "type": "text", "half": true,
+          "placeholder": "e.g. ~30 tablets, 500 mL bottle, one bite on left hand" },
+        { "id": "circumstance", "label": "Circumstance (critical for MLC)", "type": "select", "half": true,
+          "options": ["Accidental (unintentional)", "Suicidal attempt (deliberate self-harm)", "Homicidal (suspected — document carefully)", "Occupational exposure", "Child swallowed (accidental paediatric)", "Unknown"] },
+        { "id": "substance_name", "label": "Name of substance (if known)", "type": "text",
+          "placeholder": "Trade name / generic name / plant name (Sanskrit + common) / chemical name…" }
+      ]
+    },
+    {
+      "id": "first_response",
+      "title": "Prathama Chikitsa — First Response & Emergency Management",
+      "fields": [
+        { "type": "note", "tone": "warning", "content": "⚠ Priority sequence: Airway → Breathing → Circulation → Decontamination → Antidote. Stabilise patient FIRST before any Ayurveda intervention. Note: Vamana (emesis) is CONTRAINDICATED in corrosive/caustic ingestion and in unconscious patient." },
+        { "id": "vomiting_induced", "label": "Vomiting induced?", "type": "select", "half": true,
+          "options": ["Yes — at scene before arrival", "No", "Contraindicated — corrosive/unconscious/caustic"] },
+        { "id": "gastric_lavage", "label": "Gastric lavage (Udarda Shodhana)", "type": "select", "half": true,
+          "options": ["Done within 1 hr (most effective)", "Done 1–4 hrs (partial benefit)", "Done >4 hrs (limited benefit, forensic value)", "Not done", "Contraindicated (corrosive/petroleum)"],
+          "hint": "Contraindicated: corrosive ingestion, petroleum products, convulsing patient, no airway protection" },
+        { "id": "activated_charcoal", "label": "Activated charcoal (50g adult)", "type": "select", "half": true,
+          "options": ["Given within 1 hr (50g + 200mL water)", "Given 1–4 hrs", "Given >4 hrs", "Not given", "Contraindicated (corrosive/no gag reflex)"] },
+        { "id": "antidote_given", "label": "Antidote (Visha Nashaka) administered", "type": "text", "half": true,
+          "placeholder": "OP poison = Atropine + Pralidoxime; Paracetamol = NAC; Opioid = Naloxone; Digoxin = Digibind; None",
+          "hint": "Antidote guide: OP = Atropine 2mg IV q10min (titrate to drying secretions). Snake = ASV (Anti-snake Venom)" },
+        { "id": "iv_access", "label": "IV access + fluids", "type": "select", "half": true,
+          "options": ["Yes — IV fluids running", "Yes — access only", "No — establishing now"] }
+      ]
+    },
+    {
+      "id": "clinical_signs",
+      "title": "Visha Lakshana — Clinical Toxidrome Assessment",
+      "fields": [
+        { "type": "note", "tone": "info", "content": "ℹ Toxidrome recognition is the fastest way to identify poison class when name is unknown. Cholinergic (OP/carbamate) = SLUDGE: Salivation, Lacrimation, Urination, Defaecation, GI cramps, Emesis. Anticholinergic = dry as bone, red as beet, hot as hare, blind as bat, mad as hatter." },
+        { "id": "consciousness", "label": "Level of consciousness", "type": "select", "half": true,
+          "options": ["Alert and oriented (GCS 15)", "Confused/disoriented (GCS 13–14)", "Drowsy/lethargic (GCS 11–12)", "Stupor (GCS 9–10)", "Unconscious — coma (GCS ≤8)"],
+          "hint": "GCS ≤8 = intubate + ventilate. Never leave unattended" },
+        { "id": "gcs", "label": "GCS score (E+V+M)", "type": "number", "half": true, "placeholder": "3–15",
+          "hint": "E: 1–4; V: 1–5; M: 1–6. Normal = 15. GCS 8 = need intubation. GCS 3 = deep coma" },
+        { "id": "pupil", "label": "Pupils", "type": "select", "half": true,
+          "options": ["Normal 3–4mm, PERL", "Miosis <2mm (Cholinergic OP / Opioid)", "Mydriasis >6mm (Anticholinergic / TCAs)", "Unequal anisocoria (herniation?)", "Fixed dilated (severe CNS — very poor prognosis)"],
+          "hint": "Miosis + bradycardia + excessive secretions = OP poisoning emergency" },
+        { "id": "breathing", "label": "Breathing pattern", "type": "select", "half": true,
+          "options": ["Normal (12–20/min)", "Depressed/shallow <12 (opioid/CNS depressants)", "Hyperventilating >24 (salicylate/metabolic acidosis)", "Bronchospasm + wheeze (OP/carbamate)", "Laboured / accessory muscles", "Apnoea — on ventilatory support"],
+          "hint": "Bronchospasm + excessive salivation + miosis = OP/carbamate (cholinergic crisis)" },
+        { "id": "skin_signs", "label": "Skin signs", "type": "checkbox_group",
+          "options": ["Normal", "Pallor (circulatory shock)", "Cyanosis (hypoxia — Vataja Visha spreading)", "Jaundice (hepatotoxic — Paracetamol/Amanita mushroom)", "Chemical burns (acid/alkali exposure)", "Blistering (Blister beetle/acid)", "Diaphoresis/excessive sweating (Cholinergic/Serotonin syndrome)", "Flushing + dry skin (Anticholinergic)", "Bite/sting mark — site + dimensions (note for ASV decision)"] },
+        { "id": "toxidrome", "label": "Toxidrome pattern (most closely matches)", "type": "select",
+          "options": ["Cholinergic — SLUDGE/Bradycardia/Bronchospasm (OP/carbamate — Kritima Visha)", "Anticholinergic — dry, hot, red, blind, mad (Dhatura/Atropine/TCAs)", "Sympathomimetic — tachycardia, HTN, mydriasis, sweating (Cocaine/Amphetamine)", "Opioid syndrome — respiratory depression, miosis, coma (Morphine/Heroin)", "Sedative-hypnotic — CNS + respiratory depression (Benzodiazepine/Barbiturate)", "Serotonin syndrome — tremor, clonus, hyperthermia, agitation", "Salicylate — tachypnoea, tinnitus, metabolic acidosis (Aspirin)", "Garavisha — chronic/subacute with non-specific debility (Arsenic/Lead)", "Snake envenomation — local + systemic (haemotoxic/neurotoxic)", "No clear toxidrome — supportive care"],
+          "hint": "Match toxidrome + route + history to narrow poison class when name unknown" }
+      ]
+    },
+    {
+      "id": "mlc",
+      "title": "Medico-Legal Documentation (Nyaya Vaidyaka)",
+      "fields": [
+        { "type": "note", "tone": "critical", "content": "⚠ LEGAL DUTY: All poisoning cases are MLC. Incomplete or delayed MLC documentation can have criminal/civil consequences. Document everything contemporaneously. Do not erase or overwrite." },
+        { "id": "mlc_case", "label": "MLC case registered?", "type": "select", "half": true,
+          "options": ["Yes — MLC registered (number below)", "No — registering now", "To be decided by doctor in charge"] },
+        { "id": "mlc_number", "label": "MLC register number", "type": "text", "half": true, "placeholder": "Hospital MLC number / date" },
+        { "id": "police_intimation", "label": "Police intimation", "type": "select", "half": true,
+          "options": ["Done — FIR registered (number below)", "Intimation given — awaiting police", "Not yet done — do immediately for criminal cases", "Not applicable (accidental only)"] },
+        { "id": "fir_number", "label": "FIR / NCR number (if reported)", "type": "text", "half": true, "placeholder": "e.g. FIR 123/2026, Police Station name" },
+        { "id": "forensic_sample", "label": "Medico-legal specimens collected", "type": "checkbox_group",
+          "options": ["Blood (for toxicology screen)", "Urine (for toxicology)", "Gastric washings (first 500mL — seal and label)", "Vomitus (collect and label)", "Skin swabs (for contact poison)", "Bite swabs (snake/insect)", "None — not applicable"] },
+        { "id": "psychiatric_consult", "label": "Psychiatric consultation (intentional cases)", "type": "select", "half": true,
+          "options": ["Not applicable", "Requested — pending", "Done — report attached", "Refused by patient/family"],
+          "hint": "Mandatory for all intentional self-harm. Mental Health Act 2017: patient retains right to refuse treatment once competent" }
+      ]
+    }
+  ]
+}
