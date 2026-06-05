@@ -4,7 +4,7 @@
 //   - Local assets (JS/CSS/images) → Cache first → network → cache update
 //   - External APIs (Supabase, Google Fonts, CDN) → Network only, no caching
 
-const CACHE      = 'ayurxpert-v5';
+const CACHE      = 'ayurxpert-v6';
 const OFFLINE    = './offline.html';
 
 // Security headers injected on every navigation response

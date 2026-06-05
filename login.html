@@ -457,15 +457,16 @@ async function handleContinue() {
   }
 
   _verifiedEmail = email;
-  // Sync hidden username field so browser fills the right saved password for this email
+  // Sync hidden username field — tells browser which account's password to suggest
   document.getElementById('username-hint').value = email;
-  // Clear any stale autofill from a previous user's saved credentials
-  passwordEl.value = '';
-  // Show email only — role/name not shown to limit data disclosure
+  // Show step 2
   document.getElementById('role-name-display').textContent = email;
   document.getElementById('step-email').style.display    = 'none';
   document.getElementById('step-password').style.display = '';
-  passwordEl.focus();
+  // Clear password immediately and again after browser autofill fires (~50ms delay)
+  // This evicts any previously-saved admin password that browser would auto-inject
+  passwordEl.value = '';
+  setTimeout(() => { passwordEl.value = ''; passwordEl.focus(); }, 80);
 }
 
 // ── STEP 2: Change email ──────────────────────────────────────────────────────
