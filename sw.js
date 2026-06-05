@@ -13,7 +13,7 @@ const SEC_HEADERS = [
   ['X-Content-Type-Options',     'nosniff'],
   ['Referrer-Policy',            'strict-origin-when-cross-origin'],
   ['Cache-Control',              'no-store, no-cache, must-revalidate, private'],
-  ['Content-Security-Policy',    "frame-ancestors 'none'; default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com https://static.cloudflareinsights.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';"],
+  ['Content-Security-Policy',    "frame-ancestors 'none'; default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com https://cloudflareinsights.com https://static.cloudflareinsights.com data: blob: 'unsafe-inline' 'unsafe-eval'; object-src 'none'; base-uri 'self';"],
 ];
 
 function withSecHeaders(res) {
