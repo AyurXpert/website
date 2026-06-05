@@ -1,14 +1,14 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, private"/>
 <script>if(window!==window.top)window.top.location.href=window.location.href;</script>
-<title>Sign In � AyurXpert</title>
+<title>Sign In — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="apple-touch-icon" href="assets/icon.svg"/>
@@ -216,7 +216,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 
 <div class="page">
 
-  <!-- Tenant branding � shown when org context is available -->
+  <!-- Tenant branding — shown when org context is available -->
   <div class="tenant-block" id="tenant-block">
     <div id="tenant-logo-wrap"></div>
     <div class="tenant-name" id="tenant-name-text"></div>
@@ -242,10 +242,6 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
       <span id="alert-info-text"></span>
     </div>
 
-    <!-- Wrapping in <form> satisfies browser password manager expectations.
-         onsubmit=false prevents any accidental page reload. -->
-    <form id="login-form" autocomplete="on" onsubmit="return false">
-
     <!-- STEP 1: Email -->
     <div id="step-email">
       <div class="field">
@@ -254,12 +250,12 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
           autocomplete="email" inputmode="email"/>
       </div>
       <button class="btn-submit" id="btn-continue" type="button">
-        <span class="btn-text">Continue ?</span>
+        <span class="btn-text">Continue →</span>
         <span class="btn-spinner"><span class="spinner"></span></span>
       </button>
     </div>
 
-    <!-- STEP 2: Password (email-only chip � no database info shown) -->
+    <!-- STEP 2: Password (email-only chip — no database info shown) -->
     <div id="step-password" style="display:none">
       <!-- Hidden username field: tells password manager which account's password to suggest.
            Synced to the verified email before step-2 is shown. -->
@@ -285,13 +281,11 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
           <a href="forgot-password.html" class="forgot-link">Forgot password?</a>
         </div>
       </div>
-      <button class="btn-submit" id="btn-login" type="submit">
+      <button class="btn-submit" id="btn-login" type="button">
         <span class="btn-text">Sign In</span>
         <span class="btn-spinner"><span class="spinner"></span></span>
       </button>
     </div>
-
-    </form>
 
     <div class="form-links">
       <div class="separator" id="links-label">Not registered yet?</div>
@@ -299,12 +293,12 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
       <!-- Default buttons (shown when no tenant context) -->
       <div class="action-btns" id="action-btns-default">
         <a href="register.html" class="btn-outline">Register organisation</a>
-        <a href="signup.html" class="btn-outline">Join as staff ?</a>
+        <a href="signup.html" class="btn-outline">Join as staff →</a>
       </div>
 
       <!-- Tenant-specific button (shown when tenant context exists) -->
       <div class="action-btns" id="action-btns-tenant" style="display:none">
-        <a href="signup.html" class="btn-outline" id="signup-link-tenant">Not registered? Join as staff ?</a>
+        <a href="signup.html" class="btn-outline" id="signup-link-tenant">Not registered? Join as staff →</a>
       </div>
 
       <div class="link-row">
@@ -324,7 +318,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
     <div class="ax-popup-icon">&#127807;</div>
     <div class="ax-popup-title">AyurXpert powers this portal</div>
     <div class="ax-popup-body">
-      A complete digital ecosystem for Ayurveda � clinics, hospitals,
+      A complete digital ecosystem for Ayurveda — clinics, hospitals,
       pharmacies, colleges, pharma companies, and more. All in one platform.
     </div>
     <div class="ax-popup-btns">
@@ -339,7 +333,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 import { login } from './js/core/auth.js';
 import { supabase } from './js/core/db/supabaseClient.js';
 
-// -- Watermark popup -----------------------------------------------------------
+// ── Watermark popup ───────────────────────────────────────────────────────────
 const overlay = document.getElementById('ax-popup-overlay');
 document.getElementById('ax-watermark').addEventListener('click', () => overlay.classList.add('show'));
 document.getElementById('ax-popup-close').addEventListener('click', () => overlay.classList.remove('show'));
@@ -347,7 +341,7 @@ document.getElementById('ax-popup-learn').addEventListener('click', () => window
 overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('show'); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.classList.remove('show'); });
 
-// -- Tenant branding -----------------------------------------------------------
+// ── Tenant branding ───────────────────────────────────────────────────────────
 (async () => {
   const params = new URLSearchParams(window.location.search);
   const code   = (params.get('t') || params.get('org') || sessionStorage.getItem('pending_tenant_code') || '').toUpperCase().trim();
@@ -391,10 +385,10 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.clas
   document.getElementById('action-btns-default').style.display = 'none';
   document.getElementById('action-btns-tenant').style.display  = '';
   document.getElementById('signup-link-tenant').href = `signup.html?t=${tenant.tenant_code}`;
-  document.title = `${tenant.name} � Sign In`;
+  document.title = `${tenant.name} — Sign In`;
 })();
 
-// -- Login form (two-step) -----------------------------------------------------
+// ── Login form (two-step) ─────────────────────────────────────────────────────
 const emailEl    = document.getElementById('email');
 const passwordEl = document.getElementById('password');
 const btnContinue = document.getElementById('btn-continue');
@@ -435,7 +429,7 @@ function _setLoading(btn, on) {
   btn.disabled = on;
 }
 
-// -- STEP 1: Email ? Continue --------------------------------------------------
+// ── STEP 1: Email → Continue ──────────────────────────────────────────────────
 btnContinue.addEventListener('click', handleContinue);
 emailEl.addEventListener('keydown', e => { if (e.key === 'Enter') handleContinue(); });
 emailEl.addEventListener('input', clearAlerts);
@@ -463,19 +457,18 @@ async function handleContinue() {
   }
 
   _verifiedEmail = email;
-  // Sync hidden username field � tells browser which account's password to suggest
+  // Sync hidden username field so browser fills the right saved password for this email
   document.getElementById('username-hint').value = email;
-  // Show step 2
+  // Clear any stale autofill from a previous user's saved credentials
+  passwordEl.value = '';
+  // Show email only — role/name not shown to limit data disclosure
   document.getElementById('role-name-display').textContent = email;
   document.getElementById('step-email').style.display    = 'none';
   document.getElementById('step-password').style.display = '';
-  // Clear password immediately and again after browser autofill fires (~50ms delay)
-  // This evicts any previously-saved admin password that browser would auto-inject
-  passwordEl.value = '';
-  setTimeout(() => { passwordEl.value = ''; passwordEl.focus(); }, 80);
+  passwordEl.focus();
 }
 
-// -- STEP 2: Change email ------------------------------------------------------
+// ── STEP 2: Change email ──────────────────────────────────────────────────────
 document.getElementById('btn-change-email').addEventListener('click', () => {
   _verifiedEmail = '';
   clearAlerts();
@@ -486,7 +479,7 @@ document.getElementById('btn-change-email').addEventListener('click', () => {
   emailEl.focus();
 });
 
-// -- STEP 2: Sign In -----------------------------------------------------------
+// ── STEP 2: Sign In ───────────────────────────────────────────────────────────
 btnLogin.addEventListener('click', handleLogin);
 passwordEl.addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
 passwordEl.addEventListener('input', clearAlerts);
@@ -499,7 +492,7 @@ async function handleLogin() {
   const result = await login({ email: _verifiedEmail, password });
   _setLoading(btnLogin, false);
   if (!result.success) {
-    // Always generic � prevents distinguishing wrong-password from unknown-email
+    // Always generic — prevents distinguishing wrong-password from unknown-email
     const msg = result.error || '';
     if (msg.includes('pending') || msg.includes('approved') || msg.includes('department access') || msg.includes('suspended') || msg.includes('not approved')) {
       showAlert(msg);
