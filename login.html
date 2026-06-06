@@ -81,6 +81,9 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 /* PASSWORD */
 .pw-wrap{position:relative}
 .pw-wrap input{padding-right:52px}
+.pw-wrap input[type="password"]::-ms-reveal,
+.pw-wrap input[type="password"]::-ms-clear{display:none}
+.pw-wrap input::-webkit-credentials-auto-fill-button{display:none}
 .toggle-pw{
   position:absolute;right:14px;top:50%;transform:translateY(-50%);
   background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px;
