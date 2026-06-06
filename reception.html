@@ -712,6 +712,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
               </div>
               <button class="btn-otp btn-otp-verify" id="btn-aad-verify-otp" type="button">Verify Aadhaar</button>
               <button class="btn-otp btn-otp-resend" id="btn-aad-resend" type="button">Resend OTP</button>
+              <div id="aad-no-abha-hint" style="display:none;margin-top:8px;padding:8px 10px;background:#fdf8ef;border:1px solid #e8c97a;border-radius:6px;font-size:12px;color:#7a5200">
+                No ABHA registered for this Aadhaar. <button type="button" onclick="_switchToEnroll()" style="background:none;border:none;color:var(--green-deep);font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;padding:0">Create new ABHA →</button>
+              </div>
             </div>
           </div>
 
@@ -724,6 +727,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
                        placeholder="10-digit mobile" maxlength="10"/>
               </div>
               <button class="btn-otp btn-otp-send" id="btn-mob-search" type="button">Search ABHA</button>
+            <div id="mob-no-abha-hint" style="display:none;margin-top:8px;padding:8px 10px;background:#fdf8ef;border:1px solid #e8c97a;border-radius:6px;font-size:12px;color:#7a5200">
+              No ABHA linked to this mobile. <button type="button" onclick="_switchToEnroll()" style="background:none;border:none;color:var(--green-deep);font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;padding:0">Create new ABHA →</button>
+            </div>
             </div>
             <div id="mob-step-2" style="display:none;margin-top:10px">
               <div class="abha-enroll-title" style="margin-bottom:8px">Select your ABHA</div>
@@ -1140,6 +1146,7 @@ document.getElementById('queue-date').textContent = new Date().toLocaleDateStrin
 // ── Fee state ─────────────────────────────────────
 let _surchargeDefault = 0;
 let _patient = null;
+let _currentVisitId = null;  // last visit created in this session (for ABDM link token)
 let _activePackage = null;
 let _screeningOpdId = null;
 let _kaumarOpdId    = null;
@@ -1903,6 +1910,7 @@ async function handleSubmit() {
     const payMsg = payStatus === 'paid'
       ? ` · ₹${total.toLocaleString('en-IN')} received via ${payMode}`
       : ` · Payment pending`;
+    _currentVisitId = visit.id;  // track for ABDM link token if ABHA verified later
     _alert('success', `Token #${nextToken} — ${patient.name} added to queue${payMsg}.`);
     _resetForm();
     loadQueue();
@@ -2233,6 +2241,50 @@ btnEnroll.addEventListener('click', () => {
   }
 });
 
+function _switchToEnroll() {
+  _closeAllAbhaPanels();
+  enrollPanel.style.display = '';
+  btnEnroll.textContent = '✕ Cancel';
+  btnEnroll.classList.add('open');
+  const phone = document.getElementById('phone').value.trim();
+  if (phone.length === 10) document.getElementById('enroll-mobile').value = phone;
+  document.getElementById('enroll-aadhaar').value = '';
+  document.getElementById('enroll-otp').value = '';
+  document.getElementById('enroll-step-1').style.display = '';
+  document.getElementById('enroll-step-2').style.display = 'none';
+  _setEnrollMsg('info', 'Enter Aadhaar and mobile number to create ABHA.');
+}
+window._switchToEnroll = _switchToEnroll;
+
+// ── OTP Resend rate-limiter (60s cooldown, max 2 resends) ─────
+function _makeResendLimiter(btnId) {
+  const btn = document.getElementById(btnId);
+  let count = 0, timerId = null;
+  function _startCountdown() {
+    clearInterval(timerId);
+    btn.disabled = true;
+    let secs = 60;
+    btn.textContent = `Resend in ${secs}s`;
+    timerId = setInterval(() => {
+      secs--;
+      if (secs > 0) { btn.textContent = `Resend in ${secs}s`; return; }
+      clearInterval(timerId); timerId = null;
+      btn.disabled = count >= 2;
+      btn.textContent = count >= 2 ? 'Max attempts — wait 30 min' : 'Resend OTP';
+    }, 1000);
+  }
+  return {
+    arm()      { _startCountdown(); },
+    onResend() { count++; },
+    reset()    { clearInterval(timerId); timerId = null; count = 0; btn.disabled = false; btn.textContent = 'Resend OTP'; },
+  };
+}
+const _verifyResendLim = _makeResendLimiter('btn-verify-resend');
+const _aadResendLim    = _makeResendLimiter('btn-aad-resend');
+const _mobResendLim    = _makeResendLimiter('btn-mob-resend');
+const _addrResendLim   = _makeResendLimiter('btn-addr-resend');
+const _enrollResendLim = _makeResendLimiter('btn-resend-otp');
+
 document.getElementById('btn-send-otp').addEventListener('click', async () => {
   const aadhaar = document.getElementById('enroll-aadhaar').value.trim();
   const mobile  = document.getElementById('enroll-mobile').value.trim();
@@ -2260,6 +2312,7 @@ document.getElementById('btn-send-otp').addEventListener('click', async () => {
     document.getElementById('enroll-step-2').style.display = '';
     document.getElementById('enroll-step-3').style.display = 'none';
     _setEnrollMsg('info', `✓ OTP sent. ${res.message || 'Check Aadhaar-linked mobile.'}`);
+    _enrollResendLim.arm();
   } catch (err) {
     _setEnrollMsg('error', 'Failed to send OTP: ' + (err.message || 'Please try again.'));
   }
@@ -2268,6 +2321,7 @@ document.getElementById('btn-send-otp').addEventListener('click', async () => {
 });
 
 document.getElementById('btn-resend-otp').addEventListener('click', () => {
+  _enrollResendLim.onResend();
   document.getElementById('enroll-step-2').style.display = 'none';
   document.getElementById('enroll-step-3').style.display = 'none';
   document.getElementById('enroll-step-1').style.display = '';
@@ -2398,6 +2452,7 @@ function _closeAllAbhaPanels() {
   verifyPanel.style.display = 'none';
   btnVerifyAbha.textContent = 'Verify';
   btnVerifyAbha.classList.remove('open');
+  _verifyResendLim.reset(); _aadResendLim.reset(); _mobResendLim.reset(); _addrResendLim.reset(); _enrollResendLim.reset();
   _closeScanPanel();
 }
 
@@ -2431,6 +2486,7 @@ document.getElementById('btn-verify-send-otp').addEventListener('click', async (
     _verifyTxnId = res.txnId;
     document.getElementById('verify-step-2').style.display = '';
     _setVerifyMsg('info', `✓ OTP sent. ${res.message || 'Check ABDM-linked mobile.'}`);
+    _verifyResendLim.arm();
   } catch (err) {
     _setVerifyMsg('error', 'Failed to send OTP: ' + (err.message || 'Please try again.'));
   }
@@ -2439,6 +2495,7 @@ document.getElementById('btn-verify-send-otp').addEventListener('click', async (
 });
 
 document.getElementById('btn-verify-resend').addEventListener('click', () => {
+  _verifyResendLim.onResend();
   document.getElementById('verify-step-2').style.display = 'none';
   document.getElementById('verify-step-1').style.display = '';
   _setVerifyMsg('', '');
@@ -2516,11 +2573,14 @@ document.getElementById('btn-aad-send-otp').addEventListener('click', async () =
     document.getElementById('verify-aadhaar-input').value = ''; // clear Aadhaar
     document.getElementById('aad-step-1').style.display = 'none';
     document.getElementById('aad-step-2').style.display = '';
+    document.getElementById('aad-no-abha-hint').style.display = 'none';
     _setVerifyMsg('info', `✓ OTP sent. ${res.message || 'Check Aadhaar-linked mobile.'}`);
+    _aadResendLim.arm();
   } catch (err) { _setVerifyMsg('error', err.message); }
   btn.disabled = false; btn.textContent = 'Send OTP';
 });
 document.getElementById('btn-aad-resend').addEventListener('click', () => {
+  _aadResendLim.onResend();
   document.getElementById('aad-step-2').style.display = 'none';
   document.getElementById('aad-step-1').style.display = '';
   _setVerifyMsg('', ''); _aadTxnId = null;
@@ -2534,7 +2594,12 @@ document.getElementById('btn-aad-verify-otp').addEventListener('click', async ()
   try {
     const prof = await verifyAadhaarLogin(_aadTxnId, otp);
     const abha = prof?.ABHANumber ?? prof?.abhaNumber;
-    if (!abha) throw new Error('ABHA number not returned.');
+    if (!abha) {
+      _setVerifyMsg('error', 'No ABHA registered for this Aadhaar.');
+      document.getElementById('aad-no-abha-hint').style.display = '';
+      btn.disabled = false; btn.textContent = 'Verify Aadhaar';
+      return;
+    }
     const fmt  = _fmtAbha(abha);
     document.getElementById('abha').value = fmt;
     _setAbhaNote('verified', `✓ ABHA verified via Aadhaar: ${fmt}`);
@@ -2558,13 +2623,19 @@ document.getElementById('btn-mob-search').addEventListener('click', async () => 
   if (!/^\d{10}$/.test(mobile)) return _setVerifyMsg('error', 'Mobile must be 10 digits.');
   const btn = document.getElementById('btn-mob-search');
   btn.disabled = true; btn.textContent = 'Searching…';
+  document.getElementById('mob-no-abha-hint').style.display = 'none';
   _setVerifyMsg('info', 'Searching ABHA numbers…');
   try {
     const res      = await searchAbhaByMobile(mobile);
     const raw      = Array.isArray(res) ? res[0] : res;
     const accounts = raw?.ABHA ?? raw?.ABHAAddresses ?? raw?.abhaAddresses ?? [];
     _mobSearchTxn  = raw?.txnId ?? raw?.transactionId;
-    if (!accounts.length) return _setVerifyMsg('error', 'No ABHA number found for this mobile.');
+    if (!accounts.length) {
+      _setVerifyMsg('error', 'No ABHA number found for this mobile.');
+      document.getElementById('mob-no-abha-hint').style.display = '';
+      btn.disabled = false; btn.textContent = 'Search ABHA';
+      return;
+    }
     document.getElementById('mob-step-1').style.display = 'none';
     document.getElementById('mob-step-2').style.display = '';
     document.getElementById('mob-accounts-list').innerHTML = accounts.map((a, i) => {
@@ -2591,10 +2662,12 @@ window._selectMobAccount = async (el, index) => {
     document.getElementById('mob-step-2').style.display = 'none';
     document.getElementById('mob-step-3').style.display = '';
     _setVerifyMsg('info', `✓ OTP sent. ${res.message || 'Check your registered mobile.'}`);
+    _mobResendLim.arm();
   } catch (err) { _setVerifyMsg('error', err.message); }
 };
 
 document.getElementById('btn-mob-resend').addEventListener('click', () => {
+  _mobResendLim.onResend();
   document.getElementById('mob-step-3').style.display = 'none';
   document.getElementById('mob-step-1').style.display = '';
   _setVerifyMsg('', ''); _mobSearchTxn = null; _mobOtpTxn = null;
@@ -2643,10 +2716,12 @@ document.getElementById('btn-addr-search').addEventListener('click', async () =>
     document.getElementById('addr-step-1').style.display = 'none';
     document.getElementById('addr-step-2').style.display = '';
     _setVerifyMsg('info', `✓ OTP sent to registered mobile for ${addr}.`);
+    _addrResendLim.arm();
   } catch (err) { _setVerifyMsg('error', err.message); }
   btn.disabled = false; btn.textContent = 'Search & Send OTP';
 });
 document.getElementById('btn-addr-resend').addEventListener('click', () => {
+  _addrResendLim.onResend();
   document.getElementById('addr-step-2').style.display = 'none';
   document.getElementById('addr-step-1').style.display = '';
   _setVerifyMsg('', ''); _addrTxnId = null;
@@ -2670,11 +2745,47 @@ document.getElementById('btn-addr-verify-otp').addEventListener('click', async (
     }
     _showAbhaProfile(prof, fmt || '—', null);
     _setVerifyMsg('success', 'ABHA Address verified successfully.');
-    if (_patient?.id && fmt) await supabase.from('patients').update({ abha_number: fmt }).eq('id', _patient.id);
+    if (_patient?.id && fmt) {
+      await supabase.from('patients').update({ abha_number: fmt }).eq('id', _patient.id);
+      // M2: auto-generate link token for current visit's care context
+      if (_currentVisitId) _abdmLinkTokenAfterVerify(_patient.id, fmt, _currentVisitId).catch(() => {});
+    }
     setTimeout(() => { verifyPanel.style.display='none'; btnVerifyAbha.textContent='Verify'; btnVerifyAbha.classList.remove('open'); }, 2000);
   } catch (err) { _setVerifyMsg('error', 'Verification failed: ' + err.message); }
   btn.disabled = false; btn.textContent = 'Verify & Get Profile';
 });
+
+// ── M2: generate link token after ABHA verification ──────────
+const ABDM_HIP_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-hip';
+async function _abdmLinkTokenAfterVerify(patientId, abhaNumber, visitId) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+    const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const careContextRef = `VISIT-${visitId}`;
+    // Ensure care context exists in DB
+    await fetch(ABDM_HIP_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({
+        action: 'create_care_context', patient_id: patientId, visit_id: visitId,
+        care_context_ref: careContextRef, display: `OPD Visit — ${dateStr}`,
+        hi_types: ['OPConsultation'], abha_number: abhaNumber,
+      }),
+    });
+    // Generate link token — patient gets ABHA app notification to approve linking
+    const ltRes = await fetch(ABDM_HIP_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({
+        action: 'generate_link_token', patient_id: patientId, abha_number: abhaNumber,
+        visit_id: visitId,
+        care_contexts: [{ referenceNumber: careContextRef, display: `OPD Visit — ${dateStr}`, hiType: 'OPConsultation' }],
+      }),
+    });
+    if (ltRes.ok) _alert('info', 'Health record link notification sent to patient\'s ABHA app.');
+  } catch (e) { console.warn('ABDM link token (reception):', e?.message); }
+}
 
 // ── Helper: format ABHA number ────────────────────
 function _fmtAbha(raw) {
