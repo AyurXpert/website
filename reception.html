@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cloudflareinsights.com https://static.cloudflareinsights.com https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthidsbx.abdm.gov.in https://healthid.abdm.gov.in; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <title>Reception — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
@@ -2377,8 +2377,9 @@ async function _handleAbhaProfileCreated(res) {
   }
 }
 
-// Step 2 verify: calls checkAndGenerateMobileOTP (CRT_ABHA_108/109)
-// If mobileLinked → finalize directly. If not → show comm mobile OTP step.
+// Step 2 verify: calls enrollABHA (byAadhaar first call).
+// If ABDM returns ABHAProfile → done (CRT_ABHA_108: mobiles matched).
+// If ABDM returns needsMobileOtp → show Step 2.5 (CRT_ABHA_109: mobiles differ, OTP sent to comm mobile).
 document.getElementById('btn-verify-otp').addEventListener('click', async () => {
   const otp = document.getElementById('enroll-otp').value.trim();
   if (!otp)           return _setEnrollMsg('error', 'Please enter the OTP.');
@@ -2389,23 +2390,20 @@ document.getElementById('btn-verify-otp').addEventListener('click', async () => 
   _setEnrollMsg('info', 'Verifying OTP with ABDM…');
 
   try {
-    // CRT_ABHA_108/109: verify Aadhaar OTP and check if comm mobile is linked
-    const checkRes = await checkAndGenerateMobileOTP(_enrollTxnId, otp, _enrollMobile);
-    const newTxn   = checkRes.txnId ?? _enrollTxnId;
-    _enrollTxnId   = newTxn; // update txnId for finalize step
+    const res = await enrollABHA(_enrollTxnId, otp, _enrollMobile);
+    console.log('[ABDM] enrollABHA response:', JSON.stringify(res));
 
-    if (checkRes.mobileLinked === false) {
-      // CRT_ABHA_109: comm mobile ≠ Aadhaar mobile — OTP sent to comm mobile
+    if (res.needsMobileOtp) {
+      // CRT_ABHA_109: comm mobile ≠ Aadhaar mobile — ABDM sent OTP to comm mobile
+      _enrollTxnId = res.txnId; // new txnId for second byAadhaar call
       document.getElementById('enroll-step-2').style.display  = 'none';
       document.getElementById('enroll-step-2b').style.display = '';
-      document.getElementById(`enroll-mob-otp-label`).textContent =
+      document.getElementById('enroll-mob-otp-label').textContent =
         `OTP sent to ${_enrollMobile} (communication mobile)`;
-      _setEnrollMsg('info', `OTP sent to ${_enrollMobile}. Please verify your communication mobile.`);
+      _setEnrollMsg('info', `An OTP has been sent to ${_enrollMobile}. Please enter it to verify your communication mobile.`);
     } else {
-      // CRT_ABHA_108: comm mobile == Aadhaar mobile — proceed directly to ABHA creation
-      _setEnrollMsg('info', 'Mobile verified. Creating ABHA…');
-      const finalRes = await finalizeAbhaEnrollment(newTxn, _enrollMobile, null);
-      await _handleAbhaProfileCreated(finalRes);
+      // CRT_ABHA_108: mobiles matched — ABHAProfile returned directly
+      await _handleAbhaProfileCreated(res);
     }
 
   } catch (err) {
