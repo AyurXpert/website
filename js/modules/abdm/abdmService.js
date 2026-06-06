@@ -158,27 +158,20 @@ export async function verifyAadhaarLogin(txnId, otp) {
   return callABDM('aadhaar_login_verify', { txnId, encOtp });
 }
 
-// ── Verification: Mobile Number login (3-step) ─────────────────
+// ── Verification: Mobile Number login (2-step per ABDM v3 doc) ─
 
-// Step 1: Search ABHAs linked to mobile → returns { ABHAAddresses[], txnId }
-export async function searchAbhaByMobile(mobile) {
+// Step 1: Send OTP to mobile directly → returns { txnId, message }
+export async function sendMobileLoginOtp(mobile) {
   const { publicKey } = await callABDM('get_cert');
   const encMobile = await encryptWithABDMCert(mobile, publicKey);
-  return callABDM('mobile_abha_search', { encMobile });
+  return callABDM('mobile_otp_send', { encMobile });
 }
 
-// Step 2: Send OTP for selected ABHA index (0-based)
-export async function requestMobileAbhaOtp(index, txnId) {
-  const { publicKey } = await callABDM('get_cert');
-  const encIndex = await encryptWithABDMCert(String(index), publicKey);
-  return callABDM('mobile_abha_otp', { encIndex, txnId });
-}
-
-// Step 3: Verify OTP → returns profile + tToken
-export async function verifyMobileAbhaOtp(txnId, otp) {
+// Step 2: Verify OTP → returns { accounts: [{ABHANumber, name, dob, gender, ...}], authResult }
+export async function verifyMobileLoginOtp(txnId, otp) {
   const { publicKey } = await callABDM('get_cert');
   const encOtp = await encryptWithABDMCert(otp, publicKey);
-  return callABDM('mobile_abha_verify', { txnId, encOtp });
+  return callABDM('mobile_otp_verify', { txnId, encOtp });
 }
 
 // ── Verification: ABHA Address login (PHR flow) ────────────────

@@ -739,7 +739,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
                 <input id="verify-mobile-input" type="tel" inputmode="tel"
                        placeholder="10-digit mobile" maxlength="10"/>
               </div>
-              <button class="btn-otp btn-otp-send" id="btn-mob-search" type="button">Search ABHA</button>
+              <button class="btn-otp btn-otp-send" id="btn-mob-search" type="button">Send OTP</button>
             <div id="mob-no-abha-hint" style="display:none;margin-top:8px;padding:8px 10px;background:#fdf8ef;border:1px solid #e8c97a;border-radius:6px;font-size:12px;color:#7a5200">
               No ABHA linked to this mobile. <button type="button" onclick="_switchToEnroll()" style="background:none;border:none;color:var(--green-deep);font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;padding:0">Create new ABHA →</button>
             </div>
@@ -1138,11 +1138,11 @@ import { createPatient } from './js/modules/patient/patientService.js';
 import { logAudit } from './js/core/auditLogger.js';
 import {
   requestABHAOtp, enrollABHA,
-  checkAndGenerateMobileOTP, finalizeAbhaEnrollment,
+  verifyCommMobileOtp, finalizeAbhaEnrollment,
   getAbhaSuggestions, setAbhaAddress, downloadAbhaCard,
   requestABHALoginOtp, verifyABHALogin,
   requestAadhaarLoginOtp, verifyAadhaarLogin,
-  searchAbhaByMobile, requestMobileAbhaOtp, verifyMobileAbhaOtp,
+  sendMobileLoginOtp, verifyMobileLoginOtp,
   searchAbhaAddress, initAbhaAddressLogin, verifyAbhaAddressOtp,
 } from './js/modules/abdm/abdmService.js';
 
@@ -2233,8 +2233,9 @@ function _formatDob(dob) {
 }
 
 // ── ABHA Enrollment ───────────────────────────────
-let _enrollTxnId  = null;
-let _enrollMobile = null;
+let _enrollTxnId       = null;
+let _enrollMobile      = null;
+let _pendingAbhaResponse = null; // stores byAadhaar response when needsMobileOtp=true
 
 const btnEnroll  = document.getElementById('btn-enroll-abha');
 const enrollPanel = document.getElementById('abha-enroll-panel');
@@ -2394,13 +2395,15 @@ document.getElementById('btn-verify-otp').addEventListener('click', async () => 
     console.log('[ABDM] enrollABHA response:', JSON.stringify(res));
 
     if (res.needsMobileOtp) {
-      // CRT_ABHA_109: comm mobile ≠ Aadhaar mobile — ABDM sent OTP to comm mobile
-      _enrollTxnId = res.txnId; // new txnId for second byAadhaar call
+      // CRT_ABHA_109: ABHA created with mobile:null — ABDM auto-sent OTP to comm mobile via byAadhaar
+      _enrollTxnId         = res.txnId;
+      _lastTToken          = res.tToken;
+      _pendingAbhaResponse = res;
       document.getElementById('enroll-step-2').style.display  = 'none';
       document.getElementById('enroll-step-2b').style.display = '';
       document.getElementById('enroll-mob-otp-label').textContent =
         `OTP sent to ${_enrollMobile} (communication mobile)`;
-      _setEnrollMsg('info', `An OTP has been sent to ${_enrollMobile}. Please enter it to verify your communication mobile.`);
+      _setEnrollMsg('info', `ABDM has sent an OTP to ${_enrollMobile}. Please enter it to link your communication mobile.`);
     } else {
       // CRT_ABHA_108: mobiles matched — ABHAProfile returned directly
       await _handleAbhaProfileCreated(res);
@@ -2424,8 +2427,11 @@ document.getElementById('btn-verify-mobile-otp').addEventListener('click', async
   _setEnrollMsg('info', 'Verifying communication mobile OTP…');
 
   try {
-    const finalRes = await finalizeAbhaEnrollment(_enrollTxnId, _enrollMobile, mobileOtp);
-    await _handleAbhaProfileCreated(finalRes);
+    // Verify the OTP sent to comm mobile — links mobile to the ABHA
+    await verifyCommMobileOtp(_enrollTxnId, mobileOtp, _lastTToken, _enrollMobile);
+    // ABHA was already created by byAadhaar; show its profile
+    await _handleAbhaProfileCreated(_pendingAbhaResponse);
+    _pendingAbhaResponse = null;
   } catch (err) {
     _setEnrollMsg('error', 'Verification failed: ' + (err.message || 'Please try again.'));
   }
@@ -2667,63 +2673,74 @@ document.getElementById('btn-aad-verify-otp').addEventListener('click', async ()
   btn.disabled = false; btn.textContent = 'Verify Aadhaar';
 });
 
-// ── Verify: Mobile Number flow (3-step) ───────────
-let _mobSearchTxn = null;
-let _mobOtpTxn    = null;
+// ── Verify: Mobile Number flow (2-step per ABDM v3 doc) ────────
+// Step 1: Enter mobile → Send OTP → mob-step-3 (OTP input)
+// Step 2: Verify OTP → accounts list; if multiple → mob-step-2 picker
+let _mobOtpTxn  = null;
+let _mobAccounts = [];
+
 document.getElementById('btn-mob-search').addEventListener('click', async () => {
   const mobile = document.getElementById('verify-mobile-input').value.trim();
   if (!/^\d{10}$/.test(mobile)) return _setVerifyMsg('error', 'Mobile must be 10 digits.');
   const btn = document.getElementById('btn-mob-search');
-  btn.disabled = true; btn.textContent = 'Searching…';
+  btn.disabled = true; btn.textContent = 'Sending OTP…';
   document.getElementById('mob-no-abha-hint').style.display = 'none';
-  _setVerifyMsg('info', 'Searching ABHA numbers…');
+  _setVerifyMsg('info', 'Sending OTP to mobile…');
   try {
-    const res      = await searchAbhaByMobile(mobile);
-    const raw      = Array.isArray(res) ? res[0] : res;
-    const accounts = raw?.ABHA ?? raw?.ABHAAddresses ?? raw?.abhaAddresses ?? [];
-    _mobSearchTxn  = raw?.txnId ?? raw?.transactionId;
-    if (!accounts.length) {
-      _setVerifyMsg('error', 'No ABHA number found for this mobile.');
-      document.getElementById('mob-no-abha-hint').style.display = '';
-      btn.disabled = false; btn.textContent = 'Search ABHA';
-      return;
-    }
+    const res = await sendMobileLoginOtp(mobile);
+    _mobOtpTxn = res.txnId;
     document.getElementById('mob-step-1').style.display = 'none';
-    document.getElementById('mob-step-2').style.display = '';
-    document.getElementById('mob-accounts-list').innerHTML = accounts.map((a, i) => {
-      const idx = a.index ?? i;
-      return `<div class="abha-acc-item" data-index="${idx}" onclick="_selectMobAccount(this, ${idx})">
-        <div>
-          <div class="abha-acc-num">${a.ABHANumber ?? a.abhaNumber ?? '—'}</div>
-          <div class="abha-acc-info">${a.name ?? ''} · ${a.gender ?? ''}</div>
-        </div>
-      </div>`;
-    }).join('');
-    _setVerifyMsg('info', `${accounts.length} ABHA account${accounts.length>1?'s':''} found. Select yours.`);
-  } catch (err) { _setVerifyMsg('error', err.message); }
-  btn.disabled = false; btn.textContent = 'Search ABHA';
+    document.getElementById('mob-step-3').style.display = '';
+    _setVerifyMsg('info', res.message || '✓ OTP sent to your registered mobile.');
+    _mobResendLim.arm();
+  } catch (err) {
+    _setVerifyMsg('error', 'Failed to send OTP: ' + err.message);
+    document.getElementById('mob-no-abha-hint').style.display = '';
+  }
+  btn.disabled = false; btn.textContent = 'Send OTP';
 });
 
-window._selectMobAccount = async (el, index) => {
+// Account picker (mob-step-2): shown after verify when multiple accounts returned
+window._selectMobAccount = (el, idx) => {
   document.querySelectorAll('.abha-acc-item').forEach(x => x.style.borderColor='');
   el.style.borderColor = 'var(--green-mid)';
-  _setVerifyMsg('info', 'Sending OTP…');
-  try {
-    const res = await requestMobileAbhaOtp(index, _mobSearchTxn);
-    _mobOtpTxn = res.txnId;
-    document.getElementById('mob-step-2').style.display = 'none';
-    document.getElementById('mob-step-3').style.display = '';
-    _setVerifyMsg('info', `✓ OTP sent. ${res.message || 'Check your registered mobile.'}`);
-    _mobResendLim.arm();
-  } catch (err) { _setVerifyMsg('error', err.message); }
+  document.getElementById('mob-step-2').style.display = 'none';
+  _handleMobileAccount(_mobAccounts[idx]);
 };
+
+function _handleMobileAccount(account) {
+  const abha = account.ABHANumber ?? account.abhaNumber;
+  if (!abha) { _setVerifyMsg('error', 'ABHA number not returned.'); return; }
+  const fmt = _fmtAbha(abha);
+  document.getElementById('abha').value = fmt;
+  _setAbhaNote('verified', `✓ ABHA verified via Mobile: ${fmt}`);
+  // Map account fields to profile format for _showAbhaProfile
+  const nameParts = (account.name ?? '').trim().split(/\s+/);
+  const prof = {
+    firstName:  nameParts[0] ?? '',
+    middleName: nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '',
+    lastName:   nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
+    dob: account.dob, gender: account.gender,
+    ABHANumber: abha, healthIdNumber: abha,
+    profilePhoto: account.profilePhoto,
+    phrAddress: account.preferredAbhaAddress,
+  };
+  if (document.getElementById('name').value.trim() === '' && account.name)
+    document.getElementById('name').value = account.name;
+  _showAbhaProfile(prof, fmt, null);
+  _setVerifyMsg('success', `ABHA ${fmt} verified.`);
+  if (_patient?.id) supabase.from('patients').update({ abha_number: fmt }).eq('id', _patient.id);
+  setTimeout(() => { verifyPanel.style.display='none'; btnVerifyAbha.textContent='Verify'; btnVerifyAbha.classList.remove('open'); }, 2000);
+}
 
 document.getElementById('btn-mob-resend').addEventListener('click', () => {
   _mobResendLim.onResend();
   document.getElementById('mob-step-3').style.display = 'none';
+  document.getElementById('mob-step-2').style.display = 'none';
   document.getElementById('mob-step-1').style.display = '';
-  _setVerifyMsg('', ''); _mobSearchTxn = null; _mobOtpTxn = null;
+  _setVerifyMsg('', ''); _mobOtpTxn = null; _mobAccounts = [];
 });
+
 document.getElementById('btn-mob-verify-otp').addEventListener('click', async () => {
   const otp = document.getElementById('mob-otp').value.trim();
   if (!otp || !_mobOtpTxn) return _setVerifyMsg('error', !otp ? 'Enter OTP.' : 'Session expired.');
@@ -2731,20 +2748,24 @@ document.getElementById('btn-mob-verify-otp').addEventListener('click', async ()
   btn.disabled = true; btn.textContent = 'Verifying…';
   _setVerifyMsg('info', 'Verifying with ABDM…');
   try {
-    const prof = await verifyMobileAbhaOtp(_mobOtpTxn, otp);
-    const abha = prof?.ABHANumber ?? prof?.abhaNumber;
-    if (!abha) throw new Error('ABHA number not returned.');
-    const fmt  = _fmtAbha(abha);
-    document.getElementById('abha').value = fmt;
-    _setAbhaNote('verified', `✓ ABHA verified via Mobile: ${fmt}`);
-    if (document.getElementById('name').value.trim() === '') {
-      const n = [prof.firstName, prof.middleName, prof.lastName].filter(Boolean).join(' ');
-      if (n) document.getElementById('name').value = n;
+    const res = await verifyMobileLoginOtp(_mobOtpTxn, otp);
+    const accounts = res.accounts ?? [];
+    if (!accounts.length) throw new Error('No ABHA accounts found for this mobile.');
+    if (accounts.length === 1) {
+      _handleMobileAccount(accounts[0]);
+    } else {
+      // Multiple ABHAs linked — show picker
+      _mobAccounts = accounts;
+      document.getElementById('mob-step-3').style.display = 'none';
+      document.getElementById('mob-step-2').style.display = '';
+      document.getElementById('mob-accounts-list').innerHTML = accounts.map((a, i) =>
+        `<div class="abha-acc-item" data-index="${i}" onclick="_selectMobAccount(this, ${i})">
+          <div class="abha-acc-num">${a.ABHANumber ?? a.abhaNumber ?? '—'}</div>
+          <div class="abha-acc-info">${a.name ?? ''} · ${a.gender ?? ''}</div>
+        </div>`
+      ).join('');
+      _setVerifyMsg('info', `${accounts.length} ABHAs linked to this mobile. Select yours.`);
     }
-    _showAbhaProfile(prof, fmt, prof.tToken);
-    _setVerifyMsg('success', `ABHA ${fmt} verified.`);
-    if (_patient?.id) await supabase.from('patients').update({ abha_number: fmt }).eq('id', _patient.id);
-    setTimeout(() => { verifyPanel.style.display='none'; btnVerifyAbha.textContent='Verify'; btnVerifyAbha.classList.remove('open'); }, 2000);
   } catch (err) { _setVerifyMsg('error', 'Verification failed: ' + err.message); }
   btn.disabled = false; btn.textContent = 'Verify & Get Profile';
 });
