@@ -85,6 +85,26 @@ export async function enrollABHA(txnId, otp, mobile) {
   return callABDM('enroll_abha', { txnId, encOtp, mobile });
 }
 
+// CRT_ABHA_108/109 — verify Aadhaar OTP + check if comm mobile == Aadhaar-linked mobile.
+// If different, ABDM sends OTP to comm mobile and returns {txnId, mobileLinked: false}.
+// If same, returns {txnId, mobileLinked: true} — skip mobile OTP step.
+export async function checkAndGenerateMobileOTP(txnId, otp, mobile) {
+  const { publicKey } = await callABDM('get_cert');
+  const encOtp = await encryptWithABDMCert(otp, publicKey);
+  return callABDM('check_generate_mobile_otp', { txnId, encOtp, mobile });
+}
+
+// Final ABHA creation after checkAndGenerateMobileOTP.
+// Pass mobileOtp (string) when mobileLinked was false; pass null when mobileLinked was true.
+export async function finalizeAbhaEnrollment(txnId, mobile, mobileOtp) {
+  let encMobileOtp = null;
+  if (mobileOtp) {
+    const { publicKey } = await callABDM('get_cert');
+    encMobileOtp = await encryptWithABDMCert(mobileOtp, publicKey);
+  }
+  return callABDM('finalize_abha_enrollment', { txnId, mobile, encMobileOtp });
+}
+
 // Step 3a: Get ABHA Address suggestions (tToken from enrollment)
 export async function getAbhaSuggestions(tToken) {
   return callABDM('get_abha_suggestions', { tToken });

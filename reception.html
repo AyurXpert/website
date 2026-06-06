@@ -647,6 +647,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <button class="btn-otp btn-otp-resend" id="btn-resend-otp" type="button">Resend OTP</button>
           </div>
 
+          <!-- Step 2.5: Comm mobile OTP — shown only when comm mobile ≠ Aadhaar mobile (CRT_ABHA_109) -->
+          <div id="enroll-step-2b" style="display:none;margin-top:10px">
+            <div style="padding:8px 10px;background:#fdf8ef;border:1px solid #e8c97a;border-radius:6px;font-size:12px;color:#7a5200;margin-bottom:8px">
+              ⚠ Communication mobile differs from Aadhaar-linked mobile. An OTP has been sent to verify it.
+            </div>
+            <div class="field" style="margin-bottom:8px">
+              <label id="enroll-mob-otp-label">OTP sent to communication mobile</label>
+              <input id="enroll-mobile-otp" type="tel" inputmode="numeric"
+                     placeholder="Enter OTP" maxlength="6" autocomplete="one-time-code"/>
+            </div>
+            <button class="btn-otp btn-otp-verify" id="btn-verify-mobile-otp" type="button">Verify Mobile &amp; Create ABHA</button>
+          </div>
+
           <!-- Step 3: Choose ABHA Address (shown after successful enrollment) -->
           <div id="enroll-step-3" style="display:none;margin-top:10px">
             <div class="abha-enroll-title">Choose Your ABHA Address</div>
@@ -1124,7 +1137,9 @@ import { supabase } from './js/core/db/supabaseClient.js';
 import { createPatient } from './js/modules/patient/patientService.js';
 import { logAudit } from './js/core/auditLogger.js';
 import {
-  requestABHAOtp, enrollABHA, getAbhaSuggestions, setAbhaAddress, downloadAbhaCard,
+  requestABHAOtp, enrollABHA,
+  checkAndGenerateMobileOTP, finalizeAbhaEnrollment,
+  getAbhaSuggestions, setAbhaAddress, downloadAbhaCard,
   requestABHALoginOtp, verifyABHALogin,
   requestAadhaarLoginOtp, verifyAadhaarLogin,
   searchAbhaByMobile, requestMobileAbhaOtp, verifyMobileAbhaOtp,
@@ -2308,9 +2323,10 @@ document.getElementById('btn-send-otp').addEventListener('click', async () => {
     _enrollTxnId  = res.txnId;
     _enrollMobile = mobile;
     document.getElementById('enroll-aadhaar').value = ''; // Aadhaar cleared from memory
-    document.getElementById('enroll-step-1').style.display = 'none';
-    document.getElementById('enroll-step-2').style.display = '';
-    document.getElementById('enroll-step-3').style.display = 'none';
+    document.getElementById('enroll-step-1').style.display  = 'none';
+    document.getElementById('enroll-step-2').style.display  = '';
+    document.getElementById('enroll-step-2b').style.display = 'none';
+    document.getElementById('enroll-step-3').style.display  = 'none';
     _setEnrollMsg('info', `✓ OTP sent. ${res.message || 'Check Aadhaar-linked mobile.'}`);
     _enrollResendLim.arm();
   } catch (err) {
@@ -2322,13 +2338,47 @@ document.getElementById('btn-send-otp').addEventListener('click', async () => {
 
 document.getElementById('btn-resend-otp').addEventListener('click', () => {
   _enrollResendLim.onResend();
-  document.getElementById('enroll-step-2').style.display = 'none';
-  document.getElementById('enroll-step-3').style.display = 'none';
-  document.getElementById('enroll-step-1').style.display = '';
+  document.getElementById('enroll-step-2').style.display  = 'none';
+  document.getElementById('enroll-step-2b').style.display = 'none';
+  document.getElementById('enroll-step-3').style.display  = 'none';
+  document.getElementById('enroll-step-1').style.display  = '';
   _setEnrollMsg('', '');
   _enrollTxnId = null;
 });
 
+// Shared helper: handle ABHAProfile from finalize step (used in both CRT_ABHA_108 and 109)
+async function _handleAbhaProfileCreated(res) {
+  const prof = res.ABHAProfile || res.abhaProfile;
+  const abha = prof?.ABHANumber || prof?.abhaNumber;
+  const name = prof ? `${prof.firstName || ''} ${prof.lastName || ''}`.trim() : '';
+  if (!abha) throw new Error('ABHA number not returned. Please try again.');
+  const digits = abha.replace(/\D/g, '');
+  const fmt = digits.length === 14
+    ? digits.replace(/^(\d{2})(\d{4})(\d{4})(\d{4})$/, '$1-$2-$3-$4')
+    : abha;
+  document.getElementById('abha').value = fmt;
+  _setAbhaNote('verified', `✓ ABHA created: ${fmt}${name ? ' · ' + name : ''}`);
+  if (_patient?.id) await supabase.from('patients').update({ abha_number: fmt }).eq('id', _patient.id);
+  _lastTToken = res.tToken ?? null;
+  _showAbhaProfile(prof, fmt, _lastTToken);
+  if (_lastTToken) {
+    document.getElementById('enroll-step-2').style.display  = 'none';
+    document.getElementById('enroll-step-2b').style.display = 'none';
+    document.getElementById('enroll-step-3').style.display  = '';
+    _setEnrollMsg('info', 'ABHA created! Now choose your ABHA Address.');
+    await _loadAbhaSuggestions(_lastTToken);
+  } else {
+    _setEnrollMsg('success', `ABHA ${fmt} created successfully.`);
+    setTimeout(() => {
+      enrollPanel.style.display = 'none';
+      btnEnroll.textContent = '+ Enroll';
+      btnEnroll.classList.remove('open');
+    }, 2000);
+  }
+}
+
+// Step 2 verify: calls checkAndGenerateMobileOTP (CRT_ABHA_108/109)
+// If mobileLinked → finalize directly. If not → show comm mobile OTP step.
 document.getElementById('btn-verify-otp').addEventListener('click', async () => {
   const otp = document.getElementById('enroll-otp').value.trim();
   if (!otp)           return _setEnrollMsg('error', 'Please enter the OTP.');
@@ -2339,46 +2389,50 @@ document.getElementById('btn-verify-otp').addEventListener('click', async () => 
   _setEnrollMsg('info', 'Verifying OTP with ABDM…');
 
   try {
-    const res   = await enrollABHA(_enrollTxnId, otp, _enrollMobile);
-    const prof  = res.ABHAProfile || res.abhaProfile;
-    const abha  = prof?.ABHANumber || prof?.abhaNumber;
-    const name  = prof ? `${prof.firstName || ''} ${prof.lastName || ''}`.trim() : '';
+    // CRT_ABHA_108/109: verify Aadhaar OTP and check if comm mobile is linked
+    const checkRes = await checkAndGenerateMobileOTP(_enrollTxnId, otp, _enrollMobile);
+    const newTxn   = checkRes.txnId ?? _enrollTxnId;
+    _enrollTxnId   = newTxn; // update txnId for finalize step
 
-    if (!abha) throw new Error('ABHA number not returned. Please try again.');
-
-    const digits = abha.replace(/\D/g, '');
-    const fmt = digits.length === 14
-      ? digits.replace(/^(\d{2})(\d{4})(\d{4})(\d{4})$/, '$1-$2-$3-$4')
-      : abha;
-
-    document.getElementById('abha').value = fmt;
-    _setAbhaNote('verified', `✓ ABHA created: ${fmt}${name ? ' · ' + name : ''}`);
-    if (_patient?.id) await supabase.from('patients').update({ abha_number: fmt }).eq('id', _patient.id);
-
-    // Store tToken for ABHA Address selection and card download
-    _lastTToken = res.tToken ?? null;
-    _showAbhaProfile(prof, fmt, _lastTToken);
-
-    // Show step 3: choose ABHA Address (if new enrollment and tToken available)
-    if (_lastTToken) {
-      document.getElementById('enroll-step-2').style.display = 'none';
-      document.getElementById('enroll-step-3').style.display = '';
-      _setEnrollMsg('info', 'ABHA created! Now choose your ABHA Address.');
-      await _loadAbhaSuggestions(_lastTToken);
+    if (checkRes.mobileLinked === false) {
+      // CRT_ABHA_109: comm mobile ≠ Aadhaar mobile — OTP sent to comm mobile
+      document.getElementById('enroll-step-2').style.display  = 'none';
+      document.getElementById('enroll-step-2b').style.display = '';
+      document.getElementById(`enroll-mob-otp-label`).textContent =
+        `OTP sent to ${_enrollMobile} (communication mobile)`;
+      _setEnrollMsg('info', `OTP sent to ${_enrollMobile}. Please verify your communication mobile.`);
     } else {
-      _setEnrollMsg('success', `ABHA ${fmt} created successfully.`);
-      setTimeout(() => {
-        enrollPanel.style.display = 'none';
-        btnEnroll.textContent = '+ Enroll';
-        btnEnroll.classList.remove('open');
-      }, 2000);
+      // CRT_ABHA_108: comm mobile == Aadhaar mobile — proceed directly to ABHA creation
+      _setEnrollMsg('info', 'Mobile verified. Creating ABHA…');
+      const finalRes = await finalizeAbhaEnrollment(newTxn, _enrollMobile, null);
+      await _handleAbhaProfileCreated(finalRes);
     }
 
   } catch (err) {
     _setEnrollMsg('error', 'Enrollment failed: ' + (err.message || 'Please try again.'));
   }
 
-  btn.disabled = false; btn.textContent = 'Verify & Get ABHA';
+  btn.disabled = false; btn.textContent = 'Verify OTP';
+});
+
+// Step 2.5 verify: comm mobile OTP (CRT_ABHA_109)
+document.getElementById('btn-verify-mobile-otp').addEventListener('click', async () => {
+  const mobileOtp = document.getElementById('enroll-mobile-otp').value.trim();
+  if (!mobileOtp)    return _setEnrollMsg('error', 'Please enter the OTP sent to your mobile.');
+  if (!_enrollTxnId) return _setEnrollMsg('error', 'Session expired — please restart enrollment.');
+
+  const btn = document.getElementById('btn-verify-mobile-otp');
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  _setEnrollMsg('info', 'Verifying communication mobile OTP…');
+
+  try {
+    const finalRes = await finalizeAbhaEnrollment(_enrollTxnId, _enrollMobile, mobileOtp);
+    await _handleAbhaProfileCreated(finalRes);
+  } catch (err) {
+    _setEnrollMsg('error', 'Verification failed: ' + (err.message || 'Please try again.'));
+  }
+
+  btn.disabled = false; btn.textContent = 'Verify Mobile & Create ABHA';
 });
 
 // ── Enrollment Step 3: ABHA Address ───────────────
