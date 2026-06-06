@@ -85,17 +85,21 @@ export async function enrollABHA(txnId, otp, mobile) {
   return callABDM('enroll_abha', { txnId, encOtp, mobile });
 }
 
-// CRT_ABHA_108/109 — verify Aadhaar OTP + check if comm mobile == Aadhaar-linked mobile.
-// If different, ABDM sends OTP to comm mobile and returns {txnId, mobileLinked: false}.
-// If same, returns {txnId, mobileLinked: true} — skip mobile OTP step.
-export async function checkAndGenerateMobileOTP(txnId, otp, mobile) {
-  const { publicKey } = await callABDM('get_cert');
-  const encOtp = await encryptWithABDMCert(otp, publicKey);
-  return callABDM('check_generate_mobile_otp', { txnId, encOtp, mobile });
+// CRT_ABHA_109 — after byAadhaar returns needsMobileOtp=true, send OTP to comm mobile.
+// Requires tToken (ABHA session token) returned by enroll_abha.
+export async function checkAndGenerateMobileOTP(txnId, tToken, mobile) {
+  return callABDM('check_generate_mobile_otp', { txnId, tToken, mobile });
 }
 
-// Final ABHA creation after checkAndGenerateMobileOTP.
-// Pass mobileOtp (string) when mobileLinked was false; pass null when mobileLinked was true.
+// CRT_ABHA_109 — verify the OTP sent to comm mobile. Links mobile to ABHA.
+// Uses enrollment/auth/byAbdm (VERIFY MOBILE UPDATE). Requires tToken from byAadhaar.
+export async function verifyCommMobileOtp(txnId, otp, tToken, mobile) {
+  const { publicKey } = await callABDM('get_cert');
+  const encOtp = await encryptWithABDMCert(otp, publicKey);
+  return callABDM('verify_comm_mobile_otp', { txnId, encOtp, tToken, mobile });
+}
+
+// Legacy — kept for any old callers; use verifyCommMobileOtp for CRT_ABHA_109.
 export async function finalizeAbhaEnrollment(txnId, mobile, mobileOtp) {
   let encMobileOtp = null;
   if (mobileOtp) {
