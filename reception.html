@@ -3441,7 +3441,7 @@ async function _startScanSession() {
   const { data: tenant } = await supabase
     .from('tenants').select('hfr_id')
     .eq('id', tenantId).single();
-  const hipId     = tenant?.hfr_id || 'AYURXPERT_SANDBOX';
+  const hipId     = tenant?.hfr_id || 'SBXID_033899';
   const requestId = crypto.randomUUID();
   const expiry    = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
