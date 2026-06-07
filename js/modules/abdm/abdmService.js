@@ -169,33 +169,10 @@ export async function verifyAadhaarLogin(txnId, otp) {
   return callABDM('aadhaar_login_verify', { txnId, encOtp });
 }
 
-// ── Verification: Mobile Number login — Find ABHA (3-step, official ABDM doc) ─
-
-// Step 1: Search ABHAs by mobile → returns masked list + txnId
-export async function searchAbhaByMobile(mobile) {
-  const { publicKey } = await callABDM('get_cert');
-  const encMobile = await encryptWithABDMCert(mobile, publicKey);
-  return callABDM('mobile_abha_search', { encMobile });
-}
-
-// Step 2: Request OTP for specific ABHA by index.
-// otpSystem='abdm' → 7.6.1 mobile OTP (scope:mobile-verify)
-// otpSystem='aadhaar' → 7.6.2 Aadhaar OTP (scope:aadhaar-verify)
-export async function requestIndexAbhaOtp(searchTxnId, index, otpSystem = 'abdm') {
-  const { publicKey } = await callABDM('get_cert');
-  const encIndex = await encryptWithABDMCert(String(index), publicKey);
-  return callABDM('mobile_index_otp', { encIndex, txnId: searchTxnId, otpSystem });
-}
-
-// Step 3: Verify OTP → returns full ABHA profile + tToken.
-// otpSystem must match what was used in requestIndexAbhaOtp.
-export async function verifyIndexAbhaOtp(txnId, otp, otpSystem = 'abdm') {
-  const { publicKey } = await callABDM('get_cert');
-  const encOtp = await encryptWithABDMCert(otp, publicKey);
-  return callABDM('mobile_index_verify', { txnId, encOtp, otpSystem });
-}
-
-// ── Verification: Mobile Number login (2-step fallback) ────────
+// ── Verification: Mobile Number login — Find ABHA (VRFY_ABHA_301 private flow) ─
+// sendMobileLoginOtp → OTP to mobile → verifyMobileLoginOtp → accounts[] + T-token
+// → loginVerifyUser (account selection) → full profile.
+// (§13.6 govt-only search-abha endpoint not used — requires BENEFIT-NAME header.)
 
 // Step 1: Send OTP to mobile directly → returns { txnId, message }
 export async function sendMobileLoginOtp(mobile) {
