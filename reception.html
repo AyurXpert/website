@@ -3237,8 +3237,10 @@ document.getElementById('btn-aad-verify-otp').addEventListener('click', async ()
 // ── Verify: Mobile Number flow (Send OTP → verify → link) ────────────────────
 // Step 1: Enter mobile → Send OTP → mob-step-3 (OTP input)
 // Step 2: Verify OTP → accounts list; if multiple → mob-step-2 picker
-let _mobOtpTxn  = null;
-let _mobAccounts = [];
+let _mobOtpTxn       = null;
+let _mobAccounts     = [];
+let _mobVerifyTToken = null;   // T-token from verifyMobileLoginOtp (used by loginVerifyUser)
+let _mobVerifyTxnId  = null;   // txnId for loginVerifyUser step
 
 document.getElementById('btn-mob-search').addEventListener('click', async () => {
   const mobile = document.getElementById('verify-mobile-input').value.trim();
@@ -3275,19 +3277,34 @@ async function _handleMobileAccount(account) {
   const fmt = _fmtAbha(abha);
   document.getElementById('abha').value = fmt;
   _setAbhaNote('verified', `✓ ABHA verified via Mobile: ${fmt}`);
-  const nameParts = (account.name ?? '').trim().split(/\s+/);
-  const prof = {
-    firstName:  nameParts[0] ?? '',
-    middleName: nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '',
-    lastName:   nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
-    dob: account.dob, gender: account.gender,
-    ABHANumber: abha, healthIdNumber: abha,
-    profilePhoto: account.profilePhoto,
-    phrAddress: account.preferredAbhaAddress,
-  };
-  if (document.getElementById('name').value.trim() === '' && account.name)
-    document.getElementById('name').value = account.name;
-  _showAbhaProfile(prof, fmt, null);
+
+  // Complete VRFY_ABHA_203 step 3: call /profile/login/verify/user to get full authenticated profile
+  let prof = null;
+  let sessionTToken = null;
+  if (_mobVerifyTToken && _mobVerifyTxnId) {
+    try {
+      _setVerifyMsg('info', 'Fetching full ABHA profile…');
+      const fullProfile = await loginVerifyUser(_mobVerifyTToken, _mobVerifyTxnId, abha);
+      prof = fullProfile;
+      sessionTToken = fullProfile.tToken ?? null;
+    } catch (_e) { /* fall through to accounts[] data */ }
+  }
+  if (!prof) {
+    const nameParts = (account.name ?? '').trim().split(/\s+/);
+    prof = {
+      firstName:  nameParts[0] ?? '',
+      middleName: nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '',
+      lastName:   nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
+      dob: account.dob, gender: account.gender,
+      ABHANumber: abha, healthIdNumber: abha,
+      profilePhoto: account.profilePhoto,
+      phrAddress: account.preferredAbhaAddress,
+    };
+  }
+  const fullName = prof.name ?? [prof.firstName, prof.middleName, prof.lastName].filter(Boolean).join(' ');
+  if (document.getElementById('name').value.trim() === '' && fullName)
+    document.getElementById('name').value = fullName;
+  _showAbhaProfile(prof, fmt, sessionTToken);
   _setVerifyMsg('success', `ABHA ${fmt} verified.`);
   await _linkAbha(prof, fmt);
   setTimeout(() => { verifyPanel.style.display='none'; btnVerifyAbha.textContent='Verify'; btnVerifyAbha.classList.remove('open'); }, 2000);
@@ -3298,7 +3315,7 @@ document.getElementById('btn-mob-resend').addEventListener('click', () => {
   document.getElementById('mob-step-3').style.display = 'none';
   document.getElementById('mob-step-2').style.display = 'none';
   document.getElementById('mob-step-1').style.display = '';
-  _setVerifyMsg('', ''); _mobOtpTxn = null; _mobAccounts = [];
+  _setVerifyMsg('', ''); _mobOtpTxn = null; _mobAccounts = []; _mobVerifyTToken = null; _mobVerifyTxnId = null;
 });
 
 document.getElementById('btn-mob-verify-otp').addEventListener('click', async () => {
@@ -3311,8 +3328,10 @@ document.getElementById('btn-mob-verify-otp').addEventListener('click', async ()
     const res = await verifyMobileLoginOtp(_mobOtpTxn, otp);
     const accounts = res.accounts ?? [];
     if (!accounts.length) throw new Error('No ABHA accounts found for this mobile.');
+    _mobVerifyTToken = res.token ?? res.tokens?.token ?? null;
+    _mobVerifyTxnId  = res.txnId ?? _mobOtpTxn;
     if (accounts.length === 1) {
-      _handleMobileAccount(accounts[0]);
+      await _handleMobileAccount(accounts[0]);
     } else {
       _mobAccounts = accounts;
       document.getElementById('mob-step-3').style.display = 'none';
