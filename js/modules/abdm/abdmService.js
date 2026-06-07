@@ -248,21 +248,37 @@ export async function verifyUpdateMobileOtp(tToken, txnId, otp) {
   return callABDM('update_mobile_verify', { tToken, txnId, encOtp });
 }
 
-// ── Sandbox: ABHA deletion (§8.3.1) ────────────────────────────
+// ── Sandbox: ABHA deletion (§8.3.1 Aadhaar OTP / §8.3.2 ABDM OTP) ──────────
 export async function sbxLoginOtp(aadhaar) { return requestAadhaarLoginOtp(aadhaar); }
 export async function sbxLoginVerify(txnId, otp) { return verifyAadhaarLogin(txnId, otp); }
 
-export async function sbxDeleteAbhaOtp(abhaNumber, xToken) {
+// otpSystem: 'aadhaar' (default, §8.3.1) or 'abdm' (§8.3.2)
+export async function sbxDeleteAbhaOtp(abhaNumber, xToken, otpSystem = 'aadhaar') {
   const { publicKey } = await callABDM('get_cert');
-  // Keep dashes — ABDM returned this format from login verify
   const encAbhaNumber = await encryptWithABDMCert(String(abhaNumber), publicKey);
-  return callABDM('sbx_delete_abha_otp', { encAbhaNumber, xToken });
+  return callABDM('sbx_delete_abha_otp', { encAbhaNumber, xToken, otpSystem });
 }
 
 export async function sbxDeleteAbhaConfirm(txnId, xToken, otp) {
   const { publicKey } = await callABDM('get_cert');
   const encOtp = await encryptWithABDMCert(otp, publicKey);
   return callABDM('sbx_delete_abha_confirm', { txnId, encOtp, xToken });
+}
+
+// ── ABHA Deactivation (§8.4.1 Aadhaar OTP / §8.4.2 ABDM OTP) ───────────────
+
+// Step 1: Send OTP. otpSystem: 'aadhaar' (§8.4.1) or 'abdm' (§8.4.2)
+export async function deactivateAbhaOtp(abhaNumber, xToken, otpSystem = 'aadhaar') {
+  const { publicKey } = await callABDM('get_cert');
+  const encAbhaNumber = await encryptWithABDMCert(String(abhaNumber), publicKey);
+  return callABDM('deactivate_abha_otp', { encAbhaNumber, xToken, otpSystem });
+}
+
+// Step 2: Verify OTP. reasons array required by ABDM spec for de-activate.
+export async function deactivateAbhaConfirm(txnId, xToken, otp, reasons = ['User requested deactivation']) {
+  const { publicKey } = await callABDM('get_cert');
+  const encOtp = await encryptWithABDMCert(otp, publicKey);
+  return callABDM('deactivate_abha_confirm', { txnId, encOtp, xToken, reasons });
 }
 
 
