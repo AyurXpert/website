@@ -3018,16 +3018,12 @@ document.getElementById('btn-find-verify-otp').addEventListener('click', async (
     const res = await verifyMobileLoginOtp(_findMobileTxnId, otp);
     const accounts = res.accounts ?? [];
     if (!accounts.length) throw new Error('No ABHA linked to this mobile number.');
-    const tToken = res.token;
-    const txnId  = res.txnId;
-    if (!tToken) throw new Error('ABDM did not return a verification token. Please try again.');
-    _findTToken      = tToken;
-    _findVerifyTxnId = txnId;
+    _findTToken      = res.token ?? null;
+    _findVerifyTxnId = res.txnId ?? _findMobileTxnId;
     _findAccounts    = accounts;
     if (accounts.length === 1) {
-      _setFindMsg('info', 'ABHA found — fetching full profile…');
-      const profile = await loginVerifyUser(tToken, txnId, accounts[0].ABHANumber);
-      await _applyFindAccount({ ...profile, tToken });
+      _setFindMsg('info', 'ABHA found — auto-filling details…');
+      await _applyFindAccount(accounts[0]);
     } else {
       _findSelectedAbha = accounts[0];
       document.getElementById('find-accounts-list').innerHTML = accounts.map((a, i) =>
@@ -3045,17 +3041,15 @@ document.getElementById('btn-find-verify-otp').addEventListener('click', async (
   btn.disabled = false; btn.textContent = 'Fetch ABHA Details';
 });
 
-// Step 3 (multi-ABHA only): Confirm account selection → loginVerifyUser → auto-fill
+// Step 3 (multi-ABHA only): Confirm account selection → auto-fill from accounts[] data
 document.getElementById('btn-find-confirm').addEventListener('click', async () => {
-  if (!_findSelectedAbha || !_findTToken)
+  if (!_findSelectedAbha)
     return _setFindMsg('error', 'Session expired. Enter mobile again.');
   const btn = document.getElementById('btn-find-confirm');
-  btn.disabled = true; btn.textContent = 'Fetching…';
-  _setFindMsg('info', 'Fetching full ABHA profile…');
+  btn.disabled = true; btn.textContent = 'Confirming…';
   try {
-    const profile = await loginVerifyUser(_findTToken, _findVerifyTxnId, _findSelectedAbha.ABHANumber);
-    await _applyFindAccount({ ...profile, tToken: _findTToken });
-  } catch (err) { _setFindMsg('error', 'Could not fetch profile: ' + err.message); }
+    await _applyFindAccount(_findSelectedAbha);
+  } catch (err) { _setFindMsg('error', 'Could not apply profile: ' + err.message); }
   btn.disabled = false; btn.textContent = 'Confirm Selection';
 });
 
