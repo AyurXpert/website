@@ -633,8 +633,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <!-- Enrollment panel (hidden until + Enroll clicked) -->
         <div class="abha-enroll-panel" id="abha-enroll-panel" style="display:none">
           <div class="abha-enroll-title">✦ Create ABHA via Aadhaar OTP</div>
+          <form onsubmit="return false" autocomplete="off">
 
-          <!-- Step 1: Aadhaar + mobile -->
+          <!-- Step 1: Aadhaar + Mobile — OTP sent to Aadhaar-linked mobile -->
           <div id="enroll-step-1">
             <div class="field-row" style="margin-bottom:8px">
               <div class="field" style="margin:0">
@@ -643,18 +644,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
                        placeholder="12-digit Aadhaar" maxlength="12" autocomplete="off"/>
               </div>
               <div class="field" style="margin:0">
-                <label>Mobile (for ABHA)</label>
+                <label>Patient Mobile</label>
                 <input id="enroll-mobile" type="tel" inputmode="tel"
                        placeholder="10-digit mobile" maxlength="10"/>
               </div>
             </div>
-            <button class="btn-otp btn-otp-send" id="btn-send-otp" type="button">Send OTP</button>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">OTP will be sent to the mobile linked with Aadhaar</div>
+            <button class="btn-otp btn-otp-send" id="btn-send-otp" type="button">Send Aadhaar OTP</button>
           </div>
 
           <!-- Step 2: OTP (shown after OTP sent) -->
           <div id="enroll-step-2" style="display:none;margin-top:10px">
             <div class="field" style="margin-bottom:8px">
-              <label>OTP received on Aadhaar-linked mobile</label>
+              <label id="enroll-otp-label">Aadhaar OTP — sent to Aadhaar-linked mobile</label>
               <input id="enroll-otp" type="tel" inputmode="numeric"
                      placeholder="Enter OTP" maxlength="6" autocomplete="one-time-code"/>
             </div>
@@ -662,17 +664,30 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <button class="btn-otp btn-otp-resend" id="btn-resend-otp" type="button">Resend OTP</button>
           </div>
 
-          <!-- Step 2.5: Comm mobile OTP — shown only when comm mobile ≠ Aadhaar mobile (CRT_ABHA_109) -->
+          <!-- Step 2.5: Comm mobile OTP — only when entered mobile ≠ Aadhaar-linked mobile -->
           <div id="enroll-step-2b" style="display:none;margin-top:10px">
             <div style="padding:8px 10px;background:#fdf8ef;border:1px solid #e8c97a;border-radius:6px;font-size:12px;color:#7a5200;margin-bottom:8px">
-              ⚠ Communication mobile differs from Aadhaar-linked mobile. An OTP has been sent to verify it.
+              The mobile you entered differs from the Aadhaar-linked mobile. An OTP has been sent to verify it.
             </div>
             <div class="field" style="margin-bottom:8px">
-              <label id="enroll-mob-otp-label">OTP sent to communication mobile</label>
+              <label id="enroll-mob-otp-label">Mobile OTP — sent to communication mobile</label>
               <input id="enroll-mobile-otp" type="tel" inputmode="numeric"
                      placeholder="Enter OTP" maxlength="6" autocomplete="one-time-code"/>
             </div>
-            <button class="btn-otp btn-otp-verify" id="btn-verify-mobile-otp" type="button">Verify Mobile &amp; Create ABHA</button>
+            <button class="btn-otp btn-otp-verify" id="btn-verify-mobile-otp" type="button">Verify Mobile &amp; Complete ABHA</button>
+          </div>
+
+          <!-- Step existing: OTP to fetch already-registered ABHA profile -->
+          <div id="enroll-step-existing" style="display:none;margin-top:10px">
+            <div style="padding:8px 10px;background:#f0f4ff;border:1px solid #7b9fd4;border-radius:6px;font-size:12px;color:#1a3a6e;margin-bottom:8px">
+              An OTP has been sent to the Aadhaar-linked mobile. Enter it to view the existing ABHA profile.
+            </div>
+            <div class="field" style="margin-bottom:8px">
+              <label>OTP sent to Aadhaar-linked mobile</label>
+              <input id="enroll-existing-otp" type="tel" inputmode="numeric"
+                     placeholder="Enter OTP" maxlength="6" autocomplete="one-time-code"/>
+            </div>
+            <button class="btn-otp btn-otp-verify" id="btn-existing-verify-otp" type="button">View ABHA Profile</button>
           </div>
 
           <!-- Step 3: Choose ABHA Address (shown after successful enrollment) -->
@@ -687,6 +702,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           </div>
 
           <div class="enroll-msg" id="enroll-msg"></div>
+          </form>
         </div>
 
         <!-- Verify panel (existing ABHA holder — 4 methods) -->
@@ -724,6 +740,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
           <!-- ② By Aadhaar Number -->
           <div class="verify-method" id="vm-aadhaar">
+            <form onsubmit="return false" autocomplete="off">
             <div id="aad-step-1">
               <div class="field" style="margin-bottom:8px">
                 <label>Aadhaar Number (12 digits)</label>
@@ -744,6 +761,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
                 No ABHA registered for this Aadhaar. <button type="button" onclick="_switchToEnroll()" style="background:none;border:none;color:var(--green-deep);font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;padding:0">Create new ABHA →</button>
               </div>
             </div>
+            </form>
           </div>
 
           <!-- ③ By Mobile Number (Send OTP → verify → link) -->
@@ -1187,13 +1205,16 @@ import { createPatient } from './js/modules/patient/patientService.js';
 import { logAudit } from './js/core/auditLogger.js';
 import {
   requestABHAOtp, enrollABHA,
-  verifyCommMobileOtp, finalizeAbhaEnrollment,
+  checkAndGenerateMobileOTP, verifyCommMobileOtp, finalizeAbhaEnrollment,
   getAbhaSuggestions, setAbhaAddress, downloadAbhaCard,
   requestABHALoginOtp, verifyABHALogin,
   requestAadhaarLoginOtp, verifyAadhaarLogin,
   sendMobileLoginOtp, verifyMobileLoginOtp,
   searchAbhaAddress, initAbhaAddressLogin, verifyAbhaAddressOtp,
+  sbxLoginOtp, sbxLoginVerify, sbxDeleteAbhaOtp, sbxDeleteAbhaConfirm,
 } from './js/modules/abdm/abdmService.js';
+window._sbxLoginOtp = sbxLoginOtp; window._sbxLoginVerify = sbxLoginVerify;
+window._sbxDeleteAbhaOtp = sbxDeleteAbhaOtp; window._sbxDeleteAbhaConfirm = sbxDeleteAbhaConfirm;
 
 await requireAuth(['receptionist', 'nurse', 'super_admin', 'dept_admin', 'doctor']);
 initNavbar();
@@ -2350,6 +2371,8 @@ function _formatDob(dob) {
 let _enrollTxnId       = null;
 let _enrollMobile      = null;
 let _pendingAbhaResponse = null; // stores byAadhaar response when needsMobileOtp=true
+let _existingAbhaAadhaar  = null; // saved when ABDM-1008 (already enrolled)
+let _existingAadhaarTxnId = null;
 
 const btnEnroll  = document.getElementById('btn-enroll-abha');
 const enrollPanel = document.getElementById('abha-enroll-panel');
@@ -2415,11 +2438,71 @@ const _mobResendLim    = _makeResendLimiter('btn-mob-resend');
 const _addrResendLim   = _makeResendLimiter('btn-addr-resend');
 const _enrollResendLim = _makeResendLimiter('btn-resend-otp');
 
+// ── Existing ABHA: fetch profile via Aadhaar login when ABDM-1008 ─────────────
+async function _fetchExistingAbhaProfile() {
+  const aadhaar = _existingAbhaAadhaar;
+  if (!aadhaar) return _setEnrollMsg('error', 'Aadhaar not available. Please re-enter.');
+  const btn = document.getElementById('btn-view-existing-profile');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending OTP…'; }
+  _setEnrollMsg('info', 'Sending OTP to Aadhaar-linked mobile…');
+  try {
+    const res = await requestAadhaarLoginOtp(aadhaar);
+    _existingAadhaarTxnId = res.txnId;
+    document.getElementById('enroll-aadhaar').value = '';
+    document.getElementById('enroll-step-1').style.display    = 'none';
+    document.getElementById('enroll-step-existing').style.display = '';
+    _setEnrollMsg('info', 'OTP sent. Enter it below to view the ABHA profile.');
+  } catch (err) {
+    _setEnrollMsg('error', 'Failed to send OTP: ' + (err.message || 'Please try again.'));
+    if (btn) { btn.disabled = false; btn.textContent = 'View Profile →'; }
+  }
+}
+
+document.getElementById('btn-existing-verify-otp').addEventListener('click', async () => {
+  const otp = document.getElementById('enroll-existing-otp').value.trim();
+  if (!otp)                return _setEnrollMsg('error', 'Please enter the OTP.');
+  if (!_existingAadhaarTxnId) return _setEnrollMsg('error', 'Session expired — please try again.');
+  const btn = document.getElementById('btn-existing-verify-otp');
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  _setEnrollMsg('info', 'Fetching ABHA profile…');
+  try {
+    const prof = await verifyAadhaarLogin(_existingAadhaarTxnId, otp);
+    const abha = prof?.ABHANumber ?? prof?.abhaNumber;
+    if (!abha) {
+      _setEnrollMsg('error', 'No ABHA found for this Aadhaar.');
+      btn.disabled = false; btn.textContent = 'View ABHA Profile';
+      return;
+    }
+    const fmt = _fmtAbha(abha);
+    document.getElementById('abha').value = fmt;
+    _setAbhaNote('verified', `✓ ABHA found: ${fmt}`);
+    if (!document.getElementById('name').value.trim()) {
+      const n = [prof.firstName, prof.middleName, prof.lastName].filter(Boolean).join(' ');
+      if (n) document.getElementById('name').value = n;
+    }
+    _showAbhaProfile(prof, fmt, prof.tToken ?? null);
+    _setEnrollMsg('success', `ABHA ${fmt} loaded successfully.`);
+    await _linkAbha(prof, fmt, null, true);
+    setTimeout(() => {
+      enrollPanel.style.display = 'none';
+      btnEnroll.textContent = '+ Enroll';
+      btnEnroll.classList.remove('open');
+      document.getElementById('enroll-step-existing').style.display = 'none';
+      document.getElementById('enroll-step-1').style.display = '';
+      document.getElementById('enroll-existing-otp').value = '';
+      _existingAbhaAadhaar = null; _existingAadhaarTxnId = null;
+    }, 2000);
+  } catch (err) {
+    _setEnrollMsg('error', 'Verification failed: ' + (err.message || 'Please try again.'));
+    btn.disabled = false; btn.textContent = 'View ABHA Profile';
+  }
+});
+
 document.getElementById('btn-send-otp').addEventListener('click', async () => {
   const aadhaar = document.getElementById('enroll-aadhaar').value.trim();
   const mobile  = document.getElementById('enroll-mobile').value.trim();
-  if (!/^\d{12}$/.test(aadhaar))  return _setEnrollMsg('error', 'Aadhaar must be 12 digits.');
-  if (!_verhoeff(aadhaar))         return _setEnrollMsg('error', 'Invalid Aadhaar number (checksum failed). Please re-enter.');
+  if (!/^\d{12}$/.test(aadhaar)) return _setEnrollMsg('error', 'Aadhaar must be 12 digits.');
+  if (!_verhoeff(aadhaar))        return _setEnrollMsg('error', 'Invalid Aadhaar number (checksum failed). Please re-enter.');
   if (!/^\d{10}$/.test(mobile))   return _setEnrollMsg('error', 'Mobile must be 10 digits.');
 
   // Show ABDM consent modal and wait for agreement
@@ -2435,17 +2518,34 @@ document.getElementById('btn-send-otp').addEventListener('click', async () => {
 
   try {
     const res = await requestABHAOtp(aadhaar);
-    _enrollTxnId  = res.txnId;
-    _enrollMobile = mobile;
+    _enrollTxnId         = res.txnId;
+    _enrollMobile        = mobile;
+    _existingAbhaAadhaar = aadhaar; // saved in case ABDM-1008 at verify step
     document.getElementById('enroll-aadhaar').value = ''; // Aadhaar cleared from memory
+    document.getElementById('enroll-mobile').value  = ''; // mobile cleared from memory
+    const maskedHint = res.message || 'Check your Aadhaar-linked mobile.';
+    document.getElementById('enroll-otp-label').textContent = `Aadhaar OTP — ${maskedHint}`;
     document.getElementById('enroll-step-1').style.display  = 'none';
     document.getElementById('enroll-step-2').style.display  = '';
     document.getElementById('enroll-step-2b').style.display = 'none';
     document.getElementById('enroll-step-3').style.display  = 'none';
-    _setEnrollMsg('info', `✓ OTP sent. ${res.message || 'Check Aadhaar-linked mobile.'}`);
+    _setEnrollMsg('info', `✓ ${maskedHint}`);
     _enrollResendLim.arm();
   } catch (err) {
-    _setEnrollMsg('error', 'Failed to send OTP: ' + (err.message || 'Please try again.'));
+    const alreadyExists = err.message?.includes('ABHA already exists');
+    if (alreadyExists) {
+      _existingAbhaAadhaar = document.getElementById('enroll-aadhaar').value.trim();
+      const _em1 = document.getElementById('enroll-msg');
+      _em1.className = 'enroll-msg show error';
+      _em1.innerHTML = 'ABHA already exists for this Aadhaar. ' +
+        '<button id="btn-view-existing-profile" style="background:none;border:none;color:#fff;' +
+        'font-weight:700;cursor:pointer;text-decoration:underline;padding:0;font-size:inherit">' +
+        'View Profile →</button>';
+      document.getElementById('btn-view-existing-profile')
+        ?.addEventListener('click', _fetchExistingAbhaProfile);
+    } else {
+      _setEnrollMsg('error', 'Failed to send OTP: ' + (err.message || 'Please try again.'));
+    }
   }
 
   btn.disabled = false; btn.textContent = 'Send OTP';
@@ -2508,29 +2608,91 @@ document.getElementById('btn-verify-otp').addEventListener('click', async () => 
     const res = await enrollABHA(_enrollTxnId, otp, _enrollMobile);
     console.log('[ABDM] enrollABHA response:', JSON.stringify(res));
 
+    // M1 spec: isNew:false — existing ABHA returned directly in response, no second OTP
+    if (res.isExisting) {
+      const prof = res.ABHAProfile || res.abhaProfile;
+      const abha = prof?.ABHANumber ?? prof?.abhaNumber;
+      if (!abha) {
+        _setEnrollMsg('error', 'ABHA already exists for this Aadhaar but profile could not be retrieved. Please use Verify ABHA tab.');
+        btn.disabled = false; btn.textContent = 'Verify OTP';
+        return;
+      }
+      const fmt = _fmtAbha(abha);
+      // Auto-fill ABHA number and name silently
+      document.getElementById('abha').value = fmt;
+      _setAbhaNote('verified', `✓ Existing ABHA: ${fmt}`);
+      if (!document.getElementById('name').value.trim()) {
+        const n = [prof.firstName, prof.middleName, prof.lastName].filter(Boolean).join(' ');
+        if (n) document.getElementById('name').value = n;
+      }
+      // Link to DB in background
+      await _linkAbha(prof, fmt, null, true);
+      document.getElementById('enroll-step-2').style.display = 'none';
+      // Per ABDM spec: show "account already exists" + explicit View Profile button
+      // Use innerHTML directly — _setEnrollMsg uses textContent which escapes HTML
+      const enrollMsgEl = document.getElementById('enroll-msg');
+      enrollMsgEl.className = 'enroll-msg show info';
+      enrollMsgEl.innerHTML =
+        'This account already exists. ' +
+        '<button id="btn-show-existing-profile" style="background:none;border:none;color:#1a4a2e;' +
+        'font-weight:700;cursor:pointer;text-decoration:underline;padding:0;font-size:inherit">' +
+        'View Profile →</button>';
+      document.getElementById('btn-show-existing-profile')
+        ?.addEventListener('click', () => {
+          _showAbhaProfile(prof, fmt, res.tToken ?? null);
+          setTimeout(() => {
+            enrollPanel.style.display = 'none';
+            btnEnroll.textContent = '+ Enroll';
+            btnEnroll.classList.remove('open');
+          }, 2000);
+        });
+      btn.disabled = false; btn.textContent = 'Verify OTP';
+      return;
+    }
+
     if (res.needsMobileOtp) {
-      // CRT_ABHA_109: ABHA created with mobile:null — ABDM auto-sent OTP to comm mobile via byAadhaar
-      _enrollTxnId         = res.txnId;
-      _lastTToken          = res.tToken;
+      // CRT_ABHA_109: entered mobile ≠ Aadhaar-linked mobile — send OTP to comm mobile
       _pendingAbhaResponse = res;
+      _lastTToken          = res.tToken;
+      _setEnrollMsg('info', `Sending OTP to ${_enrollMobile}…`);
+      try {
+        const mobRes = await checkAndGenerateMobileOTP(res.txnId, _enrollMobile);
+        _enrollTxnId = mobRes.txnId ?? res.txnId;
+      } catch (mobErr) {
+        _setEnrollMsg('error', 'Could not send OTP to communication mobile: ' + (mobErr.message || 'Please try again.'));
+        btn.disabled = false; btn.textContent = 'Verify OTP';
+        return;
+      }
       document.getElementById('enroll-step-2').style.display  = 'none';
       document.getElementById('enroll-step-2b').style.display = '';
-      document.getElementById('enroll-mob-otp-label').textContent =
-        `OTP sent to ${_enrollMobile} (communication mobile)`;
-      _setEnrollMsg('info', `ABDM has sent an OTP to ${_enrollMobile}. Please enter it to link your communication mobile.`);
+      document.getElementById('enroll-mob-otp-label').textContent = `Mobile OTP — sent to ${_enrollMobile}`;
+      _setEnrollMsg('info', `OTP sent to ${_enrollMobile}. Enter it to complete ABHA setup.`);
     } else {
       // CRT_ABHA_108: mobiles matched — ABHAProfile returned directly
       await _handleAbhaProfileCreated(res);
     }
 
   } catch (err) {
-    _setEnrollMsg('error', 'Enrollment failed: ' + (err.message || 'Please try again.'));
+    const alreadyExists = err.message?.includes('ABHA already exists');
+    if (alreadyExists) {
+      const _em2 = document.getElementById('enroll-msg');
+      _em2.className = 'enroll-msg show error';
+      _em2.innerHTML = 'An ABHA number already exists for this Aadhaar. ' +
+        '<button id="btn-view-existing-profile" style="background:none;border:none;color:#fff;' +
+        'font-weight:700;cursor:pointer;text-decoration:underline;padding:0;font-size:inherit">' +
+        'View Profile →</button>';
+      document.getElementById('enroll-step-2').style.display = 'none';
+      document.getElementById('btn-view-existing-profile')
+        ?.addEventListener('click', _fetchExistingAbhaProfile);
+    } else {
+      _setEnrollMsg('error', 'Enrollment failed: ' + (err.message || 'Please try again.'));
+    }
   }
 
   btn.disabled = false; btn.textContent = 'Verify OTP';
 });
 
-// Step 2.5 verify: comm mobile OTP (CRT_ABHA_109)
+// Step 2.5: verify comm mobile OTP (CRT_ABHA_109 — mobile ≠ Aadhaar-linked)
 document.getElementById('btn-verify-mobile-otp').addEventListener('click', async () => {
   const mobileOtp = document.getElementById('enroll-mobile-otp').value.trim();
   if (!mobileOtp)    return _setEnrollMsg('error', 'Please enter the OTP sent to your mobile.');
@@ -2541,16 +2703,14 @@ document.getElementById('btn-verify-mobile-otp').addEventListener('click', async
   _setEnrollMsg('info', 'Verifying communication mobile OTP…');
 
   try {
-    // Verify the OTP sent to comm mobile — links mobile to the ABHA
-    await verifyCommMobileOtp(_enrollTxnId, mobileOtp, _lastTToken, _enrollMobile);
-    // ABHA was already created by byAadhaar; show its profile
+    await verifyCommMobileOtp(_enrollTxnId, mobileOtp);
     await _handleAbhaProfileCreated(_pendingAbhaResponse);
     _pendingAbhaResponse = null;
   } catch (err) {
     _setEnrollMsg('error', 'Verification failed: ' + (err.message || 'Please try again.'));
   }
 
-  btn.disabled = false; btn.textContent = 'Verify Mobile & Create ABHA';
+  btn.disabled = false; btn.textContent = 'Verify & Complete ABHA';
 });
 
 // ── Enrollment Step 3: ABHA Address ───────────────
