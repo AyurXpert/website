@@ -13,6 +13,7 @@ const ABDM_ERROR_MAP = {
   'ABDM-1007': 'Maximum OTP attempts exceeded. Please try again after some time.',
   'ABDM-1008': 'ABHA already exists for this Aadhaar number.',
   'ABDM-1009': 'Mobile number does not match with Aadhaar records.',
+  'ABDM-1100': 'Too many OTP attempts for this transaction. Please wait 30 minutes and try again.',
   '900900':    'ABDM authentication service is unavailable. Please try again shortly.',
   '900901':    'Invalid credentials. Please contact support.',
   '900902':    'Access token missing or expired. Please refresh and try again.',
@@ -24,9 +25,11 @@ const ABDM_ERROR_MAP = {
 
 function normalizeAbdmError(errorData) {
   if (typeof errorData === 'string') return errorData;
-  const code = errorData?.code ?? errorData?.error?.code;
+  // Unwrap nested error structures (our EF wraps ABDM's error body, creating error.error)
+  const inner = errorData?.error ?? errorData;
+  const code = inner?.code ?? inner?.error?.code ?? errorData?.code;
   if (code && ABDM_ERROR_MAP[String(code)]) return ABDM_ERROR_MAP[String(code)];
-  const msg = errorData?.message ?? errorData?.error?.message ?? errorData?.error;
+  const msg = inner?.message ?? inner?.error?.message ?? errorData?.message;
   if (msg && typeof msg === 'string') return msg;
   return 'An unexpected error occurred. Please try again.';
 }
@@ -46,6 +49,7 @@ async function callABDM(action, params = {}) {
 
   const data = await res.json();
   if (!res.ok) {
+    console.error('[ABDM] raw error response:', JSON.stringify(data));
     const friendly = normalizeAbdmError(data.error ?? data);
     throw new Error(friendly);
   }
@@ -86,17 +90,19 @@ export async function enrollABHA(txnId, otp, mobile) {
 }
 
 // CRT_ABHA_109 — after byAadhaar returns needsMobileOtp=true, send OTP to comm mobile.
-// Requires tToken (ABHA session token) returned by enroll_abha.
-export async function checkAndGenerateMobileOTP(txnId, tToken, mobile) {
-  return callABDM('check_generate_mobile_otp', { txnId, tToken, mobile });
+// Uses POST /v3/enrollment/request/otp with scope ["abha-enrol","mobile-verify"] per ABDM V3 doc p.23.
+export async function checkAndGenerateMobileOTP(txnId, mobile) {
+  const { publicKey } = await callABDM('get_cert');
+  const encMobile = await encryptWithABDMCert(mobile, publicKey);
+  return callABDM('check_generate_mobile_otp', { txnId, encMobile });
 }
 
 // CRT_ABHA_109 — verify the OTP sent to comm mobile. Links mobile to ABHA.
-// Uses enrollment/auth/byAbdm (VERIFY MOBILE UPDATE). Requires tToken from byAadhaar.
-export async function verifyCommMobileOtp(txnId, otp, tToken, mobile) {
+// Uses POST /v3/enrollment/auth/byAbdm with scope ["abha-enrol","mobile-verify"] per ABDM V3 doc p.24.
+export async function verifyCommMobileOtp(txnId, otp) {
   const { publicKey } = await callABDM('get_cert');
   const encOtp = await encryptWithABDMCert(otp, publicKey);
-  return callABDM('verify_comm_mobile_otp', { txnId, encOtp, tToken, mobile });
+  return callABDM('verify_comm_mobile_otp', { txnId, encOtp });
 }
 
 // Legacy — kept for any old callers; use verifyCommMobileOtp for CRT_ABHA_109.
@@ -109,14 +115,14 @@ export async function finalizeAbhaEnrollment(txnId, mobile, mobileOtp) {
   return callABDM('finalize_abha_enrollment', { txnId, mobile, encMobileOtp });
 }
 
-// Step 3a: Get ABHA Address suggestions (tToken from enrollment)
-export async function getAbhaSuggestions(tToken) {
-  return callABDM('get_abha_suggestions', { tToken });
+// Step 6a: Get ABHA Address suggestions — txnId UUID from enrollment response per ABDM V3 doc Step 6a.
+export async function getAbhaSuggestions(txnId) {
+  return callABDM('get_abha_suggestions', { txnId });
 }
 
-// Step 3b: Set chosen ABHA Address
-export async function setAbhaAddress(tToken, abhaAddress) {
-  return callABDM('set_abha_address', { tToken, abhaAddress });
+// Step 6b: Set chosen ABHA Address — txnId UUID in body per ABDM V3 doc Step 6b.
+export async function setAbhaAddress(txnId, abhaAddress) {
+  return callABDM('set_abha_address', { txnId, abhaAddress });
 }
 
 // Download ABHA Card as base64 PNG (tToken from enrollment or login)
@@ -222,3 +228,23 @@ export async function verifyAbhaAddressOtp(txnId, otp) {
 export async function downloadPhrCard(accessToken) {
   return callABDM('download_phr_card', { accessToken });
 }
+
+// ── Sandbox: ABHA deletion (§8.3.1) ────────────────────────────
+export async function sbxLoginOtp(aadhaar) { return requestAadhaarLoginOtp(aadhaar); }
+export async function sbxLoginVerify(txnId, otp) { return verifyAadhaarLogin(txnId, otp); }
+
+export async function sbxDeleteAbhaOtp(abhaNumber, xToken) {
+  const { publicKey } = await callABDM('get_cert');
+  // Keep dashes — ABDM returned this format from login verify
+  const encAbhaNumber = await encryptWithABDMCert(String(abhaNumber), publicKey);
+  return callABDM('sbx_delete_abha_otp', { encAbhaNumber, xToken });
+}
+
+export async function sbxDeleteAbhaConfirm(txnId, xToken, otp) {
+  const { publicKey } = await callABDM('get_cert');
+  const encOtp = await encryptWithABDMCert(otp, publicKey);
+  return callABDM('sbx_delete_abha_confirm', { txnId, encOtp, xToken });
+}
+
+
+

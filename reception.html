@@ -1358,8 +1358,9 @@ async function _linkAbha(prof, fmt, visitId = null, skipGate = false) {
   if (visitId) _abdmLinkTokenAfterVerify(_patient.id, fmt, visitId).catch(() => {});
 }
 
-// ── Last tToken (for ABHA card download) ─────────
-let _lastTToken = null;
+// ── Last tToken (for ABHA card download) + txnId (for suggestions / address) ─────────
+let _lastTToken      = null;
+let _lastEnrollTxnId = null;
 let _demogMatchResult = null; // { pass, mobileMismatch } — set by _checkDemographicMatch
 
 // ── Consent Modal ─────────────────────────────────
@@ -2573,15 +2574,16 @@ async function _handleAbhaProfileCreated(res) {
     : abha;
   document.getElementById('abha').value = fmt;
   _setAbhaNote('verified', `✓ ABHA created: ${fmt}${name ? ' · ' + name : ''}`);
-  _lastTToken = res.tToken ?? null;
+  _lastTToken      = res.tToken ?? null;
+  _lastEnrollTxnId = res.txnId ?? null;
   _showAbhaProfile(prof, fmt, _lastTToken);
   await _linkAbha(prof, fmt, null, true); // enrollment — Aadhaar-verified, skip demographic gate
-  if (_lastTToken) {
+  if (_lastEnrollTxnId) {
     document.getElementById('enroll-step-2').style.display  = 'none';
     document.getElementById('enroll-step-2b').style.display = 'none';
     document.getElementById('enroll-step-3').style.display  = '';
     _setEnrollMsg('info', 'ABHA created! Now choose your ABHA Address.');
-    await _loadAbhaSuggestions(_lastTToken);
+    await _loadAbhaSuggestions(_lastEnrollTxnId);
   } else {
     _setEnrollMsg('success', `ABHA ${fmt} created successfully.`);
     setTimeout(() => {
@@ -2714,11 +2716,11 @@ document.getElementById('btn-verify-mobile-otp').addEventListener('click', async
 });
 
 // ── Enrollment Step 3: ABHA Address ───────────────
-async function _loadAbhaSuggestions(tToken) {
+async function _loadAbhaSuggestions(txnId) {
   const list = document.getElementById('abha-suggestions-list');
   list.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">Loading suggestions…</div>';
   try {
-    const res   = await getAbhaSuggestions(tToken);
+    const res   = await getAbhaSuggestions(txnId);
     const addrs = res.abhaAddressList ?? res.ABHAAddressList ?? [];
     if (!addrs.length) { list.innerHTML = ''; return; }
     list.innerHTML = addrs.map((a, i) =>
@@ -2744,13 +2746,13 @@ document.getElementById('btn-set-abha-addr').addEventListener('click', async () 
   const custom   = document.getElementById('enroll-custom-addr').value.trim();
   const chosen   = custom || selected?.value;
   if (!chosen)       return _setEnrollMsg('error', 'Please select or enter an ABHA address.');
-  if (!_lastTToken)  return _setEnrollMsg('error', 'Session expired. Please restart enrollment.');
+  if (!_lastEnrollTxnId) return _setEnrollMsg('error', 'Session expired. Please restart enrollment.');
 
   const btn = document.getElementById('btn-set-abha-addr');
   btn.disabled = true; btn.textContent = 'Setting…';
 
   try {
-    await setAbhaAddress(_lastTToken, chosen);
+    await setAbhaAddress(_lastEnrollTxnId, chosen);
     document.getElementById('abha-prof-address').textContent = chosen;
     _setEnrollMsg('success', `✓ ABHA Address set: ${chosen}`);
     setTimeout(() => {
