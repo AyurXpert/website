@@ -894,10 +894,36 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
               <span class="abha-profile-value" id="abha-prof-address">—</span>
             </div>
           </div>
-          <button class="btn-otp btn-otp-send" id="btn-download-abha-card" type="button"
-                  style="margin-top:10px;font-size:12px;height:34px;padding:0 14px">
-            ⬇ Download ABHA Card
-          </button>
+          <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <button class="btn-otp btn-otp-send" id="btn-download-abha-card" type="button"
+                    style="font-size:12px;height:34px;padding:0 14px">
+              ⬇ Download ABHA Card
+            </button>
+            <button class="btn-otp btn-otp-resend" id="btn-update-mobile-open" type="button"
+                    style="font-size:12px;height:34px;padding:0 12px;display:none">
+              📱 Update Mobile
+            </button>
+          </div>
+          <!-- Update Mobile panel (ABDM 8.1) — visible only when tToken available -->
+          <div id="update-mobile-panel" style="display:none;margin-top:10px;padding:10px;background:#f0f4ff;border:1px solid #b0c4f0;border-radius:8px">
+            <div style="font-size:12px;font-weight:600;color:#1a3a6e;margin-bottom:8px">Update Linked Mobile (ABDM 8.1)</div>
+            <div id="upd-mob-step-1">
+              <div class="field" style="margin-bottom:8px">
+                <label>New Mobile Number (10 digits)</label>
+                <input id="upd-mob-input" type="tel" inputmode="tel" placeholder="10-digit mobile" maxlength="10"/>
+              </div>
+              <button class="btn-otp btn-otp-send" id="btn-upd-mob-send" type="button">Send OTP</button>
+            </div>
+            <div id="upd-mob-step-2" style="display:none;margin-top:8px">
+              <div class="field" style="margin-bottom:8px">
+                <label id="upd-mob-otp-label">OTP sent to new mobile</label>
+                <input id="upd-mob-otp" type="tel" inputmode="numeric" placeholder="Enter OTP" maxlength="6" autocomplete="one-time-code"/>
+              </div>
+              <button class="btn-otp btn-otp-verify" id="btn-upd-mob-verify" type="button">Verify &amp; Update</button>
+              <button class="btn-otp btn-otp-resend" id="btn-upd-mob-back" type="button">Back</button>
+            </div>
+            <div class="enroll-msg" id="upd-mob-msg"></div>
+          </div>
           <div class="demog-warn" id="demog-warn"></div>
         </div>
       </div>
@@ -1215,6 +1241,7 @@ import {
   requestAadhaarLoginOtp, verifyAadhaarLogin,
   sendMobileLoginOtp, verifyMobileLoginOtp,
   searchAbhaByMobile, requestIndexAbhaOtp, verifyIndexAbhaOtp,
+  requestUpdateMobileOtp, verifyUpdateMobileOtp,
   searchAbhaAddress, initAbhaAddressLogin, verifyAbhaAddressOtp,
   sbxLoginOtp, sbxLoginVerify, sbxDeleteAbhaOtp, sbxDeleteAbhaConfirm,
 } from './js/modules/abdm/abdmService.js';
@@ -1366,6 +1393,7 @@ async function _linkAbha(prof, fmt, visitId = null, skipGate = false) {
 // ── Last tToken (for ABHA card download) + txnId (for suggestions / address) ─────────
 let _lastTToken      = null;
 let _lastEnrollTxnId = null;
+let _updMobTxnId     = null;
 let _demogMatchResult = null; // { pass, mobileMismatch } — set by _checkDemographicMatch
 
 // ── Consent Modal ─────────────────────────────────
@@ -2312,9 +2340,10 @@ function _showAbhaProfile(prof, abhaNumber, tToken) {
   document.getElementById('abha-prof-address').textContent = addr;
   document.getElementById('abha-profile-card').classList.add('show');
 
-  // Show / hide download button based on tToken availability
+  // Show / hide action buttons based on tToken availability
   if (tToken) _lastTToken = tToken;
   document.getElementById('btn-download-abha-card').style.display = _lastTToken ? '' : 'none';
+  document.getElementById('btn-update-mobile-open').style.display = _lastTToken ? '' : 'none';
 
   // Auto-fill demographics from ABHA profile
   if (prof?.gender) {
@@ -2359,6 +2388,72 @@ document.getElementById('btn-download-abha-card').addEventListener('click', asyn
     alert('Download failed: ' + (err.message || 'Please try again.'));
   }
   btn.disabled = false; btn.textContent = '⬇ Download ABHA Card';
+});
+
+// ── Update Mobile (ABDM §8.1) ─────────────────────
+document.getElementById('btn-update-mobile-open').addEventListener('click', () => {
+  const panel = document.getElementById('update-mobile-panel');
+  const open  = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : '';
+  if (!open) {
+    document.getElementById('upd-mob-step-1').style.display = '';
+    document.getElementById('upd-mob-step-2').style.display = 'none';
+    document.getElementById('upd-mob-input').value = '';
+    document.getElementById('upd-mob-otp').value   = '';
+    document.getElementById('upd-mob-msg').textContent = '';
+    _updMobTxnId = null;
+  }
+});
+
+document.getElementById('btn-upd-mob-send').addEventListener('click', async () => {
+  if (!_lastTToken) return;
+  const mobile = (document.getElementById('upd-mob-input').value || '').trim();
+  if (!/^\d{10}$/.test(mobile)) {
+    document.getElementById('upd-mob-msg').textContent = 'Enter a valid 10-digit mobile number.';
+    return;
+  }
+  const btn = document.getElementById('btn-upd-mob-send');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  document.getElementById('upd-mob-msg').textContent = '';
+  try {
+    const res = await requestUpdateMobileOtp(_lastTToken, mobile);
+    _updMobTxnId = res.txnId;
+    document.getElementById('upd-mob-otp-label').textContent =
+      res.message ?? `OTP sent to ${mobile}`;
+    document.getElementById('upd-mob-step-1').style.display = 'none';
+    document.getElementById('upd-mob-step-2').style.display = '';
+  } catch (err) {
+    document.getElementById('upd-mob-msg').textContent = err.message;
+  }
+  btn.disabled = false; btn.textContent = 'Send OTP';
+});
+
+document.getElementById('btn-upd-mob-verify').addEventListener('click', async () => {
+  if (!_lastTToken || !_updMobTxnId) return;
+  const otp = (document.getElementById('upd-mob-otp').value || '').trim();
+  if (!otp) { document.getElementById('upd-mob-msg').textContent = 'Enter the OTP.'; return; }
+  const btn = document.getElementById('btn-upd-mob-verify');
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  document.getElementById('upd-mob-msg').textContent = '';
+  try {
+    await verifyUpdateMobileOtp(_lastTToken, _updMobTxnId, otp);
+    document.getElementById('upd-mob-msg').textContent = '✓ Mobile updated successfully.';
+    document.getElementById('upd-mob-msg').style.color = 'var(--green-deep)';
+    setTimeout(() => {
+      document.getElementById('update-mobile-panel').style.display = 'none';
+      document.getElementById('upd-mob-msg').style.color = '';
+    }, 2000);
+  } catch (err) {
+    document.getElementById('upd-mob-msg').textContent = err.message;
+  }
+  btn.disabled = false; btn.textContent = 'Verify & Update';
+});
+
+document.getElementById('btn-upd-mob-back').addEventListener('click', () => {
+  document.getElementById('upd-mob-step-1').style.display = '';
+  document.getElementById('upd-mob-step-2').style.display = 'none';
+  document.getElementById('upd-mob-msg').textContent = '';
+  _updMobTxnId = null;
 });
 
 function _formatDob(dob) {

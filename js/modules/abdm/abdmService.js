@@ -232,6 +232,22 @@ export async function downloadPhrCard(accessToken) {
   return callABDM('download_phr_card', { accessToken });
 }
 
+// ── Update Mobile (ABDM 8.1) ──────────────────────────────────
+
+// Step 1: Send OTP to new mobile number. Requires tToken from patient's current ABHA login.
+export async function requestUpdateMobileOtp(tToken, mobile) {
+  const { publicKey } = await callABDM('get_cert');
+  const encMobile = await encryptWithABDMCert(mobile, publicKey);
+  return callABDM('update_mobile_otp', { tToken, encMobile });
+}
+
+// Step 2: Verify OTP and link new mobile to ABHA.
+export async function verifyUpdateMobileOtp(tToken, txnId, otp) {
+  const { publicKey } = await callABDM('get_cert');
+  const encOtp = await encryptWithABDMCert(otp, publicKey);
+  return callABDM('update_mobile_verify', { tToken, txnId, encOtp });
+}
+
 // ── Sandbox: ABHA deletion (§8.3.1) ────────────────────────────
 export async function sbxLoginOtp(aadhaar) { return requestAadhaarLoginOtp(aadhaar); }
 export async function sbxLoginVerify(txnId, otp) { return verifyAadhaarLogin(txnId, otp); }
