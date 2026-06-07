@@ -125,9 +125,14 @@ export async function setAbhaAddress(txnId, abhaAddress) {
   return callABDM('set_abha_address', { txnId, abhaAddress });
 }
 
-// Download ABHA Card as base64 PNG (tToken from enrollment or login)
+// Download ABHA Card as base64 PNG — Mandatory for Private (CRT_ABHA_114)
 export async function downloadAbhaCard(tToken) {
   return callABDM('download_abha_card', { tToken });
+}
+
+// Generate ABHA QR Code as base64 image — Optional (VRFY_ABHA_501)
+export async function getAbhaQrCode(tToken) {
+  return callABDM('get_abha_qr', { tToken });
 }
 
 // ── Verification: ABHA Number login ───────────────────────────

@@ -1247,7 +1247,7 @@ import {
   deactivateAbhaOtp, deactivateAbhaConfirm,
   reactivateAbhaOtp, reactivateAbhaVerify,
   reKycAbhaOtp, reKycAbhaVerify,
-  getAbhaProfileFull, loginVerifyUser,
+  getAbhaProfileFull, loginVerifyUser, getAbhaQrCode,
 } from './js/modules/abdm/abdmService.js';
 window._sbxLoginOtp = sbxLoginOtp; window._sbxLoginVerify = sbxLoginVerify;
 window._sbxDeleteAbhaOtp = sbxDeleteAbhaOtp; window._sbxDeleteAbhaConfirm = sbxDeleteAbhaConfirm;
@@ -1256,6 +1256,7 @@ window._reactivateAbhaOtp = reactivateAbhaOtp; window._reactivateAbhaVerify = re
 window._reKycAbhaOtp = reKycAbhaOtp; window._reKycAbhaVerify = reKycAbhaVerify;
 window._getAbhaProfileFull = getAbhaProfileFull;
 window._loginVerifyUser = loginVerifyUser;
+window._getAbhaQrCode = getAbhaQrCode;
 
 await requireAuth(['receptionist', 'nurse', 'super_admin', 'dept_admin', 'doctor']);
 initNavbar();
