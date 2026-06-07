@@ -828,36 +828,37 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           </div>
         </div>
 
-        <!-- Find ABHA panel: fetch ABHA by mobile OTP → auto-fill demographics (M1 VRFY_ABHA_301) -->
+        <!-- Find ABHA panel: 3-step official ABDM 7.6.1 flow — search → pick → OTP → auto-fill -->
         <div class="abha-verify-panel" id="abha-find-panel" style="display:none">
           <div class="abha-verify-title">🔍 Fetch ABHA by Mobile</div>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Patient has ABHA but doesn't have the card — enter their mobile to retrieve and auto-fill details</div>
-          <!-- Step 1: Enter mobile → Send OTP -->
+          <!-- Step 1: Enter mobile → Search -->
           <div id="find-step-1">
             <div class="field" style="margin-bottom:8px">
               <label>Mobile Number (10 digits)</label>
               <input id="find-mobile-input" type="tel" inputmode="tel"
                      placeholder="10-digit mobile" maxlength="10"/>
             </div>
-            <button class="btn-otp btn-otp-send" id="btn-find-search" type="button">Send OTP</button>
+            <button class="btn-otp btn-otp-send" id="btn-find-search" type="button">Search ABHA</button>
             <div id="find-no-abha-hint" style="display:none;margin-top:8px;padding:8px 10px;background:#fdf8ef;border:1px solid #e8c97a;border-radius:6px;font-size:12px;color:#7a5200">
               No ABHA linked to this mobile. <button type="button" onclick="_switchToEnroll()" style="background:none;border:none;color:var(--green-deep);font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;padding:0">Create new ABHA →</button>
             </div>
           </div>
-          <!-- Step 2: OTP input → Fetch ABHA Details -->
+          <!-- Step 2: ABHA list picker + Send OTP button -->
           <div id="find-step-2" style="display:none;margin-top:10px">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">Select the patient's ABHA account:</div>
+            <div class="abha-accounts-list" id="find-accounts-list"></div>
+            <button class="btn-otp btn-otp-send" id="btn-find-send-indexed-otp" type="button" style="margin-top:8px">Send OTP to Selected ABHA</button>
+          </div>
+          <!-- Step 3: OTP input → Fetch ABHA Details -->
+          <div id="find-step-3" style="display:none;margin-top:10px">
             <div class="field" style="margin-bottom:8px">
-              <label>OTP sent to ABHA-linked mobile</label>
+              <label id="find-otp-label">OTP sent to ABHA-linked mobile</label>
               <input id="find-otp" type="tel" inputmode="numeric"
                      placeholder="Enter OTP" maxlength="6" autocomplete="one-time-code"/>
             </div>
             <button class="btn-otp btn-otp-verify" id="btn-find-verify-otp" type="button">Fetch ABHA Details</button>
             <button class="btn-otp btn-otp-resend" id="btn-find-resend" type="button">Resend OTP</button>
-          </div>
-          <!-- Step 3: If multiple ABHAs on this mobile — picker -->
-          <div id="find-step-3" style="display:none;margin-top:10px">
-            <div class="abha-enroll-title" style="margin-bottom:8px">Multiple ABHAs found — select one</div>
-            <div class="abha-accounts-list" id="find-accounts-list"></div>
           </div>
           <div class="enroll-msg" id="find-msg"></div>
         </div>
@@ -1210,6 +1211,7 @@ import {
   requestABHALoginOtp, verifyABHALogin,
   requestAadhaarLoginOtp, verifyAadhaarLogin,
   sendMobileLoginOtp, verifyMobileLoginOtp,
+  searchAbhaByMobile, requestIndexAbhaOtp, verifyIndexAbhaOtp,
   searchAbhaAddress, initAbhaAddressLogin, verifyAbhaAddressOtp,
   sbxLoginOtp, sbxLoginVerify, sbxDeleteAbhaOtp, sbxDeleteAbhaConfirm,
 } from './js/modules/abdm/abdmService.js';
@@ -2826,6 +2828,7 @@ btnFindAbha.addEventListener('click', () => {
     document.getElementById('find-step-3').style.display = 'none';
     document.getElementById('find-no-abha-hint').style.display = 'none';
     _setFindMsg('', '');
+    _findSearchTxnId = null; _findSelectedIdx = null;
     _findOtpTxn = null; _findAccounts = [];
   }
 });
@@ -2836,73 +2839,107 @@ function _setFindMsg(type, msg) {
   el.className = `enroll-msg${type ? ' show ' + type : ''}`;
 }
 
-// Find ABHA: M1 VRFY_ABHA_301 — /profile/login/request/otp (mobile) → /profile/login/verify → auto-fill demographics
-let _findOtpTxn   = null;
-let _findAccounts = [];
+// Find ABHA: ABDM 7.6.1 official 3-step flow
+// Step 1: Search → /profile/account/abha/search (scope:search-abha, encrypted mobile)
+// Step 2: Pick ABHA → /profile/login/request/otp (loginHint:index, encrypted index, scope:abha-login+search-abha+mobile-verify)
+// Step 3: Verify OTP → /profile/login/verify → full profile + auto-fill
+let _findSearchTxnId = null;   // txnId from search step (step 1)
+let _findSelectedIdx = null;   // ABHA index selected by user (from search response)
+let _findOtpTxn      = null;   // txnId from OTP step (step 2)
+let _findAccounts    = [];     // ABHA list from search response
 
+// Step 1: Enter mobile → search ABHA list
 document.getElementById('btn-find-search').addEventListener('click', async () => {
   const mobile = document.getElementById('find-mobile-input').value.trim();
   if (!/^\d{10}$/.test(mobile)) return _setFindMsg('error', 'Mobile must be 10 digits.');
   const btn = document.getElementById('btn-find-search');
-  btn.disabled = true; btn.textContent = 'Sending OTP…';
+  btn.disabled = true; btn.textContent = 'Searching…';
   document.getElementById('find-no-abha-hint').style.display = 'none';
-  _setFindMsg('info', 'Sending OTP to ABHA-linked mobile…');
+  _setFindMsg('info', 'Searching ABHA records by mobile…');
   try {
-    const res = await sendMobileLoginOtp(mobile);
-    _findOtpTxn = res.txnId;
-    document.getElementById('find-step-1').style.display = 'none';
-    document.getElementById('find-step-2').style.display = '';
-    document.getElementById('find-otp').value = '';
-    _setFindMsg('info', res.message || '✓ OTP sent. Ask patient for the OTP received on their mobile.');
+    const raw = await searchAbhaByMobile(mobile);
+    // ABDM returns an array [{txnId, ABHA:[{index, ABHANumber, name, gender, ...}]}]
+    const item = Array.isArray(raw) ? raw[0] : raw;
+    _findSearchTxnId = item?.txnId ?? null;
+    const abhaList = item?.ABHA ?? item?.abhaList ?? [];
+    if (!abhaList.length) {
+      _setFindMsg('error', 'No ABHA linked to this mobile.');
+      document.getElementById('find-no-abha-hint').style.display = '';
+    } else {
+      _findAccounts    = abhaList;
+      _findSelectedIdx = abhaList[0].index; // auto-select first
+      document.getElementById('find-accounts-list').innerHTML = abhaList.map((a, i) =>
+        `<div class="abha-acc-item${i===0?' selected':''}" data-idx="${a.index}"
+              onclick="_selectFindIdx(this,${a.index})">
+          <div class="abha-acc-num">${a.ABHANumber ?? '—'}</div>
+          <div class="abha-acc-info">${a.name ?? ''} · ${{ M:'Male', F:'Female', O:'Other' }[a.gender] ?? (a.gender ?? '')}</div>
+        </div>`
+      ).join('');
+      document.getElementById('find-step-1').style.display = 'none';
+      document.getElementById('find-step-2').style.display = '';
+      _setFindMsg('info', abhaList.length === 1
+        ? '1 ABHA found. Click "Send OTP" to verify.'
+        : `${abhaList.length} ABHAs found — select the patient's account.`);
+    }
   } catch (err) {
-    _setFindMsg('error', 'No ABHA linked to this mobile, or OTP failed: ' + err.message);
+    _setFindMsg('error', 'Search failed: ' + err.message);
     document.getElementById('find-no-abha-hint').style.display = '';
   }
-  btn.disabled = false; btn.textContent = 'Send OTP';
+  btn.disabled = false; btn.textContent = 'Search ABHA';
 });
 
+window._selectFindIdx = (el, index) => {
+  document.querySelectorAll('#find-accounts-list .abha-acc-item').forEach(x => x.classList.remove('selected'));
+  el.classList.add('selected');
+  _findSelectedIdx = index;
+};
+
+// Step 2: Send OTP to the selected ABHA's linked mobile using its index
+document.getElementById('btn-find-send-indexed-otp').addEventListener('click', async () => {
+  if (!_findSearchTxnId || _findSelectedIdx === null)
+    return _setFindMsg('error', 'Session expired. Search again.');
+  const btn = document.getElementById('btn-find-send-indexed-otp');
+  btn.disabled = true; btn.textContent = 'Sending OTP…';
+  _setFindMsg('info', 'Sending OTP to the ABHA-linked mobile…');
+  try {
+    const res = await requestIndexAbhaOtp(_findSearchTxnId, _findSelectedIdx);
+    _findOtpTxn = res.txnId;
+    document.getElementById('find-otp').value = '';
+    document.getElementById('find-otp-label').textContent =
+      res.message ?? 'OTP sent to ABHA-linked mobile';
+    document.getElementById('find-step-2').style.display = 'none';
+    document.getElementById('find-step-3').style.display = '';
+    _setFindMsg('info', res.message || '✓ OTP sent. Enter the OTP the patient received.');
+  } catch (err) {
+    _setFindMsg('error', 'Could not send OTP: ' + err.message);
+  }
+  btn.disabled = false; btn.textContent = 'Send OTP to Selected ABHA';
+});
+
+// Resend = go back to Step 2 (search results still valid)
 document.getElementById('btn-find-resend').addEventListener('click', () => {
-  document.getElementById('find-step-2').style.display = 'none';
   document.getElementById('find-step-3').style.display = 'none';
-  document.getElementById('find-step-1').style.display = '';
-  _findOtpTxn = null; _findAccounts = [];
-  _setFindMsg('', '');
+  document.getElementById('find-step-2').style.display = '';
+  _findOtpTxn = null;
+  _setFindMsg('info', 'Select an ABHA and send OTP again.');
 });
 
+// Step 3: Verify OTP → full ABHA profile → auto-fill
 document.getElementById('btn-find-verify-otp').addEventListener('click', async () => {
   const otp = document.getElementById('find-otp').value.trim();
-  if (!otp || !_findOtpTxn) return _setFindMsg('error', !otp ? 'Enter OTP.' : 'Session expired. Re-enter mobile.');
+  if (!otp || !_findOtpTxn)
+    return _setFindMsg('error', !otp ? 'Enter OTP.' : 'Session expired. Search again.');
   const btn = document.getElementById('btn-find-verify-otp');
   btn.disabled = true; btn.textContent = 'Fetching…';
   _setFindMsg('info', 'Fetching ABHA details from ABDM…');
   try {
-    const res = await verifyMobileLoginOtp(_findOtpTxn, otp);
-    const accounts = res.accounts ?? [];
-    if (!accounts.length) throw new Error('No ABHA accounts found for this mobile.');
-    if (accounts.length === 1) {
-      _applyFindAccount(accounts[0]);
-    } else {
-      _findAccounts = accounts;
-      document.getElementById('find-step-2').style.display = 'none';
-      document.getElementById('find-accounts-list').innerHTML = accounts.map((a, i) =>
-        `<div class="abha-acc-item" data-index="${i}" onclick="_selectFindAccount(this,${i})">
-          <div class="abha-acc-num">${a.ABHANumber ?? a.abhaNumber ?? '—'}</div>
-          <div class="abha-acc-info">${a.name ?? ''} · ${a.gender ?? ''}</div>
-        </div>`
-      ).join('');
-      document.getElementById('find-step-3').style.display = '';
-      _setFindMsg('info', `${accounts.length} ABHAs linked to this mobile — select the patient's.`);
-    }
+    const res = await verifyIndexAbhaOtp(_findOtpTxn, otp);
+    const abha = res.ABHANumber ?? res.abhaNumber ?? res.healthIdNumber;
+    if (!abha) throw new Error('ABHA number not returned. Please try again.');
+    _applyFindAccount({ ...res, tToken: res.tToken });
   } catch (err) { _setFindMsg('error', 'Fetch failed: ' + err.message); }
   btn.disabled = false; btn.textContent = 'Fetch ABHA Details';
 });
-
-window._selectFindAccount = (el, idx) => {
-  document.querySelectorAll('#find-accounts-list .abha-acc-item').forEach(x => x.style.borderColor='');
-  el.style.borderColor = 'var(--green-mid)';
-  document.getElementById('find-step-3').style.display = 'none';
-  _applyFindAccount(_findAccounts[idx]);
-};
 
 async function _applyFindAccount(account) {
   const abha = account.ABHANumber ?? account.abhaNumber;
@@ -2926,7 +2963,7 @@ async function _applyFindAccount(account) {
     profilePhoto: account.profilePhoto,
     phrAddress: account.preferredAbhaAddress,
   };
-  _showAbhaProfile(prof, fmt, null);
+  _showAbhaProfile(prof, fmt, account.tToken ?? null);
   _setFindMsg('success', `✓ ABHA ${fmt} — demographics auto-filled.`);
   await _linkAbha(prof, fmt);
   setTimeout(() => {
