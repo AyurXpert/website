@@ -233,19 +233,27 @@ export async function downloadPhrCard(accessToken) {
 }
 
 // ── Re-activate ABHA (§8.5) ──────────────────────────────────
+// Per XLSX PROF_ABHA_605: Step 1 = login/request/otp; Step 2 = login/verify/user.
 
-// Step 1: No X-Token needed. ABDM sends OTP to ABHA-linked mobile.
+// Step 1: No X-Token. Uses /profile/LOGIN/request/otp (not account/request/otp).
 export async function reactivateAbhaOtp(abhaNumber) {
   const { publicKey } = await callABDM('get_cert');
   const encAbhaNumber = await encryptWithABDMCert(String(abhaNumber), publicKey);
   return callABDM('reactivate_abha_otp', { encAbhaNumber });
 }
 
-// Step 2: Verify OTP → returns full profile + tToken (account status now ACTIVE).
+// Step 2: Verify OTP via /profile/login/verify/user → returns full profile + tToken (status ACTIVE).
 export async function reactivateAbhaVerify(txnId, otp) {
   const { publicKey } = await callABDM('get_cert');
   const encOtp = await encryptWithABDMCert(otp, publicKey);
   return callABDM('reactivate_abha_verify', { txnId, encOtp });
+}
+
+// ── Login Verify User — account selection (VRFY_ABHA_301 step 3) ─────────
+// After /profile/login/verify returns accounts list, select a specific ABHA.
+// ABHANumber: plain ABHA number string from the accounts list (not encrypted).
+export async function loginVerifyUser(txnId, ABHANumber) {
+  return callABDM('login_verify_user', { txnId, ABHANumber });
 }
 
 // ── Re-KYC (§8.6) ────────────────────────────────────────────
