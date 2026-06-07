@@ -3079,7 +3079,7 @@ async function _applyFindAccount(account) {
     dob: account.dob, gender: account.gender,
     ABHANumber: abha, healthIdNumber: abha,
     profilePhoto: account.profilePhoto,
-    phrAddress: account.preferredAbhaAddress,
+    preferredAbhaAddress: account.preferredAbhaAddress,
   };
   _showAbhaProfile(prof, fmt, account.tToken ?? null);
   _setFindMsg('success', `✓ ABHA ${fmt} — demographics auto-filled.`);
@@ -3277,34 +3277,19 @@ async function _handleMobileAccount(account) {
   const fmt = _fmtAbha(abha);
   document.getElementById('abha').value = fmt;
   _setAbhaNote('verified', `✓ ABHA verified via Mobile: ${fmt}`);
-
-  // Complete VRFY_ABHA_203 step 3: call /profile/login/verify/user to get full authenticated profile
-  let prof = null;
-  let sessionTToken = null;
-  if (_mobVerifyTToken && _mobVerifyTxnId) {
-    try {
-      _setVerifyMsg('info', 'Fetching full ABHA profile…');
-      const fullProfile = await loginVerifyUser(_mobVerifyTToken, _mobVerifyTxnId, abha);
-      prof = fullProfile;
-      sessionTToken = fullProfile.tToken ?? null;
-    } catch (_e) { /* fall through to accounts[] data */ }
-  }
-  if (!prof) {
-    const nameParts = (account.name ?? '').trim().split(/\s+/);
-    prof = {
-      firstName:  nameParts[0] ?? '',
-      middleName: nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '',
-      lastName:   nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
-      dob: account.dob, gender: account.gender,
-      ABHANumber: abha, healthIdNumber: abha,
-      profilePhoto: account.profilePhoto,
-      phrAddress: account.preferredAbhaAddress,
-    };
-  }
-  const fullName = prof.name ?? [prof.firstName, prof.middleName, prof.lastName].filter(Boolean).join(' ');
-  if (document.getElementById('name').value.trim() === '' && fullName)
-    document.getElementById('name').value = fullName;
-  _showAbhaProfile(prof, fmt, sessionTToken);
+  const nameParts = (account.name ?? '').trim().split(/\s+/);
+  const prof = {
+    firstName:  nameParts[0] ?? '',
+    middleName: nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '',
+    lastName:   nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
+    dob: account.dob, gender: account.gender,
+    ABHANumber: abha, healthIdNumber: abha,
+    profilePhoto: account.profilePhoto,
+    preferredAbhaAddress: account.preferredAbhaAddress,
+  };
+  if (document.getElementById('name').value.trim() === '' && account.name)
+    document.getElementById('name').value = account.name;
+  _showAbhaProfile(prof, fmt, null);
   _setVerifyMsg('success', `ABHA ${fmt} verified.`);
   await _linkAbha(prof, fmt);
   setTimeout(() => { verifyPanel.style.display='none'; btnVerifyAbha.textContent='Verify'; btnVerifyAbha.classList.remove('open'); }, 2000);
