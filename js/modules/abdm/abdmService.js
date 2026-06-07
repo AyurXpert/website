@@ -232,6 +232,45 @@ export async function downloadPhrCard(accessToken) {
   return callABDM('download_phr_card', { accessToken });
 }
 
+// ── Re-activate ABHA (§8.5) ──────────────────────────────────
+
+// Step 1: No X-Token needed. ABDM sends OTP to ABHA-linked mobile.
+export async function reactivateAbhaOtp(abhaNumber) {
+  const { publicKey } = await callABDM('get_cert');
+  const encAbhaNumber = await encryptWithABDMCert(String(abhaNumber), publicKey);
+  return callABDM('reactivate_abha_otp', { encAbhaNumber });
+}
+
+// Step 2: Verify OTP → returns full profile + tToken (account status now ACTIVE).
+export async function reactivateAbhaVerify(txnId, otp) {
+  const { publicKey } = await callABDM('get_cert');
+  const encOtp = await encryptWithABDMCert(otp, publicKey);
+  return callABDM('reactivate_abha_verify', { txnId, encOtp });
+}
+
+// ── Re-KYC (§8.6) ────────────────────────────────────────────
+
+// Step 1: Send Aadhaar OTP. tToken from current ABHA login required.
+export async function reKycAbhaOtp(tToken, abhaNumber) {
+  const { publicKey } = await callABDM('get_cert');
+  const encAbhaNumber = await encryptWithABDMCert(String(abhaNumber), publicKey);
+  return callABDM('rekyc_abha_otp', { xToken: tToken, encAbhaNumber });
+}
+
+// Step 2: Verify OTP → returns authResult + accounts.
+export async function reKycAbhaVerify(tToken, txnId, otp) {
+  const { publicKey } = await callABDM('get_cert');
+  const encOtp = await encryptWithABDMCert(otp, publicKey);
+  return callABDM('rekyc_abha_verify', { xToken: tToken, txnId, encOtp });
+}
+
+// ── Get ABHA Profile (§9.0) ───────────────────────────────────
+
+// Fetch full ABHA profile using tToken (includes authMethods, kycVerified, address, etc.)
+export async function getAbhaProfileFull(tToken) {
+  return callABDM('get_abha_profile', { tToken });
+}
+
 // ── Update Mobile (ABDM 8.1) ──────────────────────────────────
 
 // Step 1: Send OTP to new mobile number. Requires tToken from patient's current ABHA login.

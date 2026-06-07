@@ -1245,10 +1245,16 @@ import {
   searchAbhaAddress, initAbhaAddressLogin, verifyAbhaAddressOtp,
   sbxLoginOtp, sbxLoginVerify, sbxDeleteAbhaOtp, sbxDeleteAbhaConfirm,
   deactivateAbhaOtp, deactivateAbhaConfirm,
+  reactivateAbhaOtp, reactivateAbhaVerify,
+  reKycAbhaOtp, reKycAbhaVerify,
+  getAbhaProfileFull,
 } from './js/modules/abdm/abdmService.js';
 window._sbxLoginOtp = sbxLoginOtp; window._sbxLoginVerify = sbxLoginVerify;
 window._sbxDeleteAbhaOtp = sbxDeleteAbhaOtp; window._sbxDeleteAbhaConfirm = sbxDeleteAbhaConfirm;
 window._deactivateAbhaOtp = deactivateAbhaOtp; window._deactivateAbhaConfirm = deactivateAbhaConfirm;
+window._reactivateAbhaOtp = reactivateAbhaOtp; window._reactivateAbhaVerify = reactivateAbhaVerify;
+window._reKycAbhaOtp = reKycAbhaOtp; window._reKycAbhaVerify = reKycAbhaVerify;
+window._getAbhaProfileFull = getAbhaProfileFull;
 
 await requireAuth(['receptionist', 'nurse', 'super_admin', 'dept_admin', 'doctor']);
 initNavbar();
