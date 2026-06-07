@@ -255,10 +255,12 @@ export async function reactivateAbhaVerify(txnId, otp) {
 }
 
 // ── Login Verify User — account selection (VRFY_ABHA_301 step 3) ─────────
-// After /profile/login/verify returns accounts list, select a specific ABHA.
-// ABHANumber: plain ABHA number string from the accounts list (not encrypted).
-export async function loginVerifyUser(txnId, ABHANumber) {
-  return callABDM('login_verify_user', { txnId, ABHANumber });
+// tToken: T-token from login/verify response (valid 5 min).
+// abhaNumber: plain 14-digit ABHA number — encrypted here with RSA-OAEP.
+export async function loginVerifyUser(tToken, txnId, abhaNumber) {
+  const { publicKey } = await callABDM('get_cert');
+  const encAbhaNumber = await encryptWithABDMCert(String(abhaNumber).replace(/-/g, ''), publicKey);
+  return callABDM('login_verify_user', { tToken, txnId, encAbhaNumber });
 }
 
 // ── Re-KYC (§8.6) ────────────────────────────────────────────
