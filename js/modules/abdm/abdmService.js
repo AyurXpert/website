@@ -173,18 +173,21 @@ export async function searchAbhaByMobile(mobile) {
   return callABDM('mobile_abha_search', { encMobile });
 }
 
-// Step 2: Request OTP for specific ABHA by index (0-based) → returns { txnId, message }
-export async function requestIndexAbhaOtp(searchTxnId, index) {
+// Step 2: Request OTP for specific ABHA by index.
+// otpSystem='abdm' → 7.6.1 mobile OTP (scope:mobile-verify)
+// otpSystem='aadhaar' → 7.6.2 Aadhaar OTP (scope:aadhaar-verify)
+export async function requestIndexAbhaOtp(searchTxnId, index, otpSystem = 'abdm') {
   const { publicKey } = await callABDM('get_cert');
   const encIndex = await encryptWithABDMCert(String(index), publicKey);
-  return callABDM('mobile_index_otp', { encIndex, txnId: searchTxnId });
+  return callABDM('mobile_index_otp', { encIndex, txnId: searchTxnId, otpSystem });
 }
 
-// Step 3: Verify OTP → returns full ABHA profile + tToken
-export async function verifyIndexAbhaOtp(txnId, otp) {
+// Step 3: Verify OTP → returns full ABHA profile + tToken.
+// otpSystem must match what was used in requestIndexAbhaOtp.
+export async function verifyIndexAbhaOtp(txnId, otp, otpSystem = 'abdm') {
   const { publicKey } = await callABDM('get_cert');
   const encOtp = await encryptWithABDMCert(otp, publicKey);
-  return callABDM('mobile_index_verify', { txnId, encOtp });
+  return callABDM('mobile_index_verify', { txnId, encOtp, otpSystem });
 }
 
 // ── Verification: Mobile Number login (2-step fallback) ────────
