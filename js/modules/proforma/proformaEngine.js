@@ -11,14 +11,15 @@ export async function renderProforma(ncismCode, containerEl) {
   if (!ncismCode) return false;
 
   let proforma = _cache[ncismCode];
-  if (!proforma) {
+  if (proforma === undefined) {
     try {
       const r = await fetch(`assets/caseProformas/${ncismCode}.json`);
-      if (!r.ok) return false;
+      if (!r.ok) { _cache[ncismCode] = null; return false; }
       proforma = await r.json();
       _cache[ncismCode] = proforma;
-    } catch { return false; }
+    } catch { _cache[ncismCode] = null; return false; }
   }
+  if (!proforma || proforma.disabled || !proforma.sections?.length) return false;
 
   containerEl.innerHTML = _buildHTML(proforma);
   _attachCalcListeners(containerEl);
@@ -29,14 +30,15 @@ export async function renderProforma(ncismCode, containerEl) {
 export async function getExamGuide(code) {
   if (!code) return null;
   let proforma = _cache[code];
-  if (!proforma) {
+  if (proforma === undefined) {
     try {
       const r = await fetch(`assets/caseProformas/${code}.json`);
-      if (!r.ok) return null;
+      if (!r.ok) { _cache[code] = null; return null; }
       proforma = await r.json();
       _cache[code] = proforma;
-    } catch { return null; }
+    } catch { _cache[code] = null; return null; }
   }
+  if (!proforma) return null;
   return proforma.exam_guide || null;
 }
 
