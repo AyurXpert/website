@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Aushadha Nirman Register — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;--cream:#faf8f3;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--white:#fff;
+  --red:#c0392b;--red-light:#fdf0f0;--red-border:#f5c6c6;
+  --amber:#e07b00;--amber-light:#fff8e1;
+  --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.08)
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page{max-width:1200px;margin:0 auto;padding:24px 16px 80px}
+h1{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--green-deep);margin-bottom:4px}
+.subtitle{font-size:13px;color:var(--text-muted);margin-bottom:20px}
+.alert-banner{padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;margin-bottom:14px;display:none}
+.alert-banner.show{display:block}
+.alert-banner.warn{background:var(--amber-light);border:1.5px solid #f0c040;color:#7a5200}
+.alert-banner.info{background:var(--green-light);border:1.5px solid var(--border);color:var(--green-deep)}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px}
+.kpi{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+.kpi-label{font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.kpi-val{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:600;color:var(--green-deep)}
+.kpi-val.red{color:var(--red)}.kpi-val.amber{color:var(--amber)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar select,.toolbar input[type=text],.toolbar input[type=month]{height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit;background:var(--white)}
+.btn{padding:8px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:opacity .15s}
+.btn:hover{opacity:.88}.btn-primary{background:var(--green-deep);color:#fff}
+.btn-outline{background:transparent;border:1.5px solid var(--green-mid);color:var(--green-mid)}
+.btn-danger{background:var(--red);color:#fff}.btn-sm{padding:5px 12px;font-size:12px}
+.btn-amber{background:var(--amber);color:#fff}
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.card-title{font-size:14px;font-weight:600;color:var(--green-deep)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#f5faf7;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);padding:8px 12px;text-align:left;border-bottom:1.5px solid var(--border)}
+td{padding:9px 12px;border-bottom:1px solid #eef4f0;vertical-align:middle}
+tr:hover td{background:#f9fdfb}
+.badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:600;border:1px solid}
+.b-active{background:var(--green-light);color:var(--green-deep);border-color:#a5d6b8}
+.b-depleted{background:#f5f5f5;color:#616161;border-color:#bdbdbd}
+.b-recalled{background:var(--red-light);color:var(--red);border-color:var(--red-border)}
+.b-expired{background:var(--red-light);color:var(--red);border-color:var(--red-border)}
+.b-pass{background:var(--green-light);color:var(--green-deep);border-color:#a5d6b8}
+.b-fail{background:var(--red-light);color:var(--red);border-color:var(--red-border)}
+.b-conditional_pass{background:var(--amber-light);color:#7a5200;border-color:#ffe082}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:none;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto}
+.modal-bg.show{display:flex}
+.modal{background:var(--white);border-radius:12px;padding:28px;width:680px;max-width:100%;margin:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.modal h2{font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--green-deep);margin-bottom:20px}
+.section-hdr{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-mid);margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.field-row.col3{grid-template-columns:1fr 1fr 1fr}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;font-family:inherit}
+.field textarea{min-height:70px;resize:vertical}
+.modal-actions{display:flex;gap:8px;margin-top:20px;justify-content:flex-end}
+.detail-box{background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:13px;margin-top:8px;line-height:1.8}
+.detail-label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
+.empty{text-align:center;padding:36px 20px;color:var(--text-muted);font-size:13px}
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;color:#fff;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}.toast.success{background:#2d7a4f}.toast.error{background:var(--red)}
+@media(max-width:600px){.field-row,.field-row.col3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+<div class="page">
+  <h1>⚗️ Aushadha Nirman Register</h1>
+  <p class="subtitle">In-house Ayurvedic medicine preparation — batch records, ingredients, QC checks &amp; expiry tracking — NABH MOM Ayush-specific</p>
+
+  <div id="expiry-alert" class="alert-banner warn">⚠ Some batches are expiring within 30 days. Review expiry column.</div>
+
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">Active Batches</div><div class="kpi-val" id="k-active">—</div></div>
+    <div class="kpi"><div class="kpi-label">QC Pending</div><div class="kpi-val amber" id="k-qcpend">—</div></div>
+    <div class="kpi"><div class="kpi-label">QC Passed</div><div class="kpi-val" id="k-qcpass">—</div></div>
+    <div class="kpi"><div class="kpi-label">Expiring ≤30d</div><div class="kpi-val red" id="k-expiring">—</div></div>
+    <div class="kpi"><div class="kpi-label">This Month</div><div class="kpi-val" id="k-month">—</div></div>
+  </div>
+
+  <div class="toolbar">
+    <select id="f-type" onchange="loadRegister()">
+      <option value="">All Preparation Types</option>
+      <option value="churna">Churna (Powder)</option>
+      <option value="vati">Vati / Gutika</option>
+      <option value="kwatha">Kwatha (Decoction)</option>
+      <option value="asava_arishta">Asava / Arishta</option>
+      <option value="ghrita">Ghrita</option>
+      <option value="taila">Taila</option>
+      <option value="lepa">Lepa (Paste)</option>
+      <option value="avaleha">Avaleha / Lehya</option>
+      <option value="other">Other</option>
+    </select>
+    <select id="f-status" onchange="loadRegister()">
+      <option value="active">Active</option>
+      <option value="">All Status</option>
+      <option value="depleted">Depleted</option>
+      <option value="recalled">Recalled</option>
+      <option value="expired">Expired</option>
+    </select>
+    <input type="month" id="f-month" onchange="loadRegister()"/>
+    <button class="btn btn-primary" onclick="openNew()">+ New Preparation</button>
+    <button class="btn btn-outline" onclick="exportCSV()">⬇ CSV</button>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-title">Preparation Register</div>
+      <div style="font-size:12px;color:var(--text-muted)" id="rec-count"></div>
+    </div>
+    <div class="tw"><table>
+      <thead><tr>
+        <th>Formula Name</th><th>Type</th><th>Batch No.</th><th>Date</th>
+        <th>Qty</th><th>QC</th><th>Expiry</th><th>Qty Left</th><th>Status</th><th>Actions</th>
+      </tr></thead>
+      <tbody id="reg-tbody"><tr><td colspan="10" class="empty">Loading…</td></tr></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ── New Preparation Modal ─────────────────────────────── -->
+<div class="modal-bg" id="prep-modal">
+  <div class="modal">
+    <h2 id="prep-modal-title">New Preparation — Aushadha Nirman</h2>
+    <input type="hidden" id="p-id"/>
+    <div class="field-row">
+      <div class="field"><label>Formula Name *</label><input id="p-name" type="text" placeholder="e.g. Triphala Churna, Dashmoola Kwatha"/></div>
+      <div class="field"><label>Preparation Type *</label>
+        <select id="p-type">
+          <option value="">Select</option>
+          <option value="churna">Churna (Powder)</option>
+          <option value="vati">Vati / Gutika</option>
+          <option value="kwatha">Kwatha (Decoction)</option>
+          <option value="asava_arishta">Asava / Arishta</option>
+          <option value="ghrita">Ghrita</option>
+          <option value="taila">Taila</option>
+          <option value="lepa">Lepa (Paste)</option>
+          <option value="avaleha">Avaleha / Lehya</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row col3">
+      <div class="field"><label>Batch Number *</label><input id="p-batch" type="text" placeholder="e.g. TPC-2026-001"/></div>
+      <div class="field"><label>Preparation Date *</label><input id="p-date" type="date"/></div>
+      <div class="field"><label>Expiry Date</label><input id="p-expiry" type="date"/></div>
+    </div>
+    <div class="field-row col3">
+      <div class="field"><label>Qty Prepared *</label><input id="p-qty" type="number" step="0.1" placeholder="5"/></div>
+      <div class="field"><label>Unit</label>
+        <select id="p-unit">
+          <option value="kg">kg</option><option value="g">g</option>
+          <option value="L">L</option><option value="ml">ml</option>
+          <option value="nos">nos (tablets)</option>
+        </select>
+      </div>
+      <div class="field"><label>Storage Conditions</label>
+        <select id="p-storage">
+          <option value="cool dry place">Cool dry place</option>
+          <option value="refrigerator (2–8°C)">Refrigerator (2–8°C)</option>
+          <option value="room temperature">Room temperature</option>
+          <option value="airtight container">Airtight container</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Ingredients / Composition *</label>
+      <textarea id="p-ingredients" placeholder="e.g. Haritaki 33g, Bibhitaki 33g, Amalaki 33g — equal parts dried fruit powder…"></textarea>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Prepared By</label><input id="p-prepby" type="text" placeholder="Pharmacist name"/></div>
+      <div class="field"><label>Supervised By</label><input id="p-supby" type="text" placeholder="Vaidya / HOD name"/></div>
+    </div>
+    <div class="field"><label>Classical Reference</label>
+      <input id="p-ref" type="text" placeholder="e.g. Charaka Samhita Chikitsa Sthana 1/3–7"/>
+    </div>
+    <div class="field"><label>Process Notes</label>
+      <textarea id="p-process" placeholder="Preparation method, drying time, sieving details…" style="min-height:50px"></textarea>
+    </div>
+
+    <div class="section-hdr">Quality Control</div>
+    <div class="field-row col3">
+      <div class="field"><label>QC Done?</label>
+        <select id="p-qc">
+          <option value="no">No (pending)</option>
+          <option value="yes">Yes</option>
+        </select>
+      </div>
+      <div class="field"><label>QC Date</label><input id="p-qcdate" type="date"/></div>
+      <div class="field"><label>QC Result</label>
+        <select id="p-qcresult">
+          <option value="">—</option>
+          <option value="pass">Pass</option>
+          <option value="conditional_pass">Conditional Pass</option>
+          <option value="fail">Fail</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>QC Notes</label>
+      <textarea id="p-qcnotes" placeholder="Organoleptic checks, moisture content, disintegration time…" style="min-height:50px"></textarea>
+    </div>
+    <div class="field"><label>Additional Notes</label>
+      <textarea id="p-notes" style="min-height:40px" placeholder="Any remarks…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('prep-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="savePrep()">Save Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── View Detail Modal ─────────────────────────────────── -->
+<div class="modal-bg" id="detail-modal">
+  <div class="modal">
+    <h2 id="d-title">Preparation Detail</h2>
+    <div id="d-body" class="detail-box"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('detail-modal')">Close</button>
+      <button class="btn btn-primary" onclick="printDetail()">🖨 Print</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script type="module">
+import { requireAuth } from './js/core/auth.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+import { initNavbar } from './js/components/navbar.js';
+
+requireAuth(['super_admin','dept_admin','pharmacist','doctor']);
+initNavbar();
+
+const profile = JSON.parse(sessionStorage.getItem('profile') || '{}');
+const tenantId = profile.tenant_id;
+
+// Set current month default
+const now = new Date();
+document.getElementById('f-month').value = now.toISOString().slice(0,7);
+document.getElementById('f-status').value = 'active';
+
+async function loadKPIs() {
+  const today = new Date().toISOString().split('T')[0];
+  const exp30 = new Date(); exp30.setDate(exp30.getDate()+30);
+  const monthStart = now.toISOString().slice(0,7)+'-01';
+
+  const [active, qcpend, qcpass, expiring, monthly] = await Promise.all([
+    supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('status','active'),
+    supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('qc_done',false),
+    supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('qc_result','pass'),
+    supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('status','active').lte('expiry_date',exp30.toISOString().split('T')[0]).gte('expiry_date',today),
+    supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).gte('preparation_date',monthStart),
+  ]);
+
+  document.getElementById('k-active').textContent = active.count??0;
+  document.getElementById('k-qcpend').textContent = qcpend.count??0;
+  document.getElementById('k-qcpass').textContent = qcpass.count??0;
+  document.getElementById('k-expiring').textContent = expiring.count??0;
+  document.getElementById('k-month').textContent = monthly.count??0;
+  if ((expiring.count??0) > 0) document.getElementById('expiry-alert').classList.add('show');
+}
+
+window.loadRegister = async () => {
+  const type = document.getElementById('f-type').value;
+  const status = document.getElementById('f-status').value;
+  const month = document.getElementById('f-month').value;
+  let q = supabase.from('aushadha_nirman_register').select('*').eq('tenant_id',tenantId).order('preparation_date',{ascending:false});
+  if (type) q = q.eq('preparation_type',type);
+  if (status) q = q.eq('status',status);
+  if (month) q = q.gte('preparation_date',month+'-01').lte('preparation_date',month+'-31');
+  const {data,error} = await q.limit(200);
+  const tb = document.getElementById('reg-tbody');
+  document.getElementById('rec-count').textContent = data?.length ? data.length+' records' : '';
+  if (error||!data?.length){tb.innerHTML=`<tr><td colspan="10" class="empty">No records found.</td></tr>`;return;}
+  const today = new Date();
+  tb.innerHTML = data.map(r=>{
+    const exp = r.expiry_date ? new Date(r.expiry_date) : null;
+    const expCls = !exp ? '' : exp < today ? 'color:var(--red);font-weight:600' : (exp-today)<30*864e5?'color:var(--amber);font-weight:600':'';
+    const qcBadge = r.qc_done ? `<span class="badge b-${r.qc_result||'pending'}">${r.qc_result||'—'}</span>` : `<span style="color:var(--text-muted);font-size:11px">Pending</span>`;
+    return `<tr>
+      <td><strong>${r.formula_name}</strong></td>
+      <td>${typeLabel(r.preparation_type)}</td>
+      <td>${r.batch_number}</td>
+      <td>${r.preparation_date}</td>
+      <td>${r.quantity_prepared} ${r.unit}</td>
+      <td>${qcBadge}</td>
+      <td style="${expCls}">${r.expiry_date||'—'}</td>
+      <td>${r.quantity_remaining!==null?r.quantity_remaining+' '+r.unit:'—'}</td>
+      <td><span class="badge b-${r.status}">${r.status}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-sm btn-outline" onclick="viewDetail(${JSON.stringify(r).replace(/"/g,'&quot;')})">View</button>
+        <button class="btn btn-sm btn-primary" onclick="editPrep(${JSON.stringify(r).replace(/"/g,'&quot;')})">Edit</button>
+        ${r.status==='active'?`<button class="btn btn-sm btn-danger" onclick="recall('${r.id}')">Recall</button>`:''}
+      </td>
+    </tr>`;
+  }).join('');
+};
+
+window.openNew = () => {
+  document.getElementById('p-id').value = '';
+  document.getElementById('prep-modal-title').textContent = 'New Preparation — Aushadha Nirman';
+  ['p-name','p-batch','p-ingredients','p-prepby','p-supby','p-ref','p-process','p-qcnotes','p-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('p-type').value='';
+  document.getElementById('p-unit').value='kg';
+  document.getElementById('p-storage').value='cool dry place';
+  document.getElementById('p-qc').value='no';
+  document.getElementById('p-qcresult').value='';
+  document.getElementById('p-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('p-expiry').value='';
+  document.getElementById('p-qcdate').value='';
+  document.getElementById('p-qty').value='';
+  document.getElementById('prep-modal').classList.add('show');
+};
+
+window.editPrep = (r) => {
+  document.getElementById('p-id').value = r.id;
+  document.getElementById('prep-modal-title').textContent = 'Edit — '+r.formula_name;
+  document.getElementById('p-name').value = r.formula_name||'';
+  document.getElementById('p-type').value = r.preparation_type||'';
+  document.getElementById('p-batch').value = r.batch_number||'';
+  document.getElementById('p-date').value = r.preparation_date||'';
+  document.getElementById('p-expiry').value = r.expiry_date||'';
+  document.getElementById('p-qty').value = r.quantity_prepared||'';
+  document.getElementById('p-unit').value = r.unit||'kg';
+  document.getElementById('p-storage').value = r.storage_conditions||'cool dry place';
+  document.getElementById('p-ingredients').value = r.ingredients||'';
+  document.getElementById('p-prepby').value = r.prepared_by_name||'';
+  document.getElementById('p-supby').value = r.supervised_by_name||'';
+  document.getElementById('p-ref').value = r.classical_reference||'';
+  document.getElementById('p-process').value = r.process_notes||'';
+  document.getElementById('p-qc').value = r.qc_done?'yes':'no';
+  document.getElementById('p-qcdate').value = r.qc_date||'';
+  document.getElementById('p-qcresult').value = r.qc_result||'';
+  document.getElementById('p-qcnotes').value = r.qc_notes||'';
+  document.getElementById('p-notes').value = r.notes||'';
+  document.getElementById('prep-modal').classList.add('show');
+};
+
+window.savePrep = async () => {
+  const name = document.getElementById('p-name').value.trim();
+  const type = document.getElementById('p-type').value;
+  const batch = document.getElementById('p-batch').value.trim();
+  const date = document.getElementById('p-date').value;
+  const qty = parseFloat(document.getElementById('p-qty').value);
+  const ingredients = document.getElementById('p-ingredients').value.trim();
+  if (!name||!type||!batch||!date||!qty||!ingredients){showToast('Fill all required fields','error');return;}
+
+  const qcDone = document.getElementById('p-qc').value==='yes';
+  const payload = {
+    tenant_id:tenantId, formula_name:name, preparation_type:type,
+    batch_number:batch, preparation_date:date,
+    quantity_prepared:qty, unit:document.getElementById('p-unit').value,
+    ingredients, storage_conditions:document.getElementById('p-storage').value,
+    expiry_date:document.getElementById('p-expiry').value||null,
+    classical_reference:document.getElementById('p-ref').value.trim()||null,
+    process_notes:document.getElementById('p-process').value.trim()||null,
+    qc_done:qcDone,
+    qc_date:qcDone?document.getElementById('p-qcdate').value||null:null,
+    qc_result:qcDone?document.getElementById('p-qcresult').value||null:null,
+    qc_notes:document.getElementById('p-qcnotes').value.trim()||null,
+    notes:document.getElementById('p-notes').value.trim()||null,
+    created_by:profile.id
+  };
+
+  const id = document.getElementById('p-id').value;
+  const {error} = id
+    ? await supabase.from('aushadha_nirman_register').update(payload).eq('id',id).eq('tenant_id',tenantId)
+    : await supabase.from('aushadha_nirman_register').insert(payload);
+  if (error){showToast('Error: '+error.message,'error');return;}
+  closeModal('prep-modal');
+  showToast('Saved successfully','success');
+  loadRegister(); loadKPIs();
+};
+
+window.viewDetail = (r) => {
+  document.getElementById('d-title').textContent = r.formula_name + ' — ' + r.batch_number;
+  const rows = [
+    ['Type', typeLabel(r.preparation_type)],
+    ['Batch Number', r.batch_number],
+    ['Preparation Date', r.preparation_date],
+    ['Qty Prepared', r.quantity_prepared + ' ' + r.unit],
+    ['Storage', r.storage_conditions||'—'],
+    ['Expiry', r.expiry_date||'—'],
+    ['Ingredients', r.ingredients],
+    ['Classical Reference', r.classical_reference||'—'],
+    ['Process Notes', r.process_notes||'—'],
+    ['QC Status', r.qc_done?(r.qc_result||'Done'):'Pending'],
+    ['QC Date', r.qc_date||'—'],
+    ['QC Notes', r.qc_notes||'—'],
+    ['Notes', r.notes||'—'],
+  ];
+  document.getElementById('d-body').innerHTML = rows.map(([k,v])=>`
+    <div style="margin-bottom:8px"><span class="detail-label">${k}:</span>&nbsp;
+    <span style="color:var(--text-dark)">${v||'—'}</span></div>`).join('');
+  document.getElementById('detail-modal').classList.add('show');
+};
+
+window.recall = async (id) => {
+  if (!confirm('Mark this batch as recalled?')) return;
+  await supabase.from('aushadha_nirman_register').update({status:'recalled'}).eq('id',id).eq('tenant_id',tenantId);
+  showToast('Batch recalled','success');
+  loadRegister(); loadKPIs();
+};
+
+window.printDetail = () => window.print();
+
+window.exportCSV = async () => {
+  const {data} = await supabase.from('aushadha_nirman_register').select('*').eq('tenant_id',tenantId).order('preparation_date',{ascending:false});
+  if (!data?.length){showToast('No data','error');return;}
+  const header = ['Formula Name','Type','Batch No.','Date','Qty','Unit','QC','Expiry','Status'];
+  const rows = data.map(r=>[r.formula_name,r.preparation_type,r.batch_number,r.preparation_date,r.quantity_prepared,r.unit,r.qc_result||'pending',r.expiry_date||'',r.status]);
+  const csv = [header,...rows].map(r=>r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href='data:text/csv,'+encodeURIComponent(csv);
+  a.download='aushadha_nirman_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+};
+
+window.closeModal = id => document.getElementById(id).classList.remove('show');
+
+function typeLabel(t){const m={churna:'Churna',vati:'Vati/Gutika',kwatha:'Kwatha',asava_arishta:'Asava/Arishta',ghrita:'Ghrita',taila:'Taila',lepa:'Lepa',avaleha:'Avaleha',other:'Other'};return m[t]||t;}
+function showToast(msg,type='success'){const t=document.getElementById('toast');t.textContent=msg;t.className=`toast ${type} show`;setTimeout(()=>t.classList.remove('show'),3000);}
+
+loadRegister();
+loadKPIs();
+</script>
+</body>
+</html>

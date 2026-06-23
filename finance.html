@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Finance — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;--cream:#faf8f3;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--white:#fff;
+  --red:#c0392b;--red-light:#fdf0f0;--red-border:#f5b8b8;
+  --blue:#1565c0;--blue-light:#e3f2fd;
+  --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.08)
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page{max-width:1200px;margin:0 auto;padding:24px 16px 80px}
+h1{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--green-deep);margin-bottom:4px}
+.subtitle{font-size:13px;color:var(--text-muted);margin-bottom:20px}
+
+/* Date filter bar */
+.filter-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:20px;box-shadow:var(--shadow)}
+.filter-bar label{font-size:12px;font-weight:500;color:var(--text-mid)}
+.filter-bar input[type=date]{padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit}
+.filter-bar select{padding:6px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit}
+.btn{padding:8px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:opacity .15s}
+.btn:hover{opacity:.88}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-outline{background:transparent;border:1.5px solid var(--green-mid);color:var(--green-mid)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-gold{background:var(--gold);color:#fff}
+
+/* KPI row */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.kpi-label{font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.kpi-val{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:600;color:var(--green-deep)}
+.kpi-sub{font-size:11px;color:var(--text-muted);margin-top:3px}
+.kpi.red .kpi-val{color:var(--red)}
+.kpi.gold .kpi-val{color:var(--gold)}
+
+/* Tabs */
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px}
+.tab-btn{padding:10px 20px;font-size:13px;font-weight:500;background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;color:var(--text-muted);margin-bottom:-2px;transition:all .2s}
+.tab-btn.active{color:var(--green-deep);border-bottom-color:var(--green-deep);font-weight:600}
+.tab-pane{display:none}.tab-pane.active{display:block}
+
+/* Card */
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.card-title{font-size:14px;font-weight:600;color:var(--green-deep)}
+.card-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+/* Table */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--green-deep);color:#fff;padding:9px 12px;text-align:left;font-weight:500;font-size:12px;white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fdf9}
+tfoot td{font-weight:600;background:#f0fff4;border-top:2px solid var(--green-mid)}
+
+/* Status badges */
+.badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:600}
+.b-paid{background:#e8f5ee;color:#1a4a2e;border:1px solid #a5d6b8}
+.b-pending{background:#fff8e1;color:#7a5200;border:1px solid #ffe082}
+.b-partial{background:#e3f2fd;color:#1565c0;border:1px solid #90caf9}
+.b-cancelled{background:#fdf0f0;color:#c0392b;border:1px solid #f5b8b8}
+
+/* Revenue breakdown */
+.rev-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+.rev-item{background:var(--white);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.rev-item-label{font-size:12px;color:var(--text-muted);margin-bottom:4px}
+.rev-item-val{font-size:20px;font-weight:700;color:var(--green-deep);font-family:'Cormorant Garamond',serif}
+.rev-item-count{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+/* Outstanding aging */
+.aging-bar{height:8px;border-radius:4px;background:var(--border);margin-top:4px;overflow:hidden}
+.aging-fill{height:100%;border-radius:4px;background:var(--gold);transition:width .4s}
+.aging-fill.red{background:var(--red)}
+
+/* GST table */
+.gst-row-total{font-weight:600;background:#f0fff4}
+
+/* Expense form */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid.g3{grid-template-columns:1fr 1fr 1fr}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;font-weight:500;color:var(--text-mid)}
+input,select,textarea{padding:8px 11px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;color:var(--text-dark);background:var(--white);width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mid)}
+.field.span2{grid-column:span 2}
+
+/* Empty */
+.empty{text-align:center;padding:36px 20px;color:var(--text-muted);font-size:13px}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;color:#fff;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.toast.success{background:#2d7a4f}
+.toast.error{background:var(--red)}
+
+/* Modal */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:800;align-items:center;justify-content:center}
+.modal-bg.show{display:flex}
+.modal{background:#fff;border-radius:var(--radius);width:500px;max-width:96vw;max-height:92vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.modal-hdr{background:var(--green-deep);color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-radius:var(--radius) var(--radius) 0 0}
+.modal-title{font-size:15px;font-weight:600}
+.modal-close{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1}
+.modal-body{padding:20px}
+.modal-foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+
+<div class="page">
+  <h1>Finance & Billing</h1>
+  <p class="subtitle">Revenue, outstanding bills, expenses, and GST summary</p>
+
+  <!-- Date filter -->
+  <div class="filter-bar">
+    <label>Period</label>
+    <select id="period-preset" onchange="applyPreset()">
+      <option value="today">Today</option>
+      <option value="week">This Week</option>
+      <option value="month" selected>This Month</option>
+      <option value="quarter">This Quarter</option>
+      <option value="year">This Year</option>
+      <option value="custom">Custom Range</option>
+    </select>
+    <label>From</label>
+    <input type="date" id="date-from"/>
+    <label>To</label>
+    <input type="date" id="date-to"/>
+    <button class="btn btn-primary btn-sm" onclick="loadAll()">Apply</button>
+    <button class="btn btn-outline btn-sm" onclick="exportCSV()">Export CSV</button>
+  </div>
+
+  <!-- KPI row -->
+  <div class="kpi-row" id="kpi-row">
+    <div class="kpi"><div class="kpi-label">Total Revenue</div><div class="kpi-val" id="k-revenue">—</div><div class="kpi-sub" id="k-revenue-sub"></div></div>
+    <div class="kpi"><div class="kpi-label">Collected (Paid)</div><div class="kpi-val" id="k-collected">—</div><div class="kpi-sub" id="k-collected-sub"></div></div>
+    <div class="kpi red"><div class="kpi-label">Outstanding</div><div class="kpi-val" id="k-outstanding">—</div><div class="kpi-sub" id="k-outstanding-sub"></div></div>
+    <div class="kpi gold"><div class="kpi-label">Total Expenses</div><div class="kpi-val" id="k-expenses">—</div><div class="kpi-sub" id="k-expenses-sub"></div></div>
+    <div class="kpi"><div class="kpi-label">Total Bills</div><div class="kpi-val" id="k-bills">—</div><div class="kpi-sub" id="k-bills-sub"></div></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('revenue')">Revenue</button>
+    <button class="tab-btn" onclick="switchTab('outstanding')">Outstanding</button>
+    <button class="tab-btn" onclick="switchTab('expenses')">Expenses</button>
+    <button class="tab-btn" onclick="switchTab('gst')">GST Summary</button>
+    <button class="tab-btn" onclick="switchTab('daily')">Daily Cash</button>
+    <button class="tab-btn" onclick="switchTab('audit')">CA Audit</button>
+  </div>
+
+  <!-- ── TAB: REVENUE ─────────────────────────────── -->
+  <div class="tab-pane active" id="tab-revenue">
+    <div class="rev-grid" id="rev-breakdown">
+      <div class="rev-item"><div class="rev-item-label">Registration Fees</div><div class="rev-item-val" id="r-reg">₹0</div><div class="rev-item-count" id="r-reg-c"></div></div>
+      <div class="rev-item"><div class="rev-item-label">Consultation Fees</div><div class="rev-item-val" id="r-con">₹0</div><div class="rev-item-count" id="r-con-c"></div></div>
+      <div class="rev-item"><div class="rev-item-label">Pharmacy / Dispensary</div><div class="rev-item-val" id="r-phm">₹0</div><div class="rev-item-count" id="r-phm-c"></div></div>
+      <div class="rev-item"><div class="rev-item-label">Other / Package / Misc</div><div class="rev-item-val" id="r-oth">₹0</div><div class="rev-item-count" id="r-oth-c"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-hdr">
+        <div><div class="card-title">All Bills</div><div class="card-sub" id="rev-period-lbl"></div></div>
+        <button class="btn btn-outline btn-sm" onclick="exportRevCSV()">Export</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Patient</th><th>Bill Type</th><th>Amount</th><th>Discount</th><th>Final</th><th>Payment</th><th>Status</th></tr></thead>
+          <tbody id="rev-tbody"></tbody>
+          <tfoot><tr><td colspan="5" style="text-align:right">Total</td><td id="rev-total-final">₹0</td><td colspan="2"></td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: OUTSTANDING ─────────────────────────── -->
+  <div class="tab-pane" id="tab-outstanding">
+    <div class="card">
+      <div class="card-hdr">
+        <div><div class="card-title">Pending & Partial Bills</div><div class="card-sub">All unpaid or partially paid bills — no date filter applied</div></div>
+        <button class="btn btn-outline btn-sm" onclick="exportOutstandingCSV()">Export</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px" id="aging-cards"></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Patient</th><th>Bill Type</th><th>Final Amount</th><th>Status</th><th>Days Pending</th><th>Payment Mode</th></tr></thead>
+          <tbody id="out-tbody"></tbody>
+          <tfoot><tr><td colspan="3" style="text-align:right">Total Outstanding</td><td id="out-total">₹0</td><td colspan="3"></td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: EXPENSES ────────────────────────────── -->
+  <div class="tab-pane" id="tab-expenses">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+      <button class="btn btn-primary" onclick="openExpenseModal()">+ Add Expense</button>
+    </div>
+    <div class="card">
+      <div class="card-hdr">
+        <div><div class="card-title">Expense Log</div><div class="card-sub" id="exp-period-lbl"></div></div>
+        <button class="btn btn-outline btn-sm" onclick="exportExpCSV()">Export</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Vendor / Payee</th><th>Amount</th><th>Approved By</th></tr></thead>
+          <tbody id="exp-tbody"></tbody>
+          <tfoot><tr><td colspan="4" style="text-align:right">Total</td><td id="exp-total">₹0</td><td></td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: GST SUMMARY ─────────────────────────── -->
+  <div class="tab-pane" id="tab-gst">
+    <div class="card">
+      <div class="card-hdr">
+        <div><div class="card-title">GST Summary</div><div class="card-sub">Taxable value and GST collected by rate — for filing reference</div></div>
+        <button class="btn btn-outline btn-sm" onclick="exportGSTCSV()">Export</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Bill Type / Category</th><th>Bills</th><th>Taxable Value (₹)</th><th>GST Rate</th><th>CGST (₹)</th><th>SGST (₹)</th><th>Total GST (₹)</th><th>Invoice Value (₹)</th></tr></thead>
+          <tbody id="gst-tbody"></tbody>
+          <tfoot><tr class="gst-row-total"><td>Total</td><td id="gst-t-bills">—</td><td id="gst-t-taxable">—</td><td></td><td id="gst-t-cgst">—</td><td id="gst-t-sgst">—</td><td id="gst-t-gst">—</td><td id="gst-t-invoice">—</td></tr></tfoot>
+        </table>
+      </div>
+      <div style="background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;padding:12px 16px;margin-top:14px;font-size:12px;color:#1565c0">
+        <strong>Note:</strong> Most Ayurveda OPD consultation and registration fees are GST-exempt under Health Care Services (SAC 9993). Pharmacy/medicine sales may attract 0%, 5%, or 12% GST depending on the HSN code. Please verify with your CA before filing.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: DAILY CASH ──────────────────────────── -->
+  <div class="tab-pane" id="tab-daily">
+    <div class="card">
+      <div class="card-hdr">
+        <div><div class="card-title">Daily Cash & Collection Summary</div><div class="card-sub" id="daily-period-lbl"></div></div>
+        <button class="btn btn-outline btn-sm" onclick="exportDailyCSV()">Export</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Bills</th><th>Cash</th><th>UPI / Card</th><th>Credit / Due</th><th>Insurance</th><th>Total Collected</th><th>Outstanding Added</th></tr></thead>
+          <tbody id="daily-tbody"></tbody>
+          <tfoot><tr><td style="font-weight:600">Total</td><td id="d-t-bills">—</td><td id="d-t-cash">—</td><td id="d-t-upi">—</td><td id="d-t-credit">—</td><td id="d-t-ins">—</td><td id="d-t-collected">—</td><td id="d-t-pending">—</td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: CA AUDIT ─────────────────────────────── -->
+  <div class="tab-pane" id="tab-audit">
+    <div id="audit-alert" style="display:none;padding:12px 16px;background:#fff8e1;border:1.5px solid #f4b400;border-radius:8px;font-size:13px;color:#6b4c00;margin-bottom:16px"></div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-hdr">
+        <div><div class="card-title">Annual Audit by Chartered Accountant</div><div class="card-sub">NCISM Regulation 7(7) — Annual CA audit required; report must be available to MARBISM</div></div>
+        <button class="btn btn-primary btn-sm" onclick="openAuditModal()">+ Add Audit</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Year</th><th>CA Firm</th><th>Audit Date</th><th>Status</th><th>Report</th></tr></thead>
+          <tbody id="audit-tbody"><tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CA Audit modal -->
+<div class="modal-bg" id="audit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:none;align-items:center;justify-content:center">
+  <div class="modal" style="background:#fff;border-radius:14px;padding:24px;max-width:440px;width:100%;margin:16px">
+    <div class="modal-hdr" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <span style="font-weight:600;font-size:15px">Add Annual CA Audit Record</span>
+      <button onclick="closeAuditModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted)">&times;</button>
+    </div>
+    <div style="display:grid;gap:12px">
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Financial Year</label>
+        <select id="aud-year" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:14px"></select></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">CA Firm Name</label>
+        <input id="aud-firm" type="text" placeholder="e.g. M/s Sharma & Associates" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:14px"></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Audit Completed Date</label>
+        <input id="aud-date" type="date" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:14px"></div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Status</label>
+        <select id="aud-status" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:14px">
+          <option value="completed">Completed</option>
+          <option value="in_progress">In Progress</option>
+          <option value="pending">Pending</option>
+        </select>
+      </div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Report URL (optional)</label>
+        <input id="aud-url" type="url" placeholder="Supabase storage or Google Drive link" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:14px"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button onclick="saveAudit()" class="btn btn-primary" style="flex:1">Save Record</button>
+      <button onclick="closeAuditModal()" class="btn btn-outline">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Expense modal -->
+<div class="modal-bg" id="expense-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title">Add Expense</span>
+      <button class="modal-close" onclick="closeExpenseModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="field">
+          <label>Date *</label>
+          <input type="date" id="ex-date"/>
+        </div>
+        <div class="field">
+          <label>Amount (₹) *</label>
+          <input type="number" id="ex-amount" placeholder="0.00" min="0" step="0.01"/>
+        </div>
+        <div class="field">
+          <label>Category *</label>
+          <select id="ex-category">
+            <option value="">— Select —</option>
+            <option value="salary">Salary / Payroll</option>
+            <option value="medicines">Medicines / Consumables</option>
+            <option value="utilities">Electricity / Water / Gas</option>
+            <option value="rent">Rent / Lease</option>
+            <option value="maintenance">Maintenance / Repairs</option>
+            <option value="equipment">Equipment / Instruments</option>
+            <option value="laundry">Laundry / Housekeeping</option>
+            <option value="diet">Diet / Kitchen Supplies</option>
+            <option value="marketing">Marketing / Printing</option>
+            <option value="insurance">Insurance Premium</option>
+            <option value="tax">Tax / Regulatory Fee</option>
+            <option value="it">IT / Software / Internet</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Vendor / Payee</label>
+          <input type="text" id="ex-vendor" placeholder="Supplier or payee name"/>
+        </div>
+        <div class="field span2">
+          <label>Description *</label>
+          <input type="text" id="ex-desc" placeholder="Brief description of expense"/>
+        </div>
+        <div class="field span2">
+          <label>Notes</label>
+          <input type="text" id="ex-notes" placeholder="Invoice number, reference, etc."/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeExpenseModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveExpense()">Save Expense</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { requireAuth, hasModule } from './js/core/auth.js';
+import { initNavbar }  from './js/components/navbar.js';
+import { ENV } from './js/config/env.js';
+
+const ALLOWED = ['super_admin','dept_admin','accountant'];
+await requireAuth(ALLOWED);
+if (!hasModule('finance')) { window.location.replace('admin.html'); }
+
+const supabase = createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY);
+const sess     = JSON.parse(sessionStorage.getItem('ax_profile') || '{}');
+const tenantId = sess.tenant_id;
+
+initNavbar();
+
+// ── State ──────────────────────────────────────────
+let _bills = [], _expenses = [], _outstanding = [];
+
+// ── Tab switch ──────────────────────────────────────
+window.switchTab = function(id) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) =>
+    b.classList.toggle('active', ['revenue','outstanding','expenses','gst','daily','audit'][i] === id));
+  document.querySelectorAll('.tab-pane').forEach(p =>
+    p.classList.toggle('active', p.id === 'tab-' + id));
+  if (id === 'audit') loadAudits();
+};
+
+// ── §21ae CA Audit functions ──────────────────────────────
+let _audits = [];
+
+window.openAuditModal = function() {
+  const sel = document.getElementById('aud-year');
+  sel.innerHTML = '';
+  const cy = new Date().getFullYear();
+  for (let y = cy; y >= cy - 5; y--) {
+    const o = document.createElement('option');
+    o.value = `${y-1}-${y}`; o.textContent = `${y-1}-${y}`;
+    sel.appendChild(o);
+  }
+  document.getElementById('aud-date').value = '';
+  document.getElementById('aud-firm').value = '';
+  document.getElementById('aud-url').value = '';
+  document.getElementById('audit-modal').style.display = 'flex';
+};
+window.closeAuditModal = function() {
+  document.getElementById('audit-modal').style.display = 'none';
+};
+
+window.loadAudits = async function() {
+  const tbody = document.getElementById('audit-tbody');
+  const { data, error } = await supabase
+    .from('annual_audits')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .order('audit_year', { ascending: false });
+
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#c0392b;padding:16px">${error.code === '42P01' ? 'Run session32_ncism_gaps.sql to activate' : error.message}</td></tr>`;
+    return;
+  }
+  _audits = data || [];
+
+  // Dec 31 alert check
+  const cy = new Date().getFullYear();
+  const cyYear = `${cy-1}-${cy}`;
+  const currentYearDone = _audits.some(a => a.audit_year === cyYear && a.status === 'completed');
+  const alertEl = document.getElementById('audit-alert');
+  const today = new Date();
+  if (!currentYearDone && today.getMonth() >= 9) {
+    alertEl.textContent = `⚠ Annual CA audit for ${cyYear} not yet recorded as completed. NCISM Regulation 7(7) requires audit to be done and report available to MARBISM.`;
+    alertEl.style.display = '';
+  } else { alertEl.style.display = 'none'; }
+
+  if (!_audits.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">No audit records yet. Click + Add Audit to record the first one.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _audits.map(a => `
+    <tr>
+      <td style="font-weight:600">${a.audit_year || '—'}</td>
+      <td>${a.ca_firm_name || '—'}</td>
+      <td>${a.audit_date ? new Date(a.audit_date).toLocaleDateString('en-IN') : '—'}</td>
+      <td><span style="padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${a.status==='completed'?'#e8f5ee':'#fff8e1'};color:${a.status==='completed'?'#1a4a2e':'#6b4c00'}">${a.status?.toUpperCase()}</span></td>
+      <td>${a.report_url ? `<a href="${a.report_url}" target="_blank" style="color:var(--green-mid);font-size:12px">View Report</a>` : '—'}</td>
+    </tr>`).join('');
+};
+
+window.saveAudit = async function() {
+  const firm = document.getElementById('aud-firm').value.trim();
+  const year = document.getElementById('aud-year').value;
+  if (!firm) { alert('CA Firm name is required'); return; }
+  const payload = {
+    tenant_id: tenantId,
+    audit_year: year,
+    ca_firm_name: firm,
+    audit_date: document.getElementById('aud-date').value || null,
+    status: document.getElementById('aud-status').value,
+    report_url: document.getElementById('aud-url').value.trim() || null,
+  };
+  const { error } = await supabase.from('annual_audits').insert(payload);
+  if (error) { alert(error.message); return; }
+  closeAuditModal();
+  loadAudits();
+};
+
+// ── Date presets ────────────────────────────────────
+window.applyPreset = function() {
+  const p = document.getElementById('period-preset').value;
+  const today = new Date();
+  let from, to = _fmt(today);
+  if (p === 'today')   { from = to; }
+  else if (p === 'week') {
+    const d = new Date(today); d.setDate(today.getDate() - today.getDay());
+    from = _fmt(d);
+  } else if (p === 'month') {
+    from = _fmt(new Date(today.getFullYear(), today.getMonth(), 1));
+  } else if (p === 'quarter') {
+    const q = Math.floor(today.getMonth() / 3);
+    from = _fmt(new Date(today.getFullYear(), q * 3, 1));
+  } else if (p === 'year') {
+    from = _fmt(new Date(today.getFullYear(), 0, 1));
+  } else { return; }
+  document.getElementById('date-from').value = from;
+  document.getElementById('date-to').value   = to;
+};
+
+// ── Load all ────────────────────────────────────────
+window.loadAll = async function() {
+  const from = document.getElementById('date-from').value;
+  const to   = document.getElementById('date-to').value;
+  if (!from || !to) { _toast('Select a date range', 'error'); return; }
+  await Promise.all([loadBills(from, to), loadOutstanding(), loadExpenses(from, to)]);
+};
+
+// ── Bills / Revenue ─────────────────────────────────
+async function loadBills(from, to) {
+  const { data, error } = await supabase
+    .from('bills')
+    .select('id, created_at, final_amount, total_amount, registration_fee, consultation_fee, bill_type, payment_mode, status, patients(name), insurer_name')
+    .eq('tenant_id', tenantId)
+    .gte('created_at', from + 'T00:00:00')
+    .lte('created_at', to + 'T23:59:59')
+    .order('created_at', { ascending: false });
+  if (error) { _toast('Error: ' + error.message, 'error'); return; }
+  _bills = data || [];
+  renderRevenue(from, to);
+  renderGST();
+  renderDaily(from, to);
+  updateKPIs();
+}
+
+function renderRevenue(from, to) {
+  const tbody = document.getElementById('rev-tbody');
+  document.getElementById('rev-period-lbl').textContent = `${_fmtD(from)} to ${_fmtD(to)} · ${_bills.length} bills`;
+
+  let regTotal=0, conTotal=0, phmTotal=0, othTotal=0;
+  let regCnt=0, conCnt=0, phmCnt=0, othCnt=0, grandFinal=0;
+
+  tbody.innerHTML = _bills.map(b => {
+    const f = parseFloat(b.final_amount)||0;
+    grandFinal += (['paid','partial'].includes(b.status) ? f : 0);
+    const bt = b.bill_type || 'opd';
+    if (bt === 'opd') { regTotal += parseFloat(b.registration_fee)||0; conTotal += parseFloat(b.consultation_fee)||0; regCnt++; conCnt++; }
+    else if (bt === 'pharmacy') { phmTotal += f; phmCnt++; }
+    else { othTotal += f; othCnt++; }
+    return `<tr>
+      <td style="font-size:12px;white-space:nowrap">${_fmtD(b.created_at?.slice(0,10))}</td>
+      <td>${b.patients?.name || '—'}</td>
+      <td><span class="badge b-pending" style="font-size:10px">${bt}</span></td>
+      <td>₹${_n(b.total_amount)}</td>
+      <td>₹${_n((parseFloat(b.total_amount)||0)-(parseFloat(b.final_amount)||0))}</td>
+      <td style="font-weight:500">₹${_n(b.final_amount)}</td>
+      <td style="font-size:12px">${b.payment_mode || '—'}${b.insurer_name ? ' · ' + b.insurer_name : ''}</td>
+      <td><span class="badge b-${b.status}">${b.status}</span></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" class="empty">No bills in this period</td></tr>';
+
+  document.getElementById('rev-total-final').textContent = '₹' + _n(grandFinal);
+  document.getElementById('r-reg').textContent = '₹' + _n(regTotal);
+  document.getElementById('r-con').textContent = '₹' + _n(conTotal);
+  document.getElementById('r-phm').textContent = '₹' + _n(phmTotal);
+  document.getElementById('r-oth').textContent = '₹' + _n(othTotal);
+  document.getElementById('r-reg-c').textContent = regCnt + ' OPD bills';
+  document.getElementById('r-con-c').textContent = conCnt + ' consultations';
+  document.getElementById('r-phm-c').textContent = phmCnt + ' pharmacy bills';
+  document.getElementById('r-oth-c').textContent = othCnt + ' other bills';
+}
+
+// ── Outstanding ─────────────────────────────────────
+async function loadOutstanding() {
+  const { data, error } = await supabase
+    .from('bills')
+    .select('id, created_at, final_amount, bill_type, payment_mode, status, patients(name)')
+    .eq('tenant_id', tenantId)
+    .in('status', ['pending','partial'])
+    .order('created_at', { ascending: true });
+  if (error) { _toast('Error: ' + error.message, 'error'); return; }
+  _outstanding = data || [];
+  renderOutstanding();
+  updateKPIs();
+}
+
+function renderOutstanding() {
+  const tbody = document.getElementById('out-tbody');
+  const today = new Date(); today.setHours(0,0,0,0);
+  let total = 0;
+  const aging = { '0-7':0, '8-30':0, '31+':0 };
+
+  tbody.innerHTML = _outstanding.map(b => {
+    const f = parseFloat(b.final_amount) || 0;
+    total += f;
+    const created = new Date(b.created_at); created.setHours(0,0,0,0);
+    const days = Math.floor((today - created) / 86400000);
+    if (days <= 7) aging['0-7'] += f; else if (days <= 30) aging['8-30'] += f; else aging['31+'] += f;
+    const ageCls = days > 30 ? 'color:var(--red)' : days > 7 ? 'color:var(--gold)' : '';
+    return `<tr>
+      <td style="font-size:12px">${_fmtD(b.created_at?.slice(0,10))}</td>
+      <td>${b.patients?.name || '—'}</td>
+      <td>${b.bill_type || 'opd'}</td>
+      <td style="font-weight:500">₹${_n(b.final_amount)}</td>
+      <td><span class="badge b-${b.status}">${b.status}</span></td>
+      <td style="${ageCls};font-weight:500">${days} days</td>
+      <td style="font-size:12px">${b.payment_mode || '—'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" class="empty">No outstanding bills</td></tr>';
+
+  document.getElementById('out-total').textContent = '₹' + _n(total);
+
+  document.getElementById('aging-cards').innerHTML = [
+    { label:'0–7 days', val:aging['0-7'], cls:'' },
+    { label:'8–30 days', val:aging['8-30'], cls:'gold' },
+    { label:'31+ days', val:aging['31+'], cls:'red' },
+  ].map(a => `<div class="kpi ${a.cls}">
+    <div class="kpi-label">Aging: ${a.label}</div>
+    <div class="kpi-val">₹${_n(a.val)}</div>
+    <div class="aging-bar"><div class="aging-fill ${a.cls}" style="width:${total?Math.round(a.val/total*100):0}%"></div></div>
+  </div>`).join('');
+}
+
+// ── Expenses ─────────────────────────────────────────
+async function loadExpenses(from, to) {
+  const { data, error } = await supabase
+    .from('expense_records')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .gte('expense_date', from)
+    .lte('expense_date', to)
+    .order('expense_date', { ascending: false });
+
+  if (error && error.code === '42P01') {
+    document.getElementById('exp-tbody').innerHTML =
+      '<tr><td colspan="6" class="empty">Expense table not set up yet — run the SQL from the session notes to activate.</td></tr>';
+    return;
+  }
+  if (error) { _toast('Error: ' + error.message, 'error'); return; }
+  _expenses = data || [];
+  renderExpenses(from, to);
+  updateKPIs();
+}
+
+function renderExpenses(from, to) {
+  const tbody = document.getElementById('exp-tbody');
+  document.getElementById('exp-period-lbl').textContent = `${_fmtD(from)} to ${_fmtD(to)}`;
+  let total = 0;
+  tbody.innerHTML = _expenses.map(e => {
+    total += parseFloat(e.amount) || 0;
+    return `<tr>
+      <td style="font-size:12px">${_fmtD(e.expense_date)}</td>
+      <td><span class="badge b-pending" style="font-size:10px">${e.category}</span></td>
+      <td>${e.description || '—'}</td>
+      <td style="font-size:12px">${e.vendor || '—'}</td>
+      <td style="font-weight:500">₹${_n(e.amount)}</td>
+      <td style="font-size:12px">${e.approved_by_name || '—'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" class="empty">No expenses in this period</td></tr>';
+  document.getElementById('exp-total').textContent = '₹' + _n(total);
+}
+
+// ── GST Summary ───────────────────────────────────────
+function renderGST() {
+  const rows = [
+    { type:'OPD Consultation', taxable: _bills.filter(b=>b.bill_type==='opd').reduce((s,b)=>s+(parseFloat(b.consultation_fee)||0),0), rate:0 },
+    { type:'OPD Registration', taxable: _bills.filter(b=>b.bill_type==='opd').reduce((s,b)=>s+(parseFloat(b.registration_fee)||0),0), rate:0 },
+    { type:'Pharmacy / Medicines', taxable: _bills.filter(b=>b.bill_type==='pharmacy').reduce((s,b)=>s+(parseFloat(b.final_amount)||0),0), rate:5 },
+    { type:'IPD / Package', taxable: _bills.filter(b=>!['opd','pharmacy'].includes(b.bill_type||'opd')).reduce((s,b)=>s+(parseFloat(b.final_amount)||0),0), rate:0 },
+  ];
+  let tBills=0, tTaxable=0, tCGST=0, tSGST=0, tGST=0, tInvoice=0;
+  const tbody = document.getElementById('gst-tbody');
+  tbody.innerHTML = rows.map(r => {
+    const gst = r.taxable * r.rate / 100;
+    const cgst = gst / 2, sgst = gst / 2;
+    const invoice = r.taxable + gst;
+    const cnt = _bills.filter(b => r.type.startsWith('OPD') ? b.bill_type==='opd' : r.type.startsWith('Pharmacy') ? b.bill_type==='pharmacy' : true).length;
+    tTaxable += r.taxable; tCGST += cgst; tSGST += sgst; tGST += gst; tInvoice += invoice;
+    return `<tr>
+      <td>${r.type}</td>
+      <td>—</td>
+      <td>₹${_n(r.taxable)}</td>
+      <td>${r.rate}%${r.rate===0?' (Exempt)':''}</td>
+      <td>₹${_n(cgst)}</td>
+      <td>₹${_n(sgst)}</td>
+      <td>₹${_n(gst)}</td>
+      <td>₹${_n(invoice)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('gst-t-taxable').textContent = '₹' + _n(tTaxable);
+  document.getElementById('gst-t-cgst').textContent    = '₹' + _n(tCGST);
+  document.getElementById('gst-t-sgst').textContent    = '₹' + _n(tSGST);
+  document.getElementById('gst-t-gst').textContent     = '₹' + _n(tGST);
+  document.getElementById('gst-t-invoice').textContent = '₹' + _n(tInvoice);
+}
+
+// ── Daily Cash ───────────────────────────────────────
+function renderDaily(from, to) {
+  document.getElementById('daily-period-lbl').textContent = `${_fmtD(from)} to ${_fmtD(to)}`;
+  const byDay = {};
+  _bills.forEach(b => {
+    const d = b.created_at?.slice(0,10);
+    if (!byDay[d]) byDay[d] = { bills:0, cash:0, upi:0, credit:0, ins:0, collected:0, pending:0 };
+    const f = parseFloat(b.final_amount) || 0;
+    byDay[d].bills++;
+    if (b.status === 'paid' || b.status === 'partial') {
+      if (b.payment_mode === 'cash') byDay[d].cash += f;
+      else if (b.payment_mode === 'Insurance / TPA') byDay[d].ins += f;
+      else if (b.payment_mode === 'credit') byDay[d].credit += f;
+      else byDay[d].upi += f;
+      byDay[d].collected += f;
+    } else { byDay[d].pending += f; }
+  });
+  const days = Object.keys(byDay).sort().reverse();
+  let tBills=0,tCash=0,tUpi=0,tCred=0,tIns=0,tCol=0,tPend=0;
+  const tbody = document.getElementById('daily-tbody');
+  tbody.innerHTML = days.map(d => {
+    const r = byDay[d];
+    tBills+=r.bills;tCash+=r.cash;tUpi+=r.upi;tCred+=r.credit;tIns+=r.ins;tCol+=r.collected;tPend+=r.pending;
+    return `<tr>
+      <td style="font-size:12px;font-weight:500">${_fmtD(d)}</td>
+      <td>${r.bills}</td>
+      <td>₹${_n(r.cash)}</td>
+      <td>₹${_n(r.upi)}</td>
+      <td>₹${_n(r.credit)}</td>
+      <td>₹${_n(r.ins)}</td>
+      <td style="font-weight:600;color:var(--green-deep)">₹${_n(r.collected)}</td>
+      <td style="color:var(--red)">₹${_n(r.pending)}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" class="empty">No data</td></tr>';
+  ['d-t-bills','d-t-cash','d-t-upi','d-t-credit','d-t-ins','d-t-collected','d-t-pending'].forEach((id,i) => {
+    document.getElementById(id).textContent = i===0 ? tBills : '₹'+_n([0,tCash,tUpi,tCred,tIns,tCol,tPend][i]);
+  });
+}
+
+// ── KPI update ────────────────────────────────────────
+function updateKPIs() {
+  const total    = _bills.reduce((s,b) => s + (parseFloat(b.final_amount)||0), 0);
+  const collected= _bills.filter(b=>['paid','partial'].includes(b.status)).reduce((s,b)=>s+(parseFloat(b.final_amount)||0),0);
+  const outstanding = _outstanding.reduce((s,b)=>s+(parseFloat(b.final_amount)||0),0);
+  const expenses = _expenses.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+
+  document.getElementById('k-revenue').textContent = '₹' + _n(total);
+  document.getElementById('k-revenue-sub').textContent = _bills.length + ' bills';
+  document.getElementById('k-collected').textContent = '₹' + _n(collected);
+  document.getElementById('k-collected-sub').textContent = total ? Math.round(collected/total*100) + '% collection rate' : '';
+  document.getElementById('k-outstanding').textContent = '₹' + _n(outstanding);
+  document.getElementById('k-outstanding-sub').textContent = _outstanding.length + ' bills pending';
+  document.getElementById('k-expenses').textContent = '₹' + _n(expenses);
+  document.getElementById('k-expenses-sub').textContent = _expenses.length + ' entries';
+  document.getElementById('k-bills').textContent = _bills.length;
+  document.getElementById('k-bills-sub').textContent = 'in selected period';
+}
+
+// ── Expense modal ─────────────────────────────────────
+window.openExpenseModal = function() {
+  document.getElementById('ex-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('ex-amount').value = '';
+  document.getElementById('ex-category').value = '';
+  document.getElementById('ex-vendor').value = '';
+  document.getElementById('ex-desc').value = '';
+  document.getElementById('ex-notes').value = '';
+  document.getElementById('expense-modal').classList.add('show');
+};
+
+window.closeExpenseModal = function() {
+  document.getElementById('expense-modal').classList.remove('show');
+};
+
+window.saveExpense = async function() {
+  const date   = document.getElementById('ex-date').value;
+  const amount = parseFloat(document.getElementById('ex-amount').value);
+  const cat    = document.getElementById('ex-category').value;
+  const desc   = document.getElementById('ex-desc').value.trim();
+  if (!date || !amount || !cat || !desc) { _toast('Date, amount, category and description are required', 'error'); return; }
+
+  const { error } = await supabase.from('expense_records').insert({
+    tenant_id: tenantId,
+    expense_date: date,
+    amount,
+    category: cat,
+    description: desc,
+    vendor: document.getElementById('ex-vendor').value.trim() || null,
+    notes:  document.getElementById('ex-notes').value.trim() || null,
+    recorded_by: sess.id,
+    approved_by_name: sess.full_name,
+  });
+  if (error) { _toast('Error: ' + error.message, 'error'); return; }
+  closeExpenseModal();
+  _toast('Expense saved', 'success');
+  const from = document.getElementById('date-from').value;
+  const to   = document.getElementById('date-to').value;
+  if (from && to) loadExpenses(from, to);
+};
+
+// ── CSV exports ───────────────────────────────────────
+window.exportCSV = window.exportRevCSV = function() { _csvDownload(_bills.map(b => ({
+  Date: b.created_at?.slice(0,10), Patient: b.patients?.name,
+  Type: b.bill_type, Total: b.total_amount, Final: b.final_amount,
+  Payment: b.payment_mode, Status: b.status,
+})), 'revenue'); };
+
+window.exportOutstandingCSV = function() { _csvDownload(_outstanding.map(b => ({
+  Date: b.created_at?.slice(0,10), Patient: b.patients?.name,
+  Type: b.bill_type, Amount: b.final_amount, Status: b.status,
+})), 'outstanding'); };
+
+window.exportExpCSV = function() { _csvDownload(_expenses.map(e => ({
+  Date: e.expense_date, Category: e.category, Description: e.description,
+  Vendor: e.vendor, Amount: e.amount,
+})), 'expenses'); };
+
+window.exportGSTCSV = window.exportDailyCSV = function() { _toast('Use the browser Print to save this view', 'success'); };
+
+function _csvDownload(rows, name) {
+  if (!rows.length) { _toast('No data to export', 'error'); return; }
+  const keys = Object.keys(rows[0]);
+  const csv = [keys.join(','), ...rows.map(r => keys.map(k => `"${String(r[k]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
+  const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = `${name}_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+}
+
+// ── Helpers ───────────────────────────────────────────
+function _fmt(d) { return d instanceof Date ? d.toISOString().slice(0,10) : d; }
+function _fmtD(s) {
+  if (!s) return '—';
+  return new Date(s+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+}
+function _n(v) { return (parseFloat(v)||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function _toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── Init ──────────────────────────────────────────────
+applyPreset();
+await loadAll();
+</script>
+</body>
+</html>

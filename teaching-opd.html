@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Teaching OPD Register — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --red:#c0392b;--red-light:#fdecea;
+  --blue:#1a4080;--blue-light:#e3f0ff;
+  --purple:#5a1a8b;--purple-light:#f0e8ff;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page-wrap{max-width:1200px;margin:0 auto;padding:28px 20px 80px}
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.4px;margin-left:8px;vertical-align:middle}
+.pg-badge{display:inline-block;background:var(--purple-light);color:var(--purple);font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.4px;margin-left:4px}
+.btn{height:40px;padding:0 18px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}.btn-secondary:hover{background:var(--green-light)}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.alert.error{background:var(--red-light);color:#8b1a1a;border:1px solid #f5c6c6}
+
+/* Date nav */
+.date-nav{display:flex;align-items:center;gap:10px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;flex-wrap:wrap}
+.date-display{font-size:14px;font-weight:600;color:var(--text-dark);min-width:140px;text-align:center}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;text-align:center}
+.stat-value{font-size:24px;font-weight:700;color:var(--green-deep);line-height:1}
+.stat-label{font-size:11px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.4px}
+.stat-card.purple .stat-value{color:var(--purple)}
+.stat-card.gold .stat-value{color:var(--gold)}
+
+/* Table */
+.card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap}
+.card-title{font-weight:600;font-size:14px;color:var(--text-dark)}
+.tc-table{width:100%;border-collapse:collapse;font-size:12px}
+.tc-table th{background:var(--cream);color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;text-align:left;border-bottom:1.5px solid var(--border)}
+.tc-table td{padding:9px 10px;border-bottom:1px solid #eee;vertical-align:top}
+.tc-table tr:last-child td{border-bottom:none}
+.tc-table tr:hover td{background:#f9fdfb}
+.case-type-pill{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700}
+.pill-new{background:#e3f0ff;color:var(--blue)}
+.pill-follow_up{background:var(--green-light);color:var(--green-deep)}
+.pill-interesting{background:var(--gold-light);color:#7a5000;border:1px solid #e0c060}
+.pill-emergency{background:var(--red-light);color:var(--red)}
+.rating-stars{color:#e0c060;font-size:13px}
+.empty-state{padding:40px;text-align:center;color:var(--text-muted)}
+.empty-icon{font-size:36px;margin-bottom:10px}
+.empty-title{font-size:14px;font-weight:600;color:var(--text-mid)}
+.empty-sub{font-size:12px;margin-top:4px}
+
+/* Overlay / Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto}
+.modal{background:var(--white);border-radius:10px;width:640px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,.22);margin:auto}
+.modal-hdr{background:var(--purple);color:#fff;padding:14px 20px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center}
+.modal-hdr-title{font-weight:600;font-size:15px}
+.modal-body{padding:20px;max-height:80vh;overflow-y:auto}
+.modal-foot{padding:12px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border)}
+.sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--purple);margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid var(--border);margin-top:16px}
+.sec:first-child{margin-top:0}
+.fg{display:grid;gap:12px;margin-bottom:12px}
+.fg.c2{grid-template-columns:1fr 1fr}
+.fg.c3{grid-template-columns:1fr 1fr 1fr}
+.field label{font-size:12px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white)}
+.field textarea{height:56px;padding:8px 10px;resize:vertical}
+.field input:focus,.field select:focus{outline:none;border-color:var(--purple)}
+.rating-row{display:flex;gap:6px;align-items:center;margin-top:4px}
+.rating-btn{font-size:18px;cursor:pointer;opacity:.4;transition:opacity .1s}
+.rating-btn.sel{opacity:1}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<div class="page-wrap">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Teaching OPD Register <span class="ncism-badge">NCISM §18k</span><span class="pg-badge">PG</span></div>
+      <div class="page-subtitle">Case Presentation Register — PG Training (Postgraduate Teaching OPD)</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary btn-sm" onclick="window.print()">🖨 Print</button>
+      <button class="btn btn-primary" onclick="openModal()">+ Record Case Presentation</button>
+    </div>
+  </div>
+
+  <div id="alert-box" class="alert"></div>
+
+  <!-- Date nav -->
+  <div class="date-nav">
+    <button class="btn btn-secondary btn-sm" onclick="changeDate(-1)">◀</button>
+    <span class="date-display" id="date-display"></span>
+    <button class="btn btn-secondary btn-sm" onclick="changeDate(1)">▶</button>
+    <input type="date" id="date-picker" style="height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-family:'DM Sans',sans-serif;font-size:13px" onchange="setDate(this.value)"/>
+    <button class="btn btn-secondary btn-sm" onclick="setToday()">Today</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-value" id="stat-today">0</div><div class="stat-label">Today's Cases</div></div>
+    <div class="stat-card purple"><div class="stat-value" id="stat-month">0</div><div class="stat-label">This Month</div></div>
+    <div class="stat-card gold"><div class="stat-value" id="stat-interesting">0</div><div class="stat-label">Interesting Cases</div></div>
+    <div class="stat-card"><div class="stat-value" id="stat-pg">—</div><div class="stat-label">Top Presenter</div></div>
+  </div>
+
+  <!-- §21l — Bedside Clinics / Clinical Classroom Records (NCISM Regulation 46) -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-hdr">
+      <div>
+        <div class="card-title">🏥 Bedside Clinics / Clinical Classrooms</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">NCISM Reg. 46 — IPD clinical classrooms (min 30 students, ICT-enabled). Log sessions for NCISM SDF.</div>
+      </div>
+      <button onclick="openBedModal()" style="height:32px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">+ Log Session</button>
+    </div>
+    <div id="bedside-list" style="padding:10px 16px;font-size:13px;color:var(--text-muted)">Loading…</div>
+  </div>
+
+  <!-- Table -->
+  <div class="card">
+    <div class="card-hdr">
+      <div class="card-title" id="card-title-date">Cases for today</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="search-pg" placeholder="Search PG name…" style="height:32px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:12px;font-family:'DM Sans',sans-serif" oninput="renderTable()"/>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="tc-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Date</th><th>Patient (Anon)</th><th>Diagnosis</th>
+            <th>Case Type</th><th>PG Presenter</th><th>Supervising Faculty</th>
+            <th>Department</th><th>Teaching Points</th><th>Faculty Rating</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tc-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Record Case Presentation Modal ── -->
+<div class="overlay" id="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-hdr-title">Record Case Presentation</div>
+      <button onclick="closeModal()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="sec">Case Details</div>
+      <div class="fg c3">
+        <div class="field"><label>Date</label><input id="m-date" type="date"/></div>
+        <div class="field">
+          <label>Case Type</label>
+          <select id="m-case-type">
+            <option value="new">New Case</option>
+            <option value="follow_up">Follow-up</option>
+            <option value="interesting">Interesting / Rare Case</option>
+            <option value="emergency">Emergency</option>
+          </select>
+        </div>
+        <div class="field"><label>Department / OPD</label><input id="m-dept" type="text" placeholder="Kayachikitsa, Panchakarma…"/></div>
+      </div>
+      <div class="fg c2">
+        <div class="field"><label>Patient (Anonymised — e.g. M/45, F/32)</label><input id="m-patient" type="text" placeholder="e.g. F/28 — Artava Kshaya"/></div>
+        <div class="field"><label>Chief Complaint / Roga</label><input id="m-complaint" type="text" placeholder="Main presenting complaint"/></div>
+      </div>
+      <div class="fg c2">
+        <div class="field"><label>Diagnosis (Ayurveda)</label><input id="m-diag-ay" type="text" placeholder="e.g. Pandu Roga, Amavata…"/></div>
+        <div class="field"><label>Diagnosis (Modern / ICD)</label><input id="m-diag-md" type="text" placeholder="e.g. Iron-deficiency anaemia, RA…"/></div>
+      </div>
+
+      <div class="sec">Presentation</div>
+      <div class="fg c2">
+        <div class="field"><label>Presenting PG / Student</label><input id="m-pg" type="text" placeholder="Name, Year (e.g. Dr. Priya — MD 2nd Year)"/></div>
+        <div class="field"><label>Supervising Faculty</label><input id="m-faculty" type="text" placeholder="Name, Designation"/></div>
+      </div>
+      <div class="fg" style="grid-template-columns:1fr">
+        <div class="field"><label>Teaching Points Covered</label>
+          <textarea id="m-points" placeholder="Key differentials discussed, classical references cited, treatment approach, Ayurvedic insights…" style="height:72px"></textarea>
+        </div>
+      </div>
+      <div class="fg" style="grid-template-columns:1fr">
+        <div class="field"><label>PG Performance Summary</label>
+          <textarea id="m-performance" placeholder="Quality of history-taking, examination findings, clinical reasoning, Nidana Panchaka application…"></textarea>
+        </div>
+      </div>
+
+      <div class="sec">Faculty Feedback</div>
+      <div class="fg c2">
+        <div class="field">
+          <label>Overall Rating</label>
+          <div class="rating-row" id="rating-row">
+            <span class="rating-btn" data-v="1" onclick="setRating(1)">★</span>
+            <span class="rating-btn" data-v="2" onclick="setRating(2)">★</span>
+            <span class="rating-btn" data-v="3" onclick="setRating(3)">★</span>
+            <span class="rating-btn" data-v="4" onclick="setRating(4)">★</span>
+            <span class="rating-btn" data-v="5" onclick="setRating(5)">★</span>
+            <span id="rating-label" style="font-size:12px;color:var(--text-muted);margin-left:6px">Not rated</span>
+          </div>
+        </div>
+        <div class="field"><label>Faculty Feedback</label>
+          <input id="m-feedback" type="text" placeholder="Short feedback comment"/>
+        </div>
+      </div>
+      <div class="fg" style="grid-template-columns:1fr">
+        <div class="field"><label>Action / Follow-up for PG</label>
+          <input id="m-action" type="text" placeholder="e.g. Write case report, refer to classical text, revise Nidana Panchaka…"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" style="background:var(--purple)" onclick="saveCase()">Save Case Record</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './js/config/constants.js';
+import { requireAuth, getCurrentProfile, getCurrentTenant } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+
+requireAuth(['doctor','super_admin','dept_admin','nurse']);
+initNavbar();
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const tenant   = getCurrentTenant();
+const profile  = getCurrentProfile();
+const tenantId = tenant?.id;
+const userId   = profile?.id;
+
+let _cases  = [];
+let _allCases = [];
+let _date   = new Date().toISOString().slice(0,10);
+let _rating = 0;
+
+// ── Date navigation ───────────────────────────────────────────────────────────
+function setDisplayDate() {
+  const d = new Date(_date + 'T00:00:00');
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('date-display').textContent =
+    d.toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+  document.getElementById('date-picker').value = _date;
+  document.getElementById('card-title-date').textContent = _date === today ? 'Today\'s Cases' : 'Cases for ' + _fmtDate(_date);
+}
+window.changeDate = function(n) { const d = new Date(_date+'T00:00:00'); d.setDate(d.getDate()+n); _date = d.toISOString().slice(0,10); setDisplayDate(); renderTable(); };
+window.setDate   = function(v) { _date = v; setDisplayDate(); renderTable(); };
+window.setToday  = function()  { _date = new Date().toISOString().slice(0,10); setDisplayDate(); renderTable(); };
+
+// ── Load ──────────────────────────────────────────────────────────────────────
+async function load() {
+  const { data, error } = await supabase.from('teaching_cases')
+    .select('*').eq('tenant_id', tenantId).order('presentation_date', { ascending: false });
+  if (error) { _alert('error', error.message); return; }
+  _allCases = data || [];
+  renderTable();
+  updateStats();
+}
+
+function renderTable() {
+  const pgFilter = document.getElementById('search-pg').value.toLowerCase();
+  _cases = _allCases.filter(c => c.presentation_date === _date &&
+    (!pgFilter || (c.pg_presenter||'').toLowerCase().includes(pgFilter)));
+
+  const tbody = document.getElementById('tc-tbody');
+  if (!_cases.length) {
+    tbody.innerHTML = `<tr><td colspan="11"><div class="empty-state"><div class="empty-icon">📚</div><div class="empty-title">No cases recorded for this date</div><div class="empty-sub">Record a case presentation</div></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = _cases.map((c, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td style="white-space:nowrap">${_fmtDate(c.presentation_date)}</td>
+      <td style="font-size:11px">${c.patient_anon || '—'}</td>
+      <td style="font-size:12px">${c.diagnosis_ayurveda || c.diagnosis_modern || '—'}</td>
+      <td><span class="case-type-pill pill-${c.case_type}">${{new:'New',follow_up:'Follow-up',interesting:'Interesting',emergency:'Emergency'}[c.case_type]||c.case_type}</span></td>
+      <td style="font-size:12px;font-weight:600;color:var(--purple)">${c.pg_presenter || '—'}</td>
+      <td style="font-size:12px">${c.supervising_faculty || '—'}</td>
+      <td style="font-size:12px">${c.department || '—'}</td>
+      <td style="font-size:11px;max-width:160px">${_trunc(c.teaching_points, 60)}</td>
+      <td style="color:#e0c060">${'★'.repeat(c.faculty_rating || 0)}${'☆'.repeat(5 - (c.faculty_rating || 0))}</td>
+      <td><button class="btn btn-secondary btn-sm" onclick="viewCase('${c.id}')">View</button></td>
+    </tr>`).join('');
+}
+
+function updateStats() {
+  const today = new Date().toISOString().slice(0,10);
+  const month = today.slice(0,7);
+  const todayCount   = _allCases.filter(c => c.presentation_date === today).length;
+  const monthCount   = _allCases.filter(c => c.presentation_date?.startsWith(month)).length;
+  const interestCount= _allCases.filter(c => c.case_type === 'interesting').length;
+
+  const pgCounts = {};
+  _allCases.forEach(c => { if (c.pg_presenter) pgCounts[c.pg_presenter] = (pgCounts[c.pg_presenter]||0)+1; });
+  const topPg = Object.entries(pgCounts).sort((a,b)=>b[1]-a[1])[0];
+
+  document.getElementById('stat-today').textContent      = todayCount;
+  document.getElementById('stat-month').textContent      = monthCount;
+  document.getElementById('stat-interesting').textContent= interestCount;
+  document.getElementById('stat-pg').textContent         = topPg ? topPg[0].split(' ')[1] || topPg[0] : '—';
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+window.openModal = function() {
+  _rating = 0;
+  document.getElementById('m-date').value   = _date;
+  document.getElementById('m-case-type').value = 'new';
+  document.getElementById('m-dept').value   = '';
+  document.getElementById('m-patient').value= '';
+  document.getElementById('m-complaint').value = '';
+  document.getElementById('m-diag-ay').value= '';
+  document.getElementById('m-diag-md').value= '';
+  document.getElementById('m-pg').value     = '';
+  document.getElementById('m-faculty').value= '';
+  document.getElementById('m-points').value = '';
+  document.getElementById('m-performance').value = '';
+  document.getElementById('m-feedback').value= '';
+  document.getElementById('m-action').value = '';
+  setRating(0);
+  document.getElementById('modal-overlay').style.display = 'flex';
+};
+
+window.closeModal = function() {
+  document.getElementById('modal-overlay').style.display = 'none';
+};
+
+window.setRating = function(v) {
+  _rating = v;
+  document.querySelectorAll('.rating-btn').forEach((btn, i) => {
+    btn.classList.toggle('sel', i < v);
+  });
+  document.getElementById('rating-label').textContent =
+    ['','Poor','Fair','Good','Very Good','Excellent'][v] || 'Not rated';
+};
+
+window.saveCase = async function() {
+  const { error } = await supabase.from('teaching_cases').insert({
+    tenant_id:         tenantId,
+    recorded_by:       userId,
+    presentation_date: document.getElementById('m-date').value,
+    case_type:         document.getElementById('m-case-type').value,
+    department:        document.getElementById('m-dept').value.trim() || null,
+    patient_anon:      document.getElementById('m-patient').value.trim() || null,
+    chief_complaint:   document.getElementById('m-complaint').value.trim() || null,
+    diagnosis_ayurveda:document.getElementById('m-diag-ay').value.trim() || null,
+    diagnosis_modern:  document.getElementById('m-diag-md').value.trim() || null,
+    pg_presenter:      document.getElementById('m-pg').value.trim() || null,
+    supervising_faculty:document.getElementById('m-faculty').value.trim() || null,
+    teaching_points:   document.getElementById('m-points').value.trim() || null,
+    pg_performance:    document.getElementById('m-performance').value.trim() || null,
+    faculty_rating:    _rating || null,
+    faculty_feedback:  document.getElementById('m-feedback').value.trim() || null,
+    action_for_pg:     document.getElementById('m-action').value.trim() || null,
+  });
+  if (error) { _alert('error', error.message); return; }
+  _alert('success', 'Case presentation recorded.');
+  closeModal();
+  await load();
+};
+
+window.viewCase = function(id) {
+  const c = _allCases.find(x => x.id === id);
+  if (!c) return;
+  alert(`Case: ${c.patient_anon||'—'}\nDiagnosis: ${c.diagnosis_ayurveda||'—'}\nPG: ${c.pg_presenter||'—'}\nFaculty: ${c.supervising_faculty||'—'}\nPoints: ${c.teaching_points||'—'}\nRating: ${'★'.repeat(c.faculty_rating||0)}\nFeedback: ${c.faculty_feedback||'—'}`);
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function _fmtDate(d) { if (!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+function _trunc(s,n) { if (!s) return '—'; return s.length>n?s.slice(0,n)+'…':s; }
+function _alert(type,msg) { const el=document.getElementById('alert-box');el.className=`alert ${type} show`;el.textContent=msg;setTimeout(()=>el.classList.remove('show'),4000); }
+
+setDisplayDate();
+await load();
+await loadBedsideClinics();
+
+// ── §21l Bedside Clinics ──────────────────────────────────────────────────────
+let _depts = [];
+(async function loadDepts() {
+  const { data } = await supabase.from('departments').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true).order('name');
+  _depts = data || [];
+  const sel = document.getElementById('bed-dept');
+  if (sel) sel.innerHTML = '<option value="">— Select dept —</option>' + _depts.map(d=>`<option value="${d.id}">${d.name}</option>`).join('');
+})();
+
+window.loadBedsideClinics = async function() {
+  const el = document.getElementById('bedside-list');
+  if (!el) return;
+  const { data, error } = await supabase.from('bedside_clinics').select('*,departments(name),profiles!faculty_id(full_name)')
+    .eq('tenant_id',tenantId).order('clinic_date',{ascending:false}).limit(20);
+  if (error) { el.innerHTML = error.code==='42P01'?'<em>Run session32_ncism_gaps.sql to activate</em>':error.message; return; }
+  if (!data?.length) { el.innerHTML = '<em>No bedside clinic sessions logged yet.</em>'; return; }
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#f5faf7"><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Date</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Dept</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Topic</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Faculty</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Students</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Batch</th></tr></thead><tbody>
+    ${data.map(s=>`<tr><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${s.clinic_date}</td><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${s.departments?.name||'—'}</td><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;font-weight:500">${s.topic||'—'}</td><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${s.profiles?.full_name||'—'}</td><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${s.student_count||0}</td><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${(s.clinical_batch||'').replace(/_/g,' ')}</td></tr>`).join('')}
+    </tbody></table>`;
+};
+window.openBedModal = function() { document.getElementById('bed-modal').style.display='flex'; document.getElementById('bed-date').value=today; };
+window.closeBedModal = function() { document.getElementById('bed-modal').style.display='none'; };
+window.saveBedside = async function() {
+  const topic = document.getElementById('bed-topic').value.trim();
+  const dept  = document.getElementById('bed-dept').value;
+  if (!topic || !dept) { alert('Department and topic are required'); return; }
+  const { error } = await supabase.from('bedside_clinics').insert({
+    tenant_id: tenantId,
+    department_id: dept,
+    clinic_date: document.getElementById('bed-date').value || today,
+    ward_name: document.getElementById('bed-ward').value.trim()||null,
+    topic,
+    faculty_id: profile.id,
+    student_count: parseInt(document.getElementById('bed-students').value)||0,
+    clinical_batch: document.getElementById('bed-batch').value||null,
+    assessment_conducted: document.getElementById('bed-assess').checked,
+    notes: document.getElementById('bed-notes').value.trim()||null,
+  });
+  if (error) { alert(error.message); return; }
+  closeBedModal();
+  loadBedsideClinics();
+};
+</script>
+
+<!-- §21l Bedside Clinic Modal -->
+<div id="bed-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:22px;max-width:440px;width:100%;margin:16px;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <span style="font-weight:600;font-size:15px">🏥 Log Bedside Clinic Session</span>
+      <button onclick="closeBedModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted)">&times;</button>
+    </div>
+    <div style="display:grid;gap:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Date</label>
+          <input id="bed-date" type="date" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Ward / Location</label>
+          <input id="bed-ward" type="text" placeholder="e.g. KAY Ward B" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+      </div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Department *</label>
+        <select id="bed-dept" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"><option value="">Loading…</option></select></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Topic / Case Type *</label>
+        <input id="bed-topic" type="text" placeholder="e.g. Jwara — systematic bedside examination" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">No. of Students</label>
+          <input id="bed-students" type="number" min="0" max="60" placeholder="e.g. 30" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Clinical Batch</label>
+          <select id="bed-batch" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit">
+            <option value="">—</option><option value="first_prof">1st Prof</option>
+            <option value="second_prof">2nd Prof</option><option value="third_prof">3rd Prof</option>
+            <option value="intern">Interns</option><option value="pg">PG Scholars</option>
+          </select></div>
+      </div>
+      <div><label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+        <input id="bed-assess" type="checkbox" style="accent-color:var(--green-deep)"/> Assessment / Viva conducted
+      </label></div>
+      <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Notes</label>
+        <input id="bed-notes" type="text" placeholder="Key teaching points, outcome…" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button onclick="saveBedside()" style="flex:1;height:38px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Save Session</button>
+      <button onclick="closeBedModal()" style="height:38px;padding:0 16px;border:1.5px solid var(--border);background:#fff;border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit">Cancel</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

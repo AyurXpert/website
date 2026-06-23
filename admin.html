@@ -348,6 +348,11 @@ tr:hover td{background:#fafff8}
         <span class="sb-label">Feature Modules</span>
       </button>
 
+      <button class="sb-item" data-target="abdm-bridge">
+        <span class="sb-icon">🏛️</span>
+        <span class="sb-label">ABDM Bridge</span>
+      </button>
+
       <div class="sb-group-label">Quick Links</div>
       <a class="sb-item" href="reception.html" style="text-decoration:none">
         <span class="sb-icon">🏥</span><span class="sb-label">Reception</span>
@@ -712,29 +717,60 @@ tr:hover td{background:#fafff8}
       </div>
     </div>
 
+    <!-- ── SECTION: ABDM BRIDGE ── -->
+    <div class="content-section" id="section-abdm-bridge">
+      <div class="sec-hd">
+        <div>
+          <div class="sec-title">ABDM Bridge Configuration</div>
+          <div class="sec-sub">Verify and update the webhook URL registered with ABDM sandbox. ABDM uses this URL for all Scan &amp; Share, consent, and data-flow callbacks.</div>
+        </div>
+      </div>
+
+      <!-- Bridge URL panel -->
+      <div class="cc" style="margin-bottom:16px">
+        <div class="cc-hd">
+          <span class="cc-title">Bridge Webhook URL (§3.2.4)</span>
+          <button class="btn-outline btn-sm" onclick="checkBridgeUrl()">Check Current URL</button>
+        </div>
+        <div style="padding:14px 20px">
+          <div id="bridge-url-status" style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Click "Check Current URL" to fetch the URL registered in ABDM sandbox.</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input id="bridge-url-input" type="text" style="flex:1;min-width:280px;height:36px;border:1.5px solid var(--border);border-radius:6px;padding:0 12px;font-size:13px;font-family:'DM Sans',sans-serif"
+              placeholder="https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-webhook"/>
+            <button class="btn-primary btn-sm" onclick="updateBridgeUrl()" style="height:36px;white-space:nowrap">Update URL</button>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px">
+            Expected: <code style="background:#f5f5f5;padding:2px 5px;border-radius:3px;font-size:11px">https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-webhook</code>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bridge services panel -->
+      <div class="cc" style="margin-bottom:16px">
+        <div class="cc-hd">
+          <span class="cc-title">Bridge Services (§3.2.7)</span>
+          <button class="btn-outline btn-sm" onclick="checkBridgeServices()">Fetch Services</button>
+        </div>
+        <div id="bridge-services-body" style="padding:14px 20px;font-size:13px;color:var(--text-muted)">
+          Lists all service IDs (facilities) linked to the bridge SBXID_033899. Click "Fetch Services".
+        </div>
+      </div>
+
+      <!-- abdm_callbacks recent log -->
+      <div class="cc">
+        <div class="cc-hd">
+          <span class="cc-title">Recent ABDM Callbacks</span>
+          <button class="btn-outline btn-sm" onclick="loadAbdmCallbacks()">Refresh</button>
+        </div>
+        <div id="abdm-callbacks-body" style="padding:14px 20px;font-size:13px;color:var(--text-muted)">
+          Shows last 20 callbacks received by the webhook. If empty after scanning, the bridge URL is wrong.
+        </div>
+      </div>
+    </div>
+
   </main>
 </div>
 
-<!-- NON-ADMIN DASHBOARD -->
-<div class="dashboard" id="dashboard" style="display:none">
-  <div class="welcome-banner">
-    <div class="welcome-left">
-      <div class="welcome-greeting">Good <span id="time-of-day">morning</span>, <span id="user-name">…</span></div>
-      <div class="welcome-date" id="today-date"></div>
-      <div class="role-badge"><span id="role-label"></span></div>
-    </div>
-    <div class="welcome-right" id="banner-action"></div>
-  </div>
-  <div class="d-section">
-    <div class="d-section-title">Today at a glance</div>
-    <div class="stats-grid" id="stats-grid"></div>
-  </div>
-  <div class="d-section">
-    <div class="d-section-title">Quick actions</div>
-    <div class="actions-grid" id="actions-grid"></div>
-  </div>
-  <div id="main-section"></div>
-</div>
 
 <div id="toast"></div>
 <script type="module" src="./js/pwa/register-sw.js"></script>
@@ -752,14 +788,28 @@ const tenant   = getCurrentTenant();
 const tenantId = getCurrentTenantId();
 const role     = getCurrentRole();
 if (!profile) { window.location.href = 'login.html'; }
-document.title = ((['super_admin','dept_admin'].includes(role)) ? 'Master Control' : 'Dashboard') + ' — ' + (tenant?.name || 'AyurXpert');
+document.title = 'Master Control — ' + (tenant?.name || 'AyurXpert');
 
 const todayStr   = new Date().toISOString().split('T')[0];
 const todayStart = todayStr + 'T00:00:00';
 const todayEnd   = todayStr + 'T23:59:59';
 
-if (['super_admin','dept_admin'].includes(role)) _bootMasterControl();
-else _bootDashboard();
+if (['super_admin','dept_admin'].includes(role)) {
+  _bootMasterControl();
+} else {
+  // Non-admin roles don't belong on admin.html — redirect to their home page
+  const ROLE_HOME = {
+    doctor:       'doctor.html',
+    receptionist: 'reception.html',
+    pharmacist:   'dispensaryPOS.html',
+    nurse:        'reception.html',
+    lab_tech:     'reports.html',
+    accountant:   'fee-admin.html',
+    therapist:    'therapist.html',
+    student:      'index.html',
+  };
+  window.location.replace(ROLE_HOME[role] || 'index.html');
+}
 
 // ════════════════════════════════════════════════
 // MASTER CONTROL BOOT
@@ -814,6 +864,7 @@ function _showSection(target, sub) {
   if (target==='subscription')   window.loadSubscription();
   if (target==='packages')       window.loadPackages();
   if (target==='modules')        window.loadModules();
+  if (target==='abdm-bridge')        window.loadAbdmCallbacks();
   if (target==='compliance-reports') {
     const today = new Date().toISOString().slice(0,7);
     document.getElementById('sdf-month').value    = today;
@@ -3346,11 +3397,10 @@ window.exportMonthlyCSV = function() {
   a.click();
 };
 
-// ════════════════════════════════════════════════
-// NON-ADMIN DASHBOARD
-// ════════════════════════════════════════════════
-async function _bootDashboard(){
-  document.getElementById('dashboard').style.display='';
+// (non-admin dashboard removed — non-admin roles are redirected on load)
+
+async function _bootDashboard_REMOVED(){
+  // placeholder to avoid reference errors during transition — safe to delete
   const h=new Date().getHours();
   document.getElementById('time-of-day').textContent=h<12?'morning':h<17?'afternoon':'evening';
   document.getElementById('user-name').textContent=(profile.full_name||'there').split(' ')[0];
@@ -4209,6 +4259,96 @@ window.exportNAMSTECSV = function() {
   a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
   a.download = `NAMSTE-morbidity-${document.getElementById('namste-month').value}.csv`;
   a.click();
+};
+
+// ── ABDM Bridge ───────────────────────────────────────────────────
+async function _abdmCall(action, extra = {}) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/abdm-auth`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+    body: JSON.stringify({ action, ...extra }),
+  });
+  return res.json();
+}
+
+window.checkBridgeUrl = async function() {
+  const el = document.getElementById('bridge-url-status');
+  el.textContent = 'Fetching from ABDM…';
+  const data = await _abdmCall('get_bridge_services');
+  const url = data?.bridge?.url ?? null;
+  const expected = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-webhook';
+  if (url) {
+    const ok = url === expected;
+    el.innerHTML = ok
+      ? `<span style="color:#16a34a;font-weight:600">✅ Correct: ${url}</span>`
+      : `<span style="color:#dc2626;font-weight:600">⚠️ WRONG URL registered:</span> <code style="background:#fff0f0;padding:2px 5px;border-radius:3px">${url}</code><br><span style="color:#dc2626;font-size:11px">This is why ABDM callbacks (Scan &amp; Share, consent) never reach AyurXpert. Update below.</span>`;
+    document.getElementById('bridge-url-input').value = url;
+  } else {
+    el.innerHTML = `<span style="color:#dc2626">Error: ${JSON.stringify(data)}</span>`;
+  }
+};
+
+window.updateBridgeUrl = async function() {
+  const url = document.getElementById('bridge-url-input').value.trim();
+  if (!url) { alert('Enter a URL first'); return; }
+  const el = document.getElementById('bridge-url-status');
+  el.textContent = 'Updating…';
+  const data = await _abdmCall('update_bridge_url', { url });
+  if (data?.status === 202 || data?.status === 200) {
+    el.innerHTML = `<span style="color:#16a34a;font-weight:600">✅ Updated! ABDM will now send callbacks to: ${url}</span>`;
+  } else {
+    el.innerHTML = `<span style="color:#dc2626">Error: ${JSON.stringify(data)}</span>`;
+  }
+};
+
+window.checkBridgeServices = async function() {
+  const el = document.getElementById('bridge-services-body');
+  el.textContent = 'Loading…';
+  const data = await _abdmCall('get_bridge_services');
+  const services = data?.services ?? [];
+  if (!services.length) { el.innerHTML = `<span style="color:var(--text-muted)">No services found. ${JSON.stringify(data)}</span>`; return; }
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#f5faf7">
+      <th style="padding:6px 10px;text-align:left">Service ID</th>
+      <th style="padding:6px 10px;text-align:left">Name</th>
+      <th style="padding:6px 10px;text-align:left">Types</th>
+      <th style="padding:6px 10px;text-align:left">Active</th>
+    </tr></thead>
+    <tbody>${services.map(s=>`<tr style="border-top:1px solid #eee">
+      <td style="padding:6px 10px;font-weight:600;color:var(--green-deep)">${s.id ?? ''}</td>
+      <td style="padding:6px 10px">${s.name ?? ''}</td>
+      <td style="padding:6px 10px">${(s.types??[]).join(', ')}</td>
+      <td style="padding:6px 10px">${s.active ? '✅' : '❌'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+};
+
+window.loadAbdmCallbacks = async function() {
+  const el = document.getElementById('abdm-callbacks-body');
+  el.textContent = 'Loading…';
+  const { data, error } = await supabase
+    .from('abdm_callbacks')
+    .select('id, callback_type, payload, created_at, processed')
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error) { el.textContent = 'Error: ' + error.message; return; }
+  if (!data?.length) {
+    el.innerHTML = '<span style="color:#dc2626;font-weight:600">⚠️ No callbacks received. If you scanned a QR and nothing shows here, the bridge URL is wrong.</span>';
+    return;
+  }
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#f5faf7">
+      <th style="padding:6px 10px;text-align:left">Time</th>
+      <th style="padding:6px 10px;text-align:left">Type</th>
+      <th style="padding:6px 10px;text-align:left">Processed</th>
+    </tr></thead>
+    <tbody>${data.map(c=>`<tr style="border-top:1px solid #eee">
+      <td style="padding:6px 10px;color:var(--text-muted)">${new Date(c.created_at).toLocaleTimeString()}</td>
+      <td style="padding:6px 10px;font-weight:600;color:var(--green-deep)">${c.callback_type}</td>
+      <td style="padding:6px 10px">${c.processed ? '✅' : '⏳'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
 };
 </script>
 

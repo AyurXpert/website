@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Nursing Module — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --red:#c0392b;--red-light:#fdecea;
+  --blue:#1a4080;--blue-light:#e3f0ff;
+  --purple:#5a1a8b;--purple-light:#f0e8ff;
+  --orange:#d35400;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page-wrap{max-width:1300px;margin:0 auto;padding:24px 20px 80px}
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.4px;margin-left:8px;vertical-align:middle}
+.btn{height:38px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}.btn-secondary:hover{background:var(--green-light)}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.alert.error{background:var(--red-light);color:#8b1a1a;border:1px solid #f5c6c6}
+
+/* Module tabs */
+.module-tabs{display:flex;gap:0;margin-bottom:20px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.module-tab{flex:1;padding:10px 6px;font-size:12px;font-weight:500;cursor:pointer;border:none;background:none;font-family:'DM Sans',sans-serif;color:var(--text-mid);border-right:1px solid var(--border);transition:all .15s;text-align:center}
+.module-tab:last-child{border-right:none}
+.module-tab.active{background:var(--green-deep);color:#fff;font-weight:600}
+.module-tab:hover:not(.active){background:var(--green-light)}
+
+/* Ward selector */
+.ward-bar{display:flex;align-items:center;gap:10px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:10px 16px;margin-bottom:16px;flex-wrap:wrap}
+.ward-bar select{height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;min-width:220px}
+.shift-pill{padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-mid)}
+.shift-pill.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
+
+/* Patient cards grid */
+.patient-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:20px}
+.patient-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;cursor:pointer;transition:border-color .15s}
+.patient-card:hover{border-color:var(--green-mid)}
+.patient-card.selected{border-color:var(--green-mid);background:var(--green-light)}
+.patient-card.has-alert{border-color:#e0c060;background:#fffef5}
+.pc-name{font-weight:700;font-size:14px;color:var(--text-dark)}
+.pc-bed{font-size:11px;color:var(--text-muted);margin-top:2px}
+.pc-diag{font-size:11px;color:var(--text-mid);margin-top:4px;font-style:italic}
+.pc-vitals{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.vital-chip{padding:2px 8px;border-radius:8px;font-size:10px;font-weight:600;background:var(--cream);border:1px solid var(--border)}
+.vital-chip.alert{background:var(--red-light);border-color:#f5c6c6;color:#8b1a1a}
+
+/* Two-panel */
+.nursing-layout{display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start}
+@media(max-width:900px){.nursing-layout{grid-template-columns:1fr}}
+.left-panel{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;position:sticky;top:70px}
+.panel-hdr{padding:12px 16px;background:var(--green-deep);color:#fff;font-weight:600;font-size:14px}
+.patient-list{max-height:calc(100vh-250px);overflow-y:auto}
+.pt-list-item{padding:12px 14px;border-bottom:1px solid #eee;cursor:pointer;transition:background .12s}
+.pt-list-item:hover{background:var(--cream)}
+.pt-list-item.active{background:var(--green-light);border-left:3px solid var(--green-mid)}
+.pt-li-name{font-weight:600;font-size:13px}
+.pt-li-meta{font-size:11px;color:var(--text-muted);margin-top:2px}
+.right-panel{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.rp-hdr{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.rp-pt-name{font-weight:700;font-size:16px;color:var(--green-deep)}
+.rp-meta{font-size:12px;color:var(--text-muted);margin-top:2px}
+.rp-body{padding:18px}
+.no-selection{padding:60px;text-align:center;color:var(--text-muted)}
+
+/* Section styling */
+.sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--green-mid);border-bottom:1.5px solid var(--border);padding-bottom:5px;margin:16px 0 12px}
+.sec:first-child{margin-top:0}
+.field-row{display:grid;gap:10px;margin-bottom:10px}
+.field-row.c2{grid-template-columns:1fr 1fr}
+.field-row.c3{grid-template-columns:1fr 1fr 1fr}
+.field-row.c4{grid-template-columns:1fr 1fr 1fr 1fr}
+.field label{font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:3px}
+.field input,.field select,.field textarea{width:100%;height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white)}
+.field textarea{height:56px;padding:8px 10px;resize:vertical}
+.field input:focus,.field select:focus{outline:none;border-color:var(--green-mid)}
+.vital-warning{color:var(--red);font-size:10px;font-weight:700;margin-top:2px}
+
+/* Vitals chart */
+.vitals-table{width:100%;border-collapse:collapse;font-size:12px}
+.vitals-table th{background:var(--cream);color:var(--text-muted);font-weight:600;font-size:11px;padding:6px 8px;text-align:center;border:1px solid var(--border)}
+.vitals-table td{padding:6px 8px;border:1px solid var(--border);text-align:center;font-size:11px}
+.vitals-table td.alert-val{color:var(--red);font-weight:700}
+.vitals-table tr:nth-child(even) td{background:#f9fdfb}
+
+/* MAR table */
+.mar-table{width:100%;border-collapse:collapse;font-size:12px}
+.mar-table th{background:var(--green-deep);color:#fff;padding:7px 10px;text-align:left;font-size:11px}
+.mar-table td{padding:7px 10px;border-bottom:1px solid var(--border);font-size:12px;vertical-align:middle}
+.mar-table tr:last-child td{border-bottom:none}
+.mar-status{display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700}
+.ms-given{background:var(--green-light);color:var(--green-deep)}
+.ms-held{background:#fff8e1;color:#7a5c00}
+.ms-refused{background:var(--red-light);color:#8b1a1a}
+.ms-due{background:#e3f0ff;color:#1a4080}
+
+/* I/O chart */
+.io-row{display:grid;grid-template-columns:120px 1fr 80px auto;gap:8px;align-items:center;margin-bottom:6px}
+.io-row input,.io-row select{height:32px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12px;font-family:'DM Sans',sans-serif;width:100%}
+.io-total{font-weight:700;font-size:14px}
+.io-total.positive{color:var(--blue)}
+.io-total.negative{color:var(--red)}
+
+/* Overlay */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto}
+.modal{background:var(--white);border-radius:10px;width:560px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,.22);margin:auto}
+.modal-hdr{background:var(--green-deep);color:#fff;padding:14px 20px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center}
+.modal-hdr-title{font-weight:600;font-size:15px}
+.modal-body{padding:20px;max-height:75vh;overflow-y:auto}
+.modal-foot{padding:12px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border)}
+
+/* Print */
+@media print{
+  .module-tabs,.ward-bar,.left-panel,.btn,#navbar-placeholder,.no-print{display:none!important}
+  .nursing-layout{display:block}
+  .right-panel{border:none}
+}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<div class="page-wrap">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Nursing Module <span class="ncism-badge">NCISM §7.5</span></div>
+      <div class="page-subtitle">IPD Nursing — Vitals Chart · MAR · Intake-Output · Nursing Notes · Shift Handover</div>
+    </div>
+    <div style="display:flex;gap:8px" class="no-print">
+      <button class="btn btn-secondary btn-sm" onclick="printNursingChart()">🖨 Print Chart</button>
+    </div>
+  </div>
+
+  <div id="alert-box" class="alert"></div>
+
+  <!-- Module tabs -->
+  <div class="module-tabs no-print">
+    <button class="module-tab active" onclick="switchTab('vitals',this)">📊 Vitals Chart</button>
+    <button class="module-tab" onclick="switchTab('mar',this)">💊 MAR</button>
+    <button class="module-tab" onclick="switchTab('io',this)">💧 Intake-Output</button>
+    <button class="module-tab" onclick="switchTab('notes',this)">📝 Nursing Notes</button>
+    <button class="module-tab" onclick="switchTab('handover',this)">🔄 Shift Handover</button>
+    <button class="module-tab" onclick="switchTab('ward-proc',this)">🩹 Ward Procedures</button>
+    <button class="module-tab" onclick="switchTab('risk',this)">⚠️ Risk Assessment</button>
+  </div>
+
+  <!-- Ward + Shift selector -->
+  <div class="ward-bar no-print">
+    <select id="ward-select" onchange="loadWardPatients()">
+      <option value="">— Select Ward / Department —</option>
+    </select>
+    <span style="font-size:12px;color:var(--text-muted)">Shift:</span>
+    <button class="shift-pill active" onclick="setShift(this,'morning')">🌅 Morning (6–2)</button>
+    <button class="shift-pill" onclick="setShift(this,'evening')">🌆 Evening (2–10)</button>
+    <button class="shift-pill" onclick="setShift(this,'night')">🌙 Night (10–6)</button>
+    <input type="date" id="nursing-date" style="height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif" onchange="loadWardPatients()"/>
+  </div>
+
+  <!-- Two-panel layout -->
+  <div class="nursing-layout">
+    <!-- Left: Patient list -->
+    <div class="left-panel no-print">
+      <div class="panel-hdr" style="display:flex;align-items:center;justify-content:space-between">
+        <span>IPD Patients</span>
+        <span id="pt-list-count" style="font-size:12px;opacity:.8">0</span>
+      </div>
+      <div class="patient-list" id="patient-list">
+        <div style="padding:20px;text-align:center;font-size:13px;color:var(--text-muted)">Select a ward to load patients</div>
+      </div>
+    </div>
+
+    <!-- Right: Nursing documentation panel -->
+    <div class="right-panel">
+      <div class="no-selection" id="no-patient-msg">
+        <div style="font-size:48px;margin-bottom:12px">🩺</div>
+        <div style="font-size:15px;font-weight:600;color:var(--text-mid)">Select a patient from the list</div>
+        <div style="font-size:12px;margin-top:6px;color:var(--text-muted)">Then choose Vitals / MAR / I-O / Notes / Handover</div>
+      </div>
+
+      <div id="patient-content" style="display:none">
+        <div class="rp-hdr">
+          <div>
+            <div class="rp-pt-name" id="rp-pt-name">—</div>
+            <div class="rp-meta" id="rp-pt-meta"></div>
+          </div>
+          <div style="display:flex;gap:8px" class="no-print">
+            <span id="rp-bed-badge" style="padding:3px 10px;border-radius:8px;font-size:11px;font-weight:700;background:var(--green-light);color:var(--green-deep)"></span>
+          </div>
+        </div>
+
+        <!-- TAB: Vitals Chart -->
+        <div id="tab-vitals" class="rp-body">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px" class="no-print">
+            <div style="font-size:13px;font-weight:600;color:var(--text-dark)">Record Vitals</div>
+            <button class="btn btn-primary btn-sm" onclick="saveVitals()">+ Record Now</button>
+          </div>
+          <div class="field-row c4 no-print">
+            <div class="field">
+              <label>Temp (°F)</label>
+              <input id="v-temp" type="number" step="0.1" placeholder="98.6"/>
+              <div class="vital-warning" id="w-temp"></div>
+            </div>
+            <div class="field">
+              <label>Pulse (bpm)</label>
+              <input id="v-pulse" type="number" placeholder="80" oninput="checkVital('pulse',this.value)"/>
+              <div class="vital-warning" id="w-pulse"></div>
+            </div>
+            <div class="field">
+              <label>RR (/min)</label>
+              <input id="v-rr" type="number" placeholder="16" oninput="checkVital('rr',this.value)"/>
+              <div class="vital-warning" id="w-rr"></div>
+            </div>
+            <div class="field">
+              <label>SpO₂ (%)</label>
+              <input id="v-spo2" type="number" placeholder="98" oninput="checkVital('spo2',this.value)"/>
+              <div class="vital-warning" id="w-spo2"></div>
+            </div>
+          </div>
+          <div class="field-row c4 no-print" style="margin-bottom:12px">
+            <div class="field">
+              <label>BP Systolic</label>
+              <input id="v-bps" type="number" placeholder="120" oninput="checkVital('bp',this.value)"/>
+            </div>
+            <div class="field">
+              <label>BP Diastolic</label>
+              <input id="v-bpd" type="number" placeholder="80"/>
+              <div class="vital-warning" id="w-bp"></div>
+            </div>
+            <div class="field">
+              <label>Blood Sugar (mg/dL)</label>
+              <input id="v-sugar" type="number" placeholder="100" oninput="checkVital('sugar',this.value)"/>
+              <div class="vital-warning" id="w-sugar"></div>
+            </div>
+            <div class="field">
+              <label>Weight (kg)</label>
+              <input id="v-weight" type="number" step="0.1" placeholder="60"/>
+            </div>
+          </div>
+          <!-- NABH COP.9 — Pain Score -->
+          <div class="field-row c2 no-print" style="margin-bottom:12px">
+            <div class="field">
+              <label style="display:flex;justify-content:space-between">
+                Pain Score (NRS 0–10)
+                <span id="v-pain-display" style="font-weight:700;color:#e74c3c"></span>
+              </label>
+              <input id="v-pain-score" type="range" min="0" max="10" step="1" style="width:100%;accent-color:#e74c3c;margin-top:4px" oninput="document.getElementById('v-pain-display').textContent=this.value"/>
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted)"><span>0 No pain</span><span>5 Moderate</span><span>10 Worst</span></div>
+            </div>
+            <div class="field">
+              <label>Nursing Observation</label>
+              <input id="v-obs" type="text" placeholder="Patient comfortable / restless / in pain / vomiting…"/>
+            </div>
+          </div>
+
+          <div class="sec">Vitals History (last 7 days)</div>
+          <div style="overflow-x:auto">
+            <table class="vitals-table">
+              <thead>
+                <tr><th>Date / Time</th><th>Temp °F</th><th>Pulse</th><th>RR</th><th>SpO₂ %</th><th>BP</th><th>Blood Sugar</th><th>Observation</th></tr>
+              </thead>
+              <tbody id="vitals-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TAB: MAR -->
+        <div id="tab-mar" class="rp-body" hidden>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px" class="no-print">
+            <div>
+              <div style="font-size:13px;font-weight:600">Medication Administration Record</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Medicines from latest prescription + IPD orders</div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openAddMar()">+ Add Medicine</button>
+          </div>
+          <div id="mar-content"></div>
+        </div>
+
+        <!-- TAB: Intake-Output -->
+        <div id="tab-io" class="rp-body" hidden>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px" class="no-print">
+            <div style="font-size:13px;font-weight:600">Intake-Output Chart (24 hrs)</div>
+            <div style="font-size:12px;color:var(--text-muted)">Date: <span id="io-date-label"></span></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+            <!-- Intake -->
+            <div>
+              <div class="sec" style="color:var(--blue)">💧 Intake (mL)</div>
+              <div id="intake-rows"></div>
+              <button class="btn btn-secondary btn-sm no-print" onclick="addIoRow('intake')" style="margin-top:6px">+ Add Intake</button>
+              <div style="margin-top:10px;padding:8px 12px;background:var(--blue-light);border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:12px;font-weight:600;color:#1a4080">Total Intake</span>
+                <span class="io-total positive" id="total-intake">0 mL</span>
+              </div>
+            </div>
+            <!-- Output -->
+            <div>
+              <div class="sec" style="color:var(--orange)">🪣 Output (mL)</div>
+              <div id="output-rows"></div>
+              <button class="btn btn-secondary btn-sm no-print" onclick="addIoRow('output')" style="margin-top:6px">+ Add Output</button>
+              <div style="margin-top:10px;padding:8px 12px;background:#fef5ec;border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:12px;font-weight:600;color:var(--orange)">Total Output</span>
+                <span class="io-total" id="total-output">0 mL</span>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:14px;padding:10px 16px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:13px;font-weight:700">Net Balance</span>
+            <span id="net-balance" style="font-size:18px;font-weight:700">0 mL</span>
+          </div>
+          <div class="no-print" style="margin-top:12px;display:flex;justify-content:flex-end">
+            <button class="btn btn-primary btn-sm" onclick="saveIo()">Save I/O Record</button>
+          </div>
+        </div>
+
+        <!-- TAB: Nursing Notes -->
+        <div id="tab-notes" class="rp-body" hidden>
+          <div class="no-print" style="margin-bottom:14px">
+            <div class="sec">New Nursing Note</div>
+            <div class="field-row c2">
+              <div class="field">
+                <label>Note Type</label>
+                <select id="note-type">
+                  <option value="general">General Observation</option>
+                  <option value="procedure">Procedure Done</option>
+                  <option value="medication">Medication Note</option>
+                  <option value="patient_education">Patient Education</option>
+                  <option value="family_communication">Family Communication</option>
+                  <option value="incident">Incident / Adverse Event</option>
+                  <option value="doctor_call">Doctor Called / Informed</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Time</label>
+                <input id="note-time" type="time"/>
+              </div>
+            </div>
+            <div class="field">
+              <label>Note</label>
+              <textarea id="note-text" placeholder="Describe nursing observation, care given, patient response, any concerns…" style="height:80px"></textarea>
+            </div>
+            <div style="margin-top:8px;display:flex;justify-content:flex-end">
+              <button class="btn btn-primary btn-sm" onclick="saveNote()">Save Note</button>
+            </div>
+          </div>
+          <div class="sec">Notes History</div>
+          <div id="notes-list"></div>
+        </div>
+
+        <!-- TAB: Shift Handover -->
+        <div id="tab-handover" class="rp-body" hidden>
+          <!-- NABH AAC.8 CORE — SBAR Structured Handover -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div>
+              <div class="sec" style="margin-bottom:2px">SBAR Shift Handover</div>
+              <div style="font-size:11px;color:var(--text-muted)">NABH AAC.8 CORE — Situation · Background · Assessment · Recommendation</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-secondary btn-sm" onclick="printHandover()">🖨 Print</button>
+              <button class="btn btn-primary btn-sm" onclick="saveHandover()">Save Handover</button>
+            </div>
+          </div>
+
+          <div class="field-row c2" style="margin-bottom:10px">
+            <div class="field">
+              <label>Outgoing Nurse *</label>
+              <input id="ho-out-nurse" type="text" placeholder="Your name"/>
+            </div>
+            <div class="field">
+              <label>Incoming Nurse *</label>
+              <input id="ho-in-nurse" type="text" placeholder="Incoming nurse's name"/>
+            </div>
+          </div>
+
+          <!-- S — Situation -->
+          <div style="border:1.5px solid #b8ddc6;border-radius:8px;margin-bottom:8px;overflow:hidden">
+            <div style="background:#e8f5ee;padding:8px 14px;display:flex;align-items:center;gap:8px">
+              <span style="background:var(--green-deep);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">S</span>
+              <span style="font-weight:600;font-size:13px;color:var(--green-deep)">Situation — Current patient status</span>
+            </div>
+            <div style="padding:10px 14px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div class="field">
+                <label>Patient Condition</label>
+                <select id="ho-condition">
+                  <option value="stable">Stable — no change</option>
+                  <option value="improving">Improving</option>
+                  <option value="deteriorating">⚠ Deteriorating — monitor closely</option>
+                  <option value="critical">🔴 Critical — immediate attention</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Current Vitals Summary</label>
+                <input id="ho-vitals" type="text" placeholder="T 98.6 · P 78 · BP 120/80 · SpO2 98%"/>
+              </div>
+              <div class="field" style="grid-column:span 2">
+                <label>Reason for current admission / presenting problem</label>
+                <input id="ho-situation" type="text" placeholder="e.g. Admitted for Vata-Kaphaja Amavata, Day 3 of Panchakarma — Abhyanga + Basti"/>
+              </div>
+            </div>
+          </div>
+
+          <!-- B — Background -->
+          <div style="border:1.5px solid #a8c8f0;border-radius:8px;margin-bottom:8px;overflow:hidden">
+            <div style="background:#e3f0ff;padding:8px 14px;display:flex;align-items:center;gap:8px">
+              <span style="background:#1a4080;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">B</span>
+              <span style="font-weight:600;font-size:13px;color:#1a4080">Background — Relevant history</span>
+            </div>
+            <div style="padding:10px 14px">
+              <textarea id="ho-background" style="width:100%;height:54px;border:1.5px solid var(--border);border-radius:7px;padding:6px 10px;font-size:12px;font-family:inherit;resize:none" placeholder="Relevant medical history, allergies, current medications, significant investigations, care plan goals…"></textarea>
+            </div>
+          </div>
+
+          <!-- A — Assessment -->
+          <div style="border:1.5px solid #e8d08a;border-radius:8px;margin-bottom:8px;overflow:hidden">
+            <div style="background:#fffdf0;padding:8px 14px;display:flex;align-items:center;gap:8px">
+              <span style="background:#7a4a00;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">A</span>
+              <span style="font-weight:600;font-size:13px;color:#7a4a00">Assessment — Clinical concerns &amp; events this shift</span>
+            </div>
+            <div style="padding:10px 14px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div class="field">
+                <label>Key Events This Shift</label>
+                <textarea id="ho-events" style="height:50px;border:1.5px solid var(--border);border-radius:7px;padding:6px 10px;font-size:12px;font-family:inherit;resize:none;width:100%" placeholder="Falls, procedures, doctor visits, condition changes, alerts raised…"></textarea>
+              </div>
+              <div class="field">
+                <label>Pending Medications / Treatments</label>
+                <textarea id="ho-pending-meds" style="height:50px;border:1.5px solid var(--border);border-radius:7px;padding:6px 10px;font-size:12px;font-family:inherit;resize:none;width:100%" placeholder="Medications due, IV fluids running, procedures scheduled…"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- R — Recommendation -->
+          <div style="border:1.5px solid #f5b8b8;border-radius:8px;margin-bottom:12px;overflow:hidden">
+            <div style="background:#fff3f3;padding:8px 14px;display:flex;align-items:center;gap:8px">
+              <span style="background:#8b1a1a;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0">R</span>
+              <span style="font-weight:600;font-size:13px;color:#8b1a1a">Recommendation — Instructions for next shift</span>
+            </div>
+            <div style="padding:10px 14px">
+              <textarea id="ho-instructions" style="width:100%;height:54px;border:1.5px solid var(--border);border-radius:7px;padding:6px 10px;font-size:12px;font-family:inherit;resize:none" placeholder="Watch for: fever spikes, urine output, BP changes. Dressings due at 6am. IV to complete by 8am. Inform doctor if pain score >7…"></textarea>
+            </div>
+          </div>
+
+          <div class="sec" style="margin-top:4px">Previous Handovers</div>
+          <div id="handover-list"></div>
+        </div>
+
+        <!-- ── §21k WARD PROCEDURES TAB ── -->
+        <div id="tab-ward-proc" class="rp-body" hidden>
+          <div class="sec">Log Ward Procedure</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">NCISM §44(7) — Each ward shall have an attached procedural room. Procedures performed must be logged.</div>
+          <div class="field-row c2">
+            <div class="field">
+              <label>Procedure Date</label>
+              <input id="wp-date" type="date"/>
+            </div>
+            <div class="field">
+              <label>Time</label>
+              <input id="wp-time" type="time"/>
+            </div>
+          </div>
+          <div class="field">
+            <label>Procedure Name</label>
+            <input id="wp-procedure" type="text" placeholder="e.g. IV cannula insertion, dressing change, urinary catheterisation, NG tube…"/>
+          </div>
+          <div class="field-row c2">
+            <div class="field">
+              <label>Done By (Designation)</label>
+              <select id="wp-designation">
+                <option value="nurse">Nurse</option>
+                <option value="intern">Intern</option>
+                <option value="resident">Resident Doctor</option>
+                <option value="senior_resident">Senior Resident</option>
+                <option value="consultant">Consultant</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Outcome</label>
+              <select id="wp-outcome">
+                <option value="successful">Successful</option>
+                <option value="partial">Partial — needs repeat</option>
+                <option value="failed">Failed — alternative done</option>
+                <option value="complication">Complication occurred</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label>Notes</label>
+            <textarea id="wp-notes" placeholder="Details, patient tolerance, post-procedure observations…"></textarea>
+          </div>
+          <div style="margin-top:10px;display:flex;gap:10px;justify-content:flex-end" class="no-print">
+            <button class="btn btn-primary btn-sm" onclick="saveWardProcedure()">Log Procedure</button>
+          </div>
+          <div class="sec" style="margin-top:16px">Procedure Log — This Admission</div>
+          <div id="ward-proc-list"><div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px">No procedures logged yet.</div></div>
+        </div>
+
+        <!-- TAB: Risk Assessment (NABH) -->
+        <div id="tab-risk" class="rp-body" hidden>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+            <!-- Morse Fall Scale -->
+            <div style="background:#fff8e1;border:1.5px solid #f4d03f;border-radius:10px;padding:16px">
+              <div style="font-weight:600;font-size:14px;color:#7a4a00;margin-bottom:12px">🏃 Morse Fall Scale <span style="font-size:11px;font-weight:400;color:#a07000">NABH Standard</span></div>
+              <table style="width:100%;font-size:12px;border-collapse:collapse">
+                <tr style="background:#fffdf0"><td style="padding:6px 8px;border-bottom:1px solid #f4d03f;font-weight:600">History of falling</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid #f4d03f"><select id="morse-fall-hist" onchange="calcMorse()" style="width:100%;border:1px solid #ddd;border-radius:5px;padding:3px 6px;font-size:12px;font-family:inherit"><option value="0">No (0)</option><option value="25">Yes (25)</option></select></td></tr>
+                <tr><td style="padding:6px 8px;border-bottom:1px solid #f4d03f;font-weight:600">Secondary diagnosis</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid #f4d03f"><select id="morse-sec-dx" onchange="calcMorse()" style="width:100%;border:1px solid #ddd;border-radius:5px;padding:3px 6px;font-size:12px;font-family:inherit"><option value="0">No (0)</option><option value="15">Yes (15)</option></select></td></tr>
+                <tr style="background:#fffdf0"><td style="padding:6px 8px;border-bottom:1px solid #f4d03f;font-weight:600">Ambulatory aid</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid #f4d03f"><select id="morse-aid" onchange="calcMorse()" style="width:100%;border:1px solid #ddd;border-radius:5px;padding:3px 6px;font-size:12px;font-family:inherit"><option value="0">None / Bed rest (0)</option><option value="15">Crutches/Cane/Walker (15)</option><option value="30">Furniture (30)</option></select></td></tr>
+                <tr><td style="padding:6px 8px;border-bottom:1px solid #f4d03f;font-weight:600">IV / Heparin lock</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid #f4d03f"><select id="morse-iv" onchange="calcMorse()" style="width:100%;border:1px solid #ddd;border-radius:5px;padding:3px 6px;font-size:12px;font-family:inherit"><option value="0">No (0)</option><option value="25">Yes (25)</option></select></td></tr>
+                <tr style="background:#fffdf0"><td style="padding:6px 8px;border-bottom:1px solid #f4d03f;font-weight:600">Gait / Transferring</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid #f4d03f"><select id="morse-gait" onchange="calcMorse()" style="width:100%;border:1px solid #ddd;border-radius:5px;padding:3px 6px;font-size:12px;font-family:inherit"><option value="0">Normal / Bedrest (0)</option><option value="10">Weak (10)</option><option value="20">Impaired (20)</option></select></td></tr>
+                <tr><td style="padding:6px 8px;font-weight:600">Mental status</td>
+                  <td style="padding:6px 8px"><select id="morse-mental" onchange="calcMorse()" style="width:100%;border:1px solid #ddd;border-radius:5px;padding:3px 6px;font-size:12px;font-family:inherit"><option value="0">Oriented to ability (0)</option><option value="15">Overestimates / forgets (15)</option></select></td></tr>
+              </table>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:10px;background:#fff;border-radius:8px;border:1.5px solid #f4d03f">
+                <span style="font-weight:600;font-size:13px">Total Score:</span>
+                <span id="morse-score" style="font-size:22px;font-weight:700;color:#7a4a00">0</span>
+                <span id="morse-risk-label" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:10px;background:#e8f5ee;color:#1a4a2e">Low Risk</span>
+              </div>
+              <div style="font-size:10px;color:#a07000;margin-top:4px">Low &lt;25 · Medium 25–44 · High ≥45</div>
+            </div>
+
+            <!-- Braden Pressure Ulcer Scale -->
+            <div style="background:#e8f5ee;border:1.5px solid #b8ddc6;border-radius:10px;padding:16px">
+              <div style="font-weight:600;font-size:14px;color:var(--green-deep);margin-bottom:12px">🛏 Braden Scale (Pressure Ulcer) <span style="font-size:11px;font-weight:400;color:var(--text-muted)">NABH Standard</span></div>
+              <table style="width:100%;font-size:12px;border-collapse:collapse">
+                <tr style="background:#f5faf7"><td style="padding:6px 8px;border-bottom:1px solid #b8ddc6;font-weight:600">Sensory Perception</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid #b8ddc6"><select id="braden-sensory" onchange="calcBraden()" style="width:100%;border:1px solid #ddd;border-radius:5px;padding:3px 6px;font-size:12px;font-family:inherit"><option value="1">Completely limited (1)</option><option value="2">Very limited (2)</option><option value="3">Slightly limited (3)</option><option value="4" selected>No impairment (4)</option></select></td></tr>
+                <tr><td style="padding:6px 8px;border-bottom:1px solid #b8ddc6;font-weight:600">Moisture</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid #b8ddc6"><select id="braden-moisture" onchange="calcBraden()" style="width:100%;border:1px solid #ddd;border-radius:5px;padding:3px 6px;font-size:12px;font-family:inherit"><option value="1">Constantly moist (1)</option><option value="2">Very moist (2)</option><option value="3">Occasionally moist (3)</option><option value="4" selected>Rarely moist (4)</option></select></td></tr>
+                <tr style="background:#f5faf7"><td style="padding:6px 8px;border-bottom:1px solid #b8ddc6;font-weight:600">Activity</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid #b8ddc6"><select id="braden-activity" onchange="calcBraden()" style="width:100%;border:1px solid #ddd;border-radius:5px;padding:3px 6px;font-size:12px;font-family:inherit"><option value="1">Bedfast (1)</option><option value="2">Chairfast (2)</option><option value="3">Walks occasionally (3)</option><option value="4" selected>Walks frequently (4)</option></select></td></tr>
+                <tr><td style="padding:6px 8px;border-bottom:1px solid #b8ddc6;font-weight:600">Mobility</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid #b8ddc6"><select id="braden-mobility" onchange="calcBraden()" style="width:100%;border:1px solid #ddd;border-radius:5px;padding:3px 6px;font-size:12px;font-family:inherit"><option value="1">Completely immobile (1)</option><option value="2">Very limited (2)</option><option value="3">Slightly limited (3)</option><option value="4" selected>No limitation (4)</option></select></td></tr>
+                <tr style="background:#f5faf7"><td style="padding:6px 8px;border-bottom:1px solid #b8ddc6;font-weight:600">Nutrition</td>
+                  <td style="padding:6px 8px;border-bottom:1px solid #b8ddc6"><select id="braden-nutrition" onchange="calcBraden()" style="width:100%;border:1px solid #ddd;border-radius:5px;padding:3px 6px;font-size:12px;font-family:inherit"><option value="1">Very poor (1)</option><option value="2">Probably inadequate (2)</option><option value="3">Adequate (3)</option><option value="4" selected>Excellent (4)</option></select></td></tr>
+                <tr><td style="padding:6px 8px;font-weight:600">Friction &amp; Shear</td>
+                  <td style="padding:6px 8px"><select id="braden-friction" onchange="calcBraden()" style="width:100%;border:1px solid #ddd;border-radius:5px;padding:3px 6px;font-size:12px;font-family:inherit"><option value="1">Problem (1)</option><option value="2">Potential problem (2)</option><option value="3" selected>No apparent problem (3)</option></select></td></tr>
+              </table>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:10px;background:#fff;border-radius:8px;border:1.5px solid #b8ddc6">
+                <span style="font-weight:600;font-size:13px">Total Score:</span>
+                <span id="braden-score" style="font-size:22px;font-weight:700;color:var(--green-deep)">23</span>
+                <span id="braden-risk-label" style="font-size:12px;font-weight:600;padding:3px 10px;border-radius:10px;background:#e8f5ee;color:#1a4a2e">No Risk</span>
+              </div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:4px">High Risk ≤9 · Medium 10–12 · Low 13–14 · No Risk ≥15</div>
+            </div>
+          </div>
+
+          <!-- Interventions + Save -->
+          <div style="margin-top:16px;padding:14px;background:#fff;border:1.5px solid var(--border);border-radius:10px">
+            <div style="font-weight:600;font-size:13px;color:var(--green-deep);margin-bottom:8px">Care Plan Interventions</div>
+            <textarea id="risk-interventions" placeholder="Fall prevention measures, pressure ulcer care plan, bed rails raised, non-slip footwear, repositioning schedule, pressure-relieving mattress…" style="width:100%;min-height:64px;border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;font-family:inherit;box-sizing:border-box"></textarea>
+            <div style="margin-top:10px;display:flex;gap:10px;align-items:center">
+              <button onclick="saveRiskAssessment('morse_fall')" style="height:36px;padding:0 18px;background:#e67e22;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Save Fall Risk</button>
+              <button onclick="saveRiskAssessment('braden')" style="height:36px;padding:0 18px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Save Braden Score</button>
+              <span id="risk-saved-msg" style="display:none;font-size:12px;color:var(--green-mid);font-weight:600">✅ Saved</span>
+            </div>
+          </div>
+
+          <div class="sec" style="margin-top:16px">Assessment History</div>
+          <div id="risk-history"><div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px">No assessments recorded yet.</div></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add MAR Medicine Modal -->
+<div class="overlay" id="mar-modal-overlay" style="display:none" onclick="if(event.target===this)closeAddMar()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-hdr-title">Add Medicine to MAR</div>
+      <button onclick="closeAddMar()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row c2">
+        <div class="field"><label>Medicine Name</label><input id="mar-med-name" type="text" placeholder="Medicine / formulation name"/></div>
+        <div class="field"><label>Dose</label><input id="mar-dose" type="text" placeholder="e.g. 1 tab, 5 mL, 2 drops"/></div>
+      </div>
+      <div class="field-row c2">
+        <div class="field"><label>Route</label>
+          <select id="mar-route">
+            <option value="oral">Oral</option><option value="iv">IV</option>
+            <option value="im">IM</option><option value="sc">SC</option>
+            <option value="nasal">Nasal</option><option value="topical">Topical</option>
+            <option value="rectal">Rectal</option><option value="sublingual">Sublingual</option>
+          </select>
+        </div>
+        <div class="field"><label>Frequency</label>
+          <select id="mar-freq">
+            <option value="once_daily">Once daily (OD)</option>
+            <option value="twice_daily">Twice daily (BD)</option>
+            <option value="thrice_daily">Thrice daily (TDS)</option>
+            <option value="four_times">Four times (QID)</option>
+            <option value="sos">SOS / As needed</option>
+            <option value="stat">STAT (once)</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row c2">
+        <div class="field"><label>Start Date</label><input id="mar-start" type="date"/></div>
+        <div class="field"><label>End Date (if known)</label><input id="mar-end" type="date"/></div>
+      </div>
+      <div class="field"><label>Instructions / Special Notes</label>
+        <input id="mar-instructions" type="text" placeholder="Before food, after food, with warm water, dilute before IV…"/>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button onclick="closeAddMar()" class="btn btn-secondary btn-sm">Cancel</button>
+      <button onclick="saveMarMed()" class="btn btn-primary btn-sm">Add to MAR</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './js/config/constants.js';
+import { requireAuth, getCurrentProfile, getCurrentTenant } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+
+requireAuth(['nurse','super_admin','dept_admin','doctor']);
+initNavbar();
+
+const supabase  = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const profile   = getCurrentProfile();
+const tenant    = getCurrentTenant();
+const tenantId  = tenant?.id;
+const userId    = profile?.id;
+
+let _admissions = [];
+let _activeAdm  = null;
+let _activeTab  = 'vitals';
+let _shift      = 'morning';
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.getElementById('nursing-date').value = new Date().toISOString().slice(0,10);
+document.getElementById('io-date-label').textContent = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+
+// Load departments for ward selector
+const { data: depts } = await supabase.from('departments')
+  .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true).order('name');
+const wardSel = document.getElementById('ward-select');
+(depts||[]).forEach(d => {
+  const opt = document.createElement('option');
+  opt.value = d.id; opt.textContent = d.name + (d.ncism_code ? ' ('+d.ncism_code+')' : '');
+  wardSel.appendChild(opt);
+});
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+window.switchTab = function(tab, el) {
+  document.querySelectorAll('.module-tab').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  _activeTab = tab;
+  ['vitals','mar','io','notes','handover','ward-proc','risk'].forEach(t => {
+    const el = document.getElementById('tab-'+t);
+    if (el) el.hidden = t !== tab;
+  });
+  if (tab === 'ward-proc') {
+    document.getElementById('wp-date').value = new Date().toISOString().slice(0,10);
+    loadWardProcedures();
+  }
+  if (tab === 'risk') loadRiskHistory();
+  if (_activeAdm) loadTabData(tab);
+};
+
+window.setShift = function(el, shift) {
+  document.querySelectorAll('.shift-pill').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  _shift = shift;
+};
+
+// ── Load patients in ward ─────────────────────────────────────────────────────
+window.loadWardPatients = async function() {
+  const deptId = document.getElementById('ward-select').value;
+  if (!deptId) return;
+  const { data } = await supabase.from('ipd_admissions')
+    .select('id,admission_date,diagnosis_primary,patients(id,name,age,gender,phone),beds(bed_number,ward_name)')
+    .eq('tenant_id', tenantId).eq('department_id', deptId).eq('status','admitted')
+    .order('admission_date');
+  _admissions = data || [];
+  document.getElementById('pt-list-count').textContent = _admissions.length;
+  const list = document.getElementById('patient-list');
+  if (!_admissions.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;font-size:13px;color:var(--text-muted)">No admitted patients in this ward</div>';
+    return;
+  }
+  list.innerHTML = _admissions.map(a => `
+    <div class="pt-list-item${_activeAdm?.id===a.id?' active':''}" onclick="selectPatient('${a.id}')">
+      <div class="pt-li-name">${a.patients?.name||'—'}</div>
+      <div class="pt-li-meta">
+        Bed ${a.beds?.bed_number||'?'} · ${a.patients?.age||'?'}/${(a.patients?.gender||'').charAt(0).toUpperCase()||'?'} · Day ${_daysSince(a.admission_date)}
+      </div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px;font-style:italic">${a.diagnosis_primary||'—'}</div>
+    </div>`).join('');
+};
+
+window.selectPatient = function(id) {
+  _activeAdm = _admissions.find(a => a.id === id);
+  if (!_activeAdm) return;
+  document.getElementById('no-patient-msg').style.display = 'none';
+  document.getElementById('patient-content').style.display = 'block';
+  document.getElementById('rp-pt-name').textContent = _activeAdm.patients?.name || '—';
+  document.getElementById('rp-pt-meta').textContent =
+    `Age ${_activeAdm.patients?.age||'?'} · ${(_activeAdm.patients?.gender||'').charAt(0).toUpperCase()||'?'} · ${_activeAdm.diagnosis_primary||'—'} · Admitted ${_fmtDate(_activeAdm.admission_date)}`;
+  document.getElementById('rp-bed-badge').textContent = 'Bed ' + (_activeAdm.beds?.bed_number||'—');
+  loadWardPatients(); // refresh active state
+  loadTabData(_activeTab);
+};
+
+function loadTabData(tab) {
+  if (tab === 'vitals')   loadVitals();
+  if (tab === 'mar')      loadMar();
+  if (tab === 'io')       loadIo();
+  if (tab === 'notes')    loadNotes();
+  if (tab === 'handover') loadHandovers();
+}
+
+// ── Vitals Chart ──────────────────────────────────────────────────────────────
+const VITAL_LIMITS = {
+  pulse:  { low:40, high:130, msg:'Pulse abnormal' },
+  rr:     { low:8,  high:30,  msg:'Respiratory rate abnormal' },
+  spo2:   { low:90, high:null,msg:'SpO₂ low — check oxygen' },
+  bp:     { low:80, high:180, msg:'BP abnormal' },
+  sugar:  { low:60, high:400, msg:'Blood sugar critical' },
+};
+
+window.checkVital = function(name, val) {
+  const v = parseFloat(val);
+  const lim = VITAL_LIMITS[name];
+  const el = document.getElementById('w-'+name);
+  if (!el || !lim || isNaN(v)) { if(el) el.textContent=''; return; }
+  if ((lim.low !== null && v < lim.low) || (lim.high !== null && v > lim.high))
+    el.textContent = '⚠ ' + lim.msg;
+  else el.textContent = '';
+};
+
+window.saveVitals = async function() {
+  if (!_activeAdm) return;
+  const payload = {
+    tenant_id:      tenantId,
+    admission_id:   _activeAdm.id,
+    patient_id:     _activeAdm.patients?.id,
+    recorded_by:    userId,
+    recorded_at:    new Date().toISOString(),
+    shift:          _shift,
+    temperature:    parseFloat(document.getElementById('v-temp').value) || null,
+    pulse:          parseInt(document.getElementById('v-pulse').value) || null,
+    respiratory_rate:parseInt(document.getElementById('v-rr').value) || null,
+    spo2:           parseInt(document.getElementById('v-spo2').value) || null,
+    bp_systolic:    parseInt(document.getElementById('v-bps').value) || null,
+    bp_diastolic:   parseInt(document.getElementById('v-bpd').value) || null,
+    blood_sugar:    parseFloat(document.getElementById('v-sugar').value) || null,
+    weight:         parseFloat(document.getElementById('v-weight').value) || null,
+    observation:    document.getElementById('v-obs').value.trim() || null,
+    pain_score:     document.getElementById('v-pain-score').value !== '' ? parseInt(document.getElementById('v-pain-score').value) : null,
+  };
+  const { error } = await supabase.from('nursing_vitals').insert(payload);
+  if (error) { _alert('error', error.message); return; }
+  _alert('success', 'Vitals recorded.');
+  ['v-temp','v-pulse','v-rr','v-spo2','v-bps','v-bpd','v-sugar','v-weight','v-obs'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value='';
+  });
+  ['w-pulse','w-rr','w-spo2','w-bp','w-sugar'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.textContent='';
+  });
+  loadVitals();
+};
+
+async function loadVitals() {
+  const since = new Date(Date.now() - 7*24*3600*1000).toISOString();
+  const { data } = await supabase.from('nursing_vitals')
+    .select('*').eq('admission_id', _activeAdm.id)
+    .gte('recorded_at', since).order('recorded_at', { ascending:false });
+  const tbody = document.getElementById('vitals-tbody');
+  if (!data?.length) { tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:16px;color:var(--text-muted)">No vitals recorded yet</td></tr>'; return; }
+  tbody.innerHTML = data.map(v => `<tr>
+    <td>${new Date(v.recorded_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})} ${new Date(v.recorded_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</td>
+    <td>${v.temperature||'—'}</td>
+    <td class="${v.pulse&&(v.pulse<40||v.pulse>130)?'alert-val':''}">${v.pulse||'—'}</td>
+    <td class="${v.respiratory_rate&&(v.respiratory_rate<8||v.respiratory_rate>30)?'alert-val':''}">${v.respiratory_rate||'—'}</td>
+    <td class="${v.spo2&&v.spo2<90?'alert-val':''}">${v.spo2||'—'}</td>
+    <td class="${v.bp_systolic&&(v.bp_systolic<80||v.bp_systolic>180)?'alert-val':''}">${v.bp_systolic&&v.bp_diastolic?v.bp_systolic+'/'+v.bp_diastolic:'—'}</td>
+    <td class="${v.blood_sugar&&(v.blood_sugar<60||v.blood_sugar>400)?'alert-val':''}">${v.blood_sugar||'—'}</td>
+    <td style="font-size:11px">${v.observation||'—'}</td>
+  </tr>`).join('');
+}
+
+// ── MAR ───────────────────────────────────────────────────────────────────────
+async function loadMar() {
+  const today = new Date().toISOString().slice(0,10);
+  const { data: meds } = await supabase.from('nursing_mar')
+    .select('*').eq('admission_id', _activeAdm.id).eq('is_active', true).order('created_at');
+  const { data: given } = await supabase.from('nursing_mar_given')
+    .select('*').eq('admission_id', _activeAdm.id).gte('given_at', today+'T00:00').order('given_at', {ascending:false});
+
+  const FREQ_TIMES = {
+    once_daily:['08:00'], twice_daily:['08:00','20:00'], thrice_daily:['08:00','14:00','20:00'],
+    four_times:['08:00','12:00','16:00','20:00'], sos:['SOS'], stat:['STAT'], other:['As ordered']
+  };
+
+  if (!meds?.length) {
+    document.getElementById('mar-content').innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-muted)">No medicines in MAR yet. Click "+ Add Medicine" to add.</div>`;
+    return;
+  }
+
+  const rows = meds.map(m => {
+    const times = FREQ_TIMES[m.frequency] || ['—'];
+    const timeCols = times.map(t => {
+      const rec = (given||[]).find(g => g.mar_id === m.id && g.scheduled_time === t);
+      const status = rec?.status || 'due';
+      return `<td><span class="mar-status ms-${status}">${{given:'Given',held:'Held',refused:'Refused',due:'Due'}[status]||status}</span>
+        ${status==='due' && t!=='SOS'&&t!=='STAT' ? `<br><button onclick="markGiven('${m.id}','${t}')" style="font-size:10px;padding:2px 6px;border-radius:4px;background:#1a4a2e;color:#fff;border:none;cursor:pointer;margin-top:3px">✓ Give</button>` : ''}</td>`;
+    }).join('');
+    return `<tr>
+      <td><div style="font-weight:600">${m.medicine_name}</div><div style="font-size:10px;color:var(--text-muted)">${m.dose} · ${m.route} · ${m.frequency?.replace(/_/g,' ')}</div>${m.instructions?`<div style="font-size:10px;color:var(--text-mid)">${m.instructions}</div>`:''}</td>
+      ${timeCols}
+    </tr>`;
+  }).join('');
+
+  const allTimes = [...new Set(meds.flatMap(m => (FREQ_TIMES[m.frequency]||['—'])))];
+  document.getElementById('mar-content').innerHTML = `<div style="overflow-x:auto"><table class="mar-table">
+    <thead><tr><th>Medicine</th>${allTimes.map(t=>`<th>${t}</th>`).join('')}</tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+window.markGiven = async function(marId, time) {
+  if (!_activeAdm) return;
+  const { error } = await supabase.from('nursing_mar_given').insert({
+    tenant_id:      tenantId,
+    admission_id:   _activeAdm.id,
+    mar_id:         marId,
+    given_by:       userId,
+    given_at:       new Date().toISOString(),
+    scheduled_time: time,
+    status:         'given',
+  });
+  if (error) { _alert('error', error.message); return; }
+  loadMar();
+};
+
+window.openAddMar = function() {
+  document.getElementById('mar-start').value = new Date().toISOString().slice(0,10);
+  document.getElementById('mar-modal-overlay').style.display = 'flex';
+};
+window.closeAddMar = function() { document.getElementById('mar-modal-overlay').style.display = 'none'; };
+
+window.saveMarMed = async function() {
+  if (!_activeAdm) return;
+  const { error } = await supabase.from('nursing_mar').insert({
+    tenant_id:     tenantId,
+    admission_id:  _activeAdm.id,
+    medicine_name: document.getElementById('mar-med-name').value.trim(),
+    dose:          document.getElementById('mar-dose').value.trim(),
+    route:         document.getElementById('mar-route').value,
+    frequency:     document.getElementById('mar-freq').value,
+    start_date:    document.getElementById('mar-start').value || null,
+    end_date:      document.getElementById('mar-end').value || null,
+    instructions:  document.getElementById('mar-instructions').value.trim() || null,
+    added_by:      userId,
+    is_active:     true,
+  });
+  if (error) { _alert('error', error.message); return; }
+  _alert('success', 'Medicine added to MAR.');
+  closeAddMar();
+  loadMar();
+};
+
+// ── Intake-Output ─────────────────────────────────────────────────────────────
+let _ioRows = { intake:[], output:[] };
+
+function addIoRowHtml(type, label='', vol='') {
+  const id = Date.now() + Math.random();
+  const row = document.createElement('div');
+  row.className = 'io-row';
+  row.id = 'io-row-'+id;
+  const sources = type==='intake'
+    ? ['Oral Fluids','IV Fluids','NG Feeds','Blood Transfusion','Other']
+    : ['Urine','Vomitus','Stool','Drain','Blood Loss','Other'];
+  row.innerHTML = `
+    <select style="height:32px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:11px;font-family:'DM Sans',sans-serif;width:100%">
+      ${sources.map(s=>`<option${s===label?' selected':''}>${s}</option>`).join('')}
+    </select>
+    <input type="number" placeholder="Volume (mL)" value="${vol}" oninput="calcIoTotals()" style="height:32px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12px;font-family:'DM Sans',sans-serif;width:100%"/>
+    <span style="font-size:11px;color:var(--text-muted)">mL</span>
+    <button onclick="document.getElementById('io-row-${id}').remove();calcIoTotals()" style="height:30px;width:28px;background:var(--red-light);border:1px solid #f5c6c6;border-radius:6px;cursor:pointer;font-size:12px;color:var(--red)">✕</button>`;
+  document.getElementById(type+'-rows').appendChild(row);
+  calcIoTotals();
+}
+
+window.addIoRow = addIoRowHtml;
+
+window.calcIoTotals = function() {
+  const sum = id => [...document.querySelectorAll(`#${id}-rows input[type=number]`)].reduce((s,i)=>s+(parseFloat(i.value)||0),0);
+  const tin = sum('intake'), tout = sum('output'), net = tin - tout;
+  document.getElementById('total-intake').textContent = tin + ' mL';
+  document.getElementById('total-output').textContent = tout + ' mL';
+  const nb = document.getElementById('net-balance');
+  nb.textContent = (net>=0?'+':'')+net + ' mL';
+  nb.style.color = net < -500 ? 'var(--red)' : net > 500 ? 'var(--blue)' : 'var(--text-dark)';
+};
+
+async function loadIo() {
+  const today = new Date().toISOString().slice(0,10);
+  const { data } = await supabase.from('nursing_io')
+    .select('*').eq('admission_id', _activeAdm.id).eq('record_date', today)
+    .order('created_at', {ascending:false}).limit(1).maybeSingle();
+
+  document.getElementById('intake-rows').innerHTML = '';
+  document.getElementById('output-rows').innerHTML = '';
+  if (data?.intake_items) data.intake_items.forEach(r => addIoRowHtml('intake', r.source, r.volume));
+  else addIoRowHtml('intake');
+  if (data?.output_items) data.output_items.forEach(r => addIoRowHtml('output', r.source, r.volume));
+  else addIoRowHtml('output');
+  calcIoTotals();
+}
+
+window.saveIo = async function() {
+  if (!_activeAdm) return;
+  const gatherRows = type => [...document.querySelectorAll(`#${type}-rows .io-row`)].map(row => ({
+    source: row.querySelector('select').value,
+    volume: parseFloat(row.querySelector('input').value) || 0,
+  })).filter(r => r.volume > 0);
+
+  const intake = gatherRows('intake'), output = gatherRows('output');
+  const tin = intake.reduce((s,r)=>s+r.volume,0), tout = output.reduce((s,r)=>s+r.volume,0);
+  const today = new Date().toISOString().slice(0,10);
+
+  await supabase.from('nursing_io').upsert({
+    tenant_id:      tenantId,
+    admission_id:   _activeAdm.id,
+    patient_id:     _activeAdm.patients?.id,
+    record_date:    today,
+    shift:          _shift,
+    recorded_by:    userId,
+    intake_items:   intake,
+    output_items:   output,
+    total_intake_ml:tin,
+    total_output_ml:tout,
+    net_balance_ml: tin - tout,
+  }, { onConflict: 'admission_id,record_date,shift' });
+  _alert('success', 'I/O chart saved.');
+};
+
+// ── Nursing Notes ─────────────────────────────────────────────────────────────
+window.saveNote = async function() {
+  if (!_activeAdm) return;
+  const note = document.getElementById('note-text').value.trim();
+  if (!note) { alert('Enter a note.'); return; }
+  const time = document.getElementById('note-time').value || new Date().toTimeString().slice(0,5);
+  const { error } = await supabase.from('nursing_notes').insert({
+    tenant_id:    tenantId,
+    admission_id: _activeAdm.id,
+    patient_id:   _activeAdm.patients?.id,
+    recorded_by:  userId,
+    note_type:    document.getElementById('note-type').value,
+    note_text:    note,
+    note_time:    time,
+    shift:        _shift,
+  });
+  if (error) { _alert('error', error.message); return; }
+  document.getElementById('note-text').value = '';
+  _alert('success', 'Note saved.');
+  loadNotes();
+};
+
+async function loadNotes() {
+  const { data } = await supabase.from('nursing_notes')
+    .select('*, profiles!recorded_by(full_name)')
+    .eq('admission_id', _activeAdm.id).order('created_at', {ascending:false}).limit(30);
+  const NOTE_TYPES = { general:'General', procedure:'Procedure', medication:'Medication', patient_education:'Pt Education', family_communication:'Family', incident:'⚠ Incident', doctor_call:'Doctor Call' };
+  document.getElementById('notes-list').innerHTML = (data||[]).length ? (data||[]).map(n => `
+    <div style="padding:10px 14px;background:var(--white);border:1.5px solid var(--border);border-radius:8px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:var(--cream);border:1px solid var(--border);color:var(--text-mid)">${NOTE_TYPES[n.note_type]||n.note_type}</span>
+        <span style="font-size:11px;color:var(--text-muted)">${n.note_time||''} · ${n.shift} shift · ${n.profiles?.full_name||'Nurse'}</span>
+      </div>
+      <div style="font-size:13px;color:var(--text-dark)">${n.note_text}</div>
+    </div>`) .join('') : '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px">No notes yet</div>';
+}
+
+// ── Shift Handover ────────────────────────────────────────────────────────────
+window.saveHandover = async function() {
+  if (!_activeAdm) return;
+  const outNurse = document.getElementById('ho-out-nurse').value.trim();
+  const inNurse  = document.getElementById('ho-in-nurse').value.trim();
+  if (!outNurse || !inNurse) { _alert('error','Enter outgoing and incoming nurse names'); return; }
+  const { error } = await supabase.from('nursing_handovers').insert({
+    tenant_id:        tenantId,
+    admission_id:     _activeAdm.id,
+    patient_id:       _activeAdm.patients?.id,
+    outgoing_nurse:   outNurse,
+    incoming_nurse:   inNurse,
+    shift:            _shift,
+    condition:        document.getElementById('ho-condition').value,
+    vitals_summary:   document.getElementById('ho-vitals').value.trim() || null,
+    // SBAR fields
+    situation:        document.getElementById('ho-situation')?.value.trim() || null,
+    background:       document.getElementById('ho-background')?.value.trim() || null,
+    key_events:       document.getElementById('ho-events').value.trim() || null,
+    pending_meds:     document.getElementById('ho-pending-meds').value.trim() || null,
+    instructions:     document.getElementById('ho-instructions').value.trim() || null,
+    handover_at:      new Date().toISOString(),
+  });
+  if (error) { _alert('error', error.message); return; }
+  _alert('success', 'Handover saved.');
+  loadHandovers();
+};
+
+async function loadHandovers() {
+  const { data } = await supabase.from('nursing_handovers')
+    .select('*').eq('admission_id', _activeAdm.id).order('handover_at', {ascending:false}).limit(10);
+  const COND = { stable:'Stable', improving:'Improving', deteriorating:'⚠ Deteriorating', critical:'🔴 Critical' };
+  document.getElementById('handover-list').innerHTML = (data||[]).length ? (data||[]).map(h=>`
+    <div style="padding:12px 14px;background:var(--white);border:1.5px solid ${h.condition==='critical'?'#f5c6c6':h.condition==='deteriorating'?'#e8c060':var(--border)};border-radius:8px;margin-bottom:8px;font-size:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="font-weight:600">${h.outgoing_nurse||'—'} → ${h.incoming_nurse||'—'} <span style="font-weight:400;color:var(--text-muted)">(${h.shift} shift)</span></div>
+        <span style="font-size:11px;font-weight:700;color:${h.condition==='critical'?'var(--red)':h.condition==='deteriorating'?'var(--gold)':'var(--green-mid)'}">${COND[h.condition]||h.condition}</span>
+      </div>
+      ${h.vitals_summary?`<div style="color:var(--text-mid)">Vitals: ${h.vitals_summary}</div>`:''}
+      ${h.key_events?`<div style="margin-top:4px">Events: ${h.key_events}</div>`:''}
+      ${h.instructions?`<div style="margin-top:4px;color:#1a4080">Next shift: ${h.instructions}</div>`:''}
+    </div>`).join('') : '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px">No handovers recorded</div>';
+}
+
+window.printHandover = function() { window.print(); };
+window.printNursingChart = function() { window.print(); };
+
+// ── §21k Ward Procedures ─────────────────────────────────────────────────────
+window.saveWardProcedure = async function() {
+  const proc = document.getElementById('wp-procedure').value.trim();
+  if (!proc) { _alert('error','Procedure name is required'); return; }
+  const payload = {
+    tenant_id:         tenantId,
+    ipd_admission_id:  _admissionId || null,
+    patient_id:        _patientId   || null,
+    procedure_date:    document.getElementById('wp-date').value || new Date().toISOString().slice(0,10),
+    procedure_time:    document.getElementById('wp-time').value || null,
+    procedure_name:    proc,
+    done_by_designation: document.getElementById('wp-designation').value,
+    outcome:           document.getElementById('wp-outcome').value,
+    notes:             document.getElementById('wp-notes').value.trim() || null,
+    created_by:        profile.id,
+  };
+  const { error } = await supabase.from('ward_procedures').insert(payload);
+  if (error) {
+    if (error.code === '42P01') _alert('error','Run session32_ncism_gaps.sql in Supabase first');
+    else _alert('error', error.message);
+    return;
+  }
+  document.getElementById('wp-procedure').value = '';
+  document.getElementById('wp-notes').value = '';
+  document.getElementById('wp-outcome').value = 'successful';
+  _alert('success', 'Procedure logged');
+  loadWardProcedures();
+};
+
+window.loadWardProcedures = async function() {
+  const el = document.getElementById('ward-proc-list');
+  if (!_admissionId) { el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px">Select a patient to view procedures.</div>'; return; }
+  const { data, error } = await supabase
+    .from('ward_procedures')
+    .select('*')
+    .eq('ipd_admission_id', _admissionId)
+    .order('procedure_date', { ascending: false });
+  if (error || !data?.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px">No procedures logged yet.</div>'; return; }
+  el.innerHTML = data.map(p => `
+    <div style="padding:10px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;background:#fafff7">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong style="font-size:13px">${p.procedure_name}</strong>
+        <span style="font-size:11px;color:var(--text-muted)">${p.procedure_date} ${p.procedure_time ? p.procedure_time.slice(0,5) : ''}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-mid);margin-top:3px">${p.done_by_designation?.replace('_',' ')} · ${p.outcome?.replace('_',' ')} ${p.notes ? '· '+p.notes : ''}</div>
+    </div>`).join('');
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function _fmtDate(d) { if(!d)return'—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+function _daysSince(d) { if(!d)return'?'; return Math.floor((Date.now()-new Date(d+'T00:00'))/86400000)+1; }
+function _alert(type,msg) { const el=document.getElementById('alert-box');el.className=`alert ${type} show`;el.textContent=msg;setTimeout(()=>el.classList.remove('show'),4000); }
+
+// ── NABH Risk Assessments ──────────────────────────────────────────────────────
+window.calcMorse = function() {
+  const score = ['morse-fall-hist','morse-sec-dx','morse-aid','morse-iv','morse-gait','morse-mental']
+    .reduce((s,id) => s + parseInt(document.getElementById(id).value||0), 0);
+  document.getElementById('morse-score').textContent = score;
+  const lbl = document.getElementById('morse-risk-label');
+  if (score < 25)       { lbl.textContent='Low Risk';    lbl.style.background='#e8f5ee'; lbl.style.color='#1a4a2e'; }
+  else if (score <= 44) { lbl.textContent='Medium Risk'; lbl.style.background='#fff3cd'; lbl.style.color='#7a4a00'; }
+  else                  { lbl.textContent='High Risk';   lbl.style.background='#fdecea'; lbl.style.color='#8b1a1a'; }
+};
+
+window.calcBraden = function() {
+  const score = ['braden-sensory','braden-moisture','braden-activity','braden-mobility','braden-nutrition','braden-friction']
+    .reduce((s,id) => s + parseInt(document.getElementById(id).value||0), 0);
+  document.getElementById('braden-score').textContent = score;
+  const lbl = document.getElementById('braden-risk-label');
+  if (score <= 9)       { lbl.textContent='High Risk';   lbl.style.background='#fdecea'; lbl.style.color='#8b1a1a'; }
+  else if (score <= 12) { lbl.textContent='Medium Risk'; lbl.style.background='#fff3cd'; lbl.style.color='#7a4a00'; }
+  else if (score <= 14) { lbl.textContent='Low Risk';    lbl.style.background='#fff3cd'; lbl.style.color='#7a4a00'; }
+  else                  { lbl.textContent='No Risk';     lbl.style.background='#e8f5ee'; lbl.style.color='#1a4a2e'; }
+};
+
+window.saveRiskAssessment = async function(type) {
+  if (!_activeAdm) { _alert('error','Select a patient first'); return; }
+  const interventions = document.getElementById('risk-interventions').value.trim();
+  let payload = {
+    tenant_id: tenantId,
+    patient_id: _activeAdm.patient_id,
+    ipd_admission_id: _activeAdm.id,
+    assessment_type: type,
+    assessed_by: userId,
+    interventions: interventions || null,
+  };
+  if (type === 'morse_fall') {
+    const total = parseInt(document.getElementById('morse-score').textContent);
+    const risk  = total < 25 ? 'low' : total <= 44 ? 'medium' : 'high';
+    payload = { ...payload,
+      morse_fall_history: parseInt(document.getElementById('morse-fall-hist').value),
+      morse_secondary_dx: parseInt(document.getElementById('morse-sec-dx').value),
+      morse_ambulatory_aid: parseInt(document.getElementById('morse-aid').value),
+      morse_iv_heplock: parseInt(document.getElementById('morse-iv').value),
+      morse_gait: parseInt(document.getElementById('morse-gait').value),
+      morse_mental_status: parseInt(document.getElementById('morse-mental').value),
+      morse_total: total, risk_level: risk,
+    };
+  } else {
+    const total = parseInt(document.getElementById('braden-score').textContent);
+    const risk  = total <= 9 ? 'high' : total <= 12 ? 'medium' : total <= 14 ? 'low' : 'low';
+    payload = { ...payload,
+      braden_sensory_perception: parseInt(document.getElementById('braden-sensory').value),
+      braden_moisture: parseInt(document.getElementById('braden-moisture').value),
+      braden_activity: parseInt(document.getElementById('braden-activity').value),
+      braden_mobility: parseInt(document.getElementById('braden-mobility').value),
+      braden_nutrition: parseInt(document.getElementById('braden-nutrition').value),
+      braden_friction_shear: parseInt(document.getElementById('braden-friction').value),
+      braden_total: total, risk_level: risk,
+    };
+  }
+  const { error } = await supabase.from('risk_assessments').insert(payload);
+  if (error) { _alert('error', error.message); return; }
+  document.getElementById('risk-saved-msg').style.display = '';
+  setTimeout(() => { document.getElementById('risk-saved-msg').style.display = 'none'; }, 3000);
+  loadRiskHistory();
+};
+
+async function loadRiskHistory() {
+  if (!_activeAdm) return;
+  const el = document.getElementById('risk-history');
+  const { data } = await supabase.from('risk_assessments')
+    .select('assessment_type,risk_level,morse_total,braden_total,assessment_datetime,profiles!assessed_by(full_name)')
+    .eq('ipd_admission_id', _activeAdm.id)
+    .order('assessment_datetime', { ascending: false }).limit(10);
+  if (!data?.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px">No assessments recorded yet.</div>'; return; }
+  const typeLabel = { morse_fall:'Morse Fall', braden:'Braden (Pressure Ulcer)', dvt:'DVT', nutritional:'Nutritional' };
+  const riskColor = { low:'#1a4a2e', medium:'#7a4a00', high:'#8b1a1a', very_high:'#8b1a1a' };
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#f5faf7"><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Assessment</th><th style="padding:6px 10px;text-align:center;border-bottom:1.5px solid var(--border)">Score</th><th style="padding:6px 10px;text-align:center;border-bottom:1.5px solid var(--border)">Risk</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Assessed By</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Date/Time</th></tr></thead>
+    <tbody>${data.map(r => `<tr><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${typeLabel[r.assessment_type]||r.assessment_type}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;text-align:center;font-weight:600">${r.morse_total ?? r.braden_total ?? '—'}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;text-align:center"><span style="font-size:11px;font-weight:600;color:${riskColor[r.risk_level]||'#333'};background:${riskColor[r.risk_level]||'#333'}15;padding:2px 8px;border-radius:10px;text-transform:capitalize">${r.risk_level||'—'}</span></td>
+      <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${r.profiles?.full_name||'—'}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;color:var(--text-muted)">${new Date(r.assessment_datetime).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'})}</td></tr>`).join('')}
+    </tbody></table>`;
+}
+</script>
+</body>
+</html>

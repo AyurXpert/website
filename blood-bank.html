@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Blood Bank — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;--cream:#faf8f3;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--white:#fff;
+  --red:#c0392b;--red-light:#fdf0f0;--red-border:#f5c6c6;
+  --amber:#e07b00;--amber-light:#fff8e1;
+  --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.08)
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page{max-width:1200px;margin:0 auto;padding:24px 16px 80px}
+h1{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--green-deep);margin-bottom:4px}
+.subtitle{font-size:13px;color:var(--text-muted);margin-bottom:20px}
+.alert-banner{padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;margin-bottom:14px;display:none}
+.alert-banner.show{display:block}
+.alert-banner.error{background:var(--red-light);border:1.5px solid var(--red-border);color:var(--red)}
+.alert-banner.info{background:var(--green-light);border:1.5px solid var(--border);color:var(--green-deep)}
+.alert-banner.warn{background:var(--amber-light);border:1.5px solid #f0c040;color:#7a5200}
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px;flex-wrap:wrap}
+.tab-btn{padding:10px 20px;font-size:13px;font-weight:500;background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;color:var(--text-muted);margin-bottom:-2px;transition:all .2s}
+.tab-btn.active{color:var(--green-deep);border-bottom-color:var(--green-deep);font-weight:600}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:20px}
+.kpi{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+.kpi-label{font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.kpi-val{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:600;color:var(--green-deep)}
+.kpi-val.red{color:var(--red)}.kpi-val.amber{color:var(--amber)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar select,.toolbar input[type=text],.toolbar input[type=date]{height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit;background:var(--white)}
+.btn{padding:8px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:opacity .15s}
+.btn:hover{opacity:.88}.btn-primary{background:var(--green-deep);color:#fff}
+.btn-outline{background:transparent;border:1.5px solid var(--green-mid);color:var(--green-mid)}
+.btn-danger{background:var(--red);color:#fff}.btn-sm{padding:5px 12px;font-size:12px}
+.btn-amber{background:var(--amber);color:#fff}
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.card-title{font-size:14px;font-weight:600;color:var(--green-deep)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#f5faf7;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);padding:8px 12px;text-align:left;border-bottom:1.5px solid var(--border)}
+td{padding:9px 12px;border-bottom:1px solid #eef4f0;vertical-align:middle}
+tr:hover td{background:#f9fdfb}
+.badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:600;border:1px solid}
+.b-requested{background:#e8f0ff;color:#1a3080;border-color:#b3c6f5}
+.b-crossmatch{background:var(--amber-light);color:#7a5200;border-color:#ffe082}
+.b-compatible{background:var(--green-light);color:var(--green-deep);border-color:#a5d6b8}
+.b-issued{background:#f3e5f5;color:#6a1b9a;border-color:#ce93d8}
+.b-transfused{background:#e8f5ee;color:#1b5e20;border-color:#81c784}
+.b-reaction{background:var(--red-light);color:var(--red);border-color:var(--red-border)}
+.b-cancelled{background:#f5f5f5;color:#616161;border-color:#bdbdbd}
+.b-available{background:var(--green-light);color:var(--green-deep);border-color:#a5d6b8}
+.b-reserved{background:var(--amber-light);color:#7a5200;border-color:#ffe082}
+.b-expired{background:var(--red-light);color:var(--red);border-color:var(--red-border)}
+.b-discarded{background:#f5f5f5;color:#616161;border-color:#bdbdbd}
+.bg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:4px}
+.bg-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center}
+.bg-group{font-size:22px;font-weight:700;color:var(--green-deep);font-family:'Cormorant Garamond',serif}
+.bg-comp{font-size:11px;color:var(--text-muted);margin-bottom:6px}
+.bg-count{font-size:28px;font-weight:600;color:var(--green-mid);font-family:'Cormorant Garamond',serif}
+.bg-exp{font-size:11px;color:var(--red);margin-top:4px}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;display:none}
+.modal-bg.show{display:flex}
+.modal{background:var(--white);border-radius:12px;padding:28px;width:600px;max-width:100%;margin:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.modal h2{font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--green-deep);margin-bottom:20px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.field-row.col3{grid-template-columns:1fr 1fr 1fr}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;font-family:inherit}
+.field textarea{min-height:60px;resize:vertical}
+.modal-actions{display:flex;gap:8px;margin-top:20px;justify-content:flex-end}
+.empty{text-align:center;padding:36px 20px;color:var(--text-muted);font-size:13px}
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;color:#fff;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}.toast.success{background:#2d7a4f}.toast.error{background:var(--red)}
+@media(max-width:600px){.field-row,.field-row.col3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+<div class="page">
+  <h1>🩸 Blood Bank</h1>
+  <p class="subtitle">Blood request management, cross-match records, inventory &amp; transfusion tracking — NABH AAC.6</p>
+  <div id="alert" class="alert-banner"></div>
+
+  <!-- KPIs -->
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">Available Units</div><div class="kpi-val" id="k-avail">—</div></div>
+    <div class="kpi"><div class="kpi-label">Pending Requests</div><div class="kpi-val amber" id="k-pending">—</div></div>
+    <div class="kpi"><div class="kpi-label">Issued Today</div><div class="kpi-val" id="k-issued">—</div></div>
+    <div class="kpi"><div class="kpi-label">Expiring ≤7 Days</div><div class="kpi-val red" id="k-expiring">—</div></div>
+    <div class="kpi"><div class="kpi-label">Reactions MTD</div><div class="kpi-val red" id="k-reactions">—</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('requests',this)">Blood Requests</button>
+    <button class="tab-btn" onclick="showTab('inventory',this)">Blood Inventory</button>
+    <button class="tab-btn" onclick="showTab('crossmatch',this)">Cross-Match Queue</button>
+  </div>
+
+  <!-- ── Tab: Requests ───────────────────────────────────────── -->
+  <div id="tab-requests">
+    <div class="toolbar">
+      <select id="f-req-status" onchange="loadRequests()">
+        <option value="">All Status</option>
+        <option value="requested">Requested</option>
+        <option value="crossmatch_pending">Cross-Match Pending</option>
+        <option value="compatible">Compatible</option>
+        <option value="issued">Issued</option>
+        <option value="transfused">Transfused</option>
+        <option value="reaction_reported">Reaction Reported</option>
+      </select>
+      <select id="f-req-urgency" onchange="loadRequests()">
+        <option value="">All Urgency</option>
+        <option value="emergency">Emergency</option>
+        <option value="urgent">Urgent</option>
+        <option value="routine">Routine</option>
+      </select>
+      <button class="btn btn-primary" onclick="openRequestModal()">+ New Request</button>
+    </div>
+    <div class="card">
+      <div class="tw"><table>
+        <thead><tr><th>Patient</th><th>Blood Group</th><th>Component</th><th>Units</th><th>Urgency</th><th>Requested</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="req-tbody"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Inventory ──────────────────────────────────────── -->
+  <div id="tab-inventory" style="display:none">
+    <div class="toolbar">
+      <select id="f-inv-group" onchange="loadInventory()">
+        <option value="">All Blood Groups</option>
+        <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+        <option>AB+</option><option>AB-</option><option>O+</option><option>O-</option>
+      </select>
+      <select id="f-inv-comp" onchange="loadInventory()">
+        <option value="">All Components</option>
+        <option value="whole_blood">Whole Blood</option>
+        <option value="packed_rbc">Packed RBC</option>
+        <option value="fresh_frozen_plasma">FFP</option>
+        <option value="platelets">Platelets</option>
+        <option value="cryoprecipitate">Cryoprecipitate</option>
+        <option value="single_donor_platelets">SDP</option>
+      </select>
+      <select id="f-inv-status" onchange="loadInventory()">
+        <option value="available">Available</option>
+        <option value="">All Status</option>
+        <option value="reserved">Reserved</option>
+        <option value="expired">Expired</option>
+      </select>
+      <button class="btn btn-primary" onclick="openBagModal()">+ Add Blood Bag</button>
+      <button class="btn btn-outline" onclick="loadStockSummary()">Refresh Stock</button>
+    </div>
+
+    <!-- Stock summary grid -->
+    <div class="card">
+      <div class="card-hdr"><div class="card-title">Current Stock Summary</div></div>
+      <div class="bg-grid" id="stock-grid"><div style="color:var(--text-muted);font-size:13px">Loading…</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><div class="card-title">Blood Bag Register</div></div>
+      <div class="tw"><table>
+        <thead><tr><th>Bag No.</th><th>Group</th><th>Component</th><th>Volume</th><th>Donor</th><th>Collected</th><th>Expiry</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="inv-tbody"><tr><td colspan="9" class="empty">Loading…</td></tr></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Cross-Match Queue ──────────────────────────────── -->
+  <div id="tab-crossmatch" style="display:none">
+    <div class="alert-banner warn show" style="margin-bottom:16px">Cross-match pending requests are shown here. Update result after compatibility testing.</div>
+    <div class="card">
+      <div class="card-hdr"><div class="card-title">Pending Cross-Match</div></div>
+      <div class="tw"><table>
+        <thead><tr><th>Patient</th><th>Group</th><th>Component</th><th>Units</th><th>Urgency</th><th>Requested At</th><th>Actions</th></tr></thead>
+        <tbody id="cm-tbody"><tr><td colspan="7" class="empty">No pending cross-match requests.</td></tr></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── New Request Modal ────────────────────────────────────── -->
+<div class="modal-bg" id="req-modal">
+  <div class="modal">
+    <h2>New Blood Request</h2>
+    <div class="field-row">
+      <div class="field">
+        <label>Patient Name *</label>
+        <input id="r-patient" type="text" placeholder="Search by name or UHID"/>
+      </div>
+      <div class="field">
+        <label>Patient Blood Group *</label>
+        <select id="r-group">
+          <option value="">Select</option>
+          <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+          <option>AB+</option><option>AB-</option><option>O+</option><option>O-</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Component *</label>
+        <select id="r-component">
+          <option value="">Select</option>
+          <option value="whole_blood">Whole Blood</option>
+          <option value="packed_rbc">Packed RBC</option>
+          <option value="fresh_frozen_plasma">Fresh Frozen Plasma (FFP)</option>
+          <option value="platelets">Platelets</option>
+          <option value="cryoprecipitate">Cryoprecipitate</option>
+          <option value="single_donor_platelets">Single Donor Platelets (SDP)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Units Required *</label>
+        <input id="r-units" type="number" min="1" max="20" value="1"/>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Urgency</label>
+        <select id="r-urgency">
+          <option value="routine">Routine</option>
+          <option value="urgent">Urgent</option>
+          <option value="emergency">Emergency</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>IPD Admission No.</label>
+        <input id="r-ipd" type="text" placeholder="Optional — IPD reference"/>
+      </div>
+    </div>
+    <div class="field">
+      <label>Indication / Clinical Notes</label>
+      <textarea id="r-indication" placeholder="e.g. Pre-op for elective surgery, Hb < 7 g/dL…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('req-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveRequest()">Submit Request</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add Blood Bag Modal ──────────────────────────────────── -->
+<div class="modal-bg" id="bag-modal">
+  <div class="modal">
+    <h2>Add Blood Bag</h2>
+    <div class="field-row">
+      <div class="field">
+        <label>Blood Group *</label>
+        <select id="b-group">
+          <option value="">Select</option>
+          <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+          <option>AB+</option><option>AB-</option><option>O+</option><option>O-</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Component *</label>
+        <select id="b-component">
+          <option value="">Select</option>
+          <option value="whole_blood">Whole Blood</option>
+          <option value="packed_rbc">Packed RBC</option>
+          <option value="fresh_frozen_plasma">FFP</option>
+          <option value="platelets">Platelets</option>
+          <option value="cryoprecipitate">Cryoprecipitate</option>
+          <option value="single_donor_platelets">SDP</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Bag Number *</label>
+        <input id="b-bag" type="text" placeholder="e.g. BB-2026-001"/>
+      </div>
+      <div class="field">
+        <label>Volume (ml)</label>
+        <input id="b-vol" type="number" min="100" max="500" placeholder="350"/>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Collection Date *</label>
+        <input id="b-collected" type="date"/>
+      </div>
+      <div class="field">
+        <label>Expiry Date *</label>
+        <input id="b-expiry" type="date"/>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Donor Name</label>
+        <input id="b-donor-name" type="text" placeholder="Voluntary / Replacement"/>
+      </div>
+      <div class="field">
+        <label>Donor ID</label>
+        <input id="b-donor-id" type="text" placeholder="Blood bank donor ID"/>
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="b-notes" placeholder="Serological test results, NAT results…" style="min-height:50px"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('bag-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveBag()">Add Bag</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Cross-Match Update Modal ─────────────────────────────── -->
+<div class="modal-bg" id="cm-modal">
+  <div class="modal">
+    <h2>Update Cross-Match Result</h2>
+    <input type="hidden" id="cm-req-id"/>
+    <div class="field-row">
+      <div class="field">
+        <label>Cross-Match Result *</label>
+        <select id="cm-result">
+          <option value="compatible">Compatible</option>
+          <option value="incompatible">Incompatible</option>
+          <option value="pending">Pending</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Bag Number Assigned</label>
+        <input id="cm-bag" type="text" placeholder="Blood bag number"/>
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="cm-notes" style="min-height:50px" placeholder="Any remarks…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('cm-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCrossmatch()">Save Result</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script type="module">
+import { requireAuth } from './js/core/auth.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+import { initNavbar } from './js/components/navbar.js';
+
+requireAuth(['super_admin','dept_admin','doctor','nurse']);
+initNavbar();
+
+const profile = JSON.parse(sessionStorage.getItem('profile') || '{}');
+const tenantId = profile.tenant_id;
+
+window.showTab = (tab, btn) => {
+  ['requests','inventory','crossmatch'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===tab?'block':'none';
+  });
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (tab==='requests') loadRequests();
+  if (tab==='inventory') { loadInventory(); loadStockSummary(); }
+  if (tab==='crossmatch') loadCrossmatch();
+};
+
+async function loadKPIs() {
+  const today = new Date().toISOString().split('T')[0];
+  const monthStart = today.slice(0,7)+'-01';
+
+  const [inv, pending, issued, reactions] = await Promise.all([
+    supabase.from('blood_bank_inventory').select('id,expiry_date',{count:'exact'}).eq('tenant_id',tenantId).eq('status','available'),
+    supabase.from('blood_bank_requests').select('id',{count:'exact'}).eq('tenant_id',tenantId).in('status',['requested','crossmatch_pending']),
+    supabase.from('blood_bank_requests').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('status','issued').gte('issued_at',today),
+    supabase.from('blood_bank_requests').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('status','reaction_reported').gte('created_at',monthStart),
+  ]);
+
+  document.getElementById('k-avail').textContent = inv.count ?? 0;
+  document.getElementById('k-pending').textContent = pending.count ?? 0;
+  document.getElementById('k-issued').textContent = issued.count ?? 0;
+  document.getElementById('k-reactions').textContent = reactions.count ?? 0;
+
+  const exp7 = new Date(); exp7.setDate(exp7.getDate()+7);
+  const expiring = (inv.data||[]).filter(b => b.expiry_date && new Date(b.expiry_date) <= exp7).length;
+  document.getElementById('k-expiring').textContent = expiring;
+}
+
+window.loadRequests = async () => {
+  const st = document.getElementById('f-req-status').value;
+  const urg = document.getElementById('f-req-urgency').value;
+  let q = supabase.from('blood_bank_requests').select(`*,patient:patients(name),requested_by:profiles!requested_by(full_name)`).eq('tenant_id',tenantId).order('created_at',{ascending:false});
+  if (st) q = q.eq('status',st);
+  if (urg) q = q.eq('urgency',urg);
+  const {data,error} = await q.limit(100);
+  const tb = document.getElementById('req-tbody');
+  if (error||!data?.length){tb.innerHTML=`<tr><td colspan="8" class="empty">No requests found.</td></tr>`;return;}
+  const urgColor = {emergency:'color:var(--red);font-weight:600',urgent:'color:var(--amber);font-weight:600',routine:''};
+  tb.innerHTML = data.map(r=>`<tr>
+    <td>${r.patient?.name||'—'}</td>
+    <td><strong>${r.blood_group}</strong></td>
+    <td>${compLabel(r.component)}</td>
+    <td>${r.units_requested}</td>
+    <td style="${urgColor[r.urgency]||''}">${r.urgency}</td>
+    <td>${fmtDt(r.created_at)}</td>
+    <td><span class="badge b-${r.status}">${statusLabel(r.status)}</span></td>
+    <td style="white-space:nowrap">
+      ${r.status==='requested'?`<button class="btn btn-sm btn-amber" onclick="openCM('${r.id}')">Cross-Match</button> `:''}
+      ${r.status==='compatible'?`<button class="btn btn-sm btn-primary" onclick="issueBlood('${r.id}')">Issue</button> `:''}
+      ${r.status==='issued'?`<button class="btn btn-sm btn-outline" onclick="markTransfused('${r.id}')">Transfused</button> `:''}
+      ${r.status==='transfused'?`<button class="btn btn-sm btn-danger" onclick="reportReaction('${r.id}')">Reaction</button>`:''}
+    </td>
+  </tr>`).join('');
+};
+
+window.loadStockSummary = async () => {
+  const {data} = await supabase.from('blood_bank_inventory').select('blood_group,component,status,expiry_date').eq('tenant_id',tenantId).eq('status','available');
+  const grid = document.getElementById('stock-grid');
+  if (!data?.length){grid.innerHTML=`<div style="color:var(--text-muted);font-size:13px;padding:16px">No stock available.</div>`;return;}
+  const grouped = {};
+  for (const b of data) {
+    const key = b.blood_group;
+    if (!grouped[key]) grouped[key] = {};
+    if (!grouped[key][b.component]) grouped[key][b.component] = 0;
+    grouped[key][b.component]++;
+  }
+  const groups = ['A+','A-','B+','B-','AB+','AB-','O+','O-'];
+  const comps = ['packed_rbc','whole_blood','fresh_frozen_plasma','platelets'];
+  grid.innerHTML = groups.map(g => {
+    const total = Object.values(grouped[g]||{}).reduce((a,b)=>a+b,0);
+    if (!total) return '';
+    const breakdown = comps.filter(c=>(grouped[g]||{})[c]).map(c=>`${compShort(c)}: ${grouped[g][c]}`).join(', ');
+    return `<div class="bg-card">
+      <div class="bg-group">${g}</div>
+      <div class="bg-comp">${breakdown||'—'}</div>
+      <div class="bg-count">${total} units</div>
+    </div>`;
+  }).join('');
+};
+
+window.loadInventory = async () => {
+  const grp = document.getElementById('f-inv-group').value;
+  const comp = document.getElementById('f-inv-comp').value;
+  const st = document.getElementById('f-inv-status').value;
+  let q = supabase.from('blood_bank_inventory').select('*').eq('tenant_id',tenantId).order('expiry_date',{ascending:true});
+  if (grp) q = q.eq('blood_group',grp);
+  if (comp) q = q.eq('component',comp);
+  if (st) q = q.eq('status',st);
+  const {data} = await q.limit(200);
+  const tb = document.getElementById('inv-tbody');
+  if (!data?.length){tb.innerHTML=`<tr><td colspan="9" class="empty">No bags found.</td></tr>`;return;}
+  const today = new Date();
+  tb.innerHTML = data.map(b=>{
+    const exp = new Date(b.expiry_date);
+    const expCls = exp < today?'color:var(--red);font-weight:600':(exp-today)<7*864e5?'color:var(--amber);font-weight:600':'';
+    return `<tr>
+      <td><strong>${b.bag_number}</strong></td>
+      <td>${b.blood_group}</td>
+      <td>${compLabel(b.component)}</td>
+      <td>${b.volume_ml||'—'} ml</td>
+      <td>${b.donor_name||'—'}</td>
+      <td>${b.collection_date||'—'}</td>
+      <td style="${expCls}">${b.expiry_date}</td>
+      <td><span class="badge b-${b.status}">${b.status}</span></td>
+      <td>${b.status==='available'?`<button class="btn btn-sm btn-danger" onclick="discardBag('${b.id}')">Discard</button>`:'—'}</td>
+    </tr>`;
+  }).join('');
+};
+
+window.loadCrossmatch = async () => {
+  const {data} = await supabase.from('blood_bank_requests').select(`*,patient:patients(name)`).eq('tenant_id',tenantId).in('status',['requested','crossmatch_pending']).order('created_at');
+  const tb = document.getElementById('cm-tbody');
+  if (!data?.length){tb.innerHTML=`<tr><td colspan="7" class="empty">No pending cross-match requests.</td></tr>`;return;}
+  const urgColor={emergency:'color:var(--red);font-weight:600',urgent:'color:var(--amber);font-weight:600',routine:''};
+  tb.innerHTML = data.map(r=>`<tr>
+    <td>${r.patient?.name||'—'}</td>
+    <td><strong>${r.blood_group}</strong></td>
+    <td>${compLabel(r.component)}</td>
+    <td>${r.units_requested}</td>
+    <td style="${urgColor[r.urgency]||''}">${r.urgency}</td>
+    <td>${fmtDt(r.created_at)}</td>
+    <td><button class="btn btn-sm btn-amber" onclick="openCM('${r.id}')">Update Result</button></td>
+  </tr>`).join('');
+};
+
+window.openRequestModal = () => {
+  ['r-patient','r-ipd','r-indication'].forEach(id=>document.getElementById(id).value='');
+  ['r-group','r-component','r-urgency'].forEach(id=>document.getElementById(id).value||'');
+  document.getElementById('r-urgency').value='routine';
+  document.getElementById('req-modal').classList.add('show');
+};
+
+window.saveRequest = async () => {
+  const patient_name = document.getElementById('r-patient').value.trim();
+  const blood_group = document.getElementById('r-group').value;
+  const component = document.getElementById('r-component').value;
+  const units = parseInt(document.getElementById('r-units').value)||1;
+  const urgency = document.getElementById('r-urgency').value;
+  if (!patient_name||!blood_group||!component){showToast('Fill patient, blood group and component','error');return;}
+
+  let patient_id = null;
+  const {data:pts} = await supabase.from('patients').select('id').eq('tenant_id',tenantId).ilike('name','%'+patient_name+'%').limit(1);
+  if (pts?.length) patient_id = pts[0].id;
+
+  const {error} = await supabase.from('blood_bank_requests').insert({
+    tenant_id:tenantId, patient_id, blood_group, component,
+    units_requested:units, urgency,
+    indication:document.getElementById('r-indication').value.trim()||null,
+    requested_by:profile.id, status:'requested'
+  });
+  if (error){showToast('Error: '+error.message,'error');return;}
+  closeModal('req-modal');
+  showToast('Request submitted','success');
+  loadRequests(); loadKPIs();
+};
+
+window.openBagModal = () => {
+  ['b-bag','b-vol','b-donor-name','b-donor-id','b-notes'].forEach(id=>document.getElementById(id).value='');
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('b-collected').value = today;
+  document.getElementById('bag-modal').classList.add('show');
+};
+
+window.saveBag = async () => {
+  const blood_group = document.getElementById('b-group').value;
+  const component = document.getElementById('b-component').value;
+  const bag_number = document.getElementById('b-bag').value.trim();
+  const expiry_date = document.getElementById('b-expiry').value;
+  const collection_date = document.getElementById('b-collected').value;
+  if (!blood_group||!component||!bag_number||!expiry_date||!collection_date){showToast('Fill required fields','error');return;}
+  const {error} = await supabase.from('blood_bank_inventory').insert({
+    tenant_id:tenantId, blood_group, component, bag_number,
+    collection_date, expiry_date, status:'available',
+    volume_ml:parseInt(document.getElementById('b-vol').value)||null,
+    donor_name:document.getElementById('b-donor-name').value.trim()||null,
+    donor_id:document.getElementById('b-donor-id').value.trim()||null,
+    notes:document.getElementById('b-notes').value.trim()||null,
+    created_by:profile.id
+  });
+  if (error){showToast('Error: '+error.message,'error');return;}
+  closeModal('bag-modal');
+  showToast('Blood bag added','success');
+  loadInventory(); loadStockSummary(); loadKPIs();
+};
+
+window.openCM = (reqId) => {
+  document.getElementById('cm-req-id').value = reqId;
+  ['cm-bag','cm-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('cm-result').value='compatible';
+  document.getElementById('cm-modal').classList.add('show');
+};
+
+window.saveCrossmatch = async () => {
+  const id = document.getElementById('cm-req-id').value;
+  const result = document.getElementById('cm-result').value;
+  const bag = document.getElementById('cm-bag').value.trim();
+  const newStatus = result==='compatible'?'compatible':(result==='incompatible'?'cancelled':'crossmatch_pending');
+  const {error} = await supabase.from('blood_bank_requests').update({
+    crossmatch_done:true, crossmatch_result:result,
+    bag_number:bag||null, status:newStatus,
+    notes:document.getElementById('cm-notes').value.trim()||null
+  }).eq('id',id).eq('tenant_id',tenantId);
+  if (error){showToast('Error: '+error.message,'error');return;}
+  closeModal('cm-modal');
+  showToast('Cross-match updated','success');
+  loadRequests(); loadCrossmatch(); loadKPIs();
+};
+
+window.issueBlood = async (id) => {
+  if (!confirm('Mark this blood unit as issued to patient?')) return;
+  const {error} = await supabase.from('blood_bank_requests').update({status:'issued',issued_at:new Date().toISOString(),issued_by:profile.id}).eq('id',id).eq('tenant_id',tenantId);
+  if (error){showToast('Error: '+error.message,'error');return;}
+  await supabase.from('blood_bank_inventory').update({status:'issued'}).eq('tenant_id',tenantId).eq('status','reserved');
+  showToast('Blood issued','success');
+  loadRequests(); loadKPIs();
+};
+
+window.markTransfused = async (id) => {
+  const {error} = await supabase.from('blood_bank_requests').update({status:'transfused',transfusion_completed_at:new Date().toISOString()}).eq('id',id).eq('tenant_id',tenantId);
+  if (!error) { showToast('Marked as transfused','success'); loadRequests(); }
+};
+
+window.reportReaction = async (id) => {
+  const details = prompt('Describe the transfusion reaction:');
+  if (details===null) return;
+  const {error} = await supabase.from('blood_bank_requests').update({status:'reaction_reported',reaction_observed:true,reaction_details:details}).eq('id',id).eq('tenant_id',tenantId);
+  if (!error) { showToast('Reaction reported','success'); loadRequests(); loadKPIs(); }
+};
+
+window.discardBag = async (id) => {
+  if (!confirm('Mark this blood bag as discarded?')) return;
+  await supabase.from('blood_bank_inventory').update({status:'discarded'}).eq('id',id).eq('tenant_id',tenantId);
+  showToast('Bag discarded','success');
+  loadInventory(); loadStockSummary(); loadKPIs();
+};
+
+window.closeModal = id => document.getElementById(id).classList.remove('show');
+
+function compLabel(c){const m={whole_blood:'Whole Blood',packed_rbc:'Packed RBC',fresh_frozen_plasma:'FFP',platelets:'Platelets',cryoprecipitate:'Cryo',single_donor_platelets:'SDP'};return m[c]||c;}
+function compShort(c){const m={whole_blood:'WB',packed_rbc:'PRBC',fresh_frozen_plasma:'FFP',platelets:'PLT',cryoprecipitate:'Cryo',single_donor_platelets:'SDP'};return m[c]||c;}
+function statusLabel(s){const m={requested:'Requested',crossmatch_pending:'CM Pending',compatible:'Compatible',issued:'Issued',transfused:'Transfused',reaction_reported:'Reaction',cancelled:'Cancelled'};return m[s]||s;}
+function fmtDt(dt){if(!dt)return'—';const d=new Date(dt);return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}
+function showToast(msg,type='success'){const t=document.getElementById('toast');t.textContent=msg;t.className=`toast ${type} show`;setTimeout(()=>t.classList.remove('show'),3000);}
+
+loadRequests();
+loadKPIs();
+</script>
+</body>
+</html>

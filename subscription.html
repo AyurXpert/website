@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Subscription Management — AyurXpert Platform</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;
+  --cream:#faf8f3;--white:#ffffff;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--radius:14px;--shadow:0 2px 14px rgba(0,0,0,0.07);
+  --red:#dc2626;--red-light:#fff3f3;
+}
+html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark)}
+.page{max-width:1200px;margin:0 auto;padding:24px 16px 80px}
+
+.page-banner{background:var(--green-deep);border-radius:var(--radius);padding:20px 26px;margin-bottom:22px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.banner-left h1{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:#fff}
+.banner-left p{font-size:13px;color:rgba(255,255,255,.55);margin-top:2px}
+.platform-badge{background:rgba(201,144,42,.25);border:1px solid rgba(201,144,42,.4);color:#e8b84b;font-size:12px;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:.3px}
+
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+.sc{background:var(--white);border-radius:var(--radius);padding:14px 18px;box-shadow:var(--shadow);text-align:center}
+.sc-num{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--text-dark)}
+.sc-lbl{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+.cc{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px}
+.cc-hd{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.cc-title{font-size:15px;font-weight:600;color:var(--text-dark)}
+
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--border);background:#fafcfb}
+.fi{height:36px;padding:0 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white);outline:none}
+.fi:focus{border-color:var(--green-mid)}
+.fi-sel{height:36px;padding:0 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;min-width:140px;outline:none;background:var(--white)}
+
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{background:#f5faf7;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;padding:10px 14px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border)}
+td{padding:10px 14px;border-bottom:1px solid #f0f4f2;font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafff8}
+
+.chip{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;border:1px solid transparent}
+.plan-trial     {background:#f5f5f5;   color:#555;          border-color:#ddd}
+.plan-starter   {background:#e8f5ee;   color:#2d7a4f;       border-color:#9dd4b0}
+.plan-growth    {background:#dbeafe;   color:#1d4ed8;       border-color:#93c5fd}
+.plan-enterprise{background:#fdf3e2;   color:#c9902a;       border-color:#e8c068}
+.status-trial   {background:#f5f5f5;   color:#555}
+.status-active  {background:#e8f5ee;   color:#2d7a4f}
+.status-expiring{background:#fff8e1;   color:#c9902a}
+.status-expired {background:var(--red-light);color:var(--red)}
+.status-suspended{background:var(--red-light);color:var(--red)}
+.status-grace   {background:#fff8e1;   color:#c9902a}
+
+.btn{display:inline-flex;align-items:center;gap:5px;border-radius:8px;padding:6px 13px;font-size:12px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;border:none;transition:background .2s;white-space:nowrap}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-primary:hover{background:#1f5c37}
+.btn-outline{background:var(--white);color:var(--text-dark);border:1.5px solid var(--border)}
+.btn-outline:hover{border-color:var(--green-mid);color:var(--green-deep)}
+.btn-warn{background:#fff8e1;color:#c9902a;border:1.5px solid #e8c068}
+.btn-danger{background:var(--red-light);color:var(--red);border:1.5px solid #fca5a5}
+
+/* Edit modal */
+.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center}
+.modal-backdrop.open{display:flex}
+.modal{background:var(--white);border-radius:var(--radius);padding:24px;width:100%;max-width:460px;box-shadow:0 8px 40px rgba(0,0,0,.18)}
+.modal-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep);margin-bottom:18px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.field input,.field select{width:100%;height:42px;padding:0 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;background:var(--cream);outline:none;transition:border-color .2s}
+.field input:focus,.field select:focus{border-color:var(--green-mid);background:var(--white)}
+.modal-actions{display:flex;gap:10px;margin-top:18px}
+
+.progress-wrap{background:#e8f5ee;border-radius:6px;height:8px;overflow:hidden;margin-top:4px}
+.progress-bar{background:var(--green-mid);height:100%;border-radius:6px;transition:width .3s}
+.progress-bar.warn{background:#c9902a}
+.progress-bar.danger{background:var(--red)}
+
+.empty{text-align:center;padding:40px 16px;color:var(--text-muted)}
+.empty-ico{font-size:32px;margin-bottom:8px}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a4a2e;color:#fff;padding:12px 22px;border-radius:10px;font-size:13px;font-weight:500;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+
+.access-denied{text-align:center;padding:60px 20px;max-width:400px;margin:60px auto}
+.access-denied-icon{font-size:48px;margin-bottom:16px}
+
+@media(max-width:700px){.stats-row{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="page" id="main-page" style="display:none">
+  <div class="page-banner">
+    <div class="banner-left">
+      <h1>💳 Subscription Management</h1>
+      <p>AyurXpert Platform — Manage tenant plans, limits, and billing status</p>
+    </div>
+    <div class="platform-badge">Platform Admin</div>
+  </div>
+
+  <div class="stats-row" id="platform-stats">
+    <div class="sc"><div class="sc-num" id="ps-total">—</div><div class="sc-lbl">Total Tenants</div></div>
+    <div class="sc"><div class="sc-num" id="ps-trial">—</div><div class="sc-lbl">On Trial</div></div>
+    <div class="sc"><div class="sc-num" id="ps-active">—</div><div class="sc-lbl">Active Paid</div></div>
+    <div class="sc"><div class="sc-num" id="ps-expiring">—</div><div class="sc-lbl">Expiring ≤30d</div></div>
+    <div class="sc"><div class="sc-num" id="ps-expired">—</div><div class="sc-lbl">Expired</div></div>
+  </div>
+
+  <div class="cc">
+    <div class="cc-hd">
+      <span class="cc-title">All Tenants</span>
+    </div>
+    <div class="filter-bar">
+      <input class="fi" type="text" id="f-name" placeholder="Search org name…" style="width:200px" oninput="renderTable()"/>
+      <select class="fi-sel" id="f-status" onchange="renderTable()">
+        <option value="">All statuses</option>
+        <option value="trial">Trial</option>
+        <option value="active">Active</option>
+        <option value="expiring">Expiring</option>
+        <option value="expired">Expired</option>
+        <option value="suspended">Suspended</option>
+      </select>
+      <select class="fi-sel" id="f-plan" onchange="renderTable()">
+        <option value="">All plans</option>
+        <option value="trial">Free Trial</option>
+        <option value="starter">Starter</option>
+        <option value="growth">Growth</option>
+        <option value="enterprise">Enterprise</option>
+      </select>
+    </div>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Organisation</th>
+            <th>Code</th>
+            <th>Type</th>
+            <th>Plan</th>
+            <th>Status</th>
+            <th>Expiry / Trial End</th>
+            <th>Staff Usage</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tenants-body">
+          <tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Access denied (shown if not platform admin) -->
+<div class="access-denied" id="access-denied" style="display:none">
+  <div class="access-denied-icon">🔒</div>
+  <h2 style="font-family:'Cormorant Garamond',serif;font-size:24px;color:var(--green-deep);margin-bottom:10px">Platform Admin Only</h2>
+  <p style="font-size:14px;color:var(--text-muted);line-height:1.6">This page is restricted to AyurXpert platform administrators. If you need access, contact support@ayurxpert.com</p>
+</div>
+
+<!-- Edit subscription modal -->
+<div class="modal-backdrop" id="edit-modal">
+  <div class="modal">
+    <div class="modal-title">Edit Subscription</div>
+    <input type="hidden" id="e-tenant-id"/>
+    <div id="e-tenant-name" style="font-size:13px;color:var(--text-muted);margin-top:-12px;margin-bottom:16px"></div>
+    <div class="field">
+      <label>Plan</label>
+      <select id="e-plan">
+        <option value="trial">Free Trial</option>
+        <option value="starter">Starter</option>
+        <option value="growth">Growth</option>
+        <option value="enterprise">Enterprise</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Status</label>
+      <select id="e-status">
+        <option value="trial">Trial Active</option>
+        <option value="active">Active (Paid)</option>
+        <option value="grace">Grace Period</option>
+        <option value="expired">Expired</option>
+        <option value="suspended">Suspended</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Max Staff Users</label>
+      <input id="e-max-users" type="number" min="1" max="9999" placeholder="e.g. 10"/>
+    </div>
+    <div class="field">
+      <label>Subscription Expiry Date</label>
+      <input id="e-expiry" type="date"/>
+    </div>
+    <div class="field">
+      <label>Trial Ends Date</label>
+      <input id="e-trial-ends" type="date"/>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" style="flex:1" onclick="saveSubscription()">💾 Save</button>
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './js/config/constants.js';
+import { requireAuth, getCurrentProfile } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+
+requireAuth(['platform_admin','super_admin','dept_admin'], 'login.html');
+initNavbar();
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const profile  = getCurrentProfile();
+
+// Gate: is_platform_admin
+if (!profile?.is_platform_admin) {
+  document.getElementById('access-denied').style.display = '';
+} else {
+  document.getElementById('main-page').style.display = '';
+  init();
+}
+
+const PLAN_LABEL   = { trial:'Free Trial', starter:'Starter', growth:'Growth', enterprise:'Enterprise' };
+const STATUS_LABEL = { trial:'Trial', active:'Active', expiring:'Expiring', expired:'Expired', suspended:'Suspended', grace:'Grace' };
+
+let _tenants = [];
+
+async function init() {
+  const { data } = await supabase
+    .from('tenants')
+    .select('id, name, type, tenant_code, is_active, plan_type, subscription_status, max_users, subscription_expiry, trial_ends_at')
+    .order('name');
+
+  _tenants = (data || []).map(t => {
+    const today    = new Date();
+    const endDate  = t.subscription_expiry ? new Date(t.subscription_expiry) : (t.trial_ends_at ? new Date(t.trial_ends_at) : null);
+    const daysLeft = endDate ? Math.ceil((endDate - today) / 86400000) : null;
+    const effStatus = t.subscription_status || 'trial';
+    const status = (effStatus === 'active' || effStatus === 'trial') && daysLeft !== null && daysLeft <= 30 && daysLeft > 0
+      ? 'expiring' : effStatus;
+    return { ...t, plan_type: t.plan_type||'trial', subscription_status: status, daysLeft, endDate };
+  });
+
+  renderStats();
+  renderTable();
+}
+
+function renderStats() {
+  document.getElementById('ps-total').textContent    = _tenants.length;
+  document.getElementById('ps-trial').textContent    = _tenants.filter(t=>t.subscription_status==='trial').length;
+  document.getElementById('ps-active').textContent   = _tenants.filter(t=>t.subscription_status==='active').length;
+  document.getElementById('ps-expiring').textContent = _tenants.filter(t=>t.subscription_status==='expiring').length;
+  document.getElementById('ps-expired').textContent  = _tenants.filter(t=>t.subscription_status==='expired').length;
+}
+
+window.renderTable = function() {
+  const name   = document.getElementById('f-name').value.toLowerCase();
+  const status = document.getElementById('f-status').value;
+  const plan   = document.getElementById('f-plan').value;
+
+  const filtered = _tenants.filter(t =>
+    (!name   || t.name.toLowerCase().includes(name)) &&
+    (!status || t.subscription_status === status) &&
+    (!plan   || t.plan_type === plan)
+  );
+
+  const tbody = document.getElementById('tenants-body');
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty"><div class="empty-ico">🏥</div>No tenants match filters</div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(t => {
+    const pCls = `chip plan-${t.plan_type}`;
+    const sCls = `chip status-${t.subscription_status}`;
+    const max  = t.max_users || 5;
+    return `<tr>
+      <td><strong>${_esc(t.name)}</strong>${!t.is_active?'<br><span style="font-size:11px;color:var(--text-muted)">Inactive</span>':''}</td>
+      <td style="font-family:monospace;font-size:12px;color:var(--text-muted)">${_esc(t.tenant_code||'—')}</td>
+      <td style="font-size:12px;color:var(--text-muted)">${_esc((t.type||'').replace(/_/g,' '))}</td>
+      <td><span class="${pCls}">${PLAN_LABEL[t.plan_type]||t.plan_type}</span></td>
+      <td><span class="${sCls}">${STATUS_LABEL[t.subscription_status]||t.subscription_status}${t.daysLeft!==null&&t.daysLeft<=30&&t.daysLeft>0?` · ${t.daysLeft}d`:''}</span></td>
+      <td style="font-size:12px">${t.endDate?t.endDate.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+'<br><span style="color:var(--text-muted)">'+(t.subscription_expiry?'Paid expiry':'Trial end')+'</span>':'<span style="color:var(--text-muted)">—</span>'}</td>
+      <td style="min-width:120px">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:3px">— / ${max===999?'∞':max}</div>
+        <div class="progress-wrap"><div class="progress-bar" style="width:0%"></div></div>
+      </td>
+      <td>
+        <button class="btn btn-outline" onclick="openEdit('${t.id}')">✏ Edit</button>
+      </td>
+    </tr>`;
+  }).join('');
+};
+
+window.openEdit = function(tenantId) {
+  const t = _tenants.find(t => t.id === tenantId);
+  if (!t) return;
+  document.getElementById('e-tenant-id').value         = t.id;
+  document.getElementById('e-tenant-name').textContent  = t.name + (t.tenant_code ? ` · ${t.tenant_code}` : '');
+  document.getElementById('e-plan').value               = t.plan_type || 'trial';
+  document.getElementById('e-status').value             = t.subscription_status === 'expiring' ? 'active' : (t.subscription_status || 'trial');
+  document.getElementById('e-max-users').value          = t.max_users || 5;
+  document.getElementById('e-expiry').value             = t.subscription_expiry || '';
+  document.getElementById('e-trial-ends').value         = t.trial_ends_at || '';
+  document.getElementById('edit-modal').classList.add('open');
+};
+
+window.closeModal = function() {
+  document.getElementById('edit-modal').classList.remove('open');
+};
+
+window.saveSubscription = async function() {
+  const tenantId  = document.getElementById('e-tenant-id').value;
+  const planType  = document.getElementById('e-plan').value;
+  const status    = document.getElementById('e-status').value;
+  const maxUsers  = parseInt(document.getElementById('e-max-users').value) || 5;
+  const expiry    = document.getElementById('e-expiry').value    || null;
+  const trialEnds = document.getElementById('e-trial-ends').value || null;
+
+  const { error } = await supabase.rpc('platform_update_subscription', {
+    p_tenant_id:   tenantId,
+    p_plan_type:   planType,
+    p_status:      status,
+    p_max_users:   maxUsers,
+    p_expiry:      expiry,
+    p_trial_ends:  trialEnds,
+  });
+
+  if (error) { _toast('❌ ' + error.message); return; }
+  _toast('✅ Subscription updated');
+  closeModal();
+  await init();
+};
+
+function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
+</script>
+</body>
+</html>

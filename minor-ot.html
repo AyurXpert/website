@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Minor OT Procedures — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --red:#c0392b;--red-light:#fdecea;
+  --blue:#1a4080;--blue-light:#e3f0ff;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page-wrap{max-width:1200px;margin:0 auto;padding:28px 20px 80px}
+
+/* Header */
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.4px;margin-left:8px;vertical-align:middle}
+
+/* Buttons */
+.btn{height:40px;padding:0 18px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}.btn-secondary:hover{background:var(--green-light)}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn-icon{height:32px;width:32px;padding:0;border:1.5px solid var(--border);border-radius:6px;background:var(--white);cursor:pointer;font-size:15px;display:inline-flex;align-items:center;justify-content:center}
+.btn-icon:hover{border-color:var(--green-mid);background:var(--green-light)}
+
+/* Alert */
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.alert.error{background:var(--red-light);color:#8b1a1a;border:1px solid #f5c6c6}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+.stat-value{font-size:28px;font-weight:700;color:var(--green-deep);line-height:1}
+.stat-label{font-size:11px;color:var(--text-muted);margin-top:5px;text-transform:uppercase;letter-spacing:.4px}
+.stat-card.gold .stat-value{color:var(--gold)}
+.stat-card.blue .stat-value{color:var(--blue)}
+
+/* Date navigator */
+.date-nav{display:flex;align-items:center;gap:10px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:16px;flex-wrap:wrap}
+.date-display{font-size:15px;font-weight:600;color:var(--text-dark);min-width:180px;text-align:center}
+.date-input{height:34px;padding:0 10px;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--cream)}
+.today-chip{padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;background:var(--green-light);color:var(--green-deep)}
+
+/* Table */
+.ot-table-wrap{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.ot-table{width:100%;border-collapse:collapse;font-size:13px}
+.ot-table th{background:var(--green-light);color:var(--text-mid);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:10px 12px;text-align:left;border-bottom:1.5px solid var(--border)}
+.ot-table td{padding:11px 12px;border-bottom:1px solid #eef2ef;vertical-align:middle}
+.ot-table tr:last-child td{border-bottom:none}
+.ot-table tr:hover td{background:#f8faf9}
+.proc-name{font-weight:600;color:var(--text-dark)}
+.proc-type{font-size:11px;color:var(--text-muted);margin-top:2px}
+.anaes-chip{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.anaes-local{background:#e3f0ff;color:var(--blue)}
+.anaes-general{background:#fdecea;color:var(--red)}
+.anaes-none{background:#f1f5f9;color:#64748b}
+.anaes-other{background:var(--gold-light);color:#7a5c00}
+
+/* Empty */
+.empty-state{text-align:center;padding:60px 20px;color:var(--text-muted)}
+.empty-icon{font-size:48px;margin-bottom:12px}
+.empty-title{font-size:16px;font-weight:600;color:var(--text-mid);margin-bottom:6px}
+
+/* ── Modal ── */
+.ot-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px}
+.ot-modal{background:#fff;border-radius:12px;width:640px;max-width:100%;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.2);overflow:hidden}
+.ot-modal-hdr{background:var(--green-deep);color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.ot-modal-hdr-title{font-weight:600;font-size:15px}
+.ot-modal-hdr-sub{font-size:11px;opacity:.7;margin-top:1px}
+.ot-modal-close{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;padding:0 0 0 12px}
+.ot-modal-body{padding:20px;overflow-y:auto;flex:1}
+.ot-modal-foot{padding:12px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border);flex-shrink:0}
+
+/* Form */
+.mfield{margin-bottom:14px}
+.mfield label{font-size:12px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px}
+.mfield input,.mfield select,.mfield textarea{width:100%;height:38px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box}
+.mfield textarea{height:70px;padding:8px 10px;resize:vertical}
+.mfield input:focus,.mfield select:focus,.mfield textarea:focus{outline:none;border-color:var(--green-mid)}
+.mrow2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mrow3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.msection{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--green-deep);margin:16px 0 10px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.pt-result{background:var(--green-light);border:1.5px solid #b2d8bf;border-radius:8px;padding:10px 14px;margin-top:6px;display:none}
+.pt-result.show{display:block}
+.pt-result-name{font-weight:600;font-size:14px;color:var(--green-deep)}
+.pt-result-sub{font-size:12px;color:var(--text-mid);margin-top:2px}
+
+/* View modal */
+.view-row{display:flex;gap:8px;padding:8px 0;border-bottom:1px solid #eef2ef;font-size:13px}
+.view-row:last-child{border-bottom:none}
+.view-label{width:160px;flex-shrink:0;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;padding-top:1px}
+.view-value{color:var(--text-dark);flex:1}
+
+/* Print */
+@media print{
+  body *{visibility:hidden}
+  #ot-print,#ot-print *{visibility:visible}
+  #ot-print{position:fixed;inset:0;padding:20mm}
+}
+#ot-print{display:none}
+.print-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:#1a4a2e;margin-bottom:4px}
+.print-sub{font-size:12px;color:#555;margin-bottom:16px;border-bottom:1.5px solid #1a4a2e;padding-bottom:8px}
+.print-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 20px;margin-bottom:14px}
+.print-field{font-size:12px;padding:4px 0;border-bottom:1px dotted #ccc}
+.print-field strong{font-weight:600;color:#1a4a2e;display:block;font-size:10px;text-transform:uppercase;letter-spacing:.3px}
+.print-notes{font-size:12px;margin-top:8px;padding:8px;border:1px solid #ccc;border-radius:4px;min-height:40px}
+.print-sign{display:flex;justify-content:flex-end;margin-top:30px;font-size:12px}
+.print-sign-box{text-align:center;border-top:1px solid #333;padding-top:4px;width:180px}
+
+@media(max-width:600px){
+  .stats-row{grid-template-columns:1fr 1fr}
+  .mrow2,.mrow3{grid-template-columns:1fr}
+  .ot-table th:nth-child(3),.ot-table td:nth-child(3),
+  .ot-table th:nth-child(4),.ot-table td:nth-child(4){display:none}
+}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="page-wrap">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Minor OT Procedures <span class="ncism-badge">NCISM §18p</span></div>
+      <div class="page-subtitle">Shalya Chikitsa — Minor surgical procedure records</div>
+    </div>
+    <button class="btn btn-primary" onclick="openNewModal()">+ New Procedure Record</button>
+  </div>
+
+  <div id="alert-box" class="alert"></div>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-value" id="st-today">—</div><div class="stat-label">Today</div></div>
+    <div class="stat-card gold"><div class="stat-value" id="st-month">—</div><div class="stat-label">This Month</div></div>
+    <div class="stat-card blue"><div class="stat-value" id="st-local">—</div><div class="stat-label">Local Anaes.</div></div>
+    <div class="stat-card"><div class="stat-value" id="st-general">—</div><div class="stat-label">General Anaes.</div></div>
+  </div>
+
+  <div class="date-nav">
+    <button class="btn-icon" onclick="shiftDate(-1)">‹</button>
+    <button class="btn-icon" onclick="shiftDate(1)">›</button>
+    <span class="date-display" id="date-display">—</span>
+    <input class="date-input" id="date-picker" type="date" onchange="onDatePick()"/>
+    <button class="btn btn-secondary btn-sm" onclick="goToday()">Today</button>
+    <span class="today-chip" id="today-chip" style="display:none">Today</span>
+  </div>
+
+  <div class="ot-table-wrap" id="table-wrap">
+    <div class="empty-state"><div class="empty-icon">🔪</div><div class="empty-title">Loading…</div></div>
+  </div>
+</div>
+
+<!-- ── New Procedure Modal ── -->
+<div class="ot-overlay" id="new-overlay" style="display:none" onclick="if(event.target===this)closeNewModal()">
+  <div class="ot-modal">
+    <div class="ot-modal-hdr">
+      <div><div class="ot-modal-hdr-title">Minor OT Procedure Record</div><div class="ot-modal-hdr-sub">Shalya Chikitsa · §18p</div></div>
+      <button class="ot-modal-close" onclick="closeNewModal()">✕</button>
+    </div>
+    <div class="ot-modal-body">
+      <div class="msection">Patient</div>
+      <div class="mfield">
+        <label>Search Patient (phone or name)</label>
+        <input id="n-search" type="text" placeholder="Enter phone or name…" oninput="searchPatient()"/>
+        <div class="pt-result" id="n-pt-result">
+          <div class="pt-result-name" id="n-pt-name">—</div>
+          <div class="pt-result-sub" id="n-pt-sub">—</div>
+        </div>
+      </div>
+
+      <div class="msection">Procedure Details</div>
+      <div class="mfield">
+        <label>Procedure Name</label>
+        <input id="n-proc-name" type="text" placeholder="e.g. Incision and Drainage of abscess"/>
+      </div>
+      <div class="mrow2">
+        <div class="mfield">
+          <label>Procedure Type</label>
+          <select id="n-proc-type">
+            <option value="">— Select —</option>
+            <option value="incision_drainage">Incision &amp; Drainage</option>
+            <option value="excision">Excision / Biopsy</option>
+            <option value="suturing">Suturing / Wound closure</option>
+            <option value="debridement">Debridement</option>
+            <option value="kshara_karma">Kshara Karma</option>
+            <option value="agni_karma">Agni Karma</option>
+            <option value="raktamokshana">Raktamokshana</option>
+            <option value="jalouka">Jalouka (Leech therapy)</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="mfield">
+          <label>Anaesthesia</label>
+          <select id="n-anaesthesia">
+            <option value="local">Local</option>
+            <option value="general">General</option>
+            <option value="spinal">Spinal</option>
+            <option value="regional">Regional Block</option>
+            <option value="none">None</option>
+          </select>
+        </div>
+      </div>
+      <div class="mrow3">
+        <div class="mfield">
+          <label>Procedure Date</label>
+          <input id="n-date" type="date"/>
+        </div>
+        <div class="mfield">
+          <label>Duration (minutes)</label>
+          <input id="n-duration" type="number" min="1" placeholder="e.g. 30"/>
+        </div>
+        <div class="mfield">
+          <label>Follow-up Date</label>
+          <input id="n-followup" type="date"/>
+        </div>
+      </div>
+
+      <div class="msection">Clinical Notes</div>
+      <div class="mfield">
+        <label>Pre-operative Diagnosis</label>
+        <input id="n-pre-diag" type="text" placeholder="Diagnosis before procedure"/>
+      </div>
+      <div class="mfield">
+        <label>Post-operative Diagnosis</label>
+        <input id="n-post-diag" type="text" placeholder="Diagnosis confirmed after procedure"/>
+      </div>
+      <div class="mfield">
+        <label>Operative Findings</label>
+        <textarea id="n-findings" placeholder="Intraoperative findings, anatomy, tissue appearance…"></textarea>
+      </div>
+      <div class="mfield">
+        <label>Procedure Notes</label>
+        <textarea id="n-proc-notes" placeholder="Steps performed, technique, suture material used…"></textarea>
+      </div>
+      <div class="mrow2">
+        <div class="mfield">
+          <label>Instruments Used</label>
+          <input id="n-instruments" type="text" placeholder="e.g. Scalpel No.15, Artery forceps…"/>
+        </div>
+        <div class="mfield">
+          <label>Complications (if any)</label>
+          <input id="n-complications" type="text" placeholder="None / describe if any"/>
+        </div>
+      </div>
+      <div class="mfield">
+        <label>Post-operative Instructions</label>
+        <textarea id="n-post-instr" placeholder="Dressing, antibiotics, activity restrictions, follow-up advice…" style="height:56px"></textarea>
+      </div>
+    </div>
+    <div class="ot-modal-foot">
+      <button class="btn btn-secondary btn-sm" onclick="closeNewModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveProcedure()">Save Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── View / Print Modal ── -->
+<div class="ot-overlay" id="view-overlay" style="display:none" onclick="if(event.target===this)closeViewModal()">
+  <div class="ot-modal">
+    <div class="ot-modal-hdr">
+      <div><div class="ot-modal-hdr-title" id="view-title">Procedure Record</div><div class="ot-modal-hdr-sub" id="view-sub">—</div></div>
+      <button class="ot-modal-close" onclick="closeViewModal()">✕</button>
+    </div>
+    <div class="ot-modal-body" id="view-body"></div>
+    <div class="ot-modal-foot">
+      <button class="btn btn-secondary btn-sm" onclick="closeViewModal()">Close</button>
+      <button class="btn btn-primary btn-sm" onclick="printRecord()">🖨 Print</button>
+    </div>
+  </div>
+</div>
+
+<!-- Print template (hidden) -->
+<div id="ot-print"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './js/config/constants.js';
+import { requireAuth, getCurrentProfile, getCurrentTenantId } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+
+requireAuth(['super_admin','dept_admin','doctor','nurse']);
+initNavbar();
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const tenantId = getCurrentTenantId();
+const profile  = getCurrentProfile();
+const userId   = profile?.id;
+
+let _viewDate  = new Date().toISOString().slice(0,10);
+let _allData   = [];
+let _viewRec   = null;
+let _foundPatient = null;
+
+// ── Date nav ──────────────────────────────────────────────────────────────────
+function renderDateNav() {
+  const d = new Date(_viewDate + 'T00:00:00');
+  document.getElementById('date-display').textContent =
+    d.toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  document.getElementById('date-picker').value = _viewDate;
+  const isToday = _viewDate === new Date().toISOString().slice(0,10);
+  document.getElementById('today-chip').style.display = isToday ? '' : 'none';
+}
+window.shiftDate = d => { const dt = new Date(_viewDate); dt.setDate(dt.getDate()+d); _viewDate = dt.toISOString().slice(0,10); renderDateNav(); loadData(); };
+window.onDatePick = () => { _viewDate = document.getElementById('date-picker').value; renderDateNav(); loadData(); };
+window.goToday = () => { _viewDate = new Date().toISOString().slice(0,10); renderDateNav(); loadData(); };
+
+// ── Load ──────────────────────────────────────────────────────────────────────
+async function loadData() {
+  const { data, error } = await supabase
+    .from('ot_procedures')
+    .select(`id,procedure_name,procedure_type,anaesthesia,procedure_date,duration_minutes,
+             pre_op_diagnosis,post_op_diagnosis,operative_findings,procedure_notes,
+             instruments_used,complications,post_op_instructions,follow_up_date,status,created_at,
+             patients(id,name,phone,age,gender),
+             profiles!surgeon_id(full_name)`)
+    .eq('tenant_id', tenantId)
+    .eq('procedure_date', _viewDate)
+    .order('created_at', { ascending: false });
+
+  if (error) { _alert('error', 'Load failed: ' + error.message); return; }
+  _allData = data || [];
+  renderStats();
+  renderTable();
+}
+
+async function loadStats() {
+  const today = new Date().toISOString().slice(0,10);
+  const m1 = new Date(); m1.setDate(1); const monthStart = m1.toISOString().slice(0,10);
+  const [todayRes, monthRes] = await Promise.all([
+    supabase.from('ot_procedures').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).eq('procedure_date',today),
+    supabase.from('ot_procedures').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('procedure_date',monthStart),
+  ]);
+  document.getElementById('st-today').textContent  = todayRes.count ?? '—';
+  document.getElementById('st-month').textContent  = monthRes.count ?? '—';
+  const localC   = _allData.filter(r=>r.anaesthesia==='local').length;
+  const generalC = _allData.filter(r=>r.anaesthesia==='general').length;
+  document.getElementById('st-local').textContent   = localC;
+  document.getElementById('st-general').textContent = generalC;
+}
+
+function renderStats() { loadStats(); }
+
+// ── Table ─────────────────────────────────────────────────────────────────────
+function renderTable() {
+  const wrap = document.getElementById('table-wrap');
+  if (!_allData.length) {
+    wrap.innerHTML = `<div class="empty-state"><div class="empty-icon">🔪</div>
+      <div class="empty-title">No procedures on this date</div>
+      <div class="empty-desc" style="font-size:13px">Use the button above to add a new procedure record.</div></div>`;
+    return;
+  }
+  const rows = _allData.map(r => {
+    const aCls = {local:'anaes-local',general:'anaes-general',none:'anaes-none'}[r.anaesthesia] || 'anaes-other';
+    const aLabel = {local:'Local',general:'General',spinal:'Spinal',regional:'Regional',none:'None'}[r.anaesthesia] || r.anaesthesia;
+    return `<tr>
+      <td><div class="proc-name">${r.procedure_name || '—'}</div><div class="proc-type">${_typeLabel(r.procedure_type)}</div></td>
+      <td>${r.patients?.name || '—'}<div style="font-size:11px;color:var(--text-muted)">${r.patients?.phone||''}</div></td>
+      <td><span class="anaes-chip ${aCls}">${aLabel}</span></td>
+      <td>${r.duration_minutes ? r.duration_minutes + ' min' : '—'}</td>
+      <td>${r.profiles?.full_name || '—'}</td>
+      <td>
+        <button class="btn btn-secondary btn-sm" onclick="viewRecord('${r.id}')">View</button>
+      </td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `<table class="ot-table">
+    <thead><tr><th>Procedure</th><th>Patient</th><th>Anaes.</th><th>Duration</th><th>Surgeon</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── New procedure modal ───────────────────────────────────────────────────────
+window.openNewModal = function() {
+  _foundPatient = null;
+  ['n-search','n-proc-name','n-pre-diag','n-post-diag','n-findings','n-proc-notes','n-instruments','n-complications','n-post-instr'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('n-proc-type').value = '';
+  document.getElementById('n-anaesthesia').value = 'local';
+  document.getElementById('n-date').value    = _viewDate;
+  document.getElementById('n-duration').value = '';
+  const fu = new Date(_viewDate); fu.setDate(fu.getDate()+7);
+  document.getElementById('n-followup').value = fu.toISOString().slice(0,10);
+  document.getElementById('n-pt-result').classList.remove('show');
+  document.getElementById('new-overlay').style.display = 'flex';
+};
+window.closeNewModal = () => { document.getElementById('new-overlay').style.display = 'none'; };
+
+let _ptTimer = null;
+window.searchPatient = function() {
+  clearTimeout(_ptTimer);
+  _ptTimer = setTimeout(async () => {
+    const q = document.getElementById('n-search').value.trim();
+    if (q.length < 3) { document.getElementById('n-pt-result').classList.remove('show'); return; }
+    const isPhone = /^\d+$/.test(q);
+    let qry = supabase.from('patients').select('id,name,phone,age,gender').eq('tenant_id',tenantId).limit(1);
+    qry = isPhone ? qry.ilike('phone',`%${q}%`) : qry.ilike('name',`%${q}%`);
+    const { data } = await qry;
+    const pt = data?.[0];
+    if (pt) {
+      _foundPatient = pt;
+      document.getElementById('n-pt-name').textContent = pt.name;
+      document.getElementById('n-pt-sub').textContent  = `${pt.phone||'—'} · ${pt.gender||''} ${pt.age?pt.age+'y':''}`;
+      document.getElementById('n-pt-result').classList.add('show');
+    } else { _foundPatient = null; document.getElementById('n-pt-result').classList.remove('show'); }
+  }, 350);
+};
+
+window.saveProcedure = async function() {
+  if (!_foundPatient)   { alert('Please search and select a patient.'); return; }
+  const pname = document.getElementById('n-proc-name').value.trim();
+  if (!pname)           { alert('Please enter the procedure name.'); return; }
+
+  const { error } = await supabase.from('ot_procedures').insert({
+    tenant_id:            tenantId,
+    patient_id:           _foundPatient.id,
+    surgeon_id:           userId,
+    procedure_name:       pname,
+    procedure_type:       document.getElementById('n-proc-type').value || null,
+    anaesthesia:          document.getElementById('n-anaesthesia').value,
+    procedure_date:       document.getElementById('n-date').value || _viewDate,
+    duration_minutes:     parseInt(document.getElementById('n-duration').value) || null,
+    pre_op_diagnosis:     document.getElementById('n-pre-diag').value.trim() || null,
+    post_op_diagnosis:    document.getElementById('n-post-diag').value.trim() || null,
+    operative_findings:   document.getElementById('n-findings').value.trim() || null,
+    procedure_notes:      document.getElementById('n-proc-notes').value.trim() || null,
+    instruments_used:     document.getElementById('n-instruments').value.trim() || null,
+    complications:        document.getElementById('n-complications').value.trim() || null,
+    post_op_instructions: document.getElementById('n-post-instr').value.trim() || null,
+    follow_up_date:       document.getElementById('n-followup').value || null,
+    status:               'completed'
+  });
+  if (error) { alert('Error saving: ' + error.message); return; }
+  closeNewModal();
+  _alert('success', 'Procedure record saved.');
+  loadData();
+};
+
+// ── View modal ────────────────────────────────────────────────────────────────
+window.viewRecord = function(id) {
+  _viewRec = _allData.find(r => r.id === id);
+  if (!_viewRec) return;
+  const r = _viewRec;
+  document.getElementById('view-title').textContent = r.procedure_name || 'Procedure Record';
+  document.getElementById('view-sub').textContent   = `${r.patients?.name || '—'} · ${_fmtDate(r.procedure_date)}`;
+
+  const rows = [
+    ['Patient',            r.patients?.name || '—'],
+    ['Phone',              r.patients?.phone || '—'],
+    ['Procedure Type',     _typeLabel(r.procedure_type)],
+    ['Anaesthesia',        ({local:'Local',general:'General',spinal:'Spinal',regional:'Regional Block',none:'None'}[r.anaesthesia]||r.anaesthesia)],
+    ['Date',               _fmtDate(r.procedure_date)],
+    ['Duration',           r.duration_minutes ? r.duration_minutes + ' min' : '—'],
+    ['Surgeon',            r.profiles?.full_name || '—'],
+    ['Follow-up',          r.follow_up_date ? _fmtDate(r.follow_up_date) : '—'],
+    ['Pre-op Diagnosis',   r.pre_op_diagnosis || '—'],
+    ['Post-op Diagnosis',  r.post_op_diagnosis || '—'],
+    ['Operative Findings', r.operative_findings || '—'],
+    ['Procedure Notes',    r.procedure_notes || '—'],
+    ['Instruments Used',   r.instruments_used || '—'],
+    ['Complications',      r.complications || 'None'],
+    ['Post-op Instructions', r.post_op_instructions || '—'],
+  ];
+  document.getElementById('view-body').innerHTML = rows.map(([l,v]) =>
+    `<div class="view-row"><div class="view-label">${l}</div><div class="view-value">${v}</div></div>`
+  ).join('');
+  document.getElementById('view-overlay').style.display = 'flex';
+};
+window.closeViewModal = () => { document.getElementById('view-overlay').style.display = 'none'; };
+
+window.printRecord = function() {
+  if (!_viewRec) return;
+  const r = _viewRec;
+  document.getElementById('ot-print').innerHTML = `
+    <div class="print-title">Minor OT Procedure Record</div>
+    <div class="print-sub">NCISM §18p · Shalya Chikitsa &nbsp;·&nbsp; ${_fmtDate(r.procedure_date)}</div>
+    <div class="print-grid">
+      <div class="print-field"><strong>Patient</strong>${r.patients?.name||'—'}</div>
+      <div class="print-field"><strong>Phone</strong>${r.patients?.phone||'—'}</div>
+      <div class="print-field"><strong>Procedure</strong>${r.procedure_name||'—'}</div>
+      <div class="print-field"><strong>Type</strong>${_typeLabel(r.procedure_type)}</div>
+      <div class="print-field"><strong>Anaesthesia</strong>${r.anaesthesia||'—'}</div>
+      <div class="print-field"><strong>Duration</strong>${r.duration_minutes?r.duration_minutes+' min':'—'}</div>
+      <div class="print-field"><strong>Pre-op Diagnosis</strong>${r.pre_op_diagnosis||'—'}</div>
+      <div class="print-field"><strong>Post-op Diagnosis</strong>${r.post_op_diagnosis||'—'}</div>
+    </div>
+    <div style="font-size:11px;font-weight:700;color:#1a4a2e;text-transform:uppercase;margin-bottom:4px">Operative Findings</div>
+    <div class="print-notes">${r.operative_findings||'—'}</div>
+    <div style="font-size:11px;font-weight:700;color:#1a4a2e;text-transform:uppercase;margin:10px 0 4px">Procedure Notes</div>
+    <div class="print-notes">${r.procedure_notes||'—'}</div>
+    <div style="font-size:11px;font-weight:700;color:#1a4a2e;text-transform:uppercase;margin:10px 0 4px">Post-op Instructions</div>
+    <div class="print-notes">${r.post_op_instructions||'—'}</div>
+    <div class="print-sign"><div class="print-sign-box">Surgeon: ${r.profiles?.full_name||'—'}</div></div>`;
+  window.print();
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function _typeLabel(t) {
+  return {incision_drainage:'Incision & Drainage',excision:'Excision / Biopsy',suturing:'Suturing',
+    debridement:'Debridement',kshara_karma:'Kshara Karma',agni_karma:'Agni Karma',
+    raktamokshana:'Raktamokshana',jalouka:'Jalouka',other:'Other'}[t] || t || '—';
+}
+function _fmtDate(d){ if(!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+function _alert(type,msg){ const el=document.getElementById('alert-box'); el.className=`alert ${type} show`; el.textContent=msg; setTimeout(()=>el.classList.remove('show'),4000); }
+
+renderDateNav();
+loadData();
+</script>
+</body>
+</html>

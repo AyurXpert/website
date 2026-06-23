@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ICU Flowsheet — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;--cream:#faf8f3;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--white:#fff;
+  --red:#c0392b;--red-light:#fdf0f0;--red-border:#f5c6c6;
+  --amber:#e07b00;--amber-light:#fff8e1;
+  --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.08)
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page{max-width:1300px;margin:0 auto;padding:24px 16px 80px}
+h1{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--green-deep);margin-bottom:4px}
+.subtitle{font-size:13px;color:var(--text-muted);margin-bottom:20px}
+.alert-banner{padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;margin-bottom:14px}
+.alert-banner.warn{background:var(--amber-light);border:1.5px solid #f0c040;color:#7a5200}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar select,.toolbar input[type=date]{height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit;background:var(--white)}
+.btn{padding:8px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:opacity .15s}
+.btn:hover{opacity:.88}.btn-primary{background:var(--green-deep);color:#fff}
+.btn-outline{background:transparent;border:1.5px solid var(--green-mid);color:var(--green-mid)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.card-title{font-size:14px;font-weight:600;color:var(--green-deep)}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+.kpi{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px}
+.kpi-label{font-size:10px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.kpi-val{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep)}
+.kpi-val.red{color:var(--red)}.kpi-val.amber{color:var(--amber)}
+/* Flowsheet table */
+.fs-wrap{overflow-x:auto;margin-top:8px}
+.fs-table{border-collapse:collapse;font-size:12px;min-width:1100px}
+.fs-table th{background:#1a4a2e;color:#fff;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;padding:6px 10px;text-align:center;white-space:nowrap}
+.fs-table th.group{background:#2d7a4f;font-size:9px;text-transform:uppercase;letter-spacing:.5px}
+.fs-table td{padding:6px 10px;border:1px solid #e4eee7;text-align:center;white-space:nowrap}
+.fs-table tr:hover td{background:#f2faf5}
+.fs-table .row-label{text-align:left;font-weight:500;color:var(--text-mid);background:#f7fbf8}
+.vent-on{color:var(--green-mid);font-weight:600}
+.vent-off{color:var(--text-muted)}
+.rass-neg{color:#1a3080}.rass-pos{color:var(--red)}.rass-zero{color:var(--text-mid)}
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:none;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto}
+.modal-bg.show{display:flex}
+.modal{background:var(--white);border-radius:12px;padding:28px;width:720px;max-width:100%;margin:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.modal h2{font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--green-deep);margin-bottom:16px}
+.section-hdr{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-mid);margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.field-row.col3{grid-template-columns:1fr 1fr 1fr}
+.field-row.col4{grid-template-columns:repeat(4,1fr)}
+.field{margin-bottom:8px}
+.field label{display:block;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);margin-bottom:3px}
+.field input,.field select,.field textarea{width:100%;border:1.5px solid var(--border);border-radius:6px;padding:7px 9px;font-size:13px;font-family:inherit}
+.gcs-total{font-size:18px;font-weight:700;color:var(--green-deep);text-align:center;padding:8px;background:var(--green-light);border-radius:6px;margin-top:4px}
+.modal-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+.empty{text-align:center;padding:36px 20px;color:var(--text-muted);font-size:13px}
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;color:#fff;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}.toast.success{background:#2d7a4f}.toast.error{background:var(--red)}
+@media(max-width:600px){.field-row,.field-row.col3,.field-row.col4{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+<div class="page">
+  <h1>🫀 ICU Clinical Flowsheet</h1>
+  <p class="subtitle">Hourly vitals, ventilator settings, sedation scoring (GCS/RASS), fluid balance — NABH PSQ.3a</p>
+
+  <div class="toolbar">
+    <select id="sel-patient" onchange="onPatientChange()">
+      <option value="">— Select Admitted Patient —</option>
+    </select>
+    <input type="date" id="sel-date" onchange="loadFlowsheet()"/>
+    <button class="btn btn-primary" onclick="openEntry()">+ Add Entry</button>
+    <button class="btn btn-outline" onclick="window.print()">🖨 Print</button>
+  </div>
+
+  <!-- Patient summary banner -->
+  <div id="pt-banner" style="display:none" class="card" style="padding:12px 16px;margin-bottom:12px">
+    <div style="display:flex;gap:24px;flex-wrap:wrap;font-size:13px">
+      <div><span style="color:var(--text-muted)">Patient: </span><strong id="pt-name">—</strong></div>
+      <div><span style="color:var(--text-muted)">Admission: </span><span id="pt-adm">—</span></div>
+      <div><span style="color:var(--text-muted)">Diagnosis: </span><span id="pt-dx">—</span></div>
+      <div><span style="color:var(--text-muted)">Bed: </span><span id="pt-bed">—</span></div>
+    </div>
+  </div>
+
+  <!-- KPIs (latest entry) -->
+  <div id="kpi-row" class="kpi-row" style="display:none">
+    <div class="kpi"><div class="kpi-label">BP (latest)</div><div class="kpi-val" id="k-bp">—</div></div>
+    <div class="kpi"><div class="kpi-label">HR</div><div class="kpi-val" id="k-hr">—</div></div>
+    <div class="kpi"><div class="kpi-label">SpO₂</div><div class="kpi-val" id="k-spo2">—</div></div>
+    <div class="kpi"><div class="kpi-label">GCS</div><div class="kpi-val" id="k-gcs">—</div></div>
+    <div class="kpi"><div class="kpi-label">RASS</div><div class="kpi-val" id="k-rass">—</div></div>
+    <div class="kpi"><div class="kpi-label">Fluid Balance</div><div class="kpi-val" id="k-fb">—</div></div>
+    <div class="kpi"><div class="kpi-label">Ventilator</div><div class="kpi-val" id="k-vent">—</div></div>
+  </div>
+
+  <!-- Flowsheet table -->
+  <div id="fs-empty" class="empty" style="margin-top:20px">Select a patient to view or add ICU flowsheet entries.</div>
+  <div id="fs-container" style="display:none">
+    <div class="card">
+      <div class="card-hdr"><div class="card-title">Hourly Observation Chart</div></div>
+      <div class="fs-wrap">
+        <table class="fs-table">
+          <thead>
+            <tr>
+              <th rowspan="2" class="row-label" style="text-align:left;background:#1a4a2e;min-width:110px">Parameter</th>
+              <th colspan="100%" id="time-headers"></th>
+            </tr>
+          </thead>
+          <tbody id="fs-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add Entry Modal ─────────────────────────────────────── -->
+<div class="modal-bg" id="entry-modal">
+  <div class="modal">
+    <h2>Add ICU Entry</h2>
+    <div class="field-row">
+      <div class="field"><label>Date &amp; Time *</label><input id="e-dt" type="datetime-local"/></div>
+      <div class="field"><label>Nurse / Doctor *</label><input id="e-nurse" type="text" placeholder="Recorded by"/></div>
+    </div>
+
+    <div class="section-hdr">Vital Signs</div>
+    <div class="field-row col4">
+      <div class="field"><label>BP Sys</label><input id="e-bps" type="number" placeholder="120"/></div>
+      <div class="field"><label>BP Dia</label><input id="e-bpd" type="number" placeholder="80"/></div>
+      <div class="field"><label>HR (bpm)</label><input id="e-hr" type="number" placeholder="72"/></div>
+      <div class="field"><label>Temp (°F)</label><input id="e-temp" type="number" step="0.1" placeholder="98.6"/></div>
+    </div>
+    <div class="field-row col3">
+      <div class="field"><label>SpO₂ (%)</label><input id="e-spo2" type="number" step="0.1" placeholder="98"/></div>
+      <div class="field"><label>RR (/min)</label><input id="e-rr" type="number" placeholder="16"/></div>
+      <div class="field"><label>Pain (0–10)</label><input id="e-pain" type="number" min="0" max="10" placeholder="0"/></div>
+    </div>
+
+    <div class="section-hdr">Ventilator Settings <span style="font-size:11px;font-weight:400;text-transform:none;letter-spacing:0">&nbsp;— fill only if on ventilator</span></div>
+    <div class="field-row col4">
+      <div class="field"><label>On Ventilator</label>
+        <select id="e-vent"><option value="no">No</option><option value="yes">Yes</option></select>
+      </div>
+      <div class="field"><label>Mode</label>
+        <select id="e-vmode">
+          <option value="">—</option>
+          <option>AC/VC</option><option>SIMV</option><option>PSV</option><option>CPAP</option><option>BIPAP</option><option>spontaneous</option>
+        </select>
+      </div>
+      <div class="field"><label>FiO₂ (%)</label><input id="e-fio2" type="number" min="21" max="100" placeholder="40"/></div>
+      <div class="field"><label>PEEP (cmH₂O)</label><input id="e-peep" type="number" placeholder="5"/></div>
+    </div>
+    <div class="field-row col3">
+      <div class="field"><label>Tidal Volume (ml)</label><input id="e-tv" type="number" placeholder="500"/></div>
+      <div class="field"><label>RR Set</label><input id="e-rrs" type="number" placeholder="14"/></div>
+      <div class="field"><label>PIP (cmH₂O)</label><input id="e-pip" type="number" placeholder="20"/></div>
+    </div>
+
+    <div class="section-hdr">Sedation / Neurological</div>
+    <div class="field-row col4">
+      <div class="field"><label>GCS Eye (1–4)</label><input id="e-eye" type="number" min="1" max="4" placeholder="4" oninput="calcGCS()"/></div>
+      <div class="field"><label>GCS Verbal (1–5)</label><input id="e-verbal" type="number" min="1" max="5" placeholder="5" oninput="calcGCS()"/></div>
+      <div class="field"><label>GCS Motor (1–6)</label><input id="e-motor" type="number" min="1" max="6" placeholder="6" oninput="calcGCS()"/></div>
+      <div class="field"><label>GCS Total</label><div class="gcs-total" id="gcs-total">—</div></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>RASS Score (−5 to +4)</label>
+        <select id="e-rass">
+          <option value="">—</option>
+          <option value="-5">−5 Unarousable</option>
+          <option value="-4">−4 Deep sedation</option>
+          <option value="-3">−3 Moderate sedation</option>
+          <option value="-2">−2 Light sedation</option>
+          <option value="-1">−1 Drowsy</option>
+          <option value="0">0 Alert &amp; calm</option>
+          <option value="1">+1 Restless</option>
+          <option value="2">+2 Agitated</option>
+          <option value="3">+3 Very agitated</option>
+          <option value="4">+4 Combative</option>
+        </select>
+      </div>
+      <div class="field"><label>Vasopressor / Rate</label>
+        <input id="e-vaso" type="text" placeholder="e.g. Noradrenaline 0.1 mcg/kg/min"/>
+      </div>
+    </div>
+
+    <div class="section-hdr">Fluid Balance (ml)</div>
+    <div class="field-row col4">
+      <div class="field"><label>IV Fluid In</label><input id="e-iv" type="number" placeholder="0"/></div>
+      <div class="field"><label>Oral In</label><input id="e-oral" type="number" placeholder="0"/></div>
+      <div class="field"><label>Urine Out</label><input id="e-urine" type="number" placeholder="0"/></div>
+      <div class="field"><label>Other Out</label><input id="e-other" type="number" placeholder="0"/></div>
+    </div>
+
+    <div class="field"><label>Nursing Notes</label><textarea id="e-notes" placeholder="Observations, events, medications given…" style="min-height:50px"></textarea></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeEntry()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEntry()">Save Entry</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script type="module">
+import { requireAuth } from './js/core/auth.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+import { initNavbar } from './js/components/navbar.js';
+
+requireAuth(['super_admin','dept_admin','doctor','nurse']);
+initNavbar();
+
+const profile = JSON.parse(sessionStorage.getItem('profile') || '{}');
+const tenantId = profile.tenant_id;
+let _admissions = [];
+let _currentAdm = null;
+
+// Set today's date
+document.getElementById('sel-date').value = new Date().toISOString().split('T')[0];
+
+// Load admitted patients
+async function loadAdmissions() {
+  const {data} = await supabase.from('ipd_admissions').select(`
+    id,admission_date,diagnosis_primary,
+    patient:patients(id,name),
+    bed:beds(bed_number,ward_name)
+  `).eq('tenant_id',tenantId).eq('status','admitted').order('admission_date');
+  _admissions = data || [];
+  const sel = document.getElementById('sel-patient');
+  sel.innerHTML = '<option value="">— Select Admitted Patient —</option>' +
+    _admissions.map(a=>`<option value="${a.id}">${a.patient?.name} — ${a.bed?.ward_name||''} Bed ${a.bed?.bed_number||''}</option>`).join('');
+}
+
+window.onPatientChange = () => {
+  const id = document.getElementById('sel-patient').value;
+  _currentAdm = _admissions.find(a=>a.id===id)||null;
+  if (_currentAdm) {
+    document.getElementById('pt-banner').style.display='block';
+    document.getElementById('pt-name').textContent = _currentAdm.patient?.name||'—';
+    document.getElementById('pt-adm').textContent = _currentAdm.admission_date||'—';
+    document.getElementById('pt-dx').textContent = _currentAdm.diagnosis_primary||'—';
+    document.getElementById('pt-bed').textContent = `${_currentAdm.bed?.ward_name||''} / ${_currentAdm.bed?.bed_number||'—'}`;
+    document.getElementById('kpi-row').style.display='grid';
+    loadFlowsheet();
+  } else {
+    document.getElementById('pt-banner').style.display='none';
+    document.getElementById('kpi-row').style.display='none';
+    document.getElementById('fs-container').style.display='none';
+    document.getElementById('fs-empty').style.display='block';
+  }
+};
+
+window.loadFlowsheet = async () => {
+  if (!_currentAdm) return;
+  const date = document.getElementById('sel-date').value;
+  const {data} = await supabase.from('icu_flowsheets')
+    .select('*')
+    .eq('tenant_id',tenantId)
+    .eq('ipd_id',_currentAdm.id)
+    .gte('recorded_at',date+'T00:00:00')
+    .lte('recorded_at',date+'T23:59:59')
+    .order('recorded_at');
+
+  if (!data?.length) {
+    document.getElementById('fs-empty').textContent='No entries for this date. Click "+ Add Entry" to begin.';
+    document.getElementById('fs-empty').style.display='block';
+    document.getElementById('fs-container').style.display='none';
+    clearKPIs();
+    return;
+  }
+
+  document.getElementById('fs-empty').style.display='none';
+  document.getElementById('fs-container').style.display='block';
+
+  // Update KPIs from latest entry
+  const last = data[data.length-1];
+  document.getElementById('k-bp').textContent = last.bp_systolic ? `${last.bp_systolic}/${last.bp_diastolic}` : '—';
+  document.getElementById('k-hr').textContent = last.heart_rate||'—';
+  document.getElementById('k-spo2').textContent = last.spo2 ? last.spo2+'%' : '—';
+  const gcs = (last.gcs_eye||0)+(last.gcs_verbal||0)+(last.gcs_motor||0);
+  document.getElementById('k-gcs').textContent = gcs||'—';
+  document.getElementById('k-rass').textContent = last.rass_score!==null&&last.rass_score!==undefined ? last.rass_score : '—';
+  const totalIn = (last.iv_fluid_in_ml||0)+(last.oral_in_ml||0);
+  const totalOut = (last.urine_out_ml||0)+(last.other_out_ml||0)+(last.ng_out_ml||0);
+  document.getElementById('k-fb').textContent = `+${totalIn-totalOut}`;
+  document.getElementById('k-vent').textContent = last.on_ventilator ? last.ventilator_mode||'Yes' : 'No';
+
+  // Build transposed table
+  const times = data.map(d => {
+    const t = new Date(d.recorded_at);
+    return t.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+  });
+
+  const rows = [
+    ['BP (mmHg)', data.map(d=>d.bp_systolic?`${d.bp_systolic}/${d.bp_diastolic}`:'—')],
+    ['HR (bpm)', data.map(d=>d.heart_rate||'—')],
+    ['SpO₂ (%)', data.map(d=>d.spo2||'—')],
+    ['Temp (°F)', data.map(d=>d.temperature||'—')],
+    ['RR (/min)', data.map(d=>d.respiratory_rate||'—')],
+    ['Pain (NRS)', data.map(d=>d.pain_score!==null&&d.pain_score!==undefined?d.pain_score:'—')],
+    ['Ventilator', data.map(d=>d.on_ventilator?`<span class="vent-on">${d.ventilator_mode||'On'}</span>`:`<span class="vent-off">Off</span>`)],
+    ['FiO₂ (%)', data.map(d=>d.fio2||'—')],
+    ['PEEP', data.map(d=>d.peep||'—')],
+    ['TV (ml)', data.map(d=>d.tidal_volume||'—')],
+    ['GCS', data.map(d=>{ const g=(d.gcs_eye||0)+(d.gcs_verbal||0)+(d.gcs_motor||0); return g||'—'; })],
+    ['RASS', data.map(d=>{
+      const r=d.rass_score;
+      if(r===null||r===undefined) return '—';
+      const cls = r<0?'rass-neg':r>0?'rass-pos':'rass-zero';
+      return `<span class="${cls}">${r>=0?'+':''}${r}</span>`;
+    })],
+    ['IV In (ml)', data.map(d=>d.iv_fluid_in_ml||'—')],
+    ['Urine Out (ml)', data.map(d=>d.urine_out_ml||'—')],
+    ['Balance (ml)', data.map(d=>{
+      const inn=(d.iv_fluid_in_ml||0)+(d.oral_in_ml||0);
+      const out=(d.urine_out_ml||0)+(d.other_out_ml||0)+(d.ng_out_ml||0);
+      const bal=inn-out;
+      const cls=bal<0?'style="color:var(--red)"':'style="color:var(--green-mid)"';
+      return `<span ${cls}>${bal>=0?'+':''}${bal}</span>`;
+    })],
+    ['Vasopressor', data.map(d=>d.vasopressor||'—')],
+    ['Notes', data.map(d=>d.notes||'—')],
+  ];
+
+  const thead = document.querySelector('.fs-table thead');
+  const existingRows = thead.querySelectorAll('tr');
+  existingRows[0].innerHTML = `<th style="text-align:left;background:#1a4a2e;min-width:110px;white-space:nowrap">Parameter</th>` +
+    times.map(t=>`<th style="background:#1a4a2e;min-width:80px">${t}</th>`).join('');
+
+  document.getElementById('fs-tbody').innerHTML = rows.map(([label, vals])=>`
+    <tr>
+      <td class="row-label">${label}</td>
+      ${vals.map(v=>`<td>${v}</td>`).join('')}
+    </tr>
+  `).join('');
+};
+
+function clearKPIs(){
+  ['k-bp','k-hr','k-spo2','k-gcs','k-rass','k-fb','k-vent'].forEach(id=>document.getElementById(id).textContent='—');
+}
+
+window.openEntry = () => {
+  if (!_currentAdm){showToast('Select a patient first','error');return;}
+  const now = new Date();
+  now.setSeconds(0,0);
+  document.getElementById('e-dt').value = now.toISOString().slice(0,16);
+  document.getElementById('e-nurse').value = profile.full_name||'';
+  ['e-bps','e-bpd','e-hr','e-temp','e-spo2','e-rr','e-pain','e-fio2','e-peep','e-tv','e-rrs','e-pip','e-eye','e-verbal','e-motor','e-vaso','e-notes','e-iv','e-oral','e-urine','e-other'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.value='';
+  });
+  document.getElementById('e-vent').value='no';
+  document.getElementById('e-vmode').value='';
+  document.getElementById('e-rass').value='';
+  document.getElementById('gcs-total').textContent='—';
+  document.getElementById('entry-modal').classList.add('show');
+};
+
+window.closeEntry = () => document.getElementById('entry-modal').classList.remove('show');
+
+window.calcGCS = () => {
+  const e = parseInt(document.getElementById('e-eye').value)||0;
+  const v = parseInt(document.getElementById('e-verbal').value)||0;
+  const m = parseInt(document.getElementById('e-motor').value)||0;
+  const total = e+v+m;
+  document.getElementById('gcs-total').textContent = total > 0 ? total+'/15' : '—';
+};
+
+window.saveEntry = async () => {
+  const dt = document.getElementById('e-dt').value;
+  if (!dt){showToast('Select date and time','error');return;}
+  const onVent = document.getElementById('e-vent').value==='yes';
+
+  const payload = {
+    tenant_id:tenantId,
+    patient_id:_currentAdm.patient?.id,
+    ipd_id:_currentAdm.id,
+    recorded_at:new Date(dt).toISOString(),
+    bp_systolic:parseInt(document.getElementById('e-bps').value)||null,
+    bp_diastolic:parseInt(document.getElementById('e-bpd').value)||null,
+    heart_rate:parseInt(document.getElementById('e-hr').value)||null,
+    temperature:parseFloat(document.getElementById('e-temp').value)||null,
+    spo2:parseFloat(document.getElementById('e-spo2').value)||null,
+    respiratory_rate:parseInt(document.getElementById('e-rr').value)||null,
+    pain_score:parseInt(document.getElementById('e-pain').value)||null,
+    on_ventilator:onVent,
+    ventilator_mode:onVent?document.getElementById('e-vmode').value||null:null,
+    fio2:onVent?parseInt(document.getElementById('e-fio2').value)||null:null,
+    peep:onVent?parseInt(document.getElementById('e-peep').value)||null:null,
+    tidal_volume:onVent?parseInt(document.getElementById('e-tv').value)||null:null,
+    pip:onVent?parseInt(document.getElementById('e-pip').value)||null:null,
+    gcs_eye:parseInt(document.getElementById('e-eye').value)||null,
+    gcs_verbal:parseInt(document.getElementById('e-verbal').value)||null,
+    gcs_motor:parseInt(document.getElementById('e-motor').value)||null,
+    rass_score:document.getElementById('e-rass').value!==''?parseInt(document.getElementById('e-rass').value):null,
+    vasopressor:document.getElementById('e-vaso').value.trim()||null,
+    iv_fluid_in_ml:parseInt(document.getElementById('e-iv').value)||0,
+    oral_in_ml:parseInt(document.getElementById('e-oral').value)||0,
+    urine_out_ml:parseInt(document.getElementById('e-urine').value)||0,
+    other_out_ml:parseInt(document.getElementById('e-other').value)||0,
+    notes:document.getElementById('e-notes').value.trim()||null,
+    recorded_by:profile.id
+  };
+
+  const {error} = await supabase.from('icu_flowsheets').insert(payload);
+  if (error){showToast('Error: '+error.message,'error');return;}
+  closeEntry();
+  showToast('Entry saved','success');
+  loadFlowsheet();
+};
+
+function showToast(msg,type='success'){const t=document.getElementById('toast');t.textContent=msg;t.className=`toast ${type} show`;setTimeout(()=>t.classList.remove('show'),3000);}
+
+loadAdmissions();
+</script>
+</body>
+</html>

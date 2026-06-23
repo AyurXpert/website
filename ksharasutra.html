@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Kshara Sutra Scheduler — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --red:#c0392b;--red-light:#fdecea;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page-wrap{max-width:1200px;margin:0 auto;padding:28px 20px 80px}
+
+/* Header */
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.4px;margin-left:8px;vertical-align:middle}
+
+/* Buttons */
+.btn{height:40px;padding:0 18px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}.btn-secondary:hover{background:var(--green-light)}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn-ghost{background:none;border:none;color:var(--text-mid);cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;padding:0 8px;height:30px;border-radius:6px}
+.btn-ghost:hover{background:var(--green-light);color:var(--green-deep)}
+
+/* Alert */
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.alert.error{background:var(--red-light);color:#8b1a1a;border:1px solid #f5c6c6}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+.stat-value{font-size:28px;font-weight:700;color:var(--green-deep);line-height:1}
+.stat-label{font-size:11px;color:var(--text-muted);margin-top:5px;text-transform:uppercase;letter-spacing:.4px}
+.stat-card.gold .stat-value{color:var(--gold)}
+.stat-card.red .stat-value{color:var(--red)}
+
+/* Filter bar */
+.filter-bar{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.tab-btns{display:flex;gap:4px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:3px}
+.tab-btn{height:32px;padding:0 14px;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;background:none;color:var(--text-mid);transition:background .15s}
+.tab-btn.active{background:var(--green-deep);color:#fff}
+.search-input{height:38px;border:1.5px solid var(--border);border-radius:var(--radius);padding:0 12px;font-family:'DM Sans',sans-serif;font-size:13px;min-width:220px;background:var(--white)}
+.search-input:focus{outline:none;border-color:var(--green-mid)}
+
+/* Patient cards grid */
+.ks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.ks-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px;position:relative}
+.ks-card.overdue{border-left:4px solid var(--red)}
+.ks-card.due-today{border-left:4px solid var(--gold)}
+.ks-card.upcoming{border-left:4px solid var(--green-mid)}
+.ks-card.completed{border-left:4px solid #94a3b8;opacity:.75}
+.ks-card-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.ks-pt-name{font-weight:600;font-size:14px;color:var(--text-dark)}
+.ks-pt-uhid{font-size:11px;color:var(--text-muted)}
+.ks-condition{display:inline-block;background:var(--green-light);color:var(--green-deep);font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;text-transform:capitalize}
+.ks-meta{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0;font-size:12px}
+.ks-meta-item{display:flex;flex-direction:column;gap:2px}
+.ks-meta-label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px}
+.ks-meta-value{font-weight:500;color:var(--text-dark)}
+.ks-progress{margin:10px 0}
+.ks-progress-bar{height:6px;background:#e8f0ec;border-radius:3px;overflow:hidden}
+.ks-progress-fill{height:100%;background:var(--green-mid);border-radius:3px;transition:width .3s}
+.ks-progress-label{font-size:10px;color:var(--text-muted);margin-top:3px}
+.next-date-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.next-date-chip.overdue{background:#fdecea;color:var(--red)}
+.next-date-chip.today{background:var(--gold-light);color:#7a5c00}
+.next-date-chip.upcoming{background:var(--green-light);color:var(--green-deep)}
+.next-date-chip.none{background:#f1f5f9;color:#64748b}
+.ks-card-actions{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+
+/* Empty state */
+.empty-state{text-align:center;padding:60px 20px;color:var(--text-muted)}
+.empty-icon{font-size:48px;margin-bottom:12px}
+.empty-title{font-size:16px;font-weight:600;color:var(--text-mid);margin-bottom:6px}
+.empty-desc{font-size:13px}
+
+/* ── Overlay / Modal ── */
+.ks-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px}
+.ks-modal{background:#fff;border-radius:12px;width:520px;max-width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.2);overflow:hidden}
+.ks-modal-lg{width:700px}
+.ks-modal-hdr{background:var(--green-deep);color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.ks-modal-hdr-title{font-weight:600;font-size:15px}
+.ks-modal-hdr-sub{font-size:11px;opacity:.7;margin-top:1px}
+.ks-modal-close{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;padding:0 0 0 12px}
+.ks-modal-body{padding:20px;overflow-y:auto;flex:1}
+.ks-modal-foot{padding:12px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border);flex-shrink:0}
+
+/* Form fields inside modal */
+.mfield{margin-bottom:14px}
+.mfield label{font-size:12px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px}
+.mfield input,.mfield select,.mfield textarea{width:100%;height:38px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box}
+.mfield textarea{height:70px;padding:8px 10px;resize:vertical}
+.mfield input:focus,.mfield select:focus,.mfield textarea:focus{outline:none;border-color:var(--green-mid)}
+.mrow2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* Patient search result */
+.pt-result{background:var(--green-light);border:1.5px solid #b2d8bf;border-radius:8px;padding:10px 14px;margin-top:6px;display:none}
+.pt-result.show{display:block}
+.pt-result-name{font-weight:600;font-size:14px;color:var(--green-deep)}
+.pt-result-sub{font-size:12px;color:var(--text-mid);margin-top:2px}
+
+/* History table */
+.hist-table{width:100%;border-collapse:collapse;font-size:13px}
+.hist-table th{background:var(--green-light);color:var(--text-mid);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;text-align:left;border-bottom:1.5px solid var(--border)}
+.hist-table td{padding:9px 10px;border-bottom:1px solid #eef2ef;color:var(--text-dark)}
+.hist-table tr:last-child td{border-bottom:none}
+.hist-table tr:hover td{background:#f8faf9}
+
+@media(max-width:600px){
+  .stats-row{grid-template-columns:1fr 1fr}
+  .ks-grid{grid-template-columns:1fr}
+  .mrow2{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="page-wrap">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Kshara Sutra Scheduler <span class="ncism-badge">NCISM §18o</span></div>
+      <div class="page-subtitle">Shalya Tantra — Weekly thread change tracking & appointment scheduler</div>
+    </div>
+    <button class="btn btn-primary" onclick="openRegisterModal()">+ Register New Case</button>
+  </div>
+
+  <div id="alert-box" class="alert"></div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-value" id="st-active">—</div><div class="stat-label">Active Cases</div></div>
+    <div class="stat-card gold"><div class="stat-value" id="st-today">—</div><div class="stat-label">Due Today</div></div>
+    <div class="stat-card red"><div class="stat-value" id="st-overdue">—</div><div class="stat-label">Overdue</div></div>
+    <div class="stat-card"><div class="stat-value" id="st-completed">—</div><div class="stat-label">Completed</div></div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filter-bar">
+    <div class="tab-btns">
+      <button class="tab-btn active" onclick="setFilter('active',this)">Active</button>
+      <button class="tab-btn" onclick="setFilter('due_today',this)">Due Today</button>
+      <button class="tab-btn" onclick="setFilter('overdue',this)">Overdue</button>
+      <button class="tab-btn" onclick="setFilter('completed',this)">Completed</button>
+      <button class="tab-btn" onclick="setFilter('all',this)">All</button>
+    </div>
+    <input class="search-input" id="ks-search" type="text" placeholder="Search patient name…" oninput="renderCards()"/>
+  </div>
+
+  <!-- Cards -->
+  <div class="ks-grid" id="ks-grid"></div>
+</div>
+
+<!-- ── Register New KS Case Modal ── -->
+<div class="ks-overlay" id="reg-overlay" style="display:none" onclick="if(event.target===this)closeRegModal()">
+  <div class="ks-modal">
+    <div class="ks-modal-hdr">
+      <div><div class="ks-modal-hdr-title">Register New Kshara Sutra Case</div><div class="ks-modal-hdr-sub">Shalya Tantra · §18o</div></div>
+      <button class="ks-modal-close" onclick="closeRegModal()">✕</button>
+    </div>
+    <div class="ks-modal-body">
+      <div class="mfield">
+        <label>Patient Phone / Name Search</label>
+        <input id="reg-search" type="text" placeholder="Enter phone number or name…" oninput="searchPatient()"/>
+        <div class="pt-result" id="reg-pt-result">
+          <div class="pt-result-name" id="reg-pt-name">—</div>
+          <div class="pt-result-sub" id="reg-pt-sub">—</div>
+        </div>
+      </div>
+      <div class="mrow2">
+        <div class="mfield">
+          <label>Condition</label>
+          <select id="reg-condition">
+            <option value="">— Select —</option>
+            <option value="fistula_in_ano">Fistula-in-Ano (Bhagandara)</option>
+            <option value="haemorrhoids">Haemorrhoids (Arshas)</option>
+            <option value="fissure">Fissure-in-Ano (Parikartika)</option>
+            <option value="pilonidal_sinus">Pilonidal Sinus</option>
+            <option value="sentinel_tag">Sentinel Tag</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="mfield">
+          <label>Thread Type</label>
+          <select id="reg-thread-type">
+            <option value="apamarga">Apamarga Kshara</option>
+            <option value="snuhi">Snuhi Kshara</option>
+            <option value="combination">Combination</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="mrow2">
+        <div class="mfield">
+          <label>Start Date</label>
+          <input id="reg-start-date" type="date"/>
+        </div>
+        <div class="mfield">
+          <label>Planned Sittings</label>
+          <input id="reg-planned" type="number" min="1" max="52" placeholder="e.g. 8"/>
+        </div>
+      </div>
+      <div class="mfield">
+        <label>Initial Assessment / Notes</label>
+        <textarea id="reg-notes" placeholder="Thread size, track details, initial examination findings…"></textarea>
+      </div>
+    </div>
+    <div class="ks-modal-foot">
+      <button class="btn btn-secondary btn-sm" onclick="closeRegModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveKsCase()">Register Case</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Log Thread Change Modal ── -->
+<div class="ks-overlay" id="log-overlay" style="display:none" onclick="if(event.target===this)closeLogModal()">
+  <div class="ks-modal">
+    <div class="ks-modal-hdr">
+      <div><div class="ks-modal-hdr-title" id="log-modal-title">Log Thread Change</div><div class="ks-modal-hdr-sub" id="log-modal-sub">Sitting #—</div></div>
+      <button class="ks-modal-close" onclick="closeLogModal()">✕</button>
+    </div>
+    <div class="ks-modal-body">
+      <div class="mrow2">
+        <div class="mfield">
+          <label>Sitting Number</label>
+          <input id="log-sitting-no" type="number" min="1" readonly style="background:#f5f5f5"/>
+        </div>
+        <div class="mfield">
+          <label>Change Date</label>
+          <input id="log-date" type="date"/>
+        </div>
+      </div>
+      <div class="mrow2">
+        <div class="mfield">
+          <label>Thread Length Remaining (cm)</label>
+          <input id="log-thread-len" type="number" step="0.1" min="0" placeholder="e.g. 4.5"/>
+        </div>
+        <div class="mfield">
+          <label>Next Appointment Date</label>
+          <input id="log-next-date" type="date"/>
+        </div>
+      </div>
+      <div class="mfield">
+        <label>Findings / Observations</label>
+        <textarea id="log-findings" placeholder="Wound condition, discharge, patient complaints, thread tension…"></textarea>
+      </div>
+    </div>
+    <div class="ks-modal-foot">
+      <button class="btn btn-secondary btn-sm" onclick="closeLogModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveThreadChange()">Save Change</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Session History Modal ── -->
+<div class="ks-overlay" id="hist-overlay" style="display:none" onclick="if(event.target===this)closeHistModal()">
+  <div class="ks-modal ks-modal-lg">
+    <div class="ks-modal-hdr">
+      <div><div class="ks-modal-hdr-title" id="hist-modal-title">Session History</div><div class="ks-modal-hdr-sub" id="hist-modal-sub">—</div></div>
+      <button class="ks-modal-close" onclick="closeHistModal()">✕</button>
+    </div>
+    <div class="ks-modal-body">
+      <div id="hist-table-wrap"></div>
+    </div>
+    <div class="ks-modal-foot">
+      <button class="btn btn-secondary btn-sm" onclick="closeHistModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './js/config/constants.js';
+import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+
+requireAuth(['super_admin','dept_admin','doctor','nurse']);
+initNavbar();
+
+const supabase  = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const tenantId  = getCurrentTenantId();
+const profile   = getCurrentProfile();
+const userId    = profile?.id;
+
+let _cases      = [];
+let _activeFilter = 'active';
+let _activeSessionId = null;
+let _foundPatient    = null;
+
+// ── Load ──────────────────────────────────────────────────────────────────────
+async function loadCases() {
+  const { data, error } = await supabase
+    .from('ks_sessions')
+    .select(`
+      id, condition, thread_type, start_date, status, notes, planned_sittings, created_at,
+      patients(id, name, phone),
+      profiles!doctor_id(full_name),
+      ks_thread_changes(id, sitting_no, change_date, thread_length_cm, findings, next_date)
+    `)
+    .eq('tenant_id', tenantId)
+    .order('created_at', { ascending: false });
+
+  if (error) { _alert('error', 'Failed to load cases: ' + error.message); return; }
+  _cases = (data || []).map(c => ({
+    ...c,
+    changes: (c.ks_thread_changes || []).sort((a,b) => a.sitting_no - b.sitting_no)
+  }));
+  renderStats();
+  renderCards();
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function renderStats() {
+  const today = _today();
+  const active    = _cases.filter(c => c.status === 'active').length;
+  const dueToday  = _cases.filter(c => c.status === 'active' && _nextDate(c) === today).length;
+  const overdue   = _cases.filter(c => c.status === 'active' && _nextDate(c) && _nextDate(c) < today).length;
+  const completed = _cases.filter(c => c.status === 'completed').length;
+  document.getElementById('st-active').textContent    = active;
+  document.getElementById('st-today').textContent     = dueToday;
+  document.getElementById('st-overdue').textContent   = overdue;
+  document.getElementById('st-completed').textContent = completed;
+}
+
+// ── Filter ────────────────────────────────────────────────────────────────────
+window.setFilter = function(f, btn) {
+  _activeFilter = f;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCards();
+};
+
+// ── Render cards ──────────────────────────────────────────────────────────────
+window.renderCards = function() {
+  const today  = _today();
+  const search = document.getElementById('ks-search').value.trim().toLowerCase();
+  let list = _cases;
+
+  if (search) list = list.filter(c => c.patients?.name?.toLowerCase().includes(search));
+
+  if (_activeFilter === 'active')    list = list.filter(c => c.status === 'active');
+  if (_activeFilter === 'completed') list = list.filter(c => c.status === 'completed');
+  if (_activeFilter === 'due_today') list = list.filter(c => c.status === 'active' && _nextDate(c) === today);
+  if (_activeFilter === 'overdue')   list = list.filter(c => c.status === 'active' && _nextDate(c) && _nextDate(c) < today);
+
+  const grid = document.getElementById('ks-grid');
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+      <div class="empty-icon">🔪</div>
+      <div class="empty-title">No cases found</div>
+      <div class="empty-desc">Register a new Kshara Sutra case to begin tracking.</div>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map(c => _buildCard(c, today)).join('');
+};
+
+function _buildCard(c, today) {
+  const nd       = _nextDate(c);
+  const sittings = c.changes.length;
+  const planned  = c.planned_sittings || 0;
+  const pct      = planned ? Math.min(100, Math.round((sittings / planned) * 100)) : 0;
+  const lastChange = c.changes.length ? c.changes[c.changes.length - 1] : null;
+
+  let urgency = 'upcoming', chipText = 'No next date set', chipCls = 'none';
+  if (c.status === 'completed') { urgency = 'completed'; chipText = 'Completed'; chipCls = 'none'; }
+  else if (nd) {
+    if (nd < today)      { urgency = 'overdue';   chipText = `Overdue — ${_daysAgo(nd)}d ago`;  chipCls = 'overdue'; }
+    else if (nd === today){ urgency = 'due-today'; chipText = 'Due Today';                      chipCls = 'today'; }
+    else                 { urgency = 'upcoming';   chipText = `Next: ${_fmtDate(nd)}`;           chipCls = 'upcoming'; }
+  }
+
+  const condLabel = { fistula_in_ano:'Fistula-in-Ano', haemorrhoids:'Haemorrhoids', fissure:'Fissure', pilonidal_sinus:'Pilonidal Sinus', sentinel_tag:'Sentinel Tag', other:'Other' };
+
+  return `<div class="ks-card ${urgency}">
+    <div class="ks-card-hdr">
+      <div>
+        <div class="ks-pt-name">${c.patients?.name || '—'}</div>
+        <div class="ks-pt-uhid">${c.patients?.phone || ''} · Started ${_fmtDate(c.start_date)}</div>
+      </div>
+      <span class="ks-condition">${condLabel[c.condition] || c.condition || '—'}</span>
+    </div>
+    <div class="ks-meta">
+      <div class="ks-meta-item"><span class="ks-meta-label">Thread</span><span class="ks-meta-value">${_threadLabel(c.thread_type)}</span></div>
+      <div class="ks-meta-item"><span class="ks-meta-label">Last Change</span><span class="ks-meta-value">${lastChange ? _fmtDate(lastChange.change_date) : 'Not yet'}</span></div>
+      <div class="ks-meta-item"><span class="ks-meta-label">Thread Remaining</span><span class="ks-meta-value">${lastChange?.thread_length_cm != null ? lastChange.thread_length_cm + ' cm' : '—'}</span></div>
+      <div class="ks-meta-item"><span class="ks-meta-label">Doctor</span><span class="ks-meta-value">${c.profiles?.full_name || '—'}</span></div>
+    </div>
+    ${planned ? `<div class="ks-progress">
+      <div class="ks-progress-bar"><div class="ks-progress-fill" style="width:${pct}%"></div></div>
+      <div class="ks-progress-label">${sittings} / ${planned} sittings completed (${pct}%)</div>
+    </div>` : `<div style="font-size:12px;color:var(--text-muted);margin:8px 0">${sittings} sittings recorded</div>`}
+    <span class="next-date-chip ${chipCls}">${chipText}</span>
+    <div class="ks-card-actions">
+      ${c.status === 'active' ? `<button class="btn btn-primary btn-sm" onclick="openLogModal('${c.id}')">+ Log Change</button>` : ''}
+      <button class="btn btn-secondary btn-sm" onclick="openHistModal('${c.id}')">History</button>
+      ${c.status === 'active' ? `<button class="btn-ghost btn-sm" onclick="markCompleted('${c.id}')">✓ Complete</button>` : ''}
+    </div>
+  </div>`;
+}
+
+// ── Register modal ────────────────────────────────────────────────────────────
+window.openRegisterModal = function() {
+  _foundPatient = null;
+  document.getElementById('reg-search').value   = '';
+  document.getElementById('reg-condition').value = '';
+  document.getElementById('reg-thread-type').value = 'apamarga';
+  document.getElementById('reg-start-date').value  = _today();
+  document.getElementById('reg-planned').value      = '';
+  document.getElementById('reg-notes').value         = '';
+  document.getElementById('reg-pt-result').classList.remove('show');
+  document.getElementById('reg-overlay').style.display = 'flex';
+};
+window.closeRegModal = () => { document.getElementById('reg-overlay').style.display = 'none'; };
+
+let _searchTimer = null;
+window.searchPatient = function() {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(async () => {
+    const q = document.getElementById('reg-search').value.trim();
+    if (q.length < 3) { document.getElementById('reg-pt-result').classList.remove('show'); return; }
+    const isPhone = /^\d+$/.test(q);
+    let query = supabase.from('patients').select('id,name,phone,age,gender').eq('tenant_id', tenantId).limit(1);
+    query = isPhone ? query.ilike('phone', `%${q}%`) : query.ilike('name', `%${q}%`);
+    const { data } = await query;
+    const pt = data?.[0];
+    if (pt) {
+      _foundPatient = pt;
+      document.getElementById('reg-pt-name').textContent = pt.name;
+      document.getElementById('reg-pt-sub').textContent  = `${pt.phone || '—'} · ${pt.gender || ''} ${pt.age ? pt.age + 'y' : ''}`;
+      document.getElementById('reg-pt-result').classList.add('show');
+    } else {
+      _foundPatient = null;
+      document.getElementById('reg-pt-result').classList.remove('show');
+    }
+  }, 350);
+};
+
+window.saveKsCase = async function() {
+  if (!_foundPatient) { alert('Please search and select a patient first.'); return; }
+  const condition = document.getElementById('reg-condition').value;
+  if (!condition)   { alert('Please select the condition.'); return; }
+
+  const { error } = await supabase.from('ks_sessions').insert({
+    tenant_id:        tenantId,
+    patient_id:       _foundPatient.id,
+    doctor_id:        userId,
+    condition,
+    thread_type:      document.getElementById('reg-thread-type').value,
+    start_date:       document.getElementById('reg-start-date').value || _today(),
+    planned_sittings: parseInt(document.getElementById('reg-planned').value) || null,
+    notes:            document.getElementById('reg-notes').value.trim(),
+    status:           'active'
+  });
+  if (error) { alert('Error saving case: ' + error.message); return; }
+  closeRegModal();
+  _alert('success', 'Kshara Sutra case registered successfully.');
+  loadCases();
+};
+
+// ── Log thread change modal ───────────────────────────────────────────────────
+window.openLogModal = function(sessionId) {
+  _activeSessionId = sessionId;
+  const c = _cases.find(x => x.id === sessionId);
+  if (!c) return;
+  const nextSitting = (c.changes.length || 0) + 1;
+  const nextWeek = new Date(); nextWeek.setDate(nextWeek.getDate() + 7);
+
+  document.getElementById('log-modal-title').textContent = `Log Thread Change — ${c.patients?.name || ''}`;
+  document.getElementById('log-modal-sub').textContent   = `Sitting #${nextSitting}`;
+  document.getElementById('log-sitting-no').value  = nextSitting;
+  document.getElementById('log-date').value         = _today();
+  document.getElementById('log-next-date').value    = nextWeek.toISOString().slice(0,10);
+  document.getElementById('log-thread-len').value   = '';
+  document.getElementById('log-findings').value     = '';
+  document.getElementById('log-overlay').style.display = 'flex';
+};
+window.closeLogModal = () => { document.getElementById('log-overlay').style.display = 'none'; };
+
+window.saveThreadChange = async function() {
+  const findings = document.getElementById('log-findings').value.trim();
+  if (!findings) { alert('Please enter findings / observations.'); return; }
+
+  const { error } = await supabase.from('ks_thread_changes').insert({
+    tenant_id:        tenantId,
+    session_id:       _activeSessionId,
+    sitting_no:       parseInt(document.getElementById('log-sitting-no').value),
+    change_date:      document.getElementById('log-date').value,
+    thread_length_cm: parseFloat(document.getElementById('log-thread-len').value) || null,
+    next_date:        document.getElementById('log-next-date').value || null,
+    findings,
+    done_by:          userId
+  });
+  if (error) { alert('Error saving thread change: ' + error.message); return; }
+  closeLogModal();
+  _alert('success', 'Thread change logged successfully.');
+  loadCases();
+};
+
+// ── History modal ─────────────────────────────────────────────────────────────
+window.openHistModal = function(sessionId) {
+  const c = _cases.find(x => x.id === sessionId);
+  if (!c) return;
+  document.getElementById('hist-modal-title').textContent = `Session History — ${c.patients?.name || '—'}`;
+  document.getElementById('hist-modal-sub').textContent   =
+    `${_condLabel(c.condition)} · ${c.changes.length} sittings · Started ${_fmtDate(c.start_date)}`;
+
+  const rows = c.changes.length
+    ? c.changes.map(r => `<tr>
+        <td style="font-weight:600">#${r.sitting_no}</td>
+        <td>${_fmtDate(r.change_date)}</td>
+        <td>${r.thread_length_cm != null ? r.thread_length_cm + ' cm' : '—'}</td>
+        <td>${r.findings || '—'}</td>
+        <td>${r.next_date ? _fmtDate(r.next_date) : '—'}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">No thread changes recorded yet.</td></tr>`;
+
+  document.getElementById('hist-table-wrap').innerHTML = `
+    <table class="hist-table">
+      <thead><tr><th>#</th><th>Date</th><th>Thread Left</th><th>Findings</th><th>Next Date</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  document.getElementById('hist-overlay').style.display = 'flex';
+};
+window.closeHistModal = () => { document.getElementById('hist-overlay').style.display = 'none'; };
+
+// ── Mark completed ────────────────────────────────────────────────────────────
+window.markCompleted = async function(sessionId) {
+  if (!confirm('Mark this Kshara Sutra case as completed?')) return;
+  const { error } = await supabase.from('ks_sessions').update({ status: 'completed' }).eq('id', sessionId);
+  if (error) { alert('Error: ' + error.message); return; }
+  _alert('success', 'Case marked as completed.');
+  loadCases();
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function _today() { return new Date().toISOString().slice(0,10); }
+function _nextDate(c) { const last = c.changes[c.changes.length - 1]; return last?.next_date || null; }
+function _fmtDate(d) { if (!d) return '—'; return new Date(d + 'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+function _daysAgo(d) { return Math.floor((new Date(_today()) - new Date(d)) / 86400000); }
+function _threadLabel(t) { return {apamarga:'Apamarga Kshara',snuhi:'Snuhi Kshara',combination:'Combination',other:'Other'}[t] || t || '—'; }
+function _condLabel(c) { return {fistula_in_ano:'Fistula-in-Ano',haemorrhoids:'Haemorrhoids',fissure:'Fissure',pilonidal_sinus:'Pilonidal Sinus',sentinel_tag:'Sentinel Tag',other:'Other'}[c] || c || '—'; }
+
+function _alert(type, msg) {
+  const el = document.getElementById('alert-box');
+  el.className = `alert ${type} show`;
+  el.textContent = msg;
+  setTimeout(() => el.classList.remove('show'), 4000);
+}
+
+loadCases();
+</script>
+</body>
+</html>

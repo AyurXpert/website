@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Seasonal Prophylaxis — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;--cream:#faf8f3;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--white:#fff;
+  --red:#c0392b;--red-light:#fdf0f0;
+  --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.08)
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page{max-width:1100px;margin:0 auto;padding:24px 16px 80px}
+h1{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--green-deep);margin-bottom:4px}
+.subtitle{font-size:13px;color:var(--text-muted);margin-bottom:24px}
+
+/* Tabs */
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:24px}
+.tab-btn{padding:10px 22px;font-size:13px;font-weight:500;background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;color:var(--text-muted);margin-bottom:-2px;transition:all .2s}
+.tab-btn.active{color:var(--green-deep);border-bottom-color:var(--green-deep);font-weight:600}
+.tab-pane{display:none}.tab-pane.active{display:block}
+
+/* Cards */
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+.card-title{font-size:15px;font-weight:600;color:var(--green-deep)}
+.card-meta{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+/* Season badge */
+.season-badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid}
+.s-vasanta{background:#f0fff4;color:#1a6e3a;border-color:#a5d6a7}
+.s-sharad{background:#fff8e1;color:#7a5200;border-color:#ffe082}
+.s-hemanta{background:#e3f2fd;color:#1565c0;border-color:#90caf9}
+.s-shishira{background:#f3e5f5;color:#6a1b9a;border-color:#ce93d8}
+.s-grishma{background:#fff3e0;color:#e65100;border-color:#ffcc80}
+.s-varsha{background:#e0f7fa;color:#006064;border-color:#80deea}
+.s-custom{background:#f5f5f5;color:#555;border-color:#ccc}
+
+/* Status badge */
+.status-badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:600}
+.st-enrolled{background:#e8f5ee;color:#1a4a2e;border:1px solid #a5d6b8}
+.st-completed{background:#e3f2fd;color:#1565c0;border:1px solid #90caf9}
+.st-dropped{background:#fdf0f0;color:#c0392b;border:1px solid #f5b8b8}
+.st-no_show{background:#f5f5f5;color:#888;border:1px solid #ddd}
+
+/* Form */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid.g3{grid-template-columns:1fr 1fr 1fr}
+.field{display:flex;flex-direction:column;gap:5px}
+.field.span2{grid-column:span 2}
+label{font-size:12px;font-weight:500;color:var(--text-mid)}
+input,select,textarea{padding:8px 11px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;color:var(--text-dark);background:var(--white);width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mid)}
+textarea{resize:vertical;min-height:70px}
+
+/* Buttons */
+.btn{padding:8px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:opacity .15s}
+.btn:hover{opacity:.88}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-gold{background:var(--gold);color:#fff}
+.btn-outline{background:transparent;border:1.5px solid var(--green-mid);color:var(--green-mid)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-danger{background:var(--red);color:#fff}
+
+/* Program list */
+.prog-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin-bottom:24px}
+.prog-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px;cursor:pointer;transition:border-color .2s,box-shadow .2s}
+.prog-card:hover,.prog-card.selected{border-color:var(--green-mid);box-shadow:0 0 0 3px rgba(45,122,79,.1)}
+.prog-card.selected{border-color:var(--green-deep)}
+.prog-name{font-size:14px;font-weight:600;color:var(--green-deep)}
+.prog-dates{font-size:11px;color:var(--text-muted);margin-top:3px}
+.prog-stats{display:flex;gap:12px;margin-top:8px}
+.prog-stat{font-size:11px;color:var(--text-mid)}
+.prog-stat strong{color:var(--text-dark)}
+
+/* Enrollment table */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--green-deep);color:#fff;padding:9px 12px;text-align:left;font-weight:500;font-size:12px}
+td{padding:9px 12px;border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fdf9}
+
+/* Compliance dots */
+.comp-dots{display:flex;gap:3px;flex-wrap:wrap;max-width:200px}
+.comp-dot{width:10px;height:10px;border-radius:50%;cursor:pointer;border:1.5px solid}
+.comp-dot.attended{background:#2d7a4f;border-color:#1a4a2e}
+.comp-dot.absent{background:#fff;border-color:#bbb}
+.comp-dot.future{background:#f0f0f0;border-color:#e0e0e0;cursor:default}
+
+/* Enroll panel */
+.enroll-panel{background:var(--green-light);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:20px}
+.enroll-title{font-size:13px;font-weight:600;color:var(--green-deep);margin-bottom:12px}
+.search-row{display:flex;gap:8px}
+.search-row input{flex:1}
+
+/* Stats bar */
+.stats-bar{display:flex;gap:20px;padding:12px 16px;background:var(--green-light);border-radius:8px;margin-bottom:16px}
+.stat-item{text-align:center}
+.stat-num{font-size:20px;font-weight:700;color:var(--green-deep);font-family:'Cormorant Garamond',serif}
+.stat-lbl{font-size:11px;color:var(--text-muted)}
+
+/* Empty state */
+.empty{text-align:center;padding:40px 20px;color:var(--text-muted);font-size:13px}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;color:#fff;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.toast.success{background:#2d7a4f}
+.toast.error{background:var(--red)}
+
+/* Modal */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:800;align-items:center;justify-content:center}
+.modal-bg.show{display:flex}
+.modal{background:#fff;border-radius:var(--radius);width:560px;max-width:96vw;max-height:92vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.modal-hdr{background:var(--green-deep);color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-radius:var(--radius) var(--radius) 0 0}
+.modal-title{font-size:15px;font-weight:600}
+.modal-close{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1}
+.modal-body{padding:20px}
+.modal-foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+
+<div class="page">
+  <h1>Seasonal Prophylaxis Programme</h1>
+  <p class="subtitle">Swasthya Rakshana — NCISM §18e · Vasanta Shodhana, Sharad Rasayana and other seasonal programmes</p>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('programmes')">Programmes</button>
+    <button class="tab-btn" onclick="switchTab('enrolments')">Enrolments</button>
+  </div>
+
+  <!-- ── TAB 1: Programmes ──────────────────────────────── -->
+  <div class="tab-pane active" id="tab-programmes">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+      <button class="btn btn-primary" onclick="openProgModal()">+ New Programme</button>
+    </div>
+    <div class="prog-list" id="prog-list">
+      <div class="empty">Loading programmes…</div>
+    </div>
+  </div>
+
+  <!-- ── TAB 2: Enrolments ─────────────────────────────── -->
+  <div class="tab-pane" id="tab-enrolments">
+
+    <!-- Programme selector -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="field">
+        <label>Select Programme</label>
+        <select id="enrol-prog-select" onchange="loadEnrolments()">
+          <option value="">— Select a programme —</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="enrolment-section" style="display:none">
+
+      <!-- Stats -->
+      <div class="stats-bar" id="enrol-stats">
+        <div class="stat-item"><div class="stat-num" id="st-enrolled">0</div><div class="stat-lbl">Enrolled</div></div>
+        <div class="stat-item"><div class="stat-num" id="st-completed">0</div><div class="stat-lbl">Completed</div></div>
+        <div class="stat-item"><div class="stat-num" id="st-compliance">—</div><div class="stat-lbl">Avg Compliance</div></div>
+        <div class="stat-item"><div class="stat-num" id="st-days-left">—</div><div class="stat-lbl">Days Left</div></div>
+      </div>
+
+      <!-- Enroll new patient -->
+      <div class="enroll-panel">
+        <div class="enroll-title">Enrol a Patient</div>
+        <div class="search-row">
+          <input type="text" id="enrol-search" placeholder="Search patient by phone or name…" oninput="searchEnrolPatient()"/>
+          <button class="btn btn-gold btn-sm" onclick="searchEnrolPatient()">Search</button>
+        </div>
+        <div id="enrol-results" style="margin-top:8px"></div>
+      </div>
+
+      <!-- Enrolment table -->
+      <div class="card">
+        <div class="card-hdr">
+          <div>
+            <div class="card-title">Enrolled Patients</div>
+            <div class="card-meta" id="enrol-prog-name-lbl"></div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="exportEnrolCSV()">Export CSV</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Patient</th>
+                <th>Enrolled On</th>
+                <th>Compliance</th>
+                <th>Status</th>
+                <th>Outcome</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="enrol-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Programme modal -->
+<div class="modal-bg" id="prog-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title" id="prog-modal-title">New Programme</span>
+      <button class="modal-close" onclick="closeProgModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="field span2">
+          <label>Programme Name *</label>
+          <input type="text" id="pm-name" placeholder="e.g. Vasanta Shodhana 2026"/>
+        </div>
+        <div class="field">
+          <label>Season *</label>
+          <select id="pm-season">
+            <option value="">— Select —</option>
+            <option value="vasanta">Vasanta (Spring)</option>
+            <option value="sharad">Sharad (Autumn)</option>
+            <option value="hemanta">Hemanta (Early Winter)</option>
+            <option value="shishira">Shishira (Late Winter)</option>
+            <option value="grishma">Grishma (Summer)</option>
+            <option value="varsha">Varsha (Monsoon)</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Max Patients</label>
+          <input type="number" id="pm-max" placeholder="30" min="1"/>
+        </div>
+        <div class="field">
+          <label>Start Date *</label>
+          <input type="date" id="pm-start"/>
+        </div>
+        <div class="field">
+          <label>End Date *</label>
+          <input type="date" id="pm-end"/>
+        </div>
+        <div class="field span2">
+          <label>Medicines / Formulations Used</label>
+          <input type="text" id="pm-medicines" placeholder="e.g. Triphala Churna, Haritaki, Neem Kwatha (comma-separated)"/>
+        </div>
+        <div class="field span2">
+          <label>Protocol / Instructions</label>
+          <textarea id="pm-protocol" placeholder="Describe the Shodhana or Rasayana protocol, dosage schedule, diet instructions…"></textarea>
+        </div>
+        <div class="field span2">
+          <label>Description</label>
+          <textarea id="pm-desc" placeholder="Brief description for staff reference…" style="min-height:50px"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeProgModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveProgramme()">Save Programme</button>
+    </div>
+  </div>
+</div>
+
+<!-- Outcome modal -->
+<div class="modal-bg" id="outcome-modal">
+  <div class="modal" style="width:400px">
+    <div class="modal-hdr">
+      <span class="modal-title">Update Outcome</span>
+      <button class="modal-close" onclick="closeOutcomeModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field" style="margin-bottom:12px">
+        <label>Status</label>
+        <select id="oc-status">
+          <option value="enrolled">Enrolled (ongoing)</option>
+          <option value="completed">Completed</option>
+          <option value="dropped">Dropped Out</option>
+          <option value="no_show">No Show</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Outcome / Notes</label>
+        <textarea id="oc-notes" placeholder="Clinical outcome, observations, follow-up advice…"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeOutcomeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveOutcome()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { requireAuth } from './js/core/auth.js';
+import { initNavbar }  from './js/components/navbar.js';
+
+const ALLOWED = ['super_admin','dept_admin','doctor','receptionist','nurse'];
+const profile = await requireAuth(ALLOWED);
+const sess    = JSON.parse(sessionStorage.getItem('ax_profile') || '{}');
+const tenantId = sess.tenant_id;
+
+import { ENV } from './js/config/env.js';
+const supabase = createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY);
+
+initNavbar();
+
+// ── State ─────────────────────────────────────────────
+let _programmes = [];
+let _enrolments = [];
+let _activeProg = null;
+let _editingProgId = null;
+let _editingEnrolId = null;
+
+// ── Tab switch ────────────────────────────────────────
+window.switchTab = function(id) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', ['programmes','enrolments'][i] === id));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + id));
+  if (id === 'enrolments') _populateProgSelect();
+};
+
+// ── Load programmes ───────────────────────────────────
+async function loadProgrammes() {
+  const { data, error } = await supabase
+    .from('prophylaxis_programs')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .order('start_date', { ascending: false });
+  if (error) { _toast('Error loading programmes: ' + error.message, 'error'); return; }
+  _programmes = data || [];
+  renderProgList();
+}
+
+function renderProgList() {
+  const el = document.getElementById('prog-list');
+  if (!_programmes.length) { el.innerHTML = '<div class="empty">No programmes yet. Click "+ New Programme" to create one.</div>'; return; }
+  el.innerHTML = _programmes.map(p => {
+    const today = new Date(); const s = new Date(p.start_date); const e = new Date(p.end_date);
+    const active = today >= s && today <= e;
+    const past   = today > e;
+    const statusLabel = active ? '<span style="color:#2d7a4f;font-size:11px;font-weight:600">● Active</span>'
+                      : past   ? '<span style="color:#888;font-size:11px">Completed</span>'
+                               : '<span style="color:#c9902a;font-size:11px">Upcoming</span>';
+    const dur = Math.round((e - s) / 86400000) + 1;
+    return `<div class="prog-card" onclick="selectProg('${p.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="prog-name">${p.name}</div>
+          <div class="prog-dates">${_fmtDate(p.start_date)} → ${_fmtDate(p.end_date)} · ${dur} days</div>
+        </div>
+        <span class="season-badge s-${p.season}">${_seasonLabel(p.season)}</span>
+      </div>
+      <div class="prog-stats">
+        <div class="prog-stat">${statusLabel}</div>
+        <div class="prog-stat">Max: <strong>${p.max_patients || '—'}</strong></div>
+        ${p.medicines?.length ? `<div class="prog-stat">${p.medicines.slice(0,2).join(', ')}${p.medicines.length>2?'…':''}</div>` : ''}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();editProg('${p.id}')">Edit</button>
+        <button class="btn btn-gold btn-sm" onclick="event.stopPropagation();goEnrol('${p.id}')">View Enrolments</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.selectProg = function(id) {
+  _activeProg = _programmes.find(p => p.id === id);
+};
+
+window.goEnrol = function(id) {
+  switchTab('enrolments');
+  setTimeout(() => {
+    document.getElementById('enrol-prog-select').value = id;
+    loadEnrolments();
+  }, 50);
+};
+
+// ── Programme modal ───────────────────────────────────
+window.openProgModal = function(prog) {
+  _editingProgId = prog?.id || null;
+  document.getElementById('prog-modal-title').textContent = prog ? 'Edit Programme' : 'New Programme';
+  document.getElementById('pm-name').value      = prog?.name || '';
+  document.getElementById('pm-season').value    = prog?.season || '';
+  document.getElementById('pm-max').value       = prog?.max_patients || '';
+  document.getElementById('pm-start').value     = prog?.start_date || '';
+  document.getElementById('pm-end').value       = prog?.end_date || '';
+  document.getElementById('pm-medicines').value = (prog?.medicines || []).join(', ');
+  document.getElementById('pm-protocol').value  = prog?.protocol || '';
+  document.getElementById('pm-desc').value      = prog?.description || '';
+  document.getElementById('prog-modal').classList.add('show');
+};
+
+window.editProg = function(id) {
+  const p = _programmes.find(x => x.id === id);
+  if (p) openProgModal(p);
+};
+
+window.closeProgModal = function() {
+  document.getElementById('prog-modal').classList.remove('show');
+  _editingProgId = null;
+};
+
+window.saveProgramme = async function() {
+  const name  = document.getElementById('pm-name').value.trim();
+  const season = document.getElementById('pm-season').value;
+  const start  = document.getElementById('pm-start').value;
+  const end    = document.getElementById('pm-end').value;
+  if (!name || !season || !start || !end) { _toast('Name, season and dates are required', 'error'); return; }
+  if (end < start) { _toast('End date must be after start date', 'error'); return; }
+
+  const medRaw = document.getElementById('pm-medicines').value;
+  const medicines = medRaw ? medRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const payload = {
+    tenant_id: tenantId, name, season, start_date: start, end_date: end,
+    max_patients: parseInt(document.getElementById('pm-max').value) || 30,
+    medicines,
+    protocol:    document.getElementById('pm-protocol').value.trim() || null,
+    description: document.getElementById('pm-desc').value.trim() || null,
+  };
+
+  let error;
+  if (_editingProgId) {
+    ({ error } = await supabase.from('prophylaxis_programs').update(payload).eq('id', _editingProgId));
+  } else {
+    ({ error } = await supabase.from('prophylaxis_programs').insert({ ...payload, created_by: sess.id }));
+  }
+  if (error) { _toast('Save error: ' + error.message, 'error'); return; }
+  _toast(_editingProgId ? 'Programme updated' : 'Programme created', 'success');
+  closeProgModal();
+  loadProgrammes();
+};
+
+// ── Populate select in enrolments tab ─────────────────
+function _populateProgSelect() {
+  const sel = document.getElementById('enrol-prog-select');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Select a programme —</option>' +
+    _programmes.map(p => `<option value="${p.id}">${p.name} (${_fmtDate(p.start_date)})</option>`).join('');
+  if (cur) sel.value = cur;
+}
+
+// ── Load enrolments ───────────────────────────────────
+window.loadEnrolments = async function() {
+  const progId = document.getElementById('enrol-prog-select').value;
+  document.getElementById('enrolment-section').style.display = progId ? '' : 'none';
+  if (!progId) return;
+  _activeProg = _programmes.find(p => p.id === progId);
+  document.getElementById('enrol-prog-name-lbl').textContent = _activeProg?.name || '';
+
+  const { data, error } = await supabase
+    .from('prophylaxis_enrollments')
+    .select('*, patients(id, name, phone, age, gender)')
+    .eq('program_id', progId)
+    .eq('tenant_id', tenantId)
+    .order('enrolled_at');
+  if (error) { _toast('Error: ' + error.message, 'error'); return; }
+  _enrolments = data || [];
+  renderEnrolTable();
+  updateStats();
+};
+
+function renderEnrolTable() {
+  const tbody = document.getElementById('enrol-tbody');
+  if (!_enrolments.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No patients enrolled yet. Use the search above to enrol.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _enrolments.map(e => {
+    const pat = e.patients;
+    const log = e.compliance_log || [];
+    const total = log.length;
+    const attended = log.filter(d => d.attended).length;
+    const pct = total ? Math.round(attended / total * 100) : 0;
+    const dots = _buildDots(e);
+    return `<tr>
+      <td>
+        <div style="font-weight:500">${pat?.name || '—'}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${pat?.phone || ''} · ${pat?.age ? pat.age + 'y' : ''} ${pat?.gender || ''}</div>
+      </td>
+      <td style="font-size:12px">${_fmtDate(e.enrolled_at)}</td>
+      <td>
+        <div class="comp-dots" title="${attended}/${total} sessions attended">${dots}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:3px">${total ? `${attended}/${total} (${pct}%)` : 'Not started'}</div>
+      </td>
+      <td><span class="status-badge st-${e.status}">${_statusLabel(e.status)}</span></td>
+      <td style="font-size:12px;max-width:140px;word-break:break-word">${e.outcome || '—'}</td>
+      <td>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="markToday('${e.id}')">Mark Today</button>
+          <button class="btn btn-sm" style="background:var(--gold-light);color:#7a5200;border:1px solid #e8c97a" onclick="openOutcomeModal('${e.id}')">Outcome</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function _buildDots(e) {
+  if (!_activeProg) return '';
+  const log = e.compliance_log || [];
+  const logMap = {};
+  log.forEach(d => logMap[d.date] = d.attended);
+  const start = new Date(_activeProg.start_date);
+  const end   = new Date(_activeProg.end_date);
+  const today = new Date(); today.setHours(0,0,0,0);
+  let dots = '';
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const ds = d.toISOString().slice(0,10);
+    const isFuture = d > today;
+    const cls = isFuture ? 'future' : (logMap[ds] ? 'attended' : 'absent');
+    const title = isFuture ? ds : (logMap[ds] ? `${ds} ✓` : `${ds} ✗`);
+    dots += `<div class="comp-dot ${cls}" title="${title}" onclick="${isFuture?'':''}" data-date="${ds}" data-enrol="${e.id}"></div>`;
+  }
+  return dots;
+}
+
+function updateStats() {
+  const total    = _enrolments.length;
+  const done     = _enrolments.filter(e => e.status === 'completed').length;
+  const compPcts = _enrolments.map(e => {
+    const log = e.compliance_log || [];
+    return log.length ? log.filter(d => d.attended).length / log.length * 100 : null;
+  }).filter(v => v !== null);
+  const avgComp  = compPcts.length ? Math.round(compPcts.reduce((a,b) => a+b, 0) / compPcts.length) : null;
+  const daysLeft = _activeProg ? Math.max(0, Math.round((new Date(_activeProg.end_date) - new Date()) / 86400000)) : null;
+
+  document.getElementById('st-enrolled').textContent  = total;
+  document.getElementById('st-completed').textContent = done;
+  document.getElementById('st-compliance').textContent = avgComp !== null ? avgComp + '%' : '—';
+  document.getElementById('st-days-left').textContent = daysLeft !== null ? daysLeft : '—';
+}
+
+// ── Mark today ────────────────────────────────────────
+window.markToday = async function(enrolId) {
+  const today = new Date().toISOString().slice(0,10);
+  const enrol = _enrolments.find(e => e.id === enrolId);
+  if (!enrol) return;
+  const log = [...(enrol.compliance_log || [])];
+  const existing = log.find(d => d.date === today);
+  if (existing) {
+    existing.attended = !existing.attended;
+  } else {
+    log.push({ date: today, attended: true });
+  }
+  log.sort((a, b) => a.date.localeCompare(b.date));
+  const { error } = await supabase.from('prophylaxis_enrollments')
+    .update({ compliance_log: log }).eq('id', enrolId);
+  if (error) { _toast('Error: ' + error.message, 'error'); return; }
+  enrol.compliance_log = log;
+  renderEnrolTable();
+  updateStats();
+  _toast('Attendance updated', 'success');
+};
+
+// ── Outcome modal ─────────────────────────────────────
+window.openOutcomeModal = function(enrolId) {
+  _editingEnrolId = enrolId;
+  const e = _enrolments.find(x => x.id === enrolId);
+  document.getElementById('oc-status').value = e?.status || 'enrolled';
+  document.getElementById('oc-notes').value  = e?.outcome || '';
+  document.getElementById('outcome-modal').classList.add('show');
+};
+
+window.closeOutcomeModal = function() {
+  document.getElementById('outcome-modal').classList.remove('show');
+  _editingEnrolId = null;
+};
+
+window.saveOutcome = async function() {
+  const { error } = await supabase.from('prophylaxis_enrollments').update({
+    status:  document.getElementById('oc-status').value,
+    outcome: document.getElementById('oc-notes').value.trim() || null,
+  }).eq('id', _editingEnrolId);
+  if (error) { _toast('Error: ' + error.message, 'error'); return; }
+  const e = _enrolments.find(x => x.id === _editingEnrolId);
+  if (e) { e.status = document.getElementById('oc-status').value; e.outcome = document.getElementById('oc-notes').value.trim(); }
+  closeOutcomeModal();
+  renderEnrolTable();
+  updateStats();
+  _toast('Outcome saved', 'success');
+};
+
+// ── Patient search for enrolment ──────────────────────
+let _searchTimer;
+window.searchEnrolPatient = function() {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(_doSearch, 300);
+};
+
+async function _doSearch() {
+  const q = document.getElementById('enrol-search').value.trim();
+  const el = document.getElementById('enrol-results');
+  if (q.length < 3) { el.innerHTML = ''; return; }
+  const isPhone = /^\d{7,}$/.test(q);
+  const { data } = isPhone
+    ? await supabase.from('patients').select('id,name,phone,age,gender').eq('tenant_id', tenantId).eq('phone', q).limit(5)
+    : await supabase.from('patients').select('id,name,phone,age,gender').eq('tenant_id', tenantId).ilike('name', `%${q}%`).limit(5);
+  if (!data?.length) { el.innerHTML = '<div style="font-size:12px;color:var(--text-muted);padding:6px">No patients found</div>'; return; }
+  el.innerHTML = data.map(p => {
+    const alreadyEnrolled = _enrolments.some(e => e.patients?.id === p.id || e.patient_id === p.id);
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-size:13px;font-weight:500">${p.name}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${p.phone || ''} · ${p.age ? p.age + 'y' : ''} ${p.gender || ''}</div>
+      </div>
+      ${alreadyEnrolled
+        ? '<span style="font-size:11px;color:var(--text-muted)">Already enrolled</span>'
+        : `<button class="btn btn-gold btn-sm" onclick="enrolPatient('${p.id}','${p.name.replace(/'/g,"\\'")}')">Enrol</button>`
+      }
+    </div>`;
+  }).join('');
+}
+
+window.enrolPatient = async function(patientId, patientName) {
+  const progId = document.getElementById('enrol-prog-select').value;
+  if (!progId) { _toast('Select a programme first', 'error'); return; }
+  const prog = _programmes.find(p => p.id === progId);
+  const maxP = prog?.max_patients || 9999;
+  if (_enrolments.length >= maxP) { _toast(`Programme is full (max ${maxP} patients)`, 'error'); return; }
+
+  const { error } = await supabase.from('prophylaxis_enrollments').insert({
+    tenant_id: tenantId, program_id: progId, patient_id: patientId,
+    enrolled_by: sess.id, enrolled_at: new Date().toISOString().slice(0,10),
+    compliance_log: [], status: 'enrolled',
+  });
+  if (error) { _toast('Enrol error: ' + error.message, 'error'); return; }
+  _toast(`${patientName} enrolled`, 'success');
+  document.getElementById('enrol-search').value = '';
+  document.getElementById('enrol-results').innerHTML = '';
+  loadEnrolments();
+};
+
+// ── Export CSV ────────────────────────────────────────
+window.exportEnrolCSV = function() {
+  if (!_enrolments.length) { _toast('No data to export', 'error'); return; }
+  const rows = [['Patient','Phone','Age','Gender','Enrolled On','Sessions Attended','Total Sessions','Compliance %','Status','Outcome']];
+  _enrolments.forEach(e => {
+    const pat = e.patients;
+    const log = e.compliance_log || [];
+    const att = log.filter(d => d.attended).length;
+    const pct = log.length ? Math.round(att/log.length*100) : 0;
+    rows.push([pat?.name||'',pat?.phone||'',pat?.age||'',pat?.gender||'',e.enrolled_at,att,log.length,pct+'%',e.status,e.outcome||'']);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `prophylaxis_${_activeProg?.name?.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+};
+
+// ── Helpers ───────────────────────────────────────────
+function _fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+}
+function _seasonLabel(s) {
+  return {vasanta:'Vasanta',sharad:'Sharad',hemanta:'Hemanta',shishira:'Shishira',grishma:'Grishma',varsha:'Varsha',custom:'Custom'}[s] || s;
+}
+function _statusLabel(s) {
+  return {enrolled:'Enrolled',completed:'Completed',dropped:'Dropped',no_show:'No Show'}[s] || s;
+}
+function _toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── Init ──────────────────────────────────────────────
+await loadProgrammes();
+</script>
+</body>
+</html>

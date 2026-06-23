@@ -24,16 +24,18 @@
   --error-bg:#fff3f3;--error-border:#f5b8b8;--error-text:#8b1a1a;
   --nav-h:64px;
 }
-body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);overflow:hidden}
+*{box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);overflow:hidden;margin:0;padding:0}
 
 /* ── Two-column full-height layout ──────────────── */
 .page{
+  position:fixed;top:var(--nav-h);left:0;right:0;bottom:0;
   display:grid;
   grid-template-columns:320px 1fr;
-  grid-template-rows:calc(100vh - var(--nav-h));
-  height:calc(100vh - var(--nav-h));margin-top:var(--nav-h);
-  overflow:hidden
+  grid-template-rows:auto 1fr;
+  overflow:hidden;gap:0
 }
+#ncism-opd-banner{grid-column:1 / -1}
 @media(max-width:860px){
   body{overflow:auto}
   .page{display:block;margin-top:var(--nav-h)}
@@ -81,7 +83,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .q-panel{
   display:flex;flex-direction:column;
   border-right:1px solid var(--border);background:var(--white);
-  overflow:hidden;min-height:0;height:calc(100vh - var(--nav-h))
+  overflow:hidden;min-height:0
 }
 .q-hdr{
   padding:16px 20px 12px;border-bottom:1px solid var(--border);flex-shrink:0;
@@ -147,7 +149,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .live-dot{width:6px;height:6px;border-radius:50%;background:var(--green-mid);animation:pulse 2s ease-in-out infinite;flex-shrink:0}
 
 /* ── Consultation panel ───────────────────────────── */
-.c-panel{display:flex;flex-direction:column;overflow:hidden;background:var(--cream);min-height:0;height:calc(100vh - var(--nav-h))}
+.c-panel{display:flex;flex-direction:column;overflow:hidden;background:var(--cream);min-height:0}
 
 /* Welcome state */
 .welcome{
@@ -205,6 +207,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
 /* Tab content */
 .tab-body{flex:1;min-height:0;overflow-y:auto;padding:20px 24px 80px}
+
+/* ABDM longitudinal FHIR display */
+.fhir-detail{font-size:12px;color:#333;display:flex;flex-direction:column;gap:6px}
+.fhir-row{display:flex;gap:8px;line-height:1.6;flex-wrap:wrap;align-items:flex-start}
+.fhir-lbl{font-weight:700;color:#555;min-width:100px;flex-shrink:0;padding-top:1px}
+.fhir-lbl.dx{color:#1a4a2e}.fhir-lbl.rx{color:#1a3a8a}.fhir-lbl.al{color:#c0392b}
+.fhir-badge{font-size:10px;padding:1px 6px;border-radius:10px;margin-left:4px;font-weight:600}
+.fhir-list{margin:0;padding-left:18px;flex:1}
+.fhir-list li{margin-bottom:2px}
+.fhir-dose{color:#888;font-style:italic}
+.cs-lbl{font-weight:700;color:#555;min-width:100px;flex-shrink:0;display:inline-block}
+.cs-lbl.dx{color:#1a4a2e}.cs-lbl.rx{color:#1a3a8a}.cs-lbl.al{color:#c0392b}
+.cs-chip{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;margin:2px 3px;background:#e8f5e9;color:#1a4a2e;border:1px solid #c8e6c9}
+.cs-chip.rx{background:#e8eaf6;color:#1a237e;border-color:#c5cae9}
+.cs-chip.al{background:#fde8e8;color:#c0392b;border-color:#fbbaba}
 
 /* Action bar — fixed at viewport bottom, inside right panel */
 .action-bar{
@@ -793,9 +810,10 @@ body.medcert-print #mc-print{display:block!important}
 <body>
 
 <div id="navbar-root"></div>
-<div id="ncism-opd-banner" style="display:none;padding:8px 16px;font-size:12px;font-weight:600;text-align:center;position:sticky;top:56px;z-index:90"></div>
 
 <div class="page">
+
+  <div id="ncism-opd-banner" style="display:none;padding:8px 16px;font-size:12px;font-weight:600;text-align:center"></div>
 
   <!-- ── Queue Panel ────────────────────────────── -->
   <aside class="q-panel">
@@ -813,10 +831,18 @@ body.medcert-print #mc-print{display:block!important}
       </div>
     </div>
 
-    <!-- Queue tabs: OPD | Tele -->
-    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--white)">
-      <button id="q-tab-opd" onclick="switchQueueTab('opd')" style="flex:1;padding:8px 0;font-size:12px;font-weight:600;border:none;background:var(--green-light);color:var(--green-deep);cursor:pointer;border-bottom:2px solid var(--green-mid)">OPD Queue</button>
-      <button id="q-tab-tele" onclick="switchQueueTab('tele')" style="flex:1;padding:8px 0;font-size:12px;font-weight:500;border:none;background:none;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent">🎥 Tele <span id="q-tele-count" style="background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:3px">0</span></button>
+    <!-- Search -->
+    <div style="padding:6px 10px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <input id="q-search" type="text" placeholder="🔍 Search past patients…"
+        style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:12px;color:var(--text-main);outline:none;font-family:'DM Sans',sans-serif;background:#fafdf8"
+        oninput="onQueueSearch(this.value)">
+    </div>
+
+    <!-- Queue tabs: OPD | Tele | IPD -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--white);flex-shrink:0">
+      <button id="q-tab-opd" onclick="switchQueueTab('opd')" style="flex:1;padding:8px 0;font-size:11px;font-weight:600;border:none;background:var(--green-light);color:var(--green-deep);cursor:pointer;border-bottom:2px solid var(--green-mid)">OPD Queue</button>
+      <button id="q-tab-tele" onclick="switchQueueTab('tele')" style="flex:1;padding:8px 0;font-size:11px;font-weight:500;border:none;background:none;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent">🎥 Tele <span id="q-tele-count" style="background:#dbeafe;color:#1d4ed8;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:3px">0</span></button>
+      <button id="q-tab-ipd" onclick="switchQueueTab('ipd')" style="flex:1;padding:8px 0;font-size:11px;font-weight:500;border:none;background:none;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent">🏥 IPD <span id="q-ipd-count" style="background:#fce7f3;color:#be185d;font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:3px">0</span></button>
     </div>
 
     <div class="q-list" id="q-list">
@@ -854,6 +880,9 @@ body.medcert-print #mc-print{display:block!important}
       <div class="welcome-title">Ready for Consultations</div>
       <div class="welcome-sub">Select a patient from the queue on the left to begin</div>
     </div>
+
+    <!-- Patient History (read-only) -->
+    <div id="c-history" style="display:none;padding:20px;overflow-y:auto;height:100%"></div>
 
     <!-- Active consultation -->
     <div class="c-active" id="c-active" style="display:none">
@@ -916,6 +945,7 @@ body.medcert-print #mc-print{display:block!important}
         <button class="tab gated" data-tab="pk" id="tab-btn-pk">🌸 Panchakarma</button>
         <button class="tab gated" data-tab="adm" id="tab-btn-adm">🏥 Admission</button>
         <button class="tab gated" data-tab="visha" id="tab-btn-visha">⚗ Visha Register</button>
+        <button class="tab gated" data-tab="abdm" id="tab-btn-abdm">📂 ABDM Records</button>
       </div>
 
       <!-- Scrollable content -->
@@ -3270,6 +3300,95 @@ body.medcert-print #mc-print{display:block!important}
           <div style="height:20px"></div>
         </div><!-- /tab-visha -->
 
+        <!-- ═══════════════════════════════════════════ -->
+        <!-- TAB 11: ABDM RECORDS (HIU — requires ABHA) -->
+        <!-- ═══════════════════════════════════════════ -->
+        <div id="tab-abdm" hidden>
+          <div class="section">
+
+            <!-- shown when patient has no ABHA -->
+            <div id="abdm-no-abha" style="display:none;padding:24px;text-align:center;color:#888;font-size:13px;background:#fafdf8;border-radius:8px;border:1px solid #dde6dc">
+              This patient has no ABHA address on record. Register ABHA in Reception to request records from other facilities.
+            </div>
+
+            <!-- main content when ABHA exists -->
+            <div id="abdm-main">
+              <div class="section-title">📂 ABDM Health Records <span class="section-sub">Request records from other HIPs via patient consent</span></div>
+
+              <!-- ── A. New Consent Request ── -->
+              <div style="background:#f9f7f2;border:1px solid #ddd8cc;border-radius:8px;padding:16px;margin-bottom:20px">
+                <div style="font-weight:600;font-size:14px;color:var(--green-deep);margin-bottom:14px">Request Health Records</div>
+
+                <div class="field-row">
+                  <div class="field">
+                    <label>Patient's ABHA Address <span style="font-weight:400;color:#888;font-size:11px">(auto-filled · editable)</span></label>
+                    <input type="text" id="abdm-abha-addr" placeholder="e.g. name@sbx" style="font-family:monospace">
+                  </div>
+                  <div class="field">
+                    <label>Purpose</label>
+                    <select id="abdm-purpose">
+                      <option value="CAREMGT">Care Management</option>
+                      <option value="PATRQT">Self Requested</option>
+                      <option value="PUBHLTH">Public Health</option>
+                      <option value="HPAYMT">Health Payment</option>
+                      <option value="DSRCH">Disease Specific Research</option>
+                      <option value="BTG">Break the Glass (emergency)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label>Health Information Types</label>
+                  <div id="abdm-hi-types" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
+                    <span class="chip on" data-value="OPConsultation" onclick="this.classList.toggle('on')">OPD Consultation</span>
+                    <span class="chip" data-value="Prescription" onclick="this.classList.toggle('on')">Prescription</span>
+                    <span class="chip" data-value="DiagnosticReport" onclick="this.classList.toggle('on')">Diagnostic Report</span>
+                    <span class="chip" data-value="DischargeSummary" onclick="this.classList.toggle('on')">Discharge Summary</span>
+                    <span class="chip" data-value="ImmunizationRecord" onclick="this.classList.toggle('on')">Immunization</span>
+                    <span class="chip on" data-value="WellnessRecord" onclick="this.classList.toggle('on')">Wellness Record</span>
+                    <span class="chip" data-value="HealthDocumentRecord" onclick="this.classList.toggle('on')">Health Document</span>
+                  </div>
+                </div>
+
+                <div class="field-row">
+                  <div class="field">
+                    <label>From Date</label>
+                    <input type="date" id="abdm-date-from">
+                  </div>
+                  <div class="field">
+                    <label>To Date</label>
+                    <input type="date" id="abdm-date-to">
+                  </div>
+                  <div class="field">
+                    <label>Erase Records After</label>
+                    <input type="date" id="abdm-erase-at">
+                  </div>
+                </div>
+
+                <button class="btn btn-primary" id="btn-abdm-consent" onclick="_submitConsentRequest()">Send Consent Request to Patient</button>
+                <div id="abdm-req-status" style="margin-top:10px;font-size:13px"></div>
+              </div>
+
+              <!-- ── B. Consent Requests list ── -->
+              <div style="margin-bottom:20px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                  <div style="font-weight:600;font-size:14px;color:var(--green-deep)">Consent Requests for this Patient</div>
+                  <button class="btn" style="font-size:12px;padding:4px 10px" onclick="_loadAbdmTab()">↻ Refresh</button>
+                </div>
+                <div id="abdm-consent-list"><div style="color:#888;font-size:13px;padding:8px 0">No requests yet.</div></div>
+              </div>
+
+              <!-- ── C. Received Records viewer ── -->
+              <div id="abdm-records-section" style="display:none;margin-top:4px">
+                <div style="font-weight:600;font-size:14px;color:var(--green-deep);margin-bottom:10px">Received Health Records</div>
+                <div id="abdm-records-list"></div>
+              </div>
+
+            </div><!-- /abdm-main -->
+          </div><!-- /section -->
+          <div style="height:20px"></div>
+        </div><!-- /tab-abdm -->
+
       </div><!-- /tab-body -->
 
       <!-- §18c — Swasthya Card print area (hidden on screen, shown on print) -->
@@ -3812,6 +3931,10 @@ function _gateFeatures() {
       document.getElementById('tab-btn-adm').style.display = '';
     }
 
+    // ABDM Records tab — visible for all tenant types
+    document.getElementById('tab-btn-abdm').classList.remove('gated');
+    document.getElementById('tab-btn-abdm').style.display = '';
+
     // Update disposition descriptions based on tenant capabilities
     if (!_hasPK) {
       document.getElementById('disp-pk-desc').textContent =
@@ -3830,6 +3953,7 @@ let _activeVisitId   = null;
 let _activePatient   = null;
 let _activeVisit     = null;
 let _activeNcismCode = null;
+let _historyPatient  = null;
 let _inventory       = [];
 let _opdList         = [];
 let _doctorOpdIds    = [];
@@ -3872,16 +3996,21 @@ let _queueTab = 'opd';
 
 window.switchQueueTab = function(tab) {
   _queueTab = tab;
+  document.getElementById('q-search').value = '';
   const opd  = document.getElementById('q-tab-opd');
   const tele = document.getElementById('q-tab-tele');
+  const ipd  = document.getElementById('q-tab-ipd');
+  [opd, tele, ipd].forEach(b => { b.style.background = 'none'; b.style.color = 'var(--text-muted)'; b.style.borderBottom = '2px solid transparent'; b.style.fontWeight = '500'; });
   if (tab === 'opd') {
-    opd.style.background  = 'var(--green-light)'; opd.style.color  = 'var(--green-deep)'; opd.style.borderBottom  = '2px solid var(--green-mid)'; opd.style.fontWeight = '600';
-    tele.style.background = 'none';               tele.style.color = 'var(--text-muted)';  tele.style.borderBottom = '2px solid transparent';      tele.style.fontWeight = '500';
+    opd.style.background = 'var(--green-light)'; opd.style.color = 'var(--green-deep)'; opd.style.borderBottom = '2px solid var(--green-mid)'; opd.style.fontWeight = '600';
+    loadQueue();
+  } else if (tab === 'tele') {
+    tele.style.background = '#dbeafe'; tele.style.color = '#1d4ed8'; tele.style.borderBottom = '2px solid #2563eb'; tele.style.fontWeight = '600';
+    loadQueue();
   } else {
-    tele.style.background = '#dbeafe';            tele.style.color = '#1d4ed8';            tele.style.borderBottom = '2px solid #2563eb';          tele.style.fontWeight = '600';
-    opd.style.background  = 'none';               opd.style.color  = 'var(--text-muted)';  opd.style.borderBottom  = '2px solid transparent';      opd.style.fontWeight = '500';
+    ipd.style.background = '#fce7f3'; ipd.style.color = '#be185d'; ipd.style.borderBottom = '2px solid #db2777'; ipd.style.fontWeight = '600';
+    loadIPDPatients();
   }
-  loadQueue();
 };
 
 async function loadQueue() {
@@ -3890,7 +4019,7 @@ async function loadQueue() {
 
   const { data, error } = await supabase
     .from('visits')
-    .select('id, token_number, status, chief_complaint, created_at, is_on_request, visit_category, is_teleconsultation, meeting_url, patients(id, name, phone, abha_number)')
+    .select('id, token_number, status, chief_complaint, created_at, is_on_request, visit_category, is_teleconsultation, meeting_url, patients(id, name, phone, abha_number, abha_address)')
     .eq('tenant_id', tenantId)
     .eq('doctor_id', userId)
     .in('status', ['waiting', 'in_progress'])
@@ -3948,6 +4077,226 @@ async function loadQueue() {
     </div>`;
   }).join('');
 }
+
+// ── IPD patients for this doctor ─────────────────
+async function loadIPDPatients() {
+  const list = document.getElementById('q-list');
+  list.innerHTML = '<div class="q-empty"><div class="q-empty-icon">⏳</div>Loading…</div>';
+  const { data, error } = await supabase
+    .from('ipd_admissions')
+    .select('id, diagnosis_primary, admission_date, admitted_at, beds(bed_number, ward_name), departments(name), patients(id, name, phone, abha_number)')
+    .eq('tenant_id', tenantId)
+    .eq('admitting_doctor_id', userId)
+    .eq('status', 'admitted')
+    .order('admitted_at', { ascending: false });
+  if (error) { list.innerHTML = `<div class="q-empty" style="color:#e74c3c">Error: ${error.message}</div>`; return; }
+  const rows = data || [];
+  document.getElementById('q-ipd-count').textContent = rows.length;
+  if (!rows.length) { list.innerHTML = '<div class="q-empty"><div class="q-empty-icon">🏥</div>No admitted patients</div>'; return; }
+  list.innerHTML = rows.map(a => {
+    const days = Math.floor((Date.now() - new Date(a.admitted_at)) / 86400000);
+    const admDate = new Date(a.admission_date || a.admitted_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short' });
+    const ipdUrl = `ipd.html?admission_id=${encodeURIComponent(a.id)}`;
+    return `<div class="q-card" style="border-color:#fce7f3" onclick="window.open('${ipdUrl}','_blank')">
+      <div class="q-card-top">
+        <div class="q-token" style="background:#fce7f3;color:#be185d;font-size:9px;font-weight:700;min-width:36px">IPD</div>
+        <div class="q-name">${a.patients?.name || '—'}</div>
+        <div class="q-wait" style="color:#be185d">${days}d</div>
+      </div>
+      <div class="q-meta">
+        ${a.beds?.ward_name ? `<span class="badge" style="background:#fce7f3;color:#be185d">${a.beds.ward_name}</span>` : ''}
+        ${a.beds?.bed_number ? `<span class="badge" style="background:#fce7f3;color:#be185d">Bed ${a.beds.bed_number}</span>` : ''}
+        ${a.departments?.name ? `<span class="badge">${a.departments.name}</span>` : ''}
+      </div>
+      <div class="q-complaint">${a.diagnosis_primary || '—'}</div>
+      <div style="margin-top:4px;font-size:11px;color:#888">Admitted ${admDate}</div>
+      <div style="margin-top:6px" onclick="event.stopPropagation()">
+        <a href="${ipdUrl}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:#be185d;color:#fff;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;text-decoration:none">🏥 Ward Rounds</a>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Patient search ────────────────────────────────
+let _searchTimeout = null;
+window.onQueueSearch = function(query) {
+  clearTimeout(_searchTimeout);
+  if (!query.trim()) { loadQueue(); return; }
+  _searchTimeout = setTimeout(() => searchPastPatients(query.trim()), 350);
+};
+
+async function searchPastPatients(query) {
+  const list = document.getElementById('q-list');
+  list.innerHTML = '<div class="q-empty"><div class="q-empty-icon">🔍</div>Searching…</div>';
+
+  // Search patients by name/phone AND visits by chief_complaint in parallel
+  const [{ data: byName }, { data: byDiag }] = await Promise.all([
+    supabase.from('patients')
+      .select('id, name, phone, abha_number, abha_address')
+      .eq('tenant_id', tenantId)
+      .or(`name.ilike.%${query}%,phone.ilike.%${query}%`)
+      .limit(15),
+    supabase.from('visits')
+      .select('patient_id, chief_complaint, created_at, patients(id, name, phone, abha_number, abha_address)')
+      .eq('tenant_id', tenantId)
+      .eq('doctor_id', userId)
+      .ilike('chief_complaint', `%${query}%`)
+      .order('created_at', { ascending: false })
+      .limit(20),
+  ]);
+
+  // Deduplicate patients from both sources
+  const patientMap = {};
+  (byName || []).forEach(p => { patientMap[p.id] = p; });
+  (byDiag || []).forEach(v => { if (v.patients && !patientMap[v.patients.id]) patientMap[v.patients.id] = v.patients; });
+
+  const patients = Object.values(patientMap);
+  if (!patients.length) { list.innerHTML = '<div class="q-empty">No patients found</div>'; return; }
+
+  // Get most recent visit per patient from this doctor
+  const { data: visits } = await supabase
+    .from('visits')
+    .select('id, status, chief_complaint, created_at, patient_id')
+    .eq('tenant_id', tenantId)
+    .eq('doctor_id', userId)
+    .in('patient_id', patients.map(p => p.id))
+    .order('created_at', { ascending: false })
+    .limit(80);
+
+  const visitMap = {};
+  (visits || []).forEach(v => { if (!visitMap[v.patient_id]) visitMap[v.patient_id] = v; });
+
+  list.innerHTML = patients.map(p => {
+    const lv = visitMap[p.id];
+    const lastDate = lv ? new Date(lv.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : null;
+    return `<div class="q-card" onclick="openPatientHistory('${p.id}')">
+      <div class="q-card-top">
+        <div class="q-token" style="background:#f3f4f6;color:#6b7280;font-size:9px;font-weight:700;min-width:36px">HIST</div>
+        <div class="q-name">${p.name}</div>
+        <div class="q-wait" style="color:#888">${lastDate || '—'}</div>
+      </div>
+      <div class="q-meta">
+        <span class="badge" style="background:#f3f4f6;color:#6b7280">📞 ${p.phone || '—'}</span>
+        ${p.abha_number || p.abha_address ? '<span class="badge" style="background:#e0f2fe;color:#0369a1">ABHA ✓</span>' : ''}
+      </div>
+      <div class="q-complaint">${lv ? (lv.chief_complaint || '—') : 'No past consultation with you'}</div>
+    </div>`;
+  }).join('');
+}
+
+window.openPatientHistory = async function(patientId) {
+  const histEl    = document.getElementById('c-history');
+  const welcomeEl = document.getElementById('welcome');
+  const activeEl  = document.getElementById('c-active');
+  welcomeEl.style.display = 'none';
+  activeEl.style.display  = 'none';
+  histEl.style.display    = '';
+  histEl.innerHTML = '<div style="color:#888;padding:40px;text-align:center">Loading history…</div>';
+
+  // Step 1: patient + visits (all doctors at this facility, not just this doctor)
+  const [{ data: patient }, { data: visits }] = await Promise.all([
+    supabase.from('patients').select('id, name, phone, abha_number, abha_address').eq('id', patientId).single(),
+    supabase.from('visits')
+      .select('id, status, chief_complaint, created_at, visit_category')
+      .eq('tenant_id', tenantId)
+      .eq('doctor_id', userId)
+      .eq('patient_id', patientId)
+      .order('created_at', { ascending: false })
+      .limit(20),
+  ]);
+
+  const visitIds = (visits || []).map(v => v.id);
+
+  // Step 2: consultation notes + prescriptions (separate queries — avoids deep-nest join failures)
+  const { data: allNotes } = visitIds.length
+    ? await supabase.from('consultation_notes').select('visit_id, diagnosis_namc_label, diagnosis_icd10_label, provisional_ayurveda, clinical_notes').in('visit_id', visitIds)
+    : { data: [] };
+
+  const notesMap = {};
+  (allNotes || []).forEach(n => { notesMap[n.visit_id] = n; });
+
+  // Prescriptions: two steps (prescriptions → prescription_items)
+  const { data: rxHeaders } = visitIds.length
+    ? await supabase.from('prescriptions').select('id, visit_id').in('visit_id', visitIds)
+    : { data: [] };
+
+  const rxIdToVisit = {};
+  (rxHeaders || []).forEach(r => { rxIdToVisit[r.id] = r.visit_id; });
+  const rxIds = Object.keys(rxIdToVisit);
+
+  const { data: rxItems } = rxIds.length
+    ? await supabase.from('prescription_items').select('prescription_id, medicine_name, dosage, frequency, duration, quantity').in('prescription_id', rxIds)
+    : { data: [] };
+
+  const rxMap = {};
+  (rxItems || []).forEach(item => {
+    const vid = rxIdToVisit[item.prescription_id];
+    if (!vid) return;
+    if (!rxMap[vid]) rxMap[vid] = [];
+    rxMap[vid].push(item);
+  });
+
+  const catLabel = { opd:'OPD', followup:'Follow-up', panchakarma:'Panchakarma', emergency:'Emergency', teleconsultation:'Teleconsult', camp:'Camp' };
+
+  const visitsHtml = (visits || []).map(v => {
+    const date    = new Date(v.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+    const notes   = notesMap[v.id] || null;
+    const rxItems = rxMap[v.id] || [];
+    const diag    = notes?.diagnosis_namc_label || notes?.diagnosis_icd10_label || null;
+    const rxHtml  = rxItems.length
+      ? rxItems.map(r => `<div style="padding:5px 0;border-bottom:1px solid #f0ede5;font-size:13px">
+          <strong>${r.medicine_name}</strong>
+          <span style="color:#666;margin-left:8px">${[r.dosage, r.frequency, r.duration].filter(Boolean).join(' · ')}</span>
+          ${r.quantity ? `<span style="color:#888;margin-left:6px">Qty: ${r.quantity}</span>` : ''}
+        </div>`).join('')
+      : '<div style="color:#aaa;font-size:12px;padding:4px 0">No prescription recorded</div>';
+
+    return `<div style="border:1.5px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px;background:#fff">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-weight:600;color:var(--green-deep);font-size:14px">${date}</span>
+          <span class="badge badge-cat">${catLabel[v.visit_category] || 'OPD'}</span>
+          <span class="badge" style="background:${v.status==='completed'?'#e8f5ee':'#fff8e1'};color:${v.status==='completed'?'#1a7a3a':'#7a5c00'}">${v.status?.toUpperCase()}</span>
+        </div>
+      </div>
+      <div style="font-size:13px;margin-bottom:6px"><span style="color:#888">Chief Complaint:</span> <strong>${v.chief_complaint || '—'}</strong></div>
+      ${diag ? `<div style="font-size:13px;margin-bottom:8px"><span style="color:#888">Diagnosis:</span> <strong>${diag}</strong></div>` : ''}
+      ${notes?.provisional_ayurveda ? `<div style="font-size:12px;color:#555;margin-bottom:8px;padding:8px;background:#fafdf8;border-radius:6px;border-left:3px solid var(--green-mid)"><strong>Provisional (Ayurveda):</strong> ${notes.provisional_ayurveda}</div>` : ''}
+      ${notes?.clinical_notes ? `<div style="font-size:12px;color:#555;margin-bottom:6px;padding:8px;background:#fafdf8;border-radius:6px;border-left:3px solid #c9902a"><strong>Clinical Notes:</strong> ${notes.clinical_notes}</div>` : ''}
+      <div style="font-size:12px;font-weight:600;color:var(--green-deep);margin-bottom:6px">💊 Prescription</div>
+      ${rxHtml}
+    </div>`;
+  }).join('') || '<div style="color:#aaa;text-align:center;padding:30px">No past consultations found</div>';
+
+  _historyPatient = patient;
+
+  histEl.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button onclick="document.getElementById('c-history').style.display='none';document.getElementById('welcome').style.display='';" style="background:none;border:1.5px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text-main)">← Back</button>
+        <div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--green-deep)">${patient?.name || 'Patient'}</div>
+          <div style="font-size:12px;color:#888">${patient?.phone || '—'}${patient?.abha_number ? ' · ABHA: ' + patient.abha_number : ''}</div>
+        </div>
+      </div>
+      ${patient?.abha_number || patient?.abha_address
+        ? `<button onclick="_openAbdmForHistory()" class="btn btn-primary" style="font-size:13px;padding:6px 14px">📋 ABDM Records</button>`
+        : ''}
+    </div>
+    <div style="font-size:13px;font-weight:600;color:var(--green-deep);margin-bottom:12px">Past Consultations (${(visits||[]).length})</div>
+    ${visitsHtml}`;
+};
+
+window._openAbdmForHistory = function() {
+  if (!_historyPatient) return;
+  _activePatient = _historyPatient;
+  _activeVisitId = null;
+  _activeVisit   = null;
+  document.getElementById('c-history').style.display = 'none';
+  document.getElementById('welcome').style.display   = 'none';
+  document.getElementById('c-active').style.display  = '';
+  _switchTab('abdm');
+};
 
 // ── Load unread alerts ────────────────────────────
 async function loadAlerts() {
@@ -4049,7 +4398,7 @@ function subscribeRealtime() {
     .on('postgres_changes', {
       event: '*', schema: 'public', table: 'visits',
       filter: `tenant_id=eq.${tenantId}`
-    }, () => loadQueue())
+    }, () => { if (_queueTab !== 'ipd') loadQueue(); })
     .on('postgres_changes', {
       event: 'INSERT', schema: 'public', table: 'doctor_alerts',
       filter: `doctor_id=eq.${userId}`
@@ -4072,7 +4421,7 @@ window.startConsultation = async function(visitId) {
 
   const { data: visit } = await supabase
     .from('visits')
-    .select('*, patients(id, name, phone, abha_number, prakriti_data, prakriti_assessed_at), opds(ncism_code, name, allows_prescription, specialty_proforma_key)')
+    .select('*, patients(id, name, phone, abha_number, abha_address, prakriti_data, prakriti_assessed_at), opds(ncism_code, name, allows_prescription, specialty_proforma_key)')
     .eq('id', visitId)
     .single();
 
@@ -4252,7 +4601,7 @@ window.startConsultation = async function(visitId) {
 };
 
 // ── Tabs ──────────────────────────────────────────
-const ALL_TABS = ['hist','exam','proforma','assess','diag','rx','advice','disp','pk','adm','visha'];
+const ALL_TABS = ['hist','exam','proforma','assess','diag','rx','advice','disp','pk','adm','visha','abdm'];
 
 document.getElementById('tabs').addEventListener('click', e => {
   const btn = e.target.closest('.tab');
@@ -4266,6 +4615,7 @@ function _switchTab(name) {
     if (el) el.hidden = id !== name;
   });
   if (name === 'rx') refreshRxSuggestions();
+  if (name === 'abdm') _loadAbdmTab();
 }
 window._switchTab = _switchTab;
 
@@ -5057,25 +5407,23 @@ async function completeConsultation() {
 }
 
 // ── ABDM M2 — Care Context creation after consultation ───────────
+// Only upserts the DB record (merges hi_types). Link token is sent
+// by reception.html at ABHA verification time — one notification per visit.
 const ABDM_HIP_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-hip';
 
 async function _abdmCreateCareContext(visitId, patient, notes, disposition) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
-    const authToken = session.access_token;
 
-    // Map disposition to ABDM health info type
     const hiType = disposition === 'admission' ? 'DischargeSummary' : 'OPConsultation';
     const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     const careContextRef = `VISIT-${visitId}`;
     const display        = `OPD Consultation — ${dateStr}`;
 
-    const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` };
-
-    // Step 1: create care_context record in DB
-    const ccRes = await fetch(ABDM_HIP_FN, {
-      method: 'POST', headers,
+    await fetch(ABDM_HIP_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
       body: JSON.stringify({
         action:           'create_care_context',
         patient_id:       patient.id,
@@ -5086,33 +5434,412 @@ async function _abdmCreateCareContext(visitId, patient, notes, disposition) {
         abha_number:      patient.abha_number,
       }),
     });
-    const cc = await ccRes.json();
-    if (!ccRes.ok) {
-      console.warn('ABDM care context DB create failed:', cc?.error);
-      return;
-    }
-
-    // Step 2: generate link token → notifies patient ABHA app
-    const ltRes = await fetch(ABDM_HIP_FN, {
-      method: 'POST', headers,
-      body: JSON.stringify({
-        action:        'generate_link_token',
-        patient_id:    patient.id,
-        abha_number:   patient.abha_number,
-        visit_id:      visitId,
-        care_contexts: [{ referenceNumber: careContextRef, display, hiType }],
-      }),
-    });
-    const lt = await ltRes.json();
-    if (ltRes.ok && lt.linkToken) {
-      _toast('Health record shared to ABHA app', 'info');
-    } else {
-      console.warn('ABDM link token generation failed (non-critical):', lt?.error);
-    }
   } catch (e) {
     console.warn('ABDM care context fire-and-forget failed (non-critical):', e?.message);
   }
 }
+
+// ── M3 HIU — ABDM Records Tab ─────────────────────────────────────
+const ABDM_AUTH_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-auth';
+
+async function _abdmGetToken() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || null;
+}
+
+async function _loadAbdmTab() {
+  if (!_activePatient) return;
+
+  const raw = _activePatient.abha_address || _activePatient.abha_number || '';
+  const abhaAddr = raw
+    ? (raw.includes('@') ? raw : raw + '@sbx')
+    : null;
+
+  const noAbhaEl = document.getElementById('abdm-no-abha');
+  const mainEl   = document.getElementById('abdm-main');
+  if (!abhaAddr) {
+    noAbhaEl.style.display = '';
+    mainEl.style.display   = 'none';
+    return;
+  }
+  noAbhaEl.style.display = 'none';
+  mainEl.style.display   = '';
+
+  document.getElementById('abdm-abha-addr').value = abhaAddr;
+
+  // Set default dates only if not already set
+  const today    = new Date();
+  const toStr    = today.toISOString().slice(0, 10);
+  const fromDate = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+  const fromStr  = fromDate.toISOString().slice(0, 10);
+  const eraseDate = new Date(today.getFullYear(), today.getMonth() + 3, today.getDate());
+  const eraseStr  = eraseDate.toISOString().slice(0, 10);
+  if (!document.getElementById('abdm-date-from').value) document.getElementById('abdm-date-from').value = fromStr;
+  if (!document.getElementById('abdm-date-to').value)   document.getElementById('abdm-date-to').value   = toStr;
+  if (!document.getElementById('abdm-erase-at').value)  document.getElementById('abdm-erase-at').value  = eraseStr;
+
+  // Load consent request list
+  const listEl = document.getElementById('abdm-consent-list');
+  listEl.innerHTML = '<div style="color:#888;font-size:13px;padding:6px 0">Loading…</div>';
+
+  const token = await _abdmGetToken();
+  if (!token) { listEl.innerHTML = '<div style="color:#c0392b;font-size:13px">Session expired. Please refresh.</div>'; return; }
+
+  try {
+    const res  = await fetch(ABDM_AUTH_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ action: 'hiu_list_consents', patientId: _activePatient.id }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load consent list');
+    _renderConsentList(data.consents || []);
+  } catch (e) {
+    listEl.innerHTML = `<div style="color:#c0392b;font-size:13px">Error: ${e.message}</div>`;
+  }
+}
+
+function _renderConsentList(consents) {
+  const listEl = document.getElementById('abdm-consent-list');
+  if (!consents.length) {
+    listEl.innerHTML = '<div style="color:#888;font-size:13px;padding:8px 0">No consent requests for this patient yet.</div>';
+    return;
+  }
+  const statusColor = {
+    requested: '#c9902a', granted: '#1a7a3a', denied: '#c0392b',
+    revoked: '#7f8c8d', expired: '#7f8c8d', failed: '#c0392b',
+  };
+  // Compliance messages for HIU_FLOW_202 (revoke) and HIU_FLOW_301 (expiry)
+  const complianceNote = {
+    revoked: '🚫 Consent revoked by patient. All stored health records have been deleted per ABDM compliance.',
+    expired: '⏱ Consent expired. All stored health records have been deleted per ABDM data erase policy.',
+    denied:  '✗ Patient denied this consent request. No health records were shared.',
+  };
+
+  listEl.innerHTML = consents.map(c => {
+    const col   = statusColor[c.status] || '#888';
+    const date  = new Date(c.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+    const types = (c.hi_types || []).join(', ') || '—';
+    const note  = complianceNote[c.status] || null;
+    const eraseDate = c.data_erase_at
+      ? new Date(c.data_erase_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
+      : null;
+
+    return `<div style="border:1px solid ${note ? col + '44' : '#ddd'};border-radius:8px;padding:12px 14px;margin-bottom:10px;background:${note ? '#fafafa' : '#fff'}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--green-deep);word-break:break-all">${c.abha_address}</div>
+          <div style="font-size:12px;color:#666;margin-top:3px">${date} · Purpose: ${c.purpose || 'CAREMGT'}</div>
+          <div style="font-size:12px;color:#666;margin-top:2px;word-break:break-all">Types: ${types}</div>
+          ${eraseDate && c.status === 'granted' ? `<div style="font-size:11px;color:#888;margin-top:2px">Records erase after: ${eraseDate}</div>` : ''}
+        </div>
+        <span style="white-space:nowrap;font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:${col}18;color:${col};border:1px solid ${col}44">${(c.status || '').toUpperCase()}</span>
+      </div>
+      ${note
+        ? `<div style="margin-top:10px;padding:8px 10px;background:${col}10;border-left:3px solid ${col};border-radius:0 4px 4px 0;font-size:12px;color:${col};font-weight:500">${note}</div>`
+        : ''}
+      ${c.status === 'granted'
+        ? `<button class="btn" style="font-size:12px;padding:4px 12px;margin-top:10px" onclick="_loadReceivedRecords('${c.id}')">📋 View Records</button>`
+        : ''}
+    </div>`;
+  }).join('');
+}
+
+async function _submitConsentRequest() {
+  const btn      = document.getElementById('btn-abdm-consent');
+  const statusEl = document.getElementById('abdm-req-status');
+
+  const abhaAddress = (document.getElementById('abdm-abha-addr')?.value || '').trim();
+  if (!abhaAddress) { statusEl.innerHTML = '<span style="color:#c0392b">Patient ABHA address is required.</span>'; return; }
+
+  const hiTypes = [...document.querySelectorAll('#abdm-hi-types .chip.on')].map(c => c.dataset.value);
+  if (!hiTypes.length) { statusEl.innerHTML = '<span style="color:#c0392b">Select at least one health information type.</span>'; return; }
+
+  const dateFrom  = document.getElementById('abdm-date-from').value;
+  const dateTo    = document.getElementById('abdm-date-to').value;
+  const eraseAt   = document.getElementById('abdm-erase-at').value;
+  const purpose   = document.getElementById('abdm-purpose').value;
+
+  if (!dateFrom || !dateTo || !eraseAt) { statusEl.innerHTML = '<span style="color:#c0392b">All date fields are required.</span>'; return; }
+
+  btn.disabled    = true;
+  btn.textContent = 'Sending…';
+  statusEl.innerHTML = '';
+
+  try {
+    const token = await _abdmGetToken();
+    const res = await fetch(ABDM_AUTH_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({
+        action:        'hiu_consent_init',
+        patientId:     _activePatient.id,
+        visitId:       _activeVisitId || null,
+        doctorId:      userId,
+        abhaAddress,
+        purpose,
+        hiTypes,
+        dateFrom:      dateFrom + 'T00:00:00.000Z',
+        dateTo:        dateTo   + 'T23:59:59.000Z',
+        dataEraseAt:   eraseAt  + 'T23:59:59.000Z',
+        requesterName: _ctx.userName || null,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
+
+    statusEl.innerHTML = `<span style="color:var(--green-deep);font-weight:500">✓ Consent request sent. The patient will be notified on their ABHA app. Request ID: ${data.requestId || data.dbId}</span>`;
+    await _loadAbdmTab();
+  } catch (e) {
+    statusEl.innerHTML = `<span style="color:#c0392b">Error: ${e.message}</span>`;
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = 'Send Consent Request to Patient';
+  }
+}
+window._submitConsentRequest = _submitConsentRequest;
+
+// ── ABDM: Parse FHIR R4 Bundle into a readable card ──────────────
+function _parseFhirForDisplay(bundle, hiType) {
+  if (!bundle?.entry?.length) return null;
+  const get = (rt) => bundle.entry.filter(e => e?.resource?.resourceType === rt).map(e => e.resource);
+  const sections = [];
+
+  // Chief complaint / encounter reason
+  const encs = get('Encounter');
+  if (encs.length) {
+    const reason = encs[0]?.reasonCode?.[0]?.text || encs[0]?.reasonCode?.[0]?.coding?.[0]?.display;
+    if (reason) sections.push(`<div class="fhir-row"><span class="fhir-lbl">Chief Complaint</span>${_esc(reason)}</div>`);
+  }
+
+  // Diagnoses
+  const conds = get('Condition');
+  if (conds.length) {
+    const dx = conds.map(c => {
+      const name = c?.code?.text || c?.code?.coding?.[0]?.display || '';
+      const stat = c?.clinicalStatus?.coding?.[0]?.code ? ` <span class="fhir-badge" style="background:#fde8e8;color:#c0392b">${c.clinicalStatus.coding[0].code}</span>` : '';
+      return name ? `<span>${_esc(name)}${stat}</span>` : '';
+    }).filter(Boolean).join(', ');
+    if (dx) sections.push(`<div class="fhir-row"><span class="fhir-lbl dx">Diagnosis</span>${dx}</div>`);
+  }
+
+  // Medications
+  const meds = [...get('MedicationRequest'), ...get('MedicationStatement')];
+  if (meds.length) {
+    const list = meds.map(m => {
+      const mc = m?.medicationCodeableConcept || m?.medication?.concept;
+      const name = mc?.text || mc?.coding?.[0]?.display || 'Medicine';
+      const dose = m?.dosageInstruction?.[0]?.text || '';
+      return `<li>${_esc(name)}${dose ? ' <span class="fhir-dose">— ' + _esc(dose) + '</span>' : ''}</li>`;
+    }).join('');
+    sections.push(`<div class="fhir-row"><span class="fhir-lbl rx">Medications</span><ul class="fhir-list">${list}</ul></div>`);
+  }
+
+  // Vitals
+  const vitals = get('Observation').filter(o =>
+    o?.category?.[0]?.coding?.[0]?.code === 'vital-signs' ||
+    ['blood pressure','heart rate','body weight','body temperature','oxygen saturation','body height','bmi','respiratory rate'].includes((o?.code?.text || '').toLowerCase())
+  );
+  if (vitals.length) {
+    const items = vitals.map(o => {
+      const n = o?.code?.text || o?.code?.coding?.[0]?.display || '';
+      const v = o?.valueQuantity ? `${o.valueQuantity.value} ${o.valueQuantity.unit || ''}`.trim() : (o?.valueString || '');
+      return n && v ? `${_esc(n)}: <b>${_esc(v)}</b>` : '';
+    }).filter(Boolean).join(' · ');
+    if (items) sections.push(`<div class="fhir-row"><span class="fhir-lbl">Vitals</span>${items}</div>`);
+  }
+
+  // Lab observations
+  const labs = get('Observation').filter(o => o?.category?.[0]?.coding?.[0]?.code === 'laboratory');
+  if (labs.length) {
+    const list = labs.map(o => {
+      const n = o?.code?.text || o?.code?.coding?.[0]?.display || '';
+      const v = o?.valueQuantity ? `${o.valueQuantity.value} ${o.valueQuantity.unit || ''}`.trim() : (o?.valueString || '');
+      const ref = o?.referenceRange?.[0]?.text ? ` (ref: ${o.referenceRange[0].text})` : '';
+      return `<li>${_esc(n)}: <b>${_esc(v)}</b>${_esc(ref)}</li>`;
+    }).filter(s => s.length > 10).join('');
+    if (list) sections.push(`<div class="fhir-row"><span class="fhir-lbl">Lab Results</span><ul class="fhir-list">${list}</ul></div>`);
+  }
+
+  // DiagnosticReport conclusion
+  const reports = get('DiagnosticReport');
+  if (reports.length) {
+    const items = reports.map(d => {
+      const n = d?.code?.text || d?.code?.coding?.[0]?.display || 'Report';
+      const conc = d?.conclusion || '';
+      return conc ? `<li>${_esc(n)}: ${_esc(conc)}</li>` : `<li>${_esc(n)}</li>`;
+    }).join('');
+    sections.push(`<div class="fhir-row"><span class="fhir-lbl">Reports</span><ul class="fhir-list">${items}</ul></div>`);
+  }
+
+  // Allergies
+  const allergies = get('AllergyIntolerance');
+  if (allergies.length) {
+    const names = allergies.map(a => a?.code?.text || a?.code?.coding?.[0]?.display || '').filter(Boolean).join(', ');
+    if (names) sections.push(`<div class="fhir-row"><span class="fhir-lbl" style="color:#c0392b">⚠ Allergies</span><span style="color:#c0392b;font-weight:500">${_esc(names)}</span></div>`);
+  }
+
+  if (!sections.length) return null;
+  return `<div class="fhir-detail">${sections.join('')}</div>`;
+}
+
+// ── ABDM: Build longitudinal clinical summary across all records ──
+function _buildClinicalSummary(records) {
+  const allDx = new Map();          // name → count
+  const allMeds = new Map();
+  const allAllergies = new Set();
+  const facilities = new Set();
+  const latestVitals = {};
+
+  records.forEach(r => {
+    const src = r.source_display;
+    if (src && !src.startsWith('HIP via')) facilities.add(src);
+    const b = r.fhir_bundle;
+    if (!b?.entry) return;
+    const get = (rt) => b.entry.filter(e => e?.resource?.resourceType === rt).map(e => e.resource);
+
+    get('Condition').forEach(c => {
+      const n = c?.code?.text || c?.code?.coding?.[0]?.display;
+      if (n) allDx.set(n, (allDx.get(n) || 0) + 1);
+    });
+    [...get('MedicationRequest'), ...get('MedicationStatement')].forEach(m => {
+      const mc = m?.medicationCodeableConcept || m?.medication?.concept;
+      const n = mc?.text || mc?.coding?.[0]?.display;
+      if (n) allMeds.set(n, (allMeds.get(n) || 0) + 1);
+    });
+    get('AllergyIntolerance').forEach(a => {
+      const n = a?.code?.text || a?.code?.coding?.[0]?.display;
+      if (n) allAllergies.add(n);
+    });
+    get('Observation').filter(o =>
+      ['blood pressure','heart rate','body weight','oxygen saturation','body temperature'].includes((o?.code?.text || '').toLowerCase())
+    ).forEach(o => {
+      const n = (o?.code?.text || '').toLowerCase();
+      const v = o?.valueQuantity ? `${o.valueQuantity.value} ${o.valueQuantity.unit || ''}`.trim() : '';
+      if (v && !latestVitals[n]) latestVitals[n] = v; // records are newest-first
+    });
+  });
+
+  const lines = [];
+  if (allDx.size)        lines.push(`<div><span class="cs-lbl dx">Diagnoses</span>${[...allDx.keys()].slice(0, 6).map(d => `<span class="cs-chip dx">${_esc(d)}</span>`).join('')}</div>`);
+  if (allMeds.size)      lines.push(`<div><span class="cs-lbl rx">Medications</span>${[...allMeds.keys()].slice(0, 8).map(m => `<span class="cs-chip rx">${_esc(m)}</span>`).join('')}</div>`);
+  if (allAllergies.size) lines.push(`<div><span class="cs-lbl al">⚠ Allergies</span>${[...allAllergies].map(a => `<span class="cs-chip al">${_esc(a)}</span>`).join('')}</div>`);
+  const vitStr = Object.entries(latestVitals).map(([k, v]) => `${k.replace('body ','')}: <b>${_esc(v)}</b>`).join(' · ');
+  if (vitStr) lines.push(`<div><span class="cs-lbl">Recent Vitals</span>${vitStr}</div>`);
+
+  if (!lines.length) return '';
+
+  const facilityStr = facilities.size ? [...facilities].join(', ') : 'ABDM-linked facility';
+  const dateRange = (() => {
+    const dates = records.map(r => r.record_date).filter(Boolean).sort();
+    if (!dates.length) return '';
+    if (dates[0] === dates[dates.length - 1]) return dates[0];
+    return `${dates[0]} — ${dates[dates.length - 1]}`;
+  })();
+
+  return `<div style="background:linear-gradient(135deg,#f9f7f2 0%,#edf7ed 100%);border:1px solid #b8d8a8;border-radius:10px;padding:14px 16px;margin-bottom:18px">
+    <div style="font-size:13px;font-weight:700;color:var(--green-deep);margin-bottom:10px">
+      📊 Clinical Summary &nbsp;·&nbsp; <span style="font-weight:400;font-size:12px">${records.length} record${records.length !== 1 ? 's' : ''} from ${_esc(facilityStr)}${dateRange ? ' · ' + dateRange : ''}</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;line-height:1.6;color:#333">${lines.join('')}</div>
+  </div>`;
+}
+
+function _esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function _toggleFhirDetail(id) {
+  const el  = document.getElementById(id);
+  const arr = document.getElementById(id + '-arrow');
+  if (!el) return;
+  const open = el.style.display === 'none' || el.style.display === '';
+  el.style.display = open ? 'block' : 'none';
+  if (arr) { arr.textContent = open ? '›' : '‹'; arr.style.transform = open ? 'rotate(90deg)' : ''; }
+}
+window._toggleFhirDetail = _toggleFhirDetail;
+
+// ── ABDM: Load received records — longitudinal (chronological) view ──
+async function _loadReceivedRecords(consentId, consentStatus) {
+  const section = document.getElementById('abdm-records-section');
+  const listEl  = document.getElementById('abdm-records-list');
+  section.style.display = '';
+  section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  // Compliance: hide records for revoked/expired consents (mandatory per ABDM)
+  if (consentStatus === 'revoked' || consentStatus === 'expired') {
+    listEl.innerHTML = `<div style="background:#fff5f5;border:1px solid #fccaca;border-radius:8px;padding:14px 16px;font-size:13px;color:#c0392b;font-weight:500">
+      🔒 Health records are not displayed for ${consentStatus} consents.<br>
+      <span style="font-size:12px;font-weight:400;color:#555;margin-top:4px;display:block">All copies held by this system have been deleted per ABDM compliance (HIU_FLOW_202/301).</span>
+    </div>`;
+    return;
+  }
+
+  listEl.innerHTML = '<div style="color:#888;font-size:13px;padding:6px 0">Loading records…</div>';
+
+  const { data: records, error } = await supabase
+    .from('hiu_received_records')
+    .select('*')
+    .eq('consent_request_id', consentId)
+    .order('record_date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (error) { listEl.innerHTML = `<div style="color:#c0392b;font-size:13px">${error.message}</div>`; return; }
+
+  if (!records?.length) {
+    listEl.innerHTML = '<div style="color:#888;font-size:13px;padding:10px 0">No records received yet. Records will appear here once the HIP pushes data — this may take a few minutes after the patient grants consent.</div>';
+    return;
+  }
+
+  // Clinical summary banner
+  const summaryHtml = _buildClinicalSummary(records);
+
+  // Longitudinal view — group by date (Image 32 — PHR app Bahmni format)
+  const hiIcon = { OPConsultation:'🩺', Prescription:'💊', DiagnosticReport:'🧪',
+    DischargeSummary:'🏥', ImmunizationRecord:'💉', WellnessRecord:'🌿', HealthDocumentRecord:'📄' };
+  const hiLabel = { OPConsultation:'OPD Consultation', Prescription:'Prescription',
+    DiagnosticReport:'Diagnostic Report', DischargeSummary:'Discharge Summary',
+    ImmunizationRecord:'Immunization', WellnessRecord:'Wellness Record', HealthDocumentRecord:'Health Document' };
+
+  const byDate = {};
+  records.forEach(r => { const k = r.record_date || 'z_unknown'; (byDate[k] = byDate[k] || []).push(r); });
+  const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+
+  const timelineHtml = sortedDates.map(dk => {
+    const dateLabel = dk === 'z_unknown' ? 'Date Unknown'
+      : new Date(dk + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    const cards = byDate[dk].map(r => {
+      const src   = r.source_display || r.hip_id || 'Unknown Facility';
+      const icon  = hiIcon[r.hi_type] || '📋';
+      const type  = hiLabel[r.hi_type] || r.hi_type || 'Health Record';
+      const detId = `fhir-${r.id}`;
+      const fhirHtml = _parseFhirForDisplay(r.fhir_bundle, r.hi_type);
+
+      return `<div style="border:1px solid #d0e8d0;border-radius:8px;background:#fafdf8;margin-bottom:8px;overflow:hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer;gap:10px" onclick="_toggleFhirDetail('${detId}')">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;color:#222">${icon} ${_esc(src)}</div>
+            <div style="font-size:11px;color:#777;margin-top:2px">${_esc(type)}${r.care_context_ref ? ' &nbsp;·&nbsp; Ref: ' + _esc(r.care_context_ref) : ''}</div>
+            ${r.raw_summary && !fhirHtml ? `<div style="font-size:11px;color:#555;margin-top:3px;font-style:italic">${_esc(r.raw_summary)}</div>` : ''}
+          </div>
+          <span id="${detId}-arrow" style="color:#999;font-size:18px;flex-shrink:0;transition:transform 0.2s">›</span>
+        </div>
+        <div id="${detId}" style="display:none;border-top:1px solid #e0f0d8;padding:10px 14px 14px">
+          ${fhirHtml || `<div style="font-size:12px;color:#aaa;padding:4px 0">${_esc(r.raw_summary || 'No structured data available')}</div>`}
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div style="margin-bottom:22px">
+      <div style="font-size:12px;font-weight:700;color:#3a6b3a;text-transform:uppercase;letter-spacing:0.6px;padding-bottom:6px;border-bottom:2px solid #c8e6c8;margin-bottom:10px">${dateLabel}</div>
+      ${cards}
+    </div>`;
+  }).join('');
+
+  listEl.innerHTML = summaryHtml + timelineHtml;
+}
+window._loadReceivedRecords = _loadReceivedRecords;
 
 // ── §18r / §18t — Netra + ENT Examination ────────
 let _isNetra = false, _isKnm = false;
@@ -6614,15 +7341,10 @@ window.submitLabOrder = async function() {
 
   // Create lab_orders record
   const { data: order, error: oErr } = await supabase.from('lab_orders').insert({
-    tenant_id:     tenantId,
-    patient_id:    _activePatient.id,
-    visit_id:      _activeVisitId,
-    ordered_by:    userId,
-    order_date:    new Date().toISOString().slice(0,10),
-    order_time:    new Date().toTimeString().slice(0,8),
-    priority:      document.getElementById('lo-priority').value,
-    clinical_notes:document.getElementById('lo-notes').value.trim() || null,
-    status:        'pending',
+    tenant_id:  tenantId,
+    patient_id: _activePatient.id,
+    visit_id:   _activeVisitId,
+    status:     'pending',
   }).select('id').single();
   if (oErr) { alert('Error creating order: ' + oErr.message); return; }
 
@@ -6646,27 +7368,36 @@ window.submitLabOrder = async function() {
 
 async function loadLabResults() {
   if (!_activeVisitId) return;
-  const { data: orders } = await supabase
+  const { data: orders, error: ordErr } = await supabase
     .from('lab_orders')
-    .select('id,status,priority,order_date,lab_order_items(test_name,result_value,is_abnormal,is_critical)')
+    .select('id,status')
     .eq('tenant_id', tenantId)
-    .eq('visit_id', _activeVisitId)
-    .order('created_at');
+    .eq('visit_id', _activeVisitId);
+  if (ordErr) { console.warn('[lab] loadLabResults:', ordErr.message); return; }
   if (!orders?.length) {
     document.getElementById('lab-results-panel').style.display = 'none';
     return;
   }
+
+  const orderIds = orders.map(o => o.id);
+  const { data: allItems } = await supabase
+    .from('lab_order_items')
+    .select('order_id,test_name,result_value,is_abnormal,is_critical')
+    .in('order_id', orderIds);
+  const itemsByOrder = {};
+  (allItems || []).forEach(i => { (itemsByOrder[i.order_id] = itemsByOrder[i.order_id] || []).push(i); });
+
   document.getElementById('lab-results-panel').style.display = 'block';
   document.getElementById('order-lab-btn').disabled = false;
 
   const html = orders.map(o => {
     const isDone = o.status === 'completed';
-    const items  = o.lab_order_items || [];
+    const items  = itemsByOrder[o.id] || [];
     const criticals = items.filter(i => i.is_critical);
     return `<div style="margin-bottom:8px;padding:8px 10px;background:var(--white);border-radius:6px;border:1px solid ${isDone?'#b2d8bf':'#9ab8e0'}">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
         <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;background:${isDone?'var(--green-light)':'#e3f0ff'};color:${isDone?'var(--green-deep)':'#1a4080'}">${isDone?'REPORT READY':{pending:'PENDING',sample_collected:'SAMPLE COLLECTED',in_progress:'IN PROGRESS'}[o.status]||o.status}</span>
-        <span style="font-size:10px;color:var(--text-muted)">${_fmtDate(o.order_date)}</span>
+        ${o.order_date ? `<span style="font-size:10px;color:var(--text-muted)">${_fmtDate(o.order_date)}</span>` : ''}
         ${criticals.length ? '<span style="color:var(--red);font-size:11px;font-weight:700">⚠ CRITICAL</span>' : ''}
       </div>
       <div style="line-height:1.8">${items.map(i => `<span style="font-size:11px;${i.is_critical?'color:var(--red);font-weight:700':i.is_abnormal?'color:#7a5c00':''}">${i.test_name}${i.result_value?' = <strong>'+i.result_value+'</strong>':''}</span>`).join(' · ')}</div>

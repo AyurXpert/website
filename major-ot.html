@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Major OT Register — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --red:#c0392b;--red-light:#fdecea;
+  --blue:#1a4080;--blue-light:#e3f0ff;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page-wrap{max-width:1280px;margin:0 auto;padding:28px 20px 80px}
+
+/* Header */
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.4px;margin-left:8px;vertical-align:middle}
+
+/* Buttons */
+.btn{height:40px;padding:0 18px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}.btn-secondary:hover{background:var(--green-light)}
+.btn-danger{background:#7a1a1a;color:#fff}.btn-danger:hover{background:#9a2a2a}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn-icon{height:32px;width:32px;padding:0;border:1.5px solid var(--border);border-radius:6px;background:var(--white);cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center}
+.btn-icon:hover{border-color:var(--green-mid)}
+
+/* Alert */
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.alert.error{background:var(--red-light);color:#8b1a1a;border:1px solid #f5c6c6}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.stat-value{font-size:26px;font-weight:700;color:var(--green-deep);line-height:1}
+.stat-label{font-size:11px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.4px}
+.stat-card.gold .stat-value{color:var(--gold)}
+.stat-card.red .stat-value{color:var(--red)}
+.stat-card.blue .stat-value{color:var(--blue)}
+
+/* Date nav */
+.date-nav{display:flex;align-items:center;gap:10px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:14px;flex-wrap:wrap}
+.date-display{font-size:15px;font-weight:600;color:var(--text-dark);min-width:200px;text-align:center}
+.date-input{height:34px;padding:0 10px;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--cream)}
+.today-chip{padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;background:var(--green-light);color:var(--green-deep)}
+
+/* Filter tabs */
+.filter-bar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.tab-btns{display:flex;gap:4px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:3px}
+.tab-btn{height:32px;padding:0 14px;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;background:none;color:var(--text-mid);transition:background .15s}
+.tab-btn.active{background:var(--green-deep);color:#fff}
+
+/* OT cases table */
+.ot-table-wrap{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.ot-table{width:100%;border-collapse:collapse;font-size:13px}
+.ot-table th{background:var(--green-light);color:var(--text-mid);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:10px 12px;text-align:left;border-bottom:1.5px solid var(--border)}
+.ot-table td{padding:11px 12px;border-bottom:1px solid #eef2ef;vertical-align:middle}
+.ot-table tr:last-child td{border-bottom:none}
+.ot-table tr:hover td{background:#f8faf9;cursor:pointer}
+.status-chip{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.s-scheduled{background:#e3f0ff;color:var(--blue)}
+.s-in_progress{background:var(--gold-light);color:#7a5c00}
+.s-completed{background:var(--green-light);color:var(--green-deep)}
+.s-cancelled{background:#f1f5f4;color:#64748b}
+.case-type-chip{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.ct-elective{background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0}
+.ct-emergency{background:var(--red-light);color:var(--red);border:1px solid #fca5a5}
+.ct-semi_elective{background:var(--gold-light);color:#7a5c00;border:1px solid #fde68a}
+
+/* Empty state */
+.empty-state{text-align:center;padding:60px 20px;color:var(--text-muted)}
+.empty-icon{font-size:48px;margin-bottom:12px}
+.empty-title{font-size:16px;font-weight:600;color:var(--text-mid);margin-bottom:6px}
+
+/* ── Modal ── */
+.ot-overlay{position:fixed;inset:0;background:rgba(0,0,0,.52);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px}
+.ot-modal{background:#fff;border-radius:12px;width:680px;max-width:100%;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.2);overflow:hidden}
+.ot-modal-wide{width:820px}
+.ot-modal-hdr{background:var(--green-deep);color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.ot-modal-hdr-title{font-weight:600;font-size:15px}
+.ot-modal-hdr-sub{font-size:11px;opacity:.7;margin-top:1px}
+.ot-modal-close{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;padding:0 0 0 12px}
+.ot-modal-body{padding:20px;overflow-y:auto;flex:1}
+.ot-modal-foot{padding:12px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border);flex-shrink:0;flex-shrink:0}
+
+/* Form */
+.mfield{margin-bottom:13px}
+.mfield label{font-size:12px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px}
+.mfield input,.mfield select,.mfield textarea{width:100%;height:38px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box}
+.mfield textarea{height:68px;padding:8px 10px;resize:vertical}
+.mfield input:focus,.mfield select:focus,.mfield textarea:focus{outline:none;border-color:var(--green-mid)}
+.mrow2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mrow3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.msec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--green-deep);margin:16px 0 10px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.pt-result{background:var(--green-light);border:1.5px solid #b2d8bf;border-radius:8px;padding:10px 14px;margin-top:6px;display:none}
+.pt-result.show{display:block}
+.pt-result-name{font-weight:600;font-size:14px;color:var(--green-deep)}
+.pt-result-sub{font-size:12px;color:var(--text-mid);margin-top:2px}
+.check-row{display:flex;align-items:center;gap:8px;padding:8px 0;font-size:13px}
+.check-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--green-deep);flex-shrink:0}
+
+/* View record */
+.view-section{margin-bottom:16px}
+.view-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--green-deep);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.view-row{display:flex;gap:8px;padding:6px 0;border-bottom:1px dashed #eef2ef;font-size:13px}
+.view-row:last-child{border-bottom:none}
+.view-label{width:180px;flex-shrink:0;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;padding-top:1px}
+.view-value{flex:1;color:var(--text-dark)}
+
+/* OT Logbook tab */
+.logbook-table{width:100%;border-collapse:collapse;font-size:12px}
+.logbook-table th{background:var(--green-deep);color:#fff;padding:8px 10px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.logbook-table td{padding:8px 10px;border-bottom:1px solid #eef2ef;vertical-align:middle}
+.logbook-table tr:nth-child(even) td{background:#f8faf9}
+
+/* Print */
+@media print{body *{visibility:hidden}#ot-print,#ot-print *{visibility:visible}#ot-print{position:fixed;inset:0;padding:15mm;font-family:'DM Sans',sans-serif}}
+#ot-print{display:none}
+
+@media(max-width:768px){
+  .stats-row{grid-template-columns:1fr 1fr}
+  .ot-table th:nth-child(n+4),.ot-table td:nth-child(n+4){display:none}
+  .mrow2,.mrow3{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="page-wrap">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Major OT Register <span class="ncism-badge">NCISM §18p</span></div>
+      <div class="page-subtitle">Shalya Chikitsa — Major surgical operations logbook, scheduling &amp; intraoperative records</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-secondary" onclick="openLogbook()">📖 OT Logbook</button>
+      <button class="btn btn-primary" onclick="openNewCase()">+ New OT Case</button>
+    </div>
+  </div>
+
+  <div id="alert-box" class="alert"></div>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-value" id="st-sched">—</div><div class="stat-label">Scheduled Today</div></div>
+    <div class="stat-card gold"><div class="stat-value" id="st-inprog">—</div><div class="stat-label">In Progress</div></div>
+    <div class="stat-card"><div class="stat-value" id="st-done">—</div><div class="stat-label">Completed Today</div></div>
+    <div class="stat-card blue"><div class="stat-value" id="st-month">—</div><div class="stat-label">This Month</div></div>
+    <div class="stat-card red"><div class="stat-value" id="st-emerg">—</div><div class="stat-label">Emergency</div></div>
+  </div>
+
+  <div class="date-nav">
+    <button class="btn-icon" onclick="shiftDate(-1)">‹</button>
+    <button class="btn-icon" onclick="shiftDate(1)">›</button>
+    <span class="date-display" id="date-display">—</span>
+    <input class="date-input" id="date-picker" type="date" onchange="onDatePick()"/>
+    <button class="btn btn-secondary btn-sm" onclick="goToday()">Today</button>
+    <span class="today-chip" id="today-chip" style="display:none">Today</span>
+  </div>
+
+  <div class="filter-bar">
+    <div class="tab-btns">
+      <button class="tab-btn active" onclick="setFilter('all',this)">All</button>
+      <button class="tab-btn" onclick="setFilter('scheduled',this)">Scheduled</button>
+      <button class="tab-btn" onclick="setFilter('in_progress',this)">In Progress</button>
+      <button class="tab-btn" onclick="setFilter('completed',this)">Completed</button>
+      <button class="tab-btn" onclick="setFilter('cancelled',this)">Cancelled</button>
+    </div>
+  </div>
+
+  <div class="ot-table-wrap" id="table-wrap">
+    <div class="empty-state"><div class="empty-icon">🏥</div><div class="empty-title">Loading…</div></div>
+  </div>
+</div>
+
+<!-- ── New OT Case Modal ── -->
+<div class="ot-overlay" id="new-overlay" style="display:none" onclick="if(event.target===this)closeNew()">
+  <div class="ot-modal">
+    <div class="ot-modal-hdr">
+      <div><div class="ot-modal-hdr-title">New OT Case</div><div class="ot-modal-hdr-sub">Major Surgical Procedure — §18p</div></div>
+      <button class="ot-modal-close" onclick="closeNew()">✕</button>
+    </div>
+    <div class="ot-modal-body">
+      <!-- Patient -->
+      <div class="msec">Patient</div>
+      <div class="mfield">
+        <label>Search Patient (phone or name)</label>
+        <input id="n-pt-search" type="text" placeholder="Enter phone or name…" oninput="searchPt()"/>
+        <div class="pt-result" id="n-pt-result">
+          <div class="pt-result-name" id="n-pt-name">—</div>
+          <div class="pt-result-sub" id="n-pt-sub">—</div>
+        </div>
+      </div>
+
+      <!-- Procedure -->
+      <div class="msec">Procedure Details</div>
+      <div class="mfield">
+        <label>Procedure Name <span style="color:var(--red)">*</span></label>
+        <input id="n-proc" type="text" placeholder="e.g. Laparotomy, Appendectomy, Haemorrhoidectomy…"/>
+      </div>
+      <div class="mrow3">
+        <div class="mfield">
+          <label>Case Type</label>
+          <select id="n-case-type">
+            <option value="elective">Elective</option>
+            <option value="semi_elective">Semi-Elective</option>
+            <option value="emergency">Emergency</option>
+          </select>
+        </div>
+        <div class="mfield">
+          <label>Procedure Category</label>
+          <select id="n-category">
+            <option value="general">General Surgery</option>
+            <option value="anorectal">Anorectal</option>
+            <option value="ortho">Orthopaedics</option>
+            <option value="ent">ENT</option>
+            <option value="obs">Obstetrics / Gynaecology</option>
+            <option value="urology">Urology</option>
+            <option value="neuro">Neurosurgery</option>
+            <option value="ophthal">Ophthalmology</option>
+            <option value="kshara">Kshara / Para-surgical</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="mfield">
+          <label>OT Table / Theatre</label>
+          <select id="n-ot-table">
+            <option value="OT-1">OT — 1</option>
+            <option value="OT-2">OT — 2</option>
+            <option value="OT-3">OT — 3</option>
+            <option value="Minor OT">Minor OT</option>
+          </select>
+        </div>
+      </div>
+      <div class="mrow2">
+        <div class="mfield">
+          <label>Scheduled Date</label>
+          <input id="n-date" type="date"/>
+        </div>
+        <div class="mfield">
+          <label>Scheduled Time</label>
+          <input id="n-time" type="time"/>
+        </div>
+      </div>
+      <div class="mfield">
+        <label>Pre-operative Diagnosis</label>
+        <input id="n-pre-diag" type="text" placeholder="Diagnosis before surgery"/>
+      </div>
+
+      <!-- Team -->
+      <div class="msec">Surgical Team</div>
+      <div class="mrow2">
+        <div class="mfield">
+          <label>Surgeon <span style="color:var(--red)">*</span></label>
+          <select id="n-surgeon"><option value="">— Select surgeon —</option></select>
+        </div>
+        <div class="mfield">
+          <label>Assistant Surgeon</label>
+          <input id="n-asst" type="text" placeholder="Name (or leave blank)"/>
+        </div>
+      </div>
+      <div class="mrow2">
+        <div class="mfield">
+          <label>Anaesthetist</label>
+          <select id="n-anaes-dr"><option value="">— Select / Not applicable —</option></select>
+        </div>
+        <div class="mfield">
+          <label>Anaesthesia Type</label>
+          <select id="n-anaes-type">
+            <option value="general">General (GA)</option>
+            <option value="spinal">Spinal (SA)</option>
+            <option value="epidural">Epidural</option>
+            <option value="regional">Regional Block</option>
+            <option value="local">Local</option>
+            <option value="none">None / Sedation</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- NABH — Surgical + Anaesthesia Consent -->
+      <div class="msec">Informed Consent <span style="font-size:10px;font-weight:400;color:#888">(NABH — mandatory for all OT cases)</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+        <div>
+          <label style="font-size:10px;font-weight:600;color:#666;display:block;margin-bottom:3px;text-transform:uppercase">Consent Type</label>
+          <select id="ot-consent-type" style="width:100%;height:32px;border:1.5px solid #ddd;border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit">
+            <option value="surgical">Surgical Consent</option>
+            <option value="anaesthesia">Anaesthesia Consent</option>
+            <option value="blood_transfusion">Blood Transfusion Consent</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:600;color:#666;display:block;margin-bottom:3px;text-transform:uppercase">Given By *</label>
+          <input id="ot-consent-by" type="text" placeholder="Patient / Guardian name" style="width:100%;height:32px;border:1.5px solid #ddd;border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit"/>
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:600;color:#666;display:block;margin-bottom:3px;text-transform:uppercase">Relationship</label>
+          <select id="ot-consent-rel" style="width:100%;height:32px;border:1.5px solid #ddd;border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit">
+            <option value="self">Self</option><option value="spouse">Spouse</option>
+            <option value="parent">Parent</option><option value="guardian">Guardian</option><option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="ot-consent-risks" checked style="accent-color:#1a4a2e"/> Risks explained</label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="ot-consent-alts" style="accent-color:#1a4a2e"/> Alternatives discussed</label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="checkbox" id="ot-consent-questions" checked style="accent-color:#1a4a2e"/> Questions answered</label>
+      </div>
+
+      <!-- Pre-op checklist -->
+      <div class="msec">Pre-operative Checklist</div>
+      <div class="mrow2">
+        <div>
+          <div class="check-row"><input type="checkbox" id="chk-consent" checked/><label for="chk-consent">Informed consent obtained</label></div>
+          <div class="check-row"><input type="checkbox" id="chk-blood"/><label for="chk-blood">Blood / cross-match arranged</label></div>
+          <div class="check-row"><input type="checkbox" id="chk-npo" checked/><label for="chk-npo">Patient NPO (fasting) confirmed</label></div>
+          <div class="check-row"><input type="checkbox" id="chk-iv" checked/><label for="chk-iv">IV access secured</label></div>
+        </div>
+        <div>
+          <div class="check-row"><input type="checkbox" id="chk-site" checked/><label for="chk-site">Surgical site marked</label></div>
+          <div class="check-row"><input type="checkbox" id="chk-allergy"/><label for="chk-allergy">Known allergies noted</label></div>
+          <div class="check-row"><input type="checkbox" id="chk-implant"/><label for="chk-implant">Implant / prosthesis ready</label></div>
+          <div class="check-row"><input type="checkbox" id="chk-xray"/><label for="chk-xray">Imaging / X-rays available</label></div>
+        </div>
+      </div>
+
+      <div class="mfield" style="margin-top:8px">
+        <label>Pre-op Notes</label>
+        <textarea id="n-notes" placeholder="Additional pre-operative notes, special instructions…" style="height:54px"></textarea>
+      </div>
+    </div>
+    <div class="ot-modal-foot">
+      <button class="btn btn-secondary btn-sm" onclick="closeNew()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveNewCase()">Schedule OT Case</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Intraoperative Record Modal ── -->
+<div class="ot-overlay" id="intra-overlay" style="display:none" onclick="if(event.target===this)closeIntra()">
+  <div class="ot-modal">
+    <div class="ot-modal-hdr">
+      <div><div class="ot-modal-hdr-title" id="intra-title">Intraoperative Record</div><div class="ot-modal-hdr-sub" id="intra-sub">—</div></div>
+      <button class="ot-modal-close" onclick="closeIntra()">✕</button>
+    </div>
+    <div class="ot-modal-body">
+      <div class="msec">Operative Timeline</div>
+      <div class="mrow2">
+        <div class="mfield">
+          <label>Actual Start</label>
+          <input id="i-start" type="datetime-local"/>
+        </div>
+        <div class="mfield">
+          <label>Actual End</label>
+          <input id="i-end" type="datetime-local"/>
+        </div>
+      </div>
+
+      <div class="msec">Operative Details</div>
+      <div class="mfield">
+        <label>Post-operative Diagnosis</label>
+        <input id="i-post-diag" type="text" placeholder="Confirmed diagnosis after surgery"/>
+      </div>
+      <div class="mfield">
+        <label>Operative Findings</label>
+        <textarea id="i-findings" placeholder="Intraoperative findings, anatomy, pathology encountered…"></textarea>
+      </div>
+      <div class="mfield">
+        <label>Procedure Details / Steps</label>
+        <textarea id="i-details" placeholder="Steps performed, technique, sutures used, drains placed…"></textarea>
+      </div>
+      <div class="mrow3">
+        <div class="mfield">
+          <label>Blood Loss (ml)</label>
+          <input id="i-blood-loss" type="number" min="0" placeholder="Estimated"/>
+        </div>
+        <div class="mfield">
+          <label>Duration (minutes)</label>
+          <input id="i-duration" type="number" min="0" readonly style="background:#f5f5f5"/>
+        </div>
+        <div class="mfield">
+          <label>Post-op Destination</label>
+          <select id="i-destination">
+            <option value="ward">General Ward</option>
+            <option value="icu">ICU</option>
+            <option value="recovery">Recovery Room</option>
+            <option value="discharge">Same-day Discharge</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="msec">Safety Checks</div>
+      <div class="mrow2">
+        <div>
+          <div class="check-row"><input type="checkbox" id="i-swab" checked/><label for="i-swab">Swab count correct (in = out)</label></div>
+          <div class="check-row"><input type="checkbox" id="i-inst" checked/><label for="i-inst">Instrument count correct (in = out)</label></div>
+          <div class="check-row"><input type="checkbox" id="i-specimen"/><label for="i-specimen">Specimen sent for histopathology</label></div>
+        </div>
+        <div class="mfield" style="margin:0">
+          <label>Specimen Details (if any)</label>
+          <textarea id="i-specimen-det" style="height:72px" placeholder="Organ / tissue / type of specimen…"></textarea>
+        </div>
+      </div>
+
+      <div class="mfield">
+        <label>Complications (if any)</label>
+        <input id="i-complications" type="text" placeholder="None / describe if any"/>
+      </div>
+      <div class="mfield">
+        <label>Post-operative Condition</label>
+        <select id="i-condition">
+          <option value="stable">Stable</option>
+          <option value="guarded">Guarded</option>
+          <option value="critical">Critical</option>
+          <option value="deceased">Deceased</option>
+        </select>
+      </div>
+      <div class="mfield">
+        <label>Post-operative Instructions</label>
+        <textarea id="i-post-instr" placeholder="Antibiotics, analgesia, diet, wound care, follow-up…" style="height:54px"></textarea>
+      </div>
+    </div>
+    <div class="ot-modal-foot">
+      <button class="btn btn-secondary btn-sm" onclick="closeIntra()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveIntra()">Save &amp; Mark Completed</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── View / Print Modal ── -->
+<div class="ot-overlay" id="view-overlay" style="display:none" onclick="if(event.target===this)closeView()">
+  <div class="ot-modal ot-modal-wide">
+    <div class="ot-modal-hdr">
+      <div><div class="ot-modal-hdr-title" id="view-title">OT Record</div><div class="ot-modal-hdr-sub" id="view-sub">—</div></div>
+      <button class="ot-modal-close" onclick="closeView()">✕</button>
+    </div>
+    <div class="ot-modal-body" id="view-body"></div>
+    <div class="ot-modal-foot">
+      <button class="btn btn-secondary btn-sm" onclick="closeView()">Close</button>
+      <button class="btn btn-primary btn-sm" onclick="printOtRecord()">🖨 Print OT Record</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── OT Logbook Modal ── -->
+<div class="ot-overlay" id="logbook-overlay" style="display:none" onclick="if(event.target===this)closeLogbook()">
+  <div class="ot-modal ot-modal-wide">
+    <div class="ot-modal-hdr">
+      <div><div class="ot-modal-hdr-title">OT Logbook</div><div class="ot-modal-hdr-sub">Chronological register of all major surgical procedures — NCISM §18p</div></div>
+      <button class="ot-modal-close" onclick="closeLogbook()">✕</button>
+    </div>
+    <div class="ot-modal-body">
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <input type="month" id="lb-month" style="height:36px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-family:'DM Sans',sans-serif;font-size:13px" onchange="loadLogbook()"/>
+        <button class="btn btn-secondary btn-sm" onclick="printLogbook()">🖨 Print Logbook</button>
+      </div>
+      <div id="logbook-body"><div class="empty-state"><div class="empty-icon">📖</div><div class="empty-title">Select a month above</div></div></div>
+    </div>
+    <div class="ot-modal-foot">
+      <button class="btn btn-secondary btn-sm" onclick="closeLogbook()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Print template -->
+<div id="ot-print"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './js/config/constants.js';
+import { requireAuth, getCurrentProfile, getCurrentTenantId } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+
+requireAuth(['super_admin','dept_admin','doctor','nurse']);
+initNavbar();
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const tenantId = getCurrentTenantId();
+const profile  = getCurrentProfile();
+const userId   = profile?.id;
+
+let _viewDate    = new Date().toISOString().slice(0,10);
+let _allCases    = [];
+let _activeFilter= 'all';
+let _activeId    = null;
+let _foundPt     = null;
+let _doctors     = [];
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  const { data } = await supabase.from('profiles')
+    .select('id,full_name,role').eq('tenant_id',tenantId).eq('is_active',true)
+    .in('role',['doctor','super_admin','dept_admin']).order('full_name');
+  _doctors = data || [];
+  const surgSel  = document.getElementById('n-surgeon');
+  const anaesSel = document.getElementById('n-anaes-dr');
+  _doctors.forEach(d => {
+    const o1 = new Option(d.full_name, d.id);
+    const o2 = new Option(d.full_name, d.id);
+    surgSel.appendChild(o1);
+    anaesSel.appendChild(o2);
+  });
+  // default surgeon to logged-in doctor
+  if (profile?.role === 'doctor') surgSel.value = userId;
+  renderDateNav();
+  loadCases();
+}
+
+// ── Date nav ──────────────────────────────────────────────────────────────────
+function renderDateNav() {
+  const d = new Date(_viewDate + 'T00:00:00');
+  document.getElementById('date-display').textContent =
+    d.toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+  document.getElementById('date-picker').value = _viewDate;
+  const isToday = _viewDate === new Date().toISOString().slice(0,10);
+  document.getElementById('today-chip').style.display = isToday ? '' : 'none';
+}
+window.shiftDate  = d => { const dt=new Date(_viewDate); dt.setDate(dt.getDate()+d); _viewDate=dt.toISOString().slice(0,10); renderDateNav(); loadCases(); };
+window.onDatePick = () => { _viewDate=document.getElementById('date-picker').value; renderDateNav(); loadCases(); };
+window.goToday    = () => { _viewDate=new Date().toISOString().slice(0,10); renderDateNav(); loadCases(); };
+
+// ── Load cases ────────────────────────────────────────────────────────────────
+async function loadCases() {
+  const { data, error } = await supabase
+    .from('ot_cases')
+    .select(`id,serial_no,procedure_name,case_type,procedure_category,pre_op_diagnosis,post_op_diagnosis,
+             anaesthesia_type,ot_table,scheduled_date,scheduled_time,actual_start,actual_end,
+             status,post_op_condition,created_at,
+             patients(id,name,phone,age,gender),
+             profiles!surgeon_id(full_name)`)
+    .eq('tenant_id', tenantId)
+    .eq('scheduled_date', _viewDate)
+    .order('scheduled_time', { ascending: true, nullsFirst: false });
+
+  if (error) { _alert('error','Failed to load: ' + error.message); return; }
+  _allCases = data || [];
+  renderStats();
+  renderTable();
+}
+
+async function loadStats() {
+  const today = new Date().toISOString().slice(0,10);
+  const m1 = new Date(); m1.setDate(1); const monthStart = m1.toISOString().slice(0,10);
+  const [sc,ip,dn,mo,em] = await Promise.all([
+    supabase.from('ot_cases').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).eq('scheduled_date',today).eq('status','scheduled'),
+    supabase.from('ot_cases').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).eq('status','in_progress'),
+    supabase.from('ot_cases').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).eq('scheduled_date',today).eq('status','completed'),
+    supabase.from('ot_cases').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('scheduled_date',monthStart).eq('status','completed'),
+    supabase.from('ot_cases').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).eq('scheduled_date',today).eq('case_type','emergency'),
+  ]);
+  document.getElementById('st-sched').textContent  = sc.count ?? '—';
+  document.getElementById('st-inprog').textContent = ip.count ?? '—';
+  document.getElementById('st-done').textContent   = dn.count ?? '—';
+  document.getElementById('st-month').textContent  = mo.count ?? '—';
+  document.getElementById('st-emerg').textContent  = em.count ?? '—';
+}
+
+// ── Filter + render ───────────────────────────────────────────────────────────
+window.setFilter = (f, btn) => {
+  _activeFilter = f;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+};
+
+function renderStats() { loadStats(); }
+
+function renderTable() {
+  const list = _activeFilter === 'all' ? _allCases : _allCases.filter(c=>c.status===_activeFilter);
+  const wrap = document.getElementById('table-wrap');
+  if (!list.length) {
+    wrap.innerHTML = `<div class="empty-state"><div class="empty-icon">🔪</div>
+      <div class="empty-title">No OT cases for this date</div>
+      <div style="font-size:13px;color:var(--text-muted)">Use the button above to schedule a new case.</div></div>`;
+    return;
+  }
+  const rows = list.map(c => {
+    const time = c.scheduled_time ? c.scheduled_time.slice(0,5) : '—';
+    const sCls = {scheduled:'s-scheduled',in_progress:'s-in_progress',completed:'s-completed',cancelled:'s-cancelled'}[c.status]||'';
+    const sLbl = {scheduled:'Scheduled',in_progress:'In Progress',completed:'Completed',cancelled:'Cancelled'}[c.status]||c.status;
+    const tCls = {elective:'ct-elective',emergency:'ct-emergency',semi_elective:'ct-semi_elective'}[c.case_type]||'';
+    const tLbl = {elective:'Elective',emergency:'Emergency',semi_elective:'Semi-elective'}[c.case_type]||c.case_type;
+    const dur  = c.actual_start && c.actual_end
+      ? Math.round((new Date(c.actual_end)-new Date(c.actual_start))/60000)+' min' : '—';
+    return `<tr onclick="viewCase('${c.id}')">
+      <td style="font-weight:600;min-width:40px">${c.serial_no||'—'}</td>
+      <td>${time}</td>
+      <td>
+        <div style="font-weight:600">${c.procedure_name}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${c.pre_op_diagnosis||''}</div>
+      </td>
+      <td>${c.patients?.name||'—'}<div style="font-size:11px;color:var(--text-muted)">${c.patients?.phone||''}</div></td>
+      <td>${c.profiles?.full_name||'—'}</td>
+      <td>${c.ot_table||'—'}</td>
+      <td><span class="anaes-lbl">${_anaesLabel(c.anaesthesia_type)}</span></td>
+      <td>${dur}</td>
+      <td><span class="case-type-chip ${tCls}">${tLbl}</span></td>
+      <td><span class="status-chip ${sCls}">${sLbl}</span></td>
+      <td onclick="event.stopPropagation()" style="white-space:nowrap">
+        ${c.status==='scheduled'   ? `<button class="btn btn-secondary btn-sm" onclick="startCase('${c.id}')">▶ Start</button>` : ''}
+        ${c.status==='in_progress' ? `<button class="btn btn-primary btn-sm" onclick="openIntra('${c.id}')">📝 Complete</button>` : ''}
+        ${c.status==='scheduled'   ? `<button class="btn btn-sm" style="background:#f1f5f4;border:1px solid var(--border);margin-left:4px" onclick="cancelCase('${c.id}')">✕</button>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML = `<table class="ot-table">
+    <thead><tr>
+      <th>Sl#</th><th>Time</th><th>Procedure</th><th>Patient</th>
+      <th>Surgeon</th><th>OT</th><th>Anaes.</th><th>Duration</th><th>Type</th><th>Status</th><th></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── New case ──────────────────────────────────────────────────────────────────
+window.openNewCase = function() {
+  _foundPt = null;
+  document.getElementById('n-pt-search').value  = '';
+  document.getElementById('n-pt-result').classList.remove('show');
+  document.getElementById('n-proc').value        = '';
+  document.getElementById('n-case-type').value   = 'elective';
+  document.getElementById('n-category').value    = 'general';
+  document.getElementById('n-ot-table').value    = 'OT-1';
+  document.getElementById('n-date').value        = _viewDate;
+  document.getElementById('n-time').value        = '08:00';
+  document.getElementById('n-pre-diag').value    = '';
+  document.getElementById('n-asst').value        = '';
+  document.getElementById('n-anaes-type').value  = 'general';
+  document.getElementById('n-notes').value       = '';
+  if (profile?.role==='doctor') document.getElementById('n-surgeon').value = userId;
+  ['chk-consent','chk-npo','chk-iv','chk-site'].forEach(id=>document.getElementById(id).checked=true);
+  ['chk-blood','chk-allergy','chk-implant','chk-xray'].forEach(id=>document.getElementById(id).checked=false);
+  document.getElementById('new-overlay').style.display = 'flex';
+};
+window.closeNew = () => { document.getElementById('new-overlay').style.display='none'; };
+
+let _ptTimer = null;
+window.searchPt = function() {
+  clearTimeout(_ptTimer);
+  _ptTimer = setTimeout(async () => {
+    const q = document.getElementById('n-pt-search').value.trim();
+    if (q.length < 3) { document.getElementById('n-pt-result').classList.remove('show'); return; }
+    const isPhone = /^\d+$/.test(q);
+    let qry = supabase.from('patients').select('id,name,phone,age,gender').eq('tenant_id',tenantId).limit(1);
+    qry = isPhone ? qry.ilike('phone',`%${q}%`) : qry.ilike('name',`%${q}%`);
+    const { data } = await qry;
+    const pt = data?.[0];
+    if (pt) {
+      _foundPt = pt;
+      document.getElementById('n-pt-name').textContent = pt.name;
+      document.getElementById('n-pt-sub').textContent  = `${pt.phone||'—'} · ${pt.gender||''} ${pt.age?pt.age+'y':''}`;
+      document.getElementById('n-pt-result').classList.add('show');
+    } else { _foundPt=null; document.getElementById('n-pt-result').classList.remove('show'); }
+  }, 350);
+};
+
+window.saveNewCase = async function() {
+  if (!_foundPt) { alert('Please search and select a patient.'); return; }
+  const proc = document.getElementById('n-proc').value.trim();
+  if (!proc)    { alert('Please enter the procedure name.'); return; }
+  const surgId = document.getElementById('n-surgeon').value;
+  if (!surgId)  { alert('Please select the surgeon.'); return; }
+
+  // Get next serial number for this tenant
+  const { count } = await supabase.from('ot_cases').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId);
+  const serial = (count || 0) + 1;
+
+  const preop = {
+    consent: document.getElementById('chk-consent').checked,
+    blood_arranged: document.getElementById('chk-blood').checked,
+    npo: document.getElementById('chk-npo').checked,
+    iv_access: document.getElementById('chk-iv').checked,
+    site_marked: document.getElementById('chk-site').checked,
+    allergies_noted: document.getElementById('chk-allergy').checked,
+    implant_ready: document.getElementById('chk-implant').checked,
+    imaging_available: document.getElementById('chk-xray').checked,
+  };
+
+  const { error } = await supabase.from('ot_cases').insert({
+    tenant_id:       tenantId,
+    patient_id:      _foundPt.id,
+    serial_no:       serial,
+    procedure_name:  proc,
+    case_type:       document.getElementById('n-case-type').value,
+    procedure_category: document.getElementById('n-category').value,
+    pre_op_diagnosis: document.getElementById('n-pre-diag').value.trim() || null,
+    surgeon_id:      surgId,
+    assistant_surgeon: document.getElementById('n-asst').value.trim() || null,
+    anaesthetist_id: document.getElementById('n-anaes-dr').value || null,
+    anaesthesia_type: document.getElementById('n-anaes-type').value,
+    ot_table:        document.getElementById('n-ot-table').value,
+    scheduled_date:  document.getElementById('n-date').value,
+    scheduled_time:  document.getElementById('n-time').value || null,
+    preop_checklist: preop,
+    notes:           document.getElementById('n-notes').value.trim() || null,
+    status:          'scheduled',
+  });
+  if (error) { alert('Error: ' + error.message); return; }
+
+  // NABH — Save surgical consent record
+  const consentBy = document.getElementById('ot-consent-by').value.trim();
+  if (consentBy) {
+    await supabase.from('consent_records').insert({
+      tenant_id:              tenantId,
+      patient_id:             _foundPt.id,
+      consent_type:           document.getElementById('ot-consent-type').value,
+      consent_given:          true,
+      consent_by:             consentBy,
+      relationship:           document.getElementById('ot-consent-rel').value,
+      risks_explained:        document.getElementById('ot-consent-risks').checked,
+      alternatives_explained: document.getElementById('ot-consent-alts').checked,
+      questions_answered:     document.getElementById('ot-consent-questions').checked,
+      procedure_details:      proc,
+    });
+  }
+
+  closeNew();
+  _alert('success', `OT Case #${serial} scheduled for ${_foundPt.name}.`);
+  loadCases();
+};
+
+// ── Start case ────────────────────────────────────────────────────────────────
+window.startCase = async function(id) {
+  const now = new Date().toISOString();
+  const { error } = await supabase.from('ot_cases').update({ status:'in_progress', actual_start:now }).eq('id',id);
+  if (error) { alert('Error: '+error.message); return; }
+  _alert('success','OT Case started.');
+  loadCases();
+};
+
+// ── Cancel case ───────────────────────────────────────────────────────────────
+window.cancelCase = async function(id) {
+  if (!confirm('Cancel this OT case?')) return;
+  const { error } = await supabase.from('ot_cases').update({ status:'cancelled' }).eq('id',id);
+  if (error) { alert('Error: '+error.message); return; }
+  _alert('success','Case cancelled.');
+  loadCases();
+};
+
+// ── Intraoperative modal ──────────────────────────────────────────────────────
+window.openIntra = function(id) {
+  _activeId = id;
+  const c = _allCases.find(x=>x.id===id);
+  if (!c) return;
+  document.getElementById('intra-title').textContent = c.procedure_name;
+  document.getElementById('intra-sub').textContent   = `${c.patients?.name||'—'} · ${c.ot_table||''}`;
+  const now = new Date(); const later = new Date(now.getTime()+90*60000);
+  const fmtDt = d => d.toISOString().slice(0,16);
+  document.getElementById('i-start').value = c.actual_start ? c.actual_start.slice(0,16) : (now.toISOString().slice(0,16));
+  document.getElementById('i-end').value   = fmtDt(later);
+  document.getElementById('i-post-diag').value = c.post_op_diagnosis || c.pre_op_diagnosis || '';
+  document.getElementById('i-findings').value = '';
+  document.getElementById('i-details').value  = '';
+  document.getElementById('i-blood-loss').value = '';
+  document.getElementById('i-duration').value   = '';
+  document.getElementById('i-destination').value = 'ward';
+  document.getElementById('i-complications').value = '';
+  document.getElementById('i-post-instr').value = '';
+  document.getElementById('i-swab').checked = true;
+  document.getElementById('i-inst').checked = true;
+  document.getElementById('i-specimen').checked = false;
+  document.getElementById('i-specimen-det').value = '';
+
+  // Auto-calc duration when end changes
+  document.getElementById('i-end').oninput = () => {
+    const s = new Date(document.getElementById('i-start').value);
+    const e = new Date(document.getElementById('i-end').value);
+    if (s && e && e > s) document.getElementById('i-duration').value = Math.round((e-s)/60000);
+  };
+  document.getElementById('intra-overlay').style.display = 'flex';
+};
+window.closeIntra = () => { document.getElementById('intra-overlay').style.display='none'; };
+
+window.saveIntra = async function() {
+  if (!_activeId) return;
+  const findings = document.getElementById('i-findings').value.trim();
+  if (!findings) { alert('Please enter operative findings.'); return; }
+  const start = document.getElementById('i-start').value;
+  const end   = document.getElementById('i-end').value;
+  const dur   = parseInt(document.getElementById('i-duration').value) || null;
+
+  const { error } = await supabase.from('ot_cases').update({
+    status:               'completed',
+    actual_start:         start ? new Date(start).toISOString() : null,
+    actual_end:           end   ? new Date(end).toISOString()   : null,
+    duration_minutes:     dur,
+    post_op_diagnosis:    document.getElementById('i-post-diag').value.trim() || null,
+    operative_findings:   findings,
+    procedure_details:    document.getElementById('i-details').value.trim() || null,
+    blood_loss_ml:        parseInt(document.getElementById('i-blood-loss').value) || null,
+    post_op_destination:  document.getElementById('i-destination').value,
+    complications:        document.getElementById('i-complications').value.trim() || null,
+    post_op_condition:    document.getElementById('i-condition').value,
+    post_op_instructions: document.getElementById('i-post-instr').value.trim() || null,
+    swab_count_correct:   document.getElementById('i-swab').checked,
+    instrument_count_correct: document.getElementById('i-inst').checked,
+    specimen_sent:        document.getElementById('i-specimen').checked,
+    specimen_details:     document.getElementById('i-specimen-det').value.trim() || null,
+  }).eq('id', _activeId);
+  if (error) { alert('Error: '+error.message); return; }
+  closeIntra();
+  _alert('success','Intraoperative record saved. Case marked as Completed.');
+  loadCases();
+};
+
+// ── View case ─────────────────────────────────────────────────────────────────
+window.viewCase = function(id) {
+  const c = _allCases.find(x=>x.id===id);
+  if (!c) return;
+  _activeId = id;
+  document.getElementById('view-title').textContent = `OT Record — #${c.serial_no||'—'} · ${c.procedure_name}`;
+  document.getElementById('view-sub').textContent   = `${c.patients?.name||'—'} · ${_fmtDate(c.scheduled_date)}`;
+
+  const anaes = _doctors.find(d=>d.id===c.anaesthetist_id)?.full_name || '—';
+  const dur   = c.duration_minutes ? c.duration_minutes+' min' : (c.actual_start&&c.actual_end ? Math.round((new Date(c.actual_end)-new Date(c.actual_start))/60000)+' min' : '—');
+
+  const sections = [
+    { title:'Patient & Scheduling', rows:[
+      ['Patient',         c.patients?.name||'—'],
+      ['Phone',           c.patients?.phone||'—'],
+      ['Scheduled Date',  _fmtDate(c.scheduled_date)],
+      ['Scheduled Time',  c.scheduled_time||'—'],
+      ['OT Table',        c.ot_table||'—'],
+      ['Case Type',       {elective:'Elective',emergency:'Emergency',semi_elective:'Semi-Elective'}[c.case_type]||c.case_type],
+    ]},
+    { title:'Surgical Team', rows:[
+      ['Surgeon',         c.profiles?.full_name||'—'],
+      ['Anaesthetist',    anaes],
+      ['Anaesthesia',     _anaesLabel(c.anaesthesia_type)],
+    ]},
+    { title:'Diagnosis & Procedure', rows:[
+      ['Pre-op Diagnosis',  c.pre_op_diagnosis||'—'],
+      ['Post-op Diagnosis', c.post_op_diagnosis||'—'],
+      ['Operative Findings',c.operative_findings||'—'],
+      ['Procedure Details', c.procedure_details||'—'],
+    ]},
+    { title:'Intraoperative', rows:[
+      ['Actual Start',    c.actual_start ? new Date(c.actual_start).toLocaleString('en-IN') : '—'],
+      ['Actual End',      c.actual_end   ? new Date(c.actual_end).toLocaleString('en-IN')   : '—'],
+      ['Duration',        dur],
+      ['Blood Loss',      c.blood_loss_ml!=null ? c.blood_loss_ml+' ml' : '—'],
+      ['Swab Count',      c.swab_count_correct!==false ? '✅ Correct' : '❌ Discrepancy'],
+      ['Instrument Count',c.instrument_count_correct!==false ? '✅ Correct' : '❌ Discrepancy'],
+      ['Specimen Sent',   c.specimen_sent ? 'Yes — '+(c.specimen_details||'') : 'No'],
+      ['Complications',   c.complications||'None'],
+    ]},
+    { title:'Post-operative', rows:[
+      ['Condition',       c.post_op_condition||'—'],
+      ['Destination',     c.post_op_destination||'—'],
+      ['Instructions',    c.post_op_instructions||'—'],
+    ]},
+  ];
+
+  document.getElementById('view-body').innerHTML = sections.map(s => `
+    <div class="view-section">
+      <div class="view-section-title">${s.title}</div>
+      ${s.rows.map(([l,v])=>`<div class="view-row"><div class="view-label">${l}</div><div class="view-value">${v||'—'}</div></div>`).join('')}
+    </div>`).join('');
+  document.getElementById('view-overlay').style.display = 'flex';
+};
+window.closeView = () => { document.getElementById('view-overlay').style.display='none'; };
+
+window.printOtRecord = function() {
+  const c = _allCases.find(x=>x.id===_activeId); if(!c) return;
+  const anaes = _doctors.find(d=>d.id===c.anaesthetist_id)?.full_name || '—';
+  const dur   = c.duration_minutes ? c.duration_minutes+' min' : '—';
+  document.getElementById('ot-print').innerHTML = `
+    <div style="font-family:'DM Sans',sans-serif;max-width:700px;margin:0 auto">
+      <div style="text-align:center;border-bottom:2px solid #1a4a2e;padding-bottom:10px;margin-bottom:14px">
+        <div style="font-size:18px;font-weight:700;color:#1a4a2e">OPERATIVE RECORD</div>
+        <div style="font-size:11px;color:#555;margin-top:3px">NCISM §18p · Major OT Register · AyurXpert HMS</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;margin-bottom:14px">
+        ${[['OT Serial No', c.serial_no||'—'],['Date',_fmtDate(c.scheduled_date)],
+           ['Patient', c.patients?.name||'—'],['Phone', c.patients?.phone||'—'],
+           ['Procedure', c.procedure_name],['Case Type', c.case_type],
+           ['Surgeon', c.profiles?.full_name||'—'],['Anaesthetist', anaes],
+           ['Anaesthesia', _anaesLabel(c.anaesthesia_type)],['OT Table', c.ot_table||'—'],
+           ['Duration', dur],['Blood Loss', c.blood_loss_ml!=null?c.blood_loss_ml+' ml':'—'],
+           ['Pre-op Diagnosis', c.pre_op_diagnosis||'—'],['Post-op Diagnosis', c.post_op_diagnosis||'—'],
+          ].map(([l,v])=>`<div style="border-bottom:1px dotted #ccc;padding:4px 0;font-size:12px"><strong style="display:block;font-size:10px;color:#555;text-transform:uppercase">${l}</strong>${v}</div>`).join('')}
+      </div>
+      ${['Operative Findings','Procedure Details','Complications','Post-operative Instructions'].map(k=>{
+        const map={['Operative Findings']:c.operative_findings,['Procedure Details']:c.procedure_details,['Complications']:c.complications,['Post-operative Instructions']:c.post_op_instructions};
+        return `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:700;color:#1a4a2e;text-transform:uppercase;margin-bottom:3px">${k}</div><div style="border:1px solid #ccc;border-radius:4px;padding:7px;font-size:12px;min-height:36px">${map[k]||'—'}</div></div>`;
+      }).join('')}
+      <div style="display:flex;justify-content:space-between;margin-top:30px">
+        <div style="text-align:center;border-top:1px solid #333;padding-top:4px;width:160px;font-size:11px">Surgeon</div>
+        <div style="text-align:center;border-top:1px solid #333;padding-top:4px;width:160px;font-size:11px">Anaesthetist</div>
+        <div style="text-align:center;border-top:1px solid #333;padding-top:4px;width:160px;font-size:11px">Scrub Nurse</div>
+      </div>
+    </div>`;
+  window.print();
+};
+
+// ── OT Logbook ────────────────────────────────────────────────────────────────
+window.openLogbook = function() {
+  const now = new Date();
+  document.getElementById('lb-month').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  document.getElementById('logbook-overlay').style.display = 'flex';
+  loadLogbook();
+};
+window.closeLogbook = () => { document.getElementById('logbook-overlay').style.display='none'; };
+
+window.loadLogbook = async function() {
+  const month = document.getElementById('lb-month').value;
+  if (!month) return;
+  const [yr, mo] = month.split('-');
+  const from = `${yr}-${mo}-01`;
+  const to   = new Date(yr, mo, 0).toISOString().slice(0,10);
+  const { data } = await supabase
+    .from('ot_cases')
+    .select(`serial_no,scheduled_date,scheduled_time,procedure_name,case_type,anaesthesia_type,
+             duration_minutes,status,patients(name,age,gender),profiles!surgeon_id(full_name)`)
+    .eq('tenant_id',tenantId)
+    .gte('scheduled_date',from).lte('scheduled_date',to)
+    .order('scheduled_date').order('serial_no');
+
+  const rows = (data||[]).map(c => `<tr>
+    <td>${c.serial_no||'—'}</td>
+    <td>${_fmtDate(c.scheduled_date)}</td>
+    <td>${c.scheduled_time?.slice(0,5)||'—'}</td>
+    <td>${c.patients?.name||'—'}</td>
+    <td>${c.patients?.age||'—'} / ${(c.patients?.gender||'').charAt(0).toUpperCase()}</td>
+    <td>${c.procedure_name}</td>
+    <td>${_anaesLabel(c.anaesthesia_type)}</td>
+    <td>${c.profiles?.full_name||'—'}</td>
+    <td>${c.duration_minutes?c.duration_minutes+' min':'—'}</td>
+    <td>${{scheduled:'Sched',in_progress:'In Prog',completed:'Done',cancelled:'Cancel'}[c.status]||c.status}</td>
+  </tr>`).join('');
+
+  document.getElementById('logbook-body').innerHTML = rows
+    ? `<div style="overflow-x:auto"><table class="logbook-table">
+        <thead><tr><th>Sl#</th><th>Date</th><th>Time</th><th>Patient</th><th>Age/Sex</th>
+          <th>Procedure</th><th>Anaes.</th><th>Surgeon</th><th>Duration</th><th>Status</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`
+    : `<div class="empty-state"><div class="empty-icon">📖</div><div class="empty-title">No cases in this month</div></div>`;
+};
+
+window.printLogbook = function() {
+  window.print();
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function _anaesLabel(t){return{general:'GA',spinal:'SA',epidural:'Epidural',regional:'Regional',local:'Local',none:'None'}[t]||t||'—';}
+function _fmtDate(d){if(!d)return'—';return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});}
+function _alert(type,msg){const el=document.getElementById('alert-box');el.className=`alert ${type} show`;el.textContent=msg;setTimeout(()=>el.classList.remove('show'),4000);}
+
+init();
+</script>
+</body>
+</html>

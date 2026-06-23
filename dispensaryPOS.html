@@ -478,7 +478,7 @@ async function loadQueue() {
     .select(`
       id, created_at, status,
       visit:visits(id, token_number, chief_complaint, doctor_id),
-      patient:patients(id, name, phone),
+      patient:patients(id, name, phone, abha_number),
       items:prescription_items(id, medicine_name, medicine_id, dosage, frequency, duration)
     `)
     .eq('tenant_id', tenantId)
@@ -581,7 +581,7 @@ window.openRx = async function(rxId) {
       id, created_at, status,
       visit:visits(id, token_number, chief_complaint, doctor_id,
         notes:consultation_notes(modern_diagnosis, ayurveda_diagnosis)),
-      patient:patients(id, name, phone),
+      patient:patients(id, name, phone, abha_number),
       items:prescription_items(id, medicine_name, medicine_id, dosage, frequency, duration, anupana, quantity)
     `)
     .eq('id', rxId)
@@ -860,7 +860,12 @@ async function dispense() {
       payment_method: payMethod
     }, _ctx);
 
-    // 6. Print invoice
+    // 6. ABDM M2 — create care context for Prescription FHIR type (fire-and-forget)
+    if (_activeRx.patient?.abha_number) {
+      _abdmCareContextPrescription(_activeRx, _activeRxId);
+    }
+
+    // 7. Print invoice
     _printInvoice(bill.id, payable, subtotal, discount, total, payMethod);
 
     _toast(`${_activeRx.patient?.name} — dispensed, bill generated`, 'info');
@@ -873,6 +878,30 @@ async function dispense() {
     btn.disabled = false;
     btn.textContent = '✓ Dispense & Generate Bill';
   }
+}
+
+// ── ABDM M2 — Care context: Prescription (fire-and-forget) ───────
+// Merges Prescription into existing VISIT-{id} care context (no new link token —
+// reception already sent one notification when patient's ABHA was verified).
+async function _abdmCareContextPrescription(rx, rxId) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+    const ABDM_HIP_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-hip';
+    const visitId = rx.visit?.id;
+    const ccRef   = visitId ? `VISIT-${visitId}` : `DISP-${rxId ?? crypto.randomUUID()}`;
+    const dateStr = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+    await fetch(ABDM_HIP_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({
+        action: 'create_care_context', patient_id: rx.patient.id,
+        visit_id: visitId ?? null, care_context_ref: ccRef,
+        display: visitId ? `OPD Visit — ${dateStr}` : `Prescription — ${dateStr}`,
+        hi_types: ['Prescription'], abha_number: rx.patient.abha_number,
+      }),
+    });
+  } catch (e) { console.warn('[ABDM] prescription care context failed:', e.message); }
 }
 
 // ── Print invoice ─────────────────────────────────

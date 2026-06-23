@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Kriya Kalpa — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --red:#c0392b;--red-light:#fdecea;
+  --blue:#1a4080;--blue-light:#e3f0ff;
+  --teal:#0e6655;--teal-light:#e0f5f0;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page-wrap{max-width:1200px;margin:0 auto;padding:28px 20px 80px}
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.4px;margin-left:8px;vertical-align:middle}
+.btn{height:40px;padding:0 18px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}.btn-secondary:hover{background:var(--green-light)}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn-complete{background:#e8f5ee;color:var(--green-deep);border:1.5px solid #b2d8bf}.btn-complete:hover{background:#d0eedd}
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.alert.error{background:var(--red-light);color:#8b1a1a;border:1px solid #f5c6c6}
+
+/* Dept tabs */
+.dept-tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.dept-tab{padding:8px 18px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-mid);transition:all .15s}
+.dept-tab.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
+
+/* Patient search */
+.search-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:20px}
+.search-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.sf{flex:1;min-width:180px}
+.sf label{font-size:12px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px}
+.sf input,.sf select{width:100%;height:38px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white)}
+.search-results{margin-top:10px;display:none}
+.pt-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:8px;border:1.5px solid var(--border);margin-bottom:6px;background:var(--cream);cursor:pointer;transition:border-color .15s}
+.pt-item:hover{border-color:var(--green-mid)}
+.pt-name{font-weight:600;font-size:13px}.pt-meta{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+/* Patient bar */
+.patient-bar{display:none;align-items:center;justify-content:space-between;background:var(--green-light);border:1.5px solid #b2d8bf;border-radius:var(--radius);padding:10px 16px;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+.patient-bar.show{display:flex}
+.pt-bar-name{font-weight:700;font-size:14px;color:var(--green-deep)}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;text-align:center}
+.stat-value{font-size:24px;font-weight:700;color:var(--green-deep);line-height:1}
+.stat-label{font-size:11px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.4px}
+.stat-card.gold .stat-value{color:var(--gold)}
+.stat-card.teal .stat-value{color:var(--teal)}
+
+/* Session cards */
+.sessions-grid{display:grid;gap:12px}
+.sess-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.sess-card.completed{border-color:#b2d8bf;background:#f9fdfb}
+.sess-card.scheduled{border-color:#e0c060;background:#fffef5}
+.sess-card.cancelled{border-color:#ddd;background:#f9f9f9;opacity:.7}
+.sess-icon{font-size:26px;flex-shrink:0}
+.sess-info{flex:1;min-width:0}
+.sess-proc{font-weight:600;font-size:13px;color:var(--text-dark)}
+.sess-meta{font-size:11px;color:var(--text-muted);margin-top:3px}
+.sess-eye{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--blue-light);color:var(--blue);margin-top:4px;display:inline-block}
+.status-pill{padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;letter-spacing:.3px}
+.pill-scheduled{background:#fff8e1;color:#7a5c00;border:1px solid #e0c060}
+.pill-in_progress{background:var(--blue-light);color:var(--blue);border:1px solid #9ab8e0}
+.pill-completed{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.pill-cancelled{background:#f0f0f0;color:#666;border:1px solid #ddd}
+.pill-skipped{background:#f0f0f0;color:#888;border:1px solid #ddd}
+.sess-actions{display:flex;gap:8px;flex-shrink:0}
+.empty-state{padding:40px;text-align:center;color:var(--text-muted);background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius)}
+.empty-icon{font-size:36px;margin-bottom:10px}
+.empty-title{font-size:14px;font-weight:600;color:var(--text-mid)}
+
+/* Overlay / Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto}
+.modal{background:var(--white);border-radius:10px;width:600px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,.22);margin:auto}
+.modal-hdr{background:var(--green-deep);color:#fff;padding:14px 20px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center}
+.modal-hdr-title{font-weight:600;font-size:15px}
+.modal-body{padding:20px;max-height:80vh;overflow-y:auto}
+.modal-foot{padding:12px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border)}
+.section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--green-mid);margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid var(--border);margin-top:16px}
+.section-title:first-child{margin-top:0}
+.fg{display:grid;gap:12px;margin-bottom:12px}
+.fg.c2{grid-template-columns:1fr 1fr}
+.fg.c3{grid-template-columns:1fr 1fr 1fr}
+.field label{font-size:12px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white)}
+.field textarea{height:56px;padding:8px 10px;resize:vertical}
+.field input:focus,.field select:focus{outline:none;border-color:var(--green-mid)}
+
+/* Procedures reference */
+.proc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:16px}
+.proc-chip{padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:12px;cursor:pointer;transition:all .15s;background:var(--white)}
+.proc-chip:hover,.proc-chip.sel{border-color:var(--green-mid);background:var(--green-light);color:var(--green-deep);font-weight:500}
+.proc-chip .proc-name{font-weight:600;font-size:12px}
+.proc-chip .proc-dept{font-size:10px;color:var(--text-muted);margin-top:2px}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<div class="page-wrap">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Kriya Kalpa Sessions <span class="ncism-badge">NCISM §18s/§18u</span></div>
+      <div class="page-subtitle">Netra Kriya Kalpa · Karna-Nasa-Mukha Kriya Kalpa (Shalakya Tantra)</div>
+    </div>
+    <button class="btn btn-primary" id="new-sess-btn" disabled onclick="openModal()">+ Schedule Session</button>
+  </div>
+
+  <div id="alert-box" class="alert"></div>
+
+  <!-- Dept tabs -->
+  <div class="dept-tabs">
+    <button class="dept-tab active" data-dept="all" onclick="setDept(this,'all')">All Procedures</button>
+    <button class="dept-tab" data-dept="netra" onclick="setDept(this,'netra')">👁 Netra (§18s)</button>
+    <button class="dept-tab" data-dept="ent" onclick="setDept(this,'ent')">👂 Karna-Nasa-Mukha (§18u)</button>
+  </div>
+
+  <!-- Patient search -->
+  <div class="search-card">
+    <div style="font-weight:600;font-size:13px;color:var(--text-dark);margin-bottom:12px">Search Patient</div>
+    <div class="search-row">
+      <div class="sf"><label>Name / Phone</label><input id="pt-search" type="text" placeholder="Start typing…" oninput="debounceSearch(this.value)"/></div>
+    </div>
+    <div class="search-results" id="search-results"></div>
+  </div>
+
+  <!-- Patient bar -->
+  <div class="patient-bar" id="patient-bar">
+    <div>
+      <div class="pt-bar-name" id="bar-name">—</div>
+      <div style="font-size:12px;color:var(--text-mid)" id="bar-meta"></div>
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick="clearPatient()">✕ Change</button>
+  </div>
+
+  <!-- Stats -->
+  <div id="stats-section" style="display:none">
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-value" id="stat-total">0</div><div class="stat-label">Total Sessions</div></div>
+      <div class="stat-card teal"><div class="stat-value" id="stat-completed">0</div><div class="stat-label">Completed</div></div>
+      <div class="stat-card gold"><div class="stat-value" id="stat-scheduled">0</div><div class="stat-label">Upcoming</div></div>
+      <div class="stat-card"><div class="stat-value" id="stat-courses">0</div><div class="stat-label">Courses</div></div>
+    </div>
+  </div>
+
+  <!-- Session list -->
+  <div id="sessions-list"></div>
+
+</div>
+
+<!-- ── Schedule Session Modal ── -->
+<div class="overlay" id="sess-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-hdr-title">Schedule Kriya Kalpa Session</div>
+      <button onclick="closeModal()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="section-title">Select Procedure</div>
+      <div class="fg c2" style="margin-bottom:8px">
+        <div class="field">
+          <label>Department</label>
+          <select id="m-dept" onchange="renderProcChips()">
+            <option value="netra">Netra Kriya Kalpa (Ophthalmology)</option>
+            <option value="ent">Karna-Nasa-Mukha (ENT)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Procedure</label>
+          <select id="m-procedure"></select>
+        </div>
+      </div>
+      <div class="fg c2">
+        <div class="field">
+          <label>Laterality</label>
+          <select id="m-side">
+            <option value="bilateral">Bilateral</option>
+            <option value="right">Right only</option>
+            <option value="left">Left only</option>
+            <option value="na">Not applicable</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Course Number / Label</label>
+          <input id="m-course" type="text" placeholder="e.g. Course 1, Repeat 2…"/>
+        </div>
+      </div>
+
+      <div class="section-title">Schedule</div>
+      <div class="fg c3">
+        <div class="field"><label>Date</label><input id="m-date" type="date"/></div>
+        <div class="field"><label>Time</label><input id="m-time" type="time" value="09:00"/></div>
+        <div class="field"><label>Duration (min)</label><input id="m-duration" type="number" placeholder="20" min="5" step="5"/></div>
+      </div>
+      <div class="fg c2">
+        <div class="field"><label>Therapist / Doctor</label><input id="m-therapist" type="text" placeholder="Assigned therapist / doctor name"/></div>
+        <div class="field">
+          <label>Status</label>
+          <select id="m-status">
+            <option value="scheduled">Scheduled</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="section-title">Medication / Materials</div>
+      <div class="fg c2">
+        <div class="field"><label>Medicine / Oil / Formulation Used</label><input id="m-medicine" type="text" placeholder="e.g. Triphala ghritam, Anu taila, Dashamula taila…"/></div>
+        <div class="field"><label>Quantity / Volume</label><input id="m-qty" type="text" placeholder="e.g. 2 drops each eye, 30 ml"/></div>
+      </div>
+
+      <div class="section-title">Observations & Outcome</div>
+      <div class="fg" style="grid-template-columns:1fr">
+        <div class="field"><label>Pre-procedure Findings</label>
+          <textarea id="m-pre-findings" placeholder="VA, IOP, discharge, pain score, hearing, nasal congestion, etc.…"></textarea>
+        </div>
+      </div>
+      <div class="fg c2">
+        <div class="field"><label>Post-procedure Observations</label>
+          <textarea id="m-post-obs" placeholder="Patient response, immediate outcome, instructions given…"></textarea>
+        </div>
+        <div class="field"><label>Adverse Events</label>
+          <textarea id="m-adverse" placeholder="Burning, redness, pain, allergic reaction (none if blank)…"></textarea>
+        </div>
+      </div>
+      <div class="fg" style="grid-template-columns:1fr">
+        <div class="field"><label>Remarks / Next Session Plan</label>
+          <input id="m-remarks" type="text" placeholder="Frequency, next session date, modifications…"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveSession()">Save Session</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Complete session modal ── -->
+<div class="overlay" id="complete-overlay" style="display:none" onclick="if(event.target===this)closeCompleteModal()">
+  <div class="modal" style="width:480px">
+    <div class="modal-hdr">
+      <div class="modal-hdr-title">Mark Session Completed</div>
+      <button onclick="closeCompleteModal()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="fg c2">
+        <div class="field"><label>Actual Date</label><input id="c-date" type="date"/></div>
+        <div class="field"><label>Therapist</label><input id="c-therapist" type="text" placeholder="Who performed?"/></div>
+      </div>
+      <div class="fg" style="grid-template-columns:1fr">
+        <div class="field"><label>Post-procedure Observations</label>
+          <textarea id="c-obs" placeholder="Patient response, eye/ear condition post procedure, any adverse events…"></textarea>
+        </div>
+      </div>
+      <div class="fg c2">
+        <div class="field"><label>Medicine Used</label><input id="c-med" type="text" placeholder="Formulation name"/></div>
+        <div class="field"><label>Qty / Volume</label><input id="c-qty" type="text" placeholder="e.g. 2 drops, 30 ml"/></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary btn-sm" onclick="closeCompleteModal()">Cancel</button>
+      <button class="btn btn-complete btn-sm" onclick="confirmComplete()">✓ Mark Completed</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './js/config/constants.js';
+import { requireAuth, getCurrentProfile, getCurrentTenant } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+
+requireAuth(['doctor','nurse','super_admin','dept_admin','therapist']);
+initNavbar();
+
+const supabase  = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const profile   = getCurrentProfile();
+const tenant    = getCurrentTenant();
+const tenantId  = tenant?.id;
+const userId    = profile?.id;
+
+let _patient    = null;
+let _sessions   = [];
+let _deptFilter = 'all';
+let _completeId = null;
+let _searchTimer= null;
+
+const PROCS = {
+  netra: [
+    'Netra Tarpana (Akshi Tarpana)',
+    'Netra Seka (Akshi Seka)',
+    'Putapaka',
+    'Aschyotana (Eye Drops)',
+    'Anjana (Collyrium)',
+    'Bidalaka',
+    'Vidalaka',
+    'Pindi (Netra Bandana)',
+    'Lepa (Eye Pack)',
+    'Traataka',
+  ],
+  ent: [
+    'Nasya (Nasal Administration)',
+    'Nasyam — Pratimarsha',
+    'Nasyam — Marsha',
+    'Karnapoorna (Ear Oil)',
+    'Karna Dhoopanam (Ear Fumigation)',
+    'Karna Prasekam',
+    'Gandoosha (Gargling)',
+    'Kavala (Oil Pulling)',
+    'Dhumapana (Inhalation)',
+    'Mukha Lepa (Face Pack)',
+    'Shirobasti',
+    'Shirodhara',
+  ]
+};
+
+// ── Search ────────────────────────────────────────────────────────────────────
+window.debounceSearch = function(val) {
+  clearTimeout(_searchTimer);
+  if (val.length < 2) { document.getElementById('search-results').style.display = 'none'; return; }
+  _searchTimer = setTimeout(() => searchPatients(val), 300);
+};
+
+async function searchPatients(q) {
+  const { data } = await supabase.from('patients')
+    .select('id,name,phone,age,gender')
+    .eq('tenant_id', tenantId)
+    .or(`name.ilike.%${q}%,phone.ilike.%${q}%`)
+    .limit(8);
+  const el = document.getElementById('search-results');
+  if (!data?.length) { el.style.display='block'; el.innerHTML='<div style="padding:10px;font-size:13px;color:var(--text-muted)">No patients found</div>'; return; }
+  el.style.display = 'block';
+  el.innerHTML = data.map(p => `
+    <div class="pt-item" onclick="selectPatient(${JSON.stringify(p).replace(/"/g,'&quot;')})">
+      <div><div class="pt-name">${p.name}</div><div class="pt-meta">${p.phone||'—'} · Age ${p.age||'—'} · ${(p.gender||'').charAt(0).toUpperCase()}</div></div>
+    </div>`).join('');
+}
+
+window.selectPatient = async function(p) {
+  _patient = p;
+  document.getElementById('search-results').style.display = 'none';
+  document.getElementById('pt-search').value = p.name;
+  document.getElementById('bar-name').textContent = p.name;
+  document.getElementById('bar-meta').textContent = `${p.phone||'—'} · Age ${p.age||'—'} · ${(p.gender||'').charAt(0).toUpperCase()}`;
+  document.getElementById('patient-bar').classList.add('show');
+  document.getElementById('new-sess-btn').disabled = false;
+  await loadSessions();
+};
+
+window.clearPatient = function() {
+  _patient = null;
+  document.getElementById('pt-search').value = '';
+  document.getElementById('patient-bar').classList.remove('show');
+  document.getElementById('stats-section').style.display = 'none';
+  document.getElementById('sessions-list').innerHTML = '';
+  document.getElementById('new-sess-btn').disabled = true;
+};
+
+window.setDept = function(el, dept) {
+  document.querySelectorAll('.dept-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  _deptFilter = dept;
+  renderSessions();
+};
+
+// ── Load sessions ─────────────────────────────────────────────────────────────
+async function loadSessions() {
+  const { data, error } = await supabase.from('kriyakalpa_sessions')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('patient_id', _patient.id)
+    .order('session_date').order('session_time');
+  if (error) { _alert('error', 'Load error: ' + error.message); return; }
+  _sessions = data || [];
+  renderSessions();
+  updateStats();
+}
+
+function renderSessions() {
+  document.getElementById('stats-section').style.display = 'block';
+  const filtered = _deptFilter === 'all' ? _sessions : _sessions.filter(s => s.dept === _deptFilter);
+  const list = document.getElementById('sessions-list');
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">🌿</div><div class="empty-title">No ${_deptFilter==='all'?'':_deptFilter+' '}sessions yet</div></div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(s => `
+    <div class="sess-card ${s.status}" style="margin-bottom:10px">
+      <div class="sess-icon">${s.dept === 'netra' ? '👁' : '👂'}</div>
+      <div class="sess-info">
+        <div class="sess-proc">${s.procedure_name}</div>
+        <div class="sess-meta">
+          📅 ${_fmtDate(s.session_date)} ${s.session_time ? '· ' + s.session_time.slice(0,5) : ''}
+          ${s.therapist_name ? '· ' + s.therapist_name : ''}
+          ${s.medicine_used ? '· <em>' + s.medicine_used + '</em>' : ''}
+        </div>
+        ${s.side && s.side !== 'na' ? `<span class="sess-eye">${{bilateral:'Both sides',right:'Right',left:'Left'}[s.side]||s.side}</span>` : ''}
+        ${s.course_label ? `<span style="font-size:11px;color:var(--text-muted);margin-left:6px">${s.course_label}</span>` : ''}
+        ${s.post_observations ? `<div style="font-size:11px;color:var(--text-mid);margin-top:4px">${s.post_observations}</div>` : ''}
+      </div>
+      <div class="sess-actions">
+        <span class="status-pill pill-${s.status}">${{scheduled:'Scheduled',in_progress:'In Progress',completed:'Done',cancelled:'Cancelled',skipped:'Skipped'}[s.status]||s.status}</span>
+        ${s.status === 'scheduled' ? `<button class="btn btn-complete btn-sm" onclick="openCompleteModal('${s.id}')">✓ Complete</button>` : ''}
+        ${s.status === 'scheduled' ? `<button class="btn btn-secondary btn-sm" onclick="cancelSession('${s.id}')">✕</button>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function updateStats() {
+  const total     = _sessions.length;
+  const completed = _sessions.filter(s => s.status === 'completed').length;
+  const scheduled = _sessions.filter(s => s.status === 'scheduled').length;
+  const courses   = new Set(_sessions.map(s => s.course_label).filter(Boolean)).size;
+  document.getElementById('stat-total').textContent    = total;
+  document.getElementById('stat-completed').textContent= completed;
+  document.getElementById('stat-scheduled').textContent= scheduled;
+  document.getElementById('stat-courses').textContent  = courses || '—';
+}
+
+// ── Schedule modal ────────────────────────────────────────────────────────────
+window.openModal = function() {
+  if (!_patient) return;
+  document.getElementById('m-date').value  = new Date().toISOString().slice(0,10);
+  renderProcChips();
+  document.getElementById('sess-overlay').style.display = 'flex';
+};
+
+window.closeModal = function() {
+  document.getElementById('sess-overlay').style.display = 'none';
+};
+
+window.renderProcChips = function() {
+  const dept = document.getElementById('m-dept').value;
+  const sel  = document.getElementById('m-procedure');
+  sel.innerHTML = PROCS[dept].map(p => `<option value="${p}">${p}</option>`).join('');
+};
+
+window.saveSession = async function() {
+  if (!_patient) return;
+  const dept   = document.getElementById('m-dept').value;
+  const proc   = document.getElementById('m-procedure').value;
+  if (!proc) { alert('Select a procedure.'); return; }
+  const { error } = await supabase.from('kriyakalpa_sessions').insert({
+    tenant_id:        tenantId,
+    patient_id:       _patient.id,
+    doctor_id:        userId,
+    dept,
+    procedure_name:   proc,
+    side:             document.getElementById('m-side').value,
+    course_label:     document.getElementById('m-course').value.trim() || null,
+    session_date:     document.getElementById('m-date').value,
+    session_time:     document.getElementById('m-time').value || null,
+    duration_minutes: parseInt(document.getElementById('m-duration').value) || null,
+    therapist_name:   document.getElementById('m-therapist').value.trim() || null,
+    status:           document.getElementById('m-status').value,
+    medicine_used:    document.getElementById('m-medicine').value.trim() || null,
+    quantity_used:    document.getElementById('m-qty').value.trim() || null,
+    pre_findings:     document.getElementById('m-pre-findings').value.trim() || null,
+    post_observations:document.getElementById('m-post-obs').value.trim() || null,
+    adverse_events:   document.getElementById('m-adverse').value.trim() || null,
+    remarks:          document.getElementById('m-remarks').value.trim() || null,
+  });
+  if (error) { _alert('error', 'Error: ' + error.message); return; }
+  _alert('success', 'Session saved.');
+  closeModal();
+  await loadSessions();
+};
+
+// ── Complete session ──────────────────────────────────────────────────────────
+window.openCompleteModal = function(id) {
+  _completeId = id;
+  document.getElementById('c-date').value  = new Date().toISOString().slice(0,10);
+  document.getElementById('c-obs').value   = '';
+  document.getElementById('c-med').value   = '';
+  document.getElementById('c-qty').value   = '';
+  document.getElementById('c-therapist').value = '';
+  document.getElementById('complete-overlay').style.display = 'flex';
+};
+
+window.closeCompleteModal = function() {
+  document.getElementById('complete-overlay').style.display = 'none';
+};
+
+window.confirmComplete = async function() {
+  if (!_completeId) return;
+  const { error } = await supabase.from('kriyakalpa_sessions').update({
+    status:           'completed',
+    session_date:     document.getElementById('c-date').value,
+    therapist_name:   document.getElementById('c-therapist').value.trim() || null,
+    post_observations:document.getElementById('c-obs').value.trim() || null,
+    medicine_used:    document.getElementById('c-med').value.trim() || null,
+    quantity_used:    document.getElementById('c-qty').value.trim() || null,
+    completed_at:     new Date().toISOString(),
+  }).eq('id', _completeId);
+  if (error) { _alert('error', 'Error: ' + error.message); return; }
+  _alert('success', 'Session marked completed.');
+  closeCompleteModal();
+  await loadSessions();
+};
+
+window.cancelSession = async function(id) {
+  if (!confirm('Cancel this session?')) return;
+  const { error } = await supabase.from('kriyakalpa_sessions').update({ status: 'cancelled' }).eq('id', id);
+  if (error) { _alert('error', 'Error: ' + error.message); return; }
+  await loadSessions();
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function _fmtDate(d) { if (!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+function _alert(type, msg) { const el = document.getElementById('alert-box'); el.className = `alert ${type} show`; el.textContent = msg; setTimeout(() => el.classList.remove('show'), 4000); }
+</script>
+</body>
+</html>

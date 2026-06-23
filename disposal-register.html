@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Disposal Register — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;
+  --cream:#faf8f3;--white:#ffffff;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--radius:14px;--shadow:0 2px 14px rgba(0,0,0,0.07);
+  --red:#dc2626;--red-light:#fff3f3;
+}
+html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark)}
+.page{max-width:1100px;margin:0 auto;padding:24px 16px 80px}
+
+.page-banner{background:var(--green-deep);border-radius:var(--radius);padding:20px 26px;margin-bottom:22px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.banner-left h1{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:#fff}
+.banner-left p{font-size:13px;color:rgba(255,255,255,.55);margin-top:2px}
+.banner-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.sc{background:var(--white);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);text-align:center}
+.sc-num{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:600;color:var(--text-dark)}
+.sc-lbl{font-size:11px;color:var(--text-muted);margin-top:3px}
+
+.cc{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px}
+.cc-hd{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.cc-title{font-size:15px;font-weight:600;color:var(--text-dark)}
+
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--border);background:#fafcfb}
+.fi{height:38px;padding:0 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white);outline:none;transition:border-color .2s}
+.fi:focus{border-color:var(--green-mid)}
+.fi[type=date]{width:150px}
+.fi[type=text]{width:190px}
+.fi-sel{height:38px;padding:0 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white);outline:none;min-width:160px;cursor:pointer}
+
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{background:#f5faf7;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;padding:10px 14px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border)}
+td{padding:10px 14px;border-bottom:1px solid #f0f4f2;font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafff8}
+
+.chip{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.chip-method{background:#fff8f0;color:#7a4000;border:1px solid #f5c98a}
+.chip-qty{background:var(--red-light);color:var(--red);border:1px solid #fca5a5}
+
+.btn{display:inline-flex;align-items:center;gap:6px;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;border:none;transition:background .2s}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-primary:hover{background:#1f5c37}
+.btn-outline{background:var(--white);color:var(--green-deep);border:1.5px solid var(--border)}
+.btn-outline:hover{border-color:var(--green-mid);background:var(--green-light)}
+
+.empty{text-align:center;padding:40px 16px;color:var(--text-muted)}
+.empty-ico{font-size:36px;margin-bottom:10px}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a4a2e;color:#fff;padding:12px 22px;border-radius:10px;font-size:13px;font-weight:500;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+
+@media print{
+  .no-print{display:none!important}
+  .page{padding:0}
+  .page-banner{background:#1a4a2e;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+@media(max-width:700px){.stats-row{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="page">
+
+  <div class="page-banner">
+    <div class="banner-left">
+      <h1>⚗ Expiry Medicine Disposal Register</h1>
+      <p>NCISM §6(5) — Record of removal of expired medicines from pharmacy stock</p>
+    </div>
+    <div class="banner-actions no-print">
+      <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.3)" onclick="exportCSV()">↓ CSV</button>
+      <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.3)" onclick="window.print()">🖨 Print</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row no-print" id="stats-row">
+    <div class="sc"><div class="sc-num" id="s-total">—</div><div class="sc-lbl">Total Disposals</div></div>
+    <div class="sc"><div class="sc-num" id="s-qty">—</div><div class="sc-lbl">Units Disposed</div></div>
+    <div class="sc"><div class="sc-num" id="s-month">—</div><div class="sc-lbl">This Month</div></div>
+    <div class="sc"><div class="sc-num" id="s-methods">—</div><div class="sc-lbl">Methods Used</div></div>
+  </div>
+
+  <div class="cc">
+    <div class="cc-hd">
+      <span class="cc-title">Disposal Records</span>
+    </div>
+    <div class="filter-bar no-print">
+      <input class="fi" type="date" id="f-from" onchange="loadRecords()"/>
+      <span style="align-self:center;color:var(--text-muted);font-size:13px">to</span>
+      <input class="fi" type="date" id="f-to"   onchange="loadRecords()"/>
+      <input class="fi" type="text" id="f-name" placeholder="Search medicine…" oninput="loadRecords()"/>
+      <select class="fi-sel" id="f-method" onchange="loadRecords()">
+        <option value="">All methods</option>
+        <option value="return_supplier">Return to Supplier</option>
+        <option value="incineration">Incineration</option>
+        <option value="municipal_bmw">Municipal BMW</option>
+        <option value="autoclave">Autoclave</option>
+        <option value="drain_disposal">Drain Disposal</option>
+        <option value="student_practical">🎓 Practical Use</option>
+      </select>
+      <button class="btn btn-outline" onclick="resetFilters()">✕ Clear</button>
+    </div>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Disposal Date</th>
+            <th>Medicine Name</th>
+            <th>Batch No.</th>
+            <th>Expiry Date</th>
+            <th>Qty Disposed</th>
+            <th>Disposal Method</th>
+            <th>Disposed By</th>
+            <th>Witnessed By</th>
+            <th>Remarks</th>
+          </tr>
+        </thead>
+        <tbody id="records-body">
+          <tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './js/config/constants.js';
+import { requireAuth, getCurrentTenantId, getCurrentTenant } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+
+requireAuth(['pharmacist','super_admin','dept_admin','accountant'], 'login.html');
+initNavbar();
+
+const supabase  = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const tenantId  = getCurrentTenantId();
+const tenant    = getCurrentTenant();
+
+// Default: current month
+const now   = new Date();
+const y     = now.getFullYear();
+const m     = String(now.getMonth()+1).padStart(2,'0');
+document.getElementById('f-from').value = `${y}-${m}-01`;
+document.getElementById('f-to').value   = now.toISOString().split('T')[0];
+
+const METHOD_LABEL = {
+  return_supplier:   'Return to Supplier',
+  incineration:      'Incineration',
+  municipal_bmw:     'Municipal BMW',
+  autoclave:         'Autoclave',
+  drain_disposal:    'Drain Disposal',
+  student_practical: '🎓 Practical Use',
+};
+
+let _records = [];
+
+async function loadRecords() {
+  const from   = document.getElementById('f-from').value;
+  const to     = document.getElementById('f-to').value;
+  const name   = document.getElementById('f-name').value.trim().toLowerCase();
+  const method = document.getElementById('f-method').value;
+
+  let q = supabase.from('disposal_records')
+    .select('*, profiles!disposed_by(full_name)')
+    .eq('tenant_id', tenantId)
+    .order('disposal_date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (from) q = q.gte('disposal_date', from);
+  if (to)   q = q.lte('disposal_date', to);
+  if (method) q = q.eq('disposal_method', method);
+
+  const { data, error } = await q;
+  if (error) { _toast('Load error: ' + error.message); return; }
+
+  _records = (data || []).filter(r => !name || r.medicine_name.toLowerCase().includes(name));
+  renderTable();
+  renderStats();
+}
+
+function renderStats() {
+  const thisMonth = `${y}-${m}`;
+  document.getElementById('s-total').textContent   = _records.length;
+  document.getElementById('s-qty').textContent     = _records.reduce((s,r)=>s+(r.quantity||0),0);
+  document.getElementById('s-month').textContent   = _records.filter(r=>(r.disposal_date||'').startsWith(thisMonth)).length;
+  const methods = new Set(_records.map(r=>r.disposal_method)).size;
+  document.getElementById('s-methods').textContent = methods;
+}
+
+function renderTable() {
+  const tbody = document.getElementById('records-body');
+  if (!_records.length) {
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty"><div class="empty-ico">⚗</div>No disposal records found for selected filters</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = _records.map((r, idx) => `
+    <tr>
+      <td style="color:var(--text-muted)">${idx+1}</td>
+      <td>${_fmtDate(r.disposal_date)}</td>
+      <td><strong>${_esc(r.medicine_name)}</strong></td>
+      <td style="font-family:monospace;font-size:12px;color:var(--text-muted)">${_esc(r.batch_number||'—')}</td>
+      <td>${r.expiry_date ? `<span style="color:var(--red)">${_fmtDate(r.expiry_date)}</span>` : '—'}</td>
+      <td><span class="chip chip-qty">${r.quantity} units</span></td>
+      <td><span class="chip chip-method">${METHOD_LABEL[r.disposal_method]||r.disposal_method}</span></td>
+      <td>${_esc(r.profiles?.full_name||'—')}</td>
+      <td>${_esc(r.witnessed_by||'—')}</td>
+      <td style="font-size:12px;color:var(--text-muted)">${_esc(r.remarks||'—')}</td>
+    </tr>`).join('');
+}
+
+window.resetFilters = function() {
+  document.getElementById('f-from').value   = `${y}-${m}-01`;
+  document.getElementById('f-to').value     = now.toISOString().split('T')[0];
+  document.getElementById('f-name').value   = '';
+  document.getElementById('f-method').value = '';
+  loadRecords();
+};
+
+window.exportCSV = function() {
+  if (!_records.length) { _toast('No records to export.'); return; }
+  const hdr = ['#','Disposal Date','Medicine Name','Batch No.','Expiry Date','Qty Disposed','Disposal Method','Disposed By','Witnessed By','Remarks'];
+  const rows = _records.map((r,i) => [
+    i+1, r.disposal_date||'', r.medicine_name, r.batch_number||'',
+    r.expiry_date||'', r.quantity,
+    METHOD_LABEL[r.disposal_method]||r.disposal_method,
+    r.profiles?.full_name||'', r.witnessed_by||'', r.remarks||''
+  ]);
+  const csv = [hdr, ...rows].map(r => r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `Disposal_Register_${tenant?.name||'AyurXpert'}_${y}-${m}.csv`;
+  a.click();
+  _toast('CSV exported');
+};
+
+function _fmtDate(d){ if(!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800); }
+
+await loadRecords();
+</script>
+</body>
+</html>

@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Labour Room — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --red:#c0392b;--red-light:#fdecea;--red-border:#fca5a5;
+  --blue:#1a4080;--blue-light:#e3f0ff;
+  --pink:#9d174d;--pink-light:#fce7f3;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1400px;margin:0 auto;padding:24px 20px 80px}
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.4px;margin-left:8px;vertical-align:middle}
+
+.btn{height:38px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}.btn-secondary:hover{background:var(--green-light)}
+.btn-pink{background:var(--pink);color:#fff}.btn-pink:hover{background:#7f1239}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:900px){.stats-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.stats-row{grid-template-columns:repeat(2,1fr)}}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:12px 16px;text-align:center}
+.stat-value{font-size:28px;font-weight:700;color:var(--green-deep);line-height:1;font-family:'Cormorant Garamond',serif}
+.stat-label{font-size:11px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.4px}
+.stat-card.red .stat-value{color:var(--red)}
+.stat-card.gold .stat-value{color:var(--gold)}
+.stat-card.blue .stat-value{color:var(--blue)}
+.stat-card.pink .stat-value{color:var(--pink)}
+
+/* Tabs */
+.module-tabs{display:flex;gap:0;margin-bottom:20px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.module-tab{flex:1;padding:10px 6px;font-size:12px;font-weight:500;cursor:pointer;border:none;background:none;font-family:'DM Sans',sans-serif;color:var(--text-mid);border-right:1px solid var(--border);transition:all .15s;text-align:center}
+.module-tab:last-child{border-right:none}
+.module-tab.active{background:var(--green-deep);color:#fff;font-weight:600}
+.module-tab:hover:not(.active){background:var(--green-light)}
+.tab-panel{display:none}.tab-panel.active{display:block}
+
+/* Card */
+.card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.card-hd{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.card-title{font-size:14px;font-weight:600;color:var(--text-dark)}
+.card-body{padding:16px}
+
+/* Form */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.form-grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
+@media(max-width:800px){.form-grid,.form-grid-3,.form-grid-4{grid-template-columns:1fr 1fr}}
+@media(max-width:500px){.form-grid,.form-grid-3,.form-grid-4{grid-template-columns:1fr}}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-label{font-size:12px;font-weight:500;color:var(--text-mid)}
+.form-control{height:38px;padding:0 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--white);outline:none}
+.form-control:focus{border-color:var(--green-mid)}
+textarea.form-control{height:72px;padding:8px 12px;resize:vertical}
+.section-divider{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);padding:12px 0 6px;margin-top:4px;border-top:1px solid var(--border)}
+
+/* APGAR */
+.apgar-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
+.apgar-cell{text-align:center;background:#f5faf7;border-radius:6px;padding:8px 4px}
+.apgar-hd{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
+.apgar-sel{width:100%;height:32px;border:1.5px solid var(--border);border-radius:5px;font-size:13px;font-weight:700;text-align:center;font-family:'DM Sans',sans-serif;outline:none}
+.apgar-total{font-size:20px;font-weight:700;padding:8px 0}
+
+/* Table */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:10px 14px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;background:#fafafa;border-bottom:1px solid var(--border)}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid #f0f4f2;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafff8}
+
+/* Partograph table */
+.partograph-tbl th{background:var(--green-deep);color:#fff;font-size:10px}
+.partograph-tbl td{font-size:12px;text-align:center}
+.part-cervix{font-size:16px;font-weight:700;color:var(--green-mid)}
+
+/* Patient search */
+.search-wrap{position:relative}
+.search-results{position:absolute;top:100%;left:0;right:0;background:var(--white);border:1.5px solid var(--border);border-radius:0 0 8px 8px;z-index:50;max-height:200px;overflow-y:auto;display:none}
+.search-result-item{padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0f4f2}
+.search-result-item:hover{background:var(--green-light)}
+.search-result-item:last-child{border-bottom:none}
+
+/* Alert */
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:flex;align-items:flex-start;gap:10px}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.alert.error{background:var(--red-light);color:#8b1a1a;border:1px solid var(--red-border)}
+
+/* Empty */
+.empty{text-align:center;padding:40px 20px;color:var(--text-muted)}
+.empty-ico{font-size:36px;margin-bottom:10px;opacity:.5}
+.empty-ttl{font-size:14px;font-weight:500;margin-bottom:6px}
+.empty-bod{font-size:12px;line-height:1.6;max-width:300px;margin:0 auto}
+
+/* Outcome chips */
+.chip-live{background:var(--green-light);color:var(--green-deep);padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600}
+.chip-still{background:var(--red-light);color:var(--red);padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600}
+.chip-lscs{background:var(--blue-light);color:var(--blue);padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600}
+.chip-normal{background:var(--green-light);color:var(--green-deep);padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1c2b1f;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:2000;white-space:nowrap}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<div class="page-wrap">
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Labour Room <span class="ncism-badge">§8.9 NCISM</span></div>
+    <div class="page-subtitle">Prasuti Tantra · Delivery Register · Partograph · APGAR · Newborn Care</div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <input type="month" id="filter-month" class="form-control" style="width:auto"/>
+    <button class="btn btn-secondary btn-sm" onclick="loadAll()">↻ Refresh</button>
+    <button class="btn btn-primary" onclick="openNewDelivery()">+ New Delivery</button>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="stat-card"><div class="stat-value" id="s-month">—</div><div class="stat-label">Deliveries (month)</div></div>
+  <div class="stat-card"><div class="stat-value" id="s-today">—</div><div class="stat-label">Today</div></div>
+  <div class="stat-card blue"><div class="stat-value" id="s-lscs">—</div><div class="stat-label">LSCS Rate</div></div>
+  <div class="stat-card pink"><div class="stat-value" id="s-girl">—</div><div class="stat-label">Female Births</div></div>
+  <div class="stat-card gold"><div class="stat-value" id="s-weight">—</div><div class="stat-label">Avg Birth Wt (g)</div></div>
+</div>
+
+<!-- Tabs -->
+<div class="module-tabs">
+  <button class="module-tab active" data-tab="register">📋 Delivery Register</button>
+  <button class="module-tab" data-tab="new">🤱 New Delivery</button>
+  <button class="module-tab" data-tab="partograph">📈 Partograph</button>
+  <button class="module-tab" data-tab="newborn">👶 Newborn Register</button>
+</div>
+
+<!-- ── TAB: DELIVERY REGISTER ── -->
+<div class="tab-panel active" id="tab-register">
+  <div class="alert" id="reg-alert"></div>
+  <div class="card">
+    <div class="card-hd">
+      <span class="card-title" id="register-title">Deliveries</span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <select class="form-control btn-sm" id="filter-mode" onchange="renderRegister()" style="height:32px;font-size:12px;width:auto">
+          <option value="">All Modes</option>
+          <option value="normal">Normal</option>
+          <option value="lscs">LSCS</option>
+          <option value="forceps">Forceps</option>
+          <option value="vacuum">Vacuum</option>
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="exportRegister()">↓ CSV</button>
+      </div>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Date/Time</th><th>Mother</th><th>Mode</th><th>Sex</th><th>Weight</th><th>APGAR (1/5 min)</th><th>Outcome</th><th>MLC</th><th></th></tr></thead>
+        <tbody id="register-tbody"><tr><td colspan="9"><div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB: NEW DELIVERY ── -->
+<div class="tab-panel" id="tab-new">
+  <div class="alert" id="new-alert"></div>
+  <div class="card">
+    <div class="card-hd"><span class="card-title">Record New Delivery</span></div>
+    <div class="card-body">
+
+      <!-- Patient -->
+      <div class="section-divider" style="border-top:none;padding-top:0">Mother Details</div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">Search Patient (Phone / Name)</label>
+        <div class="search-wrap">
+          <input class="form-control" id="nd-search" placeholder="Enter phone number or name…" autocomplete="off" oninput="searchMother()"/>
+          <div class="search-results" id="nd-results"></div>
+        </div>
+        <div id="nd-patient-box" style="display:none;margin-top:8px;background:var(--green-light);border-radius:6px;padding:8px 12px;font-size:13px"></div>
+      </div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Delivery Date</label>
+          <input type="date" class="form-control" id="nd-date"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Delivery Time</label>
+          <input type="time" class="form-control" id="nd-time"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Conducting Doctor</label>
+          <select class="form-control" id="nd-doctor">
+            <option value="">— Select —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mode of Delivery</label>
+          <select class="form-control" id="nd-mode">
+            <option value="normal">Normal Vaginal Delivery</option>
+            <option value="lscs">LSCS (Caesarean)</option>
+            <option value="forceps">Forceps Delivery</option>
+            <option value="vacuum">Vacuum Extraction</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Gestational Age (weeks)</label>
+          <input type="number" class="form-control" id="nd-ga" min="20" max="45" placeholder="e.g. 38"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Duration of Labour (hrs)</label>
+          <input type="number" class="form-control" id="nd-labour-hrs" min="0" step="0.5" placeholder="e.g. 8.5"/>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Blood Loss (mL)</label>
+          <input type="number" class="form-control" id="nd-blood-loss" placeholder="e.g. 250"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Presenting Part</label>
+          <select class="form-control" id="nd-present">
+            <option value="vertex">Vertex (Cephalic)</option>
+            <option value="breech">Breech</option>
+            <option value="transverse">Transverse</option>
+            <option value="face">Face</option>
+            <option value="brow">Brow</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Episiotomy</label>
+          <select class="form-control" id="nd-episiotomy">
+            <option value="no">No</option>
+            <option value="yes">Yes — Mediolateral</option>
+            <option value="yes_median">Yes — Median</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Perineal Tear</label>
+          <select class="form-control" id="nd-tear">
+            <option value="none">None</option>
+            <option value="1st">1st Degree</option>
+            <option value="2nd">2nd Degree</option>
+            <option value="3rd">3rd Degree</option>
+            <option value="4th">4th Degree</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Placenta Delivery</label>
+          <select class="form-control" id="nd-placenta">
+            <option value="spontaneous">Spontaneous</option>
+            <option value="controlled_cord_traction">Controlled Cord Traction</option>
+            <option value="manual">Manual Removal</option>
+            <option value="retained">Retained — refer</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Complications</label>
+          <input class="form-control" id="nd-complications" placeholder="PPH, shoulder dystocia…"/>
+        </div>
+      </div>
+
+      <!-- Baby -->
+      <div class="section-divider">Baby Details</div>
+      <div class="form-grid-3" style="margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Baby Birth Weight (g)</label>
+          <input type="number" class="form-control" id="nd-weight" placeholder="e.g. 3200" step="10"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Sex</label>
+          <select class="form-control" id="nd-sex">
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="ambiguous">Ambiguous</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Baby Outcome</label>
+          <select class="form-control" id="nd-baby-outcome">
+            <option value="live_birth">Live Birth</option>
+            <option value="stillbirth">Stillbirth</option>
+            <option value="nnd">Early Neonatal Death (&lt;7d)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- APGAR -->
+      <div class="section-divider">APGAR Score</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text-mid);margin-bottom:8px">At 1 Minute</div>
+          <div class="apgar-grid">
+            <div class="apgar-cell"><div class="apgar-hd">Activity</div><select class="apgar-sel" id="a1-activity" onchange="calcAPGAR()"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></div>
+            <div class="apgar-cell"><div class="apgar-hd">Pulse</div><select class="apgar-sel" id="a1-pulse" onchange="calcAPGAR()"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></div>
+            <div class="apgar-cell"><div class="apgar-hd">Grimace</div><select class="apgar-sel" id="a1-grimace" onchange="calcAPGAR()"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></div>
+            <div class="apgar-cell"><div class="apgar-hd">Appear.</div><select class="apgar-sel" id="a1-appear" onchange="calcAPGAR()"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></div>
+            <div class="apgar-cell"><div class="apgar-hd">Respir.</div><select class="apgar-sel" id="a1-resp" onchange="calcAPGAR()"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></div>
+          </div>
+          <div style="text-align:right;font-size:13px">Total: <span class="apgar-total" id="apgar1-total">0</span>/10</div>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text-mid);margin-bottom:8px">At 5 Minutes</div>
+          <div class="apgar-grid">
+            <div class="apgar-cell"><div class="apgar-hd">Activity</div><select class="apgar-sel" id="a5-activity" onchange="calcAPGAR()"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></div>
+            <div class="apgar-cell"><div class="apgar-hd">Pulse</div><select class="apgar-sel" id="a5-pulse" onchange="calcAPGAR()"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></div>
+            <div class="apgar-cell"><div class="apgar-hd">Grimace</div><select class="apgar-sel" id="a5-grimace" onchange="calcAPGAR()"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></div>
+            <div class="apgar-cell"><div class="apgar-hd">Appear.</div><select class="apgar-sel" id="a5-appear" onchange="calcAPGAR()"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></div>
+            <div class="apgar-cell"><div class="apgar-hd">Respir.</div><select class="apgar-sel" id="a5-resp" onchange="calcAPGAR()"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></div>
+          </div>
+          <div style="text-align:right;font-size:13px">Total: <span class="apgar-total" id="apgar5-total">0</span>/10</div>
+        </div>
+      </div>
+
+      <!-- Resus / NICU / baby notes — §21r -->
+      <div class="form-grid" style="margin-bottom:8px">
+        <div class="form-group">
+          <label class="form-label" style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" id="nd-resus" style="accent-color:var(--red)"/> Neonatal Resuscitation Required
+          </label>
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" id="nd-oxygen" style="accent-color:var(--red)"/> Supplemental Oxygen Therapy Given
+          </label>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-bottom:8px">
+        <div class="form-group">
+          <label class="form-label">Phototherapy Duration (hours)</label>
+          <input class="form-control" id="nd-phototherapy" type="number" min="0" max="200" placeholder="e.g. 24"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <input type="checkbox" id="nd-nicu-transfer" onchange="document.getElementById('nd-nicu-reason-row').style.display=this.checked?'':'none'" style="accent-color:var(--red)"/> NICU Transfer Required
+          </label>
+          <div id="nd-nicu-reason-row" style="display:none">
+            <input class="form-control" id="nd-nicu-reason" placeholder="Reason for NICU transfer…"/>
+          </div>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Baby Notes</label>
+          <input class="form-control" id="nd-baby-notes" placeholder="Congenital findings, birth injury, special observations…"/>
+        </div>
+      </div>
+
+      <!-- Mother outcome + MLC -->
+      <div class="section-divider">Mother Outcome &amp; MLC</div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Mother Outcome</label>
+          <select class="form-control" id="nd-mother-outcome">
+            <option value="normal">Normal — transferred to ward</option>
+            <option value="icu">Transferred to ICU</option>
+            <option value="referred">Referred to higher centre</option>
+            <option value="deceased">Maternal Death</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Disposition</label>
+          <input class="form-control" id="nd-disposition" placeholder="e.g. Transferred to Post-partum ward"/>
+        </div>
+      </div>
+      <div style="background:#fff8e1;border:1.5px solid #e0a800;border-radius:8px;padding:12px 16px;margin-bottom:14px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer">
+          <input type="checkbox" id="nd-mlc" onchange="document.getElementById('nd-mlc-extra').style.display=this.checked?'':'none'" style="width:15px;height:15px;accent-color:var(--red)"/>
+          ⚖️ Medico-Legal Case (maternal death, assault, rape, suspicious circumstances)
+        </label>
+        <div id="nd-mlc-extra" style="display:none;margin-top:10px">
+          <div class="form-grid">
+            <div class="form-group"><label class="form-label">MLC Number</label><input class="form-control" id="nd-mlc-no" placeholder="MLC-2026-001"/></div>
+            <div class="form-group"><label class="form-label">Nature</label><input class="form-control" id="nd-mlc-nature" placeholder="e.g. Maternal death — sudden"/></div>
+          </div>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label class="form-label">Additional Notes</label>
+        <textarea class="form-control" id="nd-notes" placeholder="Intrapartum notes, analgesia used, significant events…" rows="3"></textarea>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="nd-save-btn" onclick="saveDelivery()">Save Delivery Record</button>
+        <button class="btn btn-secondary" onclick="resetNewDelivery()">Clear Form</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB: PARTOGRAPH ── -->
+<div class="tab-panel" id="tab-partograph">
+  <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start">
+    <!-- Select delivery -->
+    <div class="card">
+      <div class="card-hd"><span class="card-title">Select Delivery</span></div>
+      <div id="partograph-delivery-list" style="max-height:500px;overflow-y:auto">
+        <div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>
+      </div>
+    </div>
+    <!-- Partograph entries -->
+    <div id="partograph-main">
+      <div class="empty" style="background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:48px">
+        <div class="empty-ico">📈</div>
+        <div class="empty-ttl">Select a delivery from the left to view / add partograph entries</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB: NEWBORN REGISTER ── -->
+<div class="tab-panel" id="tab-newborn">
+  <div class="card">
+    <div class="card-hd">
+      <span class="card-title">Newborn Register</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-secondary btn-sm" onclick="exportNewborn()">↓ CSV</button>
+      </div>
+    </div>
+    <div style="background:#e3f0ff;border-bottom:1px solid #c7d8ed;padding:8px 16px;font-size:12px;color:var(--blue)">
+      PCPNDT Act 1994 — Sex determination is prohibited. Only record sex after delivery for medical records.
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Date</th><th>Mother</th><th>Mode</th><th>Sex</th><th>Weight (g)</th><th>APGAR 1'</th><th>APGAR 5'</th><th>Resus</th><th>Outcome</th><th>Notes</th></tr></thead>
+        <tbody id="newborn-tbody"><tr><td colspan="10"><div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div><!-- end page-wrap -->
+<div id="toast"></div>
+
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module">
+import { requireAuth, getCurrentProfile, getCurrentTenantId, getCurrentRole } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist'], 'index.html');
+initNavbar();
+
+const profile  = getCurrentProfile();
+const tenantId = getCurrentTenantId();
+
+// Default month = current
+const now = new Date();
+const monthStr = now.toISOString().slice(0,7);
+document.getElementById('filter-month').value = monthStr;
+document.getElementById('nd-date').value = now.toISOString().split('T')[0];
+document.getElementById('nd-time').value = now.toTimeString().slice(0,5);
+
+// Tab switching
+document.querySelectorAll('.module-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.module-tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'partograph') loadPartographList();
+    if (btn.dataset.tab === 'newborn')    loadNewborn();
+    if (btn.dataset.tab === 'register')   loadRegister();
+  });
+});
+
+document.getElementById('filter-month').addEventListener('change', loadAll);
+
+window.loadAll = async function() { await Promise.all([loadStats(), loadRegister()]); };
+
+let _allDeliveries = [];
+
+async function loadStats() {
+  const mStr = document.getElementById('filter-month').value || monthStr;
+  const [y, m] = mStr.split('-').map(Number);
+  const start = new Date(y, m-1, 1).toISOString();
+  const end   = new Date(y, m, 0, 23, 59, 59).toISOString();
+  const todayS = now.toISOString().split('T')[0] + 'T00:00:00';
+  const todayE = now.toISOString().split('T')[0] + 'T23:59:59';
+
+  const [mRes, tRes] = await Promise.all([
+    supabase.from('deliveries').select('id,mode,sex,birth_weight_g,baby_outcome').eq('tenant_id',tenantId).gte('delivery_date',start).lte('delivery_date',end),
+    supabase.from('deliveries').select('id').eq('tenant_id',tenantId).gte('delivery_date',todayS.split('T')[0]).lte('delivery_date',todayE.split('T')[0]),
+  ]);
+  const mData = mRes.data || [];
+  const tData = tRes.data || [];
+  const total = mData.length;
+  const lscs  = mData.filter(d=>d.mode==='lscs').length;
+  const girl  = mData.filter(d=>d.sex==='female').length;
+  const weights = mData.filter(d=>d.birth_weight_g).map(d=>Number(d.birth_weight_g));
+  const avgWt = weights.length ? Math.round(weights.reduce((a,b)=>a+b,0)/weights.length) : '—';
+  document.getElementById('s-month').textContent  = total;
+  document.getElementById('s-today').textContent  = tData.length;
+  document.getElementById('s-lscs').textContent   = total > 0 ? Math.round(lscs/total*100)+'%' : '—';
+  document.getElementById('s-girl').textContent   = girl;
+  document.getElementById('s-weight').textContent = avgWt;
+}
+
+async function loadRegister() {
+  const mStr = document.getElementById('filter-month').value || monthStr;
+  const [y, m] = mStr.split('-').map(Number);
+  const start = new Date(y, m-1, 1).toISOString().split('T')[0];
+  const end   = new Date(y, m, 0).toISOString().split('T')[0];
+  document.getElementById('register-title').textContent = 'Deliveries — ' + new Date(y, m-1, 1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+
+  const { data, error } = await supabase.from('deliveries')
+    .select('*,patients(name,phone),profiles!admitted_doctor_id(full_name)')
+    .eq('tenant_id',tenantId).gte('delivery_date',start).lte('delivery_date',end)
+    .order('delivery_date',{ascending:false}).order('delivery_time',{ascending:false});
+
+  const tbody = document.getElementById('register-tbody');
+  if (error) {
+    if (error.code==='42P01') {
+      tbody.innerHTML='<tr><td colspan="9"><div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div><div class="empty-bod">Run the deliveries table SQL in Supabase to activate this module</div></div></td></tr>';
+    } else {
+      tbody.innerHTML=`<tr><td colspan="9"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div></td></tr>`;
+    }
+    return;
+  }
+  _allDeliveries = data || [];
+  renderRegister();
+}
+
+window.renderRegister = function() {
+  const mf = document.getElementById('filter-mode').value;
+  const rows = _allDeliveries.filter(d => !mf || d.mode === mf);
+  const tbody = document.getElementById('register-tbody');
+  if (!rows.length) { tbody.innerHTML='<tr><td colspan="9"><div class="empty"><div class="empty-ico">🤱</div><div class="empty-ttl">No deliveries in this period</div></div></td></tr>'; return; }
+  tbody.innerHTML = rows.map(d=>`<tr>
+    <td>
+      <div style="font-weight:600">${d.delivery_date}</div>
+      <div style="font-size:11px;color:var(--text-muted)">${d.delivery_time||''}</div>
+    </td>
+    <td>
+      <div style="font-weight:500">${_esc(d.patients?.name||'Unknown')}</div>
+      <div style="font-size:11px;color:var(--text-muted)">${_esc(d.patients?.phone||'')}</div>
+    </td>
+    <td>${modeChip(d.mode)}</td>
+    <td>${sexIcon(d.sex)}</td>
+    <td>${d.birth_weight_g ? d.birth_weight_g + ' g' : '—'}</td>
+    <td style="text-align:center">
+      <span style="font-weight:700;color:${apgarColor(d.apgar_1min)}">${d.apgar_1min??'—'}</span> /
+      <span style="font-weight:700;color:${apgarColor(d.apgar_5min)}">${d.apgar_5min??'—'}</span>
+    </td>
+    <td>${outcomeChip(d.baby_outcome)}</td>
+    <td>${d.is_mlc ? `<span style="background:var(--red-light);color:var(--red);font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px">MLC</span>` : '—'}</td>
+    <td>
+      <a href="anc.html?patient_id=${d.patient_id}" style="font-size:11px;color:var(--green-mid);text-decoration:none">ANC →</a>
+    </td>
+  </tr>`).join('');
+};
+
+// ─── New Delivery ─────────────────────────────────────────
+window.openNewDelivery = function() {
+  document.querySelectorAll('.module-tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelector('.module-tab[data-tab="new"]').classList.add('active');
+  document.getElementById('tab-new').classList.add('active');
+};
+
+let _ndPatientId = null;
+
+window.searchMother = async function() {
+  const q = document.getElementById('nd-search').value.trim();
+  const res = document.getElementById('nd-results');
+  if (q.length < 2) { res.style.display='none'; return; }
+  const { data } = await supabase.from('patients').select('id,name,phone').eq('tenant_id',tenantId)
+    .or(`phone.ilike.%${q}%,name.ilike.%${q}%`).limit(8);
+  if (!data?.length) { res.style.display='none'; return; }
+  res.style.display = '';
+  res.innerHTML = data.map(p=>`<div class="search-result-item" onclick="selectMother('${p.id}','${_esc(p.name)}','${_esc(p.phone||'')}')">
+    <strong>${_esc(p.name)}</strong><span style="color:var(--text-muted);font-size:12px;margin-left:6px">${_esc(p.phone||'')}</span>
+  </div>`).join('');
+};
+
+window.selectMother = function(id, name, phone) {
+  _ndPatientId = id;
+  document.getElementById('nd-search').value = name + (phone ? ' · '+phone : '');
+  document.getElementById('nd-results').style.display = 'none';
+  const box = document.getElementById('nd-patient-box');
+  box.style.display = '';
+  box.innerHTML = `✓ Selected: <strong>${_esc(name)}</strong> ${phone ? '· '+_esc(phone) : ''}`;
+};
+
+window.calcAPGAR = function() {
+  const sum = (prefix) => ['activity','pulse','grimace','appear','resp']
+    .reduce((s,k) => s + parseInt(document.getElementById(`${prefix}-${k}`).value||0), 0);
+  const s1 = sum('a1'), s5 = sum('a5');
+  document.getElementById('apgar1-total').textContent = s1;
+  document.getElementById('apgar5-total').textContent = s5;
+  document.getElementById('apgar1-total').style.color = apgarColor(s1);
+  document.getElementById('apgar5-total').style.color = apgarColor(s5);
+};
+
+window.saveDelivery = async function() {
+  const btn = document.getElementById('nd-save-btn');
+  const date = document.getElementById('nd-date').value;
+  const mode = document.getElementById('nd-mode').value;
+  if (!date) { showAlert('new-alert','Delivery date is required','error'); return; }
+
+  const a1 = parseInt(document.getElementById('apgar1-total').textContent) || 0;
+  const a5 = parseInt(document.getElementById('apgar5-total').textContent) || 0;
+  const isMLC = document.getElementById('nd-mlc').checked;
+  btn.disabled = true;
+
+  const payload = {
+    tenant_id: tenantId, patient_id: _ndPatientId||null,
+    admitted_doctor_id: document.getElementById('nd-doctor').value||null,
+    delivery_date: date,
+    delivery_time: document.getElementById('nd-time').value||null,
+    mode, gestational_age: document.getElementById('nd-ga').value||null,
+    duration_labour: document.getElementById('nd-labour-hrs').value||null,
+    blood_loss_ml: document.getElementById('nd-blood-loss').value||null,
+    presenting_part: document.getElementById('nd-present').value,
+    episiotomy: document.getElementById('nd-episiotomy').value !== 'no',
+    tear_degree: document.getElementById('nd-tear').value !== 'none' ? document.getElementById('nd-tear').value : null,
+    placenta_delivery: document.getElementById('nd-placenta').value,
+    complications: document.getElementById('nd-complications').value.trim()||null,
+    birth_weight_g: document.getElementById('nd-weight').value||null,
+    sex: document.getElementById('nd-sex').value,
+    apgar_1min: a1, apgar_5min: a5,
+    baby_outcome: document.getElementById('nd-baby-outcome').value,
+    neonatal_resus:      document.getElementById('nd-resus').checked,
+    oxygen_therapy:      document.getElementById('nd-oxygen')?.checked || false,
+    phototherapy_hours:  parseFloat(document.getElementById('nd-phototherapy').value) || null,
+    nicu_transfer:       document.getElementById('nd-nicu-transfer')?.checked || false,
+    nicu_transfer_reason:document.getElementById('nd-nicu-reason')?.value.trim() || null,
+    baby_notes: document.getElementById('nd-baby-notes').value.trim()||null,
+    mother_outcome: document.getElementById('nd-mother-outcome').value,
+    disposition: document.getElementById('nd-disposition').value.trim()||null,
+    is_mlc: isMLC,
+    mlc_number: isMLC ? document.getElementById('nd-mlc-no').value.trim()||null : null,
+    notes: document.getElementById('nd-notes').value.trim()||null,
+    created_by: profile.id,
+  };
+
+  const { error } = await supabase.from('deliveries').insert(payload);
+  btn.disabled = false;
+  if (error) {
+    if (error.code==='42P01') { showAlert('new-alert','Run deliveries SQL in Supabase first','error'); }
+    else { showAlert('new-alert', error.message, 'error'); }
+    return;
+  }
+  showAlert('new-alert','Delivery record saved successfully','success');
+  resetNewDelivery();
+  loadAll();
+};
+
+window.resetNewDelivery = function() {
+  _ndPatientId = null;
+  document.getElementById('nd-search').value = '';
+  document.getElementById('nd-patient-box').style.display = 'none';
+  document.getElementById('nd-results').style.display = 'none';
+  document.getElementById('nd-complications').value = '';
+  document.getElementById('nd-baby-notes').value = '';
+  document.getElementById('nd-disposition').value = '';
+  document.getElementById('nd-notes').value = '';
+  document.getElementById('nd-weight').value = '';
+  document.getElementById('nd-blood-loss').value = '';
+  document.getElementById('nd-ga').value = '';
+  document.getElementById('nd-labour-hrs').value = '';
+  document.getElementById('nd-mlc').checked = false;
+  document.getElementById('nd-mlc-no').value = '';
+  document.getElementById('nd-mlc-nature').value = '';
+  document.getElementById('nd-mlc-extra').style.display = 'none';
+  document.getElementById('nd-resus').checked = false;
+  ['a1','a5'].forEach(p => ['activity','pulse','grimace','appear','resp'].forEach(k => { document.getElementById(`${p}-${k}`).value='0'; }));
+  calcAPGAR();
+};
+
+// ─── Partograph ───────────────────────────────────────────
+let _selectedDeliveryId = null;
+
+async function loadPartographList() {
+  const { data, error } = await supabase.from('deliveries')
+    .select('id,delivery_date,delivery_time,patients(name)')
+    .eq('tenant_id',tenantId).order('delivery_date',{ascending:false}).limit(30);
+  const wrap = document.getElementById('partograph-delivery-list');
+  if (error || !data?.length) {
+    wrap.innerHTML = '<div class="empty"><div class="empty-ico">🤱</div><div class="empty-ttl">No deliveries yet</div></div>'; return;
+  }
+  wrap.innerHTML = data.map(d=>`<div style="padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s" onclick="selectDeliveryForPartograph('${d.id}')" id="pd-${d.id}">
+    <div style="font-weight:500;font-size:13px">${_esc(d.patients?.name||'Unknown')}</div>
+    <div style="font-size:11px;color:var(--text-muted)">${d.delivery_date} ${d.delivery_time||''}</div>
+  </div>`).join('');
+}
+
+window.selectDeliveryForPartograph = async function(id) {
+  _selectedDeliveryId = id;
+  document.querySelectorAll('[id^="pd-"]').forEach(el => el.style.background='');
+  const el = document.getElementById('pd-'+id); if (el) el.style.background = 'var(--green-light)';
+  await loadPartographEntries(id);
+};
+
+async function loadPartographEntries(delivId) {
+  const main = document.getElementById('partograph-main');
+  main.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
+
+  const { data, error } = await supabase.from('partograph_entries')
+    .select('*').eq('delivery_id',delivId).order('recorded_at',{ascending:true});
+
+  const formHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-hd"><span class="card-title">Add Partograph Observation</span></div>
+      <div class="card-body">
+        <div class="form-grid-4" style="margin-bottom:10px">
+          <div class="form-group"><label class="form-label">Time</label><input type="time" class="form-control" id="pe-time"/></div>
+          <div class="form-group"><label class="form-label">Cervix (cm)</label><input type="number" class="form-control" id="pe-cervix" min="0" max="10" step="0.5"/></div>
+          <div class="form-group"><label class="form-label">Fetal Descent</label><select class="form-control" id="pe-descent"><option value="">—</option><option value="5/5">5/5</option><option value="4/5">4/5</option><option value="3/5">3/5</option><option value="2/5">2/5</option><option value="1/5">1/5</option><option value="0/5">0/5</option></select></div>
+          <div class="form-group"><label class="form-label">FHR (bpm)</label><input type="number" class="form-control" id="pe-fhr" min="60" max="200"/></div>
+        </div>
+        <div class="form-grid-4" style="margin-bottom:10px">
+          <div class="form-group"><label class="form-label">Contractions/10min</label><input type="number" class="form-control" id="pe-contrx" min="0" max="5"/></div>
+          <div class="form-group"><label class="form-label">Contraction Duration</label><select class="form-control" id="pe-ctrx-dur"><option value="">—</option><option value="<20s">&lt;20s</option><option value="20-40s">20-40s</option><option value=">40s">&gt;40s</option></select></div>
+          <div class="form-group"><label class="form-label">Liquor</label><select class="form-control" id="pe-liquor"><option value="">—</option><option value="I">I — Intact</option><option value="C">C — Clear</option><option value="M">M — Meconium</option><option value="B">B — Blood</option><option value="A">A — Absent</option></select></div>
+          <div class="form-group"><label class="form-label">Moulding</label><select class="form-control" id="pe-mould"><option value="">—</option><option value="0">0 — None</option><option value="+">+ — Mild</option><option value="++">++ — Moderate</option><option value="+++">+++ — Severe</option></select></div>
+        </div>
+        <div class="form-grid-4" style="margin-bottom:10px">
+          <div class="form-group"><label class="form-label">BP Sys</label><input type="number" class="form-control" id="pe-bp-s" placeholder="120"/></div>
+          <div class="form-group"><label class="form-label">BP Dia</label><input type="number" class="form-control" id="pe-bp-d" placeholder="80"/></div>
+          <div class="form-group"><label class="form-label">Pulse</label><input type="number" class="form-control" id="pe-pulse" placeholder="80"/></div>
+          <div class="form-group"><label class="form-label">Temp (°C)</label><input type="number" class="form-control" id="pe-temp" step="0.1" placeholder="37.0"/></div>
+        </div>
+        <div class="form-grid" style="margin-bottom:12px">
+          <div class="form-group"><label class="form-label">Urine Output</label><input class="form-control" id="pe-urine" placeholder="e.g. 50mL/hr, trace protein"/></div>
+          <div class="form-group"><label class="form-label">Drugs / Oxytocin</label><input class="form-control" id="pe-drugs" placeholder="e.g. Oxytocin 5U in 500mL NS @ 8 drops/min"/></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="savePartographEntry('${delivId}')">Add Entry</button>
+      </div>
+    </div>`;
+
+  if (error && error.code === '42P01') {
+    main.innerHTML = formHTML + '<div class="card"><div class="card-body"><div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">Partograph entries SQL not yet run</div></div></div></div>';
+    document.getElementById('pe-time').value = now.toTimeString().slice(0,5);
+    return;
+  }
+
+  const entries = data || [];
+  const tblRows = entries.length ? entries.map(e=>`<tr>
+    <td style="font-weight:600">${e.recorded_at ? new Date(e.recorded_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+    <td class="part-cervix">${e.cervical_dilation_cm ?? '—'}</td>
+    <td>${e.fetal_descent||'—'}</td>
+    <td>${e.fhr||'—'}</td>
+    <td>${e.contractions_per_10min||'—'}</td>
+    <td>${e.contraction_duration_sec||'—'}</td>
+    <td>${e.liquor||'—'}</td>
+    <td>${e.moulding||'—'}</td>
+    <td>${e.bp_systolic&&e.bp_diastolic ? e.bp_systolic+'/'+e.bp_diastolic : '—'}</td>
+    <td>${e.pulse||'—'}</td>
+    <td style="font-size:11px">${_esc(e.drugs_given||'—')}</td>
+  </tr>`).join('') : '<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:20px">No entries yet — add first observation above</td></tr>';
+
+  main.innerHTML = formHTML + `
+    <div class="card">
+      <div class="card-hd"><span class="card-title">Partograph Entries</span><span style="font-size:12px;color:var(--text-muted)">${entries.length} observations</span></div>
+      <div class="tw">
+        <table class="partograph-tbl">
+          <thead><tr><th>Time</th><th>Cervix (cm)</th><th>Descent</th><th>FHR</th><th>Ctrx/10min</th><th>Ctrx Duration</th><th>Liquor</th><th>Moulding</th><th>BP</th><th>Pulse</th><th>Drugs</th></tr></thead>
+          <tbody>${tblRows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  document.getElementById('pe-time').value = now.toTimeString().slice(0,5);
+};
+
+window.savePartographEntry = async function(delivId) {
+  const payload = {
+    delivery_id: delivId, tenant_id: tenantId,
+    recorded_at: new Date().toISOString(),
+    cervical_dilation_cm: document.getElementById('pe-cervix').value||null,
+    fetal_descent:        document.getElementById('pe-descent').value||null,
+    fhr:                  document.getElementById('pe-fhr').value||null,
+    contractions_per_10min: document.getElementById('pe-contrx').value||null,
+    contraction_duration_sec: document.getElementById('pe-ctrx-dur').value||null,
+    liquor:    document.getElementById('pe-liquor').value||null,
+    moulding:  document.getElementById('pe-mould').value||null,
+    bp_systolic: document.getElementById('pe-bp-s').value||null,
+    bp_diastolic: document.getElementById('pe-bp-d').value||null,
+    pulse:     document.getElementById('pe-pulse').value||null,
+    temperature: document.getElementById('pe-temp').value||null,
+    urine_output: document.getElementById('pe-urine').value.trim()||null,
+    drugs_given:  document.getElementById('pe-drugs').value.trim()||null,
+    created_by: profile.id,
+  };
+  const { error } = await supabase.from('partograph_entries').insert(payload);
+  if (error) { _toast(error.message, true); return; }
+  _toast('Entry saved');
+  loadPartographEntries(delivId);
+};
+
+// ─── Newborn Register ────────────────────────────────────
+let _newbornData = [];
+async function loadNewborn() {
+  const mStr = document.getElementById('filter-month').value || monthStr;
+  const [y, m] = mStr.split('-').map(Number);
+  const start = new Date(y, m-1, 1).toISOString().split('T')[0];
+  const end   = new Date(y, m, 0).toISOString().split('T')[0];
+  const { data, error } = await supabase.from('deliveries')
+    .select('*,patients(name,phone)').eq('tenant_id',tenantId)
+    .gte('delivery_date',start).lte('delivery_date',end)
+    .order('delivery_date',{ascending:false});
+  const tbody = document.getElementById('newborn-tbody');
+  if (error) { tbody.innerHTML='<tr><td colspan="10"><div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div></div></td></tr>'; return; }
+  _newbornData = data || [];
+  if (!_newbornData.length) { tbody.innerHTML='<tr><td colspan="10"><div class="empty"><div class="empty-ico">👶</div><div class="empty-ttl">No deliveries in this period</div></div></td></tr>'; return; }
+  tbody.innerHTML = _newbornData.map((d,i)=>`<tr>
+    <td>${d.delivery_date}</td>
+    <td>${_esc(d.patients?.name||'Unknown')}</td>
+    <td>${modeChip(d.mode)}</td>
+    <td>${sexIcon(d.sex)}</td>
+    <td style="font-weight:600">${d.birth_weight_g ? d.birth_weight_g+' g' : '—'}</td>
+    <td style="font-weight:700;color:${apgarColor(d.apgar_1min)}">${d.apgar_1min??'—'}</td>
+    <td style="font-weight:700;color:${apgarColor(d.apgar_5min)}">${d.apgar_5min??'—'}</td>
+    <td style="text-align:center">${d.neonatal_resus ? '⚠️ Yes' : '—'}</td>
+    <td>${outcomeChip(d.baby_outcome)}</td>
+    <td style="font-size:11px;color:var(--text-muted)">${_esc(d.baby_notes||'—')}</td>
+  </tr>`).join('');
+}
+
+window.exportNewborn = function() {
+  if (!_newbornData.length) return;
+  const rows = [
+    ['Date','Mother','Phone','Mode','Sex','Weight (g)','APGAR 1min','APGAR 5min','Resuscitation','Outcome','Baby Notes'],
+    ..._newbornData.map(d=>[d.delivery_date, d.patients?.name||'', d.patients?.phone||'', d.mode||'',
+      d.sex||'', d.birth_weight_g||'', d.apgar_1min??'', d.apgar_5min??'',
+      d.neonatal_resus?'Yes':'No', d.baby_outcome||'', d.baby_notes||''])
+  ];
+  const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = 'Newborn_Register.csv'; a.click();
+};
+
+window.exportRegister = function() {
+  if (!_allDeliveries.length) return;
+  const rows = [
+    ['Date','Time','Mother','Phone','Mode','Presenting Part','GA (wks)','Blood Loss (mL)','Baby Sex','Weight (g)','APGAR 1min','APGAR 5min','Resus','Baby Outcome','Mother Outcome','MLC','MLC No.','Notes'],
+    ..._allDeliveries.map(d=>[d.delivery_date,d.delivery_time||'',d.patients?.name||'',d.patients?.phone||'',
+      d.mode||'',d.presenting_part||'',d.gestational_age||'',d.blood_loss_ml||'',
+      d.sex||'',d.birth_weight_g||'',d.apgar_1min??'',d.apgar_5min??'',
+      d.neonatal_resus?'Yes':'No',d.baby_outcome||'',d.mother_outcome||'',
+      d.is_mlc?'Yes':'No',d.mlc_number||'',d.notes||''])
+  ];
+  const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = 'Delivery_Register.csv'; a.click();
+};
+
+// ─── Doctor loader ───────────────────────────────────────
+async function loadDoctors() {
+  const { data } = await supabase.from('profiles').select('id,full_name').eq('tenant_id',tenantId)
+    .in('role',['doctor','super_admin','dept_admin']).eq('is_active',true).order('full_name');
+  const sel = document.getElementById('nd-doctor');
+  sel.innerHTML = '<option value="">— Select —</option>' + (data||[]).map(d=>`<option value="${d.id}">${_esc(d.full_name)}</option>`).join('');
+}
+
+// ─── Helpers ─────────────────────────────────────────────
+function modeChip(m) {
+  const map = { normal:'<span class="chip-normal">Normal</span>', lscs:'<span class="chip-lscs">LSCS</span>',
+    forceps:'<span style="background:var(--gold-light);color:#a06c0a;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600">Forceps</span>',
+    vacuum: '<span style="background:var(--pink-light);color:var(--pink);padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600">Vacuum</span>' };
+  return map[m] || m||'—';
+}
+function sexIcon(s) {
+  return s==='female' ? '<span style="color:var(--pink);font-weight:600">♀ F</span>' : s==='male' ? '<span style="color:var(--blue);font-weight:600">♂ M</span>' : '—';
+}
+function outcomeChip(o) {
+  if (o==='live_birth')  return '<span class="chip-live">Live Birth</span>';
+  if (o==='stillbirth')  return '<span class="chip-still">Stillbirth</span>';
+  if (o==='nnd')         return '<span class="chip-still">NND</span>';
+  return o||'—';
+}
+function apgarColor(v) {
+  if (v===null||v===undefined) return 'var(--text-muted)';
+  if (v >= 7) return 'var(--green-mid)';
+  if (v >= 4) return 'var(--gold)';
+  return 'var(--red)';
+}
+function showAlert(id, msg, type) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.className = `alert ${type} show`;
+  setTimeout(()=>el.classList.remove('show'), 4000);
+}
+function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _toast(msg,isErr=false){ const el=document.getElementById('toast'); el.textContent=msg; el.style.background=isErr?'#7f1d1d':'#1c2b1f'; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),3000); }
+
+// Boot
+await Promise.all([loadDoctors(), loadAll()]);
+</script>
+</body>
+</html>

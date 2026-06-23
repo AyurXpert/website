@@ -140,8 +140,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div class="section-title">Supplier Details</div>
     <div class="field-grid">
       <div class="field">
-        <label>Supplier Name <span style="color:var(--red)">*</span></label>
-        <input id="supplier-name" type="text" placeholder="Supplier / distributor name"/>
+        <label>Supplier <span style="color:var(--red)">*</span></label>
+        <select id="supplier-select" onchange="onSupplierChange(this.value)" style="width:100%;height:44px;padding:0 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:'DM Sans',sans-serif;background:var(--cream);outline:none">
+          <option value="">— Select supplier —</option>
+          <option value="__manual__">✍ Type manually (unlisted supplier)</option>
+        </select>
+        <input id="supplier-name-manual" type="text" placeholder="Enter supplier name…" style="display:none;margin-top:6px;width:100%;height:40px;padding:0 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--cream);outline:none"/>
+        <input type="hidden" id="supplier-id"/>
+        <input type="hidden" id="supplier-name"/>
+        <a href="suppliers.html" style="font-size:11px;color:var(--green-mid);margin-top:4px;display:inline-block">+ Manage suppliers →</a>
       </div>
       <div class="field">
         <label>Invoice Number</label>
@@ -155,6 +162,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <label>Remarks</label>
         <input id="remarks" type="text" placeholder="Optional notes"/>
       </div>
+    </div>
+    <!-- GMP status card — shown when supplier selected -->
+    <div id="gmp-status-card" style="display:none;margin-top:10px;border-radius:10px;padding:12px 16px;border:1.5px solid;font-size:13px">
+      <div id="gmp-status-text"></div>
+    </div>
+    <!-- GMP override (super_admin only, shown when blocked) -->
+    <div id="gmp-override-row" style="display:none;margin-top:8px">
+      <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="gmp-override" style="width:14px;height:14px;accent-color:#c9902a"/>
+        <span>Override GMP block (Super Admin authorisation — NCISM §6(3))</span>
+      </label>
     </div>
   </div>
 
@@ -251,20 +269,24 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 </div>
 
 <script type="module">
-import { requireAuth, getCurrentTenantId, getCurrentProfile } from './js/core/auth.js';
+import { requireAuth, getCurrentTenantId, getCurrentProfile, getCurrentRole } from './js/core/auth.js';
 import { initNavbar } from './js/components/navbar.js';
 import { supabase } from './js/core/db/supabaseClient.js';
 
 await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
 initNavbar();
 
-const tenantId = getCurrentTenantId();
-const profile  = getCurrentProfile();
-let _medicines = [];
-let _lineCount = 0;
+const tenantId   = getCurrentTenantId();
+const profile    = getCurrentProfile();
+const isSuperAdmin = getCurrentRole() === 'super_admin';
+let _medicines   = [];
+let _suppliers   = [];
+let _lineCount   = 0;
 let _activeBarcodeLineEl = null;
 let _barcodeStream = null;
 let _barcodeDetector = null;
+const TODAY      = new Date().toISOString().split('T')[0];
+const IN_90      = new Date(Date.now() + 90*86400000).toISOString().split('T')[0];
 let _barcodeScanning = false;
 let _ocrImageBase64 = null;
 let _ocrImageType   = null;
@@ -285,6 +307,88 @@ async function loadMedicines() {
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
+
+// ── Load suppliers ─────────────────────────────────
+async function loadSuppliers() {
+  const { data } = await supabase
+    .from('suppliers')
+    .select('id, name, is_gmp_certified, gmp_certificate_number, gmp_certifying_authority, gmp_certificate_expiry, is_approved, is_active')
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .order('name');
+  _suppliers = data || [];
+  const sel = document.getElementById('supplier-select');
+  const opts = _suppliers.map(s => {
+    const gmpOk = s.is_gmp_certified && (!s.gmp_certificate_expiry || s.gmp_certificate_expiry >= TODAY);
+    const icon  = gmpOk ? '✅' : s.is_gmp_certified ? '⚠' : '❌';
+    return `<option value="${s.id}">${icon} ${s.name}</option>`;
+  });
+  sel.innerHTML = '<option value="">— Select supplier —</option>' + opts.join('') + '<option value="__manual__">✍ Type manually (unlisted supplier)</option>';
+}
+
+window.onSupplierChange = function(val) {
+  const manual = document.getElementById('supplier-name-manual');
+  const card   = document.getElementById('gmp-status-card');
+  const overRow= document.getElementById('gmp-override-row');
+  const nameHid= document.getElementById('supplier-name');
+  const idHid  = document.getElementById('supplier-id');
+
+  if (val === '__manual__') {
+    manual.style.display = '';
+    manual.required = true;
+    card.style.display = 'none';
+    overRow.style.display = 'none';
+    idHid.value = '';
+    nameHid.value = '';
+    return;
+  }
+  manual.style.display = 'none';
+  manual.required = false;
+
+  if (!val) { card.style.display = 'none'; overRow.style.display = 'none'; idHid.value = ''; nameHid.value = ''; return; }
+
+  const s = _suppliers.find(x => x.id === val);
+  if (!s) return;
+  idHid.value   = s.id;
+  nameHid.value = s.name;
+
+  // GMP evaluation
+  const now = new Date().toISOString().split('T')[0];
+  const in90 = new Date(Date.now()+90*86400000).toISOString().split('T')[0];
+  let statusCls, statusText, blocked = false;
+
+  if (!s.is_gmp_certified) {
+    statusCls  = 'border-color:#fca5a5;background:#fff3f3;color:#dc2626';
+    statusText = `<strong>❌ Not GMP Certified</strong> — NCISM §6(3) requires procurement only from GMP-certified pharmacies. <strong>Purchase is blocked.</strong>`;
+    blocked    = true;
+  } else if (s.gmp_certificate_expiry && s.gmp_certificate_expiry < now) {
+    statusCls  = 'border-color:#fca5a5;background:#fff3f3;color:#dc2626';
+    statusText = `<strong>✗ GMP Certificate Expired</strong> (${_fmtD(s.gmp_certificate_expiry)}) — Certificate #${s.gmp_certificate_number||'—'} · ${s.gmp_certifying_authority||'—'}. <strong>Purchase is blocked.</strong>`;
+    blocked    = true;
+  } else if (s.gmp_certificate_expiry && s.gmp_certificate_expiry <= in90) {
+    statusCls  = 'border-color:#e8c068;background:#fff8e1;color:#c9902a';
+    statusText = `<strong>⚠ GMP Certificate Expiring Soon</strong> (${_fmtD(s.gmp_certificate_expiry)}) — Certificate #${s.gmp_certificate_number||'—'} · ${s.gmp_certifying_authority||'—'}. Request renewal from supplier.`;
+    blocked    = false;
+  } else {
+    statusCls  = 'border-color:#9dd4b0;background:#e8f5ee;color:#1a4a2e';
+    statusText = `<strong>✓ GMP Certified</strong> — Certificate #${s.gmp_certificate_number||'—'} · ${s.gmp_certifying_authority||'—'}${s.gmp_certificate_expiry?' · Expires '+_fmtD(s.gmp_certificate_expiry):''}`;
+    blocked    = false;
+  }
+
+  card.style.cssText  = `display:block;margin-top:10px;border-radius:10px;padding:12px 16px;border:1.5px solid;font-size:13px;${statusCls}`;
+  card.querySelector('#gmp-status-text').innerHTML = statusText;
+
+  if (blocked && isSuperAdmin) {
+    overRow.style.display = '';
+    document.getElementById('gmp-override').checked = false;
+  } else {
+    overRow.style.display = 'none';
+  }
+  // Store blocked state for save validation
+  card.dataset.blocked = blocked ? '1' : '0';
+};
+
+function _fmtD(d){ if(!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
 
 function medOptions(selectedId = '') {
   return `<option value="">— Select medicine —</option>` +
@@ -381,14 +485,37 @@ document.getElementById('btn-add-line').addEventListener('click', () => addLine(
 document.getElementById('btn-clear').addEventListener('click', () => {
   if (!confirm('Clear all items?')) return;
   document.getElementById('line-items').innerHTML = '';
-  ['supplier-name','invoice-number','invoice-date','remarks'].forEach(id => document.getElementById(id).value = '');
+  ['supplier-name','supplier-name-manual','supplier-id','invoice-number','invoice-date','remarks'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('supplier-select').value = '';
+  document.getElementById('supplier-name-manual').style.display = 'none';
+  document.getElementById('gmp-status-card').style.display = 'none';
+  document.getElementById('gmp-override-row').style.display = 'none';
   _lineCount = 0; updateSummary();
 });
 
 // ── Save GRN ──────────────────────────────────────
 document.getElementById('btn-save-grn').addEventListener('click', async () => {
-  const supplier = document.getElementById('supplier-name').value.trim();
+  // Resolve supplier name
+  const supSelect = document.getElementById('supplier-select').value;
+  let supplier, supplierId;
+  if (supSelect === '__manual__') {
+    supplier   = document.getElementById('supplier-name-manual').value.trim();
+    supplierId = null;
+  } else {
+    supplier   = document.getElementById('supplier-name').value.trim();
+    supplierId = document.getElementById('supplier-id').value || null;
+  }
   if (!supplier) { _alert('error', 'Supplier name is required.'); return; }
+
+  // GMP block check
+  const gmpCard = document.getElementById('gmp-status-card');
+  if (gmpCard.dataset.blocked === '1') {
+    const overridden = document.getElementById('gmp-override')?.checked;
+    if (!overridden) {
+      _alert('error', 'Purchase blocked: supplier GMP certificate is expired or missing (NCISM §6(3)). Only a Super Admin can override this.');
+      return;
+    }
+  }
   const lines = [...document.querySelectorAll('.line-item')];
   if (!lines.length) { _alert('error', 'Add at least one item.'); return; }
 
@@ -422,7 +549,8 @@ document.getElementById('btn-save-grn').addEventListener('click', async () => {
         tenant_id: tenantId, medicine_id: item.medId,
         batch_number: item.batch, expiry_date: item.expiry,
         quantity_received: item.qty, cost_price: item.cost, mrp: item.mrp,
-        supplier_name: supplier, invoice_number: invoiceNumber, invoice_date: invoiceDate,
+        supplier_name: supplier, supplier_id: supplierId,
+        invoice_number: invoiceNumber, invoice_date: invoiceDate,
         created_by: profile.id,
       });
       const { data: inv } = await supabase.from('inventory').select('id, stock_quantity')
@@ -436,7 +564,11 @@ document.getElementById('btn-save-grn').addEventListener('click', async () => {
     }
     _alert('success', `GRN saved. ${items.length} medicine(s) — stock updated.`);
     document.getElementById('line-items').innerHTML = '';
-    ['supplier-name','invoice-number','invoice-date','remarks'].forEach(id => document.getElementById(id).value = '');
+    ['supplier-name','supplier-name-manual','supplier-id','invoice-number','invoice-date','remarks'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('supplier-select').value = '';
+    document.getElementById('supplier-name-manual').style.display = 'none';
+    document.getElementById('gmp-status-card').style.display = 'none';
+    document.getElementById('gmp-override-row').style.display = 'none';
     document.getElementById('invoice-date').value = new Date().toISOString().split('T')[0];
     _lineCount = 0; updateSummary();
   } catch (err) {
@@ -663,7 +795,7 @@ function _alert(type, msg) {
 
 // ── Boot ──────────────────────────────────────────
 document.getElementById('invoice-date').value = new Date().toISOString().split('T')[0];
-await loadMedicines();
+await Promise.all([loadMedicines(), loadSuppliers()]);
 addLine();
 </script>
 </body>

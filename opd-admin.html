@@ -72,6 +72,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .badge-active{background:var(--success-bg);color:var(--success-text)}
 .badge-inactive{background:#f0f0f0;color:#666}
 .badge-ncism{background:#fff3cd;color:#7a5a00;border:1px solid #e0c060;font-weight:700}
+.badge-specialty{background:#f0e8ff;color:#5a1a8b;border:1px solid #c0a0e0;font-weight:600}
 .opd-empty{text-align:center;padding:32px 16px;color:var(--text-muted);font-size:13px}
 
 /* ── Gold button ─────────────────────────────────── */
@@ -229,6 +230,35 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <label>Description</label>
             <textarea id="new-opd-desc" placeholder="Optional description"></textarea>
           </div>
+          <div class="field">
+            <label class="check-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" id="new-opd-specialty" onchange="_toggleSpecialtyFields()"/>
+              <span>Mark as <strong>Specialty Clinic</strong> <span style="font-weight:400;color:var(--text-muted);font-size:11px">— disease/procedure-specific OPD under a parent dept (NCISM)</span></span>
+            </label>
+          </div>
+          <div id="specialty-fields" style="display:none;padding:10px 12px;background:#f8f4ff;border:1px solid #c0a0e0;border-radius:var(--radius);margin-top:-4px">
+            <div class="field">
+              <label>Parent Department <span style="color:var(--red)">*</span></label>
+              <select id="new-opd-parent-dept">
+                <option value="">— Select parent department —</option>
+              </select>
+            </div>
+            <div class="field" style="margin-top:10px">
+              <label>Specialty Case Proforma</label>
+              <select id="new-opd-proforma-key">
+                <option value="">— None / Use department proforma —</option>
+                <option value="diabetes-clinic">Madhumeha / Diabetes Clinic</option>
+                <option value="skin-clinic">Kushtha / Skin Clinic</option>
+                <option value="spine-joint-clinic">Sandhivata / Spine &amp; Joint Clinic</option>
+                <option value="anorectal-clinic">Arshas / Anorectal Clinic</option>
+                <option value="respiratory-clinic">Shwasa / Respiratory Clinic</option>
+                <option value="cancer-clinic">Karkatarbhuda / Cancer &amp; Integrative Oncology</option>
+                <option value="male-infertility-clinic">Vandhyatva / Klaibya — Male Infertility &amp; Sexual Dysfunction</option>
+                <option value="dental-clinic">Danta Chikitsa — Dental / Oral Health</option>
+              </select>
+            </div>
+            <div style="font-size:11px;color:#7a5a00;margin-top:6px">Specialty proforma appears as a dedicated tab in doctor.html when this OPD is selected.</div>
+          </div>
           <div class="form-actions">
             <button class="btn btn-primary btn-sm" id="btn-save-opd">Save OPD</button>
             <button class="btn btn-secondary btn-sm" id="btn-cancel-opd">Cancel</button>
@@ -270,33 +300,132 @@ await requireAuth(['dept_admin', 'super_admin']);
 initNavbar();
 
 const tenantId = getCurrentTenantId();
-let _opds       = [];
-let _allDoctors = [];
+let _opds        = [];
+let _allDoctors  = [];
 let _selectedOpd = null;
+let _departments = [];
 
 const NCISM_OPDS = [
-  { code:'KAYACHIKITSA',       name:'Kayachikitsa OPD',                desc:'Internal Medicine — NCISM Mandatory' },
-  { code:'PANCHAKARMA',        name:'Panchakarma OPD',                 desc:'Panchakarma & Upakarma — NCISM Mandatory' },
-  { code:'SHALYA_TANTRA',      name:'Shalya Tantra OPD',               desc:'Surgery — NCISM Mandatory' },
-  { code:'SHALAKYA_NETRA',     name:'Shalakya Netra Roga OPD',         desc:'Ophthalmology — NCISM Mandatory' },
-  { code:'SHALAKYA_KNM',       name:'Shalakya KNM OPD',                desc:'ENT & Oral Surgery — NCISM Mandatory' },
-  { code:'STRI_ROGA_PRASUTI',  name:'Stri Roga & Prasuti Tantra OPD',  desc:'OBG — NCISM Mandatory' },
-  { code:'KAUMARABHRITYA',     name:'Kaumarabhritya OPD',              desc:'Paediatrics — NCISM Mandatory' },
-  { code:'SWASTHAVRITTA_YOGA', name:'Swasthavritta & Yoga OPD',        desc:'Lifestyle & Preventive — NCISM Mandatory' },
-  { code:'SCREENING_OPD',      name:'Screening OPD',                   desc:'Triage & Screening — NCISM Mandatory' },
-  { code:'AGADA_TANTRA',       name:'Agada Tantra OPD',                desc:'Toxicology — NCISM Mandatory' },
+  { code:'SCREEN', name:'Screening OPD',           desc:'Triage & Screening — NCISM Mandatory' },
+  { code:'KAY',    name:'Kayachikitsa OPD',         desc:'Internal Medicine — NCISM Mandatory' },
+  { code:'PK',     name:'Panchakarma OPD',          desc:'Panchakarma & Upakarma — NCISM Mandatory' },
+  { code:'SHAL',   name:'Shalya Tantra OPD',        desc:'Surgery — NCISM Mandatory' },
+  { code:'SHAK',   name:'Shalakya Tantra OPD',      desc:'ENT & Ophthalmology — NCISM Mandatory' },
+  { code:'PST',    name:'Prasuti & Stri Roga OPD',  desc:'Obstetrics & Gynaecology — NCISM Mandatory' },
+  { code:'KAU',    name:'Kaumarabhritya OPD',       desc:'Paediatrics — NCISM Mandatory' },
+  { code:'SW',     name:'Swasthavritta OPD',        desc:'Preventive & Social Medicine — NCISM Mandatory' },
+  { code:'AGD',    name:'Agada Tantra OPD',         desc:'Toxicology & Forensic Medicine — NCISM Mandatory' },
+  { code:'RNV',    name:'Rog Nidana OPD',           desc:'Pathology & Diagnosis — NCISM Mandatory' },
 ];
+
+// Optional split codes — not mandatory OPDs, used when institution separates combined OPDs
+const NCISM_OPTIONAL_OPDS = [
+  { code:'PST2', name:'Prasuti Tantra OPD (Split)',  desc:'Obstetrics — separate from Stri Roga' },
+  { code:'STR',  name:'Stri Roga OPD (Split)',       desc:'Gynaecology — separate from Prasuti' },
+];
+
+// 8 NCISM Specialty Disease Clinics — sub-OPDs under a parent department
+const SPECIALTY_CLINICS = [
+  { code:'SPEC-DM',   name:'Madhumeha — Diabetes Clinic',           proforma:'diabetes-clinic',           parent:'KAY'  },
+  { code:'SPEC-SKIN', name:'Kushtha — Skin Clinic',                  proforma:'skin-clinic',               parent:'KAY'  },
+  { code:'SPEC-SJ',   name:'Sandhivata — Spine & Joint Clinic',     proforma:'spine-joint-clinic',        parent:'KAY'  },
+  { code:'SPEC-ARC',  name:'Arshas — Anorectal Clinic',              proforma:'anorectal-clinic',          parent:'SHAL' },
+  { code:'SPEC-RESP', name:'Shwasa — Respiratory Clinic',            proforma:'respiratory-clinic',        parent:'KAY'  },
+  { code:'SPEC-CA',   name:'Karkatarbhuda — Cancer & Oncology',     proforma:'cancer-clinic',             parent:'KAY'  },
+  { code:'SPEC-MIF',  name:'Vandhyatva — Male Infertility Clinic',  proforma:'male-infertility-clinic',   parent:'KAY'  },
+  { code:'SPEC-DENT', name:'Danta Chikitsa — Dental & Oral Health', proforma:'dental-clinic',             parent:'SHAK' },
+];
+
+// NCISM §7 — dedicated consultant pairs: same doctor cannot rotate between paired OPDs
+const DEDICATED_CONSULTANT_PAIRS = [
+  { codes:['SHALAKYA_NETRA','SHALAKYA_KNM'], label:'Netra and KNM' },
+  { codes:['PRASUTI_TANTRA','STRI_ROGA'],    label:'Prasuti and Streeroga' },
+];
+
+// ── Load departments (for specialty clinic parent selector) ──
+async function loadDepartments() {
+  const { data } = await supabase
+    .from('departments')
+    .select('id, name, ncism_code')
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .order('name');
+  _departments = data || [];
+  const sel = document.getElementById('new-opd-parent-dept');
+  _departments.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.id;
+    opt.textContent = d.name + (d.ncism_code ? ` (${d.ncism_code})` : '');
+    sel.appendChild(opt);
+  });
+}
+
+function _toggleSpecialtyFields() {
+  const on = document.getElementById('new-opd-specialty').checked;
+  document.getElementById('specialty-fields').style.display = on ? '' : 'none';
+}
 
 // ── Populate NCISM select in new-OPD form ──────────
 function _populateNcismSelect() {
   const sel = document.getElementById('new-opd-ncism');
-  sel.innerHTML = '<option value="">— None / General —</option>';
+  const existingCodes = new Set(_opds.map(o => o.ncism_code).filter(Boolean));
+
+  sel.innerHTML = '<option value="">— None / General OPD —</option>';
+
+  // Group 1: 10 Mandatory NCISM OPDs (grey out already configured)
+  const sep1 = document.createElement('option'); sep1.disabled = true;
+  sep1.textContent = '── Mandatory NCISM OPDs ──────────────';
+  sel.appendChild(sep1);
   NCISM_OPDS.forEach(n => {
     const o = document.createElement('option');
     o.value = n.code;
-    o.textContent = '★ ' + n.name.replace(' OPD','');
+    const already = existingCodes.has(n.code);
+    o.textContent = (already ? '✓ ' : '★ ') + n.name.replace(' OPD','');
+    if (already) o.style.color = '#999';
     sel.appendChild(o);
   });
+
+  // Group 2: 8 Specialty Disease Clinics
+  const sep2 = document.createElement('option'); sep2.disabled = true;
+  sep2.textContent = '── Specialty Disease Clinics ──────────';
+  sel.appendChild(sep2);
+  SPECIALTY_CLINICS.forEach(n => {
+    const o = document.createElement('option');
+    o.value = n.code;
+    o.textContent = '🏥 ' + n.name;
+    sel.appendChild(o);
+  });
+
+  // Group 3: Optional split OPDs
+  const sep3 = document.createElement('option'); sep3.disabled = true;
+  sep3.textContent = '── Optional (split institutions) ──────';
+  sel.appendChild(sep3);
+  NCISM_OPTIONAL_OPDS.forEach(n => {
+    const o = document.createElement('option');
+    o.value = n.code;
+    o.textContent = '◦ ' + n.name.replace(' OPD','').replace(' (Split)','');
+    sel.appendChild(o);
+  });
+
+  // When a specialty clinic is selected, auto-fill the form
+  sel.onchange = function() {
+    const sc = SPECIALTY_CLINICS.find(s => s.code === sel.value);
+    if (sc) {
+      document.getElementById('new-opd-name').value = sc.name;
+      document.getElementById('new-opd-specialty').checked = true;
+      _toggleSpecialtyFields();
+      document.getElementById('new-opd-proforma-key').value = sc.proforma;
+      // Auto-select parent department
+      const parentSel = document.getElementById('new-opd-parent-dept');
+      const parentOpt = [...parentSel.options].find(o =>
+        _departments.find(d => d.id === o.value && d.ncism_code === sc.parent)
+      );
+      if (parentOpt) parentSel.value = parentOpt.value;
+    } else {
+      document.getElementById('new-opd-specialty').checked = false;
+      _toggleSpecialtyFields();
+    }
+  };
 }
 
 // ── NCISM compliance check ─────────────────────────
@@ -319,7 +448,7 @@ function checkNcismCompliance() {
 async function loadOpds() {
   const { data, error } = await supabase
     .from('opds')
-    .select('id, name, description, is_active, ncism_code')
+    .select('id, name, description, is_active, ncism_code, is_specialty_clinic, parent_department_id')
     .eq('tenant_id', tenantId)
     .order('name');
 
@@ -340,6 +469,7 @@ function renderOpdList() {
       <div style="flex:1;min-width:0">
         <div class="opd-item-name">${o.name}</div>
         ${o.ncism_code ? `<span class="badge badge-ncism" style="margin-top:4px;display:inline-block">NCISM</span>` : ''}
+        ${o.is_specialty_clinic ? `<span class="badge badge-specialty" style="margin-top:4px;margin-left:4px;display:inline-block">Specialty Clinic</span>` : ''}
         ${o.description ? `<div class="opd-item-desc" style="margin-top:3px">${o.description}</div>` : ''}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
@@ -394,13 +524,7 @@ document.getElementById('btn-new-opd').addEventListener('click', () => {
     newOpdForm.classList.contains('open') ? '✕ Cancel' : '+ New OPD';
   if (newOpdForm.classList.contains('open')) _populateNcismSelect();
 });
-document.getElementById('btn-cancel-opd').addEventListener('click', () => {
-  newOpdForm.classList.remove('open');
-  document.getElementById('btn-new-opd').textContent = '+ New OPD';
-  document.getElementById('new-opd-name').value = '';
-  document.getElementById('new-opd-ncism').value = '';
-  document.getElementById('new-opd-desc').value = '';
-});
+document.getElementById('btn-cancel-opd').addEventListener('click', _resetOpdForm);
 
 // Auto-fill name when NCISM code is picked
 document.getElementById('new-opd-ncism').addEventListener('change', function() {
@@ -413,33 +537,50 @@ document.getElementById('new-opd-ncism').addEventListener('change', function() {
 });
 
 document.getElementById('btn-save-opd').addEventListener('click', async () => {
-  const name  = document.getElementById('new-opd-name').value.trim();
-  const ncism = document.getElementById('new-opd-ncism').value;
-  const desc  = document.getElementById('new-opd-desc').value.trim();
+  const name        = document.getElementById('new-opd-name').value.trim();
+  const ncism       = document.getElementById('new-opd-ncism').value;
+  const desc        = document.getElementById('new-opd-desc').value.trim();
+  const isSpecialty  = document.getElementById('new-opd-specialty').checked;
+  const parentDept   = document.getElementById('new-opd-parent-dept').value;
+  const proformaKey  = document.getElementById('new-opd-proforma-key').value;
+
   if (!name) { _alert('error', 'OPD name is required.'); return; }
+  if (isSpecialty && !parentDept) { _alert('error', 'Select a parent department for the specialty clinic.'); return; }
 
   const btn = document.getElementById('btn-save-opd');
   btn.disabled = true; btn.textContent = 'Saving…';
 
   const { error } = await supabase.from('opds').insert({
-    tenant_id: tenantId, name,
-    ncism_code: ncism || null,
-    description: desc || null,
-    is_active: true,
+    tenant_id:             tenantId,
+    name,
+    ncism_code:            ncism || null,
+    description:           desc || null,
+    is_active:             true,
+    is_specialty_clinic:   isSpecialty,
+    parent_department_id:  isSpecialty ? parentDept : null,
+    specialty_proforma_key: isSpecialty && proformaKey ? proformaKey : null,
   });
 
   btn.disabled = false; btn.textContent = 'Save OPD';
 
   if (error) { _alert('error', 'Failed to create OPD: ' + error.message); return; }
 
-  document.getElementById('new-opd-name').value = '';
-  document.getElementById('new-opd-ncism').value = '';
-  document.getElementById('new-opd-desc').value = '';
-  newOpdForm.classList.remove('open');
-  document.getElementById('btn-new-opd').textContent = '+ New OPD';
+  _resetOpdForm();
   _alert('success', `OPD "${name}" created.`);
   await loadOpds();
 });
+
+function _resetOpdForm() {
+  document.getElementById('new-opd-name').value         = '';
+  document.getElementById('new-opd-ncism').value        = '';
+  document.getElementById('new-opd-desc').value         = '';
+  document.getElementById('new-opd-specialty').checked  = false;
+  document.getElementById('new-opd-parent-dept').value  = '';
+  document.getElementById('new-opd-proforma-key').value = '';
+  document.getElementById('specialty-fields').style.display = 'none';
+  newOpdForm.classList.remove('open');
+  document.getElementById('btn-new-opd').textContent = '+ New OPD';
+}
 
 // ── Seed NCISM OPDs ────────────────────────────────
 document.getElementById('btn-seed-ncism').addEventListener('click', async () => {
@@ -633,6 +774,32 @@ document.getElementById('btn-clear-all').addEventListener('click', async () => {
 
 // ── Add doctor to OPD ─────────────────────────────
 async function addDoctor(doctorId) {
+  // NCISM §7 — dedicated consultant enforcement: block rotation between paired OPDs
+  const currentCode = _selectedOpd?.ncism_code;
+  if (currentCode) {
+    for (const pair of DEDICATED_CONSULTANT_PAIRS) {
+      if (!pair.codes.includes(currentCode)) continue;
+      const partnerCodes = pair.codes.filter(c => c !== currentCode);
+      const { data: partnerOpds } = await supabase
+        .from('opds')
+        .select('id, name')
+        .eq('tenant_id', tenantId)
+        .in('ncism_code', partnerCodes);
+      if (!partnerOpds?.length) continue;
+      const { data: conflict } = await supabase
+        .from('opd_doctors')
+        .select('opd_id')
+        .eq('doctor_id', doctorId)
+        .eq('tenant_id', tenantId)
+        .in('opd_id', partnerOpds.map(o => o.id));
+      if (conflict?.length) {
+        const conflictOpd = partnerOpds.find(o => o.id === conflict[0].opd_id);
+        _alert('error', `NCISM §7 mandates dedicated consultants for ${pair.label} OPDs. This doctor is already assigned to "${conflictOpd?.name || 'the paired OPD'}". Please assign a different consultant.`);
+        return;
+      }
+    }
+  }
+
   const { error } = await supabase
     .from('opd_doctors')
     .insert({ opd_id: _selectedOpd.id, doctor_id: doctorId, tenant_id: tenantId, is_active_today: true });
@@ -666,7 +833,7 @@ function _alert(type, msg) {
 
 // ── Boot ──────────────────────────────────────────
 _populateNcismSelect();
-await Promise.all([loadOpds(), loadAllDoctors()]);
+await Promise.all([loadOpds(), loadAllDoctors(), loadDepartments()]);
 </script>
 </body>
 </html>

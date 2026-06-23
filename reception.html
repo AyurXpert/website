@@ -454,6 +454,75 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .q-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
 .q-time{font-size:11px;color:var(--text-muted)}
 .q-wait{font-size:10px;color:var(--text-muted);white-space:nowrap}
+.q-edit-btn{
+  background:none;border:1px solid var(--border);border-radius:6px;
+  color:var(--text-muted);font-size:13px;padding:2px 6px;cursor:pointer;
+  line-height:1;transition:background .15s,color .15s;margin-top:2px
+}
+.q-edit-btn:hover{background:var(--green-light);color:var(--green-deep);border-color:var(--green-mid)}
+
+/* ── Stale Visits Banner ─────────────────────────── */
+#stale-banner{
+  display:none;margin:0 0 10px;padding:10px 14px;
+  background:#fff8e1;border:1.5px solid #f59e0b;border-radius:10px;
+  font-size:13px;color:#78350f;gap:10px;align-items:center
+}
+#stale-banner.show{display:flex}
+#stale-banner strong{flex:1}
+#btn-eod{padding:6px 14px;background:#f59e0b;color:#fff;border:none;border-radius:7px;
+  font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+#btn-eod:hover{background:#d97706}
+
+/* ── End-of-Day Modal ────────────────────────────── */
+#eod-modal{position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.55);
+  display:none;align-items:flex-end;justify-content:center}
+#eod-modal.open{display:flex}
+.eod-panel{background:var(--white);border-radius:16px 16px 0 0;width:100%;
+  max-width:580px;padding:20px 20px 30px;max-height:80vh;overflow-y:auto}
+.eod-title{font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:700;
+  color:var(--green-deep);margin-bottom:4px}
+.eod-sub{font-size:12px;color:#888;margin-bottom:14px}
+.eod-reason-row{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.eod-reason-row label{font-size:12px;font-weight:600;color:#444;white-space:nowrap}
+.eod-reason-row select,.eod-reason-row input{flex:1;min-width:0;
+  padding:7px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px}
+.eod-visit-list{border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:16px}
+.eod-visit-row{display:flex;align-items:center;gap:10px;padding:9px 12px;
+  font-size:13px;border-bottom:1px solid #f3f4f6}
+.eod-visit-row:last-child{border-bottom:none}
+.eod-visit-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--green-deep);flex-shrink:0}
+.eod-visit-name{font-weight:600;color:var(--green-deep);flex:1}
+.eod-visit-meta{font-size:11px;color:#888}
+.eod-visit-date{font-size:11px;color:#c0392b;font-weight:600;white-space:nowrap}
+.eod-footer{display:flex;gap:10px;justify-content:flex-end}
+
+/* ── Queue Edit Modal ────────────────────────────── */
+#queue-edit-modal{
+  position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,.5);
+  display:none;align-items:flex-end;justify-content:center;padding-bottom:0
+}
+#queue-edit-modal.open{display:flex}
+.qe-panel{
+  background:var(--white);border-radius:16px 16px 0 0;width:100%;max-width:540px;
+  padding:20px 20px 28px;box-shadow:0 -4px 24px rgba(0,0,0,.15)
+}
+.qe-title{font-size:15px;font-weight:600;color:var(--green-deep);margin-bottom:14px;
+  display:flex;align-items:center;justify-content:space-between}
+.qe-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);padding:0 2px}
+.qe-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.qe-field{display:flex;flex-direction:column;gap:4px}
+.qe-field label{font-size:12px;color:var(--text-muted);font-weight:500}
+.qe-field select,.qe-field input{
+  border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;
+  font-family:inherit;outline:none;width:100%;box-sizing:border-box
+}
+.qe-field select:focus,.qe-field input:focus{border-color:var(--green-mid)}
+.qe-actions{display:flex;gap:10px;margin-top:14px}
+.qe-save{flex:1;background:var(--green-deep);color:var(--white);border:none;
+  border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer}
+.qe-save:hover{background:var(--green-mid)}
+.qe-cancel{padding:11px 18px;border:1px solid var(--border);border-radius:10px;
+  background:none;font-size:14px;cursor:pointer;color:var(--text-muted)}
 
 .refresh-foot{display:flex;align-items:center;gap:6px;padding:9px 24px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted)}
 .live-dot{width:6px;height:6px;border-radius:50%;background:var(--green-mid);animation:pulse 2s ease-in-out infinite}
@@ -1228,6 +1297,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
   <!-- ── Today's Queue / Appointments ─────────────── -->
   <div class="panel" style="display:flex;flex-direction:column">
+
+    <!-- Stale Visits Banner — inside queue panel so it doesn't break the grid -->
+    <div id="stale-banner">
+      <strong id="stale-banner-text">⚠ Visits from previous day(s) are still active.</strong>
+      <button id="btn-eod" type="button">Close Day ▸</button>
+    </div>
+
     <div class="queue-hdr">
       <div>
         <div class="panel-title">Today</div>
@@ -1251,6 +1327,69 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     </div>
   </div>
 
+</div>
+
+<!-- ── Queue Edit Modal ── -->
+<div id="queue-edit-modal" role="dialog" aria-modal="true" aria-labelledby="qe-title">
+  <div class="qe-panel">
+    <div class="qe-title">
+      <span id="qe-title">Edit Queue Entry</span>
+      <button class="qe-close" id="qe-close-btn" type="button">×</button>
+    </div>
+    <input type="hidden" id="qe-visit-id">
+    <div class="qe-row">
+      <div class="qe-field">
+        <label>Doctor</label>
+        <select id="qe-doctor"><option value="">— No preference —</option></select>
+      </div>
+      <div class="qe-field">
+        <label>Visit Type</label>
+        <select id="qe-category">
+          <option value="opd">OPD</option>
+          <option value="followup">Follow-up</option>
+          <option value="panchakarma">Panchakarma</option>
+          <option value="emergency">Emergency</option>
+          <option value="teleconsultation">Teleconsult</option>
+          <option value="camp">Camp</option>
+        </select>
+      </div>
+    </div>
+    <div class="qe-field" style="margin-bottom:0">
+      <label>Chief Complaint</label>
+      <input id="qe-complaint" type="text" placeholder="Chief complaint / reason for visit">
+    </div>
+    <div class="qe-actions">
+      <button class="qe-cancel" id="qe-cancel-btn" type="button">Cancel</button>
+      <button class="qe-save" id="qe-save-btn" type="button">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── End-of-Day Modal ── -->
+<div id="eod-modal" role="dialog" aria-modal="true" aria-labelledby="eod-title">
+  <div class="eod-panel">
+    <div class="eod-title" id="eod-title">⏹ Close Outstanding Visits</div>
+    <div class="eod-sub">These visits are still active from a previous day. Select a reason and mark them as incomplete to close the day.</div>
+    <div class="eod-reason-row">
+      <label>Reason (applies to all):</label>
+      <select id="eod-reason">
+        <option value="No-show — patient did not arrive">No-show — patient did not arrive</option>
+        <option value="Patient left without consultation">Patient left without consultation</option>
+        <option value="OPD closed — time constraint">OPD closed — time constraint</option>
+        <option value="Patient referred elsewhere">Patient referred elsewhere</option>
+        <option value="Doctor unavailable">Doctor unavailable</option>
+        <option value="Other">Other (specify below)</option>
+      </select>
+    </div>
+    <div id="eod-other-row" style="display:none;margin-bottom:14px">
+      <input type="text" id="eod-other-text" placeholder="Specify reason…" style="width:100%;padding:7px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:13px">
+    </div>
+    <div class="eod-visit-list" id="eod-visit-list"></div>
+    <div class="eod-footer">
+      <button type="button" class="btn" id="btn-eod-cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="btn-eod-submit">Mark Selected as Incomplete</button>
+    </div>
+  </div>
 </div>
 
 <!-- ── Consent Modal (ABDM NHA Consent Language) ── -->
@@ -1296,8 +1435,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <span class="c-text">I, <strong id="cc7-patient">the patient</strong>, have been explained about the consent as stated above and hereby provide my consent for the aforementioned purposes.</span>
       </label>
     </div>
-    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;line-height:1.4">
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;line-height:1.4">
       ⚠ Note: Aadhaar number entered above is transmitted directly to UIDAI for authentication and is <strong>not stored</strong> by AyurXpert at any point.
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;line-height:1.4">
+      ℹ You may revoke this consent and unlink your health records at any time via your <strong>ABHA app</strong> under My Records → Linked Facilities.
     </div>
     <div class="consent-actions">
       <button class="btn-consent-cancel" id="btn-consent-cancel" type="button">Cancel</button>
@@ -1432,7 +1574,9 @@ function _checkDemographicMatch(abhaProf) {
   const gSt = (!abhaG || !patG) ? 'unknown' : (abhaG === patG ? 'pass' : 'fail');
 
   // Age (±2 years)
-  const abhaAge = _ageYears(_parseDobStr(abhaProf?.dob ?? abhaProf?.dateOfBirth ?? abhaProf?.yearOfBirth));
+  const _abhadobCombined = (abhaProf?.dayOfBirth && abhaProf?.monthOfBirth && abhaProf?.yearOfBirth)
+    ? `${abhaProf.dayOfBirth}-${abhaProf.monthOfBirth}-${abhaProf.yearOfBirth}` : null;
+  const abhaAge = _ageYears(_parseDobStr(_abhadobCombined ?? abhaProf?.dob ?? abhaProf?.dateOfBirth ?? abhaProf?.yearOfBirth));
   const patAge  = _ageYears(_parseDobStr(_patient.date_of_birth)) ?? (_patient.age != null ? Number(_patient.age) : null);
   const aSt = (abhaAge === null || patAge === null) ? 'unknown'
     : (Math.abs(abhaAge - patAge) <= 2 ? 'pass' : 'fail');
@@ -1830,11 +1974,17 @@ async function _selectPatient(patient) {
   // NABH — Load patient allergies
   _loadReceptionAllergies(patient.id);
 
-  const [{ count }, { data: lastVisitRows }, { data: pendingBills }] = await Promise.all([
+  const [r1, r2, r3] = await Promise.all([
     supabase.from('visits').select('id', { count: 'exact', head: true }).eq('patient_id', patient.id),
     supabase.from('visits').select('created_at').eq('patient_id', patient.id).order('created_at', { ascending: false }).limit(1),
     supabase.from('bills').select('final_amount').eq('patient_id', patient.id).eq('tenant_id', tenantId).eq('status', 'pending')
   ]);
+  if (r1.error) console.error('[selectPatient] visits count error:', r1.error);
+  if (r2.error) console.error('[selectPatient] last visit error:', r2.error);
+  if (r3.error) console.error('[selectPatient] bills error:', r3.error);
+  const count = r1.count;
+  const lastVisitRows = r2.data;
+  const pendingBills  = r3.data;
 
   const lastVisit = lastVisitRows?.[0]?.created_at
     ? new Date(lastVisitRows[0].created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -2034,12 +2184,34 @@ async function handleSubmit() {
         // Receptionist explicitly chose "new family member" — always create fresh
         patient = await createPatient(name, phone, tenantId, abha, demographics);
       } else {
-        const { data: found } = await supabase
-          .from('patients').select('id, name, age, gender, date_of_birth, blood_group')
-          .eq('phone', phone).eq('tenant_id', tenantId).limit(1);
-        patient = (found && found.length > 0)
-          ? found[0]
-          : await createPatient(name, phone, tenantId, abha, demographics);
+        // ABHA-first: scan/verify flows provide an ABHA number — use it as primary key
+        let found = null;
+        if (abha) {
+          const abhaHyph = abha.length === 14
+            ? abha.replace(/^(\d{2})(\d{4})(\d{4})(\d{4})$/, '$1-$2-$3-$4')
+            : abha;
+          const { data: byAbha } = await supabase
+            .from('patients')
+            .select('id, name, age, gender, date_of_birth, blood_group, abha_number')
+            .eq('tenant_id', tenantId)
+            .or(`abha_number.eq.${abha},abha_number.eq.${abhaHyph}`)
+            .limit(1);
+          found = byAbha?.[0] ?? null;
+        }
+        if (!found && phone) {
+          const { data: byPhone } = await supabase
+            .from('patients')
+            .select('id, name, age, gender, date_of_birth, blood_group, abha_number')
+            .eq('phone', phone).eq('tenant_id', tenantId).limit(1);
+          const candidate = byPhone?.[0] ?? null;
+          if (candidate) {
+            // Skip phone match if it belongs to a different patient (ABHA conflict)
+            const stored   = String(candidate.abha_number ?? '').replace(/\D/g, '');
+            const incoming = abha ?? '';
+            found = (!incoming || !stored || stored === incoming) ? candidate : null;
+          }
+        }
+        patient = found ?? await createPatient(name, phone, tenantId, abha, demographics);
       }
 
       // Backfill demographics on existing patient if fields were blank
@@ -2054,14 +2226,17 @@ async function handleSubmit() {
       }
     }
 
-    // 2. Duplicate check
+    // 2. Duplicate check — today only (yesterday's incomplete visits must not block)
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
     const { data: existing } = await supabase
       .from('visits').select('id, token_number')
       .eq('patient_id', patient.id)
-      .in('status', ['waiting', 'in_progress']).limit(1);
+      .in('status', ['waiting', 'in_progress'])
+      .gte('created_at', todayStart.toISOString())
+      .limit(1);
 
     if (existing && existing.length > 0) {
-      _alert('error', `${patient.name} is already in today's queue (Token #${existing[0].token_number}).`);
+      _alert('error', `${patient.name} is already in today's queue (Token #${existing[0].token_number}). Use the ✎ button on their queue card to edit doctor / complaint.`);
       _loading(btn, false);
       return;
     }
@@ -2071,8 +2246,7 @@ async function handleSubmit() {
       await supabase.from('patients').update({ abha_number: abha }).eq('id', patient.id);
     }
 
-    // 4. Next token (resets daily)
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    // 4. Next token (resets daily) — reuse todayStart from duplicate check above
     const { data: lastToken } = await supabase
       .from('visits').select('token_number')
       .eq('tenant_id', tenantId)
@@ -2184,6 +2358,15 @@ async function handleSubmit() {
       ? ` · ₹${total.toLocaleString('en-IN')} received via ${payMode}`
       : ` · Payment pending`;
     _currentVisitId = visit.id;  // track for ABDM link token if ABHA verified later
+
+    // ABDM M2: care context — Scenario 1 (has ABHA) or Scenario 2 (no ABHA → SMS)
+    const _abhaForCC = abha || patient.abha_number || null;
+    if (_abhaForCC) {
+      _abdmLinkTokenAfterVerify(patient.id, _abhaForCC, visit.id).catch(() => {});
+    } else if (patient.phone) {
+      _abdmSmsNotifyNoAbha(patient.id, patient.phone, patient.name, visit.id).catch(() => {});
+    }
+
     _alert('success', `Token #${nextToken} — ${patient.name} added to queue${payMsg}.`);
     _resetForm();
     loadQueue();
@@ -2355,10 +2538,89 @@ async function loadQueue() {
       <div class="q-right">
         <span class="q-time">${t}</span>
         <span class="q-wait">${wait}</span>
+        <button class="q-edit-btn" data-visit-id="${v.id}" data-doctor-id="${v.doctor_id || ''}" data-complaint="${(v.chief_complaint || '').replace(/"/g,'&quot;')}" data-category="${v.visit_category || 'opd'}" title="Edit this queue entry" type="button">✎</button>
       </div>
     </div>`;
   }).join('');
+
+  // Attach edit button listeners
+  list.querySelectorAll('.q-edit-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      _openQueueEdit(btn.dataset.visitId, btn.dataset.doctorId, btn.dataset.complaint, btn.dataset.category);
+    });
+  });
 }
+
+// ── Queue Edit ────────────────────────────────────
+async function _openQueueEdit(visitId, doctorId, complaint, category) {
+  document.getElementById('qe-visit-id').value   = visitId;
+  document.getElementById('qe-complaint').value  = complaint || '';
+  document.getElementById('qe-category').value   = category  || 'opd';
+
+  // Load all active doctors for this tenant
+  const sel = document.getElementById('qe-doctor');
+  sel.innerHTML = '<option value="">— No preference —</option>';
+  const { data: docs } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .eq('tenant_id', tenantId)
+    .eq('role', 'doctor')
+    .eq('status', 'active')
+    .order('full_name');
+  (docs || []).forEach(d => {
+    const o = document.createElement('option');
+    o.value = d.id;
+    o.textContent = d.full_name || 'Doctor';
+    if (d.id === doctorId) o.selected = true;
+    sel.appendChild(o);
+  });
+
+  document.getElementById('queue-edit-modal').classList.add('open');
+}
+
+function _closeQueueEdit() {
+  document.getElementById('queue-edit-modal').classList.remove('open');
+}
+
+async function _saveQueueEdit() {
+  const visitId   = document.getElementById('qe-visit-id').value;
+  const doctorId  = document.getElementById('qe-doctor').value   || null;
+  const complaint = document.getElementById('qe-complaint').value.trim();
+  const category  = document.getElementById('qe-category').value;
+  const btn       = document.getElementById('qe-save-btn');
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  const { error } = await supabase.from('visits').update({
+    doctor_id:      doctorId,
+    chief_complaint: complaint || null,
+    visit_category: category,
+  }).eq('id', visitId);
+
+  btn.disabled = false;
+  btn.textContent = 'Save Changes';
+
+  if (error) { _alert('error', 'Save failed: ' + error.message); return; }
+
+  // Update _doctorMap in case new doctor not yet loaded
+  if (doctorId && !_doctorMap[doctorId]) {
+    const sel = document.getElementById('qe-doctor');
+    _doctorMap[doctorId] = sel.options[sel.selectedIndex]?.textContent || 'Doctor';
+  }
+
+  _closeQueueEdit();
+  _alert('success', 'Queue entry updated.');
+  loadQueue();
+}
+
+document.getElementById('qe-close-btn').addEventListener('click', _closeQueueEdit);
+document.getElementById('qe-cancel-btn').addEventListener('click', _closeQueueEdit);
+document.getElementById('qe-save-btn').addEventListener('click', _saveQueueEdit);
+document.getElementById('queue-edit-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('queue-edit-modal')) _closeQueueEdit();
+});
 
 // ── Helpers ───────────────────────────────────────
 function _resetForm() {
@@ -2418,7 +2680,9 @@ function _clearAbhaNote() {
 
 function _showAbhaProfile(prof, abhaNumber, tToken) {
   const name   = [prof?.firstName, prof?.middleName, prof?.lastName].filter(Boolean).join(' ') || prof?.name || '';
-  const dob    = _formatDob(prof?.dob ?? prof?.dateOfBirth ?? prof?.yearOfBirth);
+  const _dobCombined = (prof?.dayOfBirth && prof?.monthOfBirth && prof?.yearOfBirth)
+    ? `${prof.dayOfBirth}-${prof.monthOfBirth}-${prof.yearOfBirth}` : null;
+  const dob    = _formatDob(_dobCombined ?? prof?.dob ?? prof?.dateOfBirth ?? prof?.yearOfBirth);
   const gender = { M: 'Male', F: 'Female', O: 'Other' }[prof?.gender] ?? (prof?.gender || '—');
   const addr   = prof?.preferredAbhaAddress ?? prof?.phrAddress?.[0] ?? prof?.abhaAddress ?? prof?.healthId ?? '—';
   const mobile = prof?.mobile ?? prof?.mobileNumber ?? prof?.phoneNumber ?? prof?.ABHAProfile?.mobile ?? '';
@@ -3057,9 +3321,13 @@ document.getElementById('btn-set-abha-addr').addEventListener('click', async () 
   btn.disabled = true; btn.textContent = 'Setting…';
 
   try {
-    await setAbhaAddress(_lastEnrollTxnId, chosen);
-    document.getElementById('abha-prof-address').textContent = chosen;
-    _setEnrollMsg('success', `✓ ABHA Address set: ${chosen}`);
+    const addrResult = await setAbhaAddress(_lastEnrollTxnId, chosen);
+    const savedAddr = addrResult?.preferredAbhaAddress ?? (chosen + '@sbx');
+    document.getElementById('abha-prof-address').textContent = savedAddr;
+    _setEnrollMsg('success', `✓ ABHA Address set: ${savedAddr}`);
+    if (_patient?.id) {
+      await supabase.from('patients').update({ abha_address: savedAddr }).eq('id', _patient.id);
+    }
     setTimeout(() => {
       enrollPanel.style.display = 'none';
       btnEnroll.textContent = '+ Enroll';
@@ -3577,36 +3845,68 @@ document.getElementById('btn-addr-verify-otp').addEventListener('click', async (
   btn.disabled = false; btn.textContent = 'Verify & Get Profile';
 });
 
-// ── M2: generate link token after ABHA verification ──────────
+// ── M2: ABDM care context helpers ────────────────────────────
 const ABDM_HIP_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-hip';
+const _abdmLinkedVisits = new Set(); // dedup — one notification per visit
+
+// Scenario 1: patient has ABHA — HIP initiated linking
 async function _abdmLinkTokenAfterVerify(patientId, abhaNumber, visitId) {
+  if (!visitId || _abdmLinkedVisits.has(visitId)) return;
+  _abdmLinkedVisits.add(visitId);
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
+    const h = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
     const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     const careContextRef = `VISIT-${visitId}`;
-    // Ensure care context exists in DB
     await fetch(ABDM_HIP_FN, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      method: 'POST', headers: h,
       body: JSON.stringify({
         action: 'create_care_context', patient_id: patientId, visit_id: visitId,
-        care_context_ref: careContextRef, display: `OPD Visit — ${dateStr}`,
-        hi_types: ['OPConsultation'], abha_number: abhaNumber,
+        care_context_ref: careContextRef, display: `OPD Visit - ${dateStr}`,
+        hi_types: ['OPConsultation', 'Prescription', 'DiagnosticReport'], abha_number: abhaNumber,
       }),
     });
-    // Generate link token — patient gets ABHA app notification to approve linking
     const ltRes = await fetch(ABDM_HIP_FN, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      method: 'POST', headers: h,
       body: JSON.stringify({
         action: 'generate_link_token', patient_id: patientId, abha_number: abhaNumber,
         visit_id: visitId,
-        care_contexts: [{ referenceNumber: careContextRef, display: `OPD Visit — ${dateStr}`, hiType: 'OPConsultation' }],
+        care_contexts: [{ referenceNumber: careContextRef, display: `OPD Visit - ${dateStr}`, hiType: 'OPConsultation' }],
       }),
     });
     if (ltRes.ok) _alert('info', 'Health record link notification sent to patient\'s ABHA app.');
   } catch (e) { console.warn('ABDM link token (reception):', e?.message); }
+}
+
+// Scenario 2: no ABHA — send SMS deep-link for patient-initiated discovery.
+// V3 spec: sms/notify2 only needs { notification: { hip, phoneNo } }.
+// ABDM sends SMS; PHR app guides patient to create ABHA + discover records.
+async function _abdmSmsNotifyNoAbha(patientId, phone, patientName, visitId) {
+  if (!visitId || !phone) return;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+    const h = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
+    const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const ccRef   = `VISIT-${visitId}`;
+
+    // Step 1: store care context in DB so it's ready when patient discovers via PHR app
+    await fetch(ABDM_HIP_FN, {
+      method: 'POST', headers: h,
+      body: JSON.stringify({
+        action: 'create_care_context', patient_id: patientId, visit_id: visitId,
+        care_context_ref: ccRef, display: `OPD Visit - ${dateStr}`,
+        hi_types: ['OPConsultation', 'Prescription', 'DiagnosticReport'],
+      }),
+    });
+
+    // Step 2: send SMS via ABDM — only phone + hip needed per V3 spec
+    await fetch(ABDM_HIP_FN, {
+      method: 'POST', headers: h,
+      body: JSON.stringify({ action: 'sms_notify', phone }),
+    });
+  } catch (e) { console.warn('ABDM SMS notify (reception):', e?.message); }
 }
 
 // ── Helper: format ABHA number ────────────────────
@@ -3650,15 +3950,15 @@ async function _startScanSession(counterId) {
   const requestId = counterId || 'OPD1';
   const expiry    = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-  // Delete stale session for this counter, then insert fresh — ensures clean state
-  await supabase.from('abdm_scan_sessions').delete().eq('request_id', requestId);
-  await supabase.from('abdm_scan_sessions').insert({
-    tenant_id:  tenantId,
-    request_id: requestId,
-    hip_id:     hipId,
-    status:     'pending',
-    expires_at: expiry,
-  });
+  // Upsert — handles both first-time create and refresh of stale session
+  await supabase.from('abdm_scan_sessions').upsert({
+    tenant_id:       tenantId,
+    request_id:      requestId,
+    hip_id:          hipId,
+    status:          'pending',
+    expires_at:      expiry,
+    patient_profile: null,
+  }, { onConflict: 'request_id' });
 
   _scanRequestId = requestId;
 
@@ -3763,6 +4063,92 @@ function _closeScanPanel() {
     _scanSubscription = null;
   }
   _scanRequestId = null;
+}
+
+// ── End-of-Day: stale visit check + close-out ──────
+let _staleVisits = [];
+
+document.getElementById('btn-eod').addEventListener('click', _openEodModal);
+
+async function _checkStaleVisits() {
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const { data } = await supabase
+    .from('visits')
+    .select('id, token_number, created_at, chief_complaint, doctor_id, patients(name)')
+    .eq('tenant_id', tenantId)
+    .in('status', ['waiting', 'in_progress'])
+    .lt('created_at', todayStart.toISOString())
+    .order('created_at', { ascending: true });
+
+  _staleVisits = data || [];
+  const banner = document.getElementById('stale-banner');
+  if (_staleVisits.length === 0) { banner.classList.remove('show'); return; }
+
+  const n = _staleVisits.length;
+  document.getElementById('stale-banner-text').textContent =
+    `⚠ ${n} visit${n > 1 ? 's' : ''} from previous day${n > 1 ? 's' : ''} still active in queue — please close out.`;
+  banner.classList.add('show');
+}
+
+function _openEodModal() {
+  if (!_staleVisits.length) return;
+  const list = document.getElementById('eod-visit-list');
+  list.innerHTML = _staleVisits.map(v => {
+    const patName = v.patients?.name || '—';
+    const doc     = _doctorMap?.[v.doctor_id] || '—';
+    const dt      = new Date(v.created_at);
+    const dateStr = dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const timeStr = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    return `<div class="eod-visit-row">
+      <input type="checkbox" class="eod-chk" value="${v.id}" checked>
+      <div style="flex:1">
+        <div class="eod-visit-name">Token #${v.token_number || '—'} — ${patName}</div>
+        <div class="eod-visit-meta">${doc} · ${v.chief_complaint || '—'}</div>
+      </div>
+      <div class="eod-visit-date">${dateStr} ${timeStr}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('eod-modal').classList.add('open');
+  document.getElementById('eod-reason').addEventListener('change', function() {
+    document.getElementById('eod-other-row').style.display = this.value === 'Other' ? '' : 'none';
+  }, { once: false });
+}
+
+function _closeEodModal() {
+  document.getElementById('eod-modal').classList.remove('open');
+}
+document.getElementById('btn-eod-cancel').addEventListener('click', _closeEodModal);
+document.getElementById('btn-eod-submit').addEventListener('click', _submitEod);
+
+async function _submitEod() {
+  const reasonSel = document.getElementById('eod-reason').value;
+  const reasonText = reasonSel === 'Other'
+    ? (document.getElementById('eod-other-text').value.trim() || 'Other')
+    : reasonSel;
+  if (!reasonText) { alert('Please enter a reason.'); return; }
+
+  const selected = [...document.querySelectorAll('.eod-chk:checked')].map(c => c.value);
+  if (!selected.length) { alert('Select at least one visit to close.'); return; }
+
+  const btn = document.getElementById('btn-eod-submit');
+  btn.disabled = true; btn.textContent = 'Closing…';
+
+  const now = new Date().toISOString();
+  const { error } = await supabase.from('visits')
+    .update({ status: 'incomplete', incomplete_reason: reasonText, incomplete_at: now })
+    .in('id', selected);
+
+  btn.disabled = false; btn.textContent = 'Mark Selected as Incomplete';
+
+  if (error) { alert('Error: ' + error.message); return; }
+
+  _closeEodModal();
+  _staleVisits = _staleVisits.filter(v => !selected.includes(v.id));
+  if (_staleVisits.length === 0) document.getElementById('stale-banner').classList.remove('show');
+  else document.getElementById('stale-banner-text').textContent =
+    `⚠ ${_staleVisits.length} visit(s) from previous day(s) still active — please close out.`;
+
+  await loadQueue();
 }
 
 // ── Walk-in / Appointment mode ─────────────────────
@@ -3960,8 +4346,10 @@ await loadOPDs();
 await loadDoctors('');
 await loadQueue();
 await loadTodaysAppointments();
+await _checkStaleVisits();
 setInterval(loadQueue, 30_000);
 setInterval(loadTodaysAppointments, 30_000);
+setInterval(_checkStaleVisits, 5 * 60_000);
 
 // ── NABH Allergy System (Reception) ──────────────────────────
 let _receptionPatientId = null;

@@ -75,6 +75,30 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .stat-card.warn .stat-value{color:var(--gold)}
 .stat-card.ok .stat-value{color:var(--green-mid)}
 
+/* ── Faculty section ── */
+.faculty-section{margin-top:28px}
+.faculty-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.faculty-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-mid)}
+.faculty-note{border-radius:var(--radius);padding:10px 14px;font-size:12px;margin-bottom:12px;line-height:1.6}
+.faculty-note.amber{background:#fffbeb;border:1.5px solid #fcd34d;color:#78350f}
+.faculty-note.blue{background:#eff6ff;border:1.5px solid #bfdbfe;color:#1e3a8a}
+.ft{width:100%;border-collapse:collapse;font-size:12px}
+.ft th{background:var(--green-deep);color:#fff;padding:7px 10px;text-align:left;font-weight:600;white-space:nowrap}
+.ft td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+.ft tr:last-child td{border-bottom:none}
+.ft tr:hover td{background:var(--cream)}
+.ft .center{text-align:center}
+.ft .ok{color:#166534;font-weight:700}
+.ft .warn{color:#92400e;font-weight:700}
+.ft .danger{color:#991b1b;font-weight:700}
+.fstat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.fstat{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.fstat-val{font-size:26px;font-weight:700;color:var(--green-deep);line-height:1}
+.fstat.warn .fstat-val{color:#92400e}
+.fstat.danger .fstat-val{color:#991b1b}
+.fstat.ok .fstat-val{color:#166534}
+.fstat-lbl{font-size:11px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.4px}
+
 /* ── Violations panel ── */
 .violations-panel{margin-bottom:20px}
 .violations-header{
@@ -215,13 +239,18 @@ table.ct{width:100%;border-collapse:collapse;background:var(--white);font-size:1
   <div class="stats-row">
     <div class="stat-card" id="sc-opd">
       <div class="stat-value" id="sc-opd-val">—</div>
-      <div class="stat-label">OPD Compliance</div>
+      <div class="stat-label">OPD Compliance <span style="font-size:10px;font-weight:400">(clinical only)</span></div>
       <div class="stat-sub" id="sc-opd-sub">—</div>
     </div>
     <div class="stat-card" id="sc-ipd">
       <div class="stat-value" id="sc-ipd-val">—</div>
-      <div class="stat-label">IPD Occupancy</div>
+      <div class="stat-label">IPD Occupancy <span style="font-size:10px;font-weight:400">(excl. ICU)</span></div>
       <div class="stat-sub" id="sc-ipd-sub">—</div>
+    </div>
+    <div class="stat-card" id="sc-icu">
+      <div class="stat-value" id="sc-icu-val">—</div>
+      <div class="stat-label">ICU Beds <span style="font-size:10px;font-weight:400">(separate census)</span></div>
+      <div class="stat-sub" id="sc-icu-sub">Separate from ward census</div>
     </div>
     <div class="stat-card" id="sc-beds">
       <div class="stat-value" id="sc-beds-val">—</div>
@@ -233,6 +262,13 @@ table.ct{width:100%;border-collapse:collapse;background:var(--white);font-size:1
       <div class="stat-label">Active Violations</div>
       <div class="stat-sub" id="sc-alerts-sub">—</div>
     </div>
+  </div>
+
+  <!-- §21g — Nurse-to-Bed Ratio Panel -->
+  <div id="nurse-ratio-panel" style="display:none;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:16px">
+    <div style="font-weight:600;font-size:13px;color:var(--green-deep);margin-bottom:8px">Nurse-to-Bed Ratio — NCISM Schedule XX</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Required: 1 Nurse per 10 beds (medical + surgical IPD) · 1 Ayah per 20 beds. Active nurses counted from profiles.</div>
+    <div id="nurse-ratio-body" style="font-size:13px;color:var(--text-mid)">Loading…</div>
   </div>
 
   <!-- Violations -->
@@ -273,6 +309,78 @@ table.ct{width:100%;border-collapse:collapse;background:var(--white);font-size:1
     </table>
   </div>
 
+  <!-- Faculty compliance — NCISM Schedule I -->
+  <div class="faculty-section" id="faculty-section" style="display:none">
+    <div class="faculty-hdr">
+      <div class="faculty-title">Faculty Strength — NCISM Schedule I</div>
+      <span style="font-size:11px;color:var(--text-muted)" id="faculty-intake-label"></span>
+    </div>
+
+    <div class="fstat-row" id="faculty-stats"></div>
+
+    <div class="faculty-note amber">
+      &#9888; Numbers based on NCISM Schedule I (approximate). Verify exact figures from official NCISM gazette.
+      Full per-department auto-tracking requires two SQL migrations — see note below the table.
+    </div>
+
+    <div class="table-wrap">
+      <table class="ft">
+        <thead>
+          <tr>
+            <th>Department</th>
+            <th class="center">Type</th>
+            <th class="center">Professor<br><span style="font-size:9px;opacity:.7">Required</span></th>
+            <th class="center">Assoc. Prof<br><span style="font-size:9px;opacity:.7">Required</span></th>
+            <th class="center">Asst. Prof<br><span style="font-size:9px;opacity:.7">Required</span></th>
+            <th class="center">Min Total<br><span style="font-size:9px;opacity:.7">Required</span></th>
+            <th class="center">On Record<br><span style="font-size:9px;opacity:.7">profiles</span></th>
+            <th class="center">Status</th>
+          </tr>
+        </thead>
+        <tbody id="faculty-tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="faculty-note blue" style="margin-top:12px">
+      <strong>To enable per-department auto-tracking, run in Supabase SQL Editor:</strong><br>
+      <code style="font-size:11px;display:block;margin-top:6px;white-space:pre-wrap">ALTER TABLE profiles ADD COLUMN IF NOT EXISTS department_id uuid REFERENCES departments(id);
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS designation text
+  CHECK (designation IN ('professor','associate_professor','assistant_professor','senior_resident','junior_resident','demonstrator','tutor'));
+COMMENT ON COLUMN profiles.designation IS 'NCISM faculty designation — required for Schedule I compliance tracking';</code>
+    </div>
+  </div>
+
+  <!-- Staff requirements — NCISM Schedule XX -->
+  <div class="faculty-section" id="staff-section" style="display:none">
+    <div class="faculty-hdr">
+      <div class="faculty-title">Hospital Staff Requirements — NCISM Schedule XX</div>
+      <span style="font-size:11px;color:var(--text-muted)" id="staff-intake-label"></span>
+    </div>
+
+    <div class="fstat-row" id="staff-stats"></div>
+
+    <div class="faculty-note amber">
+      &#9888; Role counts are totals from the system — not zone-wise allocated. Verify actual zone postings physically.
+      Numbers for 100-intake are interpolated. Partial-time roles (Anaesthesiologist, Pathologist, Radiologist) are not shown.
+    </div>
+
+    <div class="table-wrap">
+      <table class="ft">
+        <thead>
+          <tr>
+            <th>Zone</th>
+            <th>Designation</th>
+            <th class="center">Required<br><span style="font-size:9px;opacity:.7">(your intake)</span></th>
+            <th class="center">System Role</th>
+            <th class="center">On Record</th>
+            <th class="center">Status</th>
+          </tr>
+        </thead>
+        <tbody id="staff-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
 </div><!-- page-wrap -->
 
 <script type="module">
@@ -286,10 +394,11 @@ const tenantId = getCurrentTenantId();
 const role     = getCurrentRole();
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let _period    = 'monthly';
-let _refDate   = new Date().toISOString().slice(0,10);
-let _cfg       = { ugIntake: 60, students: 0, opdTarget: 120, workdays: 6 };
-let _showNonPg = false;
+let _period      = 'monthly';
+let _refDate     = new Date().toISOString().slice(0,10);
+let _cfg         = { ugIntake: 60, students: 0, opdTarget: 120, workdays: 6 };
+let _showNonPg   = false;
+let _tenantType  = '';
 
 // NCISM Table-8 UG bed distribution ratios (by ncism_code)
 const UG_BED_RATIOS = { KAY:.20, PK:.25, SHAL:.20, SHAK:.10, KAU:.10, AGD:.05, PST:.10 };
@@ -333,7 +442,7 @@ function _fmtRange(from, to) {
 async function loadConfig() {
   const { data } = await supabase
     .from('tenants')
-    .select('ug_intake,pg_student_strength,opd_daily_target,working_days_per_week')
+    .select('ug_intake,pg_student_strength,opd_daily_target,working_days_per_week,type')
     .eq('id', tenantId)
     .single();
   if (data) {
@@ -341,6 +450,7 @@ async function loadConfig() {
     _cfg.students  = data.pg_student_strength   || 0;
     _cfg.opdTarget = data.opd_daily_target      || (_cfg.ugIntake * 2);
     _cfg.workdays  = data.working_days_per_week || 6;
+    _tenantType    = data.type || '';
   }
   document.getElementById('cfg-ug-intake').value  = _cfg.ugIntake;
   document.getElementById('cfg-opd-target').value = _cfg.opdTarget;
@@ -387,24 +497,32 @@ async function loadAll() {
     { daily:'Daily', weekly:'Weekly', monthly:'Monthly', quarterly:'Quarterly' }[_period]
     + ' compliance report · ' + _fmtRange(from, to);
 
-  const [deptRes, visitsRes, bedsRes, admRes] = await Promise.all([
+  const [deptRes, visitsRes, bedsRes, admRes, specOpdsRes] = await Promise.all([
     supabase.from('departments')
       .select('id,name,ncism_code,is_pg_dept,pg_seats_sanctioned,opd_id,is_active')
       .eq('tenant_id', tenantId)
       .order('is_pg_dept', { ascending: false })
       .order('name'),
     supabase.from('visits')
-      .select('id,opd_id,created_at')
+      .select('id,opd_id,created_at,is_teleconsultation,visit_category')
       .eq('tenant_id', tenantId)
       .gte('created_at', from + 'T00:00:00')
       .lte('created_at', to + 'T23:59:59'),
     supabase.from('beds')
-      .select('id,department_id,status,is_pg_allocated')
-      .eq('tenant_id', tenantId),
-    supabase.from('ipd_admissions')
-      .select('id,department_id,status')
+      .select('id,department_id,status,is_pg_allocated,bed_type')
       .eq('tenant_id', tenantId)
-      .eq('status','admitted'),
+      .neq('bed_type', 'observation'),   // NCISM: observation beds excluded from IPD census
+    // Fetch all admissions overlapping the period for Table-9 bed day formula
+    supabase.from('ipd_admissions')
+      .select('id,department_id,admitted_at,discharged_at')
+      .eq('tenant_id', tenantId)
+      .lte('admitted_at', to + 'T23:59:59')
+      .or(`discharged_at.is.null,discharged_at.gte.${from}T00:00:00`),
+    // §18ak — specialty clinic OPDs (visits attributed to parent dept)
+    supabase.from('opds')
+      .select('id,parent_department_id')
+      .eq('tenant_id', tenantId)
+      .eq('is_specialty_clinic', true),
   ]);
 
   if (deptRes.error) { _alert('error','Failed: ' + deptRes.error.message); return; }
@@ -413,12 +531,30 @@ async function loadAll() {
   const visits     = visitsRes.data || [];
   const beds       = bedsRes.data || [];
 
-  // Build maps
+  // Build specialty OPD remap: specialty_opd_id → parent dept's opd_id
+  const specialtyRemap = {};
+  if (!specOpdsRes.error) {
+    (specOpdsRes.data || []).forEach(s => {
+      const pd = depts.find(d => d.id === s.parent_department_id);
+      if (pd?.opd_id) specialtyRemap[s.id] = pd.opd_id;
+    });
+  }
+
+  // Build maps — specialty OPD visits attributed to parent department's OPD
   const visitsByOpd = {};
-  visits.forEach(v => { visitsByOpd[v.opd_id] = (visitsByOpd[v.opd_id]||0) + 1; });
+  visits.forEach(v => {
+    const effId = specialtyRemap[v.opd_id] || v.opd_id;
+    visitsByOpd[effId] = (visitsByOpd[effId]||0) + 1;
+  });
+
+  // §21f — ICU beds tracked separately; excluded from general ward occupancy
+  const icuBeds = beds.filter(b => b.bed_type === 'icu');
+  window._icuBeds = icuBeds; // expose for renderStats
+  const icuOccupied = icuBeds.filter(b => b.status === 'occupied').length;
+  const regularBeds = beds.filter(b => b.bed_type !== 'icu');
 
   const bedsByDept = {};
-  beds.forEach(b => {
+  regularBeds.forEach(b => {
     if (!bedsByDept[b.department_id]) bedsByDept[b.department_id] = { total:0, pg:0, occupied:0, vacant:0 };
     const d = bedsByDept[b.department_id];
     d.total++;
@@ -427,10 +563,39 @@ async function loadAll() {
     if (b.status==='vacant')   d.vacant++;
   });
 
-  // Institution-level OPD (NCISM 1:2 ratio — total institution, not per-dept)
-  const totalActualOpd = visits.length;
+  // Table-9 bed day occupancy formula: (bed_days_occupied / (beds × days)) × 100
+  // Midnight rule: same-day admission+discharge = 0.5 bed day
+  const periodDays = Math.round((new Date(to+'T00:00:00') - new Date(from+'T00:00:00')) / 86400000) + 1;
+  const bedDaysByDept = {};
+  (admRes.data || []).forEach(a => {
+    const pStart = new Date(from + 'T00:00:00');
+    const pEnd   = new Date(to   + 'T23:59:59');
+    const aStart = new Date(a.admitted_at);
+    const aEnd   = a.discharged_at ? new Date(a.discharged_at) : pEnd;
+    const start  = aStart > pStart ? aStart : pStart;
+    const end    = aEnd   < pEnd   ? aEnd   : pEnd;
+    if (end <= start) return;
+    const admDate = a.admitted_at.slice(0,10);
+    const disDate = a.discharged_at?.slice(0,10);
+    const days    = (admDate === disDate && disDate) ? 0.5 : (end - start) / 86400000;
+    bedDaysByDept[a.department_id] = (bedDaysByDept[a.department_id] || 0) + days;
+  });
+
+  // §21d + §21i — Institution-level OPD: exclude teleconsultation + preventive (Swasthya Rakshana) visits
+  // NCISM Regulation 42 footnote: tele visits NOT counted in mandatory OPD minimum
+  // NCISM Regulation 40(7): Swasthya Rakshana (preventive) visits NOT counted in OPD minimum
+  const clinicalVisits = visits.filter(v =>
+    !v.is_teleconsultation &&
+    (v.visit_category || 'clinical') === 'clinical'
+  );
+  const teleVisits      = visits.filter(v => v.is_teleconsultation);
+  const preventiveVisits= visits.filter(v => (v.visit_category || 'clinical') === 'preventive');
+  const totalActualOpd  = clinicalVisits.length;
+  // §21d — 300-day denominator: use period days but note annualized target
   const instOpdTarget  = _cfg.opdTarget * wdays;
   const instOpdPct     = instOpdTarget > 0 ? Math.round(totalActualOpd / instOpdTarget * 100) : 0;
+  // Annualized projection for 300-day NCISM assessment
+  const annualisedOpd  = periodDays > 0 ? Math.round(totalActualOpd / periodDays * 300) : 0;
 
   const rows = depts.filter(d => d.is_active).map(dept => {
     const actualOpd    = visitsByOpd[dept.opd_id] || 0;
@@ -438,34 +603,43 @@ async function loadAll() {
     const bedInfo      = bedsByDept[dept.id] || { total:0, pg:0, occupied:0, vacant:0 };
 
     // NCISM Table-8 UG beds + PG beds (4 per sanctioned seat)
-    const ugRequiredBeds = Math.round(_cfg.ugIntake * (UG_BED_RATIOS[dept.ncism_code] || 0));
+    const ugRequiredBeds = Math.floor(_cfg.ugIntake * (UG_BED_RATIOS[dept.ncism_code] || 0));
     const pgRequiredBeds = dept.is_pg_dept ? (dept.pg_seats_sanctioned || 0) * 4 : 0;
     const requiredBeds   = ugRequiredBeds + pgRequiredBeds;
 
-    // Occupancy threshold: 60% non-PG, 80% PG (NCISM)
+    // NCISM Table-9 bed day occupancy (60% non-PG, 80% PG)
     const occThreshold = dept.is_pg_dept ? 80 : 60;
-    const occupancyPct = bedInfo.total > 0
-      ? Math.round(bedInfo.occupied / bedInfo.total * 100) : null;
+    const bedDays      = bedDaysByDept[dept.id] || 0;
+    const occupancyPct = bedInfo.total > 0 && periodDays > 0
+      ? Math.round(bedDays / (bedInfo.total * periodDays) * 100)
+      : null;
 
     return {
       dept,
       actualOpd, deptOpdShare,
-      bedInfo, ugRequiredBeds, pgRequiredBeds, requiredBeds,
+      bedInfo, bedDays, periodDays, ugRequiredBeds, pgRequiredBeds, requiredBeds,
       occThreshold, occupancyPct,
       wdays,
     };
   });
 
-  renderStats(rows, totalActualOpd, instOpdTarget, instOpdPct);
+  renderStats(rows, totalActualOpd, instOpdTarget, instOpdPct, annualisedOpd, teleVisits.length, preventiveVisits.length);
   renderViolations(rows, totalActualOpd, instOpdTarget, instOpdPct);
   renderTable(rows);
+  await renderFaculty(depts);
+  await renderStaffCompliance();
+  await renderNurseRatio(regularBeds);
 }
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
-function renderStats(rows, totalActualOpd, instOpdTarget, instOpdPct) {
+function renderStats(rows, totalActualOpd, instOpdTarget, instOpdPct, annualisedOpd, teleCount, preventiveCount) {
   // OPD: institution-level (NCISM checks total, not per-dept)
+  // §21d: excludes tele + preventive; shows 300-day annualised projection
+  const exclusionNote = (teleCount + preventiveCount) > 0
+    ? ` · ${teleCount} tele + ${preventiveCount} preventive excluded`
+    : '';
   _setStatCard('sc-opd', instOpdPct + '%',
-    `${totalActualOpd} actual / ${instOpdTarget} required (period)`,
+    `${totalActualOpd} clinical / ${instOpdTarget} required${exclusionNote} · 300-day est: ${annualisedOpd}`,
     instOpdPct >= 90 ? 'ok' : instOpdPct >= 70 ? 'warn' : 'danger');
 
   // IPD occupancy: average across all depts that have beds
@@ -482,6 +656,16 @@ function renderStats(rows, totalActualOpd, instOpdTarget, instOpdPct) {
     ? Math.round(bedsMetRows.length / bedsReqRows.length * 100) : 100;
   _setStatCard('sc-beds', bedsPct + '%', `${bedsMetRows.length}/${bedsReqRows.length} depts have required beds`,
     bedsPct >= 100 ? 'ok' : bedsPct >= 75 ? 'warn' : 'danger');
+
+  // §21f — ICU stat card (separate census per NCISM)
+  // icuBeds and icuOccupied are in outer scope from the analysis
+  if (document.getElementById('sc-icu')) {
+    const icuTotal = (window._icuBeds || []).length;
+    const icuOcc   = (window._icuBeds || []).filter(b => b.status === 'occupied').length;
+    _setStatCard('sc-icu', icuTotal,
+      `${icuOcc} occupied · separate from ward census`,
+      icuTotal >= 5 ? 'ok' : icuTotal > 0 ? 'warn' : 'danger');
+  }
 
   // Violations count
   const violations = _buildViolations(rows, totalActualOpd, instOpdTarget, instOpdPct);
@@ -520,7 +704,7 @@ function _buildViolations(rows, totalActualOpd, instOpdTarget, instOpdPct) {
     }
     if (r.occupancyPct !== null && r.occupancyPct < r.occThreshold) {
       v.push({ dept:name, severity: r.occupancyPct < Math.round(r.occThreshold * 0.75) ? 'critical' : 'warning',
-        msg:`IPD occupancy below ${r.occThreshold}%: currently ${r.occupancyPct}% (${r.bedInfo.occupied}/${r.bedInfo.total} beds)` });
+        msg:`IPD occupancy ${r.occupancyPct}% — below NCISM ${r.occThreshold}% threshold (${r.bedDays.toFixed(1)} bed-days / ${r.bedInfo.total} beds × ${r.periodDays} days)` });
     }
   });
   return v;
@@ -645,6 +829,291 @@ function _alert(type, msg) {
   el.className = `alert show ${type}`;
   el.textContent = msg;
   if (type === 'success') setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── Faculty compliance — NCISM Schedule I ────────────────────────────────────
+// Per clinical department per UG intake (NCISM Schedule I — verify from official gazette)
+const FACULTY_REQ = {
+  clinical: {
+    60:  { prof:1, assoc:1, asst:2 },
+    100: { prof:1, assoc:1, asst:3 },
+    150: { prof:1, assoc:2, asst:3 },
+    200: { prof:1, assoc:2, asst:4 },
+  },
+  para_clinical: {
+    60:  { prof:1, assoc:1, asst:1 },
+    100: { prof:1, assoc:1, asst:2 },
+    150: { prof:1, assoc:1, asst:2 },
+    200: { prof:1, assoc:2, asst:2 },
+  },
+  pre_clinical: {
+    60:  { prof:1, assoc:1, asst:1 },
+    100: { prof:1, assoc:1, asst:2 },
+    150: { prof:1, assoc:1, asst:2 },
+    200: { prof:1, assoc:2, asst:2 },
+  },
+};
+
+function _closestIntake(ug) {
+  const keys = [60, 100, 150, 200];
+  return keys.reduce((a, b) => Math.abs(b - ug) < Math.abs(a - ug) ? b : a);
+}
+
+async function renderFaculty(depts) {
+  const section = document.getElementById('faculty-section');
+  if (!section) return;
+
+  if (!['college','hospital'].includes(_tenantType)) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  const intake    = _cfg.ugIntake || 60;
+  const intakeKey = _closestIntake(intake);
+  document.getElementById('faculty-intake-label').textContent = `UG Intake: ${intake}`;
+
+  // Query current faculty count — total doctors in tenant (no dept breakdown yet)
+  const { data: staffRows } = await supabase
+    .from('profiles')
+    .select('id,role')
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .in('role', ['doctor','dept_admin']);
+
+  const totalActual = (staffRows || []).length;
+
+  // Calculate required totals across all depts
+  let totalReq = 0;
+  const deptRows = depts.map(d => {
+    const typeKey = d.type === 'clinical' ? 'clinical'
+                  : d.type === 'para_clinical' ? 'para_clinical'
+                  : 'pre_clinical';
+    const req = (FACULTY_REQ[typeKey]?.[intakeKey]) || { prof:0, assoc:0, asst:0 };
+    const minTotal = req.prof + req.assoc + req.asst;
+    totalReq += minTotal;
+    return { d, req, minTotal };
+  });
+
+  // Summary stat cards
+  const diff   = totalActual - totalReq;
+  const pct    = totalReq > 0 ? Math.round(totalActual / totalReq * 100) : 100;
+  const sCls   = pct >= 100 ? 'ok' : pct >= 80 ? 'warn' : 'danger';
+  document.getElementById('faculty-stats').innerHTML = `
+    <div class="fstat ${sCls}">
+      <div class="fstat-val">${totalActual}</div>
+      <div class="fstat-lbl">Faculty on Record</div>
+    </div>
+    <div class="fstat ${sCls}">
+      <div class="fstat-val">${totalReq}</div>
+      <div class="fstat-lbl">NCISM Minimum Required</div>
+    </div>
+    <div class="fstat ${diff >= 0 ? 'ok' : 'danger'}">
+      <div class="fstat-val">${diff >= 0 ? '+'+diff : diff}</div>
+      <div class="fstat-lbl">${diff >= 0 ? 'Surplus' : 'Shortfall'}</div>
+    </div>
+    <div class="fstat ${sCls}">
+      <div class="fstat-val">${pct}%</div>
+      <div class="fstat-lbl">Faculty Strength %</div>
+    </div>`;
+
+  // Per-department table
+  document.getElementById('faculty-tbody').innerHTML = deptRows.map(({ d, req, minTotal }) => {
+    const cls = pct >= 100 ? 'ok' : pct >= 80 ? 'warn' : 'danger';
+    const statusLabel = pct >= 100 ? '✓' : '✗';
+    return `<tr>
+      <td><strong>${_esc(d.name)}</strong><br>
+        <span style="font-size:10px;color:var(--text-muted)">${_esc(d.ncism_code||'')}</span></td>
+      <td class="center"><span style="font-size:10px;background:#f0f0f0;padding:2px 6px;border-radius:4px">${_esc(d.type||'—')}</span></td>
+      <td class="center">${req.prof}</td>
+      <td class="center">${req.assoc}</td>
+      <td class="center">${req.asst}</td>
+      <td class="center"><strong>${minTotal}</strong></td>
+      <td class="center" style="color:var(--text-muted);font-style:italic">—<br><span style="font-size:9px">Run SQL</span></td>
+      <td class="center"><span class="${cls}">${statusLabel} Est.</span></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:20px">No departments configured</td></tr>`;
+}
+
+// ── Staff compliance — NCISM Schedule XX ─────────────────────────────────────
+// Source: NCISM Schedule XX (image verified 29 May 2026)
+const SCHEDULE_XX = [
+  // ── Administrative Zone ──────────────────────────────────────────────────
+  {zone:'Administrative', designation:'Medical Director / Principal / Dean',           role:'super_admin',  ncism:'Sch XX / 1',  req:{60:1,100:1,150:1,200:1}},
+  {zone:'Administrative', designation:'Medical Superintendent',                        role:'dept_admin',   ncism:'Sch XX / 2',  req:{60:1,100:1,150:1,200:1}},
+  {zone:'Administrative', designation:'Deputy Medical Superintendent',                 role:'dept_admin',   ncism:'Sch XX / 3',  req:{60:1,100:1,150:2,200:2}},
+  {zone:'Administrative', designation:'Administrator',                                 role:'dept_admin',   ncism:'Sch XX / 4',  req:{60:1,100:1,150:2,200:2}},
+  {zone:'Administrative', designation:'RMO / Emergency Medical Officer (24×7)',        role:'doctor',       ncism:'Sch XX / 6',  req:{60:2,100:3,150:4,200:5}},
+  {zone:'Administrative', designation:'Matron / Nursing Superintendent',               role:'nurse',        ncism:'Sch XX / 7',  req:{60:1,100:1,150:1,200:1}},
+  {zone:'Administrative', designation:'Assistant Matron (day + night shifts)',         role:'nurse',        ncism:'Sch XX / 8',  req:{60:2,100:3,150:4,200:5}},
+  {zone:'Administrative', designation:'Office Superintendent',                         role:'dept_admin',   ncism:'Sch XX / 9',  req:{60:1,100:1,150:1,200:1}},
+  {zone:'Administrative', designation:'Clerks and Accountants',                        role:'accountant',   ncism:'Sch XX / 10', req:{60:1,100:2,150:3,200:4}},
+  {zone:'Administrative', designation:'Store Keeper',                                  role:'accountant',   ncism:'Sch XX / 11', req:{60:1,100:1,150:1,200:1}},
+  {zone:'Administrative', designation:'Multi-tasking Staff (Admin)',                   role:'receptionist', ncism:'Sch XX / 12', req:{60:3,100:3,150:4,200:4}},
+  // ── Reception and Registration ───────────────────────────────────────────
+  {zone:'Reception',      designation:'Receptionist cum telephone operator (all shifts; min 1/shift)', role:'receptionist', ncism:'Sch XX / 16', req:{60:3,100:4,150:4,200:4}},
+  {zone:'Reception',      designation:'Registration and Billing Clerks',               role:'receptionist', ncism:'Sch XX / 17', req:{60:1,100:2,150:3,200:4}},
+  {zone:'Reception',      designation:'Medical Record Technician (qualified/trained)', role:'receptionist', ncism:'Sch XX / 18', req:{60:1,100:1,150:1,200:1}},
+  // ── OPD Zone ────────────────────────────────────────────────────────────
+  {zone:'OPD',            designation:'Nursing Staff OPD (Atyayika + Shalya + Prasuti)', role:'nurse',     ncism:'Sch XX / 20', req:{60:3,100:3,150:3,200:5}, note:'1 each for Atyayika, Shalya, Prasuti/Streeroga'},
+  {zone:'OPD',            designation:'Ayah — OPD',                                   role:'nurse',        ncism:'Sch XX / 21', req:{60:3,100:3,150:3,200:5}},
+  // ── Dispensary ──────────────────────────────────────────────────────────
+  {zone:'Dispensary',     designation:'Pharmacist (qualified Ayurveda / trained)',     role:'pharmacist',   ncism:'Sch XX / 22', req:{60:2,100:2,150:3,200:4}},
+  {zone:'Dispensary',     designation:'Dispensary In-charge (BAMS / BPharma / MPharma)', role:'pharmacist', ncism:'Sch XX / 23', req:{60:1,100:1,150:1,200:1}},
+  // ── Diagnostic Zone ─────────────────────────────────────────────────────
+  {zone:'Diagnostic',     designation:'Lab Technician (DMLT)',                         role:'lab_tech',     ncism:'Sch XX / 24', req:{60:2,100:2,150:3,200:4}},
+  {zone:'Diagnostic',     designation:'Lab Attendant (min 10th std)',                  role:'lab_tech',     ncism:'Sch XX / 25', req:{60:1,100:1,150:2,200:3}},
+  {zone:'Diagnostic',     designation:'X-ray Technician (qualified)',                  role:'lab_tech',     ncism:'Sch XX / 26', req:{60:1,100:1,150:1,200:1}},
+  {zone:'Diagnostic',     designation:'Dark Room Assistant (non-digital x-ray)',       role:'lab_tech',     ncism:'Sch XX / 27', req:{60:1,100:1,150:1,200:1}},
+  {zone:'Diagnostic',     designation:'ECG Technician',                                role:'lab_tech',     ncism:'Sch XX / 28', req:{60:1,100:1,150:2,200:2}},
+  {zone:'Diagnostic',     designation:'Nursing Staff for USG / ECG',                  role:'nurse',        ncism:'Sch XX / 29', req:{60:1,100:1,150:1,200:1}},
+  {zone:'Diagnostic',     designation:'Microbiologist (MSc Microbiology)',             role:'lab_tech',     ncism:'Sch XX / 30', req:{60:1,100:1,150:1,200:1}},
+  {zone:'Diagnostic',     designation:'Lab Assistant for Microbiology',               role:'lab_tech',     ncism:'Sch XX / 31', req:{60:1,100:1,150:2,200:2}},
+  // ── Medical IPD ─────────────────────────────────────────────────────────
+  {zone:'Medical IPD',    designation:'Nursing Staff — Medical IPD (1 per 10 beds)',   role:'nurse',        ncism:'Sch XX / 32', req:{60:4,100:6,150:9,200:12}},
+  {zone:'Medical IPD',    designation:'Ayah — Medical IPD (1 per 20 beds)',            role:'nurse',        ncism:'Sch XX / 33', req:{60:2,100:3,150:5,200:6}},
+  {zone:'Medical IPD',    designation:'Resident MO Medical (1/30 beds, day+night)',    role:'doctor',       ncism:'Sch XX / 34', req:{60:2,100:2,150:2,200:2}},
+  // ── Surgical IPD ────────────────────────────────────────────────────────
+  {zone:'Surgical IPD',   designation:'Nursing Staff — Surgical IPD (1 per 10 beds)', role:'nurse',        ncism:'Sch XX / 35', req:{60:3,100:4,150:6,200:8}},
+  {zone:'Surgical IPD',   designation:'Ayah — Surgical IPD (1 per 20 beds)',           role:'nurse',        ncism:'Sch XX / 36', req:{60:2,100:2,150:3,200:4}},
+  {zone:'Surgical IPD',   designation:'Resident Surgical Officer (1/30 beds, day+night)', role:'doctor',   ncism:'Sch XX / 37', req:{60:2,100:2,150:2,200:2}},
+  // ── Panchakarma ─────────────────────────────────────────────────────────
+  {zone:'Panchakarma',    designation:'PK Nursing Staff',                              role:'nurse',        ncism:'Sch XX / 38', req:{60:1,100:1,150:2,200:2}},
+  {zone:'Panchakarma',    designation:'PK Cook (preparation room)',                    role:'nurse',        ncism:'Sch XX / 39', req:{60:1,100:1,150:2,200:2}},
+  {zone:'Panchakarma',    designation:'PK Therapists — Male + Female (equal)',         role:'therapist',    ncism:'Sch XX / 40', req:{60:4,100:8,150:12,200:16}},
+  {zone:'Panchakarma',    designation:'House Officer / Clinical Registrar (BAMS)',     role:'doctor',       ncism:'Sch XX / 41', req:{60:1,100:1,150:1,200:1}},
+  {zone:'Panchakarma',    designation:'Clerk cum Receptionist',                        role:'receptionist', ncism:'Sch XX / 42', req:{60:1,100:1,150:1,200:1}},
+  // ── Operation Theatre ───────────────────────────────────────────────────
+  {zone:'Operation Theatre', designation:'OT Nursing Staff',                           role:'nurse',        ncism:'Sch XX / 43', req:{60:1,100:2,150:3,200:4}},
+  {zone:'Operation Theatre', designation:'OT Attendants',                              role:'nurse',        ncism:'Sch XX / 44', req:{60:2,100:3,150:4,200:5}},
+  {zone:'Operation Theatre', designation:'Anushastra Karma Technician (12th + Biology)', role:'nurse',     ncism:'Sch XX / 45', req:{60:1,100:1,150:2,200:2}},
+  // ── Labour Room ─────────────────────────────────────────────────────────
+  {zone:'Labour Room',    designation:'Nursing Staff — Labour Room (3 shifts)',        role:'nurse',        ncism:'Sch XX / 46', req:{60:1,100:3,150:6,200:6}},
+  {zone:'Labour Room',    designation:'Ayah — Labour Room (1 per shift)',              role:'nurse',        ncism:'Sch XX / 47', req:{60:3,100:3,150:3,200:3}},
+  // ── Kriyakalpa ──────────────────────────────────────────────────────────
+  {zone:'Kriyakalpa',     designation:'Kriyakalpa Therapists',                         role:'therapist',    ncism:'Sch XX / 48', req:{60:2,100:2,150:4,200:4}},
+  // ── Physiotherapy ───────────────────────────────────────────────────────
+  {zone:'Physiotherapy',  designation:'Physiotherapist',                               role:'therapist',    ncism:'Sch XX / 49', req:{60:1,100:1,150:1,200:1}},
+  {zone:'Physiotherapy',  designation:'Attendant / Ayah',                              role:'nurse',        ncism:'Sch XX / 50', req:{60:1,100:1,150:1,200:1}},
+  // ── Yoga ────────────────────────────────────────────────────────────────
+  {zone:'Yoga',           designation:'Yoga Demonstrator',                             role:'therapist',    ncism:'Sch XX / 51', req:{60:1,100:1,150:1,200:1}},
+  // ── Services — Diet Section ─────────────────────────────────────────────
+  {zone:'Diet / Pathya',  designation:'In-charge (BAMS / MSc Ayurveda Dietetics)',     role:'doctor',       ncism:'Sch XX / 52', req:{60:1,100:1,150:1,200:1}},
+  {zone:'Diet / Pathya',  designation:'Pathya Cooks',                                  role:'nurse',        ncism:'Sch XX / 53', req:{60:2,100:2,150:3,200:4}},
+  {zone:'Diet / Pathya',  designation:'Multi-tasking Staff (Diet)',                    role:'nurse',        ncism:'Sch XX / 54', req:{60:2,100:2,150:3,200:4}},
+  // ── Central Sterilization ───────────────────────────────────────────────
+  {zone:'Central Sterilization', designation:'Nursing Staff',                          role:'nurse',        ncism:'Sch XX / CS1', req:{60:1,100:1,150:1,200:1}},
+  {zone:'Central Sterilization', designation:'Ayah',                                   role:'nurse',        ncism:'Sch XX / CS2', req:{60:1,100:1,150:1,200:1}},
+];
+
+// §21g — Nurse-to-Bed Ratio Compliance (NCISM Schedule XX)
+async function renderNurseRatio(regularBeds) {
+  const panel = document.getElementById('nurse-ratio-panel');
+  const body  = document.getElementById('nurse-ratio-body');
+  if (!panel || !body) return;
+
+  const totalBeds = regularBeds.length;
+  if (totalBeds === 0) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+
+  // Count active nurses
+  const { data: nurses } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('role', 'nurse')
+    .eq('is_active', true);
+  const activeNurses = nurses?.length || 0;
+
+  const requiredNurses = Math.ceil(totalBeds / 10);  // 1:10 ratio
+  const shortfall = Math.max(0, requiredNurses - activeNurses);
+  const status = shortfall === 0 ? 'ok' : shortfall <= 2 ? 'warn' : 'deficit';
+  const statusColor = status === 'ok' ? '#2d7a4f' : status === 'warn' ? '#c9902a' : '#dc2626';
+
+  body.innerHTML = `
+    <div style="display:flex;gap:24px;flex-wrap:wrap">
+      <div><span style="font-weight:600;font-size:18px;color:${statusColor}">${activeNurses}</span>
+        <span style="font-size:12px;color:var(--text-muted)"> active nurses</span></div>
+      <div><span style="font-weight:600;font-size:18px;color:var(--green-deep)">${requiredNurses}</span>
+        <span style="font-size:12px;color:var(--text-muted)"> required (1:10 for ${totalBeds} beds)</span></div>
+      ${shortfall > 0
+        ? `<div style="padding:4px 12px;background:#fdecea;border-radius:6px;color:#8b1a1a;font-weight:600;font-size:12px">⚠ ${shortfall} nurse shortfall</div>`
+        : `<div style="padding:4px 12px;background:#e8f5ee;border-radius:6px;color:#1a4a2e;font-weight:600;font-size:12px">✓ Compliant</div>`}
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:6px">Note: ICU beds (${(window._icuBeds||[]).length}) excluded — ICU nursing ratio is 1:3 (NCISM Sch XX row 36), assessed separately.</div>`;
+}
+
+async function renderStaffCompliance() {
+  const section = document.getElementById('staff-section');
+  if (!section) return;
+  if (!['college','hospital'].includes(_tenantType)) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  const intake    = _cfg.ugIntake || 60;
+  const intakeKey = _closestIntake(intake);
+  document.getElementById('staff-intake-label').textContent = `UG Intake: ${intake}`;
+
+  // Fetch actual staff counts by role
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true);
+
+  const roleCounts = {};
+  (profiles || []).forEach(p => { roleCounts[p.role] = (roleCounts[p.role] || 0) + 1; });
+
+  // Build rows
+  let totalReq = 0, totalMet = 0;
+  const rows = SCHEDULE_XX.map(item => {
+    const req    = item.req[intakeKey] || 0;
+    const actual = roleCounts[item.role] || 0;
+    const met    = actual >= req;
+    if (req > 0) { totalReq++; if (met) totalMet++; }
+    return { ...item, req, actual, met };
+  });
+
+  // Summary stat cards
+  const pct = totalReq > 0 ? Math.round(totalMet / totalReq * 100) : 100;
+  const sCls = pct >= 100 ? 'ok' : pct >= 75 ? 'warn' : 'danger';
+  const totalRequired = rows.reduce((s,r) => s + r.req, 0);
+  const totalActual   = Object.values(roleCounts).reduce((s,v) => s + v, 0);
+  document.getElementById('staff-stats').innerHTML = `
+    <div class="fstat ${sCls}">
+      <div class="fstat-val">${totalActual}</div>
+      <div class="fstat-lbl">Total Staff on Record</div>
+    </div>
+    <div class="fstat">
+      <div class="fstat-val">${totalRequired}</div>
+      <div class="fstat-lbl">Total Required (Sch XX)</div>
+    </div>
+    <div class="fstat ${pct >= 100 ? 'ok' : 'danger'}">
+      <div class="fstat-val">${totalMet}/${totalReq}</div>
+      <div class="fstat-lbl">Role Categories Met</div>
+    </div>
+    <div class="fstat ${sCls}">
+      <div class="fstat-val">${pct}%</div>
+      <div class="fstat-lbl">Staffing Compliance</div>
+    </div>`;
+
+  // Zone group rows
+  let lastZone = '';
+  document.getElementById('staff-tbody').innerHTML = rows.map(r => {
+    const zoneHeader = r.zone !== lastZone
+      ? `<tr style="background:#f0fdf4"><td colspan="6" style="font-weight:700;font-size:11px;color:#166534;padding:6px 10px;text-transform:uppercase;letter-spacing:.5px">${_esc(r.zone)}</td></tr>`
+      : '';
+    lastZone = r.zone;
+    const cls    = r.met ? 'ok' : r.actual > 0 ? 'warn' : 'danger';
+    const status = r.met ? '✓ Met'
+                 : r.actual > 0 ? `⚠ ${r.req - r.actual} short`
+                 : '✗ None';
+    const noteCell = r.note ? `<br><span style="font-size:10px;color:var(--text-muted)">${_esc(r.note)}</span>` : '';
+    return zoneHeader + `<tr>
+      <td></td>
+      <td>${_esc(r.designation)}${noteCell}</td>
+      <td class="center"><strong>${r.req}</strong></td>
+      <td class="center"><span style="font-size:10px;background:#f0f0f0;padding:2px 6px;border-radius:4px">${_esc(r.role)}</span></td>
+      <td class="center">${r.actual}</td>
+      <td class="center"><span class="${cls}">${status}</span></td>
+    </tr>`;
+  }).join('');
 }
 
 // ── Toggle non-PG ─────────────────────────────────────────────────────────────

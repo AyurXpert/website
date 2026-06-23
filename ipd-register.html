@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>IPD Register — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--cream:#faf8f3;--white:#fff;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--red:#c0392b;
+  --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.08)
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page{max-width:1300px;margin:0 auto;padding:24px 16px 60px}
+h1{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--green-deep);margin-bottom:4px}
+.subtitle{font-size:13px;color:var(--text-muted);margin-bottom:18px}
+
+.filter-bar{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:18px;box-shadow:var(--shadow);display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.filter-bar label{font-size:12px;font-weight:500;color:var(--text-mid);white-space:nowrap}
+.filter-bar input,.filter-bar select{padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit}
+.filter-bar input:focus,.filter-bar select:focus{outline:none;border-color:var(--green-mid)}
+.btn{padding:8px 16px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-outline{background:transparent;border:1.5px solid var(--green-mid);color:var(--green-mid)}
+.btn-gold{background:var(--gold);color:#fff}
+.btn-sm{padding:5px 12px;font-size:12px}
+.preset-btn{padding:5px 12px;border-radius:5px;font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-mid);transition:all .15s}
+.preset-btn:hover,.preset-btn.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
+
+.summary-strip{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.sum-box{background:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 16px;min-width:120px;box-shadow:var(--shadow)}
+.sum-label{font-size:11px;color:var(--text-muted);font-weight:500;text-transform:uppercase;letter-spacing:.4px}
+.sum-val{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:var(--green-deep)}
+.sum-val.red{color:var(--red)}
+.sum-val.gold{color:var(--gold)}
+.sum-val.blue{color:#1565c0}
+
+.tbl-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.tbl-hdr{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px}
+.tbl-title{font-size:14px;font-weight:600;color:var(--green-deep)}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:var(--green-deep);color:#fff;padding:8px 10px;text-align:left;font-weight:500;font-size:11px;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fdf9}
+.empty{text-align:center;padding:40px 20px;color:var(--text-muted);font-size:13px}
+
+.badge{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;border:1px solid;white-space:nowrap}
+.b-admitted{background:#e8f5ee;color:#1a4a2e;border-color:#a5d6b8}
+.b-discharged{background:#e3f2fd;color:#1565c0;border-color:#90caf9}
+.b-lama{background:#fff8e1;color:#7a5200;border-color:#ffe082}
+.b-transferred{background:#f3e5f5;color:#6a1b9a;border-color:#ce93d8}
+.b-deceased{background:#1c1c1c;color:#fff;border-color:#000}
+
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;color:#fff;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}.toast.success{background:#2d7a4f}.toast.error{background:#c0392b}
+
+/* PRINT */
+@media print {
+  @page { size: A3 landscape; margin: 12mm; }
+  #navbar-container,.filter-bar,.summary-strip,.tbl-hdr .btn,.tbl-hdr .btn-outline,
+  .tbl-hdr .btn-gold,.tbl-hdr .btn-primary,.toast { display:none !important }
+  body,html { background:#fff }
+  .page { max-width:100%; padding:0 }
+  .print-header { display:block !important }
+  .tbl-card { box-shadow:none; border:none }
+  table { font-size:9pt }
+  th { background:#1a4a2e !important; color:#fff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact }
+  td { padding:4px 6px }
+  tr { page-break-inside: avoid }
+}
+.print-header { display:none }
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+
+<!-- Print-only header -->
+<div class="print-header">
+  <div style="text-align:center;margin-bottom:10px;border-bottom:2px solid #1a4a2e;padding-bottom:8px">
+    <div style="font-family:'Cormorant Garamond',serif;font-size:18pt;font-weight:600;color:#1a4a2e" id="ph-org"></div>
+    <div style="font-size:10pt;color:#4a6352">IPD Admission Register</div>
+    <div style="font-size:9pt;color:#8a9e90;margin-top:2px" id="ph-range"></div>
+  </div>
+</div>
+
+<div class="page">
+  <h1>IPD Admission Register</h1>
+  <p class="subtitle">NCISM-format in-patient register — admissions, diagnosis, LOS, discharge status</p>
+
+  <div class="filter-bar">
+    <div style="display:flex;gap:6px">
+      <button class="preset-btn" onclick="applyPreset('today')">Today</button>
+      <button class="preset-btn" onclick="applyPreset('week')">This Week</button>
+      <button class="preset-btn active" onclick="applyPreset('month')">This Month</button>
+    </div>
+    <label>From</label>
+    <input type="date" id="f-from"/>
+    <label>To</label>
+    <input type="date" id="f-to"/>
+    <label>Department</label>
+    <select id="f-dept" style="min-width:160px">
+      <option value="">All Departments</option>
+    </select>
+    <label>Doctor</label>
+    <select id="f-doctor" style="min-width:160px">
+      <option value="">All Doctors</option>
+    </select>
+    <label>Status</label>
+    <select id="f-status">
+      <option value="">All</option>
+      <option value="admitted">Admitted (active)</option>
+      <option value="discharged">Discharged</option>
+      <option value="lama">LAMA</option>
+      <option value="transferred">Transferred</option>
+      <option value="deceased">Deceased</option>
+    </select>
+    <button class="btn btn-primary" onclick="loadRegister()">Load</button>
+  </div>
+
+  <div class="summary-strip" id="summary-strip" style="display:none">
+    <div class="sum-box"><div class="sum-label">Total Admissions</div><div class="sum-val" id="s-total">—</div></div>
+    <div class="sum-box"><div class="sum-label">Currently Admitted</div><div class="sum-val" id="s-active" style="color:var(--green-mid)">—</div></div>
+    <div class="sum-box"><div class="sum-label">Discharged</div><div class="sum-val blue" id="s-discharged">—</div></div>
+    <div class="sum-box"><div class="sum-label">LAMA / Transferred</div><div class="sum-val gold" id="s-other">—</div></div>
+    <div class="sum-box"><div class="sum-label">Deceased</div><div class="sum-val red" id="s-deceased">—</div></div>
+    <div class="sum-box"><div class="sum-label">Avg LOS (discharged)</div><div class="sum-val" id="s-los">—</div><div style="font-size:10px;color:var(--text-muted)">days</div></div>
+  </div>
+
+  <div class="tbl-card">
+    <div class="tbl-hdr">
+      <div class="tbl-title" id="tbl-title">IPD Register</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="exportCSV()">Export CSV</button>
+        <button class="btn btn-gold btn-sm" onclick="window.print()">🖨 Print Register</button>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:36px">S.No</th>
+            <th style="width:90px">Admitted On</th>
+            <th style="width:90px">IPD No.</th>
+            <th style="min-width:120px">Patient Name</th>
+            <th style="width:60px">Age/Sex</th>
+            <th style="width:90px">Phone</th>
+            <th style="min-width:110px">Department</th>
+            <th style="width:80px">Ward / Bed</th>
+            <th style="min-width:110px">Admitting Doctor</th>
+            <th style="min-width:150px">Primary Diagnosis</th>
+            <th style="width:70px">Status</th>
+            <th style="width:90px">Discharge Date</th>
+            <th style="width:60px">LOS (days)</th>
+          </tr>
+        </thead>
+        <tbody id="reg-tbody">
+          <tr><td colspan="13" class="empty">Select filters and click Load.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { requireAuth } from './js/core/auth.js';
+import { initNavbar }  from './js/components/navbar.js';
+import { ENV } from './js/config/env.js';
+
+const profile  = await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist']);
+const supabase = createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY);
+const sess     = JSON.parse(sessionStorage.getItem('ax_profile') || '{}');
+const tenant   = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
+const tenantId = sess.tenant_id;
+const today    = new Date().toISOString().slice(0,10);
+
+initNavbar();
+document.getElementById('ph-org').textContent = tenant.name || 'AyurXpert HMS';
+
+let _rows = [];
+
+// ── Init ──────────────────────────────────────────────
+async function init() {
+  applyPreset('month');
+  await Promise.all([loadDepts(), loadDoctors()]);
+  await loadRegister();
+}
+
+async function loadDepts() {
+  const { data } = await supabase.from('departments').select('id,name,ncism_code')
+    .eq('tenant_id', tenantId).eq('is_active', true).order('name');
+  const sel = document.getElementById('f-dept');
+  (data||[]).forEach(d => {
+    const o = document.createElement('option'); o.value = d.id;
+    o.textContent = d.name + (d.ncism_code ? ` (${d.ncism_code})` : '');
+    sel.appendChild(o);
+  });
+}
+
+async function loadDoctors() {
+  const { data } = await supabase.from('profiles').select('id,full_name')
+    .eq('tenant_id', tenantId).eq('role','doctor').eq('is_active',true).order('full_name');
+  const sel = document.getElementById('f-doctor');
+  (data||[]).forEach(d => {
+    const o = document.createElement('option'); o.value = d.id;
+    o.textContent = d.full_name; sel.appendChild(o);
+  });
+}
+
+window.applyPreset = function(preset) {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.preset-btn[onclick*="${preset}"]`)?.classList.add('active');
+  const now = new Date();
+  let from = today, to = today;
+  if (preset === 'week') {
+    const day = now.getDay(); const diff = day === 0 ? 6 : day - 1;
+    const mon = new Date(now); mon.setDate(now.getDate()-diff);
+    from = mon.toISOString().slice(0,10);
+  } else if (preset === 'month') {
+    from = today.slice(0,7) + '-01';
+  }
+  document.getElementById('f-from').value = from;
+  document.getElementById('f-to').value   = to;
+};
+
+window.loadRegister = async function() {
+  const from   = document.getElementById('f-from').value;
+  const to     = document.getElementById('f-to').value;
+  const deptId = document.getElementById('f-dept').value;
+  const docId  = document.getElementById('f-doctor').value;
+  const status = document.getElementById('f-status').value;
+
+  if (!from || !to) { _toast('Please select a date range', 'error'); return; }
+
+  document.getElementById('reg-tbody').innerHTML = '<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--text-muted)">Loading…</td></tr>';
+
+  let q = supabase.from('ipd_admissions')
+    .select(`
+      id, admission_date, admitted_at, discharged_at, status, diagnosis_primary, diet_type,
+      patients(id, name, age, gender, phone),
+      profiles!admitting_doctor_id(full_name),
+      departments(name, ncism_code),
+      beds(bed_number, ward_name)
+    `)
+    .eq('tenant_id', tenantId)
+    .gte('admission_date', from)
+    .lte('admission_date', to)
+    .order('admission_date', { ascending: true })
+    .order('admitted_at',    { ascending: true });
+
+  if (deptId) q = q.eq('department_id', deptId);
+  if (docId)  q = q.eq('admitting_doctor_id', docId);
+  if (status) q = q.eq('status', status);
+
+  const { data, error } = await q.limit(1000);
+  if (error) {
+    document.getElementById('reg-tbody').innerHTML = `<tr><td colspan="13" class="empty" style="color:var(--red)">Error: ${error.message}</td></tr>`;
+    return;
+  }
+
+  _rows = data || [];
+  _renderTable();
+  _updateSummary(from, to);
+};
+
+function _ipdNo(row) {
+  const d = new Date(row.admission_date || row.admitted_at || row.id);
+  const datePart = d.toISOString().slice(0,10).replace(/-/g,'');
+  return `IPD-${datePart}-${row.id.slice(0,4).toUpperCase()}`;
+}
+
+function _los(row) {
+  const start = row.admitted_at || row.admission_date;
+  const end   = row.discharged_at || null;
+  if (!start) return '—';
+  const s = new Date(start);
+  const e = end ? new Date(end) : new Date();
+  const days = Math.max(0, Math.round((e - s) / 86400000));
+  return days || '<1';
+}
+
+function _statusBadge(s) {
+  const cls = {admitted:'b-admitted', discharged:'b-discharged', lama:'b-lama', transferred:'b-transferred', deceased:'b-deceased'}[s] || '';
+  const label = {admitted:'Admitted', discharged:'Discharged', lama:'LAMA', transferred:'Transferred', deceased:'Deceased'}[s] || s;
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function _renderTable() {
+  const tbody = document.getElementById('reg-tbody');
+  if (!_rows.length) {
+    tbody.innerHTML = '<tr><td colspan="13" class="empty">No IPD admissions found for the selected criteria.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _rows.map((r, i) => {
+    const pat    = r.patients || {};
+    const doc    = r.profiles || {};
+    const dept   = r.departments || {};
+    const bed    = r.beds || {};
+    const ageSex = [pat.age ? pat.age+'y' : '—', pat.gender ? pat.gender.charAt(0).toUpperCase() : ''].filter(Boolean).join('/');
+    const deptStr= dept.name + (dept.ncism_code ? `\n${dept.ncism_code}` : '');
+    return `<tr>
+      <td style="color:var(--text-muted);text-align:center">${i+1}</td>
+      <td style="font-size:11px;white-space:nowrap">${_fmtDate(r.admission_date)}</td>
+      <td><code style="font-size:10.5px;color:var(--green-deep);font-weight:600">${_ipdNo(r)}</code></td>
+      <td style="font-weight:500">${_esc(pat.name||'—')}</td>
+      <td style="text-align:center;font-size:12px">${ageSex}</td>
+      <td style="font-size:11px;color:var(--text-muted)">${_esc(pat.phone||'—')}</td>
+      <td style="font-size:11px">${_esc(dept.name||'—')}${dept.ncism_code?`<br><span style="color:var(--text-muted);font-size:10px">${dept.ncism_code}</span>`:''}</td>
+      <td style="font-size:11px">${bed.ward_name ? _esc(bed.ward_name)+'<br>' : ''}${bed.bed_number ? `<span style="color:var(--text-muted)">Bed ${bed.bed_number}</span>` : '—'}</td>
+      <td style="font-size:11px">${doc.full_name ? 'Dr. '+_esc(doc.full_name) : '—'}</td>
+      <td style="font-size:11px;max-width:150px">${_esc(r.diagnosis_primary||'—')}</td>
+      <td>${_statusBadge(r.status)}</td>
+      <td style="font-size:11px;white-space:nowrap">${r.discharged_at ? _fmtDate(r.discharged_at.slice(0,10)) : '—'}</td>
+      <td style="text-align:center;font-size:12px;font-weight:500">${_los(r)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function _updateSummary(from, to) {
+  const active    = _rows.filter(r => r.status === 'admitted').length;
+  const discharged= _rows.filter(r => r.status === 'discharged').length;
+  const other     = _rows.filter(r => ['lama','transferred'].includes(r.status)).length;
+  const deceased  = _rows.filter(r => r.status === 'deceased').length;
+
+  // Average LOS for discharged patients
+  const disRows = _rows.filter(r => r.status === 'discharged' && r.admitted_at && r.discharged_at);
+  const avgLOS  = disRows.length
+    ? (disRows.reduce((sum, r) => sum + Math.round((new Date(r.discharged_at)-new Date(r.admitted_at))/86400000), 0) / disRows.length).toFixed(1)
+    : '—';
+
+  document.getElementById('s-total').textContent     = _rows.length;
+  document.getElementById('s-active').textContent    = active;
+  document.getElementById('s-discharged').textContent= discharged;
+  document.getElementById('s-other').textContent     = other;
+  document.getElementById('s-deceased').textContent  = deceased;
+  document.getElementById('s-los').textContent       = avgLOS;
+
+  const label = from === to ? _fmtDate(from) : `${_fmtDate(from)} – ${_fmtDate(to)}`;
+  document.getElementById('tbl-title').textContent = `IPD Register — ${label}`;
+  document.getElementById('ph-range').textContent  = label;
+  document.getElementById('summary-strip').style.display = '';
+}
+
+window.exportCSV = function() {
+  if (!_rows.length) { _toast('No data to export', 'error'); return; }
+  const headers = ['S.No','Admission Date','IPD No','Patient Name','Age','Sex','Phone',
+    'Department','NCISM Code','Ward','Bed No','Admitting Doctor','Primary Diagnosis',
+    'Status','Discharge Date','LOS (days)'];
+  const rows = _rows.map((r, i) => {
+    const pat  = r.patients||{}, doc = r.profiles||{}, dept = r.departments||{}, bed = r.beds||{};
+    return [
+      i+1, r.admission_date, _ipdNo(r),
+      pat.name||'', pat.age||'', pat.gender||'', pat.phone||'',
+      dept.name||'', dept.ncism_code||'', bed.ward_name||'', bed.bed_number||'',
+      doc.full_name ? 'Dr. '+doc.full_name : '',
+      r.diagnosis_primary||'', r.status||'',
+      r.discharged_at ? r.discharged_at.slice(0,10) : '',
+      _los(r),
+    ];
+  });
+  const csv = [headers, ...rows].map(r => r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const from = document.getElementById('f-from').value;
+  const to   = document.getElementById('f-to').value;
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `ipd_register_${from}_${to}.csv`; a.click();
+  _toast('CSV exported', 'success');
+};
+
+function _fmtDate(s) {
+  if (!s) return '—';
+  return new Date(s+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+}
+function _esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function _toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+await init();
+</script>
+</body>
+</html>

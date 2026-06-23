@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SOP Library — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;--cream:#faf8f3;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--white:#fff;
+  --red:#c0392b;--red-light:#fdf0f0;
+  --amber:#e07b00;--amber-light:#fff8e1;
+  --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.08)
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page{max-width:1200px;margin:0 auto;padding:24px 16px 80px}
+h1{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--green-deep);margin-bottom:4px}
+.subtitle{font-size:13px;color:var(--text-muted);margin-bottom:20px}
+
+.alert-banner{padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;margin-bottom:16px;display:none}
+.alert-banner.warn{background:var(--amber-light);border:1.5px solid #f0c040;color:#7a5200}
+.alert-banner.info{background:var(--green-light);border:1.5px solid var(--border);color:var(--green-deep)}
+
+/* KPI row */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:20px}
+.kpi{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+.kpi-label{font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.kpi-val{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep)}
+.kpi-val.amber{color:var(--amber)}
+.kpi-val.red{color:var(--red)}
+
+/* Toolbar */
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit;background:var(--white);color:var(--text-dark)}
+.toolbar input{width:240px}
+
+/* Buttons */
+.btn{padding:8px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:opacity .15s}
+.btn:hover{opacity:.88}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-outline{background:transparent;border:1.5px solid var(--green-mid);color:var(--green-mid)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-danger{background:var(--red);color:#fff}
+
+/* Card / Table */
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.card-title{font-size:14px;font-weight:600;color:var(--green-deep)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#f5faf7;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);padding:8px 12px;text-align:left;border-bottom:1.5px solid var(--border)}
+td{padding:9px 12px;border-bottom:1px solid #eef4f0;vertical-align:middle}
+tr:hover td{background:#f9fdfb}
+
+/* Status badges */
+.badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:600;border:1px solid}
+.b-current{background:#e8f5ee;color:#1a4a2e;border-color:#a5d6b8}
+.b-draft{background:#f0f4ff;color:#3949ab;border-color:#90caf9}
+.b-superseded{background:#f5f5f5;color:#616161;border-color:#bdbdbd}
+.b-withdrawn{background:var(--red-light);color:var(--red);border-color:#f5c6c6}
+
+/* Review traffic light */
+.rl-green{color:#2d7a4f;font-weight:600}
+.rl-amber{color:var(--amber);font-weight:600}
+.rl-red{color:var(--red);font-weight:600}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:var(--white);border-radius:12px;padding:28px;width:600px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.modal h2{font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--green-deep);margin-bottom:20px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.field-row.col3{grid-template-columns:1fr 1fr 1fr}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;font-family:inherit}
+.field textarea{min-height:72px;resize:vertical}
+.modal-actions{display:flex;gap:8px;margin-top:20px;justify-content:flex-end}
+
+/* Empty */
+.empty{text-align:center;padding:36px 20px;color:var(--text-muted);font-size:13px}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;color:#fff;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}.toast.success{background:#2d7a4f}.toast.error{background:var(--red)}
+
+@media(max-width:600px){.field-row{grid-template-columns:1fr}.field-row.col3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+
+<div class="page">
+  <h1>SOP Document Library</h1>
+  <p class="subtitle">IMS.6 CORE — Document management, version control, review scheduling</p>
+
+  <div class="alert-banner warn" id="overdue-banner"></div>
+
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">Total SOPs</div><div class="kpi-val" id="k-total">—</div></div>
+    <div class="kpi"><div class="kpi-label">Current</div><div class="kpi-val" id="k-current">—</div></div>
+    <div class="kpi"><div class="kpi-label">Due Review (30d)</div><div class="kpi-val amber" id="k-due">—</div></div>
+    <div class="kpi"><div class="kpi-label">Overdue Review</div><div class="kpi-val red" id="k-overdue">—</div></div>
+    <div class="kpi"><div class="kpi-label">Draft</div><div class="kpi-val" id="k-draft">—</div></div>
+  </div>
+
+  <div class="toolbar">
+    <input id="search" type="text" placeholder="Search SOPs…" oninput="renderTable()"/>
+    <select id="cat-filter" onchange="renderTable()">
+      <option value="">All Categories</option>
+      <option value="clinical">Clinical</option>
+      <option value="nursing">Nursing</option>
+      <option value="pharmacy">Pharmacy</option>
+      <option value="lab">Laboratory</option>
+      <option value="infection_control">Infection Control</option>
+      <option value="emergency">Emergency</option>
+      <option value="administration">Administration</option>
+      <option value="hr">HR / Training</option>
+      <option value="quality">Quality / NABH</option>
+      <option value="general">General</option>
+    </select>
+    <select id="status-filter" onchange="renderTable()">
+      <option value="">All Statuses</option>
+      <option value="current">Current</option>
+      <option value="draft">Draft</option>
+      <option value="superseded">Superseded</option>
+    </select>
+    <button class="btn btn-primary" onclick="openModal()">+ Add SOP</button>
+    <button class="btn btn-outline" onclick="exportCSV()">↓ CSV</button>
+  </div>
+
+  <div class="card">
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>SOP Code</th>
+            <th>Title</th>
+            <th>Category</th>
+            <th>Version</th>
+            <th>Effective Date</th>
+            <th>Review Date</th>
+            <th>Approved By</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="sop-tbody">
+          <tr><td colspan="9"><div class="empty">Loading…</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-bg" id="sop-modal" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h2 id="modal-title">Add SOP Document</h2>
+    <input type="hidden" id="edit-id"/>
+    <div class="field-row">
+      <div class="field">
+        <label>SOP Code</label>
+        <input id="f-code" type="text" placeholder="e.g. SOP-CL-001"/>
+      </div>
+      <div class="field">
+        <label>Category *</label>
+        <select id="f-cat">
+          <option value="clinical">Clinical</option>
+          <option value="nursing">Nursing</option>
+          <option value="pharmacy">Pharmacy</option>
+          <option value="lab">Laboratory</option>
+          <option value="infection_control">Infection Control</option>
+          <option value="emergency">Emergency</option>
+          <option value="administration">Administration</option>
+          <option value="hr">HR / Training</option>
+          <option value="quality">Quality / NABH</option>
+          <option value="general">General</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Title *</label>
+      <input id="f-title" type="text" placeholder="SOP title"/>
+    </div>
+    <div class="field-row col3">
+      <div class="field">
+        <label>Version *</label>
+        <input id="f-version" type="text" placeholder="1.0"/>
+      </div>
+      <div class="field">
+        <label>Effective Date</label>
+        <input id="f-effective" type="date"/>
+      </div>
+      <div class="field">
+        <label>Review Date *</label>
+        <input id="f-review" type="date"/>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Approved By</label>
+        <input id="f-approved" type="text" placeholder="Name / designation"/>
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select id="f-status">
+          <option value="current">Current</option>
+          <option value="draft">Draft</option>
+          <option value="superseded">Superseded</option>
+          <option value="withdrawn">Withdrawn</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Document URL (Supabase Storage / Google Drive link)</label>
+      <input id="f-url" type="url" placeholder="https://…"/>
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="f-notes" placeholder="Scope, purpose, revision history notes…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSOP()">Save SOP</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module">
+import { requireAuth, getCurrentProfile, getCurrentTenantId } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['super_admin','dept_admin'], 'index.html');
+initNavbar();
+const tenantId = getCurrentTenantId();
+const profile  = getCurrentProfile();
+let _docs = [];
+
+const CAT_LABELS = {
+  clinical:'Clinical', nursing:'Nursing', pharmacy:'Pharmacy', lab:'Laboratory',
+  infection_control:'Infection Control', emergency:'Emergency',
+  administration:'Administration', hr:'HR / Training', quality:'Quality / NABH', general:'General'
+};
+
+async function load() {
+  const { data } = await supabase.from('sop_documents')
+    .select('*').eq('tenant_id', tenantId).order('category').order('sop_code');
+  _docs = data || [];
+  renderKPI();
+  renderTable();
+  checkOverdue();
+}
+
+function renderKPI() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const in30  = new Date(today); in30.setDate(in30.getDate()+30);
+  let total=_docs.length, current=0, due=0, overdue=0, draft=0;
+  _docs.forEach(d => {
+    if (d.status==='current') current++;
+    if (d.status==='draft') draft++;
+    if (d.review_date) {
+      const rv = new Date(d.review_date);
+      if (rv < today) overdue++;
+      else if (rv <= in30) due++;
+    }
+  });
+  document.getElementById('k-total').textContent    = total;
+  document.getElementById('k-current').textContent  = current;
+  document.getElementById('k-due').textContent      = due;
+  document.getElementById('k-overdue').textContent  = overdue;
+  document.getElementById('k-draft').textContent    = draft;
+}
+
+function reviewClass(reviewDate) {
+  if (!reviewDate) return '';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const in30  = new Date(today); in30.setDate(in30.getDate()+30);
+  const rv    = new Date(reviewDate);
+  if (rv < today)  return 'rl-red';
+  if (rv <= in30)  return 'rl-amber';
+  return 'rl-green';
+}
+
+function checkOverdue() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const overdue = _docs.filter(d => d.review_date && new Date(d.review_date) < today && d.status==='current');
+  const banner  = document.getElementById('overdue-banner');
+  if (overdue.length) {
+    banner.style.display = '';
+    banner.textContent   = `⚠ ${overdue.length} SOP(s) are overdue for review — IMS.6 requires all documents to be reviewed per schedule.`;
+  }
+}
+
+window.renderTable = function() {
+  const q   = document.getElementById('search').value.toLowerCase();
+  const cat = document.getElementById('cat-filter').value;
+  const st  = document.getElementById('status-filter').value;
+  const rows = _docs.filter(d => {
+    if (cat && d.category !== cat) return false;
+    if (st  && d.status   !== st)  return false;
+    if (q && !((d.title||'').toLowerCase().includes(q) || (d.sop_code||'').toLowerCase().includes(q) || (d.approved_by||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  const tbody = document.getElementById('sop-tbody');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9"><div class="empty">No SOPs found</div></td></tr>'; return; }
+  tbody.innerHTML = rows.map(d => {
+    const rv  = d.review_date ? d.review_date : '—';
+    const cls = reviewClass(d.review_date);
+    const bdg = {current:'b-current',draft:'b-draft',superseded:'b-superseded',withdrawn:'b-withdrawn'}[d.status]||'b-draft';
+    const urlBtn = d.file_url ? `<a href="${d.file_url}" target="_blank" class="btn btn-outline btn-sm" style="text-decoration:none">↗ Open</a>` : '';
+    return `<tr>
+      <td><strong>${d.sop_code||'—'}</strong></td>
+      <td>${d.title}</td>
+      <td>${CAT_LABELS[d.category]||d.category}</td>
+      <td>v${d.version}</td>
+      <td>${d.effective_date||'—'}</td>
+      <td class="${cls}">${rv}</td>
+      <td>${d.approved_by||'—'}</td>
+      <td><span class="badge ${bdg}">${d.status}</span></td>
+      <td style="display:flex;gap:4px;flex-wrap:wrap">
+        ${urlBtn}
+        <button class="btn btn-outline btn-sm" onclick="editSOP('${d.id}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="archiveSOP('${d.id}','${d.title.replace(/'/g,"\\'")}')">Archive</button>
+      </td>
+    </tr>`;
+  }).join('');
+};
+
+window.openModal = function(id) {
+  document.getElementById('sop-modal').style.display = 'flex';
+  document.getElementById('modal-title').textContent = id ? 'Edit SOP Document' : 'Add SOP Document';
+  if (!id) {
+    ['edit-id','f-code','f-title','f-version','f-effective','f-review','f-approved','f-url','f-notes'].forEach(i => document.getElementById(i).value = '');
+    document.getElementById('f-version').value = '1.0';
+    document.getElementById('f-cat').value    = 'clinical';
+    document.getElementById('f-status').value = 'current';
+  }
+};
+
+window.closeModal = function() {
+  document.getElementById('sop-modal').style.display = 'none';
+};
+
+window.editSOP = function(id) {
+  const d = _docs.find(x => x.id === id); if (!d) return;
+  openModal(id);
+  document.getElementById('edit-id').value      = d.id;
+  document.getElementById('f-code').value       = d.sop_code||'';
+  document.getElementById('f-title').value      = d.title;
+  document.getElementById('f-cat').value        = d.category;
+  document.getElementById('f-version').value    = d.version;
+  document.getElementById('f-effective').value  = d.effective_date||'';
+  document.getElementById('f-review').value     = d.review_date||'';
+  document.getElementById('f-approved').value   = d.approved_by||'';
+  document.getElementById('f-status').value     = d.status;
+  document.getElementById('f-url').value        = d.file_url||'';
+  document.getElementById('f-notes').value      = d.notes||'';
+};
+
+window.saveSOP = async function() {
+  const title   = document.getElementById('f-title').value.trim();
+  const review  = document.getElementById('f-review').value;
+  if (!title || !review) { toast('Title and Review Date are required', 'error'); return; }
+  const payload = {
+    tenant_id:      tenantId,
+    sop_code:       document.getElementById('f-code').value.trim()||null,
+    title,
+    category:       document.getElementById('f-cat').value,
+    version:        document.getElementById('f-version').value.trim()||'1.0',
+    effective_date: document.getElementById('f-effective').value||null,
+    review_date:    review,
+    approved_by:    document.getElementById('f-approved').value.trim()||null,
+    status:         document.getElementById('f-status').value,
+    file_url:       document.getElementById('f-url').value.trim()||null,
+    notes:          document.getElementById('f-notes').value.trim()||null,
+    created_by:     profile.id,
+    updated_at:     new Date().toISOString()
+  };
+  const editId = document.getElementById('edit-id').value;
+  let err;
+  if (editId) {
+    ({ error: err } = await supabase.from('sop_documents').update(payload).eq('id', editId));
+  } else {
+    ({ error: err } = await supabase.from('sop_documents').insert(payload));
+  }
+  if (err) { toast('Save failed: '+err.message, 'error'); return; }
+  toast(editId ? 'SOP updated' : 'SOP added', 'success');
+  closeModal();
+  load();
+};
+
+window.archiveSOP = async function(id, name) {
+  if (!confirm(`Archive "${name}"? Status will be set to Superseded.`)) return;
+  const { error } = await supabase.from('sop_documents').update({ status:'superseded', updated_at:new Date().toISOString() }).eq('id', id);
+  if (error) { toast('Failed: '+error.message, 'error'); return; }
+  toast('SOP archived', 'success'); load();
+};
+
+window.exportCSV = function() {
+  const rows = _docs.map(d => [d.sop_code||'', d.title, d.category, d.version, d.effective_date||'', d.review_date, d.approved_by||'', d.status]);
+  const csv  = [['Code','Title','Category','Version','Effective','Review Date','Approved By','Status'], ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const a    = document.createElement('a');
+  a.href     = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = `sop_library_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+};
+
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `toast ${type} show`;
+  setTimeout(() => el.className = 'toast', 2800);
+}
+
+load();
+</script>
+</body>
+</html>

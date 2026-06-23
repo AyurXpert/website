@@ -1,53 +1,155 @@
 // js/components/navbar.js
-// White-label engine — runs on every protected page.
-// Injects: tenant branding navbar, role-based nav links,
-//          mobile hamburger menu, "Powered by AyurXpert" watermark + popup.
+// White-label grouped-dropdown navbar — runs on every protected page.
 
-import { getCurrentProfile, getCurrentTenant, getCurrentRole, logout } from '../core/auth.js';
+import { getCurrentProfile, getCurrentTenant, getCurrentRole, logout, hasModule } from '../core/auth.js';
 
 export function initNavbar() {
   const profile = getCurrentProfile();
   const tenant  = getCurrentTenant();
   const role    = getCurrentRole();
-
   if (!profile || !tenant) return;
-
   _injectStyles();
   _injectNavbar(profile, tenant, role);
   _injectWatermark();
   _injectPopup();
 }
 
-// ── Nav links per role ───────────────────────────────────────────────────────
-function _getLinks(role) {
-  const all = [
-    { href: 'admin.html',        label: 'Dashboard',  roles: ['super_admin','dept_admin','doctor','receptionist','pharmacist','nurse','lab_tech','accountant'] },
-    { href: 'reception.html',    label: 'Reception',  roles: ['super_admin','dept_admin','receptionist','nurse'] },
-    { href: 'doctor.html',       label: 'Queue',      roles: ['super_admin','dept_admin','doctor','nurse'] },
-    { href: 'screening.html',    label: 'Screening',  roles: ['super_admin','dept_admin','doctor','nurse'] },
-    { href: 'dispensaryPOS.html',  label: 'Dispensary', roles: ['super_admin','dept_admin','pharmacist'] },
-    { href: 'inventory.html',    label: 'Inventory',  roles: ['super_admin','dept_admin','pharmacist'] },
-    { href: 'purchase.html',     label: 'Purchase',   roles: ['super_admin','dept_admin','pharmacist','accountant'] },
-    { href: 'reports.html',      label: 'Reports',    roles: ['super_admin','dept_admin','accountant'] },
-    { href: 'ipd.html',          label: 'IPD',        roles: ['super_admin','dept_admin','doctor','receptionist','nurse'] },
-    { href: 'therapist.html',    label: 'Therapy',    roles: ['super_admin','dept_admin','doctor','therapist','nurse'] },
-    { href: 'bed-admin.html',       label: 'IPD Setup',   roles: ['super_admin','dept_admin'] },
-    { href: 'ncism-compliance.html', label: 'Compliance',  roles: ['super_admin','dept_admin'] },
+// ── Type sets ────────────────────────────────────────────────────────────────
+const HOSP  = ['hospital','teaching_hospital','college'];
+const NCISM = ['teaching_hospital','college'];
+const PK    = ['pk_center','hospital','teaching_hospital','college'];
+
+// ── Group + item definitions ─────────────────────────────────────────────────
+// types: null = all org types | array = restricted types
+// A group is hidden if all its items are filtered out.
+function _buildGroups(role, type) {
+  const ALL_ROLES = ['super_admin','dept_admin','doctor','receptionist','pharmacist','nurse','lab_tech','accountant','therapist'];
+  const ADMIN_ROLES = ['super_admin','dept_admin'];
+  const CLINICAL    = ['super_admin','dept_admin','doctor','nurse'];
+  const RX_ROLES    = ['super_admin','dept_admin','pharmacist'];
+  const FRONT_DESK  = ['super_admin','dept_admin','receptionist','nurse'];
+
+  const raw = [
+    {
+      label: 'OPD', icon: '🩺',
+      items: [
+        { href:'reception.html',     label:'Reception',     roles:FRONT_DESK,                    types:null, module:'opd'        },
+        { href:'doctor.html',        label:'Doctor Queue',  roles:CLINICAL,                      types:null, module:'opd'        },
+        { href:'screening.html',     label:'Screening OPD', roles:CLINICAL,                      types:HOSP, module:'opd'        },
+        { href:'opd-admin.html',     label:'OPD Setup',     roles:ADMIN_ROLES,                   types:null, module:'opd'        },
+        { href:'dept-hub.html',      label:'Departments',   roles:CLINICAL.concat(ADMIN_ROLES),  types:HOSP, module:'opd'        },
+        { href:'teaching-opd.html',  label:'Teaching OPD',  roles:CLINICAL.concat(ADMIN_ROLES),  types:NCISM,module:'ncism'      },
+        { href:'tele-schedule.html', label:'Tele Schedule', roles:CLINICAL.concat(ADMIN_ROLES),  types:null, module:'teleconsult'},
+        { href:'prophylaxis.html',   label:'Prophylaxis',  roles:CLINICAL.concat(ADMIN_ROLES),  types:null, module:'opd'        },
+      ]
+    },
+    {
+      label: 'IPD', icon: '🏥',
+      items: [
+        { href:'ipd.html',           label:'Admissions',      roles:CLINICAL.concat(['receptionist']),        types:HOSP, module:'ipd'        },
+        { href:'nursing.html',       label:'Nursing',         roles:CLINICAL.concat(['nurse','therapist']),   types:HOSP, module:'nursing'    },
+        { href:'icu-flowsheet.html', label:'ICU Flowsheet',   roles:CLINICAL.concat(['nurse']),               types:HOSP, module:'ipd'        },
+        { href:'blood-bank.html',    label:'Blood Bank',      roles:CLINICAL.concat(['nurse']),               types:HOSP, module:'ipd'        },
+        { href:'bed-admin.html',     label:'Bed Setup',       roles:ADMIN_ROLES,                             types:HOSP, module:'ipd'        },
+        { href:'major-ot.html',      label:'Major OT',        roles:CLINICAL.concat(ADMIN_ROLES),            types:HOSP, module:'ipd'        },
+        { href:'minor-ot.html',      label:'Minor OT',        roles:CLINICAL.concat(ADMIN_ROLES),            types:HOSP, module:'ipd'        },
+        { href:'ksharasutra.html',   label:'Kshara Sutra',    roles:CLINICAL.concat(ADMIN_ROLES),            types:HOSP, module:'ipd'        },
+        { href:'anc.html',           label:'ANC Register',    roles:CLINICAL.concat(['receptionist']),       types:HOSP, module:'ipd'        },
+        { href:'kriyakalpa.html',    label:'Kriya Kalpa',     roles:CLINICAL.concat(['therapist']),          types:HOSP, module:'ipd'        },
+        { href:'therapist.html',     label:'Therapy Sessions',roles:CLINICAL.concat(['therapist']),          types:PK,   module:'panchakarma'},
+        { href:'palha-diet.html',    label:'Palha Diet',      roles:CLINICAL.concat(ADMIN_ROLES),            types:PK,   module:'panchakarma'},
+        { href:'roster.html',        label:'Duty Roster',     roles:ADMIN_ROLES,                             types:HOSP, module:'hr'         },
+        { href:'emergency.html',     label:'Emergency OPD',   roles:CLINICAL.concat(['receptionist']),       types:HOSP, module:'emergency'  },
+        { href:'labour-room.html',   label:'Labour Room',     roles:CLINICAL,                                types:HOSP, module:'ipd'        },
+        { href:'anushastra.html',    label:'Anushastra Karma',roles:CLINICAL,                                types:HOSP, module:'ipd'        },
+      ]
+    },
+    {
+      label: 'Dispensary', icon: '💊',
+      items: [
+        { href:'dispensaryPOS.html',  label:'Dispensary POS',  roles:RX_ROLES,                          types:null, module:'pharmacy'},
+        { href:'inventory.html',      label:'Inventory',       roles:RX_ROLES,                          types:null, module:'pharmacy'},
+        { href:'aushadha-nirman.html',label:'Aushadha Nirman', roles:RX_ROLES.concat(ADMIN_ROLES),      types:null, module:'pharmacy'},
+        { href:'purchase.html',       label:'Purchase / GRN',  roles:RX_ROLES.concat(['accountant']),   types:null, module:'pharmacy'},
+        { href:'purchase-order.html', label:'Purchase Orders', roles:RX_ROLES.concat(['accountant']),   types:null, module:'pharmacy'},
+        { href:'formulary-admin.html',label:'Formulary',       roles:RX_ROLES.concat(ADMIN_ROLES),      types:HOSP, module:'pharmacy'},
+        { href:'dpc.html',            label:'Procurement Cmte',roles:ADMIN_ROLES.concat(['accountant']),types:HOSP, module:'pharmacy'},
+        { href:'disposal-register.html',label:'Disposal Register',roles:RX_ROLES.concat(ADMIN_ROLES),  types:null, module:'pharmacy'},
+        { href:'suppliers.html',      label:'Supplier Register',roles:RX_ROLES.concat(ADMIN_ROLES),    types:null, module:'pharmacy'},
+      ]
+    },
+    {
+      label: 'Admin', icon: '⚙',
+      items: [
+        { href:'admin.html',             label:'Dashboard',        roles:ALL_ROLES,                                            types:null  },
+        { href:'finance.html',           label:'Finance',          roles:['super_admin','dept_admin','accountant'],             types:null, module:'finance'  },
+        { href:'hr.html',                label:'HR',               roles:['super_admin','dept_admin'],                         types:null, module:'hr'       },
+        { href:'recruitment.html',       label:'Recruitment',      roles:['super_admin','dept_admin'],                         types:null, module:'hr'       },
+        { href:'mrd.html',               label:'Medical Records',  roles:['super_admin','dept_admin'],                         types:null, module:'mrd'      },
+        { href:'opd-register.html',      label:'OPD Register',     roles:['super_admin','dept_admin','doctor','receptionist'],    types:null, module:'opd'      },
+        { href:'ipd-register.html',      label:'IPD Register',     roles:['super_admin','dept_admin','doctor','nurse'],            types:HOSP, module:'ipd'      },
+        { href:'reports.html',           label:'Reports',          roles:['super_admin','dept_admin','accountant','lab_tech'],  types:null, module:'finance'  },
+        { href:'fee-admin.html',         label:'Fee Management',   roles:['super_admin','dept_admin','accountant'],             types:null, module:'finance'  },
+        { href:'lab.html',               label:'Clinical Lab',     roles:ALL_ROLES,                                            types:null, module:'lab'      },
+        { href:'lab-nabl.html',          label:'NABL Quality',     roles:['super_admin','dept_admin','lab_tech','doctor'],       types:null, module:'lab'      },
+        { href:'ncism-compliance.html',  label:'NCISM Compliance', roles:ADMIN_ROLES,                                          types:NCISM,module:'ncism'    },
+        { href:'quality.html',           label:'Quality',          roles:ADMIN_ROLES,                                          types:null, module:'quality'  },
+        { href:'pharmacovigilance.html', label:'Pharmacovigilance',roles:ADMIN_ROLES,                                          types:NCISM,module:'quality'  },
+        { href:'iqac.html',              label:'IQAC',             roles:ADMIN_ROLES,                                          types:NCISM,module:'quality'  },
+        { href:'bmw.html',               label:'BMW Waste',        roles:ADMIN_ROLES.concat(['nurse']),                        types:HOSP, module:'quality'  },
+        { href:'sterilisation.html',     label:'CSSD / Steril.',   roles:ADMIN_ROLES.concat(['nurse']),                        types:HOSP, module:'quality'  },
+        { href:'sop-library.html',       label:'SOP Library',      roles:ADMIN_ROLES,                                          types:null, module:'quality'  },
+        { href:'hai-surveillance.html',  label:'HAI Surveillance', roles:ADMIN_ROLES.concat(['nurse','doctor']),                types:HOSP, module:'quality'  },
+        { href:'fms.html',               label:'Facility Mgmt',        roles:ADMIN_ROLES,                   types:null, module:'quality'  },
+        { href:'nabh-self-assessment.html',label:'NABH Self-Assessment',roles:ADMIN_ROLES,                 types:null, module:'quality'  },
+        { href:'subscription.html',      label:'Subscriptions',        roles:ADMIN_ROLES,                 types:null, platformOnly:true },
+      ]
+    },
   ];
-  return all.filter(l => l.roles.includes(role));
+
+  const isPlatformAdmin = getCurrentProfile()?.is_platform_admin || false;
+
+  // Filter items by role + type + platformOnly + module flag
+  return raw.map(g => ({
+    ...g,
+    items: g.items.filter(item =>
+      item.roles.includes(role) &&
+      (item.types === null || item.types.includes(type)) &&
+      (!item.platformOnly || isPlatformAdmin) &&
+      (!item.module || hasModule(item.module))
+    )
+  })).filter(g => g.items.length > 0);
 }
 
-// ── Navbar ───────────────────────────────────────────────────────────────────
+// ── Inject navbar ─────────────────────────────────────────────────────────────
 function _injectNavbar(profile, tenant, role) {
-  const links       = _getLinks(role);
+  const groups      = _buildGroups(role, tenant.type);
   const currentPage = window.location.pathname.split('/').pop() || 'admin.html';
 
   const logoHTML = tenant.logo_url
     ? `<img src="${tenant.logo_url}" alt="${tenant.name}" class="ax-logo"/>`
     : `<div class="ax-logo-fallback">${tenant.name.charAt(0).toUpperCase()}</div>`;
 
-  const linksHTML = links.map(l =>
-    `<a href="${l.href}" class="ax-link${currentPage === l.href ? ' active' : ''}">${l.label}</a>`
+  // Desktop dropdown groups
+  const groupsHTML = groups.map(g => {
+    const hasActive = g.items.some(i => i.href === currentPage);
+    const itemsHTML = g.items.map(i =>
+      `<a href="${i.href}" class="ax-dd-item${i.href === currentPage ? ' active' : ''}">
+        <span class="ax-dd-item-label">${i.label}</span>
+      </a>`
+    ).join('');
+    return `<div class="ax-group${hasActive ? ' has-active' : ''}">
+      <button class="ax-group-btn">${g.icon} ${g.label} <span class="ax-caret">▾</span></button>
+      <div class="ax-dropdown">${itemsHTML}</div>
+    </div>`;
+  }).join('');
+
+  // Mobile flat list (all items)
+  const mobileHTML = groups.map(g =>
+    `<div class="ax-mob-group">
+      <div class="ax-mob-group-label">${g.icon} ${g.label}</div>
+      ${g.items.map(i => `<a href="${i.href}" class="ax-link${i.href===currentPage?' active':''}">${i.label}</a>`).join('')}
+    </div>`
   ).join('');
 
   const nav = document.createElement('nav');
@@ -58,12 +160,10 @@ function _injectNavbar(profile, tenant, role) {
         ${logoHTML}
         <div class="ax-brand-text">
           <span class="ax-name">${tenant.name}</span>
-          <span class="ax-tagline">${_tenantTypeLabel(tenant.type)}${tenant.tenant_code ? ' · ' + tenant.tenant_code : ''}</span>
+          <span class="ax-tagline">${_tenantTypeLabel(tenant.type)}${tenant.tenant_code ? ' · ' + tenant.tenant_code : ''}${NCISM.includes(tenant.type) && tenant.ug_intake ? ' · UG ' + tenant.ug_intake : ''}</span>
         </div>
       </div>
-
-      <div class="ax-links" id="ax-links">${linksHTML}</div>
-
+      <div class="ax-groups" id="ax-groups">${groupsHTML}</div>
       <div class="ax-right">
         <div class="ax-user-info">
           <span class="ax-user-name">${profile.full_name || 'User'}</span>
@@ -75,15 +175,13 @@ function _injectNavbar(profile, tenant, role) {
         </button>
       </div>
     </div>
-
     <div class="ax-mobile-menu" id="ax-mobile-menu">
-      <div class="ax-mobile-links">${linksHTML}</div>
+      <div class="ax-mobile-links">${mobileHTML}</div>
       <div class="ax-mobile-footer">
         <span>${profile.full_name || ''} &nbsp;·&nbsp; ${_roleLabel(role)}</span>
         <button class="ax-mobile-logout" id="ax-mobile-logout">Logout</button>
       </div>
-    </div>
-  `;
+    </div>`;
 
   document.body.insertBefore(nav, document.body.firstChild);
   document.body.style.paddingTop = '60px';
@@ -93,7 +191,7 @@ function _injectNavbar(profile, tenant, role) {
   document.getElementById('ax-hamburger').addEventListener('click', _toggleMenu);
 }
 
-// ── Watermark ────────────────────────────────────────────────────────────────
+// ── Watermark ─────────────────────────────────────────────────────────────────
 function _injectWatermark() {
   const wm = document.createElement('div');
   wm.id = 'ax-watermark';
@@ -102,7 +200,7 @@ function _injectWatermark() {
   document.body.appendChild(wm);
 }
 
-// ── Popup ────────────────────────────────────────────────────────────────────
+// ── Popup ─────────────────────────────────────────────────────────────────────
 function _injectPopup() {
   const overlay = document.createElement('div');
   overlay.id = 'ax-popup-overlay';
@@ -110,237 +208,161 @@ function _injectPopup() {
     <div id="ax-popup" role="dialog" aria-modal="true">
       <div class="ax-popup-icon">&#127807;</div>
       <div class="ax-popup-title">AyurXpert powers this portal</div>
-      <div class="ax-popup-body">
-        A complete digital ecosystem for Ayurveda — clinics, hospitals,
-        pharmacies, colleges, pharma companies, and more. All in one platform.
-      </div>
+      <div class="ax-popup-body">A complete digital ecosystem for Ayurveda — clinics, hospitals, pharmacies, colleges, pharma companies, and more.</div>
       <div class="ax-popup-btns">
         <button class="ax-popup-learn" id="ax-popup-learn">Learn More</button>
         <button class="ax-popup-close" id="ax-popup-close">Close</button>
       </div>
-    </div>
-  `;
+    </div>`;
   document.body.appendChild(overlay);
-
   overlay.addEventListener('click', e => { if (e.target === overlay) _hidePopup(); });
-  document.getElementById('ax-popup-learn').addEventListener('click', () => {
-    window.open('https://ayurxpert.in', '_blank', 'noopener');
-  });
+  document.getElementById('ax-popup-learn').addEventListener('click', () => window.open('https://ayurxpert.in','_blank','noopener'));
   document.getElementById('ax-popup-close').addEventListener('click', _hidePopup);
-
-  // Close on Escape key
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') _hidePopup();
-  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') _hidePopup(); });
 }
+function _showPopup() { document.getElementById('ax-popup-overlay').classList.add('show'); }
+function _hidePopup() { document.getElementById('ax-popup-overlay').classList.remove('show'); }
 
-function _showPopup() {
-  document.getElementById('ax-popup-overlay').classList.add('show');
-}
-function _hidePopup() {
-  document.getElementById('ax-popup-overlay').classList.remove('show');
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-async function _handleLogout() {
-  await logout();
-}
-
+// ── Helpers ───────────────────────────────────────────────────────────────────
+async function _handleLogout() { await logout(); }
 function _toggleMenu() {
-  const menu = document.getElementById('ax-mobile-menu');
-  const btn  = document.getElementById('ax-hamburger');
-  menu.classList.toggle('open');
-  btn.classList.toggle('open');
+  document.getElementById('ax-mobile-menu').classList.toggle('open');
+  document.getElementById('ax-hamburger').classList.toggle('open');
 }
 
 function _roleLabel(role) {
-  const map = {
-    super_admin:  'Super Admin',
-    dept_admin:   'Dept. Admin',
-    doctor:       'Doctor',
-    receptionist: 'Receptionist',
-    pharmacist:   'Pharmacist',
-    nurse:        'Nurse',
-    lab_tech:     'Lab Technician',
-    accountant:   'Accountant',
-    student:      'Student',
-  };
-  return map[role] || role;
+  return { super_admin:'Super Admin', dept_admin:'Dept. Admin', doctor:'Doctor', receptionist:'Receptionist',
+    pharmacist:'Pharmacist', nurse:'Nurse', lab_tech:'Lab Technician', accountant:'Accountant',
+    student:'Student', therapist:'Therapist' }[role] || role;
 }
-
 function _tenantTypeLabel(type) {
-  const map = {
-    clinic:      'Clinic',
-    hospital:    'Hospital',
-    pk_center:   'Panchakarma Center',
-    dispensary:  'Dispensary',
-    college:     'Ayurveda College',
-    pharma:      'Pharmaceutical Co.',
-    supplier:    'Supplier',
-    dealer:      'Dealer',
-    journal:     'Journal',
-  };
-  return map[type] || type || 'Healthcare';
+  return { clinic:'Clinic', hospital:'Hospital', pk_center:'Panchakarma Center', dispensary:'Dispensary',
+    college:'Ayurveda College', teaching_hospital:'Teaching Hospital',
+    pharma:'Pharmaceutical Co.', supplier:'Supplier', dealer:'Dealer', journal:'Journal' }[type] || 'Healthcare';
 }
 
-// ── Styles ───────────────────────────────────────────────────────────────────
+// ── Styles ────────────────────────────────────────────────────────────────────
 function _injectStyles() {
   const s = document.createElement('style');
   s.textContent = `
-  /* ── NAVBAR ── */
   #ax-navbar {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
-    background: #1a4a2e;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.2);
-    font-family: 'DM Sans', sans-serif;
+    position:fixed;top:0;left:0;right:0;z-index:1000;
+    background:#1a4a2e;
+    box-shadow:0 2px 12px rgba(0,0,0,.2);
+    font-family:'DM Sans',sans-serif;
   }
   .ax-inner {
-    max-width: 1280px; margin: 0 auto;
-    display: flex; align-items: center; justify-content: space-between;
-    height: 60px; padding: 0 20px; gap: 12px;
+    max-width:1400px;margin:0 auto;
+    display:flex;align-items:center;justify-content:space-between;
+    height:60px;padding:0 20px;gap:8px;
   }
 
   /* Brand */
-  .ax-brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; min-width: 0; }
-  .ax-logo  { width: 36px; height: 36px; object-fit: contain; border-radius: 8px; flex-shrink: 0; }
-  .ax-logo-fallback {
-    width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0;
-    background: #c9902a; color: #fff;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 700; font-size: 16px;
-  }
-  .ax-brand-text { display: flex; flex-direction: column; min-width: 0; }
-  .ax-name    { color: #fff; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; line-height: 1.2; }
-  .ax-tagline { color: rgba(255,255,255,0.45); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+  .ax-brand{display:flex;align-items:center;gap:10px;flex-shrink:0;min-width:0}
+  .ax-logo{width:34px;height:34px;object-fit:contain;border-radius:8px;flex-shrink:0}
+  .ax-logo-fallback{width:34px;height:34px;border-radius:8px;flex-shrink:0;background:#c9902a;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px}
+  .ax-brand-text{display:flex;flex-direction:column;min-width:0}
+  .ax-name{color:#fff;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;line-height:1.2}
+  .ax-tagline{color:rgba(255,255,255,.4);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
 
-  /* Nav links */
-  .ax-links { display: flex; align-items: center; gap: 1px; flex: 1; justify-content: center; min-width: 0; overflow: hidden; }
-  .ax-link  { color: rgba(255,255,255,0.65); text-decoration: none; font-size: 14px; font-weight: 500; padding: 7px 13px; border-radius: 8px; transition: background .2s, color .2s; white-space: nowrap; }
-  .ax-link:hover  { background: rgba(255,255,255,0.1); color: #fff; }
-  .ax-link.active { background: rgba(201,144,42,0.18); color: #c9902a; }
+  /* Groups row */
+  .ax-groups{display:flex;align-items:center;gap:2px;flex:1;justify-content:center}
+
+  /* Group dropdown */
+  .ax-group{position:relative}
+  .ax-group-btn{
+    height:38px;padding:0 14px;background:none;border:none;cursor:pointer;
+    color:rgba(255,255,255,.75);font-family:'DM Sans',sans-serif;font-size:13.5px;font-weight:500;
+    border-radius:8px;display:flex;align-items:center;gap:5px;white-space:nowrap;
+    transition:background .15s,color .15s;
+  }
+  .ax-group-btn:hover,.ax-group.has-active .ax-group-btn{background:rgba(255,255,255,.1);color:#fff}
+  .ax-group.has-active .ax-group-btn{background:rgba(201,144,42,.2);color:#c9902a}
+  .ax-caret{font-size:10px;opacity:.6;transition:transform .2s}
+  .ax-group:hover .ax-caret{transform:rotate(180deg)}
+
+  /* Dropdown panel */
+  .ax-dropdown{
+    position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);
+    background:#fff;border-radius:10px;
+    box-shadow:0 8px 32px rgba(0,0,0,.15);
+    min-width:190px;padding:6px;
+    opacity:0;pointer-events:none;
+    transform:translateX(-50%) translateY(-6px);
+    transition:opacity .18s,transform .18s;
+    z-index:200;
+  }
+  .ax-group:hover .ax-dropdown,.ax-group:focus-within .ax-dropdown{
+    opacity:1;pointer-events:all;
+    transform:translateX(-50%) translateY(0);
+  }
+  .ax-dd-item{
+    display:block;padding:9px 14px;border-radius:7px;
+    text-decoration:none;color:#1a2e22;font-size:13px;font-weight:500;
+    transition:background .12s;white-space:nowrap;
+  }
+  .ax-dd-item:hover{background:#e8f5ee;color:#1a4a2e}
+  .ax-dd-item.active{background:rgba(201,144,42,.12);color:#7a5c00;font-weight:600}
 
   /* Right section */
-  .ax-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-  .ax-user-info { display: flex; flex-direction: column; align-items: flex-end; }
-  .ax-user-name { color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 500; white-space: nowrap; max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
-  .ax-user-role { color: rgba(255,255,255,0.4); font-size: 11px; white-space: nowrap; }
-  .ax-logout-btn {
-    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.75);
-    border: 1px solid rgba(255,255,255,0.15); border-radius: 8px;
-    padding: 6px 14px; font-family: 'DM Sans', sans-serif; font-size: 13px;
-    cursor: pointer; transition: background .2s, color .2s; white-space: nowrap;
-  }
-  .ax-logout-btn:hover { background: rgba(255,255,255,0.18); color: #fff; }
+  .ax-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+  .ax-user-info{display:flex;flex-direction:column;align-items:flex-end}
+  .ax-user-name{color:rgba(255,255,255,.85);font-size:12px;font-weight:500;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+  .ax-user-role{color:rgba(255,255,255,.4);font-size:10px;white-space:nowrap}
+  .ax-logout-btn{background:rgba(255,255,255,.08);color:rgba(255,255,255,.75);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 12px;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;transition:background .15s}
+  .ax-logout-btn:hover{background:rgba(255,255,255,.18);color:#fff}
 
   /* Hamburger */
-  .ax-hamburger { display: none; flex-direction: column; gap: 5px; background: none; border: none; cursor: pointer; padding: 8px; border-radius: 8px; }
-  .ax-hamburger span { display: block; width: 22px; height: 2px; background: rgba(255,255,255,0.8); border-radius: 2px; transition: all .3s; }
-  .ax-hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
-  .ax-hamburger.open span:nth-child(2) { opacity: 0; }
-  .ax-hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+  .ax-hamburger{display:none;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer;padding:8px;border-radius:8px}
+  .ax-hamburger span{display:block;width:22px;height:2px;background:rgba(255,255,255,.8);border-radius:2px;transition:all .3s}
+  .ax-hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+  .ax-hamburger.open span:nth-child(2){opacity:0}
+  .ax-hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
 
   /* Mobile menu */
-  .ax-mobile-menu { display: none; flex-direction: column; background: #143d24; border-top: 1px solid rgba(255,255,255,0.08); }
-  .ax-mobile-menu.open { display: flex; }
-  .ax-mobile-links { display: flex; flex-direction: column; padding: 10px 12px 8px; gap: 2px; }
-  .ax-mobile-links .ax-link { padding: 12px 16px; font-size: 15px; }
-  .ax-mobile-footer { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px 14px; border-top: 1px solid rgba(255,255,255,0.06); }
-  .ax-mobile-footer span { color: rgba(255,255,255,0.4); font-size: 12px; }
-  .ax-mobile-logout { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 6px 14px; font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; }
-  .ax-mobile-logout:hover { background: rgba(255,255,255,0.18); color: #fff; }
+  .ax-mobile-menu{display:none;flex-direction:column;background:#143d24;border-top:1px solid rgba(255,255,255,.08);max-height:80vh;overflow-y:auto}
+  .ax-mobile-menu.open{display:flex}
+  .ax-mobile-links{padding:10px 12px 8px;display:flex;flex-direction:column;gap:2px}
+  .ax-mob-group{margin-bottom:8px}
+  .ax-mob-group-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:rgba(255,255,255,.35);padding:6px 8px 4px}
+  .ax-link{display:block;padding:10px 14px;border-radius:7px;color:rgba(255,255,255,.75);font-size:14px;font-weight:500;text-decoration:none;transition:background .15s}
+  .ax-link:hover{background:rgba(255,255,255,.08);color:#fff}
+  .ax-link.active{background:rgba(201,144,42,.15);color:#c9902a}
+  .ax-mobile-footer{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 14px;border-top:1px solid rgba(255,255,255,.06)}
+  .ax-mobile-footer span{color:rgba(255,255,255,.4);font-size:12px}
+  .ax-mobile-logout{background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 14px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer}
 
-  /* ── WATERMARK ── */
-  #ax-watermark {
-    position: fixed; bottom: 14px; right: 14px; z-index: 990;
-    font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 400;
-    color: rgba(0,0,0,0.28); cursor: pointer;
-    background: rgba(255,255,255,0.82);
-    padding: 5px 11px; border-radius: 20px;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    border: 1px solid rgba(0,0,0,0.06);
-    transition: color .2s, background .2s, box-shadow .2s;
-    user-select: none;
-    line-height: 1.4;
+  /* Responsive */
+  @media(max-width:1024px){
+    .ax-groups{display:none}
+    .ax-user-info{display:none}
+    .ax-logout-btn{display:none}
+    .ax-hamburger{display:flex}
   }
-  #ax-watermark:hover {
-    color: #1a4a2e; background: #fff;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-  }
-  #ax-watermark strong { font-weight: 600; color: #2d7a4f; }
-
-  /* ── POPUP ── */
-  #ax-popup-overlay {
-    display: none; position: fixed; inset: 0; z-index: 2000;
-    background: rgba(0,0,0,0.45);
-    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-    align-items: center; justify-content: center;
-    padding: 16px;
-  }
-  #ax-popup-overlay.show { display: flex; }
-  #ax-popup {
-    background: #fff; border-radius: 20px; padding: 32px 28px;
-    max-width: 380px; width: 100%; text-align: center;
-    box-shadow: 0 24px 64px rgba(0,0,0,0.18);
-    animation: axPopIn .25s cubic-bezier(.34,1.56,.64,1) both;
-  }
-  .ax-popup-icon  { font-size: 44px; margin-bottom: 14px; }
-  .ax-popup-title { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 600; color: #1a4a2e; margin-bottom: 10px; line-height: 1.3; }
-  .ax-popup-body  { font-size: 14px; color: #6b7280; line-height: 1.75; margin-bottom: 24px; }
-  .ax-popup-btns  { display: flex; gap: 10px; }
-  .ax-popup-learn {
-    flex: 1; height: 46px; background: #1a4a2e; color: #fff;
-    border: none; border-radius: 10px;
-    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500;
-    cursor: pointer; transition: background .2s;
-  }
-  .ax-popup-learn:hover { background: #1f5c37; }
-  .ax-popup-close {
-    height: 46px; padding: 0 20px; background: #f3f4f6; color: #374151;
-    border: none; border-radius: 10px;
-    font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer;
-    transition: background .2s;
-  }
-  .ax-popup-close:hover { background: #e5e7eb; }
-
-  @keyframes axPopIn {
-    from { opacity: 0; transform: scale(.92) translateY(10px); }
-    to   { opacity: 1; transform: scale(1)   translateY(0);    }
+  @media(max-width:480px){
+    .ax-inner{padding:0 14px;height:56px}
+    .ax-name{max-width:120px;font-size:13px}
+    body{padding-top:56px!important}
+    #ax-watermark{bottom:10px;right:10px;font-size:10px;padding:4px 9px}
   }
 
-  /* ── RESPONSIVE BREAKPOINTS ── */
+  /* Watermark */
+  #ax-watermark{position:fixed;bottom:14px;right:14px;z-index:990;font-family:'DM Sans',sans-serif;font-size:11px;color:rgba(0,0,0,.28);cursor:pointer;background:rgba(255,255,255,.82);padding:5px 11px;border-radius:20px;backdrop-filter:blur(6px);border:1px solid rgba(0,0,0,.06);transition:color .2s,background .2s;user-select:none;line-height:1.4}
+  #ax-watermark:hover{color:#1a4a2e;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.1)}
+  #ax-watermark strong{font-weight:600;color:#2d7a4f}
 
-  /* Step 1 — tighten link padding on wide-but-crowded screens */
-  @media (max-width: 1400px) {
-    .ax-link { padding: 6px 10px; font-size: 13.5px; }
-    .ax-name { max-width: 150px; }
-  }
-  /* Step 2 — compress further, hide role label */
-  @media (max-width: 1200px) {
-    .ax-link { padding: 6px 7px; font-size: 13px; }
-    .ax-user-role { display: none; }
-    .ax-logout-btn { padding: 6px 10px; font-size: 12px; }
-    .ax-name { max-width: 120px; }
-    .ax-tagline { display: none; }
-  }
-  /* Step 3 — collapse to hamburger */
-  @media (max-width: 1024px) {
-    .ax-links    { display: none; }
-    .ax-user-info { display: none; }
-    .ax-logout-btn { display: none; }
-    .ax-hamburger  { display: flex; }
-  }
-  @media (max-width: 480px) {
-    .ax-inner  { padding: 0 14px; height: 56px; }
-    .ax-name   { max-width: 130px; font-size: 14px; }
-    .ax-logo, .ax-logo-fallback { width: 30px; height: 30px; }
-    body       { padding-top: 56px !important; }
-    #ax-watermark { bottom: 10px; right: 10px; font-size: 10px; padding: 4px 9px; }
-    #ax-popup  { padding: 24px 20px; border-radius: 16px; }
-    .ax-popup-title { font-size: 20px; }
-    .ax-popup-btns { flex-direction: column; }
-    .ax-popup-close { height: 42px; }
-  }
+  /* Popup */
+  #ax-popup-overlay{display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px}
+  #ax-popup-overlay.show{display:flex}
+  #ax-popup{background:#fff;border-radius:20px;padding:32px 28px;max-width:380px;width:100%;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.18);animation:axPopIn .25s cubic-bezier(.34,1.56,.64,1) both}
+  .ax-popup-icon{font-size:44px;margin-bottom:14px}
+  .ax-popup-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:#1a4a2e;margin-bottom:10px}
+  .ax-popup-body{font-size:14px;color:#6b7280;line-height:1.75;margin-bottom:24px}
+  .ax-popup-btns{display:flex;gap:10px}
+  .ax-popup-learn{flex:1;height:46px;background:#1a4a2e;color:#fff;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer}
+  .ax-popup-learn:hover{background:#1f5c37}
+  .ax-popup-close{height:46px;padding:0 20px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer}
+  @keyframes axPopIn{from{opacity:0;transform:scale(.92) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
   `;
   document.head.appendChild(s);
 }

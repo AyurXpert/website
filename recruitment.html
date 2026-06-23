@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Recruitment — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;--cream:#faf8f3;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--white:#fff;
+  --red:#c0392b;--red-light:#fdf0f0;
+  --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.08)
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page{max-width:1100px;margin:0 auto;padding:24px 16px 80px}
+h1{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--green-deep);margin-bottom:4px}
+.subtitle{font-size:13px;color:var(--text-muted);margin-bottom:20px}
+
+/* Tabs */
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px}
+.tab-btn{padding:10px 20px;font-size:13px;font-weight:500;background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;color:var(--text-muted);margin-bottom:-2px;transition:all .2s}
+.tab-btn.active{color:var(--green-deep);border-bottom-color:var(--green-deep);font-weight:600}
+.tab-pane{display:none}.tab-pane.active{display:block}
+
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:20px}
+.kpi{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+.kpi-label{font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.kpi-val{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep)}
+.kpi-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+.kpi.gold .kpi-val{color:var(--gold)}
+
+/* Card */
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.card-title{font-size:14px;font-weight:600;color:var(--green-deep)}
+.card-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+/* Buttons */
+.btn{padding:8px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:opacity .15s}
+.btn:hover{opacity:.88}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-gold{background:var(--gold);color:#fff}
+.btn-outline{background:transparent;border:1.5px solid var(--green-mid);color:var(--green-mid)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-danger{background:var(--red);color:#fff}
+
+/* Filter */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.filter-bar input,.filter-bar select{padding:7px 11px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit}
+
+/* Vacancy cards */
+.vacancy-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-bottom:20px}
+.vac-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px;transition:border-color .2s,box-shadow .2s;cursor:pointer}
+.vac-card:hover,.vac-card.active{border-color:var(--green-mid);box-shadow:0 0 0 3px rgba(45,122,79,.08)}
+.vac-card.active{border-color:var(--green-deep)}
+.vac-card.closed{opacity:.7;border-style:dashed}
+.vc-title{font-size:14px;font-weight:600;color:var(--green-deep);margin-bottom:4px}
+.vc-meta{font-size:11px;color:var(--text-muted);display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.vc-tag{background:var(--green-light);color:var(--green-deep);border-radius:4px;padding:1px 7px;font-size:11px;font-weight:500}
+.vc-stats{display:flex;gap:14px;font-size:12px;margin-bottom:10px}
+.vc-stat-val{font-weight:700;color:var(--green-deep);font-size:16px;font-family:'Cormorant Garamond',serif}
+
+/* Badge */
+.badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:600;border:1px solid}
+.b-open{background:#e8f5ee;color:#1a4a2e;border-color:#a5d6b8}
+.b-closed{background:#f5f5f5;color:#888;border-color:#ddd}
+.b-draft{background:#fff8e1;color:#7a5200;border-color:#ffe082}
+.b-received{background:#f5f5f5;color:#555;border-color:#ddd}
+.b-shortlisted{background:#e3f2fd;color:#1565c0;border-color:#90caf9}
+.b-interview_scheduled{background:#f3e5f5;color:#6a1b9a;border-color:#ce93d8}
+.b-selected{background:#e8f5ee;color:#1a4a2e;border-color:#a5d6b8}
+.b-rejected{background:var(--red-light);color:var(--red);border-color:#f5b8b8}
+.b-waitlisted{background:var(--gold-light);color:#7a5200;border-color:#e8c97a}
+.b-joined{background:#1a4a2e;color:#fff;border-color:#1a4a2e}
+
+/* Application table */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--green-deep);color:#fff;padding:9px 12px;text-align:left;font-weight:500;font-size:12px;white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fdf9}
+
+/* Form */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;font-weight:500;color:var(--text-mid)}
+.field.span2{grid-column:span 2}
+.field.span3{grid-column:span 3}
+input,select,textarea{padding:8px 11px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;color:var(--text-dark);background:var(--white);width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mid)}
+textarea{resize:vertical;min-height:70px}
+
+/* Print letter */
+.letter-preview{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:32px 40px;font-size:13px;line-height:1.8;max-width:700px;margin:0 auto}
+.letter-preview h2{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--green-deep);margin-bottom:16px;text-align:center}
+.letter-preview .ltr-meta{color:var(--text-muted);font-size:12px;margin-bottom:20px}
+.letter-preview .ltr-body p{margin-bottom:12px}
+.letter-preview .ltr-sig{margin-top:40px}
+.letter-preview .ltr-line{border-top:1px solid var(--text-dark);display:inline-block;width:180px;margin-top:36px}
+.letter-preview .join-link-box{background:var(--green-light);border:1.5px solid var(--green-mid);border-radius:8px;padding:12px 16px;margin:16px 0;word-break:break-all;font-family:monospace;font-size:12px;color:var(--green-deep)}
+@media print{
+  body *{visibility:hidden}
+  #print-area,#print-area *{visibility:visible}
+  #print-area{position:fixed;top:0;left:0;width:100%;padding:32px 40px}
+  .no-print{display:none!important}
+}
+
+/* Empty */
+.empty{text-align:center;padding:36px 20px;color:var(--text-muted);font-size:13px}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;color:#fff;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}.toast.success{background:#2d7a4f}.toast.error{background:var(--red)}
+
+/* Modal */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:800;align-items:center;justify-content:center}
+.modal-bg.show{display:flex}
+.modal{background:#fff;border-radius:var(--radius);width:580px;max-width:96vw;max-height:92vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.modal.wide{width:760px}
+.modal-hdr{background:var(--green-deep);color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;border-radius:var(--radius) var(--radius) 0 0}
+.modal-title{font-size:15px;font-weight:600}
+.modal-close{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1}
+.modal-body{padding:20px}
+.modal-foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+
+<div class="page">
+  <h1>Recruitment</h1>
+  <p class="subtitle">Post vacancies · Manage applications · Interview scheduling · Appointment letters</p>
+
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">Open Vacancies</div><div class="kpi-val" id="k-open">—</div></div>
+    <div class="kpi"><div class="kpi-label">Total Applications</div><div class="kpi-val" id="k-apps">—</div></div>
+    <div class="kpi gold"><div class="kpi-label">Shortlisted</div><div class="kpi-val" id="k-short">—</div></div>
+    <div class="kpi"><div class="kpi-label">Interviews Scheduled</div><div class="kpi-val" id="k-int">—</div></div>
+    <div class="kpi"><div class="kpi-label">Selected</div><div class="kpi-val" id="k-sel">—</div></div>
+    <div class="kpi"><div class="kpi-label">Joined</div><div class="kpi-val" id="k-joined">—</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('vacancies')">Vacancies</button>
+    <button class="tab-btn" onclick="switchTab('applications')">Applications</button>
+    <button class="tab-btn" onclick="switchTab('letters')">Letters</button>
+  </div>
+
+  <!-- ── TAB: VACANCIES ─────────────────────────────── -->
+  <div class="tab-pane active" id="tab-vacancies">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:14px">
+      <button class="btn btn-primary" onclick="openVacModal()">+ Post Vacancy</button>
+    </div>
+    <div class="filter-bar">
+      <select id="vac-status-filter" onchange="renderVacancies()">
+        <option value="">All Statuses</option>
+        <option value="open">Open</option>
+        <option value="closed">Closed</option>
+        <option value="draft">Draft</option>
+      </select>
+      <select id="vac-dept-filter" onchange="renderVacancies()">
+        <option value="">All Departments</option>
+      </select>
+    </div>
+    <div class="vacancy-grid" id="vacancy-grid">
+      <div class="empty">Loading vacancies…</div>
+    </div>
+  </div>
+
+  <!-- ── TAB: APPLICATIONS ─────────────────────────── -->
+  <div class="tab-pane" id="tab-applications">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+      <div class="field" style="flex:1;min-width:220px;gap:4px">
+        <label style="font-size:12px;color:var(--text-muted)">Vacancy</label>
+        <select id="app-vac-select" onchange="loadApplications()">
+          <option value="">— Select a vacancy —</option>
+        </select>
+      </div>
+      <div class="field" style="gap:4px">
+        <label style="font-size:12px;color:var(--text-muted)">Status</label>
+        <select id="app-status-filter" onchange="filterApplications()">
+          <option value="">All</option>
+          <option value="received">Received</option>
+          <option value="shortlisted">Shortlisted</option>
+          <option value="interview_scheduled">Interview Scheduled</option>
+          <option value="selected">Selected</option>
+          <option value="rejected">Rejected</option>
+          <option value="waitlisted">Waitlisted</option>
+          <option value="joined">Joined</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-sm" style="align-self:flex-end" onclick="openAppModal()">+ Add Application</button>
+      <button class="btn btn-outline btn-sm" style="align-self:flex-end" onclick="exportAppsCSV()">Export CSV</button>
+    </div>
+
+    <div id="app-section" style="display:none">
+      <div class="card">
+        <div class="card-hdr">
+          <div>
+            <div class="card-title" id="app-vac-title">Applications</div>
+            <div class="card-sub" id="app-vac-sub"></div>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th><th>Name</th><th>Phone</th><th>Qualification</th>
+                <th>Experience</th><th>Applied On</th><th>Status</th><th>Interview</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="app-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: LETTERS ──────────────────────────────── -->
+  <div class="tab-pane" id="tab-letters">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+
+      <!-- Interview call letter -->
+      <div class="card">
+        <div class="card-hdr">
+          <div>
+            <div class="card-title">Interview Call Letter</div>
+            <div class="card-sub">Generate for shortlisted candidates</div>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:10px">
+          <label>Select Vacancy</label>
+          <select id="ltr-vac-int" onchange="loadLetterApps('interview')">
+            <option value="">— Select vacancy —</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:12px">
+          <label>Select Candidate</label>
+          <select id="ltr-app-int">
+            <option value="">— Select candidate —</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="previewLetter('interview')">Preview & Print</button>
+      </div>
+
+      <!-- Appointment letter -->
+      <div class="card">
+        <div class="card-hdr">
+          <div>
+            <div class="card-title">Appointment Letter</div>
+            <div class="card-sub">Generate for selected candidates + join link</div>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:10px">
+          <label>Select Vacancy</label>
+          <select id="ltr-vac-appt" onchange="loadLetterApps('appointment')">
+            <option value="">— Select vacancy —</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:10px">
+          <label>Select Candidate</label>
+          <select id="ltr-app-appt">
+            <option value="">— Select candidate —</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:12px">
+          <label>Date of Joining</label>
+          <input type="date" id="ltr-join-date"/>
+        </div>
+        <button class="btn btn-gold btn-sm" onclick="previewLetter('appointment')">Preview & Print</button>
+      </div>
+    </div>
+
+    <!-- Letter preview area -->
+    <div id="letter-preview-area" style="display:none;margin-top:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px" class="no-print">
+        <div class="card-title" id="ltr-preview-title">Letter Preview</div>
+        <button class="btn btn-primary btn-sm no-print" onclick="window.print()">🖨 Print</button>
+      </div>
+      <div id="print-area">
+        <div class="letter-preview" id="letter-content"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Vacancy modal -->
+<div class="modal-bg" id="vac-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title" id="vac-modal-title">Post New Vacancy</span>
+      <button class="modal-close" onclick="closeVacModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="field span2">
+          <label>Post / Job Title *</label>
+          <input type="text" id="vm-title" placeholder="e.g. Ayurvedic Medical Officer"/>
+        </div>
+        <div class="field">
+          <label>Role *</label>
+          <select id="vm-role">
+            <option value="doctor">Doctor / Vaidya</option>
+            <option value="receptionist">Receptionist</option>
+            <option value="pharmacist">Pharmacist</option>
+            <option value="nurse">Nurse</option>
+            <option value="lab_tech">Lab Technician</option>
+            <option value="therapist">Therapist / Panchakarma</option>
+            <option value="accountant">Accountant</option>
+            <option value="dept_admin">Dept Administrator</option>
+            <option value="student">PG Student / Intern</option>
+            <option value="other">Other / Support Staff</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Department</label>
+          <select id="vm-dept">
+            <option value="">— General / Not specific —</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Number of Vacancies *</label>
+          <input type="number" id="vm-count" value="1" min="1"/>
+        </div>
+        <div class="field">
+          <label>Min Experience (years)</label>
+          <input type="number" id="vm-exp" value="0" min="0"/>
+        </div>
+        <div class="field span2">
+          <label>Required Qualifications</label>
+          <input type="text" id="vm-qual" placeholder="e.g. BAMS / MD (Ayu), registered with State Council"/>
+        </div>
+        <div class="field">
+          <label>Salary Range</label>
+          <input type="text" id="vm-salary" placeholder="e.g. ₹25,000–₹35,000 per month"/>
+        </div>
+        <div class="field">
+          <label>Last Date to Apply</label>
+          <input type="date" id="vm-lastdate"/>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select id="vm-status">
+            <option value="open">Open (accepting applications)</option>
+            <option value="draft">Draft (not yet published)</option>
+          </select>
+        </div>
+        <div class="field span2">
+          <label>Additional Details</label>
+          <textarea id="vm-details" placeholder="Job responsibilities, perks, working hours, etc.…"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeVacModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveVacancy()">Save Vacancy</button>
+    </div>
+  </div>
+</div>
+
+<!-- Application modal -->
+<div class="modal-bg" id="app-modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title" id="app-modal-title">Add Application</span>
+      <button class="modal-close" onclick="closeAppModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="field span2">
+          <label>Applicant Name *</label>
+          <input type="text" id="am-name" placeholder="Full name as per documents"/>
+        </div>
+        <div class="field">
+          <label>Phone *</label>
+          <input type="tel" id="am-phone" placeholder="Mobile number"/>
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="am-email" placeholder="Email address"/>
+        </div>
+        <div class="field">
+          <label>Highest Qualification</label>
+          <input type="text" id="am-qual" placeholder="e.g. BAMS, MD (Ayu)"/>
+        </div>
+        <div class="field">
+          <label>Experience (years)</label>
+          <input type="number" id="am-exp" value="0" min="0"/>
+        </div>
+        <div class="field span2">
+          <label>Current / Previous Employer</label>
+          <input type="text" id="am-employer" placeholder="Hospital / clinic name (if any)"/>
+        </div>
+        <div class="field span2">
+          <label>Cover Note / Summary</label>
+          <textarea id="am-cover" placeholder="Brief note from the applicant…" style="min-height:55px"></textarea>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select id="am-status">
+            <option value="received">Received</option>
+            <option value="shortlisted">Shortlisted</option>
+            <option value="interview_scheduled">Interview Scheduled</option>
+            <option value="selected">Selected</option>
+            <option value="rejected">Rejected</option>
+            <option value="waitlisted">Waitlisted</option>
+          </select>
+        </div>
+        <div class="field" id="am-int-date-field" style="display:none">
+          <label>Interview Date</label>
+          <input type="date" id="am-int-date"/>
+        </div>
+        <div class="field" id="am-int-time-field" style="display:none">
+          <label>Interview Time</label>
+          <input type="time" id="am-int-time"/>
+        </div>
+        <div class="field" id="am-int-mode-field" style="display:none">
+          <label>Interview Mode</label>
+          <select id="am-int-mode">
+            <option value="in_person">In Person</option>
+            <option value="online">Online / Video</option>
+            <option value="phone">Phone</option>
+          </select>
+        </div>
+        <div class="field span2" id="am-int-notes-field" style="display:none">
+          <label>Interview Notes / Venue</label>
+          <input type="text" id="am-int-notes" placeholder="Venue address or video link…"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeAppModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveApplication()">Save Application</button>
+    </div>
+  </div>
+</div>
+
+<!-- Update status modal -->
+<div class="modal-bg" id="status-modal">
+  <div class="modal" style="width:440px">
+    <div class="modal-hdr">
+      <span class="modal-title">Update Application Status</span>
+      <button class="modal-close" onclick="closeStatusModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:13px;font-weight:500;color:var(--green-deep);margin-bottom:14px" id="sm-applicant-name"></div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="field span2">
+          <label>New Status</label>
+          <select id="sm-status" onchange="toggleInterviewFields()">
+            <option value="received">Received</option>
+            <option value="shortlisted">Shortlisted</option>
+            <option value="interview_scheduled">Interview Scheduled</option>
+            <option value="selected">Selected</option>
+            <option value="rejected">Rejected</option>
+            <option value="waitlisted">Waitlisted</option>
+            <option value="joined">Joined</option>
+          </select>
+        </div>
+        <div class="field" id="sm-int-date-wrap" style="display:none">
+          <label>Interview Date</label>
+          <input type="date" id="sm-int-date"/>
+        </div>
+        <div class="field" id="sm-int-time-wrap" style="display:none">
+          <label>Interview Time</label>
+          <input type="time" id="sm-int-time"/>
+        </div>
+        <div class="field" id="sm-int-mode-wrap" style="display:none">
+          <label>Mode</label>
+          <select id="sm-int-mode">
+            <option value="in_person">In Person</option>
+            <option value="online">Online / Video</option>
+            <option value="phone">Phone</option>
+          </select>
+        </div>
+        <div class="field span2" id="sm-int-notes-wrap" style="display:none">
+          <label>Venue / Link / Notes</label>
+          <input type="text" id="sm-int-notes" placeholder="Venue address or video link…"/>
+        </div>
+        <div class="field span2">
+          <label>Internal Notes (optional)</label>
+          <input type="text" id="sm-notes" placeholder="Notes for HR team…"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeStatusModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="updateAppStatus()">Update</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { requireAuth, hasModule } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { ENV } from './js/config/env.js';
+
+const ALLOWED = ['super_admin','dept_admin'];
+await requireAuth(ALLOWED);
+if (!hasModule('hr')) { window.location.replace('admin.html'); }
+
+const supabase  = createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY);
+const sess      = JSON.parse(sessionStorage.getItem('ax_profile') || '{}');
+const tenant    = JSON.parse(sessionStorage.getItem('ax_tenant')  || '{}');
+const tenantId  = sess.tenant_id;
+const today     = new Date().toISOString().slice(0,10);
+
+initNavbar();
+
+// ── State ──────────────────────────────────────────────
+let _vacancies  = [];
+let _apps       = [];
+let _departments = [];
+let _editingVacId  = null;
+let _editingAppId  = null;
+let _updatingAppId = null;
+let _currentVacId  = null;
+
+// ── Init ───────────────────────────────────────────────
+await Promise.all([loadDepartments(), loadVacancies()]);
+
+// ── Tab switch ─────────────────────────────────────────
+window.switchTab = function(id) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) =>
+    b.classList.toggle('active', ['vacancies','applications','letters'][i] === id));
+  document.querySelectorAll('.tab-pane').forEach(p =>
+    p.classList.toggle('active', p.id === 'tab-' + id));
+};
+
+// ── Departments ────────────────────────────────────────
+async function loadDepartments() {
+  const { data } = await supabase.from('departments').select('id,name').eq('tenant_id',tenantId).eq('is_active',true).order('name');
+  _departments = data || [];
+  const deptOpts = _departments.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+  ['vm-dept','vac-dept-filter'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = (id==='vac-dept-filter' ? '<option value="">All Departments</option>' : '<option value="">— General / Not specific —</option>') + deptOpts;
+  });
+}
+
+// ── Vacancies ──────────────────────────────────────────
+async function loadVacancies() {
+  const { data, error } = await supabase
+    .from('job_vacancies')
+    .select('*,departments(name)')
+    .eq('tenant_id', tenantId)
+    .order('created_at', { ascending: false });
+  if (error && error.code === '42P01') {
+    document.getElementById('vacancy-grid').innerHTML =
+      '<div class="empty" style="grid-column:span 3">Run the SQL in <code>sql/session28_recruitment.sql</code> to activate this module.</div>';
+    return;
+  }
+  if (error) { _toast('Error: '+error.message,'error'); return; }
+  _vacancies = data || [];
+  renderVacancies();
+  _populateVacSelects();
+  await loadAllApps();
+}
+
+window.renderVacancies = function() {
+  const statusF = document.getElementById('vac-status-filter').value;
+  const deptF   = document.getElementById('vac-dept-filter').value;
+  const list = _vacancies.filter(v =>
+    (!statusF || v.status === statusF) &&
+    (!deptF   || v.department_id === deptF)
+  );
+  const el = document.getElementById('vacancy-grid');
+  if (!list.length) { el.innerHTML = '<div class="empty" style="grid-column:span 3">No vacancies found. Click "+ Post Vacancy" to create one.</div>'; return; }
+  el.innerHTML = list.map(v => {
+    const appCount   = _apps.filter(a => a.vacancy_id === v.id).length;
+    const shortCount = _apps.filter(a => a.vacancy_id === v.id && a.status === 'shortlisted').length;
+    const selCount   = _apps.filter(a => a.vacancy_id === v.id && ['selected','joined'].includes(a.status)).length;
+    const expired    = v.last_date && v.last_date < today;
+    return `<div class="vac-card ${v.status==='closed'?'closed':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+        <div class="vc-title">${v.title}</div>
+        <span class="badge b-${v.status}">${v.status}</span>
+      </div>
+      <div class="vc-meta">
+        <span class="vc-tag">${_roleLabel(v.role)}</span>
+        ${v.departments?.name ? `<span class="vc-tag">${v.departments.name}</span>` : ''}
+        ${v.vacancies_count > 1 ? `<span class="vc-tag">${v.vacancies_count} posts</span>` : ''}
+        ${expired ? '<span style="color:var(--red);font-size:11px">Last date passed</span>' : v.last_date ? `<span>Last date: ${_fmtD(v.last_date)}</span>` : ''}
+      </div>
+      <div class="vc-stats">
+        <div><div class="vc-stat-val">${appCount}</div><div style="font-size:10px;color:var(--text-muted)">Applied</div></div>
+        <div><div class="vc-stat-val">${shortCount}</div><div style="font-size:10px;color:var(--text-muted)">Shortlisted</div></div>
+        <div><div class="vc-stat-val">${selCount}</div><div style="font-size:10px;color:var(--text-muted)">Selected</div></div>
+      </div>
+      ${v.salary_range ? `<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">💰 ${v.salary_range}</div>` : ''}
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();editVacancy('${v.id}')">Edit</button>
+        <button class="btn btn-sm" style="background:var(--green-light);color:var(--green-deep);border:1px solid var(--border)" onclick="event.stopPropagation();viewApps('${v.id}')">View Applications (${appCount})</button>
+        ${v.status==='open' ? `<button class="btn btn-sm" style="background:var(--red-light);color:var(--red);border:1px solid #f5b8b8" onclick="event.stopPropagation();closeVacancy('${v.id}')">Close</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+};
+
+window.openVacModal = function() {
+  _editingVacId = null;
+  document.getElementById('vac-modal-title').textContent = 'Post New Vacancy';
+  document.getElementById('vm-title').value   = '';
+  document.getElementById('vm-role').value    = 'doctor';
+  document.getElementById('vm-dept').value    = '';
+  document.getElementById('vm-count').value   = '1';
+  document.getElementById('vm-exp').value     = '0';
+  document.getElementById('vm-qual').value    = '';
+  document.getElementById('vm-salary').value  = '';
+  document.getElementById('vm-lastdate').value= '';
+  document.getElementById('vm-status').value  = 'open';
+  document.getElementById('vm-details').value = '';
+  document.getElementById('vac-modal').classList.add('show');
+};
+window.closeVacModal = function() { document.getElementById('vac-modal').classList.remove('show'); };
+
+window.editVacancy = function(id) {
+  _editingVacId = id;
+  const v = _vacancies.find(x=>x.id===id);
+  if (!v) return;
+  document.getElementById('vac-modal-title').textContent = 'Edit Vacancy';
+  document.getElementById('vm-title').value    = v.title;
+  document.getElementById('vm-role').value     = v.role;
+  document.getElementById('vm-dept').value     = v.department_id||'';
+  document.getElementById('vm-count').value    = v.vacancies_count||1;
+  document.getElementById('vm-exp').value      = v.experience_years||0;
+  document.getElementById('vm-qual').value     = v.qualifications||'';
+  document.getElementById('vm-salary').value   = v.salary_range||'';
+  document.getElementById('vm-lastdate').value = v.last_date||'';
+  document.getElementById('vm-status').value   = v.status;
+  document.getElementById('vm-details').value  = v.details||'';
+  document.getElementById('vac-modal').classList.add('show');
+};
+
+window.saveVacancy = async function() {
+  const title = document.getElementById('vm-title').value.trim();
+  if (!title) { _toast('Job title is required','error'); return; }
+  const payload = {
+    tenant_id: tenantId,
+    title,
+    role:           document.getElementById('vm-role').value,
+    department_id:  document.getElementById('vm-dept').value || null,
+    vacancies_count:parseInt(document.getElementById('vm-count').value)||1,
+    experience_years:parseInt(document.getElementById('vm-exp').value)||0,
+    qualifications: document.getElementById('vm-qual').value.trim()||null,
+    salary_range:   document.getElementById('vm-salary').value.trim()||null,
+    last_date:      document.getElementById('vm-lastdate').value||null,
+    status:         document.getElementById('vm-status').value,
+    details:        document.getElementById('vm-details').value.trim()||null,
+  };
+  let error;
+  if (_editingVacId) {
+    ({ error } = await supabase.from('job_vacancies').update(payload).eq('id',_editingVacId));
+  } else {
+    ({ error } = await supabase.from('job_vacancies').insert({...payload, posted_by: sess.id}));
+  }
+  if (error) { _toast('Error: '+error.message,'error'); return; }
+  closeVacModal();
+  _toast(_editingVacId ? 'Vacancy updated' : 'Vacancy posted','success');
+  await loadVacancies();
+};
+
+window.closeVacancy = async function(id) {
+  if (!confirm('Close this vacancy? No new applications will be accepted.')) return;
+  await supabase.from('job_vacancies').update({ status:'closed' }).eq('id',id);
+  await loadVacancies();
+  _toast('Vacancy closed','success');
+};
+
+// ── Applications ───────────────────────────────────────
+async function loadAllApps() {
+  const { data } = await supabase
+    .from('job_applications')
+    .select('*')
+    .eq('tenant_id', tenantId);
+  _apps = data || [];
+  updateKPIs();
+  renderVacancies();
+  _populateVacSelects();
+}
+
+window.loadApplications = async function() {
+  const vacId = document.getElementById('app-vac-select').value;
+  document.getElementById('app-section').style.display = vacId ? '' : 'none';
+  if (!vacId) return;
+  _currentVacId = vacId;
+  const vac = _vacancies.find(v=>v.id===vacId);
+  document.getElementById('app-vac-title').textContent = vac?.title || 'Applications';
+  document.getElementById('app-vac-sub').textContent = `${vac?.departments?.name||'General'} · ${_roleLabel(vac?.role)}`;
+  const { data, error } = await supabase
+    .from('job_applications')
+    .select('*')
+    .eq('vacancy_id', vacId)
+    .order('created_at', { ascending: false });
+  if (error) { _toast('Error: '+error.message,'error'); return; }
+  _apps.forEach((a,i) => { if (a.vacancy_id === vacId) _apps.splice(i,1,a); }); // update in-place
+  const vacApps = data||[];
+  // merge into _apps
+  vacApps.forEach(a => {
+    const idx = _apps.findIndex(x=>x.id===a.id);
+    if (idx>=0) _apps[idx]=a; else _apps.push(a);
+  });
+  filterApplications(vacApps);
+  updateKPIs();
+};
+
+window.filterApplications = function(list) {
+  const statusF = document.getElementById('app-status-filter').value;
+  const vacId   = document.getElementById('app-vac-select').value;
+  list = list || _apps.filter(a=>a.vacancy_id===vacId);
+  const filtered = list.filter(a => !statusF || a.status===statusF);
+  const tbody = document.getElementById('app-tbody');
+  tbody.innerHTML = filtered.map((a,i) => `<tr>
+    <td style="color:var(--text-muted)">${i+1}</td>
+    <td style="font-weight:500">${a.applicant_name}</td>
+    <td style="font-size:12px">${a.applicant_phone}</td>
+    <td style="font-size:12px">${a.qualification||'—'}</td>
+    <td style="font-size:12px">${a.experience_years||0} yr${a.experience_years!==1?'s':''}</td>
+    <td style="font-size:12px">${_fmtD(a.created_at?.slice(0,10))}</td>
+    <td><span class="badge b-${a.status}">${_statusLabel(a.status)}</span></td>
+    <td style="font-size:11px">${a.interview_date ? _fmtD(a.interview_date)+(a.interview_time?' · '+a.interview_time.slice(0,5):'') : '—'}</td>
+    <td>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="btn btn-outline btn-sm" onclick="openStatusModal('${a.id}','${a.applicant_name.replace(/'/g,"\\'")}','${a.status}','${a.interview_date||''}','${a.interview_time||''}')">Update</button>
+      </div>
+    </td>
+  </tr>`).join('') || `<tr><td colspan="9" class="empty">No ${statusF} applications</td></tr>`;
+};
+
+window.viewApps = function(vacId) {
+  switchTab('applications');
+  setTimeout(() => {
+    document.getElementById('app-vac-select').value = vacId;
+    loadApplications();
+  }, 50);
+};
+
+// Add application
+window.openAppModal = function() {
+  _editingAppId = null;
+  const vacId = document.getElementById('app-vac-select').value;
+  document.getElementById('app-modal-title').textContent = 'Add Application';
+  document.getElementById('am-name').value     = '';
+  document.getElementById('am-phone').value    = '';
+  document.getElementById('am-email').value    = '';
+  document.getElementById('am-qual').value     = '';
+  document.getElementById('am-exp').value      = '0';
+  document.getElementById('am-employer').value = '';
+  document.getElementById('am-cover').value    = '';
+  document.getElementById('am-status').value   = 'received';
+  _toggleAppIntFields('am', 'received');
+  document.getElementById('app-modal').classList.add('show');
+};
+window.closeAppModal = function() { document.getElementById('app-modal').classList.remove('show'); };
+
+document.getElementById('am-status').addEventListener('change', function() { _toggleAppIntFields('am', this.value); });
+
+function _toggleAppIntFields(prefix, status) {
+  const show = status === 'interview_scheduled';
+  ['int-date','int-time','int-mode','int-notes'].forEach(s => {
+    const el = document.getElementById(`${prefix}-${s}-field`);
+    if (el) el.style.display = show ? '' : 'none';
+  });
+}
+
+window.saveApplication = async function() {
+  const vacId = document.getElementById('app-vac-select').value || _currentVacId;
+  if (!vacId) { _toast('Select a vacancy first','error'); return; }
+  const name  = document.getElementById('am-name').value.trim();
+  const phone = document.getElementById('am-phone').value.trim();
+  if (!name || !phone) { _toast('Name and phone are required','error'); return; }
+  const status = document.getElementById('am-status').value;
+  const { error } = await supabase.from('job_applications').insert({
+    tenant_id: tenantId, vacancy_id: vacId,
+    applicant_name:  name,
+    applicant_phone: phone,
+    applicant_email: document.getElementById('am-email').value.trim()||null,
+    qualification:   document.getElementById('am-qual').value.trim()||null,
+    experience_years:parseInt(document.getElementById('am-exp').value)||0,
+    current_employer:document.getElementById('am-employer').value.trim()||null,
+    cover_note:      document.getElementById('am-cover').value.trim()||null,
+    status,
+    interview_date: status==='interview_scheduled' ? document.getElementById('am-int-date').value||null : null,
+    interview_time: status==='interview_scheduled' ? document.getElementById('am-int-time').value||null : null,
+    interview_mode: status==='interview_scheduled' ? document.getElementById('am-int-mode').value : null,
+    interview_notes:status==='interview_scheduled' ? document.getElementById('am-int-notes').value.trim()||null : null,
+  });
+  if (error) { _toast('Error: '+error.message,'error'); return; }
+  closeAppModal();
+  _toast('Application added','success');
+  await loadApplications();
+};
+
+// Update status
+window.openStatusModal = function(id, name, status, intDate, intTime) {
+  _updatingAppId = id;
+  document.getElementById('sm-applicant-name').textContent = name;
+  document.getElementById('sm-status').value   = status;
+  document.getElementById('sm-int-date').value = intDate;
+  document.getElementById('sm-int-time').value = intTime;
+  document.getElementById('sm-int-mode').value = 'in_person';
+  document.getElementById('sm-int-notes').value= '';
+  document.getElementById('sm-notes').value    = '';
+  toggleInterviewFields();
+  document.getElementById('status-modal').classList.add('show');
+};
+window.closeStatusModal = function() { document.getElementById('status-modal').classList.remove('show'); _updatingAppId=null; };
+
+window.toggleInterviewFields = function() {
+  const show = document.getElementById('sm-status').value === 'interview_scheduled';
+  ['sm-int-date-wrap','sm-int-time-wrap','sm-int-mode-wrap','sm-int-notes-wrap'].forEach(id => {
+    document.getElementById(id).style.display = show ? '' : 'none';
+  });
+};
+
+window.updateAppStatus = async function() {
+  const status = document.getElementById('sm-status').value;
+  const payload = {
+    status,
+    interview_date:  status==='interview_scheduled' ? document.getElementById('sm-int-date').value||null : null,
+    interview_time:  status==='interview_scheduled' ? document.getElementById('sm-int-time').value||null : null,
+    interview_mode:  status==='interview_scheduled' ? document.getElementById('sm-int-mode').value : null,
+    interview_notes: status==='interview_scheduled' ? document.getElementById('sm-int-notes').value.trim()||null : null,
+    ...(status==='selected' ? { offer_date: today } : {}),
+    ...(status==='joined'   ? {
+      join_date:  today,
+      join_token: crypto.randomUUID(),
+    } : {}),
+  };
+  const { error } = await supabase.from('job_applications').update(payload).eq('id',_updatingAppId);
+  if (error) { _toast('Error: '+error.message,'error'); return; }
+  closeStatusModal();
+  _toast('Status updated','success');
+  await loadApplications();
+};
+
+window.exportAppsCSV = function() {
+  const vacId = document.getElementById('app-vac-select').value;
+  const list  = _apps.filter(a => a.vacancy_id === vacId);
+  _csvDownload(list.map(a=>({
+    Name:a.applicant_name,Phone:a.applicant_phone,Email:a.applicant_email,
+    Qualification:a.qualification,Experience:a.experience_years,
+    Employer:a.current_employer,Status:a.status,
+    InterviewDate:a.interview_date,AppliedOn:a.created_at?.slice(0,10),
+  })),'applications');
+};
+
+// ── Letters ────────────────────────────────────────────
+function _populateVacSelects() {
+  const intOpts  = _vacancies.map(v=>`<option value="${v.id}">${v.title}</option>`).join('');
+  const apptOpts = _vacancies.map(v=>`<option value="${v.id}">${v.title}</option>`).join('');
+  document.getElementById('app-vac-select').innerHTML = '<option value="">— Select a vacancy —</option>' + intOpts;
+  document.getElementById('ltr-vac-int').innerHTML    = '<option value="">— Select vacancy —</option>' + intOpts;
+  document.getElementById('ltr-vac-appt').innerHTML   = '<option value="">— Select vacancy —</option>' + apptOpts;
+}
+
+window.loadLetterApps = function(type) {
+  const vacId = document.getElementById(`ltr-vac-${type==='interview'?'int':'appt'}`).value;
+  const selectId = `ltr-app-${type==='interview'?'int':'appt'}`;
+  const statusFilter = type === 'interview'
+    ? ['shortlisted','interview_scheduled']
+    : ['selected','joined'];
+  const filtered = _apps.filter(a => a.vacancy_id===vacId && statusFilter.includes(a.status));
+  document.getElementById(selectId).innerHTML =
+    '<option value="">— Select candidate —</option>' +
+    filtered.map(a=>`<option value="${a.id}">${a.applicant_name} (${_statusLabel(a.status)})</option>`).join('');
+};
+
+window.previewLetter = function(type) {
+  const isInt    = type === 'interview';
+  const appId    = document.getElementById(`ltr-app-${isInt?'int':'appt'}`).value;
+  const vacId    = document.getElementById(`ltr-vac-${isInt?'int':'appt'}`).value;
+  if (!appId || !vacId) { _toast('Select vacancy and candidate','error'); return; }
+  const app  = _apps.find(a=>a.id===appId);
+  const vac  = _vacancies.find(v=>v.id===vacId);
+  if (!app||!vac) return;
+
+  document.getElementById('letter-preview-area').style.display = '';
+  document.getElementById('ltr-preview-title').textContent = isInt ? 'Interview Call Letter' : 'Appointment Letter';
+
+  const refNo  = `${tenant.tenant_code||'ORG'}/${isInt?'INT':'APT'}/2026/${Math.floor(Math.random()*9000)+1000}`;
+  const dateStr = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
+
+  if (isInt) {
+    const intDate = app.interview_date ? new Date(app.interview_date+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}) : '________';
+    const intTime = app.interview_time ? app.interview_time.slice(0,5) : '________';
+    const mode    = { in_person:'in person at our premises', online:'via video call', phone:'via telephone' }[app.interview_mode||'in_person'];
+
+    document.getElementById('letter-content').innerHTML = `
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--green-deep)">${tenant.name||'Organisation Name'}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${tenant.city||''} ${tenant.state||''}</div>
+        <div style="border-bottom:2px solid var(--green-deep);margin:10px 0"></div>
+      </div>
+      <div class="ltr-meta">
+        Ref: ${refNo} &nbsp;·&nbsp; Date: ${dateStr}
+      </div>
+      <div class="ltr-body">
+        <p>To,<br/><strong>${app.applicant_name}</strong><br/>Phone: ${app.applicant_phone}${app.applicant_email?'<br/>Email: '+app.applicant_email:''}</p>
+        <p><strong>Subject: Invitation for Interview — ${vac.title}</strong></p>
+        <p>Dear ${app.applicant_name.split(' ')[0]},</p>
+        <p>With reference to your application for the position of <strong>${vac.title}</strong> at ${tenant.name||'our organisation'}, we are pleased to inform you that you have been shortlisted for an interview.</p>
+        <p>You are requested to appear for the interview as per the following schedule:</p>
+        <table style="border-collapse:collapse;margin:12px 0;width:100%;font-size:13px">
+          <tr><td style="padding:6px 12px;border:1px solid var(--border);background:var(--green-light);font-weight:600;width:160px">Date</td><td style="padding:6px 12px;border:1px solid var(--border)">${intDate}</td></tr>
+          <tr><td style="padding:6px 12px;border:1px solid var(--border);background:var(--green-light);font-weight:600">Time</td><td style="padding:6px 12px;border:1px solid var(--border)">${intTime} IST</td></tr>
+          <tr><td style="padding:6px 12px;border:1px solid var(--border);background:var(--green-light);font-weight:600">Mode</td><td style="padding:6px 12px;border:1px solid var(--border)">${mode.charAt(0).toUpperCase()+mode.slice(1)}</td></tr>
+          ${app.interview_notes ? `<tr><td style="padding:6px 12px;border:1px solid var(--border);background:var(--green-light);font-weight:600">Venue / Link</td><td style="padding:6px 12px;border:1px solid var(--border)">${app.interview_notes}</td></tr>` : ''}
+        </table>
+        <p>Please bring the following documents:</p>
+        <p style="margin-left:16px">• Original and photocopies of all educational certificates<br/>• Proof of experience / previous employment letters<br/>• Government-issued photo ID (Aadhaar / PAN card)<br/>• Passport size photographs (2 copies)<br/>• Updated curriculum vitae</p>
+        <p>Please confirm your attendance by calling us or replying to this letter. If you are unable to attend on the scheduled date, please inform us at least 24 hours in advance.</p>
+        <p>We look forward to meeting you.</p>
+      </div>
+      <div class="ltr-sig">
+        <p>Yours faithfully,</p>
+        <div class="ltr-line"></div>
+        <p style="margin-top:6px"><strong>${sess.full_name||'Authorised Signatory'}</strong><br/>HR Department<br/>${tenant.name||''}</p>
+      </div>`;
+  } else {
+    // Appointment letter
+    const joinDate = document.getElementById('ltr-join-date').value;
+    const joinDateStr = joinDate ? new Date(joinDate+'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}) : '________';
+
+    // Generate or retrieve join token
+    let joinToken = app.join_token;
+    if (!joinToken) {
+      joinToken = crypto.randomUUID();
+      supabase.from('job_applications').update({ join_token: joinToken, join_date: joinDate||null, status:'selected' }).eq('id', app.id).then(()=>{});
+    }
+    const joinLink = `${window.location.origin}/signup.html?token=${joinToken}&org=${tenant.tenant_code||''}&role=${vac.role}`;
+
+    document.getElementById('letter-content').innerHTML = `
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--green-deep)">${tenant.name||'Organisation Name'}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${tenant.city||''} ${tenant.state||''}</div>
+        <div style="border-bottom:2px solid var(--green-deep);margin:10px 0"></div>
+      </div>
+      <div class="ltr-meta">
+        Ref: ${refNo} &nbsp;·&nbsp; Date: ${dateStr}
+      </div>
+      <div class="ltr-body">
+        <p>To,<br/><strong>${app.applicant_name}</strong><br/>Phone: ${app.applicant_phone}${app.applicant_email?'<br/>Email: '+app.applicant_email:''}</p>
+        <p><strong>Subject: Appointment Letter — ${vac.title}</strong></p>
+        <p>Dear ${app.applicant_name.split(' ')[0]},</p>
+        <p>We are pleased to appoint you as <strong>${vac.title}</strong> at <strong>${tenant.name||'our organisation'}</strong> on the following terms and conditions:</p>
+        <table style="border-collapse:collapse;margin:12px 0;width:100%;font-size:13px">
+          <tr><td style="padding:6px 12px;border:1px solid var(--border);background:var(--green-light);font-weight:600;width:160px">Designation</td><td style="padding:6px 12px;border:1px solid var(--border)">${vac.title}</td></tr>
+          <tr><td style="padding:6px 12px;border:1px solid var(--border);background:var(--green-light);font-weight:600">Department</td><td style="padding:6px 12px;border:1px solid var(--border)">${vac.departments?.name||'As assigned'}</td></tr>
+          <tr><td style="padding:6px 12px;border:1px solid var(--border);background:var(--green-light);font-weight:600">Date of Joining</td><td style="padding:6px 12px;border:1px solid var(--border)">${joinDateStr}</td></tr>
+          ${vac.salary_range ? `<tr><td style="padding:6px 12px;border:1px solid var(--border);background:var(--green-light);font-weight:600">Remuneration</td><td style="padding:6px 12px;border:1px solid var(--border)">${vac.salary_range} per month</td></tr>` : ''}
+        </table>
+        <p>This appointment is subject to the following conditions:</p>
+        <p style="margin-left:16px">1. This letter must be accepted and the joining formalities completed on or before the date of joining.<br/>2. You will be on probation for a period of six months from the date of joining, subject to satisfactory performance.<br/>3. This appointment is subject to verification of all original documents including educational certificates and previous employment records.<br/>4. You will be governed by the service rules and conduct guidelines of the organisation, as amended from time to time.</p>
+        <p>To complete your joining formalities, please use the secure onboarding link below. This link is unique to you and allows you to register your account on our HMS platform:</p>
+        <div class="join-link-box no-print">${joinLink}</div>
+        <p style="font-size:12px;color:var(--text-muted)">The onboarding link above is valid for one-time use. Please do not share it with others.</p>
+        <p>Please report to the HR department on the date of joining with all original documents. We welcome you to our team and look forward to your valuable contribution.</p>
+      </div>
+      <div class="ltr-sig">
+        <p>Yours faithfully,</p>
+        <div class="ltr-line"></div>
+        <p style="margin-top:6px"><strong>${sess.full_name||'Authorised Signatory'}</strong><br/>HR Department<br/>${tenant.name||''}</p>
+        <div style="margin-top:24px;padding:12px 16px;background:#f8fdf9;border:1px solid var(--border);border-radius:6px;font-size:12px" class="no-print">
+          <strong>Join Link (share with candidate):</strong><br/>
+          <a href="${joinLink}" style="color:var(--green-mid);word-break:break-all">${joinLink}</a><br/>
+          <button class="btn btn-outline btn-sm no-print" style="margin-top:8px" onclick="navigator.clipboard.writeText('${joinLink.replace(/'/g,"\\'")}');_toast('Join link copied!','success')">Copy Link</button>
+        </div>
+      </div>`;
+  }
+
+  document.getElementById('letter-preview-area').scrollIntoView({ behavior:'smooth' });
+};
+
+// ── KPIs ───────────────────────────────────────────────
+function updateKPIs() {
+  document.getElementById('k-open').textContent   = _vacancies.filter(v=>v.status==='open').length;
+  document.getElementById('k-apps').textContent   = _apps.length;
+  document.getElementById('k-short').textContent  = _apps.filter(a=>a.status==='shortlisted').length;
+  document.getElementById('k-int').textContent    = _apps.filter(a=>a.status==='interview_scheduled').length;
+  document.getElementById('k-sel').textContent    = _apps.filter(a=>a.status==='selected').length;
+  document.getElementById('k-joined').textContent = _apps.filter(a=>a.status==='joined').length;
+}
+
+// ── Helpers ────────────────────────────────────────────
+function _roleLabel(r) {
+  return {doctor:'Doctor / Vaidya',receptionist:'Receptionist',pharmacist:'Pharmacist',
+    nurse:'Nurse',lab_tech:'Lab Tech',therapist:'Therapist',accountant:'Accountant',
+    dept_admin:'Dept Admin',student:'PG Student / Intern',other:'Support Staff'}[r]||(r||'—');
+}
+function _statusLabel(s) {
+  return {received:'Received',shortlisted:'Shortlisted',interview_scheduled:'Interview Scheduled',
+    selected:'Selected',rejected:'Rejected',waitlisted:'Waitlisted',joined:'Joined'}[s]||(s||'—');
+}
+function _fmtD(s) {
+  if (!s) return '—';
+  return new Date(s+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+}
+function _toast(msg,type='success') {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className=`toast ${type} show`;
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+function _csvDownload(rows,name) {
+  if(!rows.length){_toast('No data','error');return;}
+  const keys=Object.keys(rows[0]);
+  const csv=[keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download=`${name}_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+}
+
+window._toast = _toast;
+</script>
+</body>
+</html>

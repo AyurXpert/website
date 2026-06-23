@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Emergency OPD — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --red:#c0392b;--red-light:#fdecea;--red-border:#fca5a5;
+  --blue:#1a4080;--blue-light:#e3f0ff;
+  --orange:#d35400;--orange-light:#fef5ec;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1400px;margin:0 auto;padding:24px 20px 80px}
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.4px;margin-left:8px;vertical-align:middle}
+.emergency-banner{background:#7f1d1d;color:#fff;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:10px}
+.btn{height:38px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}.btn-secondary:hover{background:var(--green-light)}
+.btn-danger{background:var(--red);color:#fff}.btn-danger:hover{background:#9a1a1a}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:900px){.stats-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.stats-row{grid-template-columns:repeat(2,1fr)}}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:12px 16px;text-align:center}
+.stat-value{font-size:28px;font-weight:700;color:var(--green-deep);line-height:1;font-family:'Cormorant Garamond',serif}
+.stat-label{font-size:11px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.4px}
+.stat-card.red .stat-value{color:var(--red)}
+.stat-card.gold .stat-value{color:var(--gold)}
+.stat-card.blue .stat-value{color:var(--blue)}
+.stat-card.orange .stat-value{color:var(--orange)}
+
+/* Tabs */
+.module-tabs{display:flex;gap:0;margin-bottom:20px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.module-tab{flex:1;padding:10px 6px;font-size:12px;font-weight:500;cursor:pointer;border:none;background:none;font-family:'DM Sans',sans-serif;color:var(--text-mid);border-right:1px solid var(--border);transition:all .15s;text-align:center}
+.module-tab:last-child{border-right:none}
+.module-tab.active{background:var(--green-deep);color:#fff;font-weight:600}
+.module-tab:hover:not(.active){background:var(--green-light)}
+.tab-panel{display:none}.tab-panel.active{display:block}
+
+/* Card */
+.card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.card-hd{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.card-title{font-size:14px;font-weight:600;color:var(--text-dark)}
+.card-body{padding:16px}
+
+/* Form */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:700px){.form-grid{grid-template-columns:1fr}}
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:700px){.form-grid-3{grid-template-columns:1fr}}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-label{font-size:12px;font-weight:500;color:var(--text-mid)}
+.form-control{height:38px;padding:0 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--white);outline:none}
+.form-control:focus{border-color:var(--green-mid)}
+textarea.form-control{height:72px;padding:8px 12px;resize:vertical}
+
+/* Triage colors */
+.triage-emergency{background:#fdecea;color:#7f1d1d;border-color:#fca5a5}
+.triage-urgent{background:#fffbeb;color:#78350f;border-color:#fcd34d}
+.triage-semi{background:#fef5ec;color:#7c2d12;border-color:#fdba74}
+.triage-routine{background:#f0fdf4;color:#14532d;border-color:#86efac}
+.triage-chip{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;border:1.5px solid;display:inline-flex;align-items:center;gap:4px}
+
+/* Table */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:10px 14px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;background:#fafafa;border-bottom:1px solid var(--border)}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid #f0f4f2;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafff8}
+
+/* MLC badge */
+.mlc-badge{background:#fdecea;color:#7f1d1d;border:1.5px solid #fca5a5;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.3px}
+
+/* Patient search */
+.search-wrap{position:relative}
+.search-results{position:absolute;top:100%;left:0;right:0;background:var(--white);border:1.5px solid var(--border);border-radius:0 0 8px 8px;z-index:50;max-height:200px;overflow-y:auto;display:none}
+.search-result-item{padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f0f4f2}
+.search-result-item:hover{background:var(--green-light)}
+.search-result-item:last-child{border-bottom:none}
+
+/* Obs bed grid */
+.obs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+.obs-bed{border:2px solid var(--border);border-radius:8px;padding:12px;text-align:center;cursor:pointer;transition:all .15s}
+.obs-bed.occupied{border-color:var(--red);background:var(--red-light)}
+.obs-bed.vacant{border-color:var(--green-mid);background:var(--green-light)}
+.obs-bed-label{font-weight:700;font-size:14px;color:var(--text-dark);margin-bottom:4px}
+.obs-bed-status{font-size:11px;color:var(--text-muted)}
+
+/* Alert */
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:flex;align-items:flex-start;gap:10px}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.alert.error{background:var(--red-light);color:#8b1a1a;border:1px solid var(--red-border)}
+
+/* Empty */
+.empty{text-align:center;padding:40px 20px;color:var(--text-muted)}
+.empty-ico{font-size:36px;margin-bottom:10px;opacity:.5}
+.empty-ttl{font-size:14px;font-weight:500;margin-bottom:6px}
+.empty-bod{font-size:12px;line-height:1.6;max-width:300px;margin:0 auto}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1c2b1f;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:2000;white-space:nowrap}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* Shift bar */
+.shift-bar{display:flex;gap:6px;margin-bottom:12px}
+.shift-btn{padding:5px 14px;border-radius:12px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-mid);transition:all .15s}
+.shift-btn.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<div class="page-wrap">
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Emergency OPD <span class="ncism-badge">§4.6 NCISM</span></div>
+    <div class="page-subtitle">Atyayika Chikitsa · 24×7 Case Register · RMO Duty Log · MLC Reporting</div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <input type="date" id="filter-date" class="form-control" style="width:auto"/>
+    <button class="btn btn-secondary btn-sm" onclick="loadAll()">↻ Refresh</button>
+    <button class="btn btn-primary" onclick="openNewCase()">+ New Case</button>
+  </div>
+</div>
+
+<div class="emergency-banner">🚨 Emergency OPD — 24×7 Operation · All cases registered here · <span id="rmo-on-duty-banner">RMO: Loading…</span></div>
+
+<!-- Stats -->
+<div class="stats-row" id="stats-row">
+  <div class="stat-card"><div class="stat-value" id="s-total">—</div><div class="stat-label">Total Today</div></div>
+  <div class="stat-card red"><div class="stat-value" id="s-active">—</div><div class="stat-label">Active</div></div>
+  <div class="stat-card blue"><div class="stat-value" id="s-obs">—</div><div class="stat-label">In Observation</div></div>
+  <div class="stat-card gold"><div class="stat-value" id="s-admitted">—</div><div class="stat-label">Admitted to IPD</div></div>
+  <div class="stat-card orange"><div class="stat-value" id="s-mlc">—</div><div class="stat-label">MLC Cases</div></div>
+</div>
+
+<!-- Module tabs -->
+<div class="module-tabs">
+  <button class="module-tab active" data-tab="cases">📋 Case Register</button>
+  <button class="module-tab" data-tab="rmo">👨‍⚕️ RMO Duty Log</button>
+  <button class="module-tab" data-tab="obs">🛏 Observation Beds</button>
+  <button class="module-tab" data-tab="mlc">⚖️ MLC Register</button>
+  <button class="module-tab" data-tab="bls">🫀 BLS Log</button>
+</div>
+
+<!-- ── TAB: CASE REGISTER ── -->
+<div class="tab-panel active" id="tab-cases">
+  <div class="alert" id="case-alert"></div>
+
+  <!-- New case form -->
+  <div class="card" id="new-case-card" style="display:none">
+    <div class="card-hd">
+      <span class="card-title">Register Emergency Case</span>
+      <button class="btn btn-secondary btn-sm" onclick="closeNewCase()">× Close</button>
+    </div>
+    <div class="card-body">
+      <!-- Patient search -->
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">Patient Phone / Name</label>
+        <div class="search-wrap">
+          <input class="form-control" id="nc-search" placeholder="Search by phone or name…" autocomplete="off" oninput="searchPatients()"/>
+          <div class="search-results" id="nc-results"></div>
+        </div>
+        <div id="nc-patient-box" style="display:none;margin-top:8px;background:var(--green-light);border-radius:6px;padding:8px 12px;font-size:13px"></div>
+      </div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Triage Category</label>
+          <select class="form-control" id="nc-triage">
+            <option value="emergency">🔴 Emergency — Life-threatening</option>
+            <option value="urgent">🟠 Urgent — Serious, not immediate</option>
+            <option value="semi_urgent">🟡 Semi-urgent — Stable but needs care</option>
+            <option value="routine">🟢 Routine — Minor, non-urgent</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Arrival Time</label>
+          <input type="time" class="form-control" id="nc-time"/>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">Chief Complaint</label>
+        <textarea class="form-control" id="nc-complaint" placeholder="Main presenting complaint…" rows="2"></textarea>
+      </div>
+
+      <!-- MLC flag -->
+      <div style="background:#fff8e1;border:1.5px solid #e0a800;border-radius:8px;padding:12px 16px;margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer">
+          <input type="checkbox" id="nc-mlc" onchange="toggleMLC(this.checked)" style="width:16px;height:16px;accent-color:var(--red)"/>
+          ⚖️ Mark as Medico-Legal Case (MLC)
+        </label>
+        <div id="mlc-extra" style="display:none;margin-top:12px">
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label">MLC Number</label>
+              <input class="form-control" id="nc-mlc-no" placeholder="MLC-2026-001"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nature of Case</label>
+              <select class="form-control" id="nc-mlc-nature">
+                <option value="">— Select —</option>
+                <option>RTA / Road Accident</option>
+                <option>Assault / Physical injury</option>
+                <option>Suspected poisoning</option>
+                <option>Burns</option>
+                <option>Sexual assault</option>
+                <option>Fall / Industrial accident</option>
+                <option>Drowning</option>
+                <option>Unknown / Unidentified</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Police Station</label>
+              <input class="form-control" id="nc-mlc-ps" placeholder="Police station name"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Police Intimation</label>
+              <select class="form-control" id="nc-mlc-intim">
+                <option value="pending">Pending</option>
+                <option value="informed">Informed</option>
+                <option value="not_required">Not required</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Obs bed -->
+      <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+          <input type="checkbox" id="nc-obs" style="width:15px;height:15px;accent-color:var(--green-mid)"/>
+          🛏 Assign Observation Bed
+        </label>
+        <input class="form-control" id="nc-obs-bed" placeholder="Bed no. / label" style="display:none;width:150px"/>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="nc-save-btn" onclick="saveCase()">Register Case</button>
+        <button class="btn btn-secondary" onclick="closeNewCase()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cases table -->
+  <div class="card">
+    <div class="card-hd">
+      <span class="card-title" id="cases-title">Today's Cases</span>
+      <div style="display:flex;gap:6px">
+        <select class="form-control btn-sm" id="filter-triage" onchange="renderCases()" style="height:32px;font-size:12px;width:auto">
+          <option value="">All Triage</option>
+          <option value="emergency">Emergency</option>
+          <option value="urgent">Urgent</option>
+          <option value="semi_urgent">Semi-urgent</option>
+          <option value="routine">Routine</option>
+        </select>
+        <select class="form-control btn-sm" id="filter-status" onchange="renderCases()" style="height:32px;font-size:12px;width:auto">
+          <option value="">All Status</option>
+          <option value="active">Active</option>
+          <option value="observation">Observation</option>
+          <option value="admitted">Admitted</option>
+          <option value="discharged">Discharged</option>
+          <option value="referred">Referred</option>
+          <option value="lama">LAMA</option>
+        </select>
+      </div>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Time</th><th>Patient</th><th>Triage</th><th>Chief Complaint</th><th>Status</th><th>MLC</th><th>Actions</th></tr></thead>
+        <tbody id="cases-tbody"><tr><td colspan="7"><div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB: RMO DUTY LOG ── -->
+<div class="tab-panel" id="tab-rmo">
+  <div class="alert" id="rmo-alert"></div>
+  <div style="display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start">
+
+    <!-- Log entry form -->
+    <div class="card">
+      <div class="card-hd"><span class="card-title">Log RMO Duty</span></div>
+      <div class="card-body">
+        <div class="form-group" style="margin-bottom:10px">
+          <label class="form-label">Date</label>
+          <input type="date" class="form-control" id="rmo-date"/>
+        </div>
+        <div class="form-group" style="margin-bottom:10px">
+          <label class="form-label">Shift</label>
+          <div class="shift-bar" id="rmo-shift-bar">
+            <button class="shift-btn active" data-shift="Morning" onclick="selectShift(this)">Morning<br><small>8am–2pm</small></button>
+            <button class="shift-btn" data-shift="Evening" onclick="selectShift(this)">Evening<br><small>2pm–8pm</small></button>
+            <button class="shift-btn" data-shift="Night" onclick="selectShift(this)">Night<br><small>8pm–8am</small></button>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:10px">
+          <label class="form-label">RMO / Doctor on Duty</label>
+          <select class="form-control" id="rmo-doctor">
+            <option value="">— Select Doctor —</option>
+          </select>
+        </div>
+        <div class="form-grid" style="margin-bottom:10px">
+          <div class="form-group">
+            <label class="form-label">Start Time</label>
+            <input type="time" class="form-control" id="rmo-start"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">End Time</label>
+            <input type="time" class="form-control" id="rmo-end"/>
+          </div>
+        </div>
+        <!-- §21s — On-call specialty consultants -->
+        <div class="form-group" style="margin-bottom:10px">
+          <label class="form-label">On-Call Specialty Consultants</label>
+          <input type="text" class="form-control" id="rmo-oncall" placeholder="e.g. Dr. Sharma (KAY), Dr. Nair (SHAL), Dr. Rao (PST)"/>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:3px">NCISM §51(5) — specialty consultants must be on call round the clock</div>
+        </div>
+        <div class="form-group" style="margin-bottom:10px">
+          <label class="form-label">Incidents Handled</label>
+          <input type="number" class="form-control" id="rmo-incidents" min="0" placeholder="0" style="width:100px"/>
+        </div>
+        <div class="form-group" style="margin-bottom:12px">
+          <label class="form-label">Handover Notes</label>
+          <textarea class="form-control" id="rmo-notes" placeholder="Handover notes, incidents, any critical patients…" rows="2"></textarea>
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="saveDutyLog()">Log Duty</button>
+      </div>
+    </div>
+
+    <!-- Duty log table -->
+    <div class="card">
+      <div class="card-hd">
+        <span class="card-title">Duty Log — Last 7 Days</span>
+        <button class="btn btn-secondary btn-sm" onclick="loadDutyLog()">↻</button>
+      </div>
+      <div id="duty-log-body">
+        <div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB: OBSERVATION BEDS ── -->
+<div class="tab-panel" id="tab-obs">
+  <div class="card">
+    <div class="card-hd">
+      <span class="card-title">Observation Beds — Current Status</span>
+      <button class="btn btn-secondary btn-sm" onclick="loadObsBeds()">↻ Refresh</button>
+    </div>
+    <div class="card-body">
+      <div style="background:#fffbeb;border:1.5px solid #e0a800;border-radius:6px;padding:8px 14px;margin-bottom:14px;font-size:12px;color:#78350f">
+        ⚠ Observation beds (Atyayika OPD) are NOT counted in the IPD bed census — NCISM §6(g)
+      </div>
+      <div id="obs-summary" style="margin-bottom:14px"></div>
+      <div id="obs-list">
+        <div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB: MLC REGISTER ── -->
+<div class="tab-panel" id="tab-mlc">
+  <div class="card">
+    <div class="card-hd">
+      <span class="card-title">Medico-Legal Case Register</span>
+      <div style="display:flex;gap:6px">
+        <select class="form-control btn-sm" id="mlc-month-filter" onchange="loadMLC()" style="height:32px;font-size:12px;width:auto">
+          <option value="today">Today</option>
+          <option value="week">This Week</option>
+          <option value="month">This Month</option>
+          <option value="all">All Time</option>
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="exportMLC()">↓ CSV</button>
+      </div>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Date/Time</th><th>MLC No.</th><th>Patient</th><th>Nature</th><th>Triage</th><th>Police Station</th><th>Intimation</th><th>Outcome</th></tr></thead>
+        <tbody id="mlc-tbody"><tr><td colspan="8"><div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB: BLS LOG ── -->
+<div class="tab-panel" id="tab-bls">
+  <div id="bls-missing-banner" style="display:none;padding:10px 16px;background:#fff8e1;border:1.5px solid #f0c040;border-radius:8px;font-size:13px;font-weight:500;color:#7a5200;margin-bottom:14px">
+    ⚠ BLS log not completed for today's current shift — please check and log immediately (COP.2 ATWC CORE)
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-hd" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <span class="card-title">Daily BLS Availability Log — COP.2 ATWC CORE</span>
+      <button class="btn btn-primary btn-sm" onclick="openBLSModal()">+ Log Shift Check</button>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
+      Confirms BLS kit completeness and CPR-trained staff availability for each shift. Log before start of each shift.
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <input type="date" id="bls-date-filter" onchange="loadBLS()" style="height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit;background:#fff"/>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Shift</th><th>Dept</th>
+          <th>BLS Kit ✓</th><th>AED ✓</th><th>O₂ ✓</th><th>Crash Cart ✓</th>
+          <th>CPR Staff</th><th>Checked By</th><th>Remarks</th>
+        </tr></thead>
+        <tbody id="bls-tbody"><tr><td colspan="10"><div class="empty">Loading…</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div><!-- end page-wrap -->
+
+<!-- BLS Modal -->
+<div id="bls-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center;padding:16px">
+  <div style="background:var(--white);border-radius:12px;padding:28px;width:520px;max-width:100%;box-shadow:0 8px 40px rgba(0,0,0,.2)">
+    <div style="font-size:17px;font-weight:600;color:var(--green-deep);margin-bottom:18px">Log BLS Shift Check</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div>
+        <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);margin-bottom:4px">Date *</label>
+        <input id="bls-f-date" type="date" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);margin-bottom:4px">Shift *</label>
+        <select id="bls-f-shift" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit">
+          <option value="morning">Morning (6am–2pm)</option>
+          <option value="afternoon">Afternoon (2pm–10pm)</option>
+          <option value="night">Night (10pm–6am)</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);margin-bottom:4px">Department</label>
+      <input id="bls-f-dept" type="text" placeholder="Emergency / ICU / Ward…" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="font-size:12px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px">Equipment Check</div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px;cursor:pointer"><input type="checkbox" id="bls-kit" style="accent-color:var(--green-deep)"/> BLS Kit complete (bag mask, gloves, tape, airway)</label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px;cursor:pointer"><input type="checkbox" id="bls-aed" style="accent-color:var(--green-deep)"/> AED / Defibrillator functional</label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px;cursor:pointer"><input type="checkbox" id="bls-o2" style="accent-color:var(--green-deep)"/> O₂ cylinder adequate (&gt;50%)</label>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px;cursor:pointer"><input type="checkbox" id="bls-cart" style="accent-color:var(--green-deep)"/> Crash cart stocked and sealed</label>
+    </div>
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px">
+      <div>
+        <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);margin-bottom:4px">CPR-Trained Staff on Duty (names)</label>
+        <input id="bls-f-staff" type="text" placeholder="Dr. X, Nurse Y…" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
+      </div>
+      <div>
+        <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);margin-bottom:4px">Count</label>
+        <input id="bls-f-count" type="number" min="0" placeholder="2" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
+      </div>
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);margin-bottom:4px">Checked By (name)</label>
+      <input id="bls-f-checked-by" type="text" placeholder="Your name" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);margin-bottom:4px">Remarks / Issues</label>
+      <textarea id="bls-f-remarks" placeholder="Any deficiencies, replacements needed, incidents…" rows="2" style="width:100%;border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closeBLSModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveBLS()">Save Log</button>
+    </div>
+  </div>
+</div>
+
+<!-- Update Case Modal -->
+<div id="update-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center" onclick="if(event.target===this)closeUpdateModal()">
+  <div style="background:var(--white);border-radius:12px;padding:24px;width:400px;max-width:90vw;box-shadow:0 8px 40px rgba(0,0,0,.2)">
+    <div style="font-size:16px;font-weight:600;margin-bottom:16px">Update Case Status</div>
+    <input type="hidden" id="upd-id"/>
+    <div class="form-group" style="margin-bottom:12px">
+      <label class="form-label">New Status</label>
+      <select class="form-control" id="upd-status">
+        <option value="active">Active — in emergency</option>
+        <option value="observation">Observation — obs bed assigned</option>
+        <option value="admitted">Admitted to IPD</option>
+        <option value="discharged">Discharged</option>
+        <option value="referred">Referred to higher centre</option>
+        <option value="lama">LAMA — Left Against Medical Advice</option>
+        <option value="deceased">Deceased</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label class="form-label">Clinical Notes</label>
+      <textarea class="form-control" id="upd-notes" placeholder="Management, disposition details…" rows="3"></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="saveUpdate()">Save</button>
+      <button class="btn btn-secondary" onclick="closeUpdateModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module">
+import { requireAuth, getCurrentProfile, getCurrentTenantId, getCurrentRole } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist'], 'index.html');
+initNavbar();
+
+const profile  = getCurrentProfile();
+const tenantId = getCurrentTenantId();
+const role     = getCurrentRole();
+
+// Default date = today
+const todayStr = new Date().toISOString().split('T')[0];
+document.getElementById('filter-date').value = todayStr;
+document.getElementById('rmo-date').value = todayStr;
+
+// Set current time for new case
+const nowTime = new Date().toTimeString().slice(0,5);
+document.getElementById('nc-time').value = nowTime;
+document.getElementById('rmo-start').value = nowTime;
+
+// Tab switching
+document.querySelectorAll('.module-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.module-tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'rmo')  loadDutyLog();
+    if (btn.dataset.tab === 'obs')  loadObsBeds();
+    if (btn.dataset.tab === 'mlc')  loadMLC();
+    if (btn.dataset.tab === 'bls')  loadBLS();
+  });
+});
+
+// Obs bed checkbox toggle
+document.getElementById('nc-obs').addEventListener('change', function() {
+  document.getElementById('nc-obs-bed').style.display = this.checked ? '' : 'none';
+});
+
+// Date filter
+document.getElementById('filter-date').addEventListener('change', loadAll);
+
+window.loadAll = async function() {
+  await Promise.all([loadStats(), loadCases(), loadRMOBanner()]);
+};
+
+window._allCases = [];
+
+async function loadStats() {
+  const dateStr = document.getElementById('filter-date').value || todayStr;
+  const start = dateStr + 'T00:00:00';
+  const end   = dateStr + 'T23:59:59';
+  const { data } = await supabase.from('emergency_cases').select('id,status,is_mlc,is_obs_bed').eq('tenant_id',tenantId).gte('arrival_time',start).lte('arrival_time',end);
+  if (!data) { showStatsError(); return; }
+  const total    = data.length;
+  const active   = data.filter(c=>c.status==='active').length;
+  const obs      = data.filter(c=>c.status==='observation'||c.is_obs_bed).length;
+  const admitted = data.filter(c=>c.status==='admitted').length;
+  const mlc      = data.filter(c=>c.is_mlc).length;
+  document.getElementById('s-total').textContent    = total;
+  document.getElementById('s-active').textContent   = active;
+  document.getElementById('s-obs').textContent      = obs;
+  document.getElementById('s-admitted').textContent = admitted;
+  document.getElementById('s-mlc').textContent      = mlc;
+}
+
+function showStatsError() {
+  ['s-total','s-active','s-obs','s-admitted','s-mlc'].forEach(id => document.getElementById(id).textContent = '—');
+}
+
+async function loadCases() {
+  const dateStr = document.getElementById('filter-date').value || todayStr;
+  const start = dateStr + 'T00:00:00', end = dateStr + 'T23:59:59';
+  document.getElementById('cases-title').textContent = dateStr === todayStr ? "Today's Cases" : 'Cases — ' + dateStr;
+
+  const { data, error } = await supabase.from('emergency_cases')
+    .select('*,patients(name,phone),profiles!rmo_id(full_name)')
+    .eq('tenant_id',tenantId).gte('arrival_time',start).lte('arrival_time',end)
+    .order('arrival_time',{ascending:false});
+
+  if (error) {
+    const tbody = document.getElementById('cases-tbody');
+    if (error.code === '42P01') {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div><div class="empty-bod">Run the emergency_cases SQL in Supabase to activate this module</div></div></td></tr>`;
+    } else {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div></td></tr>`;
+    }
+    return;
+  }
+  window._allCases = data || [];
+  renderCases();
+}
+
+window.renderCases = function() {
+  const tf = document.getElementById('filter-triage').value;
+  const sf = document.getElementById('filter-status').value;
+  let cases = window._allCases.filter(c =>
+    (!tf || c.triage_category === tf) && (!sf || c.status === sf)
+  );
+  const tbody = document.getElementById('cases-tbody');
+  if (!cases.length) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="empty-ico">🏥</div><div class="empty-ttl">No cases found</div></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = cases.map(c => {
+    const time = c.arrival_time ? new Date(c.arrival_time).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—';
+    const pat  = c.patients?.name || 'Unknown';
+    const phone = c.patients?.phone ? ` · ${c.patients.phone}` : '';
+    const { label:tLabel, cls:tCls } = triageInfo(c.triage_category);
+    const sChip = statusChip(c.status);
+    const mlcTag = c.is_mlc ? `<span class="mlc-badge">MLC ${c.mlc_number ? '#'+_esc(c.mlc_number) : ''}</span>` : '—';
+    return `<tr>
+      <td style="font-weight:600">${time}</td>
+      <td><div style="font-weight:500">${_esc(pat)}</div><div style="font-size:11px;color:var(--text-muted)">${_esc(phone)}</div></td>
+      <td><span class="triage-chip triage-${c.triage_category}">${tLabel}</span></td>
+      <td style="max-width:220px;font-size:12px">${_esc(c.chief_complaint||'—')}</td>
+      <td>${sChip}</td>
+      <td>${mlcTag}</td>
+      <td><button class="btn btn-secondary btn-sm" onclick="openUpdateModal('${c.id}','${c.status}')">Update</button></td>
+    </tr>`;
+  }).join('');
+};
+
+async function loadRMOBanner() {
+  const todayDate = new Date().toISOString().split('T')[0];
+  const h = new Date().getHours();
+  const shift = h < 14 ? 'Morning' : h < 20 ? 'Evening' : 'Night';
+  const { data } = await supabase.from('emergency_duty_log')
+    .select('rmo_id,profiles!rmo_id(full_name)')
+    .eq('tenant_id',tenantId).eq('duty_date',todayDate).eq('shift',shift)
+    .order('created_at',{ascending:false}).limit(1).single();
+  if (data?.profiles?.full_name) {
+    document.getElementById('rmo-on-duty-banner').textContent = `RMO (${shift}): Dr. ${data.profiles.full_name}`;
+  } else {
+    document.getElementById('rmo-on-duty-banner').textContent = `No RMO logged for ${shift} shift`;
+  }
+}
+
+// ─── New Case ────────────────────────────────────────────
+window.openNewCase = function() {
+  document.getElementById('new-case-card').style.display = '';
+  document.getElementById('nc-search').focus();
+};
+window.closeNewCase = function() {
+  document.getElementById('new-case-card').style.display = 'none';
+  resetNewCase();
+};
+
+let _ncPatientId = null;
+
+window.searchPatients = async function() {
+  const q = document.getElementById('nc-search').value.trim();
+  const res = document.getElementById('nc-results');
+  if (q.length < 2) { res.style.display = 'none'; return; }
+  const { data } = await supabase.from('patients').select('id,name,phone').eq('tenant_id',tenantId)
+    .or(`phone.ilike.%${q}%,name.ilike.%${q}%`).limit(8);
+  if (!data?.length) { res.style.display = 'none'; return; }
+  res.style.display = '';
+  res.innerHTML = data.map(p => `<div class="search-result-item" onclick="selectPatient('${p.id}','${_esc(p.name)}','${_esc(p.phone||'')}')">
+    <strong>${_esc(p.name)}</strong><span style="color:var(--text-muted);font-size:12px;margin-left:6px">${_esc(p.phone||'')}</span>
+  </div>`).join('');
+};
+
+window.selectPatient = function(id, name, phone) {
+  _ncPatientId = id;
+  document.getElementById('nc-search').value = name + (phone ? ' · ' + phone : '');
+  document.getElementById('nc-results').style.display = 'none';
+  const box = document.getElementById('nc-patient-box');
+  box.style.display = '';
+  box.innerHTML = `✓ Selected: <strong>${_esc(name)}</strong> ${phone ? '· ' + _esc(phone) : ''}`;
+};
+
+window.toggleMLC = function(on) {
+  document.getElementById('mlc-extra').style.display = on ? '' : 'none';
+};
+
+window.saveCase = async function() {
+  const btn = document.getElementById('nc-save-btn');
+  const triage    = document.getElementById('nc-triage').value;
+  const complaint = document.getElementById('nc-complaint').value.trim();
+  const timeVal   = document.getElementById('nc-time').value;
+  const isMLC     = document.getElementById('nc-mlc').checked;
+  const isObs     = document.getElementById('nc-obs').checked;
+
+  if (!complaint) { showAlert('case-alert','Chief complaint is required','error'); return; }
+
+  const dateStr = document.getElementById('filter-date').value || todayStr;
+  const arrival = new Date(dateStr + 'T' + (timeVal || '00:00') + ':00').toISOString();
+
+  btn.disabled = true;
+  const payload = {
+    tenant_id:tenantId, patient_id:_ncPatientId||null,
+    arrival_time:arrival, triage_category:triage, chief_complaint:complaint,
+    status:'active', rmo_id:profile.id,
+    is_mlc:isMLC, is_obs_bed:isObs,
+    obs_bed_no:isObs ? (document.getElementById('nc-obs-bed').value||null) : null,
+  };
+  if (isMLC) {
+    payload.mlc_number      = document.getElementById('nc-mlc-no').value.trim()||null;
+    payload.mlc_nature      = document.getElementById('nc-mlc-nature').value||null;
+    payload.mlc_police_station = document.getElementById('nc-mlc-ps').value.trim()||null;
+    payload.mlc_intimation  = document.getElementById('nc-mlc-intim').value||null;
+  }
+
+  const { error } = await supabase.from('emergency_cases').insert(payload);
+  btn.disabled = false;
+  if (error) { showAlert('case-alert', error.message, 'error'); return; }
+  showAlert('case-alert','Case registered successfully','success');
+  closeNewCase();
+  loadAll();
+};
+
+function resetNewCase() {
+  _ncPatientId = null;
+  ['nc-search','nc-complaint','nc-mlc-no','nc-mlc-ps','nc-obs-bed'].forEach(id => { document.getElementById(id).value=''; });
+  document.getElementById('nc-patient-box').style.display = 'none';
+  document.getElementById('nc-results').style.display = 'none';
+  document.getElementById('nc-mlc').checked = false;
+  document.getElementById('nc-obs').checked = false;
+  document.getElementById('mlc-extra').style.display = 'none';
+  document.getElementById('nc-obs-bed').style.display = 'none';
+  document.getElementById('nc-time').value = new Date().toTimeString().slice(0,5);
+}
+
+// ─── Update Modal ────────────────────────────────────────
+window.openUpdateModal = function(id, status) {
+  document.getElementById('upd-id').value = id;
+  document.getElementById('upd-status').value = status;
+  document.getElementById('upd-notes').value = '';
+  document.getElementById('update-modal').style.display = 'flex';
+};
+window.closeUpdateModal = function() { document.getElementById('update-modal').style.display = 'none'; };
+window.saveUpdate = async function() {
+  const id     = document.getElementById('upd-id').value;
+  const status = document.getElementById('upd-status').value;
+  const notes  = document.getElementById('upd-notes').value.trim();
+  const payload = { status };
+  if (notes) payload.clinical_notes = notes;
+  if (['discharged','admitted','referred','lama','deceased'].includes(status)) {
+    payload.disposition_time = new Date().toISOString();
+    payload.disposition = status;
+  }
+  if (status === 'observation') payload.is_obs_bed = true;
+  const { error } = await supabase.from('emergency_cases').update(payload).eq('id',id).eq('tenant_id',tenantId);
+  if (error) { _toast(error.message, true); return; }
+  closeUpdateModal();
+  _toast('Status updated');
+  loadAll();
+};
+
+// ─── RMO Duty Log ────────────────────────────────────────
+let _rmoShift = 'Morning';
+window.selectShift = function(btn) {
+  document.querySelectorAll('.shift-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  _rmoShift = btn.dataset.shift;
+};
+
+async function loadDoctors() {
+  const { data } = await supabase.from('profiles').select('id,full_name').eq('tenant_id',tenantId).eq('role','doctor').eq('is_active',true).order('full_name');
+  const sel = document.getElementById('rmo-doctor');
+  sel.innerHTML = '<option value="">— Select Doctor —</option>' + (data||[]).map(d=>`<option value="${d.id}">${_esc(d.full_name)}</option>`).join('');
+}
+
+window.saveDutyLog = async function() {
+  const docId = document.getElementById('rmo-doctor').value;
+  const date  = document.getElementById('rmo-date').value;
+  if (!docId || !date) { showAlert('rmo-alert','Select a doctor and date','error'); return; }
+  const { error } = await supabase.from('emergency_duty_log').insert({
+    tenant_id:tenantId, rmo_id:docId, shift:_rmoShift,
+    duty_date:date,
+    start_time:          document.getElementById('rmo-start').value||null,
+    end_time:            document.getElementById('rmo-end').value||null,
+    oncall_consultants:  document.getElementById('rmo-oncall').value.trim()||null,
+    incidents_handled:   parseInt(document.getElementById('rmo-incidents').value)||0,
+    notes:               document.getElementById('rmo-notes').value.trim()||null,
+  });
+  if (error) {
+    if (error.code==='42P01') { showAlert('rmo-alert','Run emergency_duty_log SQL in Supabase first','error'); }
+    else { showAlert('rmo-alert', error.message, 'error'); }
+    return;
+  }
+  showAlert('rmo-alert','Duty logged','success');
+  loadDutyLog();
+  loadRMOBanner();
+};
+
+window.loadDutyLog = async function() {
+  const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-7);
+  const { data, error } = await supabase.from('emergency_duty_log')
+    .select('*,profiles!rmo_id(full_name)')
+    .eq('tenant_id',tenantId)
+    .gte('duty_date', sevenDaysAgo.toISOString().split('T')[0])
+    .order('duty_date',{ascending:false}).order('shift');
+  const wrap = document.getElementById('duty-log-body');
+  if (error) {
+    if (error.code==='42P01') {
+      wrap.innerHTML = '<div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div></div>';
+    } else {
+      wrap.innerHTML = `<div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div>`;
+    }
+    return;
+  }
+  if (!data?.length) { wrap.innerHTML = '<div class="empty"><div class="empty-ico">📋</div><div class="empty-ttl">No duty logged in last 7 days</div></div>'; return; }
+  wrap.innerHTML = `<div class="tw"><table>
+    <thead><tr><th>Date</th><th>Shift</th><th>Doctor</th><th>Start</th><th>End</th><th>Notes</th></tr></thead>
+    <tbody>${data.map(d=>`<tr>
+      <td>${d.duty_date}</td>
+      <td><span style="background:var(--green-light);color:var(--green-deep);padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600">${d.shift}</span></td>
+      <td>Dr. ${_esc(d.profiles?.full_name||'—')}</td>
+      <td>${d.start_time||'—'}</td>
+      <td>${d.end_time||'—'}</td>
+      <td style="font-size:12px;color:var(--text-muted)">${_esc(d.notes||'—')}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+};
+
+// ─── Observation Beds ────────────────────────────────────
+window.loadObsBeds = async function() {
+  const { data, error } = await supabase.from('emergency_cases')
+    .select('id,obs_bed_no,chief_complaint,arrival_time,status,patients(name,phone)')
+    .eq('tenant_id',tenantId).eq('is_obs_bed',true).in('status',['active','observation'])
+    .order('arrival_time',{ascending:false});
+  const summary = document.getElementById('obs-summary');
+  const list    = document.getElementById('obs-list');
+  if (error) {
+    if (error.code==='42P01') { list.innerHTML='<div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div></div>'; return; }
+    list.innerHTML=`<div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div>`; return;
+  }
+  const obs = data || [];
+  summary.innerHTML = `<div style="display:flex;align-items:center;gap:14px;background:var(--white);border:1.5px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:12px">
+    <div style="text-align:center"><div style="font-size:28px;font-weight:700;color:var(--red)">${obs.length}</div><div style="font-size:11px;color:var(--text-muted)">Currently in Obs</div></div>
+    <div style="flex:1;font-size:13px;color:var(--text-mid)">Observation beds are emergency-only holding beds. Not counted in IPD census per NCISM §6(g).</div>
+  </div>`;
+  if (!obs.length) { list.innerHTML='<div class="empty"><div class="empty-ico">🛏</div><div class="empty-ttl">No patients in observation</div></div>'; return; }
+  list.innerHTML = `<div class="tw"><table>
+    <thead><tr><th>Obs Bed</th><th>Patient</th><th>Chief Complaint</th><th>Arrival</th><th>Status</th><th></th></tr></thead>
+    <tbody>${obs.map(c=>`<tr>
+      <td style="font-weight:700">${_esc(c.obs_bed_no||'OBS')}</td>
+      <td>${_esc(c.patients?.name||'Unknown')}<br><small style="color:var(--text-muted)">${_esc(c.patients?.phone||'')}</small></td>
+      <td style="font-size:12px">${_esc(c.chief_complaint||'—')}</td>
+      <td style="font-size:12px">${c.arrival_time ? new Date(c.arrival_time).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+      <td>${statusChip(c.status)}</td>
+      <td><button class="btn btn-secondary btn-sm" onclick="openUpdateModal('${c.id}','${c.status}')">Update</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+};
+
+// ─── MLC Register ────────────────────────────────────────
+let _mlcData = [];
+window.loadMLC = async function() {
+  const period = document.getElementById('mlc-month-filter').value;
+  let start = null;
+  const now = new Date();
+  if (period==='today') start = now.toISOString().split('T')[0] + 'T00:00:00';
+  else if (period==='week') { const d = new Date(now); d.setDate(d.getDate()-7); start = d.toISOString(); }
+  else if (period==='month') { const d = new Date(now.getFullYear(),now.getMonth(),1); start = d.toISOString(); }
+
+  let q = supabase.from('emergency_cases').select('*,patients(name,phone)').eq('tenant_id',tenantId).eq('is_mlc',true).order('arrival_time',{ascending:false});
+  if (start) q = q.gte('arrival_time',start);
+  const { data, error } = await q;
+  const tbody = document.getElementById('mlc-tbody');
+  if (error) {
+    if (error.code==='42P01') { tbody.innerHTML='<tr><td colspan="8"><div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div></div></td></tr>'; return; }
+    tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div></td></tr>`; return;
+  }
+  _mlcData = data||[];
+  if (!_mlcData.length) { tbody.innerHTML='<tr><td colspan="8"><div class="empty"><div class="empty-ico">⚖️</div><div class="empty-ttl">No MLC cases in selected period</div></div></td></tr>'; return; }
+  tbody.innerHTML = _mlcData.map(c=>`<tr>
+    <td style="font-size:12px">${c.arrival_time ? new Date(c.arrival_time).toLocaleString('en-IN') : '—'}</td>
+    <td><strong>${_esc(c.mlc_number||'—')}</strong></td>
+    <td>${_esc(c.patients?.name||'Unknown')}<br><small style="color:var(--text-muted)">${_esc(c.patients?.phone||'')}</small></td>
+    <td style="font-size:12px">${_esc(c.mlc_nature||'—')}</td>
+    <td><span class="triage-chip triage-${c.triage_category}">${triageInfo(c.triage_category).label}</span></td>
+    <td style="font-size:12px">${_esc(c.mlc_police_station||'—')}</td>
+    <td><span class="triage-chip ${c.mlc_intimation==='informed'?'triage-routine':c.mlc_intimation==='pending'?'triage-urgent':'triage-semi'}">${_esc(c.mlc_intimation||'—')}</span></td>
+    <td>${statusChip(c.status)}</td>
+  </tr>`).join('');
+};
+
+window.exportMLC = function() {
+  if (!_mlcData.length) return;
+  const rows = [
+    ['Date/Time','MLC No.','Patient Name','Phone','Nature','Triage','Police Station','Intimation','Status','Chief Complaint'],
+    ..._mlcData.map(c=>[
+      c.arrival_time ? new Date(c.arrival_time).toLocaleString('en-IN') : '',
+      c.mlc_number||'', c.patients?.name||'', c.patients?.phone||'',
+      c.mlc_nature||'', c.triage_category||'', c.mlc_police_station||'',
+      c.mlc_intimation||'', c.status||'', c.chief_complaint||''
+    ])
+  ];
+  const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = 'MLC_Register.csv'; a.click();
+};
+
+// ─── BLS Log (§23x — COP.2 ATWC CORE) ──────────────────
+const todayFull = new Date().toISOString().slice(0,10);
+document.getElementById('bls-date-filter').value = todayFull;
+document.getElementById('bls-f-date').value      = todayFull;
+
+window.loadBLS = async function() {
+  const d = document.getElementById('bls-date-filter').value || todayFull;
+  const { data } = await supabase.from('bls_logs')
+    .select('*').eq('tenant_id', tenantId).eq('log_date', d)
+    .order('created_at', { ascending: false });
+  const rows = data || [];
+  renderBLSTable(rows);
+  checkBLSMissing(rows, d);
+};
+
+function checkBLSMissing(rows, d) {
+  const banner = document.getElementById('bls-missing-banner');
+  if (d !== todayFull) { banner.style.display='none'; return; }
+  const hr   = new Date().getHours();
+  const curShift = hr>=6 && hr<14 ? 'morning' : hr>=14 && hr<22 ? 'afternoon' : 'night';
+  const done = rows.some(r => r.shift === curShift);
+  banner.style.display = done ? 'none' : '';
+}
+
+function renderBLSTable(rows) {
+  const yes = v => v ? '✅' : '❌';
+  const tbody = document.getElementById('bls-tbody');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="10"><div class="empty">No BLS log entries for this date</div></td></tr>'; return; }
+  tbody.innerHTML = rows.map(r => `<tr>
+    <td>${r.log_date}</td>
+    <td><span style="background:var(--green-light);color:var(--green-deep);padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600">${r.shift}</span></td>
+    <td>${_esc(r.department||'—')}</td>
+    <td style="text-align:center">${yes(r.kit_complete)}</td>
+    <td style="text-align:center">${yes(r.aed_functional)}</td>
+    <td style="text-align:center">${yes(r.o2_cylinder_ok)}</td>
+    <td style="text-align:center">${yes(r.crash_cart_ok)}</td>
+    <td style="font-size:12px">${_esc(r.cpr_trained_staff||'—')} ${r.cpr_trained_count?'('+r.cpr_trained_count+')':''}</td>
+    <td style="font-size:12px">${_esc(r.checked_by_name||'—')}</td>
+    <td style="font-size:12px;color:${r.remarks?'var(--amber)':'var(--text-muted)'}">${_esc(r.remarks||'—')}</td>
+  </tr>`).join('');
+}
+
+window.openBLSModal = function() {
+  document.getElementById('bls-modal').style.display='flex';
+  document.getElementById('bls-f-date').value        = document.getElementById('bls-date-filter').value || todayFull;
+  document.getElementById('bls-f-shift').value       = 'morning';
+  document.getElementById('bls-f-dept').value        = '';
+  document.getElementById('bls-kit').checked         = false;
+  document.getElementById('bls-aed').checked         = false;
+  document.getElementById('bls-o2').checked          = false;
+  document.getElementById('bls-cart').checked        = false;
+  document.getElementById('bls-f-staff').value       = '';
+  document.getElementById('bls-f-count').value       = '';
+  document.getElementById('bls-f-checked-by').value  = profile?.full_name || '';
+  document.getElementById('bls-f-remarks').value     = '';
+};
+window.closeBLSModal = function() {
+  document.getElementById('bls-modal').style.display='none';
+};
+window.saveBLS = async function() {
+  const logDate = document.getElementById('bls-f-date').value;
+  const shift   = document.getElementById('bls-f-shift').value;
+  if (!logDate || !shift) { _toast('Date and shift required', true); return; }
+  const payload = {
+    tenant_id:         tenantId,
+    log_date:          logDate,
+    shift,
+    department:        document.getElementById('bls-f-dept').value.trim()||null,
+    kit_complete:      document.getElementById('bls-kit').checked,
+    aed_functional:    document.getElementById('bls-aed').checked,
+    o2_cylinder_ok:    document.getElementById('bls-o2').checked,
+    crash_cart_ok:     document.getElementById('bls-cart').checked,
+    cpr_trained_staff: document.getElementById('bls-f-staff').value.trim()||null,
+    cpr_trained_count: parseInt(document.getElementById('bls-f-count').value)||0,
+    checked_by:        profile.id,
+    checked_by_name:   document.getElementById('bls-f-checked-by').value.trim()||null,
+    remarks:           document.getElementById('bls-f-remarks').value.trim()||null,
+  };
+  const { error } = await supabase.from('bls_logs').insert(payload);
+  if (error) { _toast(error.message, true); return; }
+  _toast('BLS log saved'); closeBLSModal();
+  document.getElementById('bls-date-filter').value = logDate;
+  loadBLS();
+};
+
+// ─── Helpers ─────────────────────────────────────────────
+function triageInfo(t) {
+  return {
+    emergency: {label:'🔴 Emergency', cls:'triage-emergency'},
+    urgent:    {label:'🟠 Urgent',    cls:'triage-urgent'},
+    semi_urgent:{label:'🟡 Semi-Urgent',cls:'triage-semi'},
+    routine:   {label:'🟢 Routine',   cls:'triage-routine'},
+  }[t] || {label:t||'—', cls:'triage-routine'};
+}
+function statusChip(s) {
+  const map = {
+    active:      'background:#fdecea;color:#7f1d1d;border-color:#fca5a5',
+    observation: 'background:#fffbeb;color:#78350f;border-color:#fcd34d',
+    admitted:    'background:var(--blue-light);color:var(--blue);border-color:var(--blue)',
+    discharged:  'background:var(--green-light);color:var(--green-deep);border-color:var(--green-mid)',
+    referred:    'background:#f5f3ff;color:#6d28d9;border-color:#c4b5fd',
+    lama:        'background:#f3f4f6;color:#374151;border-color:#9ca3af',
+    deceased:    'background:#1f2937;color:#f9fafb;border-color:#374151',
+  };
+  const style = map[s] || map.active;
+  return `<span style="${style};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;border:1.5px solid">${_esc(s||'unknown')}</span>`;
+}
+function showAlert(id, msg, type) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.className = `alert ${type} show`;
+  setTimeout(()=>el.classList.remove('show'), 4000);
+}
+function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _toast(msg,isErr=false){ const el=document.getElementById('toast'); el.textContent=msg; el.style.background=isErr?'#7f1d1d':'#1c2b1f'; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),3000); }
+
+// Boot
+loadDoctors();
+await loadAll();
+</script>
+</body>
+</html>

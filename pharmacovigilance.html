@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Pharmacovigilance Cell — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --red:#c0392b;--red-light:#fdecea;--red-border:#fca5a5;
+  --blue:#1a4080;--blue-light:#e3f0ff;
+  --amber:#92400e;--amber-bg:#fffbeb;--amber-border:#fcd34d;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1100px;margin:0 auto;padding:28px 20px 80px}
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.4px;margin-left:8px;vertical-align:middle}
+
+.btn{height:38px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}.btn-secondary:hover{background:var(--green-light)}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Compliance banner */
+.compliance-banner{border-radius:var(--radius);padding:14px 18px;margin-bottom:20px;display:flex;align-items:flex-start;gap:14px}
+.compliance-banner.green{background:var(--green-light);border:1.5px solid var(--green-mid)}
+.compliance-banner.amber{background:var(--amber-bg);border:1.5px solid var(--amber-border)}
+.compliance-banner.red{background:var(--red-light);border:1.5px solid var(--red-border)}
+.cb-icon{font-size:24px;flex-shrink:0;line-height:1}
+.cb-body{flex:1}
+.cb-title{font-weight:700;font-size:14px;margin-bottom:4px}
+.cb-sub{font-size:12px;line-height:1.6}
+.cb-bar-wrap{margin-top:8px;background:rgba(0,0,0,.08);border-radius:4px;height:6px;overflow:hidden}
+.cb-bar{height:100%;border-radius:4px;transition:width .4s}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:700px){.stats-row{grid-template-columns:repeat(2,1fr)}}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;text-align:center}
+.stat-val{font-size:28px;font-weight:700;color:var(--green-deep);line-height:1;font-family:'Cormorant Garamond',serif}
+.stat-lbl{font-size:11px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.4px}
+.stat-card.gold .stat-val{color:var(--gold)}
+.stat-card.red .stat-val{color:var(--red)}
+.stat-card.blue .stat-val{color:var(--blue)}
+
+/* Card */
+.card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px}
+.card-hd{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap}
+.card-title{font-weight:600;font-size:14px;color:var(--text-dark)}
+
+/* Table */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:9px 14px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;background:#fafafa;border-bottom:1px solid var(--border)}
+td{padding:10px 14px;border-bottom:1px solid #f0f4f2;vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafff8}
+
+/* Pills */
+.pill{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.pill-bimonthly{background:var(--green-light);color:var(--green-deep)}
+.pill-special{background:var(--blue-light);color:var(--blue)}
+.pill-annual{background:var(--gold-light);color:#7a5c00}
+.pill-done{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.pill-scheduled{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)}
+.report-yes{color:var(--green-mid);font-weight:600}
+.report-no{color:var(--red);font-weight:600}
+
+/* NCISM members checklist */
+.member-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+@media(max-width:500px){.member-grid{grid-template-columns:1fr}}
+.member-item{display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:6px;background:#f5faf7;border:1px solid var(--border);font-size:12px;cursor:pointer;transition:background .15s}
+.member-item:hover{background:var(--green-light)}
+.member-item input[type=checkbox]{accent-color:var(--green-mid);width:14px;height:14px;flex-shrink:0}
+.member-item.checked{background:var(--green-light);border-color:#b2d8bf}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:none;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto}
+.overlay.show{display:flex}
+.modal{background:var(--white);border-radius:10px;width:720px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,.22);margin:auto}
+.modal-hd{background:var(--green-deep);color:#fff;padding:14px 20px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center}
+.modal-hd-title{font-weight:600;font-size:15px}
+.modal-hd-close{background:none;border:none;color:rgba(255,255,255,.7);font-size:20px;cursor:pointer;line-height:1;padding:0 4px}
+.modal-hd-close:hover{color:#fff}
+.modal-body{padding:22px;max-height:80vh;overflow-y:auto}
+.modal-foot{padding:12px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border);background:#fafafa;border-radius:0 0 10px 10px}
+
+/* Form sections */
+.fsec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--green-mid);margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid var(--border);margin-top:18px}
+.fsec:first-child{margin-top:0}
+.fg{display:grid;gap:12px;margin-bottom:12px}
+.fg.c2{grid-template-columns:1fr 1fr}
+.fg.c3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:560px){.fg.c2,.fg.c3{grid-template-columns:1fr}}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:12px;font-weight:500;color:var(--text-mid)}
+.field input,.field select,.field textarea{width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white);outline:none}
+.field textarea{height:64px;padding:8px 10px;resize:vertical}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--green-mid)}
+
+/* Decision rows */
+.dec-row{display:flex;gap:8px;margin-bottom:6px;align-items:flex-start}
+.dec-row input{flex:1;height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none}
+.dec-row input:focus{border-color:var(--green-mid)}
+.dec-rm{height:34px;width:32px;background:var(--red-light);border:1.5px solid var(--red-border);border-radius:7px;cursor:pointer;font-size:16px;color:var(--red);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.add-dec{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:7px;border:1.5px dashed var(--green-mid);background:none;color:var(--green-mid);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:4px}
+
+/* Alert */
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:14px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.alert.error{background:var(--red-light);color:#8b1a1a;border:1px solid var(--red-border)}
+
+/* Empty */
+.empty{text-align:center;padding:40px 20px;color:var(--text-muted)}
+.empty-ico{font-size:36px;margin-bottom:10px;opacity:.5}
+.empty-ttl{font-size:14px;font-weight:500;margin-bottom:4px}
+.empty-bod{font-size:12px;line-height:1.6;max-width:300px;margin:0 auto}
+
+/* ADR table */
+.adr-row{background:var(--red-light);border-left:3px solid var(--red)}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1c2b1f;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:2000}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<div class="page-wrap">
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Pharmacovigilance Cell <span class="ncism-badge">§48 NCISM</span></div>
+    <div class="page-subtitle">Bimonthly Meeting Register · ADR Review · Report Submission to National PV Cell</div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-secondary btn-sm" onclick="exportRegister()">↓ CSV</button>
+    <button class="btn btn-primary" onclick="openModal()">+ Record Meeting</button>
+  </div>
+</div>
+
+<!-- Compliance banner — populated by JS -->
+<div id="compliance-banner"></div>
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="stat-card"><div class="stat-val" id="s-total">—</div><div class="stat-lbl">Total Meetings</div></div>
+  <div class="stat-card"><div class="stat-val" id="s-year">—</div><div class="stat-lbl">This Year</div></div>
+  <div class="stat-card gold"><div class="stat-val" id="s-adr">—</div><div class="stat-lbl">ADR Cases Reviewed</div></div>
+  <div class="stat-card blue"><div class="stat-val" id="s-reported">—</div><div class="stat-lbl">Reports Submitted</div></div>
+</div>
+
+<!-- NCISM mandate info -->
+<div style="background:var(--amber-bg);border:1.5px solid var(--amber-border);border-radius:var(--radius);padding:12px 16px;margin-bottom:20px;font-size:12px;color:var(--amber);line-height:1.7">
+  <strong>§48 NCISM Mandate:</strong> PV Cell meets <u>at least once in two months</u>. Co-ordinators: Faculty from Rasashastra &amp; Bhaishajyakalpana + Dravyaguna. Members: All 8 clinical department HODs. ADR reports submitted to Regional/National/Central PV Cell.
+</div>
+
+<!-- Alert -->
+<div class="alert" id="main-alert"></div>
+
+<!-- Meeting Register -->
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">Meeting Register</span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <select class="field" style="height:32px;font-size:12px;width:auto;border:1.5px solid var(--border);border-radius:7px;padding:0 8px" id="year-filter" onchange="loadMeetings()">
+        <option value="">All Years</option>
+      </select>
+      <button class="btn btn-secondary btn-sm" onclick="loadMeetings()">↻</button>
+    </div>
+  </div>
+  <div class="tw">
+    <table>
+      <thead><tr>
+        <th>Date</th><th>Type</th><th>Chairperson</th><th>Venue</th>
+        <th>Members Present</th><th>ADR Cases</th><th>Report Submitted</th><th>Next Meeting</th><th>Status</th>
+      </tr></thead>
+      <tbody id="meetings-tbody">
+        <tr><td colspan="9"><div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</div><!-- end page-wrap -->
+
+<!-- ══════════ RECORD MEETING MODAL ══════════ -->
+<div class="overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+<div class="modal">
+  <div class="modal-hd">
+    <span class="modal-hd-title">Record PV Cell Meeting</span>
+    <button class="modal-hd-close" onclick="closeModal()">×</button>
+  </div>
+  <div class="modal-body">
+    <div class="alert" id="modal-alert"></div>
+
+    <!-- Meeting details -->
+    <div class="fsec">Meeting Details</div>
+    <div class="fg c3">
+      <div class="field"><label>Meeting Date *</label><input type="date" id="m-date"/></div>
+      <div class="field">
+        <label>Meeting Type</label>
+        <select id="m-type">
+          <option value="bimonthly">Bimonthly (Mandatory)</option>
+          <option value="special">Special / Emergency</option>
+          <option value="annual">Annual Review</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select id="m-status">
+          <option value="completed">Completed</option>
+          <option value="scheduled">Scheduled</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg c2">
+      <div class="field"><label>Chairperson</label><input type="text" id="m-chair" placeholder="e.g. Dr. Ramesh — HOD Kayachikitsa"/></div>
+      <div class="field"><label>Venue</label><input type="text" id="m-venue" placeholder="e.g. Conference Hall, Admin Block"/></div>
+    </div>
+
+    <!-- NCISM Cell Composition -->
+    <div class="fsec">§48 Cell Composition — Members Present</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Tick all departments whose representative attended. PV Cell must include all clinical departments.</div>
+    <div class="member-grid" id="member-checklist">
+      <!-- populated by JS -->
+    </div>
+    <div id="dept-missing-warn" style="display:none;margin-top:8px;padding:10px 14px;background:#fff8e1;border:1.5px solid #f4b400;border-radius:8px;font-size:12.5px;color:#6b4c00"></div>
+    <div class="field" style="margin-top:10px">
+      <label>Additional Members / Guests (free text)</label>
+      <input type="text" id="m-extra-members" placeholder="e.g. Principal, Dean, External expert"/>
+    </div>
+
+    <!-- Agenda & ADR Review -->
+    <div class="fsec">Agenda &amp; ADR Case Review</div>
+    <div class="fg">
+      <div class="field"><label>Agenda Items</label><textarea id="m-agenda" placeholder="1. Review of ADR cases since last meeting&#10;2. Analysis of drug safety reports&#10;3. Update from National PV Cell&#10;4. Any other item"></textarea></div>
+    </div>
+    <div class="fg c3">
+      <div class="field"><label>ADR Cases Reviewed (count)</label><input type="number" id="m-adr-count" min="0" placeholder="0"/></div>
+      <div class="field"><label>ADR Severity Distribution</label><input type="text" id="m-adr-severity" placeholder="e.g. 2 mild, 1 moderate, 0 severe"/></div>
+      <div class="field">
+        <label>ADR Causality Assessment</label>
+        <select id="m-adr-causality">
+          <option value="">— Select —</option>
+          <option>All certain</option>
+          <option>Probable</option>
+          <option>Possible</option>
+          <option>Mixed / Under review</option>
+          <option>No ADRs this period</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>ADR Summary / Key Findings</label>
+      <textarea id="m-adr-summary" placeholder="Brief description of ADR cases reviewed, drug implicated, patient outcome…"></textarea>
+    </div>
+
+    <!-- Decisions -->
+    <div class="fsec">Decisions &amp; Action Items</div>
+    <div id="decisions-wrap">
+      <div class="dec-row"><input placeholder="e.g. Withdraw Arsenic-containing preparation Lot X from dispensary immediately"/><button class="dec-rm" onclick="removeDec(this)">×</button></div>
+    </div>
+    <button class="add-dec" onclick="addDec()">+ Add Decision</button>
+
+    <!-- Report Submission -->
+    <div class="fsec">Report Submission to PV Network</div>
+    <div class="fg c3">
+      <div class="field">
+        <label>Submitted To</label>
+        <select id="m-report-to">
+          <option value="">— Not yet submitted —</option>
+          <option value="regional">Regional PV Centre (RPVMC)</option>
+          <option value="national">National PV Programme (NPvP / CDSCO)</option>
+          <option value="central">Central AYUSH PV Cell (MoA)</option>
+          <option value="all">All three</option>
+        </select>
+      </div>
+      <div class="field"><label>Report Submission Date</label><input type="date" id="m-report-date"/></div>
+      <div class="field"><label>Reference / Acknowledgement No.</label><input type="text" id="m-report-ref" placeholder="e.g. RPVMC/2026/143"/></div>
+    </div>
+
+    <!-- Minutes & Next meeting -->
+    <div class="fsec">Minutes &amp; Follow-up</div>
+    <div class="fg c2">
+      <div class="field"><label>Minutes Approved By</label><input type="text" id="m-minutes-by" placeholder="e.g. Dr. Chairperson + Principal"/></div>
+      <div class="field"><label>Next Meeting Date</label><input type="date" id="m-next"/></div>
+    </div>
+    <div class="field">
+      <label>Meeting Minutes Summary</label>
+      <textarea id="m-minutes" placeholder="Key points discussed, observations made, resolutions passed…"></textarea>
+    </div>
+    <div class="field" style="margin-top:8px">
+      <label>Remarks</label>
+      <input type="text" id="m-remarks" placeholder="Any other remarks…"/>
+    </div>
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" id="save-btn" onclick="saveMeeting()">Save Meeting</button>
+  </div>
+</div>
+</div>
+
+<div id="toast"></div>
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module">
+import { requireAuth, getCurrentProfile, getCurrentTenantId } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['super_admin','dept_admin','doctor','receptionist'], 'index.html');
+initNavbar();
+
+const profile  = getCurrentProfile();
+const tenantId = getCurrentTenantId();
+const now      = new Date();
+const todayStr = now.toISOString().split('T')[0];
+
+// NCISM §48 mandatory cell members
+const CELL_MEMBERS = [
+  { key:'rasabhaishajya', label:'Rasashastra & Bhaishajyakalpana', role:'Co-ordinator', required:true },
+  { key:'dravyaguna',     label:'Dravyaguna',                       role:'Co-ordinator', required:true },
+  { key:'kayachikitsa',   label:'Kayachikitsa',                     role:'Member',       required:true },
+  { key:'shalya',         label:'Shalya Tantra',                    role:'Member',       required:true },
+  { key:'shalakya',       label:'Shalakya Tantra',                  role:'Member',       required:true },
+  { key:'prasuti',        label:'Prasuti & Streeroga',              role:'Member',       required:true },
+  { key:'kaumar',         label:'Kaumarabhritya',                   role:'Member',       required:true },
+  { key:'panchakarma',    label:'Panchakarma',                      role:'Member',       required:true },
+  { key:'swasthavritta',  label:'Swasthavritta & Yoga',             role:'Member',       required:true },
+  { key:'agada',          label:'Agada Tantra',                     role:'Member',       required:true },
+];
+
+// Build member checklist
+const mcWrap = document.getElementById('member-checklist');
+mcWrap.innerHTML = CELL_MEMBERS.map(m=>`
+  <label class="member-item" id="mi-${m.key}" onclick="toggleMember(this)">
+    <input type="checkbox" id="mc-${m.key}" value="${m.key}" onchange="toggleMember(this.closest('label'))"/>
+    <div>
+      <div style="font-weight:500">${m.label}</div>
+      <div style="font-size:10px;color:var(--text-muted)">${m.role}${m.required?' · NCISM required':''}</div>
+    </div>
+  </label>`).join('');
+
+window.toggleMember = function(label) {
+  const cb = label.querySelector('input[type=checkbox]');
+  label.classList.toggle('checked', cb.checked);
+};
+
+// Year filter
+const yearSel = document.getElementById('year-filter');
+for (let y = now.getFullYear(); y >= 2024; y--) {
+  const o = document.createElement('option'); o.value = y; o.textContent = y; yearSel.appendChild(o);
+}
+yearSel.value = now.getFullYear();
+
+// Defaults
+document.getElementById('m-date').value = todayStr;
+const nextBi = new Date(now); nextBi.setMonth(nextBi.getMonth() + 2);
+document.getElementById('m-next').value = nextBi.toISOString().split('T')[0];
+
+// ─── Load meetings ────────────────────────────────────────
+let _allMeetings = [];
+
+window.loadMeetings = async function() {
+  const year = yearSel.value;
+  const tbody = document.getElementById('meetings-tbody');
+  tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div></td></tr>';
+
+  let q = supabase.from('pv_meetings').select('*').eq('tenant_id',tenantId).order('meeting_date',{ascending:false});
+  if (year) { q = q.gte('meeting_date',year+'-01-01').lte('meeting_date',year+'-12-31'); }
+  const { data, error } = await q;
+
+  if (error) {
+    if (error.code === '42P01') {
+      tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div><div class="empty-bod">Run pv_meetings SQL in Supabase to activate this module</div></div></td></tr>';
+    } else {
+      tbody.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div></td></tr>`;
+    }
+    return;
+  }
+
+  _allMeetings = data || [];
+  renderStats(_allMeetings);
+  renderCompliance(_allMeetings);
+
+  if (!_allMeetings.length) {
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><div class="empty-ico">🧪</div><div class="empty-ttl">No meetings recorded yet</div><div class="empty-bod">Record the first PV Cell meeting to start compliance tracking</div></div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = _allMeetings.map(m=>`<tr>
+    <td style="font-weight:600;white-space:nowrap">${m.meeting_date}</td>
+    <td><span class="pill pill-${m.meeting_type}">${_typeLabel(m.meeting_type)}</span></td>
+    <td style="font-size:12px">${_esc(m.chairperson||'—')}</td>
+    <td style="font-size:12px">${_esc(m.venue||'—')}</td>
+    <td style="font-size:12px">
+      ${_membersPresent(m.members_present)}
+      ${m.extra_members ? `<div style="color:var(--text-muted);font-size:11px">+${_esc(m.extra_members)}</div>` : ''}
+    </td>
+    <td style="text-align:center">
+      <span style="font-size:16px;font-weight:700;color:${m.adr_count>0?'var(--red)':'var(--text-muted)'}">${m.adr_count||0}</span>
+      ${m.adr_severity ? `<div style="font-size:10px;color:var(--text-muted)">${_esc(m.adr_severity)}</div>` : ''}
+    </td>
+    <td style="font-size:12px">
+      ${m.report_to
+        ? `<span class="report-yes">✓ ${_esc(_reportLabel(m.report_to))}</span><br><span style="font-size:10px;color:var(--text-muted)">${m.report_date||''} ${m.report_ref?'· '+_esc(m.report_ref):''}</span>`
+        : '<span class="report-no">✗ Not submitted</span>'}
+    </td>
+    <td style="font-size:12px;white-space:nowrap">${m.next_meeting_date ? _daysFrom(m.next_meeting_date) : '—'}</td>
+    <td><span class="pill pill-${m.status}">${m.status==='completed'?'Completed':'Scheduled'}</span></td>
+  </tr>`).join('');
+};
+
+function renderStats(data) {
+  const yearData = data.filter(m => m.meeting_date?.startsWith(now.getFullYear()+''));
+  const totalADR = data.reduce((s,m)=>s+(Number(m.adr_count)||0),0);
+  const reported  = data.filter(m=>m.report_to).length;
+  document.getElementById('s-total').textContent    = data.length;
+  document.getElementById('s-year').textContent     = yearData.length;
+  document.getElementById('s-adr').textContent      = totalADR;
+  document.getElementById('s-reported').textContent = reported;
+}
+
+function renderCompliance(data) {
+  const banner = document.getElementById('compliance-banner');
+  const completed = data.filter(m => m.status==='completed').sort((a,b)=>b.meeting_date.localeCompare(a.meeting_date));
+
+  if (!completed.length) {
+    banner.className = 'compliance-banner red';
+    banner.innerHTML = `<div class="cb-icon">🚨</div><div class="cb-body">
+      <div class="cb-title">No PV Cell meetings recorded — NCISM §48 violation</div>
+      <div class="cb-sub">The Pharmacovigilance Cell must meet at least once every two months. Record the first meeting immediately.</div>
+    </div>`;
+    return;
+  }
+
+  const lastDate = new Date(completed[0].meeting_date);
+  const daysSince = Math.floor((now - lastDate) / 86400000);
+  const daysToDue  = 60 - daysSince;
+  const pct = Math.min(Math.round(daysSince / 60 * 100), 100);
+
+  let cls, icon, title, sub, barColor;
+  if (daysSince <= 45) {
+    cls='green'; icon='✅'; barColor='var(--green-mid)';
+    title = `PV Cell compliance maintained — last meeting ${daysSince} day${daysSince!==1?'s':''} ago`;
+    sub = `Next meeting due in ${daysToDue} days (by ${_addDays(lastDate,60)}). ${completed[0].next_meeting_date ? 'Scheduled: '+completed[0].next_meeting_date : ''}`;
+  } else if (daysSince <= 60) {
+    cls='amber'; icon='⚠️'; barColor='var(--gold)';
+    title = `PV Cell meeting approaching overdue — ${daysSince} days since last meeting`;
+    sub = `Must meet within ${daysToDue} day${daysToDue!==1?'s':''} to remain compliant (§48(4)). Schedule immediately.`;
+  } else {
+    cls='red'; icon='🚨'; barColor='var(--red)';
+    title = `PV Cell OVERDUE — ${daysSince} days since last meeting (limit: 60 days)`;
+    sub = `§48(4) NCISM violation: Cell has not met in over 2 months. Record the missed meeting and schedule the next one urgently.`;
+  }
+
+  banner.className = 'compliance-banner ' + cls;
+  banner.innerHTML = `<div class="cb-icon">${icon}</div><div class="cb-body">
+    <div class="cb-title">${title}</div>
+    <div class="cb-sub">${sub}</div>
+    <div class="cb-bar-wrap"><div class="cb-bar" style="width:${pct}%;background:${barColor}"></div></div>
+    <div style="font-size:10px;margin-top:4px;opacity:.7">Last meeting: ${completed[0].meeting_date} · ${pct}% of 60-day period elapsed</div>
+  </div>`;
+}
+
+// ─── Modal ────────────────────────────────────────────────
+window.openModal = function() {
+  document.getElementById('modal-overlay').classList.add('show');
+  document.getElementById('m-date').value = todayStr;
+};
+window.closeModal = function() {
+  document.getElementById('modal-overlay').classList.remove('show');
+  document.getElementById('modal-alert').classList.remove('show');
+};
+
+// Decision rows
+window.addDec = function() {
+  const wrap = document.getElementById('decisions-wrap');
+  const row = document.createElement('div');
+  row.className = 'dec-row';
+  row.innerHTML = `<input placeholder="Decision / action item…"/><button class="dec-rm" onclick="removeDec(this)">×</button>`;
+  wrap.appendChild(row);
+};
+window.removeDec = function(btn) {
+  const rows = document.getElementById('decisions-wrap').querySelectorAll('.dec-row');
+  if (rows.length > 1) btn.closest('.dec-row').remove();
+};
+
+// ─── Save meeting ─────────────────────────────────────────
+window.saveMeeting = async function() {
+  const date = document.getElementById('m-date').value;
+  if (!date) { showModalAlert('Meeting date is required','error'); return; }
+
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+
+  // Collect checked members
+  const presentMembers = CELL_MEMBERS.filter(m => document.getElementById('mc-'+m.key)?.checked).map(m=>m.key);
+
+  // §21ad — Validate all 8 required departments are represented
+  const missingDepts = CELL_MEMBERS.filter(m => m.required && !presentMembers.includes(m.key));
+  const deptWarnEl = document.getElementById('dept-missing-warn');
+  if (missingDepts.length > 0) {
+    const names = missingDepts.map(m => m.label).join(', ');
+    if (deptWarnEl) {
+      deptWarnEl.textContent = `⚠ Missing required departments: ${names}. NCISM §48 requires all 8 clinical departments to be represented.`;
+      deptWarnEl.style.display = '';
+    }
+    btn.disabled = false;
+    return;
+  }
+  if (deptWarnEl) deptWarnEl.style.display = 'none';
+
+  // Collect decisions
+  const decisions = [...document.getElementById('decisions-wrap').querySelectorAll('.dec-row input')]
+    .map(i=>i.value.trim()).filter(Boolean);
+
+  const payload = {
+    tenant_id:     tenantId,
+    created_by:    profile.id,
+    meeting_date:  date,
+    meeting_type:  document.getElementById('m-type').value,
+    status:        document.getElementById('m-status').value,
+    chairperson:   document.getElementById('m-chair').value.trim() || null,
+    venue:         document.getElementById('m-venue').value.trim() || null,
+    members_present: presentMembers,
+    extra_members: document.getElementById('m-extra-members').value.trim() || null,
+    agenda:        document.getElementById('m-agenda').value.trim() || null,
+    adr_count:     parseInt(document.getElementById('m-adr-count').value) || 0,
+    adr_severity:  document.getElementById('m-adr-severity').value.trim() || null,
+    adr_causality: document.getElementById('m-adr-causality').value || null,
+    adr_summary:   document.getElementById('m-adr-summary').value.trim() || null,
+    decisions,
+    report_to:     document.getElementById('m-report-to').value || null,
+    report_date:   document.getElementById('m-report-date').value || null,
+    report_ref:    document.getElementById('m-report-ref').value.trim() || null,
+    minutes_by:    document.getElementById('m-minutes-by').value.trim() || null,
+    next_meeting_date: document.getElementById('m-next').value || null,
+    minutes:       document.getElementById('m-minutes').value.trim() || null,
+    remarks:       document.getElementById('m-remarks').value.trim() || null,
+  };
+
+  const { error } = await supabase.from('pv_meetings').insert(payload);
+  btn.disabled = false;
+
+  if (error) {
+    if (error.code === '42P01') {
+      showModalAlert('Run pv_meetings SQL in Supabase SQL Editor first', 'error');
+    } else {
+      showModalAlert(error.message, 'error');
+    }
+    return;
+  }
+
+  closeModal();
+  _toast('Meeting recorded ✓');
+  loadMeetings();
+  resetModal();
+};
+
+function resetModal() {
+  document.getElementById('m-date').value = todayStr;
+  document.getElementById('m-type').value = 'bimonthly';
+  document.getElementById('m-status').value = 'completed';
+  ['m-chair','m-venue','m-extra-members','m-agenda','m-adr-count','m-adr-severity',
+   'm-adr-summary','m-report-date','m-report-ref','m-minutes-by','m-minutes','m-remarks'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('m-report-to').value = '';
+  document.getElementById('m-adr-causality').value = '';
+  CELL_MEMBERS.forEach(m => {
+    const cb = document.getElementById('mc-'+m.key);
+    const lbl= document.getElementById('mi-'+m.key);
+    if(cb) cb.checked=false;
+    if(lbl) lbl.classList.remove('checked');
+  });
+  document.getElementById('decisions-wrap').innerHTML =
+    '<div class="dec-row"><input placeholder="e.g. Withdraw Arsenic-containing preparation Lot X from dispensary immediately"/><button class="dec-rm" onclick="removeDec(this)">×</button></div>';
+  const nextBi = new Date(now); nextBi.setMonth(nextBi.getMonth()+2);
+  document.getElementById('m-next').value = nextBi.toISOString().split('T')[0];
+}
+
+// ─── Export ───────────────────────────────────────────────
+window.exportRegister = function() {
+  if (!_allMeetings.length) { _toast('No data to export'); return; }
+  const rows = [
+    ['Date','Type','Status','Chairperson','Venue','Members Present','ADR Count','ADR Severity','Causality','Report To','Report Date','Report Ref','Next Meeting','Decisions','Minutes By','Remarks'],
+    ..._allMeetings.map(m=>[
+      m.meeting_date, m.meeting_type||'', m.status||'',
+      m.chairperson||'', m.venue||'',
+      (m.members_present||[]).join('; '),
+      m.adr_count||0, m.adr_severity||'', m.adr_causality||'',
+      m.report_to||'', m.report_date||'', m.report_ref||'',
+      m.next_meeting_date||'',
+      (m.decisions||[]).join(' | '),
+      m.minutes_by||'', m.remarks||''
+    ])
+  ];
+  const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='PV_Cell_Meeting_Register.csv'; a.click();
+};
+
+// ─── Helpers ─────────────────────────────────────────────
+function _membersPresent(arr) {
+  if (!arr?.length) return '<span style="color:var(--text-muted);font-size:11px">None recorded</span>';
+  const labels = Object.fromEntries(CELL_MEMBERS.map(m=>[m.key,m.label.split(' ')[0]]));
+  const present = arr.map(k=>labels[k]||k);
+  const cls = arr.length >= CELL_MEMBERS.length ? 'color:var(--green-mid)' : arr.length >= 8 ? 'color:var(--gold)' : 'color:var(--red)';
+  return `<span style="${cls};font-weight:600">${arr.length}/${CELL_MEMBERS.length}</span> <span style="font-size:11px;color:var(--text-muted)">${present.slice(0,4).join(', ')}${present.length>4?'…':''}</span>`;
+}
+function _typeLabel(t) { return {bimonthly:'Bimonthly',special:'Special',annual:'Annual'}[t]||t||'—'; }
+function _reportLabel(r) { return {regional:'RPVMC',national:'NPvP/CDSCO',central:'MoA AYUSH',all:'All three'}[r]||r; }
+function _daysFrom(d) {
+  const diff = Math.floor((new Date(d)-now)/86400000);
+  if (diff < 0) return `<span style="color:var(--red);font-size:11px">${Math.abs(diff)}d overdue</span>`;
+  if (diff <= 14) return `<span style="color:var(--gold);font-size:11px">In ${diff}d</span>`;
+  return `<span style="font-size:11px">${d}</span>`;
+}
+function _addDays(date, n) {
+  const d = new Date(date); d.setDate(d.getDate()+n);
+  return d.toISOString().split('T')[0];
+}
+function showModalAlert(msg, type) {
+  const el=document.getElementById('modal-alert');
+  el.textContent=msg; el.className=`alert ${type} show`;
+}
+function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _toast(msg,isErr=false){ const el=document.getElementById('toast'); el.textContent=msg; el.style.background=isErr?'#7f1d1d':'#1c2b1f'; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),3000); }
+
+// Boot
+await loadMeetings();
+</script>
+</body>
+</html>

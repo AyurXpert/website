@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>HAI Surveillance — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;--cream:#faf8f3;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--white:#fff;
+  --red:#c0392b;--red-light:#fdf0f0;
+  --amber:#e07b00;--amber-light:#fff8e1;
+  --radius:10px;--shadow:0 2px 12px rgba(0,0,0,.08)
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page{max-width:1200px;margin:0 auto;padding:24px 16px 80px}
+h1{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--green-deep);margin-bottom:4px}
+.subtitle{font-size:13px;color:var(--text-muted);margin-bottom:20px}
+
+.alert-banner{padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;margin-bottom:16px;display:none}
+.alert-banner.warn{background:var(--amber-light);border:1.5px solid #f0c040;color:#7a5200}
+.alert-banner.error{background:var(--red-light);border:1.5px solid #f5c6c6;color:var(--red)}
+
+/* Tabs */
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px}
+.tab-btn{padding:10px 22px;font-size:13px;font-weight:500;background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;color:var(--text-muted);margin-bottom:-2px;transition:all .2s}
+.tab-btn.active{color:var(--green-deep);border-bottom-color:var(--green-deep);font-weight:600}
+.tab-pane{display:none}.tab-pane.active{display:block}
+
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:20px}
+.kpi{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+.kpi-label{font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.kpi-val{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep)}
+.kpi-val.red{color:var(--red)}.kpi-val.amber{color:var(--amber)}
+.kpi-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+/* Toolbar */
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar select,.toolbar input[type=month]{height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit;background:var(--white)}
+
+/* Buttons */
+.btn{padding:8px 18px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:opacity .15s}
+.btn:hover{opacity:.88}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-outline{background:transparent;border:1.5px solid var(--green-mid);color:var(--green-mid)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-amber{background:var(--amber);color:#fff}
+
+/* Card / Table */
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.card-title{font-size:14px;font-weight:600;color:var(--green-deep)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#f5faf7;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);padding:8px 12px;text-align:left;border-bottom:1.5px solid var(--border)}
+td{padding:9px 12px;border-bottom:1px solid #eef4f0;vertical-align:middle}
+tr:hover td{background:#f9fdfb}
+
+/* Badges */
+.badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:600;border:1px solid}
+.b-active{background:#fff8e1;color:#7a5200;border-color:#ffe082}
+.b-resolved{background:#e8f5ee;color:#1a4a2e;border-color:#a5d6b8}
+.b-ongoing{background:#fce4ec;color:#880e4f;border-color:#f48fb1}
+
+/* HAI type chip */
+.hai-chip{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;background:#fce4ec;color:#c62828;border:1px solid #ef9a9a}
+
+/* Rate display */
+.rate-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:10px}
+.rate-title{font-size:12px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px}
+.rate-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #eef4f0;font-size:13px}
+.rate-row:last-child{border-bottom:none}
+.rate-num{font-weight:700;color:var(--green-deep)}
+.rate-num.warn{color:var(--amber)}.rate-num.danger{color:var(--red)}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:var(--white);border-radius:12px;padding:28px;width:560px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.modal h2{font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--green-deep);margin-bottom:20px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid);margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;font-family:inherit}
+.field textarea{min-height:60px;resize:vertical}
+.modal-actions{display:flex;gap:8px;margin-top:20px;justify-content:flex-end}
+.cb-row{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px;cursor:pointer}
+.cb-row input[type=checkbox]{accent-color:var(--green-deep);width:15px;height:15px}
+
+/* Empty / Toast */
+.empty{text-align:center;padding:36px 20px;color:var(--text-muted);font-size:13px}
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;color:#fff;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}.toast.success{background:#2d7a4f}.toast.error{background:var(--red)}
+
+@media(max-width:600px){.field-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+
+<div class="page">
+  <h1>HAI Surveillance</h1>
+  <p class="subtitle">IPC.5/6 CORE — Healthcare-Associated Infection tracking: CAUTI · CLABSI · SSI · VAP</p>
+
+  <div class="alert-banner warn" id="hai-alert"></div>
+
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">Total Devices</div><div class="kpi-val" id="k-dev">—</div><div class="kpi-sub">Active this month</div></div>
+    <div class="kpi"><div class="kpi-label">Device-Days</div><div class="kpi-val" id="k-devdays">—</div><div class="kpi-sub">Catheter + CVC</div></div>
+    <div class="kpi"><div class="kpi-label">HAI Events</div><div class="kpi-val red" id="k-hai">—</div><div class="kpi-sub">This month</div></div>
+    <div class="kpi"><div class="kpi-label">CAUTI Rate</div><div class="kpi-val" id="k-cauti-rate">—</div><div class="kpi-sub">per 1000 cath-days</div></div>
+    <div class="kpi"><div class="kpi-label">CLABSI Rate</div><div class="kpi-val" id="k-clabsi-rate">—</div><div class="kpi-sub">per 1000 line-days</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('devices')">🔌 Patient Devices</button>
+    <button class="tab-btn" onclick="switchTab('hai')">🦠 HAI Events</button>
+    <button class="tab-btn" onclick="switchTab('rates')">📊 Rates & Trends</button>
+  </div>
+
+  <!-- ── DEVICES TAB ── -->
+  <div class="tab-pane active" id="tab-devices">
+    <div class="toolbar">
+      <select id="dev-type-filter" onchange="renderDevices()">
+        <option value="">All Device Types</option>
+        <option value="urinary_catheter">Urinary Catheter</option>
+        <option value="central_line">Central Line (CVC)</option>
+        <option value="iv_cannula">IV Cannula</option>
+        <option value="ventilator">Ventilator</option>
+        <option value="nasogastric_tube">Nasogastric Tube</option>
+        <option value="drainage_tube">Drainage Tube</option>
+        <option value="other">Other</option>
+      </select>
+      <select id="dev-status-filter" onchange="renderDevices()">
+        <option value="active">Active (not removed)</option>
+        <option value="all">All</option>
+      </select>
+      <input type="month" id="dev-month" onchange="loadDevices()"/>
+      <button class="btn btn-primary" onclick="openDevModal()">+ Log Device</button>
+    </div>
+    <div class="card">
+      <div class="tw">
+        <table>
+          <thead><tr>
+            <th>Patient</th><th>Device Type</th><th>Insertion Date</th>
+            <th>Site</th><th>Days In</th><th>Status</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="dev-tbody"><tr><td colspan="7"><div class="empty">Loading…</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── HAI EVENTS TAB ── -->
+  <div class="tab-pane" id="tab-hai">
+    <div class="toolbar">
+      <select id="hai-type-filter" onchange="renderHAI()">
+        <option value="">All HAI Types</option>
+        <option value="CAUTI">CAUTI</option>
+        <option value="SSI">SSI</option>
+        <option value="CLABSI">CLABSI</option>
+        <option value="VAP">VAP</option>
+        <option value="CDAD">CDAD</option>
+        <option value="BSI">BSI</option>
+        <option value="other">Other</option>
+      </select>
+      <input type="month" id="hai-month" onchange="loadHAI()"/>
+      <button class="btn btn-primary" onclick="openHAIModal()">+ Report HAI Event</button>
+      <button class="btn btn-outline" onclick="exportHAICSV()">↓ CSV</button>
+    </div>
+    <div class="card">
+      <div class="tw">
+        <table>
+          <thead><tr>
+            <th>Date</th><th>HAI Type</th><th>Patient</th>
+            <th>Organism</th><th>IPC Notified</th><th>Outcome</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="hai-tbody"><tr><td colspan="7"><div class="empty">Loading…</div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RATES TAB ── -->
+  <div class="tab-pane" id="tab-rates">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">Monthly HAI Rates</span></div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
+        NABH benchmark: CAUTI &lt;3 / CLABSI &lt;1 per 1,000 device-days. Zero SSI target.
+      </p>
+      <div id="rates-content">
+        <div class="rate-card">
+          <div class="rate-title">Current Month — Device-Day Rates</div>
+          <div class="rate-row"><span>Urinary Catheter-Days</span><span class="rate-num" id="r-cathdays">—</span></div>
+          <div class="rate-row"><span>CAUTI Events</span><span class="rate-num" id="r-cauti-n">—</span></div>
+          <div class="rate-row"><span>CAUTI Rate (per 1,000 cath-days)</span><span class="rate-num" id="r-cauti-rate">—</span></div>
+          <div class="rate-row"><span>Central Line-Days</span><span class="rate-num" id="r-cldays">—</span></div>
+          <div class="rate-row"><span>CLABSI Events</span><span class="rate-num" id="r-clabsi-n">—</span></div>
+          <div class="rate-row"><span>CLABSI Rate (per 1,000 line-days)</span><span class="rate-num" id="r-clabsi-rate">—</span></div>
+          <div class="rate-row"><span>SSI Events</span><span class="rate-num" id="r-ssi-n">—</span></div>
+          <div class="rate-row"><span>VAP Events</span><span class="rate-num" id="r-vap-n">—</span></div>
+          <div class="rate-row"><span>Total HAI Events This Month</span><span class="rate-num" id="r-total">—</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Device Modal -->
+<div class="modal-bg" id="dev-modal" style="display:none" onclick="if(event.target===this)closeDevModal()">
+  <div class="modal">
+    <h2>Log Patient Device</h2>
+    <input type="hidden" id="dev-edit-id"/>
+    <div class="field">
+      <label>Patient Name *</label>
+      <input id="d-patient" type="text" placeholder="Search or enter patient name"/>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Device Type *</label>
+        <select id="d-type">
+          <option value="urinary_catheter">Urinary Catheter</option>
+          <option value="central_line">Central Line (CVC)</option>
+          <option value="iv_cannula">IV Cannula</option>
+          <option value="ventilator">Ventilator</option>
+          <option value="nasogastric_tube">Nasogastric Tube</option>
+          <option value="drainage_tube">Drainage Tube</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Insertion Date *</label>
+        <input id="d-ins-date" type="date"/>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Site / Location</label>
+        <input id="d-site" type="text" placeholder="e.g. Right antecubital, Subclavian"/>
+      </div>
+      <div class="field">
+        <label>Removal Date (if removed)</label>
+        <input id="d-rem-date" type="date"/>
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="d-notes" placeholder="Indication, care bundle followed, complications…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeDevModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveDevice()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- HAI Event Modal -->
+<div class="modal-bg" id="hai-modal" style="display:none" onclick="if(event.target===this)closeHAIModal()">
+  <div class="modal">
+    <h2>Report HAI Event</h2>
+    <div class="alert-banner warn" id="hai-ipc-alert" style="display:flex;margin-bottom:12px">
+      ⚠ Report immediately to IPC team and Infection Control Officer
+    </div>
+    <input type="hidden" id="hai-edit-id"/>
+    <div class="field-row">
+      <div class="field">
+        <label>Patient Name *</label>
+        <input id="h-patient" type="text" placeholder="Patient name"/>
+      </div>
+      <div class="field">
+        <label>HAI Type *</label>
+        <select id="h-type">
+          <option value="CAUTI">CAUTI — Catheter-Associated UTI</option>
+          <option value="SSI">SSI — Surgical Site Infection</option>
+          <option value="CLABSI">CLABSI — Central Line BSI</option>
+          <option value="VAP">VAP — Ventilator-Associated Pneumonia</option>
+          <option value="CDAD">CDAD — C. difficile</option>
+          <option value="BSI">BSI — Bloodstream Infection</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Detection Date *</label>
+        <input id="h-date" type="date"/>
+      </div>
+      <div class="field">
+        <label>Outcome</label>
+        <select id="h-outcome">
+          <option value="ongoing">Ongoing</option>
+          <option value="resolved">Resolved</option>
+          <option value="transferred">Transferred</option>
+          <option value="discharged">Discharged</option>
+          <option value="deceased">Deceased</option>
+        </select>
+      </div>
+    </div>
+    <label class="cb-row"><input type="checkbox" id="h-culture"/> Culture done</label>
+    <div class="field">
+      <label>Organism Identified</label>
+      <input id="h-organism" type="text" placeholder="e.g. E. coli, Klebsiella, MRSA"/>
+    </div>
+    <div class="field">
+      <label>Antibiogram / Sensitivity</label>
+      <input id="h-antibiogram" type="text" placeholder="Sensitive / Resistant to…"/>
+    </div>
+    <label class="cb-row"><input type="checkbox" id="h-notified"/> IPC team notified</label>
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="h-notes" placeholder="Clinical details, management, root cause…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeHAIModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveHAI()">Save Event</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module">
+import { requireAuth, getCurrentProfile, getCurrentTenantId } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['super_admin','dept_admin','nurse','doctor'], 'index.html');
+initNavbar();
+const tenantId = getCurrentTenantId();
+const profile  = getCurrentProfile();
+
+const todayStr = new Date().toISOString().slice(0,7);
+document.getElementById('dev-month').value = todayStr;
+document.getElementById('hai-month').value = todayStr;
+document.getElementById('d-ins-date').value = new Date().toISOString().slice(0,10);
+document.getElementById('h-date').value    = new Date().toISOString().slice(0,10);
+
+let _devices = [], _haiEvents = [];
+
+function activeTab() { return document.querySelector('.tab-pane.active')?.id?.replace('tab-',''); }
+
+window.switchTab = function(t) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+t)?.classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b => { if (b.onclick?.toString().includes("'"+t+"'")) b.classList.add('active'); });
+  if (t==='rates') renderRates();
+};
+
+async function loadDevices() {
+  const m = document.getElementById('dev-month').value;
+  const [y, mo] = m.split('-').map(Number);
+  const start = new Date(y, mo-1, 1).toISOString().slice(0,10);
+  const end   = new Date(y, mo, 0).toISOString().slice(0,10);
+  const { data } = await supabase.from('patient_devices')
+    .select('*').eq('tenant_id', tenantId)
+    .gte('insertion_date', start).lte('insertion_date', end)
+    .order('insertion_date', { ascending: false });
+  _devices = data || [];
+  renderDevices(); renderKPI();
+}
+window.loadDevices = loadDevices;
+
+async function loadHAI() {
+  const m = document.getElementById('hai-month').value;
+  const [y, mo] = m.split('-').map(Number);
+  const start = new Date(y, mo-1, 1).toISOString().slice(0,10);
+  const end   = new Date(y, mo, 0).toISOString().slice(0,10);
+  const { data } = await supabase.from('hai_events')
+    .select('*').eq('tenant_id', tenantId)
+    .gte('detected_date', start).lte('detected_date', end)
+    .order('detected_date', { ascending: false });
+  _haiEvents = data || [];
+  renderHAI(); renderKPI();
+  checkAlert();
+}
+window.loadHAI = loadHAI;
+
+const DEV_LABELS = {
+  urinary_catheter:'Urinary Catheter', central_line:'Central Line (CVC)', iv_cannula:'IV Cannula',
+  ventilator:'Ventilator', nasogastric_tube:'NG Tube', drainage_tube:'Drainage Tube', other:'Other'
+};
+
+function renderKPI() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const active = _devices.filter(d => !d.removal_date);
+  const cathDays = _devices.filter(d => d.device_type==='urinary_catheter').reduce((s,d) => {
+    const ins = new Date(d.insertion_date);
+    const rem = d.removal_date ? new Date(d.removal_date) : today;
+    return s + Math.max(0, Math.round((rem-ins)/(1000*60*60*24)));
+  }, 0);
+  const clDays = _devices.filter(d => d.device_type==='central_line').reduce((s,d) => {
+    const ins = new Date(d.insertion_date);
+    const rem = d.removal_date ? new Date(d.removal_date) : today;
+    return s + Math.max(0, Math.round((rem-ins)/(1000*60*60*24)));
+  }, 0);
+  const cauti  = _haiEvents.filter(e => e.hai_type==='CAUTI').length;
+  const clabsi = _haiEvents.filter(e => e.hai_type==='CLABSI').length;
+  document.getElementById('k-dev').textContent        = active.length;
+  document.getElementById('k-devdays').textContent    = cathDays + clDays;
+  document.getElementById('k-hai').textContent        = _haiEvents.length;
+  document.getElementById('k-cauti-rate').textContent = cathDays > 0 ? ((cauti/cathDays)*1000).toFixed(2) : '—';
+  document.getElementById('k-clabsi-rate').textContent = clDays > 0 ? ((clabsi/clDays)*1000).toFixed(2) : '—';
+}
+
+window.renderDevices = function() {
+  const tf = document.getElementById('dev-type-filter').value;
+  const sf = document.getElementById('dev-status-filter').value;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const rows = _devices.filter(d => {
+    if (tf && d.device_type !== tf) return false;
+    if (sf==='active' && d.removal_date) return false;
+    return true;
+  });
+  const tbody = document.getElementById('dev-tbody');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty">No device records found</div></td></tr>'; return; }
+  tbody.innerHTML = rows.map(d => {
+    const ins = new Date(d.insertion_date);
+    const rem = d.removal_date ? new Date(d.removal_date) : today;
+    const days = Math.max(0, Math.round((rem-ins)/(1000*60*60*24)));
+    const status = d.removal_date ? '<span class="badge b-resolved">Removed</span>' : '<span class="badge b-active">Active</span>';
+    const rmBtn  = !d.removal_date ? `<button class="btn btn-outline btn-sm" onclick="markRemoved('${d.id}')">Mark Removed</button>` : '';
+    return `<tr>
+      <td>${d.patient_name||'—'}</td>
+      <td>${DEV_LABELS[d.device_type]||d.device_type}</td>
+      <td>${d.insertion_date}</td>
+      <td>${d.site||'—'}</td>
+      <td><strong>${days}</strong> days</td>
+      <td>${status}</td>
+      <td>${rmBtn}</td>
+    </tr>`;
+  }).join('');
+};
+
+window.renderHAI = function() {
+  const tf = document.getElementById('hai-type-filter').value;
+  const rows = _haiEvents.filter(e => !tf || e.hai_type===tf);
+  const tbody = document.getElementById('hai-tbody');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty">No HAI events — excellent!</div></td></tr>'; return; }
+  tbody.innerHTML = rows.map(e => {
+    const out = {ongoing:'b-ongoing',resolved:'b-resolved'}[e.outcome]||'b-active';
+    return `<tr>
+      <td>${e.detected_date}</td>
+      <td><span class="hai-chip">${e.hai_type}</span></td>
+      <td>${e.patient_name||'—'}</td>
+      <td>${e.organism||'—'}</td>
+      <td>${e.notified_ipc_team ? '✅ Yes' : '⚠ No'}</td>
+      <td><span class="badge ${out}">${e.outcome||'ongoing'}</span></td>
+      <td><button class="btn btn-outline btn-sm" onclick="updateOutcome('${e.id}')">Update</button></td>
+    </tr>`;
+  }).join('');
+};
+
+function renderRates() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const cathDays = _devices.filter(d => d.device_type==='urinary_catheter').reduce((s,d) => {
+    const ins = new Date(d.insertion_date); const rem = d.removal_date ? new Date(d.removal_date) : today;
+    return s + Math.max(0, Math.round((rem-ins)/(1000*60*60*24)));
+  }, 0);
+  const clDays = _devices.filter(d => d.device_type==='central_line').reduce((s,d) => {
+    const ins = new Date(d.insertion_date); const rem = d.removal_date ? new Date(d.removal_date) : today;
+    return s + Math.max(0, Math.round((rem-ins)/(1000*60*60*24)));
+  }, 0);
+  const cauti  = _haiEvents.filter(e => e.hai_type==='CAUTI').length;
+  const clabsi = _haiEvents.filter(e => e.hai_type==='CLABSI').length;
+  const cautiRate  = cathDays > 0 ? ((cauti/cathDays)*1000).toFixed(2) : 0;
+  const clabsiRate = clDays   > 0 ? ((clabsi/clDays)*1000).toFixed(2)  : 0;
+  document.getElementById('r-cathdays').textContent    = cathDays;
+  document.getElementById('r-cauti-n').textContent     = cauti;
+  document.getElementById('r-cauti-rate').textContent  = cautiRate;
+  document.getElementById('r-cauti-rate').className    = 'rate-num' + (cautiRate>3?' danger':cautiRate>0?' warn':'');
+  document.getElementById('r-cldays').textContent      = clDays;
+  document.getElementById('r-clabsi-n').textContent    = clabsi;
+  document.getElementById('r-clabsi-rate').textContent = clabsiRate;
+  document.getElementById('r-clabsi-rate').className   = 'rate-num' + (clabsiRate>1?' danger':clabsiRate>0?' warn':'');
+  document.getElementById('r-ssi-n').textContent       = _haiEvents.filter(e => e.hai_type==='SSI').length;
+  document.getElementById('r-vap-n').textContent       = _haiEvents.filter(e => e.hai_type==='VAP').length;
+  document.getElementById('r-total').textContent       = _haiEvents.length;
+}
+
+function checkAlert() {
+  const banner = document.getElementById('hai-alert');
+  const notUnnotified = _haiEvents.filter(e => !e.notified_ipc_team);
+  if (notUnnotified.length) {
+    banner.style.display = '';
+    banner.textContent   = `⚠ ${notUnnotified.length} HAI event(s) not notified to IPC team — notify immediately.`;
+  } else { banner.style.display = 'none'; }
+}
+
+window.openDevModal = function() {
+  document.getElementById('dev-modal').style.display = 'flex';
+  document.getElementById('dev-edit-id').value = '';
+  document.getElementById('d-patient').value = '';
+  document.getElementById('d-type').value = 'urinary_catheter';
+  document.getElementById('d-ins-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('d-rem-date').value = '';
+  document.getElementById('d-site').value = '';
+  document.getElementById('d-notes').value = '';
+};
+window.closeDevModal = () => document.getElementById('dev-modal').style.display = 'none';
+
+window.saveDevice = async function() {
+  const patient = document.getElementById('d-patient').value.trim();
+  const insDate = document.getElementById('d-ins-date').value;
+  if (!patient || !insDate) { toast('Patient name and insertion date required', 'error'); return; }
+  const payload = {
+    tenant_id:      tenantId,
+    patient_name:   patient,
+    device_type:    document.getElementById('d-type').value,
+    insertion_date: insDate,
+    removal_date:   document.getElementById('d-rem-date').value || null,
+    site:           document.getElementById('d-site').value.trim() || null,
+    notes:          document.getElementById('d-notes').value.trim() || null,
+  };
+  const { error } = await supabase.from('patient_devices').insert(payload);
+  if (error) { toast('Save failed: '+error.message, 'error'); return; }
+  toast('Device logged', 'success'); closeDevModal(); loadDevices();
+};
+
+window.markRemoved = async function(id) {
+  const today = new Date().toISOString().slice(0,10);
+  const { error } = await supabase.from('patient_devices').update({ removal_date: today }).eq('id', id);
+  if (error) { toast('Failed: '+error.message, 'error'); return; }
+  toast('Marked as removed', 'success'); loadDevices();
+};
+
+window.openHAIModal = function() {
+  document.getElementById('hai-modal').style.display = 'flex';
+  document.getElementById('hai-edit-id').value = '';
+  document.getElementById('h-patient').value   = '';
+  document.getElementById('h-type').value      = 'CAUTI';
+  document.getElementById('h-date').value      = new Date().toISOString().slice(0,10);
+  document.getElementById('h-culture').checked = false;
+  document.getElementById('h-organism').value  = '';
+  document.getElementById('h-antibiogram').value = '';
+  document.getElementById('h-notified').checked = false;
+  document.getElementById('h-outcome').value   = 'ongoing';
+  document.getElementById('h-notes').value     = '';
+};
+window.closeHAIModal = () => document.getElementById('hai-modal').style.display = 'none';
+
+window.saveHAI = async function() {
+  const patient = document.getElementById('h-patient').value.trim();
+  const date    = document.getElementById('h-date').value;
+  if (!patient || !date) { toast('Patient name and date required', 'error'); return; }
+  const payload = {
+    tenant_id:        tenantId,
+    patient_name:     patient,
+    hai_type:         document.getElementById('h-type').value,
+    detected_date:    date,
+    culture_done:     document.getElementById('h-culture').checked,
+    organism:         document.getElementById('h-organism').value.trim() || null,
+    antibiogram:      document.getElementById('h-antibiogram').value.trim() || null,
+    notified_ipc_team: document.getElementById('h-notified').checked,
+    notified_at:      document.getElementById('h-notified').checked ? new Date().toISOString() : null,
+    outcome:          document.getElementById('h-outcome').value,
+    notes:            document.getElementById('h-notes').value.trim() || null,
+    reported_by:      profile.id,
+  };
+  const { error } = await supabase.from('hai_events').insert(payload);
+  if (error) { toast('Save failed: '+error.message, 'error'); return; }
+  toast('HAI event reported', 'success'); closeHAIModal(); loadHAI();
+};
+
+window.updateOutcome = async function(id) {
+  const outcome = prompt('New outcome (resolved / ongoing / transferred / discharged / deceased):');
+  if (!outcome) return;
+  const valid = ['resolved','ongoing','transferred','discharged','deceased'];
+  if (!valid.includes(outcome.toLowerCase())) { toast('Invalid outcome', 'error'); return; }
+  const { error } = await supabase.from('hai_events').update({ outcome: outcome.toLowerCase() }).eq('id', id);
+  if (error) { toast('Failed: '+error.message, 'error'); return; }
+  toast('Updated', 'success'); loadHAI();
+};
+
+window.exportHAICSV = function() {
+  const rows = _haiEvents.map(e => [e.detected_date, e.hai_type, e.patient_name||'', e.organism||'', e.notified_ipc_team?'Yes':'No', e.outcome||'']);
+  const csv  = [['Date','HAI Type','Patient','Organism','IPC Notified','Outcome'], ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+  const a    = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = `hai_events_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+};
+
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `toast ${type} show`;
+  setTimeout(() => el.className = 'toast', 2800);
+}
+
+loadDevices(); loadHAI();
+</script>
+</body>
+</html>

@@ -319,6 +319,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <option value="inactive">Inactive Only</option>
       <option value="">All (incl. inactive)</option>
     </select>
+    <!-- §21v — medicine_type filter -->
+    <select class="filter-select" id="filter-med-type">
+      <option value="">All Types</option>
+      <option value="finished">Finished Medicine</option>
+      <option value="raw_drug">Raw Drug / Herb</option>
+      <option value="classical">Classical Preparation</option>
+    </select>
     <button class="btn btn-sm" id="btn-bulk-del"
       style="display:none;background:var(--error-bg);color:var(--error-text);border:1.5px solid var(--error-border)">
       Delete Selected (<span id="bulk-count">0</span>)
@@ -559,6 +566,57 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <label>Supplier</label>
         <input id="f-supplier" type="text" placeholder="e.g. AVS, Kottakkal"/>
       </div>
+      <!-- §21v — Medicine Type (finished / raw_drug / classical) -->
+      <div class="field">
+        <label>Medicine Type <span style="font-size:10px;font-weight:400;color:var(--text-muted)">(§21v — NCISM raw drug register)</span></label>
+        <select id="f-med-type" style="width:100%;height:38px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif">
+          <option value="finished">Finished Medicine</option>
+          <option value="raw_drug">Raw Drug / Herb</option>
+          <option value="classical">Classical Preparation (in-house)</option>
+        </select>
+      </div>
+      <!-- GMP Certification — NCISM §5.3 -->
+      <div class="field" style="grid-column:span 2;background:#e8f5ee;border:1.5px solid #b2d8bf;border-radius:8px;padding:10px 14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <input type="checkbox" id="f-is-gmp" style="width:16px;height:16px;accent-color:#1a4a2e"/>
+          <label for="f-is-gmp" style="font-size:13px;font-weight:600;color:#1a4a2e;cursor:pointer">GMP-Certified Source <span style="font-size:10px;font-weight:400;color:#7a9485">(NCISM §5.3 — mandatory)</span></label>
+        </div>
+        <input id="f-gmp-cert-no" type="text" placeholder="GMP Certificate No. (optional)" style="width:100%;height:32px;border:1.5px solid #b2d8bf;border-radius:6px;padding:0 10px;font-size:12px;font-family:'DM Sans',sans-serif"/>
+      </div>
+      <!-- Student Batch Flag — NCISM §6(3) -->
+      <div class="field" style="grid-column:span 2;background:#fff8e1;border:1.5px solid #e8c068;border-radius:8px;padding:10px 14px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" id="f-is-student-batch" style="width:16px;height:16px;accent-color:#c9902a"/>
+          <label for="f-is-student-batch" style="font-size:13px;font-weight:600;color:#7a4000;cursor:pointer">Student-Prepared Batch
+            <span style="font-size:10px;font-weight:400;color:#a07030"> — NCISM §6(3): NOT for patient dispensing.</span>
+          </label>
+        </div>
+      </div>
+      <!-- NABH MOM.3 CORE — High-Risk / LASA / Schedule H flags -->
+      <div class="field" style="grid-column:span 2;background:#fff3f3;border:1.5px solid #f5b8b8;border-radius:8px;padding:10px 14px">
+        <div style="font-size:12px;font-weight:600;color:#8b1a1a;margin-bottom:8px">⚠ NABH Safety Flags (MOM.3 CORE)</div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:8px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;font-weight:600;color:#8b1a1a">
+            <input type="checkbox" id="f-is-high-risk" style="width:15px;height:15px;accent-color:#c0392b"/>
+            High-Risk Medication
+            <span style="font-size:10px;font-weight:400;color:#a05050">(Bhasma, concentrated electrolytes, high-alert drugs)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;font-weight:600;color:#7a4a00">
+            <input type="checkbox" id="f-is-lasa" style="width:15px;height:15px;accent-color:#e67e22"/>
+            LASA Drug
+            <span style="font-size:10px;font-weight:400;color:#a07000">(Look-Alike Sound-Alike — store separately)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;font-weight:600;color:#1a4080">
+            <input type="checkbox" id="f-is-schedule-h" style="width:15px;height:15px;accent-color:#1a4080"/>
+            Schedule H / NDPS
+            <span style="font-size:10px;font-weight:400;color:#4a6080">(Prescription-only; narcotic register required)</span>
+          </label>
+        </div>
+        <div class="field" style="margin:0">
+          <label style="font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase">LASA Pair Drug (if LASA)</label>
+          <input id="f-lasa-pair" type="text" placeholder="e.g. Dashamula Kashaya vs Dashamuladi Kashaya" style="width:100%;height:32px;border:1.5px solid #f5b8b8;border-radius:6px;padding:0 10px;font-size:12px;font-family:inherit"/>
+        </div>
+      </div>
     </div>
   </div>
   <div class="panel-footer">
@@ -569,7 +627,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
 <!-- Adjust stock modal -->
 <div class="modal-backdrop" id="adj-modal">
-  <div class="modal">
+  <div class="modal" style="max-width:440px">
     <div class="modal-title" id="adj-modal-title">Adjust Stock</div>
     <input type="hidden" id="adj-inv-id"/>
     <div class="field">
@@ -584,9 +642,46 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <input id="adj-qty" type="number" min="1" placeholder="Enter quantity"/>
     </div>
     <div class="field">
-      <label>Reason (optional)</label>
-      <input id="adj-reason" type="text" placeholder="e.g. Stock count correction"/>
+      <label>Reason</label>
+      <select id="adj-reason" onchange="onAdjReasonChange(this.value)" style="width:100%;height:44px;padding:0 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:'DM Sans',sans-serif;background:var(--cream);outline:none">
+        <option value="">— Select reason —</option>
+        <option value="stock_correction">Stock count correction</option>
+        <option value="damaged">Damaged / Broken</option>
+        <option value="expired">Expired — Disposal (NCISM §6(5))</option>
+        <option value="sample">Sample / Demonstration use</option>
+        <option value="received">Stock received / GRN</option>
+        <option value="other">Other</option>
+      </select>
     </div>
+
+    <!-- Disposal fields — shown only when reason = expired -->
+    <div id="disposal-fields" style="display:none;background:#fff8f0;border:1.5px solid #f5c98a;border-radius:10px;padding:14px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:#7a4000;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">⚗ Disposal Details — NCISM §6(5)</div>
+      <div class="field" style="margin-bottom:10px">
+        <label>Disposal Method</label>
+        <select id="adj-disposal-method" style="width:100%;height:40px;padding:0 10px;border:1.5px solid #f5c98a;border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fffbf4;outline:none">
+          <option value="">— Select method —</option>
+          <option value="return_supplier">Return to Supplier</option>
+          <option value="incineration">Incineration</option>
+          <option value="municipal_bmw">Municipal BMW Disposal</option>
+          <option value="autoclave">Autoclave / Decontaminate</option>
+          <option value="drain_disposal">Drain Disposal (liquids only)</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:10px">
+        <label>Disposal Date</label>
+        <input id="adj-disposal-date" type="date" style="width:100%;height:40px;padding:0 10px;border:1.5px solid #f5c98a;border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fffbf4;outline:none"/>
+      </div>
+      <div class="field" style="margin-bottom:10px">
+        <label>Witnessed By</label>
+        <input id="adj-witnessed-by" type="text" placeholder="Name of witness / supervisor" style="width:100%;height:40px;padding:0 10px;border:1.5px solid #f5c98a;border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fffbf4;outline:none"/>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label>Remarks (optional)</label>
+        <input id="adj-disposal-remarks" type="text" placeholder="Reason for disposal, condition of stock…" style="width:100%;height:40px;padding:0 10px;border:1.5px solid #f5c98a;border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fffbf4;outline:none"/>
+      </div>
+    </div>
+
     <div class="modal-actions">
       <button class="btn btn-primary" id="btn-adj-confirm" style="flex:1">Confirm</button>
       <button class="btn btn-ghost" id="btn-adj-cancel">Cancel</button>
@@ -635,7 +730,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 </div>
 
 <script type="module">
-import { requireAuth, getCurrentTenantId } from './js/core/auth.js';
+import { requireAuth, getCurrentTenantId, getCurrentProfile } from './js/core/auth.js';
 import { initNavbar } from './js/components/navbar.js';
 import { supabase } from './js/core/db/supabaseClient.js';
 
@@ -643,6 +738,7 @@ await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
 initNavbar();
 
 const tenantId = getCurrentTenantId();
+const profile  = getCurrentProfile();
 let _items  = [];
 let _adjType = 'add';
 let _tags   = [];
@@ -703,6 +799,8 @@ async function loadInventory() {
     .from('inventory')
     .select(`id, stock_quantity, mrp, cost_price, gst_percent, reorder_level,
              profit_percent, max_stock, expiry_date, inward_date, supplier_name, batch_number,
+             is_gmp_certified, gmp_certificate_no, is_student_batch,
+             is_high_risk, is_lasa, lasa_pair, is_schedule_h,
              medicine:medicines(id, name, category, is_active, indications, barcode, med_id, brand, unit, image_url, anupana, classical_reference, dosage_text)`)
     .eq('tenant_id', tenantId);
 
@@ -732,6 +830,7 @@ function renderTable() {
   const filterCat = document.getElementById('filter-cat').value;
   const filterStk = document.getElementById('filter-stock').value;
   const filterSts = document.getElementById('filter-status').value;
+  const filterMedType = document.getElementById('filter-med-type')?.value || '';
 
   let rows = _items;
 
@@ -739,6 +838,8 @@ function renderTable() {
   else if (filterSts === 'inactive') rows = rows.filter(i => i.medicine.is_active === false);
 
   if (filterCat) rows = rows.filter(i => i.medicine.category === filterCat);
+  // §21v — filter by medicine type (finished / raw_drug / classical)
+  if (filterMedType) rows = rows.filter(i => (i.medicine_type || 'finished') === filterMedType);
 
   if (filterStk === 'out')  rows = rows.filter(i => i.stock_quantity <= 0);
   else if (filterStk === 'low') rows = rows.filter(i => { const t = i.reorder_level || 0; return i.stock_quantity > 0 && i.stock_quantity <= t && t > 0; });
@@ -812,10 +913,22 @@ function renderTable() {
         <td style="color:var(--text-muted);font-size:11px;font-family:monospace">${i.batch_number || '<span style="color:#ccc">—</span>'}</td>
         <td style="color:var(--text-muted)">${reorder}</td>
         <td style="color:var(--text-muted)">${i.max_stock ?? 0}</td>
-        <td style="color:var(--text-muted);max-width:90px;overflow:hidden;text-overflow:ellipsis">${i.supplier_name || '—'}</td>
+        <td style="color:var(--text-muted);max-width:110px;overflow:hidden;text-overflow:ellipsis">
+          ${i.supplier_name || '—'}
+          ${i.is_gmp_certified
+            ? '<span style="display:inline-block;margin-left:4px;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;background:#e8f5ee;color:#1a4a2e;border:1px solid #b2d8bf">GMP✓</span>'
+            : '<span style="display:inline-block;margin-left:4px;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;background:#fff8e1;color:#7a5c00;border:1px solid #e0c060">GMP?</span>'}
+          ${i.is_high_risk ? '<span style="display:inline-block;margin-left:4px;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;background:#fdecea;color:#8b1a1a;border:1px solid #f5b8b8">⚠ HIGH-RISK</span>' : ''}
+          ${i.is_lasa      ? '<span style="display:inline-block;margin-left:4px;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;background:#fff3cd;color:#7a4a00;border:1px solid #e8d08a">LASA</span>' : ''}
+          ${i.is_schedule_h ? '<span style="display:inline-block;margin-left:4px;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;background:#e3f0ff;color:#1a4080;border:1px solid #a8c8f0">Sch-H</span>' : ''}
+          ${i.is_student_batch
+            ? '<br><span style="display:inline-block;margin-top:2px;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;background:#fff8e1;color:#7a4000;border:1px solid #e8c068">⚠ STUDENT</span>'
+            : ''}
+        </td>
         <td><button class="btn-status-toggle stock-badge ${isActive ? 'sb-ok' : ''}" data-med-id="${i.medicine.id}" data-active="${isActive}" style="${isActive ? '' : 'background:#f0f0f0;color:#666'}" title="Click to toggle Active / Inactive">${isActive ? 'Active' : 'Inactive'}</button></td>
         <td>
-          <div style="display:flex;gap:4px;justify-content:flex-end">
+          <div style="display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap">
+            ${i.is_student_batch ? `<button class="btn btn-xs btn-practical" data-id="${i.id}" data-name="${i.medicine.name}" data-stock="${i.stock_quantity||0}" data-expiry="${i.expiry_date||''}" data-batch="${i.batch_number||''}" style="background:#fff8e1;color:#7a4000;border:1px solid #e8c068;white-space:nowrap">🎓 Practical Use</button>` : ''}
             <button class="btn btn-ghost btn-xs btn-adj" data-id="${i.id}" data-name="${i.medicine.name}">±</button>
             <button class="btn btn-secondary btn-xs btn-edit" data-id="${i.id}">Edit</button>
             <button class="btn btn-xs btn-del" data-id="${i.id}" data-name="${i.medicine.name}" style="background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border)">Del</button>
@@ -828,6 +941,9 @@ function renderTable() {
   tbody.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', () => openEdit(btn.dataset.id)));
   tbody.querySelectorAll('.btn-adj').forEach(btn => btn.addEventListener('click', () => openAdjust(btn.dataset.id, btn.dataset.name)));
   tbody.querySelectorAll('.btn-del').forEach(btn => btn.addEventListener('click', () => deleteMedicine(btn.dataset.id, btn.dataset.name)));
+  tbody.querySelectorAll('.btn-practical').forEach(btn => btn.addEventListener('click', () =>
+    markPracticalUse(btn.dataset.id, btn.dataset.name, parseInt(btn.dataset.stock)||0, btn.dataset.expiry, btn.dataset.batch)
+  ));
 
   tbody.querySelectorAll('.btn-status-toggle').forEach(btn =>
     btn.addEventListener('click', () => toggleStatus(btn.dataset.medId, btn.dataset.active === 'true'))
@@ -1065,6 +1181,13 @@ function openPanel(invId) {
     document.getElementById('f-expiry').value     = item.expiry_date || '';
     document.getElementById('f-batch').value      = item.batch_number || '';
     document.getElementById('f-supplier').value   = item.supplier_name || '';
+    document.getElementById('f-is-gmp').checked          = item.is_gmp_certified  || false;
+    document.getElementById('f-gmp-cert-no').value        = item.gmp_certificate_no || '';
+    document.getElementById('f-is-student-batch').checked = item.is_student_batch  || false;
+    document.getElementById('f-is-high-risk').checked     = item.is_high_risk      || false;
+    document.getElementById('f-is-lasa').checked          = item.is_lasa           || false;
+    document.getElementById('f-lasa-pair').value          = item.lasa_pair         || '';
+    document.getElementById('f-is-schedule-h').checked    = item.is_schedule_h     || false;
     _tags = Array.isArray(item.medicine.indications) ? [...item.medicine.indications] : [];
     document.getElementById('f-anupana').value       = item.medicine.anupana || '';
     document.getElementById('f-classical-ref').value = item.medicine.classical_reference || '';
@@ -1089,6 +1212,9 @@ function openPanel(invId) {
     document.getElementById('f-max').value    = '';
     document.getElementById('f-inward').value = TODAY;
     document.getElementById('f-expiry').value = '';
+    document.getElementById('f-is-gmp').checked          = false;
+    document.getElementById('f-gmp-cert-no').value        = '';
+    document.getElementById('f-is-student-batch').checked = false;
   }
   renderTags();
   window._calcPricing();
@@ -1133,6 +1259,14 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
   const expiry   = document.getElementById('f-expiry').value || null;
   const batch    = document.getElementById('f-batch').value.trim() || null;
   const supplier = document.getElementById('f-supplier').value.trim() || null;
+  const isGmp        = document.getElementById('f-is-gmp').checked;
+  const gmpCert      = document.getElementById('f-gmp-cert-no').value.trim() || null;
+  const isStudentBatch = document.getElementById('f-is-student-batch').checked;
+  const medType      = document.getElementById('f-med-type')?.value || 'finished';
+  const isHighRisk   = document.getElementById('f-is-high-risk').checked;
+  const isLasa       = document.getElementById('f-is-lasa').checked;
+  const lasaPair     = document.getElementById('f-lasa-pair').value.trim() || null;
+  const isScheduleH  = document.getElementById('f-is-schedule-h').checked;
   const imageUrl = document.getElementById('edit-image-url').value || null;
   const stock    = parseInt(document.getElementById('f-stock')?.value) || 0;
 
@@ -1150,7 +1284,10 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
       const { error: ie } = await supabase.from('inventory')
         .update({ mrp, cost_price: cp, gst_percent: gstPct, profit_percent: profPct,
                   reorder_level: reorder, max_stock: maxStock,
-                  inward_date: inward, expiry_date: expiry, batch_number: batch, supplier_name: supplier })
+                  inward_date: inward, expiry_date: expiry, batch_number: batch, supplier_name: supplier,
+                  is_gmp_certified: isGmp, gmp_certificate_no: gmpCert,
+                  is_student_batch: isStudentBatch, medicine_type: medType,
+                  is_high_risk: isHighRisk, is_lasa: isLasa, lasa_pair: lasaPair, is_schedule_h: isScheduleH })
         .eq('id', invId).eq('tenant_id', tenantId);
       if (ie) throw ie;
       _alert('success', `"${name}" updated.`);
@@ -1167,7 +1304,10 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
         tenant_id: tenantId, medicine_id: med.id,
         stock_quantity: stock, mrp, cost_price: cp, gst_percent: gstPct,
         profit_percent: profPct, reorder_level: reorder, max_stock: maxStock,
-        inward_date: inward, expiry_date: expiry, batch_number: batch, supplier_name: supplier
+        inward_date: inward, expiry_date: expiry, batch_number: batch, supplier_name: supplier,
+        is_gmp_certified: isGmp, gmp_certificate_no: gmpCert,
+        is_student_batch: isStudentBatch, medicine_type: medType,
+        is_high_risk: isHighRisk, is_lasa: isLasa, lasa_pair: lasaPair, is_schedule_h: isScheduleH
       });
       if (ie) throw ie;
       _alert('success', `"${name}" added to inventory.`);
@@ -1181,11 +1321,20 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
 });
 
 // ── Adjust stock modal ────────────────────────────────
+window.onAdjReasonChange = function(val) {
+  document.getElementById('disposal-fields').style.display = val === 'expired' ? '' : 'none';
+};
+
 function openAdjust(invId, name) {
-  document.getElementById('adj-modal-title').textContent = `Adjust Stock — ${name}`;
-  document.getElementById('adj-inv-id').value = invId;
-  document.getElementById('adj-qty').value    = '';
-  document.getElementById('adj-reason').value = '';
+  document.getElementById('adj-modal-title').textContent       = `Adjust Stock — ${name}`;
+  document.getElementById('adj-inv-id').value                  = invId;
+  document.getElementById('adj-qty').value                     = '';
+  document.getElementById('adj-reason').value                  = '';
+  document.getElementById('disposal-fields').style.display     = 'none';
+  document.getElementById('adj-disposal-method').value         = '';
+  document.getElementById('adj-disposal-date').value           = new Date().toISOString().split('T')[0];
+  document.getElementById('adj-witnessed-by').value            = '';
+  document.getElementById('adj-disposal-remarks').value        = '';
   _adjType = 'add';
   document.getElementById('adj-add').classList.add('selected');
   document.getElementById('adj-remove').classList.remove('selected');
@@ -1205,26 +1354,108 @@ document.getElementById('btn-adj-cancel').addEventListener('click', () =>
   document.getElementById('adj-modal').classList.remove('open')
 );
 document.getElementById('btn-adj-confirm').addEventListener('click', async () => {
-  const qty   = parseInt(document.getElementById('adj-qty').value);
-  const invId = document.getElementById('adj-inv-id').value;
-  if (!qty || qty <= 0) { _alert('error', 'Enter a valid quantity.'); return; }
-  const item  = _items.find(i => i.id === invId);
+  const qty    = parseInt(document.getElementById('adj-qty').value);
+  const invId  = document.getElementById('adj-inv-id').value;
+  const reason = document.getElementById('adj-reason').value;
+  if (!qty || qty <= 0)  { _alert('error', 'Enter a valid quantity.'); return; }
+  if (!reason)           { _alert('error', 'Please select a reason.'); return; }
+
+  const isExpiry = reason === 'expired';
+  if (isExpiry) {
+    const method    = document.getElementById('adj-disposal-method').value;
+    const witnessed = document.getElementById('adj-witnessed-by').value.trim();
+    if (!method)    { _alert('error', 'Select a disposal method.'); return; }
+    if (!witnessed) { _alert('error', 'Enter the name of the witness / supervisor.'); return; }
+  }
+
+  const item   = _items.find(i => i.id === invId);
   if (!item) return;
   const newQty = _adjType === 'add'
     ? (item.stock_quantity ?? 0) + qty
     : Math.max(0, (item.stock_quantity ?? 0) - qty);
+
   const btn = document.getElementById('btn-adj-confirm');
   btn.disabled = true; btn.textContent = 'Saving…';
+
   const { error } = await supabase.from('inventory')
     .update({ stock_quantity: newQty }).eq('id', invId).eq('tenant_id', tenantId);
+  if (error) { btn.disabled = false; btn.textContent = 'Confirm'; _alert('error', 'Failed: ' + error.message); return; }
+
+  // If expired, log disposal record
+  if (isExpiry) {
+    await supabase.from('disposal_records').insert({
+      tenant_id:       tenantId,
+      inventory_id:    invId,
+      medicine_name:   item.medicine?.name  || '—',
+      batch_number:    item.batch_number    || null,
+      quantity:        qty,
+      expiry_date:     item.expiry_date     || null,
+      disposal_method: document.getElementById('adj-disposal-method').value,
+      disposed_by:     profile?.id          || null,
+      witnessed_by:    document.getElementById('adj-witnessed-by').value.trim(),
+      disposal_date:   document.getElementById('adj-disposal-date').value,
+      remarks:         document.getElementById('adj-disposal-remarks').value.trim() || null,
+    });
+  }
+
   btn.disabled = false; btn.textContent = 'Confirm';
-  if (error) { _alert('error', 'Failed: ' + error.message); return; }
   document.getElementById('adj-modal').classList.remove('open');
-  _alert('success', `Stock updated to ${newQty} units.`);
+  _alert('success', isExpiry
+    ? `${qty} units logged for disposal. Stock updated to ${newQty}.`
+    : `Stock updated to ${newQty} units.`);
   await loadInventory();
 });
 
 // ── Delete medicine from inventory ───────────────────
+// ── Mark student batch as used in practical ──────────
+async function markPracticalUse(invId, name, currentStock, expiryDate, batchNumber) {
+  if (currentStock <= 0) {
+    _alert('error', `"${name}" has no stock remaining to log.`);
+    return;
+  }
+
+  const qtyStr = prompt(
+    `Mark "${name}" as used in practical session.\n\nCurrent stock: ${currentStock} units\n\nEnter quantity used (leave blank to use all ${currentStock} units):`,
+    currentStock
+  );
+  if (qtyStr === null) return; // cancelled
+
+  const qty = parseInt(qtyStr) || currentStock;
+  if (qty <= 0 || qty > currentStock) {
+    _alert('error', `Enter a quantity between 1 and ${currentStock}.`);
+    return;
+  }
+
+  const witness = prompt('Witnessed by (faculty/supervisor name):');
+  if (witness === null) return; // cancelled
+  if (!witness.trim()) { _alert('error', 'Witness name is required for practical use record.'); return; }
+
+  // Create disposal record
+  const { error: drErr } = await supabase.from('disposal_records').insert({
+    tenant_id:       tenantId,
+    inventory_id:    invId,
+    medicine_name:   name,
+    batch_number:    batchNumber || null,
+    quantity:        qty,
+    expiry_date:     expiryDate  || null,
+    disposal_method: 'student_practical',
+    disposed_by:     profile?.id || null,
+    witnessed_by:    witness.trim(),
+    disposal_date:   new Date().toISOString().split('T')[0],
+    remarks:         'Student-prepared batch consumed in pharmacy practical session (NCISM §6(3))',
+  });
+  if (drErr) { _alert('error', 'Failed to log disposal: ' + drErr.message); return; }
+
+  // Deduct stock
+  const newStock = currentStock - qty;
+  const { error: invErr } = await supabase.from('inventory')
+    .update({ stock_quantity: newStock }).eq('id', invId).eq('tenant_id', tenantId);
+  if (invErr) { _alert('error', 'Stock update failed: ' + invErr.message); return; }
+
+  _alert('success', `${qty} units of "${name}" logged as used in practical. Disposal record created.`);
+  await loadInventory();
+}
+
 async function deleteMedicine(invId, name) {
   if (!confirm(`Remove "${name}" from inventory?\n\nThis deletes the stock record for your dispensary. The medicine name stays in the catalogue.`)) return;
   const { error } = await supabase.from('inventory')

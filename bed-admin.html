@@ -137,8 +137,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .bed-type-badge.icu{background:#fdecea;color:#8b1a1a}
 .bed-type-badge.private{background:#f3e8ff;color:#5a1a8b}
 .bed-type-badge.semi_private{background:#e8f0ff;color:#1a308b}
+.bed-type-badge.twin_sharing{background:#e8f5ff;color:#1a3a6b}
+.bed-type-badge.deluxe{background:#fdf3ff;color:#6b1a8b}
+.bed-type-badge.dormitory{background:#f0f0f0;color:#444}
 .bed-type-badge.day_care{background:#fff8e8;color:#7a5a00}
 .bed-type-badge.pk_treatment{background:#e3f0ff;color:#1a4080}
+.bed-type-badge.observation{background:#fff0f0;color:#8b1a1a;border:1px dashed #c0392b}
 .bed-pg-dot{
   position:absolute;top:5px;right:5px;width:7px;height:7px;
   background:#1a4080;border-radius:50%;
@@ -264,6 +268,14 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
       </div>
 
       <div class="field">
+        <label>Sub-unit of (optional)</label>
+        <select id="dept-parent">
+          <option value="">— Top-level department —</option>
+        </select>
+        <div class="field-note">e.g. Emergency OPD is a sub-unit of Kayachikitsa (§18j)</div>
+      </div>
+
+      <div class="field">
         <label>Linked OPD (optional)</label>
         <select id="dept-opd">
           <option value="">— None / IPD-only dept —</option>
@@ -342,12 +354,16 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
         <div class="field">
           <label>Bed Type</label>
           <select id="bed-type">
-            <option value="general">General</option>
-            <option value="private">Private</option>
-            <option value="semi_private">Semi-Private</option>
+            <option value="general">General Ward</option>
+            <option value="twin_sharing">Twin Sharing</option>
+            <option value="semi_private">Shared Private</option>
+            <option value="private">Private Room</option>
+            <option value="deluxe">Deluxe Private</option>
+            <option value="dormitory">Dormitory</option>
             <option value="icu">ICU</option>
             <option value="day_care">Day Care</option>
             <option value="pk_treatment">PK Treatment</option>
+            <option value="observation">Observation (not counted in census)</option>
           </select>
         </div>
         <div class="field">
@@ -414,12 +430,16 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
         <div class="field">
           <label>Bed Type</label>
           <select id="bulk-type">
-            <option value="general">General</option>
-            <option value="private">Private</option>
-            <option value="semi_private">Semi-Private</option>
+            <option value="general">General Ward</option>
+            <option value="twin_sharing">Twin Sharing</option>
+            <option value="semi_private">Shared Private</option>
+            <option value="private">Private Room</option>
+            <option value="deluxe">Deluxe Private</option>
+            <option value="dormitory">Dormitory</option>
             <option value="icu">ICU</option>
             <option value="day_care">Day Care</option>
             <option value="pk_treatment">PK Treatment</option>
+            <option value="observation">Observation (not counted in census)</option>
           </select>
         </div>
         <div class="field">
@@ -519,12 +539,16 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
         </select>
         <select id="filter-type" onchange="renderBeds()">
           <option value="">All Types</option>
-          <option value="general">General</option>
+          <option value="general">General Ward</option>
+          <option value="twin_sharing">Twin Sharing</option>
+          <option value="semi_private">Shared Private</option>
+          <option value="private">Private Room</option>
+          <option value="deluxe">Deluxe Private</option>
+          <option value="dormitory">Dormitory</option>
           <option value="icu">ICU</option>
-          <option value="private">Private</option>
-          <option value="semi_private">Semi-Private</option>
           <option value="day_care">Day Care</option>
           <option value="pk_treatment">PK Treatment</option>
+          <option value="observation">Observation</option>
         </select>
       </div>
       <button class="btn btn-primary btn-sm" onclick="openBedDrawer()">+ Add Bed</button>
@@ -741,7 +765,8 @@ function renderBeds() {
 
   grid.innerHTML = beds.map(b => {
     const statusCls = b.status === 'pk_treatment' ? 'pk_treatment' : b.status;
-    const typeLabel = b.bed_type.replace('_', ' ');
+    const BED_LABELS = {general:'General Ward',twin_sharing:'Twin Sharing',semi_private:'Shared Private',private:'Private Room',deluxe:'Deluxe Private',dormitory:'Dormitory',icu:'ICU',day_care:'Day Care',pk_treatment:'PK Treatment',observation:'Observation'};
+    const typeLabel = BED_LABELS[b.bed_type] || b.bed_type.replace(/_/g,' ');
     return `<div class="bed-card ${statusCls}" onclick="openBedDrawer('${b.id}')" title="${_esc(b.bed_number)} — ${b.status}">
       ${b.is_pg_allocated ? '<div class="bed-pg-dot" title="PG-allocated"></div>' : ''}
       <div class="bed-num">${_esc(b.bed_number)}</div>
@@ -770,6 +795,13 @@ window.openDeptDrawer = function(id) {
   document.getElementById('dept-pg-seats').value  = dept?.pg_seats_sanctioned || '';
   document.getElementById('dept-mandatory').checked = dept?.is_mandatory || false;
   document.getElementById('dept-active').checked  = dept ? dept.is_active : true;
+
+  // Populate parent dropdown — exclude self and current dept's own children
+  const parentSel = document.getElementById('dept-parent');
+  const eligible  = (_depts || []).filter(d => d.id !== id && !d.parent_department_id);
+  parentSel.innerHTML = '<option value="">— Top-level department —</option>' +
+    eligible.map(d => `<option value="${d.id}"${dept?.parent_department_id===d.id?' selected':''}>${_esc(d.name)}</option>`).join('');
+
   _togglePgFields();
   document.getElementById('dept-overlay').classList.add('open');
 };
@@ -811,15 +843,17 @@ window.saveDept = async function() {
   btn.disabled = true;
   btn.textContent = 'Saving…';
 
+  const parentId = document.getElementById('dept-parent').value || null;
   const payload = {
-    tenant_id:           tenantId,
+    tenant_id:             tenantId,
     name,
-    ncism_code:          ncism || null,
-    opd_id:              opdId || null,
-    is_pg_dept:          isPg,
-    pg_seats_sanctioned: isPg ? pgSeats : 0,
-    is_mandatory:        mandatory,
-    is_active:           isActive,
+    ncism_code:            ncism || null,
+    opd_id:                opdId || null,
+    parent_department_id:  parentId,
+    is_pg_dept:            isPg,
+    pg_seats_sanctioned:   isPg ? pgSeats : 0,
+    is_mandatory:          mandatory,
+    is_active:             isActive,
   };
 
   let error;

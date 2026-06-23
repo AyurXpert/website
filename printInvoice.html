@@ -51,6 +51,10 @@
   <div class="mt-6 text-center text-sm text-gray-500">
     Thank you for visiting 🙏
   </div>
+  <div id="feedback-footer" class="mt-4 border-t pt-4 text-center" style="display:none">
+    <div class="text-xs text-gray-500 mb-1">Share your experience — it takes 1 minute</div>
+    <div id="feedback-url" class="text-xs font-mono text-green-700 break-all"></div>
+  </div>
 
 </div>
 
@@ -197,6 +201,17 @@ async function loadInvoice() {
   })
 
   document.getElementById('totalAmount').innerText = 'Total: ₹' + total.toFixed(2)
+
+  // Add feedback link to invoice footer
+  if (prescription.visit_id) {
+    const feedbackUrl = `${window.location.origin}/feedback.html?visit=${prescription.visit_id}`;
+    const footerEl = document.getElementById('feedback-footer');
+    const urlEl    = document.getElementById('feedback-url');
+    if (footerEl && urlEl) {
+      footerEl.style.display = '';
+      urlEl.textContent = feedbackUrl;
+    }
+  }
 }
 
 loadInvoice()

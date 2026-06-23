@@ -312,5 +312,86 @@ export async function deactivateAbhaConfirm(txnId, xToken, otp, reasons = ['User
   return callABDM('deactivate_abha_confirm', { txnId, encOtp, xToken, reasons });
 }
 
+// §3.2.5 — Register/update facility HIP+HIU services on ABDM bridge.
+// facilityId: 12-char HFR ID starting with IN (e.g. IN2910002132)
+// facilityName: full facility name (max 100 chars)
+// hipName: max 15 chars, alphanumeric+space only — appears on ABHA app patient search
+// types: ['HIP','HIU'] (default) — can pass ['HIP'] or ['HIU'] alone
+export async function registerHipService(facilityId, facilityName, hipName, types = ['HIP', 'HIU']) {
+  return callABDM('register_hip_service', { facilityId, facilityName, hipName, types });
+}
+
+// §4.3.8 — Send ABDM SMS deep-link to patient mobile (M2 mandatory: HIP_INIT_NOTIFY_HIECM)
+// Patient receives SMS with a link to open their ABHA app and view the new health record.
+// phoneNo: 10-digit Indian mobile (auto-normalised — strips +91/91 prefix)
+// hipId / hipName: optional — auto-resolved from tenant hfr_id / name if not supplied
+// IMPORTANT: This API has NO X-HIP-ID header — hipId goes in request body.
+export async function smsNotify(phoneNo, hipId = null, hipName = null) {
+  return callABDM('sms_notify', {
+    phoneNo,
+    ...(hipId   ? { hipId }   : {}),
+    ...(hipName ? { hipName } : {}),
+  });
+}
+
+// §4.3.6 — Notify care context update to all subscribed HIUs (fire-and-forget)
+// Call after health record update: prescription dispensed, lab results added, note finalised.
+// patientReference:    same ref used in addCareContexts (e.g. "PATIENT-<uuid>")
+// careContextReference: specific care context ref (e.g. "VISIT-<uuid>")
+// hiTypes: array — same 7 values as addCareContexts (auto-uppercased)
+// date: ISO timestamp of update (defaults to now)
+export async function notifyCareContext(abhaAddress, patientReference, careContextReference, hiTypes, date = null, hipId = null) {
+  return callABDM('notify_care_context', {
+    abhaAddress, patientReference, careContextReference, hiTypes,
+    ...(date   ? { date }  : {}),
+    ...(hipId  ? { hipId } : {}),
+  });
+}
+
+// §4.3.5 — Get all linked care contexts for a patient (PHR verification/diagnostic)
+// Use after addCareContexts() + §4.3.4 callback to confirm linking worked.
+// xAuthToken: patient's tToken from their ABHA login session (expires in ~30 min)
+// Returns: { patient: { id, links: [{ hip: {id,name}, referenceNumber, display, hiType, careContexts[], dateCreated }] } }
+export async function getPatientLinks(xAuthToken, limit = 100) {
+  return callABDM('get_patient_links', { xAuthToken, limit });
+}
+
+// §4.3.3 — Add Care Contexts (HIP-Initiated Linking, step 2 of 2)
+// Call after getLinkToken() once the link token has arrived in link_tokens table.
+// linkToken: the JWT from link_tokens.token (read from DB after the webhook callback)
+// patient: array of patient entries — each with referenceNumber, display, careContexts[], hiType, count
+// Valid hiType: PRESCRIPTION, DIAGNOSTICREPORT, OPCONSULTATION, DISCHARGESUMMARY,
+//              IMMUNIZATIONRECORD, HEALTHDOCUMENTRECORD, WELLNESSRECORD
+// Edge function auto-uppercases hiType and validates count === careContexts.length
+export async function addCareContexts(abhaAddress, abhaNumber, linkToken, patient, hipId = null) {
+  return callABDM('add_care_contexts', {
+    abhaAddress,
+    abhaNumber:  abhaNumber || null,
+    linkToken,
+    patient,
+    ...(hipId ? { hipId } : {}),
+  });
+}
+
+// §4.3.1 — HIP-Initiated Link Token Generation.
+// Submits patient demographics to ABDM for verification.
+// Returns 202 immediately; actual link token arrives via abdm-webhook callback (~5s).
+// After token arrives, call addCareContexts() with the token from link_tokens table.
+//
+// abhaAddress: patient's ABHA address (e.g. "name@sbx") — recommended
+// abhaNumber:  patient's 14-digit ABHA number — alternative if address unknown
+// name:        patient's full name as in ABHA profile
+// gender:      'M' / 'F' / 'O' / 'D' (Diverse)
+// yearOfBirth: 4-digit year (ABDM allows ±2 year tolerance)
+// hipId:       optional — overrides tenant's hfr_id (use for multi-facility setups)
+export async function getLinkToken(abhaAddress, abhaNumber, name, gender, yearOfBirth, hipId = null) {
+  return callABDM('get_link_token', {
+    abhaAddress: abhaAddress || null,
+    abhaNumber:  abhaNumber  || null,
+    name, gender, yearOfBirth,
+    ...(hipId ? { hipId } : {}),
+  });
+}
+
 
 

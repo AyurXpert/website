@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>IQAC — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --red:#c0392b;--red-light:#fdecea;--red-border:#fca5a5;
+  --blue:#1a4080;--blue-light:#e3f0ff;
+  --purple:#5a1a8b;--purple-light:#f0e8ff;
+  --amber:#92400e;--amber-bg:#fffbeb;--amber-border:#fcd34d;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1100px;margin:0 auto;padding:28px 20px 80px}
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.4px;margin-left:8px;vertical-align:middle}
+
+.btn{height:38px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}.btn-secondary:hover{background:var(--green-light)}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Compliance banner */
+.compliance-banner{border-radius:var(--radius);padding:14px 18px;margin-bottom:20px;display:flex;align-items:flex-start;gap:14px}
+.compliance-banner.green{background:var(--green-light);border:1.5px solid var(--green-mid)}
+.compliance-banner.amber{background:var(--amber-bg);border:1.5px solid var(--amber-border)}
+.compliance-banner.red{background:var(--red-light);border:1.5px solid var(--red-border)}
+.cb-icon{font-size:24px;flex-shrink:0;line-height:1}
+.cb-body{flex:1}
+.cb-title{font-weight:700;font-size:14px;margin-bottom:4px}
+.cb-sub{font-size:12px;line-height:1.6}
+.cb-bar-wrap{margin-top:8px;background:rgba(0,0,0,.08);border-radius:4px;height:6px;overflow:hidden}
+.cb-bar{height:100%;border-radius:4px;transition:width .4s}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:800px){.stats-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:520px){.stats-row{grid-template-columns:repeat(2,1fr)}}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:13px 14px;text-align:center}
+.stat-val{font-size:26px;font-weight:700;color:var(--green-deep);line-height:1;font-family:'Cormorant Garamond',serif}
+.stat-lbl{font-size:10px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.4px}
+.stat-card.gold .stat-val{color:var(--gold)}
+.stat-card.red .stat-val{color:var(--red)}
+.stat-card.blue .stat-val{color:var(--blue)}
+.stat-card.purple .stat-val{color:var(--purple)}
+
+/* Card */
+.card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px}
+.card-hd{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap}
+.card-title{font-weight:600;font-size:14px;color:var(--text-dark)}
+
+/* Quality indicators live pull */
+.qi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;padding:14px}
+.qi-card{background:#f5faf7;border-radius:7px;padding:10px 14px;border:1px solid var(--border)}
+.qi-val{font-size:22px;font-weight:700;color:var(--green-deep);line-height:1;font-family:'Cormorant Garamond',serif}
+.qi-lbl{font-size:10px;color:var(--text-muted);margin-top:3px;text-transform:uppercase;letter-spacing:.3px}
+.qi-card.warn .qi-val{color:var(--gold)}
+.qi-card.bad .qi-val{color:var(--red)}
+
+/* Table */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:9px 14px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;background:#fafafa;border-bottom:1px solid var(--border)}
+td{padding:10px 14px;border-bottom:1px solid #f0f4f2;vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafff8}
+
+/* Pill */
+.pill{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600}
+.pill-quarterly{background:var(--green-light);color:var(--green-deep)}
+.pill-special{background:var(--blue-light);color:var(--blue)}
+.pill-annual{background:var(--gold-light);color:#7a5c00}
+.pill-completed{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.pill-scheduled{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)}
+
+/* Member grid */
+.member-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+@media(max-width:500px){.member-grid{grid-template-columns:1fr}}
+.member-item{display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:6px;background:#f5faf7;border:1px solid var(--border);font-size:12px;cursor:pointer;transition:background .15s}
+.member-item:hover{background:var(--green-light)}
+.member-item input[type=checkbox]{accent-color:var(--green-mid);width:14px;height:14px;flex-shrink:0}
+.member-item.checked{background:var(--green-light);border-color:#b2d8bf}
+
+/* Action items table */
+.action-tbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.action-tbl th{background:var(--green-deep);color:#fff;padding:6px 10px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;text-align:left}
+.action-tbl td{padding:5px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+.action-tbl td input,.action-tbl td select{width:100%;height:30px;border:1px solid var(--border);border-radius:5px;padding:0 7px;font-size:12px;font-family:'DM Sans',sans-serif;background:var(--white);outline:none}
+.action-tbl td input:focus,.action-tbl td select:focus{border-color:var(--green-mid)}
+.action-rm{height:26px;width:26px;background:var(--red-light);border:1px solid var(--red-border);border-radius:5px;cursor:pointer;font-size:14px;color:var(--red);display:flex;align-items:center;justify-content:center}
+.add-row-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:7px;border:1.5px dashed var(--green-mid);background:none;color:var(--green-mid);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:6px}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:none;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto}
+.overlay.show{display:flex}
+.modal{background:var(--white);border-radius:10px;width:760px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,.22);margin:auto}
+.modal-hd{background:var(--green-deep);color:#fff;padding:14px 20px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center}
+.modal-hd-title{font-weight:600;font-size:15px}
+.modal-hd-close{background:none;border:none;color:rgba(255,255,255,.7);font-size:20px;cursor:pointer;line-height:1;padding:0 4px}
+.modal-hd-close:hover{color:#fff}
+.modal-body{padding:22px;max-height:82vh;overflow-y:auto}
+.modal-foot{padding:12px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border);background:#fafafa;border-radius:0 0 10px 10px}
+
+/* Form */
+.fsec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--green-mid);margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid var(--border);margin-top:18px}
+.fsec:first-child{margin-top:0}
+.fg{display:grid;gap:12px;margin-bottom:12px}
+.fg.c2{grid-template-columns:1fr 1fr}
+.fg.c3{grid-template-columns:1fr 1fr 1fr}
+.fg.c4{grid-template-columns:1fr 1fr 1fr 1fr}
+@media(max-width:600px){.fg.c2,.fg.c3,.fg.c4{grid-template-columns:1fr 1fr}}
+@media(max-width:400px){.fg.c2,.fg.c3,.fg.c4{grid-template-columns:1fr}}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:12px;font-weight:500;color:var(--text-mid)}
+.field input,.field select,.field textarea{width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white);outline:none}
+.field textarea{height:64px;padding:8px 10px;resize:vertical}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--green-mid)}
+.field-hint{font-size:10px;color:var(--text-muted);margin-top:2px}
+
+/* Alert */
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:14px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.alert.error{background:var(--red-light);color:#8b1a1a;border:1px solid var(--red-border)}
+
+/* Empty */
+.empty{text-align:center;padding:40px 20px;color:var(--text-muted)}
+.empty-ico{font-size:36px;margin-bottom:10px;opacity:.5}
+.empty-ttl{font-size:14px;font-weight:500;margin-bottom:4px}
+.empty-bod{font-size:12px;line-height:1.6;max-width:300px;margin:0 auto}
+
+/* Open-action count */
+.open-action-chip{background:var(--red-light);color:var(--red);border:1px solid var(--red-border);font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px;margin-left:4px}
+
+/* Expandable row */
+.detail-row{display:none;background:#f9fdfb}
+.detail-row.show{display:table-row}
+.detail-cell{padding:12px 18px;border-bottom:1px solid var(--border)}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1c2b1f;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:2000}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<div class="page-wrap">
+
+<div class="page-header">
+  <div>
+    <div class="page-title">IQAC <span class="ncism-badge">§12.1 NCISM</span></div>
+    <div class="page-subtitle">Internal Quality Assurance Cell · Quarterly Meeting Register · Quality Indicators · Action Tracking</div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-secondary btn-sm" onclick="exportRegister()">↓ CSV</button>
+    <button class="btn btn-primary" onclick="openModal()">+ Record Meeting</button>
+  </div>
+</div>
+
+<!-- Compliance banner -->
+<div id="compliance-banner"></div>
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="stat-card"><div class="stat-val" id="s-total">—</div><div class="stat-lbl">Total Meetings</div></div>
+  <div class="stat-card"><div class="stat-val" id="s-year">—</div><div class="stat-lbl">This Year</div></div>
+  <div class="stat-card gold"><div class="stat-val" id="s-actions">—</div><div class="stat-lbl">Action Items</div></div>
+  <div class="stat-card red"><div class="stat-val" id="s-open">—</div><div class="stat-lbl">Open Actions</div></div>
+  <div class="stat-card blue"><div class="stat-val" id="s-qi">—</div><div class="stat-lbl">Avg OPD %</div></div>
+</div>
+
+<!-- Live Quality Indicators -->
+<div class="card" id="qi-card">
+  <div class="card-hd">
+    <span class="card-title">Live Quality Indicators — Today</span>
+    <span style="font-size:11px;color:var(--text-muted)">Pulled from HMIS for IQAC review</span>
+  </div>
+  <div class="qi-grid" id="qi-grid">
+    <div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;grid-column:1/-1">Loading indicators…</div>
+  </div>
+</div>
+
+<!-- NCISM mandate info -->
+<div style="background:var(--purple-light);border:1.5px solid #c4b5fd;border-radius:var(--radius);padding:12px 16px;margin-bottom:20px;font-size:12px;color:var(--purple);line-height:1.7">
+  <strong>§12.1 NCISM:</strong> IQAC meets <u>at least once every quarter</u> (≥4 meetings/year). Chairperson: Principal/Dean. Reviews OPD attendance, IPD occupancy, patient satisfaction, complaint resolution, teaching quality, and NABH/NCISM accreditation status.
+</div>
+
+<div class="alert" id="main-alert"></div>
+
+<!-- Meeting Register -->
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title">IQAC Meeting Register</span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <select id="year-filter" style="height:32px;font-size:12px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;background:var(--white)" onchange="loadMeetings()">
+        <option value="">All Years</option>
+      </select>
+      <button class="btn btn-secondary btn-sm" onclick="loadMeetings()">↻</button>
+    </div>
+  </div>
+  <div class="tw">
+    <table>
+      <thead><tr>
+        <th></th><th>Date</th><th>Type</th><th>Chairperson</th>
+        <th>Members</th><th>OPD%</th><th>IPD%</th><th>Actions</th><th>Status</th>
+      </tr></thead>
+      <tbody id="meetings-tbody">
+        <tr><td colspan="9"><div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</div><!-- end page-wrap -->
+
+<!-- ══════════ RECORD MEETING MODAL ══════════ -->
+<div class="overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+<div class="modal">
+  <div class="modal-hd">
+    <span class="modal-hd-title">Record IQAC Meeting</span>
+    <button class="modal-hd-close" onclick="closeModal()">×</button>
+  </div>
+  <div class="modal-body">
+    <div class="alert" id="modal-alert"></div>
+
+    <!-- Meeting details -->
+    <div class="fsec">Meeting Details</div>
+    <div class="fg c3">
+      <div class="field"><label>Meeting Date *</label><input type="date" id="m-date"/></div>
+      <div class="field">
+        <label>Meeting Type</label>
+        <select id="m-type">
+          <option value="quarterly">Quarterly (Mandatory)</option>
+          <option value="special">Special / Emergency</option>
+          <option value="annual">Annual Review</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select id="m-status">
+          <option value="completed">Completed</option>
+          <option value="scheduled">Scheduled</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg c2">
+      <div class="field"><label>Chairperson</label><input type="text" id="m-chair" placeholder="e.g. Dr. Suresh Kumar — Principal"/></div>
+      <div class="field"><label>Venue</label><input type="text" id="m-venue" placeholder="e.g. Principal's Conference Hall"/></div>
+    </div>
+
+    <!-- Member attendance -->
+    <div class="fsec">Member Attendance — IQAC Composition</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Tick all designations present. NCISM requires Principal + Medical Superintendent + all HODs.</div>
+    <div class="member-grid" id="member-checklist"></div>
+    <div class="field" style="margin-top:10px">
+      <label>Additional Members / External Experts</label>
+      <input type="text" id="m-extra-members" placeholder="e.g. Alumni representative, NABH consultant, Student nominee"/>
+    </div>
+
+    <!-- Quality Indicators -->
+    <div class="fsec">Quality Indicators Reviewed</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">Enter the values reviewed at this meeting. Live indicators are shown on the dashboard for reference.</div>
+    <div class="fg c4">
+      <div class="field">
+        <label>OPD Attendance %</label>
+        <input type="number" id="m-opd-pct" min="0" max="200" step="0.1" placeholder="e.g. 87.5"/>
+        <span class="field-hint">vs NCISM daily target</span>
+      </div>
+      <div class="field">
+        <label>IPD Occupancy %</label>
+        <input type="number" id="m-ipd-pct" min="0" max="100" step="0.1" placeholder="e.g. 72.0"/>
+        <span class="field-hint">NCISM min: 60% general, 80% PG</span>
+      </div>
+      <div class="field">
+        <label>Patient Satisfaction (1–10)</label>
+        <input type="number" id="m-satisfaction" min="1" max="10" step="0.1" placeholder="e.g. 8.2"/>
+        <span class="field-hint">From survey / exit feedback</span>
+      </div>
+      <div class="field">
+        <label>Complaints Received</label>
+        <input type="number" id="m-complaints" min="0" placeholder="e.g. 4"/>
+      </div>
+      <div class="field">
+        <label>Complaints Resolved</label>
+        <input type="number" id="m-resolved" min="0" placeholder="e.g. 3"/>
+      </div>
+      <div class="field">
+        <label>Hospital Infections (new)</label>
+        <input type="number" id="m-infections" min="0" placeholder="e.g. 0"/>
+        <span class="field-hint">HAI / HCAI count this quarter</span>
+      </div>
+      <div class="field">
+        <label>Mortality Count</label>
+        <input type="number" id="m-mortality" min="0" placeholder="e.g. 0"/>
+        <span class="field-hint">In-hospital deaths this quarter</span>
+      </div>
+      <div class="field">
+        <label>Staff Attendance %</label>
+        <input type="number" id="m-staff-att" min="0" max="100" step="0.1" placeholder="e.g. 94.0"/>
+      </div>
+    </div>
+
+    <!-- Agenda & ATR -->
+    <div class="fsec">Agenda &amp; Action Taken Report</div>
+    <div class="fg">
+      <div class="field">
+        <label>Meeting Agenda</label>
+        <textarea id="m-agenda" placeholder="1. Review of quality indicators&#10;2. Patient satisfaction survey results&#10;3. Complaint register review&#10;4. ATR from last meeting&#10;5. NABH/NCISM accreditation status&#10;6. Teaching quality review&#10;7. Any other item"></textarea>
+      </div>
+      <div class="field">
+        <label>Action Taken Report (ATR) — from last meeting</label>
+        <textarea id="m-atr" placeholder="Status of actions assigned at last IQAC meeting…"></textarea>
+      </div>
+    </div>
+
+    <!-- Teaching quality (for colleges) -->
+    <div class="fg c2">
+      <div class="field">
+        <label>Teaching Quality Notes</label>
+        <textarea id="m-teaching" placeholder="Feedback on clinical postings, UG/PG teaching, patient case presentations, PG performance…" style="height:54px"></textarea>
+      </div>
+      <div class="field">
+        <label>NABH / NCISM Accreditation Status</label>
+        <select id="m-accred">
+          <option value="">— Select —</option>
+          <option>Not yet applied</option>
+          <option>Applied — under review</option>
+          <option>Pre-assessment done</option>
+          <option>Assessment scheduled</option>
+          <option>NABH Entry Level certified</option>
+          <option>Full NABH accredited</option>
+          <option>NCISM compliant (self-assessment)</option>
+          <option>Renewal due</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Action Items — structured table -->
+    <div class="fsec">Action Items Assigned This Meeting</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Each item must have a responsible department, action description, and deadline.</div>
+    <table class="action-tbl">
+      <thead><tr><th style="width:22%">Department</th><th>Action / Improvement Required</th><th style="width:18%">Responsible</th><th style="width:12%">Deadline</th><th style="width:30px"></th></tr></thead>
+      <tbody id="action-tbody">
+        <tr>
+          <td><select class="dept-sel" style="width:100%;height:30px;border:1px solid var(--border);border-radius:5px;padding:0 6px;font-size:12px;font-family:'DM Sans',sans-serif">
+            <option value="">— Dept —</option>
+          </select></td>
+          <td><input type="text" placeholder="Action required…"/></td>
+          <td><input type="text" placeholder="HOD / officer name"/></td>
+          <td><input type="date"/></td>
+          <td><button class="action-rm" onclick="removeActionRow(this)">×</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <button class="add-row-btn" onclick="addActionRow()">+ Add Action Item</button>
+
+    <!-- Minutes & Next -->
+    <div class="fsec">Minutes &amp; Follow-up</div>
+    <div class="fg c2">
+      <div class="field"><label>Minutes Approved By</label><input type="text" id="m-minutes-by" placeholder="e.g. Principal + Medical Superintendent"/></div>
+      <div class="field"><label>Next Meeting Date</label><input type="date" id="m-next"/></div>
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <label>Meeting Minutes (summary)</label>
+      <textarea id="m-minutes" placeholder="Key discussions, observations, resolutions passed at this IQAC meeting…"></textarea>
+    </div>
+    <div class="field">
+      <label>Remarks</label>
+      <input type="text" id="m-remarks" placeholder="Any other remarks, special directives…"/>
+    </div>
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" id="save-btn" onclick="saveMeeting()">Save Meeting</button>
+  </div>
+</div>
+</div>
+
+<div id="toast"></div>
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module">
+import { requireAuth, getCurrentProfile, getCurrentTenantId, getCurrentTenant } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['super_admin','dept_admin','doctor','receptionist'], 'index.html');
+initNavbar();
+
+const profile  = getCurrentProfile();
+const tenant   = getCurrentTenant();
+const tenantId = getCurrentTenantId();
+const now      = new Date();
+const todayStr = now.toISOString().split('T')[0];
+
+// NCISM IQAC composition §12.1
+const MEMBERS = [
+  { key:'principal',   label:'Principal / Dean',             role:'Chairperson',   required:true  },
+  { key:'ms',          label:'Medical Superintendent',       role:'Co-chair',      required:true  },
+  { key:'kay_hod',     label:'HOD — Kayachikitsa',           role:'Member',        required:true  },
+  { key:'pk_hod',      label:'HOD — Panchakarma',            role:'Member',        required:true  },
+  { key:'shal_hod',    label:'HOD — Shalya Tantra',          role:'Member',        required:true  },
+  { key:'shalak_hod',  label:'HOD — Shalakya Tantra',        role:'Member',        required:true  },
+  { key:'pst_hod',     label:'HOD — Prasuti & Streeroga',    role:'Member',        required:true  },
+  { key:'kau_hod',     label:'HOD — Kaumarabhritya',         role:'Member',        required:true  },
+  { key:'agd_hod',     label:'HOD — Agada Tantra',           role:'Member',        required:true  },
+  { key:'sw_hod',      label:'HOD — Swasthavritta & Yoga',   role:'Member',        required:true  },
+  { key:'nursing',     label:'Nursing Superintendent',       role:'Member',        required:false },
+  { key:'pharmacist',  label:'Chief Pharmacist',             role:'Member',        required:false },
+  { key:'lab',         label:'Lab In-charge',                role:'Member',        required:false },
+  { key:'admin',       label:'Administrative Officer',       role:'Member',        required:false },
+];
+
+// Build member checklist
+const mcWrap = document.getElementById('member-checklist');
+mcWrap.innerHTML = MEMBERS.map(m=>`
+  <label class="member-item" id="mi-${m.key}" onclick="toggleMember(this)">
+    <input type="checkbox" id="mc-${m.key}" value="${m.key}" onchange="toggleMember(this.closest('label'))"/>
+    <div>
+      <div style="font-weight:500">${m.label}</div>
+      <div style="font-size:10px;color:var(--text-muted)">${m.role}${m.required?' · Required':' · Optional'}</div>
+    </div>
+  </label>`).join('');
+
+window.toggleMember = function(label) {
+  const cb = label.querySelector('input[type=checkbox]');
+  label.classList.toggle('checked', cb.checked);
+};
+
+// Year filter
+const yearSel = document.getElementById('year-filter');
+for (let y = now.getFullYear(); y >= 2024; y--) {
+  const o = document.createElement('option'); o.value = y; o.textContent = y; yearSel.appendChild(o);
+}
+yearSel.value = now.getFullYear();
+
+// Defaults
+document.getElementById('m-date').value = todayStr;
+const nextQ = new Date(now); nextQ.setMonth(nextQ.getMonth() + 3);
+document.getElementById('m-next').value = nextQ.toISOString().split('T')[0];
+
+// ─── Live QI pull ─────────────────────────────────────────
+async function loadLiveQI() {
+  const todayStart = todayStr + 'T00:00:00';
+  const todayEnd   = todayStr + 'T23:59:59';
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+  const [visRes, bedRes, tRow, complRes] = await Promise.all([
+    supabase.from('visits').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('created_at',todayStart).lte('created_at',todayEnd),
+    supabase.from('beds').select('id,status').eq('tenant_id',tenantId),
+    supabase.from('tenants').select('opd_daily_target,ug_intake').eq('id',tenantId).single(),
+    supabase.from('visits').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('created_at',monthStart),
+  ]);
+
+  const todayVisits = visRes.count || 0;
+  const beds        = bedRes.data  || [];
+  const totalBeds   = beds.length;
+  const occupiedBeds= beds.filter(b=>b.status==='occupied').length;
+  const dailyTgt    = tRow.data?.opd_daily_target || (tRow.data?.ug_intake * 2) || 0;
+  const opdPct      = dailyTgt > 0 ? Math.round(todayVisits / dailyTgt * 100) : null;
+  const ipdPct      = totalBeds > 0 ? Math.round(occupiedBeds / totalBeds * 100) : null;
+  const monthVisits = complRes.count || 0;
+
+  const opdCls  = opdPct === null ? '' : opdPct >= 80 ? '' : opdPct >= 50 ? 'warn' : 'bad';
+  const ipdCls  = ipdPct === null ? '' : ipdPct >= 60 ? '' : ipdPct >= 40 ? 'warn' : 'bad';
+
+  document.getElementById('qi-grid').innerHTML = [
+    { val: todayVisits, lbl:'OPD Today', sub: dailyTgt ? `target: ${dailyTgt}` : '', cls:opdCls },
+    { val: opdPct !== null ? opdPct+'%' : '—', lbl:'OPD Attendance %', sub:'vs NCISM target', cls:opdCls },
+    { val: ipdPct !== null ? ipdPct+'%' : '—', lbl:'IPD Occupancy', sub:`${occupiedBeds}/${totalBeds} beds`, cls:ipdCls },
+    { val: monthVisits, lbl:'OPD This Month', sub:'all visits', cls:'' },
+    { val: totalBeds, lbl:'Total Beds', sub:'configured', cls:'' },
+  ].map(c=>`<div class="qi-card ${c.cls}">
+    <div class="qi-val">${c.val??'—'}</div>
+    <div class="qi-lbl">${c.lbl}</div>
+    ${c.sub ? `<div style="font-size:10px;color:var(--text-muted);margin-top:1px">${c.sub}</div>` : ''}
+  </div>`).join('');
+
+  // Pre-fill form fields with live values for convenience
+  if (opdPct !== null) document.getElementById('m-opd-pct').placeholder = `Live: ${opdPct}%`;
+  if (ipdPct !== null) document.getElementById('m-ipd-pct').placeholder = `Live: ${ipdPct}%`;
+}
+
+// ─── Dept selector for action items ──────────────────────
+async function loadDepts() {
+  const { data } = await supabase.from('departments').select('id,name').eq('tenant_id',tenantId).eq('is_active',true).order('name');
+  const opts = '<option value="">— Dept —</option>' + (data||[]).map(d=>`<option value="${d.id}">${_esc(d.name)}</option>`).join('');
+  document.querySelectorAll('.dept-sel').forEach(sel => { sel.innerHTML = opts; });
+  window._deptOpts = opts;
+}
+
+window.addActionRow = function() {
+  const tbody = document.getElementById('action-tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><select class="dept-sel" style="width:100%;height:30px;border:1px solid var(--border);border-radius:5px;padding:0 6px;font-size:12px;font-family:'DM Sans',sans-serif">${window._deptOpts||'<option value="">— Dept —</option>'}</select></td>
+    <td><input type="text" placeholder="Action required…"/></td>
+    <td><input type="text" placeholder="Responsible person"/></td>
+    <td><input type="date"/></td>
+    <td><button class="action-rm" onclick="removeActionRow(this)">×</button></td>`;
+  tbody.appendChild(tr);
+};
+window.removeActionRow = function(btn) {
+  const rows = document.getElementById('action-tbody').querySelectorAll('tr');
+  if (rows.length > 1) btn.closest('tr').remove();
+};
+
+function collectActionItems() {
+  return [...document.getElementById('action-tbody').querySelectorAll('tr')].map(tr => {
+    const inputs = tr.querySelectorAll('input,select');
+    const dept   = inputs[0].value;
+    const action = inputs[1].value.trim();
+    const resp   = inputs[2].value.trim();
+    const deadline = inputs[3].value;
+    if (!action) return null;
+    return { dept, action, responsible:resp, deadline, status:'open' };
+  }).filter(Boolean);
+}
+
+// ─── Load meetings ────────────────────────────────────────
+let _allMeetings = [];
+
+window.loadMeetings = async function() {
+  const year  = yearSel.value;
+  const tbody = document.getElementById('meetings-tbody');
+  tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div></td></tr>';
+
+  let q = supabase.from('iqac_meetings').select('*').eq('tenant_id',tenantId).order('meeting_date',{ascending:false});
+  if (year) q = q.gte('meeting_date',year+'-01-01').lte('meeting_date',year+'-12-31');
+  const { data, error } = await q;
+
+  if (error) {
+    if (error.code === '42P01') {
+      tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div><div class="empty-bod">Run iqac_meetings SQL in Supabase to activate this module</div></div></td></tr>';
+    } else {
+      tbody.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div></td></tr>`;
+    }
+    return;
+  }
+
+  _allMeetings = data || [];
+  renderStats(_allMeetings);
+  renderCompliance(_allMeetings);
+
+  if (!_allMeetings.length) {
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><div class="empty-ico">📋</div><div class="empty-ttl">No IQAC meetings recorded yet</div><div class="empty-bod">Record the first meeting to start quarterly compliance tracking</div></div></td></tr>';
+    return;
+  }
+
+  let html = '';
+  _allMeetings.forEach((m, i) => {
+    const actions     = m.action_items || [];
+    const openActions = actions.filter(a => a.status === 'open').length;
+    const present     = (m.members_present || []).length;
+    const total       = MEMBERS.length;
+    const membersCls  = present >= 10 ? 'color:var(--green-mid)' : present >= 7 ? 'color:var(--gold)' : 'color:var(--red)';
+    const opdCls      = m.opd_pct == null ? '' : m.opd_pct >= 80 ? 'color:var(--green-mid)' : m.opd_pct >= 50 ? 'color:var(--gold)' : 'color:var(--red)';
+    const ipdCls      = m.ipd_pct == null ? '' : m.ipd_pct >= 60 ? 'color:var(--green-mid)' : m.ipd_pct >= 40 ? 'color:var(--gold)' : 'color:var(--red)';
+
+    html += `<tr style="cursor:pointer" onclick="toggleDetail(${i})">
+      <td style="font-size:16px;text-align:center;color:var(--text-muted)" id="expand-${i}">▶</td>
+      <td style="font-weight:600;white-space:nowrap">${m.meeting_date}</td>
+      <td><span class="pill pill-${m.meeting_type}">${_typeLabel(m.meeting_type)}</span></td>
+      <td style="font-size:12px">${_esc(m.chairperson||'—')}</td>
+      <td style="font-size:12px"><span style="${membersCls};font-weight:600">${present}/${total}</span></td>
+      <td style="${opdCls};font-weight:600">${m.opd_pct != null ? m.opd_pct+'%' : '—'}</td>
+      <td style="${ipdCls};font-weight:600">${m.ipd_pct != null ? m.ipd_pct+'%' : '—'}</td>
+      <td>
+        ${actions.length > 0 ? `<span style="font-size:13px;font-weight:600">${actions.length}</span>` : '—'}
+        ${openActions > 0 ? `<span class="open-action-chip">${openActions} open</span>` : ''}
+      </td>
+      <td><span class="pill pill-${m.status}">${m.status==='completed'?'Completed':'Scheduled'}</span></td>
+    </tr>
+    <tr class="detail-row" id="detail-${i}">
+      <td class="detail-cell" colspan="9">${renderDetailCell(m)}</td>
+    </tr>`;
+  });
+  tbody.innerHTML = html;
+};
+
+function renderDetailCell(m) {
+  const actions = m.action_items || [];
+  const actionRows = actions.length
+    ? actions.map(a=>`<tr>
+        <td style="font-size:12px">${_esc(a.dept||'—')}</td>
+        <td style="font-size:12px">${_esc(a.action)}</td>
+        <td style="font-size:12px">${_esc(a.responsible||'—')}</td>
+        <td style="font-size:12px">${a.deadline||'—'}</td>
+        <td><span style="background:${a.status==='open'?'var(--red-light)':'var(--green-light)'};color:${a.status==='open'?'var(--red)':'var(--green-deep)'};padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700">${a.status||'open'}</span></td>
+      </tr>`).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);font-size:12px;padding:10px">No action items recorded</td></tr>';
+
+  return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:12px">
+    <div>
+      ${m.agenda ? `<div style="margin-bottom:8px"><strong>Agenda:</strong><div style="color:var(--text-mid);white-space:pre-line;margin-top:2px">${_esc(m.agenda)}</div></div>` : ''}
+      ${m.atr ? `<div style="margin-bottom:8px"><strong>ATR (prev. meeting):</strong><div style="color:var(--text-mid);margin-top:2px">${_esc(m.atr)}</div></div>` : ''}
+      ${m.minutes ? `<div><strong>Minutes:</strong><div style="color:var(--text-mid);margin-top:2px">${_esc(m.minutes)}</div></div>` : ''}
+    </div>
+    <div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        ${m.satisfaction_score ? `<div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Patient Satisfaction</div><div style="font-weight:700;font-size:16px">${m.satisfaction_score}/10</div></div>` : ''}
+        ${m.complaint_count != null ? `<div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Complaints</div><div style="font-weight:700;font-size:16px">${m.complaint_count} <small style="font-size:11px;font-weight:400">(${m.complaint_resolved||0} resolved)</small></div></div>` : ''}
+        ${m.infection_count != null ? `<div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">HAI</div><div style="font-weight:700;font-size:16px;color:${m.infection_count>0?'var(--red)':'var(--green-mid)'}">${m.infection_count}</div></div>` : ''}
+        ${m.mortality_count != null ? `<div><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Mortality</div><div style="font-weight:700;font-size:16px;color:${m.mortality_count>0?'var(--red)':'var(--green-mid)'}">${m.mortality_count}</div></div>` : ''}
+      </div>
+      ${m.teaching_quality ? `<div style="margin-bottom:8px"><strong>Teaching Quality:</strong><div style="color:var(--text-mid);margin-top:2px">${_esc(m.teaching_quality)}</div></div>` : ''}
+      ${m.accreditation_status ? `<div><strong>Accreditation:</strong> <span style="background:var(--purple-light);color:var(--purple);padding:1px 8px;border-radius:8px;font-size:11px;font-weight:600">${_esc(m.accreditation_status)}</span></div>` : ''}
+      ${m.next_meeting_date ? `<div style="margin-top:8px"><strong>Next meeting:</strong> ${m.next_meeting_date}</div>` : ''}
+    </div>
+  </div>
+  <div style="margin-top:12px">
+    <strong style="font-size:12px">Action Items:</strong>
+    <table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:12px">
+      <thead><tr style="background:#e8f5ee"><th style="padding:5px 8px;text-align:left">Department</th><th style="padding:5px 8px;text-align:left">Action</th><th style="padding:5px 8px;text-align:left">Responsible</th><th style="padding:5px 8px;text-align:left">Deadline</th><th style="padding:5px 8px;text-align:left">Status</th></tr></thead>
+      <tbody>${actionRows}</tbody>
+    </table>
+  </div>`;
+}
+
+window.toggleDetail = function(i) {
+  const row = document.getElementById('detail-'+i);
+  const exp = document.getElementById('expand-'+i);
+  const isOpen = row.classList.toggle('show');
+  exp.textContent = isOpen ? '▼' : '▶';
+};
+
+function renderStats(data) {
+  const yearData = data.filter(m => m.meeting_date?.startsWith(now.getFullYear()+''));
+  const allActions  = data.flatMap(m => m.action_items || []);
+  const openActions = allActions.filter(a => a.status === 'open').length;
+  const avgOPD = data.filter(m=>m.opd_pct!=null).length
+    ? Math.round(data.filter(m=>m.opd_pct!=null).reduce((s,m)=>s+(m.opd_pct||0),0) / data.filter(m=>m.opd_pct!=null).length)
+    : null;
+  document.getElementById('s-total').textContent   = data.length;
+  document.getElementById('s-year').textContent    = yearData.length;
+  document.getElementById('s-actions').textContent = allActions.length;
+  document.getElementById('s-open').textContent    = openActions;
+  document.getElementById('s-qi').textContent      = avgOPD !== null ? avgOPD+'%' : '—';
+}
+
+function renderCompliance(data) {
+  const banner = document.getElementById('compliance-banner');
+  const completed = data.filter(m=>m.status==='completed').sort((a,b)=>b.meeting_date.localeCompare(a.meeting_date));
+  if (!completed.length) {
+    banner.className = 'compliance-banner red';
+    banner.innerHTML = `<div class="cb-icon">🚨</div><div class="cb-body">
+      <div class="cb-title">No IQAC meetings recorded — §12.1 NCISM violation</div>
+      <div class="cb-sub">IQAC must meet at least once per quarter (every 90 days). Record the inaugural meeting immediately.</div>
+    </div>`;
+    return;
+  }
+  const lastDate  = new Date(completed[0].meeting_date);
+  const daysSince = Math.floor((now - lastDate) / 86400000);
+  const daysLeft  = 90 - daysSince;
+  const pct       = Math.min(Math.round(daysSince / 90 * 100), 100);
+  const metThisYear = data.filter(m => m.status==='completed' && m.meeting_date?.startsWith(now.getFullYear()+'')).length;
+
+  let cls, icon, title, sub, barColor;
+  if (daysSince <= 70) {
+    cls='green'; icon='✅'; barColor='var(--green-mid)';
+    title = `IQAC compliance maintained — last meeting ${daysSince} day${daysSince!==1?'s':''} ago`;
+    sub = `Next meeting due in ${daysLeft} days. ${metThisYear} meeting${metThisYear!==1?'s':''} held this year (NCISM requires ≥4). ${completed[0].next_meeting_date ? 'Scheduled: '+completed[0].next_meeting_date:''}`;
+  } else if (daysSince <= 90) {
+    cls='amber'; icon='⚠️'; barColor='var(--gold)';
+    title = `IQAC meeting approaching overdue — ${daysSince} days since last meeting`;
+    sub = `Must meet within ${daysLeft} day${daysLeft!==1?'s':''} to remain quarterly-compliant (§12.1). Schedule immediately.`;
+  } else {
+    cls='red'; icon='🚨'; barColor='var(--red)';
+    title = `IQAC OVERDUE — ${daysSince} days since last meeting (90-day limit exceeded)`;
+    sub = `§12.1 NCISM violation: IQAC has not met this quarter. Record the missed meeting and schedule the next one urgently.`;
+  }
+
+  const reqMeetings = 4;
+  const yearWarning = metThisYear < 4 && now.getMonth() >= 9
+    ? ` <span style="color:var(--red);font-weight:600"> · ⚠ Only ${metThisYear}/4 required meetings this year</span>` : '';
+
+  banner.className = 'compliance-banner ' + cls;
+  banner.innerHTML = `<div class="cb-icon">${icon}</div><div class="cb-body">
+    <div class="cb-title">${title}</div>
+    <div class="cb-sub">${sub}${yearWarning}</div>
+    <div class="cb-bar-wrap"><div class="cb-bar" style="width:${pct}%;background:${barColor}"></div></div>
+    <div style="font-size:10px;margin-top:4px;opacity:.7">Last meeting: ${completed[0].meeting_date} · ${pct}% of 90-day period elapsed · ${metThisYear}/${reqMeetings} meetings this year</div>
+  </div>`;
+}
+
+// ─── Save meeting ─────────────────────────────────────────
+window.saveMeeting = async function() {
+  const date = document.getElementById('m-date').value;
+  if (!date) { showModalAlert('Meeting date is required','error'); return; }
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+
+  const presentMembers = MEMBERS.filter(m => document.getElementById('mc-'+m.key)?.checked).map(m=>m.key);
+  const actionItems    = collectActionItems();
+
+  const payload = {
+    tenant_id:     tenantId,
+    created_by:    profile.id,
+    meeting_date:  date,
+    meeting_type:  document.getElementById('m-type').value,
+    status:        document.getElementById('m-status').value,
+    chairperson:   document.getElementById('m-chair').value.trim()||null,
+    venue:         document.getElementById('m-venue').value.trim()||null,
+    members_present: presentMembers,
+    extra_members: document.getElementById('m-extra-members').value.trim()||null,
+    opd_pct:       parseFloat(document.getElementById('m-opd-pct').value)||null,
+    ipd_pct:       parseFloat(document.getElementById('m-ipd-pct').value)||null,
+    satisfaction_score: parseFloat(document.getElementById('m-satisfaction').value)||null,
+    complaint_count:    parseInt(document.getElementById('m-complaints').value)||0,
+    complaint_resolved: parseInt(document.getElementById('m-resolved').value)||0,
+    infection_count:    parseInt(document.getElementById('m-infections').value)||0,
+    mortality_count:    parseInt(document.getElementById('m-mortality').value)||0,
+    staff_attendance_pct: parseFloat(document.getElementById('m-staff-att').value)||null,
+    agenda:        document.getElementById('m-agenda').value.trim()||null,
+    atr:           document.getElementById('m-atr').value.trim()||null,
+    teaching_quality: document.getElementById('m-teaching').value.trim()||null,
+    accreditation_status: document.getElementById('m-accred').value||null,
+    action_items:  actionItems,
+    next_meeting_date: document.getElementById('m-next').value||null,
+    minutes:       document.getElementById('m-minutes').value.trim()||null,
+    minutes_by:    document.getElementById('m-minutes-by').value.trim()||null,
+    remarks:       document.getElementById('m-remarks').value.trim()||null,
+  };
+
+  const { error } = await supabase.from('iqac_meetings').insert(payload);
+  btn.disabled = false;
+  if (error) {
+    if (error.code === '42P01') {
+      showModalAlert('Run iqac_meetings SQL in Supabase SQL Editor first','error');
+    } else {
+      showModalAlert(error.message,'error');
+    }
+    return;
+  }
+  closeModal(); _toast('IQAC meeting recorded ✓'); loadMeetings(); resetModal();
+};
+
+function resetModal() {
+  document.getElementById('m-date').value = todayStr;
+  ['m-chair','m-venue','m-extra-members','m-opd-pct','m-ipd-pct','m-satisfaction',
+   'm-complaints','m-resolved','m-infections','m-mortality','m-staff-att',
+   'm-agenda','m-atr','m-teaching','m-minutes-by','m-minutes','m-remarks'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('m-accred').value = '';
+  document.getElementById('m-type').value = 'quarterly';
+  document.getElementById('m-status').value = 'completed';
+  MEMBERS.forEach(m=>{ const cb=document.getElementById('mc-'+m.key); const lbl=document.getElementById('mi-'+m.key); if(cb)cb.checked=false; if(lbl)lbl.classList.remove('checked'); });
+  document.getElementById('action-tbody').innerHTML = `<tr>
+    <td><select class="dept-sel" style="width:100%;height:30px;border:1px solid var(--border);border-radius:5px;padding:0 6px;font-size:12px;font-family:'DM Sans',sans-serif">${window._deptOpts||'<option value="">— Dept —</option>'}</select></td>
+    <td><input type="text" placeholder="Action required…"/></td>
+    <td><input type="text" placeholder="Responsible person"/></td>
+    <td><input type="date"/></td>
+    <td><button class="action-rm" onclick="removeActionRow(this)">×</button></td>
+  </tr>`;
+  const nextQ = new Date(now); nextQ.setMonth(nextQ.getMonth()+3);
+  document.getElementById('m-next').value = nextQ.toISOString().split('T')[0];
+}
+
+// ─── Modal ────────────────────────────────────────────────
+window.openModal = function() { document.getElementById('modal-overlay').classList.add('show'); };
+window.closeModal = function() { document.getElementById('modal-overlay').classList.remove('show'); document.getElementById('modal-alert').classList.remove('show'); };
+
+// ─── Export ───────────────────────────────────────────────
+window.exportRegister = function() {
+  if (!_allMeetings.length) { _toast('No data to export'); return; }
+  const rows = [
+    ['Date','Type','Status','Chairperson','Venue','Members Present','OPD%','IPD%','Satisfaction','Complaints','Resolved','HAI','Mortality','Staff%','Action Items','Next Meeting','Accreditation'],
+    ..._allMeetings.map(m=>[
+      m.meeting_date, m.meeting_type||'', m.status||'', m.chairperson||'', m.venue||'',
+      (m.members_present||[]).length, m.opd_pct||'', m.ipd_pct||'',
+      m.satisfaction_score||'', m.complaint_count||0, m.complaint_resolved||0,
+      m.infection_count||0, m.mortality_count||0, m.staff_attendance_pct||'',
+      (m.action_items||[]).length, m.next_meeting_date||'', m.accreditation_status||''
+    ])
+  ];
+  const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='IQAC_Meeting_Register.csv'; a.click();
+};
+
+// ─── Helpers ─────────────────────────────────────────────
+function _typeLabel(t){ return {quarterly:'Quarterly',special:'Special',annual:'Annual'}[t]||t||'—'; }
+function showModalAlert(msg,type){ const el=document.getElementById('modal-alert'); el.textContent=msg; el.className=`alert ${type} show`; }
+function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _toast(msg,isErr=false){ const el=document.getElementById('toast'); el.textContent=msg; el.style.background=isErr?'#7f1d1d':'#1c2b1f'; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),3000); }
+
+// Boot
+await Promise.all([loadLiveQI(), loadDepts(), loadMeetings()]);
+</script>
+</body>
+</html>

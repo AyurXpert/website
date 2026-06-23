@@ -261,7 +261,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <div class="section-title">3. Preliminary Findings</div>
           <div class="field-row col2">
             <div class="field">
-              <label>Pulse (rate/min)</label>
+              <label>Pulse / Naadi (rate/min)</label>
               <input id="scr-pulse" type="text" placeholder="e.g. 82 / min"/>
             </div>
             <div class="field">
@@ -277,6 +277,35 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <div class="field">
               <label>SpO₂</label>
               <input id="scr-spo2" type="text" placeholder="e.g. 98 %"/>
+            </div>
+          </div>
+          <div class="field-row col2">
+            <div class="field">
+              <label>Height (cm)</label>
+              <input id="scr-height" type="number" placeholder="e.g. 165" min="50" max="250" oninput="calcBMI()"/>
+            </div>
+            <div class="field">
+              <label>Weight (kg)</label>
+              <input id="scr-weight" type="number" placeholder="e.g. 68" min="1" max="300" oninput="calcBMI()"/>
+            </div>
+          </div>
+          <div class="field-row col2">
+            <div class="field">
+              <label>BMI (auto-calculated)</label>
+              <input id="scr-bmi" type="text" placeholder="—" readonly style="background:#f9fafb;color:var(--text-mid)"/>
+            </div>
+            <div class="field">
+              <label>Naadi (Pulse character)</label>
+              <select id="scr-naadi">
+                <option value="">— Select —</option>
+                <option value="Vata">Vata (irregular, thin)</option>
+                <option value="Pitta">Pitta (sharp, strong)</option>
+                <option value="Kapha">Kapha (slow, heavy)</option>
+                <option value="Vata-Pitta">Vata-Pitta</option>
+                <option value="Pitta-Kapha">Pitta-Kapha</option>
+                <option value="Vata-Kapha">Vata-Kapha</option>
+                <option value="Tridoshaja">Tridoshaja</option>
+              </select>
             </div>
           </div>
           <div class="field">
@@ -468,6 +497,10 @@ window.selectVisit = function(visitId) {
   document.getElementById('scr-bp').value           = '';
   document.getElementById('scr-temp').value         = '';
   document.getElementById('scr-spo2').value         = '';
+  document.getElementById('scr-height').value       = '';
+  document.getElementById('scr-weight').value       = '';
+  document.getElementById('scr-bmi').value          = '';
+  document.getElementById('scr-naadi').value        = '';
   document.getElementById('scr-notes').value        = '';
   document.getElementById('scr-dept').value         = '';
   document.getElementById('scr-instructions').value = '';
@@ -487,6 +520,19 @@ window.clearSelection = function() {
   document.getElementById('form-empty').style.display     = 'flex';
   document.getElementById('screening-form').style.display = 'none';
   _renderQueue();
+};
+
+// ── BMI auto-calculation ──────────────────────────────────────────────────────
+window.calcBMI = function() {
+  const h = parseFloat(document.getElementById('scr-height').value);
+  const w = parseFloat(document.getElementById('scr-weight').value);
+  const el = document.getElementById('scr-bmi');
+  if (h > 0 && w > 0) {
+    const bmi = (w / Math.pow(h / 100, 2)).toFixed(1);
+    el.value = bmi;
+  } else {
+    el.value = '';
+  }
 };
 
 // ── Triage selection ──────────────────────────────────────────────────────────
@@ -523,11 +569,24 @@ window.routePatient = async function() {
   const bp           = document.getElementById('scr-bp').value.trim();
   const temp         = document.getElementById('scr-temp').value.trim();
   const spo2         = document.getElementById('scr-spo2').value.trim();
+  const height       = document.getElementById('scr-height').value.trim();
+  const weight       = document.getElementById('scr-weight').value.trim();
+  const bmi          = document.getElementById('scr-bmi').value.trim();
+  const naadi        = document.getElementById('scr-naadi').value.trim();
   const notes        = document.getElementById('scr-notes').value.trim();
   const instructions = document.getElementById('scr-instructions').value.trim();
 
   // Build screening summary to pass to specialty OPD
-  const vitals = [pulse && `PR: ${pulse}`, bp && `BP: ${bp}`, temp && `Temp: ${temp}`, spo2 && `SpO₂: ${spo2}`].filter(Boolean).join(', ');
+  const vitals = [
+    pulse  && `PR: ${pulse}`,
+    bp     && `BP: ${bp}`,
+    temp   && `Temp: ${temp}`,
+    spo2   && `SpO₂: ${spo2}`,
+    height && `Ht: ${height}cm`,
+    weight && `Wt: ${weight}kg`,
+    bmi    && `BMI: ${bmi}`,
+    naadi  && `Naadi: ${naadi}`,
+  ].filter(Boolean).join(', ');
   let screeningSummary = `[Triage: ${_triage}]`;
   if (vitals)   screeningSummary += ` | Vitals: ${vitals}`;
   if (notes)    screeningSummary += ` | Screening note: ${notes}`;

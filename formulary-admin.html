@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Hospital Formulary — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --cream:#faf8f3;--white:#ffffff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+  --success-bg:#e8f5ee;--success-border:#b2d8bf;--success-text:#1a4a2e;
+  --error-bg:#fdecea;--error-border:#f5c6c6;--error-text:#8b1a1a;
+  --red:#c0392b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1100px;margin:0 auto;padding:24px 20px 80px}
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep)}
+.page-subtitle{font-size:12px;color:var(--text-muted);margin-top:2px}
+.header-actions{display:flex;gap:10px;flex-wrap:wrap}
+
+/* ── Stats ── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:12px 16px;text-align:center}
+.stat-card.warn{border-color:#e8a04a;background:#fff8f0}
+.stat-num{font-size:28px;font-weight:700;color:var(--green-deep);line-height:1.1}
+.stat-card.warn .stat-num{color:#7a3a00}
+.stat-lbl{font-size:11px;color:var(--text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.5px}
+
+/* ── Filter & search bar ── */
+.controls-bar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.filter-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.filter-tab{padding:5px 14px;border:1.5px solid var(--border);border-radius:20px;background:var(--white);font-size:12px;font-weight:500;cursor:pointer;color:var(--text-mid);transition:all .15s}
+.filter-tab.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
+.search-box{height:36px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white);min-width:200px}
+.search-box:focus{outline:none;border-color:var(--green-mid)}
+
+/* ── Table ── */
+.formulary-table{width:100%;border-collapse:collapse;background:var(--white);border-radius:var(--radius);overflow:hidden;border:1.5px solid var(--border)}
+.formulary-table th{background:var(--green-deep);color:#fff;padding:10px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+.formulary-table td{padding:10px 12px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle}
+.formulary-table tr:last-child td{border-bottom:none}
+.formulary-table tr:hover td{background:#f8fbf9}
+.formulary-table tr.inactive td{opacity:.55}
+.cat-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
+.cat-classical{background:#e8f5ee;color:#1a4a2e}
+.cat-patent{background:#e3f0ff;color:#1a3a6c}
+.cat-rasa_shastra{background:#f5eeff;color:#3a1a6c}
+.cat-liquid{background:#fffce0;color:#5a4a00}
+.cat-external{background:#fff0e0;color:#7a3a00}
+.cat-single_herb{background:#f0f9f0;color:#1a4a2e}
+.cat-polyherbal{background:#e8f5ee;color:#1a4a2e}
+.review-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.review-green{background:#2d7a4f}.review-amber{background:#c9902a}.review-red{background:#c0392b}
+.status-active{color:var(--green-mid);font-weight:600}
+.status-inactive{color:var(--text-muted)}
+.row-actions{display:flex;gap:6px}
+.btn-sm{height:28px;padding:0 10px;border:1.5px solid var(--border);border-radius:6px;background:var(--white);font-size:11px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .15s}
+.btn-sm:hover{background:var(--green-light)}
+.btn-sm.danger:hover{background:var(--error-bg);border-color:var(--error-border);color:var(--red)}
+.table-empty{text-align:center;padding:48px;color:var(--text-muted);font-size:13px}
+
+/* ── Buttons ── */
+.btn{height:38px;padding:0 18px;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:opacity .15s;white-space:nowrap}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{opacity:.88}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}.btn-secondary:hover{background:var(--green-light)}
+.btn-ghost{background:var(--white);color:var(--text-mid);border:1.5px solid var(--border)}.btn-ghost:hover{background:var(--cream)}
+
+/* ── Drawer ── */
+.drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:200;opacity:0;pointer-events:none;transition:opacity .2s}
+.drawer-overlay.open{opacity:1;pointer-events:all}
+.drawer{position:fixed;right:0;top:0;bottom:0;width:500px;max-width:100vw;background:var(--white);box-shadow:-4px 0 24px rgba(0,0,0,.12);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .22s cubic-bezier(.4,0,.2,1);z-index:201}
+.drawer-overlay.open .drawer{transform:translateX(0)}
+.drawer-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.drawer-title{font-size:16px;font-weight:600;color:var(--green-deep)}
+.drawer-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);line-height:1}
+.drawer-body{flex:1;overflow-y:auto;padding:20px}
+.drawer-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;height:38px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--white)}
+.field textarea{height:72px;padding:8px 10px;resize:vertical}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--green-mid)}
+.field-row{display:grid;gap:12px}
+.field-row.col2{grid-template-columns:1fr 1fr}
+
+/* ── Import modal ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--white);border-radius:var(--radius);width:600px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;overflow:hidden}
+.modal-header{padding:14px 20px;border-bottom:1px solid var(--border);font-size:15px;font-weight:600;color:var(--green-deep);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.modal-body{flex:1;overflow-y:auto;padding:16px 20px}
+.modal-footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0}
+.import-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;margin-bottom:6px;background:var(--cream);font-size:13px;cursor:pointer}
+.import-item:hover{background:var(--green-light)}
+.import-item input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--green-deep)}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a4a2e;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;z-index:999;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+
+@media(max-width:760px){
+  .stats-row{grid-template-columns:1fr 1fr}
+  .drawer{width:100vw}
+  .field-row.col2{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="page-wrap">
+
+  <div class="page-header">
+    <div>
+      <div class="page-title">📋 Hospital Formulary</div>
+      <div class="page-subtitle">Drug Procurement Committee approved medicines list &nbsp;·&nbsp; NCISM §6(2)</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost" onclick="openImportModal()">⬇ Import from Inventory</button>
+      <button class="btn btn-ghost" onclick="exportCsv()">↓ CSV Export</button>
+      <button class="btn btn-primary" onclick="openDrawer()">+ Add Medicine</button>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-num" id="stat-total">0</div>
+      <div class="stat-lbl">Active Medicines</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="stat-classical">0</div>
+      <div class="stat-lbl">Classical</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="stat-patent">0</div>
+      <div class="stat-lbl">Patent / Rasa</div>
+    </div>
+    <div class="stat-card warn">
+      <div class="stat-num" id="stat-review">0</div>
+      <div class="stat-lbl">Due for Review</div>
+    </div>
+  </div>
+
+  <div class="controls-bar">
+    <div class="filter-tabs">
+      <button class="filter-tab active" data-cat="" onclick="setFilter('',this)">All</button>
+      <button class="filter-tab" data-cat="classical" onclick="setFilter('classical',this)">Classical</button>
+      <button class="filter-tab" data-cat="patent" onclick="setFilter('patent',this)">Patent</button>
+      <button class="filter-tab" data-cat="rasa_shastra" onclick="setFilter('rasa_shastra',this)">Rasa Shastra</button>
+      <button class="filter-tab" data-cat="single_herb" onclick="setFilter('single_herb',this)">Single Herb</button>
+      <button class="filter-tab" data-cat="polyherbal" onclick="setFilter('polyherbal',this)">Polyherbal</button>
+      <button class="filter-tab" data-cat="liquid" onclick="setFilter('liquid',this)">Liquid</button>
+      <button class="filter-tab" data-cat="external" onclick="setFilter('external',this)">External</button>
+    </div>
+    <input class="search-box" id="search-input" type="text" placeholder="Search formulary…" oninput="renderTable()"/>
+  </div>
+
+  <table class="formulary-table" id="formulary-table">
+    <thead>
+      <tr>
+        <th>Medicine Name</th>
+        <th>Category</th>
+        <th>Dosage Form</th>
+        <th>Standard Dose</th>
+        <th>Approved Indications</th>
+        <th>Review</th>
+        <th>Status</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="formulary-tbody">
+      <tr><td colspan="8" class="table-empty">Loading…</td></tr>
+    </tbody>
+  </table>
+
+</div><!-- /page-wrap -->
+
+<!-- Add / Edit drawer -->
+<div class="drawer-overlay" id="form-overlay">
+  <div class="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title" id="drawer-title">Add Medicine to Formulary</span>
+      <button class="drawer-close" onclick="closeDrawer()">✕</button>
+    </div>
+    <div class="drawer-body">
+      <input type="hidden" id="form-id"/>
+      <div class="field-row col2">
+        <div class="field" style="grid-column:span 2">
+          <label>Medicine Name <span style="color:var(--red)">*</span></label>
+          <input id="form-name" type="text" placeholder="e.g. Triphala Churna, Ashwagandha Capsule"/>
+        </div>
+        <div class="field">
+          <label>Generic / Sanskrit Name</label>
+          <input id="form-generic" type="text" placeholder="e.g. Terminalia chebula + …"/>
+        </div>
+        <div class="field">
+          <label>Category</label>
+          <select id="form-category">
+            <option value="classical">Classical (Shastra-based)</option>
+            <option value="patent">Patent (Proprietary)</option>
+            <option value="rasa_shastra">Rasa Shastra (Metal/Mineral)</option>
+            <option value="single_herb">Single Herb</option>
+            <option value="polyherbal">Polyherbal</option>
+            <option value="liquid">Liquid (Arishta/Asava/Syrup)</option>
+            <option value="external">External (Taila/Ghrita/Lepa)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Dosage Form</label>
+          <input id="form-dosage-form" type="text" placeholder="Churna / Tablet / Capsule / Syrup…"/>
+        </div>
+        <div class="field">
+          <label>Standard Dose</label>
+          <input id="form-std-dose" type="text" placeholder="3–6 g twice daily with warm water"/>
+        </div>
+      </div>
+      <div class="field">
+        <label>Approved Indications</label>
+        <textarea id="form-indications" placeholder="e.g. Constipation, Tridosha balance, Eye disorders, Liver support…"></textarea>
+      </div>
+      <div class="field-row col2">
+        <div class="field">
+          <label>Last Reviewed Date</label>
+          <input id="form-reviewed" type="date"/>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select id="form-status">
+            <option value="true">Active — Approved for use</option>
+            <option value="false">Inactive — Removed / Suspended</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Committee Notes</label>
+        <textarea id="form-notes" placeholder="Drug Procurement Committee remarks, sourcing notes…" style="height:56px"></textarea>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-ghost" onclick="closeDrawer()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEntry()">Save to Formulary</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import from Inventory modal -->
+<div class="modal-overlay" id="import-overlay" style="display:none" onclick="if(event.target===this)closeImportModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <span>⬇ Import from Inventory</span>
+      <button onclick="closeImportModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted)">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Medicines in your inventory that are not yet in the formulary. Select to add with default settings — you can edit them after.</p>
+      <div id="import-list"><div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">Loading…</div></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeImportModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="doImport()">Add Selected to Formulary</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { requireAuth, getCurrentTenantId, getCurrentProfile } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['super_admin','dept_admin']);
+initNavbar();
+
+const tenantId  = getCurrentTenantId();
+const myProfile = getCurrentProfile();
+let _entries  = [];
+let _filter   = '';
+
+const CAT_LABEL = { classical:'Classical', patent:'Patent', rasa_shastra:'Rasa Shastra', liquid:'Liquid', external:'External', single_herb:'Single Herb', polyherbal:'Polyherbal' };
+
+// ── Load ─────────────────────────────────────────
+async function loadFormulary() {
+  const { data } = await supabase
+    .from('hospital_formulary')
+    .select('*, approved_by_profile:profiles!approved_by(full_name)')
+    .eq('tenant_id', tenantId)
+    .order('medicine_name');
+  _entries = data || [];
+  updateStats();
+  renderTable();
+}
+
+function updateStats() {
+  const active = _entries.filter(e => e.is_active);
+  const today  = new Date();
+  const oneYearAgo = new Date(today); oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+  const dueReview  = active.filter(e => !e.last_reviewed_at || new Date(e.last_reviewed_at) < oneYearAgo);
+  document.getElementById('stat-total').textContent    = active.length;
+  document.getElementById('stat-classical').textContent = active.filter(e=>e.category==='classical').length;
+  document.getElementById('stat-patent').textContent   = active.filter(e=>['patent','rasa_shastra'].includes(e.category)).length;
+  document.getElementById('stat-review').textContent   = dueReview.length;
+}
+
+function _reviewClass(dateStr) {
+  if (!dateStr) return 'review-red';
+  const d = new Date(dateStr);
+  const now = new Date();
+  const months = (now - d) / (1000 * 60 * 60 * 24 * 30);
+  if (months < 6)  return 'review-green';
+  if (months < 12) return 'review-amber';
+  return 'review-red';
+}
+
+function renderTable() {
+  const q = (document.getElementById('search-input').value || '').toLowerCase();
+  let rows = _entries.filter(e =>
+    (!_filter || e.category === _filter) &&
+    (!q || e.medicine_name.toLowerCase().includes(q) || (e.generic_name||'').toLowerCase().includes(q) || (e.approved_indications||'').toLowerCase().includes(q))
+  );
+  const tbody = document.getElementById('formulary-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="table-empty">No medicines match this filter.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(e => `
+    <tr class="${e.is_active?'':'inactive'}">
+      <td>
+        <div style="font-weight:600">${_esc(e.medicine_name)}</div>
+        ${e.generic_name ? `<div style="font-size:11px;color:var(--text-muted)">${_esc(e.generic_name)}</div>` : ''}
+      </td>
+      <td><span class="cat-badge cat-${e.category||'classical'}">${CAT_LABEL[e.category]||e.category}</span></td>
+      <td style="font-size:12px">${_esc(e.dosage_form||'—')}</td>
+      <td style="font-size:12px;max-width:140px">${_esc(e.standard_dose||'—')}</td>
+      <td style="font-size:12px;max-width:200px;color:var(--text-mid)">${_esc((e.approved_indications||'—').slice(0,80))}${(e.approved_indications||'').length>80?'…':''}</td>
+      <td><span class="review-dot ${_reviewClass(e.last_reviewed_at)}"></span>${e.last_reviewed_at ? new Date(e.last_reviewed_at+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : 'Not reviewed'}</td>
+      <td><span class="${e.is_active?'status-active':'status-inactive'}">${e.is_active?'Active':'Inactive'}</span></td>
+      <td>
+        <div class="row-actions">
+          <button class="btn-sm" onclick="openDrawer('${e.id}')">Edit</button>
+          <button class="btn-sm danger" onclick="toggleActive('${e.id}',${e.is_active})">${e.is_active?'Deactivate':'Activate'}</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+window.setFilter = function(cat, el) {
+  _filter = cat;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderTable();
+};
+
+// ── Add / Edit ────────────────────────────────────
+window.openDrawer = function(id) {
+  const e = id ? _entries.find(x => x.id === id) : null;
+  document.getElementById('form-id').value            = e?.id || '';
+  document.getElementById('form-name').value          = e?.medicine_name || '';
+  document.getElementById('form-generic').value       = e?.generic_name || '';
+  document.getElementById('form-category').value      = e?.category || 'classical';
+  document.getElementById('form-dosage-form').value   = e?.dosage_form || '';
+  document.getElementById('form-std-dose').value      = e?.standard_dose || '';
+  document.getElementById('form-indications').value   = e?.approved_indications || '';
+  document.getElementById('form-reviewed').value      = e?.last_reviewed_at || '';
+  document.getElementById('form-status').value        = String(e?.is_active ?? true);
+  document.getElementById('form-notes').value         = e?.notes || '';
+  document.getElementById('drawer-title').textContent = e ? 'Edit Formulary Entry' : 'Add Medicine to Formulary';
+  document.getElementById('form-overlay').classList.add('open');
+};
+
+window.closeDrawer = function() {
+  document.getElementById('form-overlay').classList.remove('open');
+};
+
+window.saveEntry = async function() {
+  const id   = document.getElementById('form-id').value;
+  const name = document.getElementById('form-name').value.trim();
+  if (!name) { _toast('Medicine name is required.', true); return; }
+
+  const payload = {
+    tenant_id:           tenantId,
+    medicine_name:       name,
+    generic_name:        document.getElementById('form-generic').value.trim() || null,
+    category:            document.getElementById('form-category').value,
+    dosage_form:         document.getElementById('form-dosage-form').value.trim() || null,
+    standard_dose:       document.getElementById('form-std-dose').value.trim() || null,
+    approved_indications:document.getElementById('form-indications').value.trim() || null,
+    last_reviewed_at:    document.getElementById('form-reviewed').value || null,
+    is_active:           document.getElementById('form-status').value === 'true',
+    notes:               document.getElementById('form-notes').value.trim() || null,
+  };
+
+  let error;
+  if (id) {
+    ({ error } = await supabase.from('hospital_formulary').update(payload).eq('id', id));
+  } else {
+    payload.approved_by = myProfile?.id;
+    payload.approved_at = new Date().toISOString();
+    ({ error } = await supabase.from('hospital_formulary').insert(payload));
+  }
+  if (error) { _toast('Error: ' + error.message, true); return; }
+  closeDrawer();
+  _toast(id ? 'Entry updated.' : 'Medicine added to formulary.');
+  await loadFormulary();
+};
+
+window.toggleActive = async function(id, current) {
+  const { error } = await supabase.from('hospital_formulary').update({ is_active: !current }).eq('id', id);
+  if (error) { _toast('Error: ' + error.message, true); return; }
+  _toast(current ? 'Medicine deactivated.' : 'Medicine activated.');
+  await loadFormulary();
+};
+
+// ── Import from Inventory ─────────────────────────
+window.openImportModal = async function() {
+  document.getElementById('import-overlay').style.display = 'flex';
+  const listEl = document.getElementById('import-list');
+  listEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">Loading…</div>';
+
+  const [invRes] = await Promise.all([
+    supabase.from('inventory').select('medicine:medicines(id,name)').eq('tenant_id', tenantId),
+  ]);
+  const inFormulary = new Set(_entries.map(e => e.medicine_name.toLowerCase()));
+  const candidates = (invRes.data || [])
+    .map(r => r.medicine?.name).filter(Boolean)
+    .filter((n,i,a) => a.indexOf(n) === i)
+    .filter(n => !inFormulary.has(n.toLowerCase()))
+    .sort();
+
+  if (!candidates.length) {
+    listEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">All inventory medicines are already in the formulary.</div>';
+    return;
+  }
+  listEl.innerHTML = candidates.map((n,i) => `
+    <label class="import-item">
+      <input type="checkbox" id="imp-${i}" value="${_esc(n)}" checked/>
+      <span>${_esc(n)}</span>
+    </label>`).join('');
+};
+
+window.closeImportModal = function() {
+  document.getElementById('import-overlay').style.display = 'none';
+};
+
+window.doImport = async function() {
+  const checks = document.querySelectorAll('#import-list input[type=checkbox]:checked');
+  if (!checks.length) { _toast('Select at least one medicine.', true); return; }
+  const rows = Array.from(checks).map(c => ({
+    tenant_id:     tenantId,
+    medicine_name: c.value,
+    category:      'classical',
+    is_active:     true,
+    approved_by:   myProfile?.id,
+    approved_at:   new Date().toISOString(),
+  }));
+  const { error } = await supabase.from('hospital_formulary').insert(rows);
+  if (error) { _toast('Import error: ' + error.message, true); return; }
+  closeImportModal();
+  _toast(`${rows.length} medicine(s) added to formulary.`);
+  await loadFormulary();
+};
+
+// ── CSV Export ────────────────────────────────────
+window.exportCsv = function() {
+  const active = _entries.filter(e => e.is_active);
+  const lines = [
+    ['Medicine Name','Generic Name','Category','Dosage Form','Standard Dose','Approved Indications','Last Reviewed'],
+    ...active.map(e => [e.medicine_name, e.generic_name||'', CAT_LABEL[e.category]||e.category, e.dosage_form||'', e.standard_dose||'', e.approved_indications||'', e.last_reviewed_at||''])
+  ].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(','));
+  const blob = new Blob([lines.join('\n')], { type:'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a'); a.href = url;
+  a.download = `hospital-formulary-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+};
+
+function _esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function _toast(msg, isErr) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = isErr ? '#8b1a1a' : '#1a4a2e';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3200);
+}
+
+await loadFormulary();
+</script>
+</body>
+</html>

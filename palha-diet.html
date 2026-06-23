@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Palha-Diet Centre — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --cream:#faf8f3;--white:#ffffff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+  --success-bg:#e8f5ee;--success-border:#b2d8bf;--success-text:#1a4a2e;
+  --error-bg:#fdecea;--error-border:#f5c6c6;--error-text:#8b1a1a;
+  --red:#c0392b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1100px;margin:0 auto;padding:24px 20px 80px}
+
+/* ── Header ── */
+.page-header{margin-bottom:20px}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep)}
+.page-subtitle{font-size:12px;color:var(--text-muted);margin-top:2px}
+
+/* ── Stats ── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:12px 16px;text-align:center}
+.stat-card.urgent{border-color:#e8a04a;background:#fff8f0}
+.stat-num{font-size:28px;font-weight:700;color:var(--green-deep);line-height:1.1}
+.stat-card.urgent .stat-num{color:#7a3a00}
+.stat-lbl{font-size:11px;color:var(--text-muted);margin-top:2px;text-transform:uppercase;letter-spacing:.5px}
+
+/* ── Layout ── */
+.main-grid{display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start}
+@media(max-width:860px){.main-grid{grid-template-columns:1fr}}
+
+/* ── Filter tabs ── */
+.filter-tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.filter-tab{padding:5px 14px;border:1.5px solid var(--border);border-radius:20px;background:var(--white);font-size:12px;font-weight:500;cursor:pointer;color:var(--text-mid);transition:all .15s}
+.filter-tab.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
+
+/* ── Indent cards ── */
+.indent-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;transition:border-color .15s}
+.indent-card.pending{border-left:4px solid var(--gold)}
+.indent-card.in_preparation{border-left:4px solid #4080c0}
+.indent-card.dispatched{border-left:4px solid #2d7a4f}
+.indent-card.served{border-left:4px solid var(--text-muted);opacity:.75}
+.indent-card.cancelled{opacity:.5;border-left:4px solid #ccc}
+.indent-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
+.indent-prep-name{font-size:15px;font-weight:600;color:var(--green-deep);line-height:1.3}
+.indent-time{font-size:13px;font-weight:600;color:var(--text-mid);white-space:nowrap}
+.type-badge{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:2px 7px;border-radius:4px;margin-bottom:4px}
+.type-kashaya   {background:#e8f5ee;color:#1a4a2e}
+.type-swarasa   {background:#fff8f0;color:#7a3a00}
+.type-ksheerapaka{background:#fffce0;color:#5a4a00}
+.type-kalka     {background:#f0e8ff;color:#3a1a6c}
+.type-pathya_diet{background:#e3f0ff;color:#1a3a6c}
+.type-special   {background:#f5f5f5;color:#444}
+.indent-patient{font-size:12px;color:var(--text-mid);margin-bottom:3px}
+.indent-instructions{font-size:11px;color:var(--text-muted);font-style:italic;margin-top:4px;padding-top:4px;border-top:1px dashed var(--border)}
+.indent-meta{font-size:10px;color:var(--text-muted);margin-top:6px}
+.indent-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.btn-action{height:32px;padding:0 14px;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:opacity .15s}
+.btn-action:hover{opacity:.85}
+.btn-start{background:#4080c0;color:#fff}
+.btn-dispatch{background:var(--green-mid);color:#fff}
+.btn-served{background:var(--green-deep);color:#fff}
+.btn-cancel{background:#f0f0f0;color:#666}
+.indent-empty{text-align:center;padding:48px 20px;color:var(--text-muted);font-size:13px}
+
+/* ── SOP Panel ── */
+.sop-panel{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.sop-hdr{background:var(--green-deep);color:#fff;padding:12px 16px;font-size:13px;font-weight:600}
+.sop-item{border-bottom:1px solid var(--border)}
+.sop-item:last-child{border-bottom:none}
+.sop-toggle{width:100%;background:none;border:none;padding:10px 14px;text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--text-dark)}
+.sop-toggle:hover{background:var(--green-light)}
+.sop-body{display:none;padding:10px 14px 12px;font-size:12px;color:var(--text-mid);line-height:1.7;background:var(--cream)}
+.sop-body.open{display:block}
+.sop-step{display:flex;gap:8px;margin-bottom:3px}
+.sop-step-num{font-weight:700;color:var(--green-deep);min-width:14px}
+.sop-note{margin-top:6px;padding:6px 10px;background:var(--gold-light);border-left:3px solid var(--gold);border-radius:0 4px 4px 0;font-size:11px;color:#7a4f00}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a4a2e;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;z-index:999;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="page-wrap">
+
+  <div class="page-header">
+    <div class="page-title">🍲 Palha-Diet Centre</div>
+    <div class="page-subtitle">श्वासाहार केन्द्र — Ayurvedic Therapeutic Diet &amp; Preparation Kitchen &nbsp;·&nbsp; NCISM §50(1)</div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card urgent">
+      <div class="stat-num" id="stat-pending">0</div>
+      <div class="stat-lbl">Pending</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="stat-inprep">0</div>
+      <div class="stat-lbl">In Preparation</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="stat-dispatched">0</div>
+      <div class="stat-lbl">Dispatched</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="stat-served">0</div>
+      <div class="stat-lbl">Served Today</div>
+    </div>
+  </div>
+
+  <div class="main-grid">
+
+    <!-- Indent queue -->
+    <div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-filter="active" onclick="setFilter('active',this)">Active</button>
+        <button class="filter-tab" data-filter="pending" onclick="setFilter('pending',this)">Pending</button>
+        <button class="filter-tab" data-filter="in_preparation" onclick="setFilter('in_preparation',this)">In Preparation</button>
+        <button class="filter-tab" data-filter="dispatched" onclick="setFilter('dispatched',this)">Dispatched</button>
+        <button class="filter-tab" data-filter="served" onclick="setFilter('served',this)">Served</button>
+        <button class="filter-tab" data-filter="all" onclick="setFilter('all',this)">All Today</button>
+      </div>
+      <div id="indent-list">
+        <div class="indent-empty">Loading indents…</div>
+      </div>
+    </div>
+
+    <!-- SOP Reference -->
+    <div class="sop-panel">
+      <div class="sop-hdr">📖 Preparation SOP Reference</div>
+
+      <div class="sop-item">
+        <button class="sop-toggle" onclick="toggleSop(this)">
+          <span><span class="type-badge type-kashaya">Kashaya</span> Decoction</span><span>▼</span>
+        </button>
+        <div class="sop-body">
+          <div class="sop-step"><span class="sop-step-num">1</span><span>Weigh coarse herb powder as per Matra.</span></div>
+          <div class="sop-step"><span class="sop-step-num">2</span><span>Soak in 16 parts water for 30 min (or overnight for harder roots).</span></div>
+          <div class="sop-step"><span class="sop-step-num">3</span><span>Boil uncovered on medium flame, stirring occasionally.</span></div>
+          <div class="sop-step"><span class="sop-step-num">4</span><span>Reduce to ¼ of original volume (4 parts from 16).</span></div>
+          <div class="sop-step"><span class="sop-step-num">5</span><span>Filter through clean muslin cloth while hot.</span></div>
+          <div class="sop-step"><span class="sop-step-num">6</span><span>Serve warm (not boiling). Add prescribed Anupana.</span></div>
+          <div class="sop-note">Use within 24 hrs · Reheat gently · Do not boil after preparation</div>
+        </div>
+      </div>
+
+      <div class="sop-item">
+        <button class="sop-toggle" onclick="toggleSop(this)">
+          <span><span class="type-badge type-swarasa">Swarasa</span> Fresh Juice</span><span>▼</span>
+        </button>
+        <div class="sop-body">
+          <div class="sop-step"><span class="sop-step-num">1</span><span>Use only fresh, clean herbs. Wash thoroughly.</span></div>
+          <div class="sop-step"><span class="sop-step-num">2</span><span>Crush in stone mortar or clean grinder — no metal contact.</span></div>
+          <div class="sop-step"><span class="sop-step-num">3</span><span>Extract juice by squeezing through muslin cloth.</span></div>
+          <div class="sop-step"><span class="sop-step-num">4</span><span>Measure dose (10–20 ml). Mix with honey if prescribed.</span></div>
+          <div class="sop-step"><span class="sop-step-num">5</span><span>Serve immediately — do not store even briefly.</span></div>
+          <div class="sop-note">Critical: Prepare at bedside if possible · Potency lost within 30 min</div>
+        </div>
+      </div>
+
+      <div class="sop-item">
+        <button class="sop-toggle" onclick="toggleSop(this)">
+          <span><span class="type-badge type-ksheerapaka">Ksheerapaka</span> Milk Decoction</span><span>▼</span>
+        </button>
+        <div class="sop-body">
+          <div class="sop-step"><span class="sop-step-num">1</span><span>Prepare Kalka (fine paste) of prescribed herbs.</span></div>
+          <div class="sop-step"><span class="sop-step-num">2</span><span>Combine: 1 part Kalka + 8 parts fresh milk + 8 parts water.</span></div>
+          <div class="sop-step"><span class="sop-step-num">3</span><span>Heat on low flame, stirring continuously.</span></div>
+          <div class="sop-step"><span class="sop-step-num">4</span><span>Continue until all water evaporates — only milk remains.</span></div>
+          <div class="sop-step"><span class="sop-step-num">5</span><span>Filter, allow to cool slightly, add sugar/mishri if prescribed.</span></div>
+          <div class="sop-step"><span class="sop-step-num">6</span><span>Serve warm. Ideal before sunrise (Brahma Muhurta).</span></div>
+          <div class="sop-note">Best for Vata disorders · Depleted patients · Post-partum · Paediatric</div>
+        </div>
+      </div>
+
+      <div class="sop-item">
+        <button class="sop-toggle" onclick="toggleSop(this)">
+          <span><span class="type-badge type-kalka">Kalka</span> Paste / Electuary</span><span>▼</span>
+        </button>
+        <div class="sop-body">
+          <div class="sop-step"><span class="sop-step-num">1</span><span>Soak dried herb powder for 2 hrs OR use fresh herb.</span></div>
+          <div class="sop-step"><span class="sop-step-num">2</span><span>Grind on clean stone slab with minimal water.</span></div>
+          <div class="sop-step"><span class="sop-step-num">3</span><span>Grind until completely smooth — no gritty texture.</span></div>
+          <div class="sop-step"><span class="sop-step-num">4</span><span>Weigh dose. Mix with prescribed Anupana (honey/ghee/milk).</span></div>
+          <div class="sop-step"><span class="sop-step-num">5</span><span>Serve with the vehicle — patient should lick from spoon.</span></div>
+          <div class="sop-note">Do not heat · Mix with Anupana just before serving · Use within 1 hr</div>
+        </div>
+      </div>
+
+      <div class="sop-item">
+        <button class="sop-toggle" onclick="toggleSop(this)">
+          <span><span class="type-badge type-pathya_diet">Pathya</span> Therapeutic Diet</span><span>▼</span>
+        </button>
+        <div class="sop-body">
+          <div class="sop-step"><span class="sop-step-num">•</span><span><strong>Peya</strong> — Very thin rice gruel (1:14). For acute/fever stages.</span></div>
+          <div class="sop-step"><span class="sop-step-num">•</span><span><strong>Vilepi</strong> — Thick rice gruel (1:4). Convalescence stage.</span></div>
+          <div class="sop-step"><span class="sop-step-num">•</span><span><strong>Yusha</strong> — Seasoned dal/pulse soup. Improving stage.</span></div>
+          <div class="sop-step"><span class="sop-step-num">•</span><span><strong>Mamsarasa</strong> — Meat broth (thin). For severe depletion.</span></div>
+          <div class="sop-step"><span class="sop-step-num">•</span><span><strong>Ksheera</strong> — Plain warm milk. Rasayana / Vata support.</span></div>
+          <div class="sop-note">Follow Samsarjana Krama strictly · Confirm diet stage with treating doctor</div>
+        </div>
+      </div>
+
+    </div><!-- /sop-panel -->
+  </div><!-- /main-grid -->
+
+</div><!-- /page-wrap -->
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { requireAuth, getCurrentTenantId, getCurrentProfile } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist']);
+initNavbar();
+
+const tenantId = getCurrentTenantId();
+const myProfile = getCurrentProfile();
+let _indents = [];
+let _filter  = 'active';
+
+// ── Load ─────────────────────────────────────────
+async function loadIndents() {
+  const today = new Date().toISOString().slice(0,10);
+  const { data } = await supabase
+    .from('palha_diet_indents')
+    .select(`
+      id, preparation_name, preparation_type, quantity, supply_date, supply_time,
+      special_instructions, status, created_at,
+      patients(name),
+      ipd:ipd_admissions(beds(bed_number,ward_name)),
+      prescribed:profiles!prescribed_by(full_name)
+    `)
+    .eq('tenant_id', tenantId)
+    .eq('supply_date', today)
+    .order('supply_time', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true });
+
+  _indents = data || [];
+  updateStats();
+  renderIndents();
+}
+
+function updateStats() {
+  document.getElementById('stat-pending').textContent    = _indents.filter(i=>i.status==='pending').length;
+  document.getElementById('stat-inprep').textContent     = _indents.filter(i=>i.status==='in_preparation').length;
+  document.getElementById('stat-dispatched').textContent = _indents.filter(i=>i.status==='dispatched').length;
+  document.getElementById('stat-served').textContent     = _indents.filter(i=>i.status==='served').length;
+}
+
+function renderIndents() {
+  const filtered = _filter === 'all'    ? _indents
+                 : _filter === 'active' ? _indents.filter(i=>['pending','in_preparation','dispatched'].includes(i.status))
+                 : _indents.filter(i=>i.status===_filter);
+
+  const list = document.getElementById('indent-list');
+  if (!filtered.length) {
+    list.innerHTML = `<div class="indent-empty">No indents for this filter.<br><span style="font-size:11px">Indents are created from the IPD ward page.</span></div>`;
+    return;
+  }
+
+  const TYPE_LABEL = { kashaya:'Kashaya', swarasa:'Swarasa', ksheerapaka:'Ksheerapaka', kalka:'Kalka', pathya_diet:'Pathya Diet', special:'Special' };
+  const STATUS_NEXT = { pending:'in_preparation', in_preparation:'dispatched', dispatched:'served' };
+  const STATUS_BTN  = { pending:'▶ Start Preparation', in_preparation:'📦 Mark Dispatched', dispatched:'✓ Mark Served' };
+  const STATUS_CLASS = { pending:'btn-start', in_preparation:'btn-dispatch', dispatched:'btn-served' };
+
+  list.innerHTML = filtered.map(i => {
+    const pt   = i.patients?.name || '—';
+    const bed  = i.ipd?.beds?.bed_number ? `Bed ${i.ipd.beds.bed_number}` : '';
+    const ward = i.ipd?.beds?.ward_name  || '';
+    const timeStr = i.supply_time ? i.supply_time.slice(0,5) : '—';
+    const doctor  = i.prescribed?.full_name || '—';
+    const typeLabel = TYPE_LABEL[i.preparation_type] || i.preparation_type;
+    const nextStatus = STATUS_NEXT[i.status];
+    const canCancel  = ['pending','in_preparation'].includes(i.status);
+
+    return `<div class="indent-card ${i.status}">
+      <div class="indent-card-top">
+        <div>
+          <span class="type-badge type-${i.preparation_type}">${typeLabel}</span>
+          <div class="indent-prep-name">${_esc(i.preparation_name)}</div>
+        </div>
+        <div class="indent-time">${timeStr}</div>
+      </div>
+      <div class="indent-patient">
+        👤 <strong>${_esc(pt)}</strong>${bed ? ` · ${_esc(bed)}` : ''}${ward ? ` · ${_esc(ward)}` : ''}
+        ${i.quantity ? ` · <strong>${_esc(i.quantity)}</strong>` : ''}
+      </div>
+      ${i.special_instructions ? `<div class="indent-instructions">📌 ${_esc(i.special_instructions)}</div>` : ''}
+      <div class="indent-meta">Prescribed by: ${_esc(doctor)} · Created: ${new Date(i.created_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</div>
+      ${nextStatus ? `<div class="indent-actions">
+        <button class="btn-action ${STATUS_CLASS[i.status]}" onclick="updateStatus('${i.id}','${nextStatus}')">${STATUS_BTN[i.status]}</button>
+        ${canCancel ? `<button class="btn-action btn-cancel" onclick="updateStatus('${i.id}','cancelled')">Cancel</button>` : ''}
+      </div>` : (i.status==='served' ? `<div style="font-size:11px;color:var(--success-text);margin-top:8px;font-weight:600">✓ Served</div>` : (i.status==='cancelled' ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">Cancelled</div>` : ''))}
+    </div>`;
+  }).join('');
+}
+
+window.updateStatus = async function(id, newStatus) {
+  const patch = { status: newStatus };
+  if (newStatus === 'served') {
+    patch.fulfilled_by = myProfile?.id;
+    patch.fulfilled_at = new Date().toISOString();
+  }
+  const { error } = await supabase.from('palha_diet_indents').update(patch).eq('id', id);
+  if (error) { _toast('Error: ' + error.message, true); return; }
+  const label = { in_preparation:'In preparation', dispatched:'Dispatched', served:'Served ✓', cancelled:'Cancelled' }[newStatus] || newStatus;
+  _toast(`Status updated: ${label}`);
+  await loadIndents();
+};
+
+window.setFilter = function(f, el) {
+  _filter = f;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderIndents();
+};
+
+window.toggleSop = function(btn) {
+  const body = btn.nextElementSibling;
+  const isOpen = body.classList.toggle('open');
+  btn.querySelector('span:last-child').textContent = isOpen ? '▲' : '▼';
+};
+
+function _esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function _toast(msg, isErr) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = isErr ? '#8b1a1a' : '#1a4a2e';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── Realtime ─────────────────────────────────────
+supabase.channel('palha-diet-live')
+  .on('postgres_changes', {
+    event: '*', schema: 'public', table: 'palha_diet_indents',
+    filter: `tenant_id=eq.${tenantId}`
+  }, loadIndents)
+  .subscribe();
+
+// ── Boot ─────────────────────────────────────────
+document.getElementById('navbar-placeholder').innerHTML = '';
+initNavbar();
+await loadIndents();
+</script>
+</body>
+</html>

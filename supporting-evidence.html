@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Supporting Evidence — ABDM M1 Integration | AyurXpert Technologies</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;font-size:12px;color:#1a1a1a;background:#fff;padding:30px}
+h1{font-size:18px;font-weight:bold;text-align:center;margin-bottom:4px}
+h2{font-size:13px;font-weight:bold;margin:24px 0 8px;border-bottom:1.5px solid #1a4a2e;padding-bottom:4px;color:#1a4a2e}
+h3{font-size:12px;font-weight:bold;margin:12px 0 4px;color:#1a4a2e}
+.subtitle{font-size:12px;text-align:center;color:#444;margin-bottom:20px}
+.meta-table{width:100%;border-collapse:collapse;margin-bottom:16px}
+.meta-table td{padding:5px 10px;border:1px solid #ccc;font-size:12px}
+.meta-table td:first-child{font-weight:bold;background:#f5f5f5;width:35%}
+.divider{border:none;border-top:1px solid #ddd;margin:20px 0}
+.evidence-block{border:1px solid #ccc;border-radius:4px;padding:14px;margin-bottom:20px;page-break-inside:avoid}
+.evidence-block .label{font-size:11px;font-weight:bold;color:#1a4a2e;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px}
+.evidence-block .desc{font-size:11.5px;color:#444;margin-bottom:10px;line-height:1.5}
+.evidence-block img{width:100%;border:1px solid #ddd;border-radius:3px}
+.badge{display:inline-block;background:#d4edda;color:#155724;padding:2px 10px;border-radius:3px;font-weight:bold;font-size:11px;margin-bottom:8px}
+.footer{margin-top:30px;border-top:1.5px solid #1a4a2e;padding-top:12px;font-size:11px;color:#555;text-align:center}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.section-intro{font-size:11.5px;color:#555;margin-bottom:12px;line-height:1.6}
+@media print{body{padding:15px}h2{page-break-before:auto}.evidence-block{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+
+<h1>Supporting Evidence Document</h1>
+<p class="subtitle">ABDM Integration — Milestone 1 (M1) | AyurXpert Technologies</p>
+<hr class="divider"/>
+
+<table class="meta-table">
+  <tr><td>Organization</td><td>AyurXpert Technologies</td></tr>
+  <tr><td>Sandbox ID</td><td>SBXID_033899</td></tr>
+  <tr><td>Product</td><td>AyurXpert HMS — Ayurveda Hospital Management System</td></tr>
+  <tr><td>Document Purpose</td><td>Supporting evidence for ABDM M1 sandbox exit — screenshots and terminal outputs confirming live API integration</td></tr>
+  <tr><td>Date</td><td>22 May 2026</td></tr>
+</table>
+
+<h2>1. ABDM Sandbox Approval &amp; Bridge Registration</h2>
+<p class="section-intro">Confirms AyurXpert Technologies received sandbox approval from NHA (SBXID_033899) and successfully registered the ABDM bridge.</p>
+
+<div class="two-col">
+  <div class="evidence-block">
+    <div class="label">NHA Sandbox Approval Email</div>
+    <div class="desc">Email from noreply.abdm@nha.gov.in dated 15 May 2026 confirming sandbox approval with Client ID SBXID_033899.</div>
+    <span class="badge">CONFIRMED</span>
+    <img src="assets/evidence-nha-email.png" alt="NHA Sandbox Approval Email"/>
+  </div>
+  <div class="evidence-block">
+    <div class="label">Bridge Registration Success</div>
+    <div class="desc">Terminal output confirming Bridge ID SBXID_033899 registered with ABDM gateway. HTTP 202 response. Status: ACTIVE.</div>
+    <span class="badge">CONFIRMED</span>
+    <img src="assets/evidence-bridge.png" alt="Bridge Registration Success"/>
+  </div>
+</div>
+
+<h2>2. ABHA Enrollment — End-to-End (TC-M1-03)</h2>
+<p class="section-intro">Terminal output from the Node.js M1 test script confirming ABHA enrollment via Aadhaar OTP in the ABDM sandbox.</p>
+
+<div class="evidence-block">
+  <div class="label">ABHA Enrollment Successful — Terminal Output</div>
+  <div class="desc">ABHA Number 91-2604-7444-1201 created for Venkatesha S. DOB: 03-06-1975. Gender: M. Mobile: 9844210154. ABHA Address: 91260474441201@sbx. Status: ACTIVE.</div>
+  <span class="badge">PASS</span>
+  <img src="assets/evidence-abha-created.png" alt="ABHA Enrollment Terminal Output"/>
+</div>
+
+<h2>3. ABHA Verification via ABHA Number — Reception UI (TC-M1-05 &amp; TC-M1-06)</h2>
+<p class="section-intro">Screenshot from AyurXpert reception module showing ABHA profile fetched and displayed after OTP verification using ABHA Number login (V3 endpoint).</p>
+
+<div class="evidence-block">
+  <div class="label">ABHA Profile Displayed After Verification</div>
+  <div class="desc">Profile card showing Name: Venkatesha S, ABHA Number: 91-2604-7444-1201, DOB: 1975, Gender: Male, ABHA Address: 91260474441201@sbx. Fetched via POST /profile/login/verify then GET /profile/account.</div>
+  <span class="badge">PASS</span>
+  <img src="assets/evidence-tc06-profile.png" alt="ABHA Profile Card in Reception"/>
+</div>
+
+<h2>4. Scan &amp; Share — QR Code Generation (TC-M1-07)</h2>
+<p class="section-intro">Screenshot showing QR code generated in AyurXpert reception module for patient to scan with ABHA mobile app.</p>
+
+<div class="evidence-block">
+  <div class="label">Scan &amp; Share QR Code Rendered</div>
+  <div class="desc">QR code generated using qrcodejs library. Contains HIP ID and session requestId. Stored in abdm_scan_sessions table (10 min expiry). Real-time subscription active for profile auto-fill on scan.</div>
+  <span class="badge">PASS</span>
+  <img src="assets/evidence-tc07-qr.png" alt="Scan and Share QR Code"/>
+</div>
+
+<h2>5. ABHA Card Download (TC-M1-12)</h2>
+<p class="section-intro">ABHA Card PNG downloaded via GET /abha/api/v3/profile/account/abha-card with X-Token header. Returned as base64 PNG by Edge Function and triggered as browser download.</p>
+
+<div class="evidence-block">
+  <div class="label">ABHA Card PNG — Downloaded Successfully</div>
+  <div class="desc">ABHA Card for 91-2604-7444-1201 downloaded as PNG file. tToken used from ABHA Number verification (TC-M1-06) and Aadhaar verification (TC-M1-13) — both paths confirmed.</div>
+  <span class="badge">PASS</span>
+  <img src="assets/evidence-tc12-card.png" alt="ABHA Card PNG"/>
+</div>
+
+<hr class="divider"/>
+
+<div class="footer">
+  AyurXpert Technologies | abdm@ayurxpert.com | support@ayurxpert.com | 9844210154 | Sandbox ID: SBXID_033899
+</div>
+
+</body>
+</html>

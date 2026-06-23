@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Anushastra Karma — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --red:#c0392b;--red-light:#fdecea;--red-border:#fca5a5;
+  --blue:#1a4080;--blue-light:#e3f0ff;
+  --orange:#c0540a;--orange-light:#fef0e6;
+  --purple:#5a1a8b;--purple-light:#f0e8ff;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1280px;margin:0 auto;padding:24px 20px 80px}
+
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.4px;margin-left:8px;vertical-align:middle}
+
+/* Buttons */
+.btn{height:38px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}.btn-secondary:hover{background:var(--green-light)}
+.btn-complete{background:var(--green-light);color:var(--green-deep);border:1.5px solid #b2d8bf}.btn-complete:hover{background:#cde8d6}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:900px){.stats-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:560px){.stats-row{grid-template-columns:repeat(2,1fr)}}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.stat-val{font-size:28px;font-weight:700;color:var(--green-deep);line-height:1;font-family:'Cormorant Garamond',serif}
+.stat-lbl{font-size:11px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.4px}
+.stat-card.gold .stat-val{color:var(--gold)}
+.stat-card.red .stat-val{color:var(--red)}
+.stat-card.blue .stat-val{color:var(--blue)}
+.stat-card.orange .stat-val{color:var(--orange)}
+
+/* Procedure type pills */
+.proc-tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.proc-tab{padding:8px 18px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;border:2px solid var(--border);background:var(--white);color:var(--text-mid);transition:all .15s;display:flex;align-items:center;gap:6px}
+.proc-tab:hover{border-color:var(--green-mid)}
+.proc-tab.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
+.proc-tab.agnikarma.active{background:#7f1d1d;border-color:#7f1d1d}
+.proc-tab.raktamokshana.active{background:#9d174d;border-color:#9d174d}
+.proc-tab.ksharakarma.active{background:var(--orange);border-color:var(--orange)}
+.proc-tab.pain.active{background:var(--blue);border-color:var(--blue)}
+
+/* View toggle */
+.view-toggle{display:flex;gap:0;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px;width:fit-content}
+.vt-btn{padding:8px 18px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:none;font-family:'DM Sans',sans-serif;color:var(--text-mid);border-right:1px solid var(--border);transition:all .15s}
+.vt-btn:last-child{border-right:none}
+.vt-btn.active{background:var(--green-deep);color:#fff}
+
+/* Patient search */
+.search-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px}
+.search-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.sf{display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px}
+.sf-label{font-size:12px;font-weight:500;color:var(--text-mid)}
+.sf-input{height:38px;border:1.5px solid var(--border);border-radius:7px;padding:0 12px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white);outline:none}
+.sf-input:focus{border-color:var(--green-mid)}
+.search-results{margin-top:10px;display:none}
+.pt-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:8px;border:1.5px solid var(--border);margin-bottom:6px;background:var(--cream);cursor:pointer;transition:border-color .15s}
+.pt-item:hover{border-color:var(--green-mid);background:var(--green-light)}
+.pt-name{font-weight:600;font-size:13px}.pt-meta{font-size:11px;color:var(--text-muted);margin-top:2px}
+
+/* Patient bar */
+.patient-bar{display:none;align-items:center;justify-content:space-between;background:var(--green-light);border:1.5px solid #b2d8bf;border-radius:var(--radius);padding:10px 16px;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+.patient-bar.show{display:flex}
+.pt-bar-name{font-weight:700;font-size:14px;color:var(--green-deep)}
+
+/* Form */
+.form-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.form-card-hd{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.form-card-title{font-size:14px;font-weight:600;color:var(--text-dark)}
+.form-body{padding:18px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media(max-width:700px){.form-grid,.form-grid-3{grid-template-columns:1fr 1fr}}
+@media(max-width:450px){.form-grid,.form-grid-3{grid-template-columns:1fr}}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-label{font-size:12px;font-weight:500;color:var(--text-mid)}
+.form-control{height:38px;padding:0 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--white);outline:none}
+.form-control:focus{border-color:var(--green-mid)}
+textarea.form-control{height:72px;padding:8px 12px;resize:vertical}
+.form-divider{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);padding:14px 0 6px;border-top:1px solid var(--border);margin-top:6px}
+.form-divider:first-child{border-top:none;padding-top:0}
+
+/* Procedure-specific panels */
+.proc-panel{display:none}
+.proc-panel.show{display:block}
+
+/* Card highlight by type */
+.agnikarma-hd{background:#7f1d1d;color:#fff}
+.raktamokshana-hd{background:#9d174d;color:#fff}
+.ksharakarma-hd{background:var(--orange);color:#fff}
+.pain-hd{background:var(--blue);color:#fff}
+
+/* Sessions table */
+.card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px}
+.card-hd{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.card-title{font-size:14px;font-weight:600;color:var(--text-dark)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:10px 14px;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;background:#fafafa;border-bottom:1px solid var(--border)}
+td{padding:10px 14px;font-size:13px;border-bottom:1px solid #f0f4f2;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafff8}
+
+/* Status chips */
+.chip{display:inline-flex;align-items:center;padding:3px 9px;border-radius:10px;font-size:11px;font-weight:600;border:1.5px solid}
+.chip-scheduled{background:#fffbeb;color:#78350f;border-color:#fcd34d}
+.chip-in_progress{background:var(--blue-light);color:var(--blue);border-color:#93c5fd}
+.chip-completed{background:var(--green-light);color:var(--green-deep);border-color:#86efac}
+.chip-cancelled{background:#f3f4f6;color:#6b7280;border-color:#d1d5db}
+
+/* Proc type chip */
+.ptype{padding:2px 9px;border-radius:8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.ptype-agnikarma{background:#fef2f2;color:#7f1d1d}
+.ptype-raktamokshana{background:#fdf2f8;color:#9d174d}
+.ptype-ksharakarma{background:var(--orange-light);color:var(--orange)}
+.ptype-pain_management{background:var(--blue-light);color:var(--blue)}
+
+/* Consent flag */
+.consent-ok{color:var(--green-mid);font-size:13px}
+.consent-no{color:var(--red);font-size:13px}
+
+/* Alert */
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:14px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.alert.error{background:var(--red-light);color:#8b1a1a;border:1px solid var(--red-border)}
+
+/* Empty */
+.empty{text-align:center;padding:40px 20px;color:var(--text-muted)}
+.empty-ico{font-size:36px;margin-bottom:10px;opacity:.5}
+.empty-ttl{font-size:14px;font-weight:500;margin-bottom:4px}
+.empty-bod{font-size:12px;line-height:1.6;max-width:300px;margin:0 auto}
+
+/* Filter bar */
+.filter-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+
+/* Past sessions for patient */
+.past-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.past-hd{padding:12px 16px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+
+/* Toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1c2b1f;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:2000;white-space:nowrap}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<div class="page-wrap">
+
+<div class="page-header">
+  <div>
+    <div class="page-title">Anushastra Karma <span class="ncism-badge">§47(c) NCISM</span></div>
+    <div class="page-subtitle">Shalya Tantra — Agnikarma · Raktamokshana · Ksharakarma · Pain Management</div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <a href="ksharasutra.html" class="btn btn-secondary btn-sm">🧵 Kshara Sutra →</a>
+    <button class="btn btn-secondary btn-sm" onclick="loadStats();loadRegister()">↻ Refresh</button>
+  </div>
+</div>
+
+<!-- Notice -->
+<div style="background:#fffbeb;border:1.5px solid #fcd34d;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:12px;color:#78350f;display:flex;align-items:flex-start;gap:8px">
+  <span style="font-size:16px">⚠️</span>
+  <span><strong>§47(c) NCISM:</strong> Anushastra Karma section under admin control of Head of Shalya Tantra. Informed consent mandatory for every session. <strong>Kshara Sutra</strong> (thread tracking for fistula) is a separate module — use the button above.</span>
+</div>
+
+<!-- Stats -->
+<div class="stats-row" id="stats-row">
+  <div class="stat-card"><div class="stat-val" id="s-total">—</div><div class="stat-lbl">Total Sessions</div></div>
+  <div class="stat-card"><div class="stat-val" id="s-month">—</div><div class="stat-lbl">This Month</div></div>
+  <div class="stat-card gold"><div class="stat-val" id="s-agni">—</div><div class="stat-lbl">Agnikarma</div></div>
+  <div class="stat-card red"><div class="stat-val" id="s-rakta">—</div><div class="stat-lbl">Raktamokshana</div></div>
+  <div class="stat-card orange"><div class="stat-val" id="s-kshara">—</div><div class="stat-lbl">Ksharakarma</div></div>
+</div>
+
+<!-- Procedure type selector -->
+<div class="proc-tabs">
+  <button class="proc-tab agnikarma active" data-proc="agnikarma" onclick="selectProc(this)">🔥 Agnikarma</button>
+  <button class="proc-tab raktamokshana" data-proc="raktamokshana" onclick="selectProc(this)">🩸 Raktamokshana</button>
+  <button class="proc-tab ksharakarma" data-proc="ksharakarma" onclick="selectProc(this)">⚗ Ksharakarma</button>
+  <button class="proc-tab pain" data-proc="pain_management" onclick="selectProc(this)">💊 Pain Management</button>
+</div>
+
+<!-- View toggle -->
+<div class="view-toggle">
+  <button class="vt-btn active" data-view="new" onclick="switchView('new',this)">+ New Session</button>
+  <button class="vt-btn" data-view="register" onclick="switchView('register',this)">📋 Session Register</button>
+</div>
+
+<div class="alert" id="main-alert"></div>
+
+<!-- ══════════════════════════════════════
+     VIEW: NEW SESSION
+═══════════════════════════════════════ -->
+<div id="view-new">
+
+  <!-- Patient search -->
+  <div class="search-card">
+    <div class="search-row">
+      <div class="sf">
+        <span class="sf-label">Search Patient (phone / name)</span>
+        <input class="sf-input" id="pt-search" placeholder="Type phone or name…" autocomplete="off" oninput="searchPatient()"/>
+      </div>
+      <button class="btn btn-secondary" onclick="clearPatient()">× Clear</button>
+    </div>
+    <div class="search-results" id="pt-results"></div>
+  </div>
+
+  <div class="patient-bar" id="patient-bar">
+    <div>
+      <div class="pt-bar-name" id="pb-name">—</div>
+      <div style="font-size:12px;color:var(--text-mid)" id="pb-meta">—</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-secondary btn-sm" onclick="clearPatient()">Change Patient</button>
+    </div>
+  </div>
+
+  <!-- Session form -->
+  <div class="form-card" id="session-form-card" style="display:none">
+    <div class="form-card-hd" id="form-hd">
+      <span class="form-card-title" id="form-title">New Agnikarma Session</span>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="consent-check" checked style="accent-color:var(--green-mid);width:15px;height:15px"/>
+        ✅ Informed consent obtained
+      </label>
+    </div>
+    <div class="form-body">
+
+      <!-- Common fields -->
+      <div class="form-grid-3" style="margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Session Date</label>
+          <input type="date" class="form-control" id="f-date"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Session Time</label>
+          <input type="time" class="form-control" id="f-time"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select class="form-control" id="f-status">
+            <option value="scheduled">Scheduled</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Conducting Doctor</label>
+          <select class="form-control" id="f-doctor"><option value="">— Select —</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Therapist / Assistant</label>
+          <select class="form-control" id="f-therapist"><option value="">— Select —</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Duration (minutes)</label>
+          <input type="number" class="form-control" id="f-duration" min="5" max="240" placeholder="e.g. 30"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Affected Site / Region</label>
+          <input class="form-control" id="f-site" placeholder="e.g. Lumbar spine, Right knee, Perianal"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Side</label>
+          <select class="form-control" id="f-side">
+            <option value="bilateral">Bilateral</option>
+            <option value="right">Right</option>
+            <option value="left">Left</option>
+            <option value="midline">Midline</option>
+            <option value="na">Not Applicable</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- ── AGNIKARMA PANEL ── -->
+      <div class="proc-panel show" id="panel-agnikarma">
+        <div class="form-divider">🔥 Agnikarma — Thermal Cautery Details</div>
+        <div class="form-grid" style="margin-bottom:12px">
+          <div class="form-group">
+            <label class="form-label">Shalaka Type</label>
+            <select class="form-control" id="ag-shalaka-type">
+              <option value="">— Select Shalaka —</option>
+              <option value="jambvostha">Jambvostha (lip-shaped, flat)</option>
+              <option value="kanka">Kanka (heron-beak, pointed)</option>
+              <option value="ateendra">Ateendra (Atindra — rounded)</option>
+              <option value="gokarnaka">Gokarnaka (cow-ear shaped)</option>
+              <option value="pottali">Pottali (cloth bundle — heat pack)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Shalaka Material</label>
+            <select class="form-control" id="ag-material">
+              <option value="metal">Metal (Iron / Copper / Gold)</option>
+              <option value="madhu">Madhu (Honey heated)</option>
+              <option value="guda">Guda (Jaggery)</option>
+              <option value="taila">Taila (Oil)</option>
+              <option value="pippali_paste">Pippali paste</option>
+              <option value="electric_cautery">Electric Cautery (modified Agni)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Number of Applications</label>
+            <input type="number" class="form-control" id="ag-count" min="1" max="50" placeholder="e.g. 5"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Agnikarma Indication</label>
+            <select class="form-control" id="ag-indication">
+              <option value="">— Select —</option>
+              <option>Gridhrasi (Sciatica)</option>
+              <option>Sandhigata Vata (Osteoarthritis)</option>
+              <option>Arsha (Hemorrhoids)</option>
+              <option>Vatarakta (Gout)</option>
+              <option>Katishula (Low back pain)</option>
+              <option>Janusandhishula (Knee pain)</option>
+              <option>Mukhashotha (Facial neuralgia)</option>
+              <option>Arbuda (Benign skin lesion)</option>
+              <option>Other</option>
+            </select>
+          </div>
+        </div>
+        <div style="background:#fef2f2;border-radius:6px;padding:10px 14px;font-size:12px;color:#7f1d1d;margin-bottom:12px">
+          ⚠ Contraindications: Atideena (very weak), Atisnigdha (overly oily/unctuous), Atisthula (morbidly obese), Trishita/Kshudita (thirst/hunger), Murcchita (unconscious). Ensure patient is fit before proceeding.
+        </div>
+      </div>
+
+      <!-- ── RAKTAMOKSHANA PANEL ── -->
+      <div class="proc-panel" id="panel-raktamokshana">
+        <div class="form-divider">🩸 Raktamokshana — Bloodletting Details</div>
+        <div class="form-grid" style="margin-bottom:12px">
+          <div class="form-group">
+            <label class="form-label">Subtype</label>
+            <select class="form-control" id="rm-subtype" onchange="updateRaktaSubtype(this.value)">
+              <option value="jalaukavacharana">Jalaukavacharana (Leech Therapy)</option>
+              <option value="siravyadha">Siravyadha (Phlebotomy / Venesection)</option>
+              <option value="pracchana">Pracchana (Scarification)</option>
+              <option value="shringa">Shringa (Horn Cupping)</option>
+              <option value="alabu">Alabu (Gourd Suction)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Raktamokshana Indication</label>
+            <select class="form-control" id="rm-indication">
+              <option value="">— Select —</option>
+              <option>Kushtha (Skin disease)</option>
+              <option>Vatarakta (Gout)</option>
+              <option>Sandhivata (Joint disease)</option>
+              <option>Vrana Shotha (Wound swelling)</option>
+              <option>Apachi (Cervical lymphadenopathy)</option>
+              <option>Shotha (Generalised oedema)</option>
+              <option>Netra Roga (Eye disease — Jalouka)</option>
+              <option>Arsha (Haemorrhoids)</option>
+              <option>Other</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Jalouka-specific -->
+        <div id="rm-jalouka-fields">
+          <div class="form-grid" style="margin-bottom:12px">
+            <div class="form-group">
+              <label class="form-label">Number of Leeches Applied</label>
+              <input type="number" class="form-control" id="rm-leech-count" min="1" max="20" placeholder="e.g. 3"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Leech Application Site</label>
+              <input class="form-control" id="rm-leech-site" placeholder="e.g. Left knee joint margin"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Time Leeches Fed (minutes)</label>
+              <input type="number" class="form-control" id="rm-leech-time" min="5" max="60" placeholder="e.g. 20"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Post-application Paste Applied</label>
+              <input class="form-control" id="rm-leech-paste" placeholder="e.g. Haridra + Sarshapa paste"/>
+            </div>
+          </div>
+        </div>
+
+        <!-- Siravyadha-specific -->
+        <div id="rm-sira-fields" style="display:none">
+          <div class="form-grid" style="margin-bottom:12px">
+            <div class="form-group">
+              <label class="form-label">Vein / Site</label>
+              <input class="form-control" id="rm-sira-site" placeholder="e.g. Antecubital vein, right"/>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Blood Volume Drained (mL)</label>
+              <input type="number" class="form-control" id="rm-sira-vol" min="10" max="500" placeholder="e.g. 150"/>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── KSHARAKARMA PANEL ── -->
+      <div class="proc-panel" id="panel-ksharakarma">
+        <div class="form-divider">⚗ Ksharakarma — Caustic Application Details</div>
+        <div style="background:var(--orange-light);border-radius:6px;padding:8px 14px;font-size:12px;color:var(--orange);margin-bottom:12px">
+          ℹ Ksharakarma = topical/caustic application of Kshara (alkaline paste). For <strong>Kshara Sutra</strong> (ligation thread for fistula), use the <a href="ksharasutra.html" style="color:var(--orange)">Kshara Sutra module →</a>
+        </div>
+        <div class="form-grid" style="margin-bottom:12px">
+          <div class="form-group">
+            <label class="form-label">Kshara Type</label>
+            <select class="form-control" id="kk-type">
+              <option value="">— Select —</option>
+              <option value="pratisaraneeya">Pratisaraneeya Kshara (topical application)</option>
+              <option value="paaneeya">Paaneeya Kshara (oral / internal)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Kshara Drug Source</label>
+            <select class="form-control" id="kk-drug">
+              <option value="">— Select —</option>
+              <option>Apamarga Kshara</option>
+              <option>Yava Kshara</option>
+              <option>Snuhi Kshara</option>
+              <option>Palasha Kshara</option>
+              <option>Saptachakra Kshara</option>
+              <option>Mixed / Compound Kshara</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Application Method</label>
+            <select class="form-control" id="kk-method">
+              <option value="probe">Probe / Shalaka application</option>
+              <option value="cotton">Cotton swab application</option>
+              <option value="syringe">Syringe / tube instillation</option>
+              <option value="direct">Direct contact</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Indication / Lesion Type</label>
+            <select class="form-control" id="kk-indication">
+              <option value="">— Select —</option>
+              <option>Arsha / Bhagandhara (Piles / Fistula external)</option>
+              <option>Arbuda (Skin tag / wart)</option>
+              <option>Grandhi (Cyst / nodule)</option>
+              <option>Dushtavrana (Infected wound)</option>
+              <option>Tilakaalaka (Mole / pigmented lesion)</option>
+              <option>Gala Shundika (Tonsil / pharyngeal lesion)</option>
+              <option>Other skin/mucosal lesion</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Neutralising Agent Used</label>
+            <input class="form-control" id="kk-neutralise" placeholder="e.g. Ghee, Tila Taila, Madhura Dravya"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Exposure Duration (seconds)</label>
+            <input type="number" class="form-control" id="kk-duration" min="5" max="600" placeholder="e.g. 30"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PAIN MANAGEMENT PANEL ── -->
+      <div class="proc-panel" id="panel-pain_management">
+        <div class="form-divider">💊 Pain Management / Regional Analgesia Details</div>
+        <div class="form-grid" style="margin-bottom:12px">
+          <div class="form-group">
+            <label class="form-label">Block / Procedure Type</label>
+            <select class="form-control" id="pm-type">
+              <option value="">— Select —</option>
+              <option>Local infiltration</option>
+              <option>Trigger point injection</option>
+              <option>Intra-articular injection</option>
+              <option>Nerve block (peripheral)</option>
+              <option>Epidural</option>
+              <option>Prolotherapy</option>
+              <option>Ayurvedic Taila Dhara (pain protocol)</option>
+              <option>Nasya (pain indication)</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Drug / Medication Used</label>
+            <input class="form-control" id="pm-drug" placeholder="e.g. 2% Lidocaine, Bupivacaine, Sahacharadi Taila"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Dose</label>
+            <input class="form-control" id="pm-dose" placeholder="e.g. 5 mL, 200 mg"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Pain Score Before (0–10)</label>
+            <input type="number" class="form-control" id="pm-pain-pre" min="0" max="10"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Pain Score After (0–10)</label>
+            <input type="number" class="form-control" id="pm-pain-post" min="0" max="10"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Common: findings, observations, adverse events -->
+      <div class="form-divider">Clinical Notes</div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Pre-procedure Findings</label>
+          <textarea class="form-control" id="f-pre" placeholder="Clinical examination findings, disease status, prakriti…"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Post-procedure Observations</label>
+          <textarea class="form-control" id="f-post" placeholder="Immediate response, local reaction, pain relief, swelling…"></textarea>
+        </div>
+      </div>
+      <div class="form-grid" style="margin-bottom:16px">
+        <div class="form-group">
+          <label class="form-label">Adverse Events / Complications</label>
+          <input class="form-control" id="f-adverse" placeholder="None / describe any unexpected reactions"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Medicines / Materials Used</label>
+          <input class="form-control" id="f-meds" placeholder="e.g. Mahanarayan Taila 10 mL, Haridra paste"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Consent Notes</label>
+          <input class="form-control" id="f-consent-notes" placeholder="Consent details, witness name…"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Remarks</label>
+          <input class="form-control" id="f-remarks" placeholder="Next session plan, follow-up advice…"/>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="save-btn" onclick="saveSession()">Save Session</button>
+        <button class="btn btn-secondary" onclick="resetForm()">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Past sessions for selected patient -->
+  <div class="past-card" id="past-sessions-card" style="display:none">
+    <div class="past-hd">
+      <span id="past-title">Past Sessions</span>
+      <button class="btn btn-secondary btn-sm" onclick="loadPastSessions()">↻</button>
+    </div>
+    <div id="past-body">
+      <div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     VIEW: SESSION REGISTER
+═══════════════════════════════════════ -->
+<div id="view-register" style="display:none">
+  <div class="card">
+    <div class="card-hd">
+      <span class="card-title">All Anushastra Karma Sessions</span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-secondary btn-sm" onclick="exportRegister()">↓ CSV</button>
+        <button class="btn btn-secondary btn-sm" onclick="loadRegister()">↻</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <input type="date" class="form-control" id="reg-from" style="width:auto"/>
+      <span style="font-size:12px;color:var(--text-muted)">to</span>
+      <input type="date" class="form-control" id="reg-to" style="width:auto"/>
+      <select class="form-control" id="reg-type" style="width:auto" onchange="loadRegister()">
+        <option value="">All Types</option>
+        <option value="agnikarma">Agnikarma</option>
+        <option value="raktamokshana">Raktamokshana</option>
+        <option value="ksharakarma">Ksharakarma</option>
+        <option value="pain_management">Pain Management</option>
+      </select>
+      <select class="form-control" id="reg-status" style="width:auto" onchange="loadRegister()">
+        <option value="">All Status</option>
+        <option value="scheduled">Scheduled</option>
+        <option value="completed">Completed</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="loadRegister()">Search</button>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Patient</th><th>Type</th><th>Site</th>
+          <th>Doctor</th><th>Duration</th><th>Consent</th><th>Status</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="reg-tbody">
+          <tr><td colspan="9"><div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div><!-- end page-wrap -->
+<div id="toast"></div>
+
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module">
+import { requireAuth, getCurrentProfile, getCurrentTenantId } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['super_admin','dept_admin','doctor','nurse','therapist','receptionist'], 'index.html');
+initNavbar();
+
+const profile  = getCurrentProfile();
+const tenantId = getCurrentTenantId();
+const now      = new Date();
+const todayStr = now.toISOString().split('T')[0];
+
+// Init defaults
+document.getElementById('f-date').value = todayStr;
+document.getElementById('f-time').value = now.toTimeString().slice(0,5);
+document.getElementById('reg-from').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+document.getElementById('reg-to').value   = todayStr;
+
+// Date change triggers register reload
+['reg-from','reg-to'].forEach(id => document.getElementById(id).addEventListener('change', loadRegister));
+
+// ─── State ────────────────────────────────────────────────
+let _curProc   = 'agnikarma';
+let _patientId = null;
+let _patientName = '';
+let _regData   = [];
+
+// ─── Procedure type selector ──────────────────────────────
+window.selectProc = function(btn) {
+  document.querySelectorAll('.proc-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _curProc = btn.dataset.proc;
+  document.querySelectorAll('.proc-panel').forEach(p => p.classList.remove('show'));
+  document.getElementById('panel-' + _curProc)?.classList.add('show');
+  // Update form title
+  const labels = { agnikarma:'Agnikarma', raktamokshana:'Raktamokshana', ksharakarma:'Ksharakarma', pain_management:'Pain Management' };
+  document.getElementById('form-title').textContent = 'New ' + labels[_curProc] + ' Session';
+  if (_patientId) loadPastSessions();
+};
+
+// ─── View toggle ──────────────────────────────────────────
+window.switchView = function(view, btn) {
+  document.querySelectorAll('.vt-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('view-new').style.display = view === 'new' ? '' : 'none';
+  document.getElementById('view-register').style.display = view === 'register' ? '' : 'none';
+  if (view === 'register') loadRegister();
+};
+
+// ─── Stats ────────────────────────────────────────────────
+window.loadStats = async function() {
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const [totRes, monRes] = await Promise.all([
+    supabase.from('anushastra_sessions').select('id,procedure_type').eq('tenant_id',tenantId),
+    supabase.from('anushastra_sessions').select('id,procedure_type').eq('tenant_id',tenantId).gte('created_at',monthStart),
+  ]);
+  if (totRes.error) {
+    if (totRes.error.code === '42P01') {
+      ['s-total','s-month','s-agni','s-rakta','s-kshara'].forEach(id => document.getElementById(id).textContent = 'SQL?');
+    }
+    return;
+  }
+  const all  = totRes.data || [];
+  const mon  = monRes.data || [];
+  document.getElementById('s-total').textContent = all.length;
+  document.getElementById('s-month').textContent = mon.length;
+  document.getElementById('s-agni').textContent  = all.filter(s=>s.procedure_type==='agnikarma').length;
+  document.getElementById('s-rakta').textContent = all.filter(s=>s.procedure_type==='raktamokshana').length;
+  document.getElementById('s-kshara').textContent= all.filter(s=>s.procedure_type==='ksharakarma').length;
+};
+
+// ─── Patient search ───────────────────────────────────────
+window.searchPatient = async function() {
+  const q = document.getElementById('pt-search').value.trim();
+  const res = document.getElementById('pt-results');
+  if (q.length < 2) { res.style.display='none'; return; }
+  const { data } = await supabase.from('patients').select('id,name,phone').eq('tenant_id',tenantId)
+    .or(`phone.ilike.%${q}%,name.ilike.%${q}%`).limit(8);
+  if (!data?.length) { res.style.display='none'; return; }
+  res.style.display = '';
+  res.innerHTML = data.map(p=>`<div class="pt-item" onclick="selectPatient('${p.id}','${_esc(p.name)}','${_esc(p.phone||'')}')">
+    <div><div class="pt-name">${_esc(p.name)}</div><div class="pt-meta">${_esc(p.phone||'—')}</div></div>
+    <span style="font-size:11px;color:var(--green-mid)">Select →</span>
+  </div>`).join('');
+};
+
+window.selectPatient = function(id, name, phone) {
+  _patientId = id; _patientName = name;
+  document.getElementById('pt-search').value = name + (phone ? ' · ' + phone : '');
+  document.getElementById('pt-results').style.display = 'none';
+  const bar = document.getElementById('patient-bar');
+  document.getElementById('pb-name').textContent = name;
+  document.getElementById('pb-meta').textContent = phone || 'No phone on record';
+  bar.classList.add('show');
+  document.getElementById('session-form-card').style.display = '';
+  document.getElementById('past-sessions-card').style.display = '';
+  document.getElementById('past-title').textContent = 'Past ' + _procLabel(_curProc) + ' Sessions — ' + name;
+  loadPastSessions();
+};
+
+window.clearPatient = function() {
+  _patientId = null; _patientName = '';
+  document.getElementById('pt-search').value = '';
+  document.getElementById('pt-results').style.display = 'none';
+  document.getElementById('patient-bar').classList.remove('show');
+  document.getElementById('session-form-card').style.display = 'none';
+  document.getElementById('past-sessions-card').style.display = 'none';
+  resetForm();
+};
+
+// ─── Raktamokshana subtype switch ─────────────────────────
+window.updateRaktaSubtype = function(v) {
+  document.getElementById('rm-jalouka-fields').style.display = v==='jalaukavacharana' ? '' : 'none';
+  document.getElementById('rm-sira-fields').style.display    = v==='siravyadha'       ? '' : 'none';
+};
+
+// ─── Save session ─────────────────────────────────────────
+window.saveSession = async function() {
+  if (!_patientId) { showAlert('Select a patient first','error'); return; }
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+
+  const payload = {
+    tenant_id:   tenantId,
+    patient_id:  _patientId,
+    doctor_id:   document.getElementById('f-doctor').value || null,
+    therapist_id:document.getElementById('f-therapist').value || null,
+    procedure_type: _curProc,
+    session_date: document.getElementById('f-date').value,
+    session_time: document.getElementById('f-time').value || null,
+    status:       document.getElementById('f-status').value,
+    affected_site:document.getElementById('f-site').value.trim() || null,
+    side:         document.getElementById('f-side').value || null,
+    duration_minutes: parseInt(document.getElementById('f-duration').value) || null,
+    pre_findings: document.getElementById('f-pre').value.trim() || null,
+    post_observations: document.getElementById('f-post').value.trim() || null,
+    adverse_events: document.getElementById('f-adverse').value.trim() || null,
+    medicines_used: document.getElementById('f-meds').value.trim() || null,
+    consent_obtained: document.getElementById('consent-check').checked,
+    consent_notes: document.getElementById('f-consent-notes').value.trim() || null,
+    remarks:      document.getElementById('f-remarks').value.trim() || null,
+    created_by:   profile.id,
+  };
+
+  if (document.getElementById('f-status').value === 'completed') {
+    payload.completed_at = new Date().toISOString();
+  }
+
+  // Procedure-specific fields
+  if (_curProc === 'agnikarma') {
+    payload.shalaka_type    = document.getElementById('ag-shalaka-type').value || null;
+    payload.shalaka_material= document.getElementById('ag-material').value || null;
+    payload.applications_count = parseInt(document.getElementById('ag-count').value) || null;
+    payload.procedure_subtype = document.getElementById('ag-indication').value || null;
+  } else if (_curProc === 'raktamokshana') {
+    const sub = document.getElementById('rm-subtype').value;
+    payload.procedure_subtype = sub;
+    payload.rm_indication = document.getElementById('rm-indication').value || null;
+    if (sub === 'jalaukavacharana') {
+      payload.leech_count   = parseInt(document.getElementById('rm-leech-count').value) || null;
+      payload.leech_site    = document.getElementById('rm-leech-site').value.trim() || null;
+      payload.leech_time_min= parseInt(document.getElementById('rm-leech-time').value) || null;
+    } else if (sub === 'siravyadha') {
+      payload.sira_site       = document.getElementById('rm-sira-site').value.trim() || null;
+      payload.blood_volume_ml = parseFloat(document.getElementById('rm-sira-vol').value) || null;
+    }
+  } else if (_curProc === 'ksharakarma') {
+    payload.kshara_type    = document.getElementById('kk-type').value || null;
+    payload.kshara_drug    = document.getElementById('kk-drug').value || null;
+    payload.kshara_method  = document.getElementById('kk-method').value || null;
+    payload.procedure_subtype = document.getElementById('kk-indication').value || null;
+  } else if (_curProc === 'pain_management') {
+    payload.block_type   = document.getElementById('pm-type').value || null;
+    payload.drug_used    = document.getElementById('pm-drug').value.trim() || null;
+    payload.drug_dose    = document.getElementById('pm-dose').value.trim() || null;
+    payload.pain_score_pre  = parseInt(document.getElementById('pm-pain-pre').value) || null;
+    payload.pain_score_post = parseInt(document.getElementById('pm-pain-post').value) || null;
+  }
+
+  const { error } = await supabase.from('anushastra_sessions').insert(payload);
+  btn.disabled = false;
+  if (error) {
+    if (error.code === '42P01') {
+      showAlert('Run anushastra_sessions SQL in Supabase SQL Editor first', 'error');
+    } else {
+      showAlert(error.message, 'error');
+    }
+    return;
+  }
+  showAlert('Session saved successfully ✓', 'success');
+  resetForm();
+  loadPastSessions();
+  loadStats();
+};
+
+window.resetForm = function() {
+  document.getElementById('f-date').value = todayStr;
+  document.getElementById('f-time').value = new Date().toTimeString().slice(0,5);
+  document.getElementById('f-status').value = 'scheduled';
+  ['f-site','f-pre','f-post','f-adverse','f-meds','f-consent-notes','f-remarks',
+   'f-duration','ag-count','rm-leech-count','rm-leech-site','rm-leech-time',
+   'rm-leech-paste','rm-sira-site','rm-sira-vol','kk-neutralise','kk-duration',
+   'pm-drug','pm-dose','pm-pain-pre','pm-pain-post'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('consent-check').checked = true;
+};
+
+// ─── Past sessions for patient ────────────────────────────
+window.loadPastSessions = async function() {
+  if (!_patientId) return;
+  const body = document.getElementById('past-body');
+  body.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
+
+  const { data, error } = await supabase.from('anushastra_sessions')
+    .select('*,profiles!doctor_id(full_name)')
+    .eq('tenant_id',tenantId).eq('patient_id',_patientId).eq('procedure_type',_curProc)
+    .order('session_date',{ascending:false}).order('created_at',{ascending:false}).limit(20);
+
+  if (error) {
+    if (error.code === '42P01') {
+      body.innerHTML = '<div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div><div class="empty-bod">Run anushastra_sessions SQL in Supabase</div></div>';
+    } else {
+      body.innerHTML = `<div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div>`;
+    }
+    return;
+  }
+
+  document.getElementById('past-title').textContent =
+    `Past ${_procLabel(_curProc)} Sessions — ${_esc(_patientName)} (${(data||[]).length})`;
+
+  if (!data?.length) {
+    body.innerHTML = `<div class="empty"><div class="empty-ico">🌿</div><div class="empty-ttl">No ${_procLabel(_curProc)} sessions yet for this patient</div></div>`;
+    return;
+  }
+
+  body.innerHTML = `<div class="tw"><table>
+    <thead><tr><th>Date</th><th>Site</th><th>Details</th><th>Doctor</th><th>Status</th><th>Adverse</th></tr></thead>
+    <tbody>
+    ${data.map(s=>`<tr>
+      <td style="font-weight:600;white-space:nowrap">${s.session_date}<br><span style="font-size:11px;color:var(--text-muted)">${s.session_time||''}</span></td>
+      <td>${_esc(s.affected_site||'—')} <span style="font-size:11px;color:var(--text-muted)">${s.side||''}</span></td>
+      <td style="font-size:12px">${_procDetail(s)}</td>
+      <td style="font-size:12px">${s.profiles?.full_name ? 'Dr. '+_esc(s.profiles.full_name) : '—'}</td>
+      <td><span class="chip chip-${s.status}">${s.status}</span></td>
+      <td style="font-size:12px;color:${s.adverse_events&&s.adverse_events.toLowerCase()!=='none'?'var(--red)':'var(--text-muted)'}">${_esc(s.adverse_events||'None')}</td>
+    </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+};
+
+// ─── Session Register ─────────────────────────────────────
+window.loadRegister = async function() {
+  const from   = document.getElementById('reg-from').value;
+  const to     = document.getElementById('reg-to').value;
+  const type   = document.getElementById('reg-type').value;
+  const status = document.getElementById('reg-status').value;
+  const tbody  = document.getElementById('reg-tbody');
+  tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div></td></tr>';
+
+  let q = supabase.from('anushastra_sessions')
+    .select('*,patients(name,phone),profiles!doctor_id(full_name)')
+    .eq('tenant_id',tenantId)
+    .order('session_date',{ascending:false}).order('created_at',{ascending:false});
+  if (from) q = q.gte('session_date',from);
+  if (to)   q = q.lte('session_date',to);
+  if (type)   q = q.eq('procedure_type',type);
+  if (status) q = q.eq('status',status);
+
+  const { data, error } = await q;
+  if (error) {
+    if (error.code === '42P01') {
+      tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div><div class="empty-bod">Run the anushastra_sessions SQL in Supabase SQL Editor</div></div></td></tr>';
+    } else {
+      tbody.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div></td></tr>`;
+    }
+    return;
+  }
+  _regData = data || [];
+  if (!_regData.length) {
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><div class="empty-ico">🌿</div><div class="empty-ttl">No sessions found in this period</div></div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = _regData.map(s=>`<tr>
+    <td style="white-space:nowrap"><strong>${s.session_date}</strong><br><span style="font-size:11px;color:var(--text-muted)">${s.session_time||''}</span></td>
+    <td>
+      <div style="font-weight:500">${_esc(s.patients?.name||'Unknown')}</div>
+      <div style="font-size:11px;color:var(--text-muted)">${_esc(s.patients?.phone||'')}</div>
+    </td>
+    <td>
+      <span class="ptype ptype-${s.procedure_type}">${_procLabel(s.procedure_type)}</span>
+      ${s.procedure_subtype ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px">${_esc(s.procedure_subtype)}</div>` : ''}
+    </td>
+    <td style="font-size:12px">${_esc(s.affected_site||'—')}<br><span style="color:var(--text-muted)">${s.side||''}</span></td>
+    <td style="font-size:12px">${s.profiles?.full_name ? 'Dr. '+_esc(s.profiles.full_name) : '—'}</td>
+    <td style="font-size:12px">${s.duration_minutes ? s.duration_minutes+' min' : '—'}</td>
+    <td style="text-align:center">${s.consent_obtained ? '<span class="consent-ok">✓</span>' : '<span class="consent-no">✗</span>'}</td>
+    <td><span class="chip chip-${s.status}">${s.status}</span></td>
+    <td>
+      ${s.status === 'scheduled' || s.status === 'in_progress'
+        ? `<button class="btn btn-complete btn-sm" onclick="markComplete('${s.id}')">✓ Complete</button>`
+        : '<span style="font-size:11px;color:var(--text-muted)">Done</span>'}
+    </td>
+  </tr>`).join('');
+};
+
+window.markComplete = async function(id) {
+  const { error } = await supabase.from('anushastra_sessions')
+    .update({ status:'completed', completed_at: new Date().toISOString() })
+    .eq('id',id).eq('tenant_id',tenantId);
+  if (error) { _toast(error.message,true); return; }
+  _toast('Marked as completed ✓');
+  loadRegister();
+  loadStats();
+};
+
+window.exportRegister = function() {
+  if (!_regData.length) { _toast('No data to export'); return; }
+  const rows = [
+    ['Date','Time','Patient','Phone','Procedure Type','Subtype','Site','Side','Duration (min)','Doctor','Status','Consent','Pre-findings','Post-observations','Adverse Events','Medicines Used','Remarks'],
+    ..._regData.map(s=>[
+      s.session_date, s.session_time||'', s.patients?.name||'', s.patients?.phone||'',
+      s.procedure_type||'', s.procedure_subtype||'', s.affected_site||'', s.side||'',
+      s.duration_minutes||'', s.profiles?.full_name||'', s.status||'',
+      s.consent_obtained?'Yes':'No', s.pre_findings||'', s.post_observations||'',
+      s.adverse_events||'', s.medicines_used||'', s.remarks||''
+    ])
+  ];
+  const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = 'Anushastra_Karma_Register.csv'; a.click();
+};
+
+// ─── Load doctors & therapists ────────────────────────────
+async function loadStaff() {
+  const { data } = await supabase.from('profiles').select('id,full_name,role')
+    .eq('tenant_id',tenantId).eq('is_active',true)
+    .in('role',['doctor','therapist','super_admin','dept_admin']).order('full_name');
+  const doctors   = (data||[]).filter(p=>['doctor','super_admin','dept_admin'].includes(p.role));
+  const therapists= (data||[]).filter(p=>p.role==='therapist');
+  const dSel = document.getElementById('f-doctor');
+  dSel.innerHTML = '<option value="">— Select Doctor —</option>' + doctors.map(d=>`<option value="${d.id}">Dr. ${_esc(d.full_name)}</option>`).join('');
+  const tSel = document.getElementById('f-therapist');
+  tSel.innerHTML = '<option value="">— Select (optional) —</option>' + therapists.map(t=>`<option value="${t.id}">${_esc(t.full_name)}</option>`).join('');
+}
+
+// ─── Helpers ─────────────────────────────────────────────
+function _procLabel(p) {
+  return {agnikarma:'Agnikarma',raktamokshana:'Raktamokshana',ksharakarma:'Ksharakarma',pain_management:'Pain Mgmt'}[p]||p||'—';
+}
+function _procDetail(s) {
+  if (s.procedure_type==='agnikarma')
+    return [s.shalaka_type, s.shalaka_material, s.applications_count ? s.applications_count+' applications' : ''].filter(Boolean).join(' · ');
+  if (s.procedure_type==='raktamokshana')
+    return [s.procedure_subtype, s.leech_count ? s.leech_count+' leeches' : '', s.blood_volume_ml ? s.blood_volume_ml+'mL' : ''].filter(Boolean).join(' · ');
+  if (s.procedure_type==='ksharakarma')
+    return [s.kshara_type, s.kshara_drug].filter(Boolean).join(' · ');
+  if (s.procedure_type==='pain_management')
+    return [s.block_type, s.drug_used].filter(Boolean).join(' · ');
+  return s.procedure_subtype||'—';
+}
+function showAlert(msg, type) {
+  const el = document.getElementById('main-alert');
+  el.textContent = msg; el.className = `alert ${type} show`;
+  setTimeout(()=>el.classList.remove('show'), 4000);
+}
+function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _toast(msg,isErr=false){ const el=document.getElementById('toast'); el.textContent=msg; el.style.background=isErr?'#7f1d1d':'#1c2b1f'; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),3000); }
+
+// ─── Boot ─────────────────────────────────────────────────
+await Promise.all([loadStaff(), loadStats()]);
+</script>
+</body>
+</html>

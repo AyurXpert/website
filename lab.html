@@ -746,7 +746,7 @@ async function loadOrders() {
   const date = getViewDate();
   const { data, error } = await supabase
     .from('lab_orders')
-    .select(`*, patients(name,age,gender,phone), profiles!ordered_by(full_name), lab_order_items(id,test_name,test_category,result_value,is_abnormal,is_critical)`)
+    .select(`*, patients(id,name,age,gender,phone,abha_number), profiles!ordered_by(full_name), lab_order_items(id,test_name,test_category,result_value,is_abnormal,is_critical)`)
     .eq('tenant_id', tenantId)
     .eq('order_date', date)
     .order('priority', { ascending: false }) // stat > urgent > routine
@@ -1036,10 +1036,40 @@ window.saveResults = async function(status) {
     });
   }
 
+  // ABDM M2 — create care context for DiagnosticReport FHIR type (fire-and-forget)
+  if (status === 'completed' && _activeOrder.patients?.abha_number) {
+    _abdmCareContextLabReport(_activeOrder).catch(() => {});
+  }
+
   _alert('success', status === 'completed' ? 'Report released. Doctor notified of critical values.' : 'Results saved as in-progress.');
   await loadOrders();
   if (_activeOrder) selectOrder(_activeOrder.id);
 };
+
+// ── ABDM M2 — Care context: DiagnosticReport (fire-and-forget) ───────
+// Merges DiagnosticReport into existing VISIT-{id} care context if order is
+// linked to a visit. Standalone lab orders (no visit_id) get their own LAB-{id} CC.
+async function _abdmCareContextLabReport(order) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+    const ABDM_HIP_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-hip';
+    const pt      = order.patients;
+    const visitId = order.visit_id;
+    const ccRef   = visitId ? `VISIT-${visitId}` : `LAB-${order.id}`;
+    const dateStr = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+    await fetch(ABDM_HIP_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({
+        action: 'create_care_context', patient_id: pt.id,
+        visit_id: visitId ?? null, care_context_ref: ccRef,
+        display: visitId ? `OPD Visit — ${dateStr}` : `Lab Report — ${dateStr}`,
+        hi_types: ['DiagnosticReport'], abha_number: pt.abha_number,
+      }),
+    });
+  } catch (e) { console.warn('[ABDM] lab care context failed:', e.message); }
+}
 
 // ── Print ─────────────────────────────────────────────────────────────────────
 window.printReport = function() {

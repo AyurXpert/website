@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Department Modules — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:10px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page-wrap{max-width:1200px;margin:0 auto;padding:28px 20px 80px}
+
+/* Header */
+.page-header{margin-bottom:28px}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:4px}
+
+/* Department grid */
+.dept-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:20px}
+
+/* Department card */
+.dept-card{
+  background:var(--white);border:1.5px solid var(--border);
+  border-radius:var(--radius);overflow:hidden;
+  transition:box-shadow .2s,border-color .2s;
+}
+.dept-card:hover{box-shadow:0 4px 20px rgba(26,74,46,.1);border-color:#b2d8bf}
+.dept-card-hdr{
+  display:flex;align-items:center;gap:12px;
+  padding:14px 16px;cursor:pointer;
+  border-bottom:1.5px solid var(--border);
+  background:var(--green-light);
+  user-select:none;
+}
+.dept-card-hdr:hover{background:#ddf0e6}
+.dept-icon{font-size:26px;width:42px;height:42px;display:flex;align-items:center;justify-content:center;background:var(--white);border-radius:10px;flex-shrink:0;box-shadow:0 1px 4px rgba(26,74,46,.1)}
+.dept-name{font-weight:700;font-size:15px;color:var(--green-deep);line-height:1.2}
+.dept-code{font-size:11px;color:var(--text-muted);margin-top:2px;letter-spacing:.3px}
+.dept-chevron{margin-left:auto;font-size:14px;color:var(--text-muted);transition:transform .2s;flex-shrink:0}
+.dept-card.open .dept-chevron{transform:rotate(180deg)}
+.dept-card.open .dept-card-hdr{border-bottom:1.5px solid var(--border)}
+
+/* Module list */
+.dept-modules{display:none;padding:8px 0}
+.dept-card.open .dept-modules{display:block}
+.module-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 16px;cursor:pointer;
+  transition:background .15s;
+  text-decoration:none;color:inherit;
+}
+.module-item:hover{background:#f5faf7}
+.module-item.disabled{opacity:.45;cursor:default;pointer-events:none}
+.module-icon{font-size:18px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:var(--green-light);border-radius:8px;flex-shrink:0}
+.module-item.disabled .module-icon{background:#f1f5f4}
+.module-info{flex:1}
+.module-name{font-size:13px;font-weight:600;color:var(--text-dark)}
+.module-desc{font-size:11px;color:var(--text-muted);margin-top:1px}
+.module-badges{display:flex;gap:4px;margin-top:3px;flex-wrap:wrap}
+.badge{display:inline-block;font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;letter-spacing:.3px;text-transform:uppercase}
+.badge-ncism{background:var(--gold);color:#fff}
+.badge-page{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.badge-consult{background:#e3f0ff;color:#1a4080;border:1px solid #b0c8f0}
+.badge-soon{background:#f1f5f4;color:var(--text-muted);border:1px solid var(--border)}
+.module-arrow{font-size:14px;color:var(--text-muted);flex-shrink:0}
+.module-item:not(.disabled):hover .module-arrow{color:var(--green-mid)}
+.module-divider{height:1px;background:var(--border);margin:4px 16px}
+
+/* Search */
+.search-bar{margin-bottom:20px}
+.search-input{width:100%;max-width:400px;height:42px;border:1.5px solid var(--border);border-radius:var(--radius);padding:0 14px;font-size:14px;font-family:'DM Sans',sans-serif;background:var(--white)}
+.search-input:focus{outline:none;border-color:var(--green-mid)}
+
+@media(max-width:600px){
+  .dept-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="page-wrap">
+  <div class="page-header">
+    <div class="page-title">Department Modules</div>
+    <div class="page-subtitle">Clinical features organised by NCISM department — click a department to expand</div>
+  </div>
+
+  <div class="search-bar">
+    <input class="search-input" id="dept-search" type="text" placeholder="Search module or department…" oninput="filterDepts()"/>
+  </div>
+
+  <div class="dept-grid" id="dept-grid"></div>
+</div>
+
+<script type="module">
+import { requireAuth } from './js/core/auth.js';
+import { initNavbar }  from './js/components/navbar.js';
+
+requireAuth(['super_admin','dept_admin','doctor','nurse']);
+initNavbar();
+
+/* ─────────────────────────────────────────────────────────────
+   DEPARTMENT + MODULE DEFINITIONS
+   page  → standalone page link
+   consult → feature inside doctor.html consultation tabs
+   soon  → coming soon (disabled)
+───────────────────────────────────────────────────────────── */
+const DEPTS = [
+  {
+    code:'KAY', name:'Kayachikitsa', icon:'🩺', desc:'Internal Medicine',
+    modules:[
+      { icon:'🔍', name:'Prakriti Pariksha', desc:'20-question constitutional assessment (V/P/K)',  type:'consult', ncism:'§18d' },
+      { icon:'📋', name:'Consultation & NAMASTE', desc:'Full 9-tab OPD consultation with dual coding', type:'consult', ncism:'' },
+      { icon:'📖', name:'Hospital Formulary',     desc:'Approved medicines list, NCISM §6(2)',         href:'formulary-admin.html', ncism:'§18as' },
+      { icon:'📄', name:'Medical Certificate',    desc:'Medical / Fitness / Sick Leave certificate',  type:'consult', ncism:'§12d' },
+    ]
+  },
+  {
+    code:'PK', name:'Panchakarma', icon:'🌸', desc:'Panchakarma Therapies',
+    modules:[
+      { icon:'📅', name:'Therapy Scheduler',      desc:'Daily PK session scheduling & therapist assignment', href:'therapist.html', ncism:'' },
+      { icon:'🍲', name:'Palha Diet Centre',       desc:'Today's diet indent, kitchen workflow, SOP',           href:'palha-diet.html', ncism:'§18bb' },
+      { icon:'💊', name:'PK Therapy Prescription',desc:'Prescribe PK medicines from therapist screen',         type:'consult', ncism:'§18n' },
+      { icon:'📋', name:'PK Proforma',             desc:'Panchakarma specialty proforma in consultation',       type:'consult', ncism:'§18v' },
+    ]
+  },
+  {
+    code:'SHAL', name:'Shalya Tantra', icon:'🔪', desc:'Surgery & Para-surgical Procedures',
+    modules:[
+      { icon:'🧵', name:'Kshara Sutra Scheduler', desc:'Weekly thread change tracking & appointments', href:'ksharasutra.html', ncism:'§18o' },
+      { icon:'⚗',  name:'Anushastra Karma',        desc:'Agnikarma · Raktamokshana · Ksharakarma · Pain Mgmt', href:'anushastra.html', ncism:'§47(c)' },
+      { icon:'🏥', name:'Minor OT Procedures',     desc:'Minor surgical procedure records & print',           href:'minor-ot.html',  ncism:'§18p' },
+      { icon:'🔪', name:'Major OT Register',       desc:'Full theatre management — scheduling, logbook, print', href:'major-ot.html', ncism:'§18p' },
+      { icon:'📋', name:'Shalya Proforma',          desc:'Specialty examination proforma in consultation',       type:'consult', ncism:'§18z' },
+    ]
+  },
+  {
+    code:'SHAK', name:'Shalakya Tantra', icon:'👁', desc:'ENT & Ophthalmology',
+    modules:[
+      { icon:'👁', name:'Ophthalmology Examination', desc:'VA, IOP, slit lamp, fundus, Netra Pariksha', type:'consult', ncism:'§18r' },
+      { icon:'👂', name:'ENT Examination',            desc:'Ear / nose / throat, Rinne / Weber tests',   type:'consult', ncism:'§18t' },
+      { icon:'💧', name:'Netra Kriya Kalpa',          desc:'Tarpana, Putapaka, Anjana session tracker',  type:'soon',    ncism:'§18s' },
+      { icon:'🌬', name:'ENT Kriya Kalpa',            desc:'Nasya, Karnapurana session tracker',         type:'soon',    ncism:'§18u' },
+    ]
+  },
+  {
+    code:'KAU', name:'Kaumarabhritya', icon:'👶', desc:'Paediatrics',
+    modules:[
+      { icon:'📐', name:'Bala Matra Calculator', desc:'Sharangadhara dose formula for children',      type:'consult', ncism:'§18ac' },
+      { icon:'📈', name:'Growth Chart',           desc:'WHO/IAP percentile bars, SAM/MAM alert',      type:'consult', ncism:'§18ad' },
+      { icon:'💉', name:'Immunization Record',    desc:'NIP India 28-vaccine schedule & history',     type:'consult', ncism:'§18ae' },
+      { icon:'📋', name:'Kaumarabhritya Proforma',desc:'Paediatric specialty proforma',                type:'consult', ncism:'§18g' },
+    ]
+  },
+  {
+    code:'PST', name:'Prasuti & Stri Roga', icon:'🤱', desc:'Obstetrics & Gynaecology',
+    modules:[
+      { icon:'🔬', name:'Obs/Gyn Examination',  desc:'Menstrual Hx, GPAL, FHS, fundal, PS/PV', type:'consult', ncism:'§18w' },
+      { icon:'📊', name:'ANC Register',         desc:'Antenatal register across multiple visits', href:'anc.html', ncism:'§18x' },
+      { icon:'🤱', name:'Labour Room',          desc:'Delivery register, partograph, APGAR, newborn care', href:'labour-room.html', ncism:'§8.9' },
+      { icon:'📋', name:'Prasuti Proforma',      desc:'Obstetrics specialty proforma',            type:'consult', ncism:'§18v' },
+    ]
+  },
+  {
+    code:'AGD', name:'Agada Tantra', icon:'⚗', desc:'Toxicology & Forensic Medicine',
+    modules:[
+      { icon:'📒', name:'Visha Register',      desc:'Poisoning cases register in consultation', type:'consult', ncism:'§18af' },
+      { icon:'🚨', name:'Poison Case Records', desc:'Detailed poison case documentation',        type:'consult', ncism:'§18af' },
+    ]
+  },
+  {
+    code:'SW', name:'Swasthavritta & Yoga', icon:'🧘', desc:'Preventive & Social Medicine',
+    modules:[
+      { icon:'🌿', name:'Swasthya Raksha Card', desc:'Prakriti, Ritucharya, Dinacharya print card', type:'consult', ncism:'§18c' },
+      { icon:'📋', name:'Advice & Pathya',       desc:'Lifestyle, diet, yoga advice in consultation', type:'consult', ncism:'' },
+      { icon:'🍃', name:'Seasonal Prophylaxis',  desc:'Vasanta Shodhana, Sharad Rasayana — enrolment & compliance tracker', href:'prophylaxis.html', ncism:'§18e' },
+    ]
+  },
+  {
+    code:'MAN', name:'Manovaha (Psychiatry)', icon:'🧠', desc:'Mental Health — MHA 2017',
+    modules:[
+      { icon:'🚩', name:'Mental Health Flag',    desc:'Flag & document mental health concerns',    type:'soon', ncism:'§18ai' },
+      { icon:'📝', name:'MHA 2017 Consent',      desc:'Mental Healthcare Act 2017 consent module', type:'soon', ncism:'§18aj' },
+    ]
+  },
+  {
+    code:'IPD', name:'IPD & Ward', icon:'🏥', desc:'In-Patient Department',
+    modules:[
+      { icon:'🛏', name:'IPD Admissions',     desc:'Admit, bed assignment, discharge workflow', href:'ipd.html',      ncism:'' },
+      { icon:'🏗', name:'Bed Management',     desc:'Bed matrix, ward setup, occupancy view',    href:'bed-admin.html', ncism:'' },
+      { icon:'📋', name:'Ward Round Notes',   desc:'SOAP notes per IPD patient per day',        href:'ipd.html',       ncism:'' },
+      { icon:'📄', name:'Discharge Summary',  desc:'Print IPD discharge summary (§15d)',        href:'ipd.html',       ncism:'§15d' },
+    ]
+  },
+  {
+    code:'SCR', name:'Screening OPD', icon:'🔭', desc:'Mandatory Triage — NCISM',
+    modules:[
+      { icon:'🔭', name:'Screening Triage',   desc:'Emergency / Urgent / Routine triage & routing', href:'screening.html', ncism:'' },
+      { icon:'🚨', name:'Emergency OPD',      desc:'Atyayika Chikitsa · 24×7 case register, RMO duty, MLC', href:'emergency.html', ncism:'§4.6' },
+    ]
+  },
+  {
+    code:'ADM', name:'Administration', icon:'⚙', desc:'Hospital Administration & Compliance',
+    modules:[
+      { icon:'📊', name:'NCISM Compliance',    desc:'OPD ratio, bed occupancy, Table-7 & 8',       href:'ncism-compliance.html', ncism:'' },
+      { icon:'⭐', name:'Quality Management', desc:'Incident reports, patient feedback, quality indicators hub', href:'quality.html',   ncism:'§12' },
+      { icon:'🗓', name:'24×7 Duty Roster',    desc:'Weekly shift grid, on-call, gap detection',    href:'roster.html',           ncism:'§18h' },
+      { icon:'💊', name:'Drug Procurement',    desc:'Procurement committee meeting tracker',         href:'dpc.html',               ncism:'§18at' },
+      { icon:'🧪', name:'Pharmacovigilance',  desc:'Bimonthly PV Cell meetings, ADR review, report submission', href:'pharmacovigilance.html', ncism:'§48' },
+      { icon:'🏅', name:'IQAC',               desc:'Quarterly quality assurance meetings, indicators, action tracking', href:'iqac.html',      ncism:'§12.1' },
+      { icon:'♻',  name:'BMW Management',    desc:'Daily waste log, CBWTF pickup, autoclave, monthly SPCB report',   href:'bmw.html',       ncism:'§10.4' },
+      { icon:'🔬', name:'CSSD / Sterilisation', desc:'Cycle log, BI testing, equipment register, sterility expiry',   href:'sterilisation.html', ncism:'§13' },
+      { icon:'🔬', name:'NABL Lab Quality',        desc:'Sample traceability, QC Levey-Jennings chart, Westgard rules, calibration register', href:'lab-nabl.html', ncism:'ISO 15189' },
+      { icon:'📒', name:'OPD Register',          desc:'Daily/monthly OPD patient register (NCISM format) — printable, CSV export',  href:'opd-register.html', ncism:'§2.1' },
+      { icon:'🛏️', name:'IPD Register',          desc:'In-patient admission register — LOS, diagnosis, discharge status, printable', href:'ipd-register.html', ncism:'§2.2' },
+      { icon:'📈', name:'Monthly Report',      desc:'NCISM monthly data export — OPD, IPD, beds, procedures', href:'admin.html',             ncism:'§2.2' },
+    ]
+  },
+];
+
+function buildHub() {
+  const grid = document.getElementById('dept-grid');
+  grid.innerHTML = '';
+  DEPTS.forEach((dept, i) => {
+    const card = document.createElement('div');
+    card.className = 'dept-card';
+    card.dataset.dept = dept.code;
+
+    const modulesHTML = dept.modules.map(m => {
+      const disabled  = m.type === 'soon' ? 'disabled' : '';
+      const href      = m.href ? `href="${m.href}"` : '';
+      const tag       = m.href ? 'a' : 'div';
+      const badges = [
+        m.ncism ? `<span class="badge badge-ncism">${m.ncism}</span>` : '',
+        m.href      ? `<span class="badge badge-page">Page</span>`    : '',
+        m.type === 'consult' ? `<span class="badge badge-consult">In Consultation</span>` : '',
+        m.type === 'soon'    ? `<span class="badge badge-soon">Coming Soon</span>`       : '',
+      ].filter(Boolean).join('');
+      return `<${tag} class="module-item ${disabled}" ${href}>
+        <div class="module-icon">${m.icon}</div>
+        <div class="module-info">
+          <div class="module-name">${m.name}</div>
+          <div class="module-desc">${m.desc}</div>
+          <div class="module-badges">${badges}</div>
+        </div>
+        ${!disabled ? '<span class="module-arrow">›</span>' : ''}
+      </${tag}>`;
+    }).join('<div class="module-divider"></div>');
+
+    card.innerHTML = `
+      <div class="dept-card-hdr" onclick="toggleDept(this.parentElement)">
+        <div class="dept-icon">${dept.icon}</div>
+        <div>
+          <div class="dept-name">${dept.name}</div>
+          <div class="dept-code">${dept.code} · ${dept.desc}</div>
+        </div>
+        <span class="dept-chevron">▼</span>
+      </div>
+      <div class="dept-modules">${modulesHTML}</div>`;
+
+    grid.appendChild(card);
+  });
+}
+
+window.toggleDept = function(card) {
+  const isOpen = card.classList.contains('open');
+  document.querySelectorAll('.dept-card.open').forEach(c => c.classList.remove('open'));
+  if (!isOpen) card.classList.add('open');
+};
+
+window.filterDepts = function() {
+  const q = document.getElementById('dept-search').value.trim().toLowerCase();
+  document.querySelectorAll('.dept-card').forEach(card => {
+    const text = card.textContent.toLowerCase();
+    const match = !q || text.includes(q);
+    card.style.display = match ? '' : 'none';
+    if (q && match) card.classList.add('open');
+    else if (!q) card.classList.remove('open');
+  });
+};
+
+buildHub();
+
+// Auto-open if ?dept= param in URL
+const dp = new URLSearchParams(location.search).get('dept');
+if (dp) {
+  const target = document.querySelector(`.dept-card[data-dept="${dp}"]`);
+  if (target) { target.classList.add('open'); target.scrollIntoView({ behavior:'smooth', block:'center' }); }
+}
+</script>
+</body>
+</html>
