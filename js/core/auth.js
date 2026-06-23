@@ -403,9 +403,9 @@ function _frameGuard() {
   }
 }
 
-// 30-minute inactivity auto-logout
+// 15-minute inactivity auto-logout (NDHM §2.1.4.7)
 let _inactivityTimer = null;
-const _INACTIVITY_MS = 30 * 60 * 1000;
+const _INACTIVITY_MS = 15 * 60 * 1000;
 
 function _resetInactivity() {
   clearTimeout(_inactivityTimer);
