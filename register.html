@@ -1442,6 +1442,12 @@ window.selectOrgType = function(type) {
   if (!ORG_DATA[type]) return;
   const d = ORG_DATA[type];
 
+  // REGISTRATION INACTIVE — show contact popup (see TODO_LATER.md §17b to activate)
+  document.getElementById('contact-org-name').textContent = d.name;
+  document.getElementById('contact-overlay').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  return;
+
   selectedOrgType = type;
   document.getElementById('sc-icon').textContent  = d.abbr;
   document.getElementById('sc-icon').className    = `sc-icon cat-${d.cat}`;
