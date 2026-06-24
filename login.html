@@ -229,7 +229,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
   <!-- Login card -->
   <div class="card">
 
-    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:20px">
+    <div id="ax-logo-block" style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:20px">
       <img src="assets/AyurXpert_Tree_Only.png" alt="" style="height:42px;width:auto">
       <span style="font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:600;line-height:1;letter-spacing:-0.3px">
         <span style="color:#1a4a2e">Ayur</span><span style="color:#c9902a">Xpert</span>
@@ -392,6 +392,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.clas
     tEl.style.display = '';
   }
   document.getElementById('tenant-block').classList.add('show');
+  document.getElementById('ax-logo-block').style.display = 'none';
 
   // Update card text and links
   document.getElementById('card-subtitle').textContent = `Sign in to ${tenant.name}`;
