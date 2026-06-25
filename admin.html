@@ -310,14 +310,18 @@ tr:hover td{background:#fafff8}
       <div class="sb-group-label">Operations</div>
       <button class="sb-item active" data-target="stats">
         <span class="sb-icon">📊</span>
-        <span class="sb-label">Accounts &amp; Statistics</span>
-        <span class="sb-badge" id="badge-pending" style="display:none">0</span>
+        <span class="sb-label">Statistics</span>
+      </button>
+      <button class="sb-item" data-target="accounts">
+        <span class="sb-icon">💰</span>
+        <span class="sb-label">Accounts</span>
       </button>
 
       <div class="sb-group-label">Organisation</div>
       <button class="sb-item" data-target="hr">
         <span class="sb-icon">👥</span>
         <span class="sb-label">Human Resources</span>
+        <span class="sb-badge" id="badge-pending" style="display:none">0</span>
       </button>
       <button class="sb-sub" data-target="hr" data-sub="staff">All Staff</button>
       <button class="sb-sub" data-target="hr" data-sub="hierarchy">Hierarchy</button>
@@ -387,7 +391,7 @@ tr:hover td{background:#fafff8}
     <div class="content-section active" id="section-stats">
       <div class="sec-hd">
         <div>
-          <div class="sec-title">Accounts &amp; Statistics</div>
+          <div class="sec-title">Statistics</div>
           <div class="sec-sub" id="stats-date"></div>
         </div>
         <button class="btn-outline" onclick="loadStats()">↻ Refresh</button>
@@ -421,12 +425,47 @@ tr:hover td{background:#fafff8}
         </div>
       </div>
 
+    </div>
+
+    <!-- ── SECTION: ACCOUNTS (Financial) ── -->
+    <div class="content-section" id="section-accounts">
+      <div class="sec-hd">
+        <div>
+          <div class="sec-title">Accounts</div>
+          <div class="sec-sub">Financial overview &amp; billing management</div>
+        </div>
+        <button class="btn-outline" onclick="loadAccounts()">↻ Refresh</button>
+      </div>
+
+      <!-- Financial summary cards (5 KPIs) -->
+      <div class="stats6" id="accounts-stats" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:20px"></div>
+
+      <!-- Quick links -->
+      <div class="cc" style="margin-bottom:16px">
+        <div class="cc-hd"><span class="cc-title">Quick Links</span></div>
+        <div style="display:flex;gap:12px;padding:14px 20px;flex-wrap:wrap">
+          <a href="fee-admin.html" class="btn-act">💰 Fee Structure</a>
+          <a href="reports.html" class="btn-act">📊 Billing Reports</a>
+          <a href="purchase-order.html" class="btn-act">📦 Purchase Orders</a>
+          <a href="purchase.html" class="btn-act">🚚 GRN / Purchases</a>
+        </div>
+      </div>
+
+      <!-- Revenue breakdown -->
+      <div class="cc" style="margin-bottom:16px">
+        <div class="cc-hd"><span class="cc-title">Revenue Breakdown</span></div>
+        <div id="accounts-breakdown">
+          <div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>
+        </div>
+      </div>
+
+      <!-- Pending bills -->
       <div class="cc">
         <div class="cc-hd">
-          <span class="cc-title">Pending Staff Approvals</span>
-          <span class="badge-count red" id="approval-badge" style="display:none">0</span>
+          <span class="cc-title">Pending Bills</span>
+          <span class="badge-count red" id="pending-bills-badge" style="display:none">0</span>
         </div>
-        <div id="approvals-body">
+        <div id="pending-bills-body">
           <div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>
         </div>
       </div>
@@ -443,6 +482,7 @@ tr:hover td{background:#fafff8}
           <button class="btn-outline active hr-tab" data-sub="staff">All Staff</button>
           <button class="btn-outline hr-tab" data-sub="ncism">NCISM Requirements</button>
           <button class="btn-outline hr-tab" data-sub="hierarchy">Hierarchy View</button>
+          <button class="btn-outline hr-tab" data-sub="access">Login Access</button>
         </div>
       </div>
       <!-- NCISM staffing panel -->
@@ -481,6 +521,20 @@ tr:hover td{background:#fafff8}
       <div id="hr-hierarchy-panel" style="display:none">
         <div id="hierarchy-body">
           <div class="empty"><div class="empty-ico">👥</div><div class="empty-ttl">Loading hierarchy…</div></div>
+        </div>
+      </div>
+
+      <!-- Login Access panel -->
+      <div id="hr-access-panel" style="display:none">
+        <div class="stats6" id="access-stats" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px"></div>
+        <div class="cc">
+          <div class="cc-hd">
+            <span class="cc-title">Pending Staff Approvals</span>
+            <span class="badge-count red" id="approval-badge" style="display:none">0</span>
+          </div>
+          <div id="approvals-body">
+            <div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>
+          </div>
         </div>
       </div>
     </div>
@@ -864,6 +918,7 @@ function _showSection(target, sub) {
   if (target==='subscription')   window.loadSubscription();
   if (target==='packages')       window.loadPackages();
   if (target==='modules')        window.loadModules();
+  if (target==='accounts')           window.loadAccounts();
   if (target==='abdm-bridge')        window.loadAbdmCallbacks();
   if (target==='compliance-reports') {
     const today = new Date().toISOString().slice(0,7);
@@ -1007,14 +1062,175 @@ window.loadStats = async function() {
   // §21x — NABH status (always shown for hospital/college types)
   window.loadNabhStatus && window.loadNabhStatus();
 
-  if (pending>0){const b=document.getElementById('badge-pending');b.textContent=pending;b.style.display='';}
+  const _sb=document.getElementById('badge-pending');
+  if(_sb){if(pending>0){_sb.textContent=pending;_sb.style.display='';}else{_sb.style.display='none';}}
+};
 
+// ────────────────────────────────────────────────
+// SECTION 1b — ACCOUNTS (Financial)
+// ────────────────────────────────────────────────
+window.loadAccounts = async function() {
+  const monthStart   = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+  const thirtyDaysAgo = new Date(Date.now() - 30*24*60*60*1000).toISOString();
+
+  const [paidToday, paidMonth, allPending] = await Promise.all([
+    supabase.from('bills').select('final_amount,payer_type,bill_type')
+      .eq('tenant_id',tenantId).eq('status','paid')
+      .gte('created_at',todayStart).lte('created_at',todayEnd),
+    supabase.from('bills').select('final_amount,payer_type,bill_type')
+      .eq('tenant_id',tenantId).eq('status','paid')
+      .gte('created_at',monthStart),
+    supabase.from('bills')
+      .select('id,final_amount,patient_due,created_at,bill_type,payer_type,tpa_name,insurance_provider,insurance_approved_amount,insurance_claim_status,pre_auth_status,status,patients(name)')
+      .eq('tenant_id',tenantId)
+      .in('status',['pending','partial'])
+      .order('created_at',{ascending:false})
+      .limit(100),
+  ]);
+
+  const todayList = paidToday.data  || [];
+  const monthList = paidMonth.data  || [];
+  const pendList  = allPending.data || [];
+
+  const sumAmt = (arr, key='final_amount') => arr.reduce((s,b)=>s+(Number(b[key])||0), 0);
+
+  const revenueToday   = sumAmt(todayList);
+  const revenueMonth   = sumAmt(monthList);
+  const selfPay        = pendList.filter(b=>b.payer_type==='self_pay');
+  const insClaims      = pendList.filter(b=>b.payer_type!=='self_pay');
+  const overdue30      = pendList.filter(b=>new Date(b.created_at)<new Date(thirtyDaysAgo));
+
+  // ── KPI Cards ──
+  const acGrid = document.getElementById('accounts-stats');
+  if(acGrid) acGrid.innerHTML=[
+    {ico:'₹',  cls:'gold', num:_fmt(revenueToday),    lbl:'Revenue Today',     sub:'cash & digital in'},
+    {ico:'📅', cls:'g',    num:_fmt(revenueMonth),     lbl:'This Month',         sub:'total revenue collected'},
+    {ico:'👤', cls:'b',    num:_fmt(sumAmt(selfPay)),  lbl:'Self-Pay Pending',   sub:selfPay.length+' bills awaiting'},
+    {ico:'🏥', cls:'p',    num:insClaims.length,        lbl:'Insurance Claims',   sub:'pending with TPA / PMJAY'},
+    {ico:'⚠️', cls:'r',    num:overdue30.length,        lbl:'Outstanding >30d',   sub:_fmt(sumAmt(overdue30))+' at risk'},
+  ].map(c=>`<div class="sc"><div class="sc-ico ${c.cls}">${c.ico}</div><div class="sc-num">${c.num??'—'}</div><div class="sc-lbl">${c.lbl}</div><div class="sc-sub">${c.sub}</div></div>`).join('');
+
+  // ── Revenue Breakdown table ──
+  const opdT  = sumAmt(todayList.filter(b=>b.bill_type==='OPD'));
+  const ipdT  = sumAmt(todayList.filter(b=>b.bill_type==='IPD'));
+  const opdM  = sumAmt(monthList.filter(b=>b.bill_type==='OPD'));
+  const ipdM  = sumAmt(monthList.filter(b=>b.bill_type==='IPD'));
+  const spT   = sumAmt(todayList.filter(b=>b.payer_type==='self_pay'));
+  const insT  = sumAmt(todayList.filter(b=>b.payer_type!=='self_pay'));
+  const spM   = sumAmt(monthList.filter(b=>b.payer_type==='self_pay'));
+  const insM  = sumAmt(monthList.filter(b=>b.payer_type!=='self_pay'));
+
+  const bkDiv = document.getElementById('accounts-breakdown');
+  if(bkDiv) bkDiv.innerHTML=`<div class="tw"><table>
+    <thead><tr><th>Category</th><th>Today</th><th>This Month</th></tr></thead>
+    <tbody>
+      <tr><td><span class="chip b">OPD</span> Outpatient</td><td>${_fmt(opdT)}</td><td>${_fmt(opdM)}</td></tr>
+      <tr><td><span class="chip p">IPD</span> Inpatient</td><td>${_fmt(ipdT)}</td><td>${_fmt(ipdM)}</td></tr>
+      <tr style="border-top:2px solid var(--border);font-weight:600">
+        <td>Total Collected</td><td>${_fmt(revenueToday)}</td><td>${_fmt(revenueMonth)}</td>
+      </tr>
+      <tr><td><span class="chip b">Self-Pay</span></td><td>${_fmt(spT)}</td><td>${_fmt(spM)}</td></tr>
+      <tr><td><span class="chip g">Insurance / Govt</span></td><td>${_fmt(insT)}</td><td>${_fmt(insM)}</td></tr>
+    </tbody>
+  </table></div>`;
+
+  // ── Pending Bills badge ──
+  const badge = document.getElementById('pending-bills-badge');
+  if(badge){
+    if(pendList.length>0){badge.textContent=pendList.length;badge.style.display='';}
+    else{badge.style.display='none';}
+  }
+
+  // ── Pending Bills table ──
+  const wrap = document.getElementById('pending-bills-body');
+  if(!pendList.length){
+    wrap.innerHTML=`<div class="empty"><div class="empty-ico">✅</div><div class="empty-ttl">No pending bills — all collected</div></div>`;
+    return;
+  }
+
+  const _payerChip = b => {
+    if(b.payer_type==='self_pay')  return `<span class="chip b">Self-Pay</span>`;
+    if(b.payer_type==='pmjay')     return `<span class="chip g">PMJAY</span>`;
+    if(b.payer_type==='cghs')      return `<span class="chip g">CGHS</span>`;
+    if(b.payer_type==='echs')      return `<span class="chip g">ECHS</span>`;
+    if(b.payer_type==='esi')       return `<span class="chip g">ESIC</span>`;
+    if(b.payer_type==='corporate') return `<span class="chip p">${_esc(b.tpa_name||'Corporate')}</span>`;
+    return `<span class="chip p">${_esc(b.tpa_name||b.insurance_provider||'Insurance')}</span>`;
+  };
+
+  const _claimBadge = b => {
+    if(b.payer_type==='self_pay') return '—';
+    return ({
+      pre_auth_pending:  `<span class="chip r">Pre-Auth ⏳</span>`,
+      pre_auth_approved: `<span class="chip g">Auth ✅</span>`,
+      submitted:         `<span class="chip b">Submitted</span>`,
+      settled:           `<span class="chip g">Settled</span>`,
+      partial_settled:   `<span class="chip gold">Partial</span>`,
+      rejected:          `<span class="chip r">Rejected ✗</span>`,
+    })[b.insurance_claim_status] || '—';
+  };
+
+  const _days = iso => {
+    const d = Math.floor((Date.now()-new Date(iso))/86400000);
+    return d===0?'Today':d+'d';
+  };
+  const _daysStyle = iso => {
+    const d = Math.floor((Date.now()-new Date(iso))/86400000);
+    return d>30?'color:var(--red);font-weight:600':d>7?'color:var(--gold)':'';
+  };
+
+  wrap.innerHTML=`<div class="tw" style="overflow-x:auto"><table>
+    <thead><tr>
+      <th>Patient</th><th>Type</th><th>Payer</th>
+      <th style="text-align:right">Bill ₹</th>
+      <th style="text-align:right">Approved ₹</th>
+      <th style="text-align:right">Patient Due</th>
+      <th>Days</th><th>Claim Status</th>
+    </tr></thead>
+    <tbody>${pendList.map(b=>`<tr>
+      <td><strong>${_esc(b.patients?.name||'—')}</strong></td>
+      <td><span class="chip ${b.bill_type==='IPD'?'p':'b'}">${b.bill_type||'OPD'}</span></td>
+      <td>${_payerChip(b)}</td>
+      <td style="text-align:right">${_fmt(b.final_amount)}</td>
+      <td style="text-align:right">${b.payer_type!=='self_pay'&&b.insurance_approved_amount?_fmt(b.insurance_approved_amount):'—'}</td>
+      <td style="text-align:right;font-weight:600;color:var(--red)">${_fmt(b.patient_due??b.final_amount)}</td>
+      <td style="${_daysStyle(b.created_at)}">${_days(b.created_at)}</td>
+      <td>${_claimBadge(b)}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+};
+
+// ────────────────────────────────────────────────
+// SECTION HR — LOGIN ACCESS (Staff Account Management)
+// ────────────────────────────────────────────────
+window.loadStaffAccess = async function() {
+  const [total, active, pending, suspended] = await Promise.all([
+    _count('profiles',[['tenant_id',tenantId]]),
+    _count('profiles',[['tenant_id',tenantId],['is_active',true]]),
+    _count('profiles',[['tenant_id',tenantId],['status','pending_approval']]),
+    _count('profiles',[['tenant_id',tenantId],['status','suspended']]),
+  ]);
+
+  // Sidebar badge
+  const sb=document.getElementById('badge-pending');
+  if(sb){if(pending>0){sb.textContent=pending;sb.style.display='';}else{sb.style.display='none';}}
+
+  // Summary cards
+  const acGrid=document.getElementById('access-stats');
+  if(acGrid) acGrid.innerHTML=[
+    {ico:'👥',cls:'b',   num:total,    lbl:'Total Accounts',   sub:'all staff'},
+    {ico:'✅',cls:'g',   num:active,   lbl:'Active',            sub:'can log in'},
+    {ico:'⏳',cls:'r',   num:pending,  lbl:'Pending Approval',  sub:'awaiting review'},
+    {ico:'🚫',cls:'p',   num:suspended,lbl:'Suspended',         sub:'access revoked'},
+  ].map(c=>`<div class="sc"><div class="sc-ico ${c.cls}">${c.ico}</div><div class="sc-num">${c.num??'—'}</div><div class="sc-lbl">${c.lbl}</div><div class="sc-sub">${c.sub}</div></div>`).join('');
+
+  // Pending approvals table
   const approvals = await getPendingApprovals();
   const wrap  = document.getElementById('approvals-body');
   const badge = document.getElementById('approval-badge');
-  if (approvals.length){badge.textContent=approvals.length;badge.style.display='';}else{badge.style.display='none';}
+  if(badge){if(approvals.length){badge.textContent=approvals.length;badge.style.display='';}else{badge.style.display='none';}}
 
-  if (!approvals.length){
+  if(!approvals.length){
     wrap.innerHTML=`<div class="empty"><div class="empty-ico">✅</div><div class="empty-ttl">All clear — no pending approvals</div></div>`;
     return;
   }
@@ -1037,7 +1253,7 @@ window.loadStats = async function() {
       const id=btn.dataset.id; btn.disabled=true;
       const{error}=await supabase.from('profiles').update({status:'active',is_active:true,approved_by:profile.id,approved_at:new Date().toISOString()}).eq('id',id).eq('tenant_id',tenantId);
       if(error){_toast('Failed: '+error.message,true);btn.disabled=false;}
-      else{document.getElementById('arow-'+id)?.remove();_toast('Staff approved.');loadStats();}
+      else{document.getElementById('arow-'+id)?.remove();_toast('Staff approved.');window.loadStaffAccess();loadStats();}
     });
   });
   document.querySelectorAll('.btn-reject[data-id]').forEach(btn=>{
@@ -1045,7 +1261,7 @@ window.loadStats = async function() {
       const id=btn.dataset.id; btn.disabled=true;
       const{error}=await supabase.from('profiles').update({status:'rejected',approved_by:profile.id,approved_at:new Date().toISOString()}).eq('id',id).eq('tenant_id',tenantId);
       if(error){_toast('Failed: '+error.message,true);btn.disabled=false;}
-      else{document.getElementById('arow-'+id)?.remove();_toast('Request rejected.');loadStats();}
+      else{document.getElementById('arow-'+id)?.remove();_toast('Request rejected.');window.loadStaffAccess();loadStats();}
     });
   });
 };
@@ -1155,7 +1371,9 @@ function _hrSub(sub){
   document.getElementById('hr-staff-panel').style.display     = sub==='staff'     ? '' : 'none';
   document.getElementById('hr-hierarchy-panel').style.display  = sub==='hierarchy' ? '' : 'none';
   document.getElementById('hr-ncism-panel').style.display      = sub==='ncism'     ? '' : 'none';
-  if (sub === 'ncism') _renderNcismStaffing();
+  document.getElementById('hr-access-panel').style.display     = sub==='access'    ? '' : 'none';
+  if (sub === 'ncism')   _renderNcismStaffing();
+  if (sub === 'access')  window.loadStaffAccess();
 }
 
 async function _renderNcismStaffing() {
