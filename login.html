@@ -278,7 +278,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
         <label for="password">Password</label>
         <div class="pw-wrap">
           <input type="password" id="password" placeholder="Enter your password"
-            autocomplete="off"/>
+            autocomplete="current-password"/>
           <button class="toggle-pw" type="button" id="toggle-pw" aria-label="Show or hide password">&#128065;</button>
         </div>
         <div class="field-meta">
@@ -498,10 +498,13 @@ async function handleLogin() {
   const result = await login({ email: _verifiedEmail, password });
   _setLoading(btnLogin, false);
   if (!result.success) {
-    // Always generic — prevents distinguishing wrong-password from unknown-email
     const msg = result.error || '';
     if (msg.includes('pending') || msg.includes('approved') || msg.includes('department access') || msg.includes('suspended') || msg.includes('not approved')) {
       showAlert(msg);
+    } else if (msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('too many') || msg.includes('429')) {
+      showAlert('Too many failed attempts. Please wait a few minutes, then try again. If the issue persists, contact your administrator.');
+    } else if (msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('network') || msg.toLowerCase().includes('failed to') || msg.toLowerCase().includes('connect')) {
+      showAlert('Connection error. Please check your internet connection and try again.');
     } else {
       showAlert('Invalid email or password. Please try again.');
     }
