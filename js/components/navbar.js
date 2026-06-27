@@ -300,9 +300,13 @@ function _injectAdminSidebarOverlay(tenant, profile, role) {
   backdrop.addEventListener('click', _close);
   panel.querySelectorAll('.axsb-lnk').forEach(a => a.addEventListener('click', () => setTimeout(_close, 150)));
 
-  // Trigger on brand hover
+  // Trigger on brand hover or click
   const brand = document.querySelector('.ax-brand');
-  if (brand) brand.addEventListener('mouseenter', _open);
+  if (brand) {
+    brand.addEventListener('mouseenter', _open);
+    brand.addEventListener('click', _open);
+    brand.style.cursor = 'pointer';
+  }
 }
 
 // ── Watermark ─────────────────────────────────────────────────────────────────

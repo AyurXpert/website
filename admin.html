@@ -298,12 +298,9 @@ tr:hover td{background:#fafff8}
 </head>
 <body>
 
-<!-- MASTER CONTROL (super_admin / dept_admin) -->
-<div class="admin-shell" id="admin-shell" style="display:none">
-
-  <div class="admin-sb-backdrop" id="admin-sb-backdrop"></div>
-
-  <aside class="admin-sidebar" id="admin-sidebar">
+<!-- Sidebar overlay — outside admin-shell so display:none on shell doesn't hide it -->
+<div class="admin-sb-backdrop" id="admin-sb-backdrop"></div>
+<aside class="admin-sidebar" id="admin-sidebar">
     <div class="sb-head">
       <div class="sb-org-name" id="sb-org-name">Loading…</div>
       <div class="sb-org-meta">
@@ -389,9 +386,11 @@ tr:hover td{background:#fafff8}
     <div class="sb-footer">
       <button class="btn-copy-code" id="sidebar-copy-code">📋 Copy Organisation Code</button>
     </div>
-  </aside>
+</aside>
 
-  <main class="admin-content">
+<!-- MASTER CONTROL content (hidden until auth confirms super/dept admin) -->
+<div class="admin-shell" id="admin-shell" style="display:none">
+<main class="admin-content">
 
     <!-- ── SECTION: STATISTICS ── -->
     <div class="content-section active" id="section-stats">
@@ -897,9 +896,15 @@ function _bootMasterControl() {
   function _openSidebar()  { _sidebar.classList.add('open');  _sbBackdrop.classList.add('open');  }
   function _closeSidebar() { _sidebar.classList.remove('open'); _sbBackdrop.classList.remove('open'); }
 
-  // Open when hovering over the logo/brand area
+  // Open on logo hover OR click (click works on touch + as fallback)
   const _brand = document.querySelector('.ax-brand');
-  if (_brand) _brand.addEventListener('mouseenter', _openSidebar);
+  if (_brand) {
+    _brand.addEventListener('mouseenter', _openSidebar);
+    _brand.style.cursor = 'pointer';
+  }
+
+  // Auto-open sidebar on page load so users can discover it
+  setTimeout(_openSidebar, 400);
 
   // Close on backdrop click
   _sbBackdrop.addEventListener('click', _closeSidebar);
