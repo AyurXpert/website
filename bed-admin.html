@@ -110,6 +110,28 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .dept-actions{display:flex;gap:6px;margin-top:12px;border-top:1px solid var(--border);padding-top:10px}
 .dept-empty{text-align:center;padding:48px 20px;color:var(--text-muted);font-size:13px}
 
+/* ── NCISM bed compliance row ── */
+.ncism-bed-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+  margin-top:8px;padding:6px 10px;border-radius:6px;background:var(--cream);font-size:12px}
+.ncism-bed-row span{color:var(--text-muted)}
+.ncism-bed-row strong{color:var(--text-dark)}
+.ncism-gap-warn{color:#c0392b;font-weight:700;background:#fdecea;
+  padding:2px 8px;border-radius:10px;font-size:11px}
+.ncism-gap-ok{color:#2d7a4f;font-weight:700;background:#e8f5ee;
+  padding:2px 8px;border-radius:10px;font-size:11px}
+
+/* ── Bed list inside dept card ── */
+.dept-bed-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.dept-bed-tag{
+  display:inline-flex;align-items:center;gap:3px;
+  background:var(--white);border:1.5px solid var(--border);border-radius:5px;
+  padding:2px 7px;font-size:11px;font-weight:600;color:var(--text-dark);
+}
+.dept-bed-tag em{font-style:normal;font-size:10px;color:var(--text-muted)}
+.dept-bed-tag.occupied{border-color:#f5c6c6;background:#fdecea}
+.dept-bed-tag.maintenance{border-color:#ccc;background:#f5f5f5;color:#888}
+.dept-no-beds{font-size:11px;color:var(--text-muted);margin-top:6px;font-style:italic}
+
 /* ── Beds tab ── */
 .bed-filter-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .bed-filter-bar select{
@@ -148,6 +170,25 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   background:#1a4080;border-radius:50%;
 }
 .bed-empty{text-align:center;padding:48px 20px;color:var(--text-muted);font-size:13px;grid-column:1/-1}
+
+/* ── Department name in bed card (Bed Matrix tab) ── */
+.bed-dept-name{font-size:10px;font-weight:600;color:var(--green-deep);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.75}
+
+/* ── Rounding footnote ── */
+.rounding-note{font-size:10px;color:var(--text-muted);font-style:italic;
+  margin-top:3px;line-height:1.4;padding:0 2px}
+
+/* ── NCISM compliance panel inside bed/bulk drawers ── */
+.dept-info-panel{display:none;background:var(--cream);border:1px solid var(--border);
+  border-radius:6px;padding:10px 12px;margin-top:6px}
+.dept-info-compliance{display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+  font-size:12px;margin-bottom:8px}
+.dept-info-compliance span{color:var(--text-muted)}
+.dept-info-compliance strong{color:var(--text-dark)}
+.dept-info-beds-label{font-size:10px;font-weight:600;color:var(--text-mid);
+  text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
+.dept-info-beds{margin-top:6px}
 
 /* ── Bed legend ── */
 .bed-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--text-muted);margin-bottom:14px}
@@ -345,9 +386,10 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
 
       <div class="field">
         <label>Department <span class="req">*</span></label>
-        <select id="bed-dept">
+        <select id="bed-dept" onchange="updateDeptInfo('bed')">
           <option value="">— Select department —</option>
         </select>
+        <div class="dept-info-panel" id="bed-dept-info"></div>
       </div>
 
       <div class="field-row">
@@ -401,9 +443,10 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
     <div class="drawer-body">
       <div class="field">
         <label>Department <span class="req">*</span></label>
-        <select id="bulk-dept">
+        <select id="bulk-dept" onchange="updateDeptInfo('bulk')">
           <option value="">— Select department —</option>
         </select>
+        <div class="dept-info-panel" id="bulk-dept-info"></div>
       </div>
       <div class="field-row">
         <div class="field">
@@ -595,9 +638,22 @@ const NCISM_CODES = [
   { code:'GENERAL',           label:'General / Administrative',              mandatory:false },
 ];
 
-let _depts = [];
-let _beds  = [];
-let _opds  = [];
+// NCISM Table-8 bed ratios per dept code (fraction of UG intake)
+const UG_BED_RATIOS = {
+  'KAYACHIKITSA':       0.20,
+  'PANCHAKARMA':        0.25,
+  'SHALYA_TANTRA':      0.20,
+  'SHALAKYA_KNM':       0.05,  // combined Shalakya = 10% split equally between Netra & KNM
+  'SHALAKYA_NETRA':     0.05,
+  'KAUMARABHRITYA':     0.10,
+  'AGADA_TANTRA':       0.05,
+  'STRI_ROGA_PRASUTI':  0.10,
+};
+
+let _depts    = [];
+let _beds     = [];
+let _opds     = [];
+let _ugIntake = 0;
 
 // ── Populate NCISM select ─────────────────────────────────────────────────────
 function _populateNcismSelect() {
@@ -632,18 +688,20 @@ function populateDeptSelects() {
 
 // ── Load all data ─────────────────────────────────────────────────────────────
 async function loadAll() {
-  const [dRes, bRes, oRes] = await Promise.all([
+  const [dRes, bRes, oRes, tRes] = await Promise.all([
     supabase.from('departments').select('*').eq('tenant_id', tenantId).order('name'),
     supabase.from('beds').select('*').eq('tenant_id', tenantId).order('bed_number'),
     supabase.from('opds').select('id,name').eq('tenant_id', tenantId).eq('is_active', true).order('name'),
+    supabase.from('tenants').select('ug_intake').eq('id', tenantId).single(),
   ]);
 
   if (dRes.error) { _alert('error', 'Failed to load departments: ' + dRes.error.message); return; }
   if (bRes.error) { _alert('error', 'Failed to load beds: ' + bRes.error.message); return; }
 
-  _depts = dRes.data || [];
-  _beds  = bRes.data || [];
-  _opds  = oRes.data || [];
+  _depts    = dRes.data || [];
+  _beds     = bRes.data || [];
+  _opds     = oRes.data || [];
+  _ugIntake = tRes.data?.ug_intake || 0;
 
   _populateOpdSelect();
   populateDeptSelects();
@@ -716,6 +774,31 @@ function renderDepts() {
 
     const violates   = d.is_pg_dept && pgRequired > 0 && (pgBeds < pgRequired || pct < 80);
 
+    // NCISM required beds (Table-8 ratio × UG intake)
+    const ratio         = UG_BED_RATIOS[d.ncism_code] || 0;
+    const exactRequired = ratio > 0 && _ugIntake > 0 ? _ugIntake * ratio : 0;
+    const requiredBeds  = Math.floor(exactRequired);
+    const isRounded     = exactRequired > 0 && exactRequired !== requiredBeds;
+    const gap           = requiredBeds > 0 ? Math.max(0, requiredBeds - deptBeds.length) : 0;
+
+    const ncismBedRow = requiredBeds > 0 ? `
+      <div class="ncism-bed-row">
+        <span>NCISM Required: <strong>${requiredBeds}${isRounded ? '*' : ''}</strong></span>
+        <span>Configured: <strong>${deptBeds.length}</strong></span>
+        ${gap > 0
+          ? `<span class="ncism-gap-warn">⚠ Need ${gap} more</span>`
+          : `<span class="ncism-gap-ok">✓ Beds met</span>`}
+      </div>
+      ${isRounded ? `<div class="rounding-note">* ${_ugIntake} × ${ratio * 100}% = ${exactRequired} beds — rounded down to ${requiredBeds}. Collectively all departments meet the NCISM Table-8 minimum of ${_ugIntake} beds.</div>` : ''}` : '';
+
+    const bedListHtml = deptBeds.length > 0
+      ? `<div class="dept-bed-list">${deptBeds.map(b =>
+          `<span class="dept-bed-tag ${b.status !== 'vacant' ? b.status : ''}"
+            title="${_esc(b.ward_name || '')} · ${b.status}">
+            ${_esc(b.bed_number)}<em> F${b.floor_number ?? 0}</em>
+          </span>`).join('')}</div>`
+      : `<div class="dept-no-beds">No beds added yet</div>`;
+
     return `<div class="dept-card">
       <div class="dept-card-head">
         <div>
@@ -729,12 +812,14 @@ function renderDepts() {
           <span class="badge ${d.is_active ? 'badge-active' : 'badge-inactive'}">${d.is_active ? 'Active' : 'Inactive'}</span>
         </div>
       </div>
-      <div class="dept-stats">
+      ${ncismBedRow}
+      <div class="dept-stats" style="margin-top:8px">
         <span>Beds: <strong>${deptBeds.length}</strong></span>
         <span>Occupied: <strong>${occupied}</strong></span>
         <span>Occ%: <strong>${deptBeds.length ? pct + '%' : '—'}</strong></span>
         ${d.is_pg_dept ? `<span>PG beds: <strong>${pgBeds}/${pgRequired}</strong></span>` : ''}
       </div>
+      ${bedListHtml}
       <div class="dept-actions">
         <button class="btn btn-secondary btn-sm" onclick="openBedDrawer(null,'${d.id}')">+ Bed</button>
         <button class="icon-btn" onclick="openDeptDrawer('${d.id}')" title="Edit">&#9998;</button>
@@ -767,10 +852,11 @@ function renderBeds() {
     const statusCls = b.status === 'pk_treatment' ? 'pk_treatment' : b.status;
     const BED_LABELS = {general:'General Ward',twin_sharing:'Twin Sharing',semi_private:'Shared Private',private:'Private Room',deluxe:'Deluxe Private',dormitory:'Dormitory',icu:'ICU',day_care:'Day Care',pk_treatment:'PK Treatment',observation:'Observation'};
     const typeLabel = BED_LABELS[b.bed_type] || b.bed_type.replace(/_/g,' ');
-    return `<div class="bed-card ${statusCls}" onclick="openBedDrawer('${b.id}')" title="${_esc(b.bed_number)} — ${b.status}">
+    return `<div class="bed-card ${statusCls}" onclick="openBedDrawer('${b.id}')" title="${_esc(b.bed_number)} — ${deptMap[b.department_id] || ''} — ${b.status}">
       ${b.is_pg_allocated ? '<div class="bed-pg-dot" title="PG-allocated"></div>' : ''}
       <div class="bed-num">${_esc(b.bed_number)}</div>
-      <div class="bed-ward">${_esc(b.ward_name || deptMap[b.department_id] || '—')}</div>
+      <div class="bed-dept-name">${_esc(deptMap[b.department_id] || '—')}</div>
+      ${b.ward_name ? `<div class="bed-ward">${_esc(b.ward_name)}</div>` : ''}
       <div class="bed-type-badge ${b.bed_type}">${typeLabel}</div>
     </div>`;
   }).join('');
@@ -885,6 +971,47 @@ window.deleteDept = async function(id) {
   await loadAll();
 };
 
+// ── NCISM compliance panel for department selects ─────────────────────────────
+window.updateDeptInfo = function(prefix) {
+  const deptId = document.getElementById(`${prefix}-dept`).value;
+  const panel  = document.getElementById(`${prefix}-dept-info`);
+
+  if (!deptId) { panel.innerHTML = ''; panel.style.display = 'none'; return; }
+
+  const dept          = _depts.find(d => d.id === deptId);
+  const deptBeds      = _beds.filter(b => b.department_id === deptId);
+  const ratio         = UG_BED_RATIOS[dept?.ncism_code] || 0;
+  const exactRequired = ratio > 0 && _ugIntake > 0 ? _ugIntake * ratio : 0;
+  const required      = Math.floor(exactRequired);
+  const isRounded     = exactRequired > 0 && exactRequired !== required;
+  const gap           = required > 0 ? Math.max(0, required - deptBeds.length) : 0;
+
+  const complianceHtml = required > 0 ? `
+    <div class="dept-info-compliance">
+      <span>NCISM Required: <strong>${required}${isRounded ? '*' : ''}</strong></span>
+      <span>Current: <strong>${deptBeds.length}</strong></span>
+      ${gap > 0
+        ? `<span class="ncism-gap-warn">⚠ Need ${gap} more</span>`
+        : `<span class="ncism-gap-ok">✓ Beds met</span>`}
+    </div>
+    ${isRounded ? `<div class="rounding-note">* ${_ugIntake} × ${ratio * 100}% = ${exactRequired} beds — rounded down to ${required}. Collectively all departments meet the NCISM Table-8 minimum of ${_ugIntake} beds.</div>` : ''}` : '';
+
+  const bedListHtml = deptBeds.length > 0
+    ? `<div class="dept-info-beds">
+        <div class="dept-info-beds-label">Beds in this department</div>
+        <div class="dept-bed-list">${deptBeds.map(b =>
+          `<span class="dept-bed-tag ${b.status !== 'vacant' ? b.status : ''}"
+            title="${_esc(b.ward_name||'')} · ${b.status}">
+            ${_esc(b.bed_number)}<em> F${b.floor_number ?? 0}</em>
+          </span>`).join('')}
+        </div>
+       </div>`
+    : `<div style="font-size:12px;color:var(--text-muted)">No beds in this department yet.</div>`;
+
+  panel.innerHTML = complianceHtml + bedListHtml;
+  panel.style.display = 'block';
+};
+
 // ── Bed drawer ────────────────────────────────────────────────────────────────
 window.openBedDrawer = function(id, preDeptId) {
   const bed = id ? _beds.find(b => b.id === id) : null;
@@ -897,6 +1024,7 @@ window.openBedDrawer = function(id, preDeptId) {
   document.getElementById('bed-type').value   = bed?.bed_type || 'general';
   document.getElementById('bed-status').value = bed?.status || 'vacant';
   document.getElementById('bed-pg').checked   = bed?.is_pg_allocated || false;
+  updateDeptInfo('bed');
   document.getElementById('bed-overlay').classList.add('open');
 };
 window.closeBedDrawer = function() {
@@ -963,6 +1091,8 @@ window.openBulkDrawer = function() {
   document.getElementById('bulk-ward').value   = '';
   document.getElementById('bulk-type').value   = 'general';
   document.getElementById('bulk-pg').checked   = false;
+  const panel = document.getElementById('bulk-dept-info');
+  panel.innerHTML = ''; panel.style.display = 'none';
   updateBulkPreview();
   document.getElementById('bulk-overlay').classList.add('open');
 };
@@ -1045,7 +1175,7 @@ window.seedNcismDepts = async function() {
   const toSeed = NCISM_CODES.filter(n => !existing.has(n.code));
 
   if (!toSeed.length) {
-    _alert('success', 'All NCISM departments are already configured.');
+    _alert('success', 'All NCISM departments are already configured. Use the "+ Bed" button on each department card, or "Bulk Add Beds" above, to start adding beds.');
     return;
   }
 

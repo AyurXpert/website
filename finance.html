@@ -43,6 +43,43 @@ h1{font-family:'Cormorant Garamond',serif;font-size:26px;color:var(--green-deep)
 .kpi.red .kpi-val{color:var(--red)}
 .kpi.gold .kpi-val{color:var(--gold)}
 
+/* ── 3-Group layout ──────────────────────────────── */
+.grp-nav{background:var(--white);border-bottom:2px solid var(--border);margin-bottom:0}
+.grp-tabs{display:flex;max-width:100%;overflow-x:auto}
+.grp-tab{flex:0 0 auto;padding:13px 24px;border:none;border-bottom:3px solid transparent;background:transparent;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;color:var(--text-muted);cursor:pointer;transition:all .2s;white-space:nowrap;margin-bottom:-2px}
+.grp-tab.active{color:var(--green-deep);border-bottom-color:var(--green-deep);font-weight:600}
+.grp-tab:hover:not(.active){color:var(--text-dark);background:rgba(26,74,46,.04)}
+.grp-panel{display:none;padding-top:20px}
+.grp-panel.active{display:block}
+.sub-tabs{display:flex;gap:4px;background:#f3f8f5;border-radius:10px;padding:5px;margin-bottom:20px;flex-wrap:wrap}
+.sub-tab{flex:0 0 auto;padding:7px 16px;border:none;border-radius:7px;background:transparent;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:var(--text-mid);cursor:pointer;transition:all .15s;white-space:nowrap}
+.sub-tab.active{background:var(--white);color:var(--green-deep);box-shadow:0 1px 4px rgba(0,0,0,.1);font-weight:600}
+.sub-tab:hover:not(.active){color:var(--green-deep)}
+.sub-panel{display:none}
+.sub-panel.active{display:block}
+/* Insurance chips + badges (same as fee-admin) */
+.payer-chip{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500}
+.payer-chip.self{background:#eff6ff;color:#1e40af}.payer-chip.ins{background:#f5f3ff;color:#6d28d9}
+.payer-chip.pmjay{background:#f0fdf4;color:#166534}.payer-chip.gov{background:#ecfdf5;color:#047857}
+.cs-badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:500}
+.cs-pending{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+.cs-approved{background:#f0f9f4;color:#1a4a2e;border:1px solid #b8ddc6}
+.cs-submitted{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe}
+.cs-settled{background:#f0f9f4;color:#1a4a2e;border:1px solid #b8ddc6}
+.cs-partial{background:#fdf6e8;color:#7a5a10;border:1px solid #e8d08a}
+.cs-rejected{background:#fff3f3;color:#8b1a1a;border:1px solid #f5b8b8}
+.ins-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.ins-filter{height:32px;padding:0 13px;border:1.5px solid var(--border);border-radius:20px;background:var(--white);font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-mid);cursor:pointer;transition:all .15s}
+.ins-filter:hover{border-color:#2d7a4f;color:#1a4a2e}.ins-filter.active{background:#1a4a2e;border-color:#1a4a2e;color:var(--white)}
+.ql-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.ql-card{background:var(--white);border-radius:12px;padding:18px;box-shadow:0 1px 8px rgba(0,0,0,.06);text-decoration:none;color:var(--text-dark);display:flex;align-items:center;gap:14px;transition:box-shadow .2s;border:1.5px solid var(--border)}
+.ql-card:hover{box-shadow:0 4px 20px rgba(0,0,0,.1);border-color:#2d7a4f}
+.ql-ico{font-size:26px;flex-shrink:0}
+.ql-info-title{font-size:14px;font-weight:500;color:#1a4a2e}
+.ql-info-sub{font-size:12px;color:var(--text-muted);margin-top:2px}
+.ins-check-row{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:14px;color:var(--text-dark);cursor:pointer}
+.ins-check-row input[type=checkbox]{width:17px;height:17px;accent-color:#2d7a4f;flex-shrink:0}
+
 /* Tabs */
 .tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:20px}
 .tab-btn{padding:10px 20px;font-size:13px;font-weight:500;background:none;border:none;border-bottom:3px solid transparent;cursor:pointer;color:var(--text-muted);margin-bottom:-2px;transition:all .2s}
@@ -119,8 +156,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
 <div id="navbar-container"></div>
 
 <div class="page">
-  <h1>Finance & Billing</h1>
-  <p class="subtitle">Revenue, outstanding bills, expenses, and GST summary</p>
+  <h1>Finance & Accounts</h1>
+  <p class="subtitle">Complete financial workspace — revenue, billing, insurance, expenses and audit</p>
 
   <!-- Date filter -->
   <div class="filter-bar">
@@ -141,139 +178,227 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
     <button class="btn btn-outline btn-sm" onclick="exportCSV()">Export CSV</button>
   </div>
 
-  <!-- KPI row -->
-  <div class="kpi-row" id="kpi-row">
-    <div class="kpi"><div class="kpi-label">Total Revenue</div><div class="kpi-val" id="k-revenue">—</div><div class="kpi-sub" id="k-revenue-sub"></div></div>
-    <div class="kpi"><div class="kpi-label">Collected (Paid)</div><div class="kpi-val" id="k-collected">—</div><div class="kpi-sub" id="k-collected-sub"></div></div>
-    <div class="kpi red"><div class="kpi-label">Outstanding</div><div class="kpi-val" id="k-outstanding">—</div><div class="kpi-sub" id="k-outstanding-sub"></div></div>
-    <div class="kpi gold"><div class="kpi-label">Total Expenses</div><div class="kpi-val" id="k-expenses">—</div><div class="kpi-sub" id="k-expenses-sub"></div></div>
-    <div class="kpi"><div class="kpi-label">Total Bills</div><div class="kpi-val" id="k-bills">—</div><div class="kpi-sub" id="k-bills-sub"></div></div>
-  </div>
-
-  <!-- Tabs -->
-  <div class="tabs">
-    <button class="tab-btn active" onclick="switchTab('revenue')">Revenue</button>
-    <button class="tab-btn" onclick="switchTab('outstanding')">Outstanding</button>
-    <button class="tab-btn" onclick="switchTab('expenses')">Expenses</button>
-    <button class="tab-btn" onclick="switchTab('gst')">GST Summary</button>
-    <button class="tab-btn" onclick="switchTab('daily')">Daily Cash</button>
-    <button class="tab-btn" onclick="switchTab('audit')">CA Audit</button>
-  </div>
-
-  <!-- ── TAB: REVENUE ─────────────────────────────── -->
-  <div class="tab-pane active" id="tab-revenue">
-    <div class="rev-grid" id="rev-breakdown">
-      <div class="rev-item"><div class="rev-item-label">Registration Fees</div><div class="rev-item-val" id="r-reg">₹0</div><div class="rev-item-count" id="r-reg-c"></div></div>
-      <div class="rev-item"><div class="rev-item-label">Consultation Fees</div><div class="rev-item-val" id="r-con">₹0</div><div class="rev-item-count" id="r-con-c"></div></div>
-      <div class="rev-item"><div class="rev-item-label">Pharmacy / Dispensary</div><div class="rev-item-val" id="r-phm">₹0</div><div class="rev-item-count" id="r-phm-c"></div></div>
-      <div class="rev-item"><div class="rev-item-label">Other / Package / Misc</div><div class="rev-item-val" id="r-oth">₹0</div><div class="rev-item-count" id="r-oth-c"></div></div>
-    </div>
-    <div class="card">
-      <div class="card-hdr">
-        <div><div class="card-title">All Bills</div><div class="card-sub" id="rev-period-lbl"></div></div>
-        <button class="btn btn-outline btn-sm" onclick="exportRevCSV()">Export</button>
-      </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr><th>Date</th><th>Patient</th><th>Bill Type</th><th>Amount</th><th>Discount</th><th>Final</th><th>Payment</th><th>Status</th></tr></thead>
-          <tbody id="rev-tbody"></tbody>
-          <tfoot><tr><td colspan="5" style="text-align:right">Total</td><td id="rev-total-final">₹0</td><td colspan="2"></td></tr></tfoot>
-        </table>
-      </div>
+  <!-- 3-Group navigation -->
+  <div class="grp-nav">
+    <div class="grp-tabs">
+      <button class="grp-tab active" onclick="switchGrp('revenue',this)">💵 Revenue Tracking</button>
+      <button class="grp-tab" onclick="switchGrp('insurance',this)">🏥 Insurance Cycles</button>
+      <button class="grp-tab" onclick="switchGrp('expenses',this)">📊 Expenses &amp; Audits</button>
     </div>
   </div>
 
-  <!-- ── TAB: OUTSTANDING ─────────────────────────── -->
-  <div class="tab-pane" id="tab-outstanding">
-    <div class="card">
-      <div class="card-hdr">
-        <div><div class="card-title">Pending & Partial Bills</div><div class="card-sub">All unpaid or partially paid bills — no date filter applied</div></div>
-        <button class="btn btn-outline btn-sm" onclick="exportOutstandingCSV()">Export</button>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px" id="aging-cards"></div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr><th>Date</th><th>Patient</th><th>Bill Type</th><th>Final Amount</th><th>Status</th><th>Days Pending</th><th>Payment Mode</th></tr></thead>
-          <tbody id="out-tbody"></tbody>
-          <tfoot><tr><td colspan="3" style="text-align:right">Total Outstanding</td><td id="out-total">₹0</td><td colspan="3"></td></tr></tfoot>
-        </table>
-      </div>
-    </div>
-  </div>
+  <!-- ══ GROUP 1: REVENUE TRACKING ════════════════════ -->
+  <div class="grp-panel active" id="grp-revenue">
 
-  <!-- ── TAB: EXPENSES ────────────────────────────── -->
-  <div class="tab-pane" id="tab-expenses">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
-      <button class="btn btn-primary" onclick="openExpenseModal()">+ Add Expense</button>
+    <!-- KPI row always visible in this group -->
+    <div class="kpi-row" id="kpi-row">
+      <div class="kpi"><div class="kpi-label">Total Revenue</div><div class="kpi-val" id="k-revenue">—</div><div class="kpi-sub" id="k-revenue-sub"></div></div>
+      <div class="kpi"><div class="kpi-label">Collected (Paid)</div><div class="kpi-val" id="k-collected">—</div><div class="kpi-sub" id="k-collected-sub"></div></div>
+      <div class="kpi red"><div class="kpi-label">Outstanding</div><div class="kpi-val" id="k-outstanding">—</div><div class="kpi-sub" id="k-outstanding-sub"></div></div>
+      <div class="kpi gold"><div class="kpi-label">Total Expenses</div><div class="kpi-val" id="k-expenses">—</div><div class="kpi-sub" id="k-expenses-sub"></div></div>
+      <div class="kpi"><div class="kpi-label">Total Bills</div><div class="kpi-val" id="k-bills">—</div><div class="kpi-sub" id="k-bills-sub"></div></div>
     </div>
-    <div class="card">
-      <div class="card-hdr">
-        <div><div class="card-title">Expense Log</div><div class="card-sub" id="exp-period-lbl"></div></div>
-        <button class="btn btn-outline btn-sm" onclick="exportExpCSV()">Export</button>
-      </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Vendor / Payee</th><th>Amount</th><th>Approved By</th></tr></thead>
-          <tbody id="exp-tbody"></tbody>
-          <tfoot><tr><td colspan="4" style="text-align:right">Total</td><td id="exp-total">₹0</td><td></td></tr></tfoot>
-        </table>
-      </div>
-    </div>
-  </div>
 
-  <!-- ── TAB: GST SUMMARY ─────────────────────────── -->
-  <div class="tab-pane" id="tab-gst">
-    <div class="card">
-      <div class="card-hdr">
-        <div><div class="card-title">GST Summary</div><div class="card-sub">Taxable value and GST collected by rate — for filing reference</div></div>
-        <button class="btn btn-outline btn-sm" onclick="exportGSTCSV()">Export</button>
-      </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr><th>Bill Type / Category</th><th>Bills</th><th>Taxable Value (₹)</th><th>GST Rate</th><th>CGST (₹)</th><th>SGST (₹)</th><th>Total GST (₹)</th><th>Invoice Value (₹)</th></tr></thead>
-          <tbody id="gst-tbody"></tbody>
-          <tfoot><tr class="gst-row-total"><td>Total</td><td id="gst-t-bills">—</td><td id="gst-t-taxable">—</td><td></td><td id="gst-t-cgst">—</td><td id="gst-t-sgst">—</td><td id="gst-t-gst">—</td><td id="gst-t-invoice">—</td></tr></tfoot>
-        </table>
-      </div>
-      <div style="background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;padding:12px 16px;margin-top:14px;font-size:12px;color:#1565c0">
-        <strong>Note:</strong> Most Ayurveda OPD consultation and registration fees are GST-exempt under Health Care Services (SAC 9993). Pharmacy/medicine sales may attract 0%, 5%, or 12% GST depending on the HSN code. Please verify with your CA before filing.
-      </div>
+    <div class="sub-tabs">
+      <button class="sub-tab active" onclick="switchSub('revenue','receipts',this)">All Receipts</button>
+      <button class="sub-tab" onclick="switchSub('revenue','outstanding',this)">Outstanding</button>
+      <button class="sub-tab" onclick="switchSub('revenue','daily',this)">Daily Cash</button>
     </div>
-  </div>
 
-  <!-- ── TAB: DAILY CASH ──────────────────────────── -->
-  <div class="tab-pane" id="tab-daily">
-    <div class="card">
-      <div class="card-hdr">
-        <div><div class="card-title">Daily Cash & Collection Summary</div><div class="card-sub" id="daily-period-lbl"></div></div>
-        <button class="btn btn-outline btn-sm" onclick="exportDailyCSV()">Export</button>
+    <!-- All Receipts sub-panel -->
+    <div class="sub-panel active" id="sub-receipts">
+      <div class="rev-grid" id="rev-breakdown">
+        <div class="rev-item"><div class="rev-item-label">Registration Fees</div><div class="rev-item-val" id="r-reg">₹0</div><div class="rev-item-count" id="r-reg-c"></div></div>
+        <div class="rev-item"><div class="rev-item-label">Consultation Fees</div><div class="rev-item-val" id="r-con">₹0</div><div class="rev-item-count" id="r-con-c"></div></div>
+        <div class="rev-item"><div class="rev-item-label">Pharmacy / Dispensary</div><div class="rev-item-val" id="r-phm">₹0</div><div class="rev-item-count" id="r-phm-c"></div></div>
+        <div class="rev-item"><div class="rev-item-label">Other / Package / Misc</div><div class="rev-item-val" id="r-oth">₹0</div><div class="rev-item-count" id="r-oth-c"></div></div>
       </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr><th>Date</th><th>Bills</th><th>Cash</th><th>UPI / Card</th><th>Credit / Due</th><th>Insurance</th><th>Total Collected</th><th>Outstanding Added</th></tr></thead>
-          <tbody id="daily-tbody"></tbody>
-          <tfoot><tr><td style="font-weight:600">Total</td><td id="d-t-bills">—</td><td id="d-t-cash">—</td><td id="d-t-upi">—</td><td id="d-t-credit">—</td><td id="d-t-ins">—</td><td id="d-t-collected">—</td><td id="d-t-pending">—</td></tr></tfoot>
-        </table>
+      <div class="card">
+        <div class="card-hdr">
+          <div><div class="card-title">All Bills</div><div class="card-sub" id="rev-period-lbl"></div></div>
+          <button class="btn btn-outline btn-sm" onclick="exportRevCSV()">Export</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Patient</th><th>Bill Type</th><th>Amount</th><th>Discount</th><th>Final</th><th>Payment</th><th>Status</th></tr></thead>
+            <tbody id="rev-tbody"></tbody>
+            <tfoot><tr><td colspan="5" style="text-align:right">Total</td><td id="rev-total-final">₹0</td><td colspan="2"></td></tr></tfoot>
+          </table>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- ── TAB: CA AUDIT ─────────────────────────────── -->
-  <div class="tab-pane" id="tab-audit">
-    <div id="audit-alert" style="display:none;padding:12px 16px;background:#fff8e1;border:1.5px solid #f4b400;border-radius:8px;font-size:13px;color:#6b4c00;margin-bottom:16px"></div>
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-hdr">
-        <div><div class="card-title">Annual Audit by Chartered Accountant</div><div class="card-sub">NCISM Regulation 7(7) — Annual CA audit required; report must be available to MARBISM</div></div>
-        <button class="btn btn-primary btn-sm" onclick="openAuditModal()">+ Add Audit</button>
-      </div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr><th>Year</th><th>CA Firm</th><th>Audit Date</th><th>Status</th><th>Report</th></tr></thead>
-          <tbody id="audit-tbody"><tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">Loading…</td></tr></tbody>
-        </table>
+    <!-- Outstanding sub-panel -->
+    <div class="sub-panel" id="sub-outstanding">
+      <div class="card">
+        <div class="card-hdr">
+          <div><div class="card-title">Pending &amp; Partial Bills</div><div class="card-sub">All unpaid or partially paid bills — no date filter applied</div></div>
+          <button class="btn btn-outline btn-sm" onclick="exportOutstandingCSV()">Export</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px" id="aging-cards"></div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Patient</th><th>Bill Type</th><th>Final Amount</th><th>Status</th><th>Days Pending</th><th>Payment Mode</th></tr></thead>
+            <tbody id="out-tbody"></tbody>
+            <tfoot><tr><td colspan="3" style="text-align:right">Total Outstanding</td><td id="out-total">₹0</td><td colspan="3"></td></tr></tfoot>
+          </table>
+        </div>
       </div>
     </div>
-  </div>
+
+    <!-- Daily Cash sub-panel -->
+    <div class="sub-panel" id="sub-daily">
+      <div class="card">
+        <div class="card-hdr">
+          <div><div class="card-title">Daily Cash &amp; Collection Summary</div><div class="card-sub" id="daily-period-lbl"></div></div>
+          <button class="btn btn-outline btn-sm" onclick="exportDailyCSV()">Export</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Bills</th><th>Cash</th><th>UPI / Card</th><th>Credit / Due</th><th>Insurance</th><th>Total Collected</th><th>Outstanding Added</th></tr></thead>
+            <tbody id="daily-tbody"></tbody>
+            <tfoot><tr><td style="font-weight:600">Total</td><td id="d-t-bills">—</td><td id="d-t-cash">—</td><td id="d-t-upi">—</td><td id="d-t-credit">—</td><td id="d-t-ins">—</td><td id="d-t-collected">—</td><td id="d-t-pending">—</td></tr></tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /grp-revenue -->
+
+  <!-- ══ GROUP 2: INSURANCE CYCLES ═════════════════════ -->
+  <div class="grp-panel" id="grp-insurance">
+
+    <div class="sub-tabs">
+      <button class="sub-tab active" onclick="switchSub('insurance','claims',this)">Claims Register</button>
+      <button class="sub-tab" onclick="switchSub('insurance','preauth',this)">Pre-Auth Tracking</button>
+    </div>
+
+    <!-- Claims Register sub-panel -->
+    <div class="sub-panel active" id="sub-claims">
+      <div class="ins-filters">
+        <button class="ins-filter active" onclick="filterInsClaims('all',this)">All Claims</button>
+        <button class="ins-filter" onclick="filterInsClaims('pre_auth_pending',this)">Pre-Auth Pending</button>
+        <button class="ins-filter" onclick="filterInsClaims('pre_auth_approved',this)">Auth Approved</button>
+        <button class="ins-filter" onclick="filterInsClaims('submitted',this)">Submitted</button>
+        <button class="ins-filter" onclick="filterInsClaims('settled',this)">Settled</button>
+        <button class="ins-filter" onclick="filterInsClaims('rejected',this)">Rejected</button>
+      </div>
+      <div class="card" style="padding:0">
+        <div class="tbl-wrap" id="ins-claims-wrap">
+          <div class="empty">Switch to this tab to load insurance claims</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pre-Auth Tracking sub-panel -->
+    <div class="sub-panel" id="sub-preauth">
+      <div class="card" style="padding:0">
+        <div style="padding:14px 20px 10px;border-bottom:1px solid var(--border)">
+          <div style="font-size:14px;font-weight:500;color:#1a4a2e">Bills Awaiting Pre-Auth / Approval</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Insurance / PMJAY bills with pending or approved pre-auth</div>
+        </div>
+        <div class="tbl-wrap" id="ins-preauth-wrap">
+          <div class="empty">Switch to this tab to load pre-auth tracking</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /grp-insurance -->
+
+  <!-- ══ GROUP 3: EXPENSES & AUDITS ════════════════════ -->
+  <div class="grp-panel" id="grp-expenses">
+
+    <div class="sub-tabs">
+      <button class="sub-tab active" onclick="switchSub('expenses','explog',this)">Expense Log</button>
+      <button class="sub-tab" onclick="switchSub('expenses','purchases',this)">Purchases</button>
+      <button class="sub-tab" onclick="switchSub('expenses','gst',this)">GST Summary</button>
+      <button class="sub-tab" onclick="switchSub('expenses','audit',this)">CA Audit</button>
+    </div>
+
+    <!-- Expense Log sub-panel -->
+    <div class="sub-panel active" id="sub-explog">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
+        <button class="btn btn-primary" onclick="openExpenseModal()">+ Add Expense</button>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <div><div class="card-title">Expense Log</div><div class="card-sub" id="exp-period-lbl"></div></div>
+          <button class="btn btn-outline btn-sm" onclick="exportExpCSV()">Export</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Vendor / Payee</th><th>Amount</th><th>Approved By</th></tr></thead>
+            <tbody id="exp-tbody"></tbody>
+            <tfoot><tr><td colspan="4" style="text-align:right">Total</td><td id="exp-total">₹0</td><td></td></tr></tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Purchases sub-panel -->
+    <div class="sub-panel" id="sub-purchases">
+      <div style="margin-bottom:16px;font-size:13px;color:var(--text-muted)">Quick access to procurement modules</div>
+      <div class="ql-grid">
+        <a href="purchase-order.html" class="ql-card">
+          <div class="ql-ico">📦</div>
+          <div><div class="ql-info-title">Purchase Orders</div><div class="ql-info-sub">Create and track POs from low stock</div></div>
+        </a>
+        <a href="purchase.html" class="ql-card">
+          <div class="ql-ico">🚚</div>
+          <div><div class="ql-info-title">GRN / Goods Received</div><div class="ql-info-sub">Record incoming stock, batch and expiry</div></div>
+        </a>
+        <a href="suppliers.html" class="ql-card">
+          <div class="ql-ico">🏭</div>
+          <div><div class="ql-info-title">GMP Suppliers</div><div class="ql-info-sub">Approved vendor list and GMP certificates</div></div>
+        </a>
+        <a href="disposal-register.html" class="ql-card">
+          <div class="ql-ico">♻️</div>
+          <div><div class="ql-info-title">Disposal Register</div><div class="ql-info-sub">Expired medicine disposal log</div></div>
+        </a>
+      </div>
+      <div style="background:#fdf6e8;border:1px solid #e8d08a;border-radius:10px;padding:14px 18px;font-size:13px;color:#7a5a10;line-height:1.7">
+        <strong>Vendor Payment Tracking (Phase 3)</strong> — Full accounts payable: match GRN invoices to supplier bills, track payment due dates, record bank transfers, TDS certificates.
+      </div>
+    </div>
+
+    <!-- GST Summary sub-panel -->
+    <div class="sub-panel" id="sub-gst">
+      <div class="card">
+        <div class="card-hdr">
+          <div><div class="card-title">GST Summary</div><div class="card-sub">Taxable value and GST collected by rate — for filing reference</div></div>
+          <button class="btn btn-outline btn-sm" onclick="exportGSTCSV()">Export</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Bill Type / Category</th><th>Bills</th><th>Taxable Value (₹)</th><th>GST Rate</th><th>CGST (₹)</th><th>SGST (₹)</th><th>Total GST (₹)</th><th>Invoice Value (₹)</th></tr></thead>
+            <tbody id="gst-tbody"></tbody>
+            <tfoot><tr class="gst-row-total"><td>Total</td><td id="gst-t-bills">—</td><td id="gst-t-taxable">—</td><td></td><td id="gst-t-cgst">—</td><td id="gst-t-sgst">—</td><td id="gst-t-gst">—</td><td id="gst-t-invoice">—</td></tr></tfoot>
+          </table>
+        </div>
+        <div style="background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;padding:12px 16px;margin-top:14px;font-size:12px;color:#1565c0">
+          <strong>Note:</strong> Most Ayurveda OPD consultation and registration fees are GST-exempt under Health Care Services (SAC 9993). Pharmacy/medicine sales may attract 0%, 5%, or 12% GST depending on HSN code. Verify with your CA before filing.
+        </div>
+      </div>
+    </div>
+
+    <!-- CA Audit sub-panel -->
+    <div class="sub-panel" id="sub-audit">
+      <div id="audit-alert" style="display:none;padding:12px 16px;background:#fff8e1;border:1.5px solid #f4b400;border-radius:8px;font-size:13px;color:#6b4c00;margin-bottom:16px"></div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-hdr">
+          <div><div class="card-title">Annual Audit by Chartered Accountant</div><div class="card-sub">NCISM Regulation 7(7) — Annual CA audit required; report must be available to MARBISM</div></div>
+          <button class="btn btn-primary btn-sm" onclick="openAuditModal()">+ Add Audit</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Year</th><th>CA Firm</th><th>Audit Date</th><th>Status</th><th>Report</th></tr></thead>
+            <tbody id="audit-tbody"><tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /grp-expenses -->
 </div>
 
 <!-- CA Audit modal -->
@@ -365,34 +490,143 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
   </div>
 </div>
 
+<!-- Insurance details modal -->
+<div class="modal-bg" id="ins-modal-bg">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-hdr">
+      <span class="modal-title">Update Insurance Details</span>
+      <button class="modal-close" onclick="closeInsModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="ins-bill-info" style="background:#e8f5ee;border-radius:8px;padding:10px 14px;font-size:13px;color:#1a4a2e;margin-bottom:4px;line-height:1.6"></div>
+      <div style="display:grid;gap:12px;margin-top:12px">
+        <div class="field">
+          <label>Payer Type *</label>
+          <select id="ins-payer-type" onchange="onInsPayerChange()">
+            <option value="insurance">Insurance / TPA</option>
+            <option value="pmjay">PMJAY (Ayushman Bharat)</option>
+            <option value="cghs">CGHS</option>
+            <option value="echs">ECHS</option>
+            <option value="esi">ESIC</option>
+            <option value="corporate">Corporate</option>
+          </select>
+        </div>
+        <div id="ins-fields-wrap">
+          <div class="form-grid">
+            <div class="field"><label>Insurance Provider</label><select id="ins-provider"></select></div>
+            <div class="field"><label>TPA Name</label><select id="ins-tpa"></select></div>
+            <div class="field"><label>Policy Number</label><input id="ins-policy" type="text" placeholder="e.g. SH/KAR/2025/001234"/></div>
+            <div class="field"><label>Pre-Auth Number</label><input id="ins-preauth-num" type="text" placeholder="TPA auth reference"/></div>
+            <div class="field"><label>Pre-Auth Amount ₹</label><input id="ins-preauth-amt" type="number" min="0" placeholder="0"/></div>
+            <div class="field"><label>Pre-Auth Status</label>
+              <select id="ins-preauth-status">
+                <option value="not_required">Not Required</option>
+                <option value="initiated">Initiated</option>
+                <option value="approved">Approved ✅</option>
+                <option value="rejected">Rejected ✗</option>
+              </select>
+            </div>
+            <div class="field"><label>Insurance Approved Amount ₹</label><input id="ins-approved-amt" type="number" min="0" placeholder="Final TPA approved amount"/></div>
+            <div class="field"><label>Claim Status</label>
+              <select id="ins-claim-status">
+                <option value="pre_auth_pending">Pre-Auth Pending</option>
+                <option value="pre_auth_approved">Pre-Auth Approved</option>
+                <option value="submitted">Submitted to TPA</option>
+                <option value="settled">Settled ✅</option>
+                <option value="partial_settled">Partial Settled</option>
+                <option value="rejected">Rejected ✗</option>
+              </select>
+            </div>
+            <div class="field"><label>Settlement Amount ₹</label><input id="ins-settled-amt" type="number" min="0" placeholder="Amount received from TPA"/></div>
+            <div class="field"><label>Settlement Date</label><input id="ins-settled-date" type="date"/></div>
+          </div>
+          <div id="ins-pmjay-wrap" style="display:none;margin-top:8px">
+            <div class="field"><label>PMJAY Package Code</label><input id="ins-pmjay-code" type="text" placeholder="e.g. HBP_010101"/></div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-top:8px">
+              <input type="checkbox" id="ins-pmjay-mo" style="width:16px;height:16px;accent-color:#2d7a4f"/>
+              Medical Officer (MO) has approved this PMJAY claim
+            </label>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-top:10px">
+            <input type="checkbox" id="ins-cashless" checked style="width:16px;height:16px;accent-color:#2d7a4f"/>
+            Cashless claim (TPA pays hospital directly)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeInsModal()">Cancel</button>
+      <button class="btn btn-primary" id="ins-save-btn" onclick="saveInsuranceDetails()">Save Details</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { requireAuth, hasModule } from './js/core/auth.js';
+import { requireAuth, hasModule, getCurrentProfile, getCurrentTenantId } from './js/core/auth.js';
 import { initNavbar }  from './js/components/navbar.js';
-import { ENV } from './js/config/env.js';
+import { supabase } from './js/core/db/supabaseClient.js';
 
-const ALLOWED = ['super_admin','dept_admin','accountant'];
+const ALLOWED = ['super_admin','dept_admin','accountant','cashier','finance_manager','receptionist'];
 await requireAuth(ALLOWED);
 if (!hasModule('finance')) { window.location.replace('admin.html'); }
 
-const supabase = createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY);
-const sess     = JSON.parse(sessionStorage.getItem('ax_profile') || '{}');
-const tenantId = sess.tenant_id;
+const _profile = getCurrentProfile();
+const _role    = _profile?.role;
+
+const sess     = getCurrentProfile();
+const tenantId = getCurrentTenantId();
 
 initNavbar();
+
+// Role-based tab visibility
+// receptionist   → Insurance Cycles only
+// cashier        → Revenue Tracking + Insurance Cycles (no Expenses)
+// accountant     → all 3
+// finance_manager→ all 3
+if (_role === 'receptionist') {
+  document.querySelectorAll('.grp-tab').forEach(btn => {
+    const m = btn.getAttribute('onclick')?.match(/switchGrp\('(\w+)'/);
+    if (m && m[1] !== 'insurance') btn.style.display = 'none';
+  });
+  const insBtn = document.querySelector('.grp-tab[onclick*="insurance"]');
+  if (insBtn) switchGrp('insurance', insBtn);
+  const banner = document.createElement('div');
+  banner.style.cssText = 'background:#f0f7ff;border-left:4px solid #4080c0;padding:10px 16px;margin:12px 16px 0;border-radius:6px;font-size:13px;color:#1a4080';
+  banner.textContent   = '🏥 Insurance Operations Mode — Revenue and expense data is not accessible from this role.';
+  document.querySelector('.grp-nav')?.after(banner);
+}
+
+if (_role === 'cashier') {
+  const expBtn = document.querySelector('.grp-tab[onclick*="expenses"]');
+  if (expBtn) expBtn.style.display = 'none';
+  const banner = document.createElement('div');
+  banner.style.cssText = 'background:#f0f7ff;border-left:4px solid #4080c0;padding:10px 16px;margin:12px 16px 0;border-radius:6px;font-size:13px;color:#1a4080';
+  banner.textContent   = '🧾 Billing Mode — Expense and audit reports are not accessible from this role.';
+  document.querySelector('.grp-nav')?.after(banner);
+}
 
 // ── State ──────────────────────────────────────────
 let _bills = [], _expenses = [], _outstanding = [];
 
-// ── Tab switch ──────────────────────────────────────
-window.switchTab = function(id) {
-  document.querySelectorAll('.tab-btn').forEach((b,i) =>
-    b.classList.toggle('active', ['revenue','outstanding','expenses','gst','daily','audit'][i] === id));
-  document.querySelectorAll('.tab-pane').forEach(p =>
-    p.classList.toggle('active', p.id === 'tab-' + id));
-  if (id === 'audit') loadAudits();
+// ── Group + sub-tab switching ───────────────────────
+window.switchGrp = function(grp, el) {
+  document.querySelectorAll('.grp-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.grp-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('grp-' + grp).classList.add('active');
+  el.classList.add('active');
+  if (grp === 'insurance') loadInsuranceClaims();
+};
+
+window.switchSub = function(grp, sub, el) {
+  const panel = document.getElementById('grp-' + grp);
+  panel.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+  panel.querySelectorAll('.sub-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('sub-' + sub).classList.add('active');
+  el.classList.add('active');
+  if (sub === 'audit') loadAudits();
+  if (sub === 'preauth') renderPreAuth();
 };
 
 // ── §21ae CA Audit functions ──────────────────────────────
@@ -818,6 +1052,184 @@ function _toast(msg, type='success') {
   t.textContent = msg; t.className = `toast ${type} show`;
   setTimeout(() => t.classList.remove('show'), 3000);
 }
+
+// ── Insurance Cycles ──────────────────────────────────
+const INSURANCE_PROVIDERS = [
+  'Star Health & Allied Insurance','New India Assurance','United India Insurance',
+  'National Insurance','HDFC ERGO Health','ICICI Lombard','Bajaj Allianz Health',
+  'Care Health','Niva Bupa','Aditya Birla Health','Tata AIG','SBI Health Insurance',
+  'Digit Insurance','Kotak Mahindra Health','Future Generali',
+];
+const TPA_LIST = [
+  'Medi Assist India','MD India Healthcare','Vipul Medcorp','Family Health Plan (FHPL)',
+  'Paramount Health Services','Heritage Health','Dedicated Healthcare Services',
+  'East West Assist','Ericson TPA','Genins India','Anmol Medicare',
+];
+
+let _insClaims = [], _insFilter = 'all', _insBillId = null;
+let _insLoaded = false;
+
+const _fmtAmt = n => {
+  if (!n) return '₹0';
+  if (n >= 100000) return '₹' + (n/100000).toFixed(1) + 'L';
+  if (n >= 1000)   return '₹' + (n/1000).toFixed(1) + 'K';
+  return '₹' + Math.round(n);
+};
+const _daysSince = iso => {
+  const d = Math.floor((Date.now() - new Date(iso)) / 86400000);
+  return d === 0 ? 'Today' : d + 'd ago';
+};
+const _daysStyle = iso => {
+  const d = Math.floor((Date.now() - new Date(iso)) / 86400000);
+  return d > 30 ? 'color:var(--red);font-weight:600' : d > 7 ? 'color:var(--gold)' : '';
+};
+const _csBadge = s => ({
+  pre_auth_pending:  `<span class="cs-badge cs-pending">Pre-Auth ⏳</span>`,
+  pre_auth_approved: `<span class="cs-badge cs-approved">Auth ✅</span>`,
+  submitted:         `<span class="cs-badge cs-submitted">Submitted</span>`,
+  settled:           `<span class="cs-badge cs-settled">Settled ✅</span>`,
+  partial_settled:   `<span class="cs-badge cs-partial">Partial</span>`,
+  rejected:          `<span class="cs-badge cs-rejected">Rejected ✗</span>`,
+})[s] || '—';
+const _payerChip = b => {
+  if (b.payer_type === 'pmjay') return `<span class="payer-chip pmjay">PMJAY</span>`;
+  if (['cghs','echs','esi'].includes(b.payer_type)) return `<span class="payer-chip gov">${b.payer_type.toUpperCase()}</span>`;
+  return `<span class="payer-chip ins">${b.tpa_name||b.insurance_provider||'Insurance'}</span>`;
+};
+
+async function loadInsuranceClaims() {
+  if (_insLoaded) { renderInsClaims(); return; }
+  const { data } = await supabase.from('bills')
+    .select('id,visit_id,final_amount,patient_due,created_at,bill_type,payer_type,tpa_name,insurance_provider,policy_number,pre_auth_number,pre_auth_status,pre_auth_amount,insurance_approved_amount,insurance_settled_amount,insurance_claim_status,patients(name),visits(id,chief_complaint,created_at)')
+    .eq('tenant_id', tenantId).neq('payer_type','self_pay')
+    .order('created_at',{ascending:false}).limit(200);
+  _insClaims = data || [];
+  _insLoaded = true;
+  renderInsClaims();
+  renderPreAuth();
+}
+
+window.filterInsClaims = function(status, el) {
+  _insFilter = status;
+  document.querySelectorAll('.ins-filter').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderInsClaims();
+};
+
+function renderInsClaims() {
+  const rows = _insFilter === 'all' ? _insClaims : _insClaims.filter(b => b.insurance_claim_status === _insFilter);
+  const wrap = document.getElementById('ins-claims-wrap');
+  if (!rows.length) {
+    wrap.innerHTML = `<div class="empty">No insurance claims${_insFilter !== 'all' ? ' with this status' : ''}</div>`;
+    return;
+  }
+  wrap.innerHTML = `<table>
+    <thead><tr><th>Patient</th><th>Type</th><th>Payer</th><th style="text-align:right">Bill</th><th style="text-align:right">Approved</th><th style="text-align:right">Patient Due</th><th>Days</th><th>Status</th><th>Action</th></tr></thead>
+    <tbody>${rows.map(b=>`<tr>
+      <td><strong>${b.patients?.name||'—'}</strong>${b.visits?.chief_complaint?`<div style="font-size:11px;color:var(--text-muted)">Visit: ${b.visits.chief_complaint.slice(0,40)}</div>`:''} ${b.policy_number?`<div style="font-size:11px;color:var(--text-muted)">Policy: ${b.policy_number}</div>`:''}</td>
+      <td><span class="badge b-pending" style="font-size:10px">${b.bill_type||'OPD'}</span></td>
+      <td>${_payerChip(b)}</td>
+      <td style="text-align:right">${_fmtAmt(b.final_amount)}</td>
+      <td style="text-align:right">${b.insurance_approved_amount?_fmtAmt(b.insurance_approved_amount):'—'}</td>
+      <td style="text-align:right;font-weight:600;color:var(--red)">${_fmtAmt(b.patient_due??b.final_amount)}</td>
+      <td style="${_daysStyle(b.created_at)}">${_daysSince(b.created_at)}</td>
+      <td>${_csBadge(b.insurance_claim_status)}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="openInsModal('${b.id}')">✏️ Edit</button></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function renderPreAuth() {
+  const rows = _insClaims.filter(b => ['pre_auth_pending','pre_auth_approved'].includes(b.insurance_claim_status));
+  const wrap = document.getElementById('ins-preauth-wrap');
+  if (!wrap) return;
+  if (!rows.length) {
+    wrap.innerHTML = `<div class="empty">No bills awaiting pre-auth approval</div>`;
+    return;
+  }
+  wrap.innerHTML = `<table>
+    <thead><tr><th>Patient</th><th>Payer</th><th style="text-align:right">Bill</th><th style="text-align:right">Pre-Auth Amount</th><th>Pre-Auth Ref</th><th>Status</th><th>Action</th></tr></thead>
+    <tbody>${rows.map(b=>`<tr>
+      <td><strong>${b.patients?.name||'—'}</strong></td>
+      <td>${_payerChip(b)}</td>
+      <td style="text-align:right">${_fmtAmt(b.final_amount)}</td>
+      <td style="text-align:right">${b.pre_auth_amount?_fmtAmt(b.pre_auth_amount):'—'}</td>
+      <td style="font-size:12px">${b.pre_auth_number||'—'}</td>
+      <td>${_csBadge(b.insurance_claim_status)}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="openInsModal('${b.id}')">✏️ Update</button></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+window.openInsModal = async function(billId) {
+  _insBillId = billId;
+  const pSel = document.getElementById('ins-provider');
+  const tSel = document.getElementById('ins-tpa');
+  pSel.innerHTML = '<option value="">— Select Provider —</option>' + INSURANCE_PROVIDERS.map(p=>`<option value="${p}">${p}</option>`).join('');
+  tSel.innerHTML = '<option value="">— Select TPA —</option>' + TPA_LIST.map(t=>`<option value="${t}">${t}</option>`).join('');
+  const {data:b} = await supabase.from('bills')
+    .select('id,final_amount,patient_due,payer_type,insurance_provider,tpa_name,policy_number,pre_auth_number,pre_auth_status,pre_auth_amount,insurance_approved_amount,insurance_settled_amount,insurance_settlement_date,insurance_claim_status,pmjay_package_code,pmjay_mo_approved,is_cashless,bill_type,patients(name)')
+    .eq('id',billId).single();
+  if (!b) return;
+  document.getElementById('ins-bill-info').innerHTML =
+    `Patient: <strong>${b.patients?.name||'—'}</strong> &nbsp;|&nbsp; ${b.bill_type||'OPD'} &nbsp;|&nbsp; Bill: <strong>${_fmtAmt(b.final_amount)}</strong> &nbsp;|&nbsp; Patient Due: <strong style="color:var(--red)">${_fmtAmt(b.patient_due??b.final_amount)}</strong>`;
+  document.getElementById('ins-payer-type').value    = b.payer_type||'insurance';
+  pSel.value = b.insurance_provider||'';
+  tSel.value = b.tpa_name||'';
+  document.getElementById('ins-policy').value         = b.policy_number||'';
+  document.getElementById('ins-preauth-num').value    = b.pre_auth_number||'';
+  document.getElementById('ins-preauth-amt').value    = b.pre_auth_amount||'';
+  document.getElementById('ins-preauth-status').value = b.pre_auth_status||'not_required';
+  document.getElementById('ins-approved-amt').value   = b.insurance_approved_amount||'';
+  document.getElementById('ins-claim-status').value   = b.insurance_claim_status||'pre_auth_pending';
+  document.getElementById('ins-settled-amt').value    = b.insurance_settled_amount||'';
+  document.getElementById('ins-settled-date').value   = b.insurance_settlement_date||'';
+  document.getElementById('ins-pmjay-code').value     = b.pmjay_package_code||'';
+  document.getElementById('ins-pmjay-mo').checked     = b.pmjay_mo_approved||false;
+  document.getElementById('ins-cashless').checked     = b.is_cashless!==false;
+  onInsPayerChange();
+  document.getElementById('ins-modal-bg').classList.add('show');
+};
+
+window.onInsPayerChange = function() {
+  const pt = document.getElementById('ins-payer-type').value;
+  document.getElementById('ins-fields-wrap').style.display = 'block';
+  document.getElementById('ins-pmjay-wrap').style.display = pt==='pmjay'?'block':'none';
+};
+
+window.closeInsModal = function() {
+  document.getElementById('ins-modal-bg').classList.remove('show');
+};
+
+window.saveInsuranceDetails = async function() {
+  if (!_insBillId) return;
+  const pt = document.getElementById('ins-payer-type').value;
+  const payload = {
+    payer_type: pt,
+    insurance_claim_status: document.getElementById('ins-claim-status').value,
+    insurance_provider:     document.getElementById('ins-provider').value||null,
+    tpa_name:               document.getElementById('ins-tpa').value||null,
+    policy_number:          document.getElementById('ins-policy').value.trim()||null,
+    pre_auth_number:        document.getElementById('ins-preauth-num').value.trim()||null,
+    pre_auth_status:        document.getElementById('ins-preauth-status').value,
+    pre_auth_amount:        parseFloat(document.getElementById('ins-preauth-amt').value)||0,
+    insurance_approved_amount: parseFloat(document.getElementById('ins-approved-amt').value)||0,
+    insurance_settled_amount:  parseFloat(document.getElementById('ins-settled-amt').value)||0,
+    insurance_settlement_date: document.getElementById('ins-settled-date').value||null,
+    pmjay_package_code:     document.getElementById('ins-pmjay-code').value.trim()||null,
+    pmjay_mo_approved:      document.getElementById('ins-pmjay-mo').checked,
+    is_cashless:            document.getElementById('ins-cashless').checked,
+  };
+  const btn = document.getElementById('ins-save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const {error} = await supabase.from('bills').update(payload).eq('id',_insBillId).eq('tenant_id',tenantId);
+  btn.disabled = false; btn.textContent = 'Save Details';
+  if (error) { _toast('Error: '+error.message,'error'); return; }
+  _toast('Insurance details saved','success');
+  closeInsModal();
+  _insLoaded = false;
+  loadInsuranceClaims();
+};
 
 // ── Init ──────────────────────────────────────────────
 applyPreset();

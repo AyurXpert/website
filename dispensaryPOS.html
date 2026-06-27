@@ -424,6 +424,7 @@ let _activeRxId     = null;
 let _activeRx       = null;
 let _cartItems      = [];    // {medicine_id, name, price, qty, fromRx}
 let _filter         = 'pending';
+let _rxPayerMap     = {};    // rxId → payer_type (populated during loadQueue)
 
 // ── Date ──────────────────────────────────────────
 document.getElementById('q-date').textContent = new Date().toLocaleDateString('en-IN', {
@@ -477,7 +478,7 @@ async function loadQueue() {
     .from('prescriptions')
     .select(`
       id, created_at, status,
-      visit:visits(id, token_number, chief_complaint, doctor_id),
+      visit:visits(id, token_number, chief_complaint, doctor_id, bills(payer_type)),
       patient:patients(id, name, phone, abha_number),
       items:prescription_items(id, medicine_name, medicine_id, dosage, frequency, duration)
     `)
@@ -499,16 +500,19 @@ async function loadQueue() {
   }
 
   list.innerHTML = filtered.map(rx => {
-    const isDone   = rx.status === 'dispensed';
-    const isActive = rx.id === _activeRxId;
-    const medCount = (rx.items || []).length;
-    const cardClass = isDone ? 'rx-card done' : isActive ? 'rx-card active' : 'rx-card';
-    const tokClass  = isDone ? 'rx-token done' : 'rx-token';
+    const isDone      = rx.status === 'dispensed';
+    const isActive    = rx.id === _activeRxId;
+    const medCount    = (rx.items || []).length;
+    const cardClass   = isDone ? 'rx-card done' : isActive ? 'rx-card active' : 'rx-card';
+    const tokClass    = isDone ? 'rx-token done' : 'rx-token';
     const isPkTherapy = !rx.visit;
+    const payerType   = rx.visit?.bills?.[0]?.payer_type || 'self_pay';
+    const isIns       = payerType !== 'self_pay';
+    _rxPayerMap[rx.id] = payerType;
     return `<div class="${cardClass}" onclick="${isDone ? '' : `openRx('${rx.id}')`}">
       <div class="rx-card-top">
         <div class="${tokClass}">${rx.visit?.token_number || '💊'}</div>
-        <div class="rx-name">${rx.patient?.name || '—'}</div>
+        <div class="rx-name">${rx.patient?.name || '—'}${isIns ? ' <span style="background:#f5f3ff;color:#6d28d9;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600">🏥 Ins</span>' : ''}</div>
         <div class="rx-time">${_timeAgo(rx.created_at)}</div>
       </div>
       <div class="rx-meta">
@@ -574,6 +578,8 @@ window.exportRegisterCSV = function() { alert('Use browser Print (Ctrl+P) to sav
 window.openRx = async function(rxId) {
   _activeRxId = rxId;
   _cartItems  = [];
+  const _payerType = _rxPayerMap[rxId] || 'self_pay';
+  const _isIns     = _payerType !== 'self_pay';
 
   const { data: rx } = await supabase
     .from('prescriptions')
@@ -653,8 +659,19 @@ window.openRx = async function(rxId) {
     });
   });
 
-  // Reset payment
-  document.querySelector('.pay-btn[data-method="Cash"]').click();
+  // Reset payment — insurance patients go on Credit/Due (cashless; accountant settles)
+  const payMethods = document.getElementById('pay-methods');
+  if (_isIns) {
+    document.querySelector('.pay-btn[data-method="Credit"]').click();
+    payMethods.style.opacity       = '0.45';
+    payMethods.style.pointerEvents = 'none';
+    payMethods.title = 'Insurance patient — payment handled by accounts department';
+  } else {
+    document.querySelector('.pay-btn[data-method="Cash"]').click();
+    payMethods.style.opacity       = '';
+    payMethods.style.pointerEvents = '';
+    payMethods.title = '';
+  }
   document.getElementById('discount').value = '0';
 
   document.getElementById('welcome').style.display  = 'none';

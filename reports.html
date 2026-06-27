@@ -192,7 +192,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId, g
 import { initNavbar } from './js/components/navbar.js';
 import { supabase } from './js/core/db/supabaseClient.js';
 
-await requireAuth(['lab_tech', 'accountant', 'dept_admin', 'super_admin']);
+await requireAuth(['lab_tech', 'accountant', 'cashier', 'finance_manager', 'dept_admin', 'super_admin']);
 initNavbar();
 
 const role     = getCurrentRole();
@@ -200,7 +200,7 @@ const tenantId = getCurrentTenantId();
 
 // ── Set up tabs based on role ──────────────────────
 const tabBar    = document.getElementById('tab-bar');
-const isAcct    = ['accountant','dept_admin','super_admin'].includes(role);
+const isAcct    = ['accountant','cashier','finance_manager','dept_admin','super_admin'].includes(role);
 const isLabTech = role === 'lab_tech';
 
 document.getElementById('page-subtitle').textContent =

@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AyurXpert — ABDM FT/WASA Agency Meeting Kit</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 13px; color: #222; display: flex; min-height: 100vh; }
+
+  /* SIDEBAR */
+  #sidebar {
+    width: 230px; min-width: 230px; background: #1a4a2e; color: #fff;
+    position: fixed; top: 0; left: 0; height: 100vh; overflow-y: auto;
+    padding: 0 0 20px 0; z-index: 100;
+  }
+  #sidebar .logo {
+    background: #0f2e1a; padding: 14px 16px; font-size: 14px; font-weight: bold;
+    color: #c9902a; border-bottom: 2px solid #c9902a; letter-spacing: 0.5px;
+  }
+  #sidebar .logo span { display: block; font-size: 10px; color: #aaa; font-weight: normal; margin-top: 2px; }
+  #sidebar .section-label {
+    font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px;
+    color: #7aaa8a; padding: 14px 16px 4px 16px; font-weight: bold;
+  }
+  #sidebar a {
+    display: block; padding: 7px 16px 7px 22px; color: #cde8d5; text-decoration: none;
+    font-size: 12px; border-left: 3px solid transparent; transition: all 0.15s;
+    line-height: 1.4;
+  }
+  #sidebar a:hover, #sidebar a.active {
+    background: #0f2e1a; color: #c9902a; border-left-color: #c9902a;
+  }
+
+  /* MAIN */
+  #main { margin-left: 230px; padding: 0; flex: 1; }
+
+  /* TOP HEADER */
+  .top-header {
+    background: #1a4a2e; color: #fff; padding: 14px 30px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 50; border-bottom: 3px solid #c9902a;
+  }
+  .top-header h1 { font-size: 15px; color: #fff; }
+  .top-header .badge {
+    background: #c9902a; color: #fff; font-size: 10px; font-weight: bold;
+    padding: 3px 10px; border-radius: 10px; margin-left: 8px;
+  }
+  .quickbar {
+    display: flex; gap: 16px; font-size: 11px; color: #cde8d5; flex-wrap: wrap;
+  }
+  .quickbar span { color: #c9902a; font-weight: bold; }
+
+  /* CONTENT */
+  .content { padding: 28px 36px; max-width: 860px; }
+  .section { margin-bottom: 40px; scroll-margin-top: 70px; }
+  .section h2 {
+    font-size: 13px; background: #1a4a2e; color: #fff;
+    padding: 8px 14px; border-radius: 4px; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section h3 {
+    font-size: 12px; color: #1a4a2e; margin: 14px 0 5px 0;
+    border-left: 3px solid #c9902a; padding-left: 8px; font-weight: bold;
+  }
+  .box {
+    background: #f5f9f6; border: 1px solid #c8ddd0; border-radius: 4px;
+    padding: 12px 16px; margin-bottom: 10px; line-height: 1.7;
+  }
+  .box ul { padding-left: 18px; }
+  .box li { margin-bottom: 3px; }
+  .ask {
+    background: #fff8ec; border: 1px solid #e8d5a0; border-left: 4px solid #c9902a;
+    border-radius: 3px; padding: 10px 14px; margin-bottom: 8px;
+    font-style: italic; line-height: 1.6;
+  }
+  .ask strong { font-style: normal; color: #1a4a2e; }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+  th { background: #1a4a2e; color: #fff; padding: 7px 12px; text-align: left; font-size: 11px; }
+  td { border: 1px solid #ddd; padding: 6px 12px; font-size: 12px; vertical-align: top; }
+  tr:nth-child(even) { background: #f9f9f9; }
+  code {
+    background: #f0f0f0; padding: 1px 5px; border-radius: 3px;
+    font-size: 11px; font-family: Consolas, monospace; color: #c7254e;
+  }
+  .pill {
+    display: inline-block; padding: 2px 9px; border-radius: 10px;
+    font-size: 10px; font-weight: bold; margin: 1px;
+  }
+  .pill-green { background: #d4edda; color: #155724; }
+  .pill-gold { background: #fff3cd; color: #856404; }
+  .pill-blue { background: #d1ecf1; color: #0c5460; }
+  .pill-red { background: #f8d7da; color: #721c24; }
+  .quickref {
+    background: #0f2e1a; color: #c9902a; padding: 14px 18px;
+    border-radius: 5px; font-family: Consolas, monospace; font-size: 12px;
+    line-height: 2.2; margin-top: 8px;
+  }
+  .quickref span { color: #7aaa8a; }
+  .opener {
+    background: #fff8ec; border: 2px solid #c9902a; border-radius: 5px;
+    padding: 14px 18px; font-style: italic; line-height: 1.8; font-size: 13px;
+  }
+  .status-done { color: #155724; font-weight: bold; }
+  .status-pending { color: #856404; font-weight: bold; }
+  .status-warn { color: #721c24; font-weight: bold; }
+  .divider { border: none; border-top: 1px solid #ddd; margin: 20px 0; }
+  .footer { margin-top: 30px; font-size: 11px; color: #aaa; border-top: 1px solid #ddd; padding-top: 10px; }
+  @media print {
+    #sidebar { display: none; }
+    #main { margin-left: 0; }
+    .top-header { position: static; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="logo">AyurXpert<br><span>ABDM FT / WASA Meeting Kit</span></div>
+
+  <div class="section-label">Project</div>
+  <a href="#overview">🏥 App Overview</a>
+  <a href="#tech">🖥️ Tech Stack</a>
+  <a href="#ids">🔑 SBXID / IDs / URLs</a>
+  <a href="#credentials">👤 Test Credentials</a>
+
+  <div class="section-label">ABDM Integration</div>
+  <a href="#milestones">🔗 Milestones (M1/M2/M3)</a>
+  <a href="#m1">📋 M1 — ABHA Details</a>
+  <a href="#m2">📋 M2 — HIP Details</a>
+  <a href="#m3">📋 M3 — HIU Details</a>
+  <a href="#evidence">✅ Self-Test Evidence</a>
+
+  <div class="section-label">Scope</div>
+  <a href="#modules">🏗️ HMS Modules</a>
+  <a href="#wasa">🔒 WASA Status</a>
+
+  <div class="section-label">Meeting</div>
+  <a href="#questions">❓ Questions to Ask</a>
+  <a href="#opener">🎤 Opening Statement</a>
+  <a href="#agencies">📞 All Agency Contacts</a>
+  <a href="#quotes">💰 Quotes Received</a>
+</nav>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- TOP HEADER -->
+  <div class="top-header">
+    <div>
+      <h1>AyurXpert — ABDM FT/WASA Agency Meeting Kit
+        <span class="badge">M1 ✅ M2 ✅ M3 ✅</span>
+      </h1>
+    </div>
+    <div class="quickbar">
+      <div><span>SBXID:</span> SBXID_033899</div>
+      <div><span>HIP ID:</span> IN2910002132</div>
+      <div><span>App:</span> ayurxpert.com</div>
+      <div><span>Email:</span> abdm@ayurxpert.com</div>
+      <div><span>Phone:</span> +91 98442 10154</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- OVERVIEW -->
+    <div class="section" id="overview">
+      <h2>🏥 Application Overview</h2>
+      <div class="box">
+        <strong>AyurXpert</strong> is a <strong>multi-tenant HMS (Hospital Management System) SaaS platform</strong> for Ayurveda healthcare facilities across India.
+        <ul style="margin-top:8px;">
+          <li>Each hospital / clinic / Panchakarma centre is a separate <strong>tenant</strong> with their own data, staff, and branding</li>
+          <li>Staff log in to a shared platform but see only their organisation's data (RLS-enforced)</li>
+          <li>Acts as both <strong>HIP</strong> (provides patient records to ABDM) and <strong>HIU</strong> (fetches records from ABDM for doctors)</li>
+          <li><strong>Web-based Progressive Web App (PWA)</strong> — no native mobile app</li>
+          <li>Live URL: <code>https://ayurxpert.com</code></li>
+          <li>Login: <code>https://ayurxpert.com/login.html</code></li>
+        </ul>
+      </div>
+      <h3>Application Count for FT / WASA</h3>
+      <div class="box">
+        <strong>1 web application</strong> — AyurXpert HMS at ayurxpert.com.<br>
+        The Edge Functions (abdm-auth, abdm-webhook) are backend components of the same application, not separate apps.<br>
+        No mobile app is in ABDM scope.
+      </div>
+    </div>
+
+    <!-- TECH STACK -->
+    <div class="section" id="tech">
+      <h2>🖥️ Tech Stack</h2>
+      <table>
+        <tr><th>Layer</th><th>Technology</th><th>Details</th></tr>
+        <tr><td>Frontend</td><td>Vanilla HTML + CSS + JS</td><td>No framework, no build step. Progressive Web App (PWA).</td></tr>
+        <tr><td>Backend / DB</td><td>Supabase (PostgreSQL)</td><td>Hosted on AWS Mumbai (ap-south-1). Row Level Security on all tables.</td></tr>
+        <tr><td>Auth</td><td>Supabase Auth</td><td>Email + password. 15-min idle session timeout. RLS multi-tenant isolation.</td></tr>
+        <tr><td>Edge Functions</td><td>Deno (Supabase)</td><td>abdm-auth, abdm-webhook, abdm-hip — deployed on Supabase edge (AWS)</td></tr>
+        <tr><td>Hosting</td><td>GitHub Pages</td><td>ayurxpert.com — static frontend served via GitHub Pages</td></tr>
+        <tr><td>Security headers</td><td>Cloudflare</td><td>X-Frame-Options: DENY, full CSP, X-Content-Type-Options, Referrer-Policy active</td></tr>
+        <tr><td>ABDM API version</td><td>V3 exclusively</td><td>All endpoints: <code>/abha/api/v3/</code> and <code>/api/hiecm/...v3/</code></td></tr>
+      </table>
+    </div>
+
+    <!-- IDs & URLS -->
+    <div class="section" id="ids">
+      <h2>🔑 SBXID / IDs / URLs</h2>
+      <div class="quickref">
+        <span>SBXID / Bridge ID  :</span> SBXID_033899<br>
+        <span>HIP ID             :</span> IN2910002132<br>
+        <span>X-CM-ID            :</span> sbx<br>
+        <span>Bridge / Webhook   :</span> https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-webhook<br>
+        <span>App URL            :</span> https://ayurxpert.com<br>
+        <span>Login URL          :</span> https://ayurxpert.com/login.html<br>
+        <span>Test ABHA address  :</span> venkateshas031975@sbx<br>
+        <span>Test ABHA number   :</span> 91-2604-7444-1201<br>
+        <span>Your email         :</span> abdm@ayurxpert.com<br>
+        <span>Your phone         :</span> +91 98442 10154
+      </div>
+    </div>
+
+    <!-- TEST CREDENTIALS -->
+    <div class="section" id="credentials">
+      <h2>👤 Test Credentials — WASA Test Hospital</h2>
+      <div class="box"><strong>Tenant:</strong> WASA Test Hospital &nbsp;|&nbsp; <strong>Code:</strong> <code>WASA1631</code></div>
+      <table>
+        <tr><th>Role</th><th>Email</th><th>Password</th></tr>
+        <tr><td>Super Admin</td><td>wasa.admin@ayurxpert.com</td><td>WasaAdmin@2026#</td></tr>
+        <tr><td>Receptionist</td><td>wasa.reception@ayurxpert.com</td><td>WasaRx@2026#</td></tr>
+        <tr><td>Doctor</td><td>wasa.doctor@ayurxpert.com</td><td>WasaDoc@2026#</td></tr>
+        <tr><td>Pharmacist</td><td>wasa.pharmacy@ayurxpert.com</td><td>WasaRx2@2026#</td></tr>
+        <tr><td>Nurse</td><td>wasa.nurse@ayurxpert.com</td><td>WasaNurse@2026#</td></tr>
+        <tr><td>Accountant</td><td>wasa.accountant@ayurxpert.com</td><td>(to be created)</td></tr>
+      </table>
+      <div class="box" style="margin-top:10px;">
+        <strong>ABDM Sandbox test ABHA:</strong> <code>venkateshas031975@sbx</code> &nbsp;|&nbsp;
+        ABHA No: <code>91-2604-7444-1201</code>
+      </div>
+    </div>
+
+    <!-- MILESTONES OVERVIEW -->
+    <div class="section" id="milestones">
+      <h2>🔗 ABDM Milestones Integrated</h2>
+      <table>
+        <tr><th>Milestone</th><th>What</th><th>Status</th></tr>
+        <tr>
+          <td><strong>M1</strong></td>
+          <td>ABHA creation, enrollment, all 4 login flows, Scan &amp; Share, profile / QR / ABHA card</td>
+          <td><span class="pill pill-green">✅ ALL PASS</span></td>
+        </tr>
+        <tr>
+          <td><strong>M2</strong></td>
+          <td>HIP linking (501–506), user-initiated linking (601–607), SMS notify, data transfer (606/607)</td>
+          <td><span class="pill pill-green">✅ ALL PASS</span></td>
+        </tr>
+        <tr>
+          <td><strong>M3</strong></td>
+          <td>HIU consent — request, grant, fetch artefact, data pull, decrypt, display, revoke</td>
+          <td><span class="pill pill-green">✅ ALL PASS</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- M1 -->
+    <div class="section" id="m1">
+      <h2>📋 M1 — ABHA (Patient Identity)</h2>
+      <h3>ABHA Creation & Enrollment</h3>
+      <div class="box">
+        <ul>
+          <li>Aadhaar OTP-based ABHA creation via reception.html</li>
+          <li>ABHA number and ABHA address stored against patient record</li>
+        </ul>
+      </div>
+      <h3>4 Login / Verification Flows</h3>
+      <div class="box">
+        <ul>
+          <li><strong>Aadhaar OTP:</strong> <code>POST /abha/api/v3/enrollment/auth/byAadhaar</code></li>
+          <li><strong>ABHA Number:</strong> <code>POST /profile/login/request/otp</code> (loginHint: abha-number)</li>
+          <li><strong>ABHA Address:</strong> <code>POST /phr/web/login/abha/request/otp</code> → verify → GET abha-profile</li>
+          <li><strong>Mobile OTP:</strong> <code>POST /profile/login/request/otp</code> (loginHint: mobile) → accounts[] returned</li>
+        </ul>
+      </div>
+      <h3>Scan & Share</h3>
+      <div class="box">
+        Patient scans QR from reception screen in ABHA app → patient data auto-fills in reception.html → token raised → visit created. Confirmed working in sandbox.
+      </div>
+      <h3>Profile / QR Code / ABHA Card</h3>
+      <div class="box">
+        <ul>
+          <li><code>GET /profile/account</code> — full profile + KYC ✅</li>
+          <li><code>GET /profile/account/qrCode</code> — 202 ✅</li>
+          <li><code>GET /profile/account/abha-card</code> — 202 ✅</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- M2 -->
+    <div class="section" id="m2">
+      <h2>📋 M2 — HIP (Health Record Linking)</h2>
+      <h3>HIP-Initiated Linking (Test Cases 501–506)</h3>
+      <div class="box">
+        <ul>
+          <li>Generate link token → 202 + on-generate-token callback ✅</li>
+          <li>Link care context → 202 (abhaNumber mandatory in practice) ✅</li>
+          <li>Link context notify → 202 (X-LINK-TOKEN required) ✅</li>
+          <li>hip.id = tenants.hfr_id (IN2910002132); hip.name = tenant name</li>
+        </ul>
+      </div>
+      <h3>User-Initiated Linking (Test Cases 601–607)</h3>
+      <div class="box">
+        <ul>
+          <li>Patient Discovery (601) → on-discover 202 ✅ (matchedBy=HEALTH_ID)</li>
+          <li>Link Init (602) → OTP → on-init 202 ✅</li>
+          <li>Link Confirm (603) → OTP verified → 1 CC linked → on-confirm 202 ✅ (PHR showed "Your record has been linked")</li>
+          <li>Consent notify (604) → data response (605) ✅</li>
+        </ul>
+      </div>
+      <h3>Data Transfer (606 / 607)</h3>
+      <div class="box">
+        <ul>
+          <li>health-information/request: 3 FHIR bundles encrypted (Curve25519/AES-256-GCM) and pushed to dataPushUrl ✅</li>
+          <li>health-information/notify: auto-fires after push (sessionStatus=TRANSFERRED) ✅</li>
+          <li>webhook.site inbox: 3/50 entries confirmed received</li>
+        </ul>
+      </div>
+      <h3>SMS Notify</h3>
+      <div class="box">
+        sms/notify2 → 202 + SMS delivered to +91 9844210154 + sms/on-notify webhook → ACKNOWLEDGED ✅
+      </div>
+    </div>
+
+    <!-- M3 -->
+    <div class="section" id="m3">
+      <h2>📋 M3 — HIU (Health Record Fetching)</h2>
+      <h3>Consent Flow</h3>
+      <div class="box">
+        <ul>
+          <li>Doctor initiates consent request from doctor.html Tab 9 (ABDM Records)</li>
+          <li>Patient receives notification on ABHA app → approves</li>
+          <li>Consent callbacks handled: grant / deny / revoke / expire</li>
+        </ul>
+      </div>
+      <h3>Data Fetch & Display</h3>
+      <div class="box">
+        <ul>
+          <li>Fetch consent artefact → data request → HIP pushes encrypted FHIR</li>
+          <li>Decrypt using P-256 ECDH + AES-256-GCM</li>
+          <li>Display: longitudinal timeline grouped by date (diagnoses, medications, vitals, labs, allergies)</li>
+        </ul>
+      </div>
+      <h3>Revoke / Expire</h3>
+      <div class="box">
+        Consent revoked → records deleted from DB + compliance notice shown in UI. HIU_FLOW_202 ✅
+      </div>
+      <h3>HIU Outbound URLs (V3)</h3>
+      <div class="box">
+        <table>
+          <tr><th>Action</th><th>Endpoint</th></tr>
+          <tr><td>Consent init</td><td><code>POST https://dev.abdm.gov.in/api/hiecm/consent/v3/request/init</code></td></tr>
+          <tr><td>Consent status</td><td><code>POST https://dev.abdm.gov.in/api/hiecm/consent/v3/request/status</code></td></tr>
+          <tr><td>Consent fetch</td><td><code>POST https://dev.abdm.gov.in/api/hiecm/consent/v3/fetch</code></td></tr>
+          <tr><td>Data-flow request</td><td><code>POST https://dev.abdm.gov.in/api/hiecm/data-flow/v3/health-information/request</code></td></tr>
+          <tr><td>Data-flow notify</td><td><code>POST https://dev.abdm.gov.in/api/hiecm/data-flow/v3/health-information/notify</code></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- SELF-TEST EVIDENCE -->
+    <div class="section" id="evidence">
+      <h2>✅ Self-Test Evidence</h2>
+      <table>
+        <tr><th>Test Case</th><th>What</th><th>Result</th></tr>
+        <tr><td>M1 §7.2</td><td>ABHA Number login (Aadhaar OTP)</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td>M1 §7.3</td><td>Mobile OTP login</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td>M1 §7.4</td><td>ABHA Address login</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td>M1 §8.x</td><td>Get Profile / QR Code / ABHA Card</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td>M2 501–506</td><td>HIP-initiated linking (Demographic Auth)</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td>M2 601–603</td><td>User-initiated linking (PHR app)</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td>M2 604–605</td><td>Consent notify + HIP response</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td>M2 606</td><td>Data push — 3 FHIR bundles delivered</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td>M2 607</td><td>Health-information notify auto-fires</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td>M2 SMS</td><td>sms/notify2 → SMS delivered + ACKNOWLEDGED</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td>HIU_FLOW_102</td><td>Consent request init</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td>HIU_FLOW_104</td><td>Consent status → GRANTED</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td>HIU_FLOW_106</td><td>Fetch consent artefact</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td>HIU_FLOW_107–113</td><td>Data request → decrypt → store → display</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td>HIU_FLOW_202</td><td>Revoke → records deleted</td><td><span class="pill pill-green">PASS</span></td></tr>
+      </table>
+      <div class="box" style="margin-top:10px;">
+        <strong>Evidence available:</strong> Supabase Edge Function logs · webhook.site inbox (3/50 entries) · abdm_audit_logs table · abdm_consents table
+      </div>
+    </div>
+
+    <!-- HMS MODULES -->
+    <div class="section" id="modules">
+      <h2>🏗️ HMS Modules — Full List (WASA / FT Scope)</h2>
+      <div class="box">AyurXpert has <strong>50+ HTML modules</strong>. Key clinical modules for testing scope:</div>
+      <table>
+        <tr><th>Module</th><th>File</th><th>Roles</th><th>ABDM Relevant</th></tr>
+        <tr><td>Patient Registration + OPD Queue + ABHA</td><td>reception.html</td><td>Receptionist, Nurse</td><td>✅ M1 M2 M3</td></tr>
+        <tr><td>Doctor Consultation (9 tabs)</td><td>doctor.html</td><td>Doctor</td><td>✅ M3 HIU Records Tab</td></tr>
+        <tr><td>Pharmacy / Dispensary POS</td><td>dispensaryPOS.html</td><td>Pharmacist</td><td>—</td></tr>
+        <tr><td>IPD Admissions &amp; Discharge</td><td>ipd.html</td><td>Doctor, Nurse</td><td>—</td></tr>
+        <tr><td>Lab &amp; Diagnostics</td><td>lab.html</td><td>Lab Tech</td><td>—</td></tr>
+        <tr><td>Nursing (Vitals, MAR, Handover)</td><td>nursing.html</td><td>Nurse</td><td>—</td></tr>
+        <tr><td>Finance &amp; Billing</td><td>finance.html</td><td>Accountant, Receptionist</td><td>—</td></tr>
+        <tr><td>Insurance Claims Register</td><td>insurance-claims.html</td><td>Accountant</td><td>—</td></tr>
+        <tr><td>Admin Dashboard</td><td>admin.html</td><td>Super Admin, Dept Admin</td><td>—</td></tr>
+        <tr><td>Inventory Management</td><td>inventory.html</td><td>Pharmacist</td><td>—</td></tr>
+        <tr><td>Panchakarma / Therapist</td><td>therapist.html</td><td>Therapist</td><td>—</td></tr>
+        <tr><td>NCISM Compliance Monitor</td><td>ncism-compliance.html</td><td>Super Admin</td><td>—</td></tr>
+        <tr><td>OPD Management</td><td>opd-admin.html</td><td>Super Admin</td><td>—</td></tr>
+        <tr><td>Bed Management</td><td>bed-admin.html</td><td>Super Admin</td><td>—</td></tr>
+        <tr><td>Emergency OPD</td><td>emergency.html</td><td>Doctor, Nurse</td><td>—</td></tr>
+        <tr><td>Organisation Registration</td><td>register.html</td><td>Public</td><td>—</td></tr>
+        <tr><td>Staff Sign Up</td><td>signup.html</td><td>Public</td><td>—</td></tr>
+        <tr><td>Login</td><td>login.html</td><td>All roles</td><td>—</td></tr>
+      </table>
+      <div class="box" style="margin-top:10px;">
+        <strong>For ABDM FT scope</strong>, primary modules are: <code>reception.html</code> (M1/M2) and <code>doctor.html</code> (M3).<br>
+        <strong>For WASA security scope</strong>, all modules + Edge Functions + Supabase RLS + Auth flows are in scope.
+      </div>
+    </div>
+
+    <!-- WASA -->
+    <div class="section" id="wasa">
+      <h2>🔒 WASA Status</h2>
+      <div class="box">
+        <strong class="status-done">✅ WASA contracted — SecureNexGen LLP (CERT-IN empanelled)</strong><br><br>
+        <ul>
+          <li>SOW signed: AXT/SOW/2026/001-R1</li>
+          <li>All WASA findings fixed + NDHM compliance verified</li>
+          <li>Safe-to-Host Certificate expected: <strong>30 June 2026</strong></li>
+          <li>Contacts: vamsi.s@securenexgen.com | jayaprakash.reddy@securenexgen.com</li>
+        </ul>
+      </div>
+      <div class="ask">
+        <strong>Note for agencies asking about WASA:</strong> WASA is already handled by SecureNexGen. We only need <strong>FT (M1+M2+M3)</strong> from you. Please provide a separate FT-only quote. You may also provide a combined quote for reference.
+      </div>
+    </div>
+
+    <!-- QUESTIONS TO ASK -->
+    <div class="section" id="questions">
+      <h2>❓ Questions to Ask the Agency</h2>
+
+      <h3>1. Report Format</h3>
+      <div class="ask">"Will the FT report be in NHA's standard approved template? NHA has stated they will not accept reports not in the approved format."</div>
+
+      <h3>2. Scope Confirmation</h3>
+      <div class="ask">"Will you be evaluating all three milestones — M1, M2, and M3 — in this single engagement?"</div>
+
+      <h3>3. Timeline (Critical)</h3>
+      <div class="ask">"What is your timeline in <strong>working days</strong>? NHA allows a maximum of 7 working days. Can you commit to this?"</div>
+
+      <h3>4. Start Date</h3>
+      <div class="ask">"When can you start? We want to begin FT evaluation immediately after signing the WO."</div>
+
+      <h3>5. What They Need from Us</h3>
+      <div class="ask">"What exactly do you need from our side to start? Test credentials, Postman collection, sandbox logs, architecture document?"</div>
+
+      <h3>6. Number of Applications</h3>
+      <div class="ask">"AyurXpert is 1 web application — HMS at ayurxpert.com. There is no separate mobile app. The Edge Functions are backend components of the same app. Does your per-application pricing apply as Rs. [X] total for 1 app?"</div>
+
+      <h3>7. WASA (if they ask)</h3>
+      <div class="ask">"WASA is already contracted with SecureNexGen LLP (CERT-IN empanelled). We only need FT from you. Can you give a FT-only separate quote?"</div>
+
+      <h3>8. Audit Rounds</h3>
+      <div class="ask">"How many rounds of audit are included? What happens if findings need to be re-tested?"</div>
+
+      <h3>9. NHA Submission</h3>
+      <div class="ask">"Will the FT report be submitted directly to NHA, or does it come to us first for review?"</div>
+
+      <h3>10. Quote Timeline</h3>
+      <div class="ask">"When can we expect the quote? We would like to finalise the agency this week."</div>
+    </div>
+
+    <!-- OPENER -->
+    <div class="section" id="opener">
+      <h2>🎤 Opening Statement</h2>
+      <div class="opener">
+        "We have completed M1, M2, and M3 integration on V3 APIs in the ABDM sandbox — all test cases self-tested and passing. Our WASA is contracted with SecureNexGen LLP and the Safe-to-Host certificate is expected by 30 June 2026. We only need FT (M1+M2+M3) from your side. AyurXpert is a single web application — HMS at ayurxpert.com with no mobile app. We are ready to begin FT evaluation immediately after signing the WO. Can we discuss scope, timeline, and what you need from our side to get started?"
+      </div>
+    </div>
+
+    <!-- AGENCY CONTACTS -->
+    <div class="section" id="agencies">
+      <h2>📞 All 9 NHA-Empanelled FT Agencies</h2>
+      <table>
+        <tr><th>#</th><th>Agency</th><th>Email</th><th>Phone</th><th>Status</th></tr>
+        <tr>
+          <td>1</td><td>AKS Information Technology Services Pvt. Ltd</td>
+          <td>info.cert@aksitservices.co.in</td><td>7290058951</td>
+          <td><span class="pill pill-gold">Called 26 Jun</span></td>
+        </tr>
+        <tr>
+          <td>2</td><td>Avasure Technologies Pvt. Ltd</td>
+          <td>jaiveen.mehta@avasuretechnologies.com</td><td>9820058628</td>
+          <td><span class="pill pill-green">Quote received</span></td>
+        </tr>
+        <tr>
+          <td>3</td><td>AQM Technologies Pvt. Ltd</td>
+          <td>sanjay.parikh@aqmtechnologies.com</td><td>8291858027</td>
+          <td><span class="pill pill-gold">Called 26 Jun</span></td>
+        </tr>
+        <tr>
+          <td>4</td><td>Code Decode Labs Pvt. Ltd</td>
+          <td>abdm-cert@codedecodelabs.com</td><td>9011459161</td>
+          <td><span class="pill pill-blue">Meeting to schedule</span></td>
+        </tr>
+        <tr>
+          <td>5</td><td>ESF Labs Limited</td>
+          <td>sivarama@esflabs.com</td><td>9963971531</td>
+          <td><span class="pill pill-gold">Called 26 Jun</span></td>
+        </tr>
+        <tr>
+          <td>6</td><td>FIME India Pvt. Ltd</td>
+          <td>salesindia@fime.com</td><td>080-43358036</td>
+          <td><span class="pill pill-gold">Called 26 Jun</span></td>
+        </tr>
+        <tr>
+          <td>7</td><td>Oxygen Consulting Services Pvt. Ltd</td>
+          <td>sanjiv.agarwala@o2csv.com</td><td>9890302009</td>
+          <td><span class="pill pill-gold">Called 26 Jun</span></td>
+        </tr>
+        <tr>
+          <td>8</td><td>Nangia &amp; Co. LLP</td>
+          <td>pushpendra.bharambe@nangia.com<br>asif.balasinor@nangia.com</td>
+          <td>9892950303<br>7977505911</td>
+          <td><span class="pill pill-green">Proposal received</span></td>
+        </tr>
+        <tr>
+          <td>9</td><td>Suma Soft Pvt. Ltd</td>
+          <td>abdm@sumasoft.com</td><td>8828222799</td>
+          <td><span class="pill pill-blue">Meeting 29 Jun 12 PM</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- QUOTES -->
+    <div class="section" id="quotes">
+      <h2>💰 Quotes Received</h2>
+
+      <h3>Avasure Technologies — Received 24 June 2026</h3>
+      <div class="box">
+        <table>
+          <tr><th>Activity</th><th>Price</th><th>Timeline</th></tr>
+          <tr><td>FT — M1, M2, M3</td><td>Rs. 1,68,000 + taxes</td><td>10 days ⚠️ clarify: calendar or working?</td></tr>
+          <tr><td>WASA</td><td>Rs. 75,000 + taxes</td><td>7–8 days (SKIP — SecureNexGen contracted)</td></tr>
+        </table>
+        <ul style="margin-top:8px;">
+          <li>Terms: 50% advance with WO · 2–3 audit rounds · Quote valid 15 days (expires ~9 Jul)</li>
+          <li>Need: company name, address, GST to get formal quotation</li>
+          <li>Contact: Jaiveen Mehta | jaiveen.mehta@avasuretechnologies.com | +91-9820058628 / +971-555716447</li>
+        </ul>
+      </div>
+
+      <h3>Nangia &amp; Co. LLP — Proposal received June 2026</h3>
+      <div class="box">
+        <table>
+          <tr><th>Activity</th><th>Price</th><th>Timeline</th></tr>
+          <tr><td>FT (M1+M2+M3) + Security Assessment — per application</td><td>Rs. 1,20,000 + taxes</td><td>TBD — ask in working days</td></tr>
+        </table>
+        <ul style="margin-top:8px;">
+          <li>AyurXpert = 1 app → total Rs. 1,20,000</li>
+          <li>Includes both FT + Security Assessment (OWASP Top 10, SANS 25, OWASP API Top 10)</li>
+          <li>Payment: 40% advance · 30% draft report · 30% final report</li>
+          <li>Ask Asif for FT-only separate price (security already covered by SecureNexGen WASA)</li>
+          <li>Primary: Pushpendra Bharambe | pushpendra.bharambe@nangia.com | 9892950303</li>
+          <li>Engagement: Asif Balasinor | asif.balasinor@nangia.com | 7977505911</li>
+        </ul>
+      </div>
+
+      <h3>Suma Soft — Pending (meeting 29 June 2026)</h3>
+      <div class="box">Quote expected after meeting at 12 PM IST on 29 June 2026 | meet.google.com/qov-bhmf-xoi</div>
+
+      <h3>Code Decode Labs — Meeting to be scheduled</h3>
+      <div class="box">Called 26 June 2026. Wants to discuss application and modules before quoting. Asked for both FT + WASA — clarify only FT needed.</div>
+
+      <hr class="divider">
+
+      <h3>Quote Comparison (FT only, WASA excluded)</h3>
+      <table>
+        <tr><th>Agency</th><th>FT Price</th><th>Timeline</th><th>Payment</th><th>Notes</th></tr>
+        <tr>
+          <td>Nangia (combined)</td><td>Rs. 1,20,000</td><td>TBD</td><td>40%+30%+30%</td>
+          <td>Includes security assessment too — best value</td>
+        </tr>
+        <tr>
+          <td>Nangia (FT only)</td><td>TBD — ask Asif</td><td>TBD</td><td>40%+30%+30%</td>
+          <td>Ask separately</td>
+        </tr>
+        <tr>
+          <td>Avasure</td><td>Rs. 1,68,000</td><td>10 days ⚠️</td><td>50% advance</td>
+          <td>Clarify calendar vs working days</td>
+        </tr>
+        <tr>
+          <td>Suma Soft</td><td>Pending</td><td>~7 working days</td><td>TBD</td>
+          <td>Quote after 29 Jun meeting</td>
+        </tr>
+        <tr>
+          <td>Code Decode Labs</td><td>Pending</td><td>TBD</td><td>TBD</td>
+          <td>Meeting to schedule</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="footer">
+      AyurXpert Technologies™ &nbsp;|&nbsp; SBXID_033899 &nbsp;|&nbsp; abdm@ayurxpert.com &nbsp;|&nbsp; +91 98442 10154 &nbsp;|&nbsp; Last updated: 26 June 2026
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+  // Highlight active sidebar link on scroll
+  const sections = document.querySelectorAll('.section');
+  const links = document.querySelectorAll('#sidebar a');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => {
+      if (window.scrollY >= s.offsetTop - 90) current = s.id;
+    });
+    links.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+    });
+  });
+</script>
+</body>
+</html>

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
-<title>Fee Administration — AyurXpert</title>
+<title>Fee Structure — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
 <link rel="manifest" href="manifest.json"/>
 <link rel="apple-touch-icon" href="assets/icon.svg"/>
@@ -225,10 +225,14 @@ tr:hover td{background:rgba(232,245,238,.4)}
   <!-- ── Header ──────────────────────────────────── -->
   <div class="page-hdr">
     <div class="page-hdr-left">
-      <div class="page-title">Fee Administration</div>
-      <div class="page-sub">Manage all hospital services and charges across departments</div>
+      <div class="page-title">Fee Structure</div>
+      <div class="page-sub">Manage service catalogue, pricing and approval workflow</div>
       <div class="role-badge" id="role-badge"></div>
     </div>
+  </div>
+
+  <!-- Add Service button -->
+  <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
     <button class="btn-add" id="btn-add-top" onclick="openModal()">+ Add Service</button>
   </div>
 
@@ -309,6 +313,7 @@ tr:hover td{background:rgba(232,245,238,.4)}
       </table>
     </div>
   </div>
+
 
 </div>
 
@@ -407,7 +412,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId, g
 import { initNavbar } from './js/components/navbar.js';
 import { supabase } from './js/core/db/supabaseClient.js';
 
-await requireAuth(['accountant','dept_admin','super_admin']);
+await requireAuth(['dept_admin','super_admin']);
 initNavbar();
 
 const profile   = getCurrentProfile();

@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Financial Management — User Guide | AyurXpert HMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── Design Tokens ─────────────────────────────── */
+    :root {
+      --green-deep: #1a4a2e;
+      --gold:       #c9902a;
+      --cream:      #faf8f3;
+      --white:      #ffffff;
+      --border:     #e5ded4;
+      --red:        #c0392b;
+      --sidebar-w:  240px;
+      --font-body:  'DM Sans', sans-serif;
+      --font-head:  'Cormorant Garamond', serif;
+    }
+
+    /* ─── Reset & Base ──────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-body);
+      font-size: 14px;
+      line-height: 1.7;
+      background: var(--cream);
+      color: #2d2d2d;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ─── Top Banner ───────────────────────────────── */
+    .top-banner {
+      background: var(--green-deep);
+      color: var(--gold);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    .top-banner h1 {
+      font-family: var(--font-head);
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--gold);
+    }
+    .top-banner .banner-sub {
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.7);
+      margin-top: 2px;
+    }
+    .print-btn {
+      background: var(--gold);
+      color: var(--green-deep);
+      border: none;
+      border-radius: 6px;
+      padding: 7px 16px;
+      font-family: var(--font-body);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .print-btn:hover { background: #daa430; }
+
+    /* ─── Layout ────────────────────────────────────── */
+    .layout {
+      display: flex;
+      flex: 1;
+    }
+
+    /* ─── Sidebar ───────────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      background: var(--white);
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 54px;
+      height: calc(100vh - 54px);
+      overflow-y: auto;
+      padding: 16px 0 24px;
+    }
+    .sidebar-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #888;
+      padding: 10px 16px 4px;
+    }
+    .sidebar nav a {
+      display: block;
+      padding: 6px 16px;
+      font-size: 0.82rem;
+      color: #444;
+      text-decoration: none;
+      border-left: 3px solid transparent;
+      transition: all 0.15s;
+    }
+    .sidebar nav a:hover,
+    .sidebar nav a.active {
+      color: var(--green-deep);
+      border-left-color: var(--green-deep);
+      background: #f0f7f2;
+    }
+    .sidebar nav a.sub {
+      padding-left: 28px;
+      font-size: 0.78rem;
+      color: #666;
+    }
+    .sidebar nav a.sub:hover { color: var(--green-deep); }
+
+    /* ─── Main Content ──────────────────────────────── */
+    .main {
+      flex: 1;
+      padding: 32px 40px 60px;
+      max-width: 900px;
+    }
+
+    /* ─── Section Headings ──────────────────────────── */
+    h2 {
+      font-family: var(--font-head);
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--green-deep);
+      margin: 40px 0 10px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--border);
+    }
+    h2:first-of-type { margin-top: 0; }
+    h3 {
+      font-family: var(--font-head);
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: #1a3a22;
+      margin: 24px 0 8px;
+    }
+    h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #333;
+      margin: 16px 0 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    p { margin-bottom: 10px; }
+
+    /* ─── Tables ────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; margin: 14px 0 20px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    th {
+      background: var(--green-deep);
+      color: var(--white);
+      text-align: left;
+      padding: 9px 12px;
+      font-weight: 600;
+      font-size: 0.78rem;
+      letter-spacing: 0.03em;
+    }
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #f6f3ee; }
+    tr:last-child td { border-bottom: none; }
+
+    /* ─── Code Blocks ───────────────────────────────── */
+    pre {
+      background: #1e2d1f;
+      border-radius: 8px;
+      padding: 18px 20px;
+      margin: 14px 0 20px;
+      overflow-x: auto;
+    }
+    code.code-block {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.8rem;
+      color: #d4e8d8;
+      line-height: 1.6;
+      white-space: pre;
+    }
+    p code, li code, td code {
+      background: #edf3ee;
+      color: #1a4a2e;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 0.82em;
+      font-family: 'Courier New', Courier, monospace;
+    }
+
+    /* ─── Tip / Warning / Alert Boxes ──────────────── */
+    .box {
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin: 14px 0;
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+    .box strong { display: block; margin-bottom: 4px; }
+    .box-tip {
+      background: #f0faf3;
+      border-left: 4px solid var(--green-deep);
+      color: #1a3a22;
+    }
+    .box-warn {
+      background: #fdf8ee;
+      border-left: 4px solid var(--gold);
+      color: #5a3e00;
+    }
+    .box-critical {
+      background: #fdf2f2;
+      border-left: 4px solid var(--red);
+      color: #7a1010;
+    }
+
+    /* ─── Role Badges ───────────────────────────────── */
+    .badge {
+      display: inline-block;
+      border-radius: 12px;
+      padding: 2px 10px;
+      font-size: 0.73rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .badge-receptionist    { background: #e0f5f5; color: #0e6b6b; }
+    .badge-accountant      { background: #e3ecfc; color: #1a3f8a; }
+    .badge-cashier         { background: #e8f4fd; color: #1565a0; }
+    .badge-finance_manager { background: #fff3e0; color: #7a4000; }
+    .badge-super_admin     { background: #fdf3dc; color: #7a4e00; }
+    .badge-dept_admin      { background: #ede8fc; color: #3b1a8a; }
+    .badge-doctor          { background: #e8f8ee; color: #1a5c2e; }
+    .badge-nurse           { background: #e8f5f0; color: #145c3a; }
+    .badge-pharmacist      { background: #f3e8fc; color: #5a1a8a; }
+
+    /* ─── Step Cards ────────────────────────────────── */
+    .steps { list-style: none; margin: 14px 0 20px; }
+    .steps li {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      margin-bottom: 10px;
+      background: #f0f7f2;
+      border-radius: 7px;
+      padding: 10px 14px;
+      border: 1px solid #d4ead9;
+    }
+    .step-num {
+      flex-shrink: 0;
+      background: var(--green-deep);
+      color: var(--white);
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-top: 1px;
+    }
+    .step-body { flex: 1; }
+    .step-body strong { color: var(--green-deep); }
+
+    /* ─── Flow Diagram ──────────────────────────────── */
+    .flow {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+      margin: 14px 0 20px;
+      font-size: 0.82rem;
+      line-height: 1.9;
+    }
+    .flow-step {
+      padding: 6px 14px;
+      margin: 4px 0;
+      border-radius: 5px;
+      display: inline-block;
+    }
+    .flow-pending       { background: #fff3cd; color: #7a5200; }
+    .flow-dept_approved { background: #d4edda; color: #155724; }
+    .flow-active        { background: #cce5ff; color: #004085; }
+    .flow-arrow { color: #888; margin: 0 4px; }
+
+    /* ─── Schema Column Table ───────────────────────── */
+    .schema-table th { font-size: 0.75rem; }
+    .schema-table td { font-size: 0.8rem; font-family: 'Courier New', Courier, monospace; }
+    .schema-table td:nth-child(1) { color: var(--green-deep); font-weight: 600; }
+    .schema-table td:nth-child(3) { color: #888; }
+
+    /* ─── Scenario Cards ────────────────────────────── */
+    .scenario {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 16px 0;
+    }
+    .scenario h4 {
+      margin-top: 0;
+      color: var(--green-deep);
+      font-family: var(--font-head);
+      font-size: 1rem;
+      font-weight: 700;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    /* ─── Divider ───────────────────────────────────── */
+    hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+    /* ─── Footer ────────────────────────────────────── */
+    footer {
+      text-align: center;
+      font-size: 0.75rem;
+      color: #aaa;
+      padding: 20px;
+      border-top: 1px solid var(--border);
+      background: var(--white);
+    }
+
+    /* ─── Responsive / Mobile ───────────────────────── */
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; }
+      .sidebar {
+        width: 100%;
+        position: static;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .main { padding: 20px 18px 40px; }
+      h2 { font-size: 1.3rem; }
+    }
+
+    /* ─── Print Styles ──────────────────────────────── */
+    @media print {
+      .sidebar { display: none !important; }
+      .top-banner { position: static; }
+      .print-btn { display: none !important; }
+      .main { padding: 20px; max-width: 100%; }
+      pre { break-inside: avoid; }
+      .scenario { break-inside: avoid; }
+      h2 { break-before: page; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══ TOP BANNER ═══════════════════════════════════════════════════════════ -->
+<header class="top-banner">
+  <div>
+    <h1>Financial Management — Complete User Guide</h1>
+    <div class="banner-sub">AyurXpert HMS · Covers reception.html · dispensaryPOS.html · ipd.html · finance.html · insurance-claims.html · fee-admin.html</div>
+  </div>
+  <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+</header>
+
+<div class="layout">
+
+  <!-- ═══ SIDEBAR ═══════════════════════════════════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-label">Contents</div>
+    <nav>
+      <a href="#overview">1. Overview</a>
+      <a href="#overview-model" class="sub">1.1 3-Tier Model</a>
+      <a href="#overview-roles" class="sub">1.2 Role Matrix</a>
+
+      <a href="#fee-setup">2. Fee Structures</a>
+      <a href="#fee-categories" class="sub">2.1 Categories</a>
+      <a href="#fee-approval" class="sub">2.2 Approval Flow</a>
+
+      <a href="#opd-billing">3. OPD Reg &amp; Billing</a>
+      <a href="#self-pay" class="sub">3.1 Self-Pay</a>
+      <a href="#insurance-opd" class="sub">3.2 Insurance/TPA</a>
+      <a href="#pmjay" class="sub">3.3 PMJAY</a>
+      <a href="#cghs" class="sub">3.4 CGHS/ECHS</a>
+      <a href="#db-saved" class="sub">3.5 What Gets Saved</a>
+
+      <a href="#pharmacy">4. Pharmacy Dispensing</a>
+      <a href="#pharmacy-normal" class="sub">4.1 Self-Pay</a>
+      <a href="#pharmacy-insurance" class="sub">4.2 Insurance Patient</a>
+
+      <a href="#ipd">5. IPD Discharge</a>
+      <a href="#ipd-discharge" class="sub">5.1 Medical Discharge</a>
+      <a href="#ipd-insurance" class="sub">5.2 Insurance Settlement</a>
+      <a href="#ipd-partial" class="sub">5.3 Partial Collection</a>
+
+      <a href="#finance-dash">6. Finance Dashboard</a>
+      <a href="#finance-access" class="sub">6.1 Who Can Access</a>
+      <a href="#finance-revenue" class="sub">6.2 Revenue Tracking</a>
+      <a href="#finance-ins" class="sub">6.3 Insurance Cycles</a>
+      <a href="#finance-exp" class="sub">6.4 Expenses &amp; Audits</a>
+
+      <a href="#claims">7. Insurance Claims</a>
+      <a href="#claims-active" class="sub">7.1 Active Claims</a>
+      <a href="#claims-tpa" class="sub">7.2 TPA Settlement</a>
+      <a href="#claims-pmjay" class="sub">7.3 PMJAY Codes</a>
+      <a href="#claims-aging" class="sub">7.4 Aging &amp; Write-offs</a>
+
+      <a href="#tech">8. Technical Reference</a>
+      <a href="#tech-schema" class="sub">8.1 bills Table Schema</a>
+      <a href="#tech-state" class="sub">8.2 State Machine</a>
+      <a href="#tech-generated" class="sub">8.3 patient_due Column</a>
+      <a href="#tech-writeoff-table" class="sub">8.4 Write-offs Table</a>
+      <a href="#tech-trigger" class="sub">8.5 Approval Trigger</a>
+      <a href="#tech-rls" class="sub">8.6 RLS Pattern</a>
+      <a href="#tech-constraint" class="sub">8.7 Sync Constraint</a>
+
+      <a href="#scenarios">9. Common Scenarios</a>
+      <a href="#scenario-a" class="sub">A. Self-Pay OPD</a>
+      <a href="#scenario-b" class="sub">B. Insurance TPA OPD</a>
+      <a href="#scenario-c" class="sub">C. PMJAY IPD</a>
+      <a href="#scenario-d" class="sub">D. Write-off / Bad Debt</a>
+
+      <a href="#troubleshoot">10. Troubleshooting</a>
+    </nav>
+  </aside>
+
+  <!-- ═══ MAIN CONTENT ════════════════════════════════════════════════════════ -->
+  <main class="main">
+
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <!-- SECTION 1: OVERVIEW -->
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <h2 id="overview">1. Overview</h2>
+
+    <p>This guide covers every step of the financial workflow in AyurXpert HMS — from registering the patient and collecting the registration fee, through pharmacy dispensing and IPD discharge settlement, to insurance claim lifecycle management, aging reports, and write-off approvals.</p>
+
+    <p>It is written for two audiences side-by-side:</p>
+    <ul style="margin: 8px 0 14px 20px; line-height: 2;">
+      <li><strong>Hospital staff</strong> (receptionists, accountants, pharmacists, nursing staff) — UI workflow descriptions with step-by-step instructions</li>
+      <li><strong>System administrators and developers</strong> — database schema, SQL triggers, RLS patterns, constraint definitions, and technical behaviour of the system</li>
+    </ul>
+
+    <p>Sections 2–7 are staff-facing. Section 8 is technical reference. Section 9 shows end-to-end scenarios. Section 10 is a troubleshooting table.</p>
+
+    <h3 id="overview-model">1.1 The 3-Tier Financial Model</h3>
+
+    <p>Every financial transaction in AyurXpert flows through exactly three stages:</p>
+
+    <div class="flow">
+      <strong>Tier 1 — Registration &amp; Billing</strong> (reception.html / dispensaryPOS.html / ipd.html)<br />
+      Patient arrives → payer type is selected → bill record is created in the <code>bills</code> table → visit token issued<br /><br />
+
+      <strong>Tier 2 — Claim Management</strong> (finance.html Insurance Cycles / insurance-claims.html)<br />
+      Accountant fills TPA/policy details → pre-auth submitted → documents sent to insurer → claim status tracked<br /><br />
+
+      <strong>Tier 3 — Settlement &amp; Close</strong> (ipd.html discharge panel / insurance-claims.html)<br />
+      Insurer pays → approved amount entered → patient due recalculated → bill closed (status: paid / partial / settled)
+    </div>
+
+    <p>For self-pay patients, only Tier 1 applies. For insurance and government scheme patients, all three tiers are used.</p>
+
+    <h3 id="overview-roles">1.2 Role Matrix — Who Can Do What</h3>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>reception.html</th>
+            <th>finance.html</th>
+            <th>insurance-claims.html</th>
+            <th>fee-admin.html</th>
+            <th>ipd.html</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-receptionist">receptionist</span></td>
+            <td>Full access</td>
+            <td>Insurance Cycles only — banner shown</td>
+            <td>No access</td>
+            <td>No access</td>
+            <td>No access</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-cashier">cashier</span></td>
+            <td>No access</td>
+            <td>Revenue Tracking + Insurance Cycles — Expenses tab hidden. "Billing Mode" banner shown.</td>
+            <td>Full access</td>
+            <td>No access</td>
+            <td>No access</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-accountant">accountant</span></td>
+            <td>No access</td>
+            <td>Full access (all 3 groups)</td>
+            <td>Full access</td>
+            <td>No access</td>
+            <td>No access</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-finance_manager">finance_manager</span></td>
+            <td>No access</td>
+            <td>Full access (all 3 groups)</td>
+            <td>Full access + Write-off approval</td>
+            <td>No access</td>
+            <td>No access</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-dept_admin">dept_admin</span></td>
+            <td>No access</td>
+            <td>Full access</td>
+            <td>Full access</td>
+            <td>Full access</td>
+            <td>View + discharge</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-super_admin">super_admin</span></td>
+            <td>Full access</td>
+            <td>Full access</td>
+            <td>Full access + Write-off approval</td>
+            <td>Full access</td>
+            <td>Full access</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-doctor">doctor</span> / <span class="badge badge-nurse">nurse</span></td>
+            <td>No access</td>
+            <td>No access</td>
+            <td>No access</td>
+            <td>No access</td>
+            <td>Discharge only</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="box box-tip">
+      <strong>Tip — Super Admin bypass</strong>
+      The <span class="badge badge-super_admin">super_admin</span> role bypasses the <code>allowedRoles</code> check in <code>requireAuth()</code> and can access any protected page. This is the correct account for troubleshooting access issues.
+    </div>
+
+    <hr />
+
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <!-- SECTION 2: FEE STRUCTURES -->
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <h2 id="fee-setup">2. Setting Up Fee Structures</h2>
+
+    <p>Fee structures must be configured before billing can work at reception. This is done in <strong>fee-admin.html</strong> by the <span class="badge badge-dept_admin">dept_admin</span> or <span class="badge badge-super_admin">super_admin</span>.</p>
+
+    <h3 id="fee-categories">2.1 Fee Categories</h3>
+
+    <p>Each fee line item belongs to one of four categories:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Category</th><th>When Used</th><th>Examples</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Registration</strong></td>
+            <td>Charged once per new patient or per visit depending on hospital policy</td>
+            <td>New Registration ₹50, Revisit ₹20</td>
+          </tr>
+          <tr>
+            <td><strong>Consultation</strong></td>
+            <td>OPD doctor consultation fee, linked to OPD and doctor</td>
+            <td>General OPD ₹200, Panchakarma OPD ₹300</td>
+          </tr>
+          <tr>
+            <td><strong>Procedure</strong></td>
+            <td>Specific treatments or procedures performed in OPD/IPD</td>
+            <td>Virechana ₹1,500, Basti ₹800</td>
+          </tr>
+          <tr>
+            <td><strong>Package</strong></td>
+            <td>Bundled multi-session packages sold at the counter</td>
+            <td>7-day Panchakarma ₹12,000</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="fee-approval">2.2 Approval Workflow</h3>
+
+    <p>No fee can be used for billing until it reaches <strong>active</strong> status. The approval workflow is a three-stage process:</p>
+
+    <div class="flow">
+      <span class="badge badge-accountant">accountant</span> creates fee →
+      <span class="flow-step flow-pending">pending</span>
+      <br />
+      &nbsp;&nbsp;&nbsp;&nbsp;&darr; <span class="badge badge-dept_admin">dept_admin</span> reviews and approves
+      <br />
+      <span class="flow-step flow-dept_approved">dept_approved</span>
+      <br />
+      &nbsp;&nbsp;&nbsp;&nbsp;&darr; <span class="badge badge-super_admin">super_admin</span> gives final activation
+      <br />
+      <span class="flow-step flow-active">active ✓ — now visible at reception</span>
+      <br /><br />
+      <em>Note: super_admin can skip the dept_approved step and activate directly from pending.</em>
+    </div>
+
+    <div class="box box-warn">
+      <strong>Warning — Fees not appearing at reception?</strong>
+      Fees must reach <strong>active</strong> status before they appear in the billing calculator at reception. If a receptionist cannot see a fee in the dropdown, check fee-admin.html to see if the fee is still in <em>pending</em> or <em>dept_approved</em> state. Ask a super_admin to activate it.
+    </div>
+
+    <h4>Step-by-step: Create a new fee</h4>
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body"><strong>Open fee-admin.html</strong> — log in as accountant, dept_admin, or super_admin.</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>Click "Add Fee"</strong> — a drawer or modal opens on the right side of the screen.</div></li>
+      <li><span class="step-num">3</span><div class="step-body"><strong>Select the OPD</strong> — the fee is always linked to a specific OPD (e.g., General OPD, Panchakarma OPD).</div></li>
+      <li><span class="step-num">4</span><div class="step-body"><strong>Select category</strong> — registration / consultation / procedure / package.</div></li>
+      <li><span class="step-num">5</span><div class="step-body"><strong>Enter label and amount</strong> — e.g., label = "New Patient Consultation", amount = ₹250.</div></li>
+      <li><span class="step-num">6</span><div class="step-body"><strong>Save</strong> — status is set to <em>pending</em> automatically. If you are a super_admin, you can directly click "Activate" to skip to step 8.</div></li>
+      <li><span class="step-num">7</span><div class="step-body"><strong>Dept Admin reviews</strong> — logs into fee-admin.html, sees the pending fee in the list, clicks "Approve" to move status to <em>dept_approved</em>.</div></li>
+      <li><span class="step-num">8</span><div class="step-body"><strong>Super Admin activates</strong> — sees the dept_approved fee, clicks "Activate". Status changes to <em>active</em>. Fee now appears in the billing calculator at reception for the linked OPD.</div></li>
+    </ol>
+
+    <hr />
+
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <!-- SECTION 3: OPD REGISTRATION & BILLING -->
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <h2 id="opd-billing">3. OPD Registration &amp; Billing (reception.html)</h2>
+
+    <p>All OPD billing starts at <strong>reception.html</strong>. The receptionist registers the patient, selects the payer type, and issues a visit token. The billing record (<code>bills</code> table row) is created at this step.</p>
+
+    <h3 id="self-pay">3.1 Self-Pay Workflow (most common)</h3>
+
+    <p>The default payer type is Self-Pay. This covers all patients paying out of pocket — cash, UPI, or card.</p>
+
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body"><strong>Search patient</strong> — enter phone number, ABHA number, or UHID in the search bar. Results appear immediately. Up to 6 family members sharing the same phone number will be shown.</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>Select or create patient</strong> — click the correct name in the results list. If the patient is new, click "New Patient" and fill the registration form (name, age, gender, phone).</div></li>
+      <li><span class="step-num">3</span><div class="step-body"><strong>Choose OPD and doctor</strong> — select the OPD from the dropdown (only active OPDs appear). Then select the doctor (only doctors marked active today for that OPD appear).</div></li>
+      <li><span class="step-num">4</span><div class="step-body"><strong>Fee auto-populates</strong> — once the OPD is selected, the registration fee and consultation fee are filled automatically from the active fee structures. Review the amounts before proceeding.</div></li>
+      <li><span class="step-num">5</span><div class="step-body"><strong>Payer Type toggle</strong> — the system shows four payer type buttons: 💵 Self-Pay · 🏥 Insurance/TPA · 🟢 PMJAY · 🔵 CGHS/ECHS. <em>Self-Pay is selected by default.</em> For a cash or UPI patient, leave it on Self-Pay.</div></li>
+      <li><span class="step-num">6</span><div class="step-body"><strong>Payment mode and status</strong> — select Cash / UPI / Card. Then select payment status: Paid (if collected now) or Pending (if the patient will pay later). For most walk-in patients, select Paid.</div></li>
+      <li><span class="step-num">7</span><div class="step-body"><strong>Click "Register &amp; Create Visit"</strong> — a token number is issued (e.g., Token #12), the live queue on the doctor's screen updates, and a receipt can be printed. The <code>bills</code> and <code>visits</code> rows are created in the database at this moment.</div></li>
+    </ol>
+
+    <div class="box box-tip">
+      <strong>Tip — Token number and queue</strong>
+      The token number auto-increments within the day. It is reset to 1 at midnight. The doctor's screen (doctor.html) shows the waiting queue in real time — no page refresh needed.
+    </div>
+
+    <h3 id="insurance-opd">3.2 Insurance / TPA Workflow</h3>
+
+    <p>When the patient's treatment will be billed to an insurance company or TPA (Third Party Administrator), select the Insurance payer type at reception. The receptionist's role is simply to flag the visit as insurance — TPA details are filled by the accounts department later.</p>
+
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body">Follow steps 1–4 from the Self-Pay workflow (search patient, select OPD/doctor, fees auto-populate).</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>Click the 🏥 Insurance/TPA button</strong> in the Payer Type toggle row. The button highlights with a teal/blue colour.</div></li>
+      <li><span class="step-num">3</span><div class="step-body"><strong>Automatic system behaviour</strong>: Payment mode switches to Credit/Due and is dimmed (the receptionist cannot override it). An advisory note appears: "Patient is insurance covered — TPA details to be filled by accounts department." Payment status is set to Pending.</div></li>
+      <li><span class="step-num">4</span><div class="step-body"><strong>Register &amp; Create Visit</strong> — click the button. The system saves <code>payer_type = 'insurance'</code> and <code>insurance_claim_status = 'pre_auth_pending'</code>. A token is issued. No payment is collected now.</div></li>
+    </ol>
+
+    <div class="box box-tip">
+      <strong>Tip — Divide of responsibility</strong>
+      The receptionist's job ends at step 4. Never ask the receptionist to fill TPA name, policy number, pre-auth number, or approved amounts — that is the accounts department's role, handled in finance.html Insurance Cycles → Edit modal.
+    </div>
+
+    <div class="box box-warn">
+      <strong>Insurance patient returns after claim rejection?</strong>
+      If a previously insurance-flagged patient's claim is rejected and they want to pay out of pocket, the accountant must update <code>payer_type</code> to <code>self_pay</code> and <code>insurance_claim_status</code> to <code>not_applicable</code> in the finance.html Insurance Cycles Edit modal before marking the bill as paid.
+    </div>
+
+    <h3 id="pmjay">3.3 PMJAY Workflow</h3>
+
+    <p>PMJAY (Pradhan Mantri Jan Arogya Yojana) patients are government scheme beneficiaries. The workflow is identical to Insurance/TPA but uses the dedicated PMJAY payer type.</p>
+
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body">Follow steps 1–4 from Self-Pay (search, OPD, doctor, fees).</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>Click the 🟢 PMJAY button</strong> in the Payer Type row. The system sets <code>payer_type = 'pmjay'</code> and <code>insurance_claim_status = 'pre_auth_pending'</code>.</div></li>
+      <li><span class="step-num">3</span><div class="step-body">Payment mode → Credit/Due (auto). No cash collected. Token issued.</div></li>
+      <li><span class="step-num">4</span><div class="step-body">Accountant later assigns an AYUSH HBP package code in insurance-claims.html → PMJAY Codes tab, gets Medical Officer approval (<code>pmjay_mo_approved = true</code>), and submits to the NHA PMJAY portal.</div></li>
+    </ol>
+
+    <div class="box box-warn">
+      <strong>PMJAY eligibility verification</strong>
+      AyurXpert does not automatically verify PMJAY eligibility (no NHA e-card API integrated yet). The receptionist must verify the patient's PMJAY e-card physically or via the NHA Beneficiary Identification System (BIS) portal before selecting the PMJAY payer type.
+    </div>
+
+    <h3 id="cghs">3.4 CGHS / ECHS Workflow</h3>
+
+    <p>CGHS (Central Government Health Scheme) covers central government employees. ECHS (Ex-Servicemen Contributory Health Scheme) covers retired armed forces personnel. Both follow the same workflow.</p>
+
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body">Follow steps 1–4 from Self-Pay.</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>Click 🔵 CGHS/ECHS button</strong>. System sets <code>payer_type = 'cghs'</code> or <code>'echs'</code> (the button label indicates which).</div></li>
+      <li><span class="step-num">3</span><div class="step-body">For CGHS: collect the patient's CGHS Card number. For ECHS: collect the ESM Card number. Note these for the accountant — they fill the policy_number field in the Insurance Cycles Edit modal.</div></li>
+      <li><span class="step-num">4</span><div class="step-body">Register &amp; Create Visit. Token issued. No payment collected immediately.</div></li>
+    </ol>
+
+    <div class="box box-tip">
+      <strong>ESI and Corporate payer types</strong>
+      Two additional payer types exist in the database: <code>esi</code> (Employee State Insurance) and <code>corporate</code> (employer-contracted billing). These appear in the Finance dashboard KPI breakdowns but may not yet have dedicated UI buttons at reception in all builds. Check with your super_admin if these need to be activated.
+    </div>
+
+    <h3 id="db-saved">3.5 What Gets Saved to the Database</h3>
+
+    <p>When "Register &amp; Create Visit" is clicked, the system creates one row each in the <code>visits</code> table and the <code>bills</code> table. For an insurance patient, the bill row looks like this:</p>
+
+    <pre><code class="code-block">-- bills table row created at reception for an insurance patient:
+{
+  "tenant_id":              "&lt;hospital uuid&gt;",
+  "patient_id":             "&lt;patient uuid&gt;",
+  "visit_id":               "&lt;visit uuid&gt;",
+  "bill_type":              "opd",
+  "payer_type":             "insurance",
+  "payment_mode":           "credit",
+  "status":                 "pending",
+  "registration_fee":       50,
+  "consultation_fee":       250,
+  "total_amount":           300,
+  "final_amount":           300,
+  "insurance_claim_status": "pre_auth_pending",
+  "patient_due":            300         -- GENERATED column: final_amount - 0 = 300
+  -- All other insurance columns are NULL at this point
+  -- Accountant will fill them in Insurance Cycles Edit modal
+}</code></pre>
+
+    <p>The <code>patient_due</code> column is a PostgreSQL GENERATED ALWAYS AS STORED column. It equals <code>final_amount</code> when no insurance has been approved yet, and automatically reduces as the accountant enters the <code>insurance_approved_amount</code>.</p>
+
+    <hr />
+
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <!-- SECTION 4: PHARMACY DISPENSING -->
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <h2 id="pharmacy">4. Pharmacy Dispensing (dispensaryPOS.html)</h2>
+
+    <h3 id="pharmacy-normal">4.1 Normal Dispensing (Self-Pay)</h3>
+
+    <p>When the doctor finishes a consultation and sends a prescription, it appears in the pharmacist's queue in real time. Here is the standard dispensing flow:</p>
+
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body"><strong>Open dispensaryPOS.html</strong> — log in as pharmacist. The prescription queue panel on the left shows all pending prescriptions for today, updating in real time.</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>Click the patient's name</strong> — the prescription items load on the right side. You can see medicine name, dosage, frequency, and duration.</div></li>
+      <li><span class="step-num">3</span><div class="step-body"><strong>Review medicines in cart</strong> — quantities are pre-filled from the prescription. Adjust if needed (e.g., only partial stock available). You can see current stock levels and expiry dates.</div></li>
+      <li><span class="step-num">4</span><div class="step-body"><strong>Select payment mode</strong> — Cash / UPI / Card. Confirm the total amount shown.</div></li>
+      <li><span class="step-num">5</span><div class="step-body"><strong>Click "Dispense &amp; Generate Bill"</strong> — stock quantities are deducted from the <code>inventory</code> table, a pharmacy bill is created in the <code>bills</code> table (bill_type = 'pharmacy'), and the prescription status changes to <em>dispensed</em>. A printable invoice is available.</div></li>
+    </ol>
+
+    <div class="box box-tip">
+      <strong>Low stock alert</strong>
+      If a medicine's <code>stock_quantity</code> falls below <code>floor(max_stock / 2)</code>, a low stock alert badge appears next to the item. The pharmacist can still dispense but should inform the purchase department.
+    </div>
+
+    <h3 id="pharmacy-insurance">4.2 Insurance Patient Dispensing</h3>
+
+    <p>When the visit's bill has <code>payer_type ≠ 'self_pay'</code>, the pharmacy queue shows a special indicator and the payment flow changes automatically.</p>
+
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body">In the prescription queue, an insurance patient's row shows a purple <strong>🏥 Ins</strong> badge next to their name. This is populated from a map built when the queue loads (<code>_rxPayerMap</code> in the JS).</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>Click the patient's name</strong> — the prescription loads as normal. Review the items and quantities.</div></li>
+      <li><span class="step-num">3</span><div class="step-body"><strong>Payment mode is automatically set to Credit/Due and the selector is dimmed</strong>. The pharmacist cannot override this. An advisory notice is shown: "Insurance patient — no cash collection. Bill will be reconciled by accounts."</div></li>
+      <li><span class="step-num">4</span><div class="step-body"><strong>Click "Dispense &amp; Generate Bill"</strong> — medicines are dispensed, stock is deducted from inventory, and a pharmacy bill is created with <code>payment_mode = 'credit'</code> and <code>status = 'pending'</code>. No cash is collected at the counter.</div></li>
+    </ol>
+
+    <div class="box box-critical">
+      <strong>Critical — Do NOT manually override the payment mode for insurance patients</strong>
+      The pharmacy bill will be reconciled by the accounts department as part of the insurance claim cycle. Overriding the payment mode to Cash/UPI creates a data inconsistency — the OPD bill will show insurance payer type but the pharmacy bill will show self-pay, breaking the insurance claim register.
+    </div>
+
+    <p>If the page is reloaded mid-session, the <code>_rxPayerMap</code> is rebuilt automatically when <code>loadQueue()</code> runs. If badges are missing after a reload, hard-refresh with Ctrl+Shift+R and wait for the queue to fully load.</p>
+
+    <hr />
+
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <!-- SECTION 5: IPD DISCHARGE & INSURANCE SETTLEMENT -->
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <h2 id="ipd">5. IPD Discharge &amp; Insurance Settlement (ipd.html)</h2>
+
+    <h3 id="ipd-discharge">5.1 Medical Discharge (Doctor / Nurse)</h3>
+
+    <p>The medical portion of a discharge is handled by the treating doctor or a nurse. This captures clinical information and changes the bed status.</p>
+
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body"><strong>Open ipd.html</strong> — the admission list shows all currently admitted patients. Find the patient being discharged.</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>Click "Discharge"</strong> next to the patient's name — a discharge drawer slides in from the right.</div></li>
+      <li><span class="step-num">3</span><div class="step-body"><strong>Select discharge type</strong>: Discharged (normal) / LAMA (Left Against Medical Advice) / Transferred (to another facility) / Deceased. Each type is recorded in the <code>ipd_admissions.status</code> column.</div></li>
+      <li><span class="step-num">4</span><div class="step-body"><strong>Enter discharge date and time</strong> — defaults to now. Can be backdated if the documentation is being completed retrospectively.</div></li>
+      <li><span class="step-num">5</span><div class="step-body"><strong>Complete the discharge summary</strong> — diagnosis at discharge, condition at discharge, follow-up instructions, and diet advice are filled in.</div></li>
+      <li><span class="step-num">6</span><div class="step-body">If the patient is <em>self-pay</em>, proceed directly to Confirm Discharge. The bed status changes to Vacant automatically.</div></li>
+    </ol>
+
+    <h3 id="ipd-insurance">5.2 Insurance Settlement at Discharge</h3>
+
+    <p>If the admitted patient has an associated bill with <code>payer_type ≠ 'self_pay'</code> (detected automatically by the system), the discharge drawer automatically shows an additional <strong>Insurance Settlement Panel</strong> below the discharge summary form.</p>
+
+    <div class="box box-tip">
+      <strong>How the system detects insurance patients</strong>
+      When the discharge drawer opens, the system queries the <code>bills</code> table for any bill linked to this admission with <code>payer_type != 'self_pay'</code>. If found, the Insurance Settlement Panel appears. If not found (self-pay), the panel is hidden.
+    </div>
+
+    <p>The Insurance Settlement Panel contains:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Field</th><th>What to Enter</th><th>Database Column</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Approved Amount (₹)</td>
+            <td>The amount the TPA has verbally or in writing approved to pay. Enter 0 if not yet approved — claim status will remain submitted.</td>
+            <td><code>insurance_approved_amount</code></td>
+          </tr>
+          <tr>
+            <td>Claim Status</td>
+            <td>Defaults to "Submitted to TPA ✓". Change to pre_auth_approved if TPA has approved but not yet received documents.</td>
+            <td><code>insurance_claim_status</code></td>
+          </tr>
+          <tr>
+            <td>Patient Due (calculated)</td>
+            <td>Read-only. Updates live as you type the Approved Amount. = Total Bill − Approved Amount.</td>
+            <td><code>patient_due</code> (GENERATED column — read only)</td>
+          </tr>
+          <tr>
+            <td>Collect patient due now</td>
+            <td>Tick this checkbox if the patient is paying their share before leaving.</td>
+            <td>Triggers payment mode selector</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>The system validates that <code>insurance_approved_amount</code> does not exceed <code>final_amount</code>. If you enter more than the bill total, an inline error message blocks the save: "Approved amount cannot exceed total bill amount."</p>
+
+    <h3 id="ipd-partial">5.3 If Patient Due Is Collected at Discharge</h3>
+
+    <p>When the "Collect patient due now" checkbox is ticked:</p>
+
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body">A payment mode selector appears (Cash / UPI / Card). Select the mode used.</div></li>
+      <li><span class="step-num">2</span><div class="step-body">The patient due amount (e.g., ₹1,200) is shown as the amount to collect. Confirm with the patient.</div></li>
+      <li><span class="step-num">3</span><div class="step-body">Click "Confirm Discharge" — the system records the collection and updates the bill:
+        <ul style="margin-top: 6px; margin-left: 16px;">
+          <li><code>bill.status</code> → <code>'partial'</code> (patient portion paid; TPA portion pending)</li>
+          <li><code>insurance_claim_status</code> → <code>'submitted'</code> (claim filed with TPA)</li>
+          <li><code>patient_due</code> → reflects the remaining TPA outstanding amount (the approved amount the TPA has agreed to pay but not yet sent)</li>
+        </ul>
+      </div></li>
+    </ol>
+
+    <p>If the "Collect patient due now" checkbox is left unticked, the bill status remains <code>'pending'</code> and the accountant must handle collection separately through the Finance dashboard.</p>
+
+    <p><strong>Bill status meanings after discharge:</strong></p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Bill Status</th><th>Meaning</th><th>Who Resolves</th></tr></thead>
+        <tbody>
+          <tr><td><code>pending</code></td><td>Nothing paid yet — patient portion not collected, TPA not settled</td><td>Accountant follows up</td></tr>
+          <tr><td><code>partial</code></td><td>Patient share collected; TPA payment awaited</td><td>Accountant tracks TPA wire</td></tr>
+          <tr><td><code>paid</code></td><td>Fully paid — either all self-pay collected, or TPA settled in full + patient share collected</td><td>No action needed</td></tr>
+          <tr><td><code>cancelled</code></td><td>Bill voided (super_admin only)</td><td>N/A</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <hr />
+
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <!-- SECTION 6: FINANCE DASHBOARD -->
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <h2 id="finance-dash">6. Finance Dashboard (finance.html)</h2>
+
+    <h3 id="finance-access">6.1 Who Can Access</h3>
+
+    <p>finance.html uses role-based rendering. When the page loads, it checks the logged-in user's role and renders one of two modes:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Role</th><th>Mode</th><th>What They See</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-receptionist">receptionist</span></td>
+            <td>Insurance Operations Mode</td>
+            <td>Teal banner: "You are in Insurance Operations Mode." Only the Insurance Cycles group is shown. Revenue and expense data is hidden.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-cashier">cashier</span></td>
+            <td>Billing Mode</td>
+            <td>Orange banner: "You are in Billing Mode." Revenue Tracking + Insurance Cycles visible. Expenses &amp; Audits tab hidden.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-accountant">accountant</span></td>
+            <td>Full Finance Mode</td>
+            <td>Revenue Tracking, Insurance Cycles, Expenses &amp; Audits — all 3 groups visible.</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-finance_manager">finance_manager</span></td>
+            <td>Full Finance Mode</td>
+            <td>All 3 groups visible, plus sees write-off Approve/Reject buttons in the Aging &amp; Write-offs tab (same as super_admin).</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-dept_admin">dept_admin</span> / <span class="badge badge-super_admin">super_admin</span></td>
+            <td>Full Finance Mode</td>
+            <td>All groups visible. super_admin and finance_manager see write-off Approve/Reject buttons in the Aging tab.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="finance-revenue">6.2 Revenue Tracking Group</h3>
+
+    <p>The Revenue Tracking group is the first thing accountants and admins see. It provides a real-time financial snapshot of the organisation.</p>
+
+    <h4>KPI Cards (top row)</h4>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Card</th><th>What it Shows</th><th>Query Logic</th></tr></thead>
+        <tbody>
+          <tr><td>Revenue Today</td><td>Total final_amount of bills with status = 'paid' or 'partial', created today</td><td>Filter: <code>created_at &gt;= today_start AND status IN ('paid','partial')</code></td></tr>
+          <tr><td>This Month</td><td>Total collected this calendar month</td><td>Filter: <code>created_at &gt;= month_start</code></td></tr>
+          <tr><td>Self-Pay Pending</td><td>Sum of patient_due where payer_type = 'self_pay' and status = 'pending'</td><td>Outstanding OPD/pharmacy bills not yet collected from cash patients</td></tr>
+          <tr><td>Insurance Claims</td><td>Count of open insurance bills (status ≠ 'paid') across all payer types ≠ self_pay</td><td>Includes PMJAY, CGHS, ESI, corporate</td></tr>
+          <tr><td>Outstanding &gt;30d</td><td>Sum of patient_due for bills older than 30 days that are still pending or partial</td><td>Colour-coded red when count &gt; 0</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>Revenue Breakdown Table</h4>
+    <p>Below the KPI cards, a two-dimensional table breaks down revenue by care setting and payer type:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th></th><th>Self-Pay Collected</th><th>Insurance Billed</th><th>Outstanding</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>OPD</strong></td><td>₹ sum of OPD self-pay paid bills</td><td>₹ sum of OPD insurance final_amount</td><td>₹ sum of OPD patient_due pending</td></tr>
+          <tr><td><strong>IPD</strong></td><td>₹ sum of IPD self-pay paid bills</td><td>₹ sum of IPD insurance final_amount</td><td>₹ sum of IPD patient_due pending</td></tr>
+          <tr><td><strong>Pharmacy</strong></td><td>₹ sum of pharmacy self-pay paid</td><td>₹ sum of pharmacy insurance</td><td>₹ sum of pharmacy outstanding</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>Pending Bills Table</h4>
+    <p>The third component is a paginated table of all pending bills. Columns:</p>
+    <ul style="margin: 8px 0 14px 20px; line-height: 2;">
+      <li><strong>Patient</strong> — name and UHID</li>
+      <li><strong>Payer Type</strong> — colour-coded chip: grey (self-pay), teal (insurance), green (pmjay), blue (cghs)</li>
+      <li><strong>Bill Total (₹)</strong> — final_amount</li>
+      <li><strong>Approved (₹)</strong> — insurance_approved_amount (blank for self-pay)</li>
+      <li><strong>Patient Due (₹)</strong> — generated column, highlighted in orange if &gt;0</li>
+      <li><strong>Claim Status</strong> — badge showing pre_auth_pending / submitted / partial_settled / rejected etc.</li>
+      <li><strong>Age (days)</strong> — days since bill was created. Green ≤15d, yellow 16–30d, orange 31–60d, red &gt;60d</li>
+      <li><strong>Edit</strong> — opens the Insurance Cycles Edit modal for that bill</li>
+    </ul>
+
+    <h3 id="finance-ins">6.3 Insurance Cycles Group</h3>
+
+    <p>This group is visible to all roles (including receptionists in Insurance Operations Mode). It contains two sub-tabs.</p>
+
+    <h4>Claims Register sub-tab</h4>
+
+    <p>Shows all bills where <code>payer_type ≠ 'self_pay'</code>. This is the accountant's primary working view for managing insurance claims.</p>
+
+    <p>The <strong>Edit button</strong> for each bill opens a full 16-field modal covering:</p>
+    <ul style="margin: 8px 0 14px 20px; line-height: 2;">
+      <li><strong>Provider &amp; TPA</strong>: Insurance company name, TPA name</li>
+      <li><strong>Policy details</strong>: Policy number, member ID</li>
+      <li><strong>Pre-auth</strong>: Pre-auth reference number, pre-auth status (not required / pending / approved / rejected), pre-auth amount</li>
+      <li><strong>Settlement</strong>: Approved amount, settlement date, settlement amount</li>
+      <li><strong>Cashless</strong>: Is cashless checkbox, non-payable amount, co-payment percentage</li>
+      <li><strong>PMJAY-specific</strong>: Package code, MO approved checkbox</li>
+      <li><strong>Claim status</strong>: Dropdown with all valid states (see state machine in Section 8.2)</li>
+    </ul>
+
+    <h4>Pre-Auth Queue sub-tab</h4>
+
+    <p>Filtered view showing only bills with <code>insurance_claim_status IN ('pre_auth_pending', 'pre_auth_approved')</code>. This is the follow-up queue — bills waiting for TPA authorisation before treatment proceeds.</p>
+
+    <div class="box box-tip">
+      <strong>Morning routine for accountants</strong>
+      Open finance.html → Insurance Cycles → Pre-Auth Queue. Review all claims that are more than 3 days old and have not yet received TPA approval. Call the TPA reference number for each and update the status after the call. Aim to have no claim in <em>pre_auth_pending</em> for more than 5 working days.
+    </div>
+
+    <h3 id="finance-exp">6.4 Expenses &amp; Audits Group</h3>
+
+    <p>This group provides links and embedded views for expense management. The sub-tabs are:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Sub-Tab</th><th>What It Shows</th><th>Full Page</th></tr></thead>
+        <tbody>
+          <tr><td>Purchase Orders</td><td>Auto-generated POs from low stock medicines</td><td>purchase-order.html</td></tr>
+          <tr><td>GRN / Purchase</td><td>Goods Received Notes, supplier invoices, batch entry</td><td>purchase.html</td></tr>
+          <tr><td>Supplier Register</td><td>GMP-certified supplier list with certificate expiry tracking</td><td>suppliers.html</td></tr>
+          <tr><td>Disposal Register</td><td>Expired medicine disposal log (NCISM §6(5) compliance)</td><td>disposal-register.html</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <hr />
+
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <!-- SECTION 7: INSURANCE CLAIMS REGISTER -->
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <h2 id="claims">7. Insurance Claims Register (insurance-claims.html)</h2>
+
+    <p>This is the dedicated page for complete insurance claim lifecycle management. Access: <span class="badge badge-accountant">accountant</span>, <span class="badge badge-dept_admin">dept_admin</span>, <span class="badge badge-super_admin">super_admin</span>. It has four tabs.</p>
+
+    <h3 id="claims-active">7.1 Active Claims Tab</h3>
+
+    <h4>KPI Cards</h4>
+    <p>Four cards at the top provide instant visibility into the insurance portfolio:</p>
+    <ul style="margin: 8px 0 14px 20px; line-height: 2;">
+      <li><strong>Total Active Claims</strong> — count of all non-settled, non-cancelled insurance bills</li>
+      <li><strong>Total Billed (₹)</strong> — sum of final_amount across all active claims</li>
+      <li><strong>Total Approved (₹)</strong> — sum of insurance_approved_amount (shows how much TPA has committed)</li>
+      <li><strong>Total Outstanding (₹)</strong> — sum of patient_due (what is still owed: patient share + unapproved TPA share)</li>
+    </ul>
+
+    <h4>Filter Combinations</h4>
+    <p>Use the Status filter (dropdown) and Payer filter (checkboxes) together for precise views. Examples:</p>
+    <ul style="margin: 8px 0 14px 20px; line-height: 2;">
+      <li>Status: <em>submitted</em> + Payer: Insurance — shows all claims submitted to insurance companies awaiting settlement</li>
+      <li>Status: <em>pre_auth_pending</em> — shows all claims awaiting pre-authorisation (action required today)</li>
+      <li>Payer: PMJAY — shows all PMJAY claims regardless of status</li>
+      <li>Status: <em>rejected</em> — candidates for write-off requests or re-submission</li>
+    </ul>
+
+    <h4>Row Colour Coding (Age)</h4>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Age</th><th>Row Colour</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td>0–30 days</td><td>White (normal)</td><td>Monitor regularly</td></tr>
+          <tr><td>31–60 days</td><td>Light yellow highlight</td><td>Follow up with TPA this week</td></tr>
+          <tr><td>61–90 days</td><td>Orange highlight</td><td>Escalate to senior — send formal written reminder to TPA</td></tr>
+          <tr><td>&gt;90 days</td><td>Red highlight</td><td>Consider write-off request or legal notice to TPA</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Click the <strong>Edit</strong> button on any row to open the full 16-field modal and update TPA details, approved amounts, or claim status.</p>
+
+    <h3 id="claims-tpa">7.2 TPA Settlement Tab</h3>
+
+    <p>When a TPA wire transfer arrives for multiple patients (common with large TPAs), use this tab to identify and record the settlement.</p>
+
+    <p>The tab shows <strong>provider cards</strong> — one card per insurance company / TPA — automatically grouped from the actual bill data. Each card shows the provider name, number of open claims, and total outstanding.</p>
+
+    <p>Click a provider card to expand it and see all claims for that TPA. The expanded view shows a settlement summary row:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Total Billed</th><th>Pre-Auth Approved</th><th>Total Submitted</th><th>Total Settled</th><th>Outstanding</th></tr></thead>
+        <tbody>
+          <tr><td>Sum of all final_amount</td><td>Sum of pre_auth_amount</td><td>Claims in 'submitted' state</td><td>Sum of insurance_settled_amount</td><td>Remaining to be paid</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="box box-tip">
+      <strong>TPA wire received — workflow</strong>
+      Use this tab when a TPA wire transfer arrives. Click the provider card → identify which claims are covered by this payment → click Edit on each claim → enter the <code>insurance_settled_amount</code> and <code>insurance_settlement_date</code> → set claim status to <em>settled</em> (or <em>partial_settled</em> if TPA paid less than approved). The <code>patient_due</code> column will update automatically for any remaining balance.
+    </div>
+
+    <h3 id="claims-pmjay">7.3 PMJAY Codes Tab</h3>
+
+    <p>PMJAY billing requires assigning an AYUSH Health Benefit Package (HBP 2.0) code to each admission. This tab provides the full list of 17 AYUSH HBP codes and allows you to assign them to specific patient bills.</p>
+
+    <h4>Category Filter Pills</h4>
+    <p>Click a category pill to filter the code list: Panchakarma / Consultation / Yoga / Naturopathy / Siddha / Unani. This helps locate the correct code quickly.</p>
+
+    <h4>"Assign to Claim" Workflow</h4>
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body"><strong>Find the package code</strong> for the treatment being claimed (e.g., AB-AYUSH-P02 for Virechana Panchakarma, ₹6,000).</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>Click "Assign to Claim"</strong> next to the code — a search box appears.</div></li>
+      <li><span class="step-num">3</span><div class="step-body"><strong>Search for the patient</strong> by name or UHID — matching bills with payer_type = 'pmjay' appear.</div></li>
+      <li><span class="step-num">4</span><div class="step-body"><strong>Select the bill</strong> and click Save — the <code>pmjay_package_code</code> column is updated in the <code>bills</code> table.</div></li>
+      <li><span class="step-num">5</span><div class="step-body"><strong>Get Medical Officer approval</strong> — in the Insurance Cycles Edit modal for this bill, tick the <code>pmjay_mo_approved</code> checkbox after the treating doctor authorises the package.</div></li>
+      <li><span class="step-num">6</span><div class="step-body"><strong>Submit to NHA PMJAY portal</strong> — log into the PMJAY portal separately and submit the claim with the package code and MO approval reference.</div></li>
+    </ol>
+
+    <div class="box box-warn">
+      <strong>Warning — Verify PMJAY package rates before billing</strong>
+      The package codes and amounts shown are based on AYUSH HBP 2.0 at the time of this build. The NHA updates Health Benefit Package rates periodically. Always verify the current approved rates at <strong>pmjay.gov.in</strong> before submitting a claim to ensure the billed amount matches the current NHA-approved rate. Incorrect rates cause claim rejection.
+    </div>
+
+    <h3 id="claims-aging">7.4 Aging &amp; Write-offs Tab</h3>
+
+    <h4>Aging Report</h4>
+    <p>The aging report groups all outstanding bills by age and shows two metrics per bucket:</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Bucket</th><th>KPI Card Colour</th><th>Count Shows</th><th>Outstanding ₹ Shows</th></tr></thead>
+        <tbody>
+          <tr><td>0–30 days</td><td>Green</td><td>Count of bills in this bucket</td><td>Sum of patient_due</td></tr>
+          <tr><td>31–60 days</td><td>Yellow</td><td>Count</td><td>Sum patient_due</td></tr>
+          <tr><td>61–90 days</td><td>Orange</td><td>Count</td><td>Sum patient_due</td></tr>
+          <tr><td>&gt;90 days</td><td>Red</td><td>Count</td><td>Sum patient_due — review weekly for write-offs</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Below the cards, an aging table lists every outstanding bill sorted oldest first. Review this table weekly. Bills in the red bucket (&gt;90 days) are candidates for write-off requests or legal follow-up with the TPA.</p>
+
+    <h4>Bad Debt Register — Write-off Workflow</h4>
+
+    <p>When a claim is unrecoverable (TPA has rejected it, or the patient has become unreachable), the accountant can request a write-off. This is a two-step process requiring super_admin approval.</p>
+
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body"><strong>Accountant clicks "Request Write-off" FAB</strong> (floating action button, bottom-right of the Aging tab). A modal opens.</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>Search patient by name</strong> — matching bills with outstanding patient_due appear in a results list. Select the bill to be written off.</div></li>
+      <li><span class="step-num">3</span><div class="step-body"><strong>Enter write-off details</strong>:
+        <ul style="margin-top: 6px; margin-left: 16px;">
+          <li><strong>Write-off amount</strong> — must be ≤ patient_due. Enter the exact amount to be written off.</li>
+          <li><strong>Reason</strong> — select from dropdown: TPA Dispute / Patient Deceased / Policy Expired / Claim Rejected / Bad Debt / Other</li>
+          <li><strong>Notes</strong> — free text for internal reference (e.g., TPA rejection letter reference number)</li>
+        </ul>
+      </div></li>
+      <li><span class="step-num">4</span><div class="step-body"><strong>Submit</strong> — a row is created in the <code>insurance_write_offs</code> table with <code>status = 'pending'</code>. The request appears in the Pending Approval sub-tab.</div></li>
+      <li><span class="step-num">5</span><div class="step-body"><span class="badge badge-super_admin">super_admin</span> <strong>opens the Pending Approval sub-tab</strong>, reviews the write-off details, and clicks <strong>Approve</strong> or <strong>Reject</strong>.
+      </div></li>
+      <li><span class="step-num">6</span><div class="step-body"><strong>On Approve</strong> — the database trigger <code>trg_write_off_approval</code> fires automatically:
+        <ul style="margin-top: 6px; margin-left: 16px;">
+          <li><code>insurance_approved_amount</code> increases by the write-off amount</li>
+          <li>Since <code>patient_due = final_amount − insurance_approved_amount</code>, <code>patient_due</code> reduces to 0</li>
+          <li><code>insurance_claim_status</code> → <code>'partial_settled'</code></li>
+          <li><code>bill.status</code> → <code>'paid'</code></li>
+          <li><code>insurance_write_offs.approved_at</code> gets a timestamp</li>
+        </ul>
+      </div></li>
+    </ol>
+
+    <p>The Approved Write-offs sub-tab maintains a permanent audit trail: write-off amount, reason, requested by, approved by, and timestamps. This serves as the Bad Debt Register for audits.</p>
+
+    <div class="box box-critical">
+      <strong>Write-off approval — super_admin and finance_manager only</strong>
+      Write-off approval is restricted to <span class="badge badge-super_admin">super_admin</span> and <span class="badge badge-finance_manager">finance_manager</span> roles. Accountants and dept_admins can view pending write-offs and submit requests but cannot approve them. This is a financial control measure — the finance_manager role exists specifically so a CFO/Finance Head can approve write-offs without having super_admin access to HR and system settings.
+    </div>
+
+    <hr />
+
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <!-- SECTION 8: TECHNICAL REFERENCE -->
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <h2 id="tech">8. Technical Reference</h2>
+
+    <h3 id="tech-schema">8.1 Database Schema — bills Table (Insurance Columns)</h3>
+
+    <p>The <code>bills</code> table has 16 insurance-specific columns added in the Session 65 migration. All are nullable by default (self-pay bills leave them NULL). The 17th entry is the GENERATED column.</p>
+
+    <div class="table-wrap">
+      <table class="schema-table">
+        <thead>
+          <tr><th>Column</th><th>Type</th><th>Default</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>payer_type</td><td>text</td><td>'self_pay'</td><td>CHECK: self_pay / insurance / pmjay / cghs / echs / esi / corporate</td></tr>
+          <tr><td>insurance_provider</td><td>text</td><td>null</td><td>Insurance company name (e.g., "Star Health and Allied Insurance")</td></tr>
+          <tr><td>tpa_name</td><td>text</td><td>null</td><td>Third Party Administrator name (e.g., "Medi Assist India")</td></tr>
+          <tr><td>policy_number</td><td>text</td><td>null</td><td>Member ID or policy number on the insurance card</td></tr>
+          <tr><td>pre_auth_number</td><td>text</td><td>null</td><td>Pre-authorisation reference issued by TPA</td></tr>
+          <tr><td>pre_auth_status</td><td>text</td><td>null</td><td>not_required / pending / approved / rejected</td></tr>
+          <tr><td>pre_auth_amount</td><td>numeric(12,2)</td><td>null</td><td>Amount pre-authorised by TPA (₹)</td></tr>
+          <tr><td>insurance_approved_amount</td><td>numeric(12,2)</td><td>null</td><td>Amount TPA has formally approved for payment (₹)</td></tr>
+          <tr><td>insurance_settled_amount</td><td>numeric(12,2)</td><td>null</td><td>Amount TPA has actually wire-transferred to hospital (₹)</td></tr>
+          <tr><td>insurance_settlement_date</td><td>date</td><td>null</td><td>Date TPA wire transfer was received in hospital account</td></tr>
+          <tr><td>insurance_claim_status</td><td>text</td><td>'not_applicable'</td><td>Full state machine — see Section 8.2</td></tr>
+          <tr><td>non_payable_amount</td><td>numeric(12,2)</td><td>null</td><td>Amount TPA explicitly excluded from coverage (consumables, etc.) (₹)</td></tr>
+          <tr><td>co_payment_pct</td><td>numeric(5,2)</td><td>null</td><td>Patient's co-payment percentage (e.g., 10.00 = 10%). Patient pays this % of final_amount</td></tr>
+          <tr><td>pmjay_package_code</td><td>text</td><td>null</td><td>AYUSH HBP 2.0 package code (e.g., "AB-AYUSH-P02")</td></tr>
+          <tr><td>is_cashless</td><td>boolean</td><td>false</td><td>True if TPA pre-approved cashless treatment (no patient payment at discharge)</td></tr>
+          <tr><td>pmjay_mo_approved</td><td>boolean</td><td>false</td><td>Medical Officer approval tick for PMJAY scheme billing</td></tr>
+          <tr><td><strong>patient_due</strong></td><td>numeric GENERATED</td><td>ALWAYS AS STORED</td><td>= COALESCE(final_amount,0) − COALESCE(insurance_approved_amount,0) — READ ONLY. Do not attempt to UPDATE this column directly.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="tech-state">8.2 insurance_claim_status State Machine</h3>
+
+    <p>The <code>insurance_claim_status</code> column follows a strict progression. Jumping states is allowed but discouraged — always follow the natural sequence below for clean audit trails.</p>
+
+    <pre><code class="code-block">
+ [Reception creates insurance bill]
+           │
+           ▼
+   pre_auth_pending          ← Initial state for all non-self_pay bills
+           │
+           │  TPA issues pre-auth approval letter
+           ▼
+   pre_auth_approved         ← Pre-auth ref number entered by accountant
+           │
+           │  Accountant sends claim documents to TPA
+           ▼
+      submitted              ← After discharge, documents filed with TPA
+           │
+           │  TPA pays partial amount
+           ├──────────────────────────────────────────────────────┐
+           ▼                                                      │
+   partial_settled           ← Also set automatically when       │
+           │                    a write-off is approved           │
+           │  TPA pays full balance                               │
+           ▼                                                      │
+        settled   ◄──────────────────────────────────────────────┘
+                                (full payment received)
+
+   At any point → rejected   (TPA refuses the claim)
+   On rejection  → Request Write-off → partial_settled
+                                      (bad debt recorded)
+    </code></pre>
+
+    <div class="box box-tip">
+      <strong>not_applicable state</strong>
+      The value <code>not_applicable</code> is reserved exclusively for self-pay bills (<code>payer_type = 'self_pay'</code>). The constraint <code>chk_insurance_workflow_sync</code> enforces this pairing — see Section 8.7. Never set insurance_claim_status to not_applicable for any non-self_pay bill.
+    </div>
+
+    <h3 id="tech-generated">8.3 patient_due Generated Column</h3>
+
+    <p>The <code>patient_due</code> column is a PostgreSQL GENERATED ALWAYS AS STORED column. It is computed automatically by the database engine and cannot be written to directly. Any attempt to include it in an INSERT or UPDATE will result in an error.</p>
+
+    <pre><code class="code-block">-- Column definition (for reference — already applied in migration):
+patient_due NUMERIC GENERATED ALWAYS AS (
+    COALESCE(final_amount, 0) - COALESCE(insurance_approved_amount, 0)
+) STORED
+
+-- Reading patient_due (normal SELECT — works fine):
+SELECT id, patient_due FROM bills WHERE id = '&lt;bill_id&gt;';
+
+-- WRONG — this will throw: "column patient_due is a generated column"
+UPDATE bills SET patient_due = 0 WHERE id = '&lt;bill_id&gt;';
+
+-- CORRECT — to reduce patient_due to zero (write-off scenario):
+-- Increase insurance_approved_amount to equal final_amount
+UPDATE bills
+SET insurance_approved_amount = COALESCE(insurance_approved_amount, 0) + &lt;write_off_amount&gt;
+WHERE id = '&lt;bill_id&gt;';
+-- patient_due will automatically recalculate to 0 (or lower if write_off > remaining due)
+
+-- CORRECT — when TPA pays full approved amount:
+UPDATE bills
+SET
+    insurance_settled_amount   = &lt;wire_amount&gt;,
+    insurance_settlement_date  = CURRENT_DATE,
+    insurance_claim_status     = 'settled',
+    status                     = 'paid'
+WHERE id = '&lt;bill_id&gt;';</code></pre>
+
+    <h3 id="tech-writeoff-table">8.4 insurance_write_offs Table</h3>
+
+    <p>This table must be created via a SQL migration before the write-off features in insurance-claims.html become functional. If this table is missing, the Aging tab shows a migration banner prompting the super_admin to run the migration.</p>
+
+    <pre><code class="code-block">CREATE TABLE insurance_write_offs (
+    id             uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+    tenant_id      uuid        NOT NULL REFERENCES tenants(id),
+    bill_id        uuid        NOT NULL REFERENCES bills(id),
+    amount         numeric(12,2) NOT NULL CHECK (amount > 0),
+    reason         text        NOT NULL,
+    notes          text,
+    status         text        DEFAULT 'pending'
+                               CHECK (status IN ('pending','approved','rejected')),
+    requested_by   uuid        REFERENCES profiles(id),
+    approved_by    uuid        REFERENCES profiles(id),
+    requested_at   timestamptz DEFAULT now(),
+    approved_at    timestamptz
+);
+
+ALTER TABLE insurance_write_offs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "rls" ON insurance_write_offs
+    FOR ALL TO authenticated
+    USING (tenant_id = (SELECT tenant_id FROM profiles WHERE id = auth.uid()))
+    WITH CHECK (tenant_id = (SELECT tenant_id FROM profiles WHERE id = auth.uid()));
+
+GRANT ALL ON insurance_write_offs TO authenticated;
+
+CREATE INDEX idx_write_offs_bill
+    ON insurance_write_offs (bill_id);
+
+CREATE INDEX idx_write_offs_status
+    ON insurance_write_offs (tenant_id, status)
+    WHERE status = 'pending';</code></pre>
+
+    <h3 id="tech-trigger">8.5 Write-off Approval Trigger</h3>
+
+    <p>When a super_admin approves a write-off (sets <code>insurance_write_offs.status</code> to <code>'approved'</code>), this trigger fires automatically to update the linked bill.</p>
+
+    <pre><code class="code-block">CREATE OR REPLACE FUNCTION process_approved_write_off()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Only fires when status transitions from 'pending' to 'approved'
+    IF NEW.status = 'approved' AND OLD.status = 'pending' THEN
+        UPDATE bills
+        SET
+            -- Increase insurance_approved_amount → patient_due (GENERATED) reduces
+            insurance_approved_amount = COALESCE(insurance_approved_amount, 0) + NEW.amount,
+            -- Mark claim as partially settled (not full settlement — TPA rejected part)
+            insurance_claim_status    = 'partial_settled',
+            -- Close the bill — patient_due is now 0
+            status                    = 'paid'
+        WHERE id = NEW.bill_id;
+
+        -- Stamp the approval timestamp on the write-off record
+        NEW.approved_at := now();
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_write_off_approval
+    BEFORE UPDATE ON insurance_write_offs
+    FOR EACH ROW
+    EXECUTE FUNCTION process_approved_write_off();</code></pre>
+
+    <div class="box box-critical">
+      <strong>Critical — SECURITY DEFINER is required</strong>
+      The trigger function uses <code>SECURITY DEFINER</code> to run as the table owner, bypassing RLS. This is required because the trigger must UPDATE the <code>bills</code> table — which belongs to the authenticated user's tenant context — from within the trigger's execution context. Without SECURITY DEFINER, the RLS policy on <code>bills</code> blocks the UPDATE (the trigger runs in a different user context). Do not remove SECURITY DEFINER from this function.
+    </div>
+
+    <h3 id="tech-rls">8.6 RLS Policy Pattern</h3>
+
+    <p>All tables in AyurXpert follow the same RLS pattern. The tenant isolation is always resolved through the <code>profiles</code> table, never from JWT claims.</p>
+
+    <pre><code class="code-block">-- Standard RLS pattern used across ALL tables in this project:
+CREATE POLICY "rls" ON &lt;table_name&gt;
+    FOR ALL TO authenticated
+    USING (
+        tenant_id = (SELECT tenant_id FROM profiles WHERE id = auth.uid())
+    )
+    WITH CHECK (
+        tenant_id = (SELECT tenant_id FROM profiles WHERE id = auth.uid())
+    );</code></pre>
+
+    <div class="box box-critical">
+      <strong>Critical — Never use JWT app_metadata for tenant_id</strong>
+      Do NOT use <code>auth.jwt() -&gt; 'app_metadata' -&gt;&gt; 'tenant_id'</code> in any RLS policy. AyurXpert stores tenant_id in the <code>profiles</code> table, NOT in JWT app_metadata. Using the JWT expression returns NULL for all users, effectively making the table visible to no one (or to everyone, depending on how the policy is written). The subquery <code>(SELECT tenant_id FROM profiles WHERE id = auth.uid())</code> is the only correct pattern for this codebase.
+    </div>
+
+    <div class="box box-warn">
+      <strong>anon role access — special case</strong>
+      If a table needs to be readable by unauthenticated users (e.g., the <code>tenants</code> table for the registration page), two things are required together: (1) <code>GRANT SELECT ON &lt;table&gt; TO anon</code> AND (2) a separate RLS policy allowing anon access. Either one alone is insufficient. A missing GRANT returns HTTP 400 from PostgREST (not 403).
+    </div>
+
+    <h3 id="tech-constraint">8.7 Constraint: chk_insurance_workflow_sync</h3>
+
+    <p>This constraint enforces consistency between <code>payer_type</code> and <code>insurance_claim_status</code>. It prevents the common error of creating a bill with payer_type = 'insurance' but accidentally leaving claim_status as 'not_applicable'.</p>
+
+    <pre><code class="code-block">-- Applied to the bills table during Session 65 migration:
+CONSTRAINT chk_insurance_workflow_sync CHECK (
+    -- Self-pay bills MUST have 'not_applicable' claim status
+    (payer_type = 'self_pay' AND insurance_claim_status = 'not_applicable')
+    OR
+    -- All non-self-pay bills MUST NOT have 'not_applicable' claim status
+    (payer_type &lt;&gt; 'self_pay' AND insurance_claim_status &lt;&gt; 'not_applicable')
+)
+
+-- This constraint will REJECT any of these combinations:
+-- ✗ payer_type = 'insurance', insurance_claim_status = 'not_applicable'
+-- ✗ payer_type = 'self_pay', insurance_claim_status = 'pre_auth_pending'
+-- ✗ payer_type = 'pmjay', insurance_claim_status = 'not_applicable'
+
+-- These combinations are ALLOWED:
+-- ✓ payer_type = 'self_pay', insurance_claim_status = 'not_applicable'
+-- ✓ payer_type = 'insurance', insurance_claim_status = 'pre_auth_pending'
+-- ✓ payer_type = 'pmjay', insurance_claim_status = 'submitted'</code></pre>
+
+    <div class="box box-warn">
+      <strong>Constraint error at bill save?</strong>
+      If the application throws a constraint violation when saving a bill, check two things: (1) if <code>payer_type</code> is being set to a non-self_pay value without setting <code>insurance_claim_status</code> to something other than 'not_applicable'; (2) if an old bill's <code>payer_type</code> was changed from insurance to self_pay without also resetting <code>insurance_claim_status</code> to 'not_applicable'.
+    </div>
+
+    <hr />
+
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <!-- SECTION 9: COMMON SCENARIOS -->
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <h2 id="scenarios">9. Common Scenarios (End-to-End)</h2>
+
+    <div class="scenario" id="scenario-a">
+      <h4>Scenario A — Regular Self-Pay OPD Patient</h4>
+      <p>The most common scenario. Patient walks in for an OPD consultation and pays cash.</p>
+      <ol style="margin: 8px 0 0 16px; line-height: 2.2; font-size: 0.85rem;">
+        <li>Receptionist searches patient by phone number in reception.html.</li>
+        <li>Patient found (or new patient form filled). OPD selected: General OPD. Doctor selected: Dr. Sharma.</li>
+        <li>Fees auto-fill: Registration ₹50 + Consultation ₹200 = Total ₹250.</li>
+        <li>Payer Type: Self-Pay (default). Payment Mode: Cash. Status: Paid.</li>
+        <li>Click "Register &amp; Create Visit" → Token #8 issued. Doctor's queue updated.</li>
+        <li>Pharmacist receives prescription from doctor. Dispenses medicines. Collects ₹180 cash for medicines.</li>
+        <li>Finance dashboard shows: Revenue Today +₹430. No entries in Insurance Cycles.</li>
+        <li>End of day: both bills (OPD + pharmacy) are status = 'paid'. Zero outstanding.</li>
+      </ol>
+    </div>
+
+    <div class="scenario" id="scenario-b">
+      <h4>Scenario B — Insurance TPA Patient (OPD)</h4>
+      <p>Patient has corporate insurance through their employer. TPA: Medi Assist India.</p>
+      <ol style="margin: 8px 0 0 16px; line-height: 2.2; font-size: 0.85rem;">
+        <li><strong>[Reception]</strong> Receptionist selects 🏥 Insurance/TPA. No cash collected. Token issued. Bill created: payer_type = 'insurance', status = 'pending', insurance_claim_status = 'pre_auth_pending'.</li>
+        <li><strong>[Pharmacy]</strong> Purple 🏥 Ins badge shown. Pharmacist dispenses without cash collection. Pharmacy bill: payment_mode = 'credit'.</li>
+        <li><strong>[Accountant — finance.html Insurance Cycles]</strong> Opens the bill in Edit modal. Fills: insurance_provider = "Star Health", tpa_name = "Medi Assist India", policy_number = "MAI-00234567". Saves. insurance_claim_status still 'pre_auth_pending' for now (no pre-auth required for OPD at this hospital).</li>
+        <li>Accountant changes insurance_claim_status → 'submitted' (documents submitted to TPA). Bill status remains 'pending'.</li>
+        <li><strong>[TPA pays — 15 days later]</strong> TPA wire transfer of ₹320 received (covers consultation + partial medicines). Accountant opens finance.html → Insurance Cycles → Edit modal. Fills: insurance_approved_amount = ₹320, insurance_settled_amount = ₹320, insurance_settlement_date = today. insurance_claim_status → 'settled'. Bill status → 'paid'.</li>
+        <li>patient_due recalculates: ₹430 − ₹320 = ₹110. Accountant contacts patient to collect the ₹110 co-payment (if applicable per policy).</li>
+        <li>Finance dashboard: Insurance Claims count decreases by 1. Revenue This Month increases.</li>
+      </ol>
+    </div>
+
+    <div class="scenario" id="scenario-c">
+      <h4>Scenario C — PMJAY Panchakarma IPD Patient (Most Complex)</h4>
+      <p>Patient is a PMJAY beneficiary admitted for Virechana Panchakarma therapy for 7 days. This is the most complex financial lifecycle in the system.</p>
+      <ol style="margin: 8px 0 0 16px; line-height: 2.2; font-size: 0.85rem;">
+        <li><strong>[Reception — reception.html]</strong> Verify patient's PMJAY e-card physically. Select 🟢 PMJAY payer type. Token issued. Bill: payer_type = 'pmjay', insurance_claim_status = 'pre_auth_pending'.</li>
+        <li><strong>[IPD admission — ipd.html]</strong> Doctor creates IPD admission. Selects ward and bed (2-step bed picker). Diagnosis entered. Panchakarma therapy sessions scheduled in therapist.html.</li>
+        <li><strong>[PMJAY package assignment — insurance-claims.html PMJAY Codes tab]</strong> Accountant finds package code: AB-AYUSH-P02 (Virechana Panchakarma, ₹6,000). Clicks "Assign to Claim" → searches patient → selects PMJAY bill → saves. pmjay_package_code updated in bills table.</li>
+        <li><strong>[MO approval]</strong> Treating doctor (Medical Officer) reviews the package assignment. Accountant ticks pmjay_mo_approved checkbox in Insurance Cycles Edit modal. insurance_claim_status → 'pre_auth_approved'.</li>
+        <li><strong>[Submit to NHA PMJAY portal]</strong> Accountant logs into the NHA PMJAY portal externally, submits claim with package code AB-AYUSH-P02. Claim reference obtained from NHA portal.</li>
+        <li><strong>[IPD discharge — ipd.html]</strong> Doctor fills discharge summary. Insurance Settlement Panel shows automatically (payer_type = 'pmjay'). Approved Amount: ₹6,000. Collect patient due now: unchecked (cashless). insurance_claim_status → 'submitted'. Bill status → 'partial'.</li>
+        <li><strong>[TPA settlement]</strong> NHA / State PMJAY agency processes payment. Accountant receives wire of ₹6,000. Finance → Insurance Cycles → Edit: insurance_settled_amount = ₹6,000, settlement_date = today. insurance_claim_status → 'settled'. Bill status → 'paid'.</li>
+        <li>patient_due = ₹6,000 − ₹6,000 = ₹0. Fully settled. No patient collection needed.</li>
+      </ol>
+      <div class="box box-warn" style="margin-top: 12px;">
+        <strong>PMJAY cashless important note</strong>
+        When the is_cashless checkbox is ticked for a PMJAY bill, the system confirms that no patient payment will be collected at any stage. The total bill amount must match the approved package code amount. Any excess billing is prohibited under PMJAY scheme rules.
+      </div>
+    </div>
+
+    <div class="scenario" id="scenario-d">
+      <h4>Scenario D — Write-off / Bad Debt</h4>
+      <p>Insurance claim submitted 100 days ago. TPA has rejected the claim. Patient is now unreachable. Accountant needs to write off the outstanding amount.</p>
+      <ol style="margin: 8px 0 0 16px; line-height: 2.2; font-size: 0.85rem;">
+        <li><strong>[Identify the claim]</strong> Accountant opens insurance-claims.html → Aging &amp; Write-offs tab. The bill appears in the red bucket (&gt;90 days). insurance_claim_status = 'rejected'. patient_due = ₹4,500.</li>
+        <li><strong>[Request write-off]</strong> Accountant clicks the "Request Write-off" FAB. Searches patient name "Raman Pillai". Selects the rejected bill. Enters: amount = ₹4,500, reason = "TPA Dispute / Rejected", notes = "Rejection letter TPA-REF-2026-0341 received 10 June 2026. Patient unreachable after 3 attempts." Submits.</li>
+        <li>Write-off record created: status = 'pending'. Appears in Pending Approval sub-tab.</li>
+        <li><strong>[Super Admin reviews]</strong> Super Admin opens insurance-claims.html → Aging tab → Pending Approval sub-tab. Reviews the write-off details and rejection letter reference. Decides it is valid. Clicks "Approve".</li>
+        <li><strong>[Database trigger fires]</strong> <code>trg_write_off_approval</code> runs:
+          <ul style="margin: 4px 0 0 16px; font-size: 0.82rem;">
+            <li>bills.insurance_approved_amount += ₹4,500 → now = ₹4,500</li>
+            <li>patient_due (GENERATED) = ₹4,500 − ₹4,500 = ₹0</li>
+            <li>bills.insurance_claim_status = 'partial_settled'</li>
+            <li>bills.status = 'paid'</li>
+            <li>insurance_write_offs.approved_at = now()</li>
+          </ul>
+        </li>
+        <li>The Approved Register shows this write-off permanently with the ₹4,500 amount, reason, and both accountant + super_admin names with timestamps. Used for income tax write-off documentation in annual accounts.</li>
+        <li>Finance dashboard: Outstanding &gt;30d KPI card count decreases. Revenue dashboard reflects the bad debt adjustment.</li>
+      </ol>
+    </div>
+
+    <hr />
+
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <!-- SECTION 10: TROUBLESHOOTING -->
+    <!-- ───────────────────────────────────────────────────────────────────── -->
+    <h2 id="troubleshoot">10. Troubleshooting</h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Problem</th>
+            <th>Likely Cause</th>
+            <th>Fix</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Insurance claims not showing in Finance → Insurance Cycles tab</td>
+            <td><code>_insLoaded</code> flag cached from an earlier empty load. The tab data was fetched before the bill was created.</td>
+            <td>Click the Refresh button in the Insurance Cycles header, or hard-refresh the page with Ctrl+Shift+R.</td>
+          </tr>
+          <tr>
+            <td><code>patient_due</code> shows the full bill amount even after TPA approved payment</td>
+            <td>The accountant has not yet entered the approved amount in the Insurance Cycles Edit modal.</td>
+            <td>Open finance.html → Insurance Cycles → find the bill → Edit → fill in <code>insurance_approved_amount</code> → Save. patient_due will recalculate automatically.</td>
+          </tr>
+          <tr>
+            <td>Write-off register shows a yellow migration banner and the "Request Write-off" FAB is disabled</td>
+            <td>The <code>insurance_write_offs</code> table has not been created yet (Phase 3 SQL migration not run).</td>
+            <td>Open Supabase Dashboard → SQL Editor → paste and run the Phase 3 migration SQL from Section 8.4 of this guide. Reload the page after the migration succeeds.</td>
+          </tr>
+          <tr>
+            <td>Receptionist cannot see the Finance link in the navbar</td>
+            <td>The navbar.js version deployed to the website repo is older and does not include the receptionist Finance link added in Session 65.</td>
+            <td>Re-sync navbar.js from the app repo to the website repo following the CLAUDE.md website sync workflow. Hard-refresh after deployment.</td>
+          </tr>
+          <tr>
+            <td>Negative <code>patient_due</code> on existing bills</td>
+            <td>Legacy data issue — <code>insurance_approved_amount</code> was set higher than <code>final_amount</code> before the validation guard was added.</td>
+            <td>Run: <code>UPDATE bills SET insurance_approved_amount = final_amount WHERE insurance_approved_amount &gt; final_amount AND final_amount IS NOT NULL;</code> in the Supabase SQL Editor. The IPD discharge panel now prevents this going forward.</td>
+          </tr>
+          <tr>
+            <td>Error: "violates check constraint chk_insurance_workflow_sync" when saving a bill</td>
+            <td><code>payer_type</code> and <code>insurance_claim_status</code> are inconsistent — e.g., payer_type = 'insurance' with insurance_claim_status = 'not_applicable', or payer_type = 'self_pay' with a real claim status.</td>
+            <td>Ensure both columns are set together: self_pay → not_applicable; all others → any valid status except not_applicable. Check the JS code that constructs the bill INSERT/UPDATE for missing insurance_claim_status assignment when payer_type changes.</td>
+          </tr>
+          <tr>
+            <td>Pharmacy queue shows no 🏥 badge for insurance patient</td>
+            <td><code>_rxPayerMap</code> not populated — page was reloaded mid-session, or <code>loadQueue()</code> ran before the OPD bill was fully created.</td>
+            <td>Reload dispensaryPOS.html to re-run <code>loadQueue()</code>, which rebuilds the payer map from fresh bill data. Ctrl+Shift+R if the service worker has cached an old version.</td>
+          </tr>
+          <tr>
+            <td>Fee not appearing in the reception.html billing calculator</td>
+            <td>Fee status is still 'pending' or 'dept_approved' — not yet 'active'. Or the fee is linked to a different OPD than the one selected.</td>
+            <td>Check fee-admin.html — find the fee, verify its status and the OPD it is linked to. Ask super_admin to activate if needed. Confirm the OPD selected at reception matches the OPD in the fee record.</td>
+          </tr>
+          <tr>
+            <td>Insurance Settlement Panel not showing in IPD discharge drawer</td>
+            <td>The system could not find a bill linked to this admission with <code>payer_type ≠ 'self_pay'</code>. Either the bill was not linked to the visit, or payer_type was incorrectly saved as 'self_pay'.</td>
+            <td>Check the <code>bills</code> table for the patient: confirm <code>visit_id</code> or <code>patient_id</code> links to this admission, and confirm <code>payer_type</code> is set correctly. Update via Supabase Dashboard if needed.</td>
+          </tr>
+          <tr>
+            <td>Write-off approved but <code>patient_due</code> did not change to 0</td>
+            <td>The trigger <code>trg_write_off_approval</code> may not have been created, or the write-off amount entered was less than the actual patient_due.</td>
+            <td>Check if the trigger exists: run <code>SELECT trigger_name FROM information_schema.triggers WHERE trigger_name = 'trg_write_off_approval';</code> in SQL Editor. If missing, re-run the Phase 3 migration. If amount was less than patient_due, a second write-off request may be needed for the remaining balance.</td>
+          </tr>
+          <tr>
+            <td>400 error (not 403) when loading patient bills on anon role pages</td>
+            <td>The <code>bills</code> table GRANT to <code>authenticated</code> may be missing, or the RLS policy has a syntax error.</td>
+            <td>Run: <code>GRANT ALL ON bills TO authenticated;</code> in SQL Editor. PostgREST returns HTTP 400 (not 403) when the table-level GRANT is missing — this is a known Supabase/PostgREST behaviour. 403 is returned only when the GRANT exists but RLS blocks the row.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+<!-- ═══ FOOTER ═══════════════════════════════════════════════════════════════ -->
+<footer>
+  Last updated: June 2026 &mdash; AyurXpert HMS v3.0 &nbsp;|&nbsp;
+  Financial Management User Guide &nbsp;|&nbsp;
+  AyurXpert Technologies&#8482; &nbsp;|&nbsp;
+  support@ayurxpert.com
+</footer>
+
+</body>
+</html>

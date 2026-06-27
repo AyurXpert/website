@@ -480,6 +480,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div class="drawer-body">
       <input type="hidden" id="dis-adm-id"/>
       <input type="hidden" id="dis-bed-id"/>
+      <input type="hidden" id="dis-patient-id"/>
+      <input type="hidden" id="dis-bill-id"/>
+      <input type="hidden" id="dis-bill-total" value="0"/>
 
       <div class="adm-detail-card" id="dis-detail-card"></div>
 
@@ -522,6 +525,46 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <input id="dis-transfer-to" type="text" placeholder="Name of receiving facility"/>
       </div>
     </div>
+      <!-- Insurance settlement — shown only for insurance patients -->
+      <div id="dis-ins-section" style="display:none;border:1.5px solid #f0c060;border-radius:10px;padding:14px 14px 10px;background:#fffdf5;margin-bottom:12px">
+        <div id="dis-ins-heading" style="font-size:11px;font-weight:600;color:var(--gold);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">🏥 Insurance Settlement</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Approved Amount (₹)</label>
+            <input id="dis-ins-approved" type="number" min="0" step="0.01" placeholder="Amount approved by TPA" oninput="_updateDischargeDue()"/>
+          </div>
+          <div class="field">
+            <label>Claim Status</label>
+            <select id="dis-ins-claim-status">
+              <option value="submitted">Submitted to TPA ✓</option>
+              <option value="pre_auth_approved">Pre-Auth Approved</option>
+              <option value="pre_auth_pending">Pre-Auth Pending</option>
+            </select>
+          </div>
+        </div>
+        <!-- Live patient-due row -->
+        <div id="dis-due-row" style="display:none;justify-content:space-between;align-items:center;padding:8px 12px;background:#fff8f0;border-radius:6px;margin:8px 0 4px;font-size:13px">
+          <span style="color:var(--text-mid)">Patient Due (Total − Approved)</span>
+          <strong id="dis-due-amt" style="color:var(--red)">₹0</strong>
+        </div>
+        <!-- Collect patient due now -->
+        <div id="dis-collect-wrap" style="display:none;margin-top:8px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+            <input type="checkbox" id="dis-collect-now" onchange="_toggleCollectNow()"/>
+            <span>Collect patient due now at discharge</span>
+          </label>
+          <div id="dis-collect-mode" style="display:none;margin-top:8px">
+            <label style="font-size:12px;color:var(--text-mid)">Payment Mode</label>
+            <div style="display:flex;gap:8px;margin-top:4px">
+              <label class="pt-btn"><input type="radio" name="dis_pay_mode" value="cash" checked/><span>Cash</span></label>
+              <label class="pt-btn"><input type="radio" name="dis_pay_mode" value="upi"/><span>UPI</span></label>
+              <label class="pt-btn"><input type="radio" name="dis_pay_mode" value="card"/><span>Card</span></label>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text-mid);margin-top:6px">Accountant handles TPA follow-up and final settlement via Finance → Insurance Cycles.</div>
+      </div>
+
     <div class="drawer-footer">
       <button class="btn btn-secondary" onclick="closeDischargeDrawer()">Cancel</button>
       <button class="btn btn-primary" id="btn-discharge-save" onclick="saveDischarge()">Confirm Discharge</button>
@@ -1355,18 +1398,23 @@ window.saveAdmission = async function() {
 };
 
 // ── Discharge drawer ──────────────────────────────────────────────────────────
-window.openDischargeDrawer = function(admId) {
+window.openDischargeDrawer = async function(admId) {
   const adm = _admissions.find(a => a.id === admId);
   if (!adm) return;
 
-  document.getElementById('dis-adm-id').value = admId;
-  document.getElementById('dis-bed-id').value  = adm.beds?.id || '';
-  document.getElementById('dis-date').value    = new Date().toISOString().slice(0,10);
-  document.getElementById('dis-summary').value = '';
+  document.getElementById('dis-adm-id').value    = admId;
+  document.getElementById('dis-bed-id').value    = adm.beds?.id || '';
+  document.getElementById('dis-patient-id').value = adm.patients?.id || '';
+  document.getElementById('dis-bill-id').value   = '';
+  document.getElementById('dis-date').value      = new Date().toISOString().slice(0,10);
+  document.getElementById('dis-summary').value   = '';
   document.getElementById('dis-condition').value = '';
   document.getElementById('dis-transfer-to').value = '';
-  document.getElementById('dis-type').value    = 'discharged';
+  document.getElementById('dis-type').value      = 'discharged';
   document.getElementById('dis-transfer-field').style.display = 'none';
+  document.getElementById('dis-ins-section').style.display    = 'none';
+  document.getElementById('dis-ins-approved').value           = '';
+  document.getElementById('dis-ins-claim-status').value       = 'submitted';
 
   document.querySelectorAll('.discharge-opt').forEach(o => {
     o.classList.toggle('selected', o.dataset.val === 'discharged');
@@ -1384,10 +1432,60 @@ window.openDischargeDrawer = function(admId) {
     ${adm.diagnosis_primary ? `<div class="adm-detail-row"><span>Diagnosis</span><strong>${_esc(adm.diagnosis_primary)}</strong></div>` : ''}
   `;
 
+  // Check for an insurance/PMJAY bill and show settlement fields if found
+  const patId = adm.patients?.id;
+  if (patId) {
+    const { data: insBill } = await supabase
+      .from('bills')
+      .select('id, payer_type, final_amount, insurance_claim_status')
+      .eq('patient_id', patId)
+      .eq('tenant_id', tenantId)
+      .neq('payer_type', 'self_pay')
+      .in('status', ['pending', 'partial'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (insBill) {
+      document.getElementById('dis-bill-id').value    = insBill.id;
+      document.getElementById('dis-bill-total').value = insBill.final_amount || 0;
+      document.getElementById('dis-ins-section').style.display = '';
+      const labels = { insurance:'Insurance/TPA', pmjay:'PMJAY (Ayushman)', cghs:'CGHS / ECHS', echs:'ECHS', esi:'ESIC', corporate:'Corporate' };
+      document.getElementById('dis-ins-heading').textContent =
+        `🏥 ${labels[insBill.payer_type] || 'Insurance'} Settlement`;
+      if (insBill.insurance_claim_status && insBill.insurance_claim_status !== 'not_applicable') {
+        document.getElementById('dis-ins-claim-status').value = insBill.insurance_claim_status;
+      }
+      _updateDischargeDue();
+    }
+  }
+
   document.getElementById('discharge-overlay').classList.add('open');
 };
 window.closeDischargeDrawer = function() {
   document.getElementById('discharge-overlay').classList.remove('open');
+};
+
+window._updateDischargeDue = function() {
+  const total    = parseFloat(document.getElementById('dis-bill-total').value) || 0;
+  const approved = parseFloat(document.getElementById('dis-ins-approved').value) || 0;
+  const due      = Math.max(0, total - approved);
+  const dueRow   = document.getElementById('dis-due-row');
+  const dueAmt   = document.getElementById('dis-due-amt');
+  const collectW = document.getElementById('dis-collect-wrap');
+  if (total > 0) {
+    dueRow.style.display    = 'flex';
+    dueAmt.textContent      = `₹${due.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+    collectW.style.display  = due > 0 ? '' : 'none';
+    if (due <= 0) {
+      document.getElementById('dis-collect-now').checked = false;
+      document.getElementById('dis-collect-mode').style.display = 'none';
+    }
+  }
+};
+
+window._toggleCollectNow = function() {
+  const checked = document.getElementById('dis-collect-now').checked;
+  document.getElementById('dis-collect-mode').style.display = checked ? '' : 'none';
 };
 
 window.selectDischargeType = function(el) {
@@ -1423,6 +1521,34 @@ window.saveDischarge = async function() {
 
   // Free the bed
   if (bedId) await supabase.from('beds').update({ status: 'vacant' }).eq('id', bedId);
+
+  // Update insurance bill if present
+  const billId     = document.getElementById('dis-bill-id').value;
+  const insVisible = document.getElementById('dis-ins-section').style.display !== 'none';
+  if (billId && insVisible) {
+    const totalBill   = parseFloat(document.getElementById('dis-bill-total').value) || 0;
+    const approved    = parseFloat(document.getElementById('dis-ins-approved').value) || 0;
+    const claimStatus = document.getElementById('dis-ins-claim-status').value || 'submitted';
+
+    if (approved > totalBill && totalBill > 0) {
+      btn.disabled = false; btn.textContent = 'Confirm Discharge';
+      _alert('error', `Approved amount (₹${approved.toLocaleString('en-IN')}) cannot exceed total bill (₹${totalBill.toLocaleString('en-IN')}).`);
+      return;
+    }
+
+    const insUpdate = { insurance_claim_status: claimStatus };
+    if (approved > 0) insUpdate.insurance_approved_amount = approved;
+
+    const collectNow  = document.getElementById('dis-collect-now').checked;
+    const patientDue  = Math.max(0, totalBill - approved);
+    if (collectNow && patientDue > 0) {
+      const payMode          = document.querySelector('input[name="dis_pay_mode"]:checked')?.value || 'cash';
+      insUpdate.status       = 'partial';   // patient portion settled; TPA portion pending
+      insUpdate.payment_mode = payMode;
+    }
+
+    await supabase.from('bills').update(insUpdate).eq('id', billId);
+  }
 
   // ABDM M2 — create care context for DischargeSummary FHIR type (fire-and-forget)
   const adm = _admissions.find(a => a.id === admId);
