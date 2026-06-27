@@ -29,13 +29,24 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 ═══════════════════════════════ */
 .admin-shell{display:flex;min-height:100vh;padding-top:var(--nav-h)}
 
-/* ── Sidebar ── */
+/* ── Sidebar backdrop ── */
+.admin-sb-backdrop{
+  position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:99;
+  opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.admin-sb-backdrop.open{opacity:1;pointer-events:all}
+
+/* ── Sidebar (slide-over overlay) ── */
 .admin-sidebar{
   width:var(--sidebar-w);flex-shrink:0;
   background:var(--white);border-right:1px solid var(--border);
   position:fixed;top:var(--nav-h);bottom:0;left:0;
   display:flex;flex-direction:column;overflow-y:auto;z-index:100;
+  transform:translateX(-100%);
+  transition:transform .22s cubic-bezier(.4,0,.2,1);
+  box-shadow:4px 0 24px rgba(0,0,0,.12);
 }
+.admin-sidebar.open{transform:translateX(0)}
 .sb-head{padding:16px;border-bottom:1px solid var(--border)}
 .sb-org-name{font-size:14px;font-weight:600;color:var(--text-dark);line-height:1.3;word-break:break-word}
 .sb-org-meta{font-size:11px;color:var(--text-muted);margin-top:3px;display:flex;align-items:center;gap:6px}
@@ -70,8 +81,8 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 }
 .btn-copy-code:hover{background:#cde8d6}
 
-/* ── Content area ── */
-.admin-content{flex:1;margin-left:var(--sidebar-w);padding:28px 24px 60px;min-height:calc(100vh - var(--nav-h));background:var(--cream)}
+/* ── Content area (full width — sidebar is overlay) ── */
+.admin-content{flex:1;margin-left:0;padding:28px 24px 60px;min-height:calc(100vh - var(--nav-h));background:var(--cream)}
 .content-section{display:none}
 .content-section.active{display:block}
 
@@ -272,15 +283,8 @@ tr:hover td{background:#fafff8}
 
 /* ── Responsive ── */
 @media(max-width:1200px){.stats6{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:1060px){:root{--sidebar-w:210px}}
 @media(max-width:860px){
-  .admin-sidebar{position:static;width:100%;border-right:none;border-bottom:1px solid var(--border);flex-direction:row;flex-wrap:wrap;height:auto}
-  .admin-content{margin-left:0;padding:16px}
-  .sb-head{display:none}
-  .sb-nav{display:flex;flex-wrap:wrap;padding:8px}
-  .sb-group-label{display:none}
-  .sb-footer{display:none}
-  .sb-sub{display:none}
+  .admin-content{padding:16px}
 }
 @media(max-width:640px){
   .stats6{grid-template-columns:repeat(2,1fr)}
@@ -297,7 +301,9 @@ tr:hover td{background:#fafff8}
 <!-- MASTER CONTROL (super_admin / dept_admin) -->
 <div class="admin-shell" id="admin-shell" style="display:none">
 
-  <aside class="admin-sidebar">
+  <div class="admin-sb-backdrop" id="admin-sb-backdrop"></div>
+
+  <aside class="admin-sidebar" id="admin-sidebar">
     <div class="sb-head">
       <div class="sb-org-name" id="sb-org-name">Loading…</div>
       <div class="sb-org-meta">
@@ -884,7 +890,26 @@ function _bootMasterControl() {
       .catch(()=>_toast('Code: '+(tenant?.tenant_code||'')));
   });
 
-  // Sidebar navigation
+  // ── Sidebar slide-over open / close ────────────────────────────────────────
+  const _sidebar   = document.getElementById('admin-sidebar');
+  const _sbBackdrop = document.getElementById('admin-sb-backdrop');
+
+  function _openSidebar()  { _sidebar.classList.add('open');  _sbBackdrop.classList.add('open');  }
+  function _closeSidebar() { _sidebar.classList.remove('open'); _sbBackdrop.classList.remove('open'); }
+
+  // Open when hovering over the logo/brand area
+  const _brand = document.querySelector('.ax-brand');
+  if (_brand) _brand.addEventListener('mouseenter', _openSidebar);
+
+  // Close on backdrop click
+  _sbBackdrop.addEventListener('click', _closeSidebar);
+
+  // Close after any sidebar item click (short delay so section switches first)
+  document.querySelectorAll('#admin-sidebar .sb-item, #admin-sidebar .sb-sub, #admin-sidebar a').forEach(el => {
+    el.addEventListener('click', () => setTimeout(_closeSidebar, 180));
+  });
+
+  // ── Sidebar navigation (section switching) ──────────────────────────────────
   document.querySelectorAll('.sb-item[data-target],.sb-sub[data-target]').forEach(btn => {
     btn.addEventListener('click', () => {
       const t = btn.dataset.target, sub = btn.dataset.sub;
@@ -897,6 +922,16 @@ function _bootMasterControl() {
       _showSection(t, sub);
     });
   });
+
+  // ── Hash routing — honour admin.html#stats links from other pages ────────────
+  function _handleHash() {
+    const hash = location.hash.slice(1);
+    if (!hash) return;
+    const btn = document.querySelector(`.sb-item[data-target="${hash}"],.sb-sub[data-target="${hash}"]`);
+    if (btn) { btn.click(); _closeSidebar(); }
+  }
+  setTimeout(_handleHash, 300);
+  window.addEventListener('hashchange', _handleHash);
 
   // HR sub-tabs
   document.querySelectorAll('.hr-tab').forEach(btn => {

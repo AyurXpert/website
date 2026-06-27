@@ -82,14 +82,15 @@ function _buildGroups(role, type) {
       label: 'Admin', icon: '⚙',
       items: [
         { href:'admin.html',             label:'Dashboard',        roles:ALL_ROLES,                                            types:null  },
-        { href:'finance.html',           label:'Finance',          roles:['super_admin','dept_admin','accountant'],             types:null, module:'finance'  },
+        { href:'finance.html',           label:'Finance',          roles:['super_admin','dept_admin','accountant','receptionist'], types:null, module:'finance'  },
+        { href:'insurance-claims.html',  label:'Insurance Claims', roles:['super_admin','dept_admin','accountant'],             types:null, module:'finance'  },
         { href:'hr.html',                label:'HR',               roles:['super_admin','dept_admin'],                         types:null, module:'hr'       },
         { href:'recruitment.html',       label:'Recruitment',      roles:['super_admin','dept_admin'],                         types:null, module:'hr'       },
         { href:'mrd.html',               label:'Medical Records',  roles:['super_admin','dept_admin'],                         types:null, module:'mrd'      },
         { href:'opd-register.html',      label:'OPD Register',     roles:['super_admin','dept_admin','doctor','receptionist'],    types:null, module:'opd'      },
         { href:'ipd-register.html',      label:'IPD Register',     roles:['super_admin','dept_admin','doctor','nurse'],            types:HOSP, module:'ipd'      },
         { href:'reports.html',           label:'Reports',          roles:['super_admin','dept_admin','accountant','lab_tech'],  types:null, module:'finance'  },
-        { href:'fee-admin.html',         label:'Fee Management',   roles:['super_admin','dept_admin','accountant'],             types:null, module:'finance'  },
+        { href:'fee-admin.html',         label:'Fee Management',   roles:['super_admin','dept_admin'],                         types:null, module:'finance'  },
         { href:'lab.html',               label:'Clinical Lab',     roles:ALL_ROLES,                                            types:null, module:'lab'      },
         { href:'lab-nabl.html',          label:'NABL Quality',     roles:['super_admin','dept_admin','lab_tech','doctor'],       types:null, module:'lab'      },
         { href:'ncism-compliance.html',  label:'NCISM Compliance', roles:ADMIN_ROLES,                                          types:NCISM,module:'ncism'    },
@@ -189,6 +190,119 @@ function _injectNavbar(profile, tenant, role) {
   document.getElementById('ax-logout-btn').addEventListener('click', _handleLogout);
   document.getElementById('ax-mobile-logout').addEventListener('click', _handleLogout);
   document.getElementById('ax-hamburger').addEventListener('click', _toggleMenu);
+
+  // Inject slide-over admin sidebar on all super/dept admin pages except admin.html
+  if ((role === 'super_admin' || role === 'dept_admin') && !_isAdminHtml()) {
+    _injectAdminSidebarOverlay(tenant, profile, role);
+  }
+}
+
+function _isAdminHtml() {
+  return (window.location.pathname.split('/').pop() || '') === 'admin.html';
+}
+
+function _injectAdminSidebarOverlay(tenant, profile, role) {
+  const currentPage = window.location.pathname.split('/').pop() || '';
+
+  // Styles
+  const s = document.createElement('style');
+  s.textContent = `
+  #axsb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:499;
+    opacity:0;pointer-events:none;transition:opacity .2s}
+  #axsb-backdrop.open{opacity:1;pointer-events:all}
+  #axsb-panel{
+    position:fixed;top:60px;left:0;bottom:0;width:256px;
+    background:#fff;border-right:1px solid #e5e7eb;
+    z-index:500;transform:translateX(-100%);
+    transition:transform .22s cubic-bezier(.4,0,.2,1);
+    display:flex;flex-direction:column;overflow-y:auto;
+    box-shadow:4px 0 24px rgba(0,0,0,.13);
+    font-family:'DM Sans',sans-serif;
+  }
+  #axsb-panel.open{transform:translateX(0)}
+  .axsb-head{padding:14px 16px;border-bottom:1px solid #e5e7eb;background:#f9fafb;flex-shrink:0}
+  .axsb-org{font-size:13px;font-weight:700;color:#1a2e22;line-height:1.3}
+  .axsb-meta{font-size:11px;color:#9ca3af;margin-top:2px}
+  .axsb-nav-inner{flex:1;overflow-y:auto;padding:4px 0 16px}
+  .axsb-group{font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;
+    letter-spacing:.8px;padding:12px 16px 4px}
+  .axsb-lnk{
+    display:flex;align-items:center;gap:10px;
+    padding:9px 16px;color:#374151;font-size:13.5px;font-weight:500;
+    text-decoration:none;transition:background .12s,color .12s;
+    position:relative;
+  }
+  .axsb-lnk:hover{background:#f0faf5;color:#1a4a2e}
+  .axsb-lnk.active{background:#e8f5ee;color:#1a4a2e;font-weight:600}
+  .axsb-lnk.active::before{content:'';position:absolute;left:0;top:0;bottom:0;
+    width:3px;background:#2d7a4f;border-radius:0 2px 2px 0}
+  .axsb-ico{font-size:15px;width:20px;text-align:center;flex-shrink:0}
+  .axsb-hint{font-size:10px;color:#c9902a;background:#fff8e1;padding:8px 14px;
+    border-top:1px solid #e5e7eb;text-align:center;flex-shrink:0;line-height:1.5}
+  @media(max-width:480px){#axsb-panel{width:78vw;top:56px}}
+  `;
+  document.head.appendChild(s);
+
+  // Sidebar items
+  const ITEMS = [
+    { group:'Operations' },
+    { ico:'📊', label:'Statistics',       href:'admin.html#stats' },
+    { ico:'💰', label:'Accounts',         href:'admin.html#accounts' },
+    { group:'Organisation' },
+    { ico:'👥', label:'Human Resources',  href:'admin.html#hr' },
+    { ico:'🏥', label:'Departments',      href:'admin.html#departments' },
+    { ico:'🏗️', label:'Infrastructure',   href:'admin.html#infrastructure' },
+    { group:'Account' },
+    { ico:'💳', label:'Subscription',     href:'admin.html#subscription' },
+    { ico:'🔧', label:'Feature Modules',  href:'admin.html#modules' },
+    { ico:'🏛️', label:'ABDM Bridge',      href:'admin.html#abdm-bridge' },
+    { group:'Quick Links' },
+    { ico:'⚙️', label:'OPD Setup',        href:'opd-admin.html' },
+    { ico:'🛏️', label:'Dept & Beds',      href:'bed-admin.html' },
+    { ico:'📋', label:'NCISM Compliance', href:'ncism-compliance.html' },
+    { ico:'💵', label:'Finance',          href:'finance.html' },
+    { ico:'📊', label:'Insurance Claims', href:'insurance-claims.html' },
+    { ico:'🏥', label:'Reception',        href:'reception.html' },
+    { ico:'📐', label:'Fee Management',   href:'fee-admin.html' },
+    { ico:'🏠', label:'Dashboard',        href:'admin.html' },
+  ];
+
+  const navHTML = ITEMS.map(it => {
+    if (it.group) return `<div class="axsb-group">${it.group}</div>`;
+    const isActive = it.href === currentPage || (it.href.includes('#') && it.href.split('#')[0] === currentPage);
+    return `<a class="axsb-lnk${isActive ? ' active' : ''}" href="${it.href}">
+      <span class="axsb-ico">${it.ico}</span>${it.label}
+    </a>`;
+  }).join('');
+
+  const roleLabel = role === 'super_admin' ? 'Super Admin' : 'Dept. Admin';
+
+  // Create elements
+  const backdrop = document.createElement('div');
+  backdrop.id = 'axsb-backdrop';
+  document.body.appendChild(backdrop);
+
+  const panel = document.createElement('div');
+  panel.id = 'axsb-panel';
+  panel.innerHTML = `
+    <div class="axsb-head">
+      <div class="axsb-org">${tenant.name}</div>
+      <div class="axsb-meta">${roleLabel}</div>
+    </div>
+    <div class="axsb-nav-inner">${navHTML}</div>
+    <div class="axsb-hint">Hover over logo to open · Click outside to close</div>`;
+  document.body.appendChild(panel);
+
+  // Open / close helpers
+  function _open()  { panel.classList.add('open');  backdrop.classList.add('open');  }
+  function _close() { panel.classList.remove('open'); backdrop.classList.remove('open'); }
+
+  backdrop.addEventListener('click', _close);
+  panel.querySelectorAll('.axsb-lnk').forEach(a => a.addEventListener('click', () => setTimeout(_close, 150)));
+
+  // Trigger on brand hover
+  const brand = document.querySelector('.ax-brand');
+  if (brand) brand.addEventListener('mouseenter', _open);
 }
 
 // ── Watermark ─────────────────────────────────────────────────────────────────
