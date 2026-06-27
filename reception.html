@@ -298,6 +298,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .fee-summary .fs-label{font-size:13px;font-weight:500;color:var(--text-mid)}
 .fee-summary .fs-amount{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep)}
 
+/* ── Payer type toggle ─────────────────────────── */
+.payer-type-btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.pt-btn{cursor:pointer}
+.pt-btn input[type=radio]{display:none}
+.pt-btn span{display:block;padding:8px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;font-weight:500;color:var(--text-mid);transition:all .15s;background:var(--white);white-space:nowrap}
+.pt-btn input:checked + span{background:var(--green-deep);color:var(--white);border-color:var(--green-deep)}
+.pt-btn span:hover{border-color:var(--green-mid);color:var(--green-deep)}
+
 /* ── Payment toggle ──────────────────────────────── */
 .pay-toggle{display:flex;border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;height:44px}
 .pay-opt{flex:1;position:relative}
@@ -1205,7 +1213,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <option value="cash">Cash</option>
             <option value="upi">UPI</option>
             <option value="card">Card</option>
-            <option value="insurance">Insurance / TPA</option>
             <option value="credit">Credit / Due</option>
             <option value="package">Package</option>
           </select>
@@ -1225,47 +1232,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         </div>
       </div>
 
-      <!-- Insurance / TPA Details (shown when payment mode = Insurance) -->
-      <div id="insurance-section" style="display:none;border:1.5px solid #f0c060;border-radius:10px;padding:14px 14px 6px;margin-bottom:13px;background:#fffdf5">
-        <div style="font-size:11px;font-weight:600;color:var(--gold);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">🏥 Insurance / TPA Details</div>
-        <div class="field-row">
-          <div class="field">
-            <label>Insurer Name <span class="req">*</span></label>
-            <input id="insurer-name" type="text" placeholder="e.g. Star Health, ICICI Lombard"/>
-          </div>
-          <div class="field">
-            <label>TPA Name</label>
-            <input id="tpa-name" type="text" placeholder="e.g. Medi Assist, Vidal Health"/>
-          </div>
+      <!-- Payer Type — one click only -->
+      <div style="margin-bottom:13px">
+        <label style="font-size:12px;font-weight:500;color:var(--text-mid);display:block;margin-bottom:2px">Who is paying?</label>
+        <div class="payer-type-btns">
+          <label class="pt-btn"><input type="radio" name="payer_type" value="self_pay" checked onchange="onPayerTypeChange()"/><span>💵 Self-Pay</span></label>
+          <label class="pt-btn"><input type="radio" name="payer_type" value="insurance" onchange="onPayerTypeChange()"/><span>🏥 Insurance / TPA</span></label>
+          <label class="pt-btn"><input type="radio" name="payer_type" value="pmjay" onchange="onPayerTypeChange()"/><span>🟢 PMJAY</span></label>
+          <label class="pt-btn"><input type="radio" name="payer_type" value="cghs" onchange="onPayerTypeChange()"/><span>🔵 CGHS / ECHS</span></label>
         </div>
-        <div class="field-row">
-          <div class="field">
-            <label>Policy / Member No. <span class="req">*</span></label>
-            <input id="policy-number" type="text" placeholder="Policy or member ID"/>
-          </div>
-          <div class="field">
-            <label>Pre-Auth No.</label>
-            <input id="pre-auth-number" type="text" placeholder="If already received"/>
-          </div>
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label>Pre-Auth Status</label>
-            <select id="pre-auth-status">
-              <option value="not_required">Not Required</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved ✓</option>
-              <option value="rejected">Rejected ✗</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Coverage Amount (₹)</label>
-            <input id="insurance-coverage" type="number" min="0" step="0.01" placeholder="0"/>
-          </div>
-        </div>
-        <div class="fee-summary" id="liability-row" style="display:none;margin-top:0;margin-bottom:8px">
-          <span class="fs-label">Patient Liability (after coverage)</span>
-          <span class="fs-amount" id="patient-liability">₹0</span>
+        <div id="ins-note" style="display:none;font-size:12px;color:#7a5200;margin-top:8px;padding:8px 12px;background:#fffdf0;border-radius:6px;border:1px solid #f0c060;line-height:1.5">
+          🏥 Insurance patient — TPA / policy details will be filled by the accounts department. Mark payment as <strong>Pending</strong>.
         </div>
       </div>
 
@@ -1497,6 +1474,8 @@ let _patient = null;
 let _currentVisitId = null;  // last visit created in this session (for ABDM link token)
 let _activePackage = null;
 let _screeningOpdId = null;
+let _prevOpdId      = null;  // last specialty OPD of returning patient
+let _prevDoctorId   = null;  // last doctor of returning patient
 let _kaumarOpdId    = null;
 const _doctorMap = {};
 
@@ -1792,33 +1771,44 @@ async function loadFees(opdId) {
 // ── OPD routing rule ──────────────────────────────
 // Walk-in OPD patients must go to Screening OPD first (NCISM Section 40)
 function _applyOpdRule() {
-  const sel     = document.getElementById('opd');
-  const cat     = document.getElementById('visit-category').value;
-  const isOnReq = document.getElementById('on-request')?.checked;
-  const hint    = document.getElementById('opd-routing-hint');
+  const sel    = document.getElementById('opd');
+  const docSel = document.getElementById('doctor');
+  const cat    = document.getElementById('visit-category').value;
+  const hint   = document.getElementById('opd-routing-hint');
 
-  const lockToScreening = (cat === 'opd') && !isOnReq;
+  // OPD/Department is ALWAYS locked at reception.
+  // Specialty OPD is assigned only at Screening OPD (screening.html).
+  // Reception only shows what was determined:
+  //   followup + returning patient → previous specialty OPD + doctor (locked)
+  //   all other categories         → Screening OPD (locked), doctor selectable
 
-  if (lockToScreening && _screeningOpdId) {
-    sel.value    = _screeningOpdId;
-    sel.disabled = true;
-    if (hint) {
-      hint.textContent = '🔒 Walk-ins go to Screening OPD first';
-      hint.style.color   = 'var(--green-mid)';
-      hint.style.display = '';
-    }
-    loadDoctors(_screeningOpdId);
-    loadFees(_screeningOpdId);
-  } else if (lockToScreening && !_screeningOpdId) {
-    sel.disabled = false;
-    if (hint) {
-      hint.textContent = '⚠ Screening OPD not set up — select OPD manually';
-      hint.style.color   = 'var(--gold)';
-      hint.style.display = '';
-    }
+  sel.disabled = true;
+
+  if (cat === 'followup' && _prevOpdId) {
+    // Returning patient follow-up — lock to previous specialty OPD + doctor
+    sel.value       = _prevOpdId;
+    docSel.disabled = true;
+    if (_prevDoctorId) docSel.value = _prevDoctorId;
+    if (hint) hint.style.display = ''; // hint set by _selectPatient
   } else {
-    sel.disabled = false;
-    if (hint) hint.style.display = 'none';
+    // New visit / new complaint / emergency / any other category → Screening OPD
+    docSel.disabled = false;
+    if (_screeningOpdId) {
+      sel.value = _screeningOpdId;
+      loadDoctors(_screeningOpdId);
+      loadFees(_screeningOpdId);
+      if (hint) {
+        hint.textContent = '🔒 OPD assigned at Screening OPD — not selectable here';
+        hint.style.color   = 'var(--text-muted)';
+        hint.style.display = '';
+      }
+    } else {
+      if (hint) {
+        hint.textContent = '⚠ Screening OPD not configured — contact admin';
+        hint.style.color   = 'var(--gold)';
+        hint.style.display = '';
+      }
+    }
   }
 }
 
@@ -1855,35 +1845,19 @@ function _updateTotal() {
     '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 ['reg-fee', 'fee', 'surcharge'].forEach(id =>
-  document.getElementById(id).addEventListener('input', () => { _updateTotal(); _updateLiability(); })
+  document.getElementById(id).addEventListener('input', () => { _updateTotal(); })
 );
 
-// ── Insurance section toggle ───────────────────────
-document.getElementById('payment-mode').addEventListener('change', function() {
-  const isIns = this.value === 'insurance';
-  document.getElementById('insurance-section').style.display = isIns ? '' : 'none';
-  _updateLiability();
-});
-
-document.getElementById('insurance-coverage').addEventListener('input', _updateLiability);
-
-function _updateLiability() {
-  const payMode  = document.getElementById('payment-mode').value;
-  const coverage = parseFloat(document.getElementById('insurance-coverage').value) || 0;
-  const reg      = parseFloat(document.getElementById('reg-fee').value)  || 0;
-  const cons     = parseFloat(document.getElementById('fee').value)      || 0;
-  const sur      = onRequestChk.checked ? (parseFloat(document.getElementById('surcharge').value) || 0) : 0;
-  const total    = reg + cons + sur;
-  const liabilityRow = document.getElementById('liability-row');
-  if (payMode === 'insurance' && coverage > 0) {
-    const liability = Math.max(0, total - coverage);
-    document.getElementById('patient-liability').textContent =
-      '₹' + liability.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-    liabilityRow.style.display = '';
-  } else {
-    liabilityRow.style.display = 'none';
+// ── Payer type toggle ──────────────────────────────
+window.onPayerTypeChange = function() {
+  const pt = document.querySelector('input[name="payer_type"]:checked')?.value || 'self_pay';
+  const isIns = pt !== 'self_pay';
+  document.getElementById('ins-note').style.display = isIns ? '' : 'none';
+  if (isIns) {
+    document.getElementById('payment-mode').value = 'credit';
+    document.getElementById('pay-pending').checked = true;
   }
-}
+};
 
 // ── DOB → Age auto-calculator ─────────────────────
 document.getElementById('f-dob').addEventListener('change', function() {
@@ -2021,6 +1995,63 @@ async function _selectPatient(patient) {
   document.getElementById('reg-fee').value = '0';
   _updateTotal();
 
+  // ── OPD Auto-routing ─────────────────────────────────────────────────────
+  // New patient (count=0)      → Screening OPD locked via _applyOpdRule
+  // Returning patient (count>0) → last specialty OPD + doctor auto-filled + locked
+  {
+    const opdSel = document.getElementById('opd');
+    const catSel = document.getElementById('visit-category');
+    const hint   = document.getElementById('opd-routing-hint');
+
+    _prevOpdId    = null;
+    _prevDoctorId = null;
+
+    if (count === 0) {
+      // New patient → Screening OPD (locked)
+      catSel.value = 'opd';
+      _applyOpdRule();
+      if (hint) {
+        hint.textContent = '🔵 New patient — routed to Screening OPD';
+        hint.style.cssText = 'display:block;color:#1a6080;font-size:11px;margin-top:4px;font-weight:500';
+      }
+    } else {
+      // Returning patient — fetch last specialty (non-screening) visit
+      let qry = supabase
+        .from('visits')
+        .select('opd_id, doctor_id, opds(name)')
+        .eq('patient_id', patient.id)
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false });
+      if (_screeningOpdId) qry = qry.neq('opd_id', _screeningOpdId);
+      const { data: prevVisits } = await qry.limit(1);
+      const prev = prevVisits?.[0];
+
+      if (prev?.opd_id) {
+        // Store for _applyOpdRule to use when category = followup
+        _prevOpdId    = prev.opd_id;
+        _prevDoctorId = prev.doctor_id || null;
+        catSel.value  = 'followup';
+        await loadDoctors(prev.opd_id);
+        await loadFees(prev.opd_id);
+        _applyOpdRule(); // locks OPD + doctor to previous values
+        const opdName = prev.opds?.name || Array.from(opdSel.options).find(o => o.value === prev.opd_id)?.text || 'Previous OPD';
+        const docText = document.getElementById('doctor').options[document.getElementById('doctor').selectedIndex]?.text || '';
+        if (hint) {
+          hint.textContent = `↩ Follow-up · ${opdName}${docText ? ' · ' + docText : ''}`;
+          hint.style.cssText = 'display:block;color:var(--green-mid);font-size:11px;margin-top:4px;font-weight:500';
+        }
+      } else {
+        // All previous visits were Screening OPD → re-route to screening
+        catSel.value = 'opd';
+        _applyOpdRule();
+        if (hint) {
+          hint.textContent = '🔵 Returning patient — routed to Screening OPD';
+          hint.style.cssText = 'display:block;color:#1a6080;font-size:11px;margin-top:4px;font-weight:500';
+        }
+      }
+    }
+  }
+
   // Check for active package
   _activePackage = null;
   document.getElementById('pkg-card').classList.remove('show');
@@ -2115,6 +2146,11 @@ function _clearTag() {
   document.getElementById('f-gender').value = '';
   document.getElementById('f-dob').value    = '';
   document.getElementById('f-blood').value  = '';
+  _prevOpdId    = null;
+  _prevDoctorId = null;
+  document.getElementById('opd-routing-hint').style.display = 'none';
+  document.getElementById('doctor').disabled = false;
+  _applyOpdRule(); // resets OPD to Screening OPD (locked)
   _clearAbhaNote();
 }
 
@@ -2150,19 +2186,13 @@ async function handleSubmit() {
   const payMode     = document.getElementById('payment-mode').value;
   const payStatus   = document.querySelector('input[name="payment"]:checked').value;
 
-  const isInsurance    = payMode === 'insurance';
-  const insurerName    = isInsurance ? document.getElementById('insurer-name').value.trim()    : null;
-  const tpaName        = isInsurance ? document.getElementById('tpa-name').value.trim()        : null;
-  const policyNumber   = isInsurance ? document.getElementById('policy-number').value.trim()   : null;
-  const preAuthNumber  = isInsurance ? document.getElementById('pre-auth-number').value.trim() : null;
-  const preAuthStatus  = isInsurance ? document.getElementById('pre-auth-status').value        : null;
-  const insCoverage    = isInsurance ? (parseFloat(document.getElementById('insurance-coverage').value) || 0) : 0;
+  const payerType      = document.querySelector('input[name="payer_type"]:checked')?.value || 'self_pay';
+  const isInsurance    = payerType !== 'self_pay';
+  const insClaimStatus = isInsurance ? 'pre_auth_pending' : 'not_applicable';
 
   if (!phone)     return _alert('error', 'Please enter the patient\'s phone number.');
   if (!name)      return _alert('error', 'Please enter the patient\'s name.');
   if (!complaint) return _alert('error', 'Please enter the chief complaint.');
-  if (isInsurance && !insurerName)  return _alert('error', 'Please enter the insurer name.');
-  if (isInsurance && !policyNumber) return _alert('error', 'Please enter the policy / member number.');
 
   // §18aa — NCISM: Kaumarabhritya OPD is for patients up to 18 years
   if (_kaumarOpdId && opdId === _kaumarOpdId) {
@@ -2300,14 +2330,8 @@ async function handleSubmit() {
       status:               payStatus,
       bill_type:            'consultation'
     };
-    if (isInsurance) {
-      billPayload.insurer_name       = insurerName;
-      billPayload.tpa_name           = tpaName     || null;
-      billPayload.policy_number      = policyNumber;
-      billPayload.pre_auth_number    = preAuthNumber || null;
-      billPayload.pre_auth_status    = preAuthStatus;
-      billPayload.insurance_coverage = insCoverage;
-    }
+    billPayload.payer_type             = payerType;
+    billPayload.insurance_claim_status = insClaimStatus;
     const { data: bill, error: bErr } = await supabase
       .from('bills').insert(billPayload).select('id').single();
 
@@ -2317,7 +2341,7 @@ async function handleSubmit() {
       patient_name: patient.name, total_amount: total,
       reg_fee: regFee, cons_fee: consFee, surcharge,
       payment_mode: payMode, status: payStatus,
-      ...(isInsurance && { insurer: insurerName, policy: policyNumber })
+      ...(isInsurance && { payer_type: payerType })
     }, _ctx);
 
     // 7a. Doctor alert for on-request
@@ -2350,7 +2374,7 @@ async function handleSubmit() {
       opd: opdName, doctor: doctorName,
       category: catLabel, complaint, regFee, consFee, surcharge,
       total, payMode, payStatus, meetingUrl, visitId: visit.id,
-      isInsurance, insurerName, tpaName, policyNumber, preAuthNumber, preAuthStatus, insCoverage,
+      isInsurance, payerType,
       date: new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     });
 
@@ -2396,14 +2420,10 @@ async function _showReceipt(d) {
     { l: 'Consultation Fee', v: fmt(d.consFee) },
     d.surcharge > 0 ? { l: 'On-Request Surcharge', v: fmt(d.surcharge) } : null,
     { l: 'Total',          v: `<strong>₹${d.total.toLocaleString('en-IN')}</strong>` },
-    { l: 'Payment Mode',   v: d.isInsurance ? 'Insurance / TPA' : (d.payMode.charAt(0).toUpperCase() + d.payMode.slice(1)) },
-    d.isInsurance ? { l: 'Insurer',          v: d.insurerName } : null,
-    d.tpaName     ? { l: 'TPA',              v: d.tpaName }     : null,
-    d.isInsurance ? { l: 'Policy / Member No.', v: d.policyNumber } : null,
-    d.preAuthNumber ? { l: 'Pre-Auth No.',   v: d.preAuthNumber } : null,
-    d.isInsurance ? { l: 'Pre-Auth Status',  v: d.preAuthStatus.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()) } : null,
-    d.insCoverage > 0 ? { l: 'Insurance Coverage', v: fmt(d.insCoverage) } : null,
-    d.insCoverage > 0 ? { l: 'Patient Liability',  v: fmt(Math.max(0, d.total - d.insCoverage)) } : null,
+    { l: 'Payment Mode', v: d.isInsurance
+        ? ({insurance:'Insurance / TPA', pmjay:'PMJAY (Ayushman)', cghs:'CGHS / ECHS', echs:'ECHS', esi:'ESIC', corporate:'Corporate'}[d.payerType] || 'Insurance')
+        : (d.payMode.charAt(0).toUpperCase() + d.payMode.slice(1)) },
+    d.isInsurance ? { l: 'Billing', v: 'Accounts dept will fill TPA / policy details' } : null,
     { l: 'Payment Status', v: d.payStatus === 'paid' ? '✓ Paid' : '⏳ Pending' },
     { l: 'Date & Time',    v: d.date },
   ].filter(Boolean);
@@ -2645,11 +2665,9 @@ function _resetForm() {
   onRequestChk.checked = false;
   onRequestWrap.classList.remove('active');
   surchargeRow.style.display = 'none';
-  document.getElementById('insurance-section').style.display = 'none';
-  ['insurer-name','tpa-name','policy-number','pre-auth-number','insurance-coverage'].forEach(id =>
-    document.getElementById(id).value = '');
-  document.getElementById('pre-auth-status').value = 'not_required';
-  document.getElementById('liability-row').style.display = 'none';
+  document.getElementById('ins-note').style.display = 'none';
+  const selfPayRadio = document.querySelector('input[name="payer_type"][value="self_pay"]');
+  if (selfPayRadio) selfPayRadio.checked = true;
   document.getElementById('opd').value = '';
   document.getElementById('opd').disabled = false;
   _clearTag();
