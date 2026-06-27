@@ -20,7 +20,7 @@
   --border:#d4e6da;
   --error:#dc2626;--error-bg:#fff3f3;
   --radius:14px;--shadow:0 2px 14px rgba(0,0,0,0.07);
-  --nav-h:60px;--sidebar-w:248px;
+  --nav-h:60px;--sidebar-w:248px;--sidebar-icon-w:52px;
 }
 html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark)}
 
@@ -29,60 +29,87 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 ═══════════════════════════════ */
 .admin-shell{display:flex;min-height:100vh;padding-top:var(--nav-h)}
 
-/* ── Sidebar backdrop ── */
-.admin-sb-backdrop{
-  position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:99;
-  opacity:0;pointer-events:none;transition:opacity .2s;
-}
-.admin-sb-backdrop.open{opacity:1;pointer-events:all}
-
-/* ── Sidebar (slide-over overlay) ── */
+/* ── Sidebar — icon rail, expands on hover ── */
 .admin-sidebar{
-  width:var(--sidebar-w);flex-shrink:0;
-  background:var(--white);border-right:1px solid var(--border);
+  width:var(--sidebar-icon-w);
   position:fixed;top:var(--nav-h);bottom:0;left:0;
-  display:flex;flex-direction:column;overflow-y:auto;z-index:100;
-  transform:translateX(-100%);
-  transition:transform .22s cubic-bezier(.4,0,.2,1);
-  box-shadow:4px 0 24px rgba(0,0,0,.12);
+  display:flex;flex-direction:column;
+  overflow:hidden;z-index:200;
+  background:var(--white);border-right:1px solid var(--border);
+  box-shadow:2px 0 8px rgba(0,0,0,.06);
+  transition:width .22s cubic-bezier(.4,0,.2,1),box-shadow .22s;
 }
-.admin-sidebar.open{transform:translateX(0)}
-.sb-head{padding:16px;border-bottom:1px solid var(--border)}
-.sb-org-name{font-size:14px;font-weight:600;color:var(--text-dark);line-height:1.3;word-break:break-word}
-.sb-org-meta{font-size:11px;color:var(--text-muted);margin-top:3px;display:flex;align-items:center;gap:6px}
+.admin-sidebar:hover{width:var(--sidebar-w);box-shadow:4px 0 24px rgba(0,0,0,.14)}
+
+/* Head: org name fades in on expand */
+.sb-head{padding:14px 0;border-bottom:1px solid var(--border);flex-shrink:0;overflow:hidden}
+.sb-org-name{
+  padding:0 14px;font-size:13px;font-weight:600;color:var(--text-dark);
+  white-space:nowrap;opacity:0;transition:opacity .12s;line-height:1.3;
+}
+.sb-org-meta{
+  padding:0 14px;font-size:11px;color:var(--text-muted);margin-top:3px;
+  display:flex;align-items:center;gap:6px;opacity:0;transition:opacity .12s;
+}
 .sb-code{background:var(--green-light);color:var(--green-deep);font-weight:700;padding:2px 8px;border-radius:10px;font-size:11px;letter-spacing:.5px}
-.sb-nav{flex:1;padding:6px 0;overflow-y:auto}
-.sb-group-label{font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;padding:12px 16px 4px}
+.admin-sidebar:hover .sb-org-name,.admin-sidebar:hover .sb-org-meta{opacity:1}
+
+/* Nav */
+.sb-nav{flex:1;overflow-y:auto;padding:4px 0}
+
+/* Group labels fade in */
+.sb-group-label{
+  font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;
+  letter-spacing:.8px;padding:10px 14px 3px;white-space:nowrap;
+  opacity:0;transition:opacity .12s;overflow:hidden;height:30px;
+}
+.admin-sidebar:hover .sb-group-label{opacity:1}
+
+/* Items: icon always visible, label fades in */
 .sb-item{
-  display:flex;align-items:center;gap:10px;width:100%;
-  padding:9px 16px;border:none;background:none;text-align:left;
+  display:flex;align-items:center;width:100%;
+  padding:9px 0;border:none;background:none;text-align:left;
   font-family:'DM Sans',sans-serif;font-size:13.5px;color:var(--text-mid);
-  cursor:pointer;transition:background .15s,color .15s;position:relative;text-decoration:none;
+  cursor:pointer;transition:background .12s,color .12s;position:relative;
+  text-decoration:none;white-space:nowrap;
 }
 .sb-item:hover{background:#f4f9f6;color:var(--text-dark)}
 .sb-item.active{background:var(--green-light);color:var(--green-deep);font-weight:500}
 .sb-item.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--green-mid);border-radius:0 2px 2px 0}
-.sb-icon{font-size:16px;flex-shrink:0;width:20px;text-align:center}
-.sb-label{flex:1}
-.sb-badge{background:var(--error-bg);color:var(--error);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;min-width:20px;text-align:center}
+.sb-icon{
+  flex-shrink:0;width:var(--sidebar-icon-w);text-align:center;
+  font-size:18px;line-height:1;
+}
+.sb-label{flex:1;opacity:0;transition:opacity .12s .05s}
+.admin-sidebar:hover .sb-label{opacity:1}
+.sb-badge{background:var(--error-bg);color:var(--error);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;min-width:20px;text-align:center;flex-shrink:0}
+
+/* Sub-items: hidden when collapsed, slide down when expanded */
 .sb-sub{
   display:flex;align-items:center;width:100%;
-  padding:7px 16px 7px 46px;border:none;background:none;text-align:left;
+  border:none;background:none;text-align:left;
   font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-muted);
-  cursor:pointer;transition:background .15s,color .15s;text-decoration:none;
+  cursor:pointer;transition:background .12s,color .12s,max-height .18s,opacity .12s;
+  text-decoration:none;white-space:nowrap;
+  padding:0 14px 0 52px;max-height:0;overflow:hidden;opacity:0;
 }
 .sb-sub:hover{background:#f4f9f6;color:var(--text-dark)}
 .sb-sub.active{color:var(--green-mid);font-weight:500}
-.sb-footer{padding:12px 16px;border-top:1px solid var(--border)}
+.admin-sidebar:hover .sb-sub{max-height:36px;opacity:1;padding-top:7px;padding-bottom:7px}
+
+/* Footer */
+.sb-footer{padding:12px 0;border-top:1px solid var(--border);flex-shrink:0;overflow:hidden}
 .btn-copy-code{
-  width:100%;padding:8px;background:var(--green-light);color:var(--green-deep);
+  width:100%;padding:8px 14px;background:var(--green-light);color:var(--green-deep);
   border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;
-  font-weight:500;cursor:pointer;transition:background .2s;
+  font-weight:500;cursor:pointer;transition:background .2s;white-space:nowrap;
+  opacity:0;transition:opacity .12s;
 }
 .btn-copy-code:hover{background:#cde8d6}
+.admin-sidebar:hover .btn-copy-code{opacity:1}
 
-/* ── Content area (full width — sidebar is overlay) ── */
-.admin-content{flex:1;margin-left:0;padding:28px 24px 60px;min-height:calc(100vh - var(--nav-h));background:var(--cream)}
+/* ── Content — offset by icon rail width ── */
+.admin-content{margin-left:var(--sidebar-icon-w);padding:28px 24px 60px;min-height:calc(100vh - var(--nav-h));background:var(--cream)}
 .content-section{display:none}
 .content-section.active{display:block}
 
@@ -298,8 +325,7 @@ tr:hover td{background:#fafff8}
 </head>
 <body>
 
-<!-- Sidebar overlay — outside admin-shell so display:none on shell doesn't hide it -->
-<div class="admin-sb-backdrop" id="admin-sb-backdrop"></div>
+<!-- Sidebar icon rail — always visible, expands on hover -->
 <aside class="admin-sidebar" id="admin-sidebar">
     <div class="sb-head">
       <div class="sb-org-name" id="sb-org-name">Loading…</div>
@@ -887,31 +913,6 @@ function _bootMasterControl() {
     navigator.clipboard.writeText(tenant?.tenant_code||'')
       .then(()=>_toast('Organisation code copied!'))
       .catch(()=>_toast('Code: '+(tenant?.tenant_code||'')));
-  });
-
-  // ── Sidebar slide-over open / close ────────────────────────────────────────
-  const _sidebar   = document.getElementById('admin-sidebar');
-  const _sbBackdrop = document.getElementById('admin-sb-backdrop');
-
-  function _openSidebar()  { _sidebar.classList.add('open');  _sbBackdrop.classList.add('open');  }
-  function _closeSidebar() { _sidebar.classList.remove('open'); _sbBackdrop.classList.remove('open'); }
-
-  // Open on logo hover OR click (click works on touch + as fallback)
-  const _brand = document.querySelector('.ax-brand');
-  if (_brand) {
-    _brand.addEventListener('mouseenter', _openSidebar);
-    _brand.style.cursor = 'pointer';
-  }
-
-  // Auto-open sidebar on page load so users can discover it
-  setTimeout(_openSidebar, 400);
-
-  // Close on backdrop click
-  _sbBackdrop.addEventListener('click', _closeSidebar);
-
-  // Close after any sidebar item click (short delay so section switches first)
-  document.querySelectorAll('#admin-sidebar .sb-item, #admin-sidebar .sb-sub, #admin-sidebar a').forEach(el => {
-    el.addEventListener('click', () => setTimeout(_closeSidebar, 180));
   });
 
   // ── Sidebar navigation (section switching) ──────────────────────────────────

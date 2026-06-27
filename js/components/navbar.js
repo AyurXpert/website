@@ -204,46 +204,53 @@ function _isAdminHtml() {
 function _injectAdminSidebarOverlay(tenant, profile, role) {
   const currentPage = window.location.pathname.split('/').pop() || '';
 
-  // Styles
+  // Icon rail CSS — always visible at 52px, expands to 256px on hover
   const s = document.createElement('style');
   s.textContent = `
-  #axsb-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:499;
-    opacity:0;pointer-events:none;transition:opacity .2s}
-  #axsb-backdrop.open{opacity:1;pointer-events:all}
-  #axsb-panel{
-    position:fixed;top:60px;left:0;bottom:0;width:256px;
+  #axsb-rail{
+    position:fixed;top:60px;left:0;bottom:0;width:52px;
     background:#fff;border-right:1px solid #e5e7eb;
-    z-index:500;transform:translateX(-100%);
-    transition:transform .22s cubic-bezier(.4,0,.2,1);
-    display:flex;flex-direction:column;overflow-y:auto;
-    box-shadow:4px 0 24px rgba(0,0,0,.13);
+    z-index:200;overflow:hidden;
+    display:flex;flex-direction:column;
+    box-shadow:2px 0 8px rgba(0,0,0,.06);
+    transition:width .22s cubic-bezier(.4,0,.2,1),box-shadow .22s;
     font-family:'DM Sans',sans-serif;
   }
-  #axsb-panel.open{transform:translateX(0)}
-  .axsb-head{padding:14px 16px;border-bottom:1px solid #e5e7eb;background:#f9fafb;flex-shrink:0}
-  .axsb-org{font-size:13px;font-weight:700;color:#1a2e22;line-height:1.3}
-  .axsb-meta{font-size:11px;color:#9ca3af;margin-top:2px}
-  .axsb-nav-inner{flex:1;overflow-y:auto;padding:4px 0 16px}
-  .axsb-group{font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;
-    letter-spacing:.8px;padding:12px 16px 4px}
+  #axsb-rail:hover{width:256px;box-shadow:4px 0 24px rgba(0,0,0,.14)}
+  .axsb-head{padding:14px 0;border-bottom:1px solid #e5e7eb;flex-shrink:0;overflow:hidden}
+  .axsb-org{
+    padding:0 14px;font-size:13px;font-weight:700;color:#1a2e22;
+    white-space:nowrap;opacity:0;transition:opacity .12s;line-height:1.3;
+  }
+  .axsb-meta{
+    padding:0 14px;font-size:11px;color:#9ca3af;margin-top:2px;
+    white-space:nowrap;opacity:0;transition:opacity .12s;
+  }
+  #axsb-rail:hover .axsb-org,#axsb-rail:hover .axsb-meta{opacity:1}
+  .axsb-nav-inner{flex:1;overflow-y:auto;padding:4px 0}
+  .axsb-group{
+    font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;
+    letter-spacing:.8px;padding:10px 14px 3px;white-space:nowrap;
+    opacity:0;transition:opacity .12s;overflow:hidden;height:30px;
+  }
+  #axsb-rail:hover .axsb-group{opacity:1}
   .axsb-lnk{
-    display:flex;align-items:center;gap:10px;
-    padding:9px 16px;color:#374151;font-size:13.5px;font-weight:500;
+    display:flex;align-items:center;width:100%;
+    padding:9px 0;color:#374151;font-size:13.5px;font-weight:500;
     text-decoration:none;transition:background .12s,color .12s;
-    position:relative;
+    position:relative;white-space:nowrap;
   }
   .axsb-lnk:hover{background:#f0faf5;color:#1a4a2e}
   .axsb-lnk.active{background:#e8f5ee;color:#1a4a2e;font-weight:600}
   .axsb-lnk.active::before{content:'';position:absolute;left:0;top:0;bottom:0;
     width:3px;background:#2d7a4f;border-radius:0 2px 2px 0}
-  .axsb-ico{font-size:15px;width:20px;text-align:center;flex-shrink:0}
-  .axsb-hint{font-size:10px;color:#c9902a;background:#fff8e1;padding:8px 14px;
-    border-top:1px solid #e5e7eb;text-align:center;flex-shrink:0;line-height:1.5}
-  @media(max-width:480px){#axsb-panel{width:78vw;top:56px}}
+  .axsb-ico{flex-shrink:0;width:52px;text-align:center;font-size:18px;line-height:1}
+  .axsb-lbl{flex:1;opacity:0;transition:opacity .12s .05s}
+  #axsb-rail:hover .axsb-lbl{opacity:1}
+  @media(max-width:480px){#axsb-rail{top:56px}}
   `;
   document.head.appendChild(s);
 
-  // Sidebar items
   const ITEMS = [
     { group:'Operations' },
     { ico:'📊', label:'Statistics',       href:'admin.html#stats' },
@@ -261,52 +268,30 @@ function _injectAdminSidebarOverlay(tenant, profile, role) {
     { ico:'🛏️', label:'Dept & Beds',      href:'bed-admin.html' },
     { ico:'📋', label:'NCISM Compliance', href:'ncism-compliance.html' },
     { ico:'💵', label:'Finance',          href:'finance.html' },
-    { ico:'📊', label:'Insurance Claims', href:'insurance-claims.html' },
     { ico:'🏥', label:'Reception',        href:'reception.html' },
-    { ico:'📐', label:'Fee Management',   href:'fee-admin.html' },
+    { ico:'📐', label:'Fee Admin',        href:'fee-admin.html' },
     { ico:'🏠', label:'Dashboard',        href:'admin.html' },
   ];
 
   const navHTML = ITEMS.map(it => {
     if (it.group) return `<div class="axsb-group">${it.group}</div>`;
-    const isActive = it.href === currentPage || (it.href.includes('#') && it.href.split('#')[0] === currentPage);
+    const isActive = it.href === currentPage || (it.href.startsWith(currentPage) && currentPage !== '');
     return `<a class="axsb-lnk${isActive ? ' active' : ''}" href="${it.href}">
-      <span class="axsb-ico">${it.ico}</span>${it.label}
+      <span class="axsb-ico">${it.ico}</span><span class="axsb-lbl">${it.label}</span>
     </a>`;
   }).join('');
 
   const roleLabel = role === 'super_admin' ? 'Super Admin' : 'Dept. Admin';
 
-  // Create elements
-  const backdrop = document.createElement('div');
-  backdrop.id = 'axsb-backdrop';
-  document.body.appendChild(backdrop);
-
-  const panel = document.createElement('div');
-  panel.id = 'axsb-panel';
-  panel.innerHTML = `
+  const rail = document.createElement('aside');
+  rail.id = 'axsb-rail';
+  rail.innerHTML = `
     <div class="axsb-head">
       <div class="axsb-org">${tenant.name}</div>
       <div class="axsb-meta">${roleLabel}</div>
     </div>
-    <div class="axsb-nav-inner">${navHTML}</div>
-    <div class="axsb-hint">Hover over logo to open · Click outside to close</div>`;
-  document.body.appendChild(panel);
-
-  // Open / close helpers
-  function _open()  { panel.classList.add('open');  backdrop.classList.add('open');  }
-  function _close() { panel.classList.remove('open'); backdrop.classList.remove('open'); }
-
-  backdrop.addEventListener('click', _close);
-  panel.querySelectorAll('.axsb-lnk').forEach(a => a.addEventListener('click', () => setTimeout(_close, 150)));
-
-  // Trigger on brand hover or click
-  const brand = document.querySelector('.ax-brand');
-  if (brand) {
-    brand.addEventListener('mouseenter', _open);
-    brand.addEventListener('click', _open);
-    brand.style.cursor = 'pointer';
-  }
+    <nav class="axsb-nav-inner">${navHTML}</nav>`;
+  document.body.appendChild(rail);
 }
 
 // ── Watermark ─────────────────────────────────────────────────────────────────
