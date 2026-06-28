@@ -318,6 +318,11 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
   color:#bbb;padding:2px 4px;border-radius:3px;line-height:1;
 }
 .qs1-del-btn:hover{color:#c02020;background:#fff0f0}
+.qs1-focus-bar{
+  background:var(--green-deep);color:#fff;
+  padding:6px 14px;border-radius:7px;font-size:12px;font-weight:500;
+  margin-bottom:8px;display:none;letter-spacing:.2px;
+}
 .qs1-cap-tip{
   display:inline-flex;align-items:center;justify-content:center;
   width:15px;height:15px;border-radius:50%;flex-shrink:0;
@@ -931,6 +936,22 @@ const BED_TYPE_OPTIONS = [
 ];
 
 // ── Table 1 state (Physical Inventory) ────────────────────────────────────────
+// Rooms per unit: how many beds share one room / ward / bay
+const QS1_ROOM_UNIT = {
+  male_general:   { per: Infinity, label:'ward' },
+  female_general: { per: Infinity, label:'ward' },
+  general:        { per: Infinity, label:'ward' },
+  dormitory:      { per: Infinity, label:'hall' },
+  twin_sharing:   { per: 2,        label:'room' },
+  semi_private:   { per: 2,        label:'room' },
+  private:        { per: 1,        label:'room' },
+  deluxe:         { per: 1,        label:'room' },
+  icu:            { per: 1,        label:'bay'  },
+  day_care:       { per: 1,        label:'space'},
+  pk_treatment:   { per: 1,        label:'bay'  },
+  observation:    { per: 1,        label:'bay'  },
+};
+
 // Capacity tooltip text per bed type (shown on hover in Table 1)
 const QS1_CAPACITY = {
   male_general:   '4–8 patients per ward (male)',
@@ -1051,17 +1072,41 @@ function _qsNcismTotal() {
 
 window._qs1UpdateTotals = function() {
   _qs1Types.forEach(t => {
-    let s = 0;
-    _qs1Blocks.forEach(b => { s += parseInt(document.getElementById(`qs1-${t.key}-${b.id}`)?.value || 0) || 0; });
-    const el = document.getElementById(`qs1-rtot-${t.key}`);
-    if (el) { el.textContent = s || '—'; el.style.color = s > 0 ? 'var(--green-deep)' : '#ccc'; }
+    // Row bed total
+    let bedTotal = 0;
+    _qs1Blocks.forEach(b => { bedTotal += parseInt(document.getElementById(`qs1-${t.key}-${b.id}`)?.value || 0) || 0; });
+    const totEl = document.getElementById(`qs1-rtot-${t.key}`);
+    if (totEl) { totEl.textContent = bedTotal || '—'; totEl.style.color = bedTotal > 0 ? 'var(--green-deep)' : '#ccc'; }
+
+    // Rooms / wards calculation
+    const unit = QS1_ROOM_UNIT[t.key] || { per: 1, label:'room' };
+    let rooms = 0;
+    _qs1Blocks.forEach(b => {
+      const beds = parseInt(document.getElementById(`qs1-${t.key}-${b.id}`)?.value || 0) || 0;
+      if (!beds) return;
+      rooms += !isFinite(unit.per) ? 1 : Math.ceil(beds / unit.per);
+    });
+    const roomEl = document.getElementById(`qs1-rooms-${t.key}`);
+    if (roomEl) {
+      if (!rooms) {
+        roomEl.innerHTML = `<span style="color:#ccc;font-size:11px">—</span>`;
+      } else {
+        const lbl = rooms === 1 ? unit.label : unit.label + 's';
+        roomEl.innerHTML = `<span style="font-weight:700;color:var(--green-deep)">${rooms}</span>
+          <span style="font-size:10px;color:var(--text-muted);display:block">${lbl}</span>`;
+      }
+    }
   });
+
+  // Column totals
   _qs1Blocks.forEach(b => {
     let s = 0;
     _qs1Types.forEach(t => { s += parseInt(document.getElementById(`qs1-${t.key}-${b.id}`)?.value || 0) || 0; });
     const el = document.getElementById(`qs1-ctot-${b.id}`);
     if (el) { el.textContent = s || '—'; }
   });
+
+  // Grand total
   const gt  = _qs1GrandTotal();
   const req = _qsNcismTotal();
   const el  = document.getElementById('qs1-grand');
@@ -1100,6 +1145,19 @@ window._qs1RemoveType = function(key) {
   renderQs1Table();
 };
 
+window._qs1OnFocus = function(el, typeKey, blockId) {
+  const typeLabel  = document.getElementById(`qs1-lbl-${typeKey}`)?.value || typeKey;
+  const blockLabel = document.getElementById(`qs1-blk-${blockId}`)?.value || blockId;
+  const bar = document.getElementById('qs1-focus-bar');
+  if (bar) { bar.textContent = `✏ Entering: ${typeLabel} — ${blockLabel}`; bar.style.display = 'block'; }
+  el.placeholder = 'Enter count';
+};
+window._qs1OnBlur = function(el) {
+  const bar = document.getElementById('qs1-focus-bar');
+  if (bar) bar.style.display = 'none';
+  if (el) el.placeholder = '0';
+};
+
 function renderQs1Table() {
   const container = document.getElementById('qs1-table-container');
   if (!container) return;
@@ -1119,10 +1177,13 @@ function renderQs1Table() {
       return `<td style="text-align:center;padding:6px 8px">
         <input class="qs-cell-input" type="number" min="0" style="width:60px"
           id="qs1-${t.key}-${b.id}" value="${v}" placeholder="0"
+          onfocus="_qs1OnFocus(this,'${t.key}','${b.id}')"
+          onblur="_qs1OnBlur(this)"
           oninput="_qs1UpdateTotals()"/>
       </td>`;
     }).join('');
     const cap = QS1_CAPACITY[t.key] || '';
+    const unit = QS1_ROOM_UNIT[t.key] || { per: 1, label:'room' };
     return `<tr>
       <td style="padding:6px 8px">
         <div style="display:flex;align-items:center;gap:5px">
@@ -1133,6 +1194,9 @@ function renderQs1Table() {
       </td>
       ${cells}
       <td style="text-align:center;font-weight:700;padding:6px 8px;min-width:60px" id="qs1-rtot-${t.key}">—</td>
+      <td style="text-align:center;padding:6px 8px;min-width:80px" id="qs1-rooms-${t.key}">
+        <span style="color:#ccc;font-size:11px">—</span>
+      </td>
     </tr>`;
   }).join('');
 
@@ -1141,13 +1205,15 @@ function renderQs1Table() {
   ).join('');
 
   container.innerHTML = `
+    <div class="qs1-focus-bar" id="qs1-focus-bar" style="display:none"></div>
     <div style="overflow-x:auto">
     <table class="qs-table" style="font-size:12px">
       <thead>
         <tr>
           <th style="min-width:165px">Bed Type</th>
           ${blkHeaders}
-          <th style="text-align:center;min-width:60px">Total</th>
+          <th style="text-align:center;min-width:60px">Total<br>Beds</th>
+          <th style="text-align:center;min-width:80px">Rooms /<br>Wards</th>
         </tr>
       </thead>
       <tbody>${bodyRows}</tbody>
@@ -1156,6 +1222,7 @@ function renderQs1Table() {
           <td style="font-weight:600;font-size:11px;padding:6px 8px;color:var(--green-deep)">Beds per block →</td>
           ${colTotals}
           <td id="qs1-grand" style="padding:6px 8px;font-size:11px"></td>
+          <td style="padding:6px 8px"></td>
         </tr>
       </tfoot>
     </table>
