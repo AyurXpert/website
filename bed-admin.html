@@ -397,6 +397,7 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
           <label>Bed Number <span class="req">*</span></label>
           <input id="bed-num" type="text" placeholder="e.g. PK-01 (or type custom)"
             oninput="clearBedChipSelection()"/>
+          <div id="bed-num-note" class="field-note" style="display:none"></div>
         </div>
         <div class="field">
           <label>Floor</label>
@@ -1169,6 +1170,33 @@ window.openBedDrawer = function(id, preDeptId) {
   document.getElementById('bed-select-prompt').style.display = bed ? 'none' : '';
   document.getElementById('bed-select-grid').innerHTML = '';
   document.getElementById('bed-sel-badge').textContent = '';
+
+  // Lock bed number for NCISM reserved range beds; keep editable for extras
+  const numEl  = document.getElementById('bed-num');
+  const noteEl = document.getElementById('bed-num-note');
+  if (bed) {
+    const dept          = _depts.find(d => d.id === bed.department_id);
+    const ncismCode     = dept?.ncism_code;
+    const reservedStart = _deptReservedStart(ncismCode);
+    const required      = Math.floor((UG_BED_RATIOS[ncismCode] || 0) * _ugIntake);
+    const bedN          = parseInt(bed.bed_number.split('-').pop());
+    const isReserved    = required > 0 && !isNaN(bedN) &&
+                          bedN >= reservedStart && bedN < reservedStart + required;
+    numEl.readOnly          = isReserved;
+    numEl.style.background  = isReserved ? '#f5f5f5' : '';
+    numEl.style.color       = isReserved ? 'var(--text-mid)' : '';
+    noteEl.style.display    = '';
+    noteEl.innerHTML        = isReserved
+      ? '🔒 NCISM reserved bed — number cannot be changed'
+      : '✏️ Extra bed — you can renumber if needed';
+  } else {
+    numEl.readOnly         = false;
+    numEl.style.background = '';
+    numEl.style.color      = '';
+    noteEl.style.display   = 'none';
+    noteEl.textContent     = '';
+  }
+
   updateDeptInfo('bed');
   document.getElementById('btn-delete-bed').style.display = bed ? '' : 'none';
   document.getElementById('bed-overlay').classList.add('open');
@@ -1274,7 +1302,7 @@ window.saveBed = async function() {
   const payload = {
     tenant_id:       tenantId,
     department_id:   deptId,
-    bed_number:      num,
+    bed_number:      document.getElementById('bed-num').readOnly ? undefined : num,
     floor_number:    floor !== '' ? parseInt(floor) : null,
     ward_name:       ward || null,
     bed_type:        type,
