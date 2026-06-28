@@ -2410,114 +2410,95 @@ window.downloadBedMapPDF = function() {
   const occupancyPct = _beds.length ? Math.round(occupied / _beds.length * 100) : 0;
 
   // ── Assemble ───────────────────────────────────────────────────
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Bed Map — ${orgName}</title>
-<style>
-  @page { size: A4; margin: 14mm 12mm 12mm; }
-  *  { box-sizing: border-box; margin:0; padding:0; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #1a2e22; }
-
-  /* Cover */
-  .cover { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:260px; padding:20mm 0 16mm; text-align:center; }
-  .cover h1 { font-size:20pt; color:#1a4a2e; margin-bottom:6px; }
-  .cover .org { font-size:14pt; color:#2d7a4f; margin-bottom:18px; font-weight:600; }
-  .stats-row { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:14px; }
-  .stat { border:1.5px solid #2d7a4f; border-radius:8px; padding:8px 18px; min-width:80px; }
-  .stat .n { font-size:20pt; font-weight:700; color:#1a4a2e; line-height:1.1; }
-  .stat .l { font-size:7.5pt; color:#6b7280; margin-top:2px; }
-  .gen-meta { font-size:8.5pt; color:#6b7280; margin-bottom:14px; }
-  .legend  { font-size:8pt; color:#374151; border:1px solid #e5e7eb; border-radius:6px; padding:5px 12px; display:inline-block; }
-
-  /* Section titles */
-  .pg-break { page-break-before: always; padding-top:4mm; }
-  .sec-title { font-size:13pt; font-weight:700; color:#1a4a2e; border-bottom:2px solid #1a4a2e; padding-bottom:5px; margin-bottom:4px; }
-  .sec-sub   { font-size:8.5pt; color:#6b7280; margin-bottom:14px; }
-  h2 { font-size:10.5pt; color:#1a4a2e; border-left:4px solid #c9902a; padding-left:8px; margin:14px 0 4px; }
-  h3 { font-size:9.5pt; color:#2d7a4f; margin:10px 0 3px; }
-
-  /* Tables */
-  table { width:100%; border-collapse:collapse; margin-bottom:6px; font-size:9pt; }
-  th { background:#1a4a2e; color:#fff; padding:5px 8px; text-align:left; font-size:8.5pt; }
-  td { border:1px solid #e2e8f0; padding:3px 8px; vertical-align:top; }
-  .alt td { background:#f9fafb; }
-  .floor-row td { background:#d4edde; font-weight:700; font-size:9pt; }
-  .ward-row td  { background:#f0faf5; font-weight:600; font-size:8.5pt; }
-
-  /* Indents */
-  .indent0 { padding-left:8px !important; }
-  .indent1 { padding-left:22px !important; }
-  .indent2 { padding-left:38px !important; color:#4b5563; font-size:8.5pt; }
-
-  /* Misc */
-  .ctr  { text-align:center; }
-  .bold { font-weight:700; }
-  .muted { font-size:8pt; color:#6b7280; font-weight:400; }
-  .badge { font-size:8pt; font-weight:600; background:#e8f5ee; color:#1a4a2e; border-radius:20px; padding:1px 8px; vertical-align:middle; }
-  .chip { display:inline-block; border:1px solid #2d7a4f; border-radius:3px; padding:1px 5px; margin:1px; font-size:7.5pt; color:#1a4a2e; font-weight:600; }
-
-  /* TOC */
-  .toc { border:1px solid #e5e7eb; border-radius:8px; padding:10px 18px; display:inline-block; text-align:left; min-width:280px; margin-top:10px; }
-  .toc-title { font-size:9pt; font-weight:700; color:#1a4a2e; margin-bottom:6px; }
-  .toc div { font-size:8.5pt; color:#374151; padding:2px 0; }
-  .toc .pg  { float:right; color:#9ca3af; }
-
-  @media print { a { text-decoration:none; color:inherit; } }
-</style>
-</head>
-<body>
-
-<div class="cover">
-  <h1>🏥 IPD Bed Map</h1>
-  <div class="org">${orgName}</div>
-  <div class="stats-row">
-    <div class="stat"><div class="n">${_beds.length}</div><div class="l">Total Beds</div></div>
-    <div class="stat"><div class="n">${deptsWithBeds.length}</div><div class="l">Departments</div></div>
-    <div class="stat"><div class="n">${allFloors.length}</div><div class="l">Floor(s)</div></div>
-    <div class="stat"><div class="n">${vacant}</div><div class="l">Vacant 🟢</div></div>
-    <div class="stat"><div class="n">${occupied}</div><div class="l">Occupied 🔴</div></div>
-    <div class="stat"><div class="n">${occupancyPct}%</div><div class="l">Occupancy</div></div>
-  </div>
-  <div class="gen-meta">Generated: ${now}</div>
-  <div class="legend">🟢 Vacant &nbsp;&nbsp; 🔴 Occupied &nbsp;&nbsp; 🟡 Maintenance &nbsp;&nbsp; 🟠 Reserved</div>
-  <div class="toc">
-    <div class="toc-title">Contents</div>
-    <div>Section 1 — Department-wise Bed Allocation <span class="pg">pg 2</span></div>
-    <div>Section 2 — Floor-wise Bed Index <span class="pg">pg ${deptsWithBeds.length > 4 ? '3+' : '3'}</span></div>
-    <div>Section 3 — Complete Bed Number Index <span class="pg">last</span></div>
-  </div>
-</div>
-<div class="pg-break">
-  <div class="sec-title">Section 1 — Department-wise Bed Allocation</div>
-  <div class="sec-sub">Organised by department → floor → ward/room → bed type. Use this to see all beds allocated to each NCISM department.</div>
-  ${sec1}
-</div>
-<div class="pg-break">
-  <div class="sec-title">Section 2 — Floor-wise Bed Index</div>
-  <div class="sec-sub">Organised by floor → department. Use this to locate all beds on a specific floor.</div>
-  ${sec2}
-</div>
-<div class="pg-break">
-  <div class="sec-title">Section 3 — Complete Bed Number Index</div>
-  <div class="sec-sub">All ${_beds.length} beds sorted by bed number. Full location reference: bed → department → type → floor → ward.</div>
-  <table>
-    <thead>
-      <tr>
-        <th style="width:75px">Bed No.</th>
-        <th style="width:175px">Department</th>
-        <th style="width:130px">Bed Type</th>
-        <th style="width:55px">Floor</th>
-        <th>Ward / Room Name</th>
-        <th style="width:90px;text-align:center">Status</th>
-      </tr>
-    </thead>
-    <tbody>${idxRows}</tbody>
-  </table>
-</div>
-</body>
-</html>`;
+  // _x: safe close-tag builder — \x3C = < avoids literal </ in <script> source
+  const _x = (t) => '\x3C/' + t + '>';
+  const html = [
+    '<!DOCTYPE html><html lang="en"><head>',
+    '<meta charset="UTF-8">',
+    '<title>Bed Map — ' + orgName + _x('title'),
+    '<style>',
+    '  @page{size:A4;margin:14mm 12mm 12mm}',
+    '  *{box-sizing:border-box;margin:0;padding:0}',
+    '  body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#1a2e22}',
+    '  .cover{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:260px;padding:20mm 0 16mm;text-align:center}',
+    '  .cover h1{font-size:20pt;color:#1a4a2e;margin-bottom:6px}',
+    '  .cover .org{font-size:14pt;color:#2d7a4f;margin-bottom:18px;font-weight:600}',
+    '  .stats-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:14px}',
+    '  .stat{border:1.5px solid #2d7a4f;border-radius:8px;padding:8px 18px;min-width:80px}',
+    '  .stat .n{font-size:20pt;font-weight:700;color:#1a4a2e;line-height:1.1}',
+    '  .stat .l{font-size:7.5pt;color:#6b7280;margin-top:2px}',
+    '  .gen-meta{font-size:8.5pt;color:#6b7280;margin-bottom:14px}',
+    '  .legend{font-size:8pt;color:#374151;border:1px solid #e5e7eb;border-radius:6px;padding:5px 12px;display:inline-block}',
+    '  .pg-break{page-break-before:always;padding-top:4mm}',
+    '  .sec-title{font-size:13pt;font-weight:700;color:#1a4a2e;border-bottom:2px solid #1a4a2e;padding-bottom:5px;margin-bottom:4px}',
+    '  .sec-sub{font-size:8.5pt;color:#6b7280;margin-bottom:14px}',
+    '  h2{font-size:10.5pt;color:#1a4a2e;border-left:4px solid #c9902a;padding-left:8px;margin:14px 0 4px}',
+    '  h3{font-size:9.5pt;color:#2d7a4f;margin:10px 0 3px}',
+    '  table{width:100%;border-collapse:collapse;margin-bottom:6px;font-size:9pt}',
+    '  th{background:#1a4a2e;color:#fff;padding:5px 8px;text-align:left;font-size:8.5pt}',
+    '  td{border:1px solid #e2e8f0;padding:3px 8px;vertical-align:top}',
+    '  .alt td{background:#f9fafb}',
+    '  .floor-row td{background:#d4edde;font-weight:700;font-size:9pt}',
+    '  .ward-row td{background:#f0faf5;font-weight:600;font-size:8.5pt}',
+    '  .indent0{padding-left:8px !important}',
+    '  .indent1{padding-left:22px !important}',
+    '  .indent2{padding-left:38px !important;color:#4b5563;font-size:8.5pt}',
+    '  .ctr{text-align:center}.bold{font-weight:700}',
+    '  .muted{font-size:8pt;color:#6b7280;font-weight:400}',
+    '  .badge{font-size:8pt;font-weight:600;background:#e8f5ee;color:#1a4a2e;border-radius:20px;padding:1px 8px;vertical-align:middle}',
+    '  .chip{display:inline-block;border:1px solid #2d7a4f;border-radius:3px;padding:1px 5px;margin:1px;font-size:7.5pt;color:#1a4a2e;font-weight:600}',
+    '  .toc{border:1px solid #e5e7eb;border-radius:8px;padding:10px 18px;display:inline-block;text-align:left;min-width:280px;margin-top:10px}',
+    '  .toc-title{font-size:9pt;font-weight:700;color:#1a4a2e;margin-bottom:6px}',
+    '  .toc div{font-size:8.5pt;color:#374151;padding:2px 0}',
+    '  .toc .pg{float:right;color:#9ca3af}',
+    '  @media print{a{text-decoration:none;color:inherit}}',
+    _x('style'),
+    _x('head'),
+    '<body>',
+    '<div class="cover">',
+    '  <h1>🏥 IPD Bed Map' + _x('h1'),
+    '  <div class="org">' + orgName + _x('div'),
+    '  <div class="stats-row">',
+    '    <div class="stat"><div class="n">' + _beds.length + _x('div') + '<div class="l">Total Beds' + _x('div') + _x('div'),
+    '    <div class="stat"><div class="n">' + deptsWithBeds.length + _x('div') + '<div class="l">Departments' + _x('div') + _x('div'),
+    '    <div class="stat"><div class="n">' + allFloors.length + _x('div') + '<div class="l">Floor(s)' + _x('div') + _x('div'),
+    '    <div class="stat"><div class="n">' + vacant + _x('div') + '<div class="l">Vacant 🟢' + _x('div') + _x('div'),
+    '    <div class="stat"><div class="n">' + occupied + _x('div') + '<div class="l">Occupied 🔴' + _x('div') + _x('div'),
+    '    <div class="stat"><div class="n">' + occupancyPct + '%' + _x('div') + '<div class="l">Occupancy' + _x('div') + _x('div'),
+    '  ' + _x('div'),
+    '  <div class="gen-meta">Generated: ' + now + _x('div'),
+    '  <div class="legend">🟢 Vacant &nbsp;&nbsp; 🔴 Occupied &nbsp;&nbsp; 🟡 Maintenance &nbsp;&nbsp; 🟠 Reserved' + _x('div'),
+    '  <div class="toc"><div class="toc-title">Contents' + _x('div'),
+    '    <div>Section 1 — Department-wise Bed Allocation<span class="pg">pg 2' + _x('span') + _x('div'),
+    '    <div>Section 2 — Floor-wise Bed Index<span class="pg">pg ' + (deptsWithBeds.length > 4 ? '3+' : '3') + _x('span') + _x('div'),
+    '    <div>Section 3 — Complete Bed Number Index<span class="pg">last' + _x('span') + _x('div'),
+    '  ' + _x('div'),
+    _x('div'),
+    '<div class="pg-break">',
+    '  <div class="sec-title">Section 1 — Department-wise Bed Allocation' + _x('div'),
+    '  <div class="sec-sub">Organised by department → floor → ward/room → bed type.' + _x('div'),
+    sec1,
+    _x('div'),
+    '<div class="pg-break">',
+    '  <div class="sec-title">Section 2 — Floor-wise Bed Index' + _x('div'),
+    '  <div class="sec-sub">Organised by floor → department. Use this to locate all beds on a specific floor.' + _x('div'),
+    sec2,
+    _x('div'),
+    '<div class="pg-break">',
+    '  <div class="sec-title">Section 3 — Complete Bed Number Index' + _x('div'),
+    '  <div class="sec-sub">All ' + _beds.length + ' beds sorted by bed number. Full location reference.' + _x('div'),
+    '<table><thead><tr>',
+    '<th style="width:75px">Bed No.' + _x('th'),
+    '<th style="width:175px">Department' + _x('th'),
+    '<th style="width:130px">Bed Type' + _x('th'),
+    '<th style="width:55px">Floor' + _x('th'),
+    '<th>Ward / Room Name' + _x('th'),
+    '<th style="width:90px;text-align:center">Status' + _x('th'),
+    _x('tr') + _x('thead'),
+    '<tbody>' + idxRows + _x('tbody'),
+    _x('table') + _x('div'),
+    _x('body') + _x('html')
+  ].join('\n');
 
   const w = window.open('', '_blank');
   if (!w) { _alert('error', 'Pop-up blocked. Please allow pop-ups for this site and try again.'); return; }
