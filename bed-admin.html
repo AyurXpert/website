@@ -372,10 +372,31 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
     <div class="drawer-body">
       <input type="hidden" id="bed-id"/>
 
+      <div class="field">
+        <label>Department <span class="req">*</span></label>
+        <select id="bed-dept" onchange="updateDeptInfo('bed')">
+          <option value="">— Select department —</option>
+        </select>
+        <div class="dept-info-panel" id="bed-dept-info"></div>
+      </div>
+
+      <!-- Bed number selection grid (new beds only) -->
+      <div id="bed-select-field" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <label style="margin:0">Select bed number</label>
+          <span id="bed-sel-badge" style="font-size:11px;color:var(--green-mid);font-weight:600"></span>
+        </div>
+        <div class="bulk-select-grid" id="bed-select-grid"></div>
+      </div>
+      <div id="bed-select-prompt" style="font-size:12px;color:var(--text-muted);padding:6px 0 10px">
+        Select a department to see available bed numbers.
+      </div>
+
       <div class="field-row">
         <div class="field">
           <label>Bed Number <span class="req">*</span></label>
-          <input id="bed-num" type="text" placeholder="e.g. A-101"/>
+          <input id="bed-num" type="text" placeholder="e.g. PK-01 (or type custom)"
+            oninput="clearBedChipSelection()"/>
         </div>
         <div class="field">
           <label>Floor</label>
@@ -386,14 +407,6 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
       <div class="field">
         <label>Ward Name</label>
         <input id="bed-ward" type="text" placeholder="e.g. Male General Ward"/>
-      </div>
-
-      <div class="field">
-        <label>Department <span class="req">*</span></label>
-        <select id="bed-dept" onchange="updateDeptInfo('bed')">
-          <option value="">— Select department —</option>
-        </select>
-        <div class="dept-info-panel" id="bed-dept-info"></div>
       </div>
 
       <div class="field-row">
@@ -1129,9 +1142,12 @@ window.updateDeptInfo = function(prefix) {
   }
 
   if (prefix === 'bed') {
-    const numEl = document.getElementById('bed-num');
-    if (autoPrefix && !numEl.value) {
-      numEl.value = `${autoPrefix}-${String(nextStart).padStart(2, '0')}`;
+    const isEdit = !!document.getElementById('bed-id').value;
+    if (isEdit) {
+      document.getElementById('bed-select-field').style.display  = 'none';
+      document.getElementById('bed-select-prompt').style.display = 'none';
+    } else {
+      renderBedSelectGrid(dept, deptBeds, autoPrefix, required);
     }
   }
 };
@@ -1148,12 +1164,90 @@ window.openBedDrawer = function(id, preDeptId) {
   document.getElementById('bed-type').value   = bed?.bed_type || 'male_general';
   document.getElementById('bed-status').value = bed?.status || 'vacant';
   document.getElementById('bed-pg').checked   = bed?.is_pg_allocated || false;
+  // Reset chip grid for new beds; hide for edits
+  document.getElementById('bed-select-field').style.display  = 'none';
+  document.getElementById('bed-select-prompt').style.display = bed ? 'none' : '';
+  document.getElementById('bed-select-grid').innerHTML = '';
+  document.getElementById('bed-sel-badge').textContent = '';
   updateDeptInfo('bed');
   document.getElementById('btn-delete-bed').style.display = bed ? '' : 'none';
   document.getElementById('bed-overlay').classList.add('open');
 };
 window.closeBedDrawer = function() {
   document.getElementById('bed-overlay').classList.remove('open');
+};
+
+function renderBedSelectGrid(dept, deptBeds, prefix, required) {
+  const grid   = document.getElementById('bed-select-grid');
+  const field  = document.getElementById('bed-select-field');
+  const prompt = document.getElementById('bed-select-prompt');
+  const badge  = document.getElementById('bed-sel-badge');
+
+  if (!dept || !prefix) {
+    field.style.display  = 'none';
+    prompt.style.display = '';
+    return;
+  }
+  field.style.display  = '';
+  prompt.style.display = 'none';
+
+  const existingNums = new Set(
+    deptBeds.filter(b => b.bed_number.startsWith(prefix + '-'))
+            .map(b => parseInt(b.bed_number.split('-').pop()))
+            .filter(n => !isNaN(n))
+  );
+
+  const reservedStart = _deptReservedStart(dept.ncism_code);
+  const totalNcism    = Object.values(UG_BED_RATIOS).reduce((s, r) => s + Math.floor(_ugIntake * r), 0);
+
+  // Show reserved range + a few extra slots so user can also pick beyond quota
+  const extraUsed = [...existingNums].filter(n => n > totalNcism).length;
+  const showCount = required > 0 ? required + Math.min(3, extraUsed + 3) : 5;
+
+  const chips = [];
+  for (let i = 0; i < showCount; i++) {
+    const num    = (required > 0 ? reservedStart : 1) + i;
+    const label  = `${prefix}-${String(num).padStart(2, '0')}`;
+    const exists = existingNums.has(num);
+    chips.push({ num, label, exists });
+  }
+
+  grid.innerHTML = chips.map(c =>
+    `<span class="bsel-chip${c.exists ? ' exists' : ''}" data-label="${c.label}"
+      onclick="selectBedChip(this)">
+      ${c.label}
+      <span class="bsel-sub">${c.exists ? '✓ added' : ''}</span>
+    </span>`
+  ).join('');
+
+  badge.textContent = '';
+}
+
+window.selectBedChip = function(el) {
+  if (el.classList.contains('exists')) return;
+  const wasSelected = el.classList.contains('selected');
+  // Single-select: deselect all
+  document.querySelectorAll('#bed-select-grid .bsel-chip.selected').forEach(c => {
+    c.classList.remove('selected');
+    c.querySelector('.bsel-sub').textContent = '';
+  });
+  if (!wasSelected) {
+    el.classList.add('selected');
+    el.querySelector('.bsel-sub').textContent = '✓';
+    document.getElementById('bed-num').value = el.dataset.label;
+    document.getElementById('bed-sel-badge').textContent = el.dataset.label + ' selected';
+  } else {
+    document.getElementById('bed-num').value = '';
+    document.getElementById('bed-sel-badge').textContent = '';
+  }
+};
+
+window.clearBedChipSelection = function() {
+  document.querySelectorAll('#bed-select-grid .bsel-chip.selected').forEach(c => {
+    c.classList.remove('selected');
+    c.querySelector('.bsel-sub').textContent = '';
+  });
+  document.getElementById('bed-sel-badge').textContent = '';
 };
 
 window.saveBed = async function() {
