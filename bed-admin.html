@@ -156,7 +156,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .bed-num{font-size:16px;font-weight:700;color:var(--text-dark)}
 .bed-ward{font-size:9px;color:var(--text-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bed-type-badge{font-size:9px;font-weight:600;margin-top:4px;padding:1px 5px;border-radius:8px;display:inline-block}
-.bed-type-badge.general{background:#e8f5ee;color:#1a4a2e}
+.bed-type-badge.general,.bed-type-badge.male_general,.bed-type-badge.female_general{background:#e8f5ee;color:#1a4a2e}
 .bed-type-badge.icu{background:#fdecea;color:#8b1a1a}
 .bed-type-badge.private{background:#f3e8ff;color:#5a1a8b}
 .bed-type-badge.semi_private{background:#e8f0ff;color:#1a308b}
@@ -400,7 +400,9 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
         <div class="field">
           <label>Bed Type</label>
           <select id="bed-type">
-            <option value="general">General Ward</option>
+            <option value="male_general">Male General Ward</option>
+            <option value="female_general">Female General Ward</option>
+            <option value="general">General Ward (mixed / unspecified)</option>
             <option value="twin_sharing">Twin Sharing</option>
             <option value="semi_private">Shared Private</option>
             <option value="private">Private Room</option>
@@ -492,7 +494,9 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
         <div class="field">
           <label>Bed Type</label>
           <select id="bulk-type">
-            <option value="general">General Ward</option>
+            <option value="male_general">Male General Ward</option>
+            <option value="female_general">Female General Ward</option>
+            <option value="general">General Ward (mixed / unspecified)</option>
             <option value="twin_sharing">Twin Sharing</option>
             <option value="semi_private">Shared Private</option>
             <option value="private">Private Room</option>
@@ -688,7 +692,8 @@ const DEPT_PREFIX = {
 };
 
 const BED_TYPE_SHORT = {
-  general:'Gen', twin_sharing:'Twin', semi_private:'Semi-Pvt',
+  male_general:'M-Gen', female_general:'F-Gen', general:'Gen',
+  twin_sharing:'Twin', semi_private:'Semi-Pvt',
   private:'Pvt', deluxe:'Deluxe', dormitory:'Dorm',
   icu:'ICU', day_care:'Day Care', pk_treatment:'PK Tx', observation:'Obs',
 };
@@ -949,7 +954,7 @@ function renderBeds() {
 
   grid.innerHTML = beds.map(b => {
     const statusCls = b.status === 'pk_treatment' ? 'pk_treatment' : b.status;
-    const BED_LABELS = {general:'General Ward',twin_sharing:'Twin Sharing',semi_private:'Shared Private',private:'Private Room',deluxe:'Deluxe Private',dormitory:'Dormitory',icu:'ICU',day_care:'Day Care',pk_treatment:'PK Treatment',observation:'Observation'};
+    const BED_LABELS = {male_general:'Male General Ward',female_general:'Female General Ward',general:'General Ward',twin_sharing:'Twin Sharing',semi_private:'Shared Private',private:'Private Room',deluxe:'Deluxe Private',dormitory:'Dormitory',icu:'ICU',day_care:'Day Care',pk_treatment:'PK Treatment',observation:'Observation'};
     const typeLabel = BED_LABELS[b.bed_type] || b.bed_type.replace(/_/g,' ');
     return `<div class="bed-card ${statusCls}" onclick="openBedDrawer('${b.id}')" title="${_esc(b.bed_number)} — ${deptMap[b.department_id] || ''} — ${b.status}">
       ${b.is_pg_allocated ? '<div class="bed-pg-dot" title="PG-allocated"></div>' : ''}
@@ -1140,7 +1145,7 @@ window.openBedDrawer = function(id, preDeptId) {
   document.getElementById('bed-floor').value  = bed?.floor_number ?? '';
   document.getElementById('bed-ward').value   = bed?.ward_name || '';
   document.getElementById('bed-dept').value   = bed?.department_id || preDeptId || '';
-  document.getElementById('bed-type').value   = bed?.bed_type || 'general';
+  document.getElementById('bed-type').value   = bed?.bed_type || 'male_general';
   document.getElementById('bed-status').value = bed?.status || 'vacant';
   document.getElementById('bed-pg').checked   = bed?.is_pg_allocated || false;
   updateDeptInfo('bed');
@@ -1222,7 +1227,7 @@ window.openBulkDrawer = function() {
   document.getElementById('bulk-dept').value  = '';
   document.getElementById('bulk-floor').value = '';
   document.getElementById('bulk-ward').value  = '';
-  document.getElementById('bulk-type').value  = 'general';
+  document.getElementById('bulk-type').value  = 'male_general';
   document.getElementById('bulk-pg').checked  = false;
   const panel = document.getElementById('bulk-dept-info');
   panel.innerHTML = ''; panel.style.display = 'none';
