@@ -318,6 +318,12 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
   color:#bbb;padding:2px 4px;border-radius:3px;line-height:1;
 }
 .qs1-del-btn:hover{color:#c02020;background:#fff0f0}
+.qs1-floor-input{
+  height:28px;border:1.5px solid var(--border);border-radius:5px;
+  padding:0 4px;font-family:'DM Sans',sans-serif;font-size:11px;
+  color:var(--text-mid);width:46px;text-align:center;background:#fafafa;
+}
+.qs1-floor-input:focus{border-color:var(--gold);outline:none;background:#fff;}
 .qs1-focus-bar{
   background:var(--green-deep);color:#fff;
   padding:6px 14px;border-radius:7px;font-size:12px;font-weight:500;
@@ -1032,6 +1038,8 @@ function _qs1SaveValues() {
     _qs1Blocks.forEach(b => {
       const v = parseInt(document.getElementById(`qs1-${t.key}-${b.id}`)?.value) || 0;
       if (v) data[`${t.key}|${b.id}`] = v;
+      const flEl = document.getElementById(`qs1-fl-${t.key}-${b.id}`);
+      if (flEl && flEl.value !== '') data[`${t.key}|${b.id}|fl`] = parseInt(flEl.value) || 0;
     });
   });
   localStorage.setItem(_qs1Key('data'), JSON.stringify(data));
@@ -1145,17 +1153,22 @@ window._qs1RemoveType = function(key) {
   renderQs1Table();
 };
 
-window._qs1OnFocus = function(el, typeKey, blockId) {
+window._qs1OnFocus = function(el, typeKey, blockId, fieldType) {
   const typeLabel  = document.getElementById(`qs1-lbl-${typeKey}`)?.value || typeKey;
   const blockLabel = document.getElementById(`qs1-blk-${blockId}`)?.value || blockId;
   const bar = document.getElementById('qs1-focus-bar');
-  if (bar) { bar.textContent = `✏ Entering: ${typeLabel} — ${blockLabel}`; bar.style.display = 'block'; }
-  el.placeholder = 'Enter count';
+  if (bar) {
+    bar.textContent = fieldType === 'floor'
+      ? `📍 Floor for ${typeLabel} — ${blockLabel}  (0 = Ground, 1 = First, 2 = Second …)`
+      : `✏ Entering: ${typeLabel} beds — ${blockLabel}`;
+    bar.style.display = 'block';
+  }
+  el.placeholder = fieldType === 'floor' ? 'Floor #' : 'Count';
 };
-window._qs1OnBlur = function(el) {
+window._qs1OnBlur = function(el, fieldType) {
   const bar = document.getElementById('qs1-focus-bar');
   if (bar) bar.style.display = 'none';
-  if (el) el.placeholder = '0';
+  if (el) el.placeholder = fieldType === 'floor' ? 'GF' : '0';
 };
 
 function renderQs1Table() {
@@ -1163,27 +1176,39 @@ function renderQs1Table() {
   if (!container) return;
   const saved = _qs1LoadValues();
 
-  const blkHeaders = _qs1Blocks.map(b => `
-    <th style="min-width:120px;text-align:center">
+  // Two-row header: row 1 = block name spanning Beds+Floor cols; row 2 = sub-labels
+  const blkHeadersRow1 = _qs1Blocks.map(b => `
+    <th colspan="2" style="min-width:160px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.3)">
       <div style="display:flex;align-items:center;gap:4px;justify-content:center">
         <input class="qs1-hdr-input" id="qs1-blk-${b.id}" value="${b.label}" onblur="_qs1PersistMeta()" placeholder="Building / Floor"/>
-        ${_qs1Blocks.length > 1 ? `<button class="qs1-del-btn" onclick="_qs1RemoveBlock('${b.id}')" title="Remove block">✕</button>` : ''}
+        ${_qs1Blocks.length > 1 ? `<button class="qs1-del-btn" style="color:rgba(255,255,255,0.7)" onclick="_qs1RemoveBlock('${b.id}')" title="Remove block">✕</button>` : ''}
       </div>
     </th>`).join('');
 
+  const blkSubRow = _qs1Blocks.map(() =>
+    `<th style="text-align:center;font-size:10px;font-weight:500;padding:3px 6px;min-width:65px">Beds</th>
+     <th style="text-align:center;font-size:10px;font-weight:500;padding:3px 6px;min-width:60px;opacity:.85">Floor</th>`
+  ).join('');
+
   const bodyRows = _qs1Types.map(t => {
     const cells = _qs1Blocks.map(b => {
-      const v = saved[`${t.key}|${b.id}`] || '';
-      return `<td style="text-align:center;padding:6px 8px">
-        <input class="qs-cell-input" type="number" min="0" style="width:60px"
+      const v   = saved[`${t.key}|${b.id}`] || '';
+      const fl  = saved[`${t.key}|${b.id}|fl`] ?? '';
+      return `<td style="text-align:center;padding:5px 6px">
+        <input class="qs-cell-input" type="number" min="0" style="width:58px"
           id="qs1-${t.key}-${b.id}" value="${v}" placeholder="0"
-          onfocus="_qs1OnFocus(this,'${t.key}','${b.id}')"
-          onblur="_qs1OnBlur(this)"
+          onfocus="_qs1OnFocus(this,'${t.key}','${b.id}','beds')"
+          onblur="_qs1OnBlur(this,'beds')"
           oninput="_qs1UpdateTotals()"/>
+      </td>
+      <td style="text-align:center;padding:5px 4px">
+        <input class="qs1-floor-input" type="number" min="0" max="20"
+          id="qs1-fl-${t.key}-${b.id}" value="${fl}" placeholder="GF"
+          onfocus="_qs1OnFocus(this,'${t.key}','${b.id}','floor')"
+          onblur="_qs1OnBlur(this,'floor')"/>
       </td>`;
     }).join('');
     const cap = QS1_CAPACITY[t.key] || '';
-    const unit = QS1_ROOM_UNIT[t.key] || { per: 1, label:'room' };
     return `<tr>
       <td style="padding:6px 8px">
         <div style="display:flex;align-items:center;gap:5px">
@@ -1200,8 +1225,10 @@ function renderQs1Table() {
     </tr>`;
   }).join('');
 
+  // Footer: beds total + blank floor cell per block
   const colTotals = _qs1Blocks.map(b =>
-    `<td style="text-align:center;font-weight:700;color:var(--green-deep);padding:6px 8px" id="qs1-ctot-${b.id}">—</td>`
+    `<td style="text-align:center;font-weight:700;color:var(--green-deep);padding:6px 8px" id="qs1-ctot-${b.id}">—</td>
+     <td style="padding:6px 4px;font-size:10px;color:#aaa;text-align:center">floor</td>`
   ).join('');
 
   container.innerHTML = `
@@ -1210,11 +1237,12 @@ function renderQs1Table() {
     <table class="qs-table" style="font-size:12px">
       <thead>
         <tr>
-          <th style="min-width:165px">Bed Type</th>
-          ${blkHeaders}
-          <th style="text-align:center;min-width:60px">Total<br>Beds</th>
-          <th style="text-align:center;min-width:80px">Rooms /<br>Wards</th>
+          <th rowspan="2" style="min-width:165px;vertical-align:middle">Bed Type</th>
+          ${blkHeadersRow1}
+          <th rowspan="2" style="text-align:center;min-width:60px;vertical-align:middle">Total<br>Beds</th>
+          <th rowspan="2" style="text-align:center;min-width:80px;vertical-align:middle">Rooms /<br>Wards</th>
         </tr>
+        <tr style="background:var(--green-mid)">${blkSubRow}</tr>
       </thead>
       <tbody>${bodyRows}</tbody>
       <tfoot>
