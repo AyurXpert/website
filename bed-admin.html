@@ -647,6 +647,7 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
       <button class="btn btn-gold" id="btn-seed" onclick="seedNcismDepts()">&#9670; Seed NCISM Depts</button>
       <button class="btn btn-secondary" onclick="openBulkDrawer()">+ Bulk Add Beds</button>
       <button class="btn btn-primary" onclick="openDeptDrawer()">+ New Department</button>
+      <button class="btn btn-secondary" onclick="downloadBedMapPDF()" title="Download full bed map as PDF" style="gap:5px">&#128196; Bed Map PDF</button>
     </div>
   </div>
 
@@ -2290,6 +2291,247 @@ window.deleteAllDeptBeds = async function(deptId) {
   if (error) { _alert('error', 'Delete failed: ' + error.message); return; }
   _alert('success', `${deletable.length} bed(s) removed from "${dept?.name}".`);
   await loadAll();
+};
+
+// ── Bed Map PDF ────────────────────────────────────────────────────────────────
+window.downloadBedMapPDF = function() {
+  if (!_beds.length) { _alert('error', 'No beds configured yet. Add beds first.'); return; }
+
+  const BED_LABELS = {
+    male_general:'Male General Ward', female_general:'Female General Ward',
+    general:'General Ward (Mixed)', twin_sharing:'Twin Sharing',
+    semi_private:'Shared Private', private:'Private Room',
+    deluxe:'Deluxe Private', dormitory:'Dormitory',
+    icu:'ICU', day_care:'Day Care', pk_treatment:'PK Treatment Room',
+    observation:'Observation'
+  };
+  const typeLabel = k => BED_LABELS[k] || k.replace(/_/g,' ');
+  const flLabel   = fl => fl === 0 ? 'Ground Floor (GF)' : `Floor ${fl}`;
+  const flShort   = fl => fl === 0 ? 'GF' : `Fl.${fl}`;
+
+  const orgName = document.querySelector('.ax-name')?.textContent?.trim() || _tenant?.name || 'Hospital';
+  const now     = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+
+  const sortBeds = arr => [...arr].sort((a,b) =>
+    a.bed_number.localeCompare(b.bed_number, undefined, {numeric:true, sensitivity:'base'}));
+
+  const allFloors  = [...new Set(_beds.map(b => b.floor_number ?? 0))].sort((a,b) => a-b);
+  const deptsWithBeds = _depts.filter(d => _beds.some(b => b.department_id === d.id));
+
+  // ── Helper: chip list ──────────────────────────────────────────
+  const chips = beds => sortBeds(beds).map(b => {
+    const dot = b.status === 'occupied' ? ' 🔴' : b.status === 'maintenance' ? ' 🟡' : '';
+    return `<span class="chip">${b.bed_number}${dot}</span>`;
+  }).join('');
+
+  // ── Section 1: Department-wise ─────────────────────────────────
+  const sec1 = deptsWithBeds.map(d => {
+    const dBeds  = _beds.filter(b => b.department_id === d.id);
+    const floors = [...new Set(dBeds.map(b => b.floor_number ?? 0))].sort((a,b) => a-b);
+
+    const floorBlocks = floors.map(fl => {
+      const flBeds = dBeds.filter(b => (b.floor_number ?? 0) === fl);
+      const wards  = [...new Set(flBeds.map(b => b.ward_name || '(No ward name)'))].sort();
+
+      const wardRows = wards.map(w => {
+        const wBeds = flBeds.filter(b => (b.ward_name || '(No ward name)') === w);
+        const types = [...new Set(wBeds.map(b => b.bed_type))].sort();
+        const typeRows = types.map(t => {
+          const tBeds = wBeds.filter(b => b.bed_type === t);
+          return `<tr>
+            <td class="indent2">${typeLabel(t)}</td>
+            <td>${chips(tBeds)}</td>
+            <td class="ctr">${tBeds.length}</td>
+          </tr>`;
+        }).join('');
+        return `<tr class="ward-row">
+          <td class="indent1">📋 ${w}</td>
+          <td></td>
+          <td class="ctr bold">${wBeds.length}</td>
+        </tr>${typeRows}`;
+      }).join('');
+
+      return `<tr class="floor-row">
+        <td class="indent0">🏢 ${flLabel(fl)}</td>
+        <td></td>
+        <td class="ctr bold">${flBeds.length}</td>
+      </tr>${wardRows}`;
+    }).join('');
+
+    return `<h2>${d.name}${d.ncism_code ? ` <span class="muted">(${d.ncism_code})</span>` : ''} <span class="badge">${dBeds.length} beds</span></h2>
+    <table>
+      <thead><tr><th style="width:200px">Floor → Ward → Type</th><th>Bed Numbers</th><th class="ctr" style="width:55px">Count</th></tr></thead>
+      <tbody>${floorBlocks}</tbody>
+    </table>`;
+  }).join('');
+
+  // ── Section 2: Floor-wise ──────────────────────────────────────
+  const sec2 = allFloors.map(fl => {
+    const flBeds = _beds.filter(b => (b.floor_number ?? 0) === fl);
+    const deptIds = [...new Set(flBeds.map(b => b.department_id))];
+
+    const rows = deptIds.map(dId => {
+      const dept  = _depts.find(d => d.id === dId);
+      const dBeds = flBeds.filter(b => b.department_id === dId);
+      const wards = [...new Set(dBeds.map(b => b.ward_name).filter(Boolean))].join(', ') || '—';
+      return `<tr>
+        <td>${dept?.name || '—'}</td>
+        <td>${wards}</td>
+        <td>${chips(dBeds)}</td>
+        <td class="ctr">${dBeds.length}</td>
+      </tr>`;
+    }).join('');
+
+    return `<h3>🏢 ${flLabel(fl)} — <span class="muted">${flBeds.length} beds</span></h3>
+    <table>
+      <thead><tr><th style="width:180px">Department</th><th style="width:140px">Ward / Room</th><th>Bed Numbers</th><th class="ctr" style="width:55px">Count</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }).join('');
+
+  // ── Section 3: Complete bed index ─────────────────────────────
+  const idxRows = sortBeds(_beds).map((b, i) => {
+    const dept   = _depts.find(d => d.id === b.department_id);
+    const sIcon  = b.status === 'occupied' ? '🔴' : b.status === 'maintenance' ? '🟡' : b.status === 'reserved' ? '🟠' : '🟢';
+    return `<tr class="${i%2===0?'':'alt'}">
+      <td class="bold">${b.bed_number}</td>
+      <td>${dept?.name || '—'}</td>
+      <td>${typeLabel(b.bed_type)}</td>
+      <td>${flShort(b.floor_number ?? 0)}</td>
+      <td>${b.ward_name || '—'}</td>
+      <td class="ctr">${sIcon} ${b.status}</td>
+    </tr>`;
+  }).join('');
+
+  // ── Summary stats ──────────────────────────────────────────────
+  const vacant      = _beds.filter(b => b.status === 'vacant').length;
+  const occupied    = _beds.filter(b => b.status === 'occupied').length;
+  const maintenance = _beds.filter(b => b.status === 'maintenance').length;
+  const occupancyPct = _beds.length ? Math.round(occupied / _beds.length * 100) : 0;
+
+  // ── Assemble ───────────────────────────────────────────────────
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bed Map — ${orgName}</title>
+<style>
+  @page { size: A4; margin: 14mm 12mm 12mm; }
+  *  { box-sizing: border-box; margin:0; padding:0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #1a2e22; }
+
+  /* Cover */
+  .cover { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:260px; padding:20mm 0 16mm; text-align:center; }
+  .cover h1 { font-size:20pt; color:#1a4a2e; margin-bottom:6px; }
+  .cover .org { font-size:14pt; color:#2d7a4f; margin-bottom:18px; font-weight:600; }
+  .stats-row { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:14px; }
+  .stat { border:1.5px solid #2d7a4f; border-radius:8px; padding:8px 18px; min-width:80px; }
+  .stat .n { font-size:20pt; font-weight:700; color:#1a4a2e; line-height:1.1; }
+  .stat .l { font-size:7.5pt; color:#6b7280; margin-top:2px; }
+  .gen-meta { font-size:8.5pt; color:#6b7280; margin-bottom:14px; }
+  .legend  { font-size:8pt; color:#374151; border:1px solid #e5e7eb; border-radius:6px; padding:5px 12px; display:inline-block; }
+
+  /* Section titles */
+  .pg-break { page-break-before: always; padding-top:4mm; }
+  .sec-title { font-size:13pt; font-weight:700; color:#1a4a2e; border-bottom:2px solid #1a4a2e; padding-bottom:5px; margin-bottom:4px; }
+  .sec-sub   { font-size:8.5pt; color:#6b7280; margin-bottom:14px; }
+  h2 { font-size:10.5pt; color:#1a4a2e; border-left:4px solid #c9902a; padding-left:8px; margin:14px 0 4px; }
+  h3 { font-size:9.5pt; color:#2d7a4f; margin:10px 0 3px; }
+
+  /* Tables */
+  table { width:100%; border-collapse:collapse; margin-bottom:6px; font-size:9pt; }
+  th { background:#1a4a2e; color:#fff; padding:5px 8px; text-align:left; font-size:8.5pt; }
+  td { border:1px solid #e2e8f0; padding:3px 8px; vertical-align:top; }
+  .alt td { background:#f9fafb; }
+  .floor-row td { background:#d4edde; font-weight:700; font-size:9pt; }
+  .ward-row td  { background:#f0faf5; font-weight:600; font-size:8.5pt; }
+
+  /* Indents */
+  .indent0 { padding-left:8px !important; }
+  .indent1 { padding-left:22px !important; }
+  .indent2 { padding-left:38px !important; color:#4b5563; font-size:8.5pt; }
+
+  /* Misc */
+  .ctr  { text-align:center; }
+  .bold { font-weight:700; }
+  .muted { font-size:8pt; color:#6b7280; font-weight:400; }
+  .badge { font-size:8pt; font-weight:600; background:#e8f5ee; color:#1a4a2e; border-radius:20px; padding:1px 8px; vertical-align:middle; }
+  .chip { display:inline-block; border:1px solid #2d7a4f; border-radius:3px; padding:1px 5px; margin:1px; font-size:7.5pt; color:#1a4a2e; font-weight:600; }
+
+  /* TOC */
+  .toc { border:1px solid #e5e7eb; border-radius:8px; padding:10px 18px; display:inline-block; text-align:left; min-width:280px; margin-top:10px; }
+  .toc-title { font-size:9pt; font-weight:700; color:#1a4a2e; margin-bottom:6px; }
+  .toc div { font-size:8.5pt; color:#374151; padding:2px 0; }
+  .toc .pg  { float:right; color:#9ca3af; }
+
+  @media print { a { text-decoration:none; color:inherit; } }
+</style>
+</head>
+<body>
+
+<!-- ══ COVER ══════════════════════════════════════════════════════ -->
+<div class="cover">
+  <h1>🏥 IPD Bed Map</h1>
+  <div class="org">${orgName}</div>
+  <div class="stats-row">
+    <div class="stat"><div class="n">${_beds.length}</div><div class="l">Total Beds</div></div>
+    <div class="stat"><div class="n">${deptsWithBeds.length}</div><div class="l">Departments</div></div>
+    <div class="stat"><div class="n">${allFloors.length}</div><div class="l">Floor(s)</div></div>
+    <div class="stat"><div class="n">${vacant}</div><div class="l">Vacant 🟢</div></div>
+    <div class="stat"><div class="n">${occupied}</div><div class="l">Occupied 🔴</div></div>
+    <div class="stat"><div class="n">${occupancyPct}%</div><div class="l">Occupancy</div></div>
+  </div>
+  <div class="gen-meta">Generated: ${now}</div>
+  <div class="legend">🟢 Vacant &nbsp;&nbsp; 🔴 Occupied &nbsp;&nbsp; 🟡 Maintenance &nbsp;&nbsp; 🟠 Reserved</div>
+  <div class="toc">
+    <div class="toc-title">Contents</div>
+    <div>Section 1 — Department-wise Bed Allocation <span class="pg">pg 2</span></div>
+    <div>Section 2 — Floor-wise Bed Index <span class="pg">pg ${deptsWithBeds.length > 4 ? '3+' : '3'}</span></div>
+    <div>Section 3 — Complete Bed Number Index <span class="pg">last</span></div>
+  </div>
+</div>
+
+<!-- ══ SECTION 1: DEPT-WISE ═══════════════════════════════════════ -->
+<div class="pg-break">
+  <div class="sec-title">Section 1 — Department-wise Bed Allocation</div>
+  <div class="sec-sub">Organised by department → floor → ward/room → bed type. Use this to see all beds allocated to each NCISM department.</div>
+  ${sec1}
+</div>
+
+<!-- ══ SECTION 2: FLOOR-WISE ══════════════════════════════════════ -->
+<div class="pg-break">
+  <div class="sec-title">Section 2 — Floor-wise Bed Index</div>
+  <div class="sec-sub">Organised by floor → department. Use this to locate all beds on a specific floor.</div>
+  ${sec2}
+</div>
+
+<!-- ══ SECTION 3: COMPLETE INDEX ══════════════════════════════════ -->
+<div class="pg-break">
+  <div class="sec-title">Section 3 — Complete Bed Number Index</div>
+  <div class="sec-sub">All ${_beds.length} beds sorted by bed number. Full location reference: bed → department → type → floor → ward.</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:75px">Bed No.</th>
+        <th style="width:175px">Department</th>
+        <th style="width:130px">Bed Type</th>
+        <th style="width:55px">Floor</th>
+        <th>Ward / Room Name</th>
+        <th style="width:90px;text-align:center">Status</th>
+      </tr>
+    </thead>
+    <tbody>${idxRows}</tbody>
+  </table>
+</div>
+
+<script>window.onload = function(){ window.print(); }<\/script>
+</body>
+</html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) { _alert('error', 'Pop-up blocked. Please allow pop-ups for this site and try again.'); return; }
+  w.document.write(html);
+  w.document.close();
 };
 
 // ── Bulk add ──────────────────────────────────────────────────────────────────
