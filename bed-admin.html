@@ -318,6 +318,22 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
   color:#bbb;padding:2px 4px;border-radius:3px;line-height:1;
 }
 .qs1-del-btn:hover{color:#c02020;background:#fff0f0}
+.qs1-cap-tip{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:15px;height:15px;border-radius:50%;flex-shrink:0;
+  background:var(--green-light);color:var(--green-deep);
+  font-size:9px;font-weight:700;font-style:italic;cursor:default;
+  position:relative;
+}
+.qs1-cap-tip::after{
+  content:attr(data-cap);
+  position:absolute;left:20px;top:50%;transform:translateY(-50%);
+  background:#1a4a2e;color:#fff;border-radius:6px;
+  padding:5px 10px;font-size:11px;font-weight:400;white-space:nowrap;
+  opacity:0;pointer-events:none;transition:opacity .15s;z-index:20;
+  box-shadow:0 2px 8px rgba(0,0,0,.2);
+}
+.qs1-cap-tip:hover::after{opacity:1}
 
 /* ── Bulk add selection grid ── */
 .bulk-select-grid{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px;max-height:220px;overflow-y:auto;padding:2px}
@@ -915,13 +931,35 @@ const BED_TYPE_OPTIONS = [
 ];
 
 // ── Table 1 state (Physical Inventory) ────────────────────────────────────────
+// Capacity tooltip text per bed type (shown on hover in Table 1)
+const QS1_CAPACITY = {
+  male_general:   '4–8 patients per ward (male)',
+  female_general: '4–8 patients per ward (female)',
+  general:        '4–8 patients per ward (mixed)',
+  twin_sharing:   '2 patients per room',
+  semi_private:   '2 patients per room (shared)',
+  private:        '1 patient per room',
+  deluxe:         '1 patient per suite',
+  dormitory:      '6–12 patients per hall',
+  icu:            '1 patient per bay (critical care)',
+  day_care:       '1 patient (day use, no overnight)',
+  pk_treatment:   '1 patient per treatment bay',
+  observation:    '1–2 patients per observation bay',
+};
+
 const QS1_DEFAULT_TYPES = [
   { key:'male_general',   label:'Male General Ward' },
   { key:'female_general', label:'Female General Ward' },
   { key:'general',        label:'General Ward (Mixed)' },
-  { key:'pk_treatment',   label:'PK Treatment Room' },
-  { key:'private',        label:'Private Room' },
   { key:'twin_sharing',   label:'Twin Sharing' },
+  { key:'semi_private',   label:'Shared Private' },
+  { key:'private',        label:'Private Room' },
+  { key:'deluxe',         label:'Deluxe Private' },
+  { key:'dormitory',      label:'Dormitory' },
+  { key:'icu',            label:'ICU' },
+  { key:'day_care',       label:'Day Care' },
+  { key:'pk_treatment',   label:'PK Treatment Room' },
+  { key:'observation',    label:'Observation' },
 ];
 
 let _qs1Types  = null; // [{key, label}]
@@ -930,9 +968,17 @@ let _qsActiveCols = []; // type keys active in current Table 2
 
 function _qs1Key(s) { return `qs1-${tenantId}-${s}`; }
 
+const QS1_TYPES_VERSION = 'v2'; // bump when default types change to reset stale localStorage
+
 function _qs1Init() {
   if (_qs1Types) return;
   try {
+    // Reset if saved version is older than current defaults
+    const ver = localStorage.getItem(_qs1Key('ver'));
+    if (ver !== QS1_TYPES_VERSION) {
+      localStorage.removeItem(_qs1Key('types'));
+      localStorage.setItem(_qs1Key('ver'), QS1_TYPES_VERSION);
+    }
     const t = localStorage.getItem(_qs1Key('types'));
     _qs1Types  = t ? JSON.parse(t) : JSON.parse(JSON.stringify(QS1_DEFAULT_TYPES));
     const b = localStorage.getItem(_qs1Key('blocks'));
@@ -1076,10 +1122,12 @@ function renderQs1Table() {
           oninput="_qs1UpdateTotals()"/>
       </td>`;
     }).join('');
+    const cap = QS1_CAPACITY[t.key] || '';
     return `<tr>
       <td style="padding:6px 8px">
-        <div style="display:flex;align-items:center;gap:6px">
+        <div style="display:flex;align-items:center;gap:5px">
           <input class="qs1-type-input" id="qs1-lbl-${t.key}" value="${t.label}" onblur="_qs1PersistMeta()" placeholder="Bed type name"/>
+          ${cap ? `<span class="qs1-cap-tip" data-cap="${cap}">i</span>` : ''}
           <button class="qs1-del-btn" onclick="_qs1RemoveType('${t.key}')" title="Remove type">✕</button>
         </div>
       </td>
