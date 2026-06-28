@@ -1447,7 +1447,7 @@ function renderQs2Table(pool) {
     const done        = configured >= r.required;
 
     if (noDept) return `<tr class="qs-no-dept">
-      <td style="font-size:12px">${ncismLabel}</td>
+      <td style="font-size:12px;position:sticky;left:0;background:#fff;z-index:1">${ncismLabel}</td>
       <td style="text-align:center">${r.ug}${r.pg > 0 ? `+${r.pg}` : ''}</td>
       <td colspan="${activeCols.length + 5}" style="font-size:11px;color:#bbb">Department not seeded — click "Seed NCISM Depts" first</td>
     </tr>`;
@@ -1458,7 +1458,7 @@ function renderQs2Table(pool) {
         return `<td style="text-align:center;color:var(--text-muted);font-size:12px">${cnt || '—'}</td>`;
       }).join('');
       return `<tr class="qs-done">
-        <td><span style="font-size:12px;font-weight:600">${ncismLabel}</span><span class="qs-dept-badge">${r.prefix}</span></td>
+        <td style="position:sticky;left:0;background:#f0faf5;z-index:1"><span style="font-size:12px;font-weight:600">${ncismLabel}</span><span class="qs-dept-badge">${r.prefix}</span></td>
         <td style="text-align:center;font-weight:600">${r.required}${r.pg > 0 ? `<span style="font-size:9px;color:var(--gold);display:block">+${r.pg} PG</span>` : ''}</td>
         ${typeSummary}
         <td colspan="4"><span class="qs-done-badge">✓ ${configured} configured</span></td>
@@ -1495,7 +1495,7 @@ function renderQs2Table(pool) {
       : '<span style="color:#ccc;font-size:10px">—</span>';
 
     return `<tr data-code="${r.code}" data-dept-id="${r.dept.id}" data-required="${r.required}" data-prefix="${r.prefix}">
-      <td>
+      <td style="position:sticky;left:0;background:#fff;z-index:1">
         <span style="font-size:12px;font-weight:600">${ncismLabel}</span>
         <span class="qs-dept-badge">${r.prefix}</span>
         ${r.pg > 0 ? `<span style="display:block;font-size:9px;color:var(--gold);margin-top:1px">+${r.pg} PG beds</span>` : ''}
@@ -1526,7 +1526,7 @@ function renderQs2Table(pool) {
     <table class="qs-table">
       <thead>
         <tr>
-          <th rowspan="2" style="min-width:160px;vertical-align:middle">Department</th>
+          <th rowspan="2" style="min-width:160px;vertical-align:middle;position:sticky;left:0;z-index:3;background:var(--green-deep)">Department</th>
           <th rowspan="2" style="text-align:center;min-width:65px;vertical-align:middle">NCISM<br>Required</th>
           ${colHeadersRow1}
           <th rowspan="2" style="text-align:center;min-width:72px;vertical-align:middle">Total<br>(of needed)</th>
