@@ -1324,6 +1324,61 @@ window._qsUpdateTotal = function(code, needed) {
   else                  { el.textContent = `${sum} (${diff})`; el.className = 'qs-total under'; }
 };
 
+// Returns floor number (int) that has the most beds for the given dist from Table 1
+function _qs1DominantFloor(dist) {
+  const w = new Map();
+  Object.entries(dist).forEach(([k, cnt]) => {
+    if (!cnt) return;
+    const total = _qs1Blocks.reduce((s, b) => s + (parseInt(document.getElementById(`qs1-${k}-${b.id}`)?.value) || 0), 0);
+    if (!total) return;
+    _qs1Blocks.forEach(b => {
+      const beds = parseInt(document.getElementById(`qs1-${k}-${b.id}`)?.value) || 0;
+      if (!beds) return;
+      const flv = document.getElementById(`qs1-fl-${k}-${b.id}`)?.value;
+      const fl  = (flv !== undefined && flv !== '') ? parseInt(flv) || 0 : 0;
+      w.set(fl, (w.get(fl) || 0) + (beds / total) * cnt);
+    });
+  });
+  if (!w.size) return 0;
+  return [...w.entries()].sort((a, b) => b[1] - a[1])[0][0];
+}
+
+// Returns [{full, flStr, total}] — which blocks (with floors) contribute to a dept's allocation
+function _qs1Sources(dist) {
+  return _qs1Blocks.map((b, idx) => {
+    let total = 0, domFl = 0, maxBeds = 0;
+    Object.entries(dist).forEach(([k, cnt]) => {
+      if (!cnt) return;
+      const beds = parseInt(document.getElementById(`qs1-${k}-${b.id}`)?.value) || 0;
+      if (!beds) return;
+      total += beds;
+      const flv = document.getElementById(`qs1-fl-${k}-${b.id}`)?.value;
+      const fl  = (flv !== undefined && flv !== '') ? parseInt(flv) || 0 : 0;
+      if (beds > maxBeds) { maxBeds = beds; domFl = fl; }
+    });
+    if (!total) return null;
+    const full = document.getElementById(`qs1-blk-${b.id}`)?.value || `Block ${idx+1}`;
+    return { full, flStr: domFl === 0 ? 'GF' : `Fl.${domFl}`, total };
+  }).filter(Boolean);
+}
+
+// Returns {typeKey: [{short, beds, flStr}]} — per-type per-block hints for Table 2 column sub-headers
+function _qs1TypeBlockHints(activeCols, pool) {
+  const hints = {};
+  activeCols.forEach(t => {
+    hints[t.key] = _qs1Blocks.map((b, idx) => {
+      const beds = parseInt(document.getElementById(`qs1-${t.key}-${b.id}`)?.value) || 0;
+      if (!beds) return null;
+      const flv   = document.getElementById(`qs1-fl-${t.key}-${b.id}`)?.value;
+      const fl    = (flv !== undefined && flv !== '') ? parseInt(flv) || 0 : 0;
+      const full  = document.getElementById(`qs1-blk-${b.id}`)?.value || `Block ${idx+1}`;
+      const short = full.split(/\s+/).filter(Boolean).pop() || `B${idx+1}`;
+      return { short, beds, flStr: fl === 0 ? 'GF' : `Fl.${fl}` };
+    }).filter(Boolean);
+  });
+  return hints;
+}
+
 function renderQs2Table(pool) {
   const container = document.getElementById('qs2-table-container');
   if (!container) return;
@@ -1353,10 +1408,18 @@ function renderQs2Table(pool) {
   }, 0);
 
   const poolIsEmpty = Object.keys(pool).length === 0;
+  const typeHints   = poolIsEmpty ? {} : _qs1TypeBlockHints(activeCols, pool);
 
-  const colHeaders = activeCols.map(t =>
-    `<th style="text-align:center;min-width:60px;font-size:10px;line-height:1.3">${t.label.replace(' ', '\n')}</th>`
+  // Two-row header: row 1 = main headers (rowspan 2 for non-type cols), row 2 = per-block hints per type
+  const colHeadersRow1 = activeCols.map(t =>
+    `<th style="text-align:center;min-width:60px;font-size:10px;line-height:1.3;border-bottom:1px solid rgba(255,255,255,0.3)">${t.label.replace(' ','\n')}</th>`
   ).join('');
+
+  const colSubHdr = activeCols.map(t => {
+    const hints = typeHints[t.key] || [];
+    const txt   = hints.map(h => `${h.short}(${h.flStr}):${h.beds}`).join(' · ');
+    return `<th style="text-align:center;font-size:9px;font-weight:400;padding:2px 4px;opacity:.85;white-space:nowrap">${txt || '—'}</th>`;
+  }).join('');
 
   const tableRows = ncismRows.map(r => {
     const deptBeds   = r.dept ? _beds.filter(b => b.department_id === r.dept.id) : [];
@@ -1368,7 +1431,7 @@ function renderQs2Table(pool) {
     if (noDept) return `<tr class="qs-no-dept">
       <td style="font-size:12px">${ncismLabel}</td>
       <td style="text-align:center">${r.ug}${r.pg > 0 ? `+${r.pg}` : ''}</td>
-      <td colspan="${activeCols.length + 4}" style="font-size:11px;color:#bbb">Department not seeded — click "Seed NCISM Depts" first</td>
+      <td colspan="${activeCols.length + 5}" style="font-size:11px;color:#bbb">Department not seeded — click "Seed NCISM Depts" first</td>
     </tr>`;
 
     if (done) {
@@ -1380,14 +1443,15 @@ function renderQs2Table(pool) {
         <td><span style="font-size:12px;font-weight:600">${ncismLabel}</span><span class="qs-dept-badge">${r.prefix}</span></td>
         <td style="text-align:center;font-weight:600">${r.required}${r.pg > 0 ? `<span style="font-size:9px;color:var(--gold);display:block">+${r.pg} PG</span>` : ''}</td>
         ${typeSummary}
-        <td colspan="3"><span class="qs-done-badge">✓ ${configured} configured</span></td>
+        <td colspan="4"><span class="qs-done-badge">✓ ${configured} configured</span></td>
         <td><button class="btn btn-secondary btn-sm" onclick="switchTab('dept')" style="font-size:11px">Manage →</button></td>
       </tr>`;
     }
 
-    const remaining = r.required - configured;
-    // Compute distribution from pool
-    const dist = poolIsEmpty ? {} : _distributeProportionally(remaining, pool);
+    const remaining  = r.required - configured;
+    const dist       = poolIsEmpty ? {} : _distributeProportionally(remaining, pool);
+    const autoFloor  = poolIsEmpty ? 0 : _qs1DominantFloor(dist);
+    const sources    = poolIsEmpty ? [] : _qs1Sources(dist);
 
     const typeCells = activeCols.map(t => {
       const defVal = dist[t.key] || 0;
@@ -1401,6 +1465,15 @@ function renderQs2Table(pool) {
     const initTotal  = Object.values(dist).reduce((s, v) => s + v, 0);
     const totalClass = initTotal === remaining ? 'ok' : (poolIsEmpty ? 'under' : 'under');
     const totalText  = poolIsEmpty ? '—' : (initTotal === remaining ? `${initTotal} ✓` : `${initTotal} (${initTotal - remaining})`);
+
+    const sourcesHtml = sources.length
+      ? sources.map(s =>
+          `<div style="font-size:10px;line-height:1.6">${s.full}
+           <span style="color:var(--gold);font-weight:600">&thinsp;·&thinsp;${s.flStr}</span></div>`
+        ).join('')
+      : '<span style="color:#ccc;font-size:10px">—</span>';
+
+    const flLabel = autoFloor === 0 ? 'GF' : `Fl.${autoFloor}`;
 
     return `<tr data-code="${r.code}" data-dept-id="${r.dept.id}" data-required="${r.required}" data-prefix="${r.prefix}">
       <td>
@@ -1419,7 +1492,11 @@ function renderQs2Table(pool) {
         <div style="font-size:9px;color:var(--text-muted);margin-top:2px">of ${remaining} needed</div>
       </td>
       <td style="min-width:110px"><input class="qs-input wide" type="text" id="qs-ward-${r.code}" placeholder="Ward name (optional)"/></td>
-      <td><input class="qs-input" type="number" id="qs-floor-${r.code}" value="0" min="0" max="20" style="width:50px"/></td>
+      <td style="min-width:140px;vertical-align:top;padding:6px 8px">${sourcesHtml}</td>
+      <td>
+        <input class="qs-input" type="number" id="qs-floor-${r.code}" value="${autoFloor}" min="0" max="20" style="width:50px"/>
+        <div style="font-size:9px;color:var(--gold);margin-top:2px;font-weight:500">${flLabel}</div>
+      </td>
       <td><button class="btn btn-primary btn-sm" onclick="quickSetupCreateRow('${r.code}')" id="qs-btn-${r.code}">Create</button></td>
     </tr>`;
   }).join('');
@@ -1429,14 +1506,16 @@ function renderQs2Table(pool) {
     <table class="qs-table">
       <thead>
         <tr>
-          <th style="min-width:160px">Department</th>
-          <th style="text-align:center;min-width:65px">NCISM<br>Required</th>
-          ${colHeaders}
-          <th style="text-align:center;min-width:72px">Total<br>(of needed)</th>
-          <th style="min-width:115px">Ward Name<br><span style="font-weight:400;opacity:.7">(optional)</span></th>
-          <th>Floor</th>
-          <th></th>
+          <th rowspan="2" style="min-width:160px;vertical-align:middle">Department</th>
+          <th rowspan="2" style="text-align:center;min-width:65px;vertical-align:middle">NCISM<br>Required</th>
+          ${colHeadersRow1}
+          <th rowspan="2" style="text-align:center;min-width:72px;vertical-align:middle">Total<br>(of needed)</th>
+          <th rowspan="2" style="min-width:115px;vertical-align:middle">Ward Name<br><span style="font-weight:400;opacity:.7">(optional)</span></th>
+          <th rowspan="2" style="min-width:140px;vertical-align:middle">Building Sources<br><span style="font-weight:400;opacity:.7;font-size:9px">(from Table 1)</span></th>
+          <th rowspan="2" style="vertical-align:middle">Floor<br><span style="font-weight:400;opacity:.7;font-size:9px">(auto-filled)</span></th>
+          <th rowspan="2"></th>
         </tr>
+        <tr style="background:var(--green-mid)">${colSubHdr}</tr>
       </thead>
       <tbody>${tableRows}</tbody>
     </table>
