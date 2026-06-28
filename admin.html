@@ -160,7 +160,9 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 .cl-label{font-weight:500;color:var(--text-dark)}
 .cl-detail{font-size:11px;color:var(--text-muted);margin-top:1px}
 .cl-action{font-size:11px;font-weight:600;color:#1a4a2e;text-decoration:none;white-space:nowrap;padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:#f8faf9}
-.cl-action:hover{background:var(--green-light)}
+.ncism-cl-item.cl-linked{cursor:pointer;text-decoration:none;color:inherit}
+.ncism-cl-item.cl-linked:hover{background:#f0f8f4}
+.ncism-cl-item.cl-linked:hover .cl-action{background:var(--green-light)}
 .cl-status-pass{color:#2d7a4f}
 .cl-status-warn{color:#c9902a}
 .cl-status-fail{color:#c0392b}
@@ -3893,15 +3895,20 @@ async function _renderNcismChecklist(ugIntake, orgType) {
   const groupsHTML = groups.map(g => `
     <div class="ncism-cl-group">
       <div class="ncism-cl-group-title">${g.title}</div>
-      ${g.items.map(i => `
-        <div class="ncism-cl-item">
+      ${g.items.map(i => {
+        const tag = i.actionHref ? `a href="${i.actionHref}"` : 'div';
+        const end = i.actionHref ? 'a' : 'div';
+        const badge = i.pass ? 'Manage' : i.actionLabel;
+        return `
+        <${tag} class="ncism-cl-item${i.actionHref ? ' cl-linked' : ''}">
           <span class="cl-icon">${i.icon}</span>
           <span class="cl-text">
             <span class="cl-label ${i.cls}">${i.label}</span>
             <span class="cl-detail">${i.detail}</span>
           </span>
-          ${!i.pass && i.actionHref ? `<a class="cl-action" href="${i.actionHref}">${i.actionLabel} →</a>` : ''}
-        </div>`).join('')}
+          ${i.actionHref ? `<span class="cl-action">${badge} →</span>` : ''}
+        </${end}>`;
+      }).join('')}
     </div>`).join('');
 
   el.innerHTML = `${intakeWarning}
