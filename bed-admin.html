@@ -256,6 +256,22 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
 }
 .beds-required-note.show{display:block}
 
+/* ── Quick Setup tab ── */
+.qs-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+.qs-table th{background:var(--green-deep);color:#fff;padding:8px 10px;text-align:left;font-size:11px;font-weight:600;white-space:nowrap}
+.qs-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+.qs-table tr.qs-done{background:#f0f8f4}
+.qs-table tr.qs-no-dept{background:#fafafa;color:#aaa}
+.qs-table tr:hover:not(.qs-done):not(.qs-no-dept){background:#fdf9f0}
+.qs-input{height:32px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-family:'DM Sans',sans-serif;font-size:13px;width:70px}
+.qs-input.wide{width:130px}
+.qs-select{height:32px;border:1.5px solid var(--border);border-radius:6px;padding:0 6px;font-family:'DM Sans',sans-serif;font-size:12px}
+.qs-done-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--green-mid);background:#e8f5ee;padding:3px 8px;border-radius:12px}
+.qs-dept-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#fff;background:var(--green-mid);padding:2px 6px;border-radius:10px;margin-left:4px}
+.qs-footer{display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:12px;border-top:2px solid var(--border)}
+.qs-progress{font-size:13px;color:var(--text-mid)}
+.qs-progress strong{color:var(--green-deep)}
+
 /* ── Bulk add selection grid ── */
 .bulk-select-grid{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px;max-height:220px;overflow-y:auto;padding:2px}
 .bsel-chip{
@@ -587,6 +603,7 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
   <div class="tab-bar">
     <div class="tab active" data-tab="dept" onclick="switchTab('dept')">Departments</div>
     <div class="tab" data-tab="beds" onclick="switchTab('beds')">Bed Matrix</div>
+    <div class="tab" data-tab="quick" onclick="switchTab('quick')">⚡ Quick Setup</div>
   </div>
 
   <!-- Departments tab -->
@@ -618,7 +635,9 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
         </select>
         <select id="filter-type" onchange="renderBeds()">
           <option value="">All Types</option>
-          <option value="general">General Ward</option>
+          <option value="male_general">Male General Ward</option>
+          <option value="female_general">Female General Ward</option>
+          <option value="general">General Ward (mixed)</option>
           <option value="twin_sharing">Twin Sharing</option>
           <option value="semi_private">Shared Private</option>
           <option value="private">Private Room</option>
@@ -642,6 +661,18 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
     <div class="bed-grid" id="bed-grid">
       <div class="bed-empty">Loading beds…</div>
     </div>
+  </div>
+
+  <!-- Quick Setup tab -->
+  <div class="tab-panel" id="tab-quick">
+    <div class="section-header">
+      <span class="section-title">NCISM Bed Quick Setup</span>
+    </div>
+    <p style="font-size:13px;color:var(--text-mid);margin:0 0 4px">
+      Enter your existing bed numbers for each NCISM department. The system creates all beds in one click.
+      Ward name is optional — applies to all beds in that department row.
+    </p>
+    <div id="quick-setup-wrap"></div>
   </div>
 
 </div><!-- end page-wrap -->
@@ -824,7 +855,225 @@ async function loadAll() {
   renderDepts();
   renderBeds();
   checkNcismCompliance();
+  renderQuickSetup();
 }
+
+// ── Quick Setup tab ───────────────────────────────────────────────────────────
+const BED_TYPE_OPTIONS = [
+  ['male_general','Male General Ward'],['female_general','Female General Ward'],
+  ['general','General Ward (mixed)'],['twin_sharing','Twin Sharing'],
+  ['semi_private','Shared Private'],['private','Private Room'],
+  ['deluxe','Deluxe Private'],['dormitory','Dormitory'],['icu','ICU'],
+  ['day_care','Day Care'],['pk_treatment','PK Treatment'],['observation','Observation'],
+];
+
+function renderQuickSetup() {
+  const wrap = document.getElementById('quick-setup-wrap');
+  if (!wrap) return;
+
+  if (!_ugIntake || _ugIntake < 1) {
+    wrap.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px">
+      UG intake not set for this organisation. Quick Setup is only for NCISM teaching hospitals.<br>
+      <span style="font-size:12px">Set <strong>ug_intake</strong> in the tenants table to enable.</span>
+    </div>`;
+    return;
+  }
+
+  // Build ordered list of NCISM depts with ratios
+  const ncismRows = Object.entries(UG_BED_RATIOS)
+    .map(([code, ratio]) => ({
+      code, ratio,
+      required: Math.floor(_ugIntake * ratio),
+      dept: _depts.find(d => d.ncism_code === code),
+      prefix: DEPT_PREFIX[code] || '',
+      reservedStart: _deptReservedStart(code),
+    }))
+    .filter(r => r.required > 0)
+    .sort((a, b) => b.required - a.required ||
+      NCISM_BED_PRIORITY.indexOf(a.code) - NCISM_BED_PRIORITY.indexOf(b.code));
+
+  const totalRequired = ncismRows.reduce((s, r) => s + r.required, 0);
+  const totalConfigured = ncismRows.reduce((s, r) => {
+    const deptBeds = r.dept ? _beds.filter(b => b.department_id === r.dept.id) : [];
+    return s + Math.min(deptBeds.length, r.required);
+  }, 0);
+  const allDone = totalConfigured >= totalRequired;
+
+  const typeOpts = BED_TYPE_OPTIONS.map(([v, l]) =>
+    `<option value="${v}"${v === 'male_general' ? ' selected' : ''}>${l}</option>`).join('');
+
+  const rows = ncismRows.map(r => {
+    const deptBeds = r.dept ? _beds.filter(b => b.department_id === r.dept.id) : [];
+    const configured = deptBeds.length;
+    const done = configured >= r.required;
+    const noDept = !r.dept;
+    const ncismLabel = NCISM_CODES.find(n => n.code === r.code)?.label || r.code;
+    const defaultEnd = r.reservedStart + r.required - 1;
+
+    if (noDept) {
+      return `<tr class="qs-no-dept">
+        <td><span style="font-size:12px">${ncismLabel}</span></td>
+        <td style="text-align:center">${r.required}</td>
+        <td colspan="5" style="font-size:11px;color:#bbb">Department not seeded — click "Seed NCISM Depts" first</td>
+        <td></td>
+      </tr>`;
+    }
+
+    if (done) {
+      return `<tr class="qs-done">
+        <td>
+          <span style="font-size:12px;font-weight:600">${ncismLabel}</span>
+          <span class="qs-dept-badge">${r.code}</span>
+        </td>
+        <td style="text-align:center">${r.required}</td>
+        <td colspan="5"><span class="qs-done-badge">✓ ${configured} beds configured</span></td>
+        <td><button class="btn btn-secondary btn-sm" onclick="switchTab('dept')" style="font-size:11px">Manage →</button></td>
+      </tr>`;
+    }
+
+    const remaining = r.required - configured;
+    const autoStart = configured > 0
+      ? Math.max(...deptBeds.map(b => parseInt(b.bed_number.split('-').pop())).filter(n=>!isNaN(n))) + 1
+      : r.reservedStart;
+    const autoEnd = autoStart + remaining - 1;
+
+    return `<tr data-code="${r.code}" data-dept-id="${r.dept.id}">
+      <td>
+        <span style="font-size:12px;font-weight:600">${ncismLabel}</span>
+        <span class="qs-dept-badge">${r.code}</span>
+        ${configured > 0 ? `<div style="font-size:10px;color:var(--text-muted);margin-top:2px">${configured}/${r.required} done</div>` : ''}
+      </td>
+      <td style="text-align:center;font-weight:600">${r.required}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="font-size:11px;color:var(--text-muted);font-weight:600">${r.prefix}-</span>
+          <input class="qs-input" type="number" min="1" id="qs-start-${r.code}" value="${autoStart}" placeholder="1"/>
+        </div>
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="font-size:11px;color:var(--text-muted);font-weight:600">${r.prefix}-</span>
+          <input class="qs-input" type="number" min="1" id="qs-end-${r.code}" value="${autoEnd}" placeholder="${autoEnd}"/>
+        </div>
+      </td>
+      <td><input class="qs-input wide" type="text" id="qs-ward-${r.code}" placeholder="Optional ward name"/></td>
+      <td>
+        <select class="qs-select" id="qs-type-${r.code}">
+          ${typeOpts}
+        </select>
+      </td>
+      <td>
+        <input type="number" class="qs-input" id="qs-floor-${r.code}" value="0" min="0" max="20" style="width:50px"/>
+      </td>
+      <td>
+        <button class="btn btn-primary btn-sm" onclick="quickSetupCreateRow('${r.code}')" id="qs-btn-${r.code}">
+          Add ${remaining} beds
+        </button>
+      </td>
+    </tr>`;
+  });
+
+  wrap.innerHTML = `
+    <table class="qs-table">
+      <thead>
+        <tr>
+          <th>Department</th>
+          <th style="text-align:center">Required</th>
+          <th>From (number)</th>
+          <th>To (number)</th>
+          <th>Ward Name <span style="font-weight:400;opacity:.7">(optional)</span></th>
+          <th>Bed Type</th>
+          <th>Floor</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>${rows.join('')}</tbody>
+    </table>
+    <div class="qs-footer">
+      <div class="qs-progress">
+        NCISM Beds: <strong>${totalConfigured}</strong> / ${totalRequired} configured
+        ${allDone ? '<span style="color:var(--green-mid);font-weight:600;margin-left:8px">✓ All NCISM beds met</span>' : ''}
+      </div>
+      ${allDone ? '' : `<button class="btn btn-primary" onclick="quickSetupCreateAll()" id="qs-btn-all">
+        ⚡ Create All Remaining Beds
+      </button>`}
+    </div>`;
+}
+
+window.quickSetupCreateRow = async function(code, silent) {
+  const deptId  = document.querySelector(`tr[data-code="${code}"]`)?.dataset.deptId;
+  const start   = parseInt(document.getElementById(`qs-start-${code}`)?.value);
+  const end     = parseInt(document.getElementById(`qs-end-${code}`)?.value);
+  const ward    = document.getElementById(`qs-ward-${code}`)?.value.trim() || null;
+  const type    = document.getElementById(`qs-type-${code}`)?.value || 'male_general';
+  const floor   = parseInt(document.getElementById(`qs-floor-${code}`)?.value) || 0;
+  const prefix  = DEPT_PREFIX[code] || code;
+
+  if (!deptId || isNaN(start) || isNaN(end) || end < start) {
+    if (!silent) _alert('error', 'Invalid bed range for ' + code);
+    return { error: true };
+  }
+
+  // Skip numbers that already exist for this dept
+  const existingNums = new Set(
+    _beds.filter(b => b.department_id === deptId && b.bed_number.startsWith(prefix + '-'))
+         .map(b => parseInt(b.bed_number.split('-').pop()))
+         .filter(n => !isNaN(n))
+  );
+
+  const rows = [];
+  for (let n = start; n <= end; n++) {
+    if (existingNums.has(n)) continue;
+    rows.push({
+      tenant_id:     tenantId,
+      department_id: deptId,
+      bed_number:    `${prefix}-${String(n).padStart(2, '0')}`,
+      floor_number:  floor,
+      ward_name:     ward,
+      bed_type:      type,
+      status:        'vacant',
+      is_pg_allocated: false,
+    });
+  }
+
+  if (!rows.length) {
+    if (!silent) _alert('info', `All beds in ${prefix} range already exist.`);
+    return { skipped: true };
+  }
+
+  const btn = document.getElementById(`qs-btn-${code}`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
+
+  const { error } = await supabase.from('beds').insert(rows);
+  if (error) {
+    if (!silent) _alert('error', `Failed to add ${prefix} beds: ` + error.message);
+    if (btn) { btn.disabled = false; btn.textContent = `Retry`; }
+    return { error };
+  }
+  return { added: rows.length };
+};
+
+window.quickSetupCreateAll = async function() {
+  const btn = document.getElementById('qs-btn-all');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
+
+  const rows = document.querySelectorAll('#quick-setup-wrap tr[data-code]');
+  let totalAdded = 0, errors = 0;
+
+  for (const row of rows) {
+    const code = row.dataset.code;
+    const result = await quickSetupCreateRow(code, true);
+    if (result.added) totalAdded += result.added;
+    if (result.error) errors++;
+  }
+
+  await loadAll();
+  if (errors) {
+    _alert('error', `${totalAdded} beds added, ${errors} department(s) had errors.`);
+  } else {
+    _alert('success', `${totalAdded} bed${totalAdded !== 1 ? 's' : ''} created successfully.`);
+  }
+};
 
 // Refresh dept-info-panel in whichever bed/bulk drawer is currently open
 function _refreshOpenDrawerDeptInfo() {
