@@ -2177,8 +2177,8 @@ window.deleteAllDeptBeds = async function(deptId) {
     return;
   }
 
-  let msg = `Delete all ${deletable.length} bed(s) from "${dept?.name}"? This cannot be undone.`;
-  if (occupied.length) msg += `\n\n${occupied.length} occupied bed(s) will be kept.`;
+  let msg = `Remove all ${deletable.length} bed(s) from "${dept?.name}"?\n\nThe department itself is kept — only its bed records are removed. This cannot be undone.`;
+  if (occupied.length) msg += `\n\n${occupied.length} occupied bed(s) will NOT be deleted.`;
   if (!confirm(msg)) return;
 
   const { error } = await supabase
