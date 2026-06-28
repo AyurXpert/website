@@ -258,7 +258,7 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
 
 /* ── Quick Setup tab ── */
 .qs-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
-.qs-table th{background:var(--green-deep);color:#fff;padding:7px 8px;text-align:left;font-size:10px;font-weight:600}
+.qs-table th{background:var(--green-deep);color:#fff;padding:7px 8px;text-align:left;font-size:10px;font-weight:600;white-space:pre-line}
 .qs-table td{padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
 .qs-table tr.qs-done{background:#f0f8f4}
 .qs-table tr.qs-no-dept{background:#fafafa;color:#aaa}
@@ -277,9 +277,47 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
 .qs-total.under{background:#fdf0f0;color:#c02020}
 .qs-done-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--green-mid);background:#e8f5ee;padding:3px 8px;border-radius:12px}
 .qs-dept-badge{display:inline-flex;align-items:center;font-size:9px;font-weight:700;color:#fff;background:var(--green-mid);padding:2px 5px;border-radius:8px;margin-left:4px;letter-spacing:.3px}
-.qs-footer{display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:12px;border-top:2px solid var(--border)}
+.qs-footer{display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:12px;border-top:2px solid var(--border);flex-wrap:wrap;gap:10px}
 .qs-progress{font-size:13px;color:var(--text-mid)}
 .qs-progress strong{color:var(--green-deep)}
+/* Step headers */
+.qs-step-header{
+  display:flex;align-items:center;gap:10px;
+  font-weight:600;font-size:14px;color:var(--green-deep);
+  margin:20px 0 10px;padding-bottom:8px;border-bottom:2px solid var(--green-light);
+}
+.qs-step-header:first-child{margin-top:0}
+.qs-step-num{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:24px;height:24px;border-radius:50%;
+  background:var(--green-deep);color:#fff;font-size:12px;font-weight:700;flex-shrink:0;
+}
+.qs-step-desc{font-size:11px;font-weight:400;color:var(--text-muted)}
+/* Distribute bar */
+.qs-distribute-bar{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  background:linear-gradient(135deg,var(--green-light),#faf8f3);
+  border:1.5px solid var(--border);border-radius:10px;
+  padding:14px 18px;margin:12px 0;flex-wrap:wrap;
+}
+/* Table 1 inputs */
+.qs1-hdr-input{
+  height:28px;border:1.5px solid rgba(255,255,255,.3);border-radius:5px;
+  padding:0 6px;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:600;
+  color:#fff;background:rgba(255,255,255,.15);width:100px;
+}
+.qs1-hdr-input:focus{outline:none;background:rgba(255,255,255,.25)}
+.qs1-type-input{
+  height:28px;border:1.5px solid var(--border);border-radius:5px;
+  padding:0 8px;font-family:'DM Sans',sans-serif;font-size:12px;
+  color:var(--text-dark);width:140px;
+}
+.qs1-type-input:focus{border-color:var(--green-mid);outline:none}
+.qs1-del-btn{
+  background:none;border:none;cursor:pointer;font-size:11px;
+  color:#bbb;padding:2px 4px;border-radius:3px;line-height:1;
+}
+.qs1-del-btn:hover{color:#c02020;background:#fff0f0}
 
 /* ── Bulk add selection grid ── */
 .bulk-select-grid{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px;max-height:220px;overflow-y:auto;padding:2px}
@@ -876,50 +914,445 @@ const BED_TYPE_OPTIONS = [
   ['day_care','Day Care'],['pk_treatment','PK Treatment'],['observation','Observation'],
 ];
 
-// Columns shown in the matrix (most relevant for NCISM wards)
-const QS_COLS = [
-  { key:'male_general',   short:'Male\nGen',    label:'Male General' },
-  { key:'female_general', short:'Female\nGen',  label:'Female General' },
-  { key:'general',        short:'General\nMixed',label:'General (Mixed)' },
-  { key:'pk_treatment',   short:'PK\nTreatment',label:'PK Treatment' },
-  { key:'private',        short:'Private\nRoom', label:'Private Room' },
-  { key:'twin_sharing',   short:'Twin\nSharing', label:'Twin Sharing' },
+// ── Table 1 state (Physical Inventory) ────────────────────────────────────────
+const QS1_DEFAULT_TYPES = [
+  { key:'male_general',   label:'Male General Ward' },
+  { key:'female_general', label:'Female General Ward' },
+  { key:'general',        label:'General Ward (Mixed)' },
+  { key:'pk_treatment',   label:'PK Treatment Room' },
+  { key:'private',        label:'Private Room' },
+  { key:'twin_sharing',   label:'Twin Sharing' },
 ];
 
-// Default proportional distribution per dept
-function _qsDefaults(code, required) {
-  const h = Math.ceil(required / 2), l = required - h;
-  switch (code) {
-    case 'STRI_ROGA_PRASUTI':  return { female_general: required };
-    case 'KAUMARABHRITYA':     return { general: required };
-    case 'PANCHAKARMA': {
-      const pk = Math.round(required * 0.6);
-      const m  = Math.ceil((required - pk) / 2);
-      return { pk_treatment: pk, male_general: m, female_general: required - pk - m };
-    }
-    default: return { male_general: h, female_general: l };
+let _qs1Types  = null; // [{key, label}]
+let _qs1Blocks = null; // [{id, label}]
+let _qsActiveCols = []; // type keys active in current Table 2
+
+function _qs1Key(s) { return `qs1-${tenantId}-${s}`; }
+
+function _qs1Init() {
+  if (_qs1Types) return;
+  try {
+    const t = localStorage.getItem(_qs1Key('types'));
+    _qs1Types  = t ? JSON.parse(t) : JSON.parse(JSON.stringify(QS1_DEFAULT_TYPES));
+    const b = localStorage.getItem(_qs1Key('blocks'));
+    _qs1Blocks = b ? JSON.parse(b) : [
+      { id:'blk0', label:'Main Building F1' },
+      { id:'blk1', label:'Main Building F2' },
+    ];
+  } catch(_) {
+    _qs1Types  = JSON.parse(JSON.stringify(QS1_DEFAULT_TYPES));
+    _qs1Blocks = [{ id:'blk0', label:'Main Building F1' }, { id:'blk1', label:'Main Building F2' }];
   }
 }
 
-window._qsUpdateTotal = function(code, required) {
+function _qs1PersistMeta() {
+  _qs1Types.forEach(t => {
+    const el = document.getElementById(`qs1-lbl-${t.key}`);
+    if (el) t.label = el.value || t.label;
+  });
+  _qs1Blocks.forEach(b => {
+    const el = document.getElementById(`qs1-blk-${b.id}`);
+    if (el) b.label = el.value || b.label;
+  });
+  localStorage.setItem(_qs1Key('types'),  JSON.stringify(_qs1Types));
+  localStorage.setItem(_qs1Key('blocks'), JSON.stringify(_qs1Blocks));
+}
+
+function _qs1SaveValues() {
+  const data = {};
+  _qs1Types.forEach(t => {
+    _qs1Blocks.forEach(b => {
+      const v = parseInt(document.getElementById(`qs1-${t.key}-${b.id}`)?.value) || 0;
+      if (v) data[`${t.key}|${b.id}`] = v;
+    });
+  });
+  localStorage.setItem(_qs1Key('data'), JSON.stringify(data));
+}
+
+function _qs1LoadValues() {
+  try { return JSON.parse(localStorage.getItem(_qs1Key('data')) || '{}'); }
+  catch(_) { return {}; }
+}
+
+// Get {typeKey: totalCount} from Table 1 inputs
+function _qs1Pool() {
+  const pool = {};
+  _qs1Types.forEach(t => {
+    let sum = 0;
+    _qs1Blocks.forEach(b => {
+      sum += parseInt(document.getElementById(`qs1-${t.key}-${b.id}`)?.value || 0) || 0;
+    });
+    if (sum > 0) pool[t.key] = sum;
+  });
+  return pool;
+}
+
+function _qs1GrandTotal() {
+  return Object.values(_qs1Pool()).reduce((s, v) => s + v, 0);
+}
+
+// Total NCISM beds needed: UG (from ratios) + PG (pg_seats_sanctioned per PG dept)
+function _qsNcismTotal() {
+  let total = 0;
+  Object.entries(UG_BED_RATIOS).forEach(([code, ratio]) => {
+    total += Math.floor(_ugIntake * ratio);
+    const dept = _depts.find(d => d.ncism_code === code);
+    if (dept?.is_pg_dept) total += (dept.pg_seats_sanctioned || 0);
+  });
+  return total;
+}
+
+window._qs1UpdateTotals = function() {
+  _qs1Types.forEach(t => {
+    let s = 0;
+    _qs1Blocks.forEach(b => { s += parseInt(document.getElementById(`qs1-${t.key}-${b.id}`)?.value || 0) || 0; });
+    const el = document.getElementById(`qs1-rtot-${t.key}`);
+    if (el) { el.textContent = s || '—'; el.style.color = s > 0 ? 'var(--green-deep)' : '#ccc'; }
+  });
+  _qs1Blocks.forEach(b => {
+    let s = 0;
+    _qs1Types.forEach(t => { s += parseInt(document.getElementById(`qs1-${t.key}-${b.id}`)?.value || 0) || 0; });
+    const el = document.getElementById(`qs1-ctot-${b.id}`);
+    if (el) { el.textContent = s || '—'; }
+  });
+  const gt  = _qs1GrandTotal();
+  const req = _qsNcismTotal();
+  const el  = document.getElementById('qs1-grand');
+  if (el) {
+    const ok = gt >= req;
+    el.innerHTML = `<strong style="font-size:14px">${gt}</strong> beds &nbsp;
+      <span style="font-size:11px;color:${ok ? 'var(--green-mid)' : '#c02020'}">
+        ${ok ? `✓ meets NCISM min (${req} needed)` : `⚠ need ${req - gt} more to reach NCISM min (${req})`}
+      </span>`;
+  }
+};
+
+window._qs1AddBlock = function() {
+  _qs1PersistMeta(); _qs1SaveValues();
+  _qs1Blocks.push({ id:'blk' + Date.now(), label:'New Block' });
+  renderQs1Table();
+};
+
+window._qs1RemoveBlock = function(id) {
+  if (_qs1Blocks.length <= 1) { _alert('info','Keep at least one building block.'); return; }
+  _qs1PersistMeta(); _qs1SaveValues();
+  _qs1Blocks = _qs1Blocks.filter(b => b.id !== id);
+  renderQs1Table();
+};
+
+window._qs1AddType = function() {
+  _qs1PersistMeta(); _qs1SaveValues();
+  _qs1Types.push({ key: 'custom-' + Date.now(), label: 'New Bed Type' });
+  renderQs1Table();
+};
+
+window._qs1RemoveType = function(key) {
+  if (_qs1Types.length <= 1) { _alert('info','Keep at least one bed type.'); return; }
+  _qs1PersistMeta(); _qs1SaveValues();
+  _qs1Types = _qs1Types.filter(t => t.key !== key);
+  renderQs1Table();
+};
+
+function renderQs1Table() {
+  const container = document.getElementById('qs1-table-container');
+  if (!container) return;
+  const saved = _qs1LoadValues();
+
+  const blkHeaders = _qs1Blocks.map(b => `
+    <th style="min-width:120px;text-align:center">
+      <div style="display:flex;align-items:center;gap:4px;justify-content:center">
+        <input class="qs1-hdr-input" id="qs1-blk-${b.id}" value="${b.label}" onblur="_qs1PersistMeta()" placeholder="Building / Floor"/>
+        ${_qs1Blocks.length > 1 ? `<button class="qs1-del-btn" onclick="_qs1RemoveBlock('${b.id}')" title="Remove block">✕</button>` : ''}
+      </div>
+    </th>`).join('');
+
+  const bodyRows = _qs1Types.map(t => {
+    const cells = _qs1Blocks.map(b => {
+      const v = saved[`${t.key}|${b.id}`] || '';
+      return `<td style="text-align:center;padding:6px 8px">
+        <input class="qs-cell-input" type="number" min="0" style="width:60px"
+          id="qs1-${t.key}-${b.id}" value="${v}" placeholder="0"
+          oninput="_qs1UpdateTotals()"/>
+      </td>`;
+    }).join('');
+    return `<tr>
+      <td style="padding:6px 8px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <input class="qs1-type-input" id="qs1-lbl-${t.key}" value="${t.label}" onblur="_qs1PersistMeta()" placeholder="Bed type name"/>
+          <button class="qs1-del-btn" onclick="_qs1RemoveType('${t.key}')" title="Remove type">✕</button>
+        </div>
+      </td>
+      ${cells}
+      <td style="text-align:center;font-weight:700;padding:6px 8px;min-width:60px" id="qs1-rtot-${t.key}">—</td>
+    </tr>`;
+  }).join('');
+
+  const colTotals = _qs1Blocks.map(b =>
+    `<td style="text-align:center;font-weight:700;color:var(--green-deep);padding:6px 8px" id="qs1-ctot-${b.id}">—</td>`
+  ).join('');
+
+  container.innerHTML = `
+    <div style="overflow-x:auto">
+    <table class="qs-table" style="font-size:12px">
+      <thead>
+        <tr>
+          <th style="min-width:165px">Bed Type</th>
+          ${blkHeaders}
+          <th style="text-align:center;min-width:60px">Total</th>
+        </tr>
+      </thead>
+      <tbody>${bodyRows}</tbody>
+      <tfoot>
+        <tr style="background:var(--green-light)">
+          <td style="font-weight:600;font-size:11px;padding:6px 8px;color:var(--green-deep)">Beds per block →</td>
+          ${colTotals}
+          <td id="qs1-grand" style="padding:6px 8px;font-size:11px"></td>
+        </tr>
+      </tfoot>
+    </table>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-secondary btn-sm" onclick="_qs1AddType()">+ Add Bed Type</button>
+      <button class="btn btn-secondary btn-sm" onclick="_qs1AddBlock()">+ Add Building / Floor</button>
+      <button class="btn btn-secondary btn-sm" onclick="_qs1SaveValues();_qs1PersistMeta();_alert('success','Inventory saved')">💾 Save Inventory</button>
+    </div>`;
+
+  setTimeout(_qs1UpdateTotals, 0);
+}
+
+// ── Proportional distribution (pure function) ─────────────────────────────────
+function _distributeProportionally(required, pool) {
+  const keys = Object.keys(pool).filter(k => pool[k] > 0);
+  if (!keys.length || !required) return {};
+  const poolTotal = keys.reduce((s, k) => s + pool[k], 0);
+  const raw = {};
+  keys.forEach(k => { raw[k] = (pool[k] / poolTotal) * required; });
+
+  const result = {};
+  keys.forEach(k => { result[k] = Math.floor(raw[k]); });
+
+  let rem = required - keys.reduce((s, k) => s + result[k], 0);
+  const sorted = [...keys].sort((a, b) =>
+    (raw[b] - Math.floor(raw[b])) - (raw[a] - Math.floor(raw[a]))
+  );
+  for (let i = 0; i < rem; i++) result[sorted[i % sorted.length]]++;
+  keys.forEach(k => { if (!result[k]) delete result[k]; });
+  return result;
+}
+
+// ── Auto-distribute Table 1 → Table 2 ────────────────────────────────────────
+window.autoDistribute = function() {
+  _qs1SaveValues(); _qs1PersistMeta();
+  const pool = _qs1Pool();
+  const gt   = Object.values(pool).reduce((s, v) => s + v, 0);
+  const req  = _qsNcismTotal();
+  if (!gt) { _alert('error', 'Enter your bed inventory in Table 1 first.'); return; }
+  if (gt < req) {
+    if (!confirm(`Your inventory (${gt} beds) is less than NCISM minimum (${req} beds). Distribute anyway?`)) return;
+  }
+  renderQs2Table(pool);
+};
+
+// ── Table 2: NCISM Department Allocation ─────────────────────────────────────
+window._qsUpdateTotal = function(code, needed) {
   let sum = 0;
-  QS_COLS.forEach(c => {
-    sum += parseInt(document.getElementById(`qs-cell-${code}-${c.key}`)?.value || 0) || 0;
+  _qsActiveCols.forEach(k => {
+    sum += parseInt(document.getElementById(`qs-cell-${code}-${k}`)?.value || 0) || 0;
   });
   const el = document.getElementById(`qs-total-${code}`);
   if (!el) return;
-  const diff = sum - required;
-  if (diff === 0) {
-    el.textContent = `${sum} ✓`;
-    el.className = 'qs-total ok';
-  } else if (diff > 0) {
-    el.textContent = `${sum} (+${diff})`;
-    el.className = 'qs-total over';
-  } else {
-    el.textContent = `${sum} (${diff})`;
-    el.className = 'qs-total under';
-  }
+  const diff = sum - needed;
+  if (diff === 0)       { el.textContent = `${sum} ✓`;       el.className = 'qs-total ok'; }
+  else if (diff > 0)    { el.textContent = `${sum} (+${diff})`; el.className = 'qs-total over'; }
+  else                  { el.textContent = `${sum} (${diff})`; el.className = 'qs-total under'; }
 };
+
+function renderQs2Table(pool) {
+  const container = document.getElementById('qs2-table-container');
+  if (!container) return;
+
+  const activeCols = _qs1Types.filter(t => !pool || pool[t.key] > 0 || Object.keys(pool).length === 0);
+  _qsActiveCols = activeCols.map(t => t.key);
+
+  // Build NCISM rows with UG + PG required
+  const ncismRows = Object.entries(UG_BED_RATIOS)
+    .map(([code, ratio]) => {
+      const dept  = _depts.find(d => d.ncism_code === code);
+      const ug    = Math.floor(_ugIntake * ratio);
+      const pg    = dept?.is_pg_dept ? (dept.pg_seats_sanctioned || 0) : 0;
+      return { code, dept, ug, pg, required: ug + pg,
+        prefix: DEPT_PREFIX[code] || '', reservedStart: _deptReservedStart(code) };
+    })
+    .filter(r => r.required > 0)
+    .sort((a, b) => b.required - a.required ||
+      NCISM_BED_PRIORITY.indexOf(a.code) - NCISM_BED_PRIORITY.indexOf(b.code));
+
+  window._qsNcismRows2 = ncismRows;
+
+  const totalRequired   = ncismRows.reduce((s, r) => s + r.required, 0);
+  const totalConfigured = ncismRows.reduce((s, r) => {
+    const db = r.dept ? _beds.filter(b => b.department_id === r.dept.id).length : 0;
+    return s + Math.min(db, r.required);
+  }, 0);
+
+  const poolIsEmpty = Object.keys(pool).length === 0;
+
+  const colHeaders = activeCols.map(t =>
+    `<th style="text-align:center;min-width:60px;font-size:10px;line-height:1.3">${t.label.replace(' ', '\n')}</th>`
+  ).join('');
+
+  const tableRows = ncismRows.map(r => {
+    const deptBeds   = r.dept ? _beds.filter(b => b.department_id === r.dept.id) : [];
+    const configured  = deptBeds.length;
+    const noDept      = !r.dept;
+    const ncismLabel  = NCISM_CODES.find(n => n.code === r.code)?.label || r.code;
+    const done        = configured >= r.required;
+
+    if (noDept) return `<tr class="qs-no-dept">
+      <td style="font-size:12px">${ncismLabel}</td>
+      <td style="text-align:center">${r.ug}${r.pg > 0 ? `+${r.pg}` : ''}</td>
+      <td colspan="${activeCols.length + 4}" style="font-size:11px;color:#bbb">Department not seeded — click "Seed NCISM Depts" first</td>
+    </tr>`;
+
+    if (done) {
+      const typeSummary = activeCols.map(t => {
+        const cnt = deptBeds.filter(b => b.bed_type === t.key).length;
+        return `<td style="text-align:center;color:var(--text-muted);font-size:12px">${cnt || '—'}</td>`;
+      }).join('');
+      return `<tr class="qs-done">
+        <td><span style="font-size:12px;font-weight:600">${ncismLabel}</span><span class="qs-dept-badge">${r.prefix}</span></td>
+        <td style="text-align:center;font-weight:600">${r.required}${r.pg > 0 ? `<span style="font-size:9px;color:var(--gold);display:block">+${r.pg} PG</span>` : ''}</td>
+        ${typeSummary}
+        <td colspan="3"><span class="qs-done-badge">✓ ${configured} configured</span></td>
+        <td><button class="btn btn-secondary btn-sm" onclick="switchTab('dept')" style="font-size:11px">Manage →</button></td>
+      </tr>`;
+    }
+
+    const remaining = r.required - configured;
+    // Compute distribution from pool
+    const dist = poolIsEmpty ? {} : _distributeProportionally(remaining, pool);
+
+    const typeCells = activeCols.map(t => {
+      const defVal = dist[t.key] || 0;
+      return `<td style="text-align:center;padding:5px 4px">
+        <input class="qs-cell-input" type="number" min="0"
+          id="qs-cell-${r.code}-${t.key}" value="${defVal}"
+          oninput="_qsUpdateTotal('${r.code}',${remaining})"/>
+      </td>`;
+    }).join('');
+
+    const initTotal  = Object.values(dist).reduce((s, v) => s + v, 0);
+    const totalClass = initTotal === remaining ? 'ok' : (poolIsEmpty ? 'under' : 'under');
+    const totalText  = poolIsEmpty ? '—' : (initTotal === remaining ? `${initTotal} ✓` : `${initTotal} (${initTotal - remaining})`);
+
+    return `<tr data-code="${r.code}" data-dept-id="${r.dept.id}" data-required="${r.required}" data-prefix="${r.prefix}">
+      <td>
+        <span style="font-size:12px;font-weight:600">${ncismLabel}</span>
+        <span class="qs-dept-badge">${r.prefix}</span>
+        ${r.pg > 0 ? `<span style="display:block;font-size:9px;color:var(--gold);margin-top:1px">+${r.pg} PG beds</span>` : ''}
+        ${configured > 0 ? `<span style="display:block;font-size:10px;color:var(--text-muted);margin-top:1px">${configured} already added</span>` : ''}
+      </td>
+      <td style="text-align:center;font-weight:600;color:var(--green-deep);font-size:12px">
+        ${r.required}
+        ${r.pg > 0 ? `<div style="font-size:9px;color:var(--gold);font-weight:400">${r.ug} UG + ${r.pg} PG</div>` : ''}
+      </td>
+      ${typeCells}
+      <td style="text-align:center;min-width:72px">
+        <span class="qs-total ${totalClass}" id="qs-total-${r.code}">${totalText}</span>
+        <div style="font-size:9px;color:var(--text-muted);margin-top:2px">of ${remaining} needed</div>
+      </td>
+      <td style="min-width:110px"><input class="qs-input wide" type="text" id="qs-ward-${r.code}" placeholder="Ward name (optional)"/></td>
+      <td><input class="qs-input" type="number" id="qs-floor-${r.code}" value="0" min="0" max="20" style="width:50px"/></td>
+      <td><button class="btn btn-primary btn-sm" onclick="quickSetupCreateRow('${r.code}')" id="qs-btn-${r.code}">Create</button></td>
+    </tr>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="overflow-x:auto">
+    <table class="qs-table">
+      <thead>
+        <tr>
+          <th style="min-width:160px">Department</th>
+          <th style="text-align:center;min-width:65px">NCISM<br>Required</th>
+          ${colHeaders}
+          <th style="text-align:center;min-width:72px">Total<br>(of needed)</th>
+          <th style="min-width:115px">Ward Name<br><span style="font-weight:400;opacity:.7">(optional)</span></th>
+          <th>Floor</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+    </div>`;
+
+  // Show footer
+  const footer = document.getElementById('qs2-footer');
+  if (footer) {
+    footer.style.display = 'flex';
+    const prog = document.getElementById('qs2-progress');
+    if (prog) prog.innerHTML =
+      `NCISM Beds: <strong>${totalConfigured}</strong> / ${totalRequired} configured
+       ${totalConfigured >= totalRequired ? '<span style="color:var(--green-mid);font-weight:600;margin-left:8px">✓ All NCISM beds met</span>' : ''}`;
+  }
+}
+
+function renderQuickSetup() {
+  const wrap = document.getElementById('quick-setup-wrap');
+  if (!wrap) return;
+
+  if (!_ugIntake || _ugIntake < 1) {
+    wrap.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px">
+      UG intake not configured. Quick Setup is only for NCISM teaching hospitals.<br>
+      <span style="font-size:12px">Set <strong>ug_intake</strong> in the tenants table to enable.</span>
+    </div>`;
+    return;
+  }
+
+  _qs1Init();
+
+  wrap.innerHTML = `
+    <div class="qs-step-header"><span class="qs-step-num">1</span>
+      Physical Bed Inventory
+      <span class="qs-step-desc">Enter total beds you have by type across each building block / floor</span>
+    </div>
+    <div id="qs1-table-container"></div>
+
+    <div class="qs-distribute-bar">
+      <div>
+        <div style="font-weight:600;color:var(--green-deep);font-size:13px">After entering your inventory →</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+          The system will distribute beds to each department proportionally based on your inventory mix.
+          PG department beds are added on top of UG allocations.
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="autoDistribute()">↓ Auto-Distribute to Departments</button>
+    </div>
+
+    <div class="qs-step-header"><span class="qs-step-num">2</span>
+      Department Allocation
+      <span class="qs-step-desc">Review proportional distribution — adjust if needed. Each row total must match "NCISM Required".</span>
+    </div>
+    <div id="qs2-table-container">
+      <div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px;border:1.5px dashed var(--border);border-radius:8px;margin-top:4px">
+        Complete Table 1 and click "Auto-Distribute to Departments" to populate this table.
+      </div>
+    </div>
+
+    <div class="qs-footer" id="qs2-footer" style="display:none">
+      <div id="qs2-progress" class="qs-progress"></div>
+      <button class="btn btn-primary" onclick="quickSetupCreateAll()" id="qs-btn-all">⚡ Create All Beds</button>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:10px">
+      ✏️ Bed numbers are auto-assigned within each department's NCISM reserved range, grouped by bed type in the order shown.
+    </div>`;
+
+  renderQs1Table();
+
+  // If saved inventory exists, auto-populate Table 2 immediately
+  const pool = _qs1Pool();
+  if (Object.keys(pool).length > 0) renderQs2Table(pool);
+}
 
 function renderQuickSetup() {
   const wrap = document.getElementById('quick-setup-wrap');
@@ -1073,31 +1506,28 @@ function renderQuickSetup() {
 }
 
 window.quickSetupCreateRow = async function(code, silent) {
-  const row     = document.querySelector(`tr[data-code="${code}"]`);
+  const row      = document.querySelector(`#qs2-table-container tr[data-code="${code}"]`);
   if (!row) return { skipped: true };
-  const deptId  = row.dataset.deptId;
+  const deptId   = row.dataset.deptId;
   const required = parseInt(row.dataset.required);
-  const prefix  = row.dataset.prefix || DEPT_PREFIX[code] || code;
-  const ward    = document.getElementById(`qs-ward-${code}`)?.value.trim() || null;
-  const floor   = parseInt(document.getElementById(`qs-floor-${code}`)?.value) || 0;
+  const prefix   = row.dataset.prefix || DEPT_PREFIX[code] || code;
+  const ward     = document.getElementById(`qs-ward-${code}`)?.value.trim() || null;
+  const floor    = parseInt(document.getElementById(`qs-floor-${code}`)?.value) || 0;
 
-  // Read counts per type
+  const deptBeds = _beds.filter(b => b.department_id === deptId);
+  const needed   = required - deptBeds.length;
+
   const distribution = {};
   let totalEntered = 0;
-  QS_COLS.forEach(c => {
-    const v = parseInt(document.getElementById(`qs-cell-${code}-${c.key}`)?.value || 0) || 0;
-    if (v > 0) distribution[c.key] = v;
+  _qsActiveCols.forEach(k => {
+    const v = parseInt(document.getElementById(`qs-cell-${code}-${k}`)?.value || 0) || 0;
+    if (v > 0) distribution[k] = v;
     totalEntered += v;
   });
 
-  // Already configured beds
-  const deptBeds = _beds.filter(b => b.department_id === deptId);
-  const configured = deptBeds.length;
-  const needed = required - configured;
-
   if (totalEntered !== needed) {
     if (!silent) _alert('error',
-      `${prefix}: total entered (${totalEntered}) must equal beds still needed (${needed}).`);
+      `${prefix}: entered ${totalEntered} but need ${needed} beds. Adjust the row first.`);
     return { error: true };
   }
   if (!totalEntered) {
@@ -1105,7 +1535,6 @@ window.quickSetupCreateRow = async function(code, silent) {
     return { skipped: true };
   }
 
-  // Find next available number in reserved range
   const reservedStart = _deptReservedStart(code);
   const existingNums  = new Set(
     deptBeds.filter(b => b.bed_number.startsWith(prefix + '-'))
@@ -1115,24 +1544,22 @@ window.quickSetupCreateRow = async function(code, silent) {
   let nextNum = reservedStart;
   while (existingNums.has(nextNum)) nextNum++;
 
-  // Build rows grouped by type in QS_COLS order
+  // Insert grouped by type in _qs1Types order
   const rows = [];
-  for (const col of QS_COLS) {
-    const cnt = distribution[col.key] || 0;
-    for (let i = 0; i < cnt; i++) {
+  const typeOrder = (_qs1Types || []).map(t => t.key);
+  const sortedKeys = Object.keys(distribution).sort(
+    (a, b) => typeOrder.indexOf(a) - typeOrder.indexOf(b)
+  );
+  for (const k of sortedKeys) {
+    for (let i = 0; i < distribution[k]; i++) {
       while (existingNums.has(nextNum)) nextNum++;
       rows.push({
-        tenant_id:     tenantId,
-        department_id: deptId,
-        bed_number:    `${prefix}-${String(nextNum).padStart(2, '0')}`,
-        floor_number:  floor,
-        ward_name:     ward,
-        bed_type:      col.key,
-        status:        'vacant',
+        tenant_id: tenantId, department_id: deptId,
+        bed_number: `${prefix}-${String(nextNum).padStart(2, '0')}`,
+        floor_number: floor, ward_name: ward, bed_type: k, status: 'vacant',
         is_pg_allocated: false,
       });
-      existingNums.add(nextNum);
-      nextNum++;
+      existingNums.add(nextNum); nextNum++;
     }
   }
 
@@ -1152,19 +1579,20 @@ window.quickSetupCreateAll = async function() {
   const btn = document.getElementById('qs-btn-all');
   if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
 
+  const activeRows = [...document.querySelectorAll('#qs2-table-container tr[data-code]')];
+
   // Validate all rows first
-  const activeRows = [...document.querySelectorAll('#quick-setup-wrap tr[data-code]')];
   const invalid = [];
   for (const row of activeRows) {
-    const code     = row.dataset.code;
-    const required = parseInt(row.dataset.required);
-    const deptId   = row.dataset.deptId;
+    const code      = row.dataset.code;
+    const deptId    = row.dataset.deptId;
+    const required  = parseInt(row.dataset.required);
     const configured = _beds.filter(b => b.department_id === deptId).length;
-    const needed   = required - configured;
+    const needed    = required - configured;
     if (needed <= 0) continue;
     let total = 0;
-    QS_COLS.forEach(c => {
-      total += parseInt(document.getElementById(`qs-cell-${code}-${c.key}`)?.value || 0) || 0;
+    _qsActiveCols.forEach(k => {
+      total += parseInt(document.getElementById(`qs-cell-${code}-${k}`)?.value || 0) || 0;
     });
     if (total !== needed) invalid.push(`${row.dataset.prefix} (need ${needed}, entered ${total})`);
   }
@@ -1176,8 +1604,8 @@ window.quickSetupCreateAll = async function() {
 
   let totalAdded = 0, errors = 0;
   for (const row of activeRows) {
-    const code     = row.dataset.code;
-    const deptId   = row.dataset.deptId;
+    const code    = row.dataset.code;
+    const deptId  = row.dataset.deptId;
     const required = parseInt(row.dataset.required);
     if (_beds.filter(b => b.department_id === deptId).length >= required) continue;
     const result = await quickSetupCreateRow(code, true);
@@ -1187,11 +1615,10 @@ window.quickSetupCreateAll = async function() {
 
   await loadAll();
   if (btn) { btn.disabled = false; btn.textContent = '⚡ Create All Beds'; }
-  if (errors) {
+  if (errors)
     _alert('error', `${totalAdded} beds created, ${errors} dept(s) had errors.`);
-  } else {
+  else
     _alert('success', `${totalAdded} bed${totalAdded !== 1 ? 's' : ''} created successfully.`);
-  }
 };
 
 // Refresh dept-info-panel in whichever bed/bulk drawer is currently open
