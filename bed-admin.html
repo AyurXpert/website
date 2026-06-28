@@ -1379,6 +1379,23 @@ function _qs1TypeBlockHints(activeCols, pool) {
   return hints;
 }
 
+// Returns sorted unique floor numbers present in Table 1 (only blocks with beds)
+function _qs1UniqueFloors() {
+  const floors = new Set([0]);
+  _qs1Types.forEach(t => {
+    _qs1Blocks.forEach(b => {
+      const beds = parseInt(document.getElementById(`qs1-${t.key}-${b.id}`)?.value) || 0;
+      if (!beds) return;
+      const flv = document.getElementById(`qs1-fl-${t.key}-${b.id}`)?.value;
+      if (flv !== undefined && flv !== '') {
+        const fl = parseInt(flv);
+        if (!isNaN(fl)) floors.add(fl);
+      }
+    });
+  });
+  return [...floors].sort((a, b) => a - b);
+}
+
 function renderQs2Table(pool) {
   const container = document.getElementById('qs2-table-container');
   if (!container) return;
@@ -1407,8 +1424,9 @@ function renderQs2Table(pool) {
     return s + Math.min(db, r.required);
   }, 0);
 
-  const poolIsEmpty = Object.keys(pool).length === 0;
-  const typeHints   = poolIsEmpty ? {} : _qs1TypeBlockHints(activeCols, pool);
+  const poolIsEmpty  = Object.keys(pool).length === 0;
+  const typeHints    = poolIsEmpty ? {} : _qs1TypeBlockHints(activeCols, pool);
+  const uniqueFloors = _qs1UniqueFloors();
 
   // Two-row header: row 1 = main headers (rowspan 2 for non-type cols), row 2 = per-block hints per type
   const colHeadersRow1 = activeCols.map(t =>
@@ -1450,8 +1468,11 @@ function renderQs2Table(pool) {
 
     const remaining  = r.required - configured;
     const dist       = poolIsEmpty ? {} : _distributeProportionally(remaining, pool);
-    const autoFloor  = poolIsEmpty ? 0 : _qs1DominantFloor(dist);
-    const sources    = poolIsEmpty ? [] : _qs1Sources(dist);
+    const autoFloor   = poolIsEmpty ? 0 : _qs1DominantFloor(dist);
+    const sources     = poolIsEmpty ? [] : _qs1Sources(dist);
+    const floorOptHtml = uniqueFloors.map(f =>
+      `<option value="${f}" ${f === autoFloor ? 'selected' : ''}>${f === 0 ? 'GF' : `Floor ${f}`}</option>`
+    ).join('');
 
     const typeCells = activeCols.map(t => {
       const defVal = dist[t.key] || 0;
@@ -1473,8 +1494,6 @@ function renderQs2Table(pool) {
         ).join('')
       : '<span style="color:#ccc;font-size:10px">—</span>';
 
-    const flLabel = autoFloor === 0 ? 'GF' : `Fl.${autoFloor}`;
-
     return `<tr data-code="${r.code}" data-dept-id="${r.dept.id}" data-required="${r.required}" data-prefix="${r.prefix}">
       <td>
         <span style="font-size:12px;font-weight:600">${ncismLabel}</span>
@@ -1494,8 +1513,9 @@ function renderQs2Table(pool) {
       <td style="min-width:110px"><input class="qs-input wide" type="text" id="qs-ward-${r.code}" placeholder="Ward name (optional)"/></td>
       <td style="min-width:140px;vertical-align:top;padding:6px 8px">${sourcesHtml}</td>
       <td>
-        <input class="qs-input" type="number" id="qs-floor-${r.code}" value="${autoFloor}" min="0" max="20" style="width:50px"/>
-        <div style="font-size:9px;color:var(--gold);margin-top:2px;font-weight:500">${flLabel}</div>
+        <select class="qs-input" id="qs-floor-${r.code}" style="width:90px;padding:4px 6px">
+          ${floorOptHtml}
+        </select>
       </td>
       <td><button class="btn btn-primary btn-sm" onclick="quickSetupCreateRow('${r.code}')" id="qs-btn-${r.code}">Create</button></td>
     </tr>`;
@@ -1512,7 +1532,7 @@ function renderQs2Table(pool) {
           <th rowspan="2" style="text-align:center;min-width:72px;vertical-align:middle">Total<br>(of needed)</th>
           <th rowspan="2" style="min-width:115px;vertical-align:middle">Ward Name<br><span style="font-weight:400;opacity:.7">(optional)</span></th>
           <th rowspan="2" style="min-width:140px;vertical-align:middle">Building Sources<br><span style="font-weight:400;opacity:.7;font-size:9px">(from Table 1)</span></th>
-          <th rowspan="2" style="vertical-align:middle">Floor<br><span style="font-weight:400;opacity:.7;font-size:9px">(auto-filled)</span></th>
+          <th rowspan="2" style="vertical-align:middle">Floor<br><span style="font-weight:400;opacity:.7;font-size:9px">(auto from pool)</span></th>
           <th rowspan="2"></th>
         </tr>
         <tr style="background:var(--green-mid)">${colSubHdr}</tr>
