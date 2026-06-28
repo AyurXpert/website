@@ -1096,8 +1096,8 @@ window._qs1UpdateTotals = function() {
       const rooms = !isFinite(unit.per) ? 1 : Math.ceil(beds / unit.per);
       totalRooms += rooms;
       const flRaw  = document.getElementById(`qs1-fl-${t.key}-${b.id}`)?.value ?? '';
-      const flNum  = flRaw !== '' ? parseInt(flRaw) : null;
-      const flStr  = flNum === null ? '' : flNum === 0 ? 'GF' : `Fl.${flNum}`;
+      const flNum  = flRaw !== '' ? parseInt(flRaw) : 0;
+      const flStr  = flNum === 0 ? 'GF' : `Fl.${flNum}`;
       const blkFull = document.getElementById(`qs1-blk-${b.id}`)?.value || `Blk ${idx+1}`;
       const shortBlk = blkFull.split(/\s+/).filter(Boolean).pop() || `B${idx+1}`;
       const rUnit  = rooms === 1 ? unit.label : unit.label + 's';

@@ -292,6 +292,8 @@ function _injectAdminSidebarOverlay(tenant, profile, role) {
     </div>
     <nav class="axsb-nav-inner">${navHTML}</nav>`;
   document.body.appendChild(rail);
+  // Push page content right so the fixed 52px rail never covers it
+  document.body.style.paddingLeft = '52px';
 }
 
 // ── Watermark ─────────────────────────────────────────────────────────────────
