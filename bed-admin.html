@@ -1200,13 +1200,17 @@ function renderBedSelectGrid(dept, deptBeds, prefix, required) {
   const reservedStart = _deptReservedStart(dept.ncism_code);
   const totalNcism    = Object.values(UG_BED_RATIOS).reduce((s, r) => s + Math.floor(_ugIntake * r), 0);
 
-  // Show reserved range + a few extra slots so user can also pick beyond quota
-  const extraUsed = [...existingNums].filter(n => n > totalNcism).length;
-  const showCount = required > 0 ? required + Math.min(3, extraUsed + 3) : 5;
+  // NCISM depts: reserved range + a few extra slots
+  // Non-NCISM depts: start from global extra pool (totalNcism+1); show existing + 5 available slots
+  const extraUsed       = [...existingNums].filter(n => n > totalNcism).length;
+  const existingInRange = [...existingNums].filter(n => n >= reservedStart).length;
+  const showCount = required > 0
+    ? required + Math.min(3, extraUsed + 3)
+    : existingInRange + 5;
 
   const chips = [];
   for (let i = 0; i < showCount; i++) {
-    const num    = (required > 0 ? reservedStart : 1) + i;
+    const num    = reservedStart + i;  // correct for both NCISM and non-NCISM depts
     const label  = `${prefix}-${String(num).padStart(2, '0')}`;
     const exists = existingNums.has(num);
     chips.push({ num, label, exists });
@@ -1360,8 +1364,12 @@ function renderBulkSelectGrid(dept, deptBeds, prefix, required) {
   const reservedStart = _deptReservedStart(dept.ncism_code);
   const totalNcism    = Object.values(UG_BED_RATIOS).reduce((s, r) => s + Math.floor(_ugIntake * r), 0);
 
+  // Non-NCISM depts (required=0): show existing beds + 5 available slots from global extra pool
+  const existingInRange = [...existingNums].filter(n => n >= reservedStart).length;
+  const chipCount = required > 0 ? required : existingInRange + 5;
+
   const chips = [];
-  for (let i = 0; i < required; i++) {
+  for (let i = 0; i < chipCount; i++) {
     const num    = reservedStart + i;
     const label  = `${prefix}-${String(num).padStart(2, '0')}`;
     const exists = existingNums.has(num);
