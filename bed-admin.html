@@ -1752,6 +1752,7 @@ function renderDepts() {
       ${bedListHtml}
       <div class="dept-actions">
         <button class="btn btn-secondary btn-sm" onclick="openBedDrawer(null,'${d.id}')">+ Bed</button>
+        ${deptBeds.length > 0 ? `<button class="btn btn-sm" style="color:#c02020;border:1.5px solid #c02020;background:transparent;padding:4px 10px" onclick="deleteAllDeptBeds('${d.id}')" title="Delete all beds in this department">🗑 All Beds</button>` : ''}
         <button class="icon-btn" onclick="openDeptDrawer('${d.id}')" title="Edit">&#9998;</button>
         <button class="icon-btn del" onclick="deleteDept('${d.id}')" title="Delete">&#128465;</button>
       </div>
@@ -2161,6 +2162,35 @@ window.deleteBed = async function() {
   _alert('success', `Bed "${bed?.bed_number}" deleted.`);
   await loadAll();
   _refreshOpenDrawerDeptInfo();
+};
+
+window.deleteAllDeptBeds = async function(deptId) {
+  const dept      = _depts.find(d => d.id === deptId);
+  const deptBeds  = _beds.filter(b => b.department_id === deptId);
+  const occupied  = deptBeds.filter(b => b.status === 'occupied');
+  const deletable = deptBeds.filter(b => b.status !== 'occupied');
+
+  if (!deletable.length) {
+    _alert('error', occupied.length
+      ? 'All beds are occupied — discharge patients before deleting.'
+      : 'No beds in this department.');
+    return;
+  }
+
+  let msg = `Delete all ${deletable.length} bed(s) from "${dept?.name}"? This cannot be undone.`;
+  if (occupied.length) msg += `\n\n${occupied.length} occupied bed(s) will be kept.`;
+  if (!confirm(msg)) return;
+
+  const { error } = await supabase
+    .from('beds')
+    .delete()
+    .eq('department_id', deptId)
+    .eq('tenant_id', tenantId)
+    .neq('status', 'occupied');
+
+  if (error) { _alert('error', 'Delete failed: ' + error.message); return; }
+  _alert('success', `${deletable.length} bed(s) removed from "${dept?.name}".`);
+  await loadAll();
 };
 
 // ── Bulk add ──────────────────────────────────────────────────────────────────
