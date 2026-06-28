@@ -2469,7 +2469,6 @@ window.downloadBedMapPDF = function() {
 </head>
 <body>
 
-<!-- ══ COVER ══════════════════════════════════════════════════════ -->
 <div class="cover">
   <h1>🏥 IPD Bed Map</h1>
   <div class="org">${orgName}</div>
@@ -2490,22 +2489,16 @@ window.downloadBedMapPDF = function() {
     <div>Section 3 — Complete Bed Number Index <span class="pg">last</span></div>
   </div>
 </div>
-
-<!-- ══ SECTION 1: DEPT-WISE ═══════════════════════════════════════ -->
 <div class="pg-break">
   <div class="sec-title">Section 1 — Department-wise Bed Allocation</div>
   <div class="sec-sub">Organised by department → floor → ward/room → bed type. Use this to see all beds allocated to each NCISM department.</div>
   ${sec1}
 </div>
-
-<!-- ══ SECTION 2: FLOOR-WISE ══════════════════════════════════════ -->
 <div class="pg-break">
   <div class="sec-title">Section 2 — Floor-wise Bed Index</div>
   <div class="sec-sub">Organised by floor → department. Use this to locate all beds on a specific floor.</div>
   ${sec2}
 </div>
-
-<!-- ══ SECTION 3: COMPLETE INDEX ══════════════════════════════════ -->
 <div class="pg-break">
   <div class="sec-title">Section 3 — Complete Bed Number Index</div>
   <div class="sec-sub">All ${_beds.length} beds sorted by bed number. Full location reference: bed → department → type → floor → ward.</div>
@@ -2523,8 +2516,6 @@ window.downloadBedMapPDF = function() {
     <tbody>${idxRows}</tbody>
   </table>
 </div>
-
-<script>window.onload = function(){ window.print(); }<\/script>
 </body>
 </html>`;
 
@@ -2532,6 +2523,7 @@ window.downloadBedMapPDF = function() {
   if (!w) { _alert('error', 'Pop-up blocked. Please allow pop-ups for this site and try again.'); return; }
   w.document.write(html);
   w.document.close();
+  setTimeout(() => { try { w.print(); } catch(e) {} }, 350);
 };
 
 // ── Bulk add ──────────────────────────────────────────────────────────────────
