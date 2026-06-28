@@ -826,6 +826,18 @@ async function loadAll() {
   checkNcismCompliance();
 }
 
+// Refresh dept-info-panel in whichever bed/bulk drawer is currently open
+function _refreshOpenDrawerDeptInfo() {
+  if (document.getElementById('bed-overlay').classList.contains('open')) {
+    const v = document.getElementById('bed-dept').value;
+    if (v) updateDeptInfo('bed');
+  }
+  if (document.getElementById('bulk-overlay').classList.contains('open')) {
+    const v = document.getElementById('bulk-dept').value;
+    if (v) updateDeptInfo('bulk');
+  }
+}
+
 // ── Populate OPD select in dept drawer ───────────────────────────────────────
 function _populateOpdSelect() {
   const sel = document.getElementById('dept-opd');
@@ -1116,10 +1128,11 @@ window.updateDeptInfo = function(prefix) {
 
   const bedListHtml = deptBeds.length > 0
     ? `<div class="dept-info-beds">
-        <div class="dept-info-beds-label">Beds in this department</div>
+        <div class="dept-info-beds-label">Beds in this department <span style="font-size:10px;color:var(--text-muted);font-weight:400">(click to edit)</span></div>
         <div class="dept-bed-list">${deptBeds.map(b => {
           const sub = [BED_TYPE_SHORT[b.bed_type] || b.bed_type, b.ward_name ? _esc(b.ward_name) : ''].filter(Boolean).join(' · ');
-          return `<span class="dept-bed-tag ${b.status !== 'vacant' ? b.status : ''}">
+          return `<span class="dept-bed-tag ${b.status !== 'vacant' ? b.status : ''}"
+            onclick="openBedDrawer('${b.id}')" title="Edit ${_esc(b.bed_number)}" style="cursor:pointer">
             <span>${_esc(b.bed_number)} <em>F${b.floor_number ?? 0}</em></span>
             ${sub ? `<span class="dbt-sub">${sub}</span>` : ''}
           </span>`;
@@ -1330,6 +1343,7 @@ window.saveBed = async function() {
   closeBedDrawer();
   _alert('success', id ? 'Bed updated.' : 'Bed added.');
   await loadAll();
+  _refreshOpenDrawerDeptInfo();
 };
 
 window.deleteBed = async function() {
@@ -1346,6 +1360,7 @@ window.deleteBed = async function() {
   closeBedDrawer();
   _alert('success', `Bed "${bed?.bed_number}" deleted.`);
   await loadAll();
+  _refreshOpenDrawerDeptInfo();
 };
 
 // ── Bulk add ──────────────────────────────────────────────────────────────────
