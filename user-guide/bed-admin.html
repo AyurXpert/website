@@ -1,0 +1,1309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IPD Bed Setup — User Guide | AyurXpert HMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── Design Tokens ─────────────────────────────── */
+    :root {
+      --green-deep: #1a4a2e;
+      --gold:       #c9902a;
+      --cream:      #faf8f3;
+      --white:      #ffffff;
+      --border:     #e5ded4;
+      --red:        #c0392b;
+      --sidebar-w:  240px;
+      --font-body:  'DM Sans', sans-serif;
+      --font-head:  'Cormorant Garamond', serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-body);
+      font-size: 14px;
+      line-height: 1.7;
+      background: var(--cream);
+      color: #2d2d2d;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ─── Top Banner ───────────────────────────────── */
+    .top-banner {
+      background: var(--green-deep);
+      color: var(--gold);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    .top-banner h1 {
+      font-family: var(--font-head);
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--gold);
+    }
+    .top-banner .banner-sub {
+      font-size: 0.78rem;
+      color: rgba(255,255,255,0.7);
+      margin-top: 2px;
+    }
+    .print-btn {
+      background: var(--gold);
+      color: var(--green-deep);
+      border: none;
+      border-radius: 6px;
+      padding: 7px 16px;
+      font-family: var(--font-body);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .print-btn:hover { background: #daa430; }
+
+    /* ─── Layout ────────────────────────────────────── */
+    .layout { display: flex; flex: 1; }
+
+    /* ─── Sidebar ───────────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      background: var(--white);
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 54px;
+      height: calc(100vh - 54px);
+      overflow-y: auto;
+      padding: 16px 0 24px;
+    }
+    .sidebar-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #888;
+      padding: 10px 16px 4px;
+    }
+    .sidebar nav a {
+      display: block;
+      padding: 6px 16px;
+      font-size: 0.82rem;
+      color: #444;
+      text-decoration: none;
+      border-left: 3px solid transparent;
+      transition: all 0.15s;
+    }
+    .sidebar nav a:hover,
+    .sidebar nav a.active {
+      color: var(--green-deep);
+      border-left-color: var(--green-deep);
+      background: #f0f7f2;
+    }
+    .sidebar nav a.sub {
+      padding-left: 28px;
+      font-size: 0.78rem;
+      color: #666;
+    }
+    .sidebar nav a.sub:hover { color: var(--green-deep); }
+
+    /* ─── Main Content ──────────────────────────────── */
+    .main {
+      flex: 1;
+      padding: 32px 40px 60px;
+      max-width: 920px;
+    }
+
+    /* ─── Section Headings ──────────────────────────── */
+    h2 {
+      font-family: var(--font-head);
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--green-deep);
+      margin: 40px 0 10px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--border);
+    }
+    h2:first-of-type { margin-top: 0; }
+    h3 {
+      font-family: var(--font-head);
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: #1a3a22;
+      margin: 24px 0 8px;
+    }
+    h4 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #333;
+      margin: 16px 0 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    p { margin-bottom: 10px; }
+    ul, ol { margin: 8px 0 14px 20px; }
+    li { margin-bottom: 4px; }
+
+    /* ─── Tables ────────────────────────────────────── */
+    .table-wrap { overflow-x: auto; margin: 14px 0 20px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    th {
+      background: var(--green-deep);
+      color: var(--white);
+      text-align: left;
+      padding: 9px 12px;
+      font-weight: 600;
+      font-size: 0.78rem;
+      letter-spacing: 0.03em;
+    }
+    td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #f6f3ee; }
+    tr:last-child td { border-bottom: none; }
+
+    /* ─── Code Blocks ───────────────────────────────── */
+    pre {
+      background: #1e2d1f;
+      border-radius: 8px;
+      padding: 18px 20px;
+      margin: 14px 0 20px;
+      overflow-x: auto;
+    }
+    code.code-block {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.8rem;
+      color: #d4e8d8;
+      line-height: 1.6;
+      white-space: pre;
+    }
+    p code, li code, td code {
+      background: #edf3ee;
+      color: #1a4a2e;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 0.82em;
+      font-family: 'Courier New', Courier, monospace;
+    }
+
+    /* ─── Tip / Warning / Critical Boxes ───────────── */
+    .box {
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin: 14px 0;
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+    .box strong { display: block; margin-bottom: 4px; }
+    .box-tip {
+      background: #f0faf3;
+      border-left: 4px solid var(--green-deep);
+      color: #1a3a22;
+    }
+    .box-warn {
+      background: #fdf8ee;
+      border-left: 4px solid var(--gold);
+      color: #5a3e00;
+    }
+    .box-critical {
+      background: #fdf2f2;
+      border-left: 4px solid var(--red);
+      color: #7a1010;
+    }
+
+    /* ─── Role Badges ───────────────────────────────── */
+    .badge {
+      display: inline-block;
+      border-radius: 12px;
+      padding: 2px 10px;
+      font-size: 0.73rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .badge-super_admin { background: #fdf3dc; color: #7a4e00; }
+    .badge-dept_admin  { background: #ede8fc; color: #3b1a8a; }
+    .badge-nurse       { background: #e8f5f0; color: #145c3a; }
+    .badge-doctor      { background: #e8f8ee; color: #1a5c2e; }
+
+    /* ─── Step Cards ────────────────────────────────── */
+    .steps { list-style: none; margin: 14px 0 20px; }
+    .steps li {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      margin-bottom: 10px;
+      background: #f0f7f2;
+      border-radius: 7px;
+      padding: 10px 14px;
+      border: 1px solid #d4ead9;
+    }
+    .step-num {
+      flex-shrink: 0;
+      background: var(--green-deep);
+      color: var(--white);
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-top: 1px;
+    }
+    .step-body { flex: 1; }
+    .step-body strong { color: var(--green-deep); }
+
+    /* ─── Status colour swatches ────────────────────── */
+    .swatch {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border-radius: 3px;
+      vertical-align: middle;
+      margin-right: 4px;
+      border: 1.5px solid rgba(0,0,0,0.15);
+    }
+    .sw-vacant      { background: #e8f5ee; border-color: #2d8a50; }
+    .sw-occupied    { background: #fde8e8; border-color: #c0392b; }
+    .sw-maintenance { background: #f0f0f0; border-color: #999; }
+    .sw-reserved    { background: #fdf6e3; border-color: #c9902a; }
+
+    /* ─── Pill labels ───────────────────────────────── */
+    .pill {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .3px;
+    }
+    .pill-vacant      { background: #2d8a50; color: #fff; }
+    .pill-occupied    { background: #c0392b; color: #fff; }
+    .pill-maintenance { background: #888; color: #fff; }
+    .pill-reserved    { background: #c9902a; color: #fff; }
+
+    /* ─── Flow Diagram ──────────────────────────────── */
+    .flow {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+      margin: 14px 0 20px;
+      font-size: 0.82rem;
+      line-height: 1.9;
+    }
+    .flow-step {
+      padding: 5px 14px;
+      margin: 4px 0;
+      border-radius: 5px;
+      display: inline-block;
+    }
+    .flow-action  { background: #e8f5ee; color: #1a4a2e; }
+    .flow-system  { background: #e8f0ff; color: #1a308b; }
+    .flow-warn    { background: #fff3cd; color: #7a5200; }
+    .flow-arrow   { color: #888; margin: 0 4px; }
+
+    /* ─── Schema Table ──────────────────────────────── */
+    .schema-table th { font-size: 0.75rem; }
+    .schema-table td { font-size: 0.8rem; font-family: 'Courier New', Courier, monospace; }
+    .schema-table td:nth-child(1) { color: var(--green-deep); font-weight: 600; }
+    .schema-table td:nth-child(3) { color: #888; }
+
+    /* ─── Scenario Cards ────────────────────────────── */
+    .scenario {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 16px 0;
+    }
+    .scenario h4 {
+      margin-top: 0;
+      color: var(--green-deep);
+      font-family: var(--font-head);
+      font-size: 1rem;
+      font-weight: 700;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    /* ─── Card mockup ───────────────────────────────── */
+    .card-mock {
+      display: inline-block;
+      background: #e8f5ee;
+      border: 2px solid #2d8a50;
+      border-radius: 8px;
+      padding: 10px 14px;
+      text-align: center;
+      font-size: 0.78rem;
+      min-width: 110px;
+      vertical-align: top;
+      margin: 4px;
+    }
+    .card-mock .cm-num { font-size: 1rem; font-weight: 700; color: #1a2d1f; }
+    .card-mock .cm-dept { font-size: 0.72rem; font-weight: 600; color: var(--green-deep); opacity: .75; }
+    .card-mock .cm-ward { font-size: 0.68rem; color: #888; }
+    .card-mock .cm-type { font-size: 0.7rem; font-weight: 600; background: #e8f5ee; color: #1a4a2e; border-radius: 8px; padding: 1px 6px; display: inline-block; margin-top: 3px; }
+    .card-mock .cm-pill { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; background: #2d8a50; color: #fff; border-radius: 6px; padding: 1px 7px; display: inline-block; margin-top: 4px; }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+    footer {
+      text-align: center;
+      font-size: 0.75rem;
+      color: #aaa;
+      padding: 20px;
+      border-top: 1px solid var(--border);
+      background: var(--white);
+    }
+
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+      .main { padding: 20px 18px 40px; }
+      h2 { font-size: 1.3rem; }
+    }
+
+    @media print {
+      .sidebar { display: none !important; }
+      .top-banner { position: static; }
+      .print-btn { display: none !important; }
+      .main { padding: 20px; max-width: 100%; }
+      pre { break-inside: avoid; }
+      .scenario { break-inside: avoid; }
+      h2 { break-before: page; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══ TOP BANNER ═══════════════════════════════════════════════════════════ -->
+<header class="top-banner">
+  <div>
+    <h1>IPD Bed Setup — Complete User Guide</h1>
+    <div class="banner-sub">AyurXpert HMS · bed-admin.html · NCISM Department &amp; Bed Matrix Configuration</div>
+  </div>
+  <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+</header>
+
+<div class="layout">
+
+  <!-- ═══ SIDEBAR ═══════════════════════════════════════════════════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-label">Contents</div>
+    <nav>
+      <a href="#overview">1. Overview</a>
+      <a href="#overview-what" class="sub">1.1 What It Does</a>
+      <a href="#overview-roles" class="sub">1.2 Role Matrix</a>
+      <a href="#overview-access" class="sub">1.3 How to Access</a>
+
+      <a href="#stats">2. Statistics Dashboard</a>
+      <a href="#stats-cards" class="sub">2.1 Stat Cards</a>
+      <a href="#stats-bldg" class="sub">2.2 Building &amp; Floor Breakdown</a>
+
+      <a href="#depts">3. Departments Tab</a>
+      <a href="#depts-cards" class="sub">3.1 Dept Card Anatomy</a>
+      <a href="#depts-ncism" class="sub">3.2 NCISM Compliance Badges</a>
+      <a href="#depts-seed" class="sub">3.3 Seed NCISM Depts</a>
+      <a href="#depts-add" class="sub">3.4 Add / Edit Department</a>
+      <a href="#depts-delete" class="sub">3.5 Delete a Department</a>
+
+      <a href="#beds">4. Bed Management</a>
+      <a href="#beds-single" class="sub">4.1 Add Single Bed</a>
+      <a href="#beds-bulk" class="sub">4.2 Bulk Add Beds</a>
+      <a href="#beds-edit" class="sub">4.3 Edit a Bed</a>
+      <a href="#beds-delete" class="sub">4.4 Delete Beds</a>
+      <a href="#beds-numbering" class="sub">4.5 NCISM Bed Numbering</a>
+
+      <a href="#matrix">5. Bed Matrix Tab</a>
+      <a href="#matrix-filters" class="sub">5.1 Filter Dropdowns</a>
+      <a href="#matrix-cards" class="sub">5.2 Bed Card Anatomy</a>
+      <a href="#matrix-colours" class="sub">5.3 Status Colour Guide</a>
+
+      <a href="#quicksetup">6. Quick Setup Tab</a>
+      <a href="#qs-table1" class="sub">6.1 Table 1 — Physical Inventory</a>
+      <a href="#qs-table2" class="sub">6.2 Table 2 — NCISM Allocation</a>
+      <a href="#qs-distribute" class="sub">6.3 Auto-Distribute Logic</a>
+      <a href="#qs-floors" class="sub">6.4 Floor Assignment</a>
+      <a href="#qs-create" class="sub">6.5 Create All</a>
+
+      <a href="#pdf">7. Bed Map PDF</a>
+
+      <a href="#ncism">8. NCISM Reference</a>
+      <a href="#ncism-ratios" class="sub">8.1 Table-8 Bed Ratios</a>
+      <a href="#ncism-ranges" class="sub">8.2 Reserved Number Ranges</a>
+      <a href="#ncism-pg" class="sub">8.3 PG Beds</a>
+
+      <a href="#tech">9. Technical Reference</a>
+      <a href="#tech-schema" class="sub">9.1 departments Table</a>
+      <a href="#tech-beds" class="sub">9.2 beds Table</a>
+      <a href="#tech-rls" class="sub">9.3 RLS Policies</a>
+      <a href="#tech-constraints" class="sub">9.4 DB Constraints</a>
+      <a href="#tech-localstorage" class="sub">9.5 localStorage Keys</a>
+      <a href="#tech-functions" class="sub">9.6 Key Functions</a>
+
+      <a href="#scenarios">10. Common Scenarios</a>
+      <a href="#sc-a" class="sub">A. First-time hospital setup</a>
+      <a href="#sc-b" class="sub">B. Adding PG beds</a>
+      <a href="#sc-c" class="sub">C. Maintenance scheduling</a>
+      <a href="#sc-d" class="sub">D. NCISM compliance audit</a>
+
+      <a href="#troubleshoot">11. Troubleshooting</a>
+    </nav>
+  </aside>
+
+  <!-- ═══ MAIN CONTENT ════════════════════════════════════════════════════════ -->
+  <main class="main">
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 1: OVERVIEW -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <h2 id="overview">1. Overview</h2>
+
+    <p>This guide covers the complete IPD Bed Setup module — every feature in <code>bed-admin.html</code> — from seeding NCISM-mandatory departments through physical bed configuration to the printable Bed Map PDF.</p>
+    <p>It is written for two audiences side-by-side: <strong>hospital administrators</strong> who need to understand the workflow, and <strong>developers/technical staff</strong> who need the database schema, constraints, and function references.</p>
+
+    <h3 id="overview-what">1.1 What It Does</h3>
+    <p>The IPD Setup page is the <strong>configuration layer</strong> for all inpatient operations. Before any patient can be admitted via <code>ipd.html</code>, the following must be in place:</p>
+    <ul>
+      <li>At least one department must exist with an active NCISM code</li>
+      <li>At least one bed must be assigned to that department with status <code>vacant</code></li>
+      <li>For NCISM-accredited colleges: the Table-8 minimum bed count must be met per department</li>
+    </ul>
+    <p>The page provides three paths to achieve this: manual department-by-department setup, bulk bed creation, and the ⚡ Quick Setup tab which reads your physical inventory and distributes beds algorithmically.</p>
+
+    <h3 id="overview-roles">1.2 Role Matrix</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Can View</th>
+            <th>Can Create / Edit</th>
+            <th>Can Delete</th>
+            <th>Can Seed NCISM</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-super_admin">super_admin</span></td>
+            <td>All departments &amp; beds</td>
+            <td>All departments &amp; beds</td>
+            <td>All beds; departments (if no beds)</td>
+            <td>Yes</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-dept_admin">dept_admin</span></td>
+            <td>All departments &amp; beds</td>
+            <td>All departments &amp; beds</td>
+            <td>All beds; departments (if no beds)</td>
+            <td>Yes</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="box box-warn">
+      <strong>Other roles cannot access this page.</strong>
+      <code>requireAuth(['super_admin', 'dept_admin'])</code> is enforced server-side. A nurse or receptionist visiting <code>bed-admin.html</code> directly will be redirected to their home page.
+    </div>
+
+    <h3 id="overview-access">1.3 How to Access</h3>
+    <p>Three routes lead to this page:</p>
+    <ul>
+      <li><strong>Navbar →</strong> Admin → IPD Setup (visible only to super_admin / dept_admin)</li>
+      <li><strong>admin.html sidebar →</strong> Departments section → "Manage Beds →" link</li>
+      <li><strong>Direct URL:</strong> <code>/bed-admin.html</code></li>
+    </ul>
+    <p>The icon-rail sidebar (52 px strip on the left of all admin pages) also has an IPD icon that navigates here.</p>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 2: STATISTICS DASHBOARD -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <h2 id="stats">2. Statistics Dashboard</h2>
+    <p>The top section of the page always shows live summary data loaded from Supabase on each page visit.</p>
+
+    <h3 id="stats-cards">2.1 Stat Cards</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Card</th><th>What It Shows</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td>Departments</td><td>Total number of seeded departments for this tenant</td><td><code>departments</code> table, all rows</td></tr>
+          <tr><td>Total Beds</td><td>Sum of all bed records regardless of status</td><td><code>beds</code> table, all rows</td></tr>
+          <tr><td>Occupied</td><td>Beds currently with status <code>occupied</code></td><td><code>beds.status = 'occupied'</code></td></tr>
+          <tr><td>Occupancy Rate</td><td>Occupied ÷ Total × 100%. Shown as percentage; 0% when no beds exist</td><td>Computed in JS</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="stats-bldg">2.2 Building &amp; Floor Breakdown</h3>
+    <p>Below the stat cards, a responsive grid of cards shows a live breakdown by physical building and floor. This section updates automatically every time beds are created or deleted in the same session (no page refresh required).</p>
+    <p><strong>How it groups:</strong> Beds are grouped by <code>ward_name</code> (used as the building/block name) and then by <code>floor_number</code>. Each card represents one building block; each row inside the card represents one floor.</p>
+    <p><strong>Status chips per floor:</strong> Each floor row shows colour-coded chips for each occupied status type present:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Chip</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td>🟢 &nbsp;<em>n</em> vacant</td><td>Beds available for admission</td></tr>
+          <tr><td>🔴 &nbsp;<em>n</em> occupied</td><td>Beds with a current inpatient</td></tr>
+          <tr><td>🟡 &nbsp;<em>n</em> maintenance</td><td>Beds temporarily out of service</td></tr>
+          <tr><td>🟠 &nbsp;<em>n</em> reserved</td><td>Beds blocked / pre-booked</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="box box-tip">
+      <strong>Tip — Building names come from Quick Setup</strong>
+      When you create beds via the ⚡ Quick Setup tab, the "Block Label" (e.g. "Main Building F1") becomes the <code>ward_name</code> in the database. Beds created manually via the + Bed drawer use whatever you type in the Ward Name field.
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 3: DEPARTMENTS TAB -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <h2 id="depts">3. Departments Tab</h2>
+    <p>The Departments tab is the primary management view. It shows one card per department, sorted by NCISM required beds in descending order (highest compliance obligation first).</p>
+
+    <h3 id="depts-cards">3.1 Department Card Anatomy</h3>
+    <p>Each card contains:</p>
+    <ul>
+      <li><strong>Department name</strong> — full name as entered</li>
+      <li><strong>NCISM code</strong> — e.g. <code>PANCHAKARMA</code>, shown below the name</li>
+      <li><strong>Badges</strong> — NCISM (mandatory dept), PG (postgraduate department), Ratio⚠ (compliance violation), Active/Inactive</li>
+      <li><strong>NCISM Bed Row</strong> — "NCISM Required: 15 / Configured: 15 / ✓ Beds met" or "⚠ Need 6 more"</li>
+      <li><strong>Dept Stats</strong> — Beds count, Occupied count, Occupancy %, PG beds (for PG depts)</li>
+      <li><strong>Bed chips</strong> — one chip per bed showing bed number + floor + type abbreviation; click any chip to open the edit drawer</li>
+      <li><strong>Action buttons</strong> — + Bed / 🗑 All Beds (if beds exist) / Edit (✎) / Delete (🗑)</li>
+    </ul>
+    <div class="box box-tip">
+      <strong>Sort order:</strong> Cards are sorted by NCISM required beds descending: Panchakarma (25%) → Kayachikitsa (20%) → Shalya Tantra (20%) → Stri Roga (10%) → Kaumarabhritya (10%) → Shalakya Netra (5%) → Shalakya KNM (5%) → Agada Tantra (5%) → non-NCISM departments (alphabetical). This order ensures the highest-compliance departments are always visible first.
+    </div>
+
+    <h3 id="depts-ncism">3.2 NCISM Compliance Badges &amp; Indicators</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Indicator</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>NCISM</code> badge (gold)</td><td>This department is one of the 10 mandatory NCISM departments</td></tr>
+          <tr><td><code>PG</code> badge (purple)</td><td>Department has PG seats; PG-allocated beds are tracked separately</td></tr>
+          <tr><td><code>⚠ Ratio</code> badge (red)</td><td>Bed count does not meet NCISM Table-8 minimum for this UG intake</td></tr>
+          <tr><td>✓ Beds met (green)</td><td>NCISM bed quota is satisfied for this department</td></tr>
+          <tr><td>⚠ Need N more (red)</td><td>Beds still required to meet NCISM minimum; N = gap</td></tr>
+          <tr><td>* (asterisk)</td><td>Fractional rounding occurred (e.g. 150 intake × 25% = 37.5 → 37); shown only at 150-intake</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="box box-warn">
+      <strong>UG intake drives everything.</strong>
+      NCISM bed requirements are calculated as <code>Math.floor(ug_intake × ratio)</code>. The system reads <code>ug_intake</code> from the <code>tenants</code> table. If your hospital is not a college (<code>type = 'hospital'</code>), <code>ug_intake = 0</code> and no compliance warnings appear — beds are still tracked but NCISM ratio rows are hidden.
+    </div>
+
+    <h3 id="depts-seed">3.3 Seed NCISM Departments</h3>
+    <p>The <strong>Seed NCISM Depts</strong> button (orange, top-right) is a one-time setup action. It creates all 10 mandatory NCISM departments in one click:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>NCISM Code</th><th>Department Name</th><th>Prefix</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>PANCHAKARMA</code></td><td>Panchakarma &amp; Upakarma</td><td>PK</td></tr>
+          <tr><td>2</td><td><code>KAYACHIKITSA</code></td><td>Kayachikitsa (Internal Medicine)</td><td>KC</td></tr>
+          <tr><td>3</td><td><code>SHALYA_TANTRA</code></td><td>Shalya Tantra (Surgery)</td><td>SHAL</td></tr>
+          <tr><td>4</td><td><code>STRI_ROGA_PRASUTI</code></td><td>Stri Roga &amp; Prasuti Tantra (OBG)</td><td>PST</td></tr>
+          <tr><td>5</td><td><code>KAUMARABHRITYA</code></td><td>Kaumarabhritya (Paediatrics)</td><td>KAU</td></tr>
+          <tr><td>6</td><td><code>SHALAKYA_NETRA</code></td><td>Shalakya – Netra Roga</td><td>SNT</td></tr>
+          <tr><td>7</td><td><code>SHALAKYA_KNM</code></td><td>Shalakya – KNM (ENT &amp; Oral)</td><td>SHAK</td></tr>
+          <tr><td>8</td><td><code>AGADA_TANTRA</code></td><td>Agada Tantra (Toxicology)</td><td>AGT</td></tr>
+          <tr><td>9</td><td><code>SWASTHAVRITTA_YOGA</code></td><td>Swasthavritta &amp; Yoga (Lifestyle)</td><td>SW</td></tr>
+          <tr><td>10</td><td><code>SCREENING_OPD</code></td><td>Screening / Triage OPD</td><td>SCR</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="box box-critical">
+      <strong>Run only once.</strong>
+      Clicking Seed NCISM Depts again will attempt to insert duplicate department names and will fail silently (Supabase unique constraint). It does not overwrite or duplicate existing departments. If you accidentally deleted a mandatory dept, you can re-seed safely — only the missing ones will be inserted.
+    </div>
+
+    <h3 id="depts-add">3.4 Add / Edit Department</h3>
+    <p>Click <strong>+ New Department</strong> (header button) or the ✎ edit icon on any dept card to open the Department Drawer.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Field</th><th>Required</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Department Name</td><td>Yes</td><td>Free text; shown on IPD admission and Bed Matrix</td></tr>
+          <tr><td>NCISM Code</td><td>No</td><td>★ = mandatory dept; ◇ = optional. Links to NCISM Table-8 compliance. Leave blank for non-clinical depts (Admin, etc.)</td></tr>
+          <tr><td>Linked OPD</td><td>No</td><td>Associates the IPD dept with an OPD for patient routing from reception → screening → IPD</td></tr>
+          <tr><td>PG Department</td><td>No</td><td>Toggle on if this dept has PG seats. Enables PG bed tracking and <code>pg_seats_sanctioned</code> field</td></tr>
+          <tr><td>PG Seats Sanctioned</td><td>Conditional</td><td>Shown only when PG Department is toggled on. Drives PG bed quota display on dept card</td></tr>
+          <tr><td>Mandatory (NCISM)</td><td>No</td><td>Marks the dept as an NCISM mandatory dept — adds the gold NCISM badge</td></tr>
+          <tr><td>Active</td><td>Yes</td><td>Inactive departments are hidden from OPD assignment and bed allocation dropdowns</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="depts-delete">3.5 Delete a Department</h3>
+    <p>Click the 🗑 delete icon on a dept card. The system will block deletion if the department has any beds assigned to it — you must delete all beds first (use the 🗑 All Beds button on the card, then delete the dept).</p>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 4: BED MANAGEMENT -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <h2 id="beds">4. Bed Management</h2>
+
+    <h3 id="beds-single">4.1 Add a Single Bed</h3>
+    <p>Click <strong>+ Bed</strong> on any dept card or <strong>+ Add Bed</strong> in the Bed Matrix tab header. The bed drawer opens with the dept pre-selected.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Field</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Department</td><td>Selecting a dept auto-fills the Prefix and auto-counts the NCISM gap. Shows live compliance panel: Required / Configured / Gap / existing bed chips</td></tr>
+          <tr><td>Bed Number</td><td>Chip grid of NCISM-reserved numbers appears below. Click a chip to auto-fill. Already-added beds are greyed and unclickable. You may also type a custom number.</td></tr>
+          <tr><td>Floor</td><td>Integer; 0 = Ground Floor, 1 = Floor 1, etc.</td></tr>
+          <tr><td>Ward / Building Name</td><td>Optional free text. Used as the building label in Building &amp; Floor Breakdown and Bed Map PDF. Use consistent names across beds in the same building (e.g. "Main Building F1")</td></tr>
+          <tr><td>Bed Type</td><td>One of 12 types — see §8 for descriptions</td></tr>
+          <tr><td>Status</td><td>vacant / occupied / maintenance / reserved</td></tr>
+          <tr><td>PG Allocated</td><td>Checkbox; marks this bed for PG teaching cases. Shows blue dot in Bed Matrix.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="box box-tip">
+      <strong>Chip grid — NCISM reserved range:</strong> Beds in the NCISM reserved range (e.g. PK-01 to PK-15) are shown as chips. Chips for beds already added are greyed out. Beds beyond the NCISM quota start from the first number after all NCISM reserved ranges (e.g. PK-61 for 60-intake hospitals) to prevent number bleeding between departments.
+    </div>
+
+    <h3 id="beds-bulk">4.2 Bulk Add Beds</h3>
+    <p>Click <strong>Bulk Add Beds</strong> in the page header. This opens a full-width drawer where you can select a department and then pick multiple bed numbers at once using a chip grid.</p>
+    <ul>
+      <li><strong>Select All</strong> — selects all available (unallocated) chips in the NCISM reserved range</li>
+      <li><strong>Clear</strong> — deselects all</li>
+      <li><strong>Extra beds section</strong> — beds beyond the NCISM quota are shown separately below the reserved range chips</li>
+    </ul>
+    <p>All selected beds inherit the same floor, ward name, bed type, status, and PG flag from the form fields. If you need different floors for different beds, add them in separate bulk batches or use Quick Setup.</p>
+
+    <h3 id="beds-edit">4.3 Edit a Bed</h3>
+    <p>Click any bed chip on a dept card, or click a bed card in the Bed Matrix. The same drawer opens in edit mode with all fields pre-filled.</p>
+    <div class="box box-warn">
+      <strong>Bed Number is read-only for NCISM reserved-range beds.</strong>
+      The number is locked (greyed, 🔒 note) to preserve NCISM compliance integrity. You can change floor, ward name, type, status, and PG flag freely. Extra beds (beyond the quota) keep their number editable (✏ note shown).
+    </div>
+
+    <h3 id="beds-delete">4.4 Delete Beds</h3>
+    <p>Two deletion paths:</p>
+    <ul>
+      <li><strong>Single bed</strong> — open the edit drawer → Delete button at the bottom. Blocked if status is <code>occupied</code>.</li>
+      <li><strong>All beds in a dept</strong> — 🗑 All Beds button on the dept card (red outline; appears only when the dept has beds). Deletes all non-occupied beds in one Supabase query (<code>.neq('status','occupied')</code>). Occupied beds are skipped with a warning. The department record itself is preserved.</li>
+    </ul>
+    <div class="box box-critical">
+      <strong>Occupied beds cannot be deleted.</strong>
+      A bed with status <code>occupied</code> has a live IPD admission linked to it. Change the bed status to <code>vacant</code> first (via the edit drawer) — or discharge the patient via <code>ipd.html</code> which automatically sets the bed back to <code>vacant</code>.
+    </div>
+
+    <h3 id="beds-numbering">4.5 NCISM Reserved Bed Numbering Scheme</h3>
+    <p>Departments are ranked by required beds descending (ties broken by NCISM priority order), and bed numbers are allocated in continuous ranges globally across the hospital:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Department</th><th>Prefix</th><th>Ratio</th><th>60-intake</th><th>Reserved range (60)</th><th>100-intake</th><th>200-intake</th></tr></thead>
+        <tbody>
+          <tr><td>Panchakarma</td><td>PK</td><td>25%</td><td>15</td><td>01–15</td><td>25</td><td>50</td></tr>
+          <tr><td>Kayachikitsa</td><td>KC</td><td>20%</td><td>12</td><td>16–27</td><td>20</td><td>40</td></tr>
+          <tr><td>Shalya Tantra</td><td>SHAL</td><td>20%</td><td>12</td><td>28–39</td><td>20</td><td>40</td></tr>
+          <tr><td>Stri Roga &amp; Prasuti</td><td>PST</td><td>10%</td><td>6</td><td>40–45</td><td>10</td><td>20</td></tr>
+          <tr><td>Kaumarabhritya</td><td>KAU</td><td>10%</td><td>6</td><td>46–51</td><td>10</td><td>20</td></tr>
+          <tr><td>Shalakya Netra</td><td>SNT</td><td>5%</td><td>3</td><td>52–54</td><td>5</td><td>10</td></tr>
+          <tr><td>Shalakya KNM</td><td>SHAK</td><td>5%</td><td>3</td><td>55–57</td><td>5</td><td>10</td></tr>
+          <tr><td>Agada Tantra</td><td>AGT</td><td>5%</td><td>3</td><td>58–60</td><td>5</td><td>10</td></tr>
+          <tr><td colspan="7" style="color:#888;font-style:italic;font-size:0.78rem">Extra beds (beyond NCISM quota) for any dept → start from 61 (for 60-intake)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The bed number format is <code>PREFIX-NN</code> where NN is zero-padded to 2 digits (e.g. <code>PK-01</code>, <code>KC-16</code>, <code>AGT-60</code>).</p>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 5: BED MATRIX TAB -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <h2 id="matrix">5. Bed Matrix Tab</h2>
+    <p>The Bed Matrix is the <strong>operational ward view</strong> — designed for day-to-day bed management by the ward-in-charge or admissions staff. All 60 (or more) beds are displayed as colour-coded cards in a responsive grid.</p>
+
+    <h3 id="matrix-filters">5.1 Filter Dropdowns</h3>
+    <p>Three filters appear above the grid. They are <strong>combinable</strong> — selecting all three narrows to the exact intersection.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Filter</th><th>Options</th><th>Most Common Use</th></tr></thead>
+        <tbody>
+          <tr><td>Department</td><td>All Departments + each dept by name</td><td>Ward nurse views only her dept. E.g. "Panchakarma &amp; Upakarma" → shows only PK beds</td></tr>
+          <tr><td>Status</td><td>All Statuses / Vacant / Occupied / Maintenance / Reserved</td><td>Admissions desk filters to "Vacant" to instantly see available beds before accepting an IPD patient</td></tr>
+          <tr><td>Type</td><td>All Types + 12 bed types</td><td>Patient/relative asks for a Private Room → filter to "Private Room" to see availability</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="box box-tip">
+      <strong>Power combination:</strong> Department = Panchakarma + Status = Vacant gives the admissions staff a single-glance answer to "How many PK beds are free right now?" without navigating away from the current screen.
+    </div>
+
+    <h3 id="matrix-cards">5.2 Bed Card Anatomy</h3>
+    <p>Each bed is represented by a card showing:</p>
+    <div style="margin:14px 0 20px">
+      <div class="card-mock">
+        <div class="cm-num">PK-03</div>
+        <div class="cm-dept">Panchakarma &amp; Up…</div>
+        <div class="cm-ward">Main Building F1</div>
+        <div class="cm-type">PK Treatment</div>
+        <div class="cm-pill">Vacant</div>
+      </div>
+    </div>
+    <ul>
+      <li><strong>Bed number</strong> — large, bold (e.g. <code>PK-03</code>)</li>
+      <li><strong>Department name</strong> — small green label; truncated if long</li>
+      <li><strong>Ward / Building</strong> — the <code>ward_name</code> field (grey, if set)</li>
+      <li><strong>Type badge</strong> — colour-coded by bed type (Male General Ward = green, ICU = red, PK Treatment = blue, etc.)</li>
+      <li><strong>Status pill</strong> — solid colour label at the bottom (VACANT / OCCUPIED / MAINTENANCE / RESERVED)</li>
+      <li><strong>Blue dot</strong> (top-right corner) — present if <code>is_pg_allocated = true</code></li>
+    </ul>
+    <p>Clicking any card opens the edit drawer for that bed.</p>
+
+    <h3 id="matrix-colours">5.3 Status Colour Guide</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Status</th><th>Card Background</th><th>Border</th><th>Pill</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="swatch sw-vacant"></span> Vacant</td>
+            <td>#e8f5ee (light green)</td>
+            <td>#2d8a50 (deep green)</td>
+            <td><span class="pill pill-vacant">Vacant</span></td>
+            <td>Bed is available; patient can be admitted</td>
+          </tr>
+          <tr>
+            <td><span class="swatch sw-occupied"></span> Occupied</td>
+            <td>#fde8e8 (light red)</td>
+            <td>#c0392b (deep red)</td>
+            <td><span class="pill pill-occupied">Occupied</span></td>
+            <td>Bed has a current inpatient; do not admit another</td>
+          </tr>
+          <tr>
+            <td><span class="swatch sw-maintenance"></span> Maintenance</td>
+            <td>#f0f0f0 (grey)</td>
+            <td>#999 (grey)</td>
+            <td><span class="pill pill-maintenance">Maintenance</span></td>
+            <td>Bed is out of service for cleaning, repair, or renovation</td>
+          </tr>
+          <tr>
+            <td><span class="swatch sw-reserved"></span> Reserved</td>
+            <td>#fdf6e3 (pale gold)</td>
+            <td>#c9902a (gold)</td>
+            <td><span class="pill pill-reserved">Reserved</span></td>
+            <td>Bed is pre-booked for a pending admission; not available for general allocation</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="box box-warn">
+      <strong>Status is manually managed.</strong>
+      Currently, bed status does not update automatically when a patient is admitted via <code>ipd.html</code>. The ward-in-charge must manually set <code>occupied</code> via the edit drawer, and set it back to <code>vacant</code> after discharge. Automatic sync between <code>ipd_admissions</code> and <code>beds.status</code> is planned for a future release.
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 6: QUICK SETUP TAB -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <h2 id="quicksetup">6. ⚡ Quick Setup Tab</h2>
+    <p>Quick Setup is designed for first-time hospital onboarding. Instead of creating 60 beds one by one, you describe what you physically have (Table 1) and the system distributes them proportionally across NCISM departments (Table 2) and creates all beds in one click.</p>
+
+    <h3 id="qs-table1">6.1 Table 1 — Physical Inventory</h3>
+    <p>Enter your physical bed inventory: rows = bed types, columns = building blocks with a Beds count and Floor number.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Element</th><th>What to Enter</th></tr></thead>
+        <tbody>
+          <tr><td>Bed type rows</td><td>12 pre-loaded types. Use the + Add Type button to add custom types; use the ✕ on a row to remove types you don't have</td></tr>
+          <tr><td>Building block columns</td><td>Default: "Main Building F1" and "Main Building F2". Use + Add Block / Remove to match your physical layout. Each block has a label field you can rename (e.g. "North Wing", "PK Block")</td></tr>
+          <tr><td>Beds cell</td><td>Number of beds of that type in that block. Leave 0 or blank if none</td></tr>
+          <tr><td>Floor cell</td><td>Which floor those beds are on. 0 = Ground Floor, 1 = First Floor, etc. This is saved as <code>floor_number</code> in the beds table</td></tr>
+          <tr><td>Grand total row</td><td>Auto-calculated; shows ✓ in green if ≥ NCISM minimum, or ⚠ N needed if below</td></tr>
+          <tr><td>Rooms/Wards column</td><td>Auto-calculated physical room count per type. Ward types (male/female general, dormitory) count as 1 per block; twin sharing ÷ 2; private/ICU/PK = 1 per bed</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="box box-tip">
+      <strong>Capacity tooltip:</strong> Hover the ℹ badge next to each bed type name to see the expected patient-per-room capacity (e.g. "2 patients per room" for Twin Sharing, "4–8 patients per ward" for General Ward).
+    </div>
+
+    <h4>All 12 Bed Types</h4>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Type Key</th><th>Display Name</th><th>Short</th><th>Typical Use</th></tr></thead>
+        <tbody>
+          <tr><td><code>male_general</code></td><td>Male General Ward</td><td>M-Gen</td><td>Open ward for male inpatients; 4–8 beds per ward</td></tr>
+          <tr><td><code>female_general</code></td><td>Female General Ward</td><td>F-Gen</td><td>Open ward for female inpatients; 4–8 beds per ward</td></tr>
+          <tr><td><code>general</code></td><td>General Ward (mixed)</td><td>Gen</td><td>Mixed ward where gender segregation is not required</td></tr>
+          <tr><td><code>twin_sharing</code></td><td>Twin Sharing</td><td>Twin</td><td>2-bed rooms; semi-private accommodation</td></tr>
+          <tr><td><code>semi_private</code></td><td>Shared Private</td><td>Semi-Pvt</td><td>Shared room with curtain partition; 2 patients per room</td></tr>
+          <tr><td><code>private</code></td><td>Private Room</td><td>Pvt</td><td>Single-occupancy room</td></tr>
+          <tr><td><code>deluxe</code></td><td>Deluxe Private</td><td>Deluxe</td><td>Premium single room with extra amenities</td></tr>
+          <tr><td><code>dormitory</code></td><td>Dormitory</td><td>Dorm</td><td>Student / staff accommodation; large shared space</td></tr>
+          <tr><td><code>icu</code></td><td>ICU</td><td>ICU</td><td>Intensive care; 1 patient per bay with monitoring equipment</td></tr>
+          <tr><td><code>day_care</code></td><td>Day Care</td><td>Day Care</td><td>Short-stay observation; patient discharged same day</td></tr>
+          <tr><td><code>pk_treatment</code></td><td>PK Treatment</td><td>PK Tx</td><td>Panchakarma therapy bay; treatment table, not sleeping bed</td></tr>
+          <tr><td><code>observation</code></td><td>Observation</td><td>Obs</td><td>Emergency observation; short-term monitoring</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="qs-table2">6.2 Table 2 — NCISM Department Allocation</h3>
+    <p>Click <strong>↓ Auto-Distribute to Departments</strong> to populate Table 2. The system reads your Table 1 inventory and distributes beds proportionally to each NCISM department.</p>
+    <p>Table 2 shows one row per department with:</p>
+    <ul>
+      <li><strong>Dept</strong> — department name (sticky column; stays visible when scrolling right)</li>
+      <li><strong>Required</strong> — NCISM Table-8 minimum (e.g. "15" for Panchakarma at 60-intake)</li>
+      <li><strong>One column per active bed type</strong> — how many of each type are assigned to this dept</li>
+      <li><strong>Total</strong> — sum of all type columns; shows ✓ in green or ⚠ in red if mismatched</li>
+      <li><strong>Rooms / Wards</strong> — physical room count</li>
+      <li><strong>Building Sources</strong> — which blocks and floors contribute to this dept's beds (e.g. "Main Building F1 GF (23) · Fl.1 (7)")</li>
+      <li><strong>Floor</strong> — dropdown to select which floor to store beds on; pre-populated from Table 1</li>
+      <li><strong>Create</strong> — button to create beds for this dept only</li>
+    </ul>
+    <div class="box box-tip">
+      <strong>Cells are editable.</strong> The auto-distributed numbers are a starting point — you can edit any cell in Table 2 before creating. The row total validates live and turns red if the total doesn't match what was distributed. A row marked ✓ green is safe to create.
+    </div>
+
+    <h3 id="qs-distribute">6.3 Auto-Distribute Logic</h3>
+    <p>The distribution algorithm is <strong>block-first, proportional</strong>:</p>
+    <ol>
+      <li>Compute each building block's share of <code>totalNeeded</code> proportional to its pool size (beds entered in Table 1)</li>
+      <li>Assign bed counts to each block using the largest-remainder method so the total is exact</li>
+      <li>Within each block, distribute assigned beds across types proportionally to that block's type mix</li>
+      <li>A rotating <code>_blkRemOffset</code> counter alternates which block wins remainder ties — prevents the first block from always getting extra beds</li>
+    </ol>
+    <p>Result: if you enter 30 beds in Block 1 and 30 in Block 2, each department gets exactly 50% from each block, not 38/22 due to remainder accumulation.</p>
+
+    <h3 id="qs-floors">6.4 Floor Assignment</h3>
+    <p>Each bed type in each building block has its own floor number in Table 1 (the "Floor" sub-column). When beds are created:</p>
+    <ul>
+      <li>Every bed of type X in block B gets <code>floor_number</code> = the value in the <code>Floor</code> cell for that type+block combination</li>
+      <li>If the floor cell is blank, defaults to 0 (Ground Floor)</li>
+      <li>Floor values are persisted to <code>localStorage</code> per tenant so they survive page refresh</li>
+    </ul>
+    <div class="box box-warn">
+      <strong>Floor inputs are live.</strong>
+      Changing a floor value in Table 1 immediately updates <code>localStorage</code> AND recalculates the Rooms/Wards column — you do not need to click a save button for floor values.
+    </div>
+
+    <h3 id="qs-create">6.5 Create All</h3>
+    <p>Click <strong>Create All</strong> to insert all rows whose totals are ✓ (green) in one batch. The system:</p>
+    <ol>
+      <li>Resets <code>_blkRemOffset</code> to 0 for reproducible distribution</li>
+      <li>Fetches existing beds for each dept to calculate the next available bed number</li>
+      <li>Assigns sequential numbers within the NCISM reserved range for each dept</li>
+      <li>Inserts all beds to Supabase in parallel per dept-row</li>
+      <li>Calls <code>loadAll()</code> to refresh all tabs after creation</li>
+    </ol>
+    <div class="box box-critical">
+      <strong>Quick Setup does not delete existing beds.</strong>
+      If you already have 15 PK beds and run Quick Setup again, it will add MORE beds starting from the next available number. Always check existing bed counts before running Create All a second time. Use 🗑 All Beds on the dept card to clear first if you need to start over.
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 7: BED MAP PDF -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <h2 id="pdf">7. Bed Map PDF</h2>
+    <p>Click <strong>Bed Map PDF</strong> (header button) to generate a printable, shareable bed map. The PDF opens in a new browser tab — use Ctrl+P / Cmd+P to print or Save as PDF.</p>
+    <p>The PDF contains four parts:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Part</th><th>Content</th><th>Use</th></tr></thead>
+        <tbody>
+          <tr><td>Cover</td><td>Hospital name, generated date, total stats, Building &amp; Floor Allocation table (building × floor × dept list)</td><td>Submit to NCISM as evidence of bed infrastructure</td></tr>
+          <tr><td>Section 1</td><td>Dept-wise drilldown: floor → ward → bed type → individual beds</td><td>Ward managers reference; NCISM inspection</td></tr>
+          <tr><td>Section 2</td><td>Floor-wise grouping: each floor → departments present → bed counts</td><td>Physical navigation guide for nursing staff</td></tr>
+          <tr><td>Section 3</td><td>Complete alphabetical bed index: every bed, its dept, type, floor, ward, and current status</td><td>Admissions desk quick reference; audit trail</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="box box-tip">
+      <strong>Technical note (for developers):</strong> The PDF HTML is built using an array-join pattern instead of a template literal because Chrome's <code>&lt;script type="module"&gt;</code> parser prematurely closes the script element when it encounters <code>&lt;/style&gt;</code>, <code>&lt;/head&gt;</code>, <code>&lt;/body&gt;</code>, or <code>&lt;/html&gt;</code> inside a template literal string. The helper <code>_x(tag)</code> returns <code>'\x3C/' + tag + '&gt;'</code> to produce those closing tags safely.
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 8: NCISM REFERENCE -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <h2 id="ncism">8. NCISM Compliance Reference</h2>
+
+    <h3 id="ncism-ratios">8.1 Table-8 Bed Ratios by UG Intake</h3>
+    <p>NCISM requires minimum beds per department as a fraction of UG intake. The system uses <code>Math.floor(ug_intake × ratio)</code>.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Department</th>
+            <th>Ratio</th>
+            <th>60 intake</th>
+            <th>100 intake</th>
+            <th>150 intake</th>
+            <th>200 intake</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Panchakarma</td><td>25%</td><td>15</td><td>25</td><td>37 *</td><td>50</td></tr>
+          <tr><td>Kayachikitsa</td><td>20%</td><td>12</td><td>20</td><td>30</td><td>40</td></tr>
+          <tr><td>Shalya Tantra</td><td>20%</td><td>12</td><td>20</td><td>30</td><td>40</td></tr>
+          <tr><td>Stri Roga &amp; Prasuti</td><td>10%</td><td>6</td><td>10</td><td>15</td><td>20</td></tr>
+          <tr><td>Kaumarabhritya</td><td>10%</td><td>6</td><td>10</td><td>15</td><td>20</td></tr>
+          <tr><td>Shalakya Netra</td><td>5%</td><td>3</td><td>5</td><td>7 *</td><td>10</td></tr>
+          <tr><td>Shalakya KNM</td><td>5%</td><td>3</td><td>5</td><td>7 *</td><td>10</td></tr>
+          <tr><td>Agada Tantra</td><td>5%</td><td>3</td><td>5</td><td>7 *</td><td>10</td></tr>
+          <tr style="font-weight:600"><td>Total</td><td>100%</td><td>60</td><td>100</td><td>148 *</td><td>200</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>* At 150 intake: four departments have fractional results (37.5, 7.5). <code>Math.floor</code> rounds each down, resulting in 148 total instead of 150. The UI displays a rounding footnote (*) beside affected counts and notes the collective minimum of 150 is met.</p>
+
+    <h3 id="ncism-ranges">8.2 Reserved Bed Number Ranges (60-intake example)</h3>
+    <p>Numbers are allocated to departments in order of descending required beds. Once the NCISM quota for a dept is met, any extra beds for that dept start from <code>totalNcism + 1</code> (= 61 for 60-intake) to prevent number collision between departments.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Dept</th><th>Prefix</th><th>Required (60)</th><th>Reserved Range</th></tr></thead>
+        <tbody>
+          <tr><td>Panchakarma</td><td>PK</td><td>15</td><td>01–15</td></tr>
+          <tr><td>Kayachikitsa</td><td>KC</td><td>12</td><td>16–27</td></tr>
+          <tr><td>Shalya Tantra</td><td>SHAL</td><td>12</td><td>28–39</td></tr>
+          <tr><td>Stri Roga</td><td>PST</td><td>6</td><td>40–45</td></tr>
+          <tr><td>Kaumarabhritya</td><td>KAU</td><td>6</td><td>46–51</td></tr>
+          <tr><td>Shalakya Netra</td><td>SNT</td><td>3</td><td>52–54</td></tr>
+          <tr><td>Shalakya KNM</td><td>SHAK</td><td>3</td><td>55–57</td></tr>
+          <tr><td>Agada Tantra</td><td>AGT</td><td>3</td><td>58–60</td></tr>
+          <tr><td colspan="3" style="color:#888;font-style:italic">Extra beds (any dept)</td><td>61, 62, 63…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="ncism-pg">8.3 PG Bed Requirements</h3>
+    <p>NCISM requires separate PG beds for departments with sanctioned PG seats. The system tracks:</p>
+    <ul>
+      <li><code>is_pg_dept = true</code> on the department</li>
+      <li><code>pg_seats_sanctioned</code> — number of PG seats; PG beds required = seats × 2 (industry standard)</li>
+      <li><code>is_pg_allocated = true</code> on individual beds — shown as a blue dot in Bed Matrix</li>
+      <li>Dept card shows: "PG beds: 4/6" (allocated / required)</li>
+    </ul>
+    <p>PG beds should be in the same department as the UG beds but are physically segregated (separate ward). Use the Ward Name field to label them distinctly (e.g. "PG Ward – KC").</p>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 9: TECHNICAL REFERENCE -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <h2 id="tech">9. Technical Reference</h2>
+
+    <h3 id="tech-schema">9.1 departments Table</h3>
+    <div class="table-wrap">
+      <table class="schema-table">
+        <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>id</td><td>uuid</td><td>Primary key; auto-generated</td></tr>
+          <tr><td>tenant_id</td><td>uuid</td><td>FK → tenants.id; RLS filter column</td></tr>
+          <tr><td>name</td><td>text</td><td>Department display name</td></tr>
+          <tr><td>ncism_code</td><td>text</td><td>One of 16 NCISM codes or NULL for custom depts</td></tr>
+          <tr><td>type</td><td>text</td><td>Department category (clinical / administrative)</td></tr>
+          <tr><td>is_active</td><td>boolean</td><td>Inactive depts hidden from OPD + bed drawers</td></tr>
+          <tr><td>is_mandatory</td><td>boolean</td><td>True for 10 NCISM mandatory depts</td></tr>
+          <tr><td>is_pg_dept</td><td>boolean</td><td>PG department flag; enables PG tracking</td></tr>
+          <tr><td>pg_seats_sanctioned</td><td>integer</td><td>Number of sanctioned PG seats (null for UG-only depts)</td></tr>
+          <tr><td>opd_id</td><td>uuid</td><td>FK → opds.id; links IPD dept to its OPD</td></tr>
+          <tr><td>parent_department_id</td><td>uuid</td><td>FK → departments.id (self-ref); for sub-departments</td></tr>
+          <tr><td>created_at</td><td>timestamptz</td><td>Auto set on insert</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="tech-beds">9.2 beds Table</h3>
+    <div class="table-wrap">
+      <table class="schema-table">
+        <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>id</td><td>uuid</td><td>Primary key; auto-generated</td></tr>
+          <tr><td>tenant_id</td><td>uuid</td><td>FK → tenants.id; RLS filter column</td></tr>
+          <tr><td>department_id</td><td>uuid</td><td>FK → departments.id</td></tr>
+          <tr><td>bed_number</td><td>text</td><td>Format: PREFIX-NN (e.g. PK-01). Unique per tenant.</td></tr>
+          <tr><td>ward_name</td><td>text</td><td>Building / ward label (e.g. "Main Building F1"). Used as grouping key in Building Breakdown.</td></tr>
+          <tr><td>bed_type</td><td>text</td><td>CHECK constraint — must be one of 12 valid types (see §9.4)</td></tr>
+          <tr><td>status</td><td>text</td><td>CHECK constraint — must be one of: vacant / occupied / maintenance / reserved</td></tr>
+          <tr><td>floor_number</td><td>integer</td><td>0 = Ground Floor, 1 = First Floor, etc.</td></tr>
+          <tr><td>is_pg_allocated</td><td>boolean</td><td>True if bed is designated for PG teaching cases</td></tr>
+          <tr><td>created_at</td><td>timestamptz</td><td>Auto set on insert</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 id="tech-rls">9.3 RLS Policies</h3>
+    <p>Both tables have Row Level Security enabled. The pattern is identical for each:</p>
+    <pre><code class="code-block">-- departments table (same pattern for beds)
+CREATE POLICY "tenant_isolation" ON departments
+  USING (
+    tenant_id = (
+      SELECT tenant_id FROM profiles WHERE id = auth.uid()
+    )
+  );
+
+-- Separate INSERT/UPDATE/DELETE policies follow the same USING clause
+-- SELECT is also filtered — a super_admin from Hospital A cannot see Hospital B's data</code></pre>
+    <p>No <code>anon</code> access is granted to either table. Only authenticated users with a <code>profiles</code> row (therefore a <code>tenant_id</code>) can read or write bed/dept data.</p>
+
+    <h3 id="tech-constraints">9.4 Database Constraints</h3>
+    <h4>beds_bed_type_check</h4>
+    <pre><code class="code-block">ALTER TABLE beds ADD CONSTRAINT beds_bed_type_check
+  CHECK (bed_type IN (
+    'male_general','female_general','general',
+    'twin_sharing','semi_private','private','deluxe',
+    'dormitory','icu','day_care','pk_treatment','observation'
+  ));</code></pre>
+    <div class="box box-critical">
+      <strong>This constraint was updated in Session 71</strong> to add <code>male_general</code> and <code>female_general</code> types. If you are running on an older schema, run the ALTER TABLE above before using Quick Setup (it inserts these types).
+    </div>
+    <h4>beds_status_check (implicit)</h4>
+    <pre><code class="code-block">-- Status is validated in JS before insert; a DB constraint can be added as:
+ALTER TABLE beds ADD CONSTRAINT beds_status_check
+  CHECK (status IN ('vacant','occupied','maintenance','reserved'));</code></pre>
+
+    <h4>NCISM config columns on tenants (run once)</h4>
+    <pre><code class="code-block">ALTER TABLE tenants ADD COLUMN IF NOT EXISTS ug_intake int DEFAULT 60;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS pg_student_strength int DEFAULT 0;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS opd_daily_target int DEFAULT 120;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS working_days_per_week int DEFAULT 6;</code></pre>
+    <p><code>ug_intake</code> drives all NCISM Table-8 calculations. Set it per tenant: 60 / 100 / 150 / 200 for colleges; leave as 0 for pure hospitals (disables NCISM compliance rows).</p>
+
+    <h3 id="tech-localstorage">9.5 localStorage Keys (Quick Setup)</h3>
+    <p>Table 1 state is persisted to <code>localStorage</code> so it survives page refresh. Keys are scoped to tenant ID.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Key pattern</th><th>Value</th><th>Set when</th></tr></thead>
+        <tbody>
+          <tr><td><code>qs1_types_{tenantId}</code></td><td>JSON array of active type keys</td><td>Add / remove type row</td></tr>
+          <tr><td><code>qs1_blocks_{tenantId}</code></td><td>JSON array of block objects <code>{id, label}</code></td><td>Add / remove block column</td></tr>
+          <tr><td><code>qs1_{typeKey}|{blockId}</code></td><td>Integer bed count</td><td>Typing in a Beds cell</td></tr>
+          <tr><td><code>qs1_{typeKey}|{blockId}|fl</code></td><td>Integer floor number</td><td>Typing in a Floor cell (live on input)</td></tr>
+          <tr><td><code>QS1_TYPES_VERSION</code></td><td><code>'v2'</code></td><td>Written once; if absent or old value, resets stale saved state</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Block IDs are <code>blk0</code>, <code>blk1</code>, etc. — not UUIDs. They are stable within a localStorage session but reset if the user removes and re-adds blocks.</p>
+
+    <h3 id="tech-functions">9.6 Key JavaScript Functions</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Function</th><th>Purpose</th><th>Scope</th></tr></thead>
+        <tbody>
+          <tr><td><code>loadAll()</code></td><td>Fetches departments, beds, OPDs, and tenant config in parallel. Calls all render functions.</td><td>Module</td></tr>
+          <tr><td><code>renderStats()</code></td><td>Updates 4 stat cards + calls <code>renderBuildingSummary()</code></td><td>Module</td></tr>
+          <tr><td><code>renderBuildingSummary()</code></td><td>Groups <code>_beds</code> by ward_name + floor_number; renders Building & Floor Breakdown cards</td><td>Module</td></tr>
+          <tr><td><code>renderDepts()</code></td><td>Sorts depts by NCISM required beds desc; renders all dept cards with NCISM compliance</td><td>Module</td></tr>
+          <tr><td><code>window.renderBeds()</code></td><td>Reads 3 filter dropdowns; filters <code>_beds</code>; renders bed grid. Exposed as <code>window.renderBeds</code> so HTML <code>onchange</code> attributes can call it.</td><td>Global (via window)</td></tr>
+          <tr><td><code>window.openBedDrawer(id, preDeptId)</code></td><td>Opens bed add/edit drawer; pre-fills all fields from existing bed or pre-selected dept</td><td>Global</td></tr>
+          <tr><td><code>window.quickSetupCreateRow(code)</code></td><td>Creates beds for one department row in Table 2</td><td>Global</td></tr>
+          <tr><td><code>window.quickSetupCreateAll()</code></td><td>Resets <code>_blkRemOffset</code> then calls <code>quickSetupCreateRow</code> for every ✓ row</td><td>Global</td></tr>
+          <tr><td><code>_computeBlockAllocation(dist)</code></td><td>Block-first proportional split of beds across building blocks; uses <code>_blkRemOffset</code> for tie-breaking</td><td>Module</td></tr>
+          <tr><td><code>_qs1Sources(dist)</code></td><td>Returns <code>{full, floorMap, total}</code> per block — used for Building Sources column in Table 2</td><td>Module</td></tr>
+          <tr><td><code>_deptReservedStart(ncismCode)</code></td><td>Returns the first bed number in the NCISM reserved range for a given dept code</td><td>Module</td></tr>
+          <tr><td><code>_nextBedStart(deptBeds, prefix, ncismCode)</code></td><td>Returns the next available bed number (in-range or extra-range) for a dept</td><td>Module</td></tr>
+          <tr><td><code>populateDeptSelects()</code></td><td>Fills Dept dropdowns in bed drawer, bulk drawer, and Bed Matrix filter with active departments</td><td>Module</td></tr>
+          <tr><td><code>downloadBedMapPDF()</code></td><td>Generates and opens the Bed Map PDF in a new tab</td><td>Module</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 10: COMMON SCENARIOS -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <h2 id="scenarios">10. Common Scenarios</h2>
+
+    <div class="scenario" id="sc-a">
+      <h4>A. First-Time Hospital Setup (60 UG intake college)</h4>
+      <ol class="steps">
+        <li>
+          <div class="step-num">1</div>
+          <div class="step-body"><strong>Set UG intake</strong> — In Supabase Dashboard → Table Editor → <code>tenants</code>, set <code>ug_intake = 60</code> for the hospital's row. Or run: <code>UPDATE tenants SET ug_intake = 60 WHERE id = '…';</code></div>
+        </li>
+        <li>
+          <div class="step-num">2</div>
+          <div class="step-body"><strong>Seed NCISM Departments</strong> — Click <strong>Seed NCISM Depts</strong>. 10 mandatory departments are created in seconds. Verify all 10 appear in the Departments tab.</div>
+        </li>
+        <li>
+          <div class="step-num">3</div>
+          <div class="step-body"><strong>Open ⚡ Quick Setup tab</strong> — Count your physical beds by type and enter them in Table 1. Add building blocks matching your layout (e.g. "OPD Block GF" with 30 beds on Floor 0, "IPD Block Fl.1" with 30 beds on Floor 1).</div>
+        </li>
+        <li>
+          <div class="step-num">4</div>
+          <div class="step-body"><strong>Verify Table 1 total ≥ 60</strong> — The grand total cell shows ✓ Meets NCISM min (60 needed). If below 60, add more bed entries before proceeding.</div>
+        </li>
+        <li>
+          <div class="step-num">5</div>
+          <div class="step-body"><strong>Auto-Distribute → review Table 2</strong> — Click ↓ Auto-Distribute to Departments. Check that each dept's Total column matches the Required column (all rows green). Adjust cells if needed.</div>
+        </li>
+        <li>
+          <div class="step-num">6</div>
+          <div class="step-body"><strong>Create All</strong> — Click Create All. All 60 beds are inserted. Return to Departments tab to confirm each dept card shows "✓ Beds met".</div>
+        </li>
+        <li>
+          <div class="step-num">7</div>
+          <div class="step-body"><strong>Generate Bed Map PDF</strong> — Click Bed Map PDF. Print or save as PDF for your NCISM inspection file.</div>
+        </li>
+      </ol>
+    </div>
+
+    <div class="scenario" id="sc-b">
+      <h4>B. Adding PG Beds to Kayachikitsa</h4>
+      <p>Hospital has upgraded — NCISM has sanctioned 6 PG seats for Kayachikitsa. PG beds (= 2 × seats = 12 beds) must be added and marked.</p>
+      <ol class="steps">
+        <li>
+          <div class="step-num">1</div>
+          <div class="step-body"><strong>Edit the dept</strong> — On the KC dept card, click ✎ Edit. Toggle "PG Department" ON; enter <code>pg_seats_sanctioned = 6</code>. Save.</div>
+        </li>
+        <li>
+          <div class="step-num">2</div>
+          <div class="step-body"><strong>Add PG beds</strong> — Click + Bed on the KC card. Set Ward Name = "PG Ward – KC", Floor = 2 (if on 2nd floor), Bed Type = Private Room, Status = Vacant, <strong>PG Allocated = ✓</strong>. Save. Repeat for all 12 PG beds (or use Bulk Add with consistent settings).</div>
+        </li>
+        <li>
+          <div class="step-num">3</div>
+          <div class="step-body"><strong>Verify</strong> — KC dept card now shows "PG beds: 12/12". Bed Matrix shows blue dots on all 12 PG beds.</div>
+        </li>
+      </ol>
+    </div>
+
+    <div class="scenario" id="sc-c">
+      <h4>C. Scheduling a Bed for Maintenance</h4>
+      <p>Bed PK-07's mattress needs replacement. It should be unavailable for 2 days.</p>
+      <ol class="steps">
+        <li>
+          <div class="step-num">1</div>
+          <div class="step-body"><strong>Confirm vacant</strong> — Check PK-07 in the Bed Matrix. If it shows OCCUPIED, a patient is using it — do not change status.</div>
+        </li>
+        <li>
+          <div class="step-num">2</div>
+          <div class="step-body"><strong>Open edit drawer</strong> — Click the PK-07 card. Change Status to <code>maintenance</code>. Save.</div>
+        </li>
+        <li>
+          <div class="step-num">3</div>
+          <div class="step-body"><strong>Confirm visual</strong> — PK-07 card in Bed Matrix now shows a grey MAINTENANCE pill. The bed disappears from "Vacant" filter results so admissions staff won't accidentally allocate it.</div>
+        </li>
+        <li>
+          <div class="step-num">4</div>
+          <div class="step-body"><strong>Restore</strong> — After maintenance is complete, open the drawer again, set Status back to <code>vacant</code>. Card returns to green.</div>
+        </li>
+      </ol>
+    </div>
+
+    <div class="scenario" id="sc-d">
+      <h4>D. Monthly NCISM Compliance Audit</h4>
+      <p>Prepare for a surprise NCISM inspection by verifying bed compliance across all departments.</p>
+      <ol class="steps">
+        <li>
+          <div class="step-num">1</div>
+          <div class="step-body"><strong>Open Departments tab</strong> — Scan the dept cards. Any card with a red "⚠ Ratio" badge or "⚠ Need N more" text is non-compliant.</div>
+        </li>
+        <li>
+          <div class="step-num">2</div>
+          <div class="step-body"><strong>Cross-check with ncism-compliance.html</strong> — The NCISM Compliance Monitor page provides the same data in a 10-column table with occupancy percentages and CSV export. Use this for formal documentation.</div>
+        </li>
+        <li>
+          <div class="step-num">3</div>
+          <div class="step-body"><strong>Generate Bed Map PDF</strong> — Click Bed Map PDF to produce a timestamped printout for the inspection file.</div>
+        </li>
+        <li>
+          <div class="step-num">4</div>
+          <div class="step-body"><strong>Fix gaps</strong> — For any dept with a gap, use the Bulk Add Beds flow to fill the remaining NCISM quota. The chip grid shows only the unallocated numbers in the reserved range, making it easy to pick the right beds.</div>
+        </li>
+      </ol>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <!-- SECTION 11: TROUBLESHOOTING -->
+    <!-- ══════════════════════════════════════════════════════════════════════ -->
+    <h2 id="troubleshoot">11. Troubleshooting</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Symptom</th><th>Most Likely Cause</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Bed Matrix filter dropdowns do nothing</td>
+            <td>Old cached JS — <code>window.renderBeds</code> was not exposed in earlier versions</td>
+            <td>Hard refresh (Ctrl+Shift+R) to bypass service worker. Latest version exposes <code>window.renderBeds = renderBeds</code></td>
+          </tr>
+          <tr>
+            <td>Dept cards show 0 for NCISM Required / compliance rows missing</td>
+            <td><code>ug_intake</code> is 0 or NULL on the tenants row</td>
+            <td>Set <code>ug_intake</code> in Supabase for the tenant. Compliance rows appear only when <code>ug_intake &gt; 0</code></td>
+          </tr>
+          <tr>
+            <td>Seeding NCISM Depts button silently does nothing</td>
+            <td>All 10 mandatory depts already exist — Supabase unique constraint blocks duplicates</td>
+            <td>Check the Departments tab. If some are missing, you can re-seed safely — only missing ones are inserted</td>
+          </tr>
+          <tr>
+            <td>Quick Setup Table 2 shows "GF" for all Building Sources rows</td>
+            <td>Floor inputs in Table 1 were blank when beds were created — defaulted to 0 (GF)</td>
+            <td>Enter floor values in Table 1 before clicking Auto-Distribute. Delete existing beds with 🗑 All Beds, then recreate via Create All</td>
+          </tr>
+          <tr>
+            <td>Block allocation is 38+22 instead of 30+30</td>
+            <td>Old type-first algorithm (before Session 74). Cached JS version</td>
+            <td>Hard refresh. Current version uses block-first algorithm with <code>_blkRemOffset</code> rotating tie-breaker</td>
+          </tr>
+          <tr>
+            <td>Cannot insert bed — "violates check constraint beds_bed_type_check"</td>
+            <td>Schema has old constraint without <code>male_general</code> / <code>female_general</code></td>
+            <td>Run the constraint update SQL from §9.4</td>
+          </tr>
+          <tr>
+            <td>Cannot delete a bed — "occupied beds cannot be deleted"</td>
+            <td>Bed status = occupied; has a live IPD admission</td>
+            <td>Change status to <code>vacant</code> in the edit drawer first (or discharge patient via ipd.html)</td>
+          </tr>
+          <tr>
+            <td>Building &amp; Floor Breakdown cards show no data</td>
+            <td>No beds have been created yet, OR beds were created without a <code>ward_name</code></td>
+            <td>Create beds via Quick Setup (which sets ward_name from block label) or edit existing beds to add a Ward Name</td>
+          </tr>
+          <tr>
+            <td>Bed Map PDF is blank / shows "Loading"</td>
+            <td>No beds in database; <code>_beds</code> array is empty</td>
+            <td>Create beds first via Quick Setup or manually, then generate PDF</td>
+          </tr>
+          <tr>
+            <td>Quick Setup localStorage not saving between sessions</td>
+            <td>Browser in private/incognito mode, or localStorage cleared</td>
+            <td>Use a regular browser window. Table 1 must be re-entered; Table 2 is always regenerated on-demand from Table 1</td>
+          </tr>
+          <tr>
+            <td>Page shows "Redirecting…" immediately</td>
+            <td>Logged-in user's role is not <code>super_admin</code> or <code>dept_admin</code></td>
+            <td>Log in with a super_admin or dept_admin account. The page enforces role-based access at load time</td>
+          </tr>
+          <tr>
+            <td>Bed chips on dept card are not clickable</td>
+            <td>Event propagation issue or old JS cache</td>
+            <td>Hard refresh. Each chip has <code>onclick="openBedDrawer('{id}')"</code> — if it's silent, check the browser console for JS errors</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <hr />
+    <p style="font-size:0.82rem;color:#888">This guide covers <strong>bed-admin.html</strong> as of AyurXpert HMS Session 75 (July 2026). For IPD admission workflow see <code>ipd.html</code>. For NCISM occupancy monitoring see <code>ncism-compliance.html</code>. For OPD department assignment see <code>opd-admin.html</code>.</p>
+
+  </main>
+</div>
+
+<footer>
+  AyurXpert Technologies&#8482; &nbsp;·&nbsp; IPD Setup User Guide &nbsp;·&nbsp; For internal use only
+</footer>
+
+</body>
+</html>
