@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <title>Master Control — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
@@ -1812,7 +1812,7 @@ async function _renderDeptStaff() {
 
   const [{ data:tRow },{ data:depts },{ data:allStaff }] = await Promise.all([
     supabase.from('tenants').select('ug_intake').eq('id',tenantId).single(),
-    supabase.from('departments').select('id,name,ncism_code,type,is_active,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true).order('ncism_code'),
+    supabase.from('departments').select('id,name,ncism_code,is_active,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('profiles').select('id,full_name,role,designation,department_id,is_active,status').eq('tenant_id',tenantId),
   ]);
 
@@ -1875,8 +1875,8 @@ async function _renderDeptStaff() {
         +'<div style="min-width:120px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;padding-top:3px">'+(isPG?'Residents (PG)':'Residents')+'</div>'
         +'<div style="flex:1">'+(residents.length?residents.map(badge).join(''):(isPG?emptyChip('Senior Resident'):'<span style="font-size:12px;color:var(--text-muted)">None assigned</span>'))+'</div></div>';
     }
-    // Interns — always show for clinical depts
-    const isClinical=dept&&['clinical','para-clinical'].includes((dept.type||'').toLowerCase());
+    // Interns — show for all depts (clinical determined by ncism_code)
+    const isClinical=!!(dept?.ncism_code);
     if(interns.length||isClinical){
       const internChip=interns.length
         ?interns.map(s=>'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#fef9ec;border:1px solid #f5c842;color:#854d0e;margin:2px">'+_esc(s.full_name||'?')+'<span style="color:var(--text-muted);margin-left:4px">'+_dl(s.designation)+'</span></span>').join('')
@@ -1897,14 +1897,13 @@ async function _renderDeptStaff() {
     }
     if(!staff.length){rows='<div style="padding:12px 0;color:var(--text-muted);font-size:13px">No active staff assigned to this department. Assign staff via <strong>All Staff</strong> tab or <a href="signup.html" style="color:var(--green-mid)">invite new members</a>.</div>';}
 
-    const typeLabel=dept?.type?(' · '+dept.type):'';
     const pgBadge=isPG?('<span style="background:#fef9ec;border:1px solid #f5c842;color:#854d0e;padding:1px 8px;border-radius:8px;font-size:11px;margin-left:6px">PG — '+pgSeats+' seats</span>'):'';
 
     return '<div class="cc" style="margin-bottom:12px">'
       +'<div class="cc-hd" style="border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:4px">'
         +'<div>'
           +'<div style="font-weight:700;font-size:14px">'+_esc(dept?dept.name:'—')+pgBadge+'</div>'
-          +'<div style="font-size:11px;color:var(--text-muted);margin-top:2px">'+deptCode+typeLabel+' · <strong>'+staff.length+'</strong> active staff</div>'
+          +'<div style="font-size:11px;color:var(--text-muted);margin-top:2px">'+deptCode+' · <strong>'+staff.length+'</strong> active staff</div>'
         +'</div>'
         +'<div style="display:flex;align-items:center;gap:6px">'
           +(interns.length===0&&isClinical?'<span style="background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:11px">⚠️ No interns</span>':'')
@@ -1925,7 +1924,8 @@ async function _renderDeptStaff() {
     const ds=byDept[d.id]||[];
     return !ds.find(s=>['hod','professor'].includes(s.designation)||s.role==='dept_admin');
   });
-  const clinicalDepts=(depts||[]).filter(d=>['clinical','para-clinical'].includes((d.type||'').toLowerCase()));
+  // Clinical = any dept with an NCISM code
+  const clinicalDepts=(depts||[]).filter(d=>!!d.ncism_code);
   const deptsNoInterns=clinicalDepts.filter(d=>!(byDept[d.id]||[]).some(s=>INTERN_DESIGS.includes(s.designation)));
 
   const statChips='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">'
@@ -1955,9 +1955,13 @@ async function _renderDeptStaff() {
     +'</div>'
     :(totalInterns>0?'<div style="background:#f0faf5;border:1px solid #b7dfc8;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:13px">✅ Intern rotation tracking active — '+totalInterns+' interns in system.</div>':'');
 
-  // Render dept cards
+  // Render dept cards — sort by ncism_code (non-NCISM depts last, then alpha by name)
+  const CLINICAL_NCISM=['KC','SHAL','SHP','SNT','SHAK','PST','KAU','AGT','SW','SCR','RASAYAN','DRAVYAGUNA','ROGANIDANA','SAMHITA','KRIYA'];
   let cardsHtml='';
-  (depts||[]).forEach(d=>{
+  [...(depts||[])].sort((a,b)=>{
+    const ac=a.ncism_code||'zzz', bc=b.ncism_code||'zzz';
+    return ac.localeCompare(bc)||a.name.localeCompare(b.name);
+  }).forEach(d=>{
     cardsHtml+=_deptCard(d,byDept[d.id]||[]);
   });
 
