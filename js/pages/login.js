@@ -44,14 +44,14 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.clas
   if (tenant.tagline) {
     const tEl = document.getElementById('tenant-tagline-text');
     tEl.textContent = tenant.tagline;
-    tEl.style.display = '';
+    tEl.classList.remove('hidden');
   }
   document.getElementById('tenant-block').classList.add('show');
 
   // Update card text and links
   document.getElementById('card-subtitle').textContent = `Sign in to ${tenant.name}`;
   document.getElementById('action-btns-default').style.display = 'none';
-  document.getElementById('action-btns-tenant').style.display  = '';
+  document.getElementById('action-btns-tenant').classList.remove('hidden');
   document.getElementById('signup-link-tenant').href = `signup.html?t=${tenant.tenant_code}`;
   document.title = `${tenant.name} — Sign In`;
 })();
@@ -131,8 +131,8 @@ async function handleContinue() {
   passwordEl.value = '';
   // Show email only — role/name not shown to limit data disclosure
   document.getElementById('role-name-display').textContent = email;
-  document.getElementById('step-email').style.display    = 'none';
-  document.getElementById('step-password').style.display = '';
+  document.getElementById('step-email').style.display = 'none';
+  document.getElementById('step-password').classList.remove('hidden');
   passwordEl.focus();
 }
 
@@ -142,8 +142,8 @@ document.getElementById('btn-change-email').addEventListener('click', () => {
   clearAlerts();
   passwordEl.value = '';
   document.getElementById('username-hint').value = '';
-  document.getElementById('step-password').style.display = 'none';
-  document.getElementById('step-email').style.display    = '';
+  document.getElementById('step-password').classList.add('hidden');
+  document.getElementById('step-email').style.display = '';
   emailEl.focus();
 });
 
