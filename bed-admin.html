@@ -148,11 +148,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   transition:border-color .15s,transform .1s;position:relative;
 }
 .bed-card:hover{transform:translateY(-1px)}
-.bed-card.vacant{background:#f0faf4;border-color:#b2d8bf}
-.bed-card.occupied{background:#fdecea;border-color:#f5c6c6}
-.bed-card.maintenance{background:#f5f5f5;border-color:#ccc}
-.bed-card.reserved{background:var(--gold-light);border-color:#e0c060}
-.bed-card.pk_treatment{background:#e3f0ff;border-color:#a8c8f0}
+.bed-card.vacant{background:#e8f5ee;border-color:#2d8a50}
+.bed-card.occupied{background:#fde8e8;border-color:#c0392b}
+.bed-card.maintenance{background:#f0f0f0;border-color:#999}
+.bed-card.reserved{background:#fdf6e3;border-color:#c9902a}
+.bed-card-status{font-size:8px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:2px 7px;border-radius:6px;margin-top:5px;display:inline-block}
+.bed-card-status.vacant{background:#2d8a50;color:#fff}
+.bed-card-status.occupied{background:#c0392b;color:#fff}
+.bed-card-status.maintenance{background:#888;color:#fff}
+.bed-card-status.reserved{background:#c9902a;color:#fff}
 .bed-num{font-size:16px;font-weight:700;color:var(--text-dark)}
 .bed-ward{font-size:9px;color:var(--text-muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bed-type-badge{font-size:9px;font-weight:600;margin-top:4px;padding:1px 5px;border-radius:8px;display:inline-block}
@@ -179,6 +183,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 /* ── Rounding footnote ── */
 .rounding-note{font-size:10px;color:var(--text-muted);font-style:italic;
   margin-top:3px;line-height:1.4;padding:0 2px}
+
+/* ── Building & Floor Summary ── */
+.bsm-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:24px}
+.bsm-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px 18px}
+.bsm-card-name{font-size:13px;font-weight:600;color:var(--green-deep);margin-bottom:10px;
+  padding-bottom:8px;border-bottom:1.5px solid var(--border)}
+.bsm-total{font-size:11px;font-weight:400;color:var(--text-muted);margin-left:5px}
+.bsm-floor-block{padding:5px 0;border-bottom:1px solid var(--green-light)}
+.bsm-floor-block:last-child{border-bottom:none;padding-bottom:0}
+.bsm-floor-label{font-size:11px;font-weight:600;color:var(--text-mid);margin-bottom:4px}
+.bsm-chips{display:flex;gap:5px;flex-wrap:wrap}
+.bsm-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap}
+.bsm-chip.vacant{background:#e8f5ee;color:#1a4a2e}
+.bsm-chip.occupied{background:#fdecea;color:#8b1a1a}
+.bsm-chip.maintenance{background:#f5f5f5;color:#555;border:1px solid #ddd}
+.bsm-chip.reserved{background:#fdf6e3;color:#7a5a00}
+.bsm-no-info{font-size:11px;color:var(--text-muted);font-style:italic;margin-top:8px}
 
 /* ── NCISM compliance panel inside bed/bulk drawers ── */
 .dept-info-panel{display:none;background:var(--cream);border:1px solid var(--border);
@@ -370,7 +391,7 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
 .icon-btn.del:hover{background:var(--error-bg);border-color:var(--error-border)}
 
 @media(max-width:700px){
-  .stats-row{grid-template-columns:1fr 1fr}
+  .stats-row,.bsm-row{grid-template-columns:1fr 1fr}
   .drawer{width:100vw}
   .bed-grid{grid-template-columns:repeat(auto-fill,minmax(80px,1fr))}
 }
@@ -673,6 +694,9 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
       <div class="stat-label">Occupancy Rate</div>
     </div>
   </div>
+
+  <!-- Building & Floor Summary -->
+  <div id="building-summary" style="margin-bottom:20px"></div>
 
   <!-- Tabs -->
   <div class="tab-bar">
@@ -993,6 +1017,7 @@ const QS1_DEFAULT_TYPES = [
 let _qs1Types  = null; // [{key, label}]
 let _qs1Blocks = null; // [{id, label}]
 let _qsActiveCols = []; // type keys active in current Table 2
+let _blkRemOffset = 0;  // rotates per dept so remainder beds don't always go to the same block
 
 function _qs1Key(s) { return `qs1-${tenantId}-${s}`; }
 
@@ -1110,7 +1135,7 @@ window._qs1UpdateTotals = function() {
         roomEl.innerHTML = `<span style="color:#ccc;font-size:11px">—</span>`;
       } else {
         const totUnit = totalRooms === 1 ? unit.label : unit.label + 's';
-        const bdHtml  = breakdown.length > 1
+        const bdHtml  = (breakdown.length > 0 && _qs1Blocks.length > 1)
           ? `<div style="font-size:10px;color:#555;margin-top:3px;line-height:1.7">${breakdown.join('<br>')}</div>`
           : '';
         roomEl.innerHTML = `<span style="font-weight:700;color:var(--green-deep)">${totalRooms}</span>
@@ -1219,7 +1244,8 @@ function renderQs1Table() {
         <input class="qs1-floor-input" type="number" min="0" max="20"
           id="qs1-fl-${t.key}-${b.id}" value="${fl}" placeholder="GF"
           onfocus="_qs1OnFocus(this,'${t.key}','${b.id}','floor')"
-          onblur="_qs1OnBlur(this,'floor')"/>
+          onblur="_qs1OnBlur(this,'floor')"
+          oninput="_qs1SaveValues();_qs1UpdateTotals()"/>
       </td>`;
     }).join('');
     const cap = QS1_CAPACITY[t.key] || '';
@@ -1344,22 +1370,22 @@ function _qs1DominantFloor(dist) {
   return [...w.entries()].sort((a, b) => b[1] - a[1])[0][0];
 }
 
-// Returns [{full, flStr, total}] — which blocks (with floors) contribute to a dept's allocation
+// Returns [{full, floorMap, total}] — which blocks (with per-floor bed counts) contribute to a dept's allocation
 function _qs1Sources(dist) {
   return _qs1Blocks.map((b, idx) => {
-    let total = 0, domFl = 0, maxBeds = 0;
+    const floorMap = {};
     Object.entries(dist).forEach(([k, cnt]) => {
       if (!cnt) return;
       const beds = parseInt(document.getElementById(`qs1-${k}-${b.id}`)?.value) || 0;
       if (!beds) return;
-      total += beds;
       const flv = document.getElementById(`qs1-fl-${k}-${b.id}`)?.value;
       const fl  = (flv !== undefined && flv !== '') ? parseInt(flv) || 0 : 0;
-      if (beds > maxBeds) { maxBeds = beds; domFl = fl; }
+      floorMap[fl] = (floorMap[fl] || 0) + beds;
     });
+    const total = Object.values(floorMap).reduce((s, v) => s + v, 0);
     if (!total) return null;
     const full = document.getElementById(`qs1-blk-${b.id}`)?.value || `Block ${idx+1}`;
-    return { full, flStr: domFl === 0 ? 'GF' : `Fl.${domFl}`, total };
+    return { full, floorMap, total };
   }).filter(Boolean);
 }
 
@@ -1395,6 +1421,77 @@ function _qs1UniqueFloors() {
     });
   });
   return [...floors].sort((a, b) => a - b);
+}
+
+// Proportionally split a bed-type distribution across building blocks from Table 1
+// Block-first approach: allocate beds to blocks by pool size ratio, then distribute types within each block
+function _computeBlockAllocation(distribution) {
+  const blockAlloc = {};
+  _qs1Blocks.forEach(b => { blockAlloc[b.id] = {}; });
+
+  const totalNeeded = Object.values(distribution).reduce((s, v) => s + v, 0);
+  if (!totalNeeded) return blockAlloc;
+
+  // Step 1: measure total pool size per block
+  const blockPoolSize = {};
+  let grandPool = 0;
+  _qs1Blocks.forEach(b => {
+    let sz = 0;
+    _qs1Types.forEach(t => { sz += parseInt(document.getElementById(`qs1-${t.key}-${b.id}`)?.value) || 0; });
+    blockPoolSize[b.id] = sz;
+    grandPool += sz;
+  });
+  if (!grandPool) return blockAlloc;
+
+  // Step 2: split totalNeeded across blocks proportional to pool size (largest-remainder)
+  const blockTarget = {};
+  let blkAssigned = 0;
+  const blkFracs = {};
+  _qs1Blocks.forEach(b => {
+    const exact = (blockPoolSize[b.id] / grandPool) * totalNeeded;
+    blockTarget[b.id] = Math.floor(exact);
+    blkAssigned += Math.floor(exact);
+    blkFracs[b.id] = exact - Math.floor(exact);
+  });
+  let blkRem = totalNeeded - blkAssigned;
+  // Tie-breaker rotates per call so remainders alternate across depts (prevents F1 always winning)
+  const blkSorted = [..._qs1Blocks].sort((a, b) => {
+    const diff = blkFracs[b.id] - blkFracs[a.id];
+    if (Math.abs(diff) > 1e-9) return diff;
+    const ai = _qs1Blocks.findIndex(x => x.id === a.id);
+    const bi = _qs1Blocks.findIndex(x => x.id === b.id);
+    return ((ai + _blkRemOffset) % _qs1Blocks.length) - ((bi + _blkRemOffset) % _qs1Blocks.length);
+  });
+  _blkRemOffset = (_blkRemOffset + 1) % Math.max(_qs1Blocks.length, 1);
+  for (let i = 0; i < blkRem; i++) blockTarget[blkSorted[i % blkSorted.length].id]++;
+
+  // Step 3: within each block, distribute its target across types proportional to that block's pool
+  _qs1Blocks.forEach(b => {
+    const target = blockTarget[b.id];
+    if (!target) return;
+    const typeKeys = Object.keys(distribution);
+    const blockPool = {};
+    let blockPoolTotal = 0;
+    typeKeys.forEach(k => {
+      const c = parseInt(document.getElementById(`qs1-${k}-${b.id}`)?.value) || 0;
+      blockPool[k] = c;
+      blockPoolTotal += c;
+    });
+    if (!blockPoolTotal) return;
+    let tAssigned = 0;
+    const tFracs = {};
+    typeKeys.forEach(k => {
+      const exact = (blockPool[k] / blockPoolTotal) * target;
+      blockAlloc[b.id][k] = Math.floor(exact);
+      tAssigned += Math.floor(exact);
+      tFracs[k] = exact - Math.floor(exact);
+    });
+    let tRem = target - tAssigned;
+    const tSorted = [...typeKeys].sort((a, bk) => tFracs[bk] - tFracs[a]);
+    for (let i = 0; i < tRem; i++) blockAlloc[b.id][tSorted[i % tSorted.length]]++;
+  });
+
+  return blockAlloc;
 }
 
 function renderQs2Table(pool) {
@@ -1458,11 +1555,39 @@ function renderQs2Table(pool) {
         const cnt = deptBeds.filter(b => b.bed_type === t.key).length;
         return `<td style="text-align:center;color:var(--text-muted);font-size:12px">${cnt || '—'}</td>`;
       }).join('');
+      // Group done beds by ward_name → floor → count
+      const doneBldgMap = {};
+      deptBeds.forEach(b => {
+        const w  = b.ward_name || '\x00';
+        const fl = b.floor_number ?? 0;
+        if (!doneBldgMap[w]) doneBldgMap[w] = {};
+        doneBldgMap[w][fl] = (doneBldgMap[w][fl] || 0) + 1;
+      });
+      const doneFloorStr = [...new Set(deptBeds.map(b => b.floor_number ?? 0))].sort((a,b) => a-b)
+        .map(f => f === 0 ? 'GF' : `Fl.${f}`).join(', ') || 'GF';
+      const doneBldgHtml = Object.keys(doneBldgMap).length
+        ? Object.entries(doneBldgMap)
+            .sort(([a],[b]) => a === '\x00' ? 1 : b === '\x00' ? -1 : a.localeCompare(b))
+            .map(([w, floors]) => {
+              const name = w === '\x00' ? '<em style="color:#aaa">No building</em>' : _esc(w);
+              const flParts = Object.entries(floors)
+                .sort(([a],[b]) => parseInt(a) - parseInt(b))
+                .map(([fl, cnt]) => {
+                  const lbl = parseInt(fl) === 0 ? 'GF' : `Fl.${fl}`;
+                  return `<span style="color:var(--gold);font-weight:600">${lbl}</span>`
+                       + `<span style="color:var(--text-muted)">&thinsp;(${cnt})</span>`;
+                }).join('<span style="color:#ccc">&thinsp;·&thinsp;</span>');
+              return `<div style="font-size:10px;line-height:1.8">${name}&ensp;${flParts}</div>`;
+            }).join('')
+        : '<span style="color:#ccc;font-size:10px">—</span>';
       return `<tr class="qs-done">
         <td style="position:sticky;left:0;background:#f0faf5;z-index:1"><span style="font-size:12px;font-weight:600">${ncismLabel}</span><span class="qs-dept-badge">${r.prefix}</span></td>
         <td style="text-align:center;font-weight:600">${r.required}${r.pg > 0 ? `<span style="font-size:9px;color:var(--gold);display:block">+${r.pg} PG</span>` : ''}</td>
         ${typeSummary}
-        <td colspan="4"><span class="qs-done-badge">✓ ${configured} configured</span></td>
+        <td><span class="qs-done-badge">✓ ${configured}</span></td>
+        <td style="font-size:10px;color:var(--text-muted)">${Object.keys(doneBldgMap).filter(k => k !== '\x00')[0] ? _esc(Object.keys(doneBldgMap).filter(k => k !== '\x00')[0]) : '—'}</td>
+        <td style="vertical-align:top;padding:4px 8px">${doneBldgHtml}</td>
+        <td style="text-align:center;font-size:10px;color:var(--text-dark)">${doneFloorStr}</td>
         <td><button class="btn btn-secondary btn-sm" onclick="switchTab('dept')" style="font-size:11px">Manage →</button></td>
       </tr>`;
     }
@@ -1489,10 +1614,16 @@ function renderQs2Table(pool) {
     const totalText  = poolIsEmpty ? '—' : (initTotal === remaining ? `${initTotal} ✓` : `${initTotal} (${initTotal - remaining})`);
 
     const sourcesHtml = sources.length
-      ? sources.map(s =>
-          `<div style="font-size:10px;line-height:1.6">${s.full}
-           <span style="color:var(--gold);font-weight:600">&thinsp;·&thinsp;${s.flStr}</span></div>`
-        ).join('')
+      ? sources.map(s => {
+          const flParts = Object.entries(s.floorMap)
+            .sort(([a],[b]) => parseInt(a) - parseInt(b))
+            .map(([fl, cnt]) => {
+              const lbl = parseInt(fl) === 0 ? 'GF' : `Fl.${fl}`;
+              return `<span style="color:var(--gold);font-weight:600">${lbl}</span>`
+                   + `<span style="color:var(--text-muted)">&thinsp;(${cnt})</span>`;
+            }).join('<span style="color:#ccc">&thinsp;·&thinsp;</span>');
+          return `<div style="font-size:10px;line-height:1.8">${_esc(s.full)}&ensp;${flParts}</div>`;
+        }).join('')
       : '<span style="color:#ccc;font-size:10px">—</span>';
 
     return `<tr data-code="${r.code}" data-dept-id="${r.dept.id}" data-required="${r.required}" data-prefix="${r.prefix}">
@@ -1649,22 +1780,51 @@ window.quickSetupCreateRow = async function(code, silent) {
   let nextNum = reservedStart;
   while (existingNums.has(nextNum)) nextNum++;
 
-  // Insert grouped by type in _qs1Types order
+  // Insert beds grouped by building block (when no explicit ward name)
   const rows = [];
   const typeOrder = (_qs1Types || []).map(t => t.key);
-  const sortedKeys = Object.keys(distribution).sort(
-    (a, b) => typeOrder.indexOf(a) - typeOrder.indexOf(b)
-  );
-  for (const k of sortedKeys) {
-    for (let i = 0; i < distribution[k]; i++) {
-      while (existingNums.has(nextNum)) nextNum++;
-      rows.push({
-        tenant_id: tenantId, department_id: deptId,
-        bed_number: `${prefix}-${String(nextNum).padStart(2, '0')}`,
-        floor_number: floor, ward_name: ward, bed_type: k, status: 'vacant',
-        is_pg_allocated: false,
-      });
-      existingNums.add(nextNum); nextNum++;
+
+  if (!ward && _qs1Blocks && _qs1Blocks.length) {
+    // Per-block: each building block gets its own ward_name + floor
+    const blockAlloc = _computeBlockAllocation(distribution);
+    _qs1Blocks.forEach(b => {
+      const bDist = blockAlloc[b.id] || {};
+      if (!Object.values(bDist).some(v => v > 0)) return;
+      const blockLabel = document.getElementById(`qs1-blk-${b.id}`)?.value || null;
+      const sortedKeys = Object.keys(bDist).filter(k => bDist[k] > 0)
+        .sort((a, bk) => typeOrder.indexOf(a) - typeOrder.indexOf(bk));
+      for (const k of sortedKeys) {
+        // Use the floor configured for this specific bed type in this block (Table 1)
+        const flv = document.getElementById(`qs1-fl-${k}-${b.id}`)?.value;
+        const typeFloor = (flv !== undefined && flv !== '') ? parseInt(flv) || 0 : floor;
+        for (let i = 0; i < bDist[k]; i++) {
+          while (existingNums.has(nextNum)) nextNum++;
+          rows.push({
+            tenant_id: tenantId, department_id: deptId,
+            bed_number: `${prefix}-${String(nextNum).padStart(2, '0')}`,
+            floor_number: typeFloor, ward_name: blockLabel, bed_type: k,
+            status: 'vacant', is_pg_allocated: false,
+          });
+          existingNums.add(nextNum); nextNum++;
+        }
+      }
+    });
+  } else {
+    // Explicit ward name entered — single ward/floor for all beds
+    const sortedKeys = Object.keys(distribution).sort(
+      (a, b) => typeOrder.indexOf(a) - typeOrder.indexOf(b)
+    );
+    for (const k of sortedKeys) {
+      for (let i = 0; i < distribution[k]; i++) {
+        while (existingNums.has(nextNum)) nextNum++;
+        rows.push({
+          tenant_id: tenantId, department_id: deptId,
+          bed_number: `${prefix}-${String(nextNum).padStart(2, '0')}`,
+          floor_number: floor, ward_name: ward, bed_type: k, status: 'vacant',
+          is_pg_allocated: false,
+        });
+        existingNums.add(nextNum); nextNum++;
+      }
     }
   }
 
@@ -1681,6 +1841,7 @@ window.quickSetupCreateRow = async function(code, silent) {
 };
 
 window.quickSetupCreateAll = async function() {
+  _blkRemOffset = 0; // reset so distribution is reproducible each run
   const btn = document.getElementById('qs-btn-all');
   if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
 
@@ -1763,6 +1924,74 @@ function renderStats() {
 
   const occCard = document.getElementById('stat-occupancy').closest('.stat-card');
   occCard.className = 'stat-card' + (pct >= 80 ? ' ' : pct >= 60 ? ' warn' : ' danger');
+
+  renderBuildingSummary();
+}
+
+function renderBuildingSummary() {
+  const el = document.getElementById('building-summary');
+  if (!el) return;
+  if (!_beds.length) { el.innerHTML = ''; return; }
+
+  // Group: ward_name (building) → floor → {vacant, occupied, maintenance, reserved}
+  const buildings = {};
+  _beds.forEach(b => {
+    const key = b.ward_name || '\x00';
+    const fl  = b.floor_number ?? 0;
+    if (!buildings[key]) buildings[key] = { name: b.ward_name, floors: {} };
+    if (!buildings[key].floors[fl]) buildings[key].floors[fl] = { vacant:0, occupied:0, maintenance:0, reserved:0 };
+    const s = b.status || 'vacant';
+    if (buildings[key].floors[fl][s] !== undefined) buildings[key].floors[fl][s]++;
+    else buildings[key].floors[fl].vacant++;
+  });
+
+  const flLabel = f => parseInt(f) === 0 ? 'Ground Floor' : `Floor ${f}`;
+  const STATUSES = [
+    ['vacant',      '🟢', 'vacant'],
+    ['occupied',    '🔴', 'occupied'],
+    ['maintenance', '🟡', 'maintenance'],
+    ['reserved',    '🟠', 'reserved'],
+  ];
+  const bldgKeys = Object.keys(buildings);
+  const noInfo   = bldgKeys.length === 1 && bldgKeys[0] === '\x00';
+
+  const cards = Object.entries(buildings)
+    .sort(([a],[b]) => a === '\x00' ? 1 : b === '\x00' ? -1 : a.localeCompare(b))
+    .map(([key, { name, floors }]) => {
+      const total = Object.values(floors)
+        .reduce((s, f) => s + f.vacant + f.occupied + f.maintenance + f.reserved, 0);
+
+      const flBlocks = Object.entries(floors)
+        .sort(([a],[b]) => parseInt(a) - parseInt(b))
+        .map(([fl, counts]) => {
+          const chips = STATUSES
+            .filter(([s]) => counts[s] > 0)
+            .map(([s, icon, cls]) =>
+              `<span class="bsm-chip ${cls}">${icon} ${counts[s]} ${s}</span>`
+            ).join('');
+          return `<div class="bsm-floor-block">
+            <div class="bsm-floor-label">${flLabel(fl)}</div>
+            <div class="bsm-chips">${chips || '<span class="bsm-chip vacant">🟢 0 vacant</span>'}</div>
+          </div>`;
+        }).join('');
+
+      const hdr = name
+        ? `${_esc(name)}<span class="bsm-total">${total} beds</span>`
+        : `<span style="font-style:italic;color:var(--text-muted)">No building assigned</span>
+           <span class="bsm-total">${total} beds</span>`;
+
+      return `<div class="bsm-card">
+        <div class="bsm-card-name">${hdr}</div>
+        ${flBlocks}
+        ${noInfo ? `<div class="bsm-no-info">Use ⚡ Quick Setup to assign buildings.</div>` : ''}
+      </div>`;
+    }).join('');
+
+  el.innerHTML = `<div style="font-size:11px;font-weight:600;color:var(--text-muted);
+      text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">
+      Building &amp; Floor Breakdown
+    </div>
+    <div class="bsm-row">${cards}</div>`;
 }
 
 // ── NCISM compliance check ────────────────────────────────────────────────────
@@ -1791,7 +2020,13 @@ function renderDepts() {
     return;
   }
 
-  grid.innerHTML = _depts.map(d => {
+  const sortedDepts = [..._depts].sort((a, b) => {
+    const ra = Math.floor((UG_BED_RATIOS[a.ncism_code] || 0) * (_ugIntake || 0));
+    const rb = Math.floor((UG_BED_RATIOS[b.ncism_code] || 0) * (_ugIntake || 0));
+    return rb - ra || (a.name || '').localeCompare(b.name || '');
+  });
+
+  grid.innerHTML = sortedDepts.map(d => {
     const deptBeds   = _beds.filter(b => b.department_id === d.id);
     const occupied   = deptBeds.filter(b => b.status === 'occupied').length;
     const pct        = deptBeds.length ? Math.round(occupied / deptBeds.length * 100) : 0;
@@ -1879,19 +2114,22 @@ function renderBeds() {
 
   const deptMap = Object.fromEntries(_depts.map(d => [d.id, d.name]));
 
+  const STATUS_LABELS = {vacant:'Vacant',occupied:'Occupied',maintenance:'Maintenance',reserved:'Reserved'};
+  const BED_LABELS    = {male_general:'Male General Ward',female_general:'Female General Ward',general:'General Ward',twin_sharing:'Twin Sharing',semi_private:'Shared Private',private:'Private Room',deluxe:'Deluxe Private',dormitory:'Dormitory',icu:'ICU',day_care:'Day Care',pk_treatment:'PK Treatment',observation:'Observation'};
   grid.innerHTML = beds.map(b => {
-    const statusCls = b.status === 'pk_treatment' ? 'pk_treatment' : b.status;
-    const BED_LABELS = {male_general:'Male General Ward',female_general:'Female General Ward',general:'General Ward',twin_sharing:'Twin Sharing',semi_private:'Shared Private',private:'Private Room',deluxe:'Deluxe Private',dormitory:'Dormitory',icu:'ICU',day_care:'Day Care',pk_treatment:'PK Treatment',observation:'Observation'};
+    const st        = b.status || 'vacant';
     const typeLabel = BED_LABELS[b.bed_type] || b.bed_type.replace(/_/g,' ');
-    return `<div class="bed-card ${statusCls}" onclick="openBedDrawer('${b.id}')" title="${_esc(b.bed_number)} — ${deptMap[b.department_id] || ''} — ${b.status}">
+    return `<div class="bed-card ${st}" onclick="openBedDrawer('${b.id}')" title="${_esc(b.bed_number)} — ${deptMap[b.department_id] || ''} — ${st}">
       ${b.is_pg_allocated ? '<div class="bed-pg-dot" title="PG-allocated"></div>' : ''}
       <div class="bed-num">${_esc(b.bed_number)}</div>
       <div class="bed-dept-name">${_esc(deptMap[b.department_id] || '—')}</div>
       ${b.ward_name ? `<div class="bed-ward">${_esc(b.ward_name)}</div>` : ''}
       <div class="bed-type-badge ${b.bed_type}">${typeLabel}</div>
+      <div class="bed-card-status ${st}">${STATUS_LABELS[st] || st}</div>
     </div>`;
   }).join('');
 }
+window.renderBeds = renderBeds;
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 window.switchTab = function(tab) {
@@ -2409,6 +2647,39 @@ window.downloadBedMapPDF = function() {
   const maintenance = _beds.filter(b => b.status === 'maintenance').length;
   const occupancyPct = _beds.length ? Math.round(occupied / _beds.length * 100) : 0;
 
+  // ── Building × Floor breakdown for PDF cover ──────────────────────────────
+  const pdfBldg = {};
+  _beds.forEach(b => {
+    const bldg = b.ward_name || '(No building assigned)';
+    const fl   = b.floor_number ?? 0;
+    if (!pdfBldg[bldg]) pdfBldg[bldg] = {};
+    if (!pdfBldg[bldg][fl]) pdfBldg[bldg][fl] = { count: 0, depts: new Set() };
+    pdfBldg[bldg][fl].count++;
+    const pd = _depts.find(dd => dd.id === b.department_id);
+    if (pd) pdfBldg[bldg][fl].depts.add(pd.name);
+  });
+  const pdfBldgRows = Object.entries(pdfBldg)
+    .sort(([a],[b]) => a.localeCompare(b))
+    .flatMap(([bldg, floors]) =>
+      Object.entries(floors).sort(([a],[b]) => parseInt(a)-parseInt(b)).map(([fl,{count,depts}]) =>
+        '<tr><td>' + bldg + '</td>' +
+        '<td>' + (parseInt(fl)===0 ? 'Ground Floor' : 'Floor '+fl) + '</td>' +
+        '<td style="text-align:center;font-weight:700">' + count + '</td>' +
+        '<td style="font-size:7.5pt">' + [...depts].sort().join(', ') + '</td></tr>'
+      )
+    ).join('');
+  const pdfBldgTable =
+    '<div style="margin:12px 0 10px;text-align:left;display:inline-block;min-width:460px">' +
+    '<div style="font-size:9pt;font-weight:700;color:#1a4a2e;margin-bottom:5px;' +
+    'border-bottom:1.5px solid #1a4a2e;padding-bottom:4px">Building &amp; Floor Allocation' +
+    '</div><table style="width:100%;border-collapse:collapse;font-size:8.5pt">' +
+    '<thead><tr>' +
+    '<th style="background:#1a4a2e;color:#fff;padding:4px 10px;width:150px">Building</th>' +
+    '<th style="background:#1a4a2e;color:#fff;padding:4px 10px;width:110px">Floor</th>' +
+    '<th style="background:#1a4a2e;color:#fff;padding:4px 10px;width:50px;text-align:center">Beds</th>' +
+    '<th style="background:#1a4a2e;color:#fff;padding:4px 10px">Departments</th>' +
+    '</tr></thead><tbody>' + pdfBldgRows + '</tbody></table></div>';
+
   // ── Assemble ───────────────────────────────────────────────────
   // _x: safe close-tag builder — \x3C = < avoids literal </ in <script> source
   const _x = (t) => '\x3C/' + t + '>';
@@ -2467,6 +2738,7 @@ window.downloadBedMapPDF = function() {
     '    <div class="stat"><div class="n">' + occupancyPct + '%' + _x('div') + '<div class="l">Occupancy' + _x('div') + _x('div'),
     '  ' + _x('div'),
     '  <div class="gen-meta">Generated: ' + now + _x('div'),
+    pdfBldgTable,
     '  <div class="legend">🟢 Vacant &nbsp;&nbsp; 🔴 Occupied &nbsp;&nbsp; 🟡 Maintenance &nbsp;&nbsp; 🟠 Reserved' + _x('div'),
     '  <div class="toc"><div class="toc-title">Contents' + _x('div'),
     '    <div>Section 1 — Department-wise Bed Allocation<span class="pg">pg 2' + _x('span') + _x('div'),
