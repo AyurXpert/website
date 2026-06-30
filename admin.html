@@ -962,7 +962,14 @@ function _bootMasterControl() {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.hr-tab').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      _hrSub(btn.dataset.sub);
+      const sub = btn.dataset.sub;
+      if (sub === 'hierarchy') {
+        _hrSub('hierarchy');
+        if (window._staffAll) renderHierarchy(window._staffAll);
+        else window.loadHR('hierarchy');
+      } else {
+        _hrSub(sub);
+      }
     });
   });
 
@@ -1705,7 +1712,7 @@ async function _renderNcismStaffing() {
         +'</tr>';
     }).join('');
     return '<div class=”ncism-zs”>'
-      +'<div class=”ncism-zh” onclick=”this.parentElement.classList.toggle(\'z-open\')”>'
+      +'<div class=”ncism-zh ncism-toggle”>'
       +'<span style=”font-weight:600;font-size:13px”>'+zi+' '+zone+'</span>'
       +'<span style=”display:flex;align-items:center;gap:8px”>'
       +'<span style=”font-size:12px;color:var(--text-muted)”>'+zAct+' / '+zReq+' this zone</span>'
@@ -1742,7 +1749,7 @@ async function _renderNcismStaffing() {
         +'</tr>';
     }).join('');
     pgHtml='<div class=”ncism-zs z-open” style=”margin-top:8px”>'
-      +'<div class=”ncism-zh” onclick=”this.parentElement.classList.toggle(\'z-open\')” style=”background:#fef9ec”>'
+      +'<div class=”ncism-zh ncism-toggle” style=”background:#fef9ec”>'
       +'<span style=”font-weight:600;font-size:13px”>🎓 PG Departments — Additional Staff Required</span>'
       +'<span class=”ncism-arr”>▼</span></div>'
       +'<div class=”ncism-zb”><div style=”overflow-x:auto”><table style=”width:100%;border-collapse:collapse”>'
@@ -1795,6 +1802,15 @@ async function _renderNcismStaffing() {
       +'<span>* Recruited = active profiles with designation set in <strong>All Staff</strong> tab. The Summary table above shows accurate totals across all zones. Zone accordion shows pool count per zone.</span>'
       +'<a href=”ncism-compliance.html” style=”color:var(--green-mid);white-space:nowrap”>Full NCISM Report →</a>'
     +'</div>';
+
+  // Delegated click handler for zone accordions — guard prevents duplicate stacking
+  if (!wrap._ncismClickBound) {
+    wrap._ncismClickBound = true;
+    wrap.addEventListener('click', e => {
+      const hdr = e.target.closest('.ncism-toggle');
+      if (hdr) hdr.closest('.ncism-zs').classList.toggle('z-open');
+    });
+  }
 
   // Auto-open first 2 zones
   [...wrap.querySelectorAll('.ncism-zs')].slice(0,2).forEach(el=>el.classList.add('z-open'));
