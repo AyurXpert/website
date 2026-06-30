@@ -1424,6 +1424,7 @@ function _hrSub(sub){
 // ── NCISM Schedule XX — Hospital Staff Requirements ──────────────────
 // [zone, label, desig_keys[], {60,100,150,200}, ncism_ref]
 const NCISM_XX_ROWS = [
+  // Administration
   ['Administration','Medical Director / Principal / Dean',['medical_director'],{60:1,100:1,150:1,200:1},'Sch XX/1'],
   ['Administration','Medical Superintendent',['medical_superintendent'],{60:1,100:1,150:1,200:1},'Sch XX/2'],
   ['Administration','Deputy Medical Superintendent',['deputy_medical_superintendent'],{60:1,100:1,150:2,200:2},'Sch XX/3'],
@@ -1432,42 +1433,110 @@ const NCISM_XX_ROWS = [
   ['Administration','Matron / Nursing Superintendent',['nursing_superintendent'],{60:1,100:1,150:1,200:1},'Sch XX/7'],
   ['Administration','Assistant Matron',['deputy_nursing_superintendent'],{60:2,100:3,150:4,200:5},'Sch XX/8'],
   ['Administration','Office Superintendent',['opd_incharge'],{60:1,100:1,150:1,200:1},'Sch XX/9'],
-  ['Administration','Clerks & Accountants',['accountant'],{60:1,100:2,150:3,200:4},'Sch XX/10'],
   ['Administration','Multi-tasking Support Staff',['attender'],{60:3,100:3,150:4,200:4},'Sch XX/12'],
+  // Finance & Accounts (separate zone from Administration)
+  ['Finance & Accounts','Finance Manager / Accounts Officer',['accountant'],{60:1,100:1,150:1,200:1},'NCISM §Admin'],
+  ['Finance & Accounts','Clerks & Accounts Staff',['accountant'],{60:1,100:2,150:3,200:4},'Sch XX/10'],
+  ['Finance & Accounts','Store Keeper (Main / Pharmacy Store)',['accountant'],{60:1,100:1,150:1,200:1},'Sch XX/11'],
+  // Reception & MRD
   ['Reception & MRD','Receptionist cum Telephone Operator',['receptionist'],{60:3,100:4,150:4,200:4},'Sch XX/16'],
   ['Reception & MRD','Registration & Billing Clerks',['registration_clerk','billing_clerk'],{60:1,100:2,150:3,200:4},'Sch XX/17'],
   ['Reception & MRD','Medical Record Technician',['medical_record_officer','medical_record_technician'],{60:1,100:1,150:1,200:1},'Sch XX/18'],
+  // OPD Nursing
   ['OPD Nursing','Nursing Staff — All OPDs',['staff_nurse','ward_sister'],{60:3,100:3,150:3,200:5},'Sch XX/20'],
+  // Pharmacy
   ['Pharmacy','Pharmacist (Ayurveda-qualified)',['pharmacist'],{60:2,100:2,150:3,200:4},'Sch XX/22'],
   ['Pharmacy','Dispensary In-charge',['chief_pharmacist'],{60:1,100:1,150:1,200:1},'Sch XX/23'],
+  // Diagnostics
   ['Diagnostics','Lab Technician (DMLT)',['lab_technician'],{60:2,100:2,150:3,200:4},'Sch XX/24'],
   ['Diagnostics','Lab Attendant',['lab_attendant'],{60:1,100:1,150:2,200:3},'Sch XX/25'],
   ['Diagnostics','X-ray Technician / Radiographer',['radiographer'],{60:1,100:1,150:1,200:1},'Sch XX/26'],
   ['Diagnostics','Microbiologist (MSc)',['microbiologist'],{60:1,100:1,150:1,200:1},'Sch XX/30'],
+  // Medical IPD
   ['Medical IPD','Nursing Staff (1 per 10 beds)',['staff_nurse','ward_sister'],{60:4,100:6,150:9,200:12},'Sch XX/32'],
   ['Medical IPD','Ayah (1 per 20 beds)',['attender','anm'],{60:2,100:3,150:5,200:6},'Sch XX/33'],
   ['Medical IPD','Resident Medical Officer — Medical',['emergency_medical_officer','general_duty_medical_officer'],{60:2,100:2,150:2,200:2},'Sch XX/34'],
+  // Surgical IPD
   ['Surgical IPD','Nursing Staff (1 per 10 beds)',['staff_nurse','ward_sister'],{60:3,100:4,150:6,200:8},'Sch XX/35'],
   ['Surgical IPD','Ayah (1 per 20 beds)',['attender','anm'],{60:2,100:2,150:3,200:4},'Sch XX/36'],
   ['Surgical IPD','Resident Surgical Officer',['emergency_medical_officer','general_duty_medical_officer'],{60:2,100:2,150:2,200:2},'Sch XX/37'],
+  // Panchakarma
   ['Panchakarma','PK Nursing Staff',['staff_nurse'],{60:1,100:1,150:2,200:2},'Sch XX/38'],
   ['Panchakarma','PK Therapists (Male + Female equal)',['pk_incharge','senior_therapist','therapist'],{60:4,100:8,150:12,200:16},'Sch XX/40'],
   ['Panchakarma','House Officer / Clinical Registrar (BAMS)',['junior_resident'],{60:1,100:1,150:1,200:1},'Sch XX/41'],
+  // Operation Theatre
   ['Operation Theatre','OT Nursing Staff',['ot_technician','staff_nurse'],{60:1,100:2,150:3,200:4},'Sch XX/43'],
   ['Operation Theatre','OT Attendants',['attender'],{60:2,100:3,150:4,200:5},'Sch XX/44'],
   ['Operation Theatre','Anushastra Karma Technician',['cssd_technician'],{60:1,100:1,150:2,200:2},'Sch XX/45'],
+  // Labour Room
   ['Labour Room','Nursing Staff — Labour Room (3 shifts)',['staff_nurse','ward_sister'],{60:1,100:3,150:6,200:6},'Sch XX/46'],
+  // Therapy
   ['Kriyakalpa','Kriyakalpa Therapists',['therapist','senior_therapist'],{60:2,100:2,150:4,200:4},'Sch XX/48'],
   ['Physiotherapy','Physiotherapist',['therapist'],{60:1,100:1,150:1,200:1},'Sch XX/49'],
+  // Yoga & Wellness
   ['Yoga & Wellness','Yoga Demonstrator',['yoga_instructor'],{60:1,100:1,150:1,200:1},'Sch XX/51'],
+  // Diet / Pathya
   ['Diet / Pathya','Diet In-charge (BAMS / MSc Dietetics)',['palha_diet_incharge','dietitian'],{60:1,100:1,150:1,200:1},'Sch XX/52'],
   ['Diet / Pathya','Pathya Cooks',['diet_cook'],{60:2,100:2,150:3,200:4},'Sch XX/53'],
+  // CSSD
   ['CSSD','CSSD / Sterilisation Staff',['cssd_incharge','cssd_technician'],{60:1,100:1,150:1,200:1},'Sch XX/CS1'],
+];
+
+// Summary groups — each desig key appears in EXACTLY ONE group to avoid double-counting
+const NCISM_SUM_GRPS = [
+  {s:'Faculty (Schedule I)',rows:[
+    {l:'Professor / HOD',                             k:['professor','hod'],                                                                    fac:'p'},
+    {l:'Associate Professor',                         k:['associate_professor'],                                                                fac:'a'},
+    {l:'Assistant Professor',                         k:['assistant_professor'],                                                                fac:'b'},
+    {l:'Senior Resident (PG scholars only)',          k:['senior_resident'],                                                                    pgOnly:true},
+  ]},
+  {s:'Clinical — Doctors & Management',rows:[
+    {l:'Medical Director / Principal / Dean',         k:['medical_director']},
+    {l:'Medical Superintendent',                      k:['medical_superintendent']},
+    {l:'Deputy Medical Superintendent',               k:['deputy_medical_superintendent']},
+    {l:'Administrator (Non-clinical)',                k:['administrative_officer']},
+    {l:'RMO / EMO / Resident MO (Admin + IPD × 3)',  k:['resident_medical_officer','emergency_medical_officer','general_duty_medical_officer']},
+    {l:'House Officer / Clinical Registrar (BAMS)',   k:['junior_resident']},
+  ]},
+  {s:'Nursing',rows:[
+    {l:'Matron / Nursing Superintendent',             k:['nursing_superintendent']},
+    {l:'Assistant Matron',                            k:['deputy_nursing_superintendent']},
+    {l:'Staff Nurse — all zones (OPD+IPD+PK+OT+LR)', k:['staff_nurse','ward_sister']},
+    {l:'Ayah / Attendant — all zones (IPD+Admin+OT)', k:['attender','anm']},
+  ]},
+  {s:'Pharmacy',rows:[
+    {l:'Pharmacist',                                  k:['pharmacist','pharmacy_assistant']},
+    {l:'Dispensary In-charge',                        k:['chief_pharmacist']},
+  ]},
+  {s:'Diagnostics',rows:[
+    {l:'Lab Technician',                              k:['lab_technician']},
+    {l:'Lab Attendant',                               k:['lab_attendant']},
+    {l:'X-ray Technician / Radiographer',             k:['radiographer']},
+    {l:'Microbiologist',                              k:['microbiologist']},
+  ]},
+  {s:'Reception & MRD',rows:[
+    {l:'Receptionist',                                k:['receptionist']},
+    {l:'Registration & Billing Clerks',               k:['registration_clerk','billing_clerk']},
+    {l:'Medical Record Technician',                   k:['medical_record_officer','medical_record_technician']},
+    {l:'Office Superintendent',                       k:['opd_incharge']},
+  ]},
+  {s:'Finance & Accounts',rows:[
+    {l:'Finance Mgr + Accountants + Store Keeper',    k:['accountant']},
+  ]},
+  {s:'OT / CSSD',rows:[
+    {l:'OT Nurse / CSSD / Anushastra Technician',    k:['ot_technician','cssd_incharge','cssd_technician']},
+  ]},
+  {s:'Therapy & Wellness',rows:[
+    {l:'PK / Kriyakalpa / Physiotherapy Therapist',  k:['pk_incharge','senior_therapist','therapist']},
+    {l:'Yoga Demonstrator',                           k:['yoga_instructor']},
+    {l:'Diet In-charge',                              k:['palha_diet_incharge','dietitian']},
+    {l:'Pathya Cook',                                 k:['diet_cook']},
+  ]},
 ];
 
 async function _renderNcismStaffing() {
   const wrap = document.getElementById('ncism-staff-table-wrap');
-  wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
+  wrap.innerHTML = '<div class=”empty”><div class=”empty-ico”>⏳</div><div class=”empty-ttl”>Loading…</div></div>';
 
   const [{ data:tRow }, { data:rawStaff }, { data:pgDepts }] = await Promise.all([
     supabase.from('tenants').select('ug_intake,type,pg_student_strength').eq('id',tenantId).single(),
@@ -1478,35 +1547,58 @@ async function _renderNcismStaffing() {
   const ugRaw = tRow?.ug_intake || 0;
   const ug = [60,100,150,200].includes(ugRaw) ? ugRaw : (ugRaw>=150?150:ugRaw>=100?100:ugRaw>0?60:0);
   if (!ug) {
-    wrap.innerHTML = '<div class="empty"><div class="empty-ico">ℹ</div><div class="empty-ttl">NCISM staffing requirements apply to Teaching Hospitals and Colleges with UG intake configured.</div></div>';
+    wrap.innerHTML = '<div class=”empty”><div class=”empty-ico”>ℹ</div><div class=”empty-ttl”>NCISM staffing requirements apply to Teaching Hospitals and Colleges with UG intake configured.</div></div>';
     return;
   }
 
-  // Count active profiles by designation
   const byDesig = {};
   (rawStaff||[]).forEach(s => { if(s.designation) byDesig[s.designation]=(byDesig[s.designation]||0)+1; });
   const cntD = keys => keys.reduce((s,k)=>s+(byDesig[k]||0),0);
+  const pgList = pgDepts || [];
 
-  // Grand compliance: sum required per unique desig key across all zones, compare to recruited
-  const totReq={}, totAct={};
-  NCISM_XX_ROWS.forEach(([,,keys,req]) => {
-    const r=req[ug]||0;
-    keys.forEach(k=>{ totReq[k]=(totReq[k]||0)+r; totAct[k]=byDesig[k]||0; });
+  // Faculty (Schedule I) — 8 clinical depts standard
+  const facByUg={60:{p:1,a:1,b:2},100:{p:1,a:1,b:3},150:{p:1,a:2,b:3},200:{p:1,a:2,b:4}};
+  const fac=facByUg[ug], clinDepts=8;
+  const FAC_UG={p:clinDepts*fac.p, a:clinDepts*fac.a, b:clinDepts*fac.b};
+  const facReq=FAC_UG.p+FAC_UG.a+FAC_UG.b;
+  const facAct=cntD(['professor','hod','associate_professor','assistant_professor']);
+  const facGap=Math.max(0,facReq-facAct);
+
+  // PG additions per desig key
+  const keyTotPG={};
+  pgList.forEach(d=>{
+    const seats=d.pg_seats_sanctioned||3, pgB=seats*4;
+    keyTotPG['senior_resident']=(keyTotPG['senior_resident']||0)+Math.ceil(seats/3);
+    keyTotPG['staff_nurse']=(keyTotPG['staff_nurse']||0)+Math.ceil(pgB/10);
+    keyTotPG['attender']=(keyTotPG['attender']||0)+Math.ceil(pgB/20);
+    if(d.ncism_code==='PANCHAKARMA')keyTotPG['therapist']=(keyTotPG['therapist']||0)+Math.ceil(seats/3)*2;
+    if(seats>3)keyTotPG['assistant_professor']=(keyTotPG['assistant_professor']||0)+Math.ceil((seats-3)/3);
+    if(seats>6)keyTotPG['associate_professor']=(keyTotPG['associate_professor']||0)+Math.ceil((seats-6)/3);
   });
-  const allK=Object.keys(totReq);
-  const grandReq=allK.reduce((s,k)=>s+totReq[k],0);
-  const grandMet=allK.reduce((s,k)=>s+Math.min(totAct[k]||0,totReq[k]),0);
+
+  // Zone abbreviations for “Where Required” column
+  const ZA={'Administration':'Admin','Finance & Accounts':'Finance','Reception & MRD':'Reception',
+    'OPD Nursing':'OPD Nsg','Pharmacy':'Pharmacy','Diagnostics':'Diagnostics',
+    'Medical IPD':'Med IPD','Surgical IPD':'Surg IPD','Panchakarma':'PK',
+    'Operation Theatre':'OT','Labour Room':'LR','Kriyakalpa':'Kriyakalpa',
+    'Physiotherapy':'Physio','Yoga & Wellness':'Yoga','Diet / Pathya':'Diet','CSSD':'CSSD'};
+  // Compute which zones each desig key appears in (for display only)
+  const keyZones={};
+  NCISM_XX_ROWS.forEach(([zone,,keys,req])=>{
+    const r=req[ug]||0;
+    if(!r)return;
+    keys.forEach(k=>{if(!keyZones[k])keyZones[k]=[];const ab=ZA[zone]||zone;if(!keyZones[k].includes(ab))keyZones[k].push(ab);});
+  });
+
+  // ugReqForGroup: sum requirements for all XX rows that contain ANY key from gKeys (no double-count)
+  const ugReqForGroup=gKeys=>NCISM_XX_ROWS.reduce((s,[,,keys,req])=>s+(keys.some(k=>gKeys.includes(k))?(req[ug]||0):0),0);
+
+  // Grand compliance (per-row min approach)
+  const gcRes=NCISM_XX_ROWS.reduce((acc,[,,keys,req])=>{const r=req[ug]||0;acc.req+=r;acc.met+=Math.min(cntD(keys),r);return acc;},{req:0,met:0});
+  const grandReq=gcRes.req+facReq;
+  const grandMet=gcRes.met+Math.min(facAct,facReq);
   const grandPct=grandReq>0?Math.round(grandMet/grandReq*100):100;
   const hc=grandPct>=80?'#2d7a4f':grandPct>=50?'#c9902a':'#c0392b';
-
-  // Faculty totals (Schedule I — 8 clinical depts standard)
-  const facByUg={60:{p:1,a:1,b:2},100:{p:1,a:1,b:3},150:{p:1,a:2,b:3},200:{p:1,a:2,b:4}};
-  const fac=facByUg[ug];
-  const clinDepts=8;
-  const facReq=clinDepts*(fac.p+fac.a+fac.b);
-  const facAct=cntD(['professor','associate_professor','assistant_professor','hod']);
-  const facGap=Math.max(0,facReq-facAct);
-  const facPer=fac.p+fac.a+fac.b;
 
   // Inject CSS once
   if (!document.getElementById('ncism-z-css')) {
@@ -1521,14 +1613,56 @@ async function _renderNcismStaffing() {
     document.head.appendChild(s);
   }
 
-  // Zone accordions
+  // ── Summary table (designation-wise totals across ALL zones) ─────────
+  let sumRows='';
+  NCISM_SUM_GRPS.forEach(({s,rows})=>{
+    sumRows+='<tr style=”background:#f0faf5”><td colspan=”7” style=”padding:6px 14px;font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px”>'+s+'</td></tr>';
+    rows.forEach(({l,k,fac:fk,pgOnly})=>{
+      let ugR;
+      if(fk) ugR=FAC_UG[fk]||0;
+      else if(pgOnly) ugR=0;
+      else ugR=ugReqForGroup(k);
+      const pgA=k.reduce((s,key)=>s+(keyTotPG[key]||0),0);
+      const total=ugR+pgA;
+      if(pgOnly&&pgList.length===0){
+        sumRows+='<tr><td style=”padding:5px 12px 5px 20px;font-size:12.5px;color:var(--text-muted);border-bottom:1px solid #f0f4f2”>'+l+'</td>'
+          +'<td colspan=”6” style=”padding:5px 12px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2”>Not applicable — no PG departments configured</td></tr>';
+        return;
+      }
+      const rec=cntD(k), gap=Math.max(0,total-rec);
+      const rc=rec>=total&&total>0?'#2d7a4f':rec>0?'#c9902a':'#c0392b';
+      const si=rec>=total&&total>0?'✅':rec>0?'⚠️':'❌';
+      let zs;
+      if(fk) zs='Schedule I ('+clinDepts+' clinical depts)';
+      else if(pgOnly) zs='PG depts only';
+      else zs=[...new Set(k.flatMap(key=>keyZones[key]||[]))].join(' + ')||'—';
+      sumRows+='<tr>'
+        +'<td style=”padding:5px 12px 5px 20px;font-size:12.5px;border-bottom:1px solid #f0f4f2”>'+l+'</td>'
+        +'<td style=”padding:5px 10px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2”>'+zs+'</td>'
+        +'<td style=”padding:5px 10px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2”>'+(total>0?ugR:'—')+'</td>'
+        +'<td style=”padding:5px 10px;text-align:center;color:#c9902a;border-bottom:1px solid #f0f4f2”>'+(pgA>0?'+'+pgA:'—')+'</td>'
+        +'<td style=”padding:5px 10px;text-align:center;font-weight:700;border-bottom:1px solid #f0f4f2”>'+(total||'—')+'</td>'
+        +'<td style=”padding:5px 10px;text-align:center;color:'+rc+';font-weight:700;border-bottom:1px solid #f0f4f2”>'+rec+'</td>'
+        +'<td style=”padding:5px 10px;text-align:center;border-bottom:1px solid #f0f4f2”>'+si+(gap>0?' <span style=”font-size:11px;color:#c0392b”>−'+gap+'</span>':'')+'</td>'
+        +'</tr>';
+    });
+  });
+  const sumTH='<th style=”padding:7px 10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>';
+  const sumTableHtml='<div style=”overflow-x:auto”><table style=”width:100%;border-collapse:collapse”>'
+    +'<thead><tr style=”background:#f5faf7”>'
+    +'<th style=”padding:7px 12px 7px 20px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>Staff Designation</th>'
+    +'<th style=”padding:7px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>Where Required</th>'
+    +sumTH+'UG Reqd</th>'+sumTH+'PG Add-on</th>'+sumTH+'Total Needed</th>'+sumTH+'Recruited</th>'+sumTH+'Status</th>'
+    +'</tr></thead><tbody>'+sumRows+'</tbody></table></div>';
+
+  // ── Zone accordions ───────────────────────────────────────────────────
   const zones=[...new Set(NCISM_XX_ROWS.map(r=>r[0]))];
   const zonesHtml=zones.map(zone=>{
     const rows=NCISM_XX_ROWS.filter(r=>r[0]===zone);
     const zReq=rows.reduce((s,r)=>s+(r[3][ug]||0),0);
     const zKeys=new Set(rows.flatMap(r=>r[2]));
-    const zAct=[...zKeys].reduce((s,k)=>s+(byDesig[k]||0),0);
-    const zPct=zReq>0?Math.min(100,Math.round(zAct/zReq*100)):100;
+    const zAct=Math.min([...zKeys].reduce((s,k)=>s+(byDesig[k]||0),0),zReq);
+    const zPct=zReq>0?Math.round(zAct/zReq*100):100;
     const zc=zPct>=100?'#2d7a4f':zPct>=50?'#c9902a':'#c0392b';
     const zi=zPct>=100?'✅':zPct>=50?'⚠️':'❌';
     const trs=rows.map(([,label,keys,req,ref])=>{
@@ -1536,33 +1670,32 @@ async function _renderNcismStaffing() {
       const rc=a>=r?'#2d7a4f':a>0?'#c9902a':'#c0392b';
       const si=a>=r?'✅':a>0?'⚠️':'❌';
       return '<tr>'
-        +'<td style="padding:7px 12px 7px 16px;font-size:13px;border-bottom:1px solid #f0f4f2">'+label+'</td>'
-        +'<td style="padding:7px 10px;text-align:center;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+ref+'</td>'
-        +'<td style="padding:7px 10px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2">'+r+'</td>'
-        +'<td style="padding:7px 10px;text-align:center;color:'+rc+';font-weight:600;border-bottom:1px solid #f0f4f2">'+a+(a>r?'<sup style="font-size:9px;color:var(--text-muted)"> pool</sup>':'')+'</td>'
-        +'<td style="padding:7px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+si+(gap>0?' <span style="font-size:11px;color:#c0392b">−'+gap+'</span>':'')+'</td>'
+        +'<td style=”padding:7px 12px 7px 16px;font-size:13px;border-bottom:1px solid #f0f4f2”>'+label+'</td>'
+        +'<td style=”padding:7px 10px;text-align:center;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2”>'+ref+'</td>'
+        +'<td style=”padding:7px 10px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2”>'+r+'</td>'
+        +'<td style=”padding:7px 10px;text-align:center;color:'+rc+';font-weight:600;border-bottom:1px solid #f0f4f2”>'+a+'</td>'
+        +'<td style=”padding:7px 10px;text-align:center;border-bottom:1px solid #f0f4f2”>'+si+(gap>0?' <span style=”font-size:11px;color:#c0392b”>−'+gap+'</span>':'')+'</td>'
         +'</tr>';
     }).join('');
-    return '<div class="ncism-zs">'
-      +'<div class="ncism-zh" onclick="this.parentElement.classList.toggle(\'z-open\')">'
-      +'<span style="font-weight:600;font-size:13px">'+zi+' '+zone+'</span>'
-      +'<span style="display:flex;align-items:center;gap:8px">'
-      +'<span style="font-size:12px;color:var(--text-muted)">'+zAct+' / '+zReq+' recruited</span>'
-      +'<span style="background:'+zc+'18;color:'+zc+';border:1px solid '+zc+'44;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">'+zPct+'%</span>'
-      +'<span class="ncism-arr">▼</span>'
+    return '<div class=”ncism-zs”>'
+      +'<div class=”ncism-zh” onclick=”this.parentElement.classList.toggle(\'z-open\')”>'
+      +'<span style=”font-weight:600;font-size:13px”>'+zi+' '+zone+'</span>'
+      +'<span style=”display:flex;align-items:center;gap:8px”>'
+      +'<span style=”font-size:12px;color:var(--text-muted)”>'+zAct+' / '+zReq+' this zone</span>'
+      +'<span style=”background:'+zc+'18;color:'+zc+';border:1px solid '+zc+'44;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700”>'+zPct+'%</span>'
+      +'<span class=”ncism-arr”>▼</span>'
       +'</span></div>'
-      +'<div class="ncism-zb"><table style="width:100%;border-collapse:collapse">'
-      +'<thead><tr style="background:#f5faf7">'
-      +'<th style="padding:6px 12px 6px 16px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Designation (NCISM)</th>'
-      +'<th style="padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Ref</th>'
-      +'<th style="padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Required</th>'
-      +'<th style="padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Recruited*</th>'
-      +'<th style="padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Status</th>'
+      +'<div class=”ncism-zb”><table style=”width:100%;border-collapse:collapse”>'
+      +'<thead><tr style=”background:#f5faf7”>'
+      +'<th style=”padding:6px 12px 6px 16px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>Designation (NCISM)</th>'
+      +'<th style=”padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>Ref</th>'
+      +'<th style=”padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>Required</th>'
+      +'<th style=”padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>Pool (system)</th>'
+      +'<th style=”padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>Status</th>'
       +'</tr></thead><tbody>'+trs+'</tbody></table></div></div>';
   }).join('');
 
-  // PG departments section
-  const pgList=pgDepts||[];
+  // ── PG section ────────────────────────────────────────────────────────
   let pgHtml='';
   if (pgList.length>0) {
     const pgRows=pgList.map(d=>{
@@ -1571,61 +1704,69 @@ async function _renderNcismStaffing() {
       const tkR=d.ncism_code==='PANCHAKARMA'?Math.ceil(seats/3)*2:0;
       const srA=cntD(['senior_resident']);
       return '<tr>'
-        +'<td style="padding:8px 12px;font-size:13px;border-bottom:1px solid #f0f4f2">'+_esc(d.name)+'</td>'
-        +'<td style="padding:8px 12px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2">'+seats+'</td>'
-        +'<td style="padding:8px 12px;text-align:center;border-bottom:1px solid #f0f4f2">'+pgB+'</td>'
-        +'<td style="padding:8px 12px;text-align:center;border-bottom:1px solid #f0f4f2">'+srR
-          +' <span style="font-size:11px;color:var(--text-muted)">('+srA+' in system)</span></td>'
-        +'<td style="padding:8px 12px;text-align:center;border-bottom:1px solid #f0f4f2">+'+nR+'</td>'
-        +'<td style="padding:8px 12px;text-align:center;border-bottom:1px solid #f0f4f2">+'+aR+'</td>'
-        +'<td style="padding:8px 12px;text-align:center;border-bottom:1px solid #f0f4f2">'+(tkR?'+'+tkR:'—')+'</td>'
+        +'<td style=”padding:8px 12px;font-size:13px;border-bottom:1px solid #f0f4f2”>'+_esc(d.name)+'</td>'
+        +'<td style=”padding:8px 12px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2”>'+seats+'</td>'
+        +'<td style=”padding:8px 12px;text-align:center;border-bottom:1px solid #f0f4f2”>'+pgB+'</td>'
+        +'<td style=”padding:8px 12px;text-align:center;border-bottom:1px solid #f0f4f2”>'+srR
+          +' <span style=”font-size:11px;color:var(--text-muted)”>('+srA+' in system)</span></td>'
+        +'<td style=”padding:8px 12px;text-align:center;border-bottom:1px solid #f0f4f2”>+'+nR+'</td>'
+        +'<td style=”padding:8px 12px;text-align:center;border-bottom:1px solid #f0f4f2”>+'+aR+'</td>'
+        +'<td style=”padding:8px 12px;text-align:center;border-bottom:1px solid #f0f4f2”>'+(tkR?'+'+tkR:'—')+'</td>'
         +'</tr>';
     }).join('');
-    pgHtml='<div class="ncism-zs z-open" style="margin-top:8px">'
-      +'<div class="ncism-zh" onclick="this.parentElement.classList.toggle(\'z-open\')" style="background:#fef9ec">'
-      +'<span style="font-weight:600;font-size:13px">🎓 PG Departments — Additional Staff Required</span>'
-      +'<span class="ncism-arr">▼</span></div>'
-      +'<div class="ncism-zb"><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
-      +'<thead><tr style="background:#fefbf0">'
-      +'<th style="padding:6px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Department</th>'
-      +'<th style="padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">PG Seats</th>'
-      +'<th style="padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Add. Beds (4×seats)</th>'
-      +'<th style="padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Senior Residents (1/3 seats)</th>'
-      +'<th style="padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Add. Nurses (1/10 beds)</th>'
-      +'<th style="padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Add. Ayah (1/20 beds)</th>'
-      +'<th style="padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">PK Therapists (PK only)</th>'
+    pgHtml='<div class=”ncism-zs z-open” style=”margin-top:8px”>'
+      +'<div class=”ncism-zh” onclick=”this.parentElement.classList.toggle(\'z-open\')” style=”background:#fef9ec”>'
+      +'<span style=”font-weight:600;font-size:13px”>🎓 PG Departments — Additional Staff Required</span>'
+      +'<span class=”ncism-arr”>▼</span></div>'
+      +'<div class=”ncism-zb”><div style=”overflow-x:auto”><table style=”width:100%;border-collapse:collapse”>'
+      +'<thead><tr style=”background:#fefbf0”>'
+      +'<th style=”padding:6px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>Department</th>'
+      +'<th style=”padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>PG Seats</th>'
+      +'<th style=”padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>Add. Beds (×4)</th>'
+      +'<th style=”padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>Sr. Residents (1/3)</th>'
+      +'<th style=”padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>+Nurses (1/10 beds)</th>'
+      +'<th style=”padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>+Ayah (1/20 beds)</th>'
+      +'<th style=”padding:6px 10px;text-align:center;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>PK Therapists</th>'
       +'</tr></thead><tbody>'+pgRows+'</tbody></table></div></div></div>';
   } else {
-    pgHtml='<div style="padding:10px 16px;font-size:12px;color:var(--text-muted);background:#f8fdf8;border:1px solid var(--border);border-radius:8px;margin-top:8px">'
-      +'🎓 No PG departments configured. Enable PG on departments in <a href="bed-admin.html" style="color:var(--green-mid)">Dept &amp; Bed Setup</a>.'
+    pgHtml='<div style=”padding:10px 16px;font-size:12px;color:var(--text-muted);background:#f8fdf8;border:1px solid var(--border);border-radius:8px;margin-top:8px”>'
+      +'🎓 No PG departments configured. Enable PG on departments in <a href=”bed-admin.html” style=”color:var(--green-mid)”>Dept &amp; Bed Setup</a>.'
       +'</div>';
   }
 
+  // ── Assemble ──────────────────────────────────────────────────────────
   wrap.innerHTML =
-    '<div style="background:var(--green-deep);color:#fff;border-radius:var(--radius) var(--radius) 0 0;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
-      +'<div>'
-        +'<div style="font-weight:600;font-size:14px">NCISM Schedule XX — Hospital Staffing Compliance</div>'
-        +'<div style="font-size:11px;opacity:.75;margin-top:2px">UG Intake: '+ug+' · Counts from designation set in “All Staff” tab · Active profiles only</div>'
+    '<div style=”background:var(--green-deep);color:#fff;border-radius:var(--radius) var(--radius) 0 0;padding:12px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px”>'
+      +'<div><div style=”font-weight:600;font-size:14px”>NCISM Staffing Compliance — Schedule I + XX</div>'
+        +'<div style=”font-size:11px;opacity:.75;margin-top:2px”>UG Intake: '+ug+' · Faculty + Hospital Staff · Active profiles with designation assigned</div>'
       +'</div>'
-      +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
-        +'<div style="background:'+hc+'44;border:1px solid '+hc+'88;padding:3px 14px;border-radius:12px;font-size:13px;font-weight:700">'+grandPct+'% Compliant</div>'
-        +'<a href="signup.html" style="background:#ffffff22;color:#fff;padding:3px 12px;border-radius:8px;font-size:12px;text-decoration:none;border:1px solid #ffffff44">+ Add Staff</a>'
+      +'<div style=”display:flex;gap:8px;align-items:center;flex-wrap:wrap”>'
+        +'<div style=”background:'+hc+'44;border:1px solid '+hc+'88;padding:3px 14px;border-radius:12px;font-size:13px;font-weight:700”>'+grandPct+'% Compliant</div>'
+        +'<a href=”signup.html” style=”background:#ffffff22;color:#fff;padding:3px 12px;border-radius:8px;font-size:12px;text-decoration:none;border:1px solid #ffffff44”>+ Add Staff</a>'
       +'</div>'
     +'</div>'
-    +'<div style="padding:10px 16px;background:#f0faf5;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:16px;align-items:center">'
-      +'<span style="font-size:13px;font-weight:600;color:var(--green-deep)">📋 Faculty (NCISM Schedule I)</span>'
-      +'<span style="font-size:13px">Required: <strong>'+facReq+'</strong> ('+clinDepts+' depts × '+facPer+' faculty/dept for '+ug+' intake)</span>'
-      +'<span style="font-size:13px">Recruited: <strong style="color:'+(facAct>=facReq?'#2d7a4f':'#c0392b')+'">'+facAct+'</strong> '+(facAct>=facReq?'✅':'⚠️')+'</span>'
-      +(facGap>0?'<span style="font-size:12px;color:#c0392b;font-weight:600">−'+facGap+' faculty still needed</span>':'')
+    +'<div style=”padding:10px 16px;background:#f0faf5;border-bottom:1px solid var(--border)”>'
+      +'<div style=”font-size:12px;font-weight:700;color:var(--green-deep);margin-bottom:6px”>📋 Faculty Required — Schedule I ('+clinDepts+' clinical depts)</div>'
+      +'<div style=”display:flex;flex-wrap:wrap;gap:20px;font-size:13px;align-items:center”>'
+        +'<span>Prof: <strong>'+FAC_UG.p+'</strong></span>'
+        +'<span>Assoc Prof: <strong>'+FAC_UG.a+'</strong></span>'
+        +'<span>Asst Prof: <strong>'+FAC_UG.b+'</strong></span>'
+        +'<span style=”border-left:2px solid var(--border);padding-left:16px”>Total required: <strong>'+facReq+'</strong></span>'
+        +'<span>Recruited: <strong style=”color:'+(facAct>=facReq?'#2d7a4f':'#c0392b')+'”>'+facAct+'</strong> '+(facAct>=facReq?'✅':'⚠️ −'+facGap+' needed')+'</span>'
+      +'</div>'
     +'</div>'
-    +'<div style="padding:10px 14px;border-bottom:1px solid var(--border)">'
-      +'<div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Hospital Staff — Zone-wise (click to expand)</div>'
+    +'<div style=”padding:10px 14px;border-bottom:1px solid var(--border)”>'
+      +'<div style=”font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px”>📊 Total Staff Required — Designation-wise (UG + PG combined)</div>'
+      +sumTableHtml
+    +'</div>'
+    +'<div style=”padding:10px 14px;border-bottom:1px solid var(--border)”>'
+      +'<div style=”font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px”>Zone-wise Breakdown — click to expand</div>'
       +zonesHtml
     +'</div>'
-    +'<div style="padding:10px 14px;border-bottom:1px solid var(--border)">'+pgHtml+'</div>'
-    +'<div style="padding:9px 16px;font-size:11px;color:var(--text-muted);background:#fafcfb;display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">'
-      +'<span>* Recruited = active profiles with designation assigned in <strong>All Staff</strong> tab. Designations shared across zones (Staff Nurse, Ayah, RMO) show the same pool count per row — compliance is checked against total required across all zones.</span>'
-      +'<a href="ncism-compliance.html" style="color:var(--green-mid);white-space:nowrap">Full NCISM Report →</a>'
+    +'<div style=”padding:10px 14px;border-bottom:1px solid var(--border)”>'+pgHtml+'</div>'
+    +'<div style=”padding:9px 16px;font-size:11px;color:var(--text-muted);background:#fafcfb;display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px”>'
+      +'<span>* Recruited = active profiles with designation set in <strong>All Staff</strong> tab. The Summary table above shows accurate totals across all zones. Zone accordion shows pool count per zone.</span>'
+      +'<a href=”ncism-compliance.html” style=”color:var(--green-mid);white-space:nowrap”>Full NCISM Report →</a>'
     +'</div>';
 
   // Auto-open first 2 zones
