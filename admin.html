@@ -518,6 +518,7 @@ tr:hover td{background:#fafff8}
           <button class="btn-outline hr-tab" data-sub="ncism">NCISM Requirements</button>
           <button class="btn-outline hr-tab" data-sub="hierarchy">Hierarchy View</button>
           <button class="btn-outline hr-tab" data-sub="access">Login Access</button>
+          <button class="btn-outline hr-tab" data-sub="dept">🏥 Dept. Staff</button>
         </div>
       </div>
       <!-- NCISM staffing panel -->
@@ -556,6 +557,13 @@ tr:hover td{background:#fafff8}
       <div id="hr-hierarchy-panel" style="display:none">
         <div id="hierarchy-body">
           <div class="empty"><div class="empty-ico">👥</div><div class="empty-ttl">Loading hierarchy…</div></div>
+        </div>
+      </div>
+
+      <!-- Dept Staff Distribution panel -->
+      <div id="hr-dept-panel" style="display:none">
+        <div id="dept-staff-wrap">
+          <div class="empty"><div class="empty-ico">🏥</div><div class="empty-ttl">Loading…</div></div>
         </div>
       </div>
 
@@ -1417,8 +1425,10 @@ function _hrSub(sub){
   document.getElementById('hr-hierarchy-panel').style.display  = sub==='hierarchy' ? '' : 'none';
   document.getElementById('hr-ncism-panel').style.display      = sub==='ncism'     ? '' : 'none';
   document.getElementById('hr-access-panel').style.display     = sub==='access'    ? '' : 'none';
+  document.getElementById('hr-dept-panel').style.display       = sub==='dept'      ? '' : 'none';
   if (sub === 'ncism')   _renderNcismStaffing();
   if (sub === 'access')  window.loadStaffAccess();
+  if (sub === 'dept')    _renderDeptStaff();
 }
 
 // ── NCISM Schedule XX — Hospital Staff Requirements ──────────────────
@@ -1647,13 +1657,35 @@ async function _renderNcismStaffing() {
         +'</tr>';
     });
   });
+  // Grand total row
+  let gtUG=0,gtPG=0,gtTotal=0,gtRec=0;
+  NCISM_SUM_GRPS.forEach(({rows})=>{
+    rows.forEach(({k,fac:fk,pgOnly})=>{
+      const ugR=fk?FAC_UG[fk]||0:pgOnly?0:ugReqForGroup(k);
+      const pgA=k.reduce((s,key)=>s+(keyTotPG[key]||0),0);
+      if(pgOnly&&pgList.length===0)return;
+      gtUG+=ugR; gtPG+=pgA; gtTotal+=ugR+pgA; gtRec+=cntD(k);
+    });
+  });
+  const gtGap=Math.max(0,gtTotal-gtRec);
+  const gtPct=gtTotal>0?Math.round(Math.min(gtRec,gtTotal)/gtTotal*100):100;
+  const gtC=gtPct>=80?'#2d7a4f':gtPct>=50?'#c9902a':'#c0392b';
+  const gtRow='<tr style=”background:#1a4a2e;color:#fff”>'
+    +'<td style=”padding:8px 12px 8px 14px;font-weight:700;font-size:13px” colspan=”2”>GRAND TOTAL — All NCISM-Mandated Positions</td>'
+    +'<td style=”padding:8px 10px;text-align:center;font-weight:700”>'+gtUG+'</td>'
+    +'<td style=”padding:8px 10px;text-align:center;font-weight:700”>'+(gtPG>0?'+'+gtPG:'—')+'</td>'
+    +'<td style=”padding:8px 10px;text-align:center;font-weight:700;font-size:15px”>'+gtTotal+'</td>'
+    +'<td style=”padding:8px 10px;text-align:center;font-weight:700;font-size:15px”>'+gtRec+'</td>'
+    +'<td style=”padding:8px 10px;text-align:center;font-weight:700”><span style=”background:'+gtC+'44;color:#fff;border:1px solid '+gtC+'88;padding:2px 10px;border-radius:10px”>'+gtPct+'%</span>'+(gtGap>0?' <span style=”font-size:12px;color:#fca5a5”>−'+gtGap+'</span>':'')+'</td>'
+    +'</tr>';
   const sumTH='<th style=”padding:7px 10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>';
   const sumTableHtml='<div style=”overflow-x:auto”><table style=”width:100%;border-collapse:collapse”>'
     +'<thead><tr style=”background:#f5faf7”>'
     +'<th style=”padding:7px 12px 7px 20px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>Staff Designation</th>'
     +'<th style=”padding:7px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)”>Where Required</th>'
     +sumTH+'UG Reqd</th>'+sumTH+'PG Add-on</th>'+sumTH+'Total Needed</th>'+sumTH+'Recruited</th>'+sumTH+'Status</th>'
-    +'</tr></thead><tbody>'+sumRows+'</tbody></table></div>';
+    +'</tr></thead><tbody>'+sumRows+'</tbody>'
+    +'<tfoot>'+gtRow+'</tfoot></table></div>';
 
   // ── Zone accordions ───────────────────────────────────────────────────
   const zones=[...new Set(NCISM_XX_ROWS.map(r=>r[0]))];
@@ -1771,6 +1803,179 @@ async function _renderNcismStaffing() {
 
   // Auto-open first 2 zones
   [...wrap.querySelectorAll('.ncism-zs')].slice(0,2).forEach(el=>el.classList.add('z-open'));
+}
+
+// ── Departmental Staff Distribution ──────────────────────────────────
+async function _renderDeptStaff() {
+  const wrap = document.getElementById('dept-staff-wrap');
+  wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
+
+  const [{ data:tRow },{ data:depts },{ data:allStaff }] = await Promise.all([
+    supabase.from('tenants').select('ug_intake').eq('id',tenantId).single(),
+    supabase.from('departments').select('id,name,ncism_code,type,is_active,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true).order('ncism_code'),
+    supabase.from('profiles').select('id,full_name,role,designation,department_id,is_active,status').eq('tenant_id',tenantId),
+  ]);
+
+  const ugRaw=tRow?.ug_intake||0;
+  const ug=[60,100,150,200].includes(ugRaw)?ugRaw:(ugRaw>=150?150:ugRaw>=100?100:ugRaw>0?60:0);
+  const activeStaff=(allStaff||[]).filter(s=>s.is_active);
+
+  // Group staff by department_id
+  const byDept={};
+  activeStaff.forEach(s=>{
+    const did=s.department_id||'__none__';
+    if(!byDept[did])byDept[did]=[];
+    byDept[did].push(s);
+  });
+
+  // Designation order from DESIGS.lv (lower = senior)
+  const _lv=d=>DESIG_MAP[d]?.lv??99;
+  const _dl=d=>DESIG_MAP[d]?.l||d||'—';
+
+  // Intern expected count = UG intake (all rotating through depts)
+  const expectedInterns=ug||0;
+
+  // Build a card per department
+  const INTERN_DESIGS=['intern','pg_scholar','nursing_intern'];
+  const FACULTY_DESIGS=['hod','professor','associate_professor','assistant_professor'];
+  const SENIOR_RES=['senior_resident','junior_resident'];
+
+  function _deptCard(dept,staff){
+    const sorted=[...staff].sort((a,b)=>_lv(a.designation)-_lv(b.designation));
+    const hod=sorted.find(s=>['hod','professor'].includes(s.designation)||s.role==='dept_admin');
+    const faculty=sorted.filter(s=>FACULTY_DESIGS.includes(s.designation));
+    const residents=sorted.filter(s=>SENIOR_RES.includes(s.designation));
+    const interns=sorted.filter(s=>INTERN_DESIGS.includes(s.designation));
+    const others=sorted.filter(s=>!FACULTY_DESIGS.includes(s.designation)&&!SENIOR_RES.includes(s.designation)&&!INTERN_DESIGS.includes(s.designation));
+    const admin=staff.find(s=>s.role==='dept_admin');
+    const deptCode=dept?.ncism_code?('NCISM: '+dept.ncism_code):'Non-NCISM';
+    const isPG=dept?.is_pg_dept;
+    const pgSeats=dept?.pg_seats_sanctioned||0;
+    const badge=s=>'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#f0faf5;border:1px solid #b7dfc8;color:#1a4a2e;margin:2px">'+_esc(s.full_name||'?')+'<span style="color:var(--text-muted);margin-left:4px">'+_dl(s.designation)+'</span></span>';
+    const emptyChip=label=>'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c;margin:2px">'+label+' — not assigned</span>';
+
+    let rows='';
+    // Admin row
+    rows+='<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">'
+      +'<div style="min-width:120px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;padding-top:3px">Dept Admin</div>'
+      +'<div style="flex:1">'+(admin?badge(admin):emptyChip('Dept Admin'))+'</div></div>';
+    // HOD row
+    rows+='<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">'
+      +'<div style="min-width:120px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;padding-top:3px">Head of Dept</div>'
+      +'<div style="flex:1">'+(hod?badge(hod):emptyChip('HOD/Professor'))+'</div></div>';
+    // Faculty row
+    if(faculty.length||isPG){
+      rows+='<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">'
+        +'<div style="min-width:120px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;padding-top:3px">Faculty</div>'
+        +'<div style="flex:1">'+(faculty.length?faculty.map(badge).join(''):emptyChip('Faculty'))+'</div></div>';
+    }
+    // Senior/Junior Residents
+    if(residents.length||isPG){
+      rows+='<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">'
+        +'<div style="min-width:120px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;padding-top:3px">'+(isPG?'Residents (PG)':'Residents')+'</div>'
+        +'<div style="flex:1">'+(residents.length?residents.map(badge).join(''):(isPG?emptyChip('Senior Resident'):'<span style="font-size:12px;color:var(--text-muted)">None assigned</span>'))+'</div></div>';
+    }
+    // Interns — always show for clinical depts
+    const isClinical=dept&&['clinical','para-clinical'].includes((dept.type||'').toLowerCase());
+    if(interns.length||isClinical){
+      const internChip=interns.length
+        ?interns.map(s=>'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#fef9ec;border:1px solid #f5c842;color:#854d0e;margin:2px">'+_esc(s.full_name||'?')+'<span style="color:var(--text-muted);margin-left:4px">'+_dl(s.designation)+'</span></span>').join('')
+        :'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c;margin:2px">No interns assigned ⚠️</span>';
+      rows+='<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">'
+        +'<div style="min-width:120px;font-size:11px;font-weight:700;color:#854d0e;text-transform:uppercase;padding-top:3px">Interns</div>'
+        +'<div style="flex:1">'+internChip+'</div></div>';
+    }
+    // Others (clinical staff, nursing, etc.)
+    if(others.length){
+      const groups={};
+      others.forEach(s=>{const c=DESIG_MAP[s.designation]?.cat||'Other';if(!groups[c])groups[c]=[];groups[c].push(s);});
+      Object.entries(groups).sort(([a],[b])=>a.localeCompare(b)).forEach(([cat,members])=>{
+        rows+='<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">'
+          +'<div style="min-width:120px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;padding-top:3px">'+_esc(cat)+'</div>'
+          +'<div style="flex:1">'+members.map(badge).join('')+'</div></div>';
+      });
+    }
+    if(!staff.length){rows='<div style="padding:12px 0;color:var(--text-muted);font-size:13px">No active staff assigned to this department. Assign staff via <strong>All Staff</strong> tab or <a href="signup.html" style="color:var(--green-mid)">invite new members</a>.</div>';}
+
+    const typeLabel=dept?.type?(' · '+dept.type):'';
+    const pgBadge=isPG?('<span style="background:#fef9ec;border:1px solid #f5c842;color:#854d0e;padding:1px 8px;border-radius:8px;font-size:11px;margin-left:6px">PG — '+pgSeats+' seats</span>'):'';
+
+    return '<div class="cc" style="margin-bottom:12px">'
+      +'<div class="cc-hd" style="border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:4px">'
+        +'<div>'
+          +'<div style="font-weight:700;font-size:14px">'+_esc(dept?dept.name:'—')+pgBadge+'</div>'
+          +'<div style="font-size:11px;color:var(--text-muted);margin-top:2px">'+deptCode+typeLabel+' · <strong>'+staff.length+'</strong> active staff</div>'
+        +'</div>'
+        +'<div style="display:flex;align-items:center;gap:6px">'
+          +(interns.length===0&&isClinical?'<span style="background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:11px">⚠️ No interns</span>':'')
+          +(hod?'<span style="background:#f0faf5;border:1px solid #b7dfc8;color:#1a4a2e;padding:2px 8px;border-radius:8px;font-size:11px">HoD ✅</span>':'<span style="background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:11px">No HoD</span>')
+        +'</div>'
+      +'</div>'
+      +'<div style="padding:0 4px">'+rows+'</div>'
+      +'</div>';
+  }
+
+  // Stat chips at top
+  const totalActive=activeStaff.length;
+  const totalAssigned=activeStaff.filter(s=>s.department_id).length;
+  const totalInterns=activeStaff.filter(s=>INTERN_DESIGS.includes(s.designation)).length;
+  const totalFaculty=activeStaff.filter(s=>FACULTY_DESIGS.includes(s.designation)).length;
+  const unassigned=(byDept['__none__']||[]);
+  const deptsWithNoHoD=(depts||[]).filter(d=>{
+    const ds=byDept[d.id]||[];
+    return !ds.find(s=>['hod','professor'].includes(s.designation)||s.role==='dept_admin');
+  });
+  const clinicalDepts=(depts||[]).filter(d=>['clinical','para-clinical'].includes((d.type||'').toLowerCase()));
+  const deptsNoInterns=clinicalDepts.filter(d=>!(byDept[d.id]||[]).some(s=>INTERN_DESIGS.includes(s.designation)));
+
+  const statChips='<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">'
+    +'<div style="background:#f0faf5;border:1px solid #b7dfc8;border-radius:10px;padding:8px 16px;min-width:110px">'
+      +'<div style="font-size:20px;font-weight:700;color:var(--green-deep)">'+totalActive+'</div>'
+      +'<div style="font-size:11px;color:var(--text-muted)">Active Staff</div></div>'
+    +'<div style="background:#f0faf5;border:1px solid #b7dfc8;border-radius:10px;padding:8px 16px;min-width:110px">'
+      +'<div style="font-size:20px;font-weight:700;color:var(--green-deep)">'+totalAssigned+'</div>'
+      +'<div style="font-size:11px;color:var(--text-muted)">Dept Assigned</div></div>'
+    +'<div style="background:#f0faf5;border:1px solid #b7dfc8;border-radius:10px;padding:8px 16px;min-width:110px">'
+      +'<div style="font-size:20px;font-weight:700;color:var(--green-deep)">'+totalFaculty+'</div>'
+      +'<div style="font-size:11px;color:var(--text-muted)">Faculty</div></div>'
+    +'<div style="background:'+(totalInterns>0?'#fef9ec':'#fff0f0')+';border:1px solid '+(totalInterns>0?'#f5c842':'#fca5a5')+';border-radius:10px;padding:8px 16px;min-width:110px">'
+      +'<div style="font-size:20px;font-weight:700;color:'+(totalInterns>0?'#854d0e':'#b91c1c')+'">'+totalInterns+'</div>'
+      +'<div style="font-size:11px;color:var(--text-muted)">Interns in System</div>'
+      +(expectedInterns>0?'<div style="font-size:10px;color:var(--text-muted)">Expected: ~'+expectedInterns+'</div>':'')
+    +'</div>'
+    +(deptsWithNoHoD.length?'<div style="background:#fff0f0;border:1px solid #fca5a5;border-radius:10px;padding:8px 16px;min-width:110px"><div style="font-size:20px;font-weight:700;color:#b91c1c">'+deptsWithNoHoD.length+'</div><div style="font-size:11px;color:var(--text-muted)">Depts without HoD</div></div>':'')
+    +(deptsNoInterns.length?'<div style="background:#fff0f0;border:1px solid #fca5a5;border-radius:10px;padding:8px 16px;min-width:110px"><div style="font-size:20px;font-weight:700;color:#b91c1c">'+deptsNoInterns.length+'</div><div style="font-size:11px;color:var(--text-muted)">Clinical Depts — No Interns</div></div>':'')
+    +'</div>';
+
+  // Intern note banner
+  const internBanner=expectedInterns>0&&totalInterns<expectedInterns
+    ?'<div style="background:#fef9ec;border:1px solid #f5c842;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:13px">'
+      +'⚠️ <strong>Interns:</strong> Your college has a UG intake of '+ug+'. Approximately <strong>'+expectedInterns+' interns</strong> should be rotating through clinical departments at any time. Currently <strong>'+totalInterns+' interns</strong> are recorded in the system. '
+      +'Add intern profiles via <a href="signup.html" style="color:var(--green-mid)">Staff Signup</a> with designation set to <em>Intern</em> and assign them to their current rotation department.'
+    +'</div>'
+    :(totalInterns>0?'<div style="background:#f0faf5;border:1px solid #b7dfc8;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:13px">✅ Intern rotation tracking active — '+totalInterns+' interns in system.</div>':'');
+
+  // Render dept cards
+  let cardsHtml='';
+  (depts||[]).forEach(d=>{
+    cardsHtml+=_deptCard(d,byDept[d.id]||[]);
+  });
+
+  // Unassigned staff section
+  let unassignedHtml='';
+  if(unassigned.length){
+    const ugBadges=unassigned.sort((a,b)=>_lv(a.designation)-_lv(b.designation)).map(s=>'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#f8f8f0;border:1px solid #e0dfc0;color:#555;margin:2px">'+_esc(s.full_name||'?')+' <span style="color:var(--text-muted)">'+_dl(s.designation)+' / '+s.role+'</span></span>').join('');
+    unassignedHtml='<div class="cc" style="margin-bottom:12px">'
+      +'<div class="cc-hd"><span class="cc-title">⚠️ Staff Without Department Assignment ('+unassigned.length+')</span></div>'
+      +'<div style="padding:10px 4px;font-size:12px;color:var(--text-muted);margin-bottom:8px">These active profiles have no department set. Assign them via <strong>All Staff</strong> tab.</div>'
+      +'<div>'+ugBadges+'</div></div>';
+  }
+
+  wrap.innerHTML = '<div style="padding:16px">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Department-wise Staff Distribution &amp; Hierarchy</div>'
+    +statChips+internBanner+cardsHtml+unassignedHtml
+    +'<div style="font-size:11px;color:var(--text-muted);margin-top:8px">* Assign departments via <strong>All Staff</strong> tab → designation dropdown. Intern rotation: profiles with designation <em>Intern / PG Scholar</em> assigned to their current dept.</div>'
+    +'</div>';
 }
 
 window.filterStaff = function(){
