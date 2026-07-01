@@ -60,6 +60,7 @@ function _buildGroups(role, type) {
         { href:'palha-diet.html',    label:'Palha Diet',      roles:CLINICAL.concat(ADMIN_ROLES),            types:PK,   module:'panchakarma'},
         { href:'yoga.html',          label:'Yoga Sessions',   roles:CLINICAL.concat(['therapist']),          types:HOSP, module:'panchakarma'},
         { href:'roster.html',        label:'Duty Roster',     roles:ADMIN_ROLES,                             types:HOSP, module:'hr'         },
+        { href:'facility-ops.html',  label:'Facility Ops',    roles:ADMIN_ROLES.concat(['nurse','receptionist']), types:HOSP, module:'hr'    },
         { href:'emergency.html',     label:'Emergency OPD',   roles:CLINICAL.concat(['receptionist']),       types:HOSP, module:'emergency'  },
         { href:'labour-room.html',   label:'Labour Room',     roles:CLINICAL,                                types:HOSP, module:'ipd'        },
         { href:'anushastra.html',    label:'Anushastra Karma',roles:CLINICAL,                                types:HOSP, module:'ipd'        },

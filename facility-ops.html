@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Facility Ops — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --red:#c0392b;--red-light:#fdecea;
+  --blue:#1a4080;--blue-light:#e3f0ff;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page-wrap{max-width:1150px;margin:0 auto;padding:28px 20px 80px}
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.4px;margin-left:8px;vertical-align:middle}
+
+.btn{height:38px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}.btn-secondary:hover{background:var(--green-light)}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.alert.error{background:var(--red-light);color:#8b1a1a;border:1px solid #f5c6c6}
+
+.module-tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.module-tab{padding:8px 18px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-mid);transition:all .15s}
+.module-tab.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
+.tab-panel{display:none}.tab-panel.active{display:block}
+
+.stats-row{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:20px;max-width:420px}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;text-align:center}
+.stat-value{font-size:24px;font-weight:700;color:var(--green-deep);line-height:1}
+.stat-label{font-size:11px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.4px}
+
+.section-hd{display:flex;justify-content:space-between;align-items:center;margin:18px 0 10px;flex-wrap:wrap;gap:8px}
+.section-title{font-size:13px;font-weight:700;color:var(--green-deep)}
+
+.filter-bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.reg-table-wrap{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow-x:auto;margin-bottom:20px}
+table{width:100%;border-collapse:collapse}
+th{padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border);background:#f5faf7;white-space:nowrap}
+td{padding:8px 12px;font-size:12.5px;border-bottom:1px solid #f0f4f2;white-space:nowrap}
+.status-pill{padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;letter-spacing:.3px}
+.pill-open{background:#fff8e1;color:#7a5c00;border:1px solid #e0c060}
+.pill-closed,.pill-exited{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.pill-high{background:var(--red-light);color:#8b1a1a;border:1px solid #f5c6c6}
+.pill-medium{background:#fff8e1;color:#7a5c00;border:1px solid #e0c060}
+.pill-low{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto}
+.modal{background:var(--white);border-radius:10px;width:480px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,.22);margin:auto}
+.modal-hdr{background:var(--green-deep);color:#fff;padding:14px 20px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center}
+.modal-hdr-title{font-weight:600;font-size:15px}
+.modal-body{padding:20px;max-height:80vh;overflow-y:auto}
+.modal-foot{padding:12px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border)}
+.fg{display:grid;gap:12px;margin-bottom:12px}
+.fg.c2{grid-template-columns:1fr 1fr}
+.field label{font-size:12px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white)}
+.field textarea{height:56px;padding:8px 10px;resize:vertical}
+.field input:focus,.field select:focus{outline:none;border-color:var(--green-mid)}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a4a2e;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;z-index:999;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<div class="page-wrap">
+
+  <div class="page-header">
+    <div>
+      <div class="page-title">🧹 Facility Ops <span class="ncism-badge">NCISM §50(6)/(7)/(9)</span></div>
+      <div class="page-subtitle">Housekeeping · Laundry · Security — one Administrator, per §51(4)(b)</div>
+    </div>
+  </div>
+
+  <div id="alert-box" class="alert"></div>
+
+  <div class="module-tabs">
+    <button class="module-tab active" data-tab="housekeeping" onclick="setTab(this,'housekeeping')">🧹 Housekeeping</button>
+    <button class="module-tab" data-tab="laundry" onclick="setTab(this,'laundry')">🧺 Laundry</button>
+    <button class="module-tab" data-tab="security" onclick="setTab(this,'security')">🛡️ Security</button>
+  </div>
+
+  <!-- ── Housekeeping ── -->
+  <div class="tab-panel active" id="tab-housekeeping">
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-value" id="hk-stat-rounds">0</div><div class="stat-label">Today's Rounds</div></div>
+      <div class="stat-card"><div class="stat-value" id="hk-stat-qc">—</div><div class="stat-label">Today's Avg QC</div></div>
+    </div>
+    <div class="section-hd">
+      <span class="section-title">Round Log</span>
+      <button class="btn btn-primary btn-sm" onclick="openHkModal()">+ Log Round</button>
+    </div>
+    <div class="filter-bar">
+      <div class="field" style="min-width:150px"><label>From</label><input type="date" id="hk-from"/></div>
+      <div class="field" style="min-width:150px"><label>To</label><input type="date" id="hk-to"/></div>
+      <button class="btn btn-secondary btn-sm" onclick="loadHk()">Apply</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportCSV('hk')" style="margin-left:auto">↓ CSV</button>
+    </div>
+    <div class="reg-table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Shift</th><th>Zone</th><th>Staff</th><th>QC Score</th><th>QC By</th><th>Notes</th></tr></thead>
+        <tbody id="hk-tbody"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Laundry ── -->
+  <div class="tab-panel" id="tab-laundry">
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-value" id="ld-stat-cycles">0</div><div class="stat-label">Today's Cycles</div></div>
+      <div class="stat-card"><div class="stat-value" id="ld-stat-qty">0</div><div class="stat-label">Today's Qty Collected</div></div>
+    </div>
+    <div class="section-hd">
+      <span class="section-title">Linen Cycle Log</span>
+      <button class="btn btn-primary btn-sm" onclick="openLdModal()">+ New Cycle</button>
+    </div>
+    <div class="filter-bar">
+      <div class="field" style="min-width:150px"><label>From</label><input type="date" id="ld-from"/></div>
+      <div class="field" style="min-width:150px"><label>To</label><input type="date" id="ld-to"/></div>
+      <button class="btn btn-secondary btn-sm" onclick="loadLd()">Apply</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportCSV('ld')" style="margin-left:auto">↓ CSV</button>
+    </div>
+    <div class="reg-table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Source Zone</th><th>Collected Qty</th><th>Disinfection</th><th>Distributed Qty</th><th>Vendor</th><th>Handled By</th><th>Notes</th></tr></thead>
+        <tbody id="ld-tbody"><tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted)">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Security ── -->
+  <div class="tab-panel" id="tab-security">
+    <div class="section-hd">
+      <span class="section-title">Visitor Register</span>
+      <button class="btn btn-primary btn-sm" onclick="openVisitorModal()">+ Log Visitor</button>
+    </div>
+    <div class="filter-bar">
+      <div class="field" style="min-width:150px"><label>From</label><input type="date" id="vis-from"/></div>
+      <div class="field" style="min-width:150px"><label>To</label><input type="date" id="vis-to"/></div>
+      <button class="btn btn-secondary btn-sm" onclick="loadVisitors()">Apply</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportCSV('vis')" style="margin-left:auto">↓ CSV</button>
+    </div>
+    <div class="reg-table-wrap">
+      <table>
+        <thead><tr><th>Visitor</th><th>Purpose</th><th>Met</th><th>Entry</th><th>Exit</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody id="vis-tbody"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="section-hd">
+      <span class="section-title">Incident Log</span>
+      <button class="btn btn-primary btn-sm" onclick="openIncidentModal()">+ Report Incident</button>
+    </div>
+    <div class="filter-bar">
+      <div class="field" style="min-width:150px"><label>From</label><input type="date" id="inc-from"/></div>
+      <div class="field" style="min-width:150px"><label>To</label><input type="date" id="inc-to"/></div>
+      <button class="btn btn-secondary btn-sm" onclick="loadIncidents()">Apply</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportCSV('inc')" style="margin-left:auto">↓ CSV</button>
+    </div>
+    <div class="reg-table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Location</th><th>Severity</th><th>Description</th><th>Action Taken</th><th>Status</th><th>Reported By</th><th>Action</th></tr></thead>
+        <tbody id="inc-tbody"><tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted)">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Housekeeping modal ── -->
+<div class="overlay" id="hk-overlay" style="display:none" onclick="if(event.target===this)closeModal('hk-overlay')">
+  <div class="modal">
+    <div class="modal-hdr"><div class="modal-hdr-title">Log Housekeeping Round</div><button onclick="closeModal('hk-overlay')" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button></div>
+    <div class="modal-body">
+      <div class="fg c2">
+        <div class="field"><label>Date</label><input id="hk-date" type="date"/></div>
+        <div class="field"><label>Shift</label><select id="hk-shift"><option value="morning">Morning</option><option value="afternoon">Afternoon</option><option value="night">Night</option></select></div>
+      </div>
+      <div class="fg c2">
+        <div class="field"><label>Zone</label><select id="hk-zone"><option value="OPD">OPD</option><option value="IPD">IPD</option><option value="OT">OT</option><option value="Panchakarma">Panchakarma</option><option value="Diagnostics">Diagnostics</option><option value="Pharmacy">Pharmacy</option><option value="Administration">Administration</option></select></div>
+        <div class="field"><label>Staff</label><select id="hk-staff"><option value="">— Select staff —</option></select></div>
+      </div>
+      <div class="fg c2">
+        <div class="field"><label>QC Score (1-5)</label><input id="hk-qc" type="number" min="1" max="5"/></div>
+        <div class="field"><label>QC By</label><select id="hk-qcby"><option value="">— Select supervisor —</option></select></div>
+      </div>
+      <div class="fg" style="grid-template-columns:1fr"><div class="field"><label>Notes</label><input id="hk-notes" type="text" placeholder="Optional"/></div></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-secondary btn-sm" onclick="closeModal('hk-overlay')">Cancel</button><button class="btn btn-primary btn-sm" onclick="saveHk()">Save</button></div>
+  </div>
+</div>
+
+<!-- ── Laundry modal ── -->
+<div class="overlay" id="ld-overlay" style="display:none" onclick="if(event.target===this)closeModal('ld-overlay')">
+  <div class="modal">
+    <div class="modal-hdr"><div class="modal-hdr-title">Log Laundry Cycle</div><button onclick="closeModal('ld-overlay')" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button></div>
+    <div class="modal-body">
+      <div class="fg c2">
+        <div class="field"><label>Date</label><input id="ld-date" type="date"/></div>
+        <div class="field"><label>Source Zone</label><input id="ld-zone" type="text" placeholder="e.g. IPD Ward 1"/></div>
+      </div>
+      <div class="fg c2">
+        <div class="field"><label>Collected Qty</label><input id="ld-collected" type="number" min="0"/></div>
+        <div class="field"><label>Distributed Qty</label><input id="ld-distributed" type="number" min="0"/></div>
+      </div>
+      <div class="fg c2">
+        <div class="field"><label>Disinfection Method</label><input id="ld-disinfection" type="text" placeholder="e.g. Hot wash 71°C"/></div>
+        <div class="field"><label>Vendor (if outsourced)</label><input id="ld-vendor" type="text" placeholder="Optional"/></div>
+      </div>
+      <div class="fg c2">
+        <div class="field"><label>Handled By</label><select id="ld-staff"><option value="">— Select staff —</option></select></div>
+        <div class="field"><label>Notes</label><input id="ld-notes" type="text" placeholder="Optional"/></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-secondary btn-sm" onclick="closeModal('ld-overlay')">Cancel</button><button class="btn btn-primary btn-sm" onclick="saveLd()">Save</button></div>
+  </div>
+</div>
+
+<!-- ── Visitor modal ── -->
+<div class="overlay" id="vis-overlay" style="display:none" onclick="if(event.target===this)closeModal('vis-overlay')">
+  <div class="modal">
+    <div class="modal-hdr"><div class="modal-hdr-title">Log Visitor</div><button onclick="closeModal('vis-overlay')" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button></div>
+    <div class="modal-body">
+      <div class="fg c2">
+        <div class="field"><label>Visitor Name</label><input id="vis-name" type="text"/></div>
+        <div class="field"><label>ID Proof</label><input id="vis-id" type="text" placeholder="e.g. Aadhaar / Driving Licence"/></div>
+      </div>
+      <div class="fg c2">
+        <div class="field"><label>Purpose</label><input id="vis-purpose" type="text" placeholder="e.g. Patient attendant"/></div>
+        <div class="field"><label>Met (Person/Dept)</label><input id="vis-met" type="text"/></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-secondary btn-sm" onclick="closeModal('vis-overlay')">Cancel</button><button class="btn btn-primary btn-sm" onclick="saveVisitor()">Log Entry</button></div>
+  </div>
+</div>
+
+<!-- ── Incident modal ── -->
+<div class="overlay" id="inc-overlay" style="display:none" onclick="if(event.target===this)closeModal('inc-overlay')">
+  <div class="modal">
+    <div class="modal-hdr"><div class="modal-hdr-title">Report Security Incident</div><button onclick="closeModal('inc-overlay')" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button></div>
+    <div class="modal-body">
+      <div class="fg c2">
+        <div class="field"><label>Date</label><input id="inc-date" type="date"/></div>
+        <div class="field"><label>Time</label><input id="inc-time" type="time"/></div>
+      </div>
+      <div class="fg c2">
+        <div class="field"><label>Location</label><input id="inc-location" type="text" placeholder="e.g. Main entrance"/></div>
+        <div class="field"><label>Severity</label><select id="inc-severity"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div>
+      </div>
+      <div class="fg" style="grid-template-columns:1fr"><div class="field"><label>Description</label><textarea id="inc-desc"></textarea></div></div>
+      <div class="fg" style="grid-template-columns:1fr"><div class="field"><label>Action Taken</label><textarea id="inc-action"></textarea></div></div>
+      <div class="fg" style="grid-template-columns:1fr"><div class="field"><label>Reported By</label><select id="inc-reporter"><option value="">— Select staff —</option></select></div></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-secondary btn-sm" onclick="closeModal('inc-overlay')">Cancel</button><button class="btn btn-primary btn-sm" onclick="saveIncident()">Save Report</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { requireAuth, getCurrentTenantId, getCurrentProfile } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['super_admin','dept_admin','nurse','receptionist']);
+initNavbar();
+
+const tenantId  = getCurrentTenantId();
+const myProfile = getCurrentProfile();
+const todayStr  = new Date().toISOString().slice(0,10);
+
+let _hkRows = [], _ldRows = [], _visRows = [], _incRows = [];
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+window.setTab = function(btn, tab) {
+  document.querySelectorAll('.module-tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+};
+
+window.closeModal = function(id) { document.getElementById(id).style.display = 'none'; };
+
+async function _populateStaff(selectId, designations) {
+  const { data } = await supabase.from('profiles').select('id,full_name')
+    .eq('tenant_id', tenantId).eq('is_active', true).in('designation', designations);
+  const sel = document.getElementById(selectId);
+  const placeholder = sel.options[0]?.outerHTML || '<option value="">— Select staff —</option>';
+  sel.innerHTML = placeholder + (data && data.length
+    ? data.map(p => `<option value="${p.id}">${_esc(p.full_name)}</option>`).join('')
+    : '<option value="" disabled>No staff tagged with this designation — assign via All Staff tab</option>');
+}
+
+// ── Housekeeping ──────────────────────────────────────────────────────────────
+window.openHkModal = async function() {
+  document.getElementById('hk-date').value = todayStr;
+  document.getElementById('hk-qc').value = '';
+  document.getElementById('hk-notes').value = '';
+  await Promise.all([
+    _populateStaff('hk-staff', ['sanitation_supervisor','sanitation_worker']),
+    _populateStaff('hk-qcby', ['sanitation_supervisor']),
+  ]);
+  document.getElementById('hk-overlay').style.display = 'flex';
+};
+
+window.saveHk = async function() {
+  const payload = {
+    tenant_id: tenantId,
+    round_date: document.getElementById('hk-date').value,
+    shift: document.getElementById('hk-shift').value,
+    zone: document.getElementById('hk-zone').value,
+    staff_id: document.getElementById('hk-staff').value || null,
+    completed_at: new Date().toISOString(),
+    qc_score: parseInt(document.getElementById('hk-qc').value) || null,
+    qc_by: document.getElementById('hk-qcby').value || null,
+    notes: document.getElementById('hk-notes').value.trim() || null,
+  };
+  if (!payload.round_date) { _alert('error','Date is required.'); return; }
+  const { error } = await supabase.from('housekeeping_rounds').insert(payload);
+  if (error) { _alert('error','Error: '+error.message); return; }
+  _alert('success','Round logged.');
+  closeModal('hk-overlay');
+  await loadHk();
+};
+
+window.loadHk = async function() {
+  let q = supabase.from('housekeeping_rounds')
+    .select('id,round_date,shift,zone,qc_score,notes,staff:profiles!staff_id(full_name),qc:profiles!qc_by(full_name)')
+    .eq('tenant_id', tenantId).order('round_date',{ascending:false});
+  const from = document.getElementById('hk-from').value, to = document.getElementById('hk-to').value;
+  if (from) q = q.gte('round_date', from);
+  if (to)   q = q.lte('round_date', to);
+  const { data, error } = await q;
+  if (error) { _alert('error','Load error: '+error.message); return; }
+  _hkRows = data || [];
+  const todays = _hkRows.filter(r => r.round_date === todayStr);
+  document.getElementById('hk-stat-rounds').textContent = todays.length;
+  const scored = todays.filter(r=>r.qc_score);
+  document.getElementById('hk-stat-qc').textContent = scored.length ? (scored.reduce((s,r)=>s+r.qc_score,0)/scored.length).toFixed(1) : '—';
+
+  const tbody = document.getElementById('hk-tbody');
+  if (!_hkRows.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">No rounds logged for this range.</td></tr>'; return; }
+  tbody.innerHTML = _hkRows.map(r => `<tr>
+    <td>${_fmtDate(r.round_date)}</td><td>${_cap(r.shift)}</td><td>${_esc(r.zone)}</td>
+    <td>${_esc(r.staff?.full_name || '—')}</td><td>${r.qc_score || '—'}</td>
+    <td>${_esc(r.qc?.full_name || '—')}</td><td>${_esc(r.notes || '—')}</td>
+  </tr>`).join('');
+};
+
+// ── Laundry ───────────────────────────────────────────────────────────────────
+window.openLdModal = async function() {
+  document.getElementById('ld-date').value = todayStr;
+  ['ld-zone','ld-collected','ld-distributed','ld-disinfection','ld-vendor','ld-notes'].forEach(id=>document.getElementById(id).value='');
+  await _populateStaff('ld-staff', ['laundry_supervisor','laundry_worker']);
+  document.getElementById('ld-overlay').style.display = 'flex';
+};
+
+window.saveLd = async function() {
+  const payload = {
+    tenant_id: tenantId,
+    cycle_date: document.getElementById('ld-date').value,
+    source_zone: document.getElementById('ld-zone').value.trim() || null,
+    collected_qty: parseInt(document.getElementById('ld-collected').value) || null,
+    collected_at: new Date().toISOString(),
+    disinfection_method: document.getElementById('ld-disinfection').value.trim() || null,
+    distributed_qty: parseInt(document.getElementById('ld-distributed').value) || null,
+    vendor_name: document.getElementById('ld-vendor').value.trim() || null,
+    handled_by: document.getElementById('ld-staff').value || null,
+    notes: document.getElementById('ld-notes').value.trim() || null,
+  };
+  if (!payload.cycle_date) { _alert('error','Date is required.'); return; }
+  const { error } = await supabase.from('laundry_cycles').insert(payload);
+  if (error) { _alert('error','Error: '+error.message); return; }
+  _alert('success','Cycle logged.');
+  closeModal('ld-overlay');
+  await loadLd();
+};
+
+window.loadLd = async function() {
+  let q = supabase.from('laundry_cycles')
+    .select('id,cycle_date,source_zone,collected_qty,disinfection_method,distributed_qty,vendor_name,notes,handler:profiles!handled_by(full_name)')
+    .eq('tenant_id', tenantId).order('cycle_date',{ascending:false});
+  const from = document.getElementById('ld-from').value, to = document.getElementById('ld-to').value;
+  if (from) q = q.gte('cycle_date', from);
+  if (to)   q = q.lte('cycle_date', to);
+  const { data, error } = await q;
+  if (error) { _alert('error','Load error: '+error.message); return; }
+  _ldRows = data || [];
+  const todays = _ldRows.filter(r => r.cycle_date === todayStr);
+  document.getElementById('ld-stat-cycles').textContent = todays.length;
+  document.getElementById('ld-stat-qty').textContent = todays.reduce((s,r)=>s+(r.collected_qty||0),0);
+
+  const tbody = document.getElementById('ld-tbody');
+  if (!_ldRows.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted)">No cycles logged for this range.</td></tr>'; return; }
+  tbody.innerHTML = _ldRows.map(r => `<tr>
+    <td>${_fmtDate(r.cycle_date)}</td><td>${_esc(r.source_zone || '—')}</td><td>${r.collected_qty ?? '—'}</td>
+    <td>${_esc(r.disinfection_method || '—')}</td><td>${r.distributed_qty ?? '—'}</td>
+    <td>${_esc(r.vendor_name || '—')}</td><td>${_esc(r.handler?.full_name || '—')}</td><td>${_esc(r.notes || '—')}</td>
+  </tr>`).join('');
+};
+
+// ── Security: Visitor Register ────────────────────────────────────────────────
+window.openVisitorModal = function() {
+  ['vis-name','vis-id','vis-purpose','vis-met'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('vis-overlay').style.display = 'flex';
+};
+
+window.saveVisitor = async function() {
+  const name = document.getElementById('vis-name').value.trim();
+  if (!name) { _alert('error','Visitor name is required.'); return; }
+  const payload = {
+    tenant_id: tenantId,
+    visitor_name: name,
+    id_proof: document.getElementById('vis-id').value.trim() || null,
+    purpose: document.getElementById('vis-purpose').value.trim() || null,
+    met_person: document.getElementById('vis-met').value.trim() || null,
+    entry_time: new Date().toISOString(),
+    logged_by: myProfile?.id,
+  };
+  const { error } = await supabase.from('security_visitor_log').insert(payload);
+  if (error) { _alert('error','Error: '+error.message); return; }
+  _alert('success','Visitor logged.');
+  closeModal('vis-overlay');
+  await loadVisitors();
+};
+
+window.markExit = async function(id) {
+  const { error } = await supabase.from('security_visitor_log').update({ exit_time: new Date().toISOString() }).eq('id', id);
+  if (error) { _alert('error','Error: '+error.message); return; }
+  await loadVisitors();
+};
+
+window.loadVisitors = async function() {
+  let q = supabase.from('security_visitor_log')
+    .select('id,visitor_name,purpose,met_person,entry_time,exit_time')
+    .eq('tenant_id', tenantId).order('entry_time',{ascending:false});
+  const from = document.getElementById('vis-from').value, to = document.getElementById('vis-to').value;
+  if (from) q = q.gte('entry_time', from+'T00:00:00');
+  if (to)   q = q.lte('entry_time', to+'T23:59:59');
+  const { data, error } = await q;
+  if (error) { _alert('error','Load error: '+error.message); return; }
+  _visRows = data || [];
+  const tbody = document.getElementById('vis-tbody');
+  if (!_visRows.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">No visitor entries for this range.</td></tr>'; return; }
+  tbody.innerHTML = _visRows.map(r => `<tr>
+    <td>${_esc(r.visitor_name)}</td><td>${_esc(r.purpose || '—')}</td><td>${_esc(r.met_person || '—')}</td>
+    <td>${_fmtDateTime(r.entry_time)}</td><td>${r.exit_time ? _fmtDateTime(r.exit_time) : '—'}</td>
+    <td><span class="status-pill ${r.exit_time ? 'pill-exited' : 'pill-open'}">${r.exit_time ? 'Exited' : 'On Premises'}</span></td>
+    <td>${!r.exit_time ? `<button class="btn btn-secondary btn-sm" onclick="markExit('${r.id}')">Mark Exit</button>` : '—'}</td>
+  </tr>`).join('');
+};
+
+// ── Security: Incident Log ────────────────────────────────────────────────────
+window.openIncidentModal = async function() {
+  document.getElementById('inc-date').value = todayStr;
+  document.getElementById('inc-time').value = new Date().toTimeString().slice(0,5);
+  ['inc-location','inc-desc','inc-action'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('inc-severity').value = 'low';
+  await _populateStaff('inc-reporter', ['security_supervisor','security_guard']);
+  document.getElementById('inc-overlay').style.display = 'flex';
+};
+
+window.saveIncident = async function() {
+  const desc = document.getElementById('inc-desc').value.trim();
+  if (!desc) { _alert('error','Description is required.'); return; }
+  const payload = {
+    tenant_id: tenantId,
+    incident_date: document.getElementById('inc-date').value,
+    incident_time: document.getElementById('inc-time').value || null,
+    location: document.getElementById('inc-location').value.trim() || null,
+    severity: document.getElementById('inc-severity').value,
+    description: desc,
+    action_taken: document.getElementById('inc-action').value.trim() || null,
+    status: 'open',
+    reported_by: document.getElementById('inc-reporter').value || null,
+  };
+  const { error } = await supabase.from('security_incidents').insert(payload);
+  if (error) { _alert('error','Error: '+error.message); return; }
+  _alert('success','Incident reported.');
+  closeModal('inc-overlay');
+  await loadIncidents();
+};
+
+window.closeIncident = async function(id) {
+  const { error } = await supabase.from('security_incidents').update({ status:'closed', closed_at: new Date().toISOString() }).eq('id', id);
+  if (error) { _alert('error','Error: '+error.message); return; }
+  await loadIncidents();
+};
+
+window.loadIncidents = async function() {
+  let q = supabase.from('security_incidents')
+    .select('id,incident_date,location,severity,description,action_taken,status,reporter:profiles!reported_by(full_name)')
+    .eq('tenant_id', tenantId).order('incident_date',{ascending:false});
+  const from = document.getElementById('inc-from').value, to = document.getElementById('inc-to').value;
+  if (from) q = q.gte('incident_date', from);
+  if (to)   q = q.lte('incident_date', to);
+  const { data, error } = await q;
+  if (error) { _alert('error','Load error: '+error.message); return; }
+  _incRows = data || [];
+  const tbody = document.getElementById('inc-tbody');
+  if (!_incRows.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted)">No incidents for this range.</td></tr>'; return; }
+  tbody.innerHTML = _incRows.map(r => `<tr>
+    <td>${_fmtDate(r.incident_date)}</td><td>${_esc(r.location || '—')}</td>
+    <td><span class="status-pill pill-${r.severity}">${_cap(r.severity)}</span></td>
+    <td>${_esc(r.description)}</td><td>${_esc(r.action_taken || '—')}</td>
+    <td><span class="status-pill pill-${r.status}">${_cap(r.status)}</span></td>
+    <td>${_esc(r.reporter?.full_name || '—')}</td>
+    <td>${r.status==='open' ? `<button class="btn btn-secondary btn-sm" onclick="closeIncident('${r.id}')">Close</button>` : '—'}</td>
+  </tr>`).join('');
+};
+
+// ── CSV export ────────────────────────────────────────────────────────────────
+window.exportCSV = function(which) {
+  const map = {
+    hk:  { rows:_hkRows,  header:['Date','Shift','Zone','Staff','QC Score','QC By','Notes'],
+           row:r=>[r.round_date,r.shift,r.zone,r.staff?.full_name||'',r.qc_score||'',r.qc?.full_name||'',r.notes||''], file:'Housekeeping_Rounds.csv' },
+    ld:  { rows:_ldRows,  header:['Date','Source Zone','Collected Qty','Disinfection','Distributed Qty','Vendor','Handled By','Notes'],
+           row:r=>[r.cycle_date,r.source_zone||'',r.collected_qty||'',r.disinfection_method||'',r.distributed_qty||'',r.vendor_name||'',r.handler?.full_name||'',r.notes||''], file:'Laundry_Cycles.csv' },
+    vis: { rows:_visRows, header:['Visitor','Purpose','Met','Entry','Exit'],
+           row:r=>[r.visitor_name,r.purpose||'',r.met_person||'',r.entry_time||'',r.exit_time||''], file:'Security_Visitor_Log.csv' },
+    inc: { rows:_incRows, header:['Date','Location','Severity','Description','Action Taken','Status','Reported By'],
+           row:r=>[r.incident_date,r.location||'',r.severity,r.description,r.action_taken||'',r.status,r.reporter?.full_name||''], file:'Security_Incidents.csv' },
+  };
+  const cfg = map[which];
+  if (!cfg.rows.length) { _alert('error','Nothing to export.'); return; }
+  const rows = [cfg.header, ...cfg.rows.map(cfg.row)];
+  const csv = rows.map(row => row.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = cfg.file;
+  a.click();
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function _fmtDate(d) { if (!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+function _fmtDateTime(d) { if (!d) return '—'; return new Date(d).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }
+function _cap(s) { return s ? s.charAt(0).toUpperCase()+s.slice(1) : '—'; }
+function _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _alert(type, msg) { const el = document.getElementById('alert-box'); el.className = `alert ${type} show`; el.textContent = msg; setTimeout(() => el.classList.remove('show'), 4000); }
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+document.getElementById('hk-from').value  = todayStr.slice(0,8)+'01'; document.getElementById('hk-to').value  = todayStr;
+document.getElementById('ld-from').value  = todayStr.slice(0,8)+'01'; document.getElementById('ld-to').value  = todayStr;
+document.getElementById('vis-from').value = todayStr; document.getElementById('vis-to').value = todayStr;
+document.getElementById('inc-from').value = todayStr.slice(0,8)+'01'; document.getElementById('inc-to').value = todayStr;
+await Promise.all([loadHk(), loadLd(), loadVisitors(), loadIncidents()]);
+</script>
+</body>
+</html>
