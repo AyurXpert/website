@@ -226,7 +226,7 @@ import { requireAuth, getCurrentTenantId, getCurrentProfile } from './js/core/au
 import { initNavbar } from './js/components/navbar.js';
 import { supabase } from './js/core/db/supabaseClient.js';
 
-await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist']);
+await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist','diet_staff']);
 initNavbar();
 
 const tenantId = getCurrentTenantId();

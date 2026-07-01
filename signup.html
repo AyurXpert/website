@@ -149,6 +149,8 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
           <option value="therapist">Therapist</option>
           <option value="accountant">Accountant</option>
           <option value="student">Student</option>
+          <option value="diet_staff">Diet / Pathya Staff</option>
+          <option value="mrd_staff">Medical Records Staff</option>
         </select>
       </div>
 
@@ -300,7 +302,7 @@ window.togglePw = function(inputId, btn) {
 };
 
 const HPR_ROLES  = ['doctor','nurse','pharmacist','lab_tech','therapist'];
-const DEPT_ROLES = ['doctor','nurse','therapist','lab_tech','student'];
+const DEPT_ROLES = ['doctor','nurse','therapist','lab_tech','student','diet_staff','mrd_staff'];
 let _depts = [];
 
 window._loadDepts = async function _loadDepts() {

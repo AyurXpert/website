@@ -24,6 +24,8 @@ export const ROLES = {
   THERAPIST:       'therapist',
   STUDENT:         'student',
   PUBLIC:          'public',
+  DIET_STAFF:      'diet_staff',
+  MRD_STAFF:       'mrd_staff',
 };
 
 // ── Where each role lands after login ──
@@ -34,7 +36,7 @@ export const ROLE_HOME = {
   doctor:          'doctor.html',
   receptionist:    'reception.html',
   pharmacist:      'dispensaryPOS.html',
-  nurse:           'reception.html',
+  nurse:           'nursing.html',
   lab_tech:        'lab.html',
   accountant:      'finance.html',
   cashier:         'finance.html',
@@ -42,6 +44,8 @@ export const ROLE_HOME = {
   therapist:       'therapist.html',
   student:         'admin.html',
   public:          'admin.html',
+  diet_staff:      'palha-diet.html',
+  mrd_staff:       'mrd.html',
 };
 
 // ── Pages that do NOT need login ──
