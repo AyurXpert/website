@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Yoga Sessions — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e3;
+  --red:#c0392b;--red-light:#fdecea;
+  --blue:#1a4080;--blue-light:#e3f0ff;
+  --cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page-wrap{max-width:1100px;margin:0 auto;padding:28px 20px 80px}
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:12px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
+.ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.4px;margin-left:8px;vertical-align:middle}
+
+.btn{height:38px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}.btn-secondary:hover{background:var(--green-light)}
+.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn-complete{background:#e8f5ee;color:var(--green-deep);border:1.5px solid #b2d8bf}.btn-complete:hover{background:#d0eedd}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+.alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
+.alert.show{display:block}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.alert.error{background:var(--red-light);color:#8b1a1a;border:1px solid #f5c6c6}
+
+/* Module tabs */
+.module-tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.module-tab{padding:8px 18px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:var(--white);color:var(--text-mid);transition:all .15s}
+.module-tab.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
+.tab-panel{display:none}.tab-panel.active{display:block}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+.stat-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;text-align:center}
+.stat-value{font-size:24px;font-weight:700;color:var(--green-deep);line-height:1}
+.stat-label{font-size:11px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.4px}
+
+/* Session cards */
+.sessions-grid{display:grid;gap:12px}
+.sess-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.sess-card.completed{border-color:#b2d8bf;background:#f9fdfb}
+.sess-card.scheduled{border-color:#e0c060;background:#fffef5}
+.sess-card.cancelled{border-color:#ddd;background:#f9f9f9;opacity:.7}
+.sess-icon{font-size:26px;flex-shrink:0}
+.sess-info{flex:1;min-width:0}
+.sess-title{font-weight:600;font-size:13px;color:var(--text-dark)}
+.sess-meta{font-size:11px;color:var(--text-muted);margin-top:3px}
+.type-badge{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:2px 7px;border-radius:4px;background:var(--green-light);color:var(--green-deep);margin-right:4px}
+.status-pill{padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;letter-spacing:.3px}
+.pill-scheduled{background:#fff8e1;color:#7a5c00;border:1px solid #e0c060}
+.pill-completed{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
+.pill-cancelled{background:#f0f0f0;color:#666;border:1px solid #ddd}
+.sess-actions{display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.empty-state{padding:40px;text-align:center;color:var(--text-muted);background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius)}
+.empty-icon{font-size:36px;margin-bottom:10px}
+.empty-title{font-size:14px;font-weight:600;color:var(--text-mid)}
+
+/* Register table */
+.filter-bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.reg-table-wrap{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border);background:#f5faf7;white-space:nowrap}
+td{padding:8px 12px;font-size:12.5px;border-bottom:1px solid #f0f4f2;white-space:nowrap}
+
+/* Overlay / Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto}
+.modal{background:var(--white);border-radius:10px;width:520px;max-width:96vw;box-shadow:0 8px 40px rgba(0,0,0,.22);margin:auto}
+.modal-hdr{background:var(--green-deep);color:#fff;padding:14px 20px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center}
+.modal-hdr-title{font-weight:600;font-size:15px}
+.modal-body{padding:20px;max-height:80vh;overflow-y:auto}
+.modal-foot{padding:12px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border)}
+.fg{display:grid;gap:12px;margin-bottom:12px}
+.fg.c2{grid-template-columns:1fr 1fr}
+.fg.c3{grid-template-columns:1fr 1fr 1fr}
+.field label{font-size:12px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white)}
+.field input:focus,.field select:focus{outline:none;border-color:var(--green-mid)}
+
+/* Attendance search + list */
+.search-row{display:flex;gap:8px;margin-bottom:10px}
+.search-row input{flex:1;height:38px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:13px;font-family:'DM Sans',sans-serif}
+.search-results{margin-bottom:12px}
+.pt-item{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border);margin-bottom:6px;background:var(--cream);cursor:pointer;transition:border-color .15s}
+.pt-item:hover{border-color:var(--green-mid)}
+.pt-name{font-weight:600;font-size:13px}.pt-meta{font-size:11px;color:var(--text-muted);margin-top:2px}
+.attendee-row{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:8px;background:var(--green-light);margin-bottom:6px}
+.attendee-name{font-weight:600;font-size:13px;color:var(--green-deep)}
+.attendee-meta{font-size:11px;color:var(--text-mid)}
+.remove-btn{background:none;border:none;color:#8b1a1a;font-size:13px;cursor:pointer;padding:2px 6px}
+.section-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--green-mid);margin:14px 0 8px}
+.section-label:first-child{margin-top:0}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a4a2e;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;z-index:999;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<div class="page-wrap">
+
+  <div class="page-header">
+    <div>
+      <div class="page-title">🧘 Yoga Sessions <span class="ncism-badge">NCISM §47(l)</span></div>
+      <div class="page-subtitle">Swasthavritta &amp; Yoga — session schedule and attendance register</div>
+    </div>
+    <button class="btn btn-primary" onclick="openScheduleModal()">+ Schedule Session</button>
+  </div>
+
+  <div id="alert-box" class="alert"></div>
+
+  <div class="module-tabs">
+    <button class="module-tab active" data-tab="today" onclick="setTab(this,'today')">Today's Sessions</button>
+    <button class="module-tab" data-tab="schedule" onclick="setTab(this,'schedule')">Session Schedule</button>
+    <button class="module-tab" data-tab="register" onclick="setTab(this,'register')">Attendance Register</button>
+  </div>
+
+  <!-- ── Today's Sessions ── -->
+  <div class="tab-panel active" id="tab-today">
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-value" id="stat-today-sessions">0</div><div class="stat-label">Today's Sessions</div></div>
+      <div class="stat-card"><div class="stat-value" id="stat-today-attendees">0</div><div class="stat-label">Today's Attendees</div></div>
+      <div class="stat-card"><div class="stat-value" id="stat-month-sessions">0</div><div class="stat-label">This Month's Sessions</div></div>
+    </div>
+    <div id="today-list" class="sessions-grid"></div>
+  </div>
+
+  <!-- ── Session Schedule ── -->
+  <div class="tab-panel" id="tab-schedule">
+    <div id="schedule-list" class="sessions-grid"></div>
+  </div>
+
+  <!-- ── Attendance Register ── -->
+  <div class="tab-panel" id="tab-register">
+    <div class="filter-bar">
+      <div class="field" style="min-width:150px"><label>From</label><input type="date" id="reg-from"/></div>
+      <div class="field" style="min-width:150px"><label>To</label><input type="date" id="reg-to"/></div>
+      <button class="btn btn-secondary btn-sm" onclick="loadRegister()">Apply</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportRegisterCSV()" style="margin-left:auto">↓ CSV</button>
+    </div>
+    <div class="reg-table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Time</th><th>Type</th><th>Instructor</th><th>Patient</th><th>Marked By</th><th>Marked At</th></tr></thead>
+        <tbody id="register-tbody"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Schedule Session Modal ── -->
+<div class="overlay" id="sess-overlay" style="display:none" onclick="if(event.target===this)closeScheduleModal()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-hdr-title" id="sess-modal-title">Schedule Yoga Session</div>
+      <button onclick="closeScheduleModal()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="fg c2">
+        <div class="field"><label>Date</label><input id="m-date" type="date"/></div>
+        <div class="field"><label>Time</label><input id="m-time" type="time" value="07:00"/></div>
+      </div>
+      <div class="fg c2">
+        <div class="field">
+          <label>Session Type</label>
+          <select id="m-type"><option value="group">Group</option><option value="individual">Individual</option></select>
+        </div>
+        <div class="field"><label>Capacity (optional)</label><input id="m-capacity" type="number" min="1" placeholder="e.g. 20"/></div>
+      </div>
+      <div class="fg" style="grid-template-columns:1fr">
+        <div class="field">
+          <label>Instructor</label>
+          <select id="m-instructor"><option value="">— Select instructor —</option></select>
+        </div>
+      </div>
+      <div class="fg" style="grid-template-columns:1fr">
+        <div class="field"><label>Notes</label><input id="m-notes" type="text" placeholder="Optional"/></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary btn-sm" onclick="closeScheduleModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveSession()">Save Session</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Attendance Modal ── -->
+<div class="overlay" id="att-overlay" style="display:none" onclick="if(event.target===this)closeAttendanceModal()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <div class="modal-hdr-title">Session Attendance</div>
+      <button onclick="closeAttendanceModal()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="section-label">Add Patient</div>
+      <div class="search-row">
+        <input id="pt-search" type="text" placeholder="Search by name or phone…" oninput="debounceSearch(this.value)"/>
+      </div>
+      <div class="search-results" id="search-results"></div>
+
+      <div class="section-label">Attendees (<span id="att-count">0</span>)</div>
+      <div id="attendee-list"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary btn-sm" onclick="closeAttendanceModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { requireAuth, getCurrentTenantId, getCurrentProfile } from './js/core/auth.js';
+import { initNavbar } from './js/components/navbar.js';
+import { supabase } from './js/core/db/supabaseClient.js';
+
+await requireAuth(['super_admin','dept_admin','therapist','doctor','receptionist']);
+initNavbar();
+
+const tenantId  = getCurrentTenantId();
+const myProfile = getCurrentProfile();
+
+let _sessions    = [];
+let _attCounts   = {};   // sessionId -> attendee count
+let _activeSess  = null; // session id open in attendance modal
+let _attendees   = [];   // rows for the active session
+let _searchTimer = null;
+const todayStr = new Date().toISOString().slice(0,10);
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+document.querySelectorAll('.module-tab').forEach(btn => {
+  btn.addEventListener('click', () => setTab(btn, btn.dataset.tab));
+});
+window.setTab = function(btn, tab) {
+  document.querySelectorAll('.module-tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+  if (tab === 'register') loadRegister();
+};
+
+// ── Load sessions (Today's Sessions + Session Schedule share this) ────────────
+async function loadSessions() {
+  const { data, error } = await supabase.from('yoga_sessions')
+    .select('id,session_date,session_time,session_type,instructor_id,capacity,status,notes,instructor:profiles!instructor_id(full_name)')
+    .eq('tenant_id', tenantId)
+    .order('session_date').order('session_time');
+  if (error) { _alert('error', 'Load error: ' + error.message); return; }
+  _sessions = data || [];
+
+  const ids = _sessions.map(s => s.id);
+  _attCounts = {};
+  if (ids.length) {
+    const { data: att } = await supabase.from('yoga_attendance').select('session_id').in('session_id', ids);
+    (att || []).forEach(a => { _attCounts[a.session_id] = (_attCounts[a.session_id] || 0) + 1; });
+  }
+
+  renderToday();
+  renderSchedule();
+}
+
+function renderToday() {
+  const todays = _sessions.filter(s => s.session_date === todayStr);
+  document.getElementById('stat-today-sessions').textContent  = todays.length;
+  document.getElementById('stat-today-attendees').textContent = todays.reduce((s,x)=>s+(_attCounts[x.id]||0),0);
+  const monthPrefix = todayStr.slice(0,7);
+  document.getElementById('stat-month-sessions').textContent  = _sessions.filter(s=>s.session_date.startsWith(monthPrefix)).length;
+
+  const list = document.getElementById('today-list');
+  if (!todays.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">🧘</div><div class="empty-title">No sessions scheduled today</div></div>`;
+    return;
+  }
+  list.innerHTML = todays.map(s => _sessCard(s, true)).join('');
+}
+
+function renderSchedule() {
+  const upcoming = _sessions.filter(s => s.status === 'scheduled' && s.session_date >= todayStr);
+  const list = document.getElementById('schedule-list');
+  if (!upcoming.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-title">No upcoming sessions</div></div>`;
+    return;
+  }
+  list.innerHTML = upcoming.map(s => _sessCard(s, false)).join('');
+}
+
+function _sessCard(s, isToday) {
+  const timeStr = s.session_time ? s.session_time.slice(0,5) : '—';
+  const instructor = s.instructor?.full_name || '— no instructor assigned —';
+  const count = _attCounts[s.id] || 0;
+  const statusLabel = { scheduled:'Scheduled', completed:'Completed', cancelled:'Cancelled' }[s.status] || s.status;
+  return `<div class="sess-card ${s.status}">
+    <div class="sess-icon">🧘</div>
+    <div class="sess-info">
+      <div class="sess-title"><span class="type-badge">${s.session_type === 'group' ? 'Group' : 'Individual'}</span>${timeStr} · ${_esc(instructor)}</div>
+      <div class="sess-meta">${_fmtDate(s.session_date)}${s.capacity ? ' · Capacity ' + s.capacity : ''} · ${count} attendee${count===1?'':'s'}${s.notes ? ' · ' + _esc(s.notes) : ''}</div>
+    </div>
+    <div class="sess-actions">
+      <span class="status-pill pill-${s.status}">${statusLabel}</span>
+      ${s.status === 'scheduled' ? `<button class="btn btn-secondary btn-sm" onclick="openAttendanceModal('${s.id}')">👥 Attendance</button>` : ''}
+      ${s.status === 'scheduled' ? `<button class="btn btn-secondary btn-sm" onclick="openScheduleModal('${s.id}')">✎ Edit</button>` : ''}
+      ${s.status === 'scheduled' ? `<button class="btn btn-complete btn-sm" onclick="markCompleted('${s.id}')">✓ Complete</button>` : ''}
+      ${s.status === 'scheduled' ? `<button class="btn btn-secondary btn-sm" onclick="cancelSession('${s.id}')">✕</button>` : ''}
+    </div>
+  </div>`;
+}
+
+// ── Schedule modal ────────────────────────────────────────────────────────────
+async function _populateInstructors() {
+  const { data } = await supabase.from('profiles')
+    .select('id,full_name')
+    .eq('tenant_id', tenantId).eq('is_active', true).eq('designation', 'yoga_instructor');
+  const sel = document.getElementById('m-instructor');
+  sel.innerHTML = '<option value="">— Select instructor —</option>' +
+    (data && data.length ? data.map(p => `<option value="${p.id}">${_esc(p.full_name)}</option>`).join('')
+      : '<option value="" disabled>No staff tagged as Yoga Instructor — assign via All Staff tab</option>');
+}
+
+window.openScheduleModal = async function(id) {
+  await _populateInstructors();
+  const editing = id ? _sessions.find(s => s.id === id) : null;
+  document.getElementById('sess-modal-title').textContent = editing ? 'Edit Yoga Session' : 'Schedule Yoga Session';
+  document.getElementById('sess-overlay').dataset.editId = id || '';
+  document.getElementById('m-date').value       = editing?.session_date || todayStr;
+  document.getElementById('m-time').value       = editing?.session_time?.slice(0,5) || '07:00';
+  document.getElementById('m-type').value       = editing?.session_type || 'group';
+  document.getElementById('m-capacity').value   = editing?.capacity || '';
+  document.getElementById('m-instructor').value = editing?.instructor_id || '';
+  document.getElementById('m-notes').value      = editing?.notes || '';
+  document.getElementById('sess-overlay').style.display = 'flex';
+};
+
+window.closeScheduleModal = function() {
+  document.getElementById('sess-overlay').style.display = 'none';
+};
+
+window.saveSession = async function() {
+  const editId = document.getElementById('sess-overlay').dataset.editId;
+  const payload = {
+    tenant_id:     tenantId,
+    session_date:  document.getElementById('m-date').value,
+    session_time:  document.getElementById('m-time').value,
+    session_type:  document.getElementById('m-type').value,
+    capacity:      parseInt(document.getElementById('m-capacity').value) || null,
+    instructor_id: document.getElementById('m-instructor').value || null,
+    notes:         document.getElementById('m-notes').value.trim() || null,
+  };
+  if (!payload.session_date || !payload.session_time) { _alert('error', 'Date and time are required.'); return; }
+
+  const { error } = editId
+    ? await supabase.from('yoga_sessions').update(payload).eq('id', editId)
+    : await supabase.from('yoga_sessions').insert(payload);
+  if (error) { _alert('error', 'Error: ' + error.message); return; }
+  _alert('success', editId ? 'Session updated.' : 'Session scheduled.');
+  closeScheduleModal();
+  await loadSessions();
+};
+
+window.markCompleted = async function(id) {
+  const { error } = await supabase.from('yoga_sessions').update({ status: 'completed' }).eq('id', id);
+  if (error) { _alert('error', 'Error: ' + error.message); return; }
+  await loadSessions();
+};
+
+window.cancelSession = async function(id) {
+  if (!confirm('Cancel this session?')) return;
+  const { error } = await supabase.from('yoga_sessions').update({ status: 'cancelled' }).eq('id', id);
+  if (error) { _alert('error', 'Error: ' + error.message); return; }
+  await loadSessions();
+};
+
+// ── Attendance modal ──────────────────────────────────────────────────────────
+window.openAttendanceModal = async function(sessionId) {
+  _activeSess = sessionId;
+  document.getElementById('pt-search').value = '';
+  document.getElementById('search-results').innerHTML = '';
+  await _loadAttendees();
+  document.getElementById('att-overlay').style.display = 'flex';
+};
+
+window.closeAttendanceModal = function() {
+  document.getElementById('att-overlay').style.display = 'none';
+  _activeSess = null;
+  loadSessions(); // refresh attendee counts on the cards behind the modal
+};
+
+async function _loadAttendees() {
+  const { data, error } = await supabase.from('yoga_attendance')
+    .select('id,patient_id,marked_at,patients(name,phone)')
+    .eq('session_id', _activeSess)
+    .order('marked_at');
+  if (error) { _alert('error', 'Load error: ' + error.message); return; }
+  _attendees = data || [];
+  _renderAttendees();
+}
+
+function _renderAttendees() {
+  document.getElementById('att-count').textContent = _attendees.length;
+  const list = document.getElementById('attendee-list');
+  if (!_attendees.length) {
+    list.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:8px 0">No attendees marked yet — search above to add.</div>`;
+    return;
+  }
+  list.innerHTML = _attendees.map(a => `
+    <div class="attendee-row">
+      <div>
+        <div class="attendee-name">${_esc(a.patients?.name || '—')}</div>
+        <div class="attendee-meta">${_esc(a.patients?.phone || '—')}</div>
+      </div>
+      <button class="remove-btn" onclick="removeAttendee('${a.id}')" title="Remove">✕</button>
+    </div>`).join('');
+}
+
+window.debounceSearch = function(val) {
+  clearTimeout(_searchTimer);
+  if (val.length < 2) { document.getElementById('search-results').innerHTML = ''; return; }
+  _searchTimer = setTimeout(() => _searchPatients(val), 300);
+};
+
+async function _searchPatients(q) {
+  const { data } = await supabase.from('patients')
+    .select('id,name,phone,age,gender')
+    .eq('tenant_id', tenantId)
+    .or(`name.ilike.%${q}%,phone.ilike.%${q}%`)
+    .limit(8);
+  const el = document.getElementById('search-results');
+  if (!data?.length) { el.innerHTML = '<div style="padding:8px;font-size:12px;color:var(--text-muted)">No patients found</div>'; return; }
+  el.innerHTML = data.map(p => `
+    <div class="pt-item" onclick='addAttendee(${JSON.stringify(p.id)})'>
+      <div><div class="pt-name">${_esc(p.name)}</div><div class="pt-meta">${_esc(p.phone||'—')} · Age ${p.age||'—'} · ${(p.gender||'').charAt(0).toUpperCase()}</div></div>
+    </div>`).join('');
+}
+
+window.addAttendee = async function(patientId) {
+  if (_attendees.some(a => a.patient_id === patientId)) { _alert('error', 'Already marked present for this session.'); return; }
+  const { error } = await supabase.from('yoga_attendance').insert({
+    tenant_id:  tenantId,
+    session_id: _activeSess,
+    patient_id: patientId,
+    attended:   true,
+    marked_at:  new Date().toISOString(),
+    marked_by:  myProfile?.id,
+  });
+  if (error) { _alert('error', 'Error: ' + error.message); return; }
+  document.getElementById('pt-search').value = '';
+  document.getElementById('search-results').innerHTML = '';
+  await _loadAttendees();
+};
+
+window.removeAttendee = async function(attendanceId) {
+  const { error } = await supabase.from('yoga_attendance').delete().eq('id', attendanceId);
+  if (error) { _alert('error', 'Error: ' + error.message); return; }
+  await _loadAttendees();
+};
+
+// ── Attendance register ───────────────────────────────────────────────────────
+window.loadRegister = async function() {
+  const from = document.getElementById('reg-from').value;
+  const to   = document.getElementById('reg-to').value;
+  let q = supabase.from('yoga_attendance')
+    .select('marked_at,patients(name),marked_by:profiles!marked_by(full_name),session:yoga_sessions(session_date,session_time,session_type,instructor:profiles!instructor_id(full_name))')
+    .eq('tenant_id', tenantId)
+    .order('marked_at', { ascending: false });
+  const { data, error } = await q;
+  if (error) { _alert('error', 'Load error: ' + error.message); return; }
+
+  let rows = data || [];
+  if (from) rows = rows.filter(r => r.session?.session_date >= from);
+  if (to)   rows = rows.filter(r => r.session?.session_date <= to);
+  _renderRegister(rows);
+};
+
+let _registerRows = [];
+function _renderRegister(rows) {
+  _registerRows = rows;
+  const tbody = document.getElementById('register-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">No attendance records for this range.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `<tr>
+    <td>${_fmtDate(r.session?.session_date)}</td>
+    <td>${r.session?.session_time ? r.session.session_time.slice(0,5) : '—'}</td>
+    <td>${r.session?.session_type === 'group' ? 'Group' : 'Individual'}</td>
+    <td>${_esc(r.session?.instructor?.full_name || '—')}</td>
+    <td>${_esc(r.patients?.name || '—')}</td>
+    <td>${_esc(r.marked_by?.full_name || '—')}</td>
+    <td>${r.marked_at ? new Date(r.marked_at).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+  </tr>`).join('');
+}
+
+window.exportRegisterCSV = function() {
+  if (!_registerRows.length) { _alert('error', 'Nothing to export.'); return; }
+  const rows = [['Date','Time','Type','Instructor','Patient','Marked By','Marked At']];
+  _registerRows.forEach(r => rows.push([
+    r.session?.session_date || '', r.session?.session_time?.slice(0,5) || '',
+    r.session?.session_type || '', r.session?.instructor?.full_name || '',
+    r.patients?.name || '', r.marked_by?.full_name || '', r.marked_at || '',
+  ]));
+  const csv = rows.map(row => row.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'Yoga_Attendance_Register.csv';
+  a.click();
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function _fmtDate(d) { if (!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+function _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _alert(type, msg) { const el = document.getElementById('alert-box'); el.className = `alert ${type} show`; el.textContent = msg; setTimeout(() => el.classList.remove('show'), 4000); }
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+document.getElementById('reg-from').value = todayStr.slice(0,8) + '01';
+document.getElementById('reg-to').value   = todayStr;
+await loadSessions();
+</script>
+</body>
+</html>
