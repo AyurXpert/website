@@ -1,6 +1,9 @@
 import { login } from '../core/auth.js';
 import { supabase } from '../core/db/supabaseClient.js';
 
+// Form has no action/target — submit would otherwise reload the page and wipe JS state
+document.getElementById('login-form').addEventListener('submit', e => e.preventDefault());
+
 // ── Watermark popup ───────────────────────────────────────────────────────────
 const overlay = document.getElementById('ax-popup-overlay');
 document.getElementById('ax-watermark').addEventListener('click', () => overlay.classList.add('show'));
