@@ -561,8 +561,8 @@ tr:hover td{background:#fafff8}
           </div>
           <div class="tw">
             <table>
-              <thead><tr><th>Name</th><th>Role</th><th>Designation</th><th>Department</th><th>Phone</th><th>Status</th><th>Joined</th></tr></thead>
-              <tbody id="staff-tbody"><tr><td colspan="7" style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</td></tr></tbody>
+              <thead><tr><th>Name</th><th>Role</th><th>Designation</th><th>Department</th><th>Phone</th><th>Status</th><th>Joined</th><th>Actions</th></tr></thead>
+              <tbody id="staff-tbody"><tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -890,8 +890,9 @@ import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId,
          getCurrentRole, getPendingApprovals } from './js/core/auth.js';
 import { initNavbar } from './js/components/navbar.js';
 import { supabase }   from './js/core/db/supabaseClient.js';
+import { logAudit }   from './js/core/auditLogger.js';
 
-await requireAuth([], 'index.html');
+await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
 
 const profile  = getCurrentProfile();
@@ -905,22 +906,10 @@ const todayStr   = new Date().toISOString().split('T')[0];
 const todayStart = todayStr + 'T00:00:00';
 const todayEnd   = todayStr + 'T23:59:59';
 
-if (['super_admin','dept_admin'].includes(role)) {
-  _bootMasterControl();
-} else {
-  // Non-admin roles don't belong on admin.html — redirect to their home page
-  const ROLE_HOME = {
-    doctor:       'doctor.html',
-    receptionist: 'reception.html',
-    pharmacist:   'dispensaryPOS.html',
-    nurse:        'reception.html',
-    lab_tech:     'reports.html',
-    accountant:   'finance.html',
-    therapist:    'therapist.html',
-    student:      'index.html',
-  };
-  window.location.replace(ROLE_HOME[role] || 'index.html');
-}
+// Non-admin roles are already redirected by requireAuth() above before this line
+// ever runs — no local redirect logic needed here (removed a stale duplicate
+// ROLE_HOME map that had drifted out of sync with js/config/constants.js).
+_bootMasterControl();
 
 // ════════════════════════════════════════════════
 // MASTER CONTROL BOOT
@@ -1310,9 +1299,11 @@ window.loadStaffAccess = async function() {
   }
   wrap.innerHTML=`<div class="tw"><table>
     <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Applied</th><th>Actions</th></tr></thead>
-    <tbody>${approvals.map(r=>`<tr id="arow-${r.id}">
+    <tbody>${approvals.map(r=>`<tr id="arow-${r.id}"${r.role==='dept_admin'?' style="background:#fff0f0"':''}>
       <td><strong>${_esc(r.full_name||'—')}</strong></td>
-      <td><span class="chip g">${_roleLabel(r.role)}</span></td>
+      <td>${r.role==='dept_admin'
+        ?'<span class="chip" style="background:#fdecea;color:#8b1a1a;border:1px solid #f5c6c6;font-weight:700">⚠️ Dept. Admin — Full Access Requested</span>'
+        :`<span class="chip g">${_roleLabel(r.role)}</span>`}</td>
       <td>${_esc(r.phone||'—')}</td>
       <td>${_relDate(r.created_at)}</td>
       <td>
@@ -2237,8 +2228,11 @@ window.filterStaff = function(){
 
 function renderStaffTable(staff){
   const tbody=document.getElementById('staff-tbody');
-  if(!staff.length){tbody.innerHTML=`<tr><td colspan="7"><div class="empty"><div class="empty-ico">👥</div><div class="empty-ttl">No staff found</div></div></td></tr>`;return;}
-  tbody.innerHTML=staff.map(s=>`<tr>
+  if(!staff.length){tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-ico">👥</div><div class="empty-ttl">No staff found</div></div></td></tr>`;return;}
+  const canPromote = role === 'super_admin';
+  tbody.innerHTML=staff.map(s=>{
+    const showPromote = canPromote && s.is_active && !['super_admin','dept_admin'].includes(s.role);
+    return `<tr>
     <td><strong>${_esc(s.full_name||'—')}</strong></td>
     <td><span class="chip g">${_roleLabel(s.role)}</span></td>
     <td><select class="desig-sel" data-id="${s.id}" onchange="saveDesig(this)">${DESIG_SEL_HTML}</select></td>
@@ -2246,9 +2240,20 @@ function renderStaffTable(staff){
     <td>${_esc(s.phone||'—')}</td>
     <td><span class="chip ${s.is_active?'g':'grey'}">${s.is_active?'Active':s.status}</span></td>
     <td style="font-size:12px;color:var(--text-muted)">${_relDate(s.created_at)}</td>
-  </tr>`).join('');
+    <td>${showPromote?`<button class="btn-outline" style="font-size:11px;padding:4px 10px" onclick="promoteToDeptAdmin('${s.id}','${_esc(s.full_name||'this staff member')}','${s.role}')">⬆ Promote to Admin</button>`:'—'}</td>
+  </tr>`;
+  }).join('');
   staff.forEach(s=>{const sel=tbody.querySelector(`select[data-id="${s.id}"]`);if(sel&&s.designation)sel.value=s.designation;});
 }
+
+window.promoteToDeptAdmin = async function(staffId, staffName, previousRole){
+  if(!confirm(`Promote ${staffName} to Dept. Admin? This grants full HR, Finance, Settings and Subscription access for your organisation. This cannot be undone from this screen.`)) return;
+  const {error} = await supabase.rpc('promote_to_dept_admin', {p_staff_id: staffId});
+  if(error){ _toast('Could not promote: '+error.message, true); return; }
+  await logAudit('promote_to_dept_admin', 'profiles', staffId, {staff_name: staffName, previous_role: previousRole}, {tenantId, userId: profile.id, userName: profile.full_name});
+  _toast(staffName+' promoted to Dept. Admin.');
+  window.loadHR && window.loadHR('staff');
+};
 
 window.saveDesig = async function(sel){
   const id=sel.dataset.id, val=sel.value;
