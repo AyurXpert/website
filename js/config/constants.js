@@ -3,7 +3,7 @@
 // Supabase Dashboard > Project Settings > API
 
 export const SUPABASE_URL      = 'https://xvlvifiebafvgzlixdee.supabase.co';
-export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2bHZpZmllYmFmdmd6bGl4ZGVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1ODI5MDIsImV4cCI6MjA5MjE1ODkwMn0.JHcQCLaBgtk8o1mXFhT4NMyZFLogeDMnxlyybg32LPE';
+export const SUPABASE_ANON_KEY = 'sb_publishable_yNIYiQwHVqDUj2WdN13s5w_3ra9aYJQ';
 
 export const APP_NAME    = 'AyurXpert';
 export const APP_VERSION = '1.0.0';
