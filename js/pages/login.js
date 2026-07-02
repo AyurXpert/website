@@ -1,5 +1,6 @@
 import { login } from '../core/auth.js';
 import { supabase } from '../core/db/supabaseClient.js';
+import { isValidEmail } from '../utils/validators.js';
 
 // Form has no action/target — submit would otherwise reload the page and wipe JS state
 document.getElementById('login-form').addEventListener('submit', e => e.preventDefault());
@@ -109,7 +110,7 @@ async function handleContinue() {
   clearAlerts();
   const email = emailEl.value.trim();
   if (!email) { showAlert('Please enter your email address.'); emailEl.focus(); return; }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!isValidEmail(email)) {
     showAlert('Please enter a valid email address.'); emailEl.focus(); return;
   }
 

@@ -1432,6 +1432,8 @@ import { initNavbar } from './js/components/navbar.js';
 import { supabase } from './js/core/db/supabaseClient.js';
 import { createPatient } from './js/modules/patient/patientService.js';
 import { logAudit } from './js/core/auditLogger.js';
+import { escapeHtml as _esc } from './js/utils/validators.js';
+import { safeErrorMessage } from './js/utils/errors.js';
 import {
   requestABHAOtp, enrollABHA,
   checkAndGenerateMobileOTP, verifyCommMobileOtp, finalizeAbhaEnrollment,
@@ -2086,9 +2088,9 @@ function _showPicker(patients, phone) {
   const picker = document.getElementById('patient-picker');
   picker.innerHTML = patients.map(p => `
     <div class="picker-item" data-id="${p.id}">
-      <div class="picker-avatar">${p.name.charAt(0).toUpperCase()}</div>
+      <div class="picker-avatar">${_esc(p.name.charAt(0).toUpperCase())}</div>
       <div>
-        <div class="picker-name">${p.name}</div>
+        <div class="picker-name">${_esc(p.name)}</div>
         <div class="picker-sub">UHID: ${_uhid(p.id)}</div>
       </div>
     </div>
@@ -2397,7 +2399,7 @@ async function handleSubmit() {
 
   } catch (err) {
     console.error(err);
-    _alert('error', 'Something went wrong: ' + (err.message || 'Please try again.'));
+    _alert('error', safeErrorMessage(err, 'Something went wrong. Please try again.'));
   }
 
   _loading(btn, false);
@@ -2544,21 +2546,21 @@ async function loadQueue() {
     return `<div class="${itemClass}">
       <div class="q-token ${tokenClass}">${v.token_number}</div>
       <div class="q-info">
-        <div class="q-name">${v.patients?.name || '—'} ${emergBadge}${onReqBadge}</div>
+        <div class="q-name">${_esc(v.patients?.name || '—')} ${emergBadge}${onReqBadge}</div>
         <div class="q-row2">
-          <span style="color:var(--text-mid)">${doc}</span>
-          <span class="badge badge-cat">${catLabel}</span>
+          <span style="color:var(--text-mid)">${_esc(doc)}</span>
+          <span class="badge badge-cat">${_esc(catLabel)}</span>
           ${payBadge}
         </div>
         <div class="q-row3">
           <span class="dot" style="background:${statusDot}"></span>
-          ${statusLabel} · ${v.chief_complaint || '—'}
+          ${statusLabel} · ${_esc(v.chief_complaint || '—')}
         </div>
       </div>
       <div class="q-right">
         <span class="q-time">${t}</span>
         <span class="q-wait">${wait}</span>
-        <button class="q-edit-btn" data-visit-id="${v.id}" data-doctor-id="${v.doctor_id || ''}" data-complaint="${(v.chief_complaint || '').replace(/"/g,'&quot;')}" data-category="${v.visit_category || 'opd'}" title="Edit this queue entry" type="button">✎</button>
+        <button class="q-edit-btn" data-visit-id="${v.id}" data-doctor-id="${v.doctor_id || ''}" data-complaint="${_esc(v.chief_complaint || '')}" data-category="${v.visit_category || 'opd'}" title="Edit this queue entry" type="button">✎</button>
       </div>
     </div>`;
   }).join('');
@@ -2622,7 +2624,7 @@ async function _saveQueueEdit() {
   btn.disabled = false;
   btn.textContent = 'Save Changes';
 
-  if (error) { _alert('error', 'Save failed: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Save failed. Please try again.')); return; }
 
   // Update _doctorMap in case new doctor not yet loaded
   if (doctorId && !_doctorMap[doctorId]) {
@@ -2772,7 +2774,7 @@ document.getElementById('btn-download-abha-card').addEventListener('click', asyn
     a.download = `ABHA_Card_${document.getElementById('abha').value.replace(/-/g,'')}.png`;
     a.click();
   } catch (err) {
-    alert('Download failed: ' + (err.message || 'Please try again.'));
+    alert(safeErrorMessage(err, 'Download failed. Please try again.'));
   }
   btn.disabled = false; btn.textContent = '⬇ Download ABHA Card';
 });
@@ -2812,7 +2814,7 @@ document.getElementById('btn-upd-mob-send').addEventListener('click', async () =
     _clearOtpBoxes('upd-mob-otp-boxes');
     document.querySelector('#upd-mob-otp-boxes .otp-box')?.focus();
   } catch (err) {
-    document.getElementById('upd-mob-msg').textContent = err.message;
+    document.getElementById('upd-mob-msg').textContent = safeErrorMessage(err, 'Could not update mobile number.');
   }
   btn.disabled = false; btn.textContent = 'Send OTP';
 });
@@ -2833,7 +2835,7 @@ document.getElementById('btn-upd-mob-verify').addEventListener('click', async ()
       document.getElementById('upd-mob-msg').style.color = '';
     }, 2000);
   } catch (err) {
-    document.getElementById('upd-mob-msg').textContent = err.message;
+    document.getElementById('upd-mob-msg').textContent = safeErrorMessage(err, 'Could not update mobile number.');
   }
   btn.disabled = false; btn.textContent = 'Verify & Update';
 });
@@ -3015,7 +3017,7 @@ async function _fetchExistingAbhaProfile() {
     document.getElementById('enroll-step-existing').style.display = '';
     _setEnrollMsg('info', 'OTP sent. Enter it below to view the ABHA profile.');
   } catch (err) {
-    _setEnrollMsg('error', 'Failed to send OTP: ' + (err.message || 'Please try again.'));
+    _setEnrollMsg('error', safeErrorMessage(err, 'Failed to send OTP. Please try again.'));
     if (btn) { btn.disabled = false; btn.textContent = 'View Profile →'; }
   }
 }
@@ -3055,7 +3057,7 @@ document.getElementById('btn-existing-verify-otp').addEventListener('click', asy
       _existingAbhaAadhaar = null; _existingAadhaarTxnId = null;
     }, 2000);
   } catch (err) {
-    _setEnrollMsg('error', 'Verification failed: ' + (err.message || 'Please try again.'));
+    _setEnrollMsg('error', safeErrorMessage(err, 'Verification failed. Please try again.'));
     btn.disabled = false; btn.textContent = 'View ABHA Profile';
   }
 });
@@ -3099,7 +3101,7 @@ document.getElementById('btn-send-otp').addEventListener('click', async () => {
       _existingAbhaAadhaar = document.getElementById('enroll-aadhaar').value.trim();
       _showAbhaExistsModal(null, _fetchExistingAbhaProfile);
     } else {
-      _setEnrollMsg('error', 'Failed to send OTP: ' + (err.message || 'Please try again.'));
+      _setEnrollMsg('error', safeErrorMessage(err, 'Failed to send OTP. Please try again.'));
     }
   }
   btn.disabled = false; btn.textContent = 'Send OTP';
@@ -3274,7 +3276,7 @@ document.getElementById('btn-verify-otp').addEventListener('click', async () => 
       _clearOtpBoxes('enroll-otp-boxes');
       _showAbhaExistsModal(null, _fetchExistingAbhaProfile);
     } else {
-      _setEnrollMsg('error', 'Enrollment failed: ' + (err.message || 'Please try again.'));
+      _setEnrollMsg('error', safeErrorMessage(err, 'Enrollment failed. Please try again.'));
     }
   }
 
@@ -3296,7 +3298,7 @@ document.getElementById('btn-verify-mobile-otp').addEventListener('click', async
     await _handleAbhaProfileCreated(_pendingAbhaResponse);
     _pendingAbhaResponse = null;
   } catch (err) {
-    _setEnrollMsg('error', 'Verification failed: ' + (err.message || 'Please try again.'));
+    _setEnrollMsg('error', safeErrorMessage(err, 'Verification failed. Please try again.'));
   }
 
   btn.disabled = false; btn.textContent = 'Verify & Complete ABHA';
@@ -3352,7 +3354,7 @@ document.getElementById('btn-set-abha-addr').addEventListener('click', async () 
       btnEnroll.classList.remove('open');
     }, 2000);
   } catch (err) {
-    _setEnrollMsg('error', 'Failed to set address: ' + (err.message || 'Please try again.'));
+    _setEnrollMsg('error', safeErrorMessage(err, 'Failed to set address. Please try again.'));
   }
 
   btn.disabled = false; btn.textContent = 'Set ABHA Address';
@@ -3456,7 +3458,7 @@ document.getElementById('btn-find-search').addEventListener('click', async () =>
     document.getElementById('find-step-3').style.display = '';
     _setFindMsg('info', '✓ OTP sent. Enter the OTP the patient received.');
   } catch (err) {
-    _setFindMsg('error', 'Could not send OTP: ' + err.message);
+    _setFindMsg('error', safeErrorMessage(err, 'Could not send OTP.'));
     document.getElementById('find-no-abha-hint').style.display = '';
   }
   btn.disabled = false; btn.textContent = 'Send OTP';
@@ -3519,7 +3521,7 @@ document.getElementById('btn-find-verify-otp').addEventListener('click', async (
       document.getElementById('find-step-2').style.display = '';
       _setFindMsg('info', `${accounts.length} ABHAs found — select the patient's account.`);
     }
-  } catch (err) { _setFindMsg('error', 'Verification failed: ' + err.message); }
+  } catch (err) { _setFindMsg('error', safeErrorMessage(err, 'Verification failed. Please try again.')); }
   btn.disabled = false; btn.textContent = 'Fetch ABHA Details';
 });
 
@@ -3531,7 +3533,7 @@ document.getElementById('btn-find-confirm').addEventListener('click', async () =
   btn.disabled = true; btn.textContent = 'Confirming…';
   try {
     await _applyFindAccount(_findSelectedAbha);
-  } catch (err) { _setFindMsg('error', 'Could not apply profile: ' + err.message); }
+  } catch (err) { _setFindMsg('error', safeErrorMessage(err, 'Could not apply profile.')); }
   btn.disabled = false; btn.textContent = 'Confirm Selection';
 });
 
@@ -3583,7 +3585,7 @@ document.getElementById('btn-verify-send-otp').addEventListener('click', async (
     _setVerifyMsg('info', `✓ OTP sent. ${res.message || 'Check ABDM-linked mobile.'}`);
     _verifyResendLim.arm();
   } catch (err) {
-    _setVerifyMsg('error', 'Failed to send OTP: ' + (err.message || 'Please try again.'));
+    _setVerifyMsg('error', safeErrorMessage(err, 'Failed to send OTP. Please try again.'));
   }
 
   btn.disabled = false; btn.textContent = 'Send OTP';
@@ -3630,7 +3632,7 @@ document.getElementById('btn-verify-confirm-otp').addEventListener('click', asyn
     setTimeout(() => { verifyPanel.style.display='none'; btnVerifyAbha.textContent='Verify'; btnVerifyAbha.classList.remove('open'); }, 2000);
 
   } catch (err) {
-    _setVerifyMsg('error', 'Verification failed: ' + (err.message || 'Please try again.'));
+    _setVerifyMsg('error', safeErrorMessage(err, 'Verification failed. Please try again.'));
   }
 
   btn.disabled = false; btn.textContent = 'Verify ABHA';
@@ -3671,7 +3673,7 @@ document.getElementById('btn-aad-send-otp').addEventListener('click', async () =
     document.getElementById('aad-no-abha-hint').style.display = 'none';
     _setVerifyMsg('info', `✓ OTP sent. ${res.message || 'Check Aadhaar-linked mobile.'}`);
     _aadResendLim.arm();
-  } catch (err) { _setVerifyMsg('error', err.message); }
+  } catch (err) { _setVerifyMsg('error', safeErrorMessage(err)); }
   btn.disabled = false; btn.textContent = 'Send OTP';
 });
 document.getElementById('btn-aad-resend').addEventListener('click', () => {
@@ -3706,7 +3708,7 @@ document.getElementById('btn-aad-verify-otp').addEventListener('click', async ()
     _setVerifyMsg('success', `ABHA ${fmt} verified.`);
     await _linkAbha(prof, fmt, null, true); // Aadhaar-verified — skip demographic gate
     setTimeout(() => { verifyPanel.style.display='none'; btnVerifyAbha.textContent='Verify'; btnVerifyAbha.classList.remove('open'); }, 2000);
-  } catch (err) { _setVerifyMsg('error', 'Verification failed: ' + err.message); }
+  } catch (err) { _setVerifyMsg('error', safeErrorMessage(err, 'Verification failed. Please try again.')); }
   btn.disabled = false; btn.textContent = 'Verify Aadhaar';
 });
 
@@ -3733,7 +3735,7 @@ document.getElementById('btn-mob-search').addEventListener('click', async () => 
     _setVerifyMsg('info', res.message || '✓ OTP sent to your registered mobile.');
     _mobResendLim.arm();
   } catch (err) {
-    _setVerifyMsg('error', 'Failed to send OTP: ' + err.message);
+    _setVerifyMsg('error', safeErrorMessage(err, 'Failed to send OTP.'));
     document.getElementById('mob-no-abha-hint').style.display = '';
   }
   btn.disabled = false; btn.textContent = 'Send OTP';
@@ -3805,7 +3807,7 @@ document.getElementById('btn-mob-verify-otp').addEventListener('click', async ()
       ).join('');
       _setVerifyMsg('info', `${accounts.length} ABHAs linked to this mobile. Select yours.`);
     }
-  } catch (err) { _setVerifyMsg('error', 'Verification failed: ' + err.message); }
+  } catch (err) { _setVerifyMsg('error', safeErrorMessage(err, 'Verification failed. Please try again.')); }
   btn.disabled = false; btn.textContent = 'Verify & Get Profile';
 });
 
@@ -3829,7 +3831,7 @@ document.getElementById('btn-addr-search').addEventListener('click', async () =>
     document.getElementById('addr-step-2').style.display = '';
     _setVerifyMsg('info', `✓ OTP sent to registered mobile for ${addr}.`);
     _addrResendLim.arm();
-  } catch (err) { _setVerifyMsg('error', err.message); }
+  } catch (err) { _setVerifyMsg('error', safeErrorMessage(err)); }
   btn.disabled = false; btn.textContent = 'Search & Send OTP';
 });
 document.getElementById('btn-addr-resend').addEventListener('click', () => {
@@ -3859,7 +3861,7 @@ document.getElementById('btn-addr-verify-otp').addEventListener('click', async (
     _setVerifyMsg('success', 'ABHA Address verified successfully.');
     if (fmt) await _linkAbha(prof, fmt, _currentVisitId);
     setTimeout(() => { verifyPanel.style.display='none'; btnVerifyAbha.textContent='Verify'; btnVerifyAbha.classList.remove('open'); }, 2000);
-  } catch (err) { _setVerifyMsg('error', 'Verification failed: ' + err.message); }
+  } catch (err) { _setVerifyMsg('error', safeErrorMessage(err, 'Verification failed. Please try again.')); }
   btn.disabled = false; btn.textContent = 'Verify & Get Profile';
 });
 
@@ -4158,7 +4160,7 @@ async function _submitEod() {
 
   btn.disabled = false; btn.textContent = 'Mark Selected as Incomplete';
 
-  if (error) { alert('Error: ' + error.message); return; }
+  if (error) { alert(safeErrorMessage(error)); return; }
 
   _closeEodModal();
   _staleVisits = _staleVisits.filter(v => !selected.includes(v.id));
@@ -4262,16 +4264,16 @@ async function bookAppointment() {
     document.getElementById('receipt-title').textContent = '✓ Appointment Booked';
     document.getElementById('receipt-rows').innerHTML = `
       <div style="font-size:13px;color:var(--text-mid);line-height:1.8">
-        <strong>${patient.name}</strong><br>
-        🏥 ${opdName}<br>
+        <strong>${_esc(patient.name)}</strong><br>
+        🏥 ${_esc(opdName)}<br>
         📅 ${new Date(apptDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}
         &nbsp;·&nbsp; 🕐 ${_fmt12(apptTime)}<br>
-        ${doctorId ? `👨‍⚕️ ${_doctorMap[doctorId] || ''}` : '⚕ No doctor preference'}
+        ${doctorId ? `👨‍⚕️ ${_esc(_doctorMap[doctorId] || '')}` : '⚕ No doctor preference'}
       </div>`;
     document.getElementById('receipt-tele-block').style.display = 'none';
     _resetForm();
   } catch(err) {
-    _alert('error', 'Could not book appointment: ' + (err.message || 'Please try again.'));
+    _alert('error', safeErrorMessage(err, 'Could not book appointment. Please try again.'));
   } finally {
     _loading(btn, false);
   }
@@ -4312,11 +4314,11 @@ async function loadTodaysAppointments() {
     return `<div class="appt-item">
       <div class="appt-time-badge">${_fmt12(a.appointment_time)}</div>
       <div style="flex:1;min-width:0">
-        <div class="appt-pt-name">${a.patients?.name || '—'}</div>
+        <div class="appt-pt-name">${_esc(a.patients?.name || '—')}</div>
         <div class="appt-pt-meta">
-          ${a.profiles?.full_name ? `👨‍⚕️ ${a.profiles.full_name}` : ''}
-          ${a.opds?.name ? ` · ${a.opds.name}` : ''}
-          ${a.chief_complaint ? ` · ${a.chief_complaint}` : ''}
+          ${a.profiles?.full_name ? `👨‍⚕️ ${_esc(a.profiles.full_name)}` : ''}
+          ${a.opds?.name ? ` · ${_esc(a.opds.name)}` : ''}
+          ${a.chief_complaint ? ` · ${_esc(a.chief_complaint)}` : ''}
         </div>
       </div>
       <span class="appt-s-badge ${statusClass}">${statusLabel}</span>
