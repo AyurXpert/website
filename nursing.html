@@ -631,7 +631,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 </div>
 
 <script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './js/config/constants.js';
 import { requireAuth, getCurrentProfile, getCurrentTenant } from './js/core/auth.js';
 import { initNavbar } from './js/components/navbar.js';
@@ -1030,7 +1030,7 @@ async function loadHandovers() {
     .select('*').eq('admission_id', _activeAdm.id).order('handover_at', {ascending:false}).limit(10);
   const COND = { stable:'Stable', improving:'Improving', deteriorating:'⚠ Deteriorating', critical:'🔴 Critical' };
   document.getElementById('handover-list').innerHTML = (data||[]).length ? (data||[]).map(h=>`
-    <div style="padding:12px 14px;background:var(--white);border:1.5px solid ${h.condition==='critical'?'#f5c6c6':h.condition==='deteriorating'?'#e8c060':var(--border)};border-radius:8px;margin-bottom:8px;font-size:12px">
+    <div style="padding:12px 14px;background:var(--white);border:1.5px solid ${h.condition==='critical'?'#f5c6c6':h.condition==='deteriorating'?'#e8c060':'var(--border)'};border-radius:8px;margin-bottom:8px;font-size:12px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
         <div style="font-weight:600">${h.outgoing_nurse||'—'} → ${h.incoming_nurse||'—'} <span style="font-weight:400;color:var(--text-muted)">(${h.shift} shift)</span></div>
         <span style="font-size:11px;font-weight:700;color:${h.condition==='critical'?'var(--red)':h.condition==='deteriorating'?'var(--gold)':'var(--green-mid)'}">${COND[h.condition]||h.condition}</span>
