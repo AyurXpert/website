@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <title>Register Your Organisation — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
@@ -590,26 +590,25 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
   <nav class="mkt-nav">
     <div class="mkt-nav-inner">
       <a href="index.html" class="mkt-brand">
-        <img src="assets/AyurXpert_Navbar_Logo.png" alt="AyurXpert" class="mkt-logo"
-             onerror="this.src='assets/icon.svg'"/>
+        <img src="assets/AyurXpert_Navbar_Logo.png" alt="AyurXpert" class="mkt-logo" id="mkt-nav-logo"/>
       </a>
       <div class="mkt-links">
         <a href="index.html" class="mkt-link">Home</a>
         <a href="#features" class="mkt-link">Features</a>
         <a href="#abdm"     class="mkt-link">ABDM</a>
         <a href="login.html" class="mkt-link">Sign In</a>
-        <button class="btn-mkt-cta" onclick="document.getElementById('choose-type').scrollIntoView({behavior:'smooth'})">Sign Up Your Organisation &rarr;</button>
+        <button class="btn-mkt-cta" data-onclick="_scrollToChooseType">Sign Up Your Organisation &rarr;</button>
       </div>
       <button class="mkt-hamburger" id="mkt-hamburger" aria-label="Open menu">
         <span></span><span></span><span></span>
       </button>
     </div>
     <div class="mkt-nav-mobile" id="mkt-nav-mobile">
-      <a href="index.html" class="mkt-link" onclick="closeMktMenu()">Home</a>
-      <a href="#features" class="mkt-link" onclick="closeMktMenu()">Features</a>
-      <a href="#abdm"     class="mkt-link" onclick="closeMktMenu()">ABDM</a>
+      <a href="index.html" class="mkt-link" data-onclick="closeMktMenu">Home</a>
+      <a href="#features" class="mkt-link" data-onclick="closeMktMenu">Features</a>
+      <a href="#abdm"     class="mkt-link" data-onclick="closeMktMenu">ABDM</a>
       <a href="login.html" class="mkt-link">Sign In</a>
-      <button class="btn-mkt-cta" onclick="closeMktMenu();document.getElementById('choose-type').scrollIntoView({behavior:'smooth'})">Sign Up Your Organisation &rarr;</button>
+      <button class="btn-mkt-cta" data-onclick="_closeMenuAndScrollToChooseType">Sign Up Your Organisation &rarr;</button>
     </div>
   </nav>
 
@@ -627,7 +626,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         Free to start.
       </p>
       <div class="hero-actions">
-        <button class="btn-hero-primary" onclick="document.getElementById('choose-type').scrollIntoView({behavior:'smooth'})">Choose Your Type &darr;</button>
+        <button class="btn-hero-primary" data-onclick="_scrollToChooseType">Choose Your Type &darr;</button>
         <a href="login.html" class="btn-hero-secondary">Already registered? Sign in</a>
       </div>
       <div class="hero-stats">
@@ -669,7 +668,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
           One platform for every Ayurveda stakeholder — no integrations, no plugins,
           no extra subscriptions. Log in and start from day one.
         </p>
-        <button class="btn-hero-primary" onclick="document.getElementById('choose-type').scrollIntoView({behavior:'smooth'})" style="display:inline-block">
+        <button class="btn-hero-primary" data-onclick="_scrollToChooseType" style="display:inline-block">
           Start free &rarr;
         </button>
       </div>
@@ -781,7 +780,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         <div>
           <div class="mkt-footer-col-title">Platform</div>
           <div class="mkt-footer-links">
-            <button class="mkt-footer-link" onclick="document.getElementById('choose-type').scrollIntoView({behavior:'smooth'})">Register Organisation</button>
+            <button class="mkt-footer-link" data-onclick="_scrollToChooseType">Register Organisation</button>
             <a href="login.html"  class="mkt-footer-link">Sign In</a>
             <a href="signup.html" class="mkt-footer-link">Join as Staff</a>
             <a href="#features"   class="mkt-footer-link">Features</a>
@@ -814,7 +813,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
 
 <!-- CONTACT OVERLAY — registration inactive until copyright + launch ready -->
 <!-- TODO §17: To activate registration, remove the display:flex block in selectOrgType and uncomment the activation block -->
-<div id="contact-overlay" style="display:none" onclick="if(event.target===this)closeContactOverlay()">
+<div id="contact-overlay" style="display:none" data-onclick="_closeContactOverlayIfBackdrop" data-onclick-a0="@isTarget">
   <div class="contact-modal">
     <div class="contact-icon">&#127807;</div>
     <div class="contact-title">Registration Opening Soon</div>
@@ -832,7 +831,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
       </a>
     </div>
     <p class="contact-hint">Mention your organisation name and type — we'll respond within 24 hours.</p>
-    <button class="contact-back" onclick="closeContactOverlay()">&larr; Back</button>
+    <button class="contact-back" data-onclick="closeContactOverlay">&larr; Back</button>
   </div>
 </div>
 
@@ -843,8 +842,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
 
   <!-- Minimal sticky header -->
   <div class="form-header">
-    <img src="assets/AyurXpert_Navbar_Logo.png" alt="AyurXpert" class="fh-logo"
-         onerror="this.src='assets/icon.svg'"/>
+    <img src="assets/AyurXpert_Navbar_Logo.png" alt="AyurXpert" class="fh-logo" id="fh-logo-img"/>
     <div class="fh-brand"><span>Ayur</span><span>Xpert</span></div>
     <div class="fh-sep">&middot;</div>
     <div class="fh-title">Register Your Organisation</div>
@@ -859,7 +857,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         <div class="sc-name" id="sc-name">Clinic</div>
         <div class="sc-tag" id="sc-tag">OPD practice</div>
       </div>
-      <button class="sc-change" onclick="changeOrgType()" type="button">&larr; Change type</button>
+      <button class="sc-change" data-onclick="changeOrgType" type="button">&larr; Change type</button>
     </div>
 
     <!-- Progress bar -->
@@ -895,7 +893,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         <div class="card-subtitle">Basic information used on all prescriptions, bills, and ABDM health records.</div>
 
         <div class="field">
-          <label>Organisation Name <button type="button" class="faq-btn" onclick="toggleFaq('faq-orgname')">?</button></label>
+          <label>Organisation Name <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-orgname">?</button></label>
           <input type="text" id="org-name" placeholder="e.g. Srishti Ayurveda Hospital"/>
           <div class="faq-box" id="faq-orgname">
             <strong>Why we ask:</strong> This name appears on all prescriptions, bills, and ABDM health records. Use your official name exactly as in your PCIM&H recognition or state licence.
@@ -904,7 +902,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
 
         <div class="row-2">
           <div class="field">
-            <label>State <button type="button" class="faq-btn" onclick="toggleFaq('faq-state')">?</button></label>
+            <label>State <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-state">?</button></label>
             <select id="org-state">
               <option value="">— Select state —</option>
               <option>Andhra Pradesh</option><option>Arunachal Pradesh</option>
@@ -928,7 +926,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
             </div>
           </div>
           <div class="field">
-            <label>City / District <button type="button" class="faq-btn" onclick="toggleFaq('faq-city')">?</button></label>
+            <label>City / District <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-city">?</button></label>
             <input type="text" id="org-city" placeholder="City / District"/>
             <div class="faq-box" id="faq-city">
               <strong>Used for:</strong> AyurXpert directory — so other practitioners can find and refer patients to your facility.
@@ -938,14 +936,14 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
 
         <div class="row-2">
           <div class="field">
-            <label>Phone <button type="button" class="faq-btn" onclick="toggleFaq('faq-phone')">?</button></label>
+            <label>Phone <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-phone">?</button></label>
             <input type="tel" id="org-phone" placeholder="+91 98765 43210" inputmode="tel"/>
             <div class="faq-box" id="faq-phone">
               <strong>Purpose:</strong> Organisation's main contact number. Appears on patient-facing documents and the AyurXpert directory. Use your reception line, not a personal number.
             </div>
           </div>
           <div class="field">
-            <label>GSTIN <span class="opt">(optional)</span> <button type="button" class="faq-btn" onclick="toggleFaq('faq-gstin')">?</button></label>
+            <label>GSTIN <span class="opt">(optional)</span> <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-gstin">?</button></label>
             <input type="text" id="org-gstin" placeholder="22AAAAA0000A1Z5" maxlength="15"/>
             <div class="faq-box" id="faq-gstin">
               <strong>When needed:</strong> Only if you raise GST invoices. Most healthcare services are GST-exempt — check with your CA. You can add this from Settings anytime after registration.
@@ -954,7 +952,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         </div>
 
         <div class="btn-row">
-          <button class="btn-primary" onclick="nextStep(1)">
+          <button class="btn-primary" data-onclick="nextStep" data-onclick-a0="1">
             <span class="btn-text">Continue &rarr;</span>
           </button>
         </div>
@@ -966,7 +964,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         <div class="card-subtitle">This becomes the Super Admin — full access to your organisation's portal.</div>
 
         <div class="field">
-          <label>Full Name <button type="button" class="faq-btn" onclick="toggleFaq('faq-aname')">?</button></label>
+          <label>Full Name <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-aname">?</button></label>
           <input type="text" id="admin-name" placeholder="Dr. Ramesh Sharma" autocomplete="name"/>
           <div class="faq-box" id="faq-aname">
             <strong>Purpose:</strong> Appears on official communications, audit logs, and system-generated letters.
@@ -974,7 +972,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         </div>
 
         <div class="field">
-          <label>Email Address <button type="button" class="faq-btn" onclick="toggleFaq('faq-email')">?</button></label>
+          <label>Email Address <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-email">?</button></label>
           <input type="email" id="admin-email" placeholder="admin@yourhospital.com" inputmode="email" autocomplete="email"/>
           <div class="faq-box" id="faq-email">
             <strong>Critical:</strong> Used for login and security alerts. OTPs, password resets, and compliance alerts go here.
@@ -982,7 +980,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         </div>
 
         <div class="field">
-          <label>Phone <button type="button" class="faq-btn" onclick="toggleFaq('faq-aphone')">?</button></label>
+          <label>Phone <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-aphone">?</button></label>
           <input type="tel" id="admin-phone" placeholder="+91 98765 43210" inputmode="tel"/>
           <div class="faq-box" id="faq-aphone">
             <strong>Used for:</strong> Account recovery and two-factor authentication.
@@ -990,10 +988,10 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         </div>
 
         <div class="field">
-          <label>Password <button type="button" class="faq-btn" onclick="toggleFaq('faq-pw')">?</button></label>
+          <label>Password <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-pw">?</button></label>
           <div class="pw-wrap">
             <input type="password" id="admin-password" placeholder="Minimum 8 characters" autocomplete="new-password"/>
-            <button class="toggle-pw" type="button" onclick="togglePw('admin-password',this)" aria-label="Show password">&#128065;</button>
+            <button class="toggle-pw" type="button" data-onclick="togglePw" data-onclick-a0="admin-password" data-onclick-a1="@this" aria-label="Show password">&#128065;</button>
           </div>
           <div class="faq-box" id="faq-pw">
             <strong>Security:</strong> This account has full access to all patient data across your organisation.
@@ -1004,13 +1002,13 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
           <label>Confirm Password</label>
           <div class="pw-wrap">
             <input type="password" id="admin-confirm" placeholder="Re-enter your password" autocomplete="new-password"/>
-            <button class="toggle-pw" type="button" onclick="togglePw('admin-confirm',this)" aria-label="Show password">&#128065;</button>
+            <button class="toggle-pw" type="button" data-onclick="togglePw" data-onclick-a0="admin-confirm" data-onclick-a1="@this" aria-label="Show password">&#128065;</button>
           </div>
         </div>
 
         <div class="btn-row">
-          <button class="btn-back" onclick="goBack(1)">&larr; Back</button>
-          <button class="btn-primary" onclick="nextStep(2)">
+          <button class="btn-back" data-onclick="goBack" data-onclick-a0="1">&larr; Back</button>
+          <button class="btn-primary" data-onclick="nextStep" data-onclick-a0="2">
             <span class="btn-text">Continue &rarr;</span>
           </button>
         </div>
@@ -1022,9 +1020,9 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         <div class="card-subtitle">All optional — makes the portal look like your own. Update anytime from Settings.</div>
 
         <div class="field">
-          <label>Organisation Logo <span class="opt">(optional)</span> <button type="button" class="faq-btn" onclick="toggleFaq('faq-logo')">?</button></label>
+          <label>Organisation Logo <span class="opt">(optional)</span> <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-logo">?</button></label>
           <div class="logo-upload">
-            <input type="file" id="logo-file" accept="image/*" onchange="previewLogo(this)"/>
+            <input type="file" id="logo-file" accept="image/*" data-onchange="previewLogo" data-onchange-a0="@this"/>
             <img id="logo-preview" class="logo-preview" alt="Logo preview"/>
             <div class="logo-upload-text" id="logo-upload-text">
               <strong>Click to upload</strong> your organisation logo<br>
@@ -1037,7 +1035,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         </div>
 
         <div class="field">
-          <label>Tagline <span class="opt">(optional)</span> <button type="button" class="faq-btn" onclick="toggleFaq('faq-tagline')">?</button></label>
+          <label>Tagline <span class="opt">(optional)</span> <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-tagline">?</button></label>
           <input type="text" id="org-tagline" placeholder="e.g. Holistic Healing for Modern Life"/>
           <div class="faq-box" id="faq-tagline">
             <strong>Shown on:</strong> Your portal dashboard below the organisation name. Keep it under 60 characters.
@@ -1045,7 +1043,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         </div>
 
         <div class="field">
-          <label>Full Address <span class="opt">(optional)</span> <button type="button" class="faq-btn" onclick="toggleFaq('faq-addr')">?</button></label>
+          <label>Full Address <span class="opt">(optional)</span> <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-addr">?</button></label>
           <textarea id="org-address" placeholder="Door no., Street, Area, City, State — PIN code"></textarea>
           <div class="faq-box" id="faq-addr">
             <strong>Printed on:</strong> Prescriptions and bills. Include your PIN code for ABDM address mapping.
@@ -1053,12 +1051,12 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         </div>
 
         <div class="field">
-          <label>GPS Location <span class="opt">(optional)</span> <button type="button" class="faq-btn" onclick="toggleFaq('faq-gps')">?</button></label>
+          <label>GPS Location <span class="opt">(optional)</span> <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-gps">?</button></label>
           <div class="location-row">
             <div class="field">
               <input type="text" id="org-location" placeholder="Click Detect GPS or add later" readonly/>
             </div>
-            <button class="btn-gps" type="button" onclick="detectLocation()">&#127758; Detect GPS</button>
+            <button class="btn-gps" type="button" data-onclick="detectLocation">&#127758; Detect GPS</button>
           </div>
           <div class="gps-status" id="gps-status"></div>
           <div class="faq-box" id="faq-gps">
@@ -1067,8 +1065,8 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         </div>
 
         <div class="btn-row">
-          <button class="btn-back" onclick="goBack(2)">&larr; Back</button>
-          <button class="btn-primary" id="btn-step3" onclick="handleStep3Btn(this)">
+          <button class="btn-back" data-onclick="goBack" data-onclick-a0="2">&larr; Back</button>
+          <button class="btn-primary" id="btn-step3" data-onclick="handleStep3Btn" data-onclick-a0="@this">
             <span class="btn-text">Register &amp; Start</span>
             <span class="btn-spinner"><span class="spinner"></span></span>
           </button>
@@ -1087,27 +1085,27 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         </div>
 
         <div class="field">
-          <label>UG Intake &nbsp;<span class="opt">NCISM-approved annual intake</span> <button type="button" class="faq-btn" onclick="toggleFaq('faq-ugintake')">?</button></label>
+          <label>UG Intake &nbsp;<span class="opt">NCISM-approved annual intake</span> <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-ugintake">?</button></label>
           <div class="faq-box" id="faq-ugintake">
             <strong>NCISM Table-7:</strong> Your approved UG intake determines the minimum OPD patients per day and minimum bed count. Must match your NCISM recognition letter.
           </div>
           <div class="intake-grid" style="margin-top:12px">
-            <div class="intake-card" onclick="selectIntake(60,this)">
+            <div class="intake-card" data-onclick="selectIntake" data-onclick-a0="60" data-onclick-a1="@this">
               <div class="intake-num">60</div>
               <div class="intake-unit">students / year</div>
               <div class="intake-stats">120 OPD/day &middot; 60 beds</div>
             </div>
-            <div class="intake-card" onclick="selectIntake(100,this)">
+            <div class="intake-card" data-onclick="selectIntake" data-onclick-a0="100" data-onclick-a1="@this">
               <div class="intake-num">100</div>
               <div class="intake-unit">students / year</div>
               <div class="intake-stats">200 OPD/day &middot; 100 beds</div>
             </div>
-            <div class="intake-card" onclick="selectIntake(150,this)">
+            <div class="intake-card" data-onclick="selectIntake" data-onclick-a0="150" data-onclick-a1="@this">
               <div class="intake-num">150</div>
               <div class="intake-unit">students / year</div>
               <div class="intake-stats">300 OPD/day &middot; 150 beds</div>
             </div>
-            <div class="intake-card" onclick="selectIntake(200,this)">
+            <div class="intake-card" data-onclick="selectIntake" data-onclick-a0="200" data-onclick-a1="@this">
               <div class="intake-num">200</div>
               <div class="intake-unit">students / year</div>
               <div class="intake-stats">400 OPD/day &middot; 200 beds</div>
@@ -1119,17 +1117,17 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
           <label>PG Departments &nbsp;<span class="opt">optional</span></label>
           <div class="pg-section">
             <div class="pg-hdr">Clinical — adds 4 IPD beds per sanctioned seat</div>
-            <div class="pg-row off" id="pgd-KAY"><input type="checkbox" id="pg-KAY" value="KAY" class="pg-cb" onchange="togglePGDept(this,'KAY')"><label class="pg-name" for="pg-KAY">Kayachikitsa</label><div class="pg-seats"><input type="number" id="pgs-KAY" class="pg-seats-input" min="1" max="30" value="3" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-PK"><input type="checkbox" id="pg-PK" value="PK" class="pg-cb" onchange="togglePGDept(this,'PK')"><label class="pg-name" for="pg-PK">Panchakarma</label><div class="pg-seats"><input type="number" id="pgs-PK" class="pg-seats-input" min="1" max="30" value="3" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-SHAL"><input type="checkbox" id="pg-SHAL" value="SHAL" class="pg-cb" onchange="togglePGDept(this,'SHAL')"><label class="pg-name" for="pg-SHAL">Shalya Tantra</label><div class="pg-seats"><input type="number" id="pgs-SHAL" class="pg-seats-input" min="1" max="30" value="2" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-SHAK"><input type="checkbox" id="pg-SHAK" value="SHAK" class="pg-cb" onchange="togglePGDept(this,'SHAK')"><label class="pg-name" for="pg-SHAK">Shalakya Tantra</label><div class="pg-seats"><input type="number" id="pgs-SHAK" class="pg-seats-input" min="1" max="30" value="2" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-KAU"><input type="checkbox" id="pg-KAU" value="KAU" class="pg-cb" onchange="togglePGDept(this,'KAU')"><label class="pg-name" for="pg-KAU">Kaumarabhritya</label><div class="pg-seats"><input type="number" id="pgs-KAU" class="pg-seats-input" min="1" max="30" value="2" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-PST"><input type="checkbox" id="pg-PST" value="PST" class="pg-cb" onchange="togglePGDept(this,'PST')"><label class="pg-name" for="pg-PST">Prasuti &amp; Stri Roga</label><div class="pg-seats"><input type="number" id="pgs-PST" class="pg-seats-input" min="1" max="30" value="3" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-KAY"><input type="checkbox" id="pg-KAY" value="KAY" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="KAY"><label class="pg-name" for="pg-KAY">Kayachikitsa</label><div class="pg-seats"><input type="number" id="pgs-KAY" class="pg-seats-input" min="1" max="30" value="3" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-PK"><input type="checkbox" id="pg-PK" value="PK" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="PK"><label class="pg-name" for="pg-PK">Panchakarma</label><div class="pg-seats"><input type="number" id="pgs-PK" class="pg-seats-input" min="1" max="30" value="3" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-SHAL"><input type="checkbox" id="pg-SHAL" value="SHAL" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="SHAL"><label class="pg-name" for="pg-SHAL">Shalya Tantra</label><div class="pg-seats"><input type="number" id="pgs-SHAL" class="pg-seats-input" min="1" max="30" value="2" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-SHAK"><input type="checkbox" id="pg-SHAK" value="SHAK" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="SHAK"><label class="pg-name" for="pg-SHAK">Shalakya Tantra</label><div class="pg-seats"><input type="number" id="pgs-SHAK" class="pg-seats-input" min="1" max="30" value="2" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-KAU"><input type="checkbox" id="pg-KAU" value="KAU" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="KAU"><label class="pg-name" for="pg-KAU">Kaumarabhritya</label><div class="pg-seats"><input type="number" id="pgs-KAU" class="pg-seats-input" min="1" max="30" value="2" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-PST"><input type="checkbox" id="pg-PST" value="PST" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="PST"><label class="pg-name" for="pg-PST">Prasuti &amp; Stri Roga</label><div class="pg-seats"><input type="number" id="pgs-PST" class="pg-seats-input" min="1" max="30" value="3" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
             <div class="pg-hdr" style="border-top:1px solid var(--border)">Non-Clinical — no additional beds</div>
-            <div class="pg-row off" id="pgd-RNV"><input type="checkbox" id="pg-RNV" value="RNV" class="pg-cb" onchange="togglePGDept(this,'RNV')"><label class="pg-name" for="pg-RNV">Rog Nidana &amp; Vikruti Vigyana</label><div class="pg-seats"><input type="number" id="pgs-RNV" class="pg-seats-input" min="1" max="30" value="3" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-DG"><input type="checkbox" id="pg-DG" value="DG" class="pg-cb" onchange="togglePGDept(this,'DG')"><label class="pg-name" for="pg-DG">Dravyaguna</label><div class="pg-seats"><input type="number" id="pgs-DG" class="pg-seats-input" min="1" max="30" value="3" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-RBK"><input type="checkbox" id="pg-RBK" value="RBK" class="pg-cb" onchange="togglePGDept(this,'RBK')"><label class="pg-name" for="pg-RBK">Rasashastra &amp; Bhaishajya Kalpana</label><div class="pg-seats"><input type="number" id="pgs-RBK" class="pg-seats-input" min="1" max="30" value="3" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-SW"><input type="checkbox" id="pg-SW" value="SW" class="pg-cb" onchange="togglePGDept(this,'SW')"><label class="pg-name" for="pg-SW">Swasthavritta &amp; Yoga</label><div class="pg-seats"><input type="number" id="pgs-SW" class="pg-seats-input" min="1" max="30" value="2" disabled onchange="updatePreview()"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-RNV"><input type="checkbox" id="pg-RNV" value="RNV" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="RNV"><label class="pg-name" for="pg-RNV">Rog Nidana &amp; Vikruti Vigyana</label><div class="pg-seats"><input type="number" id="pgs-RNV" class="pg-seats-input" min="1" max="30" value="3" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-DG"><input type="checkbox" id="pg-DG" value="DG" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="DG"><label class="pg-name" for="pg-DG">Dravyaguna</label><div class="pg-seats"><input type="number" id="pgs-DG" class="pg-seats-input" min="1" max="30" value="3" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-RBK"><input type="checkbox" id="pg-RBK" value="RBK" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="RBK"><label class="pg-name" for="pg-RBK">Rasashastra &amp; Bhaishajya Kalpana</label><div class="pg-seats"><input type="number" id="pgs-RBK" class="pg-seats-input" min="1" max="30" value="3" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
+            <div class="pg-row off" id="pgd-SW"><input type="checkbox" id="pg-SW" value="SW" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="SW"><label class="pg-name" for="pg-SW">Swasthavritta &amp; Yoga</label><div class="pg-seats"><input type="number" id="pgs-SW" class="pg-seats-input" min="1" max="30" value="2" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
           </div>
         </div>
 
@@ -1156,8 +1154,8 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         </div>
 
         <div class="btn-row" style="margin-top:22px">
-          <button class="btn-back" onclick="goBack(3)">&larr; Back</button>
-          <button class="btn-primary" id="btn-register" onclick="handleRegister(this)">
+          <button class="btn-back" data-onclick="goBack" data-onclick-a0="3">&larr; Back</button>
+          <button class="btn-primary" id="btn-register" data-onclick="handleRegister" data-onclick-a0="@this">
             <span class="btn-text">Register &amp; Configure HMS</span>
             <span class="btn-spinner"><span class="spinner"></span></span>
           </button>
@@ -1193,630 +1191,6 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
 
 
 <script type="module" src="./js/pwa/register-sw.js"></script>
-<script type="module">
-import { registerTenant } from './js/core/auth.js';
-import { supabase } from './js/core/db/supabaseClient.js';
-import { isValidEmail, isValidPhone, validatePassword } from './js/utils/validators.js';
-
-/* ─────────────────────────────────────────
-   ORG TYPE DATA
-───────────────────────────────────────── */
-const ORG_DATA = {
-  /* ── Row 1 — Clinical Patient Care ── */
-  clinic: {
-    name: 'Clinic', system: 'Clinic Management System',
-    tag: 'OPD · Prescription · Billing', abbr: 'CL', cat: 'clinical', nabh: true,
-    features: ['Token-based OPD queue','Doctor consultation + NAMASTE coding','ABHA enrollment & Scan & Share','Pharmacy dispensing + billing','Prescription printing']
-  },
-  pk_center: {
-    name: 'Panchakarma Center', system: 'Panchakarma Management System',
-    tag: 'Therapy · Scheduling · Palha Diet', abbr: 'PK', cat: 'clinical', nabh: true,
-    features: ['Purva / Pradhana / Paschatkarma tracking','Therapist assignment & scheduling','ABHA-linked treatment records','Day-care session documentation','Palha diet & PK feedback loop']
-  },
-  hospital: {
-    name: 'Ayurveda Hospital', system: 'Hospital Management System',
-    tag: 'OPD · IPD · Beds · Multi-dept', abbr: 'HO', cat: 'clinical', nabh: true,
-    features: ['All Clinic features + full IPD management','Bed allocation & live availability','Multi-department OPD routing','Panchakarma therapy module','Pharmacy + purchase management']
-  },
-  /* ── Row 2 — NCISM / Academic / Publishing ── */
-  college: {
-    name: 'College', system: 'College Management System',
-    tag: 'Academic · NCISM Compliant', abbr: 'AC', cat: 'education', nabh: true, ncism: true,
-    features: ['NCISM academic compliance tracking','Faculty & student management','Academic calendar & timetable','Examination management','Attendance & exposure records']
-  },
-  teaching_hospital: {
-    name: 'Teaching Hospital', system: 'Hospital Management System',
-    tag: 'NCISM Mandatory · OPD · IPD · UG/PG', abbr: 'TH', cat: 'education', nabh: true, ncism: true,
-    features: ['All Hospital features + NCISM compliance','10 mandatory OPDs auto-seeded on setup','1:2 OPD ratio monitoring — Table-7','Department-wise bed matrix — Table-8','Screening OPD mandatory routing']
-  },
-  journal: {
-    name: 'Journal / Publication', system: 'Journal Management System',
-    tag: 'Academic publishing · Peer review', abbr: 'JP', cat: 'trade',
-    features: ['Article submission portal','Peer review workflow','Author management','Publication archive','DOI integration (planned)']
-  },
-  /* ── Row 3 — Support & Commercial ── */
-  dispensary: {
-    name: 'Dispensary', system: 'Dispensary Management System',
-    tag: 'Medicine dispensing · Billing', abbr: 'DI', cat: 'clinical', nabh: true,
-    features: ['Prescription-based dispensing','AFI formulation database (275+)','Stock + expiry tracking','Purchase order management','Billing + invoices']
-  },
-  laboratory: {
-    name: 'Diagnostic Lab', system: 'Laboratory Management System',
-    tag: 'Pathology · Diagnostics', abbr: 'LA', cat: 'diag', nabh: true,
-    features: ['Lab order intake from OPD','Result entry + QC','Digital report delivery','Sample tracking','Barcode-based sample management']
-  },
-  pharma: {
-    name: 'Pharma Company', system: 'Pharma Management System',
-    tag: 'Manufacturing · Sales · Distribution', abbr: 'PH', cat: 'pharma',
-    features: ['Product catalogue management','Batch & expiry tracking','GRN / purchase orders','Dealer-distributor network','AFI formulation reference']
-  },
-  raw_drug_supplier: {
-    name: 'Raw Drug Supplier', system: 'Supplier Management System',
-    tag: 'Dravya supply chain', abbr: 'RD', cat: 'pharma',
-    features: ['Supplier product catalogue','Stock management','Quality batch tracking','Purchase order management','Retailer network']
-  },
-  instrument_supplier: {
-    name: 'Instrument Supplier', system: 'Supplier Management System',
-    tag: 'Surgical & diagnostic equipment', abbr: 'IS', cat: 'pharma',
-    features: ['Equipment catalogue','Order management','Service & AMC tracking','Hospital supply network','Invoice management']
-  },
-  chemical_supplier: {
-    name: 'Chemical Supplier', system: 'Supplier Management System',
-    tag: 'Lab chemicals & reagents', abbr: 'CS', cat: 'pharma',
-    features: ['Chemical catalogue','Batch certification','Order management','Lab network integration','Invoice & compliance']
-  },
-  dealer: {
-    name: 'Dealer / Distributor', system: 'Distribution Management System',
-    tag: 'Medicine distribution · Trade', abbr: 'DD', cat: 'trade',
-    features: ['Multi-brand stock management','Retailer order processing','Invoice + credit notes','Expiry batch tracking','Pharma network integration']
-  },
-};
-
-/* ─────────────────────────────────────────
-   STATE
-───────────────────────────────────────── */
-let selectedOrgType = null;
-let selectedIntake  = null;
-let gpsCoords       = null;
-
-const CLINICAL_CODES = new Set(['KAY','PK','SHAL','SHAK','KAU','PST','AGD']);
-const UG_BED_RATIOS  = { KAY:.20, PK:.25, SHAL:.20, SHAK:.10, KAU:.10, AGD:.05, PST:.10 };
-const WARD_NAMES     = { KAY:'General Ward', PK:'Panchakarma Ward', SHAL:'Surgical Ward', SHAK:'ENT Ward', KAU:'Paediatric Ward', AGD:'General Ward', PST:'Maternity Ward' };
-
-const NCISM_OPDS = [
-  { name:'Screening OPD',           ncism_code:'SCREEN', description:'Mandatory triage for all new patients before specialty routing' },
-  { name:'Kayachikitsa OPD',        ncism_code:'KAY',    description:'Internal Medicine' },
-  { name:'Panchakarma OPD',         ncism_code:'PK',     description:'Panchakarma therapies' },
-  { name:'Shalya Tantra OPD',       ncism_code:'SHAL',   description:'Surgery' },
-  { name:'Shalakya Tantra OPD',     ncism_code:'SHAK',   description:'ENT & Ophthalmology' },
-  { name:'Kaumarabhritya OPD',      ncism_code:'KAU',    description:'Paediatrics' },
-  { name:'Swasthavritta OPD',       ncism_code:'SW',     description:'Preventive & Social Medicine' },
-  { name:'Prasuti & Stri Roga OPD', ncism_code:'PST',    description:'Obstetrics & Gynaecology' },
-  { name:'Agada Tantra OPD',        ncism_code:'AGD',    description:'Toxicology & Forensic Medicine' },
-  { name:'Rog Nidana OPD',          ncism_code:'RNV',    description:'Pathology & Diagnosis' },
-];
-
-const NCISM_DEPTS = [
-  { name:'Kayachikitsa',                    ncism_code:'KAY',  type:'clinical' },
-  { name:'Panchakarma',                     ncism_code:'PK',   type:'clinical' },
-  { name:'Shalya Tantra',                   ncism_code:'SHAL', type:'clinical' },
-  { name:'Shalakya Tantra',                 ncism_code:'SHAK', type:'clinical' },
-  { name:'Kaumarabhritya',                  ncism_code:'KAU',  type:'clinical' },
-  { name:'Prasuti & Stri Roga',             ncism_code:'PST',  type:'clinical' },
-  { name:'Agada Tantra',                    ncism_code:'AGD',  type:'clinical' },
-  { name:'Swasthavritta & Yoga',            ncism_code:'SW',   type:'para_clinical' },
-  { name:'Rog Nidana & Vikruti Vigyana',    ncism_code:'RNV',  type:'para_clinical' },
-  { name:'Dravyaguna',                      ncism_code:'DG',   type:'pre_clinical' },
-  { name:'Rasashastra & Bhaishajya Kalpana',ncism_code:'RBK',  type:'pre_clinical' },
-  { name:'Sanskrit & Samhita',              ncism_code:'SS',   type:'pre_clinical' },
-  { name:'Rachana & Kriya Sharir',          ncism_code:'RS',   type:'para_clinical' },
-];
-
-function isNCISMType(t) { return t === 'college' || t === 'teaching_hospital'; }
-
-/* ─────────────────────────────────────────
-   RENDER ORG CARDS
-───────────────────────────────────────── */
-const CARD_ICONS = {
-  clinic:'🩺', pk_center:'🌿', hospital:'🏥',
-  college:'🎓', teaching_hospital:'🏛', journal:'📰',
-  dispensary:'💊', laboratory:'🔬', pharma:'🏭',
-  raw_drug_supplier:'🌱', instrument_supplier:'🔧', chemical_supplier:'⚗️', dealer:'🚚',
-};
-
-const CARD_MARKETING = {
-  clinic:['See more patients with smart token queues','ABHA Health ID linked in under 60 seconds','E-prescriptions sent to pharmacy instantly','Works offline — no internet, no problem','ABDM-compliant from your very first patient'],
-  pk_center:['Purva, Pradhana & Paschatkarma — all tracked','Therapist schedules & assignments at a glance','ABHA-linked treatment records per patient','Palha diet indent & kitchen management','PK feedback loop — therapy → doctor alert'],
-  hospital:['Full OPD & IPD managed in one platform','Every patient gets an ABHA Health ID','Dept-wise routing & live bed availability','From admission to discharge, fully digital','Panchakarma therapy module built in'],
-  college:['NCISM academic compliance built in','Faculty, student & attendance management','Academic timetable & examination records','Integrated with Teaching Hospital HMS','College Management System — NCISM ready'],
-  teaching_hospital:['NCISM OPDs, depts & beds — auto-seeded','1:2 OPD ratio compliance always in check','Mandatory Screening OPD flow built in','Table-7 & Table-8 reports ready to submit','PG seat tracking & ward round notes'],
-  journal:['Article submission portal','Peer review workflow management','Author & editorial management','Publication archive with search','DOI integration (planned)'],
-  dispensary:['Dispense prescriptions in seconds','275+ AFI classical formulations built in','Expiry alerts before stock is a problem','GST billing & professional invoices','Connected to prescribing doctors in real time'],
-  laboratory:['Lab orders arrive the moment a doctor sends them','Digital reports delivered to patients instantly','Quality control & sample tracking built in','Integrated with OPD — no double entry','Barcode-based sample management'],
-  pharma:['Product catalogue management','Batch & expiry tracking','GRN / purchase orders','Dealer-distributor network','AFI formulation reference built in'],
-  raw_drug_supplier:['Manage your full Dravya catalogue digitally','Quality batch documentation, always ready','Order fulfilment tracked end-to-end','Direct supply to hospitals & dispensaries','Digital delivery records, audit-ready'],
-  instrument_supplier:['Full equipment catalogue & spec sheets online','AMC & service schedules tracked automatically','Order delivery tracked from quote to receipt','Connected to hospital procurement teams','Professional invoicing & documentation'],
-  chemical_supplier:['Chemical catalogue with batch certification','Lab network integration','Order management & invoicing','Quality & compliance documentation','Retailer network management'],
-  dealer:['Multi-brand stock management','Retailer order processing','Invoice + credit notes','Expiry batch tracking','Pharma network integration'],
-  pharma:['Your entire product catalogue, digitised','Batch tracking from manufacturing to delivery','GRN & purchase orders handled automatically','Direct link to your dealer-distributor network','AFI formulation reference always at hand'],
-  raw_drug_supplier:['Manage your full Dravya catalogue digitally','Quality batch documentation, always ready','Order fulfilment tracked end-to-end','Direct supply to hospitals & dispensaries','Digital delivery records, audit-ready'],
-  instrument_supplier:['Full equipment catalogue & spec sheets online','AMC & service schedules tracked automatically','Order delivery tracked from quote to receipt','Connected to hospital procurement teams','Professional invoicing & documentation'],
-  chemical_supplier:['Chemical & reagent catalogue, always current','Batch certification records, digitally stored','Lab supply orders managed in one place','Compliance documentation, always ready','Secure order tracking for every shipment'],
-  dealer:['Every brand, every stock level — one dashboard','Retailer orders processed & tracked digitally','Expiry batch alerts before they become a problem','Automated invoicing & credit note management','Direct integration with pharma suppliers'],
-  journal:['Receive & review submissions entirely online','Peer review workflow, structured & trackable','Author & reviewer database, always organised','Digital publication archive, searchable forever','DOI integration — coming soon'],
-};
-
-(function renderOrgCards() {
-  const container = document.getElementById('org-cards-container');
-  if (!container) return;
-
-  const ROW1 = ['clinic', 'pk_center', 'hospital'];
-  const ROW2 = ['college', 'teaching_hospital', 'journal'];
-  const ROW3 = ['dispensary', 'laboratory', 'pharma', 'raw_drug_supplier', 'instrument_supplier', 'chemical_supplier', 'dealer'];
-
-  function buildCard(typeKey) {
-    const d = ORG_DATA[typeKey];
-    const icon     = CARD_ICONS[typeKey] || '🏢';
-    const benefits = CARD_MARKETING[typeKey] || d.features;
-    const featItems = benefits.map(f => `<li>${f}</li>`).join('');
-    const badges = [
-      '<span class="org-nabh-badge">NABH</span>',
-      d.ncism ? '<span class="org-ncism-badge">NCISM</span>' : ''
-    ].join('');
-
-    const card = document.createElement('div');
-    card.className = `org-card cat-${d.cat}`;
-    card.innerHTML = `
-      <div class="org-icon-wrap">${icon}</div>
-      <div class="org-name">${d.name}</div>
-      <div class="org-system-name">${d.system}</div>
-      <div class="org-badges">${badges}</div>
-      <div class="org-desc">${d.tag}</div>
-      <div class="org-arrow">Register &rarr;</div>
-      <div class="org-overlay">
-        <div class="ov-label">What's included</div>
-        <div class="ov-name">${d.name}</div>
-        <ul class="ov-list">${featItems}</ul>
-        <button class="ov-btn" data-type="${typeKey}">Register ${d.name} &rarr;</button>
-      </div>`;
-
-    card.querySelector('.ov-btn').addEventListener('click', e => {
-      e.stopPropagation();
-      selectOrgType(typeKey);
-    });
-    card.addEventListener('click', function(e) {
-      if (e.target.closest('.ov-btn')) return;
-      const isTouch = !window.matchMedia('(hover:hover)').matches;
-      if (isTouch) {
-        if (!card.classList.contains('show-overlay')) {
-          document.querySelectorAll('.org-card').forEach(c => c.classList.remove('show-overlay'));
-          card.classList.add('show-overlay');
-        } else {
-          selectOrgType(typeKey);
-        }
-        return;
-      }
-      selectOrgType(typeKey);
-    });
-    return card;
-  }
-
-  const row1 = document.createElement('div');
-  row1.className = 'org-row-1';
-  ROW1.forEach(k => row1.appendChild(buildCard(k)));
-
-  const row2 = document.createElement('div');
-  row2.className = 'org-row-1';
-  ROW2.forEach(k => row2.appendChild(buildCard(k)));
-
-  const row3 = document.createElement('div');
-  row3.className = 'org-row-1';
-  ROW3.forEach(k => row3.appendChild(buildCard(k)));
-
-  const row3label = document.createElement('div');
-  row3label.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin-top:12px;margin-bottom:-4px;padding-left:2px';
-  row3label.textContent = 'Dispensary, Diagnostics & Commercial';
-
-  container.appendChild(row1);
-  container.appendChild(row2);
-  container.appendChild(row3label);
-  container.appendChild(row3);
-
-  document.addEventListener('click', e => {
-    if (!e.target.closest('.org-card'))
-      document.querySelectorAll('.org-card').forEach(c => c.classList.remove('show-overlay'));
-  });
-})();
-
-/* ─────────────────────────────────────────
-   URL PARAM AUTO-SELECT
-───────────────────────────────────────── */
-(function() {
-  const t = new URLSearchParams(window.location.search).get('type');
-  if (t && ORG_DATA[t]) selectOrgType(t);
-})();
-
-/* ─────────────────────────────────────────
-   ORG TYPE SELECTION
-───────────────────────────────────────── */
-window.selectOrgType = function(type) {
-  if (!ORG_DATA[type]) return;
-  const d = ORG_DATA[type];
-
-  // REGISTRATION INACTIVE — show contact popup (see TODO_LATER.md §17b to activate)
-  document.getElementById('contact-org-name').textContent = d.name;
-  document.getElementById('contact-overlay').style.display = 'flex';
-  document.body.style.overflow = 'hidden';
-  return;
-
-  selectedOrgType = type;
-  document.getElementById('sc-icon').textContent  = d.abbr;
-  document.getElementById('sc-icon').className    = `sc-icon cat-${d.cat}`;
-  document.getElementById('sc-name').textContent  = d.name;
-  document.getElementById('sc-tag').textContent   = d.tag;
-  const ind3 = document.getElementById('step-ind-3');
-  const ind4 = document.getElementById('step-ind-4');
-  if (isNCISMType(type)) { ind4.style.display=''; ind3.classList.remove('no-connector'); }
-  else { ind4.style.display='none'; ind3.classList.add('no-connector'); }
-  document.getElementById('marketing-page').style.display = 'none';
-  document.getElementById('reg-form').style.display = 'block';
-  showStep(1);
-  window.scrollTo({ top:0, behavior:'smooth' });
-};
-
-window.closeContactOverlay = function() {
-  document.getElementById('contact-overlay').style.display = 'none';
-  document.body.style.overflow = '';
-};
-
-window.changeOrgType = function() {
-  selectedOrgType = null;
-  selectedIntake  = null;
-  document.querySelectorAll('.intake-card').forEach(c => c.classList.remove('selected'));
-  document.getElementById('marketing-page').style.display = '';
-  document.getElementById('reg-form').style.display = 'none';
-  setTimeout(() => {
-    document.getElementById('choose-type').scrollIntoView({ behavior: 'smooth' });
-  }, 50);
-};
-
-/* ─────────────────────────────────────────
-   STEP NAVIGATION
-───────────────────────────────────────── */
-window.nextStep = function(from) {
-  clearAlert();
-  if (from === 1) {
-    const name  = document.getElementById('org-name').value.trim();
-    const state = document.getElementById('org-state').value;
-    const city  = document.getElementById('org-city').value.trim();
-    const phone = document.getElementById('org-phone').value.trim();
-    if (!name)  return showAlert('Please enter your organisation name.');
-    if (!state) return showAlert('Please select your state.');
-    if (!city)  return showAlert('Please enter your city or district.');
-    if (!phone) return showAlert('Please enter your phone number.');
-    showStep(2);
-  } else if (from === 2) {
-    const name    = document.getElementById('admin-name').value.trim();
-    const email   = document.getElementById('admin-email').value.trim();
-    const phone   = document.getElementById('admin-phone').value.trim();
-    const pw      = document.getElementById('admin-password').value;
-    const confirm = document.getElementById('admin-confirm').value;
-    if (!name)          return showAlert('Please enter your full name.');
-    if (!email)         return showAlert('Please enter your email address.');
-    if (!isValidEmail(email)) return showAlert('Please enter a valid email address.');
-    if (!phone)         return showAlert('Please enter your phone number.');
-    if (!isValidPhone(phone)) return showAlert('Please enter a valid 10-digit mobile number.');
-    const pwCheck = validatePassword(pw);
-    if (!pwCheck.valid) return showAlert(pwCheck.message);
-    if (pw !== confirm) return showAlert('Passwords do not match. Please re-enter.');
-    showStep(3);
-  }
-};
-
-window.goBack = function(to) { clearAlert(); showStep(to); };
-
-function showStep(n) {
-  [1,2,3,4].forEach(i => {
-    const el = document.getElementById(`step-${i}`);
-    if (el) el.style.display = i === n ? 'block' : 'none';
-    const ind = document.getElementById(`step-ind-${i}`);
-    if (ind) {
-      ind.classList.remove('active','done');
-      if (i < n)   ind.classList.add('done');
-      if (i === n) ind.classList.add('active');
-    }
-  });
-  if (n === 3) {
-    const btn = document.getElementById('btn-step3');
-    if (btn) btn.querySelector('.btn-text').textContent =
-      isNCISMType(selectedOrgType) ? 'Next: NCISM Setup →' : 'Register & Start';
-  }
-  if (n === 4 && selectedIntake) updatePreview();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-window.handleStep3Btn = async function(btn) {
-  clearAlert();
-  if (isNCISMType(selectedOrgType)) {
-    showStep(4);
-  } else {
-    await handleRegister(btn);
-  }
-};
-
-/* ─────────────────────────────────────────
-   NCISM STEP 4
-───────────────────────────────────────── */
-window.selectIntake = function(val, el) {
-  selectedIntake = val;
-  document.querySelectorAll('.intake-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  updatePreview();
-};
-
-window.togglePGDept = function(cb, code) {
-  const row   = document.getElementById(`pgd-${code}`);
-  const input = document.getElementById(`pgs-${code}`);
-  if (cb.checked) { row.classList.remove('off'); input.disabled = false; }
-  else            { row.classList.add('off');    input.disabled = true; }
-  updatePreview();
-};
-
-function getSelectedPGDepts() {
-  const result = [];
-  document.querySelectorAll('.pg-cb:checked').forEach(cb => {
-    const code  = cb.value;
-    const seats = parseInt(document.getElementById(`pgs-${code}`)?.value) || 0;
-    result.push({ code, seats, isClinical: CLINICAL_CODES.has(code) });
-  });
-  return result;
-}
-
-function updatePreview() {
-  if (!selectedIntake) return;
-  const ug = selectedIntake;
-  const pg = getSelectedPGDepts();
-  const depts = [
-    { name:'Kayachikitsa',        code:'KAY'  },
-    { name:'Panchakarma',         code:'PK'   },
-    { name:'Shalya Tantra',       code:'SHAL' },
-    { name:'Shalakya Tantra',     code:'SHAK' },
-    { name:'Kaumarabhritya',      code:'KAU'  },
-    { name:'Agada Tantra',        code:'AGD'  },
-    { name:'Prasuti & Stri Roga', code:'PST'  },
-  ];
-  let totalBeds = 0;
-  const rows = depts.map(d => {
-    const ugB = Math.round(ug * (UG_BED_RATIOS[d.code] || 0));
-    const pgD = pg.find(p => p.code === d.code);
-    const pgB = pgD ? pgD.seats * 4 : 0;
-    const tot = ugB + pgB;
-    totalBeds += tot;
-    return `<tr><td>${d.name}</td><td class="r">${ugB}</td><td class="r">${pgB||'—'}</td><td class="rt">${tot}</td></tr>`;
-  });
-  rows.push(`<tr class="trow"><td>Total</td><td class="r"></td><td class="r"></td><td class="rt">${totalBeds}</td></tr>`);
-  document.getElementById('pv-tbody').innerHTML      = rows.join('');
-  document.getElementById('pv-opd-day').textContent  = ug * 2;
-  document.getElementById('pv-opd-year').textContent = (ug * 2 * 300).toLocaleString('en-IN');
-  document.getElementById('pv-total-beds').textContent = totalBeds;
-}
-
-function seedMark(i, state) {
-  const el = document.getElementById(`si-${i}`);
-  if (!el) return;
-  const icons = { active:'&#9654; ', done:'&#10003; ', err:'&#10007; ' };
-  el.className = `seed-item ${state}`;
-  const txt = el.textContent.replace(/^.\s/, '');
-  el.innerHTML = (icons[state] || '&#9675; ') + txt;
-}
-
-async function seedNCISMData(tenantId, ugIntake) {
-  document.getElementById('seed-prog').style.display = 'block';
-  const pg = getSelectedPGDepts();
-  const totalPGSeats = pg.reduce((s,d) => s + d.seats, 0);
-
-  seedMark(1,'active');
-  try {
-    await supabase.from('tenants').update({
-      ug_intake: ugIntake, opd_daily_target: ugIntake * 2,
-      working_days_per_week: 6, pg_student_strength: totalPGSeats,
-    }).eq('id', tenantId);
-  } catch(e) { console.warn('NCISM tenant columns not yet added — run §15c SQL:', e); }
-  seedMark(1,'done');
-
-  seedMark(2,'active');
-  const opdRows = NCISM_OPDS.map(o => ({ tenant_id:tenantId, name:o.name, description:o.description, is_active:true, ncism_code:o.ncism_code }));
-  const { data: cOPDs, error: opdErr } = await supabase.from('opds').insert(opdRows).select('id,ncism_code');
-  if (opdErr) { console.error('OPD seeding failed:', opdErr.message); seedMark(2,'err'); }
-  else { seedMark(2,'done'); }
-  const opdMap = {};
-  if (cOPDs) cOPDs.forEach(o => { opdMap[o.ncism_code] = o.id; });
-
-  seedMark(3,'active');
-  const deptRows = NCISM_DEPTS.map(d => {
-    const p = pg.find(x => x.code === d.ncism_code);
-    return { tenant_id:tenantId, name:d.name, ncism_code:d.ncism_code, type:d.type, is_active:true,
-      pg_seats_sanctioned: p ? p.seats : 0, is_pg_dept: p ? true : false,
-      opd_id: opdMap[d.ncism_code] || null };
-  });
-  const { data: cDepts, error: deptErr } = await supabase.from('departments').insert(deptRows).select('id,ncism_code,type');
-  if (deptErr) { console.error('Department seeding failed:', deptErr.message); seedMark(3,'err'); }
-  else { seedMark(3,'done'); }
-
-  seedMark(4,'active');
-  if (cDepts) {
-    const bedRows = [];
-    cDepts.forEach(dept => {
-      if (!CLINICAL_CODES.has(dept.ncism_code)) return;
-      const ugB  = Math.floor(ugIntake * (UG_BED_RATIOS[dept.ncism_code] || 0));
-      const pgD  = pg.find(p => p.code === dept.ncism_code);
-      const pgB  = pgD ? pgD.seats * 4 : 0;
-      const ward = WARD_NAMES[dept.ncism_code] || 'General Ward';
-      for (let i = 1; i <= ugB + pgB; i++) {
-        bedRows.push({ tenant_id:tenantId, department_id:dept.id,
-          bed_number:`${dept.ncism_code}-${String(i).padStart(2,'0')}`,
-          ward_name:ward, bed_type:'general', status:'vacant', floor_number:1 });
-      }
-    });
-    if (bedRows.length) {
-      const { error: bedErr } = await supabase.from('beds').insert(bedRows);
-      if (bedErr) { console.error('Bed seeding failed:', bedErr.message); seedMark(4,'err'); }
-      else seedMark(4,'done');
-    } else seedMark(4,'done');
-  } else seedMark(4,'done');
-
-  seedMark(5,'active');
-  await new Promise(r => setTimeout(r,400));
-  seedMark(5,'done');
-}
-
-/* ─────────────────────────────────────────
-   REGISTRATION
-───────────────────────────────────────── */
-window.handleRegister = async function(btn) {
-  clearAlert();
-  setLoading(btn, true);
-  if (isNCISMType(selectedOrgType) && !selectedIntake) {
-    showAlert('Please select your UG intake strength above.');
-    setLoading(btn, false); return;
-  }
-  try {
-    const result = await registerTenant({
-      tenantName: document.getElementById('org-name').value.trim(),
-      tenantType: selectedOrgType,
-      fullName:   document.getElementById('admin-name').value.trim(),
-      email:      document.getElementById('admin-email').value.trim(),
-      password:   document.getElementById('admin-password').value,
-      phone:      document.getElementById('admin-phone').value.trim(),
-      city:       document.getElementById('org-city').value.trim(),
-      state:      document.getElementById('org-state').value,
-    });
-    if (!result.success) { showAlert(result.error || 'Registration failed. Please try again.'); setLoading(btn,false); return; }
-
-    const updates = {};
-    const tagline = document.getElementById('org-tagline').value.trim();
-    const address = document.getElementById('org-address').value.trim();
-    const gstin   = document.getElementById('org-gstin').value.trim();
-    if (tagline)   updates.tagline      = tagline;
-    if (address)   updates.full_address = address;
-    if (gstin)     updates.gstin        = gstin;
-    if (gpsCoords) { updates.lat = gpsCoords.lat; updates.lng = gpsCoords.lng; }
-
-    const logoFile = document.getElementById('logo-file').files[0];
-    if (logoFile) {
-      const ext  = logoFile.name.split('.').pop().toLowerCase();
-      const path = `${result.tenant.id}/logo.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from('tenant-logos').upload(path, logoFile, { upsert:true });
-      if (!uploadErr) {
-        const { data: urlData } = supabase.storage.from('tenant-logos').getPublicUrl(path);
-        updates.logo_url = urlData.publicUrl;
-      }
-    }
-    if (Object.keys(updates).length) await supabase.from('tenants').update(updates).eq('id', result.tenant.id);
-
-    if (isNCISMType(selectedOrgType) && selectedIntake) {
-      btn.disabled = true;
-      document.getElementById('seed-prog').style.display = 'block';
-      seedMark(1,'active');
-      const { error: seedErr } = await supabase.rpc('seed_ncism_data', {
-        p_tenant_id: result.tenant.id,
-        p_ug_intake: selectedIntake
-      });
-      if (seedErr) {
-        console.error('NCISM seeding failed:', seedErr.message);
-        [1,2,3,4,5].forEach(i => seedMark(i,'err'));
-      } else {
-        [1,2,3,4,5].forEach(i => seedMark(i,'done'));
-      }
-    }
-
-    document.getElementById('tenant-code-display').textContent = result.tenant.tenant_code || '—';
-    if (isNCISMType(selectedOrgType)) {
-      document.getElementById('ncism-badge').style.display = 'inline-block';
-      document.getElementById('success-subtitle').innerHTML =
-        `Your Ayurveda college portal is live.<br>Share the code below with your staff so they can join.`;
-    }
-    document.getElementById('progress').style.display  = 'none';
-    document.getElementById('sel-chip').style.display  = 'none';
-    [1,2,3,4].forEach(i => { const el = document.getElementById(`step-${i}`); if(el) el.style.display='none'; });
-    document.getElementById('alert').classList.remove('show');
-    document.getElementById('success-screen').style.display = 'block';
-    window.scrollTo({ top:0, behavior:'smooth' });
-
-  } catch(err) {
-    console.error('Registration error:', err);
-    showAlert('Something went wrong. Please check your details and try again.');
-    setLoading(btn, false);
-  }
-};
-
-/* ─────────────────────────────────────────
-   UTILITIES
-───────────────────────────────────────── */
-window.toggleFaq = function(id) {
-  document.getElementById(id)?.classList.toggle('open');
-};
-
-window.togglePw = function(inputId, btn) {
-  const input = document.getElementById(inputId);
-  const isText = input.type === 'text';
-  input.type = isText ? 'password' : 'text';
-  btn.innerHTML = isText ? '&#128065;' : '&#128584;';
-};
-
-window.previewLogo = function(input) {
-  if (!input.files || !input.files[0]) return;
-  const file = input.files[0];
-  if (file.size > 2 * 1024 * 1024) { showAlert('Logo must be under 2 MB. Please choose a smaller image.'); input.value=''; return; }
-  const reader = new FileReader();
-  reader.onload = e => {
-    const preview = document.getElementById('logo-preview');
-    preview.src = e.target.result; preview.style.display = 'block';
-    document.getElementById('logo-upload-text').style.display = 'none';
-  };
-  reader.readAsDataURL(file);
-};
-
-window.detectLocation = function() {
-  const statusEl = document.getElementById('gps-status');
-  statusEl.textContent = 'Detecting your location…'; statusEl.className = 'gps-status';
-  if (!navigator.geolocation) { statusEl.textContent = 'GPS not supported. Please enter your address manually.'; return; }
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      gpsCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      document.getElementById('org-location').value = `${gpsCoords.lat.toFixed(6)}, ${gpsCoords.lng.toFixed(6)}`;
-      statusEl.textContent = '✓ Location detected successfully'; statusEl.className = 'gps-status ok';
-    },
-    () => { statusEl.textContent = 'Could not detect GPS. You can add it later from Settings.'; }
-  );
-};
-
-function showAlert(msg) {
-  document.getElementById('alert-text').textContent = msg;
-  document.getElementById('alert').classList.add('show');
-  window.scrollTo({ top:0, behavior:'smooth' });
-}
-function clearAlert() { document.getElementById('alert').classList.remove('show'); }
-function setLoading(btn, on) { if(btn) { btn.classList.toggle('loading',on); btn.disabled = on; } }
-
-/* ─────────────────────────────────────────
-   MOBILE NAV
-───────────────────────────────────────── */
-const hamburger = document.getElementById('mkt-hamburger');
-const mobileNav = document.getElementById('mkt-nav-mobile');
-if (hamburger) {
-  hamburger.addEventListener('click', () => {
-    hamburger.classList.toggle('open');
-    mobileNav.classList.toggle('open');
-  });
-}
-window.closeMktMenu = function() {
-  hamburger?.classList.remove('open');
-  mobileNav?.classList.remove('open');
-};
-document.addEventListener('click', e => {
-  if (!e.target.closest('.mkt-nav')) window.closeMktMenu();
-});
-</script>
+<script type="module" src="./js/pages/register.js"></script>
 </body>
 </html>
