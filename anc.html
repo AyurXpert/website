@@ -7,6 +7,7 @@
 <link rel="icon" href="assets/icon.svg"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <style>
 :root{
   --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
@@ -125,8 +126,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="page-subtitle">Antenatal Care — Multi-visit Tracking Register (Prasuti Tantra)</div>
     </div>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-secondary btn-sm no-print" onclick="printRegister()">🖨 Print Register</button>
-      <button class="btn btn-primary no-print" id="new-visit-btn" disabled onclick="openVisitModal()">+ New ANC Visit</button>
+      <button class="btn btn-secondary btn-sm no-print" data-onclick="printRegister">🖨 Print Register</button>
+      <button class="btn btn-primary no-print" id="new-visit-btn" disabled data-onclick="openVisitModal">+ New ANC Visit</button>
     </div>
   </div>
 
@@ -138,7 +139,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div class="search-row">
       <div class="search-field">
         <label>Name / Phone / ABHA</label>
-        <input id="pt-search" type="text" placeholder="Start typing to search…" oninput="debounceSearch(this.value)"/>
+        <input id="pt-search" type="text" placeholder="Start typing to search…" data-oninput="debounceSearch" data-oninput-a0="@value"/>
       </div>
     </div>
     <div class="search-results" id="search-results"></div>
@@ -152,7 +153,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span class="risk-badge" id="risk-badge">Normal</span>
-      <button class="btn btn-secondary btn-sm no-print" onclick="clearPatient()">✕ Change Patient</button>
+      <button class="btn btn-secondary btn-sm no-print" data-onclick="clearPatient">✕ Change Patient</button>
     </div>
   </div>
 
@@ -202,7 +203,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <div class="card-title">🌸 Garbhasanskara Sessions</div>
         <div style="font-size:11px;color:var(--text-muted);margin-top:2px">NCISM Regulation 47(h) — Prasuti Dept: Yoga, Music Therapy, Mantra Therapy for antenatal wellness</div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="openGarbhaModal()">+ Log Session</button>
+      <button class="btn btn-primary btn-sm" data-onclick="openGarbhaModal">+ Log Session</button>
     </div>
     <div id="garbha-list" style="padding:10px 16px;font-size:13px;color:var(--text-muted)">Select a patient to view sessions.</div>
   </div>
@@ -210,14 +211,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 </div>
 
 <!-- ── New ANC Visit Modal ── -->
-<div class="overlay" id="visit-overlay" style="display:none" onclick="if(event.target===this)closeVisitModal()">
+<div class="overlay" id="visit-overlay" style="display:none" data-onclick="_closeIfSelf" data-onclick-a0="@isTarget" data-onclick-a1="closeVisitModal">
   <div class="modal">
     <div class="modal-hdr">
       <div>
         <div class="modal-hdr-title">New ANC Visit</div>
         <div class="modal-hdr-sub" id="modal-pt-label">—</div>
       </div>
-      <button onclick="closeVisitModal()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
+      <button data-onclick="closeVisitModal" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
     </div>
     <div class="modal-body">
       <div id="risk-alert" class="risk-alert"></div>
@@ -235,8 +236,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="section-title">Vitals & Anthropometry</div>
       <div class="field-row col4">
         <div class="field"><label>Weight (kg)</label><input id="v-weight" type="number" step="0.1" placeholder="55.0"/></div>
-        <div class="field"><label>BP Systolic</label><input id="v-bp-sys" type="number" placeholder="120" oninput="assessRisk()"/></div>
-        <div class="field"><label>BP Diastolic</label><input id="v-bp-dia" type="number" placeholder="80" oninput="assessRisk()"/></div>
+        <div class="field"><label>BP Systolic</label><input id="v-bp-sys" type="number" placeholder="120" data-oninput="assessRisk"/></div>
+        <div class="field"><label>BP Diastolic</label><input id="v-bp-dia" type="number" placeholder="80" data-oninput="assessRisk"/></div>
         <div class="field"><label>Pulse (bpm)</label><input id="v-pulse" type="number" placeholder="80"/></div>
       </div>
       <div class="field-row col3">
@@ -251,7 +252,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           </select>
         </div>
         <div class="field"><label>Pallor</label>
-          <select id="v-pallor" onchange="assessRisk()">
+          <select id="v-pallor" data-onchange="assessRisk">
             <option value="absent">Absent</option>
             <option value="mild">Mild</option>
             <option value="moderate">Moderate ⚠</option>
@@ -263,7 +264,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="section-title">Obstetric Examination</div>
       <div class="field-row col3">
         <div class="field"><label>Fundal Height (cm / weeks)</label><input id="v-fh" type="text" placeholder="e.g. 28 cm"/></div>
-        <div class="field"><label>Foetal Heart Rate (FHR)</label><input id="v-fhr" type="number" placeholder="140" oninput="assessRisk()"/></div>
+        <div class="field"><label>Foetal Heart Rate (FHR)</label><input id="v-fhr" type="number" placeholder="140" data-oninput="assessRisk"/></div>
         <div class="field"><label>Foetal Movements</label>
           <select id="v-fetal-mov">
             <option value="good">Good (10+ / 12hrs)</option>
@@ -301,10 +302,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
       <div class="section-title">Investigations</div>
       <div class="field-row col4">
-        <div class="field"><label>Haemoglobin (g/dL)</label><input id="v-hb" type="number" step="0.1" placeholder="11.5" oninput="assessRisk()"/></div>
+        <div class="field"><label>Haemoglobin (g/dL)</label><input id="v-hb" type="number" step="0.1" placeholder="11.5" data-oninput="assessRisk"/></div>
         <div class="field"><label>Blood Sugar (mg/dL)</label><input id="v-bs" type="text" placeholder="FBS 90 / RBS 120"/></div>
         <div class="field"><label>Urine Albumin</label>
-          <select id="v-urine-albumin" onchange="assessRisk()">
+          <select id="v-urine-albumin" data-onchange="assessRisk">
             <option value="nil">Nil</option>
             <option value="trace">Trace</option>
             <option value="1+">1+</option>
@@ -326,7 +327,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="field-row col2">
         <div class="field">
           <label>Risk Category</label>
-          <select id="v-risk" onchange="assessRisk()">
+          <select id="v-risk" data-onchange="assessRisk">
             <option value="normal">Normal Risk</option>
             <option value="moderate">Moderate Risk</option>
             <option value="high">High Risk ⚠</option>
@@ -371,351 +372,35 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       </div>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-secondary btn-sm" onclick="closeVisitModal()">Cancel</button>
-      <button class="btn btn-primary btn-sm" onclick="saveVisit()">Save ANC Visit</button>
+      <button class="btn btn-secondary btn-sm" data-onclick="closeVisitModal">Cancel</button>
+      <button class="btn btn-primary btn-sm" data-onclick="saveVisit">Save ANC Visit</button>
     </div>
   </div>
 </div>
 
 <!-- ── View visit detail overlay ── -->
-<div class="overlay" id="detail-overlay" style="display:none" onclick="if(event.target===this)document.getElementById('detail-overlay').style.display='none'">
+<div class="overlay" id="detail-overlay" style="display:none" data-onclick="_closeIfSelf" data-onclick-a0="@isTarget" data-onclick-a1="closeDetailModal">
   <div class="modal">
     <div class="modal-hdr">
       <div><div class="modal-hdr-title">ANC Visit Details</div><div class="modal-hdr-sub" id="detail-sub"></div></div>
-      <button onclick="document.getElementById('detail-overlay').style.display='none'" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
+      <button data-onclick="closeDetailModal" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
     </div>
     <div class="modal-body" id="detail-body"></div>
     <div class="modal-foot">
-      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('detail-overlay').style.display='none'">Close</button>
-      <button class="btn btn-primary btn-sm" onclick="window.print()">🖨 Print</button>
+      <button class="btn btn-secondary btn-sm" data-onclick="closeDetailModal">Close</button>
+      <button class="btn btn-primary btn-sm" data-onclick="print">🖨 Print</button>
     </div>
   </div>
 </div>
 
-<script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './js/config/constants.js';
-import { requireAuth, getCurrentProfile, getCurrentTenant } from './js/core/auth.js';
-import { initNavbar } from './js/components/navbar.js';
-
-requireAuth(['doctor','nurse','super_admin','dept_admin','receptionist']);
-initNavbar();
-
-const supabase   = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const profile    = getCurrentProfile();
-const tenant     = getCurrentTenant();
-const tenantId   = tenant?.id;
-const userId     = profile?.id;
-
-let _patient     = null;
-let _ancVisits   = [];
-let _searchTimer = null;
-
-// ── Patient search ────────────────────────────────────────────────────────────
-window.debounceSearch = function(val) {
-  clearTimeout(_searchTimer);
-  if (val.length < 2) { document.getElementById('search-results').style.display = 'none'; return; }
-  _searchTimer = setTimeout(() => searchPatients(val), 300);
-};
-
-async function searchPatients(q) {
-  const { data } = await supabase.from('patients')
-    .select('id,name,phone,age,gender,abha_number')
-    .eq('tenant_id', tenantId)
-    .or(`name.ilike.%${q}%,phone.ilike.%${q}%,abha_number.ilike.%${q}%`)
-    .limit(8);
-
-  const el = document.getElementById('search-results');
-  if (!data || !data.length) {
-    el.style.display = 'block';
-    el.innerHTML = `<div style="padding:10px;font-size:13px;color:var(--text-muted)">No patients found</div>`;
-    return;
-  }
-  el.style.display = 'block';
-  el.innerHTML = data.map(p => `
-    <div class="search-row-item" onclick="selectPatient(${JSON.stringify(p).replace(/"/g,'&quot;')})">
-      <div>
-        <div class="pt-name">${p.name}</div>
-        <div class="pt-meta">${p.phone || '—'} · Age ${p.age || '—'} · ${(p.gender||'').charAt(0).toUpperCase()}</div>
-      </div>
-      <span style="font-size:11px;color:var(--text-muted)">${p.abha_number||''}</span>
-    </div>`).join('');
-}
-
-window.selectPatient = async function(p) {
-  _patient = p;
-  document.getElementById('search-results').style.display = 'none';
-  document.getElementById('pt-search').value = p.name;
-  document.getElementById('bar-name').textContent = p.name;
-  document.getElementById('bar-meta').textContent = `${p.phone||'—'} · Age ${p.age||'—'} · ${(p.gender||'').charAt(0).toUpperCase()}`;
-  document.getElementById('patient-bar').classList.add('show');
-  document.getElementById('new-visit-btn').disabled = false;
-  await loadAncVisits();
-  document.getElementById('garbha-card').style.display = '';
-  loadGarbhaSessions();
-};
-
-window.clearPatient = function() {
-  _patient = null;
-  document.getElementById('pt-search').value = '';
-  document.getElementById('patient-bar').classList.remove('show');
-  document.getElementById('anc-stats').style.display = 'none';
-  document.getElementById('anc-card').style.display = 'none';
-  document.getElementById('risk-card').style.display = 'none';
-  document.getElementById('garbha-card').style.display = 'none';
-  document.getElementById('new-visit-btn').disabled = true;
-};
-
-// ── Load ANC visits ───────────────────────────────────────────────────────────
-async function loadAncVisits() {
-  const { data, error } = await supabase
-    .from('anc_visits')
-    .select('*')
-    .eq('tenant_id', tenantId)
-    .eq('patient_id', _patient.id)
-    .order('visit_date');
-  if (error) { _alert('error', 'Error loading visits: ' + error.message); return; }
-  _ancVisits = data || [];
-  renderAncTable();
-  updateStats();
-}
-
-function renderAncTable() {
-  document.getElementById('anc-card').style.display = 'block';
-  document.getElementById('anc-stats').style.display = 'block';
-  const tbody = document.getElementById('anc-tbody');
-  if (!_ancVisits.length) {
-    tbody.innerHTML = `<tr><td colspan="14"><div class="empty-state"><div class="empty-icon">🤰</div><div class="empty-title">No ANC visits recorded</div><div class="empty-sub">Add the first antenatal visit</div></div></td></tr>`;
-    return;
-  }
-  tbody.innerHTML = _ancVisits.map((v, i) => `
-    <tr class="${v.risk_category === 'high' ? 'high-risk-row' : ''}">
-      <td><strong>${i + 1}</strong></td>
-      <td>${_fmtDate(v.visit_date)}</td>
-      <td>${v.gestational_age || '—'}</td>
-      <td>${v.weight || '—'}</td>
-      <td>${v.bp_systolic && v.bp_diastolic ? v.bp_systolic + '/' + v.bp_diastolic : '—'}</td>
-      <td>${v.pulse || '—'}</td>
-      <td>${v.fundal_height || '—'}</td>
-      <td>${v.fhr || '—'}</td>
-      <td>${v.presentation || '—'}</td>
-      <td style="font-weight:600;color:${v.haemoglobin && v.haemoglobin < 10 ? 'var(--red)' : 'inherit'}">${v.haemoglobin || '—'}</td>
-      <td>${v.urine_albumin || '—'} / ${v.urine_sugar || '—'}</td>
-      <td><span class="risk-badge risk-${v.risk_category||'normal'}">${_riskLabel(v.risk_category)}</span></td>
-      <td>${v.next_visit_date ? _fmtDate(v.next_visit_date) : '—'}</td>
-      <td class="no-print"><button class="btn btn-secondary btn-sm" onclick="viewVisit('${v.id}')">View</button></td>
-    </tr>`).join('');
-
-  // Risk factors
-  const riskVisits = _ancVisits.filter(v => v.risk_factors);
-  if (riskVisits.length) {
-    document.getElementById('risk-card').style.display = 'block';
-    document.getElementById('risk-factors-body').innerHTML = riskVisits
-      .map(v => `<div>📅 ${_fmtDate(v.visit_date)} — ${v.risk_factors}</div>`).join('');
-  }
-}
-
-function updateStats() {
-  const count = _ancVisits.length;
-  const latest = count ? _ancVisits[count - 1] : null;
-  const highRisk = _ancVisits.some(v => v.risk_category === 'high');
-  const modRisk  = _ancVisits.some(v => v.risk_category === 'moderate');
-
-  document.getElementById('stat-visits').textContent = count;
-  document.getElementById('stat-poa').textContent = latest?.gestational_age || '—';
-  document.getElementById('stat-edd').textContent = latest?.edd ? _fmtDate(latest.edd) : '—';
-  const riskText = highRisk ? 'High Risk' : modRisk ? 'Moderate' : 'Normal';
-  const riskClass = highRisk ? 'red' : modRisk ? 'gold' : '';
-  document.getElementById('stat-risk').textContent = riskText;
-  document.getElementById('stat-risk-card').className = 'stat-card ' + riskClass;
-
-  const badge = document.getElementById('risk-badge');
-  badge.textContent = riskText;
-  badge.className = 'risk-badge risk-' + (highRisk ? 'high' : modRisk ? 'moderate' : 'normal');
-}
-
-// ── New visit modal ───────────────────────────────────────────────────────────
-window.openVisitModal = function() {
-  if (!_patient) return;
-  document.getElementById('modal-pt-label').textContent = _patient.name + ' — Visit ' + (_ancVisits.length + 1);
-  document.getElementById('v-date').value  = new Date().toISOString().slice(0, 10);
-  document.getElementById('v-visit-no').value = _ancVisits.length + 1;
-  document.getElementById('risk-alert').classList.remove('show');
-  document.getElementById('visit-overlay').style.display = 'flex';
-};
-
-window.closeVisitModal = function() {
-  document.getElementById('visit-overlay').style.display = 'none';
-};
-
-window.assessRisk = function() {
-  const sys    = parseInt(document.getElementById('v-bp-sys').value) || 0;
-  const dia    = parseInt(document.getElementById('v-bp-dia').value) || 0;
-  const hb     = parseFloat(document.getElementById('v-hb').value) || 0;
-  const fhr    = parseInt(document.getElementById('v-fhr').value) || 0;
-  const albumin= document.getElementById('v-urine-albumin').value;
-  const pallor = document.getElementById('v-pallor').value;
-
-  const flags = [];
-  if (sys >= 140 || dia >= 90) flags.push('BP ≥ 140/90 — PIH / Pre-eclampsia suspected');
-  if (hb && hb < 7)    flags.push('Hb < 7 g/dL — Severe anaemia');
-  else if (hb && hb < 10) flags.push('Hb < 10 g/dL — Anaemia present');
-  if (fhr && (fhr < 110 || fhr > 160)) flags.push('FHR abnormal (' + fhr + ' bpm) — foetal distress?');
-  if (['2+','3+'].includes(albumin)) flags.push('Proteinuria ' + albumin + ' — renal / PIH concern');
-  if (['moderate','severe'].includes(pallor)) flags.push('Pallor ' + pallor + ' — anaemia workup needed');
-
-  const alert = document.getElementById('risk-alert');
-  if (flags.length) {
-    alert.innerHTML = '<strong>⚠ Auto-detected risk factors:</strong><br>' + flags.join('<br>');
-    alert.className = 'risk-alert high show';
-    document.getElementById('v-risk').value = sys >= 140 || dia >= 90 || (hb && hb < 7) ? 'high' : 'moderate';
-  } else {
-    alert.classList.remove('show');
-  }
-};
-
-window.saveVisit = async function() {
-  if (!_patient) return;
-  const payload = {
-    tenant_id:       tenantId,
-    patient_id:      _patient.id,
-    doctor_id:       userId,
-    visit_number:    parseInt(document.getElementById('v-visit-no').value) || (_ancVisits.length + 1),
-    visit_date:      document.getElementById('v-date').value,
-    gestational_age: document.getElementById('v-poa').value.trim() || null,
-    weight:          parseFloat(document.getElementById('v-weight').value) || null,
-    bp_systolic:     parseInt(document.getElementById('v-bp-sys').value) || null,
-    bp_diastolic:    parseInt(document.getElementById('v-bp-dia').value) || null,
-    pulse:           parseInt(document.getElementById('v-pulse').value) || null,
-    temperature:     parseFloat(document.getElementById('v-temp').value) || null,
-    edema:           document.getElementById('v-edema').value,
-    pallor:          document.getElementById('v-pallor').value,
-    fundal_height:   document.getElementById('v-fh').value.trim() || null,
-    fhr:             parseInt(document.getElementById('v-fhr').value) || null,
-    fetal_movements: document.getElementById('v-fetal-mov').value,
-    presentation:    document.getElementById('v-presentation').value,
-    lie:             document.getElementById('v-lie').value,
-    engagement:      document.getElementById('v-engagement').value,
-    haemoglobin:     parseFloat(document.getElementById('v-hb').value) || null,
-    blood_sugar:     document.getElementById('v-bs').value.trim() || null,
-    urine_albumin:   document.getElementById('v-urine-albumin').value,
-    urine_sugar:     document.getElementById('v-urine-sugar').value,
-    risk_category:   document.getElementById('v-risk').value,
-    risk_factors:    document.getElementById('v-risk-factors').value.trim() || null,
-    supplements:     document.getElementById('v-supplements').value,
-    tt_status:       document.getElementById('v-tt').value,
-    referral:        document.getElementById('v-referral').value.trim() || null,
-    next_visit_date: document.getElementById('v-next-visit').value || null,
-    remarks:         document.getElementById('v-remarks').value.trim() || null,
-  };
-
-  const { error } = await supabase.from('anc_visits').insert(payload);
-  if (error) { _alert('error', 'Error saving: ' + error.message); return; }
-  _alert('success', 'ANC visit saved.');
-  closeVisitModal();
-  await loadAncVisits();
-};
-
-// ── View detail ───────────────────────────────────────────────────────────────
-window.viewVisit = function(id) {
-  const v = _ancVisits.find(x => x.id === id);
-  if (!v) return;
-  document.getElementById('detail-sub').textContent = 'Visit ' + v.visit_number + ' — ' + _fmtDate(v.visit_date);
-  document.getElementById('detail-body').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px">
-      ${_row('Date', _fmtDate(v.visit_date))}
-      ${_row('Gestational Age', v.gestational_age)}
-      ${_row('Weight (kg)', v.weight)}
-      ${_row('BP', v.bp_systolic ? v.bp_systolic+'/'+v.bp_diastolic+' mmHg' : '—')}
-      ${_row('Pulse', v.pulse ? v.pulse+' bpm' : '—')}
-      ${_row('Temperature', v.temperature ? v.temperature+'°F' : '—')}
-      ${_row('Oedema', v.edema || '—')}
-      ${_row('Pallor', v.pallor || '—')}
-      ${_row('Fundal Height', v.fundal_height)}
-      ${_row('FHR', v.fhr ? v.fhr+' bpm' : '—')}
-      ${_row('Foetal Movements', v.fetal_movements)}
-      ${_row('Presentation', v.presentation)}
-      ${_row('Lie', v.lie)}
-      ${_row('Engagement', v.engagement)}
-      ${_row('Haemoglobin', v.haemoglobin ? v.haemoglobin+' g/dL' : '—')}
-      ${_row('Blood Sugar', v.blood_sugar)}
-      ${_row('Urine Albumin', v.urine_albumin)}
-      ${_row('Urine Sugar', v.urine_sugar)}
-      ${_row('Risk Category', _riskLabel(v.risk_category))}
-      ${_row('Risk Factors', v.risk_factors)}
-      ${_row('Supplements', v.supplements)}
-      ${_row('TT Status', v.tt_status)}
-      ${_row('Referral', v.referral)}
-      ${_row('Next Visit', v.next_visit_date ? _fmtDate(v.next_visit_date) : '—')}
-    </div>
-    ${v.remarks ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)"><strong>Advice / Remarks:</strong><br>${v.remarks}</div>` : ''}`;
-  document.getElementById('detail-overlay').style.display = 'flex';
-};
-
-window.printRegister = function() { window.print(); };
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-// ── §21q Garbhasanskara Sessions ─────────────────────────────────────────────
-let _garbhaSessions = [];
-window.loadGarbhaSessions = async function() {
-  const el = document.getElementById('garbha-list');
-  if (!_patient) return;
-  const { data, error } = await supabase
-    .from('garbhasanskara_sessions')
-    .select('*')
-    .eq('tenant_id', tenantId)
-    .eq('patient_id', _patient.id)
-    .order('session_date', { ascending: false });
-  if (error) {
-    el.innerHTML = error.code === '42P01' ? '<em style="color:var(--text-muted)">Run session32_ncism_gaps.sql to activate this module.</em>' : error.message;
-    return;
-  }
-  _garbhaSessions = data || [];
-  if (!_garbhaSessions.length) { el.innerHTML = '<em style="color:var(--text-muted)">No Garbhasanskara sessions logged yet.</em>'; return; }
-  const typeLabel = { yoga:'Yoga', music_therapy:'Music Therapy', mantra_therapy:'Mantra Therapy', meditation:'Meditation', counselling:'Counselling', other:'Other' };
-  el.innerHTML = _garbhaSessions.map(s => `
-    <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #f0f4f2">
-      <div style="font-weight:600;font-size:13px;min-width:90px">${s.session_date}</div>
-      <span style="padding:2px 8px;border-radius:4px;background:#e8f5ee;color:var(--green-deep);font-size:11px;font-weight:600">${typeLabel[s.session_type]||s.session_type}</span>
-      <div style="font-size:12px;color:var(--text-muted)">${s.gestational_week ? 'Week '+s.gestational_week+' ·' : ''} ${s.duration_minutes||60} min ${s.notes ? '· '+s.notes : ''}</div>
-    </div>`).join('');
-};
-
-window.openGarbhaModal = function() { document.getElementById('garbha-modal').style.display = 'flex'; document.getElementById('gs-date').value = new Date().toISOString().slice(0,10); };
-window.closeGarbhaModal = function() { document.getElementById('garbha-modal').style.display = 'none'; };
-window.saveGarbhaSession = async function() {
-  const type = document.getElementById('gs-type').value;
-  if (!type) { alert('Session type required'); return; }
-  const { error } = await supabase.from('garbhasanskara_sessions').insert({
-    tenant_id:        tenantId,
-    patient_id:       _patient.id,
-    session_date:     document.getElementById('gs-date').value,
-    gestational_week: parseInt(document.getElementById('gs-week').value)||null,
-    session_type:     type,
-    duration_minutes: parseInt(document.getElementById('gs-duration').value)||60,
-    notes:            document.getElementById('gs-notes').value.trim()||null,
-    facilitator_id:   profile.id,
-    attendance:       true,
-  });
-  if (error) { alert(error.message); return; }
-  closeGarbhaModal();
-  loadGarbhaSessions();
-};
-
-function _row(label, value) {
-  return `<div><span style="font-size:11px;color:var(--text-muted);display:block">${label}</span><span style="font-weight:500">${value || '—'}</span></div>`;
-}
-function _riskLabel(r) { return {normal:'Normal', moderate:'Moderate', high:'High Risk'}[r] || r || 'Normal'; }
-function _fmtDate(d) { if (!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
-function _alert(type, msg) { const el = document.getElementById('alert-box'); el.className = `alert ${type} show`; el.textContent = msg; setTimeout(() => el.classList.remove('show'), 4000); }
-</script>
+<script type="module" src="./js/pages/anc.js"></script>
 
 <!-- §21q Garbhasanskara Modal -->
 <div id="garbha-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:14px;padding:22px;max-width:400px;width:100%;margin:16px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
       <span style="font-weight:600;font-size:15px">🌸 Log Garbhasanskara Session</span>
-      <button onclick="closeGarbhaModal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted)">&times;</button>
+      <button data-onclick="closeGarbhaModal" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted)">&times;</button>
     </div>
     <div style="display:grid;gap:10px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -740,8 +425,8 @@ function _alert(type, msg) { const el = document.getElementById('alert-box'); el
         <input id="gs-notes" type="text" placeholder="Observations, patient response…" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:14px">
-      <button onclick="saveGarbhaSession()" style="flex:1;height:38px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Save Session</button>
-      <button onclick="closeGarbhaModal()" style="height:38px;padding:0 16px;border:1.5px solid var(--border);background:#fff;border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit">Cancel</button>
+      <button data-onclick="saveGarbhaSession" style="flex:1;height:38px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Save Session</button>
+      <button data-onclick="closeGarbhaModal" style="height:38px;padding:0 16px;border:1.5px solid var(--border);background:#fff;border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit">Cancel</button>
     </div>
   </div>
 </div>
