@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <title>Hospital Formulary — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -124,9 +125,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="page-subtitle">Drug Procurement Committee approved medicines list &nbsp;·&nbsp; NCISM §6(2)</div>
     </div>
     <div class="header-actions">
-      <button class="btn btn-ghost" onclick="openImportModal()">⬇ Import from Inventory</button>
-      <button class="btn btn-ghost" onclick="exportCsv()">↓ CSV Export</button>
-      <button class="btn btn-primary" onclick="openDrawer()">+ Add Medicine</button>
+      <button class="btn btn-ghost" data-onclick="openImportModal">⬇ Import from Inventory</button>
+      <button class="btn btn-ghost" data-onclick="exportCsv">↓ CSV Export</button>
+      <button class="btn btn-primary" data-onclick="openDrawer">+ Add Medicine</button>
     </div>
   </div>
 
@@ -151,16 +152,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
   <div class="controls-bar">
     <div class="filter-tabs">
-      <button class="filter-tab active" data-cat="" onclick="setFilter('',this)">All</button>
-      <button class="filter-tab" data-cat="classical" onclick="setFilter('classical',this)">Classical</button>
-      <button class="filter-tab" data-cat="patent" onclick="setFilter('patent',this)">Patent</button>
-      <button class="filter-tab" data-cat="rasa_shastra" onclick="setFilter('rasa_shastra',this)">Rasa Shastra</button>
-      <button class="filter-tab" data-cat="single_herb" onclick="setFilter('single_herb',this)">Single Herb</button>
-      <button class="filter-tab" data-cat="polyherbal" onclick="setFilter('polyherbal',this)">Polyherbal</button>
-      <button class="filter-tab" data-cat="liquid" onclick="setFilter('liquid',this)">Liquid</button>
-      <button class="filter-tab" data-cat="external" onclick="setFilter('external',this)">External</button>
+      <button class="filter-tab active" data-cat="" data-onclick="setFilter" data-onclick-a0="" data-onclick-a1="@this">All</button>
+      <button class="filter-tab" data-cat="classical" data-onclick="setFilter" data-onclick-a0="classical" data-onclick-a1="@this">Classical</button>
+      <button class="filter-tab" data-cat="patent" data-onclick="setFilter" data-onclick-a0="patent" data-onclick-a1="@this">Patent</button>
+      <button class="filter-tab" data-cat="rasa_shastra" data-onclick="setFilter" data-onclick-a0="rasa_shastra" data-onclick-a1="@this">Rasa Shastra</button>
+      <button class="filter-tab" data-cat="single_herb" data-onclick="setFilter" data-onclick-a0="single_herb" data-onclick-a1="@this">Single Herb</button>
+      <button class="filter-tab" data-cat="polyherbal" data-onclick="setFilter" data-onclick-a0="polyherbal" data-onclick-a1="@this">Polyherbal</button>
+      <button class="filter-tab" data-cat="liquid" data-onclick="setFilter" data-onclick-a0="liquid" data-onclick-a1="@this">Liquid</button>
+      <button class="filter-tab" data-cat="external" data-onclick="setFilter" data-onclick-a0="external" data-onclick-a1="@this">External</button>
     </div>
-    <input class="search-box" id="search-input" type="text" placeholder="Search formulary…" oninput="renderTable()"/>
+    <input class="search-box" id="search-input" type="text" placeholder="Search formulary…" data-oninput="renderTable"/>
   </div>
 
   <table class="formulary-table" id="formulary-table">
@@ -188,7 +189,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   <div class="drawer">
     <div class="drawer-header">
       <span class="drawer-title" id="drawer-title">Add Medicine to Formulary</span>
-      <button class="drawer-close" onclick="closeDrawer()">✕</button>
+      <button class="drawer-close" data-onclick="closeDrawer">✕</button>
     </div>
     <div class="drawer-body">
       <input type="hidden" id="form-id"/>
@@ -245,254 +246,32 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       </div>
     </div>
     <div class="drawer-footer">
-      <button class="btn btn-ghost" onclick="closeDrawer()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveEntry()">Save to Formulary</button>
+      <button class="btn btn-ghost" data-onclick="closeDrawer">Cancel</button>
+      <button class="btn btn-primary" data-onclick="saveEntry">Save to Formulary</button>
     </div>
   </div>
 </div>
 
 <!-- Import from Inventory modal -->
-<div class="modal-overlay" id="import-overlay" style="display:none" onclick="if(event.target===this)closeImportModal()">
+<div class="modal-overlay" id="import-overlay" style="display:none" data-onclick="_closeIfSelf" data-onclick-a0="@isTarget" data-onclick-a1="closeImportModal">
   <div class="modal">
     <div class="modal-header">
       <span>⬇ Import from Inventory</span>
-      <button onclick="closeImportModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted)">✕</button>
+      <button data-onclick="closeImportModal" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text-muted)">✕</button>
     </div>
     <div class="modal-body">
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Medicines in your inventory that are not yet in the formulary. Select to add with default settings — you can edit them after.</p>
       <div id="import-list"><div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">Loading…</div></div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeImportModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="doImport()">Add Selected to Formulary</button>
+      <button class="btn btn-ghost" data-onclick="closeImportModal">Cancel</button>
+      <button class="btn btn-primary" data-onclick="doImport">Add Selected to Formulary</button>
     </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
-<script type="module">
-import { requireAuth, getCurrentTenantId, getCurrentProfile } from './js/core/auth.js';
-import { initNavbar } from './js/components/navbar.js';
-import { supabase } from './js/core/db/supabaseClient.js';
-
-await requireAuth(['super_admin','dept_admin']);
-initNavbar();
-
-const tenantId  = getCurrentTenantId();
-const myProfile = getCurrentProfile();
-let _entries  = [];
-let _filter   = '';
-
-const CAT_LABEL = { classical:'Classical', patent:'Patent', rasa_shastra:'Rasa Shastra', liquid:'Liquid', external:'External', single_herb:'Single Herb', polyherbal:'Polyherbal' };
-
-// ── Load ─────────────────────────────────────────
-async function loadFormulary() {
-  const { data } = await supabase
-    .from('hospital_formulary')
-    .select('*, approved_by_profile:profiles!approved_by(full_name)')
-    .eq('tenant_id', tenantId)
-    .order('medicine_name');
-  _entries = data || [];
-  updateStats();
-  renderTable();
-}
-
-function updateStats() {
-  const active = _entries.filter(e => e.is_active);
-  const today  = new Date();
-  const oneYearAgo = new Date(today); oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-  const dueReview  = active.filter(e => !e.last_reviewed_at || new Date(e.last_reviewed_at) < oneYearAgo);
-  document.getElementById('stat-total').textContent    = active.length;
-  document.getElementById('stat-classical').textContent = active.filter(e=>e.category==='classical').length;
-  document.getElementById('stat-patent').textContent   = active.filter(e=>['patent','rasa_shastra'].includes(e.category)).length;
-  document.getElementById('stat-review').textContent   = dueReview.length;
-}
-
-function _reviewClass(dateStr) {
-  if (!dateStr) return 'review-red';
-  const d = new Date(dateStr);
-  const now = new Date();
-  const months = (now - d) / (1000 * 60 * 60 * 24 * 30);
-  if (months < 6)  return 'review-green';
-  if (months < 12) return 'review-amber';
-  return 'review-red';
-}
-
-function renderTable() {
-  const q = (document.getElementById('search-input').value || '').toLowerCase();
-  let rows = _entries.filter(e =>
-    (!_filter || e.category === _filter) &&
-    (!q || e.medicine_name.toLowerCase().includes(q) || (e.generic_name||'').toLowerCase().includes(q) || (e.approved_indications||'').toLowerCase().includes(q))
-  );
-  const tbody = document.getElementById('formulary-tbody');
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="table-empty">No medicines match this filter.</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = rows.map(e => `
-    <tr class="${e.is_active?'':'inactive'}">
-      <td>
-        <div style="font-weight:600">${_esc(e.medicine_name)}</div>
-        ${e.generic_name ? `<div style="font-size:11px;color:var(--text-muted)">${_esc(e.generic_name)}</div>` : ''}
-      </td>
-      <td><span class="cat-badge cat-${e.category||'classical'}">${CAT_LABEL[e.category]||e.category}</span></td>
-      <td style="font-size:12px">${_esc(e.dosage_form||'—')}</td>
-      <td style="font-size:12px;max-width:140px">${_esc(e.standard_dose||'—')}</td>
-      <td style="font-size:12px;max-width:200px;color:var(--text-mid)">${_esc((e.approved_indications||'—').slice(0,80))}${(e.approved_indications||'').length>80?'…':''}</td>
-      <td><span class="review-dot ${_reviewClass(e.last_reviewed_at)}"></span>${e.last_reviewed_at ? new Date(e.last_reviewed_at+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : 'Not reviewed'}</td>
-      <td><span class="${e.is_active?'status-active':'status-inactive'}">${e.is_active?'Active':'Inactive'}</span></td>
-      <td>
-        <div class="row-actions">
-          <button class="btn-sm" onclick="openDrawer('${e.id}')">Edit</button>
-          <button class="btn-sm danger" onclick="toggleActive('${e.id}',${e.is_active})">${e.is_active?'Deactivate':'Activate'}</button>
-        </div>
-      </td>
-    </tr>`).join('');
-}
-
-window.setFilter = function(cat, el) {
-  _filter = cat;
-  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  renderTable();
-};
-
-// ── Add / Edit ────────────────────────────────────
-window.openDrawer = function(id) {
-  const e = id ? _entries.find(x => x.id === id) : null;
-  document.getElementById('form-id').value            = e?.id || '';
-  document.getElementById('form-name').value          = e?.medicine_name || '';
-  document.getElementById('form-generic').value       = e?.generic_name || '';
-  document.getElementById('form-category').value      = e?.category || 'classical';
-  document.getElementById('form-dosage-form').value   = e?.dosage_form || '';
-  document.getElementById('form-std-dose').value      = e?.standard_dose || '';
-  document.getElementById('form-indications').value   = e?.approved_indications || '';
-  document.getElementById('form-reviewed').value      = e?.last_reviewed_at || '';
-  document.getElementById('form-status').value        = String(e?.is_active ?? true);
-  document.getElementById('form-notes').value         = e?.notes || '';
-  document.getElementById('drawer-title').textContent = e ? 'Edit Formulary Entry' : 'Add Medicine to Formulary';
-  document.getElementById('form-overlay').classList.add('open');
-};
-
-window.closeDrawer = function() {
-  document.getElementById('form-overlay').classList.remove('open');
-};
-
-window.saveEntry = async function() {
-  const id   = document.getElementById('form-id').value;
-  const name = document.getElementById('form-name').value.trim();
-  if (!name) { _toast('Medicine name is required.', true); return; }
-
-  const payload = {
-    tenant_id:           tenantId,
-    medicine_name:       name,
-    generic_name:        document.getElementById('form-generic').value.trim() || null,
-    category:            document.getElementById('form-category').value,
-    dosage_form:         document.getElementById('form-dosage-form').value.trim() || null,
-    standard_dose:       document.getElementById('form-std-dose').value.trim() || null,
-    approved_indications:document.getElementById('form-indications').value.trim() || null,
-    last_reviewed_at:    document.getElementById('form-reviewed').value || null,
-    is_active:           document.getElementById('form-status').value === 'true',
-    notes:               document.getElementById('form-notes').value.trim() || null,
-  };
-
-  let error;
-  if (id) {
-    ({ error } = await supabase.from('hospital_formulary').update(payload).eq('id', id));
-  } else {
-    payload.approved_by = myProfile?.id;
-    payload.approved_at = new Date().toISOString();
-    ({ error } = await supabase.from('hospital_formulary').insert(payload));
-  }
-  if (error) { _toast('Error: ' + error.message, true); return; }
-  closeDrawer();
-  _toast(id ? 'Entry updated.' : 'Medicine added to formulary.');
-  await loadFormulary();
-};
-
-window.toggleActive = async function(id, current) {
-  const { error } = await supabase.from('hospital_formulary').update({ is_active: !current }).eq('id', id);
-  if (error) { _toast('Error: ' + error.message, true); return; }
-  _toast(current ? 'Medicine deactivated.' : 'Medicine activated.');
-  await loadFormulary();
-};
-
-// ── Import from Inventory ─────────────────────────
-window.openImportModal = async function() {
-  document.getElementById('import-overlay').style.display = 'flex';
-  const listEl = document.getElementById('import-list');
-  listEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">Loading…</div>';
-
-  const [invRes] = await Promise.all([
-    supabase.from('inventory').select('medicine:medicines(id,name)').eq('tenant_id', tenantId),
-  ]);
-  const inFormulary = new Set(_entries.map(e => e.medicine_name.toLowerCase()));
-  const candidates = (invRes.data || [])
-    .map(r => r.medicine?.name).filter(Boolean)
-    .filter((n,i,a) => a.indexOf(n) === i)
-    .filter(n => !inFormulary.has(n.toLowerCase()))
-    .sort();
-
-  if (!candidates.length) {
-    listEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">All inventory medicines are already in the formulary.</div>';
-    return;
-  }
-  listEl.innerHTML = candidates.map((n,i) => `
-    <label class="import-item">
-      <input type="checkbox" id="imp-${i}" value="${_esc(n)}" checked/>
-      <span>${_esc(n)}</span>
-    </label>`).join('');
-};
-
-window.closeImportModal = function() {
-  document.getElementById('import-overlay').style.display = 'none';
-};
-
-window.doImport = async function() {
-  const checks = document.querySelectorAll('#import-list input[type=checkbox]:checked');
-  if (!checks.length) { _toast('Select at least one medicine.', true); return; }
-  const rows = Array.from(checks).map(c => ({
-    tenant_id:     tenantId,
-    medicine_name: c.value,
-    category:      'classical',
-    is_active:     true,
-    approved_by:   myProfile?.id,
-    approved_at:   new Date().toISOString(),
-  }));
-  const { error } = await supabase.from('hospital_formulary').insert(rows);
-  if (error) { _toast('Import error: ' + error.message, true); return; }
-  closeImportModal();
-  _toast(`${rows.length} medicine(s) added to formulary.`);
-  await loadFormulary();
-};
-
-// ── CSV Export ────────────────────────────────────
-window.exportCsv = function() {
-  const active = _entries.filter(e => e.is_active);
-  const lines = [
-    ['Medicine Name','Generic Name','Category','Dosage Form','Standard Dose','Approved Indications','Last Reviewed'],
-    ...active.map(e => [e.medicine_name, e.generic_name||'', CAT_LABEL[e.category]||e.category, e.dosage_form||'', e.standard_dose||'', e.approved_indications||'', e.last_reviewed_at||''])
-  ].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(','));
-  const blob = new Blob([lines.join('\n')], { type:'text/csv' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a'); a.href = url;
-  a.download = `hospital-formulary-${new Date().toISOString().slice(0,10)}.csv`;
-  a.click(); URL.revokeObjectURL(url);
-};
-
-function _esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function _toast(msg, isErr) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.style.background = isErr ? '#8b1a1a' : '#1a4a2e';
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3200);
-}
-
-await loadFormulary();
-</script>
+<script type="module" src="js/pages/formulary-admin.js"></script>
 </body>
 </html>
