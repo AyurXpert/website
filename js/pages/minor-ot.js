@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -47,7 +48,7 @@ async function loadData() {
     .eq('procedure_date', _viewDate)
     .order('created_at', { ascending: false });
 
-  if (error) { _alert('error', 'Load failed: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to load data.')); return; }
   _allData = data || [];
   renderStats();
   renderTable();
@@ -158,7 +159,7 @@ window.saveProcedure = async function() {
     follow_up_date:       document.getElementById('n-followup').value || null,
     status:               'completed'
   });
-  if (error) { alert('Error saving: ' + error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not save procedure record.')); return; }
   closeNewModal();
   _alert('success', 'Procedure record saved.');
   loadData();

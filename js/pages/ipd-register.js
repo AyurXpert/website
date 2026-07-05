@@ -2,6 +2,7 @@ import { requireAuth, getCurrentTenantId, getCurrentTenant } from '../core/auth.
 import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist']);
 initNavbar();
@@ -92,7 +93,7 @@ window.loadRegister = async function() {
 
   const { data, error } = await q.limit(1000);
   if (error) {
-    document.getElementById('reg-tbody').innerHTML = `<tr><td colspan="13" class="empty" style="color:var(--red)">Error: ${error.message}</td></tr>`;
+    document.getElementById('reg-tbody').innerHTML = `<tr><td colspan="13" class="empty" style="color:var(--red)">Error: ${_esc(safeErrorMessage(error, 'Could not load register.'))}</td></tr>`;
     return;
   }
 

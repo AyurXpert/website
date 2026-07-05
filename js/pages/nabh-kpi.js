@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenantId, getCurrentTenant } 
 import { supabase }    from '../core/db/supabaseClient.js';
 import { initNavbar }  from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin']);
 initNavbar('nabh-kpi.html');
@@ -398,7 +399,7 @@ window.saveManualKPI = async function() {
     unit: kpiDef?.unit || '', notes: notes || null, entered_by: userId,
   }, { onConflict: 'tenant_id,kpi_code,month' });
 
-  if (error) { alert(error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not save KPI entry.')); return; }
   document.getElementById('me-num').value   = '';
   document.getElementById('me-den').value   = '';
   document.getElementById('me-notes').value = '';

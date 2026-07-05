@@ -3,6 +3,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/constants.js';
 import { requireAuth, getCurrentProfile, getCurrentTenant } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 requireAuth(['lab_tech','super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -160,7 +161,7 @@ async function loadOrders() {
     .order('priority', { ascending: false }) // stat > urgent > routine
     .order('created_at');
 
-  if (error) { _alert('error', 'Load error: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not load lab orders.')); return; }
   // lab_orders has no direct FK to patients -- routes through visits.patient_id.
   // Flatten here so downstream rendering code can keep using o.patients uniformly.
   _orders = (data || []).map(o => ({ ...o, patients: o.visits?.patients || null })).sort((a,b) => {
@@ -381,7 +382,7 @@ window.markSampleCollected = async function() {
     collected_at: collectTime ? new Date(collectTime).toISOString() : new Date().toISOString(),
     collected_by: userId,
   }).eq('id', _activeOrder.id);
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not mark sample collected.')); return; }
   _alert('success', 'Sample marked as collected.');
   _activeOrder.status      = 'sample_collected';
   document.getElementById('sample-bar').classList.add('collected');
@@ -421,7 +422,7 @@ window.saveResults = async function(status) {
     signed_by:                document.getElementById('lab-signed-by').value        || null,
   };
   const { error } = await supabase.from('lab_orders').update(orderUpdate).eq('id', _activeOrder.id);
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not update lab order.')); return; }
 
   // Fire critical alerts to ordering doctor
   const criticals = _activeItems.filter(i => i.is_critical && i.result_value);
@@ -531,7 +532,7 @@ async function loadImagingOrders() {
     .eq('order_date', date)
     .order('priority', { ascending: false })
     .order('created_at');
-  if (error) { _alert('error', 'Imaging load: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not load imaging orders.')); return; }
   _imgOrders = (data || []).sort((a,b)=>({stat:0,urgent:1,routine:2}[a.priority]||2)-({stat:0,urgent:1,routine:2}[b.priority]||2));
   renderImgQueue();
   updateImgStats();
@@ -743,7 +744,7 @@ window.saveImaging = async function(status) {
   }
 
   const { error } = await supabase.from('imaging_orders').update(payload).eq('id', _activeImgOrder.id);
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not update imaging order.')); return; }
 
   // Critical alert → doctor
   if (isCritical && status === 'completed') {
@@ -835,7 +836,7 @@ window.submitNewImgOrder = async function() {
     expected_date:       mod==='outside' ? document.getElementById('ni-exp-date')?.value || null : null,
     status:              'ordered',
   });
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not create imaging order.')); return; }
   _alert('success', 'Imaging order created.');
   closeNewImgOrder();
   _imgPtSearch = null;
@@ -922,7 +923,7 @@ window.saveAerbEntry = async function() {
     mas:               document.getElementById('ae-mas').value.trim() || null,
     clinical_indication:document.getElementById('ae-indication').value.trim() || null,
   });
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not save AERB entry.')); return; }
   _alert('success', 'AERB entry saved.');
   closeAerbEntry();
   loadAerbLog();

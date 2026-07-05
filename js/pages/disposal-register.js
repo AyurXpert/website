@@ -2,6 +2,7 @@ import { requireAuth, getCurrentTenantId, getCurrentTenant } from '../core/auth.
 import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['pharmacist','super_admin','dept_admin','accountant'], 'login.html');
 initNavbar();
@@ -47,7 +48,7 @@ window.loadRecords = async function() {
   if (method) q = q.eq('disposal_method', method);
 
   const { data, error } = await q;
-  if (error) { _toast('Load error: ' + error.message); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not load records.')); return; }
 
   _records = (data || []).filter(r => !name || r.medicine_name.toLowerCase().includes(name));
   renderTable();

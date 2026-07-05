@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenant } from '../core/auth.j
 import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['doctor','super_admin','dept_admin'], 'login.html');
 initNavbar();
@@ -68,7 +69,7 @@ window.saveSchedule = async function() {
   });
 
   const { error } = await supabase.from('tele_schedules').upsert(rows, { onConflict: 'tenant_id,doctor_id,day_of_week' });
-  if (error) { _toast('❌ ' + error.message); return; }
+  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save schedule.')); return; }
   _toast('✅ Schedule saved');
   await loadSchedule();
 };
@@ -140,7 +141,7 @@ window.loadTeleRegister = async function() {
     .gte('created_at', from + 'T00:00:00')
     .lte('created_at', to + 'T23:59:59')
     .order('created_at', { ascending: false });
-  if (error) { tbody.innerHTML = `<tr><td colspan="7" style="padding:20px;text-align:center;color:#c0392b">${_esc(error.message)}</td></tr>`; return; }
+  if (error) { tbody.innerHTML = `<tr><td colspan="7" style="padding:20px;text-align:center;color:#c0392b">${_esc(safeErrorMessage(error, 'Could not load register.'))}</td></tr>`; return; }
   _teleRegData = data || [];
   if (!_teleRegData.length) {
     tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text-muted)">No teleconsultation visits for this month</td></tr>';

@@ -2,6 +2,7 @@ import { requireAuth, getCurrentTenantId, getCurrentProfile } from '../core/auth
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist','diet_staff']);
 initNavbar();
@@ -96,7 +97,7 @@ window.updateStatus = async function(id, newStatus) {
     patch.fulfilled_at = new Date().toISOString();
   }
   const { error } = await supabase.from('palha_diet_indents').update(patch).eq('id', id);
-  if (error) { _toast('Error: ' + error.message, true); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not update status.'), true); return; }
   const label = { in_preparation:'In preparation', dispatched:'Dispatched', served:'Served ✓', cancelled:'Cancelled' }[newStatus] || newStatus;
   _toast(`Status updated: ${label}`);
   await loadIndents();

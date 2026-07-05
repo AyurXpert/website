@@ -2,6 +2,7 @@ import { requireAuth, getCurrentTenantId, getCurrentProfile } from '../core/auth
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['doctor','nurse','super_admin','dept_admin']);
 initNavbar();
@@ -77,7 +78,7 @@ window.loadQueue = async function() {
     .order('token_number');
 
   if (error) {
-    document.getElementById('queue-list').innerHTML = `<div class="queue-empty">Error: ${error.message}</div>`;
+    document.getElementById('queue-list').innerHTML = `<div class="queue-empty">Error: ${safeErrorMessage(error, 'Could not load queue.')}</div>`;
     return;
   }
 

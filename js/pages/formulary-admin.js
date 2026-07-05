@@ -2,6 +2,7 @@ import { requireAuth, getCurrentTenantId, getCurrentProfile } from '../core/auth
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin']);
 initNavbar();
@@ -137,7 +138,7 @@ window.saveEntry = async function() {
     payload.approved_at = new Date().toISOString();
     ({ error } = await supabase.from('hospital_formulary').insert(payload));
   }
-  if (error) { _toast('Error: ' + error.message, true); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not save entry.'), true); return; }
   closeDrawer();
   _toast(id ? 'Entry updated.' : 'Medicine added to formulary.');
   await loadFormulary();
@@ -146,7 +147,7 @@ window.saveEntry = async function() {
 window.toggleActive = async function(id, current) {
   const isActive = current === true || current === 'true';
   const { error } = await supabase.from('hospital_formulary').update({ is_active: !isActive }).eq('id', id);
-  if (error) { _toast('Error: ' + error.message, true); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not update status.'), true); return; }
   _toast(isActive ? 'Medicine deactivated.' : 'Medicine activated.');
   await loadFormulary();
 };
@@ -194,7 +195,7 @@ window.doImport = async function() {
     approved_at:   new Date().toISOString(),
   }));
   const { error } = await supabase.from('hospital_formulary').insert(rows);
-  if (error) { _toast('Import error: ' + error.message, true); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Import failed.'), true); return; }
   closeImportModal();
   _toast(`${rows.length} medicine(s) added to formulary.`);
   await loadFormulary();

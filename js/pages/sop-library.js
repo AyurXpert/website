@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -161,7 +162,7 @@ window.saveSOP = async function() {
   } else {
     ({ error: err } = await supabase.from('sop_documents').insert(payload));
   }
-  if (err) { toast('Save failed: '+err.message, 'error'); return; }
+  if (err) { toast(safeErrorMessage(err, 'Save failed.'), 'error'); return; }
   toast(editId ? 'SOP updated' : 'SOP added', 'success');
   closeModal();
   load();
@@ -171,7 +172,7 @@ window.archiveSOP = async function(id) {
   const d = _docs.find(x => x.id === id); if (!d) return;
   if (!confirm(`Archive "${d.title}"? Status will be set to Superseded.`)) return;
   const { error } = await supabase.from('sop_documents').update({ status:'superseded', updated_at:new Date().toISOString() }).eq('id', id);
-  if (error) { toast('Failed: '+error.message, 'error'); return; }
+  if (error) { toast(safeErrorMessage(error, 'Could not archive SOP.'), 'error'); return; }
   toast('SOP archived', 'success'); load();
 };
 

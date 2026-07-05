@@ -2,6 +2,7 @@ import { requireAuth, getCurrentTenantId, getCurrentTenant } from '../core/auth.
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['pharmacist','super_admin','dept_admin','accountant'], 'login.html');
 initNavbar();
@@ -138,7 +139,7 @@ window.saveSupplier = async function() {
     ? await supabase.from('suppliers').update(payload).eq('id', id).eq('tenant_id', tenantId)
     : await supabase.from('suppliers').insert(payload);
 
-  if (error) { _toast('❌ ' + error.message); return; }
+  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save supplier.')); return; }
   _toast(id ? '✅ Supplier updated' : '✅ Supplier added');
   closeModal();
   await load();

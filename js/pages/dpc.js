@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenantId, getCurrentTenant } 
 import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','accountant']);
 initNavbar();
@@ -26,7 +27,7 @@ const TYPE_LABEL = { quarterly:'Quarterly', annual:'Annual', special:'Special', 
 async function load() {
   const { data, error } = await supabase.from('dpc_meetings')
     .select('*').eq('tenant_id', tenantId).order('meeting_date', { ascending: false });
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not load meetings.')); return; }
   _meetings = data || [];
   render();
   updateStats();
@@ -124,7 +125,7 @@ window.saveMeeting = async function() {
   const { error } = _editId
     ? await supabase.from('dpc_meetings').update(payload).eq('id', _editId)
     : await supabase.from('dpc_meetings').insert(payload);
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not save meeting.')); return; }
   _alert('success', 'Meeting record saved.');
   closeModal();
   await load();

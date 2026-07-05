@@ -12,6 +12,7 @@ import {
   DEFAULT_MODULES,
 } from '../config/constants.js';
 import { logAudit } from './auditLogger.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 
 // ═══════════════════════════════════════════════════════════
@@ -31,7 +32,7 @@ export async function registerTenant({
       password,
       options: { data: { full_name: fullName } }
     });
-    if (authError) throw authError;
+    if (authError) throw new Error(safeErrorMessage(authError, 'Could not create account. Please try again.'));
 
     const userId = authData.user.id;
 
@@ -48,7 +49,7 @@ export async function registerTenant({
       })
       .select()
       .single();
-    if (tenantError) throw tenantError;
+    if (tenantError) throw new Error(safeErrorMessage(tenantError, 'Could not create organisation. Please try again.'));
 
     const { error: profileError } = await supabase
       .from('profiles')
@@ -61,7 +62,7 @@ export async function registerTenant({
         status:    'active',
         is_active: true,
       });
-    if (profileError) throw profileError;
+    if (profileError) throw new Error(safeErrorMessage(profileError, 'Could not create profile. Please try again.'));
 
     return { success: true, tenant, userId };
 
@@ -108,7 +109,7 @@ export async function registerStaff({
       password,
       options: { data: { full_name: fullName } }
     });
-    if (authError) throw authError;
+    if (authError) throw new Error(safeErrorMessage(authError, 'Could not create account. Please try again.'));
 
     const { error: profileError } = await supabase
       .from('profiles')
@@ -124,7 +125,7 @@ export async function registerStaff({
         ...(stateRegId   ? { state_reg_id:   stateRegId   } : {}),
         ...(departmentId ? { department_id:  departmentId } : {}),
       });
-    if (profileError) throw profileError;
+    if (profileError) throw new Error(safeErrorMessage(profileError, 'Could not create profile. Please try again.'));
 
     return {
       success: true,
@@ -245,7 +246,7 @@ export async function approveStaff(profileId, departmentId) {
     .eq('id', profileId)
     .eq('tenant_id', getCurrentTenantId());
 
-  if (error) return { success: false, error: error.message };
+  if (error) return { success: false, error: safeErrorMessage(error, 'Could not approve staff.') };
   return { success: true };
 }
 
@@ -261,7 +262,7 @@ export async function rejectStaff(profileId, reason = '') {
     .eq('id', profileId)
     .eq('tenant_id', getCurrentTenantId());
 
-  if (error) return { success: false, error: error.message };
+  if (error) return { success: false, error: safeErrorMessage(error, 'Could not reject staff request.') };
   return { success: true };
 }
 
@@ -287,14 +288,14 @@ export async function activateStaff(profileId, permissions) {
         can_delete:            permissions.canDelete  || false,
         assigned_by:           getCurrentProfile().id,
       });
-    if (permError) throw permError;
+    if (permError) throw new Error(safeErrorMessage(permError, 'Could not save staff permissions.'));
 
     const { error: profileError } = await supabase
       .from('profiles')
       .update({ status: 'active', is_active: true })
       .eq('id', profileId)
       .eq('tenant_id', getCurrentTenantId());
-    if (profileError) throw profileError;
+    if (profileError) throw new Error(safeErrorMessage(profileError, 'Could not activate staff.'));
 
     return { success: true };
   } catch (error) {
@@ -310,7 +311,7 @@ export async function suspendStaff(profileId) {
     .eq('id', profileId)
     .eq('tenant_id', getCurrentTenantId());
 
-  if (error) return { success: false, error: error.message };
+  if (error) return { success: false, error: safeErrorMessage(error, 'Could not suspend staff.') };
   return { success: true };
 }
 

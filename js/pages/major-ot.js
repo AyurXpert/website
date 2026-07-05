@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -69,7 +70,7 @@ async function loadCases() {
     .eq('scheduled_date', _viewDate)
     .order('scheduled_time', { ascending: true, nullsFirst: false });
 
-  if (error) { _alert('error','Failed to load: ' + error.message); return; }
+  if (error) { _alert('error',safeErrorMessage(error, 'Failed to load OT cases.')); return; }
   _allCases = data || [];
   renderStats();
   renderTable();
@@ -232,7 +233,7 @@ window.saveNewCase = async function() {
     notes:           document.getElementById('n-notes').value.trim() || null,
     status:          'scheduled',
   });
-  if (error) { alert('Error: ' + error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not save case.')); return; }
 
   // NABH — Save surgical consent record
   const consentBy = document.getElementById('ot-consent-by').value.trim();
@@ -260,7 +261,7 @@ window.saveNewCase = async function() {
 window.startCase = async function(id) {
   const now = new Date().toISOString();
   const { error } = await supabase.from('ot_cases').update({ status:'in_progress', actual_start:now }).eq('id',id);
-  if (error) { alert('Error: '+error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not start case.')); return; }
   _alert('success','OT Case started.');
   loadCases();
 };
@@ -269,7 +270,7 @@ window.startCase = async function(id) {
 window.cancelCase = async function(id) {
   if (!confirm('Cancel this OT case?')) return;
   const { error } = await supabase.from('ot_cases').update({ status:'cancelled' }).eq('id',id);
-  if (error) { alert('Error: '+error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not cancel case.')); return; }
   _alert('success','Case cancelled.');
   loadCases();
 };
@@ -334,7 +335,7 @@ window.saveIntra = async function() {
     specimen_sent:        document.getElementById('i-specimen').checked,
     specimen_details:     document.getElementById('i-specimen-det').value.trim() || null,
   }).eq('id', _activeId);
-  if (error) { alert('Error: '+error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not save intraoperative record.')); return; }
   closeIntra();
   _alert('success','Intraoperative record saved. Case marked as Completed.');
   loadCases();

@@ -4,6 +4,7 @@ import { initNavbar } from '../components/navbar.js';
 import { logAudit } from '../core/auditLogger.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 wireDelegatedEvents();
 
@@ -125,7 +126,7 @@ async function loadActiveClaims() {
   if (error) {
     console.error('loadActiveClaims:', error);
     document.getElementById('claims-tbody').innerHTML =
-      `<tr><td colspan="10" class="no-data">Error loading claims: ${_esc(error.message)}</td></tr>`;
+      `<tr><td colspan="10" class="no-data">Error loading claims: ${_esc(safeErrorMessage(error, 'Could not load claims.'))}</td></tr>`;
     return;
   }
   allClaims  = data || [];
@@ -245,7 +246,7 @@ window.saveClaimEdit = async function() {
     .eq('tenant_id', tenantId);
 
   if (error) {
-    alert('Failed to save: ' + error.message);
+    alert(safeErrorMessage(error, 'Failed to save.'));
     return;
   }
 
@@ -432,7 +433,7 @@ window.saveAssignCode = async function() {
     .update({ pmjay_package_code: code })
     .eq('id', billId)
     .eq('tenant_id', tenantId);
-  if (error) { alert('Failed: ' + error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not assign PMJAY code.')); return; }
   await logAudit('assign_pmjay_code', { bill_id: billId, pmjay_package_code: code });
   closeModal('modal-assign-bg');
   _allInsuranceBills = null;
@@ -631,7 +632,7 @@ window.rejectWriteoff = async function(woId) {
       approved_at: new Date().toISOString()
     })
     .eq('id', woId);
-  if (error) { alert('Error: ' + error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not reject write-off.')); return; }
   await logAudit('reject_write_off', { write_off_id: woId });
   await loadWriteoffs();
 };
@@ -723,7 +724,7 @@ window.submitWriteoff = async function() {
     if (error.code === '42P01') {
       alert('Write-off table not yet created. Ask administrator to run Phase 3 SQL migration.');
     } else {
-      alert('Error submitting: ' + error.message);
+      alert(safeErrorMessage(error, 'Error submitting write-off.'));
     }
     return;
   }

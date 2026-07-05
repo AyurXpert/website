@@ -3,6 +3,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth
 import { initNavbar }  from '../components/navbar.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 const ALLOWED = ['super_admin','dept_admin','doctor','receptionist','nurse'];
 await requireAuth(ALLOWED);
@@ -33,7 +34,7 @@ async function loadProgrammes() {
     .select('*')
     .eq('tenant_id', tenantId)
     .order('start_date', { ascending: false });
-  if (error) { _toast('Error loading programmes: ' + error.message, 'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not load programmes.'), 'error'); return; }
   _programmes = data || [];
   renderProgList();
 }
@@ -135,7 +136,7 @@ window.saveProgramme = async function() {
   } else {
     ({ error } = await supabase.from('prophylaxis_programs').insert({ ...payload, created_by: profile.id }));
   }
-  if (error) { _toast('Save error: ' + error.message, 'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not save programme.'), 'error'); return; }
   _toast(_editingProgId ? 'Programme updated' : 'Programme created', 'success');
   closeProgModal();
   loadProgrammes();
@@ -164,7 +165,7 @@ window.loadEnrolments = async function() {
     .eq('program_id', progId)
     .eq('tenant_id', tenantId)
     .order('enrolled_at');
-  if (error) { _toast('Error: ' + error.message, 'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not load enrolments.'), 'error'); return; }
   _enrolments = data || [];
   renderEnrolTable();
   updateStats();
@@ -255,7 +256,7 @@ window.markToday = async function(enrolId) {
   log.sort((a, b) => a.date.localeCompare(b.date));
   const { error } = await supabase.from('prophylaxis_enrollments')
     .update({ compliance_log: log }).eq('id', enrolId);
-  if (error) { _toast('Error: ' + error.message, 'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not update compliance log.'), 'error'); return; }
   enrol.compliance_log = log;
   renderEnrolTable();
   updateStats();
@@ -281,7 +282,7 @@ window.saveOutcome = async function() {
     status:  document.getElementById('oc-status').value,
     outcome: document.getElementById('oc-notes').value.trim() || null,
   }).eq('id', _editingEnrolId);
-  if (error) { _toast('Error: ' + error.message, 'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not update outcome.'), 'error'); return; }
   const e = _enrolments.find(x => x.id === _editingEnrolId);
   if (e) { e.status = document.getElementById('oc-status').value; e.outcome = document.getElementById('oc-notes').value.trim(); }
   closeOutcomeModal();
@@ -333,7 +334,7 @@ window.enrolPatient = async function(patientId, patientName) {
     enrolled_by: profile.id, enrolled_at: new Date().toISOString().slice(0,10),
     compliance_log: [], status: 'enrolled',
   });
-  if (error) { _toast('Enrol error: ' + error.message, 'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not enrol patient.'), 'error'); return; }
   _toast(`${patientName} enrolled`, 'success');
   document.getElementById('enrol-search').value = '';
   document.getElementById('enrol-results').innerHTML = '';

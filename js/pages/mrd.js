@@ -3,6 +3,7 @@ import { requireAuth, hasModule, getCurrentProfile, getCurrentTenantId } from '.
 import { initNavbar } from '../components/navbar.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 const ALLOWED = ['super_admin','dept_admin','mrd_staff'];
 await requireAuth(ALLOWED);
@@ -76,7 +77,7 @@ async function _doPatientSearch() {
   else             query = query.ilike('name', `%${q}%`);
 
   const { data, error } = await query.limit(10);
-  if (error) { _toast('Error: '+error.message,'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not search patients.'),'error'); return; }
   if (!data?.length) { resultsEl.innerHTML = '<div class="empty">No patients found</div>'; return; }
 
   resultsEl.innerHTML = `<div class="search-results">${
@@ -336,7 +337,7 @@ window.loadDiagnosis = async function() {
     .not(labelCol, 'is', null)
     .gte('created_at', from + 'T00:00:00');
 
-  if (error) { _toast('Error: '+error.message,'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not load records.'),'error'); return; }
 
   const countMap = {};
   (data||[]).forEach(r => {
@@ -499,7 +500,7 @@ window.saveAuditRecord = async function() {
     reviewed_by:            profile.id,
   };
   const { error } = await supabase.from('mrd_audit_records').insert(payload);
-  if (error) { _toast('Save failed: '+error.message, 'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Save failed.'), 'error'); return; }
   _toast('Audit record saved', 'success'); closeAuditModal(); loadAudit();
 };
 window.exportAuditCSV = function() {

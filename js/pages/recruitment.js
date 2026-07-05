@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 const ALLOWED = ['super_admin','dept_admin'];
 await requireAuth(ALLOWED);
@@ -56,7 +57,7 @@ async function loadVacancies() {
       '<div class="empty" style="grid-column:span 3">Run the SQL in <code>sql/session28_recruitment.sql</code> to activate this module.</div>';
     return;
   }
-  if (error) { _toast('Error: '+error.message,'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not load vacancies.'),'error'); return; }
   _vacancies = data || [];
   renderVacancies();
   _populateVacSelects();
@@ -160,7 +161,7 @@ window.saveVacancy = async function() {
   } else {
     ({ error } = await supabase.from('job_vacancies').insert({...payload, posted_by: profile.id}));
   }
-  if (error) { _toast('Error: '+error.message,'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not save vacancy.'),'error'); return; }
   closeVacModal();
   _toast(_editingVacId ? 'Vacancy updated' : 'Vacancy posted','success');
   await loadVacancies();
@@ -198,7 +199,7 @@ window.loadApplications = async function() {
     .select('*')
     .eq('vacancy_id', vacId)
     .order('created_at', { ascending: false });
-  if (error) { _toast('Error: '+error.message,'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not load applications.'),'error'); return; }
   _apps.forEach((a,i) => { if (a.vacancy_id === vacId) _apps.splice(i,1,a); }); // update in-place
   const vacApps = data||[];
   // merge into _apps
@@ -291,7 +292,7 @@ window.saveApplication = async function() {
     interview_mode: status==='interview_scheduled' ? document.getElementById('am-int-mode').value : null,
     interview_notes:status==='interview_scheduled' ? document.getElementById('am-int-notes').value.trim()||null : null,
   });
-  if (error) { _toast('Error: '+error.message,'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not save application.'),'error'); return; }
   closeAppModal();
   _toast('Application added','success');
   await loadApplications();
@@ -334,7 +335,7 @@ window.updateAppStatus = async function() {
     } : {}),
   };
   const { error } = await supabase.from('job_applications').update(payload).eq('id',_updatingAppId);
-  if (error) { _toast('Error: '+error.message,'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not update status.'),'error'); return; }
   closeStatusModal();
   _toast('Status updated','success');
   await loadApplications();

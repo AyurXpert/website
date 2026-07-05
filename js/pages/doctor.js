@@ -179,7 +179,7 @@ async function loadQueue() {
 
   if (error) {
     console.error('loadQueue error:', error.message, '| code:', error.code);
-    list.innerHTML = `<div class="q-empty" style="color:#e74c3c;font-size:12px">Queue error: ${_esc(error.message)}</div>`;
+    list.innerHTML = `<div class="q-empty" style="color:#e74c3c;font-size:12px">Queue error: ${_esc(safeErrorMessage(error, 'Could not load queue.'))}</div>`;
     return;
   }
 
@@ -240,7 +240,7 @@ async function loadIPDPatients() {
     .eq('admitting_doctor_id', userId)
     .eq('status', 'admitted')
     .order('admitted_at', { ascending: false });
-  if (error) { list.innerHTML = `<div class="q-empty" style="color:#e74c3c">Error: ${_esc(error.message)}</div>`; return; }
+  if (error) { list.innerHTML = `<div class="q-empty" style="color:#e74c3c">Error: ${_esc(safeErrorMessage(error, 'Could not load admitted patients.'))}</div>`; return; }
   const rows = data || [];
   document.getElementById('q-ipd-count').textContent = rows.length;
   if (!rows.length) { list.innerHTML = '<div class="q-empty"><div class="q-empty-icon">🏥</div>No admitted patients</div>'; return; }
@@ -1551,7 +1551,7 @@ async function completeConsultation() {
 
   } catch (err) {
     console.error('completeConsultation caught:', err?.message, err?.details, err?.hint);
-    _toast('Error saving: ' + (err.message || JSON.stringify(err) || 'Please try again'), 'error');
+    _toast(safeErrorMessage(err, 'Error saving consultation. Please try again.'), 'error');
     btn.disabled = false;
     btn.textContent = '✓ Complete & Send to Pharmacy';
   }
@@ -1931,7 +1931,7 @@ async function _loadReceivedRecords(consentId, consentStatus) {
     .order('record_date', { ascending: false })
     .order('created_at', { ascending: false });
 
-  if (error) { listEl.innerHTML = `<div style="color:#c0392b;font-size:13px">${_esc(error.message)}</div>`; return; }
+  if (error) { listEl.innerHTML = `<div style="color:#c0392b;font-size:13px">${_esc(safeErrorMessage(error, 'Could not load records.'))}</div>`; return; }
 
   if (!records?.length) {
     listEl.innerHTML = '<div style="color:#888;font-size:13px;padding:10px 0">No records received yet. Records will appear here once the HIP pushes data — this may take a few minutes after the patient grants consent.</div>';
@@ -2179,7 +2179,7 @@ window.saveImmunization = async function() {
     age_at_vaccination:   ageStr,
     next_due_date:        document.getElementById('imm-next-due').value || null,
   });
-  if (error) { _toast('Error: ' + error.message, 'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not record vaccination.'), 'error'); return; }
 
   _toast(`Vaccination recorded: ${vaccineName}`, 'info');
   // Reset form
@@ -2355,7 +2355,7 @@ window.saveGrowthRecord = async function() {
     weight_percentile_band:  wt ? _grBand(wt, wRef)?.band : null,
     height_percentile_band:  ht ? _grBand(ht, hRef)?.band : null,
   });
-  if (error) { _toast('Error saving: ' + error.message, 'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not save growth record.'), 'error'); return; }
   _toast('Growth record saved ✓', 'info');
   await _loadGrowthHistory(_activePatient.id);
 };
@@ -2525,7 +2525,7 @@ window.applyPrakritiResult = async function() {
     prakriti_assessed_at:  new Date().toISOString().slice(0,10),
   }).eq('id', _activePatient.id);
 
-  if (error) { _toast('Error saving: ' + error.message, 'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not save Prakriti data.'), 'error'); return; }
 
   _activePatient.prakriti_data = prakritiData;
   document.getElementById('ay-prakriti').value = result;
@@ -3202,7 +3202,7 @@ window.escalateToEmergency = async function() {
     setTimeout(_closeConsult, 1200);
 
   } catch (err) {
-    _toast('Escalation failed: ' + err.message, 'error');
+    _toast(safeErrorMessage(err, 'Escalation failed. Please try again.'), 'error');
     btn.disabled = false;
     btn.textContent = '⚠ Escalate to Emergency';
   }
@@ -3232,7 +3232,7 @@ window.saveVishaCase = async function() {
     .from('poison_cases')
     .upsert(payload, { onConflict: 'visit_id' });
 
-  if (error) { _toast('Failed to save: ' + error.message); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Failed to save.')); return; }
   document.getElementById('visha-saved-banner').style.display = '';
   document.getElementById('btn-save-visha').textContent = 'Update Register';
   _toast('Visha case saved to register.');
@@ -3342,7 +3342,7 @@ async function saveAdrReport(status) {
     pvpi_report_no:           document.getElementById('adr-pvpi-no').value.trim() || null,
     status
   });
-  if (error) { alert('Error saving ADR report: ' + error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Error saving ADR report.')); return; }
   closeAdrModal();
   alert(status === 'submitted' ? 'ADR Report saved and marked as submitted to PvPI.' : 'ADR Report saved as draft.');
 }
@@ -3397,7 +3397,7 @@ window.submitImgOrder = async function() {
     expected_date:       document.getElementById('io-exp-date')?.value || null,
     status:              'ordered',
   });
-  if (error) { alert('Error: ' + error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not save imaging order.')); return; }
 
   // Update imaging text field
   const existing = document.getElementById('as-inv-imaging').value.trim();
@@ -3588,7 +3588,7 @@ async function saveMhaFlag() {
     family_informed: family,
     crisis_intervention: crisis
   });
-  if (error) { alert('Error saving: ' + error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not save MHA record.')); return; }
 
   const label = document.querySelector(`#mha-concern option[value="${concern}"]`)?.textContent || concern;
   const badge = severity === 'severe' ? '🔴' : severity === 'moderate' ? '🟡' : '🟢';
@@ -3624,7 +3624,7 @@ async function saveMhaConsent(doPrint) {
     treatment_plan:    document.getElementById('mha-c-treatment').value.trim() || null,
     remarks:           document.getElementById('mha-c-remarks').value.trim() || null
   });
-  if (error) { alert('Error saving consent: ' + error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not save consent.')); return; }
   if (doPrint) {
     const p = _activePatient;
     const html = `<html><head><title>MHA 2017 Consent</title>
@@ -3754,7 +3754,7 @@ window.saveSwarnaprashan = async function() {
   });
   if (error) {
     if (error.code === '42P01') alert('Run session32_ncism_gaps.sql in Supabase first');
-    else alert(error.message);
+    else alert(safeErrorMessage(error, 'Something went wrong. Please try again.'));
     return;
   }
   ['sp-dose-type','sp-batch','sp-notes'].forEach(id => document.getElementById(id).value = '');
@@ -3790,7 +3790,7 @@ window.saveOpdConsent = async function() {
     questions_answered:    document.getElementById('consent-questions').checked,
     doctor_id:             profile.id,
   });
-  if (error) { alert(error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not save consent.')); return; }
   document.getElementById('consent-saved-msg').style.display = '';
   setTimeout(() => { document.getElementById('consent-saved-msg').style.display = 'none'; }, 3000);
 };
@@ -3872,7 +3872,7 @@ window.saveAllergy = async function() {
     reaction:      document.getElementById('new-reaction').value.trim() || null,
     recorded_by:   profile.id,
   });
-  if (error) { alert(error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not save allergy record.')); return; }
   // Update has_allergies flag on patients table
   await supabase.from('patients').update({ has_allergies: true }).eq('id', _activePatient.id);
   document.getElementById('new-allergen').value   = '';

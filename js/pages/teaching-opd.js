@@ -3,6 +3,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenant } from '../core/auth.j
 import { initNavbar } from '../components/navbar.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['doctor','super_admin','dept_admin','nurse']);
 initNavbar();
@@ -41,7 +42,7 @@ window.setToday  = function()  { _date = _today(); setDisplayDate(); renderTable
 async function load() {
   const { data, error } = await supabase.from('teaching_cases')
     .select('*').eq('tenant_id', tenantId).order('presentation_date', { ascending: false });
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not load cases.')); return; }
   _allCases = data || [];
   renderTable();
   updateStats();
@@ -143,7 +144,7 @@ window.saveCase = async function() {
     faculty_feedback:  document.getElementById('m-feedback').value.trim() || null,
     action_for_pg:     document.getElementById('m-action').value.trim() || null,
   });
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not save case presentation.')); return; }
   _alert('success', 'Case presentation recorded.');
   closeModal();
   await load();
@@ -174,7 +175,7 @@ window.loadBedsideClinics = async function() {
   if (!el) return;
   const { data, error } = await supabase.from('bedside_clinics').select('*,departments(name),profiles!faculty_id(full_name)')
     .eq('tenant_id',tenantId).order('clinic_date',{ascending:false}).limit(20);
-  if (error) { el.innerHTML = error.code==='42P01'?'<em>Run session32_ncism_gaps.sql to activate</em>':_esc(error.message); return; }
+  if (error) { el.innerHTML = error.code==='42P01'?'<em>Run session32_ncism_gaps.sql to activate</em>':_esc(safeErrorMessage(error, 'Could not load bedside clinics.')); return; }
   if (!data?.length) { el.innerHTML = '<em>No bedside clinic sessions logged yet.</em>'; return; }
   el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead><tr style="background:#f5faf7"><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Date</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Dept</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Topic</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Faculty</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Students</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Batch</th></tr></thead><tbody>
@@ -199,7 +200,7 @@ window.saveBedside = async function() {
     assessment_conducted: document.getElementById('bed-assess').checked,
     notes: document.getElementById('bed-notes').value.trim()||null,
   });
-  if (error) { alert(error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not save bedside clinic record.')); return; }
   closeBedModal();
   loadBedsideClinics();
 };

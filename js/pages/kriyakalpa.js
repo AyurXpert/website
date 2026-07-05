@@ -3,6 +3,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenant } from '../core/auth.j
 import { initNavbar } from '../components/navbar.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['doctor','nurse','super_admin','dept_admin','therapist']);
 initNavbar();
@@ -112,7 +113,7 @@ async function loadSessions() {
     .eq('tenant_id', tenantId)
     .eq('patient_id', _patient.id)
     .order('session_date').order('session_time');
-  if (error) { _alert('error', 'Load error: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not load sessions.')); return; }
   _sessions = data || [];
   renderSessions();
   updateStats();
@@ -202,7 +203,7 @@ window.saveSession = async function() {
     adverse_events:   document.getElementById('m-adverse').value.trim() || null,
     remarks:          document.getElementById('m-remarks').value.trim() || null,
   });
-  if (error) { _alert('error', 'Error: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not save session.')); return; }
   _alert('success', 'Session saved.');
   closeModal();
   await loadSessions();
@@ -234,7 +235,7 @@ window.confirmComplete = async function() {
     quantity_used:    document.getElementById('c-qty').value.trim() || null,
     completed_at:     new Date().toISOString(),
   }).eq('id', _completeId);
-  if (error) { _alert('error', 'Error: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not mark session completed.')); return; }
   _alert('success', 'Session marked completed.');
   closeCompleteModal();
   await loadSessions();
@@ -243,7 +244,7 @@ window.confirmComplete = async function() {
 window.cancelSession = async function(id) {
   if (!confirm('Cancel this session?')) return;
   const { error } = await supabase.from('kriyakalpa_sessions').update({ status: 'cancelled' }).eq('id', id);
-  if (error) { _alert('error', 'Error: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not cancel session.')); return; }
   await loadSessions();
 };
 

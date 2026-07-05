@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth
 import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin']);
 initNavbar();
@@ -254,7 +255,7 @@ window.saveAssessment = async () => {
     compliance_percent:pct,
     submitted_by:profile.id
   });
-  if (error){showToast('Error: '+error.message,'error');return;}
+  if (error){showToast(safeErrorMessage(error, 'Could not save assessment.'),'error');return;}
   showToast('Assessment saved — '+pct+'% compliance','success');
 };
 

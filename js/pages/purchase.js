@@ -2,6 +2,7 @@ import { requireAuth, getCurrentTenantId, getCurrentProfile, getCurrentRole } fr
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
 initNavbar();
@@ -305,7 +306,7 @@ document.getElementById('btn-save-grn').addEventListener('click', async () => {
     document.getElementById('invoice-date').value = new Date().toISOString().split('T')[0];
     _lineCount = 0; updateSummary();
   } catch (err) {
-    _alert('error', 'Save failed: ' + (err.message || 'Please try again.'));
+    _alert('error', safeErrorMessage(err, 'Save failed. Please try again.'));
   }
   btn.disabled = false; btn.textContent = 'Save & Update Stock';
 });
@@ -470,7 +471,7 @@ document.getElementById('btn-ocr-extract').addEventListener('click', async () =>
     renderOcrResults(data.items);
   } catch (err) {
     btn.disabled = false; btn.textContent = '🔍 Extract with AI';
-    _alert('error', 'OCR failed: ' + (err.message || 'Please try again.'));
+    _alert('error', safeErrorMessage(err, 'OCR failed. Please try again.'));
   }
 });
 

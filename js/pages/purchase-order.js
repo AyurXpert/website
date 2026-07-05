@@ -2,6 +2,7 @@ import { requireAuth, getCurrentTenantId } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
 initNavbar();
@@ -26,7 +27,7 @@ async function loadData() {
              medicine:medicines(id, name, med_id, unit, brand, is_active)`)
     .eq('tenant_id', tenantId);
 
-  if (error) { _alert('error', 'Failed to load: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to load purchase orders.')); return; }
 
   const allItems = (data || []).filter(i => i.medicine?.is_active !== false);
   _allInventory  = allItems;

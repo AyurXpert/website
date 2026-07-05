@@ -3,6 +3,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth
 import { initNavbar } from '../components/navbar.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -34,7 +35,7 @@ async function loadCases() {
     .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false });
 
-  if (error) { _alert('error', 'Failed to load cases: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to load cases.')); return; }
   _cases = (data || []).map(c => ({
     ...c,
     changes: (c.ks_thread_changes || []).sort((a,b) => a.sitting_no - b.sitting_no)
@@ -187,7 +188,7 @@ window.saveKsCase = async function() {
     notes:            document.getElementById('reg-notes').value.trim(),
     status:           'active'
   });
-  if (error) { alert('Error saving case: ' + error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not save case.')); return; }
   closeRegModal();
   _alert('success', 'Kshara Sutra case registered successfully.');
   loadCases();
@@ -226,7 +227,7 @@ window.saveThreadChange = async function() {
     findings,
     done_by:          userId
   });
-  if (error) { alert('Error saving thread change: ' + error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not save thread change.')); return; }
   closeLogModal();
   _alert('success', 'Thread change logged successfully.');
   loadCases();
@@ -263,7 +264,7 @@ window.closeHistModal = () => { document.getElementById('hist-overlay').style.di
 window.markCompleted = async function(sessionId) {
   if (!confirm('Mark this Kshara Sutra case as completed?')) return;
   const { error } = await supabase.from('ks_sessions').update({ status: 'completed' }).eq('id', sessionId);
-  if (error) { alert('Error: ' + error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not mark case as completed.')); return; }
   _alert('success', 'Case marked as completed.');
   loadCases();
 };

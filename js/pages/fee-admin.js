@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId, g
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['dept_admin','super_admin']);
 initNavbar();
@@ -439,7 +440,7 @@ window.saveFee = async function() {
 
   btn.classList.remove('loading'); btn.disabled = false;
 
-  if (error) { toast('Error saving fee: ' + error.message, 'error'); return; }
+  if (error) { toast(safeErrorMessage(error, 'Could not save fee.'), 'error'); return; }
 
   toast(_editId ? 'Fee updated.' : (isSuperAdmin ? 'Fee saved and activated.' : 'Fee submitted for approval.'), 'success');
   closeModal();
@@ -562,7 +563,7 @@ window.runQuickSetup = async function() {
 
   btn.classList.remove('loading'); btn.disabled = false;
 
-  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  if (error) { toast(safeErrorMessage(error, 'Could not add services.'), 'error'); return; }
 
   toast(`${selected.length} service${selected.length > 1 ? 's' : ''} added successfully.`, 'success');
   closeQuickSetup();

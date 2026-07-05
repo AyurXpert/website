@@ -2,6 +2,7 @@ import { requireAuth, getCurrentTenantId, getCurrentProfile } from '../core/auth
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
 initNavbar();
@@ -76,7 +77,7 @@ async function loadInventory() {
              medicine:medicines(id, name, category, is_active, indications, barcode, med_id, brand, unit, image_url, anupana, classical_reference, dosage_text)`)
     .eq('tenant_id', tenantId);
 
-  if (error) { console.error('loadInventory error:', error); _alert('error', 'Failed to load inventory: ' + error.message); return; }
+  if (error) { console.error('loadInventory error:', error); _alert('error', safeErrorMessage(error, 'Failed to load inventory.')); return; }
   _items = (data || []).filter(i => i.medicine)
     .sort((a, b) => a.medicine.name.localeCompare(b.medicine.name));
   renderSummary();
@@ -404,7 +405,7 @@ document.getElementById('f-image').addEventListener('change', async (e) => {
     .from('medicine-images').upload(path, file, { upsert: true });
 
   _imgUploading = false;
-  if (error) { _alert('error', 'Image upload failed: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Image upload failed.')); return; }
 
   const { data: { publicUrl } } = supabase.storage.from('medicine-images').getPublicUrl(data.path);
   document.getElementById('edit-image-url').value = publicUrl;
@@ -586,7 +587,7 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
     closePanel();
     await loadInventory();
   } catch (err) {
-    _alert('error', 'Save failed: ' + (err.message || err.details || 'Please try again.'));
+    _alert('error', safeErrorMessage(err, 'Save failed. Please try again.'));
   }
   btn.disabled = false; btn.textContent = 'Save Medicine';
 });
@@ -650,7 +651,7 @@ document.getElementById('btn-adj-confirm').addEventListener('click', async () =>
 
   const { error } = await supabase.from('inventory')
     .update({ stock_quantity: newQty }).eq('id', invId).eq('tenant_id', tenantId);
-  if (error) { btn.disabled = false; btn.textContent = 'Confirm'; _alert('error', 'Failed: ' + error.message); return; }
+  if (error) { btn.disabled = false; btn.textContent = 'Confirm'; _alert('error', safeErrorMessage(error, 'Failed to update stock.')); return; }
 
   // If expired, log disposal record
   if (isExpiry) {
@@ -731,7 +732,7 @@ async function deleteMedicine(invId, name) {
   if (!confirm(`Remove "${name}" from inventory?\n\nThis deletes the stock record for your dispensary. The medicine name stays in the catalogue.`)) return;
   const { error } = await supabase.from('inventory')
     .delete().eq('id', invId).eq('tenant_id', tenantId);
-  if (error) { _alert('error', 'Delete failed: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Delete failed.')); return; }
   _selectedIds.delete(invId);
   _alert('success', `"${name}" removed from inventory.`);
   await loadInventory();
@@ -741,7 +742,7 @@ async function deleteMedicine(invId, name) {
 async function toggleStatus(medId, isActive) {
   const { error } = await supabase.from('medicines')
     .update({ is_active: !isActive }).eq('id', medId);
-  if (error) { _alert('error', 'Status update failed: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Status update failed.')); return; }
   if (isActive) {
     // Switching to Inactive — auto-show All so row stays visible
     document.getElementById('filter-status').value = '';
@@ -782,7 +783,7 @@ document.getElementById('btn-bulk-del').addEventListener('click', async () => {
   if (!confirm(`Remove ${ids.length} medicine(s) from inventory?\n\nStock records will be deleted. Medicine names stay in the catalogue.`)) return;
   const { error } = await supabase.from('inventory')
     .delete().in('id', ids).eq('tenant_id', tenantId);
-  if (error) { _alert('error', 'Bulk delete failed: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Bulk delete failed.')); return; }
   _selectedIds.clear();
   _alert('success', `${ids.length} medicine(s) removed from inventory.`);
   await loadInventory();

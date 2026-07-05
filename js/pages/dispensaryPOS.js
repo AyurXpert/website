@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { logAudit } from '../core/auditLogger.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['pharmacist', 'super_admin', 'dept_admin']);
 initNavbar();
@@ -156,7 +157,7 @@ window.loadRegisterTable = async function() {
     .order('created_at', { ascending: false });
   if (type) q = q.eq('patient_type', type);
   const { data, error } = await q;
-  if (error) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:16px;color:#c0392b">${_esc(error.message)}</td></tr>`; return; }
+  if (error) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:16px;color:#c0392b">${_esc(safeErrorMessage(error, 'Could not load dispensing records.'))}</td></tr>`; return; }
   if (!data?.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--text-muted)">No dispensing records for this date/filter</td></tr>'; return; }
   let serial = 1;
   tbody.innerHTML = data.map(p => `<tr>
@@ -490,7 +491,7 @@ async function dispense() {
 
   } catch (err) {
     console.error(err);
-    _toast('Error: ' + (err.message || 'Please try again'), 'error');
+    _toast(safeErrorMessage(err, 'Please try again.'), 'error');
     btn.disabled = false;
     btn.textContent = '✓ Dispense & Generate Bill';
   }
@@ -717,7 +718,7 @@ window.saveNDPSEntry = async function() {
     transaction_type: type, quantity: qty, unit: 'units', balance: newBalance,
     notes: notes || null, created_by: userId, transaction_date: new Date().toISOString().slice(0,10),
   });
-  if (error) { _toast(error.message,'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not save NDPS entry.'),'error'); return; }
   _toast('NDPS entry saved','success');
   document.getElementById('ndps-qty').value = '';
   document.getElementById('ndps-notes').value = '';

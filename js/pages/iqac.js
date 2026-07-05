@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenantId, getCurrentTenant } 
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','receptionist'], 'index.html');
 initNavbar();
@@ -160,7 +161,7 @@ window.loadMeetings = async function() {
     if (error.code === '42P01') {
       tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div><div class="empty-bod">Run iqac_meetings SQL in Supabase to activate this module</div></div></td></tr>';
     } else {
-      tbody.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div></td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="9"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(safeErrorMessage(error, 'Could not load meetings.'))}</div></div></td></tr>`;
     }
     return;
   }
@@ -355,7 +356,7 @@ window.saveMeeting = async function() {
     if (error.code === '42P01') {
       showModalAlert('Run iqac_meetings SQL in Supabase SQL Editor first','error');
     } else {
-      showModalAlert(error.message,'error');
+      showModalAlert(safeErrorMessage(error, 'Could not save meeting.'),'error');
     }
     return;
   }

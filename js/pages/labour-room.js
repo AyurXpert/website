@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist'], 'index.html');
 initNavbar();
@@ -79,7 +80,7 @@ async function loadRegister() {
     if (error.code==='42P01') {
       tbody.innerHTML='<tr><td colspan="9"><div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div><div class="empty-bod">Run the deliveries table SQL in Supabase to activate this module</div></div></td></tr>';
     } else {
-      tbody.innerHTML=`<tr><td colspan="9"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div></td></tr>`;
+      tbody.innerHTML=`<tr><td colspan="9"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(safeErrorMessage(error, 'Could not load deliveries.'))}</div></div></td></tr>`;
     }
     return;
   }
@@ -211,7 +212,7 @@ window.saveDelivery = async function() {
   btn.disabled = false;
   if (error) {
     if (error.code==='42P01') { showAlert('new-alert','Run deliveries SQL in Supabase first','error'); }
-    else { showAlert('new-alert', error.message, 'error'); }
+    else { showAlert('new-alert', safeErrorMessage(error, 'Could not save delivery.'), 'error'); }
     return;
   }
   showAlert('new-alert','Delivery record saved successfully','success');
@@ -356,7 +357,7 @@ window.savePartographEntry = async function(delivId) {
     created_by: profile.id,
   };
   const { error } = await supabase.from('partograph_entries').insert(payload);
-  if (error) { _toast(error.message, true); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not save partograph entry.'), true); return; }
   _toast('Entry saved');
   loadPartographEntries(delivId);
 };

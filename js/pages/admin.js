@@ -4,6 +4,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase }   from '../core/db/supabaseClient.js';
 import { logAudit }   from '../core/auditLogger.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -431,7 +432,7 @@ window.loadStaffAccess = async function() {
     btn.addEventListener('click',async()=>{
       const id=btn.dataset.id; btn.disabled=true;
       const{error}=await supabase.from('profiles').update({status:'active',is_active:true,approved_by:profile.id,approved_at:new Date().toISOString()}).eq('id',id).eq('tenant_id',tenantId);
-      if(error){_toast('Failed: '+error.message,true);btn.disabled=false;}
+      if(error){_toast(safeErrorMessage(error,'Failed to approve staff.'),true);btn.disabled=false;}
       else{document.getElementById('arow-'+id)?.remove();_toast('Staff approved.');window.loadStaffAccess();loadStats();}
     });
   });
@@ -439,7 +440,7 @@ window.loadStaffAccess = async function() {
     btn.addEventListener('click',async()=>{
       const id=btn.dataset.id; btn.disabled=true;
       const{error}=await supabase.from('profiles').update({status:'rejected',approved_by:profile.id,approved_at:new Date().toISOString()}).eq('id',id).eq('tenant_id',tenantId);
-      if(error){_toast('Failed: '+error.message,true);btn.disabled=false;}
+      if(error){_toast(safeErrorMessage(error,'Failed to reject request.'),true);btn.disabled=false;}
       else{document.getElementById('arow-'+id)?.remove();_toast('Request rejected.');window.loadStaffAccess();loadStats();}
     });
   });
@@ -800,7 +801,7 @@ window.seedHrOrgStructure = async function(){
     const rows = topToCreate.map(def=>({tenant_id:tenantId, name:def.label, category:def.key, is_active:true}));
     const {data:inserted, error} = await supabase.from('departments').insert(rows)
       .select('id,name,ncism_code,category,parent_department_id');
-    if(error){ _toast('Seed failed: '+error.message,true); return; }
+    if(error){ _toast(safeErrorMessage(error,'Seed failed.'),true); return; }
     (inserted||[]).forEach(d=>{ byKey[d.category]=d; existing.push(d); });
   }
 
@@ -813,7 +814,7 @@ window.seedHrOrgStructure = async function(){
     }));
     const {data:inserted, error} = await supabase.from('departments').insert(rows)
       .select('id,name,ncism_code,category,parent_department_id');
-    if(error){ _toast('Seed failed: '+error.message,true); return; }
+    if(error){ _toast(safeErrorMessage(error,'Seed failed.'),true); return; }
     (inserted||[]).forEach(d=>{ byKey[d.category]=d; existing.push(d); });
   }
 
@@ -1363,7 +1364,7 @@ function renderStaffTable(staff){
 window.promoteToDeptAdmin = async function(staffId, staffName, previousRole){
   if(!confirm(`Promote ${staffName} to Dept. Admin? This grants full HR, Finance, Settings and Subscription access for your organisation. This cannot be undone from this screen.`)) return;
   const {error} = await supabase.rpc('promote_to_dept_admin', {p_staff_id: staffId});
-  if(error){ _toast('Could not promote: '+error.message, true); return; }
+  if(error){ _toast(safeErrorMessage(error,'Could not promote staff.'), true); return; }
   await logAudit('promote_to_dept_admin', 'profiles', staffId, {staff_name: staffName, previous_role: previousRole}, {tenantId, userId: profile.id, userName: profile.full_name});
   _toast(staffName+' promoted to Dept. Admin.');
   window.loadHR && window.loadHR('staff');
@@ -1372,7 +1373,7 @@ window.promoteToDeptAdmin = async function(staffId, staffName, previousRole){
 window.saveDesig = async function(sel){
   const id=sel.dataset.id, val=sel.value;
   const{error}=await supabase.from('profiles').update({designation:val||null}).eq('id',id).eq('tenant_id',tenantId);
-  if(error)_toast('Could not save: '+error.message,true);
+  if(error)_toast(safeErrorMessage(error,'Could not save designation.'),true);
   else{_toast('Designation updated.');const s=(window._staffAll||[]).find(x=>x.id===id);if(s)s.designation=val||null;}
 };
 
@@ -3191,7 +3192,7 @@ window.loadInfra = async function(){
 
 window.toggleInfra = async function(id, isPresent){
   const{error}=await supabase.from('infrastructure_items').update({is_present:isPresent,updated_by:profile.id,updated_at:new Date().toISOString()}).eq('id',id).eq('tenant_id',tenantId);
-  if(error){_toast('Could not save: '+error.message,true);return;}
+  if(error){_toast(safeErrorMessage(error,'Could not save infrastructure item.'),true);return;}
   const cbs=document.querySelectorAll('.infra-cb');
   const tot=cbs.length, pres=[...cbs].filter(c=>c.checked).length, pct=Math.round(pres/tot*100);
   document.getElementById('prog-lbl').textContent=`${pres} / ${tot} items present`;
@@ -4024,7 +4025,7 @@ window.savePkg = async function() {
   const { error } = id
     ? await supabase.from('packages').update(payload).eq('id', id)
     : await supabase.from('packages').insert(payload);
-  if (error) return _pkgAlert('error', 'Save failed: ' + error.message);
+  if (error) return _pkgAlert('error', safeErrorMessage(error, 'Save failed.'));
   closePkgForm();
   await _loadPkgTemplates();
 };
@@ -4106,7 +4107,7 @@ window.confirmSellPkg = async function() {
     notes: document.getElementById('sell-notes').value.trim()||null,
     sold_by: profile.id
   });
-  if (error) return _sellAlert('error','Failed: '+error.message);
+  if (error) return _sellAlert('error',safeErrorMessage(error,'Failed to sell package.'));
   closeSellPkg();
   if (_pkgTab==='sold') _loadSoldPkgs();
   _toast('✓ Package sold successfully');
@@ -4142,7 +4143,7 @@ window.loadModules = async function() {
   const el = document.getElementById('modules-body');
   const { data: t, error } = await supabase
     .from('tenants').select('modules, type').eq('id', tenantId).single();
-  if (error) { el.innerHTML = `<div class="alert show error">Error loading: ${_esc(error.message)}</div>`; return; }
+  if (error) { el.innerHTML = `<div class="alert show error">Error loading: ${_esc(safeErrorMessage(error, 'Could not load modules.'))}</div>`; return; }
 
   const defaults = _getDefaultModules(t.type);
   const saved    = t.modules || {};
@@ -4202,7 +4203,7 @@ async function _saveModules() {
     if (val !== def) overrides[key] = val;   // only store when admin overrides the default
   });
   const { error } = await supabase.from('tenants').update({ modules: overrides }).eq('id', tenantId);
-  if (error) { _toast('Save error: ' + error.message); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Save error.')); return; }
   _toast('✓ Modules saved — changes take effect on next login');
 }
 
@@ -4269,7 +4270,7 @@ window.saveNabhDetails = async function() {
   const { error } = await supabase.from('tenants').update({
     nabh_certificate_number: cert, nabh_level: level, nabh_expiry: expiry,
   }).eq('id', tenantId);
-  if (error) { alert(error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not save NABH details.')); return; }
   closeNabhModal();
   // Refresh tenant in sessionStorage
   const { data: fresh } = await supabase.from('tenants').select('*').eq('id', tenantId).single();
@@ -4354,7 +4355,7 @@ window.generateNAMSTE = async function() {
     .select('diagnosis_namc_code,diagnosis_namc_label')
     .eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00').lte('created_at',to+'T23:59:59')
     .not('diagnosis_namc_code','is',null);
-  if (error) { el.innerHTML = `<div style="color:#c0392b">${_esc(error.message)}</div>`; return; }
+  if (error) { el.innerHTML = `<div style="color:#c0392b">${_esc(safeErrorMessage(error, 'Could not load data.'))}</div>`; return; }
   const counts = {};
   (data||[]).forEach(cn => { const k = cn.diagnosis_namc_code; if (!k) return; if (!counts[k]) counts[k]={code:k,label:cn.diagnosis_namc_label||k,count:0}; counts[k].count++; });
   _namsteData = Object.values(counts).sort((a,b)=>b.count-a.count);
@@ -4448,7 +4449,7 @@ window.loadAbdmCallbacks = async function() {
     .select('id, callback_type, payload, created_at, processed')
     .order('created_at', { ascending: false })
     .limit(20);
-  if (error) { el.textContent = 'Error: ' + error.message; return; }
+  if (error) { el.textContent = safeErrorMessage(error, 'Could not load callbacks.'); return; }
   if (!data?.length) {
     el.innerHTML = '<span style="color:#dc2626;font-weight:600">⚠️ No callbacks received. If you scanned a QR and nothing shows here, the bridge URL is wrong.</span>';
     return;

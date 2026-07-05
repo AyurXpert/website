@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','nurse','doctor'], 'index.html');
 initNavbar();
@@ -244,14 +245,14 @@ window.saveDevice = async function() {
     notes:          document.getElementById('d-notes').value.trim() || null,
   };
   const { error } = await supabase.from('patient_devices').insert(payload);
-  if (error) { toast('Save failed: '+error.message, 'error'); return; }
+  if (error) { toast(safeErrorMessage(error, 'Save failed.'), 'error'); return; }
   toast('Device logged', 'success'); closeDevModal(); loadDevices();
 };
 
 window.markRemoved = async function(id) {
   const today = new Date().toISOString().slice(0,10);
   const { error } = await supabase.from('patient_devices').update({ removal_date: today }).eq('id', id);
-  if (error) { toast('Failed: '+error.message, 'error'); return; }
+  if (error) { toast(safeErrorMessage(error, 'Could not update device.'), 'error'); return; }
   toast('Marked as removed', 'success'); loadDevices();
 };
 
@@ -292,7 +293,7 @@ window.saveHAI = async function() {
     reported_by:      profile.id,
   };
   const { error } = await supabase.from('hai_events').insert(payload);
-  if (error) { toast('Save failed: '+error.message, 'error'); return; }
+  if (error) { toast(safeErrorMessage(error, 'Save failed.'), 'error'); return; }
   toast('HAI event reported', 'success'); closeHAIModal(); loadHAI();
 };
 
@@ -302,7 +303,7 @@ window.updateOutcome = async function(id) {
   const valid = ['resolved','ongoing','transferred','discharged','deceased'];
   if (!valid.includes(outcome.toLowerCase())) { toast('Invalid outcome', 'error'); return; }
   const { error } = await supabase.from('hai_events').update({ outcome: outcome.toLowerCase() }).eq('id', id);
-  if (error) { toast('Failed: '+error.message, 'error'); return; }
+  if (error) { toast(safeErrorMessage(error, 'Could not update outcome.'), 'error'); return; }
   toast('Updated', 'success'); loadHAI();
 };
 

@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile } from '../core/auth.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['platform_admin','super_admin','dept_admin'], 'login.html');
 initNavbar();
@@ -123,7 +124,7 @@ window.saveSubscription = async function() {
     p_trial_ends:  trialEnds,
   });
 
-  if (error) { _toast('❌ ' + error.message); return; }
+  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not update subscription.')); return; }
   _toast('✅ Subscription updated');
   closeModal();
   await init();

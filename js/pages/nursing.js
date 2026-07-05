@@ -3,6 +3,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/constants.js';
 import { requireAuth, getCurrentProfile, getCurrentTenant } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 requireAuth(['nurse','super_admin','dept_admin','doctor']);
 initNavbar();
@@ -146,7 +147,7 @@ window.saveVitals = async function() {
     pain_score:     document.getElementById('v-pain-score').value !== '' ? parseInt(document.getElementById('v-pain-score').value) : null,
   };
   const { error } = await supabase.from('nursing_vitals').insert(payload);
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not record vitals.')); return; }
   _alert('success', 'Vitals recorded.');
   ['v-temp','v-pulse','v-rr','v-spo2','v-bps','v-bpd','v-sugar','v-weight','v-obs'].forEach(id => {
     const el = document.getElementById(id); if(el) el.value='';
@@ -226,7 +227,7 @@ window.markGiven = async function(marId, time) {
     scheduled_time: time,
     status:         'given',
   });
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not update MAR.')); return; }
   loadMar();
 };
 
@@ -252,7 +253,7 @@ window.saveMarMed = async function() {
     added_by:      userId,
     is_active:     true,
   });
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not add medicine to MAR.')); return; }
   _alert('success', 'Medicine added to MAR.');
   closeAddMar();
   loadMar();
@@ -355,7 +356,7 @@ window.saveNote = async function() {
     note_time:    time,
     shift:        _shift,
   });
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not save note.')); return; }
   document.getElementById('note-text').value = '';
   _alert('success', 'Note saved.');
   loadNotes();
@@ -399,7 +400,7 @@ window.saveHandover = async function() {
     instructions:     document.getElementById('ho-instructions').value.trim() || null,
     handover_at:      new Date().toISOString(),
   });
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not save handover.')); return; }
   _alert('success', 'Handover saved.');
   loadHandovers();
 };
@@ -443,7 +444,7 @@ window.saveWardProcedure = async function() {
   const { error } = await supabase.from('ward_procedures').insert(payload);
   if (error) {
     if (error.code === '42P01') _alert('error','Run session32_ncism_gaps.sql in Supabase first');
-    else _alert('error', error.message);
+    else _alert('error', safeErrorMessage(error, 'Something went wrong. Please try again.'));
     return;
   }
   document.getElementById('wp-procedure').value = '';
@@ -536,7 +537,7 @@ window.saveRiskAssessment = async function(type) {
     };
   }
   const { error } = await supabase.from('risk_assessments').insert(payload);
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not save risk assessment.')); return; }
   document.getElementById('risk-saved-msg').style.display = '';
   setTimeout(() => { document.getElementById('risk-saved-msg').style.display = 'none'; }, 3000);
   loadRiskHistory();

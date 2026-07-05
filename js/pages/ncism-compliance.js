@@ -2,6 +2,7 @@ import { requireAuth, getCurrentTenantId, getCurrentRole } from '../core/auth.js
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','accountant']);
 initNavbar();
@@ -127,7 +128,7 @@ window.saveConfig = async function() {
     working_days_per_week: _cfg.workdays,
   }).eq('id', tenantId);
 
-  if (error) { _alert('error', 'Failed to save: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to save settings.')); return; }
   _alert('success','Settings saved.');
   loadAll();
 };
@@ -179,7 +180,7 @@ async function loadAll() {
       .eq('is_specialty_clinic', true),
   ]);
 
-  if (deptRes.error) { _alert('error','Failed: ' + deptRes.error.message); return; }
+  if (deptRes.error) { _alert('error',safeErrorMessage(deptRes.error, 'Failed to load departments.')); return; }
 
   const depts      = deptRes.data || [];
   const visits     = visitsRes.data || [];

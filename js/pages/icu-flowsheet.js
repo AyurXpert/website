@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth
 import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -202,7 +203,7 @@ window.saveEntry = async () => {
   };
 
   const {error} = await supabase.from('icu_flowsheets').insert(payload);
-  if (error){showToast('Error: '+error.message,'error');return;}
+  if (error){showToast(safeErrorMessage(error, 'Could not save entry.'),'error');return;}
   closeEntry();
   showToast('Entry saved','success');
   loadFlowsheet();

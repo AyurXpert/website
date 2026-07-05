@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist'], 'index.html');
 initNavbar();
@@ -106,7 +107,7 @@ window.saveDailyLog = async function() {
   btn.disabled = false;
   if (error) {
     if (error.code==='42P01') showAlert('daily-alert','Run bmw_daily_log SQL in Supabase first','error');
-    else showAlert('daily-alert', error.message,'error');
+    else showAlert('daily-alert', safeErrorMessage(error, 'Could not save daily log.'),'error');
     return;
   }
   showAlert('daily-alert','Entry saved ✓','success');
@@ -123,7 +124,7 @@ window.loadDailyTable = async function() {
   const { data, error } = await supabase.from('bmw_daily_log').select('*,departments(name)').eq('tenant_id',tenantId).eq('log_date',date).order('created_at',{ascending:false});
   if (error) {
     if (error.code==='42P01') tbody.innerHTML='<tr><td colspan="7"><div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div><div class="empty-bod">Run bmw_daily_log SQL in Supabase</div></div></td></tr>';
-    else tbody.innerHTML=`<tr><td colspan="7"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div></td></tr>`;
+    else tbody.innerHTML=`<tr><td colspan="7"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(safeErrorMessage(error, 'Could not load daily log.'))}</div></div></td></tr>`;
     return;
   }
   _dailyData = data || [];
@@ -183,7 +184,7 @@ window.savePickup = async function() {
   btn.disabled = false;
   if (error) {
     if (error.code==='42P01') showAlert('pickup-alert','Run bmw_pickups SQL in Supabase first','error');
-    else showAlert('pickup-alert', error.message,'error');
+    else showAlert('pickup-alert', safeErrorMessage(error, 'Could not save pickup.'),'error');
     return;
   }
   showAlert('pickup-alert','Pickup logged ✓','success');
@@ -196,7 +197,7 @@ async function loadPickupTable() {
   const { data, error } = await supabase.from('bmw_pickups').select('*').eq('tenant_id',tenantId).order('pickup_date',{ascending:false}).limit(50);
   if (error) {
     if (error.code==='42P01') tbody.innerHTML='<tr><td colspan="8"><div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div></div></td></tr>';
-    else tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div></td></tr>`;
+    else tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(safeErrorMessage(error, 'Could not load pickups.'))}</div></div></td></tr>`;
     return;
   }
   _pickupData = data || [];
@@ -244,7 +245,7 @@ window.saveTreatment = async function() {
   btn.disabled = false;
   if (error) {
     if (error.code==='42P01') showAlert('treat-alert','Run bmw_treatment_log SQL in Supabase first','error');
-    else showAlert('treat-alert', error.message,'error');
+    else showAlert('treat-alert', safeErrorMessage(error, 'Could not save treatment log.'),'error');
     return;
   }
   showAlert('treat-alert','Treatment cycle recorded ✓','success');
@@ -257,7 +258,7 @@ async function loadTreatmentTable() {
   const { data, error } = await supabase.from('bmw_treatment_log').select('*').eq('tenant_id',tenantId).order('treatment_date',{ascending:false}).order('created_at',{ascending:false}).limit(50);
   if (error) {
     if (error.code==='42P01') tbody.innerHTML='<tr><td colspan="9"><div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div></div></td></tr>';
-    else tbody.innerHTML=`<tr><td colspan="9"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div></td></tr>`;
+    else tbody.innerHTML=`<tr><td colspan="9"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(safeErrorMessage(error, 'Could not load treatment log.'))}</div></div></td></tr>`;
     return;
   }
   _treatData = data || [];

@@ -2,6 +2,7 @@ import { requireAuth, hasModule, getCurrentProfile, getCurrentTenantId } from '.
 import { initNavbar }  from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 wireDelegatedEvents();
 
@@ -105,7 +106,7 @@ window.loadAudits = async function() {
     .order('audit_year', { ascending: false });
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#c0392b;padding:16px">${error.code === '42P01' ? 'Run session32_ncism_gaps.sql to activate' : error.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#c0392b;padding:16px">${error.code === '42P01' ? 'Run session32_ncism_gaps.sql to activate' : _esc(safeErrorMessage(error, 'Could not load data.'))}</td></tr>`;
     return;
   }
   _audits = data || [];
@@ -148,7 +149,7 @@ window.saveAudit = async function() {
     report_url: document.getElementById('aud-url').value.trim() || null,
   };
   const { error } = await supabase.from('annual_audits').insert(payload);
-  if (error) { alert(error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not save audit.')); return; }
   closeAuditModal();
   loadAudits();
 };
@@ -191,7 +192,7 @@ async function loadBills(from, to) {
     .gte('created_at', from + 'T00:00:00')
     .lte('created_at', to + 'T23:59:59')
     .order('created_at', { ascending: false });
-  if (error) { _toast('Error: ' + error.message, 'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not load bills.'), 'error'); return; }
   _bills = data || [];
   renderRevenue(from, to);
   renderGST();
@@ -244,7 +245,7 @@ async function loadOutstanding() {
     .eq('tenant_id', tenantId)
     .in('status', ['pending','partial'])
     .order('created_at', { ascending: true });
-  if (error) { _toast('Error: ' + error.message, 'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not load outstanding dues.'), 'error'); return; }
   _outstanding = data || [];
   renderOutstanding();
   updateKPIs();
@@ -302,7 +303,7 @@ async function loadExpenses(from, to) {
       '<tr><td colspan="6" class="empty">Expense table not set up yet — run the SQL from the session notes to activate.</td></tr>';
     return;
   }
-  if (error) { _toast('Error: ' + error.message, 'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not load expenses.'), 'error'); return; }
   _expenses = data || [];
   renderExpenses(from, to);
   updateKPIs();
@@ -451,7 +452,7 @@ window.saveExpense = async function() {
     recorded_by: sess.id,
     approved_by_name: sess.full_name,
   });
-  if (error) { _toast('Error: ' + error.message, 'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not save expense.'), 'error'); return; }
   closeExpenseModal();
   _toast('Expense saved', 'success');
   const from = document.getElementById('date-from').value;
@@ -668,7 +669,7 @@ window.saveInsuranceDetails = async function() {
   btn.disabled = true; btn.textContent = 'Saving…';
   const {error} = await supabase.from('bills').update(payload).eq('id',_insBillId).eq('tenant_id',tenantId);
   btn.disabled = false; btn.textContent = 'Save Details';
-  if (error) { _toast('Error: '+error.message,'error'); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not save insurance details.'),'error'); return; }
   _toast('Insurance details saved','success');
   closeInsModal();
   _insLoaded = false;

@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -352,7 +353,7 @@ window.saveEquipment = async function() {
   let err;
   if (editId) { ({ error:err } = await supabase.from('equipment_register').update(payload).eq('id',editId)); }
   else        { ({ error:err } = await supabase.from('equipment_register').insert(payload)); }
-  if (err) { toast('Save failed: '+err.message, 'error'); return; }
+  if (err) { toast(safeErrorMessage(err, 'Save failed.'), 'error'); return; }
   toast(editId?'Equipment updated':'Equipment added', 'success');
   closeEqModal(); loadEquipment();
 };
@@ -401,7 +402,7 @@ window.saveDrill = async function() {
     conducted_by:       profile.id,
   };
   const { error } = await supabase.from('fire_drill_records').insert(payload);
-  if (error) { toast('Save failed: '+error.message, 'error'); return; }
+  if (error) { toast(safeErrorMessage(error, 'Save failed.'), 'error'); return; }
   toast('Drill record saved', 'success'); closeDrillModal(); loadDrills();
 };
 
@@ -466,7 +467,7 @@ window.saveExtinguisher = async function() {
   let err;
   if (editId) { ({ error:err } = await supabase.from('fire_extinguisher_register').update(payload).eq('id',editId)); }
   else        { ({ error:err } = await supabase.from('fire_extinguisher_register').insert(payload)); }
-  if (err) { toast('Save failed: '+err.message, 'error'); return; }
+  if (err) { toast(safeErrorMessage(err, 'Save failed.'), 'error'); return; }
   toast('Saved', 'success'); closeExtModal(); loadExtinguishers();
 };
 
@@ -492,7 +493,7 @@ window.saveUtility = async function() {
     created_by:        profile.id,
   };
   const { error } = await supabase.from('utility_maintenance_log').insert(payload);
-  if (error) { toast('Save failed: '+error.message, 'error'); return; }
+  if (error) { toast(safeErrorMessage(error, 'Save failed.'), 'error'); return; }
   toast('Logged', 'success'); closeUtilModal(); loadUtilities();
 };
 
@@ -534,7 +535,7 @@ window.saveMaintenance = async function() {
     await supabase.from('equipment_register').update({ next_calibration_date: payload.next_due_date, last_calibration_date: date, updated_at: new Date().toISOString() }).eq('id', equipId);
   }
   const { error } = await supabase.from('equipment_maintenance_log').insert(payload);
-  if (error) { toast('Save failed: '+error.message, 'error'); return; }
+  if (error) { toast(safeErrorMessage(error, 'Save failed.'), 'error'); return; }
   toast('Maintenance logged', 'success'); closeMaintModal(); loadMaintenance(); loadEquipment();
 };
 

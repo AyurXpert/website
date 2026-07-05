@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist'], 'index.html');
 initNavbar();
@@ -167,7 +168,7 @@ window.saveCycle = async function() {
   btn.disabled = false;
   if (error) {
     if (error.code==='42P01') showAlert('cycle-alert','Run sterilisation_cycles SQL in Supabase first','error');
-    else showAlert('cycle-alert', error.message,'error');
+    else showAlert('cycle-alert', safeErrorMessage(error, 'Could not save cycle.'),'error');
     return;
   }
 
@@ -199,7 +200,7 @@ window.loadCycleTable = async function() {
 
   if (error) {
     if (error.code==='42P01') tbody.innerHTML='<tr><td colspan="9"><div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div></div></td></tr>';
-    else tbody.innerHTML=`<tr><td colspan="9"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div></td></tr>`;
+    else tbody.innerHTML=`<tr><td colspan="9"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(safeErrorMessage(error, 'Could not load cycles.'))}</div></div></td></tr>`;
     return;
   }
   _cycleData = data || [];
@@ -287,7 +288,7 @@ window.saveBI = async function() {
   btn.disabled = false;
   if (error) {
     if (error.code==='42P01') showAlert('bi-alert','Run sterilisation_cycles SQL in Supabase first','error');
-    else showAlert('bi-alert',error.message,'error');
+    else showAlert('bi-alert',safeErrorMessage(error, 'Could not save BI test.'),'error');
     return;
   }
 
@@ -313,7 +314,7 @@ async function loadBITable() {
 
   if (error) {
     if (error.code==='42P01') tbody.innerHTML='<tr><td colspan="8"><div class="empty"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div></div></td></tr>';
-    else tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div></td></tr>`;
+    else tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(safeErrorMessage(error, 'Could not load BI tests.'))}</div></div></td></tr>`;
     return;
   }
   _biData = data || [];
@@ -399,7 +400,7 @@ window.saveEquipment = async function() {
   btn.disabled = false;
   if (error) {
     if (error.code==='42P01') showAlert('equip-alert','Run sterilisation_equipment SQL in Supabase first','error');
-    else showAlert('equip-alert',error.message,'error');
+    else showAlert('equip-alert',safeErrorMessage(error, 'Could not save equipment record.'),'error');
     return;
   }
   closeEquipModal();
@@ -412,7 +413,7 @@ async function loadEquipGrid() {
   const { data, error } = await supabase.from('sterilisation_equipment').select('*').eq('tenant_id',tenantId).order('name');
   if (error) {
     if (error.code==='42P01') { wrap.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">🔧</div><div class="empty-ttl">SQL not yet run</div><div class="empty-bod">Run sterilisation_equipment SQL in Supabase</div></div>'; return; }
-    wrap.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(error.message)}</div></div>`; return;
+    wrap.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="empty-ico">❌</div><div class="empty-ttl">${_esc(safeErrorMessage(error, 'Could not load equipment.'))}</div></div>`; return;
   }
   _equipData = data || [];
   if (!_equipData.length) { wrap.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚙</div><div class="empty-ttl">No equipment registered yet</div><div class="empty-bod">Add your autoclaves and other sterilisation equipment to start tracking</div></div>'; return; }

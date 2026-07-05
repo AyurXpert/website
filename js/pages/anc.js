@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['doctor','nurse','super_admin','dept_admin','receptionist']);
 initNavbar();
@@ -87,7 +88,7 @@ async function loadAncVisits() {
     .eq('tenant_id', tenantId)
     .eq('patient_id', _patient.id)
     .order('visit_date');
-  if (error) { _alert('error', 'Error loading visits: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not load visits.')); return; }
   _ancVisits = data || [];
   renderAncTable();
   updateStats();
@@ -223,7 +224,7 @@ window.saveVisit = async function() {
   };
 
   const { error } = await supabase.from('anc_visits').insert(payload);
-  if (error) { _alert('error', 'Error saving: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not save ANC visit.')); return; }
   _alert('success', 'ANC visit saved.');
   closeVisitModal();
   await loadAncVisits();
@@ -280,7 +281,7 @@ window.loadGarbhaSessions = async function() {
     .eq('patient_id', _patient.id)
     .order('session_date', { ascending: false });
   if (error) {
-    el.innerHTML = error.code === '42P01' ? '<em style="color:var(--text-muted)">Run session32_ncism_gaps.sql to activate this module.</em>' : error.message;
+    el.innerHTML = error.code === '42P01' ? '<em style="color:var(--text-muted)">Run session32_ncism_gaps.sql to activate this module.</em>' : safeErrorMessage(error, 'Could not load sessions.');
     return;
   }
   _garbhaSessions = data || [];
@@ -310,7 +311,7 @@ window.saveGarbhaSession = async function() {
     facilitator_id:   profile.id,
     attendance:       true,
   });
-  if (error) { alert(error.message); return; }
+  if (error) { alert(safeErrorMessage(error, 'Could not save session.')); return; }
   closeGarbhaModal();
   loadGarbhaSessions();
 };

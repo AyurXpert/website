@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenant } from '../core/auth.j
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','therapist','receptionist'], 'index.html');
 initNavbar();
@@ -35,7 +36,7 @@ window.loadQueue = async function() {
     .order('created_at');
 
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${error.code==='42P01'?'Run session32_ncism_gaps.sql first':_esc(error.message)}</div></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-ico">❌</div><div class="empty-ttl">${error.code==='42P01'?'Run session32_ncism_gaps.sql first':_esc(safeErrorMessage(error, 'Could not load data.'))}</div></div></td></tr>`;
     return;
   }
   if (!data?.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="empty-ico">🏃</div><div class="empty-ttl">No sessions today</div><div class="empty-sub">Click + New Session to add one</div></div></td></tr>'; return; }
@@ -224,7 +225,7 @@ window.saveSession = async function() {
     status:               document.getElementById('m-status').value,
   });
 
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not save session.')); return; }
   closeSessionModal();
   _alert('success','Session saved');
   loadQueue();

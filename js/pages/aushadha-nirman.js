@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth
 import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','pharmacist','doctor']);
 initNavbar();
@@ -158,7 +159,7 @@ window.savePrep = async () => {
   const {error} = id
     ? await supabase.from('aushadha_nirman_register').update(payload).eq('id',id).eq('tenant_id',tenantId)
     : await supabase.from('aushadha_nirman_register').insert(payload);
-  if (error){showToast('Error: '+error.message,'error');return;}
+  if (error){showToast(safeErrorMessage(error, 'Could not save record.'),'error');return;}
   closeModal('prep-modal');
   showToast('Saved successfully','success');
   loadRegister(); loadKPIs();

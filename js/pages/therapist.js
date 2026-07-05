@@ -2,6 +2,7 @@ import { requireAuth, getCurrentTenantId, getCurrentRole, getCurrentProfile } fr
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 /*
   SQL to run once in Supabase:
@@ -79,7 +80,7 @@ async function loadAll() {
   ]);
 
   if (sessRes.error) {
-    _alert('error', 'Failed to load sessions: ' + sessRes.error.message
+    _alert('error', safeErrorMessage(sessRes.error, 'Failed to load sessions.')
       + (sessRes.error.code === '42501' ? ' — Run the RLS SQL shown in source comments.' : ''));
     return;
   }
@@ -463,7 +464,7 @@ window.saveSession = async function() {
   });
 
   btn.disabled = false; btn.textContent = 'Schedule';
-  if (error) { _alert('error','Save failed: ' + error.message); return; }
+  if (error) { _alert('error',safeErrorMessage(error, 'Save failed.')); return; }
   closeSchedDrawer();
   _alert('success','Session scheduled.');
   await loadAll();
@@ -488,7 +489,7 @@ window.quickStart = async function(id) {
   const { error } = await supabase.from('pk_therapy_sessions')
     .update({ status: 'in_progress', actual_start: now.toISOString() })
     .eq('id', id);
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not update session.')); return; }
   _alert('success', 'Session marked in progress.');
   await loadAll();
 };
@@ -585,7 +586,7 @@ window.saveCompletion = async function() {
   btn.disabled = false;
   btn.textContent = isSkip ? 'Mark Skipped' : 'Mark Completed';
 
-  if (error) { _alert('error', error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not update session.')); return; }
   closeCompleteDrawer();
 
   // NCISM §47(vii) — Post-PK review alert when last Paschatkarma session completes
@@ -769,7 +770,7 @@ window.saveKitAudit = async function() {
   });
   if (error) {
     if (error.code === '42P01') alert('Run session32_ncism_gaps.sql in Supabase first');
-    else alert(error.message);
+    else alert(safeErrorMessage(error, 'Something went wrong. Please try again.'));
     return;
   }
   const saved = document.getElementById('ka-saved');

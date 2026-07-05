@@ -3,6 +3,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -165,7 +166,7 @@ window.saveRequest = async () => {
     indication:document.getElementById('r-indication').value.trim()||null,
     requested_by:profile.id, status:'requested'
   });
-  if (error){showToast('Error: '+error.message,'error');return;}
+  if (error){showToast(safeErrorMessage(error, 'Could not submit request.'),'error');return;}
   closeModal('req-modal');
   showToast('Request submitted','success');
   loadRequests(); loadKPIs();
@@ -194,7 +195,7 @@ window.saveBag = async () => {
     notes:document.getElementById('b-notes').value.trim()||null,
     created_by:profile.id
   });
-  if (error){showToast('Error: '+error.message,'error');return;}
+  if (error){showToast(safeErrorMessage(error, 'Could not add blood bag.'),'error');return;}
   closeModal('bag-modal');
   showToast('Blood bag added','success');
   loadInventory(); loadStockSummary(); loadKPIs();
@@ -217,7 +218,7 @@ window.saveCrossmatch = async () => {
     bag_number:bag||null, status:newStatus,
     notes:document.getElementById('cm-notes').value.trim()||null
   }).eq('id',id).eq('tenant_id',tenantId);
-  if (error){showToast('Error: '+error.message,'error');return;}
+  if (error){showToast(safeErrorMessage(error, 'Could not update cross-match.'),'error');return;}
   closeModal('cm-modal');
   showToast('Cross-match updated','success');
   loadRequests(); loadCrossmatch(); loadKPIs();
@@ -226,7 +227,7 @@ window.saveCrossmatch = async () => {
 window.issueBlood = async (id) => {
   if (!confirm('Mark this blood unit as issued to patient?')) return;
   const {error} = await supabase.from('blood_bank_requests').update({status:'issued',issued_at:new Date().toISOString(),issued_by:profile.id}).eq('id',id).eq('tenant_id',tenantId);
-  if (error){showToast('Error: '+error.message,'error');return;}
+  if (error){showToast(safeErrorMessage(error, 'Could not issue blood.'),'error');return;}
   await supabase.from('blood_bank_inventory').update({status:'issued'}).eq('tenant_id',tenantId).eq('status','reserved');
   showToast('Blood issued','success');
   loadRequests(); loadKPIs();

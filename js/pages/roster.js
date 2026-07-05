@@ -2,6 +2,7 @@ import { requireAuth, getCurrentTenantId, getCurrentProfile } from '../core/auth
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { safeErrorMessage } from '../utils/errors.js';
 
 await requireAuth(['super_admin', 'dept_admin']);
 initNavbar();
@@ -304,7 +305,7 @@ window.saveShift = async function() {
 
   btn.disabled = false; btn.textContent = 'Save Assignment';
 
-  if (error) { _alert('error', 'Failed: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not save shift.')); return; }
   closeModal();
   _alert('success', 'Shift assigned.');
   await loadRoster();
@@ -313,7 +314,7 @@ window.saveShift = async function() {
 window.removeShift = async function() {
   if (!_editEntry || !confirm('Remove this shift assignment?')) return;
   const { error } = await supabase.from('duty_roster').delete().eq('id', _editEntry.id);
-  if (error) { _alert('error', 'Failed: ' + error.message); return; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not remove shift.')); return; }
   closeModal();
   _alert('success', 'Shift removed.');
   await loadRoster();
