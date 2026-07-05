@@ -4,6 +4,8 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Palha-Diet Centre — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <link rel="icon" href="assets/icon.svg"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
@@ -126,12 +128,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <!-- Indent queue -->
     <div>
       <div class="filter-tabs">
-        <button class="filter-tab active" data-filter="active" onclick="setFilter('active',this)">Active</button>
-        <button class="filter-tab" data-filter="pending" onclick="setFilter('pending',this)">Pending</button>
-        <button class="filter-tab" data-filter="in_preparation" onclick="setFilter('in_preparation',this)">In Preparation</button>
-        <button class="filter-tab" data-filter="dispatched" onclick="setFilter('dispatched',this)">Dispatched</button>
-        <button class="filter-tab" data-filter="served" onclick="setFilter('served',this)">Served</button>
-        <button class="filter-tab" data-filter="all" onclick="setFilter('all',this)">All Today</button>
+        <button class="filter-tab active" data-filter="active" data-onclick="setFilter" data-onclick-a0="active" data-onclick-a1="@this">Active</button>
+        <button class="filter-tab" data-filter="pending" data-onclick="setFilter" data-onclick-a0="pending" data-onclick-a1="@this">Pending</button>
+        <button class="filter-tab" data-filter="in_preparation" data-onclick="setFilter" data-onclick-a0="in_preparation" data-onclick-a1="@this">In Preparation</button>
+        <button class="filter-tab" data-filter="dispatched" data-onclick="setFilter" data-onclick-a0="dispatched" data-onclick-a1="@this">Dispatched</button>
+        <button class="filter-tab" data-filter="served" data-onclick="setFilter" data-onclick-a0="served" data-onclick-a1="@this">Served</button>
+        <button class="filter-tab" data-filter="all" data-onclick="setFilter" data-onclick-a0="all" data-onclick-a1="@this">All Today</button>
       </div>
       <div id="indent-list">
         <div class="indent-empty">Loading indents…</div>
@@ -143,7 +145,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="sop-hdr">📖 Preparation SOP Reference</div>
 
       <div class="sop-item">
-        <button class="sop-toggle" onclick="toggleSop(this)">
+        <button class="sop-toggle" data-onclick="toggleSop" data-onclick-a0="@this">
           <span><span class="type-badge type-kashaya">Kashaya</span> Decoction</span><span>▼</span>
         </button>
         <div class="sop-body">
@@ -158,7 +160,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       </div>
 
       <div class="sop-item">
-        <button class="sop-toggle" onclick="toggleSop(this)">
+        <button class="sop-toggle" data-onclick="toggleSop" data-onclick-a0="@this">
           <span><span class="type-badge type-swarasa">Swarasa</span> Fresh Juice</span><span>▼</span>
         </button>
         <div class="sop-body">
@@ -172,7 +174,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       </div>
 
       <div class="sop-item">
-        <button class="sop-toggle" onclick="toggleSop(this)">
+        <button class="sop-toggle" data-onclick="toggleSop" data-onclick-a0="@this">
           <span><span class="type-badge type-ksheerapaka">Ksheerapaka</span> Milk Decoction</span><span>▼</span>
         </button>
         <div class="sop-body">
@@ -187,7 +189,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       </div>
 
       <div class="sop-item">
-        <button class="sop-toggle" onclick="toggleSop(this)">
+        <button class="sop-toggle" data-onclick="toggleSop" data-onclick-a0="@this">
           <span><span class="type-badge type-kalka">Kalka</span> Paste / Electuary</span><span>▼</span>
         </button>
         <div class="sop-body">
@@ -201,7 +203,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       </div>
 
       <div class="sop-item">
-        <button class="sop-toggle" onclick="toggleSop(this)">
+        <button class="sop-toggle" data-onclick="toggleSop" data-onclick-a0="@this">
           <span><span class="type-badge type-pathya_diet">Pathya</span> Therapeutic Diet</span><span>▼</span>
         </button>
         <div class="sop-body">
@@ -221,146 +223,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
 <div class="toast" id="toast"></div>
 
-<script type="module">
-import { requireAuth, getCurrentTenantId, getCurrentProfile } from './js/core/auth.js';
-import { initNavbar } from './js/components/navbar.js';
-import { supabase } from './js/core/db/supabaseClient.js';
-
-await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist','diet_staff']);
-initNavbar();
-
-const tenantId = getCurrentTenantId();
-const myProfile = getCurrentProfile();
-let _indents = [];
-let _filter  = 'active';
-
-// ── Load ─────────────────────────────────────────
-async function loadIndents() {
-  const today = new Date().toISOString().slice(0,10);
-  const { data } = await supabase
-    .from('palha_diet_indents')
-    .select(`
-      id, preparation_name, preparation_type, quantity, supply_date, supply_time,
-      special_instructions, status, created_at,
-      patients(name),
-      ipd:ipd_admissions(beds(bed_number,ward_name)),
-      prescribed:profiles!prescribed_by(full_name)
-    `)
-    .eq('tenant_id', tenantId)
-    .eq('supply_date', today)
-    .order('supply_time', { ascending: true, nullsFirst: false })
-    .order('created_at', { ascending: true });
-
-  _indents = data || [];
-  updateStats();
-  renderIndents();
-}
-
-function updateStats() {
-  document.getElementById('stat-pending').textContent    = _indents.filter(i=>i.status==='pending').length;
-  document.getElementById('stat-inprep').textContent     = _indents.filter(i=>i.status==='in_preparation').length;
-  document.getElementById('stat-dispatched').textContent = _indents.filter(i=>i.status==='dispatched').length;
-  document.getElementById('stat-served').textContent     = _indents.filter(i=>i.status==='served').length;
-}
-
-function renderIndents() {
-  const filtered = _filter === 'all'    ? _indents
-                 : _filter === 'active' ? _indents.filter(i=>['pending','in_preparation','dispatched'].includes(i.status))
-                 : _indents.filter(i=>i.status===_filter);
-
-  const list = document.getElementById('indent-list');
-  if (!filtered.length) {
-    list.innerHTML = `<div class="indent-empty">No indents for this filter.<br><span style="font-size:11px">Indents are created from the IPD ward page.</span></div>`;
-    return;
-  }
-
-  const TYPE_LABEL = { kashaya:'Kashaya', swarasa:'Swarasa', ksheerapaka:'Ksheerapaka', kalka:'Kalka', pathya_diet:'Pathya Diet', special:'Special' };
-  const STATUS_NEXT = { pending:'in_preparation', in_preparation:'dispatched', dispatched:'served' };
-  const STATUS_BTN  = { pending:'▶ Start Preparation', in_preparation:'📦 Mark Dispatched', dispatched:'✓ Mark Served' };
-  const STATUS_CLASS = { pending:'btn-start', in_preparation:'btn-dispatch', dispatched:'btn-served' };
-
-  list.innerHTML = filtered.map(i => {
-    const pt   = i.patients?.name || '—';
-    const bed  = i.ipd?.beds?.bed_number ? `Bed ${i.ipd.beds.bed_number}` : '';
-    const ward = i.ipd?.beds?.ward_name  || '';
-    const timeStr = i.supply_time ? i.supply_time.slice(0,5) : '—';
-    const doctor  = i.prescribed?.full_name || '—';
-    const typeLabel = TYPE_LABEL[i.preparation_type] || i.preparation_type;
-    const nextStatus = STATUS_NEXT[i.status];
-    const canCancel  = ['pending','in_preparation'].includes(i.status);
-
-    return `<div class="indent-card ${i.status}">
-      <div class="indent-card-top">
-        <div>
-          <span class="type-badge type-${i.preparation_type}">${typeLabel}</span>
-          <div class="indent-prep-name">${_esc(i.preparation_name)}</div>
-        </div>
-        <div class="indent-time">${timeStr}</div>
-      </div>
-      <div class="indent-patient">
-        👤 <strong>${_esc(pt)}</strong>${bed ? ` · ${_esc(bed)}` : ''}${ward ? ` · ${_esc(ward)}` : ''}
-        ${i.quantity ? ` · <strong>${_esc(i.quantity)}</strong>` : ''}
-      </div>
-      ${i.special_instructions ? `<div class="indent-instructions">📌 ${_esc(i.special_instructions)}</div>` : ''}
-      <div class="indent-meta">Prescribed by: ${_esc(doctor)} · Created: ${new Date(i.created_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</div>
-      ${nextStatus ? `<div class="indent-actions">
-        <button class="btn-action ${STATUS_CLASS[i.status]}" onclick="updateStatus('${i.id}','${nextStatus}')">${STATUS_BTN[i.status]}</button>
-        ${canCancel ? `<button class="btn-action btn-cancel" onclick="updateStatus('${i.id}','cancelled')">Cancel</button>` : ''}
-      </div>` : (i.status==='served' ? `<div style="font-size:11px;color:var(--success-text);margin-top:8px;font-weight:600">✓ Served</div>` : (i.status==='cancelled' ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">Cancelled</div>` : ''))}
-    </div>`;
-  }).join('');
-}
-
-window.updateStatus = async function(id, newStatus) {
-  const patch = { status: newStatus };
-  if (newStatus === 'served') {
-    patch.fulfilled_by = myProfile?.id;
-    patch.fulfilled_at = new Date().toISOString();
-  }
-  const { error } = await supabase.from('palha_diet_indents').update(patch).eq('id', id);
-  if (error) { _toast('Error: ' + error.message, true); return; }
-  const label = { in_preparation:'In preparation', dispatched:'Dispatched', served:'Served ✓', cancelled:'Cancelled' }[newStatus] || newStatus;
-  _toast(`Status updated: ${label}`);
-  await loadIndents();
-};
-
-window.setFilter = function(f, el) {
-  _filter = f;
-  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  renderIndents();
-};
-
-window.toggleSop = function(btn) {
-  const body = btn.nextElementSibling;
-  const isOpen = body.classList.toggle('open');
-  btn.querySelector('span:last-child').textContent = isOpen ? '▲' : '▼';
-};
-
-function _esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function _toast(msg, isErr) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.style.background = isErr ? '#8b1a1a' : '#1a4a2e';
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
-
-// ── Realtime ─────────────────────────────────────
-supabase.channel('palha-diet-live')
-  .on('postgres_changes', {
-    event: '*', schema: 'public', table: 'palha_diet_indents',
-    filter: `tenant_id=eq.${tenantId}`
-  }, loadIndents)
-  .subscribe();
-
-// ── Boot ─────────────────────────────────────────
-document.getElementById('navbar-placeholder').innerHTML = '';
-initNavbar();
-await loadIndents();
-</script>
+<script type="module" src="js/pages/palha-diet.js"></script>
 </body>
 </html>
