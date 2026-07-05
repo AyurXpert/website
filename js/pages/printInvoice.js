@@ -130,6 +130,7 @@ async function loadInvoice() {
     const lineTotal = price * qty
     total += lineTotal
 
+    // nosemgrep: javascript.browser.security.raw-html-concat.raw-html-concat -- name is escaped via _esc(); qty/price/lineTotal are Number()-coerced, not user strings
     tbody.innerHTML += `
       <tr>
         <td class="border p-2">${_esc(name)}</td>

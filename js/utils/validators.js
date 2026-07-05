@@ -3,6 +3,7 @@
 // signup.html, register.html, and login.js.
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// eslint-disable-next-line security/detect-unsafe-regex -- reviewed: linear-time (bounded optional prefix + fixed-length digit match), no nested/overlapping repetition, not vulnerable to ReDoS
 const PHONE_RE = /^(\+91[\-\s]?)?[6-9]\d{9}$/;
 
 export function isValidEmail(email) {
