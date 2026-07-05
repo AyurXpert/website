@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <title>AyurXpert Technologies&#8482; — Digital Health Solutions for Ayurveda</title>
 <meta name="description" content="AyurXpert Technologies provides secure, cloud-based health information management software for Ayurveda healthcare organisations across India."/>
@@ -452,13 +452,13 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);
     </button>
   </div>
   <div class="nav-mobile" id="nav-mobile">
-  <a href="#about"      class="nav-link" onclick="closeMobile()">About</a>
-  <a href="#objectives" class="nav-link" onclick="closeMobile()">Objectives</a>
-  <a href="#abdm"       class="nav-link" onclick="closeMobile()">ABDM</a>
-  <a href="#contact"    class="nav-link" onclick="closeMobile()">Contact</a>
+  <a href="#about"      class="nav-link" data-onclick="closeMobile">About</a>
+  <a href="#objectives" class="nav-link" data-onclick="closeMobile">Objectives</a>
+  <a href="#abdm"       class="nav-link" data-onclick="closeMobile">ABDM</a>
+  <a href="#contact"    class="nav-link" data-onclick="closeMobile">Contact</a>
   <a href="register.html" class="nav-link">Register</a>
   <a href="login.html" class="nav-link">Staff Login</a>
-  <a href="#contact" class="nav-link mobile-cta" onclick="closeMobile()">Get in Touch</a>
+  <a href="#contact" class="nav-link mobile-cta" data-onclick="closeMobile">Get in Touch</a>
 </div>
 </nav>
 
@@ -780,18 +780,6 @@ body{font-family:'DM Sans',sans-serif;color:var(--text);background:var(--white);
   </div>
 </footer>
 
-<script>
-const btn = document.getElementById('nav-hamburger');
-const mob = document.getElementById('nav-mobile');
-btn.addEventListener('click', () => {
-  btn.classList.toggle('open');
-  mob.classList.toggle('open');
-});
-function closeMobile() {
-  btn.classList.remove('open');
-  mob.classList.remove('open');
-}
-document.addEventListener('click', e => { if (!e.target.closest('.nav')) closeMobile(); });
-</script>
+<script type="module" src="js/pages/home.js"></script>
 </body>
 </html>
