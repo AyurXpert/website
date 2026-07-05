@@ -4,6 +4,8 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Aushadha Nirman Register — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <link rel="icon" href="assets/icon.svg"/>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
 <style>
@@ -70,6 +72,11 @@ tr:hover td{background:#f9fdfb}
 .empty{text-align:center;padding:36px 20px;color:var(--text-muted);font-size:13px}
 .toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;color:#fff;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
 .toast.show{opacity:1}.toast.success{background:#2d7a4f}.toast.error{background:var(--red)}
+.search-results{display:none;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;margin-top:4px;background:var(--white)}
+.search-item{padding:7px 10px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border)}
+.search-item:last-child{border-bottom:none}
+.search-item:hover{background:var(--green-light)}
+.staff-tag{display:none;margin-top:4px;font-size:11px;color:var(--green-mid);font-weight:600}
 @media(max-width:600px){.field-row,.field-row.col3{grid-template-columns:1fr}}
 </style>
 </head>
@@ -90,7 +97,7 @@ tr:hover td{background:#f9fdfb}
   </div>
 
   <div class="toolbar">
-    <select id="f-type" onchange="loadRegister()">
+    <select id="f-type" data-onchange="loadRegister">
       <option value="">All Preparation Types</option>
       <option value="churna">Churna (Powder)</option>
       <option value="vati">Vati / Gutika</option>
@@ -102,16 +109,16 @@ tr:hover td{background:#f9fdfb}
       <option value="avaleha">Avaleha / Lehya</option>
       <option value="other">Other</option>
     </select>
-    <select id="f-status" onchange="loadRegister()">
+    <select id="f-status" data-onchange="loadRegister">
       <option value="active">Active</option>
       <option value="">All Status</option>
       <option value="depleted">Depleted</option>
       <option value="recalled">Recalled</option>
       <option value="expired">Expired</option>
     </select>
-    <input type="month" id="f-month" onchange="loadRegister()"/>
-    <button class="btn btn-primary" onclick="openNew()">+ New Preparation</button>
-    <button class="btn btn-outline" onclick="exportCSV()">⬇ CSV</button>
+    <input type="month" id="f-month" data-onchange="loadRegister"/>
+    <button class="btn btn-primary" data-onclick="openNew">+ New Preparation</button>
+    <button class="btn btn-outline" data-onclick="exportCSV">⬇ CSV</button>
   </div>
 
   <div class="card">
@@ -178,8 +185,20 @@ tr:hover td{background:#f9fdfb}
       <textarea id="p-ingredients" placeholder="e.g. Haritaki 33g, Bibhitaki 33g, Amalaki 33g — equal parts dried fruit powder…"></textarea>
     </div>
     <div class="field-row">
-      <div class="field"><label>Prepared By</label><input id="p-prepby" type="text" placeholder="Pharmacist name"/></div>
-      <div class="field"><label>Supervised By</label><input id="p-supby" type="text" placeholder="Vaidya / HOD name"/></div>
+      <div class="field">
+        <label>Prepared By</label>
+        <input id="p-prepby-search" type="text" placeholder="Search pharmacist by name…" autocomplete="off" data-oninput="debouncePrepbySearch" data-oninput-a0="@value"/>
+        <div id="p-prepby-results" class="search-results"></div>
+        <input type="hidden" id="p-prepby-id"/>
+        <div id="p-prepby-tag" class="staff-tag"></div>
+      </div>
+      <div class="field">
+        <label>Supervised By</label>
+        <input id="p-supby-search" type="text" placeholder="Search doctor by name…" autocomplete="off" data-oninput="debounceSupbySearch" data-oninput-a0="@value"/>
+        <div id="p-supby-results" class="search-results"></div>
+        <input type="hidden" id="p-supby-id"/>
+        <div id="p-supby-tag" class="staff-tag"></div>
+      </div>
     </div>
     <div class="field"><label>Classical Reference</label>
       <input id="p-ref" type="text" placeholder="e.g. Charaka Samhita Chikitsa Sthana 1/3–7"/>
@@ -213,8 +232,8 @@ tr:hover td{background:#f9fdfb}
       <textarea id="p-notes" style="min-height:40px" placeholder="Any remarks…"></textarea>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-outline" onclick="closeModal('prep-modal')">Cancel</button>
-      <button class="btn btn-primary" onclick="savePrep()">Save Record</button>
+      <button class="btn btn-outline" data-onclick="closeModal" data-onclick-a0="prep-modal">Cancel</button>
+      <button class="btn btn-primary" data-onclick="savePrep">Save Record</button>
     </div>
   </div>
 </div>
@@ -225,214 +244,14 @@ tr:hover td{background:#f9fdfb}
     <h2 id="d-title">Preparation Detail</h2>
     <div id="d-body" class="detail-box"></div>
     <div class="modal-actions">
-      <button class="btn btn-outline" onclick="closeModal('detail-modal')">Close</button>
-      <button class="btn btn-primary" onclick="printDetail()">🖨 Print</button>
+      <button class="btn btn-outline" data-onclick="closeModal" data-onclick-a0="detail-modal">Close</button>
+      <button class="btn btn-primary" data-onclick="printDetail">🖨 Print</button>
     </div>
   </div>
 </div>
 
 <div id="toast" class="toast"></div>
 
-<script type="module">
-import { requireAuth } from './js/core/auth.js';
-import { supabase } from './js/core/db/supabaseClient.js';
-import { initNavbar } from './js/components/navbar.js';
-
-requireAuth(['super_admin','dept_admin','pharmacist','doctor']);
-initNavbar();
-
-const profile = JSON.parse(sessionStorage.getItem('profile') || '{}');
-const tenantId = profile.tenant_id;
-
-// Set current month default
-const now = new Date();
-document.getElementById('f-month').value = now.toISOString().slice(0,7);
-document.getElementById('f-status').value = 'active';
-
-async function loadKPIs() {
-  const today = new Date().toISOString().split('T')[0];
-  const exp30 = new Date(); exp30.setDate(exp30.getDate()+30);
-  const monthStart = now.toISOString().slice(0,7)+'-01';
-
-  const [active, qcpend, qcpass, expiring, monthly] = await Promise.all([
-    supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('status','active'),
-    supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('qc_done',false),
-    supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('qc_result','pass'),
-    supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('status','active').lte('expiry_date',exp30.toISOString().split('T')[0]).gte('expiry_date',today),
-    supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).gte('preparation_date',monthStart),
-  ]);
-
-  document.getElementById('k-active').textContent = active.count??0;
-  document.getElementById('k-qcpend').textContent = qcpend.count??0;
-  document.getElementById('k-qcpass').textContent = qcpass.count??0;
-  document.getElementById('k-expiring').textContent = expiring.count??0;
-  document.getElementById('k-month').textContent = monthly.count??0;
-  if ((expiring.count??0) > 0) document.getElementById('expiry-alert').classList.add('show');
-}
-
-window.loadRegister = async () => {
-  const type = document.getElementById('f-type').value;
-  const status = document.getElementById('f-status').value;
-  const month = document.getElementById('f-month').value;
-  let q = supabase.from('aushadha_nirman_register').select('*').eq('tenant_id',tenantId).order('preparation_date',{ascending:false});
-  if (type) q = q.eq('preparation_type',type);
-  if (status) q = q.eq('status',status);
-  if (month) q = q.gte('preparation_date',month+'-01').lte('preparation_date',month+'-31');
-  const {data,error} = await q.limit(200);
-  const tb = document.getElementById('reg-tbody');
-  document.getElementById('rec-count').textContent = data?.length ? data.length+' records' : '';
-  if (error||!data?.length){tb.innerHTML=`<tr><td colspan="10" class="empty">No records found.</td></tr>`;return;}
-  const today = new Date();
-  tb.innerHTML = data.map(r=>{
-    const exp = r.expiry_date ? new Date(r.expiry_date) : null;
-    const expCls = !exp ? '' : exp < today ? 'color:var(--red);font-weight:600' : (exp-today)<30*864e5?'color:var(--amber);font-weight:600':'';
-    const qcBadge = r.qc_done ? `<span class="badge b-${r.qc_result||'pending'}">${r.qc_result||'—'}</span>` : `<span style="color:var(--text-muted);font-size:11px">Pending</span>`;
-    return `<tr>
-      <td><strong>${r.formula_name}</strong></td>
-      <td>${typeLabel(r.preparation_type)}</td>
-      <td>${r.batch_number}</td>
-      <td>${r.preparation_date}</td>
-      <td>${r.quantity_prepared} ${r.unit}</td>
-      <td>${qcBadge}</td>
-      <td style="${expCls}">${r.expiry_date||'—'}</td>
-      <td>${r.quantity_remaining!==null?r.quantity_remaining+' '+r.unit:'—'}</td>
-      <td><span class="badge b-${r.status}">${r.status}</span></td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-sm btn-outline" onclick="viewDetail(${JSON.stringify(r).replace(/"/g,'&quot;')})">View</button>
-        <button class="btn btn-sm btn-primary" onclick="editPrep(${JSON.stringify(r).replace(/"/g,'&quot;')})">Edit</button>
-        ${r.status==='active'?`<button class="btn btn-sm btn-danger" onclick="recall('${r.id}')">Recall</button>`:''}
-      </td>
-    </tr>`;
-  }).join('');
-};
-
-window.openNew = () => {
-  document.getElementById('p-id').value = '';
-  document.getElementById('prep-modal-title').textContent = 'New Preparation — Aushadha Nirman';
-  ['p-name','p-batch','p-ingredients','p-prepby','p-supby','p-ref','p-process','p-qcnotes','p-notes'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('p-type').value='';
-  document.getElementById('p-unit').value='kg';
-  document.getElementById('p-storage').value='cool dry place';
-  document.getElementById('p-qc').value='no';
-  document.getElementById('p-qcresult').value='';
-  document.getElementById('p-date').value = new Date().toISOString().split('T')[0];
-  document.getElementById('p-expiry').value='';
-  document.getElementById('p-qcdate').value='';
-  document.getElementById('p-qty').value='';
-  document.getElementById('prep-modal').classList.add('show');
-};
-
-window.editPrep = (r) => {
-  document.getElementById('p-id').value = r.id;
-  document.getElementById('prep-modal-title').textContent = 'Edit — '+r.formula_name;
-  document.getElementById('p-name').value = r.formula_name||'';
-  document.getElementById('p-type').value = r.preparation_type||'';
-  document.getElementById('p-batch').value = r.batch_number||'';
-  document.getElementById('p-date').value = r.preparation_date||'';
-  document.getElementById('p-expiry').value = r.expiry_date||'';
-  document.getElementById('p-qty').value = r.quantity_prepared||'';
-  document.getElementById('p-unit').value = r.unit||'kg';
-  document.getElementById('p-storage').value = r.storage_conditions||'cool dry place';
-  document.getElementById('p-ingredients').value = r.ingredients||'';
-  document.getElementById('p-prepby').value = r.prepared_by_name||'';
-  document.getElementById('p-supby').value = r.supervised_by_name||'';
-  document.getElementById('p-ref').value = r.classical_reference||'';
-  document.getElementById('p-process').value = r.process_notes||'';
-  document.getElementById('p-qc').value = r.qc_done?'yes':'no';
-  document.getElementById('p-qcdate').value = r.qc_date||'';
-  document.getElementById('p-qcresult').value = r.qc_result||'';
-  document.getElementById('p-qcnotes').value = r.qc_notes||'';
-  document.getElementById('p-notes').value = r.notes||'';
-  document.getElementById('prep-modal').classList.add('show');
-};
-
-window.savePrep = async () => {
-  const name = document.getElementById('p-name').value.trim();
-  const type = document.getElementById('p-type').value;
-  const batch = document.getElementById('p-batch').value.trim();
-  const date = document.getElementById('p-date').value;
-  const qty = parseFloat(document.getElementById('p-qty').value);
-  const ingredients = document.getElementById('p-ingredients').value.trim();
-  if (!name||!type||!batch||!date||!qty||!ingredients){showToast('Fill all required fields','error');return;}
-
-  const qcDone = document.getElementById('p-qc').value==='yes';
-  const payload = {
-    tenant_id:tenantId, formula_name:name, preparation_type:type,
-    batch_number:batch, preparation_date:date,
-    quantity_prepared:qty, unit:document.getElementById('p-unit').value,
-    ingredients, storage_conditions:document.getElementById('p-storage').value,
-    expiry_date:document.getElementById('p-expiry').value||null,
-    classical_reference:document.getElementById('p-ref').value.trim()||null,
-    process_notes:document.getElementById('p-process').value.trim()||null,
-    qc_done:qcDone,
-    qc_date:qcDone?document.getElementById('p-qcdate').value||null:null,
-    qc_result:qcDone?document.getElementById('p-qcresult').value||null:null,
-    qc_notes:document.getElementById('p-qcnotes').value.trim()||null,
-    notes:document.getElementById('p-notes').value.trim()||null,
-    created_by:profile.id
-  };
-
-  const id = document.getElementById('p-id').value;
-  const {error} = id
-    ? await supabase.from('aushadha_nirman_register').update(payload).eq('id',id).eq('tenant_id',tenantId)
-    : await supabase.from('aushadha_nirman_register').insert(payload);
-  if (error){showToast('Error: '+error.message,'error');return;}
-  closeModal('prep-modal');
-  showToast('Saved successfully','success');
-  loadRegister(); loadKPIs();
-};
-
-window.viewDetail = (r) => {
-  document.getElementById('d-title').textContent = r.formula_name + ' — ' + r.batch_number;
-  const rows = [
-    ['Type', typeLabel(r.preparation_type)],
-    ['Batch Number', r.batch_number],
-    ['Preparation Date', r.preparation_date],
-    ['Qty Prepared', r.quantity_prepared + ' ' + r.unit],
-    ['Storage', r.storage_conditions||'—'],
-    ['Expiry', r.expiry_date||'—'],
-    ['Ingredients', r.ingredients],
-    ['Classical Reference', r.classical_reference||'—'],
-    ['Process Notes', r.process_notes||'—'],
-    ['QC Status', r.qc_done?(r.qc_result||'Done'):'Pending'],
-    ['QC Date', r.qc_date||'—'],
-    ['QC Notes', r.qc_notes||'—'],
-    ['Notes', r.notes||'—'],
-  ];
-  document.getElementById('d-body').innerHTML = rows.map(([k,v])=>`
-    <div style="margin-bottom:8px"><span class="detail-label">${k}:</span>&nbsp;
-    <span style="color:var(--text-dark)">${v||'—'}</span></div>`).join('');
-  document.getElementById('detail-modal').classList.add('show');
-};
-
-window.recall = async (id) => {
-  if (!confirm('Mark this batch as recalled?')) return;
-  await supabase.from('aushadha_nirman_register').update({status:'recalled'}).eq('id',id).eq('tenant_id',tenantId);
-  showToast('Batch recalled','success');
-  loadRegister(); loadKPIs();
-};
-
-window.printDetail = () => window.print();
-
-window.exportCSV = async () => {
-  const {data} = await supabase.from('aushadha_nirman_register').select('*').eq('tenant_id',tenantId).order('preparation_date',{ascending:false});
-  if (!data?.length){showToast('No data','error');return;}
-  const header = ['Formula Name','Type','Batch No.','Date','Qty','Unit','QC','Expiry','Status'];
-  const rows = data.map(r=>[r.formula_name,r.preparation_type,r.batch_number,r.preparation_date,r.quantity_prepared,r.unit,r.qc_result||'pending',r.expiry_date||'',r.status]);
-  const csv = [header,...rows].map(r=>r.join(',')).join('\n');
-  const a = document.createElement('a');
-  a.href='data:text/csv,'+encodeURIComponent(csv);
-  a.download='aushadha_nirman_'+new Date().toISOString().slice(0,10)+'.csv';
-  a.click();
-};
-
-window.closeModal = id => document.getElementById(id).classList.remove('show');
-
-function typeLabel(t){const m={churna:'Churna',vati:'Vati/Gutika',kwatha:'Kwatha',asava_arishta:'Asava/Arishta',ghrita:'Ghrita',taila:'Taila',lepa:'Lepa',avaleha:'Avaleha',other:'Other'};return m[t]||t;}
-function showToast(msg,type='success'){const t=document.getElementById('toast');t.textContent=msg;t.className=`toast ${type} show`;setTimeout(()=>t.classList.remove('show'),3000);}
-
-loadRegister();
-loadKPIs();
-</script>
+<script type="module" src="js/pages/aushadha-nirman.js"></script>
 </body>
 </html>
