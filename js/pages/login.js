@@ -1,4 +1,4 @@
-import { login } from '../core/auth.js';
+import { login, verifyMfaAndFinishLogin } from '../core/auth.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { isValidEmail } from '../utils/validators.js';
 
@@ -163,6 +163,15 @@ async function handleLogin() {
   _setLoading(btnLogin, true);
   const result = await login({ email: _verifiedEmail, password });
   _setLoading(btnLogin, false);
+
+  if (result.success && result.mfaRequired) {
+    _pendingFactorId = result.factorId;
+    document.getElementById('step-password').classList.add('hidden');
+    document.getElementById('step-mfa').classList.remove('hidden');
+    mfaCodeEl.focus();
+    return;
+  }
+
   if (!result.success) {
     const msg = result.error || '';
     if (msg.includes('pending') || msg.includes('approved') || msg.includes('department access') || msg.includes('suspended') || msg.includes('not approved')) {
@@ -175,5 +184,27 @@ async function handleLogin() {
       showAlert('Invalid email or password. Please try again.');
     }
     passwordEl.classList.add('error');
+  }
+}
+
+// ── STEP 3: MFA code ──────────────────────────────────────────────────────────
+const mfaCodeEl  = document.getElementById('mfa-code');
+const btnMfaVerify = document.getElementById('btn-mfa-verify');
+let _pendingFactorId = null;
+
+btnMfaVerify.addEventListener('click', handleMfaVerify);
+mfaCodeEl.addEventListener('keydown', e => { if (e.key === 'Enter') handleMfaVerify(); });
+mfaCodeEl.addEventListener('input', clearAlerts);
+
+async function handleMfaVerify() {
+  clearAlerts();
+  const code = mfaCodeEl.value.trim();
+  if (!/^\d{6}$/.test(code)) { showAlert('Please enter the 6-digit code.'); mfaCodeEl.focus(); return; }
+  _setLoading(btnMfaVerify, true);
+  const result = await verifyMfaAndFinishLogin({ factorId: _pendingFactorId, code });
+  _setLoading(btnMfaVerify, false);
+  if (!result.success) {
+    showAlert(result.error || 'Invalid code. Please try again.');
+    mfaCodeEl.classList.add('error');
   }
 }

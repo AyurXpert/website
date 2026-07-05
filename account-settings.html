@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Account Settings — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;
+  --cream:#faf8f3;--white:#ffffff;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--radius:14px;--shadow:0 2px 14px rgba(0,0,0,0.07);
+  --red:#dc2626;--red-light:#fff3f3;
+}
+html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark)}
+.page{max-width:720px;margin:0 auto;padding:24px 16px 80px}
+
+.page-banner{background:var(--green-deep);border-radius:var(--radius);padding:20px 26px;margin-bottom:22px}
+.banner-left h1{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:#fff}
+.banner-left p{font-size:13px;color:rgba(255,255,255,.55);margin-top:2px}
+
+.mfa-banner{background:var(--gold-light);border:1.5px solid var(--gold);border-radius:var(--radius);padding:14px 18px;margin-bottom:20px;font-size:13px;color:var(--text-dark);display:none}
+.mfa-banner.show{display:block}
+
+.cc{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:20px}
+.cc-hd{padding:16px 20px;border-bottom:1px solid var(--border)}
+.cc-title{font-size:16px;font-weight:600;color:var(--text-dark)}
+.cc-sub{font-size:12px;color:var(--text-muted);margin-top:2px}
+.cc-body{padding:20px}
+
+.mfa-state{display:none}
+.mfa-state.show{display:block}
+
+.factor-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:var(--green-light);border-radius:10px;margin-bottom:14px}
+.factor-info{font-size:13px;color:var(--text-dark)}
+.factor-info strong{display:block;font-size:14px;margin-bottom:2px}
+
+.qr-wrap{display:flex;flex-direction:column;align-items:center;gap:14px;padding:16px 0}
+#qr-canvas{padding:12px;background:#fff;border-radius:10px;border:1px solid var(--border)}
+.secret-box{font-family:monospace;font-size:13px;background:var(--green-light);border-radius:8px;padding:10px 14px;letter-spacing:1px;word-break:break-all;text-align:center;max-width:100%}
+.secret-label{font-size:11px;color:var(--text-muted);margin-bottom:4px;text-align:center}
+
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:500;color:var(--text-mid);margin-bottom:6px}
+.field input{width:100%;height:42px;padding:0 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;letter-spacing:2px;text-align:center}
+.field input:focus{border-color:var(--green-mid)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;border:none;transition:background .2s;width:100%}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-primary:hover{background:#1f5c37}
+.btn-primary:disabled{opacity:.6;cursor:not-allowed}
+.btn-outline{background:var(--white);color:var(--green-deep);border:1.5px solid var(--border)}
+.btn-outline:hover{border-color:var(--green-mid);background:var(--green-light)}
+.btn-danger{background:var(--white);color:var(--red);border:1.5px solid var(--red-light)}
+.btn-danger:hover{background:var(--red-light)}
+.btn-row{display:flex;gap:10px}
+.btn-row .btn{width:auto;flex:1}
+
+.alert{border-radius:8px;padding:10px 14px;font-size:12.5px;margin-bottom:14px;display:none}
+.alert.show{display:block}
+.alert-error{background:var(--red-light);color:var(--red)}
+.alert-success{background:var(--green-light);color:var(--green-deep)}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a4a2e;color:#fff;padding:12px 22px;border-radius:10px;font-size:13px;font-weight:500;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="page">
+
+  <div class="page-banner">
+    <div class="banner-left">
+      <h1>Account Settings</h1>
+      <p>Manage your login security</p>
+    </div>
+  </div>
+
+  <div class="mfa-banner" id="mfa-required-banner">
+    ⚠️ Your role requires two-factor authentication. Please set it up now to continue using AyurXpert.
+  </div>
+
+  <div class="cc">
+    <div class="cc-hd">
+      <div class="cc-title">Two-Factor Authentication</div>
+      <div class="cc-sub">Adds a second step (a code from your phone) when you log in</div>
+    </div>
+    <div class="cc-body">
+
+      <!-- State A: not enrolled -->
+      <div class="mfa-state show" id="state-not-enrolled">
+        <p style="font-size:13px;color:var(--text-mid);margin-bottom:16px">Two-factor authentication is not set up on your account.</p>
+        <button class="btn btn-primary" style="width:auto" data-onclick="startEnroll">Set Up Authenticator App</button>
+      </div>
+
+      <!-- State B: enrolling -->
+      <div class="mfa-state" id="state-enrolling">
+        <div class="alert alert-error" id="enroll-alert"></div>
+        <div class="qr-wrap">
+          <div id="qr-canvas"></div>
+          <div style="width:100%;max-width:320px">
+            <div class="secret-label">Can't scan? Enter this code manually:</div>
+            <div class="secret-box" id="manual-secret">—</div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="enroll-code">Enter the 6-digit code from your authenticator app</label>
+          <input type="text" id="enroll-code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000"/>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-outline" data-onclick="cancelEnroll">Cancel</button>
+          <button class="btn btn-primary" id="btn-confirm-enroll" data-onclick="confirmEnroll">Confirm</button>
+        </div>
+      </div>
+
+      <!-- State C: enrolled -->
+      <div class="mfa-state" id="state-enrolled">
+        <div class="factor-row">
+          <div class="factor-info">
+            <strong>Authenticator app enabled</strong>
+            <span id="factor-since">—</span>
+          </div>
+        </div>
+        <button class="btn btn-danger" style="width:auto" data-onclick="removeFactor">Remove Two-Factor Authentication</button>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module" src="js/pages/account-settings.js"></script>
+</body>
+</html>

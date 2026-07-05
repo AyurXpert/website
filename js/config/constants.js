@@ -48,6 +48,9 @@ export const ROLE_HOME = {
   mrd_staff:       'mrd.html',
 };
 
+// ── Roles required to enroll in MFA (CERT-In §4.1 — privileged/sensitive accounts) ──
+export const MFA_MANDATORY_ROLES = ['super_admin', 'dept_admin', 'platform_admin', 'finance_manager', 'accountant'];
+
 // ── Pages that do NOT need login ──
 export const PUBLIC_PAGES = [
   'login.html',

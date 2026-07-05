@@ -144,6 +144,10 @@ window.openStaffModal = function(id) {
       </div>`).join('')}
     </div>` : '<div style="font-size:12px;color:var(--text-muted)">No training records</div>'}`;
 
+  // Reset MFA — super_admin only (mirrors promote_to_dept_admin's precedent of
+  // restricting sensitive account actions to super_admin, not dept_admin too)
+  document.getElementById('sm-reset-mfa-btn').style.display = sess.role === 'super_admin' ? '' : 'none';
+
   // Status action buttons — show relevant action for each status
   const btn = document.getElementById('sm-suspend-btn');
   const isActive = ['active','approved'].includes(s.status);
@@ -197,6 +201,30 @@ window.toggleSuspend = async function() {
   closeStaffModal();
   await loadStaff();
   _toast(_viewingStaff.full_name + ' reactivated', 'success');
+};
+
+window.resetStaffMfa = async function() {
+  if (!_viewingStaff) return;
+  if (!confirm(`Reset two-factor authentication for ${_viewingStaff.full_name}? They will need to set it up again before they can log in.`)) return;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
+
+  try {
+    const res = await fetch('https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/mfa-admin-reset', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ targetUserId: _viewingStaff.id }),
+    });
+    const result = await res.json();
+    if (!res.ok) { _toast(result.error || 'Could not reset MFA.', 'error'); return; }
+    _toast(`MFA reset for ${_viewingStaff.full_name}`, 'success');
+  } catch (err) {
+    _toast(safeErrorMessage(err, 'Could not reset MFA. Please try again.'), 'error');
+  }
 };
 
 window.exportStaffCSV = function() {

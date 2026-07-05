@@ -95,6 +95,26 @@
       </button>
     </div>
 
+    <!-- STEP 3: MFA code (only shown for accounts with two-factor authentication enabled) -->
+    <div id="step-mfa" class="hidden">
+      <div class="role-card">
+        <div class="role-avatar">&#128274;</div>
+        <div class="role-info">
+          <div class="role-info-name">Two-Factor Authentication</div>
+          <div class="role-info-sub">Enter the 6-digit code from your authenticator app</div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="mfa-code">Authentication code</label>
+        <input type="text" id="mfa-code" inputmode="numeric" maxlength="6"
+          autocomplete="one-time-code" placeholder="000000"/>
+      </div>
+      <button class="btn-submit" id="btn-mfa-verify" type="button">
+        <span class="btn-text">Verify</span>
+        <span class="btn-spinner"><span class="spinner"></span></span>
+      </button>
+    </div>
+
     </form>
 
     <div class="form-links">

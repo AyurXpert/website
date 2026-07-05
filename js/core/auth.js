@@ -10,6 +10,7 @@ import {
   PUBLIC_PAGES,
   SESSION_KEYS,
   DEFAULT_MODULES,
+  MFA_MANDATORY_ROLES,
 } from '../config/constants.js';
 import { logAudit } from './auditLogger.js';
 import { safeErrorMessage } from '../utils/errors.js';
@@ -144,6 +145,32 @@ export async function registerStaff({
 //    Works for ALL roles. Blocks login if not active.
 // ═══════════════════════════════════════════════════════════
 
+// Writes the app's own "logged in" sessionStorage state and redirects to the
+// role's landing page. Must only ever be called once aal2 is satisfied for a
+// user who has a verified MFA factor (see the aal check in login() below) —
+// this is deliberately the ONE place that establishes app-level login state,
+// so an MFA challenge that hasn't been completed yet can never look "logged in".
+async function _finalizeLogin(user, profile) {
+  sessionStorage.setItem(SESSION_KEYS.USER,      JSON.stringify(user));
+  sessionStorage.setItem(SESSION_KEYS.PROFILE,   JSON.stringify(profile));
+  sessionStorage.setItem(SESSION_KEYS.TENANT,    JSON.stringify(profile.tenants));
+  sessionStorage.setItem(SESSION_KEYS.TENANT_ID, profile.tenant_id);
+  sessionStorage.setItem(SESSION_KEYS.ROLE,      profile.role);
+
+  // §7h — compute effective modules: type defaults merged with tenant overrides
+  const _defMods = DEFAULT_MODULES[profile.tenants?.type] || {};
+  const _tenMods = profile.tenants?.modules || {};
+  sessionStorage.setItem(SESSION_KEYS.MODULES, JSON.stringify({ ..._defMods, ..._tenMods }));
+
+  await logAudit('login', 'profiles', profile.id,
+    { role: profile.role, tenant: profile.tenants?.name },
+    { tenantId: profile.tenant_id, userId: profile.id, userName: profile.full_name }
+  );
+
+  const destination = ROLE_HOME[profile.role] || 'admin.html';
+  window.location.href = destination;
+}
+
 export async function login({ email, password }) {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -178,29 +205,45 @@ export async function login({ email, password }) {
       throw new Error('Your account has been suspended. Please contact your administrator.');
     }
 
-    sessionStorage.setItem(SESSION_KEYS.USER,      JSON.stringify(data.user));
-    sessionStorage.setItem(SESSION_KEYS.PROFILE,   JSON.stringify(profile));
-    sessionStorage.setItem(SESSION_KEYS.TENANT,    JSON.stringify(profile.tenants));
-    sessionStorage.setItem(SESSION_KEYS.TENANT_ID, profile.tenant_id);
-    sessionStorage.setItem(SESSION_KEYS.ROLE,      profile.role);
+    // MFA gate: if this user has a verified TOTP factor, the session is only at
+    // aal1 right after signInWithPassword — do NOT establish app-level "logged
+    // in" state yet. Hand back to the caller so it can show a code-entry step;
+    // verifyMfaAndFinishLogin() below completes the login once the code checks out.
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal && aal.nextLevel === 'aal2' && aal.nextLevel !== aal.currentLevel) {
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      const totpFactor = factors?.totp?.find(f => f.status === 'verified');
+      return { success: true, mfaRequired: true, factorId: totpFactor?.id };
+    }
 
-    // §7h — compute effective modules: type defaults merged with tenant overrides
-    const _defMods = DEFAULT_MODULES[profile.tenants?.type] || {};
-    const _tenMods = profile.tenants?.modules || {};
-    sessionStorage.setItem(SESSION_KEYS.MODULES, JSON.stringify({ ..._defMods, ..._tenMods }));
-
-    await logAudit('login', 'profiles', profile.id,
-      { role: profile.role, tenant: profile.tenants?.name },
-      { tenantId: profile.tenant_id, userId: profile.id, userName: profile.full_name }
-    );
-
-    const destination = ROLE_HOME[profile.role] || 'admin.html';
-    window.location.href = destination;
-
+    await _finalizeLogin(data.user, profile);
     return { success: true };
 
   } catch (error) {
     console.error('login error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Completes the MFA challenge login() deferred (see the aal check above) and
+// finishes the login the same way login() would have for a non-MFA account.
+export async function verifyMfaAndFinishLogin({ factorId, code }) {
+  try {
+    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code });
+    if (error) throw new Error(safeErrorMessage(error, 'Invalid code. Please try again.'));
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*, tenants(*)')
+      .eq('id', user.id)
+      .single();
+    if (profileError) throw new Error('Profile not found. Please contact your administrator.');
+
+    await _finalizeLogin(user, profile);
+    return { success: true };
+  } catch (error) {
+    console.error('verifyMfaAndFinishLogin error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -472,6 +515,21 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html') 
     // super_admin can access any protected page
     if (role !== ROLES.SUPER_ADMIN && !allowedRoles.includes(role)) {
       window.location.replace(ROLE_HOME[role] || 'admin.html');
+      return;
+    }
+  }
+
+  // MFA enforcement (CERT-In §4.1) for privileged/sensitive roles — checked live
+  // against Supabase every load (never cached in sessionStorage, unlike the
+  // profile above): a stale cache could either falsely lock someone out right
+  // after they enroll, or worse, leave a real gap open after an admin reset.
+  // Only queried for the mandatory-role population to avoid the extra Auth-API
+  // round trip for every other role's page loads.
+  if (MFA_MANDATORY_ROLES.includes(getCurrentRole()) && currentPage !== 'account-settings.html') {
+    const { data: factors } = await supabase.auth.mfa.listFactors();
+    const hasVerifiedFactor = factors?.totp?.some(f => f.status === 'verified');
+    if (!hasVerifiedFactor) {
+      window.location.replace('account-settings.html?mfa_required=1');
       return;
     }
   }

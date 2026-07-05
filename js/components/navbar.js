@@ -172,6 +172,7 @@ function _injectNavbar(profile, tenant, role) {
           <span class="ax-user-name">${profile.full_name || 'User'}</span>
           <span class="ax-user-role">${_roleLabel(role)}</span>
         </div>
+        <a href="account-settings.html" class="ax-account-link" id="ax-account-link">Account</a>
         <button class="ax-logout-btn" id="ax-logout-btn">Logout</button>
         <button class="ax-hamburger" id="ax-hamburger" aria-label="Open menu">
           <span></span><span></span><span></span>
@@ -182,6 +183,7 @@ function _injectNavbar(profile, tenant, role) {
       <div class="ax-mobile-links">${mobileHTML}</div>
       <div class="ax-mobile-footer">
         <span>${profile.full_name || ''} &nbsp;·&nbsp; ${_roleLabel(role)}</span>
+        <a href="account-settings.html" class="ax-mobile-account">Account</a>
         <button class="ax-mobile-logout" id="ax-mobile-logout">Logout</button>
       </div>
     </div>`;
@@ -418,6 +420,8 @@ function _injectStyles() {
   .ax-user-role{color:rgba(255,255,255,.4);font-size:10px;white-space:nowrap}
   .ax-logout-btn{background:rgba(255,255,255,.08);color:rgba(255,255,255,.75);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:6px 12px;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;transition:background .15s}
   .ax-logout-btn:hover{background:rgba(255,255,255,.18);color:#fff}
+  .ax-account-link{background:transparent;color:rgba(255,255,255,.6);border:none;border-radius:8px;padding:6px 10px;font-family:'DM Sans',sans-serif;font-size:12px;cursor:pointer;white-space:nowrap;text-decoration:none;transition:color .15s}
+  .ax-account-link:hover{color:#fff}
 
   /* Hamburger */
   .ax-hamburger{display:none;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer;padding:8px;border-radius:8px}
@@ -435,15 +439,17 @@ function _injectStyles() {
   .ax-link{display:block;padding:10px 14px;border-radius:7px;color:rgba(255,255,255,.75);font-size:14px;font-weight:500;text-decoration:none;transition:background .15s}
   .ax-link:hover{background:rgba(255,255,255,.08);color:#fff}
   .ax-link.active{background:rgba(201,144,42,.15);color:#c9902a}
-  .ax-mobile-footer{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 14px;border-top:1px solid rgba(255,255,255,.06)}
-  .ax-mobile-footer span{color:rgba(255,255,255,.4);font-size:12px}
-  .ax-mobile-logout{background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 14px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer}
+  .ax-mobile-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 16px 14px;border-top:1px solid rgba(255,255,255,.06)}
+  .ax-mobile-footer span{color:rgba(255,255,255,.4);font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ax-mobile-logout{background:rgba(255,255,255,.08);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 14px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;white-space:nowrap}
+  .ax-mobile-account{background:transparent;color:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 14px;font-family:'DM Sans',sans-serif;font-size:13px;text-decoration:none;white-space:nowrap}
 
   /* Responsive */
   @media(max-width:1024px){
     .ax-groups{display:none}
     .ax-user-info{display:none}
     .ax-logout-btn{display:none}
+    .ax-account-link{display:none}
     .ax-hamburger{display:flex}
   }
   @media(max-width:480px){
