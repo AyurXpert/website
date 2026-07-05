@@ -4,6 +4,8 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
 <title>Supplier Register — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <link rel="icon" href="assets/icon.svg"/>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
 <style>
@@ -91,7 +93,7 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--green-mid);cursor
       <h1>🏭 Supplier Register</h1>
       <p>GMP-certified supplier master — NCISM §6(3)</p>
     </div>
-    <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.3)" onclick="openAdd()">+ Add Supplier</button>
+    <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.3)" data-onclick="openAdd">+ Add Supplier</button>
   </div>
 
   <div class="stats-row" id="stats-row">
@@ -104,18 +106,18 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--green-mid);cursor
   <div class="cc">
     <div class="cc-hd">
       <span class="cc-title">Suppliers</span>
-      <button class="btn btn-outline btn-sm" onclick="exportCSV()">↓ CSV</button>
+      <button class="btn btn-outline btn-sm" data-onclick="exportCSV">↓ CSV</button>
     </div>
     <div class="filter-bar">
-      <input class="fi" type="text" id="f-name" placeholder="Search supplier…" style="width:200px" oninput="renderTable()"/>
-      <select class="fi-sel" id="f-gmp" onchange="renderTable()">
+      <input class="fi" type="text" id="f-name" placeholder="Search supplier…" style="width:200px" data-oninput="renderTable"/>
+      <select class="fi-sel" id="f-gmp" data-onchange="renderTable">
         <option value="">All GMP statuses</option>
         <option value="valid">GMP Valid</option>
         <option value="expiring">Expiring Soon</option>
         <option value="expired">Expired</option>
         <option value="none">Not Certified</option>
       </select>
-      <select class="fi-sel" id="f-status" onchange="renderTable()">
+      <select class="fi-sel" id="f-status" data-onchange="renderTable">
         <option value="active">Active only</option>
         <option value="">All</option>
         <option value="inactive">Inactive</option>
@@ -175,7 +177,7 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--green-mid);cursor
     <div class="gmp-section">
       <div class="gmp-section-title">✅ GMP Certification — NCISM §6(3)</div>
       <div class="toggle-row" style="margin-bottom:12px">
-        <input type="checkbox" id="m-gmp-certified" onchange="toggleGmpFields()"/>
+        <input type="checkbox" id="m-gmp-certified" data-onchange="toggleGmpFields"/>
         <label for="m-gmp-certified" style="font-size:13px;cursor:pointer">This supplier is GMP certified</label>
       </div>
       <div id="gmp-cert-fields">
@@ -217,190 +219,14 @@ input[type=checkbox]{width:16px;height:16px;accent-color:var(--green-mid);cursor
     </div>
 
     <div class="modal-actions">
-      <button class="btn btn-primary" style="flex:1" onclick="saveSupplier()">💾 Save</button>
-      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" style="flex:1" data-onclick="saveSupplier">💾 Save</button>
+      <button class="btn btn-outline" data-onclick="closeModal">Cancel</button>
     </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 <script type="module" src="./js/pwa/register-sw.js"></script>
-<script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './js/config/constants.js';
-import { requireAuth, getCurrentTenantId, getCurrentTenant } from './js/core/auth.js';
-import { initNavbar } from './js/components/navbar.js';
-
-requireAuth(['pharmacist','super_admin','dept_admin','accountant'], 'login.html');
-initNavbar();
-
-const supabase  = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const tenantId  = getCurrentTenantId();
-const tenant    = getCurrentTenant();
-const TODAY     = new Date().toISOString().split('T')[0];
-const IN_90     = new Date(Date.now() + 90*86400000).toISOString().split('T')[0];
-
-let _suppliers = [];
-
-function _gmpStatus(s) {
-  if (!s.is_gmp_certified)                              return 'none';
-  if (!s.gmp_certificate_expiry)                        return 'valid';
-  if (s.gmp_certificate_expiry < TODAY)                 return 'expired';
-  if (s.gmp_certificate_expiry <= IN_90)                return 'expiring';
-  return 'valid';
-}
-const GMP_LABEL = { valid:'✓ GMP Valid', expiring:'⚠ Expiring Soon', expired:'✗ Expired', none:'— Not Certified' };
-const GMP_CLS   = { valid:'gmp-valid',   expiring:'gmp-expiring',     expired:'gmp-expired', none:'gmp-none' };
-
-async function load() {
-  const { data } = await supabase.from('suppliers')
-    .select('*').eq('tenant_id', tenantId).order('name');
-  _suppliers = (data || []).map(s => ({ ...s, _gmp: _gmpStatus(s) }));
-  renderStats();
-  renderTable();
-}
-
-function renderStats() {
-  document.getElementById('s-total').textContent    = _suppliers.filter(s=>s.is_active).length;
-  document.getElementById('s-certified').textContent= _suppliers.filter(s=>s._gmp==='valid').length;
-  document.getElementById('s-expiring').textContent = _suppliers.filter(s=>s._gmp==='expiring').length;
-  document.getElementById('s-expired').textContent  = _suppliers.filter(s=>s._gmp==='expired'||s._gmp==='none').length;
-}
-
-window.renderTable = function() {
-  const name   = document.getElementById('f-name').value.toLowerCase();
-  const gmp    = document.getElementById('f-gmp').value;
-  const status = document.getElementById('f-status').value;
-
-  const list = _suppliers.filter(s =>
-    (!name   || s.name.toLowerCase().includes(name)) &&
-    (!gmp    || s._gmp === gmp) &&
-    (status === '' || (status === 'active' ? s.is_active : !s.is_active))
-  );
-
-  const tbody = document.getElementById('suppliers-body');
-  if (!list.length) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty"><div class="empty-ico">🏭</div>No suppliers found</div></td></tr>`;
-    return;
-  }
-
-  const fmtDate = d => d ? new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—';
-  tbody.innerHTML = list.map(s => `
-    <tr>
-      <td><strong>${_esc(s.name)}</strong>${!s.is_active?'<br><span style="font-size:11px;color:var(--text-muted)">Inactive</span>':''}</td>
-      <td style="font-size:12px">${_esc(s.contact_name||'—')}<br><span style="color:var(--text-muted)">${_esc(s.phone||'')}</span></td>
-      <td style="font-family:monospace;font-size:12px">${_esc(s.gmp_certificate_number||'—')}</td>
-      <td style="font-size:12px">${_esc(s.gmp_certifying_authority||'—')}</td>
-      <td style="font-size:12px">${s._gmp==='expiring'?`<span style="color:var(--gold);font-weight:600">${fmtDate(s.gmp_certificate_expiry)}</span>`:s._gmp==='expired'?`<span style="color:var(--red);font-weight:600">${fmtDate(s.gmp_certificate_expiry)}</span>`:fmtDate(s.gmp_certificate_expiry)}</td>
-      <td><span class="gmp-badge ${GMP_CLS[s._gmp]}">${GMP_LABEL[s._gmp]}</span></td>
-      <td>${s.is_approved?'<span style="color:#2d7a4f;font-weight:600">✓</span>':'<span style="color:var(--red)">✗</span>'}</td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-outline btn-sm" onclick="openEdit('${s.id}')">✏</button>
-        <button class="btn btn-danger btn-sm" onclick="deactivate('${s.id}','${_esc(s.name)}')" style="margin-left:4px">${s.is_active?'Deactivate':'Activate'}</button>
-      </td>
-    </tr>`).join('');
-};
-
-window.toggleGmpFields = function() {
-  const show = document.getElementById('m-gmp-certified').checked;
-  document.getElementById('gmp-cert-fields').style.display = show ? '' : 'none';
-};
-
-window.openAdd = function() {
-  document.getElementById('modal-title').textContent = 'Add Supplier';
-  document.getElementById('m-id').value = '';
-  ['m-name','m-contact','m-phone','m-email','m-address','m-gmp-no','m-gmp-auth','m-gmp-expiry','m-notes'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('m-gmp-certified').checked = false;
-  document.getElementById('m-approved').checked = true;
-  document.getElementById('m-active').checked   = true;
-  document.getElementById('gmp-cert-fields').style.display = 'none';
-  document.getElementById('sup-modal').classList.add('open');
-};
-
-window.openEdit = function(id) {
-  const s = _suppliers.find(x => x.id === id);
-  if (!s) return;
-  document.getElementById('modal-title').textContent = 'Edit Supplier';
-  document.getElementById('m-id').value          = s.id;
-  document.getElementById('m-name').value        = s.name || '';
-  document.getElementById('m-contact').value     = s.contact_name || '';
-  document.getElementById('m-phone').value       = s.phone || '';
-  document.getElementById('m-email').value       = s.email || '';
-  document.getElementById('m-address').value     = s.address || '';
-  document.getElementById('m-gmp-certified').checked = s.is_gmp_certified || false;
-  document.getElementById('m-gmp-no').value      = s.gmp_certificate_number || '';
-  document.getElementById('m-gmp-auth').value    = s.gmp_certifying_authority || '';
-  document.getElementById('m-gmp-expiry').value  = s.gmp_certificate_expiry || '';
-  document.getElementById('m-approved').checked  = s.is_approved !== false;
-  document.getElementById('m-active').checked    = s.is_active !== false;
-  document.getElementById('m-notes').value       = s.notes || '';
-  document.getElementById('gmp-cert-fields').style.display = s.is_gmp_certified ? '' : 'none';
-  document.getElementById('sup-modal').classList.add('open');
-};
-
-window.closeModal = function() { document.getElementById('sup-modal').classList.remove('open'); };
-
-window.saveSupplier = async function() {
-  const name = document.getElementById('m-name').value.trim();
-  if (!name) { _toast('Supplier name is required.'); return; }
-  const isGmp = document.getElementById('m-gmp-certified').checked;
-
-  const payload = {
-    tenant_id:                 tenantId,
-    name,
-    contact_name:              document.getElementById('m-contact').value.trim()    || null,
-    phone:                     document.getElementById('m-phone').value.trim()      || null,
-    email:                     document.getElementById('m-email').value.trim()      || null,
-    address:                   document.getElementById('m-address').value.trim()    || null,
-    is_gmp_certified:          isGmp,
-    gmp_certificate_number:    isGmp ? (document.getElementById('m-gmp-no').value.trim()   || null) : null,
-    gmp_certifying_authority:  isGmp ? (document.getElementById('m-gmp-auth').value.trim() || null) : null,
-    gmp_certificate_expiry:    isGmp ? (document.getElementById('m-gmp-expiry').value       || null) : null,
-    is_approved:               document.getElementById('m-approved').checked,
-    is_active:                 document.getElementById('m-active').checked,
-    notes:                     document.getElementById('m-notes').value.trim() || null,
-  };
-
-  const id = document.getElementById('m-id').value;
-  const { error } = id
-    ? await supabase.from('suppliers').update(payload).eq('id', id).eq('tenant_id', tenantId)
-    : await supabase.from('suppliers').insert(payload);
-
-  if (error) { _toast('❌ ' + error.message); return; }
-  _toast(id ? '✅ Supplier updated' : '✅ Supplier added');
-  closeModal();
-  await load();
-};
-
-window.deactivate = async function(id, name) {
-  const s = _suppliers.find(x => x.id === id);
-  if (!s) return;
-  const action = s.is_active ? 'deactivate' : 'activate';
-  if (!confirm(`${action.charAt(0).toUpperCase()+action.slice(1)} supplier "${name}"?`)) return;
-  await supabase.from('suppliers').update({ is_active: !s.is_active }).eq('id', id).eq('tenant_id', tenantId);
-  _toast(`✅ Supplier ${action}d`);
-  await load();
-};
-
-window.exportCSV = function() {
-  const hdr = ['Name','Contact','Phone','Email','GMP Certified','Certificate No.','Authority','GMP Expiry','Approved','Active','Notes'];
-  const rows = _suppliers.map(s => [
-    s.name, s.contact_name||'', s.phone||'', s.email||'',
-    s.is_gmp_certified?'Yes':'No', s.gmp_certificate_number||'',
-    s.gmp_certifying_authority||'', s.gmp_certificate_expiry||'',
-    s.is_approved?'Yes':'No', s.is_active?'Yes':'No', s.notes||''
-  ]);
-  const csv = [hdr,...rows].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const a = document.createElement('a');
-  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download = `Suppliers_${tenant?.name||'AyurXpert'}.csv`;
-  a.click();
-};
-
-function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function _toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800); }
-
-await load();
-</script>
+<script type="module" src="js/pages/suppliers.js"></script>
 </body>
 </html>
