@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <title>Share Your Feedback — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
@@ -168,8 +168,8 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
       <div class="recommend-row">
         <div class="recommend-label">Would you recommend us?</div>
         <div class="recommend-opts">
-          <button class="rec-btn" id="rec-yes" onclick="setRecommend(true)">👍 Yes</button>
-          <button class="rec-btn" id="rec-no"  onclick="setRecommend(false)">👎 No</button>
+          <button class="rec-btn" id="rec-yes" data-onclick="setRecommend" data-onclick-a0="@true">👍 Yes</button>
+          <button class="rec-btn" id="rec-no"  data-onclick="setRecommend" data-onclick-a0="@false">👎 No</button>
         </div>
       </div>
 
@@ -181,7 +181,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 
       <div class="privacy">Your feedback is anonymous and confidential. It will only be used to improve patient care at this facility.</div>
 
-      <button class="btn-submit" id="btn-submit" onclick="submitFeedback()">
+      <button class="btn-submit" id="btn-submit" data-onclick="submitFeedback">
         <span class="btn-text">Submit Feedback</span>
         <span class="spinner-wrap"><span class="spinner"></span></span>
       </button>
@@ -204,181 +204,6 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
   </div>
 </div>
 
-<script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/+esm';
-import { ENV } from './js/config/env.js';
-
-const supabase = createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY);
-
-const params  = new URLSearchParams(window.location.search);
-const visitId = params.get('visit') || null;
-
-// ── Star ratings state ────────────────────────────────────────────
-const RATING_KEYS  = ['overall','doctor','staff','facility','wait_time'];
-const RATING_HINTS = {
-  1: 'Very poor',
-  2: 'Poor',
-  3: 'Average',
-  4: 'Good',
-  5: 'Excellent',
-};
-const _ratings = { overall:0, doctor:0, staff:0, facility:0, wait_time:0 };
-let _recommend = null;
-
-function _buildStars(containerEl, key) {
-  for (let i = 1; i <= 5; i++) {
-    const s = document.createElement('span');
-    s.className = 'star';
-    s.textContent = '★';
-    s.dataset.val = i;
-    s.addEventListener('mouseenter', () => _hoverStars(containerEl, key, i));
-    s.addEventListener('mouseleave', () => _hoverStars(containerEl, key, _ratings[key]));
-    s.addEventListener('click',      () => _selectStar(containerEl, key, i));
-    s.addEventListener('touchstart', (e) => { e.preventDefault(); _selectStar(containerEl, key, i); }, { passive:false });
-    containerEl.appendChild(s);
-  }
-}
-
-function _hoverStars(container, key, val) {
-  const stars = container.querySelectorAll('.star');
-  stars.forEach((s, idx) => {
-    s.classList.toggle('hover', idx < val);
-    s.classList.toggle('selected', false);
-  });
-  const hint = document.getElementById(`hint-${key}`);
-  if (hint) hint.textContent = val > 0 ? RATING_HINTS[val] : '';
-}
-
-function _selectStar(container, key, val) {
-  _ratings[key] = val;
-  const stars = container.querySelectorAll('.star');
-  stars.forEach((s, idx) => {
-    s.classList.toggle('selected', idx < val);
-    s.classList.toggle('hover', false);
-  });
-  const hint = document.getElementById(`hint-${key}`);
-  if (hint) hint.textContent = RATING_HINTS[val];
-}
-
-window.setRecommend = function(val) {
-  _recommend = val;
-  document.getElementById('rec-yes').className = 'rec-btn' + (val === true  ? ' active-yes' : '');
-  document.getElementById('rec-no').className  = 'rec-btn' + (val === false ? ' active-no'  : '');
-};
-
-// ── Load visit info ───────────────────────────────────────────────
-async function init() {
-  if (!visitId) { _showInvalid(); return; }
-
-  // Check visit exists and hasn't already received feedback
-  const { data: visit, error } = await supabase
-    .from('visits')
-    .select('id,created_at,tenant_id,profiles!doctor_id(full_name)')
-    .eq('id', visitId)
-    .maybeSingle();
-
-  if (error || !visit) { _showInvalid(); return; }
-
-  // Check if feedback already submitted for this visit
-  const { data: existing } = await supabase
-    .from('patient_feedback')
-    .select('id')
-    .eq('visit_id', visitId)
-    .maybeSingle();
-
-  if (existing) { _showAlreadySubmitted(); return; }
-
-  // Show form
-  document.getElementById('form-view').style.display = '';
-
-  // Show visit strip
-  const strip     = document.getElementById('visit-strip');
-  const dateLabel = document.getElementById('visit-date-lbl');
-  const docLabel  = document.getElementById('visit-doctor-lbl');
-  if (visit.created_at) {
-    const d = new Date(visit.created_at);
-    dateLabel.textContent = d.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
-  }
-  if (visit.profiles?.full_name) {
-    docLabel.textContent = 'Dr. ' + visit.profiles.full_name;
-    strip.style.display = '';
-  }
-
-  // Build star widgets
-  RATING_KEYS.forEach(key => {
-    const containerId = `stars-${key === 'wait_time' ? 'wait' : key}`;
-    const el = document.getElementById(containerId);
-    if (el) _buildStars(el, key);
-  });
-}
-
-// ── Submit ────────────────────────────────────────────────────────
-window.submitFeedback = async function() {
-  clearError();
-  if (!_ratings.overall) return showError('Please rate your overall experience.');
-
-  // Resolve tenant_id from visit
-  const { data: visit } = await supabase
-    .from('visits')
-    .select('tenant_id, patient_id')
-    .eq('id', visitId)
-    .maybeSingle();
-
-  if (!visit) return showError('Something went wrong. Please try again.');
-
-  const btn = document.getElementById('btn-submit');
-  btn.classList.add('loading');
-  btn.disabled = true;
-
-  const payload = {
-    tenant_id:       visit.tenant_id,
-    visit_id:        visitId,
-    patient_id:      visit.patient_id || null,
-    overall_rating:  _ratings.overall   || null,
-    doctor_rating:   _ratings.doctor    || null,
-    staff_rating:    _ratings.staff     || null,
-    facility_rating: _ratings.facility  || null,
-    wait_time_rating:_ratings.wait_time || null,
-    comments:        document.getElementById('fb-comments').value.trim() || null,
-    would_recommend: _recommend,
-  };
-
-  const { error } = await supabase.from('patient_feedback').insert(payload);
-  if (error) {
-    showError('Could not save feedback. Please try again.');
-    btn.classList.remove('loading');
-    btn.disabled = false;
-    return;
-  }
-
-  document.getElementById('form-view').style.display = 'none';
-  document.getElementById('success-screen').style.display = 'block';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-};
-
-// ── Helpers ───────────────────────────────────────────────────────
-function _showInvalid() {
-  document.getElementById('invalid-screen').style.display = 'block';
-}
-
-function _showAlreadySubmitted() {
-  const el = document.getElementById('invalid-screen');
-  el.querySelector('.invalid-title').textContent = 'Already Submitted';
-  el.querySelector('.invalid-body').innerHTML =
-    'Feedback for this visit has already been recorded.<br/><br/>Thank you for helping us improve patient care!';
-  el.style.display = 'block';
-}
-
-function showError(msg) {
-  document.getElementById('alert-error-text').textContent = msg;
-  document.getElementById('alert-error').classList.add('show');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-function clearError() {
-  document.getElementById('alert-error').classList.remove('show');
-}
-
-init();
-</script>
+<script type="module" src="js/pages/feedback.js"></script>
 </body>
 </html>
