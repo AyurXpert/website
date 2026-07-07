@@ -1690,7 +1690,8 @@ function _renderConsentList(consents) {
         ? `<div style="margin-top:10px;padding:8px 10px;background:${col}10;border-left:3px solid ${col};border-radius:0 4px 4px 0;font-size:12px;color:${col};font-weight:500">${_esc(note)}</div>`
         : ''}
       ${c.status === 'granted'
-        ? `<button class="btn" style="font-size:12px;padding:4px 12px;margin-top:10px" data-onclick="_loadReceivedRecords" data-onclick-a0="${_esc(c.id)}" data-onclick-a1="${_esc(c.status)}">📋 View Records</button>`
+        ? `<button class="btn" style="font-size:12px;padding:4px 12px;margin-top:10px" data-onclick="_loadReceivedRecords" data-onclick-a0="${_esc(c.id)}" data-onclick-a1="${_esc(c.status)}">📋 View Records</button>
+           <div id="recbox-${_esc(c.id)}" style="display:none;margin-top:10px"></div>`
         : ''}
     </div>`;
   }).join('');
@@ -1907,22 +1908,36 @@ function _toggleFhirDetail(id) {
 window._toggleFhirDetail = _toggleFhirDetail;
 
 // ── ABDM: Load received records — longitudinal (chronological) view ──
+// Renders inline under the specific consent card that was clicked (recbox-<consentId>),
+// not a single shared section at the bottom of the tab — previously every card's "View
+// Records" wrote into one global container placed after the whole consent list, so on a
+// list of several requests the records always appeared to "jump to the bottom of the page"
+// regardless of which card was clicked.
 async function _loadReceivedRecords(consentId, consentStatus) {
-  const section = document.getElementById('abdm-records-section');
-  const listEl  = document.getElementById('abdm-records-list');
-  section.style.display = '';
-  section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const box = document.getElementById('recbox-' + consentId);
+  if (!box) return;
+
+  // Toggle: clicking "View Records" again on an already-open card just closes it
+  if (box.dataset.open === '1') {
+    box.style.display = 'none';
+    box.innerHTML = '';
+    box.dataset.open = '0';
+    return;
+  }
+  box.dataset.open = '1';
+  box.style.display = '';
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
   // Compliance: hide records for revoked/expired consents (mandatory per ABDM)
   if (consentStatus === 'revoked' || consentStatus === 'expired') {
-    listEl.innerHTML = `<div style="background:#fff5f5;border:1px solid #fccaca;border-radius:8px;padding:14px 16px;font-size:13px;color:#c0392b;font-weight:500">
+    box.innerHTML = `<div style="background:#fff5f5;border:1px solid #fccaca;border-radius:8px;padding:14px 16px;font-size:13px;color:#c0392b;font-weight:500">
       🔒 Health records are not displayed for ${_esc(consentStatus)} consents.<br>
       <span style="font-size:12px;font-weight:400;color:#555;margin-top:4px;display:block">All copies held by this system have been deleted per ABDM compliance (HIU_FLOW_202/301).</span>
     </div>`;
     return;
   }
 
-  listEl.innerHTML = '<div style="color:#888;font-size:13px;padding:6px 0">Loading records…</div>';
+  box.innerHTML = '<div style="color:#888;font-size:13px;padding:6px 0">Loading records…</div>';
 
   const { data: records, error } = await supabase
     .from('hiu_received_records')
@@ -1931,10 +1946,10 @@ async function _loadReceivedRecords(consentId, consentStatus) {
     .order('record_date', { ascending: false })
     .order('created_at', { ascending: false });
 
-  if (error) { listEl.innerHTML = `<div style="color:#c0392b;font-size:13px">${_esc(safeErrorMessage(error, 'Could not load records.'))}</div>`; return; }
+  if (error) { box.innerHTML = `<div style="color:#c0392b;font-size:13px">${_esc(safeErrorMessage(error, 'Could not load records.'))}</div>`; return; }
 
   if (!records?.length) {
-    listEl.innerHTML = '<div style="color:#888;font-size:13px;padding:10px 0">No records received yet. Records will appear here once the HIP pushes data — this may take a few minutes after the patient grants consent.</div>';
+    box.innerHTML = '<div style="color:#888;font-size:13px;padding:10px 0">No records received yet. Records will appear here once the HIP pushes data — this may take a few minutes after the patient grants consent.</div>';
     return;
   }
 
@@ -1984,9 +1999,10 @@ async function _loadReceivedRecords(consentId, consentStatus) {
     </div>`;
   }).join('');
 
-  listEl.innerHTML = summaryHtml + timelineHtml;
+  box.innerHTML = summaryHtml + timelineHtml;
 }
 window._loadReceivedRecords = _loadReceivedRecords;
+window._loadAbdmTab = _loadAbdmTab;
 
 // ── §18r / §18t — Netra + ENT Examination ────────
 let _isNetra = false, _isKnm = false;
