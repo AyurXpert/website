@@ -3993,15 +3993,13 @@ async function _renderNcismCapacityCard(t) {
           </div>`}
       </div>
 
-      <div style="font-size:12px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">PG Departments <span style="font-weight:500;text-transform:none;letter-spacing:0">— ₹${Number(_ncismPgFee).toLocaleString('en-IN')} / seat</span></div>
+      <div style="font-size:12px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">PG Departments <span style="font-weight:500;text-transform:none;letter-spacing:0">— Per PG seat ₹${Number(_ncismPgFee).toLocaleString('en-IN')}</span></div>
       <div id="ncism-pg-list" style="border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px">
-        <div style="display:flex;align-items:center;gap:10px;padding:8px 16px;background:#fafcfb;border-bottom:1px solid var(--border)">
-          <span style="width:16px"></span>
-          <span style="flex:1"></span>
-          <span style="width:56px;text-align:center;font-size:10px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;line-height:1.3">Number of PG students</span>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--green-light)">
+          <span style="flex:1;font-size:10.5px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px">Clinical — adds 4 IPD beds per seat</span>
+          <span style="width:56px;text-align:center;font-size:10px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.4px;line-height:1.3">Number of PG students</span>
           <span style="width:60px"></span>
         </div>
-        <div style="padding:8px 16px;background:var(--green-light);font-size:10.5px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px">Clinical — adds 4 IPD beds per seat</div>
         ${clinicalDepts.map(pgRow).join('')}
         <div style="padding:8px 16px;background:var(--green-light);font-size:10.5px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px;border-top:1px solid var(--border)">Non-Clinical — no additional beds</div>
         ${nonClinicalDepts.map(pgRow).join('')}
