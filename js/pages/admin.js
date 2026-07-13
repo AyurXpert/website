@@ -5,6 +5,7 @@ import { supabase }   from '../core/db/supabaseClient.js';
 import { logAudit }   from '../core/auditLogger.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES } from '../config/ncism.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -66,6 +67,15 @@ function _bootMasterControl() {
   }
   setTimeout(_handleHash, 300);
   window.addEventListener('hashchange', _handleHash);
+
+  // Fresh Teaching Hospital/College registration — land on Subscription so the
+  // admin can set up NCISM intake/PG capacity right away. Isolated to this one
+  // flag/page rather than a login.js redirect param, since login.js's redirect
+  // flow is shared by every role and tenant type.
+  if (localStorage.getItem('ax_post_reg_open_subscription') === '1') {
+    localStorage.removeItem('ax_post_reg_open_subscription');
+    setTimeout(() => document.querySelector('.sb-item[data-target="subscription"]')?.click(), 300);
+  }
 
   // HR sub-tabs
   document.querySelectorAll('.hr-tab').forEach(btn => {
@@ -3870,7 +3880,172 @@ window.loadSubscription = async function() {
         <span style="color:${f.ok?'var(--text-dark)':'var(--text-muted)'}">${f.label}</span>
       </div>`).join('')}
     </div>
+  </div>
+
+  <div id="ncism-sub-card"></div>`;
+
+  if (isNCISMType(t.type)) await _renderNcismCapacityCard(t);
+};
+
+// ── NCISM Capacity Plan (Teaching Hospital / College only) ─────────────────
+let _ncismTiers = [];
+let _ncismPgFee = 0;
+let _ncismSelectedTier = null;
+let _ncismPgSeats = {}; // code -> seats
+
+async function _renderNcismCapacityCard(t) {
+  const card = document.getElementById('ncism-sub-card');
+  if (!card) return;
+
+  const [{ data: pending }, { data: tiers }, { data: pgFeeRow }, { data: currentDepts }, { data: freshTenant }] = await Promise.all([
+    supabase.from('ncism_subscription_requests').select('*').eq('tenant_id', tenantId).eq('status', 'pending').order('requested_at', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('ncism_intake_tiers').select('*').eq('is_active', true).order('sort_order'),
+    supabase.from('ncism_pg_seat_fee').select('fee').eq('id', 1).single(),
+    supabase.from('departments').select('ncism_code,pg_seats_sanctioned,is_pg_dept').eq('tenant_id', tenantId),
+    supabase.from('tenants').select('ug_intake,pg_student_strength').eq('id', tenantId).single(),
+  ]);
+
+  _ncismTiers = tiers || [];
+  _ncismPgFee = pgFeeRow?.fee || 0;
+
+  // Fresh read, not the session-cached tenant object — this card must reflect
+  // an approval that just happened, not whatever was cached at login time.
+  const currentUg = freshTenant?.ug_intake ?? t.ug_intake ?? 0;
+  const currentPgTotal = freshTenant?.pg_student_strength ?? t.pg_student_strength ?? 0;
+  const currentPg = {};
+  (currentDepts || []).forEach(d => { if (d.is_pg_dept) currentPg[d.ncism_code] = d.pg_seats_sanctioned || 0; });
+
+  if (pending) {
+    const pgLines = Object.entries(pending.requested_pg?.reduce?.((m,p)=>{m[p.code]=p.seats;return m;},{}) || {})
+      .map(([code, seats]) => `${(NCISM_DEPTS.find(d=>d.ncism_code===code)?.name)||code} (+${seats})`).join(', ') || 'None';
+    card.innerHTML = `
+    <div class="cc" style="margin-top:20px">
+      <div class="cc-hd"><span class="cc-title">🎓 NCISM Capacity Plan</span></div>
+      <div style="padding:20px 22px">
+        <div style="font-size:13px;color:var(--text-mid);margin-bottom:10px">
+          Current: <strong>${currentUg} UG intake</strong> · PG seats: <strong>${currentPgTotal}</strong>
+        </div>
+        <div style="background:var(--gold-light,#fdf3e2);border:1.5px solid var(--gold,#c9902a);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--text-dark)">
+          <strong>Request pending approval</strong> — submitted ${new Date(pending.requested_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}<br>
+          Requested UG intake: <strong>${pending.requested_ug_intake}</strong> · PG additions: ${_esc(pgLines)}<br>
+          Fee: <strong>₹${Number(pending.computed_fee).toLocaleString('en-IN')}</strong>
+        </div>
+        <button class="btn-outline" style="margin-top:12px" data-onclick="cancelNcismRequest" data-onclick-a0="${pending.id}">Cancel Request</button>
+      </div>
+    </div>`;
+    return;
+  }
+
+  _ncismSelectedTier = currentUg;
+  _ncismPgSeats = { ...currentPg };
+
+  card.innerHTML = `
+  <div class="cc" style="margin-top:20px">
+    <div class="cc-hd"><span class="cc-title">🎓 NCISM Capacity Plan</span></div>
+    <div style="padding:20px 22px">
+      <div style="font-size:13px;color:var(--text-mid);margin-bottom:14px">
+        Current: <strong>${currentUg} UG intake</strong> · PG seats: <strong>${currentPgTotal}</strong>.
+        Select a new UG intake tier and/or PG department seats, then submit — a platform admin will review and activate it.
+      </div>
+
+      <div style="font-size:12px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">UG Intake Tier</div>
+      <div id="ncism-tier-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:18px">
+        ${_ncismTiers.length ? _ncismTiers.map(tier => `
+          <div class="ncism-tier-card" data-onclick="selectNcismTier" data-onclick-a0="${tier.ug_intake}"
+               style="border:2px solid ${tier.ug_intake === currentUg ? 'var(--green-deep)' : 'var(--border)'};border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:${tier.ug_intake === currentUg ? 'var(--green-light)' : 'var(--white)'}">
+            <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:var(--green-deep)">${tier.ug_intake}</div>
+            <div style="font-size:10px;color:var(--text-muted);margin:2px 0 6px">students / year</div>
+            <div style="font-size:12px;font-weight:600;color:var(--gold)">₹${Number(tier.fee).toLocaleString('en-IN')}</div>
+            ${tier.ug_intake === currentUg ? '<div style="font-size:10px;color:var(--green-deep);font-weight:600;margin-top:4px">Current</div>' : ''}
+          </div>`).join('') : '<div style="font-size:13px;color:var(--text-muted)">No intake tiers configured yet — contact support@ayurxpert.com</div>'}
+      </div>
+
+      <div style="font-size:12px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">PG Departments (₹${Number(_ncismPgFee).toLocaleString('en-IN')} / seat)</div>
+      <div id="ncism-pg-list" style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px">
+        ${NCISM_DEPTS.map(d => {
+          const seats = currentPg[d.ncism_code] || 0;
+          return `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-top:1px solid var(--border)">
+            <input type="checkbox" id="ncism-pg-${d.ncism_code}" ${seats > 0 ? 'checked' : ''} data-onchange="toggleNcismPgDept" data-onchange-a0="@this" data-onchange-a1="${d.ncism_code}"/>
+            <label for="ncism-pg-${d.ncism_code}" style="flex:1;font-size:13px">${_esc(d.name)}${CLINICAL_CODES.has(d.ncism_code) ? ' <span style=\"color:var(--text-muted);font-size:11px\">(+4 beds/seat)</span>' : ''}</label>
+            <input type="number" id="ncism-pgs-${d.ncism_code}" min="1" max="30" value="${seats || 1}" ${seats > 0 ? '' : 'disabled'}
+              style="width:56px;height:30px;text-align:center;border:1.5px solid var(--border);border-radius:6px" data-onchange="_ncismUpdateTotal"/>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--green-light);border-radius:10px;padding:12px 16px;margin-bottom:14px">
+        <span style="font-size:13px;font-weight:600;color:var(--green-deep)">Total request fee</span>
+        <span id="ncism-total-fee" style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep)">₹0</span>
+      </div>
+
+      <button class="btn-primary" style="width:auto" data-onclick="submitNcismRequest">Submit Request</button>
+    </div>
   </div>`;
+
+  window._ncismUpdateTotal();
+}
+
+window.selectNcismTier = function(ugIntake) {
+  _ncismSelectedTier = Number(ugIntake);
+  document.querySelectorAll('.ncism-tier-card').forEach(c => {
+    const isSel = Number(c.dataset.onclickA0) === _ncismSelectedTier;
+    c.style.borderColor = isSel ? 'var(--green-deep)' : 'var(--border)';
+    c.style.background  = isSel ? 'var(--green-light)' : 'var(--white)';
+  });
+  window._ncismUpdateTotal();
+};
+
+window.toggleNcismPgDept = function(cb, code) {
+  const input = document.getElementById(`ncism-pgs-${code}`);
+  input.disabled = !cb.checked;
+  window._ncismUpdateTotal();
+};
+
+window._ncismUpdateTotal = function() {
+  const tier = _ncismTiers.find(t => t.ug_intake === _ncismSelectedTier);
+  let total = tier ? Number(tier.fee) : 0;
+  _ncismPgSeats = {};
+  NCISM_DEPTS.forEach(d => {
+    const cb = document.getElementById(`ncism-pg-${d.ncism_code}`);
+    if (cb?.checked) {
+      const seats = parseInt(document.getElementById(`ncism-pgs-${d.ncism_code}`)?.value) || 0;
+      if (seats > 0) { _ncismPgSeats[d.ncism_code] = seats; total += seats * Number(_ncismPgFee); }
+    }
+  });
+  const el = document.getElementById('ncism-total-fee');
+  if (el) el.textContent = `₹${total.toLocaleString('en-IN')}`;
+};
+
+window.submitNcismRequest = async function() {
+  if (!_ncismSelectedTier) { _toast('Select a UG intake tier first'); return; }
+  const tier = _ncismTiers.find(t => t.ug_intake === _ncismSelectedTier);
+  const requestedPg = Object.entries(_ncismPgSeats).map(([code, seats]) => ({ code, seats }));
+  const pgFeeTotal = requestedPg.reduce((s, p) => s + p.seats * Number(_ncismPgFee), 0);
+  const computedFee = (tier ? Number(tier.fee) : 0) + pgFeeTotal;
+
+  const { error } = await supabase.from('ncism_subscription_requests').insert({
+    tenant_id: tenantId,
+    requested_by: profile.id,
+    requested_ug_intake: _ncismSelectedTier,
+    requested_pg: requestedPg,
+    computed_fee: computedFee,
+  });
+  if (error) { _toast(safeErrorMessage(error, 'Could not submit request.')); return; }
+
+  await logAudit('ncism_subscription_requested', 'tenants', tenantId, {
+    requested_ug_intake: _ncismSelectedTier, requested_pg: requestedPg, computed_fee: computedFee,
+  }, { tenantId, userId: profile.id, userName: profile.full_name });
+
+  _toast('✅ Request submitted — awaiting platform approval');
+  window.loadSubscription();
+};
+
+window.cancelNcismRequest = async function(requestId) {
+  if (!confirm('Cancel this capacity request?')) return;
+  const { error } = await supabase.from('ncism_subscription_requests').delete().eq('id', requestId);
+  if (error) { _toast(safeErrorMessage(error, 'Could not cancel request.')); return; }
+  _toast('Request cancelled');
+  window.loadSubscription();
 };
 
 function _subFeatures(plan) {

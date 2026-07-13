@@ -92,6 +92,12 @@ tr:hover td{background:#fafff8}
 .access-denied{text-align:center;padding:60px 20px;max-width:400px;margin:60px auto}
 .access-denied-icon{font-size:48px;margin-bottom:16px}
 
+.subtab-bar{display:flex;gap:8px;margin-bottom:16px}
+.subtab{background:var(--white);color:var(--text-dark);border:1.5px solid var(--border);border-radius:8px;padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif}
+.subtab.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep)}
+.pane{display:none}
+.pane.active{display:block}
+
 @media(max-width:700px){.stats-row{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
@@ -115,46 +121,115 @@ tr:hover td{background:#fafff8}
     <div class="sc"><div class="sc-num" id="ps-expired">—</div><div class="sc-lbl">Expired</div></div>
   </div>
 
-  <div class="cc">
-    <div class="cc-hd">
-      <span class="cc-title">All Tenants</span>
+  <div class="subtab-bar">
+    <button class="subtab active" id="subtab-tenants" data-onclick="showSubtab" data-onclick-a0="tenants">🏥 All Tenants</button>
+    <button class="subtab" id="subtab-ncism" data-onclick="showSubtab" data-onclick-a0="ncism">🎓 NCISM Requests</button>
+    <button class="subtab" id="subtab-pricing" data-onclick="showSubtab" data-onclick-a0="pricing">💰 Pricing</button>
+  </div>
+
+  <div class="pane active" id="pane-tenants">
+    <div class="cc">
+      <div class="cc-hd">
+        <span class="cc-title">All Tenants</span>
+      </div>
+      <div class="filter-bar">
+        <input class="fi" type="text" id="f-name" placeholder="Search org name…" style="width:200px" data-oninput="renderTable"/>
+        <select class="fi-sel" id="f-status" data-onchange="renderTable">
+          <option value="">All statuses</option>
+          <option value="trial">Trial</option>
+          <option value="active">Active</option>
+          <option value="expiring">Expiring</option>
+          <option value="expired">Expired</option>
+          <option value="suspended">Suspended</option>
+        </select>
+        <select class="fi-sel" id="f-plan" data-onchange="renderTable">
+          <option value="">All plans</option>
+          <option value="trial">Free Trial</option>
+          <option value="starter">Starter</option>
+          <option value="growth">Growth</option>
+          <option value="enterprise">Enterprise</option>
+        </select>
+      </div>
+      <div class="tw">
+        <table>
+          <thead>
+            <tr>
+              <th>Organisation</th>
+              <th>Code</th>
+              <th>Type</th>
+              <th>Plan</th>
+              <th>Status</th>
+              <th>Expiry / Trial End</th>
+              <th>Staff Usage</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tenants-body">
+            <tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
-    <div class="filter-bar">
-      <input class="fi" type="text" id="f-name" placeholder="Search org name…" style="width:200px" data-oninput="renderTable"/>
-      <select class="fi-sel" id="f-status" data-onchange="renderTable">
-        <option value="">All statuses</option>
-        <option value="trial">Trial</option>
-        <option value="active">Active</option>
-        <option value="expiring">Expiring</option>
-        <option value="expired">Expired</option>
-        <option value="suspended">Suspended</option>
-      </select>
-      <select class="fi-sel" id="f-plan" data-onchange="renderTable">
-        <option value="">All plans</option>
-        <option value="trial">Free Trial</option>
-        <option value="starter">Starter</option>
-        <option value="growth">Growth</option>
-        <option value="enterprise">Enterprise</option>
-      </select>
+  </div>
+
+  <div class="pane" id="pane-ncism">
+    <div class="cc">
+      <div class="cc-hd">
+        <span class="cc-title">Pending NCISM Capacity Requests</span>
+      </div>
+      <div class="tw">
+        <table>
+          <thead>
+            <tr>
+              <th>Organisation</th>
+              <th>UG Intake</th>
+              <th>PG Additions</th>
+              <th>Fee</th>
+              <th>Requested</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="ncism-requests-body">
+            <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
-    <div class="tw">
-      <table>
-        <thead>
-          <tr>
-            <th>Organisation</th>
-            <th>Code</th>
-            <th>Type</th>
-            <th>Plan</th>
-            <th>Status</th>
-            <th>Expiry / Trial End</th>
-            <th>Staff Usage</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="tenants-body">
-          <tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</td></tr>
-        </tbody>
-      </table>
+  </div>
+
+  <div class="pane" id="pane-pricing">
+    <div class="cc">
+      <div class="cc-hd">
+        <span class="cc-title">UG Intake Tiers</span>
+        <button class="btn btn-primary" data-onclick="openTierForm">+ Add Tier</button>
+      </div>
+      <div class="tw">
+        <table>
+          <thead>
+            <tr><th>UG Intake</th><th>Fee (₹)</th><th>Active</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="tiers-body">
+            <tr><td colspan="4" style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="tier-form-wrap" style="display:none;padding:16px 20px;border-top:1px solid var(--border)">
+        <input type="hidden" id="tier-id"/>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="margin-bottom:0"><label>UG Intake</label><input type="number" id="tier-ug-intake" min="1" style="width:120px"/></div>
+          <div class="field" style="margin-bottom:0"><label>Fee (₹)</label><input type="number" id="tier-fee" min="0" step="0.01" style="width:150px"/></div>
+          <button class="btn btn-primary" data-onclick="saveTier">💾 Save</button>
+          <button class="btn btn-outline" data-onclick="closeTierForm">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="cc">
+      <div class="cc-hd"><span class="cc-title">PG Seat Fee</span></div>
+      <div style="padding:16px 20px;display:flex;gap:10px;align-items:flex-end">
+        <div class="field" style="margin-bottom:0"><label>Fee per PG seat (₹)</label><input type="number" id="pg-seat-fee" min="0" step="0.01" style="width:150px"/></div>
+        <button class="btn btn-primary" data-onclick="savePgSeatFee">💾 Save</button>
+      </div>
     </div>
   </div>
 </div>

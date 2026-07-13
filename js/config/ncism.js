@@ -1,0 +1,45 @@
+// Shared NCISM reference data — used by register.js (org-type labelling) and
+// admin.js (the Subscription tab's capacity-request UI). Kept as plain literals
+// (not sourced from the DB) so the client-side fee/bed preview can render
+// instantly; the SQL migration's seeding RPC keeps its own matching copy of the
+// ratios since Postgres functions can't import JS.
+
+export function isNCISMType(t) { return t === 'college' || t === 'teaching_hospital'; }
+
+export const CLINICAL_CODES = new Set(['KAY', 'PK', 'SHAL', 'SHAK', 'KAU', 'PST', 'AGD']);
+
+export const UG_BED_RATIOS = { KAY: .20, PK: .25, SHAL: .20, SHAK: .10, KAU: .10, AGD: .05, PST: .10 };
+
+export const WARD_NAMES = {
+  KAY: 'General Ward', PK: 'Panchakarma Ward', SHAL: 'Surgical Ward', SHAK: 'ENT Ward',
+  KAU: 'Paediatric Ward', AGD: 'General Ward', PST: 'Maternity Ward',
+};
+
+export const NCISM_OPDS = [
+  { name: 'Screening OPD',           ncism_code: 'SCREEN', description: 'Mandatory triage for all new patients before specialty routing' },
+  { name: 'Kayachikitsa OPD',        ncism_code: 'KAY',    description: 'Internal Medicine' },
+  { name: 'Panchakarma OPD',         ncism_code: 'PK',     description: 'Panchakarma therapies' },
+  { name: 'Shalya Tantra OPD',       ncism_code: 'SHAL',   description: 'Surgery' },
+  { name: 'Shalakya Tantra OPD',     ncism_code: 'SHAK',   description: 'ENT & Ophthalmology' },
+  { name: 'Kaumarabhritya OPD',      ncism_code: 'KAU',    description: 'Paediatrics' },
+  { name: 'Swasthavritta OPD',       ncism_code: 'SW',     description: 'Preventive & Social Medicine' },
+  { name: 'Prasuti & Stri Roga OPD', ncism_code: 'PST',    description: 'Obstetrics & Gynaecology' },
+  { name: 'Agada Tantra OPD',        ncism_code: 'AGD',    description: 'Toxicology & Forensic Medicine' },
+  { name: 'Rog Nidana OPD',          ncism_code: 'RNV',    description: 'Pathology & Diagnosis' },
+];
+
+export const NCISM_DEPTS = [
+  { name: 'Kayachikitsa',                     ncism_code: 'KAY', type: 'clinical' },
+  { name: 'Panchakarma',                      ncism_code: 'PK',  type: 'clinical' },
+  { name: 'Shalya Tantra',                    ncism_code: 'SHAL', type: 'clinical' },
+  { name: 'Shalakya Tantra',                  ncism_code: 'SHAK', type: 'clinical' },
+  { name: 'Kaumarabhritya',                   ncism_code: 'KAU', type: 'clinical' },
+  { name: 'Prasuti & Stri Roga',               ncism_code: 'PST', type: 'clinical' },
+  { name: 'Agada Tantra',                     ncism_code: 'AGD', type: 'clinical' },
+  { name: 'Swasthavritta & Yoga',             ncism_code: 'SW',  type: 'para_clinical' },
+  { name: 'Rog Nidana & Vikruti Vigyana',      ncism_code: 'RNV', type: 'para_clinical' },
+  { name: 'Dravyaguna',                       ncism_code: 'DG',  type: 'pre_clinical' },
+  { name: 'Rasashastra & Bhaishajya Kalpana',  ncism_code: 'RBK', type: 'pre_clinical' },
+  { name: 'Sanskrit & Samhita',               ncism_code: 'SS',  type: 'pre_clinical' },
+  { name: 'Rachana & Kriya Sharir',            ncism_code: 'RS',  type: 'para_clinical' },
+];

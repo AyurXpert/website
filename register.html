@@ -463,52 +463,6 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
 .gps-status{font-size:12px;color:var(--text-muted);margin-top:6px;min-height:18px}
 .gps-status.ok{color:var(--green-mid)}
 
-/* ═══════════════════════════════
-   NCISM SETUP (STEP 4)
-═══════════════════════════════ */
-.ncism-info{background:linear-gradient(135deg,#e8f5ee,#f0faf4);border:1.5px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:24px;font-size:13px;color:var(--text-mid);line-height:1.8}
-.ncism-info strong{color:var(--green-deep)}
-.intake-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
-.intake-card{border:2px solid var(--border);border-radius:12px;padding:18px 12px;text-align:center;cursor:pointer;transition:all .2s;background:var(--cream);user-select:none}
-.intake-card:hover{border-color:var(--green-mid);background:var(--green-light)}
-.intake-card.selected{border-color:var(--green-deep);background:var(--green-light);box-shadow:0 0 0 3px rgba(26,74,46,.12)}
-.intake-num{font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:600;color:var(--green-deep);line-height:1}
-.intake-unit{font-size:11px;color:var(--text-muted);margin:4px 0 8px}
-.intake-stats{font-size:11px;color:var(--text-mid);background:var(--white);border-radius:6px;padding:4px 10px;display:inline-block;transition:all .2s}
-.intake-card.selected .intake-stats{background:var(--green-deep);color:var(--white)}
-.pg-section{border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-top:8px}
-.pg-hdr{padding:9px 14px;background:var(--green-light);font-size:11px;font-weight:600;color:var(--green-deep);text-transform:uppercase;letter-spacing:.6px}
-.pg-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid var(--border)}
-.pg-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--green-mid);flex-shrink:0;cursor:pointer}
-.pg-name{flex:1;font-size:14px;color:var(--text-dark)}
-.pg-row.off .pg-name{color:var(--text-muted)}
-.pg-seats{display:flex;align-items:center;gap:5px;flex-shrink:0}
-.pg-seats-lbl{font-size:11px;color:var(--text-muted)}
-.pg-seats-input{width:52px;height:32px;padding:0 6px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;text-align:center;background:var(--cream);color:var(--text-dark);font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s}
-.pg-seats-input:focus{border-color:var(--green-mid);background:var(--white)}
-.pg-row.off .pg-seats-input{opacity:.4;pointer-events:none}
-.preview-box{border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-top:22px}
-.preview-hdr{padding:10px 16px;background:var(--green-deep);color:var(--white);font-size:12px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
-.preview-summary{display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1.5px solid var(--border)}
-.pv-stat{padding:12px 8px;text-align:center;border-right:1px solid var(--border)}
-.pv-stat:last-child{border-right:none}
-.pv-val{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep)}
-.pv-lbl{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
-.pv-table{width:100%;border-collapse:collapse;font-size:13px}
-.pv-table th{padding:8px 12px;background:var(--green-light);color:var(--text-mid);font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.4px;text-align:left}
-.pv-table th.r,.pv-table td.r{text-align:right}
-.pv-table td{padding:7px 12px;border-top:1px solid var(--border);color:var(--text-dark)}
-.pv-table td.r{color:var(--green-mid);font-weight:500}
-.pv-table td.rt{text-align:right;color:var(--green-deep);font-weight:600}
-.pv-table tr.trow td{background:var(--green-light);font-weight:600}
-.pv-empty{padding:18px;text-align:center;color:var(--text-muted);font-size:13px;font-style:italic}
-.seed-prog{background:var(--green-light);border:1.5px solid var(--border);border-radius:12px;padding:14px 18px;margin-top:16px}
-.seed-prog-title{font-size:13px;font-weight:600;color:var(--green-deep);margin-bottom:10px}
-.seed-item{font-size:13px;color:var(--text-muted);padding:3px 0;transition:color .2s}
-.seed-item.active{color:var(--gold);font-weight:500}
-.seed-item.done{color:var(--green-deep)}
-.seed-item.err{color:#8b1a1a}
-
 /* ── SUCCESS ── */
 .success-screen{display:none;text-align:center;padding:8px 0;animation:fadeUp .5s ease both}
 .success-icon{font-size:52px;margin-bottom:16px}
@@ -874,10 +828,6 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         <div class="step-circle">3</div>
         <div class="step-label">Branding</div>
       </div>
-      <div class="step-item" id="step-ind-4" style="display:none">
-        <div class="step-circle">4</div>
-        <div class="step-label">NCISM Setup</div>
-      </div>
     </div>
 
     <div class="card">
@@ -1073,95 +1023,6 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         </div>
       </div>
 
-      <!-- ── STEP 4 — NCISM Setup ── -->
-      <div id="step-4" style="display:none">
-        <div class="card-title">NCISM Setup</div>
-        <div class="card-subtitle">Configure your institution per NCISM norms. AyurXpert will automatically seed 10 mandatory OPDs, all departments, and the complete bed matrix based on your UG intake.</div>
-
-        <div class="ncism-info">
-          <strong>NCISM 1:2 ratio</strong> — minimum OPD/day = 2 &times; UG intake (Table-7)<br>
-          <strong>Bed distribution</strong> — department-wise per NCISM Table-8 percentages<br>
-          <strong>PG beds</strong> — 4 dedicated beds per sanctioned PG seat per clinical dept
-        </div>
-
-        <div class="field">
-          <label>UG Intake &nbsp;<span class="opt">NCISM-approved annual intake</span> <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-ugintake">?</button></label>
-          <div class="faq-box" id="faq-ugintake">
-            <strong>NCISM Table-7:</strong> Your approved UG intake determines the minimum OPD patients per day and minimum bed count. Must match your NCISM recognition letter.
-          </div>
-          <div class="intake-grid" style="margin-top:12px">
-            <div class="intake-card" data-onclick="selectIntake" data-onclick-a0="60" data-onclick-a1="@this">
-              <div class="intake-num">60</div>
-              <div class="intake-unit">students / year</div>
-              <div class="intake-stats">120 OPD/day &middot; 60 beds</div>
-            </div>
-            <div class="intake-card" data-onclick="selectIntake" data-onclick-a0="100" data-onclick-a1="@this">
-              <div class="intake-num">100</div>
-              <div class="intake-unit">students / year</div>
-              <div class="intake-stats">200 OPD/day &middot; 100 beds</div>
-            </div>
-            <div class="intake-card" data-onclick="selectIntake" data-onclick-a0="150" data-onclick-a1="@this">
-              <div class="intake-num">150</div>
-              <div class="intake-unit">students / year</div>
-              <div class="intake-stats">300 OPD/day &middot; 150 beds</div>
-            </div>
-            <div class="intake-card" data-onclick="selectIntake" data-onclick-a0="200" data-onclick-a1="@this">
-              <div class="intake-num">200</div>
-              <div class="intake-unit">students / year</div>
-              <div class="intake-stats">400 OPD/day &middot; 200 beds</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="field" style="margin-top:22px">
-          <label>PG Departments &nbsp;<span class="opt">optional</span></label>
-          <div class="pg-section">
-            <div class="pg-hdr">Clinical — adds 4 IPD beds per sanctioned seat</div>
-            <div class="pg-row off" id="pgd-KAY"><input type="checkbox" id="pg-KAY" value="KAY" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="KAY"><label class="pg-name" for="pg-KAY">Kayachikitsa</label><div class="pg-seats"><input type="number" id="pgs-KAY" class="pg-seats-input" min="1" max="30" value="3" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-PK"><input type="checkbox" id="pg-PK" value="PK" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="PK"><label class="pg-name" for="pg-PK">Panchakarma</label><div class="pg-seats"><input type="number" id="pgs-PK" class="pg-seats-input" min="1" max="30" value="3" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-SHAL"><input type="checkbox" id="pg-SHAL" value="SHAL" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="SHAL"><label class="pg-name" for="pg-SHAL">Shalya Tantra</label><div class="pg-seats"><input type="number" id="pgs-SHAL" class="pg-seats-input" min="1" max="30" value="2" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-SHAK"><input type="checkbox" id="pg-SHAK" value="SHAK" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="SHAK"><label class="pg-name" for="pg-SHAK">Shalakya Tantra</label><div class="pg-seats"><input type="number" id="pgs-SHAK" class="pg-seats-input" min="1" max="30" value="2" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-KAU"><input type="checkbox" id="pg-KAU" value="KAU" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="KAU"><label class="pg-name" for="pg-KAU">Kaumarabhritya</label><div class="pg-seats"><input type="number" id="pgs-KAU" class="pg-seats-input" min="1" max="30" value="2" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-PST"><input type="checkbox" id="pg-PST" value="PST" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="PST"><label class="pg-name" for="pg-PST">Prasuti &amp; Stri Roga</label><div class="pg-seats"><input type="number" id="pgs-PST" class="pg-seats-input" min="1" max="30" value="3" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-hdr" style="border-top:1px solid var(--border)">Non-Clinical — no additional beds</div>
-            <div class="pg-row off" id="pgd-RNV"><input type="checkbox" id="pg-RNV" value="RNV" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="RNV"><label class="pg-name" for="pg-RNV">Rog Nidana &amp; Vikruti Vigyana</label><div class="pg-seats"><input type="number" id="pgs-RNV" class="pg-seats-input" min="1" max="30" value="3" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-DG"><input type="checkbox" id="pg-DG" value="DG" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="DG"><label class="pg-name" for="pg-DG">Dravyaguna</label><div class="pg-seats"><input type="number" id="pgs-DG" class="pg-seats-input" min="1" max="30" value="3" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-RBK"><input type="checkbox" id="pg-RBK" value="RBK" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="RBK"><label class="pg-name" for="pg-RBK">Rasashastra &amp; Bhaishajya Kalpana</label><div class="pg-seats"><input type="number" id="pgs-RBK" class="pg-seats-input" min="1" max="30" value="3" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
-            <div class="pg-row off" id="pgd-SW"><input type="checkbox" id="pg-SW" value="SW" class="pg-cb" data-onchange="togglePGDept" data-onchange-a0="@this" data-onchange-a1="SW"><label class="pg-name" for="pg-SW">Swasthavritta &amp; Yoga</label><div class="pg-seats"><input type="number" id="pgs-SW" class="pg-seats-input" min="1" max="30" value="2" disabled data-onchange="updatePreview"><span class="pg-seats-lbl">seats</span></div></div>
-          </div>
-        </div>
-
-        <div class="preview-box">
-          <div class="preview-hdr">HMS Configuration Preview</div>
-          <div class="preview-summary">
-            <div class="pv-stat"><div class="pv-val" id="pv-opd-day">—</div><div class="pv-lbl">OPD / Day</div></div>
-            <div class="pv-stat"><div class="pv-val" id="pv-opd-year">—</div><div class="pv-lbl">Annual Target</div></div>
-            <div class="pv-stat"><div class="pv-val" id="pv-total-beds">—</div><div class="pv-lbl">Total Beds</div></div>
-          </div>
-          <table class="pv-table">
-            <thead><tr><th>Department</th><th class="r">UG</th><th class="r">PG</th><th class="r">Total</th></tr></thead>
-            <tbody id="pv-tbody"><tr><td colspan="4" class="pv-empty">Select UG intake above to see bed configuration</td></tr></tbody>
-          </table>
-        </div>
-
-        <div class="seed-prog" id="seed-prog" style="display:none">
-          <div class="seed-prog-title">Setting up NCISM-compliant HMS&hellip;</div>
-          <div class="seed-item" id="si-1">&#9675; Configuring institution parameters</div>
-          <div class="seed-item" id="si-2">&#9675; Creating 10 mandatory OPDs</div>
-          <div class="seed-item" id="si-3">&#9675; Setting up NCISM departments</div>
-          <div class="seed-item" id="si-4">&#9675; Creating bed matrix</div>
-          <div class="seed-item" id="si-5">&#9675; Finalising setup</div>
-        </div>
-
-        <div class="btn-row" style="margin-top:22px">
-          <button class="btn-back" data-onclick="goBack" data-onclick-a0="3">&larr; Back</button>
-          <button class="btn-primary" id="btn-register" data-onclick="handleRegister" data-onclick-a0="@this">
-            <span class="btn-text">Register &amp; Configure HMS</span>
-            <span class="btn-spinner"><span class="spinner"></span></span>
-          </button>
-        </div>
-      </div>
-
       <!-- ── SUCCESS ── -->
       <div class="success-screen" id="success-screen">
         <div class="success-icon">&#127807;</div>
@@ -1171,7 +1032,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
           Share the code below with your staff so they can join your portal.
         </div>
         <div class="ncism-badge" id="ncism-badge" style="display:none">
-          NCISM-compliant HMS configured — OPDs, departments &amp; beds are ready
+          NCISM-track institution — configure your intake &amp; PG capacity from the Subscription tab
         </div>
         <div class="tenant-code-box">
           <div class="tenant-code-label">Your Organisation Code</div>

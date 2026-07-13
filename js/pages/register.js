@@ -2,6 +2,7 @@ import { registerTenant } from '../core/auth.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { isValidEmail, isValidPhone, validatePassword } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { isNCISMType } from '../config/ncism.js';
 
 wireDelegatedEvents();
 
@@ -83,43 +84,7 @@ const ORG_DATA = {
    STATE
 ───────────────────────────────────────── */
 let selectedOrgType = null;
-let selectedIntake  = null;
 let gpsCoords       = null;
-
-const CLINICAL_CODES = new Set(['KAY','PK','SHAL','SHAK','KAU','PST','AGD']);
-const UG_BED_RATIOS  = { KAY:.20, PK:.25, SHAL:.20, SHAK:.10, KAU:.10, AGD:.05, PST:.10 };
-const WARD_NAMES     = { KAY:'General Ward', PK:'Panchakarma Ward', SHAL:'Surgical Ward', SHAK:'ENT Ward', KAU:'Paediatric Ward', AGD:'General Ward', PST:'Maternity Ward' };
-
-const NCISM_OPDS = [
-  { name:'Screening OPD',           ncism_code:'SCREEN', description:'Mandatory triage for all new patients before specialty routing' },
-  { name:'Kayachikitsa OPD',        ncism_code:'KAY',    description:'Internal Medicine' },
-  { name:'Panchakarma OPD',         ncism_code:'PK',     description:'Panchakarma therapies' },
-  { name:'Shalya Tantra OPD',       ncism_code:'SHAL',   description:'Surgery' },
-  { name:'Shalakya Tantra OPD',     ncism_code:'SHAK',   description:'ENT & Ophthalmology' },
-  { name:'Kaumarabhritya OPD',      ncism_code:'KAU',    description:'Paediatrics' },
-  { name:'Swasthavritta OPD',       ncism_code:'SW',     description:'Preventive & Social Medicine' },
-  { name:'Prasuti & Stri Roga OPD', ncism_code:'PST',    description:'Obstetrics & Gynaecology' },
-  { name:'Agada Tantra OPD',        ncism_code:'AGD',    description:'Toxicology & Forensic Medicine' },
-  { name:'Rog Nidana OPD',          ncism_code:'RNV',    description:'Pathology & Diagnosis' },
-];
-
-const NCISM_DEPTS = [
-  { name:'Kayachikitsa',                    ncism_code:'KAY',  type:'clinical' },
-  { name:'Panchakarma',                     ncism_code:'PK',   type:'clinical' },
-  { name:'Shalya Tantra',                   ncism_code:'SHAL', type:'clinical' },
-  { name:'Shalakya Tantra',                 ncism_code:'SHAK', type:'clinical' },
-  { name:'Kaumarabhritya',                  ncism_code:'KAU',  type:'clinical' },
-  { name:'Prasuti & Stri Roga',             ncism_code:'PST',  type:'clinical' },
-  { name:'Agada Tantra',                    ncism_code:'AGD',  type:'clinical' },
-  { name:'Swasthavritta & Yoga',            ncism_code:'SW',   type:'para_clinical' },
-  { name:'Rog Nidana & Vikruti Vigyana',    ncism_code:'RNV',  type:'para_clinical' },
-  { name:'Dravyaguna',                      ncism_code:'DG',   type:'pre_clinical' },
-  { name:'Rasashastra & Bhaishajya Kalpana',ncism_code:'RBK',  type:'pre_clinical' },
-  { name:'Sanskrit & Samhita',              ncism_code:'SS',   type:'pre_clinical' },
-  { name:'Rachana & Kriya Sharir',          ncism_code:'RS',   type:'para_clinical' },
-];
-
-function isNCISMType(t) { return t === 'college' || t === 'teaching_hospital'; }
 
 /* ─────────────────────────────────────────
    RENDER ORG CARDS
@@ -261,10 +226,6 @@ window.selectOrgType = function(type) {
   document.getElementById('sc-icon').className    = `sc-icon cat-${d.cat}`;
   document.getElementById('sc-name').textContent  = d.name;
   document.getElementById('sc-tag').textContent   = d.tag;
-  const ind3 = document.getElementById('step-ind-3');
-  const ind4 = document.getElementById('step-ind-4');
-  if (isNCISMType(type)) { ind4.style.display=''; ind3.classList.remove('no-connector'); }
-  else { ind4.style.display='none'; ind3.classList.add('no-connector'); }
   document.getElementById('marketing-page').style.display = 'none';
   document.getElementById('reg-form').style.display = 'block';
   showStep(1);
@@ -291,8 +252,6 @@ window._closeMenuAndScrollToChooseType = function() {
 
 window.changeOrgType = function() {
   selectedOrgType = null;
-  selectedIntake  = null;
-  document.querySelectorAll('.intake-card').forEach(c => c.classList.remove('selected'));
   document.getElementById('marketing-page').style.display = '';
   document.getElementById('reg-form').style.display = 'none';
   setTimeout(() => {
@@ -337,7 +296,7 @@ window.nextStep = function(from) {
 window.goBack = function(to) { clearAlert(); showStep(Number(to)); };
 
 function showStep(n) {
-  [1,2,3,4].forEach(i => {
+  [1,2,3].forEach(i => {
     const el = document.getElementById(`step-${i}`);
     if (el) el.style.display = i === n ? 'block' : 'none';
     const ind = document.getElementById(`step-ind-${i}`);
@@ -347,149 +306,13 @@ function showStep(n) {
       if (i === n) ind.classList.add('active');
     }
   });
-  if (n === 3) {
-    const btn = document.getElementById('btn-step3');
-    if (btn) btn.querySelector('.btn-text').textContent =
-      isNCISMType(selectedOrgType) ? 'Next: NCISM Setup →' : 'Register & Start';
-  }
-  if (n === 4 && selectedIntake) updatePreview();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 window.handleStep3Btn = async function(btn) {
   clearAlert();
-  if (isNCISMType(selectedOrgType)) {
-    showStep(4);
-  } else {
-    await handleRegister(btn);
-  }
+  await handleRegister(btn);
 };
-
-/* ─────────────────────────────────────────
-   NCISM STEP 4
-───────────────────────────────────────── */
-window.selectIntake = function(val, el) {
-  selectedIntake = Number(val);
-  document.querySelectorAll('.intake-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  updatePreview();
-};
-
-window.togglePGDept = function(cb, code) {
-  const row   = document.getElementById(`pgd-${code}`);
-  const input = document.getElementById(`pgs-${code}`);
-  if (cb.checked) { row.classList.remove('off'); input.disabled = false; }
-  else            { row.classList.add('off');    input.disabled = true; }
-  updatePreview();
-};
-
-function getSelectedPGDepts() {
-  const result = [];
-  document.querySelectorAll('.pg-cb:checked').forEach(cb => {
-    const code  = cb.value;
-    const seats = parseInt(document.getElementById(`pgs-${code}`)?.value) || 0;
-    result.push({ code, seats, isClinical: CLINICAL_CODES.has(code) });
-  });
-  return result;
-}
-
-window.updatePreview = function() {
-  if (!selectedIntake) return;
-  const ug = selectedIntake;
-  const pg = getSelectedPGDepts();
-  const depts = [
-    { name:'Kayachikitsa',        code:'KAY'  },
-    { name:'Panchakarma',         code:'PK'   },
-    { name:'Shalya Tantra',       code:'SHAL' },
-    { name:'Shalakya Tantra',     code:'SHAK' },
-    { name:'Kaumarabhritya',      code:'KAU'  },
-    { name:'Agada Tantra',        code:'AGD'  },
-    { name:'Prasuti & Stri Roga', code:'PST'  },
-  ];
-  let totalBeds = 0;
-  const rows = depts.map(d => {
-    const ugB = Math.round(ug * (UG_BED_RATIOS[d.code] || 0));
-    const pgD = pg.find(p => p.code === d.code);
-    const pgB = pgD ? pgD.seats * 4 : 0;
-    const tot = ugB + pgB;
-    totalBeds += tot;
-    return `<tr><td>${d.name}</td><td class="r">${ugB}</td><td class="r">${pgB||'—'}</td><td class="rt">${tot}</td></tr>`;
-  });
-  rows.push(`<tr class="trow"><td>Total</td><td class="r"></td><td class="r"></td><td class="rt">${totalBeds}</td></tr>`);
-  document.getElementById('pv-tbody').innerHTML      = rows.join('');
-  document.getElementById('pv-opd-day').textContent  = ug * 2;
-  document.getElementById('pv-opd-year').textContent = (ug * 2 * 300).toLocaleString('en-IN');
-  document.getElementById('pv-total-beds').textContent = totalBeds;
-};
-
-function seedMark(i, state) {
-  const el = document.getElementById(`si-${i}`);
-  if (!el) return;
-  const icons = { active:'&#9654; ', done:'&#10003; ', err:'&#10007; ' };
-  el.className = `seed-item ${state}`;
-  const txt = el.textContent.replace(/^.\s/, '');
-  el.innerHTML = (icons[state] || '&#9675; ') + txt;
-}
-
-async function seedNCISMData(tenantId, ugIntake) {
-  document.getElementById('seed-prog').style.display = 'block';
-  const pg = getSelectedPGDepts();
-  const totalPGSeats = pg.reduce((s,d) => s + d.seats, 0);
-
-  seedMark(1,'active');
-  try {
-    await supabase.from('tenants').update({
-      ug_intake: ugIntake, opd_daily_target: ugIntake * 2,
-      working_days_per_week: 6, pg_student_strength: totalPGSeats,
-    }).eq('id', tenantId);
-  } catch(e) { console.warn('NCISM tenant columns not yet added — run §15c SQL:', e); }
-  seedMark(1,'done');
-
-  seedMark(2,'active');
-  const opdRows = NCISM_OPDS.map(o => ({ tenant_id:tenantId, name:o.name, description:o.description, is_active:true, ncism_code:o.ncism_code }));
-  const { data: cOPDs, error: opdErr } = await supabase.from('opds').insert(opdRows).select('id,ncism_code');
-  if (opdErr) { console.error('OPD seeding failed:', opdErr.message); seedMark(2,'err'); }
-  else { seedMark(2,'done'); }
-  const opdMap = {};
-  if (cOPDs) cOPDs.forEach(o => { opdMap[o.ncism_code] = o.id; });
-
-  seedMark(3,'active');
-  const deptRows = NCISM_DEPTS.map(d => {
-    const p = pg.find(x => x.code === d.ncism_code);
-    return { tenant_id:tenantId, name:d.name, ncism_code:d.ncism_code, type:d.type, is_active:true,
-      pg_seats_sanctioned: p ? p.seats : 0, is_pg_dept: p ? true : false,
-      opd_id: opdMap[d.ncism_code] || null };
-  });
-  const { data: cDepts, error: deptErr } = await supabase.from('departments').insert(deptRows).select('id,ncism_code,type');
-  if (deptErr) { console.error('Department seeding failed:', deptErr.message); seedMark(3,'err'); }
-  else { seedMark(3,'done'); }
-
-  seedMark(4,'active');
-  if (cDepts) {
-    const bedRows = [];
-    cDepts.forEach(dept => {
-      if (!CLINICAL_CODES.has(dept.ncism_code)) return;
-      const ugB  = Math.floor(ugIntake * (UG_BED_RATIOS[dept.ncism_code] || 0));
-      const pgD  = pg.find(p => p.code === dept.ncism_code);
-      const pgB  = pgD ? pgD.seats * 4 : 0;
-      const ward = WARD_NAMES[dept.ncism_code] || 'General Ward';
-      for (let i = 1; i <= ugB + pgB; i++) {
-        bedRows.push({ tenant_id:tenantId, department_id:dept.id,
-          bed_number:`${dept.ncism_code}-${String(i).padStart(2,'0')}`,
-          ward_name:ward, bed_type:'general', status:'vacant', floor_number:1 });
-      }
-    });
-    if (bedRows.length) {
-      const { error: bedErr } = await supabase.from('beds').insert(bedRows);
-      if (bedErr) { console.error('Bed seeding failed:', bedErr.message); seedMark(4,'err'); }
-      else seedMark(4,'done');
-    } else seedMark(4,'done');
-  } else seedMark(4,'done');
-
-  seedMark(5,'active');
-  await new Promise(r => setTimeout(r,400));
-  seedMark(5,'done');
-}
 
 /* ─────────────────────────────────────────
    REGISTRATION
@@ -497,10 +320,6 @@ async function seedNCISMData(tenantId, ugIntake) {
 window.handleRegister = async function(btn) {
   clearAlert();
   setLoading(btn, true);
-  if (isNCISMType(selectedOrgType) && !selectedIntake) {
-    showAlert('Please select your UG intake strength above.');
-    setLoading(btn, false); return;
-  }
   try {
     const result = await registerTenant({
       tenantName: document.getElementById('org-name').value.trim(),
@@ -535,31 +354,16 @@ window.handleRegister = async function(btn) {
     }
     if (Object.keys(updates).length) await supabase.from('tenants').update(updates).eq('id', result.tenant.id);
 
-    if (isNCISMType(selectedOrgType) && selectedIntake) {
-      btn.disabled = true;
-      document.getElementById('seed-prog').style.display = 'block';
-      seedMark(1,'active');
-      const { error: seedErr } = await supabase.rpc('seed_ncism_data', {
-        p_tenant_id: result.tenant.id,
-        p_ug_intake: selectedIntake
-      });
-      if (seedErr) {
-        console.error('NCISM seeding failed:', seedErr.message);
-        [1,2,3,4,5].forEach(i => seedMark(i,'err'));
-      } else {
-        [1,2,3,4,5].forEach(i => seedMark(i,'done'));
-      }
-    }
-
     document.getElementById('tenant-code-display').textContent = result.tenant.tenant_code || '—';
     if (isNCISMType(selectedOrgType)) {
       document.getElementById('ncism-badge').style.display = 'inline-block';
       document.getElementById('success-subtitle').innerHTML =
-        `Your Ayurveda college portal is live.<br>Share the code below with your staff so they can join.`;
+        `Your Ayurveda college portal is live.<br>Set up your NCISM intake &amp; PG capacity from your dashboard's Subscription tab, then share the code below with your staff so they can join.`;
+      localStorage.setItem('ax_post_reg_open_subscription', '1');
     }
     document.getElementById('progress').style.display  = 'none';
     document.getElementById('sel-chip').style.display  = 'none';
-    [1,2,3,4].forEach(i => { const el = document.getElementById(`step-${i}`); if(el) el.style.display='none'; });
+    [1,2,3].forEach(i => { const el = document.getElementById(`step-${i}`); if(el) el.style.display='none'; });
     document.getElementById('alert').classList.remove('show');
     document.getElementById('success-screen').style.display = 'block';
     window.scrollTo({ top:0, behavior:'smooth' });
