@@ -3915,70 +3915,99 @@ async function _renderNcismCapacityCard(t) {
   const currentPg = {};
   (currentDepts || []).forEach(d => { if (d.is_pg_dept) currentPg[d.ncism_code] = d.pg_seats_sanctioned || 0; });
 
+  const headerHtml = `
+    <div style="background:linear-gradient(135deg,var(--green-deep),#256b41);border-radius:14px 14px 0 0;padding:18px 22px;display:flex;align-items:center;gap:12px">
+      <div style="width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0">🎓</div>
+      <div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:600;color:#fff;line-height:1.2">NCISM Capacity Plan</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:1px">UG intake &amp; PG seats — Teaching Hospital / College only</div>
+      </div>
+    </div>`;
+
   if (pending) {
     const pgLines = Object.entries(pending.requested_pg?.reduce?.((m,p)=>{m[p.code]=p.seats;return m;},{}) || {})
       .map(([code, seats]) => `${(NCISM_DEPTS.find(d=>d.ncism_code===code)?.name)||code} (+${seats})`).join(', ') || 'None';
     card.innerHTML = `
-    <div class="cc" style="margin-top:20px">
-      <div class="cc-hd"><span class="cc-title">🎓 NCISM Capacity Plan</span></div>
-      <div style="padding:20px 22px">
-        <div style="font-size:13px;color:var(--text-mid);margin-bottom:10px">
-          Current: <strong>${currentUg} UG intake</strong> · PG seats: <strong>${currentPgTotal}</strong>
+    <div class="cc" style="margin-top:20px;overflow:hidden">
+      ${headerHtml}
+      <div style="padding:22px">
+        <div style="display:flex;gap:20px;font-size:13px;color:var(--text-mid);margin-bottom:16px">
+          <span>Current UG intake <strong style="color:var(--text-dark)">${currentUg}</strong></span>
+          <span>·</span>
+          <span>PG seats <strong style="color:var(--text-dark)">${currentPgTotal}</strong></span>
         </div>
-        <div style="background:var(--gold-light,#fdf3e2);border:1.5px solid var(--gold,#c9902a);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--text-dark)">
-          <strong>Request pending approval</strong> — submitted ${new Date(pending.requested_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}<br>
-          Requested UG intake: <strong>${pending.requested_ug_intake}</strong> · PG additions: ${_esc(pgLines)}<br>
-          Fee: <strong>₹${Number(pending.computed_fee).toLocaleString('en-IN')}</strong>
+        <div style="background:var(--gold-light,#fdf3e2);border:1.5px solid var(--gold,#c9902a);border-radius:12px;padding:16px 18px;font-size:13px;color:var(--text-dark);line-height:1.8">
+          <div style="display:flex;align-items:center;gap:8px;font-weight:700;color:#8a5c10;margin-bottom:4px">⏳ Request pending approval</div>
+          Submitted ${new Date(pending.requested_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}<br>
+          Requested UG intake: <strong>${pending.requested_ug_intake}</strong><br>
+          PG additions: ${_esc(pgLines)}<br>
+          Fee: <strong style="font-size:16px">₹${Number(pending.computed_fee).toLocaleString('en-IN')}</strong>
         </div>
-        <button class="btn-outline" style="margin-top:12px" data-onclick="cancelNcismRequest" data-onclick-a0="${pending.id}">Cancel Request</button>
+        <button class="btn-outline" style="margin-top:14px;width:auto" data-onclick="cancelNcismRequest" data-onclick-a0="${pending.id}">✕ Cancel Request</button>
       </div>
     </div>`;
     return;
   }
 
-  _ncismSelectedTier = currentUg;
+  _ncismSelectedTier = _ncismTiers.length ? currentUg : null;
   _ncismPgSeats = { ...currentPg };
 
+  const clinicalDepts    = NCISM_DEPTS.filter(d => CLINICAL_CODES.has(d.ncism_code));
+  const nonClinicalDepts = NCISM_DEPTS.filter(d => !CLINICAL_CODES.has(d.ncism_code));
+
+  const pgRow = d => {
+    const seats = currentPg[d.ncism_code] || 0;
+    return `<label for="ncism-pg-${d.ncism_code}" class="ncism-pg-row" style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid var(--border);cursor:pointer">
+      <input type="checkbox" id="ncism-pg-${d.ncism_code}" ${seats > 0 ? 'checked' : ''} data-onchange="toggleNcismPgDept" data-onchange-a0="@this" data-onchange-a1="${d.ncism_code}" style="width:16px;height:16px;accent-color:var(--green-mid);cursor:pointer"/>
+      <span style="flex:1;font-size:13px;color:var(--text-dark)">${_esc(d.name)}</span>
+      <input type="number" id="ncism-pgs-${d.ncism_code}" min="1" max="30" value="${seats || 1}" ${seats > 0 ? '' : 'disabled'}
+        style="width:56px;height:30px;text-align:center;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif" data-onchange="_ncismUpdateTotal" onclick="event.stopPropagation()"/>
+      <span style="font-size:11px;color:var(--text-muted);width:60px">seats</span>
+    </label>`;
+  };
+
   card.innerHTML = `
-  <div class="cc" style="margin-top:20px">
-    <div class="cc-hd"><span class="cc-title">🎓 NCISM Capacity Plan</span></div>
-    <div style="padding:20px 22px">
-      <div style="font-size:13px;color:var(--text-mid);margin-bottom:14px">
-        Current: <strong>${currentUg} UG intake</strong> · PG seats: <strong>${currentPgTotal}</strong>.
-        Select a new UG intake tier and/or PG department seats, then submit — a platform admin will review and activate it.
+  <div class="cc" style="margin-top:20px;overflow:hidden">
+    ${headerHtml}
+    <div style="padding:22px">
+      <div style="display:flex;gap:20px;font-size:13px;color:var(--text-mid);margin-bottom:4px">
+        <span>Current UG intake <strong style="color:var(--text-dark)">${currentUg}</strong></span>
+        <span>·</span>
+        <span>PG seats <strong style="color:var(--text-dark)">${currentPgTotal}</strong></span>
       </div>
+      <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:18px">Select a new UG intake tier and/or PG department seats, then submit — a platform admin will review and activate it.</div>
 
-      <div style="font-size:12px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">UG Intake Tier</div>
-      <div id="ncism-tier-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:18px">
-        ${_ncismTiers.length ? _ncismTiers.map(tier => `
-          <div class="ncism-tier-card" data-onclick="selectNcismTier" data-onclick-a0="${tier.ug_intake}"
-               style="border:2px solid ${tier.ug_intake === currentUg ? 'var(--green-deep)' : 'var(--border)'};border-radius:10px;padding:12px;text-align:center;cursor:pointer;background:${tier.ug_intake === currentUg ? 'var(--green-light)' : 'var(--white)'}">
-            <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:var(--green-deep)">${tier.ug_intake}</div>
-            <div style="font-size:10px;color:var(--text-muted);margin:2px 0 6px">students / year</div>
-            <div style="font-size:12px;font-weight:600;color:var(--gold)">₹${Number(tier.fee).toLocaleString('en-IN')}</div>
-            ${tier.ug_intake === currentUg ? '<div style="font-size:10px;color:var(--green-deep);font-weight:600;margin-top:4px">Current</div>' : ''}
-          </div>`).join('') : '<div style="font-size:13px;color:var(--text-muted)">No intake tiers configured yet — contact support@ayurxpert.com</div>'}
-      </div>
-
-      <div style="font-size:12px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">PG Departments (₹${Number(_ncismPgFee).toLocaleString('en-IN')} / seat)</div>
-      <div id="ncism-pg-list" style="border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px">
-        ${NCISM_DEPTS.map(d => {
-          const seats = currentPg[d.ncism_code] || 0;
-          return `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-top:1px solid var(--border)">
-            <input type="checkbox" id="ncism-pg-${d.ncism_code}" ${seats > 0 ? 'checked' : ''} data-onchange="toggleNcismPgDept" data-onchange-a0="@this" data-onchange-a1="${d.ncism_code}"/>
-            <label for="ncism-pg-${d.ncism_code}" style="flex:1;font-size:13px">${_esc(d.name)}${CLINICAL_CODES.has(d.ncism_code) ? ' <span style=\"color:var(--text-muted);font-size:11px\">(+4 beds/seat)</span>' : ''}</label>
-            <input type="number" id="ncism-pgs-${d.ncism_code}" min="1" max="30" value="${seats || 1}" ${seats > 0 ? '' : 'disabled'}
-              style="width:56px;height:30px;text-align:center;border:1.5px solid var(--border);border-radius:6px" data-onchange="_ncismUpdateTotal"/>
+      <div style="font-size:12px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">UG Intake Tier</div>
+      <div id="ncism-tier-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:22px">
+        ${_ncismTiers.length ? _ncismTiers.map(tier => {
+          const isCurrent = tier.ug_intake === currentUg;
+          return `<div class="ncism-tier-card" data-onclick="selectNcismTier" data-onclick-a0="${tier.ug_intake}"
+               style="position:relative;border:2px solid ${isCurrent ? 'var(--green-deep)' : 'var(--border)'};border-radius:12px;padding:16px 12px;text-align:center;cursor:pointer;background:${isCurrent ? 'var(--green-light)' : 'var(--white)'};box-shadow:0 1px 4px rgba(26,74,46,.06);transition:transform .15s,box-shadow .15s">
+            ${isCurrent ? '<div style="position:absolute;top:-9px;left:50%;transform:translateX(-50%);background:var(--green-deep);color:#fff;font-size:9px;font-weight:700;padding:2px 10px;border-radius:20px;letter-spacing:.4px;text-transform:uppercase">Current</div>' : ''}
+            <div style="font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:600;color:var(--green-deep);line-height:1">${tier.ug_intake}</div>
+            <div style="font-size:10px;color:var(--text-muted);margin:3px 0 8px">students / year</div>
+            <div style="font-size:13px;font-weight:700;color:var(--gold)">₹${Number(tier.fee).toLocaleString('en-IN')}</div>
           </div>`;
-        }).join('')}
+        }).join('') : `<div style="grid-column:1/-1;text-align:center;padding:22px 16px;background:var(--cream);border:1.5px dashed var(--border);border-radius:12px;font-size:13px;color:var(--text-muted)">
+            No intake tiers configured yet — ask a platform admin to add pricing, or contact <a href="mailto:support@ayurxpert.com" style="color:var(--green-mid)">support@ayurxpert.com</a>
+          </div>`}
       </div>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--green-light);border-radius:10px;padding:12px 16px;margin-bottom:14px">
-        <span style="font-size:13px;font-weight:600;color:var(--green-deep)">Total request fee</span>
-        <span id="ncism-total-fee" style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep)">₹0</span>
+      <div style="font-size:12px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">PG Departments <span style="font-weight:500;text-transform:none;letter-spacing:0">— ₹${Number(_ncismPgFee).toLocaleString('en-IN')} / seat</span></div>
+      <div id="ncism-pg-list" style="border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px">
+        <div style="padding:8px 16px;background:var(--green-light);font-size:10.5px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px">Clinical — adds 4 IPD beds per seat</div>
+        ${clinicalDepts.map(pgRow).join('')}
+        <div style="padding:8px 16px;background:var(--green-light);font-size:10.5px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px;border-top:1px solid var(--border)">Non-Clinical — no additional beds</div>
+        ${nonClinicalDepts.map(pgRow).join('')}
+      </div>
+      <style>.ncism-pg-row:hover{background:var(--cream)}.ncism-tier-card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,74,46,.12)}</style>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--green-light);border-radius:12px;padding:14px 18px;margin-bottom:16px">
+        <span style="font-size:13px;font-weight:700;color:var(--green-deep)">💳 Total request fee</span>
+        <span id="ncism-total-fee" style="font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep)">₹0</span>
       </div>
 
-      <button class="btn-primary" style="width:auto" data-onclick="submitNcismRequest">Submit Request</button>
+      <button class="btn-act" id="ncism-submit-btn" style="padding:11px 26px${_ncismTiers.length ? '' : ';opacity:.5;cursor:not-allowed'}" data-onclick="submitNcismRequest" ${_ncismTiers.length ? '' : 'disabled'}>✓ Submit Request</button>
     </div>
   </div>`;
 
