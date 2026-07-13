@@ -1,9 +1,9 @@
-import { requireAuth, getCurrentProfile } from '../core/auth.js';
+import { requireAuth, getCurrentProfile, getCurrentRole } from '../core/auth.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { MFA_MANDATORY_ROLES } from '../config/constants.js';
+import { MFA_MANDATORY_ROLES, ROLE_HOME } from '../config/constants.js';
 
 await requireAuth([]); // any authenticated role can manage their own account
 initNavbar();
@@ -11,7 +11,13 @@ wireDelegatedEvents();
 
 function _toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2800); }
 
-if (new URLSearchParams(window.location.search).get('mfa_required') === '1') {
+// Reached via requireAuth()'s forced redirect for a mandatory-MFA role with no
+// factor yet — this page has no nav link back anywhere, so once enrollment
+// completes below, send the user on to where they were actually headed instead
+// of stranding them here (confirmed live 14 Jul 2026 — platform_admin had no
+// way back from a fresh enrollment).
+const _cameFromMfaGate = new URLSearchParams(window.location.search).get('mfa_required') === '1';
+if (_cameFromMfaGate) {
   document.getElementById('mfa-required-banner').classList.add('show');
 }
 
@@ -95,6 +101,11 @@ window.confirmEnroll = async function () {
   _pendingFactorId = null;
   _toast('Two-factor authentication enabled ✓');
   await loadFactorState();
+
+  if (_cameFromMfaGate) {
+    const home = ROLE_HOME[getCurrentRole()] || 'index.html';
+    setTimeout(() => { window.location.href = home; }, 1200);
+  }
 };
 
 window.removeFactor = async function () {
