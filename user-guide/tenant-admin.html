@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tenant Administration — Master Control User Guide | AyurXpert HMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --green-deep: #1a4a2e; --gold: #c9902a; --cream: #faf8f3; --white: #ffffff;
+      --border: #e5ded4; --red: #c0392b; --sidebar-w: 240px;
+      --font-body: 'DM Sans', sans-serif; --font-head: 'Cormorant Garamond', serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--font-body); font-size: 14px; line-height: 1.7; background: var(--cream); color: #2d2d2d; display: flex; flex-direction: column; min-height: 100vh; }
+    .top-banner { background: var(--green-deep); color: var(--gold); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 200; box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
+    .top-banner h1 { font-family: var(--font-head); font-size: 1.35rem; font-weight: 700; letter-spacing: 0.02em; color: var(--gold); }
+    .top-banner .banner-sub { font-size: 0.78rem; color: rgba(255,255,255,0.7); margin-top: 2px; }
+    .print-btn { background: var(--gold); color: var(--green-deep); border: none; border-radius: 6px; padding: 7px 16px; font-family: var(--font-body); font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+    .print-btn:hover { background: #daa430; }
+    .layout { display: flex; flex: 1; }
+    .sidebar { width: var(--sidebar-w); flex-shrink: 0; background: var(--white); border-right: 1px solid var(--border); position: sticky; top: 54px; height: calc(100vh - 54px); overflow-y: auto; padding: 16px 0 24px; }
+    .sidebar-label { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #888; padding: 10px 16px 4px; }
+    .sidebar nav a { display: block; padding: 6px 16px; font-size: 0.82rem; color: #444; text-decoration: none; border-left: 3px solid transparent; transition: all 0.15s; }
+    .sidebar nav a:hover, .sidebar nav a.active { color: var(--green-deep); border-left-color: var(--green-deep); background: #f0f7f2; }
+    .sidebar nav a.sub { padding-left: 28px; font-size: 0.78rem; color: #666; }
+    .sidebar nav a.sub:hover { color: var(--green-deep); }
+    .main { flex: 1; padding: 32px 40px 60px; max-width: 900px; }
+    h2 { font-family: var(--font-head); font-size: 1.6rem; font-weight: 700; color: var(--green-deep); margin: 40px 0 10px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+    h2:first-of-type { margin-top: 0; }
+    h3 { font-family: var(--font-head); font-size: 1.15rem; font-weight: 600; color: #1a3a22; margin: 24px 0 8px; }
+    h4 { font-size: 0.9rem; font-weight: 600; color: #333; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+    p { margin-bottom: 10px; }
+    .table-wrap { overflow-x: auto; margin: 14px 0 20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th { background: var(--green-deep); color: var(--white); text-align: left; padding: 9px 12px; font-weight: 600; font-size: 0.78rem; letter-spacing: 0.03em; }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: #f6f3ee; }
+    tr:last-child td { border-bottom: none; }
+    pre { background: #1e2d1f; border-radius: 8px; padding: 18px 20px; margin: 14px 0 20px; overflow-x: auto; }
+    code.code-block { font-family: 'Courier New', Courier, monospace; font-size: 0.8rem; color: #d4e8d8; line-height: 1.6; white-space: pre; }
+    p code, li code, td code { background: #edf3ee; color: #1a4a2e; padding: 1px 5px; border-radius: 3px; font-size: 0.82em; font-family: 'Courier New', Courier, monospace; }
+    .box { border-radius: 6px; padding: 12px 16px; margin: 14px 0; font-size: 0.85rem; line-height: 1.6; }
+    .box strong { display: block; margin-bottom: 4px; }
+    .box-tip { background: #f0faf3; border-left: 4px solid var(--green-deep); color: #1a3a22; }
+    .box-warn { background: #fdf8ee; border-left: 4px solid var(--gold); color: #5a3e00; }
+    .box-critical { background: #fdf2f2; border-left: 4px solid var(--red); color: #7a1010; }
+    .badge { display: inline-block; border-radius: 12px; padding: 2px 10px; font-size: 0.73rem; font-weight: 600; letter-spacing: 0.03em; white-space: nowrap; }
+    .badge-super_admin { background: #fdf3dc; color: #7a4e00; }
+    .badge-dept_admin  { background: #ede8fc; color: #3b1a8a; }
+    .steps { list-style: none; margin: 14px 0 20px; }
+    .steps li { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 10px; background: #f0f7f2; border-radius: 7px; padding: 10px 14px; border: 1px solid #d4ead9; }
+    .step-num { flex-shrink: 0; background: var(--green-deep); color: var(--white); border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; margin-top: 1px; }
+    .step-body { flex: 1; }
+    .step-body strong { color: var(--green-deep); }
+    .schema-table th { font-size: 0.75rem; }
+    .schema-table td { font-size: 0.8rem; font-family: 'Courier New', Courier, monospace; }
+    .schema-table td:nth-child(1) { color: var(--green-deep); font-weight: 600; }
+    .schema-table td:nth-child(3) { color: #888; }
+    .scenario { background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin: 16px 0; }
+    .scenario h4 { margin-top: 0; color: var(--green-deep); font-family: var(--font-head); font-size: 1rem; font-weight: 700; text-transform: none; letter-spacing: 0; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+    footer { text-align: center; font-size: 0.75rem; color: #aaa; padding: 20px; border-top: 1px solid var(--border); background: var(--white); }
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+      .main { padding: 20px 18px 40px; }
+      h2 { font-size: 1.3rem; }
+    }
+    @media print {
+      .sidebar { display: none !important; }
+      .top-banner { position: static; }
+      .print-btn { display: none !important; }
+      .main { padding: 20px; max-width: 100%; }
+      pre { break-inside: avoid; }
+      .scenario { break-inside: avoid; }
+      h2 { break-before: page; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="top-banner">
+  <div>
+    <h1>Tenant Administration — Master Control Guide</h1>
+    <div class="banner-sub">AyurXpert HMS · Covers admin.html · Last updated: 14 Jul 2026, Session 89</div>
+  </div>
+  <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="sidebar-label">Contents</div>
+    <nav>
+      <a href="#overview">1. Overview</a>
+      <a href="#overview-roles" class="sub">1.1 Roles &amp; Access</a>
+      <a href="#overview-nav" class="sub">1.2 Sidebar Navigation</a>
+
+      <a href="#stats">2. Statistics</a>
+      <a href="#accounts">3. Accounts</a>
+      <a href="#hr">4. Human Resources</a>
+      <a href="#departments">5. Departments</a>
+      <a href="#infrastructure">6. Infrastructure</a>
+      <a href="#packages">7. Packages</a>
+
+      <a href="#subscription">8. Subscription &amp; Plan</a>
+      <a href="#sub-current" class="sub">8.1 Current Plan &amp; Billing</a>
+      <a href="#sub-usage" class="sub">8.2 Staff Usage</a>
+      <a href="#sub-ncism" class="sub">8.3 NCISM Capacity Plan</a>
+
+      <a href="#modules">9. Feature Modules</a>
+      <a href="#abdm-bridge">10. ABDM Bridge</a>
+      <a href="#quick-links">11. Quick Links</a>
+
+      <a href="#scenarios">12. Common Scenarios</a>
+      <a href="#troubleshoot">13. Troubleshooting</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+    <h2 id="overview">1. Overview</h2>
+    <p>This guide covers <strong>admin.html</strong> — "Master Control" — the hospital-level administration dashboard used by a tenant's own super admin or department admin. Every section here is scoped to that one tenant's own data; nothing shown or edited here affects any other hospital on the platform.</p>
+
+    <h3 id="overview-roles">1.1 Roles &amp; Access</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Role</th><th>Access</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-super_admin">super_admin</span></td><td>Full access to every section, plus super_admin-only actions (Promote to Admin, some approval steps).</td></tr>
+          <tr><td><span class="badge badge-dept_admin">dept_admin</span></td><td>Full access to the same sections, except a small number of super_admin-only actions noted where they occur below.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="box box-tip">
+      <strong>Both roles land here by default</strong>
+      Both <code>super_admin</code> and <code>dept_admin</code> are routed to admin.html on login (see <code>ROLE_HOME</code> in <code>js/config/constants.js</code>).
+    </div>
+
+    <h3 id="overview-nav">1.2 Sidebar Navigation</h3>
+    <p>The left sidebar is an icon-rail that expands to show labels on hover (52px collapsed → 248px expanded). It's organised into four groups: <strong>Operations</strong> (Statistics, Accounts), <strong>Organisation</strong> (Human Resources, Departments, Infrastructure, Packages), <strong>Account</strong> (Subscription, Feature Modules, ABDM Bridge), and <strong>Quick Links</strong> (shortcuts to reception.html, opd-admin.html, bed-admin.html, ncism-compliance.html, Monthly Report, NCISM Reports).</p>
+
+    <hr />
+
+    <h2 id="stats">2. Statistics</h2>
+    <p>The default landing section. Shows today's key numbers at a glance: Patients Today, Revenue Today, Beds Occupied, Pending Approvals, Active Staff, Active Depts.</p>
+    <p>Two compliance banners appear here for NCISM-regulated institutions (Teaching Hospital/College): an <strong>OPD attendance banner</strong> (today's patient count vs. the NCISM-mandated daily target, colour-coded green/amber/red) and an <strong>IPD bed compliance banner</strong> (flags departments whose bed count has drifted out of the NCISM ratio).</p>
+    <p>A <strong>subscription expiry banner</strong> also appears here — see Section 13 (Troubleshooting) if it's showing when you don't expect it, or not showing when you do.</p>
+
+    <hr />
+
+    <h2 id="accounts">3. Accounts</h2>
+    <p>Five KPI cards (revenue breakdown, pending bills, etc.) giving a financial snapshot of the hospital. This is a read-only summary — actual billing work happens in reception.html, dispensaryPOS.html, and finance.html (see the separate Financial Management user guide for those).</p>
+
+    <hr />
+
+    <h2 id="hr">4. Human Resources</h2>
+    <p>Two sub-tabs: <strong>All Staff</strong> (a flat list of every staff member) and <strong>Hierarchy</strong> (an org-tree grouped into 12 department sections, including NCISM position ladders for Teaching Hospital/College tenants).</p>
+    <ul style="margin: 8px 0 14px 20px; line-height: 2;">
+      <li><strong>Login Access approvals</strong> — new staff who signed up via signup.html appear here as pending until a super_admin/dept_admin approves them.</li>
+      <li><strong>Promote to Admin</strong> — <span class="badge badge-super_admin">super_admin</span> only. Elevates an existing staff member to dept_admin.</li>
+      <li><strong>Reset MFA</strong> — in a staff member's profile modal, a super_admin can remove another user's MFA factor if they're locked out (mandatory for super_admin/dept_admin/finance roles). Use this before resorting to any database-level fix.</li>
+    </ul>
+
+    <hr />
+
+    <h2 id="departments">5. Departments</h2>
+    <p>Manage the hospital's department list — add, edit, activate/deactivate. For NCISM-regulated institutions, departments carry an <code>ncism_code</code> and (for teaching hospitals) a <code>category</code> (clinical / para_clinical / pre_clinical) and PG seat sanction count, most of which are set automatically when an NCISM capacity request is approved (Section 8.3).</p>
+
+    <hr />
+
+    <h2 id="infrastructure">6. Infrastructure</h2>
+    <p>Setup and tracking for physical infrastructure items required for NCISM/NABH compliance — building/floor breakdowns, facility checklists, etc.</p>
+
+    <hr />
+
+    <h2 id="packages">7. Packages</h2>
+    <p>Manage bundled treatment packages (Panchakarma, Consultation, Wellness, Combined) sold at reception/POS as multi-session bundles rather than one-off fees.</p>
+
+    <hr />
+
+    <h2 id="subscription">8. Subscription &amp; Plan</h2>
+    <p>This section shows the tenant's own billing relationship with AyurXpert — what plan they're on, when it expires, and (for Teaching Hospital/College tenants) lets them request more UG/PG capacity. Everything shown here is configured platform-wide by AyurXpert's platform admin (see the separate Platform Admin guide) — a tenant admin cannot change their own plan, pricing, or GST rate from this page; they can only view their current state and submit an NCISM capacity request.</p>
+
+    <h3 id="sub-current">8.1 Current Plan &amp; Billing</h3>
+    <p>Shows the plan name and status chips, the expiry/trial-end date with a colour-coded days-left indicator (amber ≤30 days, red ≤7 days or expired), and — for a paid plan with a billing cycle set — the billing cycle (Monthly/Annual) and the fee, including a GST breakdown (e.g. "₹4,999 + 18% GST = ₹5,899").</p>
+    <div class="box box-tip">
+      <strong>Nothing to renew from here</strong>
+      There's no self-service upgrade/payment button — the page shows a "contact support@ayurxpert.com to upgrade or renew" note. Renewals and plan changes are applied by the platform admin from subscription.html's All Tenants tab.
+    </div>
+
+    <h3 id="sub-usage">8.2 Staff Usage</h3>
+    <p>Active staff count against the plan's Max Staff Users limit, with a progress bar that turns amber at 70% and red at 90% of the limit.</p>
+
+    <h3 id="sub-ncism" style="scroll-margin-top: 10px">8.3 NCISM Capacity Plan (Teaching Hospital / College only)</h3>
+    <p>This card only appears for tenants of type Teaching Hospital or College. It lets the admin request a new UG intake tier and/or add PG department seats — a platform admin then reviews and activates the request.</p>
+
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body"><strong>Select a UG Intake Tier</strong> — cards show each available intake size (e.g. 60/100/150/200 students/year) with its fee and, once a GST rate is configured, a small "incl. GST ₹X" line. The tenant's current tier is marked "Current".</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>Select PG Department seats (optional)</strong> — tick a department checkbox and enter the number of PG students. Clinical departments each add 4 IPD beds per seat automatically on approval; non-clinical departments add no beds.</div></li>
+      <li><span class="step-num">3</span><div class="step-body"><strong>Review the total request fee</strong> — a live-updating total at the bottom shows the base fee, the GST%, and the GST amount, adding up UG tier fee + (PG seats × per-seat fee).</div></li>
+      <li><span class="step-num">4</span><div class="step-body"><strong>Submit Request</strong> — the request goes to the platform admin's NCISM Requests queue as <em>pending</em>. Nothing on the tenant's own OPDs/departments/beds changes yet.</div></li>
+      <li><span class="step-num">5</span><div class="step-body"><strong>While pending</strong> — the card shows the submitted request's details instead of the selection UI, with a "✕ Cancel Request" option if the tenant changes their mind before it's reviewed.</div></li>
+      <li><span class="step-num">6</span><div class="step-body"><strong>On approval</strong> — the tenant's OPDs (first activation only), departments, PG seat counts, and beds update automatically; the card returns to the selection UI showing the new current tier/seats.</div></li>
+    </ol>
+
+    <div class="box box-warn">
+      <strong>Upgrades never remove existing capacity</strong>
+      If a later request reduces the UG intake or PG seats compared to the current setup, approval will only ever add the positive difference in beds — it will not delete existing beds or reduce sanctioned seats below what's already been approved historically. Downsizing capacity is not currently supported through this flow.
+    </div>
+
+    <hr />
+
+    <h2 id="modules">9. Feature Modules</h2>
+    <p>Toggle which optional feature modules are visible/enabled for this tenant's staff (tied to the tenant's plan — some modules may be locked on lower plans; see the Plan Features checklist under Section 8.1).</p>
+
+    <hr />
+
+    <h2 id="abdm-bridge">10. ABDM Bridge</h2>
+    <p>Shows recent ABDM (Ayushman Bharat Digital Mission) callback activity — HIP linking, consent requests, and health data exchange events routed through the tenant's ABDM integration.</p>
+
+    <hr />
+
+    <h2 id="quick-links">11. Quick Links</h2>
+    <p>Shortcuts to pages that live outside the Master Control shell but are frequently needed by an admin: Reception (reception.html), OPD Setup (opd-admin.html), Dept &amp; Beds (bed-admin.html), NCISM Compliance (ncism-compliance.html), Monthly Report, and NCISM Reports (the monthly SDF/compliance upload workflow — has its own due-date alert around the 8th–10th of each month).</p>
+
+    <hr />
+
+    <h2 id="scenarios">12. Common Scenarios</h2>
+
+    <div class="scenario">
+      <h4>A. Our subscription is about to expire and I want to renew</h4>
+      <p>Check Section 8.1 for the exact expiry date and current plan/billing cycle, then contact <code>support@ayurxpert.com</code> — renewal itself is applied by the platform admin, not self-service.</p>
+    </div>
+
+    <div class="scenario">
+      <h4>B. We need to increase our UG intake from 60 to 100 students</h4>
+      <p>Go to Subscription → NCISM Capacity Plan, select the 100 tier card, adjust any PG seats if needed, review the total fee, and Submit Request. Wait for platform admin approval — your current capacity stays unchanged until then.</p>
+    </div>
+
+    <div class="scenario">
+      <h4>C. A staff member is locked out of MFA</h4>
+      <p>Go to Human Resources → find their profile → use the "Reset MFA" action (super_admin only). This clears their enrolled factor so they can re-enroll on next login.</p>
+    </div>
+
+    <hr />
+
+    <h2 id="troubleshoot">13. Troubleshooting</h2>
+
+    <div class="box box-warn">
+      <strong>The subscription expiry banner isn't showing even though we're close to expiry</strong>
+      The banner (and the red dot on the sidebar's Subscription item) only appears within 30 days of the effective expiry date. Check Section 8.1 for what date is actually being used — if Subscription Expiry isn't set and the plan is no longer Trial, there may be no date for the banner to compare against.
+    </div>
+
+    <div class="box box-critical">
+      <strong>A feature I was just told about isn't visible on my screen</strong>
+      Hard-refresh (Ctrl+Shift+R) before assuming something is broken — the live site can take a minute or two to catch up after a change, and the browser's own cache can hold onto an old copy of the page's JavaScript even after that.
+    </div>
+
+  </main>
+</div>
+
+<footer>AyurXpert Technologies™ — Internal reference document. Last updated Session 89, 14 Jul 2026.</footer>
+</body>
+</html>

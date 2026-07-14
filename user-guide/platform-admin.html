@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Platform Admin — Subscription &amp; Billing User Guide | AyurXpert</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --green-deep: #1a4a2e; --gold: #c9902a; --cream: #faf8f3; --white: #ffffff;
+      --border: #e5ded4; --red: #c0392b; --sidebar-w: 240px;
+      --font-body: 'DM Sans', sans-serif; --font-head: 'Cormorant Garamond', serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--font-body); font-size: 14px; line-height: 1.7; background: var(--cream); color: #2d2d2d; display: flex; flex-direction: column; min-height: 100vh; }
+    .top-banner { background: var(--green-deep); color: var(--gold); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 200; box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
+    .top-banner h1 { font-family: var(--font-head); font-size: 1.35rem; font-weight: 700; letter-spacing: 0.02em; color: var(--gold); }
+    .top-banner .banner-sub { font-size: 0.78rem; color: rgba(255,255,255,0.7); margin-top: 2px; }
+    .print-btn { background: var(--gold); color: var(--green-deep); border: none; border-radius: 6px; padding: 7px 16px; font-family: var(--font-body); font-size: 0.8rem; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+    .print-btn:hover { background: #daa430; }
+    .layout { display: flex; flex: 1; }
+    .sidebar { width: var(--sidebar-w); flex-shrink: 0; background: var(--white); border-right: 1px solid var(--border); position: sticky; top: 54px; height: calc(100vh - 54px); overflow-y: auto; padding: 16px 0 24px; }
+    .sidebar-label { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #888; padding: 10px 16px 4px; }
+    .sidebar nav a { display: block; padding: 6px 16px; font-size: 0.82rem; color: #444; text-decoration: none; border-left: 3px solid transparent; transition: all 0.15s; }
+    .sidebar nav a:hover, .sidebar nav a.active { color: var(--green-deep); border-left-color: var(--green-deep); background: #f0f7f2; }
+    .sidebar nav a.sub { padding-left: 28px; font-size: 0.78rem; color: #666; }
+    .sidebar nav a.sub:hover { color: var(--green-deep); }
+    .main { flex: 1; padding: 32px 40px 60px; max-width: 900px; }
+    h2 { font-family: var(--font-head); font-size: 1.6rem; font-weight: 700; color: var(--green-deep); margin: 40px 0 10px; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+    h2:first-of-type { margin-top: 0; }
+    h3 { font-family: var(--font-head); font-size: 1.15rem; font-weight: 600; color: #1a3a22; margin: 24px 0 8px; }
+    h4 { font-size: 0.9rem; font-weight: 600; color: #333; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+    p { margin-bottom: 10px; }
+    .table-wrap { overflow-x: auto; margin: 14px 0 20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th { background: var(--green-deep); color: var(--white); text-align: left; padding: 9px 12px; font-weight: 600; font-size: 0.78rem; letter-spacing: 0.03em; }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:nth-child(even) td { background: #f6f3ee; }
+    tr:last-child td { border-bottom: none; }
+    pre { background: #1e2d1f; border-radius: 8px; padding: 18px 20px; margin: 14px 0 20px; overflow-x: auto; }
+    code.code-block { font-family: 'Courier New', Courier, monospace; font-size: 0.8rem; color: #d4e8d8; line-height: 1.6; white-space: pre; }
+    p code, li code, td code { background: #edf3ee; color: #1a4a2e; padding: 1px 5px; border-radius: 3px; font-size: 0.82em; font-family: 'Courier New', Courier, monospace; }
+    .box { border-radius: 6px; padding: 12px 16px; margin: 14px 0; font-size: 0.85rem; line-height: 1.6; }
+    .box strong { display: block; margin-bottom: 4px; }
+    .box-tip { background: #f0faf3; border-left: 4px solid var(--green-deep); color: #1a3a22; }
+    .box-warn { background: #fdf8ee; border-left: 4px solid var(--gold); color: #5a3e00; }
+    .box-critical { background: #fdf2f2; border-left: 4px solid var(--red); color: #7a1010; }
+    .badge { display: inline-block; border-radius: 12px; padding: 2px 10px; font-size: 0.73rem; font-weight: 600; letter-spacing: 0.03em; white-space: nowrap; }
+    .badge-platform_admin { background: #fdf3dc; color: #7a4e00; }
+    .steps { list-style: none; margin: 14px 0 20px; }
+    .steps li { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 10px; background: #f0f7f2; border-radius: 7px; padding: 10px 14px; border: 1px solid #d4ead9; }
+    .step-num { flex-shrink: 0; background: var(--green-deep); color: var(--white); border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; margin-top: 1px; }
+    .step-body { flex: 1; }
+    .step-body strong { color: var(--green-deep); }
+    .schema-table th { font-size: 0.75rem; }
+    .schema-table td { font-size: 0.8rem; font-family: 'Courier New', Courier, monospace; }
+    .schema-table td:nth-child(1) { color: var(--green-deep); font-weight: 600; }
+    .schema-table td:nth-child(3) { color: #888; }
+    .scenario { background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin: 16px 0; }
+    .scenario h4 { margin-top: 0; color: var(--green-deep); font-family: var(--font-head); font-size: 1rem; font-weight: 700; text-transform: none; letter-spacing: 0; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+    footer { text-align: center; font-size: 0.75rem; color: #aaa; padding: 20px; border-top: 1px solid var(--border); background: var(--white); }
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+      .main { padding: 20px 18px 40px; }
+      h2 { font-size: 1.3rem; }
+    }
+    @media print {
+      .sidebar { display: none !important; }
+      .top-banner { position: static; }
+      .print-btn { display: none !important; }
+      .main { padding: 20px; max-width: 100%; }
+      pre { break-inside: avoid; }
+      .scenario { break-inside: avoid; }
+      h2 { break-before: page; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="top-banner">
+  <div>
+    <h1>Platform Admin — Subscription &amp; Billing Guide</h1>
+    <div class="banner-sub">AyurXpert Platform · Covers subscription.html · <span id="last-updated-inline">Last updated: 14 Jul 2026, Session 89</span></div>
+  </div>
+  <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+</header>
+
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="sidebar-label">Contents</div>
+    <nav>
+      <a href="#overview">1. Overview</a>
+      <a href="#overview-access" class="sub">1.1 Who Is Platform Admin</a>
+
+      <a href="#tenants">2. All Tenants</a>
+      <a href="#tenants-stats" class="sub">2.1 Summary Stats</a>
+      <a href="#tenants-filter" class="sub">2.2 Search &amp; Filter</a>
+      <a href="#tenants-edit" class="sub">2.3 Edit Subscription</a>
+      <a href="#tenants-expiry" class="sub">2.4 Expiring/Expired Tenants</a>
+
+      <a href="#ncism-req">3. NCISM Requests</a>
+
+      <a href="#pricing">4. Pricing</a>
+      <a href="#pricing-gst" class="sub">4.1 GST Rate</a>
+      <a href="#pricing-tiers" class="sub">4.2 UG Intake Tiers</a>
+      <a href="#pricing-pg" class="sub">4.3 PG Seat Fee</a>
+      <a href="#pricing-plans" class="sub">4.4 SaaS Plan Pricing</a>
+
+      <a href="#scenarios">5. Common Scenarios</a>
+      <a href="#troubleshoot">6. Troubleshooting</a>
+      <a href="#tech">7. Technical Reference</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+    <h2 id="overview">1. Overview</h2>
+    <p>This guide covers <strong>subscription.html</strong> — the single page a platform admin uses to manage every tenant's plan, billing, NCISM capacity requests, and the platform-wide pricing/GST configuration that every tenant sees.</p>
+
+    <h3 id="overview-access">1.1 Who Is Platform Admin</h3>
+    <p>The <span class="badge badge-platform_admin">platform_admin</span> role is separate from every tenant's own staff roles (super_admin, dept_admin, etc.) — it is the AyurXpert company's own account, not owned by any hospital tenant. On login it lands directly on subscription.html and is gated by the <code>is_platform_admin</code> boolean on the <code>profiles</code> table (checked live on every page load, never cached).</p>
+    <div class="box box-tip">
+      <strong>Only one platform_admin account should normally exist</strong>
+      As of this writing there is exactly one: <code>admin@ayurxpert.com</code>. If a second one is ever created, both would see and manage the same tenant-wide data — there's no per-admin scoping.
+    </div>
+
+    <hr />
+
+    <h2 id="tenants">2. All Tenants Tab</h2>
+    <p>The default tab on subscription.html. Lists every tenant on the platform with their plan, billing status, and usage.</p>
+
+    <h3 id="tenants-stats">2.1 Summary Stats</h3>
+    <p>Five cards at the top of the page: Total Tenants, On Trial, Active Paid, Expiring ≤30d, Expired. These recompute from the same tenant list shown below — they are not separately cached.</p>
+
+    <h3 id="tenants-filter">2.2 Search &amp; Filter</h3>
+    <p>Filter the tenant table by organisation name (text search), subscription status, or plan type. Filters combine with AND logic — e.g. status=Expiring + plan=Growth shows only Growth-plan tenants that are expiring.</p>
+
+    <h3 id="tenants-edit">2.3 Editing a Tenant's Subscription</h3>
+    <p>Click <strong>✏ Edit</strong> on any tenant row to open the Edit Subscription modal. This is the only place a platform admin directly changes a tenant's billing state.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Field</th><th>What It Controls</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Plan</strong></td><td>Free Trial / Starter / Growth / Enterprise. Drives which features the tenant sees unlocked in their own Subscription tab's "Plan Features" checklist.</td></tr>
+          <tr><td><strong>Billing Cycle</strong></td><td>None (Trial) / Monthly / Annual. Only meaningful for a paid plan — a trial tenant should normally be left at "None". Determines which fee (monthly or annual) from the SaaS Plan Pricing table is shown to the tenant.</td></tr>
+          <tr><td><strong>Status</strong></td><td>Trial Active / Active (Paid) / Grace Period / Expired / Suspended. Drives the colour of the status chip and whether the tenant sees a warning banner on their own dashboard.</td></tr>
+          <tr><td><strong>Max Staff Users</strong></td><td>Staff-seat limit for the tenant. Enter 999 for effectively unlimited (shown as "∞" everywhere).</td></tr>
+          <tr><td><strong>Subscription Expiry Date</strong></td><td>The paid-plan end date. Drives the "Expiring ≤30d" / "Expired" calculations platform-wide.</td></tr>
+          <tr><td><strong>Trial Ends Date</strong></td><td>Used instead of Subscription Expiry while the tenant is still on Free Trial.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="box box-tip">
+      <strong>Effective expiry date</strong>
+      Whichever of Subscription Expiry or Trial Ends is set is used to compute "days left" everywhere in the app (this page's status chips, the tenant's own expiry banner). If both are set, Subscription Expiry takes priority once the plan is no longer Trial.
+    </div>
+
+    <h3 id="tenants-expiry">2.4 Expiring / Expired Tenants</h3>
+    <p>The tenant table automatically sorts <strong>Expired</strong> tenants first, then <strong>Expiring</strong> tenants (soonest first), then everyone else alphabetically — so tenants needing attention are always visible at the top without needing to apply a filter. Expired/expiring rows also get a light red/amber background tint.</p>
+
+    <hr />
+
+    <h2 id="ncism-req">3. NCISM Requests Tab</h2>
+    <p>Teaching Hospital / College tenants submit a capacity request from their own admin.html Subscription tab (new UG intake tier and/or PG department seats). Every <em>pending</em> request appears here for review.</p>
+
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body"><strong>Review the request</strong> — organisation name, current vs. requested UG intake, requested PG department additions, and the computed fee (including its GST breakdown, frozen at the rate that applied when the tenant submitted).</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>✓ Approve</strong> — confirms, then immediately runs <code>platform_approve_ncism_request()</code>: seeds OPDs/departments/beds on a tenant's very first activation, or adds only the positive bed/seat delta on a later upgrade (never removes existing beds).</div></li>
+      <li><span class="step-num">3</span><div class="step-body"><strong>✗ Reject</strong> — prompts for an optional reason, marks the request rejected. No data changes on the tenant.</div></li>
+    </ol>
+
+    <div class="box box-warn">
+      <strong>Approval is immediate and irreversible via the UI</strong>
+      There is no "undo approve" button. If a request was approved by mistake, the tenant's OPDs/departments/beds must be corrected manually (or via a fresh SQL fix) — there's no automated rollback path.
+    </div>
+
+    <hr />
+
+    <h2 id="pricing">4. Pricing Tab</h2>
+    <p>Every ₹ figure a tenant ever sees anywhere in the app — NCISM capacity fees, and (once set) the SaaS subscription plan fees — is configured from this one tab. Nothing here is hardcoded in the app's code.</p>
+
+    <h3 id="pricing-gst">4.1 GST Rate</h3>
+    <p>A single platform-wide GST percentage, applied on top of every fee shown anywhere (NCISM tiers, PG seat fee, SaaS plan pricing). It is intentionally a single editable number rather than hardcoded, since the government rate changes from time to time. Changing it here immediately changes the "+GST Total" figures shown across this page, the tenant's own NCISM Capacity Plan card, and their Current Plan card — nothing needs to be redeployed.</p>
+
+    <div class="box box-tip">
+      <strong>GST is calculated, not stored, on most fee displays</strong>
+      Only NCISM capacity <em>requests</em> freeze the GST rate/amount that applied at submission time (for audit correctness — a later rate change shouldn't silently rewrite a pending or historical request's fee). Every other fee display (tiers, PG seat fee, plan pricing) recomputes live from the current rate.
+    </div>
+
+    <h3 id="pricing-tiers">4.2 UG Intake Tiers</h3>
+    <p>The fixed set of UG intake sizes (currently 60 / 100 / 150 / 200 students/year) a Teaching Hospital/College can choose between, each with its own one-time capacity-activation fee. Edit a tier's fee, or Deactivate a tier to hide it from tenants without deleting its history. "+ Add Tier" creates a new intake size if the institution needs one not already listed.</p>
+
+    <h3 id="pricing-pg">4.3 PG Seat Fee</h3>
+    <p>A single per-seat fee applied to every PG department seat a tenant requests, regardless of department. There is only one PG seat fee for the whole platform (not one per department).</p>
+
+    <h3 id="pricing-plans">4.4 SaaS Plan Pricing</h3>
+    <p>Independent monthly and annual fees for the Starter, Growth, and Enterprise plans. Free Trial has no pricing row — it is always ₹0 and has no billing cycle.</p>
+    <div class="box box-warn">
+      <strong>Annual is not auto-discounted from monthly</strong>
+      Enter the actual annual figure you want to charge — the system does not compute it as "monthly × 12 minus a discount." This was a deliberate choice for flexibility.
+    </div>
+    <p>Each plan row has its own Save button — editing Starter's monthly fee does not affect Growth or Enterprise, and editing monthly does not affect annual.</p>
+
+    <hr />
+
+    <h2 id="scenarios">5. Common Scenarios</h2>
+
+    <div class="scenario">
+      <h4>A. A tenant's trial is about to expire and they've decided to subscribe</h4>
+      <ol class="steps">
+        <li><span class="step-num">1</span><div class="step-body">Go to All Tenants, find the tenant, click ✏ Edit.</div></li>
+        <li><span class="step-num">2</span><div class="step-body">Set Plan to Starter/Growth/Enterprise, set Billing Cycle to Monthly or Annual, set Status to "Active (Paid)".</div></li>
+        <li><span class="step-num">3</span><div class="step-body">Set Subscription Expiry to one month or one year out (matching the billing cycle you chose).</div></li>
+        <li><span class="step-num">4</span><div class="step-body">Save. The tenant's own dashboard immediately shows their new plan, billing cycle, and fee (with GST) on next load.</div></li>
+      </ol>
+    </div>
+
+    <div class="scenario">
+      <h4>B. A Teaching Hospital wants to increase their UG intake mid-year</h4>
+      <p>No action needed from the platform admin until the tenant submits a request themselves from their own Subscription tab. Once submitted, review and approve it from the NCISM Requests tab (Section 3).</p>
+    </div>
+
+    <div class="scenario">
+      <h4>C. The government changes the GST rate</h4>
+      <p>Go to Pricing → GST Rate, update the number, click Save. Every fee display across the platform (this page and every tenant's dashboard) reflects the new rate immediately — no other changes needed.</p>
+    </div>
+
+    <hr />
+
+    <h2 id="troubleshoot">6. Troubleshooting</h2>
+
+    <div class="box box-critical">
+      <strong>I saved a fee and got a success message, but the old value is still showing</strong>
+      As of Session 89, every pricing save (GST rate, tiers, tier activation, PG seat fee, plan pricing) explicitly checks that a row was actually returned after saving. If you now see a real error message like "Save did not apply — no matching row", that's a genuine permissions/data problem — check that your account still has <code>is_platform_admin = true</code>. If you still see a false "success" with no change, try a hard refresh (Ctrl+Shift+R) first — a stale cached copy of the page's JavaScript is the most common cause.
+    </div>
+
+    <div class="box box-warn">
+      <strong>A change I just made isn't visible on the live site yet</strong>
+      The live ayurxpert.com site is a separate deploy from the app's source — every change needs to be synced and pushed before it's visible, and Cloudflare's CDN cache can take a minute or two to catch up even after that. Hard-refresh (Ctrl+Shift+R) before assuming something is broken.
+    </div>
+
+    <hr />
+
+    <h2 id="tech">7. Technical Reference</h2>
+    <p>For developers/maintainers. All tables below are in the <code>public</code> schema.</p>
+
+    <div class="table-wrap">
+      <table class="schema-table">
+        <thead><tr><th>Table / RPC</th><th>Purpose</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>platform_gst_config</td><td>Single-row (id=1) GST%</td><td>select: any authenticated user · write: platform_admin only</td></tr>
+          <tr><td>subscription_plan_pricing</td><td>plan_type × billing_cycle → fee</td><td>starter/growth/enterprise × monthly/annual, 6 rows</td></tr>
+          <tr><td>ncism_intake_tiers</td><td>UG intake size → one-time fee</td><td>has is_active + sort_order</td></tr>
+          <tr><td>ncism_pg_seat_fee</td><td>Single-row (id=1) per-seat fee</td><td>platform-wide, not per-department</td></tr>
+          <tr><td>ncism_subscription_requests</td><td>Tenant capacity requests</td><td>gst_rate/gst_amount frozen at submission time</td></tr>
+          <tr><td>tenants.billing_cycle</td><td>monthly / annual / null</td><td>null for trial tenants</td></tr>
+          <tr><td>platform_update_subscription()</td><td>RPC — updates a tenant's plan/status/cycle/expiry</td><td>SECURITY DEFINER, platform_admin-gated</td></tr>
+          <tr><td>platform_approve_ncism_request()</td><td>RPC — approve/reject an NCISM capacity request</td><td>SECURITY DEFINER, platform_admin-gated</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+<footer>AyurXpert Technologies™ — Internal reference document. Last updated Session 89, 14 Jul 2026.</footer>
+</body>
+</html>
