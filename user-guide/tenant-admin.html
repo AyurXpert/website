@@ -103,6 +103,7 @@
       <a href="#stats">2. Statistics</a>
       <a href="#accounts">3. Accounts</a>
       <a href="#hr">4. Human Resources</a>
+      <a href="#hr-ncism-invite" class="sub">4.1 NCISM Invite to Fill Position</a>
       <a href="#departments">5. Departments</a>
       <a href="#infrastructure">6. Infrastructure</a>
       <a href="#packages">7. Packages</a>
@@ -165,6 +166,17 @@
       <li><strong>Promote to Admin</strong> — <span class="badge badge-super_admin">super_admin</span> only. Elevates an existing staff member to dept_admin.</li>
       <li><strong>Reset MFA</strong> — in a staff member's profile modal, a super_admin can remove another user's MFA factor if they're locked out (mandatory for super_admin/dept_admin/finance roles). Use this before resorting to any database-level fix.</li>
     </ul>
+
+    <h3 id="hr-ncism-invite" style="scroll-margin-top: 10px">4.1 NCISM Staffing Compliance — Invite to Fill a Position</h3>
+    <p>For Teaching Hospital/College tenants, the Hierarchy sub-tab's NCISM Staffing Compliance panel shows a <strong>required vs. actual</strong> ladder for every position NCISM mandates (Professor/Associate Professor/Assistant Professor per teaching department, Medical Superintendent, Matron, Staff Nurse, and every other Schedule I/Schedule XX post) — computed live from your UG intake and real department/staff records, so it always reflects your current sanctioned capacity with no manual re-seeding needed.</p>
+    <p>Whenever a row shows a shortfall (a red "−N" gap), a <strong>+ Invite</strong> button appears next to it. Click it to:</p>
+    <ol style="margin: 8px 0 14px 20px; line-height: 2;">
+      <li>Confirm or change the designation (if the row covers more than one, e.g. "Professor / HOD") and the HMS login role it should get.</li>
+      <li>Enter the candidate's phone and/or email (name is optional, for your own reference only).</li>
+      <li>Click <strong>Generate Link</strong> — you'll get a one-time join link pre-scoped to that exact department and designation.</li>
+      <li>Copy the link and share it yourself via WhatsApp, SMS or email (there is no automatic email dispatch).</li>
+    </ol>
+    <p>When the candidate opens the link, their organisation, role and department are already locked in — they only fill in their own name, contact details and password. Their account lands in <strong>Login Access approvals</strong> exactly like any other signup, pending your final approval; once approved, the ladder's gap for that position automatically closes. A small "🔗 N pending" note appears next to a row if an invite has already been sent and is still awaiting signup — so you don't accidentally send a duplicate.</p>
 
     <hr />
 

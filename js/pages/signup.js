@@ -8,43 +8,52 @@ wireDelegatedEvents();
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 // Pre-fill from URL params
-// Supports: ?t=CODE (legacy), ?org=CODE&role=ROLE&token=UUID (recruitment join link)
+// Supports: ?t=CODE (legacy), ?org=CODE&role=ROLE&token=UUID (recruitment join link),
+// ?pinv=UUID (NCISM position invite — pre-scoped department + designation, see below)
 const _urlParams   = new URLSearchParams(window.location.search);
 const _joinToken   = _urlParams.get('token') || null;
-const _prefillCode = (_urlParams.get('org') || _urlParams.get('t') || sessionStorage.getItem('pending_tenant_code') || '').toUpperCase();
-const _prefillRole = _urlParams.get('role') || '';
+const _pinvToken   = _urlParams.get('pinv') || null;
+let _prefillCode   = (_urlParams.get('org') || _urlParams.get('t') || sessionStorage.getItem('pending_tenant_code') || '').toUpperCase();
+let _prefillRole   = _urlParams.get('role') || '';
+
+// Position-invite state, populated by _loadPositionInvite() below when ?pinv= is present
+let _pinvDeptId = null;
+let _pinvDesignation = null;
 
 window.upperizeInput = function(el) {
   el.value = el.value.toUpperCase();
 };
 
-(function _prefill() {
+function _prefill() {
   const codeEl = document.getElementById('tenant-code');
   const roleEl = document.getElementById('staff-role');
   if (_prefillCode && codeEl) {
     codeEl.value = _prefillCode;
-    if (_joinToken) {
+    if (_joinToken || _pinvToken) {
       // Lock org code so candidate can't change it
       codeEl.readOnly = true;
       codeEl.style.cssText += ';background:#f8fdf9;cursor:not-allowed;color:var(--text-mid)';
     }
   }
-  if (_prefillRole && roleEl) {
+  if (_prefillRole && roleEl && !_pinvToken) {
     roleEl.value = _prefillRole;
     if (_joinToken) {
       roleEl.disabled = true;
       roleEl.style.cssText += ';background:#f8fdf9;cursor:not-allowed';
     }
-    // Trigger role-dependent field visibility
+    // Trigger role-dependent field visibility (position invites hide this
+    // dropdown entirely in _loadPositionInvite() — must not re-trigger
+    // onRoleChange()'s own _loadDepts() call, which would re-show dept-field)
     window.onRoleChange && window.onRoleChange(_prefillRole);
   }
-  if (_prefillCode && _prefillRole) {
-    // Auto-load departments for dept-requiring roles
+  if (_prefillCode && _prefillRole && !_pinvToken) {
+    // Auto-load departments for dept-requiring roles (position invites set their
+    // own department directly — see _loadPositionInvite() — no dropdown needed)
     window._loadDepts && window._loadDepts();
   }
-})();
+}
 
-// Show welcome banner and look up org name for join-link arrivals
+// Show welcome banner and look up org name for recruitment join-link arrivals
 if (_joinToken && _prefillCode) {
   (async function _showInviteBanner() {
     const banner   = document.getElementById('invite-banner');
@@ -62,6 +71,75 @@ if (_joinToken && _prefillCode) {
       Complete the form below to set up your account — your admin will be notified for final approval.`;
   })();
 }
+
+// NCISM position-invite arrivals (?pinv=TOKEN) — the department, designation and
+// HMS role are all pre-scoped by whoever generated the invite (admin.html's NCISM
+// Staffing Compliance panel), so the role/department dropdowns are hidden entirely
+// rather than just locked, and a small position summary is shown instead.
+const DESIG_LABELS = {
+  professor:'Professor', hod:'Head of Department', associate_professor:'Associate Professor',
+  assistant_professor:'Assistant Professor', senior_resident:'Senior Resident', junior_resident:'Junior Resident',
+  medical_director:'Medical Director', medical_superintendent:'Medical Superintendent',
+  deputy_medical_superintendent:'Deputy Medical Superintendent', administrative_officer:'Administrative Officer',
+  opd_incharge:'Office Superintendent', resident_medical_officer:'Resident Medical Officer',
+  emergency_medical_officer:'Emergency Medical Officer', general_duty_medical_officer:'General Duty Medical Officer',
+  nursing_superintendent:'Nursing Superintendent (Matron)', deputy_nursing_superintendent:'Assistant Matron',
+  staff_nurse:'Staff Nurse', ward_sister:'Ward Sister', anm:'Auxiliary Nurse Midwife',
+  accountant:'Accountant', receptionist:'Receptionist', registration_clerk:'Registration Clerk',
+  billing_clerk:'Billing Clerk', medical_record_officer:'Medical Record Officer',
+  medical_record_technician:'Medical Record Technician', pharmacist:'Pharmacist', chief_pharmacist:'Dispensary In-charge',
+  pharmacy_assistant:'Pharmacy Assistant', lab_technician:'Lab Technician', lab_attendant:'Lab Attendant',
+  radiographer:'Radiographer', microbiologist:'Microbiologist', ot_technician:'OT Technician',
+  cssd_technician:'CSSD Technician', cssd_incharge:'CSSD In-charge', pk_incharge:'Panchakarma In-charge',
+  senior_therapist:'Senior Therapist', therapist:'Therapist', yoga_instructor:'Yoga Instructor',
+  palha_diet_incharge:'Palha-diet In-charge', dietitian:'Dietitian', diet_cook:'Ayurvedic Diet Cook', attender:'Attender',
+};
+
+let _positionInviteValid = false;
+
+async function _loadPositionInvite() {
+  const errBox = document.getElementById('position-invite-error');
+  const { data, error } = await supabase.rpc('get_position_invite', { p_token: _pinvToken });
+  const row = data?.[0];
+
+  if (error || !row) {
+    errBox.textContent = 'This invite link is invalid. Please ask your admin to send a new one.';
+    errBox.style.display = 'flex';
+    document.getElementById('btn-submit').disabled = true;
+    return;
+  }
+  if (row.status !== 'pending') {
+    errBox.textContent = row.status === 'joined'
+      ? 'This invite link has already been used. Please ask your admin to send a new one if this is a mistake.'
+      : 'This invite link is no longer valid. Please ask your admin to send a new one.';
+    errBox.style.display = 'flex';
+    document.getElementById('btn-submit').disabled = true;
+    return;
+  }
+
+  _prefillCode      = row.tenant_code || _prefillCode;
+  _prefillRole      = row.role || '';
+  _pinvDeptId       = row.department_id || null;
+  _pinvDesignation  = row.designation || null;
+  _positionInviteValid = true;
+
+  // Hide the generic role/department pickers entirely — this join is pre-scoped
+  document.getElementById('staff-role').closest('.field').style.display = 'none';
+  document.getElementById('dept-field').style.display = 'none';
+
+  const banner = document.getElementById('position-invite-banner');
+  const bannerTx = document.getElementById('position-invite-banner-text');
+  const desigLabel = DESIG_LABELS[_pinvDesignation] || _pinvDesignation;
+  banner.style.display = '';
+  bannerTx.innerHTML = `You're joining <strong>${_esc(row.tenant_name || row.tenant_code)}</strong> as <strong>${_esc(desigLabel)}</strong>`
+    + (row.department_name ? ` in the <strong>${_esc(row.department_name)}</strong> department` : '')
+    + `.<br/>Fill in your details below to set up your account — your admin will be notified for final approval.`;
+}
+
+(async function _boot() {
+  if (_pinvToken) await _loadPositionInvite();
+  _prefill();
+})();
 
 window.togglePw = function(inputId, btn) {
   const input = document.getElementById(inputId);
@@ -111,7 +189,7 @@ window.handleSignup = async function() {
   clearError();
 
   const code     = document.getElementById('tenant-code').value.trim();
-  const role     = document.getElementById('staff-role').value;
+  const role     = _positionInviteValid ? _prefillRole : document.getElementById('staff-role').value;
   const name     = document.getElementById('staff-name').value.trim();
   const email    = document.getElementById('staff-email').value.trim();
   const phone    = document.getElementById('staff-phone').value.trim();
@@ -119,11 +197,12 @@ window.handleSignup = async function() {
   const confirm  = document.getElementById('staff-confirm').value;
   const hprId    = document.getElementById('staff-hpr').value.trim();
   const stateReg = document.getElementById('staff-state-reg').value.trim();
-  const deptId   = DEPT_ROLES.includes(role) ? document.getElementById('staff-dept').value : null;
+  const deptId   = _positionInviteValid ? _pinvDeptId
+                    : (DEPT_ROLES.includes(role) ? document.getElementById('staff-dept').value : null);
 
   if (!code)          return showError('Please enter your organisation code.');
   if (!role)          return showError('Please select your role.');
-  if (DEPT_ROLES.includes(role) && _depts.length && !deptId)
+  if (!_positionInviteValid && DEPT_ROLES.includes(role) && _depts.length && !deptId)
                       return showError('Please select your department.');
   if (!name)          return showError('Please enter your full name.');
   if (!email)         return showError('Please enter your email address.');
@@ -147,6 +226,7 @@ window.handleSignup = async function() {
     hprId:        hprId    || null,
     stateRegId:   stateReg || null,
     departmentId: deptId   || null,
+    designation:  _positionInviteValid ? _pinvDesignation : null,
   });
 
   if (!result.success) {
@@ -161,6 +241,16 @@ window.handleSignup = async function() {
       await supabase.from('job_applications')
         .update({ status: 'joined', join_date: new Date().toISOString().slice(0,10) })
         .eq('join_token', _joinToken);
+    } catch (_) { /* non-critical — silent fail */ }
+  }
+
+  // If arrived via NCISM position invite, mark it joined so the admin's ladder
+  // stops showing this slot as "pending" and it can't be reused
+  if (_pinvToken && _positionInviteValid) {
+    try {
+      await supabase.from('position_invites')
+        .update({ status: 'joined', joined_at: new Date().toISOString(), joined_profile_id: result.userId })
+        .eq('token', _pinvToken);
     } catch (_) { /* non-critical — silent fail */ }
   }
 

@@ -535,6 +535,31 @@ const DESIGS = [
 const DESIG_MAP = Object.fromEntries(DESIGS.map(d=>[d.v,d]));
 const DESIG_CATS = [...new Set(DESIGS.map(d=>d.cat))];
 
+// Sensible default HMS role per designation, used only to pre-select the Invite
+// modal's role dropdown (admin can still override it). Roles drive page access
+// (ROLE_HOME) — designation is the free-text title shown in the ladder/HR views.
+// medical_record_officer/technician -> mrd_staff (dedicated role+page already exist);
+// ot_technician/cssd_* -> nurse per the documented workaround (TODO_LATER.md §38,
+// no dedicated OT/CSSD role built yet).
+const DESIG_ROLE_DEFAULT = {
+  professor:'doctor', hod:'doctor', associate_professor:'doctor', assistant_professor:'doctor',
+  senior_resident:'doctor', junior_resident:'doctor', medical_director:'doctor',
+  medical_superintendent:'doctor', deputy_medical_superintendent:'doctor',
+  resident_medical_officer:'doctor', emergency_medical_officer:'doctor', general_duty_medical_officer:'doctor',
+  administrative_officer:'dept_admin', opd_incharge:'dept_admin',
+  nursing_superintendent:'nurse', deputy_nursing_superintendent:'nurse',
+  staff_nurse:'nurse', ward_sister:'nurse', anm:'nurse',
+  accountant:'accountant',
+  receptionist:'receptionist', registration_clerk:'receptionist', billing_clerk:'receptionist',
+  medical_record_officer:'mrd_staff', medical_record_technician:'mrd_staff',
+  pharmacist:'pharmacist', chief_pharmacist:'pharmacist', pharmacy_assistant:'pharmacist',
+  lab_technician:'lab_tech', lab_attendant:'lab_tech', radiographer:'lab_tech', microbiologist:'lab_tech',
+  ot_technician:'nurse', cssd_technician:'nurse', cssd_incharge:'nurse',
+  pk_incharge:'therapist', senior_therapist:'therapist', therapist:'therapist', yoga_instructor:'therapist',
+  palha_diet_incharge:'diet_staff', dietitian:'diet_staff', diet_cook:'diet_staff',
+  attender:'nurse',
+};
+
 // Populate designation filter
 const dfilter = document.getElementById('hr-desig-filter');
 DESIG_CATS.forEach(cat=>{
@@ -852,16 +877,30 @@ window.seedHrOrgStructure = async function(){
   if(document.getElementById('hr-dept-panel').style.display!=='none') _renderDeptStaff();
 };
 
+// Ladder rows are re-registered on every _renderNcismStaffing() call so the
+// Invite button's data-onclick index always resolves against the latest render
+// (whole-row objects can't safely round-trip through a data-* attribute).
+let _ladderRowRegistry = [];
+
 async function _renderNcismStaffing() {
   const wrap = document.getElementById('ncism-staff-table-wrap');
   wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
+  _ladderRowRegistry = [];
 
-  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }] = await Promise.all([
+  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }, { data:invites }] = await Promise.all([
     supabase.from('tenants').select('ug_intake,type,pg_student_strength').eq('id',tenantId).single(),
     supabase.from('profiles').select('designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,name,ncism_code,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_pg_dept',true),
+    supabase.from('position_invites').select('id,department_id,designation,phone,candidate_name,token').eq('tenant_id',tenantId).eq('status','pending'),
   ]);
+
+  // Pending invites grouped by "deptId|designation" for the ladder's per-row chip
+  const invitesByRow = {};
+  (invites||[]).forEach(inv => {
+    const k = (inv.department_id||'__none__')+'|'+inv.designation;
+    (invitesByRow[k] = invitesByRow[k]||[]).push(inv);
+  });
 
   const ugRaw = tRow?.ug_intake || 0;
   const ug = [60,100,150,200].includes(ugRaw) ? ugRaw : (ugRaw>=150?150:ugRaw>=100?100:ugRaw>0?60:0);
@@ -1009,12 +1048,20 @@ async function _renderNcismStaffing() {
       const a=cntDeptD(dept.id,row.keys), gap=Math.max(0,row.count-a);
       const rc=a>=row.count?'#2d7a4f':a>0?'#c9902a':'#c0392b';
       const si=a>=row.count?'✅':a>0?'⚠️':'❌';
+      const rowIdx=_ladderRowRegistry.push({deptId:dept.id, deptName:dept.name, keys:row.keys, label:row.label})-1;
+      const invKey=dept.id+'|'+row.keys[0];
+      const pending=invitesByRow[invKey]||[];
+      const inviteCell = gap>0
+        ? '<button data-onclick="openPositionInvite" data-onclick-a0="'+rowIdx+'" style="height:24px;padding:0 10px;font-size:11px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap">+ Invite</button>'
+          +(pending.length?' <span style="font-size:10.5px;color:#7a5a10">🔗 '+pending.length+' pending</span>':'')
+        : '';
       return '<tr>'
         +'<td style="padding:6px 12px 6px 16px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(row.label)+'</td>'
         +'<td style="padding:6px 10px;text-align:center;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+_esc(row.ref)+'</td>'
         +'<td style="padding:6px 10px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2">'+row.count+'</td>'
         +'<td style="padding:6px 10px;text-align:center;color:'+rc+';font-weight:600;border-bottom:1px solid #f0f4f2">'+a+'</td>'
         +'<td style="padding:6px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+si+(gap>0?' <span style="font-size:11px;color:#c0392b">−'+gap+'</span>':'')+'</td>'
+        +'<td style="padding:6px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+inviteCell+'</td>'
         +'</tr>';
     }).join('');
     return '<table style="width:100%;border-collapse:collapse">'
@@ -1024,6 +1071,7 @@ async function _renderNcismStaffing() {
       +'<th style="padding:5px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Required</th>'
       +'<th style="padding:5px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Actual</th>'
       +'<th style="padding:5px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Status</th>'
+      +'<th style="padding:5px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Fill Gap</th>'
       +'</tr></thead><tbody>'+trs+'</tbody></table>';
   }
 
@@ -1105,6 +1153,68 @@ async function _renderNcismStaffing() {
   // Auto-open first 3 sections
   [...wrap.querySelectorAll('.ncism-zs')].slice(0,3).forEach(el=>el.classList.add('z-open'));
 }
+
+// ── Position Invite modal — turn a ladder gap into a shareable join link ──
+window.openPositionInvite = function(idxStr){
+  const row = _ladderRowRegistry[Number(idxStr)];
+  if(!row) return;
+  const dlabel = k => DESIG_MAP[k]?.l || k || '—';
+  const desig = row.keys[0];
+  document.getElementById('pinv-dept-id').value   = row.deptId;
+  document.getElementById('pinv-dept-name').textContent = row.deptName;
+  document.getElementById('pinv-desig-label').textContent = dlabel(desig);
+  const keySel = document.getElementById('pinv-desig-select');
+  keySel.innerHTML = row.keys.map(k=>'<option value="'+_esc(k)+'">'+_esc(dlabel(k))+'</option>').join('');
+  keySel.value = desig;
+  const roleSel = document.getElementById('pinv-role-select');
+  roleSel.value = DESIG_ROLE_DEFAULT[desig] || 'doctor';
+  document.getElementById('pinv-name').value  = '';
+  document.getElementById('pinv-phone').value = '';
+  document.getElementById('pinv-email').value = '';
+  document.getElementById('pinv-link-box').style.display = 'none';
+  document.getElementById('pinv-form-fields').style.display = '';
+  document.getElementById('pinv-submit-btn').style.display = '';
+  document.getElementById('pinv-copy-btn').style.display = 'none';
+  document.getElementById('position-invite-modal').style.display = 'flex';
+};
+
+window.closePositionInviteModal = function(){
+  document.getElementById('position-invite-modal').style.display = 'none';
+};
+
+window.submitPositionInvite = async function(){
+  const deptId = document.getElementById('pinv-dept-id').value || null;
+  const designation = document.getElementById('pinv-desig-select').value;
+  const roleVal = document.getElementById('pinv-role-select').value;
+  const name  = document.getElementById('pinv-name').value.trim();
+  const phone = document.getElementById('pinv-phone').value.trim();
+  const email = document.getElementById('pinv-email').value.trim();
+  if(!phone && !email){ _toast('Enter a phone number or email to invite.', true); return; }
+
+  const { data, error } = await supabase.from('position_invites').insert({
+    tenant_id: tenantId, department_id: deptId, designation, role: roleVal,
+    candidate_name: name || null, phone: phone || null, email: email || null,
+    created_by: profile.id,
+  }).select('token').single();
+
+  if(error){ _toast(safeErrorMessage(error,'Could not create invite.'), true); return; }
+
+  const link = window.location.origin + '/signup.html?pinv=' + data.token;
+  document.getElementById('pinv-link-text').textContent = link;
+  document.getElementById('pinv-form-fields').style.display = 'none';
+  document.getElementById('pinv-link-box').style.display = '';
+  document.getElementById('pinv-submit-btn').style.display = 'none';
+  document.getElementById('pinv-copy-btn').style.display = '';
+  _toast('Invite created — copy the link below.');
+  if(document.getElementById('hr-ncism-panel').style.display!=='none') _renderNcismStaffing();
+};
+
+window.copyPositionInviteLink = function(){
+  const link = document.getElementById('pinv-link-text').textContent || '';
+  navigator.clipboard.writeText(link)
+    .then(()=>_toast('Link copied!'))
+    .catch(()=>_toast('Could not copy — select the link text manually.', true));
+};
 
 // ── Departmental Staff Distribution ──────────────────────────────────
 async function _renderDeptStaff() {

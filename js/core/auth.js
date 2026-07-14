@@ -83,7 +83,7 @@ export async function registerTenant({
 
 export async function registerStaff({
   fullName, email, password, phone,
-  role, tenantCode, hprId = null, stateRegId = null, departmentId = null
+  role, tenantCode, hprId = null, stateRegId = null, departmentId = null, designation = null
 }) {
   try {
     const { data: subRows, error: tenantError } = await supabase
@@ -125,11 +125,13 @@ export async function registerStaff({
         ...(hprId        ? { hpr_id:         hprId        } : {}),
         ...(stateRegId   ? { state_reg_id:   stateRegId   } : {}),
         ...(departmentId ? { department_id:  departmentId } : {}),
+        ...(designation  ? { designation:    designation  } : {}),
       });
     if (profileError) throw new Error(safeErrorMessage(profileError, 'Could not create profile. Please try again.'));
 
     return {
       success: true,
+      userId: authData.user.id,
       message: `Your request has been sent to ${tenant.name}. You will receive an email once your account is approved.`
     };
 
@@ -449,10 +451,32 @@ function _frameGuard() {
 
 // 15-minute inactivity auto-logout (NDHM §2.1.4.7)
 let _inactivityTimer = null;
+let _inactivityWarnTimer = null;
 const _INACTIVITY_MS = 15 * 60 * 1000;
+const _INACTIVITY_WARN_MS = 2 * 60 * 1000; // warn 2 min before the forced logout
+
+// Session was silently dying mid-consultation with zero warning — a doctor mid-typing
+// a long clinical note would lose it all with no chance to react. Surface a warning
+// banner before the forced logout; any tracked activity (which already reaches this
+// listener) dismisses it and pushes the deadline back out, same as before.
+function _showInactivityWarning() {
+  if (document.getElementById('ax-inactivity-warning')) return;
+  const banner = document.createElement('div');
+  banner.id = 'ax-inactivity-warning';
+  banner.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:99999;background:#c0392b;color:#fff;padding:14px 20px;border-radius:8px;font:600 14px "DM Sans",sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.25);max-width:320px';
+  banner.textContent = '⚠️ You will be logged out in 2 minutes due to inactivity. Click or type anywhere on this page to stay logged in.';
+  document.body.appendChild(banner);
+}
+
+function _hideInactivityWarning() {
+  document.getElementById('ax-inactivity-warning')?.remove();
+}
 
 function _resetInactivity() {
   clearTimeout(_inactivityTimer);
+  clearTimeout(_inactivityWarnTimer);
+  _hideInactivityWarning();
+  _inactivityWarnTimer = setTimeout(_showInactivityWarning, _INACTIVITY_MS - _INACTIVITY_WARN_MS);
   _inactivityTimer = setTimeout(() => logout(), _INACTIVITY_MS);
 }
 
