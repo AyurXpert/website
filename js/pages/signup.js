@@ -131,6 +131,7 @@ async function _loadPositionInvite() {
   const bannerTx = document.getElementById('position-invite-banner-text');
   const desigLabel = DESIG_LABELS[_pinvDesignation] || _pinvDesignation;
   banner.style.display = '';
+  // nosemgrep: javascript.browser.security.raw-html-concat.raw-html-concat -- every interpolated value (tenant_name/tenant_code, desigLabel, department_name) is passed through _esc() before concatenation
   bannerTx.innerHTML = `You're joining <strong>${_esc(row.tenant_name || row.tenant_code)}</strong> as <strong>${_esc(desigLabel)}</strong>`
     + (row.department_name ? ` in the <strong>${_esc(row.department_name)}</strong> department` : '')
     + `.<br/>Fill in your details below to set up your account — your admin will be notified for final approval.`;
