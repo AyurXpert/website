@@ -4001,6 +4001,7 @@ async function _renderNcismCapacityCard(t) {
             <div style="font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:600;color:var(--green-deep);line-height:1">${tier.ug_intake}</div>
             <div style="font-size:10px;color:var(--text-muted);margin:3px 0 8px">students / year</div>
             <div style="font-size:13px;font-weight:700;color:var(--gold)">₹${Number(tier.fee).toLocaleString('en-IN')}</div>
+            ${_ncismGstRate > 0 ? `<div style="font-size:10px;color:var(--text-muted);margin-top:2px">incl. GST ₹${Math.round(Number(tier.fee) * (1 + _ncismGstRate / 100)).toLocaleString('en-IN')}</div>` : ''}
           </div>`;
         }).join('') : `<div style="grid-column:1/-1;text-align:center;padding:22px 16px;background:var(--cream);border:1.5px dashed var(--border);border-radius:12px;font-size:13px;color:var(--text-muted)">
             No intake tiers configured yet — ask a platform admin to add pricing, or contact <a href="mailto:support@ayurxpert.com" style="color:var(--green-mid)">support@ayurxpert.com</a>
