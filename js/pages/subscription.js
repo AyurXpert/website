@@ -262,8 +262,13 @@ async function loadGstRate() {
 window.saveGstRate = async function() {
   const rate = parseFloat(document.getElementById('gst-rate').value);
   if (Number.isNaN(rate) || rate < 0) { _toast('Enter a valid GST rate.'); return; }
-  const { error } = await supabase.from('platform_gst_config').update({ gst_rate: rate, updated_at: new Date().toISOString() }).eq('id', 1);
+  // .select() so a 0-row match (RLS/filter mismatch) surfaces as a real error
+  // instead of a false-positive "success" toast — update() alone reports no
+  // error even when nothing was actually written.
+  const { data, error } = await supabase.from('platform_gst_config')
+    .update({ gst_rate: rate, updated_at: new Date().toISOString() }).eq('id', 1).select();
   if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save GST rate.')); return; }
+  if (!data?.length) { _toast('❌ Save did not apply — no matching row (check permissions).'); return; }
   _toast('✅ GST rate updated');
   loadPricing();
 };
@@ -330,11 +335,12 @@ async function loadPlanPricing() {
 window.savePlanPricing = async function(planType) {
   const monthly = parseFloat(document.getElementById(`pp-monthly-${planType}`).value) || 0;
   const annual  = parseFloat(document.getElementById(`pp-annual-${planType}`).value) || 0;
-  const { error } = await supabase.from('subscription_plan_pricing').upsert([
+  const { data, error } = await supabase.from('subscription_plan_pricing').upsert([
     { plan_type: planType, billing_cycle: 'monthly', fee: monthly, updated_at: new Date().toISOString() },
     { plan_type: planType, billing_cycle: 'annual',  fee: annual,  updated_at: new Date().toISOString() },
-  ], { onConflict: 'plan_type,billing_cycle' });
+  ], { onConflict: 'plan_type,billing_cycle' }).select();
   if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save plan pricing.')); return; }
+  if (!data?.length) { _toast('❌ Save did not apply — no matching row (check permissions).'); return; }
   _toast('✅ Plan pricing saved');
   loadPlanPricing();
 };
@@ -357,29 +363,32 @@ window.saveTier = async function() {
   const fee      = parseFloat(document.getElementById('tier-fee').value);
   if (!ugIntake || Number.isNaN(fee)) { _toast('Enter a valid UG intake and fee.'); return; }
 
-  const { error } = id
-    ? await supabase.from('ncism_intake_tiers').update({ ug_intake: ugIntake, fee, updated_at: new Date().toISOString() }).eq('id', id)
-    : await supabase.from('ncism_intake_tiers').insert({ ug_intake: ugIntake, fee, sort_order: _tiers.length });
+  const { data, error } = id
+    ? await supabase.from('ncism_intake_tiers').update({ ug_intake: ugIntake, fee, updated_at: new Date().toISOString() }).eq('id', id).select()
+    : await supabase.from('ncism_intake_tiers').insert({ ug_intake: ugIntake, fee, sort_order: _tiers.length }).select();
 
   if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save tier.')); return; }
+  if (!data?.length) { _toast('❌ Save did not apply — no matching row (check permissions).'); return; }
   _toast('✅ Tier saved');
   closeTierForm();
   loadPricing();
 };
 
 window.toggleTierActive = async function(tierId, nextActive) {
-  const { error } = await supabase.from('ncism_intake_tiers')
+  const { data, error } = await supabase.from('ncism_intake_tiers')
     .update({ is_active: nextActive === 'true' || nextActive === true, updated_at: new Date().toISOString() })
-    .eq('id', tierId);
+    .eq('id', tierId).select();
   if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not update tier.')); return; }
+  if (!data?.length) { _toast('❌ Update did not apply — no matching row (check permissions).'); return; }
   loadPricing();
 };
 
 window.savePgSeatFee = async function() {
   const fee = parseFloat(document.getElementById('pg-seat-fee').value);
   if (Number.isNaN(fee) || fee < 0) { _toast('Enter a valid fee.'); return; }
-  const { error } = await supabase.from('ncism_pg_seat_fee').update({ fee, updated_at: new Date().toISOString() }).eq('id', 1);
+  const { data, error } = await supabase.from('ncism_pg_seat_fee').update({ fee, updated_at: new Date().toISOString() }).eq('id', 1).select();
   if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save fee.')); return; }
+  if (!data?.length) { _toast('❌ Save did not apply — no matching row (check permissions).'); return; }
   _toast('✅ PG seat fee updated');
   loadPgSeatFee();
 };
