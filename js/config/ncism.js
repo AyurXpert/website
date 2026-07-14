@@ -28,6 +28,9 @@ export const NCISM_OPDS = [
   { name: 'Rog Nidana OPD',          ncism_code: 'RNV',    description: 'Pathology & Diagnosis' },
 ];
 
+// 14 departments per NCISM Schedule IV (faculty ratios) / Schedule III (teaching space) —
+// Rachana Sharira and Kriya Sharira are two separate departments in the regulation
+// (distinct faculty counts, room areas, non-teaching staff), not one merged dept.
 export const NCISM_DEPTS = [
   { name: 'Kayachikitsa',                     ncism_code: 'KAY', type: 'clinical' },
   { name: 'Panchakarma',                      ncism_code: 'PK',  type: 'clinical' },
@@ -41,5 +44,6 @@ export const NCISM_DEPTS = [
   { name: 'Dravyaguna',                       ncism_code: 'DG',  type: 'pre_clinical' },
   { name: 'Rasashastra & Bhaishajya Kalpana',  ncism_code: 'RBK', type: 'pre_clinical' },
   { name: 'Sanskrit & Samhita',               ncism_code: 'SS',  type: 'pre_clinical' },
-  { name: 'Rachana & Kriya Sharir',            ncism_code: 'RS',  type: 'para_clinical' },
+  { name: 'Rachana Sharira',                  ncism_code: 'RS',  type: 'pre_clinical' },
+  { name: 'Kriya Sharira',                    ncism_code: 'KS',  type: 'pre_clinical' },
 ];
