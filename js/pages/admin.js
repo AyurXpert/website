@@ -3814,13 +3814,19 @@ window.loadSubscription = async function() {
   const maxUsers   = t.max_users          || 5;
   const expiry     = t.subscription_expiry ? new Date(t.subscription_expiry) : null;
   const trialEnds  = t.trial_ends_at      ? new Date(t.trial_ends_at)        : null;
+  const billingCycle = t.billing_cycle    || null;
 
-  // User count
-  const { count: userCount } = await supabase
-    .from('profiles')
-    .select('id', { count: 'exact', head: true })
-    .eq('tenant_id', tenantId)
-    .eq('is_active', true);
+  // User count + billing (billing only meaningful for a paid, non-trial plan)
+  const [{ count: userCount }, { data: priceRow }, { data: gstRow }] = await Promise.all([
+    supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('is_active', true),
+    (planType !== 'trial' && billingCycle)
+      ? supabase.from('subscription_plan_pricing').select('fee').eq('plan_type', planType).eq('billing_cycle', billingCycle).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase.from('platform_gst_config').select('gst_rate').eq('id', 1).single(),
+  ]);
+  const gstRate = Number(gstRow?.gst_rate ?? 0);
+  const planFee = Number(priceRow?.fee ?? 0);
+  const planFeeTotal = Math.round(planFee * (1 + gstRate / 100));
 
   const used     = userCount || 0;
   const pctUsed  = maxUsers > 0 ? Math.min(100, Math.round(used / maxUsers * 100)) : 0;
@@ -3849,6 +3855,10 @@ window.loadSubscription = async function() {
           <strong>${endDate.toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})}</strong>
           ${daysLeft !== null ? `<span style="color:${daysLeft <= 7 ? '#dc2626' : daysLeft <= 30 ? '#c9902a' : 'var(--text-muted)'}"> · ${daysLeft > 0 ? daysLeft + ' days left' : 'Expired'}</span>` : ''}
         </div>` : '<div style="font-size:13px;color:var(--text-muted)">No expiry date set</div>'}
+        ${planType !== 'trial' && billingCycle ? `<div style="font-size:13px;color:var(--text-mid);margin-bottom:6px">
+          Billing: <strong>${billingCycle === 'annual' ? 'Annual' : 'Monthly'}</strong> —
+          ₹${planFee.toLocaleString('en-IN')}${gstRate > 0 ? ` + ${gstRate}% GST = ₹${planFeeTotal.toLocaleString('en-IN')}` : ''}
+        </div>` : ''}
         <div style="margin-top:14px;font-size:12px;color:var(--text-muted)">
           To upgrade or renew, contact
           <a href="mailto:support@ayurxpert.com" style="color:var(--green-mid)">support@ayurxpert.com</a>
@@ -3890,6 +3900,7 @@ window.loadSubscription = async function() {
 // ── NCISM Capacity Plan (Teaching Hospital / College only) ─────────────────
 let _ncismTiers = [];
 let _ncismPgFee = 0;
+let _ncismGstRate = 0;
 let _ncismSelectedTier = null;
 let _ncismPgSeats = {}; // code -> seats
 
@@ -3897,16 +3908,18 @@ async function _renderNcismCapacityCard(t) {
   const card = document.getElementById('ncism-sub-card');
   if (!card) return;
 
-  const [{ data: pending }, { data: tiers }, { data: pgFeeRow }, { data: currentDepts }, { data: freshTenant }] = await Promise.all([
+  const [{ data: pending }, { data: tiers }, { data: pgFeeRow }, { data: gstRow }, { data: currentDepts }, { data: freshTenant }] = await Promise.all([
     supabase.from('ncism_subscription_requests').select('*').eq('tenant_id', tenantId).eq('status', 'pending').order('requested_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('ncism_intake_tiers').select('*').eq('is_active', true).order('sort_order'),
     supabase.from('ncism_pg_seat_fee').select('fee').eq('id', 1).single(),
+    supabase.from('platform_gst_config').select('gst_rate').eq('id', 1).single(),
     supabase.from('departments').select('ncism_code,pg_seats_sanctioned,is_pg_dept').eq('tenant_id', tenantId),
     supabase.from('tenants').select('ug_intake,pg_student_strength').eq('id', tenantId).single(),
   ]);
 
   _ncismTiers = tiers || [];
   _ncismPgFee = pgFeeRow?.fee || 0;
+  _ncismGstRate = Number(gstRow?.gst_rate ?? 0);
 
   // Fresh read, not the session-cached tenant object — this card must reflect
   // an approval that just happened, not whatever was cached at login time.
@@ -3941,7 +3954,8 @@ async function _renderNcismCapacityCard(t) {
           Submitted ${new Date(pending.requested_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}<br>
           Requested UG intake: <strong>${pending.requested_ug_intake}</strong><br>
           PG additions: ${_esc(pgLines)}<br>
-          Fee: <strong style="font-size:16px">₹${Number(pending.computed_fee).toLocaleString('en-IN')}</strong>
+          Base fee: ₹${Number(pending.computed_fee).toLocaleString('en-IN')}${Number(pending.gst_amount) > 0 ? ` + ${pending.gst_rate}% GST (₹${Number(pending.gst_amount).toLocaleString('en-IN')})` : ''}<br>
+          Total: <strong style="font-size:16px">₹${(Number(pending.computed_fee) + Number(pending.gst_amount || 0)).toLocaleString('en-IN')}</strong>
         </div>
         <button class="btn-outline" style="margin-top:14px;width:auto" data-onclick="cancelNcismRequest" data-onclick-a0="${pending.id}">✕ Cancel Request</button>
       </div>
@@ -3993,7 +4007,7 @@ async function _renderNcismCapacityCard(t) {
           </div>`}
       </div>
 
-      <div style="font-size:12px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">PG Departments <span style="font-weight:500;text-transform:none;letter-spacing:0">— Per PG seat ₹${Number(_ncismPgFee).toLocaleString('en-IN')}</span></div>
+      <div style="font-size:12px;font-weight:700;color:var(--text-mid);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">PG Departments <span style="font-weight:500;text-transform:none;letter-spacing:0">— Per PG seat ₹${Number(_ncismPgFee).toLocaleString('en-IN')}${_ncismGstRate > 0 ? ` + ${_ncismGstRate}% GST` : ''}</span></div>
       <div id="ncism-pg-list" style="border:1.5px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:20px">
         <div style="display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--green-light)">
           <span style="flex:1;font-size:10.5px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px">Clinical — adds 4 IPD beds per seat</span>
@@ -4006,9 +4020,12 @@ async function _renderNcismCapacityCard(t) {
       </div>
       <style>.ncism-pg-row:hover{background:var(--cream)}.ncism-tier-card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,74,46,.12)}</style>
 
-      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--green-light);border-radius:12px;padding:14px 18px;margin-bottom:16px">
-        <span style="font-size:13px;font-weight:700;color:var(--green-deep)">💳 Total request fee</span>
-        <span id="ncism-total-fee" style="font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep)">₹0</span>
+      <div style="background:var(--green-light);border-radius:12px;padding:14px 18px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:13px;font-weight:700;color:var(--green-deep)">💳 Total request fee</span>
+          <span id="ncism-total-fee" style="font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep)">₹0</span>
+        </div>
+        <div id="ncism-fee-breakdown" style="font-size:11.5px;color:var(--text-muted);text-align:right;margin-top:2px"></div>
       </div>
 
       <button class="btn-act" id="ncism-submit-btn" style="padding:11px 26px${_ncismTiers.length ? '' : ';opacity:.5;cursor:not-allowed'}" data-onclick="submitNcismRequest" ${_ncismTiers.length ? '' : 'disabled'}>✓ Submit Request</button>
@@ -4036,17 +4053,21 @@ window.toggleNcismPgDept = function(cb, code) {
 
 window._ncismUpdateTotal = function() {
   const tier = _ncismTiers.find(t => t.ug_intake === _ncismSelectedTier);
-  let total = tier ? Number(tier.fee) : 0;
+  let base = tier ? Number(tier.fee) : 0;
   _ncismPgSeats = {};
   NCISM_DEPTS.forEach(d => {
     const cb = document.getElementById(`ncism-pg-${d.ncism_code}`);
     if (cb?.checked) {
       const seats = parseInt(document.getElementById(`ncism-pgs-${d.ncism_code}`)?.value) || 0;
-      if (seats > 0) { _ncismPgSeats[d.ncism_code] = seats; total += seats * Number(_ncismPgFee); }
+      if (seats > 0) { _ncismPgSeats[d.ncism_code] = seats; base += seats * Number(_ncismPgFee); }
     }
   });
+  const gstAmount = Math.round(base * (_ncismGstRate / 100));
+  const total = base + gstAmount;
   const el = document.getElementById('ncism-total-fee');
   if (el) el.textContent = `₹${total.toLocaleString('en-IN')}`;
+  const bd = document.getElementById('ncism-fee-breakdown');
+  if (bd) bd.textContent = _ncismGstRate > 0 ? `Base ₹${base.toLocaleString('en-IN')} + ${_ncismGstRate}% GST ₹${gstAmount.toLocaleString('en-IN')}` : '';
 };
 
 window.submitNcismRequest = async function() {
@@ -4055,6 +4076,7 @@ window.submitNcismRequest = async function() {
   const requestedPg = Object.entries(_ncismPgSeats).map(([code, seats]) => ({ code, seats }));
   const pgFeeTotal = requestedPg.reduce((s, p) => s + p.seats * Number(_ncismPgFee), 0);
   const computedFee = (tier ? Number(tier.fee) : 0) + pgFeeTotal;
+  const gstAmount = Math.round(computedFee * (_ncismGstRate / 100));
 
   const { error } = await supabase.from('ncism_subscription_requests').insert({
     tenant_id: tenantId,
@@ -4062,11 +4084,13 @@ window.submitNcismRequest = async function() {
     requested_ug_intake: _ncismSelectedTier,
     requested_pg: requestedPg,
     computed_fee: computedFee,
+    gst_rate: _ncismGstRate,
+    gst_amount: gstAmount,
   });
   if (error) { _toast(safeErrorMessage(error, 'Could not submit request.')); return; }
 
   await logAudit('ncism_subscription_requested', 'tenants', tenantId, {
-    requested_ug_intake: _ncismSelectedTier, requested_pg: requestedPg, computed_fee: computedFee,
+    requested_ug_intake: _ncismSelectedTier, requested_pg: requestedPg, computed_fee: computedFee, gst_amount: gstAmount,
   }, { tenantId, userId: profile.id, userName: profile.full_name });
 
   _toast('✅ Request submitted — awaiting platform approval');

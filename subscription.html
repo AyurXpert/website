@@ -46,6 +46,10 @@ th{background:#f5faf7;font-size:11px;font-weight:600;color:var(--text-muted);tex
 td{padding:10px 14px;border-bottom:1px solid #f0f4f2;font-size:13px;vertical-align:middle}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:#fafff8}
+tr.row-expiring td{background:#fffaf0}
+tr.row-expiring:hover td{background:#fff3dc}
+tr.row-expired td{background:#fff5f5}
+tr.row-expired:hover td{background:#ffe9e9}
 
 .chip{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;border:1px solid transparent}
 .plan-trial     {background:#f5f5f5;   color:#555;          border-color:#ddd}
@@ -199,6 +203,15 @@ tr:hover td{background:#fafff8}
 
   <div class="pane" id="pane-pricing">
     <div class="cc">
+      <div class="cc-hd"><span class="cc-title">GST Rate</span></div>
+      <div style="padding:16px 20px;display:flex;gap:10px;align-items:flex-end">
+        <div class="field" style="margin-bottom:0"><label>GST Rate (%)</label><input type="number" id="gst-rate" min="0" max="100" step="0.01" style="width:120px"/></div>
+        <button class="btn btn-primary" data-onclick="saveGstRate">💾 Save</button>
+        <div style="font-size:12px;color:var(--text-muted);align-self:center">Applied on top of every fee below — editable since the government rate can change.</div>
+      </div>
+    </div>
+
+    <div class="cc">
       <div class="cc-hd">
         <span class="cc-title">UG Intake Tiers</span>
         <button class="btn btn-primary" data-onclick="openTierForm">+ Add Tier</button>
@@ -206,10 +219,10 @@ tr:hover td{background:#fafff8}
       <div class="tw">
         <table>
           <thead>
-            <tr><th>UG Intake</th><th>Fee (₹)</th><th>Active</th><th>Actions</th></tr>
+            <tr><th>UG Intake</th><th>Fee (₹)</th><th>+GST Total</th><th>Active</th><th>Actions</th></tr>
           </thead>
           <tbody id="tiers-body">
-            <tr><td colspan="4" style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</td></tr>
+            <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -229,6 +242,22 @@ tr:hover td{background:#fafff8}
       <div style="padding:16px 20px;display:flex;gap:10px;align-items:flex-end">
         <div class="field" style="margin-bottom:0"><label>Fee per PG seat (₹)</label><input type="number" id="pg-seat-fee" min="0" step="0.01" style="width:150px"/></div>
         <button class="btn btn-primary" data-onclick="savePgSeatFee">💾 Save</button>
+        <div id="pg-seat-fee-gst" style="font-size:12px;color:var(--text-muted);align-self:center"></div>
+      </div>
+    </div>
+
+    <div class="cc">
+      <div class="cc-hd"><span class="cc-title">SaaS Plan Pricing</span></div>
+      <div style="padding:10px 20px 4px;font-size:12px;color:var(--text-muted)">Free Trial has no billing cycle and is always ₹0. Amounts below are independent per cycle (no auto-discount).</div>
+      <div class="tw">
+        <table>
+          <thead>
+            <tr><th>Plan</th><th>Monthly Fee (₹)</th><th>+GST</th><th>Annual Fee (₹)</th><th>+GST</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="plan-pricing-body">
+            <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -254,6 +283,14 @@ tr:hover td{background:#fafff8}
         <option value="starter">Starter</option>
         <option value="growth">Growth</option>
         <option value="enterprise">Enterprise</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Billing Cycle</label>
+      <select id="e-billing-cycle">
+        <option value="">— None (Trial) —</option>
+        <option value="monthly">Monthly</option>
+        <option value="annual">Annual</option>
       </select>
     </div>
     <div class="field">
