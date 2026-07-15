@@ -294,19 +294,38 @@ function _resetOpdForm() {
 }
 
 // ── Seed NCISM OPDs ────────────────────────────────
+// Re-fetches existing codes fresh from the DB rather than trusting the in-memory _opds —
+// _opds is only populated once the page's initial loadOpds() (part of a Promise.all at the
+// bottom of this module) resolves, but the button is clickable immediately on page load, so
+// a click before that fetch completes would see _opds as [] and treat every mandatory OPD as
+// missing, inserting a full duplicate set even when all 10 already exist.
 document.getElementById('btn-seed-ncism').addEventListener('click', async () => {
-  const existingCodes = new Set(_opds.map(o => o.ncism_code).filter(Boolean));
+  const btn = document.getElementById('btn-seed-ncism');
+  btn.disabled = true; btn.textContent = 'Checking…';
+
+  const { data: currentOpds, error: fetchErr } = await supabase
+    .from('opds').select('ncism_code').eq('tenant_id', tenantId);
+  if (fetchErr) {
+    btn.disabled = false; btn.textContent = '◇ Seed NCISM OPDs';
+    _alert('error', safeErrorMessage(fetchErr, 'Could not check existing OPDs.'));
+    return;
+  }
+
+  const existingCodes = new Set((currentOpds || []).map(o => o.ncism_code).filter(Boolean));
   const toCreate = NCISM_OPDS.filter(n => !existingCodes.has(n.code));
 
   if (!toCreate.length) {
+    btn.disabled = false; btn.textContent = '◇ Seed NCISM OPDs';
     _alert('success', 'All 10 NCISM mandatory OPDs are already configured.');
     return;
   }
 
-  if (!confirm(`Create ${toCreate.length} missing NCISM OPD(s)?\n\n` + toCreate.map(n => '• ' + n.name).join('\n'))) return;
+  if (!confirm(`Create ${toCreate.length} missing NCISM OPD(s)?\n\n` + toCreate.map(n => '• ' + n.name).join('\n'))) {
+    btn.disabled = false; btn.textContent = '◇ Seed NCISM OPDs';
+    return;
+  }
 
-  const btn = document.getElementById('btn-seed-ncism');
-  btn.disabled = true; btn.textContent = 'Creating…';
+  btn.textContent = 'Creating…';
 
   const rows = toCreate.map(n => ({
     tenant_id:  tenantId,
