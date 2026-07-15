@@ -742,7 +742,10 @@ const ORG_TREE_DEF = [
   {key:'OPD_PARENT',         label:'OPD',               icon:'🚪'},
   {key:'IPD_PARENT',         label:'IPD',               icon:'🛏️'},
   {key:'PK',                 label:'Panchakarma',       icon:'🌿'},
+  {key:'LABOUR_ROOM',        label:'Labour Room',       icon:'🤱'},
+  {key:'KRIYAKALPA',         label:'Kriyakalpa',        icon:'👁️'},
   {key:'SW',                 label:'Yoga & Wellness',   icon:'🧘'},
+  {key:'DIET_PATHYA',        label:'Diet / Pathya',     icon:'🍲'},
   {key:'PHYSIOTHERAPY',      label:'Physiotherapy',     icon:'🦵'},
   {key:'DIAGNOSTICS',        label:'Diagnostics',       icon:'🔬'},
   {key:'PHARMACY',           label:'Pharmacy',          icon:'💊'},
@@ -752,12 +755,11 @@ const ORG_TREE_DEF = [
 ];
 // Keys that are already real NCISM department rows (matched by ncism_code) — never created by the seeder
 const ORG_EXISTING_NCISM = {PK:1, SW:1};
-// New child department rows the seeder creates, nested one level under a top-level key
+// New child department rows the seeder creates, nested one level under a top-level key.
+// Labour Room/Kriyakalpa/Diet-Pathya are deliberately top-level (ORG_TREE_DEF above), not
+// nested under Panchakarma/Yoga — kept separate per Dr. Venkatesh's spec.
 const ORG_CHILD_DEFS = [
-  {key:'OT',          label:'Operation Theatre (Major + Minor + CSSD)', parent:'IPD_PARENT'},
-  {key:'LABOUR_ROOM', label:'Labour Room',                              parent:'PK'},
-  {key:'KRIYAKALPA',  label:'Kriyakalpa',                               parent:'PK'},
-  {key:'DIET_PATHYA', label:'Diet / Pathya',                            parent:'SW'},
+  {key:'OT', label:'Operation Theatre (Major + Minor + CSSD)', parent:'IPD_PARENT'},
 ];
 // Existing clinical/OPD department ncism_codes to nest under the new OPD umbrella.
 // Panchakarma + Swasthavritta-Yoga are excluded — they stay top-level per Dr. Venkatesh's spec.
@@ -860,7 +862,7 @@ function sectionRollup(node, ug, staffByDept){
 }
 
 window.seedHrOrgStructure = async function(){
-  if(!confirm('This creates the missing HR department rows (Administration, Finance, OPD, IPD, Diagnostics, Pharmacy, House Keeping, Laundry, Security + sub-sections) and re-parents existing OPD departments under the new "OPD" umbrella. Safe to run more than once. Continue?')) return;
+  if(!confirm('This creates the missing HR department rows (Administration, Finance, OPD, IPD, Labour Room, Kriyakalpa, Diet / Pathya, Physiotherapy, Diagnostics, Pharmacy, House Keeping, Laundry, Security) and re-parents existing OPD departments under the new "OPD" umbrella + Operation Theatre under "IPD". Safe to run more than once. Continue?')) return;
 
   const {data:rawDepts, error:fetchErr} = await supabase.from('departments')
     .select('id,name,ncism_code,category,parent_department_id').eq('tenant_id',tenantId);
