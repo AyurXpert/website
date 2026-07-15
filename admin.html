@@ -84,19 +84,6 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 .admin-sidebar:hover .sb-label{opacity:1}
 .sb-badge{background:var(--error-bg);color:var(--error);font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;min-width:20px;text-align:center;flex-shrink:0}
 
-/* Sub-items: hidden when collapsed, slide down when expanded */
-.sb-sub{
-  display:flex;align-items:center;width:100%;
-  border:none;background:none;text-align:left;
-  font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-muted);
-  cursor:pointer;transition:background .12s,color .12s,max-height .18s,opacity .12s;
-  text-decoration:none;white-space:nowrap;
-  padding:0 14px 0 52px;max-height:0;overflow:hidden;opacity:0;
-}
-.sb-sub:hover{background:#f4f9f6;color:var(--text-dark)}
-.sb-sub.active{color:var(--green-mid);font-weight:500}
-.admin-sidebar:hover .sb-sub{max-height:36px;opacity:1;padding-top:7px;padding-bottom:7px}
-
 /* Footer */
 .sb-footer{padding:12px 0;border-top:1px solid var(--border);flex-shrink:0;overflow:hidden}
 .btn-copy-code{
@@ -362,8 +349,6 @@ tr:hover td{background:#fafff8}
         <span class="sb-label">Human Resources</span>
         <span class="sb-badge" id="badge-pending" style="display:none">0</span>
       </button>
-      <button class="sb-sub" data-target="hr" data-sub="staff">All Staff</button>
-      <button class="sb-sub" data-target="hr" data-sub="hierarchy">Hierarchy</button>
 
       <button class="sb-item" data-target="departments">
         <span class="sb-icon">🏥</span>
