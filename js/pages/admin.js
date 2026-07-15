@@ -489,6 +489,7 @@ const DESIGS = [
   {v:'pharmacist',                  l:'Pharmacist',                      cat:'Pharmacy',       lv:2, d:'Ayurveda-qualified pharmacist dispensing prescriptions (Sch XX/22).'},
   {v:'pharmacy_assistant',          l:'Pharmacy Assistant',              cat:'Pharmacy',       lv:3, d:'Assists the pharmacist with stock handling, billing and dispensing.'},
   {v:'pk_incharge',                 l:'Panchakarma In-charge',           cat:'Therapy',        lv:1, d:'Heads the Panchakarma therapy section — protocol adherence and therapist rostering (Sch XX/40).'},
+  {v:'panchakarma_cook',            l:'Panchakarma Preparation-Room Cook', cat:'Therapy',      lv:4, d:'Prepares medicated oils, ghees and decoctions used in Panchakarma therapy (Sch XX/39, optional) — distinct from the Pathya-Diet kitchen.'},
   {v:'senior_therapist',            l:'Senior Therapist',                cat:'Therapy',        lv:2, d:'Experienced therapist leading complex Panchakarma/Kriyakalpa procedures (Sch XX/40, XX/48).'},
   {v:'therapist',                   l:'Therapist',                       cat:'Therapy',        lv:3, d:'Delivers Panchakarma, Kriyakalpa or Physiotherapy procedures under supervision (Sch XX/40, 48, 49).'},
   {v:'therapy_assistant',           l:'Therapy Assistant / Attender',    cat:'Therapy',        lv:4, d:'Supports therapists with procedure setup, patient positioning and cleanup.'},
@@ -508,6 +509,7 @@ const DESIGS = [
   {v:'lab_technician',              l:'Lab Technician',                   cat:'Diagnostics',    lv:2, d:'DMLT-qualified — sample collection, processing and routine test performance (Sch XX/24).'},
   {v:'radiographer',                l:'Radiographer / X-ray Technician',  cat:'Diagnostics',    lv:2, d:'Operates X-ray/imaging equipment and AERB safety logs (Sch XX/26).'},
   {v:'lab_attendant',               l:'Lab Attendant',                    cat:'Diagnostics',    lv:3, d:'Assists lab technicians — specimen handling and housekeeping of the lab (Sch XX/25).'},
+  {v:'dark_room_assistant',         l:'Dark Room Assistant',              cat:'Diagnostics',    lv:3, d:'Develops X-ray film in the dark room — only needed if using non-digital X-ray equipment (Sch XX/27, optional).'},
   {v:'ot_technician',               l:'OT Technician / Surgical Tech',   cat:'Clinical',       lv:7, d:'Assists surgeons — instrument prep, sterile technique, OT equipment upkeep (Sch XX/43).'},
   {v:'ophthalmic_technician',       l:'Ophthalmic Technician',           cat:'Clinical',       lv:7, d:'Assists Shalakya-Netra faculty with eye examinations and minor procedures.'},
   {v:'ent_technician',              l:'ENT Technician / Audiologist',    cat:'Clinical',       lv:7, d:'Assists Shalakya-KNM faculty with ENT examinations, audiometry and minor procedures.'},
@@ -554,8 +556,10 @@ const DESIG_ROLE_DEFAULT = {
   medical_record_officer:'mrd_staff', medical_record_technician:'mrd_staff',
   pharmacist:'pharmacist', chief_pharmacist:'pharmacist', pharmacy_assistant:'pharmacist',
   lab_technician:'lab_tech', lab_attendant:'lab_tech', radiographer:'lab_tech', microbiologist:'lab_tech',
+  dark_room_assistant:'lab_tech',
   ot_technician:'nurse', cssd_technician:'nurse', cssd_incharge:'nurse',
   pk_incharge:'therapist', senior_therapist:'therapist', therapist:'therapist', yoga_instructor:'therapist',
+  panchakarma_cook:'therapist',
   palha_diet_incharge:'diet_staff', dietitian:'diet_staff', diet_cook:'diet_staff',
   attender:'nurse',
 };
@@ -665,6 +669,16 @@ const NCISM_XX_ROWS = [
   // from the Diet section above; kept as CS1/CS2 here to avoid a duplicate ref key)
   ['CSSD','CSSD / Sterilisation Staff',['cssd_incharge','cssd_technician'],{60:1,100:1,150:1,200:1},'Sch XX/CS1'],
   ['CSSD','CSSD / Sterilisation Aya',['attender','anm'],{60:1,100:1,150:1,200:1},'Sch XX/CS2'],
+];
+
+// Optional Schedule XX rows — real per the source table, but conditional (dark room
+// assistant only applies to non-digital X-ray, which nothing in the schema tracks) or
+// newly-added designations (Panchakarma prep-room cook). Never counted toward the
+// mandatory ladder, required total or compliance % — shown as an "add if needed" note
+// with its own Invite button so a tenant that genuinely needs one isn't blocked.
+const NCISM_XX_OPTIONAL_ROWS = [
+  ['Diagnostics','Dark Room Assistant (non-digital X-ray only)',['dark_room_assistant'],{60:1,100:1,150:1,200:1},'Sch XX/27'],
+  ['Panchakarma','Cook — Preparation Room',['panchakarma_cook'],{60:1,100:1,150:2,200:2},'Sch XX/39'],
 ];
 
 // Summary groups — each desig key appears in EXACTLY ONE group to avoid double-counting
@@ -788,7 +802,7 @@ const ORG_ZONE_MAP = {
 // prescribes no headcount for this function (Housekeeping/Laundry/Security) — never
 // fabricate a number in that case, just track actual staff.
 function deptRequirement(dept, ug){
-  if(!dept || !ug) return {mandated:false, ladder:[], required:0};
+  if(!dept || !ug) return {mandated:false, ladder:[], required:0, optional:[]};
   const ladder=[];
   let mandated=false;
 
@@ -819,8 +833,11 @@ function deptRequirement(dept, ug){
     rows.forEach(([,label,keys,req,ref])=>{ const c=req[ug]||0; if(c){ ladder.push({label,count:c,ref,keys}); } });
   }
 
-  if(!mandated) return {mandated:false, ladder:[], required:0};
-  return {mandated:true, ladder, required:ladder.reduce((s,r)=>s+r.count,0)};
+  const optional=NCISM_XX_OPTIONAL_ROWS.filter(r=>ORG_ZONE_MAP[r[0]]===key)
+    .map(([,label,keys,req,ref])=>({label,count:req[ug]||0,ref,keys}));
+
+  if(!mandated) return {mandated:false, ladder:[], required:0, optional};
+  return {mandated:true, ladder, required:ladder.reduce((s,r)=>s+r.count,0), optional};
 }
 
 // Required/actual/gap rollup for a top-level section — sums the section's own row + all its children
@@ -1052,11 +1069,35 @@ async function _renderNcismStaffing() {
     +'<tfoot>'+gtRow+'</tfoot></table></div>';
 
   // ── Department-wise requirement ladder — same 12-section tree as 🏥 Dept. Staff ──
+  // Optional Schedule XX rows (dark room assistant, Panchakarma prep-room cook) — real
+  // per the source table but conditional/situational, so never counted as a compliance
+  // gap. Rendered as a muted "add if your hospital needs this" note with its own Invite
+  // button, reusing the same registry/handler as the mandatory ladder rows above it.
+  function optionalRowsHtml(dept, optional){
+    if(!optional.length) return '';
+    const items=optional.map(row=>{
+      const a=cntDeptD(dept.id,row.keys);
+      const rowIdx=_ladderRowRegistry.push({deptId:dept.id, deptName:dept.name, keys:row.keys, label:row.label})-1;
+      const invKey=dept.id+'|'+row.keys[0];
+      const pending=invitesByRow[invKey]||[];
+      const inviteBtn='<button data-onclick="openPositionInvite" data-onclick-a0="'+rowIdx+'" style="height:22px;padding:0 9px;font-size:10.5px;background:transparent;color:var(--green-deep);border:1px solid var(--green-deep);border-radius:6px;cursor:pointer;white-space:nowrap">+ Add if needed</button>'
+        +(pending.length?' <span style="font-size:10.5px;color:#7a5a10">🔗 '+pending.length+' pending</span>':'');
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 16px;font-size:12px;color:var(--text-muted)">'
+        +'<span>'+_esc(row.label)+' <span style="font-size:10.5px;color:var(--text-muted)">('+_esc(row.ref)+', suggested '+row.count+')</span>'
+        +(a?' — <strong style="color:var(--green-deep)">'+a+'</strong> currently assigned':'')+'</span>'
+        +inviteBtn+'</div>';
+    }).join('');
+    return '<div style="background:#fafafa;border-top:1px dashed var(--border);margin-top:2px">'
+      +'<div style="padding:6px 16px 2px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)">Optional — not NCISM-mandated, add only if your hospital needs it</div>'
+      +items+'</div>';
+  }
+
   function ladderTableHtml(dept){
     const req=deptRequirement(dept,ug);
     if(!req.mandated){
       const actual=(byDept[dept.id]||[]).length;
-      return '<div style="padding:6px 16px 10px;font-size:12px;color:var(--text-muted)">Not NCISM-mandated — tracked for operational completeness. <strong>'+actual+'</strong> active staff currently assigned.</div>';
+      return '<div style="padding:6px 16px 10px;font-size:12px;color:var(--text-muted)">Not NCISM-mandated — tracked for operational completeness. <strong>'+actual+'</strong> active staff currently assigned.</div>'
+        +optionalRowsHtml(dept, req.optional);
     }
     const trs=req.ladder.map(row=>{
       const a=cntDeptD(dept.id,row.keys), gap=Math.max(0,row.count-a);
@@ -1086,7 +1127,8 @@ async function _renderNcismStaffing() {
       +'<th style="padding:5px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Actual</th>'
       +'<th style="padding:5px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Status</th>'
       +'<th style="padding:5px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Fill Gap</th>'
-      +'</tr></thead><tbody>'+trs+'</tbody></table>';
+      +'</tr></thead><tbody>'+trs+'</tbody></table>'
+      +optionalRowsHtml(dept, req.optional);
   }
 
   const deptTreeHtml=tree.map(node=>{
