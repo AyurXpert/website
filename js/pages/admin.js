@@ -717,8 +717,8 @@ const ORG_TREE_DEF = [
   {key:'FINANCE',            label:'Finance & Accounts',icon:'💰'},
   {key:'OPD_PARENT',         label:'OPD',               icon:'🚪'},
   {key:'IPD_PARENT',         label:'IPD',               icon:'🛏️'},
-  {key:'PANCHAKARMA',        label:'Panchakarma',       icon:'🌿'},
-  {key:'SWASTHAVRITTA_YOGA', label:'Yoga & Wellness',   icon:'🧘'},
+  {key:'PK',                 label:'Panchakarma',       icon:'🌿'},
+  {key:'SW',                 label:'Yoga & Wellness',   icon:'🧘'},
   {key:'PHYSIOTHERAPY',      label:'Physiotherapy',     icon:'🦵'},
   {key:'DIAGNOSTICS',        label:'Diagnostics',       icon:'🔬'},
   {key:'PHARMACY',           label:'Pharmacy',          icon:'💊'},
@@ -727,19 +727,19 @@ const ORG_TREE_DEF = [
   {key:'SECURITY',           label:'Security',          icon:'🛡️'},
 ];
 // Keys that are already real NCISM department rows (matched by ncism_code) — never created by the seeder
-const ORG_EXISTING_NCISM = {PANCHAKARMA:1, SWASTHAVRITTA_YOGA:1};
+const ORG_EXISTING_NCISM = {PK:1, SW:1};
 // New child department rows the seeder creates, nested one level under a top-level key
 const ORG_CHILD_DEFS = [
   {key:'OT',          label:'Operation Theatre (Major + Minor + CSSD)', parent:'IPD_PARENT'},
-  {key:'LABOUR_ROOM', label:'Labour Room',                              parent:'PANCHAKARMA'},
-  {key:'KRIYAKALPA',  label:'Kriyakalpa',                               parent:'PANCHAKARMA'},
-  {key:'DIET_PATHYA', label:'Diet / Pathya',                            parent:'SWASTHAVRITTA_YOGA'},
+  {key:'LABOUR_ROOM', label:'Labour Room',                              parent:'PK'},
+  {key:'KRIYAKALPA',  label:'Kriyakalpa',                               parent:'PK'},
+  {key:'DIET_PATHYA', label:'Diet / Pathya',                            parent:'SW'},
 ];
 // Existing clinical/OPD department ncism_codes to nest under the new OPD umbrella.
 // Panchakarma + Swasthavritta-Yoga are excluded — they stay top-level per Dr. Venkatesh's spec.
-const OPD_CHILD_NCISM_CODES = ['KAYACHIKITSA','SHALYA_TANTRA','SHALAKYA_NETRA','SHALAKYA_KNM',
-  'STRI_ROGA_PRASUTI','KAUMARABHRITYA','SCREENING_OPD','AGADA_TANTRA','RASAYANA_VAJIKARANA',
-  'MANASAROGA','ROGANIDANA','DRAVYAGUNA','RASASHASTRA_BK'];
+// Real short-form codes (js/config/ncism.js NCISM_DEPTS) — these are what the seeding RPCs
+// actually write to departments.ncism_code, not the long-form names used elsewhere historically.
+const OPD_CHILD_NCISM_CODES = ['KAY','SHAL','SHAK','KAU','PST','AGD','RNV'];
 
 // ncism_code takes priority — it's the specific identifier for real NCISM depts (e.g. Panchakarma,
 // Swasthavritta-Yoga) and some pre-existing rows carry an unrelated legacy `category` value (e.g.
@@ -763,14 +763,14 @@ function buildDeptTree(depts){
 // Schedule I faculty ladder (Professor/Assoc/Asst), per teaching department, by UG intake
 const FAC_BY_UG = {60:{p:1,a:1,b:2}, 100:{p:1,a:1,b:3}, 150:{p:1,a:2,b:3}, 200:{p:1,a:2,b:4}};
 // Departments that carry the Schedule I faculty ladder (8-10 clinical teaching depts + optional PG depts)
-const SCHEDULE_I_CODES = [...OPD_CHILD_NCISM_CODES, 'PANCHAKARMA', 'SWASTHAVRITTA_YOGA'];
+const SCHEDULE_I_CODES = [...OPD_CHILD_NCISM_CODES, 'PK', 'SW'];
 // Maps each NCISM_XX_ROWS zone label onto the department key (category or ncism_code) it now lives under
 const ORG_ZONE_MAP = {
   'Administration':'ADMIN', 'Finance & Accounts':'FINANCE', 'Reception & MRD':'ADMIN',
   'OPD Nursing':'OPD_PARENT', 'Pharmacy':'PHARMACY', 'Diagnostics':'DIAGNOSTICS',
-  'Medical IPD':'IPD_PARENT', 'Surgical IPD':'IPD_PARENT', 'Panchakarma':'PANCHAKARMA',
+  'Medical IPD':'IPD_PARENT', 'Surgical IPD':'IPD_PARENT', 'Panchakarma':'PK',
   'Operation Theatre':'OT', 'Labour Room':'LABOUR_ROOM', 'Kriyakalpa':'KRIYAKALPA',
-  'Physiotherapy':'PHYSIOTHERAPY', 'Yoga & Wellness':'SWASTHAVRITTA_YOGA', 'Diet / Pathya':'DIET_PATHYA',
+  'Physiotherapy':'PHYSIOTHERAPY', 'Yoga & Wellness':'SW', 'Diet / Pathya':'DIET_PATHYA',
   'CSSD':'OT',
 };
 
@@ -780,8 +780,13 @@ const ORG_ZONE_MAP = {
 function deptRequirement(dept, ug){
   if(!dept || !ug) return {mandated:false, ladder:[], required:0};
   const ladder=[];
+  let mandated=false;
 
+  // Schedule I (teaching faculty) — applies to any of the 9 clinical/para-clinical teaching
+  // departments. Panchakarma and Swasthavritta&Yoga (PK/SW) are ALSO real Schedule XX operational
+  // zones (see below) — both apply simultaneously for those two, they are not mutually exclusive.
   if(dept.ncism_code && SCHEDULE_I_CODES.includes(dept.ncism_code)){
+    mandated=true;
     const fac=FAC_BY_UG[ug];
     if(fac.p) ladder.push({label:'Professor / HOD',        count:fac.p, ref:'Sch I', keys:['professor','hod']});
     if(fac.a) ladder.push({label:'Associate Professor',     count:fac.a, ref:'Sch I', keys:['associate_professor']});
@@ -791,22 +796,21 @@ function deptRequirement(dept, ug){
       ladder.push({label:'Senior Resident (PG)',            count:Math.ceil(seats/3),      ref:'PG 1 per 3 seats',  keys:['senior_resident']});
       ladder.push({label:'Staff Nurse (+PG beds)',           count:Math.ceil(pgBeds/10),     ref:'PG 1 per 10 beds', keys:['staff_nurse','ward_sister']});
       ladder.push({label:'Ayah / Attendant (+PG beds)',      count:Math.ceil(pgBeds/20),     ref:'PG 1 per 20 beds', keys:['attender','anm']});
-      if(dept.ncism_code==='PANCHAKARMA') ladder.push({label:'PK Therapist (+PG)', count:Math.ceil(seats/3)*2, ref:'PG PK', keys:['pk_incharge','senior_therapist','therapist']});
+      if(dept.ncism_code==='PK') ladder.push({label:'PK Therapist (+PG)', count:Math.ceil(seats/3)*2, ref:'PG PK', keys:['pk_incharge','senior_therapist','therapist']});
       if(seats>3) ladder.push({label:'Assistant Professor (+PG)',  count:Math.ceil((seats-3)/3), ref:'PG', keys:['assistant_professor']});
       if(seats>6) ladder.push({label:'Associate Professor (+PG)',  count:Math.ceil((seats-6)/3), ref:'PG', keys:['associate_professor']});
     }
-    return {mandated:true, ladder, required:ladder.reduce((s,r)=>s+r.count,0)};
   }
 
   const key=_deptKey(dept);
   const rows=NCISM_XX_ROWS.filter(r=>ORG_ZONE_MAP[r[0]]===key);
   if(rows.length){
-    let required=0;
-    rows.forEach(([,label,keys,req,ref])=>{ const c=req[ug]||0; if(c){ ladder.push({label,count:c,ref,keys}); required+=c; } });
-    return {mandated:true, ladder, required};
+    mandated=true;
+    rows.forEach(([,label,keys,req,ref])=>{ const c=req[ug]||0; if(c){ ladder.push({label,count:c,ref,keys}); } });
   }
 
-  return {mandated:false, ladder:[], required:0};
+  if(!mandated) return {mandated:false, ladder:[], required:0};
+  return {mandated:true, ladder, required:ladder.reduce((s,r)=>s+r.count,0)};
 }
 
 // Required/actual/gap rollup for a top-level section — sums the section's own row + all its children
@@ -935,7 +939,7 @@ async function _renderNcismStaffing() {
     keyTotPG['senior_resident']=(keyTotPG['senior_resident']||0)+Math.ceil(seats/3);
     keyTotPG['staff_nurse']=(keyTotPG['staff_nurse']||0)+Math.ceil(pgB/10);
     keyTotPG['attender']=(keyTotPG['attender']||0)+Math.ceil(pgB/20);
-    if(d.ncism_code==='PANCHAKARMA')keyTotPG['therapist']=(keyTotPG['therapist']||0)+Math.ceil(seats/3)*2;
+    if(d.ncism_code==='PK')keyTotPG['therapist']=(keyTotPG['therapist']||0)+Math.ceil(seats/3)*2;
     if(seats>3)keyTotPG['assistant_professor']=(keyTotPG['assistant_professor']||0)+Math.ceil((seats-3)/3);
     if(seats>6)keyTotPG['associate_professor']=(keyTotPG['associate_professor']||0)+Math.ceil((seats-6)/3);
   });
@@ -1388,7 +1392,7 @@ async function _renderDeptStaff() {
     :(totalInterns>0?'<div style="background:#f0faf5;border:1px solid #b7dfc8;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:13px">✅ Intern rotation tracking active — '+totalInterns+' interns in system.</div>':'');
 
   // Org chart — Super Admin at top, then the 12 fixed sections (Administration → Security)
-  const shalyaDept=(depts||[]).find(d=>d.ncism_code==='SHALYA_TANTRA');
+  const shalyaDept=(depts||[]).find(d=>d.ncism_code==='SHAL');
   const shalyaHod=shalyaDept?(byDept[shalyaDept.id]||[]).find(s=>['hod','professor'].includes(s.designation)||s.role==='dept_admin'):null;
 
   const tree=buildDeptTree(depts||[]);
