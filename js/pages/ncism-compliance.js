@@ -24,18 +24,21 @@ const UG_BED_RATIOS = { KAY:.20, PK:.25, SHAL:.20, SHAK:.10, KAU:.10, AGD:.05, P
 
 // NCISM Schedule I academic classification (pre-clinical / para-clinical / clinical),
 // keyed by ncism_code — departments.category holds an unrelated ops/facility taxonomy
-// (IPD_PARENT, HOUSEKEEPING, FINANCE, etc.), not this classification, so it can't be
-// used here. Built from the standard BAMS subject grouping; codes not in this map
-// default to 'clinical' (the conservative, higher-requirement bucket). GENERAL and
-// SCREENING_OPD are excluded entirely — not real NCISM-regulated teaching departments.
+// (IPD_PARENT, HOUSEKEEPING, FINANCE, etc.) for synthetic HR-org sections, so it can't
+// be used blindly here, but for a REAL NCISM-coded teaching department the correct source
+// of truth is js/config/ncism.js's NCISM_DEPTS — matched exactly below (was previously
+// out of sync: Agada Tantra mis-classified para-clinical instead of clinical, Dravyaguna/
+// Rasashastra & Bhaishajya Kalpana mis-classified para-clinical instead of pre-clinical,
+// Kriya Sharira missing entirely). Codes not in this map default to 'clinical' (the
+// conservative, higher-requirement bucket). GENERAL and SCREENING_OPD are excluded
+// entirely — not real NCISM-regulated teaching departments.
 const DEPT_ACADEMIC_TYPE = {
   // Pre-clinical
-  SS:'pre_clinical', RS:'pre_clinical',
+  SS:'pre_clinical', RS:'pre_clinical', KS:'pre_clinical',
+  DG:'pre_clinical', DRAVYAGUNA:'pre_clinical',
+  RASASHASTRA_BK:'pre_clinical', RBK:'pre_clinical',
   // Para-clinical
-  DG:'para_clinical', DRAVYAGUNA:'para_clinical',
-  RASASHASTRA_BK:'para_clinical', RBK:'para_clinical',
   RNV:'para_clinical', ROGANIDANA:'para_clinical',
-  AGD:'para_clinical', AGADA_TANTRA:'para_clinical',
   SW:'para_clinical', SWASTHAVRITTA_YOGA:'para_clinical',
   // Clinical
   KAY:'clinical', KAYACHIKITSA:'clinical',
@@ -44,6 +47,7 @@ const DEPT_ACADEMIC_TYPE = {
   SHAK:'clinical', SHALAKYA_KNM:'clinical', SHALAKYA_NETRA:'clinical',
   PST:'clinical', STRI_ROGA_PRASUTI:'clinical',
   KAU:'clinical', KAUMARABHRITYA:'clinical',
+  AGD:'clinical', AGADA_TANTRA:'clinical',
   RASAYANA_VAJIKARANA:'clinical', MANASAROGA:'clinical',
   // Not real academic teaching departments — excluded from Faculty Strength
   GENERAL: null, SCREENING_OPD: null,
