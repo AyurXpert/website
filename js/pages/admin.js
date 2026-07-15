@@ -797,6 +797,12 @@ const ORG_ZONE_MAP = {
   'Physiotherapy':'PHYSIOTHERAPY', 'Yoga & Wellness':'SW', 'Diet / Pathya':'DIET_PATHYA',
   'CSSD':'OT',
 };
+// Friendlier sub-section heading for a zone, shown inside a department's ladder table
+// whenever it merges rows from more than one NCISM_XX_ROWS zone (e.g. IPD_PARENT holds
+// both 'Medical IPD' and 'Surgical IPD') — falls back to the raw zone label otherwise.
+const ZONE_SECTION_LABEL = {
+  'Medical IPD':'Medical In-Patients Section', 'Surgical IPD':'Surgical In-Patients Section',
+};
 
 // Required-staff ladder for a single department row. mandated=false means NCISM
 // prescribes no headcount for this function (Housekeeping/Laundry/Security) — never
@@ -812,17 +818,18 @@ function deptRequirement(dept, ug){
   if(dept.ncism_code && SCHEDULE_I_CODES.includes(dept.ncism_code)){
     mandated=true;
     const fac=FAC_BY_UG[ug];
-    if(fac.p) ladder.push({label:'Professor / HOD',        count:fac.p, ref:'Sch I', keys:['professor','hod']});
-    if(fac.a) ladder.push({label:'Associate Professor',     count:fac.a, ref:'Sch I', keys:['associate_professor']});
-    if(fac.b) ladder.push({label:'Assistant Professor',     count:fac.b, ref:'Sch I', keys:['assistant_professor']});
+    const z='Teaching Faculty (Schedule I)';
+    if(fac.p) ladder.push({zone:z, label:'Professor / HOD',        count:fac.p, ref:'Sch I', keys:['professor','hod']});
+    if(fac.a) ladder.push({zone:z, label:'Associate Professor',     count:fac.a, ref:'Sch I', keys:['associate_professor']});
+    if(fac.b) ladder.push({zone:z, label:'Assistant Professor',     count:fac.b, ref:'Sch I', keys:['assistant_professor']});
     if(dept.is_pg_dept){
       const seats=dept.pg_seats_sanctioned||3, pgBeds=seats*4;
-      ladder.push({label:'Senior Resident (PG)',            count:Math.ceil(seats/3),      ref:'PG 1 per 3 seats',  keys:['senior_resident']});
-      ladder.push({label:'Staff Nurse (+PG beds)',           count:Math.ceil(pgBeds/10),     ref:'PG 1 per 10 beds', keys:['staff_nurse','ward_sister']});
-      ladder.push({label:'Ayah / Attendant (+PG beds)',      count:Math.ceil(pgBeds/20),     ref:'PG 1 per 20 beds', keys:['attender','anm']});
-      if(dept.ncism_code==='PK') ladder.push({label:'PK Therapist (+PG)', count:Math.ceil(seats/3)*2, ref:'PG PK', keys:['pk_incharge','senior_therapist','therapist']});
-      if(seats>3) ladder.push({label:'Assistant Professor (+PG)',  count:Math.ceil((seats-3)/3), ref:'PG', keys:['assistant_professor']});
-      if(seats>6) ladder.push({label:'Associate Professor (+PG)',  count:Math.ceil((seats-6)/3), ref:'PG', keys:['associate_professor']});
+      ladder.push({zone:z, label:'Senior Resident (PG)',            count:Math.ceil(seats/3),      ref:'PG 1 per 3 seats',  keys:['senior_resident']});
+      ladder.push({zone:z, label:'Staff Nurse (+PG beds)',           count:Math.ceil(pgBeds/10),     ref:'PG 1 per 10 beds', keys:['staff_nurse','ward_sister']});
+      ladder.push({zone:z, label:'Ayah / Attendant (+PG beds)',      count:Math.ceil(pgBeds/20),     ref:'PG 1 per 20 beds', keys:['attender','anm']});
+      if(dept.ncism_code==='PK') ladder.push({zone:z, label:'PK Therapist (+PG)', count:Math.ceil(seats/3)*2, ref:'PG PK', keys:['pk_incharge','senior_therapist','therapist']});
+      if(seats>3) ladder.push({zone:z, label:'Assistant Professor (+PG)',  count:Math.ceil((seats-3)/3), ref:'PG', keys:['assistant_professor']});
+      if(seats>6) ladder.push({zone:z, label:'Associate Professor (+PG)',  count:Math.ceil((seats-6)/3), ref:'PG', keys:['associate_professor']});
     }
   }
 
@@ -830,7 +837,7 @@ function deptRequirement(dept, ug){
   const rows=NCISM_XX_ROWS.filter(r=>ORG_ZONE_MAP[r[0]]===key);
   if(rows.length){
     mandated=true;
-    rows.forEach(([,label,keys,req,ref])=>{ const c=req[ug]||0; if(c){ ladder.push({label,count:c,ref,keys}); } });
+    rows.forEach(([zone,label,keys,req,ref])=>{ const c=req[ug]||0; if(c){ ladder.push({zone,label,count:c,ref,keys}); } });
   }
 
   const optional=NCISM_XX_OPTIONAL_ROWS.filter(r=>ORG_ZONE_MAP[r[0]]===key)
@@ -1099,6 +1106,12 @@ async function _renderNcismStaffing() {
       return '<div style="padding:6px 16px 10px;font-size:12px;color:var(--text-muted)">Not NCISM-mandated — tracked for operational completeness. <strong>'+actual+'</strong> active staff currently assigned.</div>'
         +optionalRowsHtml(dept, req.optional);
     }
+    // Sub-section headers — only shown when a department's ladder actually merges rows from
+    // more than one NCISM_XX_ROWS zone (e.g. IPD_PARENT holds both Medical + Surgical rows,
+    // which otherwise look like duplicate "Nursing Staff"/"Ayah" lines with no indication
+    // of which section each belongs to).
+    const distinctZones=new Set(req.ladder.map(r=>r.zone));
+    let prevZone=null;
     const trs=req.ladder.map(row=>{
       const a=cntDeptD(dept.id,row.keys), gap=Math.max(0,row.count-a);
       const rc=a>=row.count?'#2d7a4f':a>0?'#c9902a':'#c0392b';
@@ -1110,7 +1123,12 @@ async function _renderNcismStaffing() {
         ? '<button data-onclick="openPositionInvite" data-onclick-a0="'+rowIdx+'" style="height:24px;padding:0 10px;font-size:11px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap">+ Invite</button>'
           +(pending.length?' <span style="font-size:10.5px;color:#7a5a10">🔗 '+pending.length+' pending</span>':'')
         : '';
-      return '<tr>'
+      let sectionHeader='';
+      if(distinctZones.size>1 && row.zone!==prevZone){
+        prevZone=row.zone;
+        sectionHeader='<tr><td colspan="6" style="padding:7px 12px 5px 16px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--green-deep);background:#f0faf5;border-bottom:1px solid #f0f4f2">'+_esc(ZONE_SECTION_LABEL[row.zone]||row.zone)+'</td></tr>';
+      }
+      return sectionHeader+'<tr>'
         +'<td style="padding:6px 12px 6px 16px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(row.label)+'</td>'
         +'<td style="padding:6px 10px;text-align:center;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+_esc(row.ref)+'</td>'
         +'<td style="padding:6px 10px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2">'+row.count+'</td>'
