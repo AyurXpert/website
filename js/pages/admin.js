@@ -774,7 +774,14 @@ function _deptKey(d){ return (d && (d.ncism_code || d.category)) || null; }
 
 // Builds the 12-section tree from a flat departments list. Sections not yet seeded
 // come back with dept:null so callers can render a "seed structure" prompt.
-function buildDeptTree(depts){
+// injectFacultyChildren (NCISM Staffing Compliance panel only, not the plain Dept. Staff
+// directory) additionally lists Panchakarma/Swasthavritta&Yoga under "OPD" as a synthetic
+// clone tagged _facultyOnlyView — a department row can only have one real parent, and their
+// real parent must stay null (they're genuine top-level sections), so this is a display-only
+// duplicate of the same id, not a re-parenting. deptRequirement() reads the tag to show only
+// their Schedule I faculty ladder here, while their own top-level section (real, untagged
+// object) shows only Schedule XX operational staff — never both in the same place.
+function buildDeptTree(depts, injectFacultyChildren){
   const byKey = {};
   (depts||[]).forEach(d=>{ const k=_deptKey(d); if(k && !byKey[k]) byKey[k]=d; });
   return ORG_TREE_DEF.map(def=>{
@@ -782,6 +789,13 @@ function buildDeptTree(depts){
     const children = dept
       ? (depts||[]).filter(d=>d.parent_department_id===dept.id).sort((a,b)=>(a.name||'').localeCompare(b.name||''))
       : [];
+    if(injectFacultyChildren && def.key==='OPD_PARENT'){
+      ['PK','SW'].forEach(code=>{
+        const real=byKey[code];
+        if(real) children.push({...real, _facultyOnlyView:true});
+      });
+      children.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    }
     return {def, dept, children};
   });
 }
@@ -814,10 +828,16 @@ function deptRequirement(dept, ug){
   const ladder=[];
   let mandated=false;
 
-  // Schedule I (teaching faculty) — applies to any of the 9 clinical/para-clinical teaching
-  // departments. Panchakarma and Swasthavritta&Yoga (PK/SW) are ALSO real Schedule XX operational
-  // zones (see below) — both apply simultaneously for those two, they are not mutually exclusive.
-  if(dept.ncism_code && SCHEDULE_I_CODES.includes(dept.ncism_code)){
+  // Panchakarma/Swasthavritta&Yoga are real teaching depts (Schedule I) AND real Schedule XX
+  // operational zones. Shown in exactly one place each, never both: their Schedule I faculty
+  // ladder appears nested under "OPD" (dept._facultyOnlyView — a synthetic clone injected by
+  // buildDeptTree's injectFacultyChildren, not a real re-parenting), while their own top-level
+  // Panchakarma/Yoga & Wellness section shows only Schedule XX operational staff. Every other
+  // department only ever matches one branch below regardless, so this split doesn't affect them.
+  const facultyOnly = !!dept._facultyOnlyView;
+  const operationalOnly = !facultyOnly && (dept.ncism_code==='PK' || dept.ncism_code==='SW');
+
+  if(!operationalOnly && dept.ncism_code && SCHEDULE_I_CODES.includes(dept.ncism_code)){
     mandated=true;
     const fac=FAC_BY_UG[ug];
     const z='Teaching Faculty (Schedule I)';
@@ -836,13 +856,15 @@ function deptRequirement(dept, ug){
   }
 
   const key=_deptKey(dept);
-  const rows=NCISM_XX_ROWS.filter(r=>ORG_ZONE_MAP[r[0]]===key);
-  if(rows.length){
-    mandated=true;
-    rows.forEach(([zone,label,keys,req,ref])=>{ const c=req[ug]||0; if(c){ ladder.push({zone,label,count:c,ref,keys}); } });
+  if(!facultyOnly){
+    const rows=NCISM_XX_ROWS.filter(r=>ORG_ZONE_MAP[r[0]]===key);
+    if(rows.length){
+      mandated=true;
+      rows.forEach(([zone,label,keys,req,ref])=>{ const c=req[ug]||0; if(c){ ladder.push({zone,label,count:c,ref,keys}); } });
+    }
   }
 
-  const optional=NCISM_XX_OPTIONAL_ROWS.filter(r=>ORG_ZONE_MAP[r[0]]===key)
+  const optional=facultyOnly ? [] : NCISM_XX_OPTIONAL_ROWS.filter(r=>ORG_ZONE_MAP[r[0]]===key)
     .map(([,label,keys,req,ref])=>({label,count:req[ug]||0,ref,keys}));
 
   if(!mandated) return {mandated:false, ladder:[], required:0, optional};
@@ -997,8 +1019,9 @@ async function _renderNcismStaffing() {
   // ugReqForGroup: sum requirements for all XX rows that contain ANY key from gKeys (no double-count)
   const ugReqForGroup=gKeys=>NCISM_XX_ROWS.reduce((s,[,,keys,req])=>s+(keys.some(k=>gKeys.includes(k))?(req[ug]||0):0),0);
 
-  // Department tree — shared with 🏥 Dept. Staff (same order, same rows)
-  const tree=buildDeptTree(depts||[]);
+  // Department tree — shared with 🏥 Dept. Staff (same order, same rows), plus Panchakarma/
+  // Yoga & Wellness's faculty ladder nested under OPD here specifically (see deptRequirement).
+  const tree=buildDeptTree(depts||[], true);
 
   // Grand compliance — per-position min-capped, summed across the actual configured department tree
   let grandReq=0, grandMet=0;
