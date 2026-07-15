@@ -619,6 +619,7 @@ const NCISM_XX_ROWS = [
   ['Reception & MRD','Medical Record Technician',['medical_record_officer','medical_record_technician'],{60:1,100:1,150:1,200:1},'Sch XX/18'],
   // OPD Nursing
   ['OPD Nursing','Nursing Staff — All OPDs',['staff_nurse','ward_sister'],{60:3,100:3,150:3,200:5},'Sch XX/20'],
+  ['OPD Nursing','Aya — All OPDs',['attender','anm'],{60:3,100:3,150:3,200:5},'Sch XX/21'],
   // Pharmacy
   ['Pharmacy','Pharmacist (Ayurveda-qualified)',['pharmacist'],{60:2,100:2,150:3,200:4},'Sch XX/22'],
   ['Pharmacy','Dispensary In-charge',['chief_pharmacist'],{60:1,100:1,150:1,200:1},'Sch XX/23'],
@@ -626,7 +627,10 @@ const NCISM_XX_ROWS = [
   ['Diagnostics','Lab Technician (DMLT)',['lab_technician'],{60:2,100:2,150:3,200:4},'Sch XX/24'],
   ['Diagnostics','Lab Attendant',['lab_attendant'],{60:1,100:1,150:2,200:3},'Sch XX/25'],
   ['Diagnostics','X-ray Technician / Radiographer',['radiographer'],{60:1,100:1,150:1,200:1},'Sch XX/26'],
+  ['Diagnostics','ECG Technician',['lab_technician'],{60:1,100:1,150:2,200:2},'Sch XX/28'],
+  ['Diagnostics','Nursing Staff — USG & ECG',['staff_nurse'],{60:1,100:1,150:1,200:1},'Sch XX/29'],
   ['Diagnostics','Microbiologist (MSc)',['microbiologist'],{60:1,100:1,150:1,200:1},'Sch XX/30'],
+  ['Diagnostics','Lab Assistant — Microbiology',['lab_attendant'],{60:1,100:1,150:2,200:2},'Sch XX/31'],
   // Medical IPD
   ['Medical IPD','Nursing Staff (1 per 10 beds)',['staff_nurse','ward_sister'],{60:4,100:6,150:9,200:12},'Sch XX/32'],
   ['Medical IPD','Ayah (1 per 20 beds)',['attender','anm'],{60:2,100:3,150:5,200:6},'Sch XX/33'],
@@ -639,22 +643,28 @@ const NCISM_XX_ROWS = [
   ['Panchakarma','PK Nursing Staff',['staff_nurse'],{60:1,100:1,150:2,200:2},'Sch XX/38'],
   ['Panchakarma','PK Therapists (Male + Female equal)',['pk_incharge','senior_therapist','therapist'],{60:4,100:8,150:12,200:16},'Sch XX/40'],
   ['Panchakarma','House Officer / Clinical Registrar (BAMS)',['junior_resident'],{60:1,100:1,150:1,200:1},'Sch XX/41'],
+  ['Panchakarma','Clerk cum Receptionist',['receptionist'],{60:1,100:1,150:1,200:1},'Sch XX/42'],
   // Operation Theatre
   ['Operation Theatre','OT Nursing Staff',['ot_technician','staff_nurse'],{60:1,100:2,150:3,200:4},'Sch XX/43'],
   ['Operation Theatre','OT Attendants',['attender'],{60:2,100:3,150:4,200:5},'Sch XX/44'],
   ['Operation Theatre','Anushastra Karma Technician',['cssd_technician'],{60:1,100:1,150:2,200:2},'Sch XX/45'],
   // Labour Room
-  ['Labour Room','Nursing Staff — Labour Room (3 shifts)',['staff_nurse','ward_sister'],{60:1,100:3,150:6,200:6},'Sch XX/46'],
+  ['Labour Room','Nursing Staff — Labour Room (3 shifts)',['staff_nurse','ward_sister'],{60:3,100:3,150:6,200:6},'Sch XX/46'],
+  ['Labour Room','Aya (1 per shift)',['attender','anm'],{60:3,100:3,150:3,200:3},'Sch XX/47'],
   // Therapy
   ['Kriyakalpa','Kriyakalpa Therapists',['therapist','senior_therapist'],{60:2,100:2,150:4,200:4},'Sch XX/48'],
   ['Physiotherapy','Physiotherapist',['therapist'],{60:1,100:1,150:1,200:1},'Sch XX/49'],
+  ['Physiotherapy','Attendant / Aya',['attender'],{60:1,100:1,150:1,200:1},'Sch XX/50'],
   // Yoga & Wellness
   ['Yoga & Wellness','Yoga Demonstrator',['yoga_instructor'],{60:1,100:1,150:1,200:1},'Sch XX/51'],
   // Diet / Pathya
   ['Diet / Pathya','Diet In-charge (BAMS / MSc Dietetics)',['palha_diet_incharge','dietitian'],{60:1,100:1,150:1,200:1},'Sch XX/52'],
   ['Diet / Pathya','Pathya Cooks',['diet_cook'],{60:2,100:2,150:3,200:4},'Sch XX/53'],
-  // CSSD
+  ['Diet / Pathya','Multi-tasking Staff',['attender'],{60:2,100:2,150:3,200:4},'Sch XX/54'],
+  // CSSD (Central Sterilization — source document's own serial numbers repeat 52/53
+  // from the Diet section above; kept as CS1/CS2 here to avoid a duplicate ref key)
   ['CSSD','CSSD / Sterilisation Staff',['cssd_incharge','cssd_technician'],{60:1,100:1,150:1,200:1},'Sch XX/CS1'],
+  ['CSSD','CSSD / Sterilisation Aya',['attender','anm'],{60:1,100:1,150:1,200:1},'Sch XX/CS2'],
 ];
 
 // Summary groups — each desig key appears in EXACTLY ONE group to avoid double-counting
