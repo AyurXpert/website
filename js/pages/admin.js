@@ -820,6 +820,28 @@ const ZONE_SECTION_LABEL = {
   'Medical IPD':'Medical In-Patients Section', 'Surgical IPD':'Surgical In-Patients Section',
 };
 
+// Minimum headcount per HMS role (doctor/nurse/pharmacist/receptionist/lab_tech/therapist/...),
+// summing Schedule I faculty (across all SCHEDULE_I_CODES teaching depts) + every Schedule XX
+// operational row, bucketed via DESIG_ROLE_DEFAULT. This is the SAME source of truth as the
+// NCISM Staffing Compliance panel's department-wise ladder (deptRequirement/NCISM_XX_ROWS/
+// FAC_BY_UG) — used by the Statistics page's "NCISM Setup Compliance" checklist so its
+// role-level minimums can never independently drift from the real ladder again (they
+// previously did: hardcoded placeholder constants that didn't scale with UG intake at all).
+function _ncismRoleMinimums(ug){
+  const byRole = {};
+  const add = (role, n) => { if (role) byRole[role] = (byRole[role]||0) + n; };
+
+  const fac = FAC_BY_UG[ug];
+  if (fac) add('doctor', (fac.p + fac.a + fac.b) * SCHEDULE_I_CODES.length);
+
+  NCISM_XX_ROWS.forEach(([,,keys,req]) => {
+    const c = req[ug] || 0;
+    if (c) add(DESIG_ROLE_DEFAULT[keys[0]], c);
+  });
+
+  return byRole;
+}
+
 // Required-staff ladder for a single department row. mandated=false means NCISM
 // prescribes no headcount for this function (Housekeeping/Laundry/Security) — never
 // fabricate a number in that case, just track actual staff.
@@ -3834,12 +3856,16 @@ async function _renderNcismChecklist(ugIntake, orgType) {
 
   const intake      = ugIntake || 60; // fallback to 60 for display
   const minBeds     = intake;
-  const minDoctors  = 7;
-  const minNurses   = Math.ceil(intake / 3);
-  const minPharm    = 2;
-  const minRecp     = 1;
-  const minLabTech  = 2;
-  const minTherapist= 4;   // NCISM: 2M + 2F
+  // Snap to the nearest defined tier — FAC_BY_UG/NCISM_XX_ROWS are only keyed 60/100/150/200,
+  // same normalization the NCISM Staffing Compliance panel uses (_renderNcismStaffing).
+  const ugTier      = [60,100,150,200].includes(intake) ? intake : (intake>=150?150:intake>=100?100:60);
+  const roleMin     = _ncismRoleMinimums(ugTier);
+  const minDoctors  = roleMin.doctor      || 0;
+  const minNurses   = roleMin.nurse       || 0;
+  const minPharm    = roleMin.pharmacist  || 0;
+  const minRecp     = roleMin.receptionist|| 0;
+  const minLabTech  = roleMin.lab_tech    || 0;
+  const minTherapist= roleMin.therapist   || 0;
 
   const [
     opdRes, deptRes, bedRes, staffRes,
@@ -3926,11 +3952,11 @@ async function _renderNcismChecklist(ugIntake, orgType) {
     {
       title: `Staffing — NCISM Minimum Requirements (${intake} intake)`,
       items: [
-        item('👨‍⚕️',`Doctors — minimum ${minDoctors} (1 per clinical dept)`,
+        item('👨‍⚕️',`Doctors — minimum ${minDoctors} (Schedule I faculty + Schedule XX combined)`,
           `${doctors} onboarded`,
           doctors >= minDoctors, doctors >= Math.ceil(minDoctors * 0.7),
           doctors < minDoctors ? `Add ${minDoctors - doctors} more` : 'View', 'signup.html'),
-        item('👩‍⚕️',`Nurses — minimum ${minNurses} (1 per 3 beds)`,
+        item('👩‍⚕️',`Nurses — minimum ${minNurses} (Schedule XX combined)`,
           `${nurses} onboarded`,
           nurses >= minNurses, nurses >= Math.ceil(minNurses * 0.6),
           nurses < minNurses ? `Add ${minNurses - nurses} more` : 'View', 'signup.html'),
@@ -3946,9 +3972,9 @@ async function _renderNcismChecklist(ugIntake, orgType) {
           `${labTechs} onboarded`,
           labTechs >= minLabTech, labTechs >= 1,
           labTechs < minLabTech ? 'Add Lab Tech' : 'View', 'signup.html'),
-        item('🌸',`PK Therapists — minimum ${minTherapist} (2M + 2F)`,
+        item('🌸',`Therapists — minimum ${minTherapist} (PK + Kriyakalpa + Physiotherapy + Yoga)`,
           `${therapists} onboarded`,
-          therapists >= minTherapist, therapists >= 2,
+          therapists >= minTherapist, therapists >= Math.ceil(minTherapist * 0.6),
           therapists < minTherapist ? `Add ${minTherapist - therapists} more` : 'View', 'signup.html'),
       ]
     }
