@@ -4,7 +4,7 @@
 //   - Local assets (JS/CSS/images) → Cache first → network → cache update
 //   - External APIs (Supabase, Google Fonts, CDN) → Network only, no caching
 
-const CACHE      = 'ayurxpert-v8';
+const CACHE      = 'ayurxpert-v9';
 const OFFLINE    = './offline.html';
 
 // Security headers injected on every navigation response
@@ -101,10 +101,15 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // JS / CSS → network first (always get latest code)
+  // JS / CSS → network first (always get latest code). `cache:'no-store'` is required
+  // here — without it, fetch() still honors the browser's own HTTP cache (these files
+  // serve Cache-Control: max-age=14400), so a returning visitor within that 4-hour
+  // window would silently get a stale response before this handler's "network first"
+  // intent ever reaches the network at all. Found live: a real deploy (Session 94)
+  // wasn't visible on a real user's browser despite the origin serving fresh content.
   if (req.url.match(/\.(js|css)(\?|$)/)) {
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: 'no-store' })
         .then(res => {
           if (res.ok) {
             const clone = res.clone();
