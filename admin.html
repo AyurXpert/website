@@ -938,6 +938,17 @@ tr:hover td{background:#fafff8}
     </div>
     <div id="dd-subtitle" style="font-size:12px;color:var(--text-muted);margin-bottom:16px"></div>
     <div id="dd-body">Loading…</div>
+    <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
+      <div style="font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📅 Activity in a Date Range</div>
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+        <div><label style="font-size:10.5px;color:var(--text-muted);display:block;margin-bottom:3px">From</label>
+          <input type="date" id="dd-range-from" style="height:34px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:13px"/></div>
+        <div><label style="font-size:10.5px;color:var(--text-muted);display:block;margin-bottom:3px">To</label>
+          <input type="date" id="dd-range-to" style="height:34px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:13px"/></div>
+        <button data-onclick="applyDeptDateRange" style="height:34px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;font-size:12.5px;cursor:pointer">Apply</button>
+      </div>
+      <div id="dd-range-body" style="margin-top:12px"></div>
+    </div>
   </div>
 </div>
 

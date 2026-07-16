@@ -1909,21 +1909,31 @@ window.loadDepts = async function(){
     </div>`).join('');
 };
 
-// ── Department Detail drill-down (Phase 1) ───────────────────────────
-// Click a Departments-tab card -> today's snapshot: staff & stakeholders,
-// who's on duty (duty_roster), who's on leave today + who's covering for
-// them (staff_leaves.covering_profile_id), and — for OPD-bearing depts —
-// today's queue/completed counts against a prorated NCISM target (using
-// the same UG_BED_RATIOS already relied on for bed seeding/compliance).
-// Deliberately today-only for now; a date-range history view is Phase 2.
+// ── Department Detail drill-down ─────────────────────────────────────
+// Phase 1: click a Departments-tab card -> today's snapshot: staff &
+// stakeholders, who's on duty (duty_roster), who's on leave today + who's
+// covering for them (staff_leaves.covering_profile_id), and — for OPD-
+// bearing depts — today's queue/completed counts against a prorated NCISM
+// target (UG_BED_RATIOS, same source already relied on for bed seeding).
+// Phase 2: a date-range picker below the snapshot showing curated activity
+// for that range (OPD visits, IPD admissions/discharges, leave taken) —
+// deliberately NOT a raw audit-log dump, and deliberately does not attempt
+// staff join/transfer history (no clean queryable source for that yet).
 const SHIFT_LABELS_DD = {morning:'Morning',afternoon:'Afternoon',night:'Night',on_call:'On-Call'};
 const LEAVE_TYPE_LABELS_DD = {casual:'Casual',medical:'Medical/Sick',earned:'Earned/Annual',maternity:'Maternity',paternity:'Paternity',duty:'Duty/Official',other:'Other'};
+let _ddCurrentDeptId = null;
 
 window.openDeptDetail = async function(deptId){
+  _ddCurrentDeptId = deptId;
   const modal = document.getElementById('dept-detail-modal');
   const body = document.getElementById('dd-body');
   document.getElementById('dd-title').textContent = 'Loading…';
   document.getElementById('dd-subtitle').textContent = '';
+  document.getElementById('dd-range-body').innerHTML = '';
+  const todayStr = new Date().toISOString().slice(0,10);
+  const weekAgoStr = new Date(Date.now()-6*86400000).toISOString().slice(0,10);
+  document.getElementById('dd-range-from').value = weekAgoStr;
+  document.getElementById('dd-range-to').value = todayStr;
   body.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
   modal.style.display = 'flex';
 
@@ -2017,6 +2027,77 @@ window.openDeptDetail = async function(deptId){
 window.closeDeptDetailModal = function(){
   document.getElementById('dept-detail-modal').style.display = 'none';
 };
+
+// Phase 2 — curated activity for an admin-picked date range. Re-fetches the department/staff
+// context fresh rather than reusing openDeptDetail()'s closure, so this can be called
+// repeatedly (different ranges) without re-opening the modal.
+window.applyDeptDateRange = async function(){
+  const deptId = _ddCurrentDeptId;
+  if(!deptId) return;
+  const from = document.getElementById('dd-range-from').value;
+  const to   = document.getElementById('dd-range-to').value;
+  const rangeBody = document.getElementById('dd-range-body');
+  if(!from || !to || to < from){ rangeBody.innerHTML = '<div style="font-size:12px;color:#c0392b">Select a valid range (From must not be after To).</div>'; return; }
+  rangeBody.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">Loading…</div>';
+
+  const fromStart = from+'T00:00:00.000Z';
+  const toEnd = new Date(new Date(to+'T00:00:00Z').getTime()+86400000).toISOString();
+  const dayCount = Math.round((new Date(to+'T00:00:00Z')-new Date(from+'T00:00:00Z'))/86400000)+1;
+
+  const [{ data:dept }, { data:tRow }, { data:staff }] = await Promise.all([
+    supabase.from('departments').select('opd_id,ncism_code').eq('id',deptId).single(),
+    supabase.from('tenants').select('opd_daily_target').eq('id',tenantId).single(),
+    supabase.from('profiles').select('id').eq('tenant_id',tenantId).eq('department_id',deptId),
+  ]);
+  const staffIds = (staff||[]).map(s=>s.id);
+
+  let opdHtml = '';
+  if(dept?.opd_id){
+    const { data:visits } = await supabase.from('visits')
+      .select('status').eq('tenant_id',tenantId).eq('opd_id',dept.opd_id).eq('is_deleted',false)
+      .gte('created_at',fromStart).lt('created_at',toEnd);
+    const counts = {waiting:0,in_progress:0,completed:0,incomplete:0};
+    (visits||[]).forEach(v=>{ if(counts[v.status]!==undefined) counts[v.status]++; });
+    const total = (visits||[]).length;
+    const ratio = dept.ncism_code ? UG_BED_RATIOS[dept.ncism_code] : null;
+    const target = ratio ? Math.round((tRow?.opd_daily_target||0)*ratio*dayCount) : null;
+    opdHtml = `<div style="margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--green-deep);margin-bottom:4px">🚪 OPD Visits</div>
+      <div style="font-size:12.5px">Registered: <strong>${total}</strong> · Completed: <strong>${counts.completed}</strong> · Incomplete: <strong>${counts.incomplete}</strong> · Still waiting/in-progress: <strong>${counts.waiting+counts.in_progress}</strong></div>
+      ${target!=null?`<div style="font-size:11px;color:var(--text-muted);margin-top:2px">Prorated NCISM target for ${dayCount} day${dayCount>1?'s':''}: <strong>${target}</strong> ${total>=target?'<span style="color:#2d7a4f">✅ met</span>':`<span style="color:#c0392b">${target-total} short</span>`}</div>`:''}
+    </div>`;
+  }
+
+  const { data:admissions } = await supabase.from('ipd_admissions')
+    .select('status,admitted_at,discharged_at').eq('tenant_id',tenantId).eq('department_id',deptId)
+    .or(`and(admitted_at.gte.${fromStart},admitted_at.lt.${toEnd}),and(discharged_at.gte.${fromStart},discharged_at.lt.${toEnd})`);
+  const admittedInRange = (admissions||[]).filter(a=>a.admitted_at>=fromStart && a.admitted_at<toEnd).length;
+  const dischargedInRange = (admissions||[]).filter(a=>a.discharged_at && a.discharged_at>=fromStart && a.discharged_at<toEnd).length;
+  const ipdHtml = (admissions||[]).length ? `<div style="margin-bottom:10px">
+    <div style="font-size:11px;font-weight:700;color:var(--green-deep);margin-bottom:4px">🛏️ IPD Admissions</div>
+    <div style="font-size:12.5px">Admitted: <strong>${admittedInRange}</strong> · Discharged: <strong>${dischargedInRange}</strong></div>
+  </div>` : '';
+
+  let leaveHtml = '';
+  if(staffIds.length){
+    const { data:leaves } = await supabase.from('staff_leaves')
+      .select('leave_type,from_date,to_date,profiles!profile_id(full_name),covering:profiles!covering_profile_id(full_name)')
+      .eq('tenant_id',tenantId).eq('status','approved').in('profile_id',staffIds)
+      .lte('from_date',to).gte('to_date',from);
+    if((leaves||[]).length){
+      leaveHtml = `<div>
+        <div style="font-size:11px;font-weight:700;color:var(--green-deep);margin-bottom:4px">🏖️ Leave Taken</div>
+        ${leaves.map(l=>`<div style="font-size:12px;padding:3px 0">${_esc(l.profiles?.full_name||'—')} — ${_esc(LEAVE_TYPE_LABELS_DD[l.leave_type]||l.leave_type)}, ${_fmtDD(l.from_date)}–${_fmtDD(l.to_date)}${l.covering?` (charge: ${_esc(l.covering.full_name)})`:''}</div>`).join('')}
+      </div>`;
+    }
+  }
+
+  const nothing = !opdHtml && !ipdHtml && !leaveHtml;
+  rangeBody.innerHTML = nothing
+    ? '<div style="font-size:12px;color:var(--text-muted)">No OPD visits, IPD admissions or leave recorded for this department in the selected range.</div>'
+    : opdHtml + ipdHtml + leaveHtml;
+};
+function _fmtDD(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '—'; }
 
 // ────────────────────────────────────────────────
 // SECTION 4 — INFRASTRUCTURE
