@@ -78,7 +78,13 @@ const LF_NCISM_BED_PRIORITY = [
 // independently drift again. NCISM_CODES here covers the real mandatory-10 OPD list (Session
 // 94: Screening/Swasthavritta/Shalakya-Netra genuinely have zero Table-8 bed ratio, same as
 // the long-form list above — "mandatory" here means "should be set up", not "has beds").
-const SF_NCISM_CODES = SF_OPDS.map(o => ({ code:o.ncism_code, label:o.description||o.name, mandatory:true }));
+// Excludes SHNT (Shalakya-Netra) — that split only exists at the opds/patient-routing
+// level (Schedule XVIII); departments/beds stay one combined 'SHAK' row (Table-8), so a
+// department with ncism_code='SHNT' will never legitimately exist and would otherwise
+// show as permanently "missing" here.
+const SF_NCISM_CODES = SF_OPDS
+  .filter(o => o.ncism_code !== 'SHNT')
+  .map(o => ({ code:o.ncism_code, label:o.description||o.name, mandatory:true }));
 const SF_DEPT_PREFIX = Object.fromEntries(Object.keys(SF_RATIOS).map(c => [c, c]));
 const SF_NCISM_BED_PRIORITY = ['PK','KAY','SHAL','PST','KAU','SHAK','AGD'];
 
@@ -1190,7 +1196,7 @@ function renderStats() {
   const occupied = _beds.filter(b => b.status === 'occupied').length;
   const pct      = total ? Math.round(occupied / total * 100) : 0;
 
-  document.getElementById('stat-depts').textContent      = _depts.filter(d => d.is_active).length;
+  document.getElementById('stat-depts').textContent      = _depts.filter(d => d.is_active && UG_BED_RATIOS[d.ncism_code]).length;
   document.getElementById('stat-total-beds').textContent = total;
   document.getElementById('stat-occupied').textContent   = occupied;
   document.getElementById('stat-occupancy').textContent  = pct + '%';
