@@ -1008,6 +1008,14 @@ async function _renderNcismStaffing() {
     (invitesByRow[k] = invitesByRow[k]||[]).push(inv);
   });
 
+  // Schedule I faculty ladder is a teaching-institution obligation — it never applies to a
+  // pk_center/hospital, regardless of whether ug_intake happens to be set on the tenant row
+  // (found live on Srishti Ayurveda: a real pk_center with ug_intake=60 left over from early
+  // testing, which was rendering this whole panel incorrectly before this gate was added).
+  if (!isNCISMType(tRow?.type)) {
+    wrap.innerHTML = '<div class="empty"><div class="empty-ico">ℹ</div><div class="empty-ttl">NCISM Staffing Compliance only applies to Teaching Hospital / College tenants — this organisation is registered as "'+_esc(tRow?.type||'unknown')+'".</div></div>';
+    return;
+  }
   const ugRaw = tRow?.ug_intake || 0;
   const ug = [60,100,150,200].includes(ugRaw) ? ugRaw : (ugRaw>=150?150:ugRaw>=100?100:ugRaw>0?60:0);
   if (!ug) {
@@ -1401,6 +1409,10 @@ async function _renderStaffingPlan() {
     supabase.from('departments').select('id,ncism_code,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_pg_dept',true),
   ]);
 
+  if (!isNCISMType(tRow?.type)) {
+    wrap.innerHTML = '<div class="empty"><div class="empty-ico">ℹ</div><div class="empty-ttl">Staffing Plan only applies to Teaching Hospital / College tenants — this organisation is registered as "'+_esc(tRow?.type||'unknown')+'".</div></div>';
+    return;
+  }
   const ugRaw = tRow?.ug_intake || 0;
   const ug = [60,100,150,200].includes(ugRaw) ? ugRaw : (ugRaw>=150?150:ugRaw>=100?100:ugRaw>0?60:0);
   if (!ug) {
@@ -1847,11 +1859,16 @@ function renderHierarchy(staff){
 // SECTION 3 — DEPARTMENTS
 // ────────────────────────────────────────────────
 window.loadDepts = async function(){
-  const [{data:depts},{data:staffRows}] = await Promise.all([
+  const [{data:depts},{data:staffRows},{data:tRow}] = await Promise.all([
     supabase.from('departments').select('*').eq('tenant_id',tenantId).order('name'),
     supabase.from('profiles').select('department_id').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('tenants').select('type').eq('id',tenantId).single(),
   ]);
   const sc={}; (staffRows||[]).forEach(s=>{if(s.department_id)sc[s.department_id]=(sc[s.department_id]||0)+1;});
+  // NCISM's clinical/pre-clinical/para-clinical classification is a BAMS teaching-curriculum
+  // concept — only meaningful for teaching_hospital/college tenants (see Srishti Ayurveda,
+  // a real pk_center that had every department mislabeled "Clinical" for this exact reason).
+  const showAcademicBadge = isNCISMType(tRow?.type);
 
   const wrap=document.getElementById('dept-body');
   if(!depts?.length){
@@ -1866,11 +1883,11 @@ window.loadDepts = async function(){
 
   function _deptCard(d,isChild=false){
     const cat=d.category||'clinical';
-    const catLabels={clinical:'Clinical',administrative:'Admin',diagnostic:'Diagnostic',support:'Support'};
+    const catLabels={clinical:'Clinical',pre_clinical:'Pre-clinical',para_clinical:'Para-clinical',administrative:'Admin',diagnostic:'Diagnostic',support:'Support'};
     return `<div class="dept-card${isChild?' dept-child':''}" style="cursor:pointer" data-onclick="openDeptDetail" data-onclick-a0="${d.id}">
       ${isChild?'<div class="dept-child-marker">↳ Sub-unit</div>':''}
       <div class="dept-top">
-        <span class="cat-badge ${cat}">${catLabels[cat]||cat}</span>
+        ${showAcademicBadge?`<span class="cat-badge ${cat}">${catLabels[cat]||cat}</span>`:''}
         <div class="dept-name">${_esc(d.name)}</div>
         <div class="dept-code">${d.ncism_code?'NCISM: '+_esc(d.ncism_code):'No NCISM code'}</div>
       </div>
@@ -1918,7 +1935,7 @@ window.openDeptDetail = async function(deptId){
     supabase.from('departments').select('id,name,category,ncism_code,opd_id,pg_seats_sanctioned,is_active').eq('id',deptId).single(),
     supabase.from('profiles').select('id,full_name,role,designation').eq('tenant_id',tenantId).eq('department_id',deptId).eq('is_active',true).order('full_name'),
     supabase.from('duty_roster').select('profile_id,shift_type,is_confirmed').eq('tenant_id',tenantId).eq('department_id',deptId).eq('shift_date',today),
-    supabase.from('tenants').select('opd_daily_target').eq('id',tenantId).single(),
+    supabase.from('tenants').select('opd_daily_target,type').eq('id',tenantId).single(),
   ]);
 
   if(!dept){ body.innerHTML = '<div class="empty"><div class="empty-ttl">Department not found.</div></div>'; return; }
@@ -1961,9 +1978,10 @@ window.openDeptDetail = async function(deptId){
   }
 
   const catLabels={clinical:'Clinical',pre_clinical:'Pre-clinical',para_clinical:'Para-clinical'};
+  const showAcademicBadge = isNCISMType(tRow?.type);
   document.getElementById('dd-title').textContent = dept.name;
   document.getElementById('dd-subtitle').innerHTML =
-    (dept.ncism_code?`<span style="background:#f0f0f0;padding:2px 8px;border-radius:6px;margin-right:6px">${_esc(catLabels[dept.category]||dept.category||'—')}</span>NCISM: ${_esc(dept.ncism_code)} · `:'')
+    (dept.ncism_code?`${showAcademicBadge?`<span style="background:#f0f0f0;padding:2px 8px;border-radius:6px;margin-right:6px">${_esc(catLabels[dept.category]||dept.category||'—')}</span>`:''}NCISM: ${_esc(dept.ncism_code)} · `:'')
     + (dept.is_active?'✅ Active':'⛔ Inactive');
 
   const staffHtml = staffList.length ? staffList.map(s=>{
