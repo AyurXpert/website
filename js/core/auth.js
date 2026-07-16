@@ -65,6 +65,17 @@ export async function registerTenant({
       });
     if (profileError) throw new Error(safeErrorMessage(profileError, 'Could not create profile. Please try again.'));
 
+    // Gives hospital/pk_center/clinic tenants a working department/OPD/bed structure
+    // from their very first login instead of a completely empty bed-admin.html/
+    // opd-admin.html — teaching_hospital/college go through the separate NCISM
+    // subscription-request flow instead (platform_approve_ncism_request), unaffected
+    // here. Non-fatal: a seeding hiccup shouldn't roll back a successful registration —
+    // the admin can always add departments/OPDs manually if this silently fails.
+    if (['hospital', 'pk_center', 'clinic'].includes(tenantType)) {
+      const { error: seedError } = await supabase.rpc('seed_default_org_structure', { p_tenant_id: tenant.id });
+      if (seedError) console.error('seed_default_org_structure error:', seedError);
+    }
+
     return { success: true, tenant, userId };
 
   } catch (error) {
