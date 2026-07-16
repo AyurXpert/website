@@ -5,7 +5,7 @@ import { supabase }   from '../core/db/supabaseClient.js';
 import { logAudit }   from '../core/auditLogger.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES } from '../config/ncism.js';
+import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS } from '../config/ncism.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -1867,7 +1867,7 @@ window.loadDepts = async function(){
   function _deptCard(d,isChild=false){
     const cat=d.category||'clinical';
     const catLabels={clinical:'Clinical',administrative:'Admin',diagnostic:'Diagnostic',support:'Support'};
-    return `<div class="dept-card${isChild?' dept-child':''}">
+    return `<div class="dept-card${isChild?' dept-child':''}" style="cursor:pointer" data-onclick="openDeptDetail" data-onclick-a0="${d.id}">
       ${isChild?'<div class="dept-child-marker">↳ Sub-unit</div>':''}
       <div class="dept-top">
         <span class="cat-badge ${cat}">${catLabels[cat]||cat}</span>
@@ -1890,6 +1890,114 @@ window.loadDepts = async function(){
           ${(childrenOf[p.id]).map(c=>_deptCard(c,true)).join('')}
         </div>`:''}
     </div>`).join('');
+};
+
+// ── Department Detail drill-down (Phase 1) ───────────────────────────
+// Click a Departments-tab card -> today's snapshot: staff & stakeholders,
+// who's on duty (duty_roster), who's on leave today + who's covering for
+// them (staff_leaves.covering_profile_id), and — for OPD-bearing depts —
+// today's queue/completed counts against a prorated NCISM target (using
+// the same UG_BED_RATIOS already relied on for bed seeding/compliance).
+// Deliberately today-only for now; a date-range history view is Phase 2.
+const SHIFT_LABELS_DD = {morning:'Morning',afternoon:'Afternoon',night:'Night',on_call:'On-Call'};
+const LEAVE_TYPE_LABELS_DD = {casual:'Casual',medical:'Medical/Sick',earned:'Earned/Annual',maternity:'Maternity',paternity:'Paternity',duty:'Duty/Official',other:'Other'};
+
+window.openDeptDetail = async function(deptId){
+  const modal = document.getElementById('dept-detail-modal');
+  const body = document.getElementById('dd-body');
+  document.getElementById('dd-title').textContent = 'Loading…';
+  document.getElementById('dd-subtitle').textContent = '';
+  body.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
+  modal.style.display = 'flex';
+
+  const today = new Date().toISOString().slice(0,10);
+  const todayStart = today + 'T00:00:00.000Z';
+  const tomorrowStart = new Date(new Date(today+'T00:00:00Z').getTime() + 86400000).toISOString();
+
+  const [{ data:dept }, { data:staff }, { data:roster }, { data:tRow }] = await Promise.all([
+    supabase.from('departments').select('id,name,category,ncism_code,opd_id,pg_seats_sanctioned,is_active').eq('id',deptId).single(),
+    supabase.from('profiles').select('id,full_name,role,designation').eq('tenant_id',tenantId).eq('department_id',deptId).eq('is_active',true).order('full_name'),
+    supabase.from('duty_roster').select('profile_id,shift_type,is_confirmed').eq('tenant_id',tenantId).eq('department_id',deptId).eq('shift_date',today),
+    supabase.from('tenants').select('opd_daily_target').eq('id',tenantId).single(),
+  ]);
+
+  if(!dept){ body.innerHTML = '<div class="empty"><div class="empty-ttl">Department not found.</div></div>'; return; }
+
+  const staffList = staff||[];
+  const staffIds = staffList.map(s=>s.id);
+  const rosterByProfile = {}; (roster||[]).forEach(r=>{ rosterByProfile[r.profile_id] = r; });
+
+  const { data:leaves } = staffIds.length
+    ? await supabase.from('staff_leaves')
+        .select('profile_id,leave_type,covering:profiles!covering_profile_id(full_name,role)')
+        .eq('tenant_id',tenantId).eq('status','approved')
+        .lte('from_date',today).gte('to_date',today)
+        .in('profile_id',staffIds)
+    : { data: [] };
+  const leavesByProfile = {}; (leaves||[]).forEach(l=>{ leavesByProfile[l.profile_id]=l; });
+
+  let queueHtml = '';
+  if(dept.opd_id){
+    const { data:visits } = await supabase.from('visits')
+      .select('status').eq('tenant_id',tenantId).eq('opd_id',dept.opd_id).eq('is_deleted',false)
+      .gte('created_at',todayStart).lt('created_at',tomorrowStart);
+    const counts = {waiting:0,in_progress:0,completed:0,incomplete:0};
+    (visits||[]).forEach(v=>{ if(counts[v.status]!==undefined) counts[v.status]++; });
+    const totalToday = (visits||[]).length;
+    const ratio = dept.ncism_code ? UG_BED_RATIOS[dept.ncism_code] : null;
+    const target = ratio ? Math.round((tRow?.opd_daily_target||0)*ratio) : null;
+    const gap = target!=null ? Math.max(0,target-totalToday) : null;
+    queueHtml = `<div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🚪 OPD Queue Today</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:12.5px">
+        <span style="background:#fef9ec;border:1px solid #f5c842;border-radius:8px;padding:4px 10px">⏳ Waiting: <strong>${counts.waiting}</strong></span>
+        <span style="background:#e8f0ff;border:1px solid #b7cbf0;border-radius:8px;padding:4px 10px">🩺 In Progress: <strong>${counts.in_progress}</strong></span>
+        <span style="background:#f0faf5;border:1px solid #b7dfc8;border-radius:8px;padding:4px 10px">✅ Completed: <strong>${counts.completed}</strong></span>
+      </div>
+      ${target!=null
+        ? `<div style="margin-top:8px;font-size:12px;color:var(--text-muted)">Today's target (prorated from hospital-wide NCISM norm): <strong>${target}</strong> patients — ${gap>0?`<span style="color:#c0392b">${gap} more needed</span>`:`<span style="color:#2d7a4f">✅ target met</span>`}</div>`
+        : `<div style="margin-top:8px;font-size:11px;color:var(--text-muted)">No per-department NCISM target ratio defined for this OPD — showing raw counts only.</div>`}
+    </div>`;
+  }
+
+  const catLabels={clinical:'Clinical',pre_clinical:'Pre-clinical',para_clinical:'Para-clinical'};
+  document.getElementById('dd-title').textContent = dept.name;
+  document.getElementById('dd-subtitle').innerHTML =
+    (dept.ncism_code?`<span style="background:#f0f0f0;padding:2px 8px;border-radius:6px;margin-right:6px">${_esc(catLabels[dept.category]||dept.category||'—')}</span>NCISM: ${_esc(dept.ncism_code)} · `:'')
+    + (dept.is_active?'✅ Active':'⛔ Inactive');
+
+  const staffHtml = staffList.length ? staffList.map(s=>{
+    const onLeave = leavesByProfile[s.id];
+    const onDuty = rosterByProfile[s.id];
+    let statusTag = '';
+    if(onLeave){
+      statusTag = `<span style="font-size:10.5px;color:#c0392b">🏖️ On leave (${_esc(LEAVE_TYPE_LABELS_DD[onLeave.leave_type]||onLeave.leave_type)})`
+        + (onLeave.covering ? ` — charge: <strong>${_esc(onLeave.covering.full_name)}</strong>` : ' — <em>no handover specified</em>') + '</span>';
+    } else if(onDuty){
+      statusTag = `<span style="font-size:10.5px;color:#2d7a4f">🕐 On duty — ${_esc(SHIFT_LABELS_DD[onDuty.shift_type]||onDuty.shift_type)}${onDuty.is_confirmed?'':' (tentative)'}</span>`;
+    } else {
+      statusTag = `<span style="font-size:10.5px;color:var(--text-muted)">Not rostered today</span>`;
+    }
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f4f2;font-size:13px">
+      <span>${_esc(s.full_name)} <span style="color:var(--text-muted);font-size:11px">(${_esc(DESIG_MAP[s.designation]?.l||s.designation||s.role)})</span></span>
+      ${statusTag}
+    </div>`;
+  }).join('') : '<div style="font-size:12px;color:var(--text-muted);padding:6px 0">No staff currently assigned to this department.</div>';
+
+  const onLeaveCount = staffList.filter(s=>leavesByProfile[s.id]).length;
+  const onDutyCount = staffList.filter(s=>rosterByProfile[s.id]).length;
+
+  body.innerHTML = `
+    ${queueHtml}
+    <div>
+      <div style="font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">👥 Staff &amp; Stakeholders (${staffList.length})</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">${onDutyCount} on duty today · ${onLeaveCount} on leave today</div>
+      ${staffHtml}
+    </div>`;
+};
+
+window.closeDeptDetailModal = function(){
+  document.getElementById('dept-detail-modal').style.display = 'none';
 };
 
 // ────────────────────────────────────────────────

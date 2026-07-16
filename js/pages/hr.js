@@ -238,7 +238,7 @@ window.exportStaffCSV = function() {
 async function loadLeaves() {
   const { data, error } = await supabase
     .from('staff_leaves')
-    .select('*, profiles!profile_id(full_name, role)')
+    .select('*, profiles!profile_id(full_name, role), covering:profiles!covering_profile_id(full_name, role)')
     .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false });
   if (error && error.code === '42P01') {
@@ -272,6 +272,7 @@ function renderPendingLeaves() {
       </div>
       <div class="lc-dates">📅 ${_fmtD(l.from_date)} → ${_fmtD(l.to_date)} &nbsp;·&nbsp; ${days} day${days>1?'s':''}</div>
       ${l.reason ? `<div class="lc-reason">"${_esc(l.reason)}"</div>` : ''}
+      ${l.covering ? `<div class="lc-meta">🤝 Charge given to: <strong>${_esc(l.covering.full_name)}</strong> (${_roleLabel(l.covering.role)})</div>` : ''}
       <div class="lc-actions">
         <button class="btn btn-approve btn-sm" data-onclick="approveLeave" data-onclick-a0="${l.id}">✓ Approve</button>
         <button class="btn btn-reject btn-sm" data-onclick="openRejectModal" data-onclick-a0="${l.id}">✗ Reject</button>
@@ -304,6 +305,7 @@ window.renderLeaveList = function() {
       </div>
       <div class="lc-dates">📅 ${_fmtD(l.from_date)} → ${_fmtD(l.to_date)} · ${days} day${days>1?'s':''}</div>
       ${l.reason ? `<div class="lc-reason">"${_esc(l.reason)}"</div>` : ''}
+      ${l.covering ? `<div class="lc-meta">🤝 Charge given to: <strong>${_esc(l.covering.full_name)}</strong> (${_roleLabel(l.covering.role)})</div>` : ''}
       ${l.rejection_reason ? `<div style="font-size:12px;color:var(--red);margin-top:4px">Rejected: ${_esc(l.rejection_reason)}</div>` : ''}
     </div>`;
   }).join('');
@@ -346,6 +348,7 @@ function _openLeaveModalFor(id) {
   document.getElementById('lm-type').value  = 'casual';
   document.getElementById('lm-from').value  = today;
   document.getElementById('lm-to').value    = today;
+  document.getElementById('lm-covering').value = '';
   document.getElementById('lm-reason').value= '';
   document.getElementById('lm-days-label').textContent = '1 day';
   document.getElementById('leave-modal').classList.add('show');
@@ -368,11 +371,14 @@ window.submitLeave = async function() {
   const type  = document.getElementById('lm-type').value;
   const from  = document.getElementById('lm-from').value;
   const to    = document.getElementById('lm-to').value;
+  const covering = document.getElementById('lm-covering').value;
   const reason = document.getElementById('lm-reason').value.trim();
   if (!from || !to || to < from) { _toast('Please select valid dates', 'error'); return; }
+  if (covering && covering === staffId) { _toast('Covering staff cannot be the same person taking leave.', 'error'); return; }
   const { error } = await supabase.from('staff_leaves').insert({
     tenant_id: tenantId, profile_id: staffId,
     leave_type: type, from_date: from, to_date: to, reason: reason || null,
+    covering_profile_id: covering || null,
     status: isAdmin ? 'approved' : 'pending',
     ...(isAdmin ? { approved_by: sess.id, approved_at: new Date().toISOString() } : {}),
   });
@@ -547,11 +553,12 @@ function updateKPIs() {
 // ── Populate selects ────────────────────────────────────
 function _populateStaffSelects() {
   const opts = _staff.map(s => `<option value="${s.id}">${_esc(s.full_name)} (${_roleLabel(s.role)})</option>`).join('');
-  ['leave-filter-staff','lm-staff','tm-staff'].forEach(id => {
+  ['leave-filter-staff','lm-staff','lm-covering','tm-staff'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const prefix = id === 'leave-filter-staff' ? '<option value="">All Staff</option>' :
-                   id === 'lm-staff'            ? '<option value="">— Self —</option>' : '';
+                   id === 'lm-staff'            ? '<option value="">— Self —</option>' :
+                   id === 'lm-covering'         ? '<option value="">— Not specified —</option>' : '';
     el.innerHTML = prefix + opts;
   });
   document.getElementById('tr-staff').innerHTML = '<option value="">All Staff</option>' + opts;
