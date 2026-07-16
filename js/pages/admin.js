@@ -686,6 +686,9 @@ const NCISM_XX_ROWS = [
   // from the Diet section above; kept as CS1/CS2 here to avoid a duplicate ref key)
   ['CSSD','CSSD / Sterilisation Staff',['cssd_incharge','cssd_technician'],{60:1,100:1,150:1,200:1},'Sch XX/CS1'],
   ['CSSD','CSSD / Sterilisation Aya',['attender','anm'],{60:1,100:1,150:1,200:1},'Sch XX/CS2'],
+  // Screening OPD (Session 94 — Screening OPD didn't have a departments row at all until
+  // now; citation already existed in this file's self-assessment checklist, see 'screening_opd')
+  ['Screening OPD','Screening OPD Nursing Staff',['staff_nurse'],{60:1,100:1,150:1,200:1},'Sch XVI §40(m)'],
 ];
 
 // Optional Schedule XX rows — real per the source table, but conditional (dark room
@@ -783,6 +786,10 @@ const ORG_CHILD_DEFS = [
 // Real short-form codes (js/config/ncism.js NCISM_DEPTS) — these are what the seeding RPCs
 // actually write to departments.ncism_code, not the long-form names used elsewhere historically.
 const OPD_CHILD_NCISM_CODES = ['KAY','SHAL','SHAK','KAU','PST','AGD','RNV'];
+// Screening OPD nests under OPD like the above, but is NOT one of NCISM_DEPTS' 14 academic
+// departments — it has no Schedule I faculty cadre, so it's kept out of OPD_CHILD_NCISM_CODES
+// (whose other job is deriving SCHEDULE_I_CODES below) and re-parented separately.
+const OPD_SCREENING_CODE = 'SCREEN';
 
 // ncism_code takes priority — it's the specific identifier for real NCISM depts (e.g. Panchakarma,
 // Swasthavritta-Yoga) and some pre-existing rows carry an unrelated legacy `category` value (e.g.
@@ -828,7 +835,7 @@ const ORG_ZONE_MAP = {
   'Medical IPD':'IPD_PARENT', 'Surgical IPD':'IPD_PARENT', 'Panchakarma':'PK',
   'Operation Theatre':'OT', 'Labour Room':'LABOUR_ROOM', 'Kriyakalpa':'KRIYAKALPA',
   'Physiotherapy':'PHYSIOTHERAPY', 'Yoga & Wellness':'SW', 'Diet / Pathya':'DIET_PATHYA',
-  'CSSD':'OT',
+  'CSSD':'OT', 'Screening OPD':'SCREEN',
 };
 // Friendlier sub-section heading for a zone, shown inside a department's ladder table
 // whenever it merges rows from more than one NCISM_XX_ROWS zone (e.g. IPD_PARENT holds
@@ -972,7 +979,8 @@ window.seedHrOrgStructure = async function(){
   // 3) Re-parent existing OPD-clinical departments under the new OPD umbrella
   const opdParent = byKey['OPD_PARENT'];
   if(opdParent){
-    const toReparent = existing.filter(d=>d.ncism_code && OPD_CHILD_NCISM_CODES.includes(d.ncism_code) && !d.parent_department_id);
+    const nestCodes = [...OPD_CHILD_NCISM_CODES, OPD_SCREENING_CODE];
+    const toReparent = existing.filter(d=>d.ncism_code && nestCodes.includes(d.ncism_code) && !d.parent_department_id);
     for(const d of toReparent){
       await supabase.from('departments').update({parent_department_id:opdParent.id}).eq('id',d.id);
     }
@@ -1859,11 +1867,17 @@ function renderHierarchy(staff){
 // SECTION 3 — DEPARTMENTS
 // ────────────────────────────────────────────────
 window.loadDepts = async function(){
-  const [{data:depts},{data:staffRows},{data:tRow}] = await Promise.all([
+  const [{data:rawDepts},{data:staffRows},{data:tRow}] = await Promise.all([
     supabase.from('departments').select('*').eq('tenant_id',tenantId).order('name'),
     supabase.from('profiles').select('department_id').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('tenants').select('type').eq('id',tenantId).single(),
   ]);
+  // This is an HMS Departments directory — the 5 pure pre-clinical teaching departments
+  // (Dravyaguna, Kriya Sharira, Rachana Sharira, Rasashastra & Bhaishajya Kalpana, Sanskrit
+  // & Samhita) have no hospital operations of their own (no OPD, no beds, no support staff —
+  // only Schedule I teaching faculty, tracked separately under NCISM Requirements) and belong
+  // to the future CMS, not here.
+  const depts = (rawDepts||[]).filter(d => d.category !== 'pre_clinical');
   const sc={}; (staffRows||[]).forEach(s=>{if(s.department_id)sc[s.department_id]=(sc[s.department_id]||0)+1;});
   // NCISM's clinical/pre-clinical/para-clinical classification is a BAMS teaching-curriculum
   // concept — only meaningful for teaching_hospital/college tenants (see Srishti Ayurveda,
@@ -1938,8 +1952,8 @@ window.openDeptDetail = async function(deptId){
   body.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
   modal.style.display = 'flex';
 
-  const opdId = await _renderDeptSnapshot(deptId);
-  _ddSubscribeRealtime(deptId, opdId);
+  const opdIds = await _renderDeptSnapshot(deptId);
+  _ddSubscribeRealtime(deptId, opdIds);
 };
 
 // Phase 3 — live updates. Subscribes to postgres_changes on the 3 tables that feed the
@@ -1948,18 +1962,20 @@ window.openDeptDetail = async function(deptId){
 // a manual re-open. Same channel/removeChannel pattern already used by reception.js's Scan
 // & Share flow — one modal open = one set of channels, torn down on close.
 let _ddChannels = [];
-function _ddSubscribeRealtime(deptId, opdId){
+function _ddSubscribeRealtime(deptId, opdIds){
   _ddChannels.forEach(ch=>supabase.removeChannel(ch));
   _ddChannels = [];
   const refresh = () => { if(_ddCurrentDeptId===deptId) _renderDeptSnapshot(deptId); };
 
-  if(opdId){
+  // One channel per opd_id (e.g. Shalakya has 2 — Netra + KNM) — postgres_changes filters
+  // are simple eq comparisons, not IN lists, so each queue gets its own subscription.
+  (opdIds||[]).forEach(opdId => {
     _ddChannels.push(
-      supabase.channel('dept-detail-visits-'+deptId)
+      supabase.channel('dept-detail-visits-'+deptId+'-'+opdId)
         .on('postgres_changes',{event:'*',schema:'public',table:'visits',filter:'opd_id=eq.'+opdId}, refresh)
         .subscribe()
     );
-  }
+  });
   _ddChannels.push(
     supabase.channel('dept-detail-roster-'+deptId)
       .on('postgres_changes',{event:'*',schema:'public',table:'duty_roster',filter:'department_id=eq.'+deptId}, refresh)
@@ -2007,10 +2023,18 @@ async function _renderDeptSnapshot(deptId){
     : { data: [] };
   const leavesByProfile = {}; (leaves||[]).forEach(l=>{ leavesByProfile[l.profile_id]=l; });
 
+  // A department can run more than one physical OPD queue (e.g. Shalakya Tantra: one
+  // combined department/bed-ward per Table-8, but two real Schedule XVIII OPD service
+  // points — Netra + Karna-Nasa-Mukha). dept.opd_id is the "primary" queue; any other
+  // opds rows nested via parent_department_id (the same column used for specialty-clinic
+  // nesting) are additional queues that should count toward this department's totals.
+  const { data:childOpds } = await supabase.from('opds').select('id').eq('parent_department_id',deptId);
+  const opdIds = [dept.opd_id, ...(childOpds||[]).map(o=>o.id)].filter(Boolean);
+
   let queueHtml = '';
-  if(dept.opd_id){
+  if(opdIds.length){
     const { data:visits } = await supabase.from('visits')
-      .select('status').eq('tenant_id',tenantId).eq('opd_id',dept.opd_id).eq('is_deleted',false)
+      .select('status').eq('tenant_id',tenantId).in('opd_id',opdIds).eq('is_deleted',false)
       .gte('created_at',todayStart).lt('created_at',tomorrowStart);
     const counts = {waiting:0,in_progress:0,completed:0,incomplete:0};
     (visits||[]).forEach(v=>{ if(counts[v.status]!==undefined) counts[v.status]++; });
@@ -2066,7 +2090,7 @@ async function _renderDeptSnapshot(deptId){
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">${onDutyCount} on duty today · ${onLeaveCount} on leave today</div>
       ${staffHtml}
     </div>`;
-  return dept.opd_id || null;
+  return opdIds;
 }
 
 window.closeDeptDetailModal = function(){

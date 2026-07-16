@@ -16,17 +16,21 @@ let _allDoctors  = [];
 let _selectedOpd = null;
 let _departments = [];
 
+// Session 94: cross-checked against Schedule XVIII — Shalakya is 2 real mandatory OPD
+// units (Netra / Karna-Nasa-Mukha), not 1; "Rog Nidana OPD" was never one of the real
+// 10 (Rog Nidana & Vikruti Vigyana is a real academic department, just not one of
+// Schedule XVIII's 10 outpatient service points).
 const NCISM_OPDS = [
-  { code:'SCREEN', name:'Screening OPD',           desc:'Triage & Screening — NCISM Mandatory' },
-  { code:'KAY',    name:'Kayachikitsa OPD',         desc:'Internal Medicine — NCISM Mandatory' },
-  { code:'PK',     name:'Panchakarma OPD',          desc:'Panchakarma & Upakarma — NCISM Mandatory' },
-  { code:'SHAL',   name:'Shalya Tantra OPD',        desc:'Surgery — NCISM Mandatory' },
-  { code:'SHAK',   name:'Shalakya Tantra OPD',      desc:'ENT & Ophthalmology — NCISM Mandatory' },
-  { code:'PST',    name:'Prasuti & Stri Roga OPD',  desc:'Obstetrics & Gynaecology — NCISM Mandatory' },
-  { code:'KAU',    name:'Kaumarabhritya OPD',       desc:'Paediatrics — NCISM Mandatory' },
-  { code:'SW',     name:'Swasthavritta OPD',        desc:'Preventive & Social Medicine — NCISM Mandatory' },
-  { code:'AGD',    name:'Agada Tantra OPD',         desc:'Toxicology & Forensic Medicine — NCISM Mandatory' },
-  { code:'RNV',    name:'Rog Nidana OPD',           desc:'Pathology & Diagnosis — NCISM Mandatory' },
+  { code:'SCREEN', name:'Screening OPD',                       desc:'Triage & Screening — NCISM Mandatory' },
+  { code:'KAY',    name:'Kayachikitsa OPD',                     desc:'Internal Medicine — NCISM Mandatory' },
+  { code:'PK',     name:'Panchakarma OPD',                      desc:'Panchakarma & Upakarma — NCISM Mandatory' },
+  { code:'SHAL',   name:'Shalya Tantra OPD',                    desc:'Surgery, with attached Minor OT — NCISM Mandatory' },
+  { code:'SHNT',   name:'Shalakya – Netra OPD',                 desc:'Ophthalmology — NCISM Mandatory' },
+  { code:'SHAK',   name:'Shalakya – Karna, Nasa & Mukha OPD',   desc:'ENT — NCISM Mandatory' },
+  { code:'PST',    name:'Prasuti & Stri Roga OPD',              desc:'Obstetrics & Gynaecology — NCISM Mandatory' },
+  { code:'KAU',    name:'Kaumarabhritya OPD',                   desc:'Paediatrics — NCISM Mandatory' },
+  { code:'SW',     name:'Swasthavritta OPD',                    desc:'Preventive & Social Medicine — NCISM Mandatory' },
+  { code:'AGD',    name:'Agada Tantra OPD',                     desc:'Visha Chikitsa — Toxicology & Forensic Medicine — NCISM Mandatory' },
 ];
 
 // Optional split codes — not mandatory OPDs, used when institution separates combined OPDs
@@ -47,10 +51,14 @@ const SPECIALTY_CLINICS = [
   { code:'SPEC-DENT', name:'Danta Chikitsa — Dental & Oral Health', proforma:'dental-clinic',             parent:'SHAK' },
 ];
 
-// NCISM §7 — dedicated consultant pairs: same doctor cannot rotate between paired OPDs
+// NCISM §7 — dedicated consultant pairs: same doctor cannot rotate between paired OPDs.
+// Session 94: these were keyed to old long-form codes that never matched any real
+// short-form OPD (SHNT/SHAK/PST2/STR) — this enforcement has been a silent no-op since
+// inception. Fixed to the real codes: SHNT/SHAK is now a genuine mandatory pair;
+// PST2/STR only exists if a tenant has used the optional Prasuti/Stri-Roga split.
 const DEDICATED_CONSULTANT_PAIRS = [
-  { codes:['SHALAKYA_NETRA','SHALAKYA_KNM'], label:'Netra and KNM' },
-  { codes:['PRASUTI_TANTRA','STRI_ROGA'],    label:'Prasuti and Streeroga' },
+  { codes:['SHNT','SHAK'], label:'Netra and KNM' },
+  { codes:['PST2','STR'],  label:'Prasuti and Streeroga' },
 ];
 
 // ── Load departments (for specialty clinic parent selector) ──

@@ -15,17 +15,23 @@ export const WARD_NAMES = {
   KAU: 'Paediatric Ward', AGD: 'General Ward', PST: 'Maternity Ward',
 };
 
+// Session 94: cross-checked against the real Schedule XVIII (OPD equipment) document —
+// Shalakya is 2 separate mandatory OPD units (Netra / Karna-Nasa-Mukha), not 1, and
+// "Rog Nidana OPD" was never one of the real 10 — Rog Nidana & Vikruti Vigyana is a real
+// academic department (see NCISM_DEPTS below) but has no dedicated Schedule XVIII OPD
+// unit. The Shalakya split only applies to opds (patient routing) — departments/beds
+// stay one combined "Shalakya Tantra" (Table-8: one combined 10% ward; see UG_BED_RATIOS).
 export const NCISM_OPDS = [
-  { name: 'Screening OPD',           ncism_code: 'SCREEN', description: 'Mandatory triage for all new patients before specialty routing' },
-  { name: 'Kayachikitsa OPD',        ncism_code: 'KAY',    description: 'Internal Medicine' },
-  { name: 'Panchakarma OPD',         ncism_code: 'PK',     description: 'Panchakarma therapies' },
-  { name: 'Shalya Tantra OPD',       ncism_code: 'SHAL',   description: 'Surgery' },
-  { name: 'Shalakya Tantra OPD',     ncism_code: 'SHAK',   description: 'ENT & Ophthalmology' },
-  { name: 'Kaumarabhritya OPD',      ncism_code: 'KAU',    description: 'Paediatrics' },
-  { name: 'Swasthavritta OPD',       ncism_code: 'SW',     description: 'Preventive & Social Medicine' },
-  { name: 'Prasuti & Stri Roga OPD', ncism_code: 'PST',    description: 'Obstetrics & Gynaecology' },
-  { name: 'Agada Tantra OPD',        ncism_code: 'AGD',    description: 'Toxicology & Forensic Medicine' },
-  { name: 'Rog Nidana OPD',          ncism_code: 'RNV',    description: 'Pathology & Diagnosis' },
+  { name: 'Screening OPD',                        ncism_code: 'SCREEN', description: 'Mandatory triage for all new patients before specialty routing' },
+  { name: 'Kayachikitsa OPD',                     ncism_code: 'KAY',    description: 'Internal Medicine' },
+  { name: 'Panchakarma OPD',                      ncism_code: 'PK',     description: 'Panchakarma therapies' },
+  { name: 'Shalya Tantra OPD',                    ncism_code: 'SHAL',   description: 'Surgery, with attached Minor OT' },
+  { name: 'Shalakya – Netra OPD',                 ncism_code: 'SHNT',   description: 'Ophthalmology' },
+  { name: 'Shalakya – Karna, Nasa & Mukha OPD',   ncism_code: 'SHAK',   description: 'ENT' },
+  { name: 'Kaumarabhritya OPD',                   ncism_code: 'KAU',    description: 'Paediatrics' },
+  { name: 'Swasthavritta OPD',                    ncism_code: 'SW',     description: 'Preventive & Social Medicine' },
+  { name: 'Prasuti & Stri Roga OPD',               ncism_code: 'PST',    description: 'Obstetrics & Gynaecology' },
+  { name: 'Agada Tantra OPD',                     ncism_code: 'AGD',    description: 'Visha Chikitsa — Toxicology & Forensic Medicine' },
 ];
 
 // 14 departments per NCISM Schedule IV (faculty ratios) / Schedule III (teaching space) —

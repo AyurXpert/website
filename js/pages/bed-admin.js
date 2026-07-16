@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { UG_BED_RATIOS as SF_RATIOS, NCISM_OPDS as SF_OPDS } from '../config/ncism.js';
 
 wireDelegatedEvents();
 
@@ -10,7 +11,14 @@ await requireAuth(['super_admin', 'dept_admin']);
 initNavbar();
 const tenantId = getCurrentTenantId();
 
-const NCISM_CODES = [
+// This file's original long-form codes (KAYACHIKITSA, ...) — still the real convention
+// for WASA1631/Srishti's existing department data. SDM (and any future tenant, since
+// this is what platform_approve_ncism_request() actually writes) uses the canonical
+// short-form codes (KAY, ...) from js/config/ncism.js instead — a tenant is never
+// mixed, so loadAll() detects which one is in play once per page load and swaps the
+// mutable bindings below (NCISM_CODES/UG_BED_RATIOS/DEPT_PREFIX/NCISM_BED_PRIORITY),
+// leaving every existing lookup site elsewhere in this file unchanged.
+const LF_NCISM_CODES = [
   { code:'KAYACHIKITSA',      label:'Kayachikitsa (Internal Medicine)',     mandatory:true  },
   { code:'PANCHAKARMA',       label:'Panchakarma & Upakarma',               mandatory:true  },
   { code:'SHALYA_TANTRA',     label:'Shalya Tantra (Surgery)',              mandatory:true  },
@@ -30,7 +38,7 @@ const NCISM_CODES = [
 ];
 
 // NCISM Table-8 bed ratios per dept code (fraction of UG intake)
-const UG_BED_RATIOS = {
+const LF_UG_BED_RATIOS = {
   'KAYACHIKITSA':       0.20,
   'PANCHAKARMA':        0.25,
   'SHALYA_TANTRA':      0.20,
@@ -42,7 +50,7 @@ const UG_BED_RATIOS = {
 };
 
 // Standard NCISM bed prefix per department code
-const DEPT_PREFIX = {
+const LF_DEPT_PREFIX = {
   'KAYACHIKITSA':        'KC',
   'PANCHAKARMA':         'PK',
   'SHALYA_TANTRA':       'SHAL',
@@ -60,19 +68,31 @@ const DEPT_PREFIX = {
   'RASASHASTRA_BK':      'RSH',
 };
 
+const LF_NCISM_BED_PRIORITY = [
+  'PANCHAKARMA','KAYACHIKITSA','SHALYA_TANTRA',
+  'STRI_ROGA_PRASUTI','KAUMARABHRITYA',
+  'SHALAKYA_NETRA','SHALAKYA_KNM','AGADA_TANTRA',
+];
+
+// Short-form equivalents, sourced from the canonical js/config/ncism.js so this page can't
+// independently drift again. NCISM_CODES here covers the real mandatory-10 OPD list (Session
+// 94: Screening/Swasthavritta/Shalakya-Netra genuinely have zero Table-8 bed ratio, same as
+// the long-form list above — "mandatory" here means "should be set up", not "has beds").
+const SF_NCISM_CODES = SF_OPDS.map(o => ({ code:o.ncism_code, label:o.description||o.name, mandatory:true }));
+const SF_DEPT_PREFIX = Object.fromEntries(Object.keys(SF_RATIOS).map(c => [c, c]));
+const SF_NCISM_BED_PRIORITY = ['PK','KAY','SHAL','PST','KAU','SHAK','AGD'];
+
+let NCISM_CODES         = LF_NCISM_CODES;
+let UG_BED_RATIOS       = LF_UG_BED_RATIOS;
+let DEPT_PREFIX         = LF_DEPT_PREFIX;
+let NCISM_BED_PRIORITY  = LF_NCISM_BED_PRIORITY;
+
 const BED_TYPE_SHORT = {
   male_general:'M-Gen', female_general:'F-Gen', general:'Gen',
   twin_sharing:'Twin', semi_private:'Semi-Pvt',
   private:'Pvt', deluxe:'Deluxe', dormitory:'Dorm',
   icu:'ICU', day_care:'Day Care', pk_treatment:'PK Tx', observation:'Obs',
 };
-
-// NCISM priority order for tie-breaking when two depts have equal required beds
-const NCISM_BED_PRIORITY = [
-  'PANCHAKARMA','KAYACHIKITSA','SHALYA_TANTRA',
-  'STRI_ROGA_PRASUTI','KAUMARABHRITYA',
-  'SHALAKYA_NETRA','SHALAKYA_KNM','AGADA_TANTRA',
-];
 
 // Returns the global reserved start number for a dept based on NCISM allocation rank.
 // Depts are sorted descending by required beds; ties broken by NCISM_BED_PRIORITY.
@@ -138,6 +158,9 @@ function _populateNcismSelect() {
 }
 
 // ── Populate dept selects (bed + bulk) ───────────────────────────────────────
+// Only departments with a real Table-8 bed ratio can ever have beds — Security,
+// Administration, Screening, the pre-clinical teaching departments etc. are excluded
+// so they never show up as bed-setup targets.
 function populateDeptSelects() {
   ['bed-dept','bulk-dept','filter-dept'].forEach(id => {
     const sel = document.getElementById(id);
@@ -146,7 +169,7 @@ function populateDeptSelects() {
     sel.innerHTML = isFilter
       ? '<option value="">All Departments</option>'
       : '<option value="">— Select department —</option>';
-    _depts.filter(d => d.is_active).forEach(d => {
+    _depts.filter(d => d.is_active && UG_BED_RATIOS[d.ncism_code]).forEach(d => {
       const opt = document.createElement('option');
       opt.value = d.id;
       opt.textContent = d.name;
@@ -172,6 +195,19 @@ async function loadAll() {
   _beds     = bRes.data || [];
   _opds     = oRes.data || [];
   _ugIntake = tRes.data?.ug_intake || 0;
+
+  // Session 94 — pick the code convention this tenant's real departments actually use.
+  if (_depts.some(d => SF_RATIOS[d.ncism_code])) {
+    NCISM_CODES        = SF_NCISM_CODES;
+    UG_BED_RATIOS       = SF_RATIOS;
+    DEPT_PREFIX         = SF_DEPT_PREFIX;
+    NCISM_BED_PRIORITY  = SF_NCISM_BED_PRIORITY;
+  } else {
+    NCISM_CODES        = LF_NCISM_CODES;
+    UG_BED_RATIOS       = LF_UG_BED_RATIOS;
+    DEPT_PREFIX         = LF_DEPT_PREFIX;
+    NCISM_BED_PRIORITY  = LF_NCISM_BED_PRIORITY;
+  }
 
   _populateOpdSelect();
   populateDeptSelects();
@@ -1240,7 +1276,7 @@ function checkNcismCompliance() {
   if (missing.length) {
     banner.textContent = `NCISM Compliance: ${missing.length} mandatory department(s) not configured — `
       + missing.map(m => m.label.split(' ')[0]).join(', ')
-      + '. Click "Seed NCISM Depts" to add them all.';
+      + '. These are created automatically once your NCISM capacity request is approved (Subscription tab), or add manually via "+ New Department".';
     banner.classList.add('show');
   } else {
     banner.classList.remove('show');
@@ -1250,14 +1286,19 @@ function checkNcismCompliance() {
 // ── Render departments ────────────────────────────────────────────────────────
 function renderDepts() {
   const grid = document.getElementById('dept-grid');
-  document.getElementById('dept-count-label').textContent = `Departments (${_depts.length})`;
+  // This page is specifically IPD bed setup — only the 7 departments with a real Table-8
+  // bed ratio ever have beds. Security/Administration/Screening/the pre-clinical teaching
+  // departments etc. never appear here (see "New Department" if a genuinely custom bedded
+  // department is needed instead).
+  const beddedDepts = _depts.filter(d => UG_BED_RATIOS[d.ncism_code]);
+  document.getElementById('dept-count-label').textContent = `Departments (${beddedDepts.length})`;
 
-  if (!_depts.length) {
-    grid.innerHTML = `<div class="dept-empty">No departments yet.<br>Click "Seed NCISM Depts" to start.</div>`;
+  if (!beddedDepts.length) {
+    grid.innerHTML = `<div class="dept-empty">No bedded NCISM departments configured yet.<br>These are created automatically once your organisation's NCISM capacity is approved (Subscription tab), or add one manually via "+ New Department".</div>`;
     return;
   }
 
-  const sortedDepts = [..._depts].sort((a, b) => {
+  const sortedDepts = [...beddedDepts].sort((a, b) => {
     const ra = Math.floor((UG_BED_RATIOS[a.ncism_code] || 0) * (_ugIntake || 0));
     const rb = Math.floor((UG_BED_RATIOS[b.ncism_code] || 0) * (_ugIntake || 0));
     return rb - ra || (a.name || '').localeCompare(b.name || '');
@@ -2206,40 +2247,6 @@ window.bulkAddBeds = async function() {
   }
   closeBulkDrawer();
   _alert('success', `${rows.length} bed${rows.length > 1 ? 's' : ''} added successfully.`);
-  await loadAll();
-};
-
-// ── Seed NCISM departments ────────────────────────────────────────────────────
-window.seedNcismDepts = async function() {
-  const existing = new Set(_depts.map(d => d.ncism_code).filter(Boolean));
-  const toSeed = NCISM_CODES.filter(n => !existing.has(n.code));
-
-  if (!toSeed.length) {
-    _alert('success', 'All NCISM departments are already configured. Use the "+ Bed" button on each department card, or "Bulk Add Beds" above, to start adding beds.');
-    return;
-  }
-
-  if (!confirm(`This will create ${toSeed.length} NCISM department(s). Continue?`)) return;
-
-  const btn = document.getElementById('btn-seed');
-  btn.disabled = true;
-  btn.textContent = 'Seeding…';
-
-  const rows = toSeed.map(n => ({
-    tenant_id:    tenantId,
-    name:         n.label,
-    ncism_code:   n.code,
-    is_mandatory: n.mandatory,
-    is_pg_dept:   false,
-    is_active:    true,
-  }));
-
-  const { error } = await supabase.from('departments').insert(rows);
-  btn.disabled = false;
-  btn.textContent = '◇ Seed NCISM Depts';
-
-  if (error) { _alert('error', safeErrorMessage(error, 'Seed failed. Please try again.')); return; }
-  _alert('success', `${rows.length} departments created.`);
   await loadAll();
 };
 
