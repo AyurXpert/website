@@ -1929,6 +1929,7 @@ window.openDeptDetail = async function(deptId){
   const body = document.getElementById('dd-body');
   document.getElementById('dd-title').textContent = 'Loading…';
   document.getElementById('dd-subtitle').textContent = '';
+  document.getElementById('dd-live-badge').style.display = 'none';
   document.getElementById('dd-range-body').innerHTML = '';
   const todayStr = new Date().toISOString().slice(0,10);
   const weekAgoStr = new Date(Date.now()-6*86400000).toISOString().slice(0,10);
@@ -1937,6 +1938,49 @@ window.openDeptDetail = async function(deptId){
   body.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
   modal.style.display = 'flex';
 
+  const opdId = await _renderDeptSnapshot(deptId);
+  _ddSubscribeRealtime(deptId, opdId);
+};
+
+// Phase 3 — live updates. Subscribes to postgres_changes on the 3 tables that feed the
+// snapshot (visits for OPD queue, duty_roster, staff_leaves) and re-runs the same snapshot
+// render on any matching change, so the modal updates itself while open instead of needing
+// a manual re-open. Same channel/removeChannel pattern already used by reception.js's Scan
+// & Share flow — one modal open = one set of channels, torn down on close.
+let _ddChannels = [];
+function _ddSubscribeRealtime(deptId, opdId){
+  _ddChannels.forEach(ch=>supabase.removeChannel(ch));
+  _ddChannels = [];
+  const refresh = () => { if(_ddCurrentDeptId===deptId) _renderDeptSnapshot(deptId); };
+
+  if(opdId){
+    _ddChannels.push(
+      supabase.channel('dept-detail-visits-'+deptId)
+        .on('postgres_changes',{event:'*',schema:'public',table:'visits',filter:'opd_id=eq.'+opdId}, refresh)
+        .subscribe()
+    );
+  }
+  _ddChannels.push(
+    supabase.channel('dept-detail-roster-'+deptId)
+      .on('postgres_changes',{event:'*',schema:'public',table:'duty_roster',filter:'department_id=eq.'+deptId}, refresh)
+      .subscribe()
+  );
+  // staff_leaves has no department_id column — filter by tenant, the callback just re-runs
+  // the same department-scoped snapshot query so an unrelated tenant-wide leave is a harmless
+  // no-op refresh rather than a missed update.
+  _ddChannels.push(
+    supabase.channel('dept-detail-leaves-'+deptId)
+      .on('postgres_changes',{event:'*',schema:'public',table:'staff_leaves',filter:'tenant_id=eq.'+tenantId}, refresh)
+      .subscribe()
+  );
+  document.getElementById('dd-live-badge').style.display = '';
+}
+
+// Renders the "today" snapshot into #dd-body — called once on open and again on every
+// live update. Returns the department's opd_id (or null) so the caller can decide whether
+// to open a visits subscription, without a second department fetch.
+async function _renderDeptSnapshot(deptId){
+  const body = document.getElementById('dd-body');
   const today = new Date().toISOString().slice(0,10);
   const todayStart = today + 'T00:00:00.000Z';
   const tomorrowStart = new Date(new Date(today+'T00:00:00Z').getTime() + 86400000).toISOString();
@@ -1948,7 +1992,7 @@ window.openDeptDetail = async function(deptId){
     supabase.from('tenants').select('opd_daily_target,type').eq('id',tenantId).single(),
   ]);
 
-  if(!dept){ body.innerHTML = '<div class="empty"><div class="empty-ttl">Department not found.</div></div>'; return; }
+  if(!dept){ body.innerHTML = '<div class="empty"><div class="empty-ttl">Department not found.</div></div>'; return null; }
 
   const staffList = staff||[];
   const staffIds = staffList.map(s=>s.id);
@@ -2022,9 +2066,13 @@ window.openDeptDetail = async function(deptId){
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">${onDutyCount} on duty today · ${onLeaveCount} on leave today</div>
       ${staffHtml}
     </div>`;
-};
+  return dept.opd_id || null;
+}
 
 window.closeDeptDetailModal = function(){
+  _ddChannels.forEach(ch=>supabase.removeChannel(ch));
+  _ddChannels = [];
+  _ddCurrentDeptId = null;
   document.getElementById('dept-detail-modal').style.display = 'none';
 };
 
