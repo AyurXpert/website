@@ -564,6 +564,21 @@ const DESIG_ROLE_DEFAULT = {
   attender:'nurse',
 };
 
+// Medical Director is conventionally held concurrently by an existing senior faculty member
+// (typically the Dean/Principal) rather than a dedicated additional recruit — Schedule XX's own
+// table gives it no quantified headcount at all (blank cells across every intake tier, the only
+// row besides "Consultants", which is explicitly annotated "Teachers of clinical departments").
+// Medical Superintendent and Deputy MS are deliberately NOT included here even though they might
+// seem similar — §51(2)(b)/(3)(b) of the regulation (see the human_resources_admin self-
+// assessment checklist below) explicitly states both "shall NOT be concurrently teaching staff
+// of any department", so they must remain real, separately-required additional doctor posts.
+// Still tracked as an individual ladder row (so a tenant can record who holds the title and
+// Invite if genuinely vacant) but excluded from every AGGREGATE minimum-headcount total —
+// deptRequirement()'s required sum, the department-tree grand compliance %, the Hospital-Wide
+// Total summary table, and the Statistics page's _ncismRoleMinimums() — so a Professor already
+// counted in the Schedule I faculty ladder isn't double-counted as a second, separate person.
+const FACULTY_CONCURRENT_POSTS = new Set(['medical_director']);
+
 // Populate designation filter
 const dfilter = document.getElementById('hr-desig-filter');
 DESIG_CATS.forEach(cat=>{
@@ -592,10 +607,12 @@ function _hrSub(sub){
   document.getElementById('hr-staff-panel').style.display     = sub==='staff'     ? '' : 'none';
   document.getElementById('hr-hierarchy-panel').style.display  = sub==='hierarchy' ? '' : 'none';
   document.getElementById('hr-ncism-panel').style.display      = sub==='ncism'     ? '' : 'none';
+  document.getElementById('hr-plan-panel').style.display       = sub==='plan'      ? '' : 'none';
   document.getElementById('hr-access-panel').style.display     = sub==='access'    ? '' : 'none';
   document.getElementById('hr-dept-panel').style.display       = sub==='dept'      ? '' : 'none';
   document.getElementById('hr-seed-bar').style.display         = (sub==='ncism'||sub==='dept') ? 'flex' : 'none';
   if (sub === 'ncism')   _renderNcismStaffing();
+  if (sub === 'plan')    _renderStaffingPlan();
   if (sub === 'access')  window.loadStaffAccess();
   if (sub === 'dept')    _renderDeptStaff();
 }
@@ -836,7 +853,7 @@ function _ncismRoleMinimums(ug){
 
   NCISM_XX_ROWS.forEach(([,,keys,req]) => {
     const c = req[ug] || 0;
-    if (c) add(DESIG_ROLE_DEFAULT[keys[0]], c);
+    if (c && !FACULTY_CONCURRENT_POSTS.has(keys[0])) add(DESIG_ROLE_DEFAULT[keys[0]], c);
   });
 
   return byRole;
@@ -882,7 +899,10 @@ function deptRequirement(dept, ug){
     const rows=NCISM_XX_ROWS.filter(r=>ORG_ZONE_MAP[r[0]]===key);
     if(rows.length){
       mandated=true;
-      rows.forEach(([zone,label,keys,req,ref])=>{ const c=req[ug]||0; if(c){ ladder.push({zone,label,count:c,ref,keys}); } });
+      rows.forEach(([zone,label,keys,req,ref])=>{
+        const c=req[ug]||0;
+        if(c){ ladder.push({zone,label,count:c,ref,keys,facultyHeld:FACULTY_CONCURRENT_POSTS.has(keys[0])}); }
+      });
     }
   }
 
@@ -890,7 +910,9 @@ function deptRequirement(dept, ug){
     .map(([,label,keys,req,ref])=>({label,count:req[ug]||0,ref,keys}));
 
   if(!mandated) return {mandated:false, ladder:[], required:0, optional};
-  return {mandated:true, ladder, required:ladder.reduce((s,r)=>s+r.count,0), optional};
+  // facultyHeld rows (Medical Director/MS/Deputy MS) still appear in the ladder for per-position
+  // tracking/Invite, but never contribute to the aggregate required total — see FACULTY_CONCURRENT_POSTS.
+  return {mandated:true, ladder, required:ladder.reduce((s,r)=>s+(r.facultyHeld?0:r.count),0), optional};
 }
 
 // Required/actual/gap rollup for a top-level section — sums the section's own row + all its children
@@ -1052,7 +1074,7 @@ async function _renderNcismStaffing() {
     [node.dept, ...node.children].forEach(d=>{
       const r=deptRequirement(d,ug);
       if(!r.mandated) return;
-      r.ladder.forEach(row=>{ grandReq+=row.count; grandMet+=Math.min(cntDeptD(d.id,row.keys),row.count); });
+      r.ladder.forEach(row=>{ if(row.facultyHeld) return; grandReq+=row.count; grandMet+=Math.min(cntDeptD(d.id,row.keys),row.count); });
     });
   });
   const grandPct=grandReq>0?Math.round(grandMet/grandReq*100):100;
@@ -1063,6 +1085,11 @@ async function _renderNcismStaffing() {
   NCISM_SUM_GRPS.forEach(({s,rows})=>{
     sumRows+='<tr style="background:#f0faf5"><td colspan="7" style="padding:6px 14px;font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px">'+s+'</td></tr>';
     rows.forEach(({l,k,fac:fk,pgOnly})=>{
+      if(k.some(key=>FACULTY_CONCURRENT_POSTS.has(key))){
+        sumRows+='<tr><td style="padding:5px 12px 5px 20px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+l+'</td>'
+          +'<td colspan="6" style="padding:5px 12px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">Typically held concurrently by an existing faculty member — not counted separately in totals</td></tr>';
+        return;
+      }
       let ugR;
       if(fk) ugR=FAC_UG[fk]||0;
       else if(pgOnly) ugR=0;
@@ -1096,6 +1123,7 @@ async function _renderNcismStaffing() {
   let gtUG=0,gtPG=0,gtTotal=0,gtRec=0;
   NCISM_SUM_GRPS.forEach(({rows})=>{
     rows.forEach(({k,fac:fk,pgOnly})=>{
+      if(k.some(key=>FACULTY_CONCURRENT_POSTS.has(key)))return;
       const ugR=fk?FAC_UG[fk]||0:pgOnly?0:ugReqForGroup(k);
       const pgA=k.reduce((s,key)=>s+(keyTotPG[key]||0),0);
       if(pgOnly&&pgList.length===0)return;
@@ -1176,7 +1204,8 @@ async function _renderNcismStaffing() {
         sectionHeader='<tr><td colspan="6" style="padding:7px 12px 5px 16px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--green-deep);background:#f0faf5;border-bottom:1px solid #f0f4f2">'+_esc(ZONE_SECTION_LABEL[row.zone]||row.zone)+'</td></tr>';
       }
       return sectionHeader+'<tr>'
-        +'<td style="padding:6px 12px 6px 16px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(row.label)+'</td>'
+        +'<td style="padding:6px 12px 6px 16px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(row.label)
+          +(row.facultyHeld?'<br><span style="font-size:10px;font-weight:400;color:var(--text-muted)">Typically held concurrently by an existing faculty member — not counted in section/hospital totals</span>':'')+'</td>'
         +'<td style="padding:6px 10px;text-align:center;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+_esc(row.ref)+'</td>'
         +'<td style="padding:6px 10px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2">'+row.count+'</td>'
         +'<td style="padding:6px 10px;text-align:center;color:'+rc+';font-weight:600;border-bottom:1px solid #f0f4f2">'+a+'</td>'
@@ -1336,6 +1365,171 @@ window.copyPositionInviteLink = function(){
     .then(()=>_toast('Link copied!'))
     .catch(()=>_toast('Could not copy — select the link text manually.', true));
 };
+
+// ── Staffing Plan — required staff by designation, grouped by HMS role ────────
+// Attributes each NCISM_XX_ROWS row to exactly ONE canonical designation (its first key —
+// the same rule _ncismRoleMinimums() uses for the Statistics page checklist), then groups by
+// HMS role. Deliberately does NOT reuse NCISM_SUM_GRPS's hand-written groupings — those can
+// double-count: e.g. "OT Nursing Staff" has keys ['ot_technician','staff_nurse'] (either
+// designation can fill the post), and NCISM_SUM_GRPS's separate "OT/CSSD" and "Staff Nurse —
+// all zones" rows each independently pick it up via a different one of those two keys, so a
+// naive per-group sum inflates the nurse total by double-counting that one row. This function
+// and _ncismRoleMinimums() are the two places in the app that state an aggregate headcount
+// total, so they use the identical keys[0]-only attribution rule to guarantee they can't
+// silently disagree with each other again.
+const STAFFING_PLAN_ROLE_ORDER = [
+  {role:'doctor',       icon:'👨‍⚕️', label:'Doctors'},
+  {role:'nurse',        icon:'👩‍⚕️', label:'Nurses'},
+  {role:'pharmacist',   icon:'💊', label:'Pharmacists'},
+  {role:'lab_tech',     icon:'🔬', label:'Lab Technicians'},
+  {role:'receptionist', icon:'🏥', label:'Receptionists'},
+  {role:'therapist',    icon:'🌸', label:'Therapists'},
+  {role:'dept_admin',   icon:'🏛️', label:'Administrative Officers'},
+  {role:'accountant',   icon:'💰', label:'Finance & Accounts'},
+  {role:'mrd_staff',    icon:'📋', label:'Medical Records'},
+  {role:'diet_staff',   icon:'🍲', label:'Diet / Pathya'},
+];
+
+async function _renderStaffingPlan() {
+  const wrap = document.getElementById('staffing-plan-wrap');
+  wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
+
+  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }] = await Promise.all([
+    supabase.from('tenants').select('ug_intake,type,pg_student_strength').eq('id',tenantId).single(),
+    supabase.from('profiles').select('designation').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('departments').select('id,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('departments').select('id,ncism_code,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_pg_dept',true),
+  ]);
+
+  const ugRaw = tRow?.ug_intake || 0;
+  const ug = [60,100,150,200].includes(ugRaw) ? ugRaw : (ugRaw>=150?150:ugRaw>=100?100:ugRaw>0?60:0);
+  if (!ug) {
+    wrap.innerHTML = '<div class="empty"><div class="empty-ico">ℹ</div><div class="empty-ttl">Staffing Plan applies to Teaching Hospitals and Colleges with UG intake configured.</div></div>';
+    return;
+  }
+
+  const byDesig = {};
+  (rawStaff||[]).forEach(s => { if(s.designation) byDesig[s.designation]=(byDesig[s.designation]||0)+1; });
+  const cntD = keys => keys.reduce((s,k)=>s+(byDesig[k]||0),0);
+  const pgList = pgDepts || [];
+
+  const fac=FAC_BY_UG[ug];
+  const scheduleIDepts=(depts||[]).filter(d=>d.ncism_code && SCHEDULE_I_CODES.includes(d.ncism_code));
+  const clinDepts=scheduleIDepts.length||8;
+  const FAC_UG={p:clinDepts*fac.p, a:clinDepts*fac.a, b:clinDepts*fac.b};
+
+  const keyTotPG={};
+  pgList.forEach(d=>{
+    const seats=d.pg_seats_sanctioned||3, pgB=seats*4;
+    keyTotPG['senior_resident']=(keyTotPG['senior_resident']||0)+Math.ceil(seats/3);
+    keyTotPG['staff_nurse']=(keyTotPG['staff_nurse']||0)+Math.ceil(pgB/10);
+    keyTotPG['attender']=(keyTotPG['attender']||0)+Math.ceil(pgB/20);
+    if(d.ncism_code==='PK')keyTotPG['therapist']=(keyTotPG['therapist']||0)+Math.ceil(seats/3)*2;
+    if(seats>3)keyTotPG['assistant_professor']=(keyTotPG['assistant_professor']||0)+Math.ceil((seats-3)/3);
+    if(seats>6)keyTotPG['associate_professor']=(keyTotPG['associate_professor']||0)+Math.ceil((seats-6)/3);
+  });
+
+  const ZA={'Administration':'Admin','Finance & Accounts':'Finance','Reception & MRD':'Reception',
+    'OPD Nursing':'OPD Nsg','Pharmacy':'Pharmacy','Diagnostics':'Diagnostics',
+    'Medical IPD':'Med IPD','Surgical IPD':'Surg IPD','Panchakarma':'PK',
+    'Operation Theatre':'OT','Labour Room':'LR','Kriyakalpa':'Kriyakalpa',
+    'Physiotherapy':'Physio','Yoga & Wellness':'Yoga','Diet / Pathya':'Diet','CSSD':'CSSD'};
+
+  // Canonical per-designation totals — one entry per distinct keys[0] (never counted under a
+  // second designation via an alternate-eligible key), matching _ncismRoleMinimums()'s rule.
+  // altKeys collects every acceptable designation for that post (e.g. staff_nurse OR
+  // ward_sister can both fill a "Staff Nurse" post) — used only for counting real recruited
+  // staff, where unioning is safe since a real person is never double-counted by being
+  // eligible under two names.
+  const byKey = {};
+  const bump = (ck, add, keysForAlt) => {
+    if(!byKey[ck]) byKey[ck] = {ugTotal:0, zones:new Set(), altKeys:new Set(), pgOnly:false};
+    byKey[ck].ugTotal += add;
+    (keysForAlt||[ck]).forEach(k=>byKey[ck].altKeys.add(k));
+  };
+  bump('professor', FAC_UG.p, ['professor','hod']);
+  bump('associate_professor', FAC_UG.a);
+  bump('assistant_professor', FAC_UG.b);
+  bump('senior_resident', 0);
+  byKey['senior_resident'].pgOnly = true;
+  NCISM_XX_ROWS.forEach(([zone,,keys,req])=>{
+    const c=req[ug]||0;
+    if(!c) return;
+    bump(keys[0], c, keys);
+    byKey[keys[0]].zones.add(ZA[zone]||zone);
+  });
+
+  const byRole = {};
+  Object.keys(byKey).forEach(ck=>{
+    const role = DESIG_ROLE_DEFAULT[ck] || 'other';
+    (byRole[role] = byRole[role] || []).push(ck);
+  });
+
+  let grandTotal=0, grandRec=0;
+  const sectionsHtml = STAFFING_PLAN_ROLE_ORDER.filter(r=>byRole[r.role]?.length).map(({role,icon,label})=>{
+    let roleTotal=0, roleRec=0;
+    const rowsHtml = byRole[role].map(ck=>{
+      const info = byKey[ck];
+      const dLabel = DESIG_MAP[ck]?.l || ck;
+      if(FACULTY_CONCURRENT_POSTS.has(ck)){
+        return '<tr><td style="padding:6px 12px 6px 20px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(dLabel)+'</td>'
+          +'<td colspan="5" style="padding:6px 12px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">Typically held concurrently by an existing faculty member — not counted separately</td></tr>';
+      }
+      const pgA=keyTotPG[ck]||0;
+      const total=info.ugTotal+pgA;
+      if(info.pgOnly&&pgList.length===0){
+        return '<tr><td style="padding:6px 12px 6px 20px;font-size:12.5px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+_esc(dLabel)+'</td>'
+          +'<td colspan="5" style="padding:6px 12px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">Not applicable — no PG departments configured</td></tr>';
+      }
+      const rec=cntD([...info.altKeys]), gap=Math.max(0,total-rec);
+      roleTotal+=total; roleRec+=Math.min(rec,total);
+      const rc=rec>=total&&total>0?'#2d7a4f':rec>0?'#c9902a':'#c0392b';
+      const si=rec>=total&&total>0?'✅':rec>0?'⚠️':'❌';
+      const zs=info.pgOnly?'PG depts only':(['professor','associate_professor','assistant_professor'].includes(ck)?'Schedule I ('+clinDepts+' clinical depts)':[...info.zones].join(' + ')||'—');
+      return '<tr>'
+        +'<td style="padding:6px 12px 6px 20px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(dLabel)+'</td>'
+        +'<td style="padding:6px 10px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+_esc(zs)+'</td>'
+        +'<td style="padding:6px 10px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2">'+(total>0?info.ugTotal:'—')+'</td>'
+        +'<td style="padding:6px 10px;text-align:center;color:#c9902a;border-bottom:1px solid #f0f4f2">'+(pgA>0?'+'+pgA:'—')+'</td>'
+        +'<td style="padding:6px 10px;text-align:center;font-weight:700;border-bottom:1px solid #f0f4f2">'+(total||'—')+'</td>'
+        +'<td style="padding:6px 10px;text-align:center;color:'+rc+';font-weight:700;border-bottom:1px solid #f0f4f2">'+rec+'</td>'
+        +'<td style="padding:6px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+si+(gap>0?' <span style="font-size:11px;color:#c0392b">−'+gap+'</span>':'')+'</td>'
+        +'</tr>';
+    }).join('');
+
+    grandTotal+=roleTotal; grandRec+=roleRec;
+    const pct = roleTotal>0 ? Math.round(Math.min(roleRec,roleTotal)/roleTotal*100) : 100;
+    const pc = pct>=80?'#2d7a4f':pct>=50?'#c9902a':'#c0392b';
+
+    return '<div class="cc" style="margin-bottom:14px;padding:0">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)">'
+        +'<span style="font-weight:700;font-size:15px">'+icon+' '+_esc(label)+'</span>'
+        +'<span style="background:'+pc+'18;color:'+pc+';border:1px solid '+pc+'55;padding:2px 10px;border-radius:10px;font-size:12px;font-weight:600">Need '+roleTotal+' · Have '+roleRec+' · '+pct+'%</span>'
+      +'</div>'
+      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+        +'<thead><tr style="background:#f5faf7">'
+        +'<th style="padding:6px 12px 6px 20px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Designation</th>'
+        +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Where Required</th>'
+        +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">UG Reqd</th>'
+        +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">PG Add-on</th>'
+        +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Total Needed</th>'
+        +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Recruited</th>'
+        +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Status</th>'
+        +'</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'
+      +'</div>';
+  }).join('');
+
+  const grandPct = grandTotal>0 ? Math.round(Math.min(grandRec,grandTotal)/grandTotal*100) : 100;
+  const gc = grandPct>=80?'#2d7a4f':grandPct>=50?'#c9902a':'#c0392b';
+
+  wrap.innerHTML = '<div class="cc" style="margin-bottom:14px;text-align:center;background:'+gc+'">'
+    +'<div style="padding:14px 16px;color:#fff">'
+      +'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.85">Staffing Plan — UG Intake '+ug+(pgList.length?' · '+pgList.length+' PG dept(s)':'')+'</div>'
+      +'<div style="font-weight:700;font-size:20px;margin-top:2px">'+grandTotal+' total staff needed · '+grandRec+' recruited ('+grandPct+'%)</div>'
+    +'</div></div>'
+    + sectionsHtml
+    + '<div style="font-size:11px;color:var(--text-muted);margin-top:8px">Numbers scale with UG intake and PG seats sanctioned — same source as HR → NCISM Requirements\' department-wise ladder. Medical Director is excluded from the Doctors total (typically held concurrently by an existing faculty member).</div>';
+}
 
 // ── Departmental Staff Distribution ──────────────────────────────────
 async function _renderDeptStaff() {

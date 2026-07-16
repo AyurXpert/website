@@ -510,6 +510,7 @@ tr:hover td{background:#fafff8}
         <div style="display:flex;gap:8px">
           <button class="btn-outline active hr-tab" data-sub="staff">All Staff</button>
           <button class="btn-outline hr-tab" data-sub="ncism">NCISM Requirements</button>
+          <button class="btn-outline hr-tab" data-sub="plan">Staffing Plan</button>
           <button class="btn-outline hr-tab" data-sub="hierarchy">Hierarchy View</button>
           <button class="btn-outline hr-tab" data-sub="access">Login Access</button>
           <button class="btn-outline hr-tab" data-sub="dept">🏥 Dept. Staff</button>
@@ -522,6 +523,11 @@ tr:hover td{background:#fafff8}
       <!-- NCISM staffing panel -->
       <div id="hr-ncism-panel" style="display:none">
         <div id="ncism-staff-table-wrap"></div>
+      </div>
+
+      <!-- Staffing Plan panel — required staff by designation, grouped by HMS role -->
+      <div id="hr-plan-panel" style="display:none">
+        <div id="staffing-plan-wrap"></div>
       </div>
 
       <div id="hr-staff-panel">
