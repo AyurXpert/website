@@ -88,6 +88,14 @@ const SF_NCISM_CODES = SF_OPDS
 const SF_DEPT_PREFIX = Object.fromEntries(Object.keys(SF_RATIOS).map(c => [c, c]));
 const SF_NCISM_BED_PRIORITY = ['PK','KAY','SHAL','PST','KAU','SHAK','AGD'];
 
+// Session 95: hospital/pk_center tenants now ALSO use short-form codes (seed_default_org_
+// structure()), but need a smaller mandatory list than teaching_hospital/college's full
+// NCISM set — Screening/Swasthavritta are NCISM-teaching-specific, not part of a plain
+// hospital's or PK center's default structure, and would otherwise show as permanently
+// "missing" for them. Same short-form codes/labels either way, just a narrower list.
+const HOSPITAL_NCISM_CODES = SF_NCISM_CODES.filter(n => ['KAY','PK','SHAL','SHAK','KAU','PST','AGD'].includes(n.code));
+const PK_CENTER_NCISM_CODES = SF_NCISM_CODES.filter(n => ['PK','KAY'].includes(n.code));
+
 let NCISM_CODES         = LF_NCISM_CODES;
 let UG_BED_RATIOS       = LF_UG_BED_RATIOS;
 let DEPT_PREFIX         = LF_DEPT_PREFIX;
@@ -191,7 +199,7 @@ async function loadAll() {
     supabase.from('departments').select('*').eq('tenant_id', tenantId).order('name'),
     supabase.from('beds').select('*').eq('tenant_id', tenantId).order('bed_number'),
     supabase.from('opds').select('id,name').eq('tenant_id', tenantId).eq('is_active', true).order('name'),
-    supabase.from('tenants').select('ug_intake').eq('id', tenantId).single(),
+    supabase.from('tenants').select('ug_intake,type').eq('id', tenantId).single(),
   ]);
 
   if (dRes.error) { _alert('error', safeErrorMessage(dRes.error, 'Failed to load departments.')); return; }
@@ -201,13 +209,21 @@ async function loadAll() {
   _beds     = bRes.data || [];
   _opds     = oRes.data || [];
   _ugIntake = tRes.data?.ug_intake || 0;
+  const tenantType = tRes.data?.type;
 
   // Session 94 — pick the code convention this tenant's real departments actually use.
+  // Session 95 — short-form is no longer teaching_hospital/college-exclusive
+  // (seed_default_org_structure() also gives hospital/pk_center tenants short-form
+  // codes), so the MANDATORY-LIST scope must follow tenant type, not just code
+  // format — a plain hospital was never meant to have Screening/Swasthavritta.
+  // Bed ratios/prefixes/priority stay the same either way (identical Table-8 codes).
   if (_depts.some(d => SF_RATIOS[d.ncism_code])) {
-    NCISM_CODES        = SF_NCISM_CODES;
     UG_BED_RATIOS       = SF_RATIOS;
     DEPT_PREFIX         = SF_DEPT_PREFIX;
     NCISM_BED_PRIORITY  = SF_NCISM_BED_PRIORITY;
+    NCISM_CODES         = tenantType === 'pk_center' ? PK_CENTER_NCISM_CODES
+                         : tenantType === 'hospital'  ? HOSPITAL_NCISM_CODES
+                         : SF_NCISM_CODES; // teaching_hospital/college (or unknown) — full NCISM list
   } else {
     NCISM_CODES        = LF_NCISM_CODES;
     UG_BED_RATIOS       = LF_UG_BED_RATIOS;
