@@ -5,7 +5,7 @@ import { supabase }   from '../core/db/supabaseClient.js';
 import { logAudit }   from '../core/auditLogger.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS, SCHEDULE_IV } from '../config/ncism.js';
+import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS, SCHEDULE_IV, NCISM_OPDS } from '../config/ncism.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -802,32 +802,67 @@ const OPD_SCREENING_CODE = 'SCREEN';
 // "clinical" from the Infrastructure Setup feature) that would otherwise shadow the real match.
 function _deptKey(d){ return (d && (d.ncism_code || d.category)) || null; }
 
-// Builds the 12-section tree from a flat departments list. Sections not yet seeded
-// come back with dept:null so callers can render a "seed structure" prompt.
-// injectFacultyChildren (NCISM Staffing Compliance panel only, not the plain Dept. Staff
-// directory) additionally lists Panchakarma/Swasthavritta&Yoga under "OPD" as a synthetic
-// clone tagged _facultyOnlyView — a department row can only have one real parent, and their
-// real parent must stay null (they're genuine top-level sections), so this is a display-only
-// duplicate of the same id, not a re-parenting. deptRequirement() reads the tag to show only
-// their Schedule I faculty ladder here, while their own top-level section (real, untagged
-// object) shows only Schedule XX operational staff — never both in the same place.
-function buildDeptTree(depts, injectFacultyChildren){
+// Session 96: the "OPD" section's children are built from the real `opds` table (OPD Setup,
+// opd-admin.html) rather than `departments.parent_department_id` — so it always reflects
+// whatever OPDs are actually configured (a newly-added OPD shows up here with no code change),
+// and so Shalakya shows as its real 2-way split (Shalakya – Netra / SHNT, Shalakya – Karna Nasa
+// Mukha / SHAK) instead of one merged department row. Only 'SHNT' needs remapping to its owning
+// department's code ('SHAK', the combined Shalakya Tantra department, per Table-8/Note 2 — one
+// combined faculty pool, ~50% each speciality) — every other OPD code already equals its owning
+// department's ncism_code. Panchakarma OPD and Swasthavritta OPD are 2 of the real 10 Schedule
+// XVIII OPDs, so they naturally show up here too (previously only injected on this one tab) —
+// deptRequirement()'s existing _facultyOnlyView flag (see below) already knows to show only
+// their Schedule I ladder here, since their Schedule XX operational ladder shows separately
+// under their own real top-level section.
+function _buildOpdChildren(opds, byKey){
+  const order = NCISM_OPDS.map(o=>o.ncism_code);
+  const sorted = [...(opds||[])].sort((a,b)=>{
+    const ia=order.indexOf(a.ncism_code), ib=order.indexOf(b.ncism_code);
+    if(ia===-1 && ib===-1) return (a.name||'').localeCompare(b.name||'');
+    if(ia===-1) return 1;
+    if(ib===-1) return -1;
+    return ia-ib;
+  });
+  const shak = sorted.find(o=>o.ncism_code==='SHAK'), shnt = sorted.find(o=>o.ncism_code==='SHNT');
+  return sorted.map(opd=>{
+    const deptCode = opd.ncism_code==='SHNT' ? 'SHAK' : opd.ncism_code;
+    const owner = deptCode ? byKey[deptCode] : null;
+    if(!owner) return {id:opd.id, name:opd.name, ncism_code:opd.ncism_code||null};
+    return {...owner, name:opd.name, ncism_code:opd.ncism_code,
+      _facultyOnlyView: deptCode==='PK' || deptCode==='SW',
+      _sharedWith: deptCode==='SHAK' ? (opd.ncism_code==='SHAK' ? shnt?.name : shak?.name) : null};
+  });
+}
+
+// Builds the 12-section tree from a flat departments list + the tenant's real OPDs.
+// Sections not yet seeded come back with dept:null so callers can render a "seed structure"
+// prompt. deptRequirement() reads a child's _facultyOnlyView tag (set by _buildOpdChildren
+// above) to show only its Schedule I faculty ladder under "OPD" for Panchakarma/Swasthavritta,
+// since their own top-level section (real, untagged object) already shows Schedule XX
+// operational staff — never both in the same place.
+function buildDeptTree(depts, opds){
   const byKey = {};
   (depts||[]).forEach(d=>{ const k=_deptKey(d); if(k && !byKey[k]) byKey[k]=d; });
   return ORG_TREE_DEF.map(def=>{
     const dept = byKey[def.key] || null;
+    if(def.key==='OPD_PARENT'){
+      return {def, dept, children: dept ? _buildOpdChildren(opds, byKey) : []};
+    }
     const children = dept
       ? (depts||[]).filter(d=>d.parent_department_id===dept.id).sort((a,b)=>(a.name||'').localeCompare(b.name||''))
       : [];
-    if(injectFacultyChildren && def.key==='OPD_PARENT'){
-      ['PK','SW'].forEach(code=>{
-        const real=byKey[code];
-        if(real) children.push({...real, _facultyOnlyView:true});
-      });
-      children.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-    }
     return {def, dept, children};
   });
+}
+
+// Dedupes rows by id before summing requirement/actual totals — needed because the OPD
+// section's Shalakya children (see _buildOpdChildren) intentionally share one real department
+// id (2 display cards, 1 real department/faculty pool), which would otherwise double-count in
+// any aggregate loop. Display loops that render individual cards must NOT use this — both
+// Shalakya cards need to render.
+function _dedupById(rows){
+  const seen = new Set();
+  return rows.filter(d=>{ if(!d || seen.has(d.id)) return false; seen.add(d.id); return true; });
 }
 
 // Departments that carry the Schedule I faculty ladder (8-10 clinical teaching depts + optional PG depts)
@@ -898,10 +933,11 @@ function deptRequirement(dept, ug){
 
   // Panchakarma/Swasthavritta&Yoga are real teaching depts (Schedule I) AND real Schedule XX
   // operational zones. Shown in exactly one place each, never both: their Schedule I faculty
-  // ladder appears nested under "OPD" (dept._facultyOnlyView — a synthetic clone injected by
-  // buildDeptTree's injectFacultyChildren, not a real re-parenting), while their own top-level
-  // Panchakarma/Yoga & Wellness section shows only Schedule XX operational staff. Every other
-  // department only ever matches one branch below regardless, so this split doesn't affect them.
+  // ladder appears nested under "OPD" (dept._facultyOnlyView — a synthetic clone built by
+  // _buildOpdChildren from the real opds table, not a real re-parenting), while their own
+  // top-level Panchakarma/Yoga & Wellness section shows only Schedule XX operational staff.
+  // Every other department only ever matches one branch below regardless, so this split
+  // doesn't affect them.
   const facultyOnly = !!dept._facultyOnlyView;
   const operationalOnly = !facultyOnly && (dept.ncism_code==='PK' || dept.ncism_code==='SW');
 
@@ -946,7 +982,7 @@ function deptRequirement(dept, ug){
 
 // Required/actual/gap rollup for a top-level section — sums the section's own row + all its children
 function sectionRollup(node, ug, staffByDept){
-  const rows=[node.dept, ...node.children].filter(Boolean);
+  const rows=_dedupById([node.dept, ...node.children].filter(Boolean));
   let required=0, actual=0, mandated=false;
   rows.forEach(d=>{
     const r=deptRequirement(d,ug);
@@ -1023,12 +1059,13 @@ async function _renderNcismStaffing() {
   wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
   _ladderRowRegistry = [];
 
-  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }, { data:invites }] = await Promise.all([
+  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }, { data:invites }, { data:opds }] = await Promise.all([
     supabase.from('tenants').select('ug_intake,type,pg_student_strength').eq('id',tenantId).single(),
     supabase.from('profiles').select('designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,name,ncism_code,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_pg_dept',true),
     supabase.from('position_invites').select('id,department_id,designation,phone,candidate_name,token').eq('tenant_id',tenantId).eq('status','pending'),
+    supabase.from('opds').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
   ]);
 
   // Pending invites grouped by "deptId|designation" for the ladder's per-row chip
@@ -1100,15 +1137,17 @@ async function _renderNcismStaffing() {
   // ugReqForGroup: sum requirements for all XX rows that contain ANY key from gKeys (no double-count)
   const ugReqForGroup=gKeys=>NCISM_XX_ROWS.reduce((s,[,,keys,req])=>s+(keys.some(k=>gKeys.includes(k))?(req[ug]||0):0),0);
 
-  // Department tree — shared with 🏥 Dept. Staff (same order, same rows), plus Panchakarma/
-  // Yoga & Wellness's faculty ladder nested under OPD here specifically (see deptRequirement).
-  const tree=buildDeptTree(depts||[], true);
+  // Department tree — shared with 🏥 Dept. Staff and Departments (same order, same OPD rows,
+  // sourced from the real opds table — see buildDeptTree/_buildOpdChildren).
+  const tree=buildDeptTree(depts||[], opds||[]);
 
-  // Grand compliance — per-position min-capped, summed across the actual configured department tree
+  // Grand compliance — per-position min-capped, summed across the actual configured department
+  // tree. Deduped by id — the OPD section's Shalakya children intentionally share one real
+  // department id (see _buildOpdChildren) and must not be counted twice here.
   let grandReq=0, grandMet=0;
   tree.forEach(node=>{
     if(!node.dept) return;
-    [node.dept, ...node.children].forEach(d=>{
+    _dedupById([node.dept, ...node.children]).forEach(d=>{
       const r=deptRequirement(d,ug);
       if(!r.mandated) return;
       r.ladder.forEach(row=>{ if(row.facultyHeld) return; grandReq+=row.count; grandMet+=Math.min(cntDeptD(d.id,row.keys),row.count); });
@@ -1276,8 +1315,9 @@ async function _renderNcismStaffing() {
 
     let body='<div style="padding:8px 0 6px"><div style="font-size:11px;font-weight:700;color:var(--text-muted);margin:0 0 4px 16px">'+_esc(dept.name)+'</div>'+ladderTableHtml(dept)+'</div>';
     children.forEach(c=>{
+      const sharedNote=c._sharedWith?'<span style="font-size:10px;font-weight:400;color:var(--text-muted)"> — shared teaching faculty pool with '+_esc(c._sharedWith)+' (NCISM Note 2: ~50% each speciality)</span>':'';
       body+='<div style="margin:6px 0 0 16px;border-left:2px solid var(--border);padding-left:10px">'
-        +'<div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">'+_esc(c.name)+'</div>'
+        +'<div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px">'+_esc(c.name)+sharedNote+'</div>'
         +ladderTableHtml(c)
         +'</div>';
     });
@@ -1574,11 +1614,12 @@ async function _renderDeptStaff() {
   wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
 
   const today = new Date().toISOString().slice(0,10);
-  const [{ data:tRow },{ data:depts },{ data:allStaff },{ data:rosterRows }] = await Promise.all([
+  const [{ data:tRow },{ data:depts },{ data:allStaff },{ data:rosterRows },{ data:opds }] = await Promise.all([
     supabase.from('tenants').select('ug_intake').eq('id',tenantId).single(),
     supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_active,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('profiles').select('id,full_name,role,designation,department_id,is_active,status').eq('tenant_id',tenantId),
     supabase.from('duty_roster').select('department_id,profile_id,shift_type,is_confirmed').eq('tenant_id',tenantId).eq('shift_date',today),
+    supabase.from('opds').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
   ]);
 
   const ugRaw=tRow?.ug_intake||0;
@@ -1743,7 +1784,7 @@ async function _renderDeptStaff() {
   const shalyaDept=(depts||[]).find(d=>d.ncism_code==='SHAL');
   const shalyaHod=shalyaDept?(byDept[shalyaDept.id]||[]).find(s=>['hod','professor'].includes(s.designation)||s.role==='dept_admin'):null;
 
-  const tree=buildDeptTree(depts||[]);
+  const tree=buildDeptTree(depts||[], opds||[]);
   const superAdmin=activeStaff.find(s=>s.role==='super_admin');
   let cardsHtml='<div class="cc" style="margin-bottom:14px;text-align:center;background:#1a4a2e;color:#fff">'
     +'<div style="padding:14px 16px">'
@@ -1770,7 +1811,9 @@ async function _renderDeptStaff() {
       :{};
     let bodyHtml=_deptCard(dept,byDept[dept.id]||[],cardOpts);
     children.forEach(c=>{
+      const sharedNote=c._sharedWith?'<div style="font-size:10px;color:var(--text-muted);margin:-4px 0 6px">Shared teaching faculty pool with '+_esc(c._sharedWith)+' (NCISM Note 2: ~50% each speciality)</div>':'';
       bodyHtml+='<div style="margin-left:20px;border-left:2px solid var(--border);padding-left:12px;margin-top:8px">'
+        +sharedNote
         +_deptCard(c,byDept[c.id]||[],def.key==='OPD_PARENT'?{showDuty:true}:{})
         +'</div>';
     });
@@ -1884,17 +1927,21 @@ function renderHierarchy(staff){
 // SECTION 3 — DEPARTMENTS
 // ────────────────────────────────────────────────
 window.loadDepts = async function(){
-  const [{data:rawDepts},{data:staffRows},{data:tRow}] = await Promise.all([
+  const [{data:rawDepts},{data:staffRows},{data:tRow},{data:rawOpds}] = await Promise.all([
     supabase.from('departments').select('*').eq('tenant_id',tenantId).order('name'),
     supabase.from('profiles').select('department_id').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('tenants').select('type').eq('id',tenantId).single(),
+    supabase.from('opds').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
   ]);
   // This is an HMS Departments directory — the 5 pure pre-clinical teaching departments
   // (Dravyaguna, Kriya Sharira, Rachana Sharira, Rasashastra & Bhaishajya Kalpana, Sanskrit
   // & Samhita) have no hospital operations of their own (no OPD, no beds, no support staff —
   // only Schedule I teaching faculty, tracked separately under NCISM Requirements) and belong
-  // to the future CMS, not here.
+  // to the future CMS, not here. Structurally redundant now that buildDeptTree() drives this
+  // page too (those 5 never match an ORG_TREE_DEF key so they'd never surface anyway), kept
+  // as a defensive no-op.
   const depts = (rawDepts||[]).filter(d => d.category !== 'pre_clinical');
+  const opds = rawOpds||[];
   const sc={}; (staffRows||[]).forEach(s=>{if(s.department_id)sc[s.department_id]=(sc[s.department_id]||0)+1;});
   // NCISM's clinical/pre-clinical/para-clinical classification is a BAMS teaching-curriculum
   // concept — only meaningful for teaching_hospital/college tenants (see Srishti Ayurveda,
@@ -1907,37 +1954,47 @@ window.loadDepts = async function(){
     return;
   }
 
-  // Build parent→children map
-  const childrenOf={};
-  depts.forEach(d=>{ if(d.parent_department_id){ if(!childrenOf[d.parent_department_id])childrenOf[d.parent_department_id]=[]; childrenOf[d.parent_department_id].push(d); }});
-  const parents=depts.filter(d=>!d.parent_department_id);
+  // Session 96: same shared tree as NCISM Requirements / 🏥 Dept. Staff — "OPD" children now
+  // come from the real opds table (OPD Setup), so a newly-added OPD shows up here too and
+  // Shalakya shows its real 2-way split instead of one merged department.
+  const tree = buildDeptTree(depts, opds);
 
   function _deptCard(d,isChild=false){
     const cat=d.category||'clinical';
     const catLabels={clinical:'Clinical',pre_clinical:'Pre-clinical',para_clinical:'Para-clinical',administrative:'Admin',diagnostic:'Diagnostic',support:'Support'};
+    const sharedNote=isChild&&d._sharedWith?`<div class="dept-code" style="margin-top:2px">Shared faculty pool with ${_esc(d._sharedWith)}</div>`:'';
     return `<div class="dept-card${isChild?' dept-child':''}" style="cursor:pointer" data-onclick="openDeptDetail" data-onclick-a0="${d.id}">
       ${isChild?'<div class="dept-child-marker">↳ Sub-unit</div>':''}
       <div class="dept-top">
         ${showAcademicBadge?`<span class="cat-badge ${cat}">${catLabels[cat]||cat}</span>`:''}
         <div class="dept-name">${_esc(d.name)}</div>
         <div class="dept-code">${d.ncism_code?'NCISM: '+_esc(d.ncism_code):'No NCISM code'}</div>
+        ${sharedNote}
       </div>
       <div class="dept-stats">
         <div class="dstat"><div class="dstat-num">${sc[d.id]||0}</div><div class="dstat-lbl">Staff</div></div>
-        <div class="dstat"><div class="dstat-num" style="font-size:14px">${d.is_active?'✓ Active':'✗ Off'}</div><div class="dstat-lbl">Status</div></div>
+        <div class="dstat"><div class="dstat-num" style="font-size:14px">${d.is_active===false?'✗ Off':'✓ Active'}</div><div class="dstat-lbl">Status</div></div>
         <div class="dstat"><div class="dstat-num">${d.pg_seats_sanctioned||'—'}</div><div class="dstat-lbl">PG Seats</div></div>
       </div>
     </div>`;
   }
 
-  wrap.innerHTML=parents.map(p=>`
+  wrap.innerHTML=tree.map(({def,dept,children})=>{
+    if(!dept){
+      return `<div style="margin-bottom:18px;opacity:.6">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:6px">${def.icon} ${_esc(def.label)}</div>
+        <div class="empty" style="padding:14px"><div class="empty-bod">Not yet configured — click <strong>Seed HR Org Structure</strong> under Human Resources.</div></div>
+      </div>`;
+    }
+    return `
     <div style="margin-bottom:18px">
-      <div class="dept-grid">${_deptCard(p,false)}</div>
-      ${(childrenOf[p.id]||[]).length?`
+      <div class="dept-grid">${_deptCard(dept,false)}</div>
+      ${children.length?`
         <div class="dept-grid dept-children-grid" style="margin-top:6px;padding-left:24px">
-          ${(childrenOf[p.id]).map(c=>_deptCard(c,true)).join('')}
+          ${children.map(c=>_deptCard(c,true)).join('')}
         </div>`:''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
 };
 
 // ── Department Detail drill-down ─────────────────────────────────────
