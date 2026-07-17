@@ -598,7 +598,7 @@ async function renderFaculty(depts) {
 // Source: NCISM Schedule XX (image verified 29 May 2026)
 const SCHEDULE_XX = [
   // ── Administrative Zone ──────────────────────────────────────────────────
-  {zone:'Administrative', designation:'Medical Director / Principal / Dean',           role:'super_admin',  ncism:'Sch XX / 1',  req:{60:1,100:1,150:1,200:1}},
+  {zone:'Administrative', designation:'Medical Director / Principal / Dean',           role:'super_admin',  ncism:'Sch XX / 1',  req:{60:1,100:1,150:1,200:1}, note:'Typically held concurrently by an existing faculty member — not counted in section/hospital totals', concurrent:true},
   {zone:'Administrative', designation:'Medical Superintendent',                        role:'dept_admin',   ncism:'Sch XX / 2',  req:{60:1,100:1,150:1,200:1}},
   {zone:'Administrative', designation:'Deputy Medical Superintendent',                 role:'dept_admin',   ncism:'Sch XX / 3',  req:{60:1,100:1,150:2,200:2}},
   {zone:'Administrative', designation:'Administrator',                                 role:'dept_admin',   ncism:'Sch XX / 4',  req:{60:1,100:1,150:2,200:2}},
@@ -722,20 +722,23 @@ async function renderStaffCompliance() {
   const roleCounts = {};
   (profiles || []).forEach(p => { roleCounts[p.role] = (roleCounts[p.role] || 0) + 1; });
 
-  // Build rows
+  // Build rows. concurrent:true (Medical Director / Principal / Dean) is displayed but
+  // excluded from all aggregate totals below — the post is typically held concurrently by
+  // an existing faculty member, so counting it separately would double-count a headcount
+  // already required elsewhere on this table (same rule as admin.js's FACULTY_CONCURRENT_POSTS).
   let totalReq = 0, totalMet = 0;
   const rows = SCHEDULE_XX.map(item => {
     const req    = item.req[intakeKey] || 0;
     const actual = roleCounts[item.role] || 0;
     const met    = actual >= req;
-    if (req > 0) { totalReq++; if (met) totalMet++; }
+    if (req > 0 && !item.concurrent) { totalReq++; if (met) totalMet++; }
     return { ...item, req, actual, met };
   });
 
   // Summary stat cards
   const pct = totalReq > 0 ? Math.round(totalMet / totalReq * 100) : 100;
   const sCls = pct >= 100 ? 'ok' : pct >= 75 ? 'warn' : 'danger';
-  const totalRequired = rows.reduce((s,r) => s + r.req, 0);
+  const totalRequired = rows.reduce((s,r) => s + (r.concurrent ? 0 : r.req), 0);
   const totalActual   = Object.values(roleCounts).reduce((s,v) => s + v, 0);
   document.getElementById('staff-stats').innerHTML = `
     <div class="fstat ${sCls}">
