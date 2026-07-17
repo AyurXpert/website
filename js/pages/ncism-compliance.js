@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { isNCISMType } from '../config/ncism.js';
 
 await requireAuth(['super_admin','dept_admin','accountant']);
 initNavbar();
@@ -523,7 +524,7 @@ async function renderFaculty(depts) {
   const section = document.getElementById('faculty-section');
   if (!section) return;
 
-  if (!['college','hospital'].includes(_tenantType)) { section.style.display = 'none'; return; }
+  if (!isNCISMType(_tenantType)) { section.style.display = 'none'; return; }
   section.style.display = '';
 
   const intake    = _cfg.ugIntake || 60;
@@ -705,7 +706,7 @@ async function renderNurseRatio(regularBeds) {
 async function renderStaffCompliance() {
   const section = document.getElementById('staff-section');
   if (!section) return;
-  if (!['college','hospital'].includes(_tenantType)) { section.style.display = 'none'; return; }
+  if (!isNCISMType(_tenantType)) { section.style.display = 'none'; return; }
   section.style.display = '';
 
   const intake    = _cfg.ugIntake || 60;

@@ -5,6 +5,7 @@ import { logAudit } from '../core/auditLogger.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { isNCISMType } from '../config/ncism.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'super_admin', 'dept_admin']);
@@ -3261,7 +3262,7 @@ await Promise.all([loadQueue(), loadAlerts(), loadInventory(), _loadOpdAttendanc
 
 async function _loadOpdAttendanceBanner() {
   const { data: t } = await supabase.from('tenants').select('ug_intake,opd_daily_target,type').eq('id', tenantId).single();
-  if (!t || !['college','hospital'].includes(t.type)) return;
+  if (!t || !isNCISMType(t.type)) return;
   const target = t.opd_daily_target || ((t.ug_intake || 0) * 2);
   if (!target) return;
 
@@ -3812,13 +3813,13 @@ window.saveOpdConsent = async function() {
 };
 
 // ── NABH Pain Score Display ───────────────────────────────────────────────────
-function _updatePainDisplay(val) {
+window._updatePainDisplay = function(val) {
   const labels = ['0 — No pain','1','2','3 — Mild','4','5 — Moderate','6','7 — Severe','8','9','10 — Worst'];
   const colors = ['#27ae60','#27ae60','#f39c12','#f39c12','#e67e22','#e67e22','#e74c3c','#e74c3c','#c0392b','#c0392b','#8b1a1a'];
   const el = document.getElementById('pain-score-display');
   el.textContent = labels[val] || val;
   el.style.color = colors[val] || 'var(--green-deep)';
-}
+};
 
 // ── NABH Allergy System ───────────────────────────────────────────────────────
 let _patientAllergies = [];

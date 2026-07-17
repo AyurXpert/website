@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { isNCISMType } from '../config/ncism.js';
 
 /*
   SQL to run in Supabase (one time) before using this page:
@@ -152,10 +153,12 @@ async function _renderBedComplianceAlert() {
   const wrap = document.getElementById('ipd-bed-alert');
   if (!wrap) return;
 
-  // Only show for college/hospital tenants
+  // NCISM bed ratios (Table-8) only bind teaching institutions — a plain hospital
+  // tenant has no UG intake to size the ratio against (Session 96, matches the same
+  // fix already applied to admin.js/opd-admin.js).
   const { data: tenant } = await supabase
     .from('tenants').select('ug_intake,type').eq('id', tenantId).single();
-  if (!tenant || !['college','hospital'].includes(tenant.type) || !tenant.ug_intake) {
+  if (!tenant || !isNCISMType(tenant.type) || !tenant.ug_intake) {
     wrap.innerHTML = ''; return;
   }
 
