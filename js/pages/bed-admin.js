@@ -840,6 +840,28 @@ function renderQs2Table(pool) {
     return `<th style="text-align:center;font-size:9px;font-weight:400;padding:2px 4px;opacity:.85;white-space:nowrap">${txt || '—'}</th>`;
   }).join('');
 
+  // Session 96: pre-compute each not-yet-done department's type distribution against a shared,
+  // depleting pool (not the static full pool) so bed TYPE totals across all departments exactly
+  // match the real Table 1 inventory instead of drifting — each department previously computed
+  // its distribution independently against the full pool, so per-department roundings could
+  // each be individually correct while still summing to more (or fewer) beds of a given type
+  // than physically exist. Found live on SDM: Table 1 had 6 twin-sharing beds, but summing the
+  // 7 departments' independently-rounded distributions produced 7 — two departments' roundings
+  // both rounded up. Processed in the same required-desc/priority order rows render in, matching
+  // quickSetupCreateAll()'s own processing order, so the pre-filled inputs an admin sees are
+  // exactly what "Create All Beds" would produce.
+  const distByCode = {};
+  if (!poolIsEmpty) {
+    const runningPool = { ...pool };
+    ncismRows.forEach(r => {
+      const deptBeds = r.dept ? _beds.filter(b => b.department_id === r.dept.id) : [];
+      if (!r.dept || deptBeds.length >= r.required) return; // done/no-dept rows don't consume pool
+      const dist = _distributeProportionally(r.required - deptBeds.length, runningPool);
+      distByCode[r.code] = dist;
+      Object.entries(dist).forEach(([k, v]) => { runningPool[k] = (runningPool[k] || 0) - v; });
+    });
+  }
+
   const tableRows = ncismRows.map(r => {
     const deptBeds   = r.dept ? _beds.filter(b => b.department_id === r.dept.id) : [];
     const configured  = deptBeds.length;
@@ -896,7 +918,7 @@ function renderQs2Table(pool) {
     }
 
     const remaining  = r.required - configured;
-    const dist       = poolIsEmpty ? {} : _distributeProportionally(remaining, pool);
+    const dist       = distByCode[r.code] || {};
     const autoFloor   = poolIsEmpty ? 0 : _qs1DominantFloor(dist);
     const sources     = poolIsEmpty ? [] : _qs1Sources(dist);
     const floorOptHtml = uniqueFloors.map(f =>
