@@ -3,7 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
-import { UG_BED_RATIOS as SF_RATIOS, NCISM_OPDS as SF_OPDS } from '../config/ncism.js';
+import { UG_BED_RATIOS as SF_RATIOS, NCISM_OPDS as SF_OPDS, NCISM_DEPTS as SF_DEPTS } from '../config/ncism.js';
 
 wireDelegatedEvents();
 
@@ -82,9 +82,17 @@ const LF_NCISM_BED_PRIORITY = [
 // level (Schedule XVIII); departments/beds stay one combined 'SHAK' row (Table-8), so a
 // department with ncism_code='SHNT' will never legitimately exist and would otherwise
 // show as permanently "missing" here.
+// Session 96: label was o.description||o.name (NCISM_OPDS.description, e.g. "Internal
+// Medicine" for KAY) — that field describes the OPD's clinical specialty for patient-facing
+// context, not the department's name, so Table 2 (Department Allocation) on a short-form
+// tenant showed bare specialty names instead of real department names ("Internal Medicine"
+// instead of "Kayachikitsa") — found live on SDM. Real department names come from
+// NCISM_DEPTS instead; SCREEN has no NCISM_DEPTS entry (it's OPD-only, no academic
+// department) so it falls back to the OPD's own name.
+const SF_DEPT_NAMES = Object.fromEntries(SF_DEPTS.map(d => [d.ncism_code, d.name]));
 const SF_NCISM_CODES = SF_OPDS
   .filter(o => o.ncism_code !== 'SHNT')
-  .map(o => ({ code:o.ncism_code, label:o.description||o.name, mandatory:true }));
+  .map(o => ({ code:o.ncism_code, label:SF_DEPT_NAMES[o.ncism_code]||o.name, mandatory:true }));
 const SF_DEPT_PREFIX = Object.fromEntries(Object.keys(SF_RATIOS).map(c => [c, c]));
 const SF_NCISM_BED_PRIORITY = ['PK','KAY','SHAL','PST','KAU','SHAK','AGD'];
 
