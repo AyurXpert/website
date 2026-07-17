@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { isNCISMType } from '../config/ncism.js';
 
 await requireAuth(['dept_admin', 'super_admin']);
 initNavbar();
@@ -15,6 +16,11 @@ let _opds        = [];
 let _allDoctors  = [];
 let _selectedOpd = null;
 let _departments = [];
+// Session 96: the mandatory-10 NCISM_OPDS checklist below (Schedule XVIII) only applies
+// to teaching institutions — plain hospital/pk_center/clinic tenants get a smaller,
+// type-appropriate default set from seed_default_org_structure() (Session 95) and were
+// never meant to be told Screening/Swasthavritta/the Shalakya split are "missing".
+let _isNcismTenant = false;
 
 // Session 94: cross-checked against Schedule XVIII — Shalakya is 2 real mandatory OPD
 // units (Netra / Karna-Nasa-Mukha), not 1; "Rog Nidana OPD" was never one of the real
@@ -149,10 +155,14 @@ function _populateNcismSelect() {
 
 // ── NCISM compliance check ─────────────────────────
 function checkNcismCompliance() {
-  const existingCodes = new Set(_opds.filter(o => o.is_active).map(o => o.ncism_code).filter(Boolean));
-  const missing = NCISM_OPDS.filter(n => !existingCodes.has(n.code));
   const banner  = document.getElementById('ncism-banner');
   const text    = document.getElementById('ncism-banner-text');
+  if (!_isNcismTenant) {
+    banner.classList.remove('show');
+    return;
+  }
+  const existingCodes = new Set(_opds.filter(o => o.is_active).map(o => o.ncism_code).filter(Boolean));
+  const missing = NCISM_OPDS.filter(n => !existingCodes.has(n.code));
   if (missing.length) {
     text.innerHTML = `<strong>NCISM Compliance:</strong> ${missing.length} mandatory OPD(s) not configured — `
       + missing.map(m => m.name.replace(' OPD','')).join(', ')
@@ -571,4 +581,7 @@ function _alert(type, msg) {
 
 // ── Boot ──────────────────────────────────────────
 _populateNcismSelect();
+const { data: _tenantRow } = await supabase.from('tenants').select('type').eq('id', tenantId).single();
+_isNcismTenant = isNCISMType(_tenantRow?.type);
+if (!_isNcismTenant) document.getElementById('btn-seed-ncism').style.display = 'none';
 await Promise.all([loadOpds(), loadAllDoctors(), loadDepartments()]);

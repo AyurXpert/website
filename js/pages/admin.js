@@ -140,7 +140,7 @@ window.loadStats = async function() {
   const tenant    = tenantRow?.data;
   const ugIntake  = tenant?.ug_intake  || 0;
   const dailyTgt  = tenant?.opd_daily_target || (ugIntake * 2) || 0;
-  const isCollege = ['college','teaching_hospital','hospital'].includes(tenant?.type);
+  const isCollege = isNCISMType(tenant?.type);
 
   document.getElementById('stats6').innerHTML = [
     {ico:'🏥',cls:'g',   num:patients,       lbl:'Patients Today',    sub:'OPD visits'},
