@@ -148,6 +148,22 @@ window.setPeriod = function(p) {
 
 // ── Main load ─────────────────────────────────────────────────────────────────
 async function loadAll() {
+  // Session 96: this whole page's metrics (OPD target from UG intake, Table-8 bed
+  // ratios, Table-9 occupancy thresholds) only mean something for a teaching
+  // institution — a plain hospital/pk_center/clinic tenant has no real UG intake
+  // to size any of it against (found showing false "critical violations" on
+  // WASA1631, a hospital-type test tenant, after only the Faculty/Staff sections
+  // had been gated). Skip the compute entirely rather than patch each section.
+  const naMsg = document.getElementById('ncism-not-applicable');
+  const metrics = document.getElementById('ncism-metrics');
+  if (!isNCISMType(_tenantType)) {
+    if (naMsg) naMsg.style.display = '';
+    if (metrics) metrics.style.display = 'none';
+    return;
+  }
+  if (naMsg) naMsg.style.display = 'none';
+  if (metrics) metrics.style.display = '';
+
   _refDate = document.getElementById('cfg-date').value || new Date().toISOString().slice(0,10);
   const { from, to } = _dateRange();
   const wdays = _workingDays(from, to);
@@ -492,27 +508,38 @@ function _alert(type, msg) {
   if (type === 'success') setTimeout(() => el.classList.remove('show'), 3000);
 }
 
-// ── Faculty compliance — NCISM Schedule I ────────────────────────────────────
-// Per clinical department per UG intake (NCISM Schedule I — verify from official gazette)
-const FACULTY_REQ = {
-  clinical: {
-    60:  { prof:1, assoc:1, asst:2 },
-    100: { prof:1, assoc:1, asst:3 },
-    150: { prof:1, assoc:2, asst:3 },
-    200: { prof:1, assoc:2, asst:4 },
-  },
-  para_clinical: {
-    60:  { prof:1, assoc:1, asst:1 },
-    100: { prof:1, assoc:1, asst:2 },
-    150: { prof:1, assoc:1, asst:2 },
-    200: { prof:1, assoc:2, asst:2 },
-  },
-  pre_clinical: {
-    60:  { prof:1, assoc:1, asst:1 },
-    100: { prof:1, assoc:1, asst:2 },
-    150: { prof:1, assoc:1, asst:2 },
-    200: { prof:1, assoc:2, asst:2 },
-  },
+// ── Faculty compliance — NCISM Schedule IV (Regulation 34) ───────────────────
+// Real per-department minimum teaching staff, transcribed from the official NCISM
+// Approval Process Handbook, Schedule IV (p.56) and cross-checked column-by-column
+// against the schedule's own Sub-total/Grand-total rows (60:36, 100:51, 150:70,
+// 200:90 — every column of all 4 tiers reconciles exactly) — Session 96.
+// The previous implementation collapsed all 14 departments into 3 uniform buckets
+// (clinical/para-clinical/pre-clinical) with one number per bucket, which does not
+// match the regulation: e.g. at 100 intake Agad Tantra needs only 3 total (the old
+// code said 5, having bucketed it as "clinical"), while Samhita Siddhanta & Sanskrit
+// needs 5 despite being pre-clinical. Found live on SDM Ayurveda Hospital (real
+// teaching_hospital tenant) showing 68 minimum required against a real total of 51.
+// 60-intake note: Schedule IV's own column layout differs here — a single flexible
+// "Professor or Associate Professor" senior post (represented below as prof:1,
+// assoc:0) plus a separate Assistant Professor count, NOT 3 distinct columns like
+// the other tiers — EXCEPT Kayachikitsa, confirmed by Dr. Venkatesh and by the
+// column checksum (15 across 14 depts only resolves if one dept counts twice) to
+// require a Professor AND an Associate Professor both mandatorily.
+const SCHEDULE_IV = {
+  SS:   { 60:{prof:1,assoc:0,asst:3}, 100:{prof:1,assoc:1,asst:3}, 150:{prof:1,assoc:2,asst:3}, 200:{prof:2,assoc:2,asst:3} },
+  RS:   { 60:{prof:1,assoc:0,asst:1}, 100:{prof:1,assoc:1,asst:1}, 150:{prof:1,assoc:1,asst:2}, 200:{prof:2,assoc:2,asst:2} },
+  KS:   { 60:{prof:1,assoc:0,asst:1}, 100:{prof:1,assoc:1,asst:1}, 150:{prof:1,assoc:1,asst:2}, 200:{prof:2,assoc:2,asst:2} },
+  DG:   { 60:{prof:1,assoc:0,asst:1}, 100:{prof:1,assoc:1,asst:1}, 150:{prof:1,assoc:1,asst:2}, 200:{prof:2,assoc:2,asst:2} },
+  RBK:  { 60:{prof:1,assoc:0,asst:1}, 100:{prof:1,assoc:1,asst:1}, 150:{prof:1,assoc:1,asst:2}, 200:{prof:2,assoc:2,asst:2} },
+  RNV:  { 60:{prof:1,assoc:0,asst:1}, 100:{prof:1,assoc:1,asst:1}, 150:{prof:1,assoc:1,asst:2}, 200:{prof:2,assoc:2,asst:2} },
+  AGD:  { 60:{prof:1,assoc:0,asst:1}, 100:{prof:1,assoc:1,asst:1}, 150:{prof:1,assoc:1,asst:2}, 200:{prof:2,assoc:2,asst:2} },
+  SW:   { 60:{prof:1,assoc:0,asst:1}, 100:{prof:1,assoc:1,asst:1}, 150:{prof:1,assoc:2,asst:2}, 200:{prof:2,assoc:2,asst:2} },
+  KAY:  { 60:{prof:1,assoc:1,asst:1}, 100:{prof:1,assoc:2,asst:2}, 150:{prof:1,assoc:2,asst:3}, 200:{prof:2,assoc:2,asst:3} },
+  PK:   { 60:{prof:1,assoc:0,asst:2}, 100:{prof:1,assoc:1,asst:2}, 150:{prof:1,assoc:2,asst:2}, 200:{prof:2,assoc:2,asst:3} },
+  SHAL: { 60:{prof:1,assoc:0,asst:2}, 100:{prof:1,assoc:1,asst:2}, 150:{prof:1,assoc:2,asst:3}, 200:{prof:2,assoc:2,asst:3} },
+  SHAK: { 60:{prof:1,assoc:0,asst:2}, 100:{prof:1,assoc:1,asst:2}, 150:{prof:1,assoc:2,asst:3}, 200:{prof:2,assoc:2,asst:3} },
+  PST:  { 60:{prof:1,assoc:0,asst:2}, 100:{prof:1,assoc:1,asst:2}, 150:{prof:1,assoc:2,asst:3}, 200:{prof:2,assoc:2,asst:3} },
+  KAU:  { 60:{prof:1,assoc:0,asst:2}, 100:{prof:1,assoc:1,asst:2}, 150:{prof:1,assoc:2,asst:3}, 200:{prof:2,assoc:2,asst:2} },
 };
 
 function _closestIntake(ug) {
@@ -541,14 +568,15 @@ async function renderFaculty(depts) {
 
   const totalActual = (staffRows || []).length;
 
-  // Calculate required totals across all depts — excludes non-academic depts
-  // (GENERAL, SCREENING_OPD) via _academicType() returning null for those
+  // Calculate required totals across all depts — only real Schedule IV teaching
+  // departments have an entry (excludes GENERAL/SCREENING_OPD and any facility/ops
+  // department that never gets a real academic ncism_code).
   let totalReq = 0;
   const deptRows = depts
-    .map(d => ({ d, typeKey: _academicType(d.ncism_code) }))
-    .filter(({ typeKey }) => typeKey !== null)
-    .map(({ d, typeKey }) => {
-      const req = (FACULTY_REQ[typeKey]?.[intakeKey]) || { prof:0, assoc:0, asst:0 };
+    .map(d => ({ d, code: String(d.ncism_code || '').toUpperCase(), typeKey: _academicType(d.ncism_code) }))
+    .filter(({ code }) => SCHEDULE_IV[code])
+    .map(({ d, code, typeKey }) => {
+      const req = SCHEDULE_IV[code][intakeKey] || { prof:0, assoc:0, asst:0 };
       const minTotal = req.prof + req.assoc + req.asst;
       totalReq += minTotal;
       return { d, typeKey, req, minTotal };
