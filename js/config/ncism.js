@@ -53,3 +53,33 @@ export const NCISM_DEPTS = [
   { name: 'Rachana Sharira',                  ncism_code: 'RS',  type: 'pre_clinical' },
   { name: 'Kriya Sharira',                    ncism_code: 'KS',  type: 'pre_clinical' },
 ];
+
+// Schedule IV (Regulation 34) — real per-department minimum teaching staff, transcribed
+// from the official NCISM Approval Process Handbook (p.56) and cross-checked column-by-
+// column against the schedule's own Sub-total/Grand-total rows (60:36, 100:51, 150:70,
+// 200:90 — every column of all 4 tiers reconciles exactly) — Session 96. Single source of
+// truth for both ncism-compliance.js (Faculty Strength) and admin.js (HR → NCISM Staffing
+// Compliance) — both previously had their own independent, wrong approximations that
+// collapsed all departments into 3 uniform buckets (clinical/para-clinical/pre-clinical).
+// 60-intake note: Schedule IV's own column layout differs here — a single flexible
+// "Professor or Associate Professor" senior post (represented below as prof:1, assoc:0)
+// plus a separate Assistant Professor count, NOT 3 distinct columns like the other tiers —
+// EXCEPT Kayachikitsa, confirmed by Dr. Venkatesh and by the column checksum (15 across 14
+// depts only resolves if one dept counts twice) to require a Professor AND an Associate
+// Professor both mandatorily.
+export const SCHEDULE_IV = {
+  SS:   { 60:{prof:1,assoc:0,asst:3}, 100:{prof:1,assoc:1,asst:3}, 150:{prof:1,assoc:2,asst:3}, 200:{prof:2,assoc:2,asst:3} },
+  RS:   { 60:{prof:1,assoc:0,asst:1}, 100:{prof:1,assoc:1,asst:1}, 150:{prof:1,assoc:1,asst:2}, 200:{prof:2,assoc:2,asst:2} },
+  KS:   { 60:{prof:1,assoc:0,asst:1}, 100:{prof:1,assoc:1,asst:1}, 150:{prof:1,assoc:1,asst:2}, 200:{prof:2,assoc:2,asst:2} },
+  DG:   { 60:{prof:1,assoc:0,asst:1}, 100:{prof:1,assoc:1,asst:1}, 150:{prof:1,assoc:1,asst:2}, 200:{prof:2,assoc:2,asst:2} },
+  RBK:  { 60:{prof:1,assoc:0,asst:1}, 100:{prof:1,assoc:1,asst:1}, 150:{prof:1,assoc:1,asst:2}, 200:{prof:2,assoc:2,asst:2} },
+  RNV:  { 60:{prof:1,assoc:0,asst:1}, 100:{prof:1,assoc:1,asst:1}, 150:{prof:1,assoc:1,asst:2}, 200:{prof:2,assoc:2,asst:2} },
+  AGD:  { 60:{prof:1,assoc:0,asst:1}, 100:{prof:1,assoc:1,asst:1}, 150:{prof:1,assoc:1,asst:2}, 200:{prof:2,assoc:2,asst:2} },
+  SW:   { 60:{prof:1,assoc:0,asst:1}, 100:{prof:1,assoc:1,asst:1}, 150:{prof:1,assoc:2,asst:2}, 200:{prof:2,assoc:2,asst:2} },
+  KAY:  { 60:{prof:1,assoc:1,asst:1}, 100:{prof:1,assoc:2,asst:2}, 150:{prof:1,assoc:2,asst:3}, 200:{prof:2,assoc:2,asst:3} },
+  PK:   { 60:{prof:1,assoc:0,asst:2}, 100:{prof:1,assoc:1,asst:2}, 150:{prof:1,assoc:2,asst:2}, 200:{prof:2,assoc:2,asst:3} },
+  SHAL: { 60:{prof:1,assoc:0,asst:2}, 100:{prof:1,assoc:1,asst:2}, 150:{prof:1,assoc:2,asst:3}, 200:{prof:2,assoc:2,asst:3} },
+  SHAK: { 60:{prof:1,assoc:0,asst:2}, 100:{prof:1,assoc:1,asst:2}, 150:{prof:1,assoc:2,asst:3}, 200:{prof:2,assoc:2,asst:3} },
+  PST:  { 60:{prof:1,assoc:0,asst:2}, 100:{prof:1,assoc:1,asst:2}, 150:{prof:1,assoc:2,asst:3}, 200:{prof:2,assoc:2,asst:3} },
+  KAU:  { 60:{prof:1,assoc:0,asst:2}, 100:{prof:1,assoc:1,asst:2}, 150:{prof:1,assoc:2,asst:3}, 200:{prof:2,assoc:2,asst:2} },
+};

@@ -5,7 +5,7 @@ import { supabase }   from '../core/db/supabaseClient.js';
 import { logAudit }   from '../core/auditLogger.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS } from '../config/ncism.js';
+import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS, SCHEDULE_IV } from '../config/ncism.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -785,7 +785,13 @@ const ORG_CHILD_DEFS = [
 // Panchakarma + Swasthavritta-Yoga are excluded — they stay top-level per Dr. Venkatesh's spec.
 // Real short-form codes (js/config/ncism.js NCISM_DEPTS) — these are what the seeding RPCs
 // actually write to departments.ncism_code, not the long-form names used elsewhere historically.
-const OPD_CHILD_NCISM_CODES = ['KAY','SHAL','SHAK','KAU','PST','AGD','RNV'];
+// Session 96: 'RNV' (Rog Nidana & Vikruti Vigyana) removed per Dr. Venkatesh — it has no real
+// HMS operational footprint of its own (no OPD, no ward), same "this is HMS, not CMS" call
+// already applied to the 5 pre-clinical teaching departments; it was also never one of the
+// real 10 Schedule XVIII OPDs (see js/config/ncism.js NCISM_OPDS), so it doesn't belong nested
+// under "OPD" as an 11th sub-section either. Dropping it from this list also drops it out of
+// SCHEDULE_I_CODES below, which is correct — no Schedule I faculty tracking for it in HMS.
+const OPD_CHILD_NCISM_CODES = ['KAY','SHAL','SHAK','KAU','PST','AGD'];
 // Screening OPD nests under OPD like the above, but is NOT one of NCISM_DEPTS' 14 academic
 // departments — it has no Schedule I faculty cadre, so it's kept out of OPD_CHILD_NCISM_CODES
 // (whose other job is deriving SCHEDULE_I_CODES below) and re-parented separately.
@@ -824,10 +830,26 @@ function buildDeptTree(depts, injectFacultyChildren){
   });
 }
 
-// Schedule I faculty ladder (Professor/Assoc/Asst), per teaching department, by UG intake
-const FAC_BY_UG = {60:{p:1,a:1,b:2}, 100:{p:1,a:1,b:3}, 150:{p:1,a:2,b:3}, 200:{p:1,a:2,b:4}};
 // Departments that carry the Schedule I faculty ladder (8-10 clinical teaching depts + optional PG depts)
 const SCHEDULE_I_CODES = [...OPD_CHILD_NCISM_CODES, 'PK', 'SW'];
+// Session 96: real per-department Schedule IV requirement (js/config/ncism.js SCHEDULE_IV),
+// replacing the old FAC_BY_UG uniform bucket ({60:{p:1,a:1,b:2}, 100:{p:1,a:1,b:3}, ...})
+// that applied ONE number to every department regardless of which one it actually was —
+// found live on SDM (real teaching_hospital) showing Professor:1/Associate:1/Assistant:3 for
+// every single teaching department, which doesn't match the regulation (e.g. real Agad Tantra
+// at 100 intake needs only 3 total, not 5). Sums each actually-configured Schedule-I
+// department's own requirement; falls back to the full SCHEDULE_I_CODES list (still per-
+// department, not a flat multiply) when no real departments exist yet, e.g. before first seed.
+function _scheduleIFacultyTotal(depts, ug) {
+  const real = (depts||[]).filter(d => d.ncism_code && SCHEDULE_I_CODES.includes(d.ncism_code));
+  const codes = real.length ? real.map(d => d.ncism_code) : SCHEDULE_I_CODES;
+  const tot = {p:0, a:0, b:0};
+  codes.forEach(code => {
+    const req = SCHEDULE_IV[code]?.[ug];
+    if (req) { tot.p += req.prof; tot.a += req.assoc; tot.b += req.asst; }
+  });
+  return { ...tot, count: real.length || codes.length };
+}
 // Maps each NCISM_XX_ROWS zone label onto the department key (category or ncism_code) it now lives under
 const ORG_ZONE_MAP = {
   'Administration':'ADMIN', 'Finance & Accounts':'FINANCE', 'Reception & MRD':'ADMIN',
@@ -848,15 +870,15 @@ const ZONE_SECTION_LABEL = {
 // summing Schedule I faculty (across all SCHEDULE_I_CODES teaching depts) + every Schedule XX
 // operational row, bucketed via DESIG_ROLE_DEFAULT. This is the SAME source of truth as the
 // NCISM Staffing Compliance panel's department-wise ladder (deptRequirement/NCISM_XX_ROWS/
-// FAC_BY_UG) — used by the Statistics page's "NCISM Setup Compliance" checklist so its
+// _scheduleIFacultyTotal) — used by the Statistics page's "NCISM Setup Compliance" checklist so its
 // role-level minimums can never independently drift from the real ladder again (they
 // previously did: hardcoded placeholder constants that didn't scale with UG intake at all).
 function _ncismRoleMinimums(ug){
   const byRole = {};
   const add = (role, n) => { if (role) byRole[role] = (byRole[role]||0) + n; };
 
-  const fac = FAC_BY_UG[ug];
-  if (fac) add('doctor', (fac.p + fac.a + fac.b) * SCHEDULE_I_CODES.length);
+  const fac = _scheduleIFacultyTotal(null, ug);
+  add('doctor', fac.p + fac.a + fac.b);
 
   NCISM_XX_ROWS.forEach(([,,keys,req]) => {
     const c = req[ug] || 0;
@@ -885,11 +907,11 @@ function deptRequirement(dept, ug){
 
   if(!operationalOnly && dept.ncism_code && SCHEDULE_I_CODES.includes(dept.ncism_code)){
     mandated=true;
-    const fac=FAC_BY_UG[ug];
+    const fac=SCHEDULE_IV[dept.ncism_code]?.[ug] || {prof:0,assoc:0,asst:0};
     const z='Teaching Faculty (Schedule I)';
-    if(fac.p) ladder.push({zone:z, label:'Professor / HOD',        count:fac.p, ref:'Sch I', keys:['professor','hod']});
-    if(fac.a) ladder.push({zone:z, label:'Associate Professor',     count:fac.a, ref:'Sch I', keys:['associate_professor']});
-    if(fac.b) ladder.push({zone:z, label:'Assistant Professor',     count:fac.b, ref:'Sch I', keys:['assistant_professor']});
+    if(fac.prof) ladder.push({zone:z, label:'Professor / HOD',        count:fac.prof, ref:'Sch I', keys:['professor','hod']});
+    if(fac.assoc) ladder.push({zone:z, label:'Associate Professor',     count:fac.assoc, ref:'Sch I', keys:['associate_professor']});
+    if(fac.asst) ladder.push({zone:z, label:'Assistant Professor',     count:fac.asst, ref:'Sch I', keys:['assistant_professor']});
     if(dept.is_pg_dept){
       const seats=dept.pg_seats_sanctioned||3, pgBeds=seats*4;
       ladder.push({zone:z, label:'Senior Resident (PG)',            count:Math.ceil(seats/3),      ref:'PG 1 per 3 seats',  keys:['senior_resident']});
@@ -1042,10 +1064,9 @@ async function _renderNcismStaffing() {
   const cntDeptD=(deptId,keys)=>(byDept[deptId]||[]).filter(s=>(keys||[]).includes(s.designation)).length;
 
   // Faculty (Schedule I) — clinDepts = however many Schedule-I teaching depts are actually configured
-  const fac=FAC_BY_UG[ug];
-  const scheduleIDepts=(depts||[]).filter(d=>d.ncism_code && SCHEDULE_I_CODES.includes(d.ncism_code));
-  const clinDepts=scheduleIDepts.length||8;
-  const FAC_UG={p:clinDepts*fac.p, a:clinDepts*fac.a, b:clinDepts*fac.b};
+  const facTotal=_scheduleIFacultyTotal(depts, ug);
+  const clinDepts=facTotal.count;
+  const FAC_UG={p:facTotal.p, a:facTotal.a, b:facTotal.b};
   const facReq=FAC_UG.p+FAC_UG.a+FAC_UG.b;
   const facAct=cntD(['professor','hod','associate_professor','assistant_professor']);
   const facGap=Math.max(0,facReq-facAct);
@@ -1433,10 +1454,9 @@ async function _renderStaffingPlan() {
   const cntD = keys => keys.reduce((s,k)=>s+(byDesig[k]||0),0);
   const pgList = pgDepts || [];
 
-  const fac=FAC_BY_UG[ug];
-  const scheduleIDepts=(depts||[]).filter(d=>d.ncism_code && SCHEDULE_I_CODES.includes(d.ncism_code));
-  const clinDepts=scheduleIDepts.length||8;
-  const FAC_UG={p:clinDepts*fac.p, a:clinDepts*fac.a, b:clinDepts*fac.b};
+  const facTotal=_scheduleIFacultyTotal(depts, ug);
+  const clinDepts=facTotal.count;
+  const FAC_UG={p:facTotal.p, a:facTotal.a, b:facTotal.b};
 
   const keyTotPG={};
   pgList.forEach(d=>{
@@ -4329,7 +4349,7 @@ async function _renderNcismChecklist(ugIntake, orgType) {
 
   const intake      = ugIntake || 60; // fallback to 60 for display
   const minBeds     = intake;
-  // Snap to the nearest defined tier — FAC_BY_UG/NCISM_XX_ROWS are only keyed 60/100/150/200,
+  // Snap to the nearest defined tier — SCHEDULE_IV/NCISM_XX_ROWS are only keyed 60/100/150/200,
   // same normalization the NCISM Staffing Compliance panel uses (_renderNcismStaffing).
   const ugTier      = [60,100,150,200].includes(intake) ? intake : (intake>=150?150:intake>=100?100:60);
   const roleMin     = _ncismRoleMinimums(ugTier);
