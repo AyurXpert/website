@@ -126,15 +126,16 @@ const ROOM_CAPACITY = { twin_sharing:2, semi_private:2, private:1, deluxe:1, icu
 
 // Assigns unit_number/unit_name to a batch of not-yet-inserted bed row objects (mutates
 // in place), continuing the existing global-per-(tenant,bed_type) sequence already in
-// _beds. Room-based types fill any partially-full last room before starting a new one,
-// and NEVER get a ward_name -- Room N already identifies them precisely, and a stray
-// typed-or-inherited ward label only causes confusion (Session 101: SDM's stale seed
-// data had every bed in a department, Deluxe rooms included, showing that department's
-// generic ward name for no reason). Open-ward types are grouped by DEPARTMENT, not by
-// matching ward_name text -- each department's open-ward beds are their own numbered ward
-// instance by default, so two unrelated departments never get silently merged just
-// because an admin (or old seed data) happened to type the same generic label for both.
-// ward_name is purely an optional cosmetic label on top, carried into unit_name.
+// _beds. Room-based types fill any partially-full last room before starting a new one;
+// ward_name is left exactly as typed for them (a plain optional building/location note
+// shown alongside "Room N" -- Session 101 wiped stale seed values but a genuinely admin-
+// typed one is still real location info and shouldn't be discarded). It's just never part
+// of a room's GROUPING/numbering, unlike open-ward types below. Open-ward types are
+// grouped by DEPARTMENT, not by matching ward_name text -- each department's open-ward
+// beds are their own numbered ward instance by default, so two unrelated departments
+// never get silently merged just because an admin (or old seed data) happened to type the
+// same generic label for both; ward_name there is carried into unit_name as the group's
+// cosmetic label.
 function _assignUnitNumbers(rows) {
   const byType = {};
   rows.forEach(r => { (byType[r.bed_type] ||= []).push(r); });
@@ -150,7 +151,6 @@ function _assignUnitNumbers(rows) {
       typeRows.forEach(r => {
         if (countInRoom >= capacity) { roomNum++; countInRoom = 0; }
         r.unit_number = roomNum;
-        r.ward_name   = null;
         countInRoom++;
       });
     } else {
@@ -1062,7 +1062,7 @@ function renderQs2Table(pool) {
         <span class="qs-total ${totalClass}" id="qs-total-${r.code}">${totalText}</span>
         <div style="font-size:9px;color:var(--text-muted);margin-top:2px">of ${remaining} needed</div>
       </td>
-      <td style="min-width:110px"><input class="qs-input wide" type="text" id="qs-ward-${r.code}" placeholder="e.g. Male General Ward — Block A" title="Only applies to General/Dormitory-type beds in this batch — ignored for Room, Deluxe, Twin Sharing etc."/></td>
+      <td style="min-width:110px"><input class="qs-input wide" type="text" id="qs-ward-${r.code}" placeholder="e.g. Main Building — Block A" title="Optional building/location note. For General/Dormitory-type beds in this batch, also groups them into a numbered Ward."/></td>
       <td style="min-width:140px;vertical-align:top;padding:6px 8px">${sourcesHtml}</td>
       <td>
         <select class="qs-input" id="qs-floor-${r.code}" style="width:90px;padding:4px 6px">
@@ -1082,7 +1082,7 @@ function renderQs2Table(pool) {
           <th rowspan="2" style="text-align:center;min-width:65px;vertical-align:middle">NCISM<br>Required</th>
           ${colHeadersRow1}
           <th rowspan="2" style="text-align:center;min-width:72px;vertical-align:middle">Total<br>(of needed)</th>
-          <th rowspan="2" style="min-width:115px;vertical-align:middle">Ward Name<br><span style="font-weight:400;opacity:.7;font-size:9px">General/Dormitory only</span></th>
+          <th rowspan="2" style="min-width:115px;vertical-align:middle">Ward Name<br><span style="font-weight:400;opacity:.7;font-size:9px">optional; groups General/Dormitory beds</span></th>
           <th rowspan="2" style="min-width:140px;vertical-align:middle">Building Sources<br><span style="font-weight:400;opacity:.7;font-size:9px">(from Table 1)</span></th>
           <th rowspan="2" style="vertical-align:middle">Floor<br><span style="font-weight:400;opacity:.7;font-size:9px">(auto from pool)</span></th>
           <th rowspan="2"></th>
