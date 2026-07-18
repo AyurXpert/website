@@ -60,8 +60,8 @@ const _ctx     = { tenantId, userId, userName: profile.full_name };
 // ── Tenant feature gating ─────────────────────────
 // All 4 Disposition options are always visible.
 // The PK and Admission DETAIL TABS are tenant-gated.
-const PK_TYPES  = ['pk_center', 'hospital', 'college'];
-const ADM_TYPES = ['hospital', 'college'];
+const PK_TYPES  = ['pk_center', 'hospital', 'teaching_hospital', 'college'];
+const ADM_TYPES = ['hospital', 'teaching_hospital', 'college'];
 
 let _hasPK  = false;
 let _hasAdm = false;
