@@ -116,6 +116,59 @@ const BED_TYPE_SHORT = {
   icu:'ICU', day_care:'Day Care', pk_treatment:'PK Tx', observation:'Obs',
 };
 
+// Session 100 — Room/Ward "unit" numbering. Types listed here are room-based (fixed
+// beds/room, e.g. Twin Sharing = 2, Deluxe = 1); room count/numbers are fully automatic
+// from bed count, no admin input needed. Types NOT listed are open-ward style (General,
+// Dormitory, Observation, Day Care) — a "ward instance" there is however many beds share
+// the same ward_name text, keyed off the ward_name field admins already type into Quick
+// Setup/Bulk Add, not a fixed capacity. See TECHNICAL_REFERENCE.md for the full design.
+const ROOM_CAPACITY = { twin_sharing:2, semi_private:2, private:1, deluxe:1, icu:1, pk_treatment:1 };
+
+// Assigns unit_number/unit_name to a batch of not-yet-inserted bed row objects (mutates
+// in place), continuing the existing global-per-(tenant,bed_type) sequence already in
+// _beds. Room-based types fill any partially-full last room before starting a new one;
+// open-ward types reuse an existing ward's number when ward_name text matches, else
+// assign the next number and carry the ward_name forward as unit_name.
+function _assignUnitNumbers(rows) {
+  const byType = {};
+  rows.forEach(r => { (byType[r.bed_type] ||= []).push(r); });
+
+  Object.entries(byType).forEach(([type, typeRows]) => {
+    const capacity = ROOM_CAPACITY[type];
+    const existing = _beds.filter(b => b.bed_type === type && b.unit_number != null);
+
+    if (capacity) {
+      const maxRoom    = existing.length ? Math.max(...existing.map(b => b.unit_number)) : 0;
+      let roomNum      = maxRoom || 1;
+      let countInRoom  = maxRoom ? existing.filter(b => b.unit_number === maxRoom).length : 0;
+      typeRows.forEach(r => {
+        if (countInRoom >= capacity) { roomNum++; countInRoom = 0; }
+        r.unit_number = roomNum;
+        countInRoom++;
+      });
+    } else {
+      let nextNum = existing.length ? Math.max(...existing.map(b => b.unit_number)) + 1 : 1;
+      const wardNums = {};
+      existing.forEach(b => { if (b.ward_name && !(b.ward_name in wardNums)) wardNums[b.ward_name] = b.unit_number; });
+      typeRows.forEach(r => {
+        const key = r.ward_name || null;
+        if (key === null) { r.unit_number = null; r.unit_name = null; return; }
+        if (!(key in wardNums)) wardNums[key] = nextNum++;
+        r.unit_number = wardNums[key];
+        r.unit_name   = key;
+      });
+    }
+  });
+  return rows;
+}
+
+// "Room 5" / "Room 5 — Sunrise Suite" / "Ward 2" / "Ward 2 — Surgical Ward"
+function _unitLabel(b) {
+  if (b.unit_number == null) return '';
+  const word = ROOM_CAPACITY[b.bed_type] ? 'Room' : 'Ward';
+  return `${word} ${b.unit_number}` + (b.unit_name ? ` — ${b.unit_name}` : '');
+}
+
 // Returns the global reserved start number for a dept based on NCISM allocation rank.
 // Depts are sorted descending by required beds; ties broken by NCISM_BED_PRIORITY.
 // PK (15 beds) → 1, KC (12) → 16, SHAL (12) → 28, PST (6) → 40 … etc.
@@ -1175,12 +1228,18 @@ window.quickSetupCreateRow = async function(code, silent) {
   const btn = document.getElementById(`qs-btn-${code}`);
   if (btn) { btn.disabled = true; btn.textContent = 'Creating…'; }
 
+  _assignUnitNumbers(rows);
   const { error } = await supabase.from('beds').insert(rows);
   if (error) {
     if (!silent) _alert('error', safeErrorMessage(error, `Failed to add ${prefix} beds.`));
     if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
     return { error };
   }
+  // quickSetupCreateAll() loops this per department without reloading _beds in between --
+  // push the newly-created rows in immediately so the next department's own bed types
+  // (deluxe etc. commonly span every department) see these rooms/wards as taken and
+  // continue the sequence instead of colliding on the same unit_number.
+  _beds.push(...rows);
   return { added: rows.length };
 };
 
@@ -1472,11 +1531,13 @@ function renderBeds() {
   grid.innerHTML = beds.map(b => {
     const st        = b.status || 'vacant';
     const typeLabel = BED_LABELS[b.bed_type] || b.bed_type.replace(/_/g,' ');
-    return `<div class="bed-card ${st}" data-onclick="openBedDrawer" data-onclick-a0="${_esc(b.id)}" title="${_esc(b.bed_number)} — ${deptMap[b.department_id] || ''} — ${st}">
+    const unitLbl = _unitLabel(b);
+    return `<div class="bed-card ${st}" data-onclick="openBedDrawer" data-onclick-a0="${_esc(b.id)}" title="${_esc(b.bed_number)}${unitLbl ? ' — ' + _esc(unitLbl) : ''} — ${deptMap[b.department_id] || ''} — ${st}">
       ${b.is_pg_allocated ? '<div class="bed-pg-dot" title="PG-allocated"></div>' : ''}
       <div class="bed-num">${_esc(b.bed_number)}</div>
       <div class="bed-dept-name">${_esc(deptMap[b.department_id] || '—')}</div>
-      ${b.ward_name ? `<div class="bed-ward">${_esc(b.ward_name)}</div>` : ''}
+      ${b.unit_number != null ? `<div class="bed-unit">${_esc(_unitLabel(b))}</div>` : ''}
+      ${b.ward_name && b.unit_name !== b.ward_name ? `<div class="bed-ward">${_esc(b.ward_name)}</div>` : ''}
       <div class="bed-type-badge ${b.bed_type}">${typeLabel}</div>
       <div class="bed-card-status ${st}">${STATUS_LABELS[st] || st}</div>
     </div>`;
@@ -1817,8 +1878,13 @@ window.saveBed = async function() {
 
   let error;
   if (id) {
+    // Editing an existing bed leaves unit_number/unit_name untouched -- recomputing here
+    // risks colliding with the bed's own prior room/ward if type/ward_name didn't
+    // actually change. If they DID change, that's a manual admin correction for now,
+    // same as how "extra" bed numbers already work.
     ({ error } = await supabase.from('beds').update(payload).eq('id', id));
   } else {
+    _assignUnitNumbers([payload]);
     ({ error } = await supabase.from('beds').insert(payload));
   }
 
@@ -2310,6 +2376,7 @@ window.bulkAddBeds = async function() {
   btn.disabled = true;
   btn.textContent = `Adding ${rows.length} beds…`;
 
+  _assignUnitNumbers(rows);
   const { error } = await supabase.from('beds').insert(rows);
   btn.disabled = false;
   btn.textContent = 'Add Selected Beds';
