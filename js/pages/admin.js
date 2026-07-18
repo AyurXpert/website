@@ -59,11 +59,18 @@ function _bootMasterControl() {
   });
 
   // ── Hash routing — honour admin.html#stats links from other pages ────────────
+  // #target:sub (e.g. #hr:dept) also drives HR's own sub-tabs (.hr-tab, data-sub), which
+  // aren't otherwise reachable via a direct link — Session 104: the NCISM Setup Compliance
+  // checklist's "All departments configured" needs to land specifically on HR's
+  // "Dept. Staff" sub-tab (the one unfiltered department list matching its own "29 active
+  // departments" count), not just the HR section's default Staff-list sub-tab.
   function _handleHash() {
     const hash = location.hash.slice(1);
     if (!hash) return;
-    const btn = document.querySelector(`.sb-item[data-target="${hash}"],.sb-sub[data-target="${hash}"]`);
+    const [target, sub] = hash.split(':');
+    const btn = document.querySelector(`.sb-item[data-target="${target}"],.sb-sub[data-target="${target}"]`);
     if (btn) btn.click();
+    if (sub) setTimeout(() => document.querySelector(`.hr-tab[data-sub="${sub}"]`)?.click(), 50);
   }
   setTimeout(_handleHash, 300);
   window.addEventListener('hashchange', _handleHash);
@@ -4467,12 +4474,12 @@ async function _renderNcismChecklist(ugIntake, orgType) {
           `${totalOpds} created, ${activeOpds} active`,
           totalOpds >= 10, totalOpds >= 8,
           totalOpds < 10 ? 'Seed OPDs' : 'Manage', 'opd-admin.html'),
-        item('🏛','All departments configured',
-          `${activeDepts} active departments`,
+        item('🏛','All hospital departments configured',
+          `${activeDepts} active departments — full org-tree (HR)`,
           activeDepts >= 10, activeDepts >= 7,
-          'Manage', 'bed-admin.html?tab=dept'),
+          'Manage', 'admin.html#hr:dept'),
         item('🛏','Minimum beds = UG intake',
-          `${totalBeds} beds configured (minimum: ${minBeds})`,
+          `${totalBeds} beds configured (minimum: ${minBeds}) — 7 clinical/IPD-bedded departments`,
           totalBeds >= minBeds, totalBeds >= Math.floor(minBeds * 0.8),
           totalBeds < minBeds ? 'Add Beds' : 'View',
           totalBeds < minBeds ? 'bed-admin.html?tab=quick' : 'bed-admin.html?tab=beds'),
