@@ -126,9 +126,15 @@ const ROOM_CAPACITY = { twin_sharing:2, semi_private:2, private:1, deluxe:1, icu
 
 // Assigns unit_number/unit_name to a batch of not-yet-inserted bed row objects (mutates
 // in place), continuing the existing global-per-(tenant,bed_type) sequence already in
-// _beds. Room-based types fill any partially-full last room before starting a new one;
-// open-ward types reuse an existing ward's number when ward_name text matches, else
-// assign the next number and carry the ward_name forward as unit_name.
+// _beds. Room-based types fill any partially-full last room before starting a new one,
+// and NEVER get a ward_name -- Room N already identifies them precisely, and a stray
+// typed-or-inherited ward label only causes confusion (Session 101: SDM's stale seed
+// data had every bed in a department, Deluxe rooms included, showing that department's
+// generic ward name for no reason). Open-ward types are grouped by DEPARTMENT, not by
+// matching ward_name text -- each department's open-ward beds are their own numbered ward
+// instance by default, so two unrelated departments never get silently merged just
+// because an admin (or old seed data) happened to type the same generic label for both.
+// ward_name is purely an optional cosmetic label on top, carried into unit_name.
 function _assignUnitNumbers(rows) {
   const byType = {};
   rows.forEach(r => { (byType[r.bed_type] ||= []).push(r); });
@@ -144,18 +150,17 @@ function _assignUnitNumbers(rows) {
       typeRows.forEach(r => {
         if (countInRoom >= capacity) { roomNum++; countInRoom = 0; }
         r.unit_number = roomNum;
+        r.ward_name   = null;
         countInRoom++;
       });
     } else {
       let nextNum = existing.length ? Math.max(...existing.map(b => b.unit_number)) + 1 : 1;
-      const wardNums = {};
-      existing.forEach(b => { if (b.ward_name && !(b.ward_name in wardNums)) wardNums[b.ward_name] = b.unit_number; });
+      const deptNums = {};
+      existing.forEach(b => { if (!(b.department_id in deptNums)) deptNums[b.department_id] = b.unit_number; });
       typeRows.forEach(r => {
-        const key = r.ward_name || null;
-        if (key === null) { r.unit_number = null; r.unit_name = null; return; }
-        if (!(key in wardNums)) wardNums[key] = nextNum++;
-        r.unit_number = wardNums[key];
-        r.unit_name   = key;
+        if (!(r.department_id in deptNums)) deptNums[r.department_id] = nextNum++;
+        r.unit_number = deptNums[r.department_id];
+        r.unit_name   = r.ward_name || null;
       });
     }
   });
@@ -167,6 +172,24 @@ function _unitLabel(b) {
   if (b.unit_number == null) return '';
   const word = ROOM_CAPACITY[b.bed_type] ? 'Room' : 'Ward';
   return `${word} ${b.unit_number}` + (b.unit_name ? ` — ${b.unit_name}` : '');
+}
+
+// Shared "existing bed" chip used on both the Departments tab card and the dept-info
+// side panel (Add/Bulk Add drawers) -- kept as one function so the two never drift again
+// (Session 101: the two inline copies had already drifted, both showing raw ward_name
+// with no room/ward number at all).
+function _bedTagHtml(b) {
+  const unitLbl = _unitLabel(b);
+  const sub = [
+    BED_TYPE_SHORT[b.bed_type] || b.bed_type,
+    unitLbl ? _esc(unitLbl) : '',
+    b.ward_name && b.unit_name !== b.ward_name ? _esc(b.ward_name) : '',
+  ].filter(Boolean).join(' · ');
+  return `<span class="dept-bed-tag ${b.status !== 'vacant' ? b.status : ''}"
+    data-onclick="openBedDrawer" data-onclick-a0="${_esc(b.id)}" title="Edit ${_esc(b.bed_number)}" style="cursor:pointer">
+    <span>${_esc(b.bed_number)} <em>F${b.floor_number ?? 0}</em></span>
+    ${sub ? `<span class="dbt-sub">${sub}</span>` : ''}
+  </span>`;
 }
 
 // Returns the global reserved start number for a dept based on NCISM allocation rank.
@@ -1039,7 +1062,7 @@ function renderQs2Table(pool) {
         <span class="qs-total ${totalClass}" id="qs-total-${r.code}">${totalText}</span>
         <div style="font-size:9px;color:var(--text-muted);margin-top:2px">of ${remaining} needed</div>
       </td>
-      <td style="min-width:110px"><input class="qs-input wide" type="text" id="qs-ward-${r.code}" placeholder="Ward name (optional)"/></td>
+      <td style="min-width:110px"><input class="qs-input wide" type="text" id="qs-ward-${r.code}" placeholder="e.g. Male General Ward — Block A" title="Only applies to General/Dormitory-type beds in this batch — ignored for Room, Deluxe, Twin Sharing etc."/></td>
       <td style="min-width:140px;vertical-align:top;padding:6px 8px">${sourcesHtml}</td>
       <td>
         <select class="qs-input" id="qs-floor-${r.code}" style="width:90px;padding:4px 6px">
@@ -1059,7 +1082,7 @@ function renderQs2Table(pool) {
           <th rowspan="2" style="text-align:center;min-width:65px;vertical-align:middle">NCISM<br>Required</th>
           ${colHeadersRow1}
           <th rowspan="2" style="text-align:center;min-width:72px;vertical-align:middle">Total<br>(of needed)</th>
-          <th rowspan="2" style="min-width:115px;vertical-align:middle">Ward Name<br><span style="font-weight:400;opacity:.7">(optional)</span></th>
+          <th rowspan="2" style="min-width:115px;vertical-align:middle">Ward Name<br><span style="font-weight:400;opacity:.7;font-size:9px">General/Dormitory only</span></th>
           <th rowspan="2" style="min-width:140px;vertical-align:middle">Building Sources<br><span style="font-weight:400;opacity:.7;font-size:9px">(from Table 1)</span></th>
           <th rowspan="2" style="vertical-align:middle">Floor<br><span style="font-weight:400;opacity:.7;font-size:9px">(auto from pool)</span></th>
           <th rowspan="2"></th>
@@ -1458,14 +1481,7 @@ function renderDepts() {
       ${isRounded ? `<div class="rounding-note">* ${_ugIntake} × ${ratio * 100}% = ${exactRequired} beds — rounded down to ${requiredBeds}. Collectively all departments meet the NCISM Table-8 minimum of ${_ugIntake} beds.</div>` : ''}` : '';
 
     const bedListHtml = deptBeds.length > 0
-      ? `<div class="dept-bed-list">${deptBeds.map(b => {
-          const sub = [BED_TYPE_SHORT[b.bed_type] || b.bed_type, b.ward_name ? _esc(b.ward_name) : ''].filter(Boolean).join(' · ');
-          return `<span class="dept-bed-tag ${b.status !== 'vacant' ? b.status : ''}"
-            data-onclick="openBedDrawer" data-onclick-a0="${_esc(b.id)}" title="Edit ${_esc(b.bed_number)}" style="cursor:pointer">
-            <span>${_esc(b.bed_number)} <em>F${b.floor_number ?? 0}</em></span>
-            ${sub ? `<span class="dbt-sub">${sub}</span>` : ''}
-          </span>`;
-        }).join('')}</div>`
+      ? `<div class="dept-bed-list">${deptBeds.map(_bedTagHtml).join('')}</div>`
       : `<div class="dept-no-beds">No beds added yet</div>`;
 
     return `<div class="dept-card">
@@ -1538,6 +1554,7 @@ function renderBeds() {
       <div class="bed-dept-name">${_esc(deptMap[b.department_id] || '—')}</div>
       ${b.unit_number != null ? `<div class="bed-unit">${_esc(_unitLabel(b))}</div>` : ''}
       ${b.ward_name && b.unit_name !== b.ward_name ? `<div class="bed-ward">${_esc(b.ward_name)}</div>` : ''}
+      <div class="bed-floor">${b.floor_number === 0 ? 'Ground Floor' : `Floor ${b.floor_number ?? 0}`}</div>
       <div class="bed-type-badge ${b.bed_type}">${typeLabel}</div>
       <div class="bed-card-status ${st}">${STATUS_LABELS[st] || st}</div>
     </div>`;
@@ -1682,15 +1699,7 @@ window.updateDeptInfo = function(prefix) {
   const bedListHtml = deptBeds.length > 0
     ? `<div class="dept-info-beds">
         <div class="dept-info-beds-label">Beds in this department <span style="font-size:10px;color:var(--text-muted);font-weight:400">(click to edit)</span></div>
-        <div class="dept-bed-list">${deptBeds.map(b => {
-          const sub = [BED_TYPE_SHORT[b.bed_type] || b.bed_type, b.ward_name ? _esc(b.ward_name) : ''].filter(Boolean).join(' · ');
-          return `<span class="dept-bed-tag ${b.status !== 'vacant' ? b.status : ''}"
-            data-onclick="openBedDrawer" data-onclick-a0="${_esc(b.id)}" title="Edit ${_esc(b.bed_number)}" style="cursor:pointer">
-            <span>${_esc(b.bed_number)} <em>F${b.floor_number ?? 0}</em></span>
-            ${sub ? `<span class="dbt-sub">${sub}</span>` : ''}
-          </span>`;
-        }).join('')}
-        </div>
+        <div class="dept-bed-list">${deptBeds.map(_bedTagHtml).join('')}</div>
        </div>`
     : `<div style="font-size:12px;color:var(--text-muted)">No beds in this department yet.</div>`;
 
