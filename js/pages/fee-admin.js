@@ -98,17 +98,65 @@ const CAT_TYPES = {
     { value:'other_lab',          label:'Other Lab Test' }
   ],
   procedure: [
-    { value:'pk_abhyanga',        label:'Panchakarma — Abhyanga' },
-    { value:'pk_shirodhara',      label:'Panchakarma — Shirodhara' },
-    { value:'pk_vasti',           label:'Panchakarma — Vasti' },
-    { value:'pk_kizhi',           label:'Panchakarma — Kizhi' },
-    { value:'pk_nasya',           label:'Panchakarma — Nasya' },
-    { value:'pk_pizhichil',       label:'Panchakarma — Pizhichil' },
+    // ── General / Nursing ──
     { value:'physiotherapy',      label:'Physiotherapy Session' },
     { value:'wound_dressing',     label:'Wound Dressing' },
     { value:'injection',          label:'Injection (IM/SC)' },
     { value:'iv_cannula',         label:'IV Cannula / Fluid' },
     { value:'nebulization',       label:'Nebulization' },
+    // ── Kayachikitsa (Internal Medicine) ──
+    { value:'kay_snehapana',      label:'Kayachikitsa — Snehapana (Internal Oleation)' },
+    { value:'kay_virechana',      label:'Kayachikitsa — Virechana Karma' },
+    // ── Panchakarma ──
+    { value:'pk_abhyanga',        label:'Panchakarma — Abhyanga' },
+    { value:'pk_shirodhara',      label:'Panchakarma — Shirodhara' },
+    { value:'pk_vasti',           label:'Panchakarma — Vasti (generic)' },
+    { value:'pk_vasti_anuvasana', label:'Panchakarma — Vasti (Anuvasana)' },
+    { value:'pk_vasti_niruha',    label:'Panchakarma — Vasti (Niruha)' },
+    { value:'pk_kizhi',           label:'Panchakarma — Kizhi (Pinda Sweda)' },
+    { value:'pk_nasya',           label:'Panchakarma — Nasya' },
+    { value:'pk_pizhichil',       label:'Panchakarma — Pizhichil' },
+    { value:'pk_udvartana',       label:'Panchakarma — Udvartana (Powder Massage)' },
+    { value:'pk_shirovasti',      label:'Panchakarma — Shirovasti' },
+    { value:'pk_raktamokshana',   label:'Panchakarma — Raktamokshana' },
+    { value:'pk_kati_vasti',      label:'Panchakarma — Kati Vasti' },
+    { value:'pk_janu_vasti',      label:'Panchakarma — Janu Vasti' },
+    { value:'pk_greeva_vasti',    label:'Panchakarma — Greeva Vasti' },
+    { value:'pk_matra_basti',     label:'Panchakarma — Matra Basti' },
+    // ── Shalya Tantra (Surgery) ──
+    { value:'shal_minor_ot',      label:'Shalya Tantra — Minor OT Procedure' },
+    { value:'shal_ksharasutra',   label:'Shalya Tantra — Kshara Sutra Application' },
+    { value:'shal_kshara_karma',  label:'Shalya Tantra — Kshara Karma' },
+    { value:'shal_agnikarma',     label:'Shalya Tantra — Agnikarma' },
+    { value:'shal_incision_drainage', label:'Shalya Tantra — Abscess Incision & Drainage' },
+    { value:'shal_fistula',       label:'Shalya Tantra — Fistula/Fissure Procedure' },
+    { value:'shal_suture_removal',label:'Shalya Tantra — Suture Removal' },
+    // ── Shalakya Tantra (Ophthalmology / ENT) ──
+    { value:'shak_netra_tarpana', label:'Shalakya — Netra Tarpana' },
+    { value:'shak_netra_anjana',  label:'Shalakya — Netra Anjana' },
+    { value:'shak_aschyotana',    label:'Shalakya — Aschyotana' },
+    { value:'shak_karna_purana',  label:'Shalakya — Karna Purana (Ear Oil Therapy)' },
+    { value:'shak_kavala_gandusha', label:'Shalakya — Kavala/Gandusha (Oral)' },
+    { value:'shak_pratimarsha_nasya', label:'Shalakya — Pratimarsha Nasya' },
+    { value:'shak_fb_removal',    label:'Shalakya — Foreign Body Removal (Eye/Ear/Nose)' },
+    // ── Stri Roga & Prasuti Tantra (OBG) ──
+    { value:'pst_anc_checkup',    label:'Stri Roga — ANC Checkup' },
+    { value:'pst_normal_delivery',label:'Stri Roga & Prasuti — Normal Delivery' },
+    { value:'pst_uttar_basti',    label:'Stri Roga — Uttar Basti' },
+    { value:'pst_pnc_checkup',    label:'Stri Roga — PNC Checkup' },
+    { value:'pst_yoni_prakshalana', label:'Stri Roga — Yoni Prakshalana' },
+    // ── Kaumarabhritya (Paediatrics) ──
+    { value:'kau_consultation',   label:'Kaumarabhritya — Paediatric Consultation' },
+    { value:'kau_swarna_prashan', label:'Kaumarabhritya — Swarna Prashan' },
+    { value:'kau_vaccination',    label:'Kaumarabhritya — Vaccination' },
+    { value:'kau_growth_monitoring', label:'Kaumarabhritya — Growth Monitoring' },
+    // ── Agada Tantra (Toxicology / Medical Jurisprudence) ──
+    { value:'agd_poison_mgmt',    label:'Agada Tantra — Poison Management / Emergency' },
+    { value:'agd_deaddiction',    label:'Agada Tantra — De-addiction Consultation' },
+    { value:'agd_mlc',            label:'Agada Tantra — Medico-Legal Case Charges' },
+    // ── Swasthavritta & Yoga ──
+    { value:'sw_health_checkup',  label:'Swasthavritta — Health Checkup Package' },
+    { value:'sw_yoga_session',    label:'Swasthavritta — Yoga Session' },
     { value:'other_procedure',    label:'Other Procedure' }
   ],
   radiology: [
@@ -469,25 +517,117 @@ const QS_TEMPLATES = {
     { label:'Panchakarma — Nasya',       category:'procedure', fee_type:'pk_nasya',       amount:1000 },
     { label:'Panchakarma — Pizhichil',   category:'procedure', fee_type:'pk_pizhichil',   amount:3500 },
   ],
+  // Comprehensive NCISM department-wise catalog (Session 106) -- covers all 7 mandatory
+  // clinical departments (Kayachikitsa, Panchakarma, Shalya Tantra, Shalakya Tantra, Stri
+  // Roga & Prasuti Tantra, Kaumarabhritya, Agada Tantra) plus Swasthavritta/Yoga and the
+  // department-agnostic OPD/IPD/Lab/Radiology basics. Amounts are a reasonable STARTING
+  // baseline, not SDM's real confirmed pricing -- every item is editable after Quick Setup
+  // runs (amount, label, or delete), same as any other fee.
   hospital: [
+    // ── OPD (general) ──
     { label:'Registration Fee',          category:'opd', fee_type:'registration',        amount:200  },
     { label:'OPD Consultation',          category:'opd', fee_type:'consultation',         amount:500  },
+    { label:'Follow-up Consultation',    category:'opd', fee_type:'consultation',         amount:200,  notes:'Within 7 days of previous visit' },
+    { label:'Senior / Specialist Consultation', category:'opd', fee_type:'consultation',  amount:700  },
     { label:'On-Request Surcharge',      category:'opd', fee_type:'on_request_surcharge', amount:200  },
+    { label:'Teleconsultation',          category:'opd', fee_type:'consultation',         amount:300  },
+
+    // ── IPD (facility / room) ──
     { label:'Admission Charge',          category:'ipd', fee_type:'admission',            amount:1000 },
     { label:'Room — General Ward',       category:'ipd', fee_type:'room_general',         amount:800,  notes:'Per day' },
     { label:'Room — Semi-Private',       category:'ipd', fee_type:'room_semi_private',    amount:1500, notes:'Per day' },
     { label:'Room — Private',            category:'ipd', fee_type:'room_private',         amount:2500, notes:'Per day' },
+    { label:'Room — ICU / HDU',          category:'ipd', fee_type:'room_icu',             amount:4000, notes:'Per day' },
     { label:'Nursing Care',              category:'ipd', fee_type:'nursing',              amount:500,  notes:'Per day' },
+    { label:'Attendant Bed',             category:'ipd', fee_type:'attendant_bed',        amount:200,  notes:'Per night' },
+
+    // ── Lab ──
     { label:'Blood — CBC',               category:'lab', fee_type:'blood_cbc',            amount:300  },
     { label:'Blood — LFT',               category:'lab', fee_type:'blood_lft',            amount:600  },
+    { label:'Blood — RFT',               category:'lab', fee_type:'blood_rft',            amount:500  },
+    { label:'Blood — Lipid Profile',     category:'lab', fee_type:'blood_lipid',          amount:600  },
+    { label:'Blood — Thyroid (T3/T4/TSH)', category:'lab', fee_type:'blood_thyroid',      amount:700  },
+    { label:'Blood Sugar — Fasting',     category:'lab', fee_type:'blood_sugar_fasting',  amount:150  },
+    { label:'Blood Sugar — PP',          category:'lab', fee_type:'blood_sugar_pp',       amount:150  },
     { label:'Urine — Routine',           category:'lab', fee_type:'urine_routine',        amount:200  },
+    { label:'Stool — Routine',           category:'lab', fee_type:'stool_routine',        amount:150  },
+    { label:'Culture & Sensitivity',     category:'lab', fee_type:'culture_sensitivity',  amount:800  },
+    { label:'Biopsy',                    category:'lab', fee_type:'biopsy',               amount:1500 },
+
+    // ── Radiology ──
     { label:'X-Ray',                     category:'radiology', fee_type:'xray',           amount:400  },
     { label:'Ultrasound (USG)',          category:'radiology', fee_type:'ultrasound',      amount:800  },
+    { label:'CT Scan',                   category:'radiology', fee_type:'ct_scan',         amount:3500 },
+    { label:'MRI',                       category:'radiology', fee_type:'mri',             amount:6000 },
     { label:'ECG',                       category:'radiology', fee_type:'ecg',             amount:300  },
-    { label:'Panchakarma — Abhyanga',    category:'procedure', fee_type:'pk_abhyanga',    amount:1200 },
-    { label:'Panchakarma — Shirodhara', category:'procedure', fee_type:'pk_shirodhara',  amount:1500 },
+    { label:'Echo (2D Echo)',            category:'radiology', fee_type:'echo',            amount:1200 },
+
+    // ── Procedures — General / Nursing ──
+    { label:'Wound Dressing',            category:'procedure', fee_type:'wound_dressing', amount:200  },
     { label:'Injection (IM/SC)',         category:'procedure', fee_type:'injection',       amount:100  },
     { label:'IV Cannula / Fluid',        category:'procedure', fee_type:'iv_cannula',      amount:300  },
+    { label:'Nebulization',              category:'procedure', fee_type:'nebulization',    amount:150  },
+    { label:'Physiotherapy Session',     category:'procedure', fee_type:'physiotherapy',   amount:300  },
+
+    // ── Kayachikitsa (Internal Medicine) ──
+    { label:'Kayachikitsa — Snehapana (Internal Oleation)', category:'procedure', fee_type:'kay_snehapana', amount:600 },
+    { label:'Kayachikitsa — Virechana Karma', category:'procedure', fee_type:'kay_virechana', amount:2000 },
+
+    // ── Panchakarma ──
+    { label:'Panchakarma — Abhyanga',        category:'procedure', fee_type:'pk_abhyanga',    amount:1200 },
+    { label:'Panchakarma — Shirodhara',      category:'procedure', fee_type:'pk_shirodhara',  amount:1500 },
+    { label:'Panchakarma — Vasti (Anuvasana)', category:'procedure', fee_type:'pk_vasti_anuvasana', amount:1500 },
+    { label:'Panchakarma — Vasti (Niruha)',  category:'procedure', fee_type:'pk_vasti_niruha', amount:1800 },
+    { label:'Panchakarma — Kizhi (Pinda Sweda)', category:'procedure', fee_type:'pk_kizhi',   amount:1800 },
+    { label:'Panchakarma — Nasya',           category:'procedure', fee_type:'pk_nasya',       amount:1000 },
+    { label:'Panchakarma — Pizhichil',       category:'procedure', fee_type:'pk_pizhichil',   amount:3500 },
+    { label:'Panchakarma — Udvartana (Powder Massage)', category:'procedure', fee_type:'pk_udvartana', amount:1000 },
+    { label:'Panchakarma — Shirovasti',      category:'procedure', fee_type:'pk_shirovasti',  amount:2000 },
+    { label:'Panchakarma — Raktamokshana',   category:'procedure', fee_type:'pk_raktamokshana', amount:1500 },
+    { label:'Panchakarma — Kati Vasti',      category:'procedure', fee_type:'pk_kati_vasti',  amount:800  },
+    { label:'Panchakarma — Janu Vasti',      category:'procedure', fee_type:'pk_janu_vasti',  amount:800  },
+    { label:'Panchakarma — Greeva Vasti',    category:'procedure', fee_type:'pk_greeva_vasti', amount:800 },
+    { label:'Panchakarma — Matra Basti',     category:'procedure', fee_type:'pk_matra_basti', amount:800  },
+
+    // ── Shalya Tantra (Surgery) ──
+    { label:'Shalya Tantra — Minor OT Procedure', category:'procedure', fee_type:'shal_minor_ot', amount:3000 },
+    { label:'Shalya Tantra — Kshara Sutra Application', category:'procedure', fee_type:'shal_ksharasutra', amount:1500 },
+    { label:'Shalya Tantra — Kshara Karma',  category:'procedure', fee_type:'shal_kshara_karma', amount:1200 },
+    { label:'Shalya Tantra — Agnikarma',     category:'procedure', fee_type:'shal_agnikarma', amount:800  },
+    { label:'Shalya Tantra — Abscess Incision & Drainage', category:'procedure', fee_type:'shal_incision_drainage', amount:1000 },
+    { label:'Shalya Tantra — Fistula/Fissure Procedure', category:'procedure', fee_type:'shal_fistula', amount:5000 },
+    { label:'Shalya Tantra — Suture Removal', category:'procedure', fee_type:'shal_suture_removal', amount:200 },
+
+    // ── Shalakya Tantra (Ophthalmology / ENT) ──
+    { label:'Shalakya — Netra Tarpana',      category:'procedure', fee_type:'shak_netra_tarpana', amount:1200 },
+    { label:'Shalakya — Netra Anjana',       category:'procedure', fee_type:'shak_netra_anjana', amount:500  },
+    { label:'Shalakya — Aschyotana',         category:'procedure', fee_type:'shak_aschyotana', amount:400  },
+    { label:'Shalakya — Karna Purana (Ear Oil Therapy)', category:'procedure', fee_type:'shak_karna_purana', amount:500 },
+    { label:'Shalakya — Kavala/Gandusha (Oral)', category:'procedure', fee_type:'shak_kavala_gandusha', amount:400 },
+    { label:'Shalakya — Pratimarsha Nasya',  category:'procedure', fee_type:'shak_pratimarsha_nasya', amount:300 },
+    { label:'Shalakya — Foreign Body Removal (Eye/Ear/Nose)', category:'procedure', fee_type:'shak_fb_removal', amount:500 },
+
+    // ── Stri Roga & Prasuti Tantra (OBG) ──
+    { label:'Stri Roga — ANC Checkup',       category:'procedure', fee_type:'pst_anc_checkup', amount:300  },
+    { label:'Stri Roga & Prasuti — Normal Delivery', category:'procedure', fee_type:'pst_normal_delivery', amount:8000 },
+    { label:'Stri Roga — Uttar Basti',       category:'procedure', fee_type:'pst_uttar_basti', amount:1500 },
+    { label:'Stri Roga — PNC Checkup',       category:'procedure', fee_type:'pst_pnc_checkup', amount:300  },
+    { label:'Stri Roga — Yoni Prakshalana',  category:'procedure', fee_type:'pst_yoni_prakshalana', amount:500 },
+
+    // ── Kaumarabhritya (Paediatrics) ──
+    { label:'Kaumarabhritya — Paediatric Consultation', category:'procedure', fee_type:'kau_consultation', amount:400 },
+    { label:'Kaumarabhritya — Swarna Prashan', category:'procedure', fee_type:'kau_swarna_prashan', amount:200 },
+    { label:'Kaumarabhritya — Vaccination',  category:'procedure', fee_type:'kau_vaccination', amount:500  },
+    { label:'Kaumarabhritya — Growth Monitoring', category:'procedure', fee_type:'kau_growth_monitoring', amount:200 },
+
+    // ── Agada Tantra (Toxicology / Medical Jurisprudence) ──
+    { label:'Agada Tantra — Poison Management / Emergency', category:'procedure', fee_type:'agd_poison_mgmt', amount:1500 },
+    { label:'Agada Tantra — De-addiction Consultation', category:'procedure', fee_type:'agd_deaddiction', amount:500 },
+    { label:'Agada Tantra — Medico-Legal Case Charges', category:'procedure', fee_type:'agd_mlc', amount:1000 },
+
+    // ── Swasthavritta & Yoga ──
+    { label:'Swasthavritta — Health Checkup Package', category:'procedure', fee_type:'sw_health_checkup', amount:2000 },
+    { label:'Swasthavritta — Yoga Session',  category:'procedure', fee_type:'sw_yoga_session', amount:200  },
   ],
   dispensary: [
     { label:'Registration Fee',          category:'opd', fee_type:'registration',        amount:50   },
