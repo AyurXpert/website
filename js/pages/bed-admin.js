@@ -2446,3 +2446,15 @@ function _esc(s) {
 });
 
 await loadAll();
+
+// Deep-link support (?tab=dept|beds|quick) -- lets other pages (e.g. admin.html's NCISM
+// Setup Compliance checklist) send the admin to the specific tab their action is actually
+// about, instead of every link landing on the default Departments tab regardless of which
+// checklist item was clicked (Session 103: "All departments configured" and "Minimum beds
+// = UG intake" both pointed at plain bed-admin.html with no tab hint, so both opened on
+// the same tab and neither one deep-linked to Bed Matrix/Quick Setup where beds actually
+// get reviewed or added).
+const _requestedTab = new URLSearchParams(window.location.search).get('tab');
+if (_requestedTab && ['dept','beds','quick'].includes(_requestedTab)) {
+  window.switchTab(_requestedTab);
+}
