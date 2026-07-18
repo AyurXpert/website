@@ -61,8 +61,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .cat-tab:hover{border-color:var(--green-mid);color:var(--green-deep)}
 .cat-tab.active{background:var(--green-deep);border-color:var(--green-deep);color:var(--white)}
 
+.dept-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.dept-tab{height:32px;padding:0 14px;border:1.5px solid var(--gold);border-radius:16px;background:var(--white);font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:500;color:#7a5a00;cursor:pointer;transition:all .15s;white-space:nowrap}
+.dept-tab:hover{background:#fff8e1}
+.dept-tab.active{background:var(--gold);border-color:var(--gold);color:var(--white)}
+
 .btn-add{height:40px;padding:0 20px;background:var(--green-deep);color:var(--white);border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .2s}
 .btn-add:hover{background:#1f5c37}
+
+.export-bar{display:flex;gap:8px;align-items:center}
+.btn-export{height:36px;padding:0 14px;background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .15s}
+.btn-export:hover{background:var(--green-light)}
+.btn-export.all{border-color:var(--border);color:var(--text-mid)}
+.btn-export.all:hover{border-color:var(--green-mid);color:var(--green-deep)}
 
 /* ── Table card ─────────────────────────────────── */
 .table-card{background:var(--white);border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,0.06);overflow:hidden}
@@ -231,10 +242,19 @@ tr:hover td{background:rgba(232,245,238,.4)}
     </div>
   </div>
 
-  <!-- Add Service button -->
-  <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+  <!-- Add Service + Export buttons -->
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+    <div class="export-bar">
+      <button class="btn-export" data-onclick="exportCsv" data-onclick-a0="current" title="Export the currently filtered view">⬇ CSV (Current View)</button>
+      <button class="btn-export" data-onclick="exportPdf" data-onclick-a0="current" title="Export the currently filtered view">⬇ PDF (Current View)</button>
+      <button class="btn-export all" data-onclick="exportCsv" data-onclick-a0="all">⬇ Export All (CSV)</button>
+      <button class="btn-export all" data-onclick="exportPdf" data-onclick-a0="all">⬇ Export All (PDF)</button>
+    </div>
     <button class="btn-add" id="btn-add-top" data-onclick="openModal">+ Add Service</button>
   </div>
+
+  <!-- ── Department tabs (Session 107) — dynamic, only departments with >=1 fee show up ── -->
+  <div class="dept-tabs" id="dept-tabs"></div>
 
   <!-- ── Facility profile banner ─────────────────── -->
   <div class="facility-banner" id="facility-banner">
@@ -360,6 +380,13 @@ tr:hover td{background:rgba(232,245,238,.4)}
         <label>Linked OPD (optional)</label>
         <select id="m-opd">
           <option value="">— All OPDs / General —</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Department <span style="font-weight:400;color:var(--text-muted);font-size:11px">— optional, controls which department tab this shows under</span></label>
+        <select id="m-department">
+          <option value="">— General / Hospital-wide —</option>
         </select>
       </div>
 

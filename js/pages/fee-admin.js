@@ -16,10 +16,12 @@ const userId    = profile.id;
 const facType   = tenant?.type || 'clinic';
 
 // ── State ─────────────────────────────────────────
-let _allFees   = [];
-let _opds      = [];
-let _editId    = null;
-let _activeTab = 'all';
+let _allFees    = [];
+let _opds       = [];
+let _allDepts   = [];   // {id, name, ncism_code} -- tenant's real departments (Session 107)
+let _editId     = null;
+let _activeTab  = 'all';
+let _activeDept = 'all'; // 'all' | '__general__' (no department) | a real department id
 
 // ── Facility profile ──────────────────────────────
 const FAC_PROFILE = {
@@ -171,6 +173,8 @@ const CAT_TYPES = {
   custom: []
 };
 
+function _esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
 // ── Approval text per role ────────────────────────
 const APPROVAL_TEXT = {
   accountant:  'Your submission will be sent to the Department Admin for approval before it becomes active.',
@@ -196,6 +200,28 @@ async function loadOPDs() {
   });
 }
 
+// ── Load departments (Session 107) ─────────────────
+// Real tenant departments, used for: the manual "+Add Service" department picker, Quick
+// Setup's dept-code -> department_id resolution, and the department-tabs display names.
+async function loadDepartments() {
+  const { data } = await supabase
+    .from('departments')
+    .select('id, name, ncism_code')
+    .eq('tenant_id', tenantId)
+    .eq('is_active', true)
+    .order('name');
+  _allDepts = data || [];
+  const sel = document.getElementById('m-department');
+  if (sel) {
+    sel.innerHTML = '<option value="">— General / Hospital-wide —</option>';
+    _allDepts.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.id; opt.textContent = d.name;
+      sel.appendChild(opt);
+    });
+  }
+}
+
 // ── Load fees ─────────────────────────────────────
 async function loadFees() {
   const { data, error } = await supabase
@@ -208,6 +234,7 @@ async function loadFees() {
   if (error) { console.error(error); return; }
   _allFees = data || [];
   updateStats();
+  renderDeptTabs();
   renderTable();
 }
 
@@ -231,15 +258,42 @@ window.setTab = function(btn, cat) {
 
 window.filterFees = function() { renderTable(); };
 
+// ── Department tabs (Session 107) ──────────────────
+// Dynamic: a department only gets a tab once it genuinely has >=1 linked fee -- so e.g.
+// Administration or MRD appear the moment a fee is added there, while departments that
+// never bill (Finance, Security) never show a tab at all. "General" covers fees with no
+// specific department (Registration, IPD room rates, Lab, Radiology -- charged the same
+// regardless of which clinical department admitted the patient).
+function renderDeptTabs() {
+  const wrap = document.getElementById('dept-tabs');
+  if (!wrap) return;
+
+  const deptIdsPresent = new Set(_allFees.filter(f => f.department_id).map(f => f.department_id));
+  const hasGeneral = _allFees.some(f => !f.department_id);
+  const deptsPresent = _allDepts.filter(d => deptIdsPresent.has(d.id));
+
+  if (!deptsPresent.length && !hasGeneral) { wrap.innerHTML = ''; return; }
+
+  const allBtn = `<button class="dept-tab${_activeDept === 'all' ? ' active' : ''}" data-onclick="setDeptTab" data-onclick-a0="@this" data-onclick-a1="all">All Departments</button>`;
+  const generalBtn = hasGeneral
+    ? `<button class="dept-tab${_activeDept === '__general__' ? ' active' : ''}" data-onclick="setDeptTab" data-onclick-a0="@this" data-onclick-a1="__general__">General / Hospital-wide</button>`
+    : '';
+  const deptBtns = deptsPresent.map(d =>
+    `<button class="dept-tab${_activeDept === d.id ? ' active' : ''}" data-onclick="setDeptTab" data-onclick-a0="@this" data-onclick-a1="${_esc(d.id)}">${_esc(d.name)}</button>`
+  ).join('');
+
+  wrap.innerHTML = allBtn + generalBtn + deptBtns;
+}
+
+window.setDeptTab = function(btn, deptId) {
+  document.querySelectorAll('.dept-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _activeDept = deptId;
+  renderTable();
+};
+
 function renderTable() {
-  const q   = document.getElementById('search-input').value.toLowerCase();
-  const rows = _allFees.filter(f => {
-    if (_activeTab !== 'all' && f.category !== _activeTab) return false;
-    if (q && !f.label?.toLowerCase().includes(q) &&
-             !f.fee_type?.toLowerCase().includes(q) &&
-             !f.notes?.toLowerCase().includes(q)) return false;
-    return true;
-  });
+  const rows = _currentFilteredFees();
 
   const tbody = document.getElementById('fee-tbody');
   if (!rows.length) {
@@ -252,7 +306,7 @@ function renderTable() {
   tbody.innerHTML = rows.map(f => {
     const catCls   = 'cat-' + (f.category || 'custom');
     const catLabel = CAT_LABELS[f.category] || f.category;
-    const opdName  = f.opds?.name || '—';
+    const opdDeptLabel = _deptOrOpdLabel(f);
     const amount   = `₹${parseFloat(f.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
     const status   = f.approval_status || 'pending';
     const statusLabel = { pending:'Pending', dept_approved:'Dept. Approved', active:'Active', rejected:'Rejected' }[status] || status;
@@ -260,14 +314,14 @@ function renderTable() {
 
     const actions = buildActions(f);
 
-    return `<tr data-id="${f.id}">
+    return `<tr data-id="${_esc(f.id)}">
       <td>
-        <div class="fee-label">${f.label || '—'}</div>
-        ${f.notes ? `<div class="fee-notes">${f.notes}</div>` : ''}
-        <div class="fee-notes" style="margin-top:2px;color:var(--text-muted)">By ${creator}</div>
+        <div class="fee-label">${_esc(f.label) || '—'}</div>
+        ${f.notes ? `<div class="fee-notes">${_esc(f.notes)}</div>` : ''}
+        <div class="fee-notes" style="margin-top:2px;color:var(--text-muted)">By ${_esc(creator)}</div>
       </td>
       <td><span class="cat-badge ${catCls}">${catLabel}</span></td>
-      <td style="color:var(--text-mid);font-size:13px">${opdName}</td>
+      <td style="color:var(--text-mid);font-size:13px">${_esc(opdDeptLabel)}</td>
       <td><span class="fee-amount">${amount}</span></td>
       <td><span class="status-badge status-${status}">${statusLabel}</span></td>
       <td><div class="actions">${actions}</div></td>
@@ -382,6 +436,11 @@ window.openModal = function() {
   document.getElementById('m-approval-note').style.display = 'block';
   document.getElementById('m-approval-text').textContent = APPROVAL_TEXT[role] || '';
 
+  // Pre-fill the department if a specific department tab is active when "+Add Service"
+  // is clicked -- saves re-picking it in the modal for the common case.
+  const deptSel = document.getElementById('m-department');
+  if (deptSel) deptSel.value = (_activeDept !== 'all' && _activeDept !== '__general__') ? _activeDept : '';
+
   const btnTxt = document.getElementById('btn-save-text');
   btnTxt.textContent = role === 'super_admin' ? 'Save & Activate' : 'Submit for Approval';
 
@@ -398,6 +457,8 @@ window.openEdit = function(id) {
   document.getElementById('m-amount').value   = f.amount || '';
   document.getElementById('m-notes').value    = f.notes || '';
   document.getElementById('m-opd').value      = f.opd_id || '';
+  const deptSel = document.getElementById('m-department');
+  if (deptSel) deptSel.value = f.department_id || '';
   onCategoryChange();
   document.getElementById('m-opd').value      = f.opd_id || '';
   // Set fee_type
@@ -453,6 +514,7 @@ window.saveFee = async function() {
   const amount   = parseFloat(document.getElementById('m-amount').value);
   const notes    = document.getElementById('m-notes').value.trim();
   const opdId    = document.getElementById('m-opd').value || null;
+  const deptId   = document.getElementById('m-department')?.value || null;
 
   const sel  = document.getElementById('m-type-select');
   const inp  = document.getElementById('m-type-input');
@@ -474,6 +536,7 @@ window.saveFee = async function() {
     amount,
     notes:           notes || null,
     opd_id:          opdId,
+    department_id:   deptId,
     approval_status: isSuperAdmin ? 'active' : 'pending',
     is_active:       isSuperAdmin,
     created_by:      userId,
@@ -570,64 +633,64 @@ const QS_TEMPLATES = {
     { label:'Physiotherapy Session',     category:'procedure', fee_type:'physiotherapy',   amount:300  },
 
     // ── Kayachikitsa (Internal Medicine) ──
-    { label:'Kayachikitsa — Snehapana (Internal Oleation)', category:'procedure', fee_type:'kay_snehapana', amount:600 },
-    { label:'Kayachikitsa — Virechana Karma', category:'procedure', fee_type:'kay_virechana', amount:2000 },
+    { label:'Kayachikitsa — Snehapana (Internal Oleation)', category:'procedure', fee_type:'kay_snehapana', amount:600, dept:'KAY' },
+    { label:'Kayachikitsa — Virechana Karma', category:'procedure', fee_type:'kay_virechana', amount:2000, dept:'KAY' },
 
     // ── Panchakarma ──
-    { label:'Panchakarma — Abhyanga',        category:'procedure', fee_type:'pk_abhyanga',    amount:1200 },
-    { label:'Panchakarma — Shirodhara',      category:'procedure', fee_type:'pk_shirodhara',  amount:1500 },
-    { label:'Panchakarma — Vasti (Anuvasana)', category:'procedure', fee_type:'pk_vasti_anuvasana', amount:1500 },
-    { label:'Panchakarma — Vasti (Niruha)',  category:'procedure', fee_type:'pk_vasti_niruha', amount:1800 },
-    { label:'Panchakarma — Kizhi (Pinda Sweda)', category:'procedure', fee_type:'pk_kizhi',   amount:1800 },
-    { label:'Panchakarma — Nasya',           category:'procedure', fee_type:'pk_nasya',       amount:1000 },
-    { label:'Panchakarma — Pizhichil',       category:'procedure', fee_type:'pk_pizhichil',   amount:3500 },
-    { label:'Panchakarma — Udvartana (Powder Massage)', category:'procedure', fee_type:'pk_udvartana', amount:1000 },
-    { label:'Panchakarma — Shirovasti',      category:'procedure', fee_type:'pk_shirovasti',  amount:2000 },
-    { label:'Panchakarma — Raktamokshana',   category:'procedure', fee_type:'pk_raktamokshana', amount:1500 },
-    { label:'Panchakarma — Kati Vasti',      category:'procedure', fee_type:'pk_kati_vasti',  amount:800  },
-    { label:'Panchakarma — Janu Vasti',      category:'procedure', fee_type:'pk_janu_vasti',  amount:800  },
-    { label:'Panchakarma — Greeva Vasti',    category:'procedure', fee_type:'pk_greeva_vasti', amount:800 },
-    { label:'Panchakarma — Matra Basti',     category:'procedure', fee_type:'pk_matra_basti', amount:800  },
+    { label:'Panchakarma — Abhyanga',        category:'procedure', fee_type:'pk_abhyanga',    amount:1200, dept:'PK' },
+    { label:'Panchakarma — Shirodhara',      category:'procedure', fee_type:'pk_shirodhara',  amount:1500, dept:'PK' },
+    { label:'Panchakarma — Vasti (Anuvasana)', category:'procedure', fee_type:'pk_vasti_anuvasana', amount:1500, dept:'PK' },
+    { label:'Panchakarma — Vasti (Niruha)',  category:'procedure', fee_type:'pk_vasti_niruha', amount:1800, dept:'PK' },
+    { label:'Panchakarma — Kizhi (Pinda Sweda)', category:'procedure', fee_type:'pk_kizhi',   amount:1800, dept:'PK' },
+    { label:'Panchakarma — Nasya',           category:'procedure', fee_type:'pk_nasya',       amount:1000, dept:'PK' },
+    { label:'Panchakarma — Pizhichil',       category:'procedure', fee_type:'pk_pizhichil',   amount:3500, dept:'PK' },
+    { label:'Panchakarma — Udvartana (Powder Massage)', category:'procedure', fee_type:'pk_udvartana', amount:1000, dept:'PK' },
+    { label:'Panchakarma — Shirovasti',      category:'procedure', fee_type:'pk_shirovasti',  amount:2000, dept:'PK' },
+    { label:'Panchakarma — Raktamokshana',   category:'procedure', fee_type:'pk_raktamokshana', amount:1500, dept:'PK' },
+    { label:'Panchakarma — Kati Vasti',      category:'procedure', fee_type:'pk_kati_vasti',  amount:800, dept:'PK'  },
+    { label:'Panchakarma — Janu Vasti',      category:'procedure', fee_type:'pk_janu_vasti',  amount:800, dept:'PK'  },
+    { label:'Panchakarma — Greeva Vasti',    category:'procedure', fee_type:'pk_greeva_vasti', amount:800, dept:'PK' },
+    { label:'Panchakarma — Matra Basti',     category:'procedure', fee_type:'pk_matra_basti', amount:800, dept:'PK'  },
 
     // ── Shalya Tantra (Surgery) ──
-    { label:'Shalya Tantra — Minor OT Procedure', category:'procedure', fee_type:'shal_minor_ot', amount:3000 },
-    { label:'Shalya Tantra — Kshara Sutra Application', category:'procedure', fee_type:'shal_ksharasutra', amount:1500 },
-    { label:'Shalya Tantra — Kshara Karma',  category:'procedure', fee_type:'shal_kshara_karma', amount:1200 },
-    { label:'Shalya Tantra — Agnikarma',     category:'procedure', fee_type:'shal_agnikarma', amount:800  },
-    { label:'Shalya Tantra — Abscess Incision & Drainage', category:'procedure', fee_type:'shal_incision_drainage', amount:1000 },
-    { label:'Shalya Tantra — Fistula/Fissure Procedure', category:'procedure', fee_type:'shal_fistula', amount:5000 },
-    { label:'Shalya Tantra — Suture Removal', category:'procedure', fee_type:'shal_suture_removal', amount:200 },
+    { label:'Shalya Tantra — Minor OT Procedure', category:'procedure', fee_type:'shal_minor_ot', amount:3000, dept:'SHAL' },
+    { label:'Shalya Tantra — Kshara Sutra Application', category:'procedure', fee_type:'shal_ksharasutra', amount:1500, dept:'SHAL' },
+    { label:'Shalya Tantra — Kshara Karma',  category:'procedure', fee_type:'shal_kshara_karma', amount:1200, dept:'SHAL' },
+    { label:'Shalya Tantra — Agnikarma',     category:'procedure', fee_type:'shal_agnikarma', amount:800, dept:'SHAL'  },
+    { label:'Shalya Tantra — Abscess Incision & Drainage', category:'procedure', fee_type:'shal_incision_drainage', amount:1000, dept:'SHAL' },
+    { label:'Shalya Tantra — Fistula/Fissure Procedure', category:'procedure', fee_type:'shal_fistula', amount:5000, dept:'SHAL' },
+    { label:'Shalya Tantra — Suture Removal', category:'procedure', fee_type:'shal_suture_removal', amount:200, dept:'SHAL' },
 
     // ── Shalakya Tantra (Ophthalmology / ENT) ──
-    { label:'Shalakya — Netra Tarpana',      category:'procedure', fee_type:'shak_netra_tarpana', amount:1200 },
-    { label:'Shalakya — Netra Anjana',       category:'procedure', fee_type:'shak_netra_anjana', amount:500  },
-    { label:'Shalakya — Aschyotana',         category:'procedure', fee_type:'shak_aschyotana', amount:400  },
-    { label:'Shalakya — Karna Purana (Ear Oil Therapy)', category:'procedure', fee_type:'shak_karna_purana', amount:500 },
-    { label:'Shalakya — Kavala/Gandusha (Oral)', category:'procedure', fee_type:'shak_kavala_gandusha', amount:400 },
-    { label:'Shalakya — Pratimarsha Nasya',  category:'procedure', fee_type:'shak_pratimarsha_nasya', amount:300 },
-    { label:'Shalakya — Foreign Body Removal (Eye/Ear/Nose)', category:'procedure', fee_type:'shak_fb_removal', amount:500 },
+    { label:'Shalakya — Netra Tarpana',      category:'procedure', fee_type:'shak_netra_tarpana', amount:1200, dept:'SHAK' },
+    { label:'Shalakya — Netra Anjana',       category:'procedure', fee_type:'shak_netra_anjana', amount:500, dept:'SHAK'  },
+    { label:'Shalakya — Aschyotana',         category:'procedure', fee_type:'shak_aschyotana', amount:400, dept:'SHAK'  },
+    { label:'Shalakya — Karna Purana (Ear Oil Therapy)', category:'procedure', fee_type:'shak_karna_purana', amount:500, dept:'SHAK' },
+    { label:'Shalakya — Kavala/Gandusha (Oral)', category:'procedure', fee_type:'shak_kavala_gandusha', amount:400, dept:'SHAK' },
+    { label:'Shalakya — Pratimarsha Nasya',  category:'procedure', fee_type:'shak_pratimarsha_nasya', amount:300, dept:'SHAK' },
+    { label:'Shalakya — Foreign Body Removal (Eye/Ear/Nose)', category:'procedure', fee_type:'shak_fb_removal', amount:500, dept:'SHAK' },
 
     // ── Stri Roga & Prasuti Tantra (OBG) ──
-    { label:'Stri Roga — ANC Checkup',       category:'procedure', fee_type:'pst_anc_checkup', amount:300  },
-    { label:'Stri Roga & Prasuti — Normal Delivery', category:'procedure', fee_type:'pst_normal_delivery', amount:8000 },
-    { label:'Stri Roga — Uttar Basti',       category:'procedure', fee_type:'pst_uttar_basti', amount:1500 },
-    { label:'Stri Roga — PNC Checkup',       category:'procedure', fee_type:'pst_pnc_checkup', amount:300  },
-    { label:'Stri Roga — Yoni Prakshalana',  category:'procedure', fee_type:'pst_yoni_prakshalana', amount:500 },
+    { label:'Stri Roga — ANC Checkup',       category:'procedure', fee_type:'pst_anc_checkup', amount:300, dept:'PST'  },
+    { label:'Stri Roga & Prasuti — Normal Delivery', category:'procedure', fee_type:'pst_normal_delivery', amount:8000, dept:'PST' },
+    { label:'Stri Roga — Uttar Basti',       category:'procedure', fee_type:'pst_uttar_basti', amount:1500, dept:'PST' },
+    { label:'Stri Roga — PNC Checkup',       category:'procedure', fee_type:'pst_pnc_checkup', amount:300, dept:'PST'  },
+    { label:'Stri Roga — Yoni Prakshalana',  category:'procedure', fee_type:'pst_yoni_prakshalana', amount:500, dept:'PST' },
 
     // ── Kaumarabhritya (Paediatrics) ──
-    { label:'Kaumarabhritya — Paediatric Consultation', category:'procedure', fee_type:'kau_consultation', amount:400 },
-    { label:'Kaumarabhritya — Swarna Prashan', category:'procedure', fee_type:'kau_swarna_prashan', amount:200 },
-    { label:'Kaumarabhritya — Vaccination',  category:'procedure', fee_type:'kau_vaccination', amount:500  },
-    { label:'Kaumarabhritya — Growth Monitoring', category:'procedure', fee_type:'kau_growth_monitoring', amount:200 },
+    { label:'Kaumarabhritya — Paediatric Consultation', category:'procedure', fee_type:'kau_consultation', amount:400, dept:'KAU' },
+    { label:'Kaumarabhritya — Swarna Prashan', category:'procedure', fee_type:'kau_swarna_prashan', amount:200, dept:'KAU' },
+    { label:'Kaumarabhritya — Vaccination',  category:'procedure', fee_type:'kau_vaccination', amount:500, dept:'KAU'  },
+    { label:'Kaumarabhritya — Growth Monitoring', category:'procedure', fee_type:'kau_growth_monitoring', amount:200, dept:'KAU' },
 
     // ── Agada Tantra (Toxicology / Medical Jurisprudence) ──
-    { label:'Agada Tantra — Poison Management / Emergency', category:'procedure', fee_type:'agd_poison_mgmt', amount:1500 },
-    { label:'Agada Tantra — De-addiction Consultation', category:'procedure', fee_type:'agd_deaddiction', amount:500 },
-    { label:'Agada Tantra — Medico-Legal Case Charges', category:'procedure', fee_type:'agd_mlc', amount:1000 },
+    { label:'Agada Tantra — Poison Management / Emergency', category:'procedure', fee_type:'agd_poison_mgmt', amount:1500, dept:'AGD' },
+    { label:'Agada Tantra — De-addiction Consultation', category:'procedure', fee_type:'agd_deaddiction', amount:500, dept:'AGD' },
+    { label:'Agada Tantra — Medico-Legal Case Charges', category:'procedure', fee_type:'agd_mlc', amount:1000, dept:'AGD' },
 
     // ── Swasthavritta & Yoga ──
-    { label:'Swasthavritta — Health Checkup Package', category:'procedure', fee_type:'sw_health_checkup', amount:2000 },
-    { label:'Swasthavritta — Yoga Session',  category:'procedure', fee_type:'sw_yoga_session', amount:200  },
+    { label:'Swasthavritta — Health Checkup Package', category:'procedure', fee_type:'sw_health_checkup', amount:2000, dept:'SW' },
+    { label:'Swasthavritta — Yoga Session',  category:'procedure', fee_type:'sw_yoga_session', amount:200, dept:'SW'  },
   ],
   dispensary: [
     { label:'Registration Fee',          category:'opd', fee_type:'registration',        amount:50   },
@@ -692,6 +755,10 @@ window.runQuickSetup = async function() {
   btn.classList.add('loading'); btn.disabled = true;
 
   const isSA = role === 'super_admin';
+  // Resolve each item's dept code (e.g. 'PK') to this tenant's real department row by
+  // ncism_code -- items with no dept code (general OPD/IPD/Lab/Radiology charges) stay
+  // department_id null, landing in the "General / Hospital-wide" bucket.
+  const deptByCode = Object.fromEntries(_allDepts.map(d => [d.ncism_code, d.id]));
   const rows = selected.map(t => ({
     tenant_id:       tenantId,
     label:           t.label,
@@ -700,6 +767,7 @@ window.runQuickSetup = async function() {
     amount:          t.amount,
     notes:           t.notes || null,
     opd_id:          null,
+    department_id:   t.dept ? (deptByCode[t.dept] || null) : null,
     approval_status: isSA ? 'active' : 'pending',
     is_active:       isSA,
     created_by:      userId,
@@ -725,7 +793,120 @@ function toast(msg, type = 'success') {
   setTimeout(() => el.classList.remove('show'), 3000);
 }
 
+// ── Export (Session 107) ───────────────────────────
+function _currentFilteredFees() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  return _allFees.filter(f => {
+    if (_activeTab !== 'all' && f.category !== _activeTab) return false;
+    if (_activeDept === '__general__' && f.department_id) return false;
+    if (_activeDept !== 'all' && _activeDept !== '__general__' && f.department_id !== _activeDept) return false;
+    if (q && !f.label?.toLowerCase().includes(q) &&
+             !f.fee_type?.toLowerCase().includes(q) &&
+             !f.notes?.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function _deptOrOpdLabel(f) {
+  const deptName = f.department_id ? (_allDepts.find(d => d.id === f.department_id)?.name || '—') : null;
+  return deptName || f.opds?.name || '—';
+}
+
+function _currentScopeLabel() {
+  if (_activeDept === '__general__') return 'General / Hospital-wide';
+  if (_activeDept !== 'all') return _allDepts.find(d => d.id === _activeDept)?.name || 'Filtered';
+  return 'All Departments';
+}
+
+window.exportCsv = function(scope) {
+  const rows = scope === 'all' ? _allFees : _currentFilteredFees();
+  if (!rows.length) { toast('No fees to export.', 'error'); return; }
+
+  const header = ['Service', 'Category', 'OPD / Department', 'Amount (INR)', 'Status'];
+  const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const statusLabels = { pending:'Pending', dept_approved:'Dept. Approved', active:'Active', rejected:'Rejected' };
+  const lines = [header, ...rows.map(f => [
+    f.label || '',
+    CAT_LABELS[f.category] || f.category || '',
+    _deptOrOpdLabel(f),
+    f.amount || 0,
+    statusLabels[f.approval_status] || f.approval_status || '',
+  ])].map(r => r.map(esc).join(',')).join('\r\n');
+
+  const blob = new Blob([lines], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `Fee_Structure_${(scope === 'all' ? 'All' : _currentScopeLabel()).replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+
+window.exportPdf = function(scope) {
+  const rows = scope === 'all' ? _allFees : _currentFilteredFees();
+  if (!rows.length) { toast('No fees to export.', 'error'); return; }
+
+  const scopeLabel = scope === 'all' ? 'All Departments' : _currentScopeLabel();
+  const _tenantCache = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
+  const orgName = document.querySelector('.ax-name')?.textContent?.trim() || _tenantCache.name || 'Hospital';
+  const now = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+  const statusLabels = { pending:'Pending', dept_approved:'Dept. Approved', active:'Active', rejected:'Rejected' };
+
+  const bodyRows = rows.map((f, i) => `<tr class="${i % 2 === 0 ? '' : 'alt'}">
+    <td>${_esc(f.label)}</td>
+    <td>${_esc(CAT_LABELS[f.category] || f.category)}</td>
+    <td>${_esc(_deptOrOpdLabel(f))}</td>
+    <td class="ctr">₹${parseFloat(f.amount || 0).toLocaleString('en-IN')}</td>
+    <td class="ctr">${_esc(statusLabels[f.approval_status] || f.approval_status)}</td>
+  </tr>`).join('');
+
+  // _x: safe close-tag builder -- \x3C = < avoids literal </ inside this <script> source,
+  // same convention already used by bed-admin.js's downloadBedMapPDF().
+  const _x = t => '\x3C/' + t + '>';
+  const html = [
+    '<!DOCTYPE html><html lang="en"><head>',
+    '<meta charset="UTF-8">',
+    '<title>Fee Structure — ' + _esc(orgName) + _x('title'),
+    '<style>',
+    '  @page{size:A4;margin:14mm 12mm 12mm}',
+    '  *{box-sizing:border-box;margin:0;padding:0}',
+    '  body{font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#1a2e22}',
+    '  .hdr{text-align:center;padding:8mm 0 6mm}',
+    '  .hdr h1{font-size:18pt;color:#1a4a2e;margin-bottom:4px}',
+    '  .hdr .org{font-size:12pt;color:#2d7a4f;font-weight:600;margin-bottom:6px}',
+    '  .hdr .meta{font-size:9pt;color:#6b7280}',
+    '  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:9pt}',
+    '  th{background:#1a4a2e;color:#fff;padding:6px 8px;text-align:left;font-size:8.5pt}',
+    '  td{border:1px solid #e2e8f0;padding:5px 8px}',
+    '  .alt td{background:#f9fafb}',
+    '  .ctr{text-align:center}',
+    '</style>',
+    _x('head'),
+    '<body>',
+    '<div class="hdr">',
+    '  <h1>Fee Structure' + _x('h1'),
+    '  <div class="org">' + _esc(orgName) + _x('div'),
+    '  <div class="meta">' + _esc(scopeLabel) + ' &middot; Generated ' + now + ' &middot; ' + rows.length + ' service' + (rows.length !== 1 ? 's' : '') + _x('div'),
+    _x('div'),
+    '<table><thead><tr>',
+    '<th>Service</th><th style="width:110px">Category</th><th style="width:170px">OPD / Department</th><th class="ctr" style="width:90px">Amount</th><th class="ctr" style="width:100px">Status</th>',
+    _x('tr') + _x('thead'),
+    '<tbody>' + bodyRows + _x('tbody'),
+    _x('table'),
+    _x('body') + _x('html')
+  ].join('\n');
+
+  const w = window.open('', '_blank');
+  if (!w) { toast('Pop-up blocked. Please allow pop-ups for this site and try again.', 'error'); return; }
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => { try { w.print(); } catch (e) {} }, 350);
+};
+
 // ── Boot ──────────────────────────────────────────
 window.toast = toast;
 await loadOPDs();
+await loadDepartments();
 await loadFees();
