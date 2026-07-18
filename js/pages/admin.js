@@ -4387,7 +4387,7 @@ async function _sumToday(table,col){
 }
 function _fmt(n){if(!n)return'₹0';if(n>=100000)return'₹'+(n/100000).toFixed(1)+'L';if(n>=1000)return'₹'+(n/1000).toFixed(1)+'K';return'₹'+Math.round(n);}
 function _roleLabel(r){return{super_admin:'Super Admin',dept_admin:'Dept. Admin',doctor:'Doctor',receptionist:'Receptionist',pharmacist:'Pharmacist',nurse:'Nurse',lab_tech:'Lab Technician',accountant:'Accountant',therapist:'Therapist',student:'Student',diet_staff:'Diet / Pathya Staff',mrd_staff:'Medical Records Staff'}[r]||r;}
-function _tenantLabel(t){return{clinic:'Clinic',hospital:'Hospital',pk_center:'PK Centre',dispensary:'Dispensary',college:'Ayurveda College',pharma:'Pharmaceutical Co.',supplier:'Supplier',dealer:'Dealer',journal:'Journal'}[t]||'Healthcare';}
+function _tenantLabel(t){return{clinic:'Clinic',hospital:'Hospital',teaching_hospital:'Teaching Hospital',pk_center:'PK Centre',dispensary:'Dispensary',college:'Ayurveda College',pharma:'Pharmaceutical Co.',supplier:'Supplier',dealer:'Dealer',journal:'Journal'}[t]||'Healthcare';}
 function _relDate(iso){if(!iso)return'—';const d=Math.floor((Date.now()-new Date(iso))/60000);if(d<60)return d+'m ago';if(d<1440)return Math.floor(d/60)+'h ago';return Math.floor(d/1440)+'d ago';}
 function _esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function _toast(msg,isError=false){const el=document.getElementById('toast');el.textContent=msg;el.style.background=isError?'#7f1d1d':'#1c2b1f';el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3000);}

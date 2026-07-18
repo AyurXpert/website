@@ -23,14 +23,15 @@ let _activeTab = 'all';
 
 // ── Facility profile ──────────────────────────────
 const FAC_PROFILE = {
-  clinic:     { label:'Clinic',              icon:'🏥', cats:['opd','lab','procedure','custom'],                       color:'#1a4a2e' },
-  hospital:   { label:'Hospital',            icon:'🏨', cats:['opd','ipd','lab','procedure','radiology','custom'],     color:'#1e40af' },
-  pk_center:  { label:'Panchakarma Centre',  icon:'🌿', cats:['opd','procedure','custom'],                            color:'#6d28d9' },
-  dispensary: { label:'Dispensary',          icon:'💊', cats:['opd','custom'],                                        color:'#b45309' },
-  college:    { label:'Ayurveda College',    icon:'🎓', cats:['opd','lab','procedure','radiology','custom'],          color:'#0f766e' },
-  pharma:     { label:'Pharma',              icon:'🔬', cats:['custom'],                                              color:'#374151' },
-  supplier:   { label:'Supplier',            icon:'📦', cats:['custom'],                                              color:'#374151' },
-  dealer:     { label:'Dealer',              icon:'🏪', cats:['custom'],                                              color:'#374151' },
+  clinic:            { label:'Clinic',              icon:'🏥', cats:['opd','lab','procedure','custom'],                       color:'#1a4a2e' },
+  hospital:          { label:'Hospital',            icon:'🏨', cats:['opd','ipd','lab','procedure','radiology','custom'],     color:'#1e40af' },
+  teaching_hospital: { label:'Teaching Hospital',   icon:'🏨', cats:['opd','ipd','lab','procedure','radiology','custom'],     color:'#1e40af' },
+  pk_center:         { label:'Panchakarma Centre',  icon:'🌿', cats:['opd','procedure','custom'],                            color:'#6d28d9' },
+  dispensary:        { label:'Dispensary',          icon:'💊', cats:['opd','custom'],                                        color:'#b45309' },
+  college:           { label:'Ayurveda College',    icon:'🎓', cats:['opd','lab','procedure','radiology','custom'],          color:'#0f766e' },
+  pharma:            { label:'Pharma',              icon:'🔬', cats:['custom'],                                              color:'#374151' },
+  supplier:          { label:'Supplier',            icon:'📦', cats:['custom'],                                              color:'#374151' },
+  dealer:            { label:'Dealer',              icon:'🏪', cats:['custom'],                                              color:'#374151' },
 };
 const fac = FAC_PROFILE[facType] || FAC_PROFILE.clinic;
 
@@ -502,6 +503,12 @@ const QS_TEMPLATES = {
     { label:'Panchakarma — Shirodhara', category:'procedure', fee_type:'pk_shirodhara',  amount:1000 },
   ],
 };
+// teaching_hospital runs a full IPD Setup exactly like a plain hospital (SDM: 100 real
+// beds) -- not the smaller college template, which has no IPD charges at all. Reuses the
+// same array reference deliberately (Session 105: both dictionaries here were missing a
+// teaching_hospital key entirely, so Quick Setup silently did nothing for SDM -- see
+// openQuickSetup()'s "No quick-setup template for this facility type" early return).
+QS_TEMPLATES.teaching_hospital = QS_TEMPLATES.hospital;
 QS_TEMPLATES.pharma     = [];
 QS_TEMPLATES.supplier   = [];
 QS_TEMPLATES.dealer     = [];

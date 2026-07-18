@@ -187,7 +187,7 @@ function render(visit, doctorName, doctorQual, doctorReg, notes, items) {
 }
 
 function _tenantTypeLabel(type) {
-  const map = { clinic:'Ayurveda Clinic', hospital:'Ayurveda Hospital', pk_center:'Panchakarma Centre', dispensary:'Dispensary', college:'Ayurveda College', pharma:'Pharmacy', wellness:'Wellness Centre' };
+  const map = { clinic:'Ayurveda Clinic', hospital:'Ayurveda Hospital', teaching_hospital:'Ayurveda Teaching Hospital', pk_center:'Panchakarma Centre', dispensary:'Dispensary', college:'Ayurveda College', pharma:'Pharmacy', wellness:'Wellness Centre' };
   return map[type] || 'Healthcare Centre';
 }
 
