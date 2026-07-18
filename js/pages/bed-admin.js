@@ -239,6 +239,25 @@ async function loadAll() {
     NCISM_BED_PRIORITY  = LF_NCISM_BED_PRIORITY;
   }
 
+  // Sort every department once, by NCISM bed-share descending (PK→...→AGD), ties broken
+  // by NCISM_BED_PRIORITY — the same order _deptReservedStart() already uses to hand out
+  // global bed-number ranges. Every downstream listing (cards, dropdowns, Building & Floor
+  // Breakdown, Beds tab) reads from this same array, so they all inherit the order for free
+  // instead of each needing (and risking drifting from) its own independent sort.
+  _depts.sort((a, b) => {
+    const ra = UG_BED_RATIOS[a.ncism_code] ? Math.floor(_ugIntake * UG_BED_RATIOS[a.ncism_code]) : -1;
+    const rb = UG_BED_RATIOS[b.ncism_code] ? Math.floor(_ugIntake * UG_BED_RATIOS[b.ncism_code]) : -1;
+    if (ra !== rb) return rb - ra;
+    const pa = NCISM_BED_PRIORITY.indexOf(a.ncism_code);
+    const pb = NCISM_BED_PRIORITY.indexOf(b.ncism_code);
+    if (pa !== pb) {
+      if (pa === -1) return 1;
+      if (pb === -1) return -1;
+      return pa - pb;
+    }
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
   _populateOpdSelect();
   populateDeptSelects();
   renderStats();
@@ -1350,11 +1369,7 @@ function renderDepts() {
     return;
   }
 
-  const sortedDepts = [...beddedDepts].sort((a, b) => {
-    const ra = Math.floor((UG_BED_RATIOS[a.ncism_code] || 0) * (_ugIntake || 0));
-    const rb = Math.floor((UG_BED_RATIOS[b.ncism_code] || 0) * (_ugIntake || 0));
-    return rb - ra || (a.name || '').localeCompare(b.name || '');
-  });
+  const sortedDepts = beddedDepts; // _depts is already globally sorted by bed-share in loadAll()
 
   grid.innerHTML = sortedDepts.map(d => {
     const deptBeds   = _beds.filter(b => b.department_id === d.id);
@@ -1441,6 +1456,14 @@ function renderBeds() {
     grid.innerHTML = `<div class="bed-empty">No beds match the current filter.<br>Use "+ Add Bed" or "Bulk Add Beds" to configure the ward.</div>`;
     return;
   }
+
+  // Group by department bed-share rank (same order as everywhere else on this page),
+  // then by bed number within each department, so an unfiltered grid reads PK→...→AGD
+  // instead of scattering beds by their prefix's raw alphabetical order.
+  const deptRank = Object.fromEntries(_depts.map((d, i) => [d.id, i]));
+  beds = [...beds].sort((a, b) =>
+    (deptRank[a.department_id] ?? 999) - (deptRank[b.department_id] ?? 999) ||
+    a.bed_number.localeCompare(b.bed_number, undefined, {numeric:true, sensitivity:'base'}));
 
   const deptMap = Object.fromEntries(_depts.map(d => [d.id, d.name]));
 
@@ -1937,7 +1960,8 @@ window.downloadBedMapPDF = function() {
   // ── Section 2: Floor-wise ──────────────────────────────────────
   const sec2 = allFloors.map(fl => {
     const flBeds = _beds.filter(b => (b.floor_number ?? 0) === fl);
-    const deptIds = [...new Set(flBeds.map(b => b.department_id))];
+    const deptIds = [...new Set(flBeds.map(b => b.department_id))]
+      .sort((x, y) => _depts.findIndex(d => d.id === x) - _depts.findIndex(d => d.id === y));
 
     const rows = deptIds.map(dId => {
       const dept  = _depts.find(d => d.id === dId);
