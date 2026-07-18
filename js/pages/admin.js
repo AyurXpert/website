@@ -93,7 +93,7 @@ function _bootMasterControl() {
     });
   });
 
-  setTimeout(() => { window.loadStats(); window.renderSubBanner(); }, 0);
+  setTimeout(() => { window.loadStats(); window.renderSubBanner(); window.renderMigrationBanner(); }, 0);
 }
 
 function _showSection(target, sub) {
@@ -4929,6 +4929,56 @@ window.renderSubBanner = function() {
     if (daysLeft <= 7 && dot) dot.style.display = '';
   }
   el.innerHTML = html;
+};
+
+// Data-migration notices (Session 99) — surfaces staff-visible one-time data fixes
+// (tenant_migrations registry) with a manual Apply Now button. Silent (non-visible)
+// fixes apply automatically in the background via apply_silent_pending_migrations()
+// before this renders, so they never show here at all.
+window.renderMigrationBanner = async function() {
+  const el = document.getElementById('migration-banner');
+  if (!el) return;
+
+  try { await supabase.rpc('apply_silent_pending_migrations'); } catch { /* non-fatal */ }
+
+  const { data, error } = await supabase.rpc('get_pending_visible_migrations');
+  if (error || !data?.length) { el.innerHTML = ''; return; }
+
+  const pending = data.filter(m => !sessionStorage.getItem('ax_dismissed_migration_' + m.key));
+  if (!pending.length) { el.innerHTML = ''; return; }
+
+  el.innerHTML = pending.map(m => `
+    <div class="opd-alert amber" style="margin-bottom:14px" data-migration-row="${_esc(m.key)}">
+      <div class="opd-alert-icon">🆕</div>
+      <div class="opd-alert-body">
+        <div class="opd-alert-title">${_esc(m.title)}</div>
+        <div>${_esc(m.description)}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-shrink:0">
+        <button class="btn-primary-action" data-onclick="applyTenantMigration" data-onclick-a0="${_esc(m.key)}">Apply Now</button>
+        <button class="btn-outline" data-onclick="dismissMigrationBanner" data-onclick-a0="${_esc(m.key)}">Later</button>
+      </div>
+    </div>`).join('');
+};
+
+window.applyTenantMigration = async function(key) {
+  const row = document.querySelector(`[data-migration-row="${CSS.escape(key)}"]`);
+  const btn = row?.querySelector('[data-onclick="applyTenantMigration"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Applying…'; }
+
+  const { error } = await supabase.rpc('apply_tenant_migration', { p_key: key });
+  if (error) {
+    _toast(safeErrorMessage(error, 'Failed to apply update.'), true);
+    if (btn) { btn.disabled = false; btn.textContent = 'Apply Now'; }
+    return;
+  }
+  _toast('Update applied.');
+  row?.remove();
+};
+
+window.dismissMigrationBanner = function(key) {
+  sessionStorage.setItem('ax_dismissed_migration_' + key, '1');
+  document.querySelector(`[data-migration-row="${CSS.escape(key)}"]`)?.remove();
 };
 
 // ════════════════════════════════════════════════
