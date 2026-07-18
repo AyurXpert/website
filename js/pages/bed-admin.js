@@ -1996,9 +1996,26 @@ window.downloadBedMapPDF = function() {
         const types = [...new Set(wBeds.map(b => b.bed_type))].sort();
         const typeRows = types.map(t => {
           const tBeds = wBeds.filter(b => b.bed_type === t);
+          // Room-based types: group the chips by which room they share (a single type row
+          // can span several rooms). Open-ward types: all beds here already share one
+          // ward_name/unit_number by construction, so just label the type once instead.
+          let typeCell = typeLabel(t);
+          let chipsCell;
+          if (ROOM_CAPACITY[t]) {
+            const byUnit = {};
+            tBeds.forEach(b => { (byUnit[b.unit_number ?? '—'] ||= []).push(b); });
+            chipsCell = Object.entries(byUnit)
+              .sort(([a],[b]) => (Number(a)||0) - (Number(b)||0))
+              .map(([num, bs]) => `<strong>R${num}:</strong> ${chips(bs)}`)
+              .join('&nbsp;&nbsp;');
+          } else {
+            const unitLbl = tBeds[0] ? _unitLabel(tBeds[0]) : '';
+            if (unitLbl) typeCell += ` <span class="muted">(${unitLbl})</span>`;
+            chipsCell = chips(tBeds);
+          }
           return `<tr>
-            <td class="indent2">${typeLabel(t)}</td>
-            <td>${chips(tBeds)}</td>
+            <td class="indent2">${typeCell}</td>
+            <td>${chipsCell}</td>
             <td class="ctr">${tBeds.length}</td>
           </tr>`;
         }).join('');
@@ -2058,6 +2075,7 @@ window.downloadBedMapPDF = function() {
       <td>${typeLabel(b.bed_type)}</td>
       <td>${flShort(b.floor_number ?? 0)}</td>
       <td>${b.ward_name || '—'}</td>
+      <td>${_unitLabel(b) || '—'}</td>
       <td class="ctr">${sIcon} ${b.status}</td>
     </tr>`;
   }).join('');
@@ -2185,7 +2203,8 @@ window.downloadBedMapPDF = function() {
     '<th style="width:175px">Department' + _x('th'),
     '<th style="width:130px">Bed Type' + _x('th'),
     '<th style="width:55px">Floor' + _x('th'),
-    '<th>Ward / Room Name' + _x('th'),
+    '<th style="width:110px">Ward / Room Name' + _x('th'),
+    '<th style="width:110px">Room / Ward #' + _x('th'),
     '<th style="width:90px;text-align:center">Status' + _x('th'),
     _x('tr') + _x('thead'),
     '<tbody>' + idxRows + _x('tbody'),
