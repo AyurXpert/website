@@ -1386,6 +1386,23 @@ async function _renderNcismStaffing() {
 }
 
 // ── Position Invite modal — turn a ladder gap into a shareable join link ──
+// Session 111 correction: the HMS Login Role dropdown used to be a static list of all 10
+// roles regardless of which designation was being invited -- confusing (why would
+// "Registration & Billing Clerks" show Doctor/Nurse/Therapist as choices?) and a real
+// mis-assignment risk. Now scoped to only the role(s) that designation actually maps to
+// via DESIG_ROLE_DEFAULT -- for the overwhelming majority of designations that's exactly
+// one option, pre-selected and effectively locked (nothing else was ever valid anyway).
+function _populatePinvRoleOptions(desig){
+  const roleSel = document.getElementById('pinv-role-select');
+  const role = DESIG_ROLE_DEFAULT[desig] || 'doctor';
+  roleSel.innerHTML = '<option value="'+_esc(role)+'">'+_esc(_roleLabel(role))+'</option>';
+  roleSel.value = role;
+}
+
+window.onPinvDesigChange = function(){
+  _populatePinvRoleOptions(document.getElementById('pinv-desig-select').value);
+};
+
 window.openPositionInvite = function(idxStr){
   const row = _ladderRowRegistry[Number(idxStr)];
   if(!row) return;
@@ -1397,8 +1414,7 @@ window.openPositionInvite = function(idxStr){
   const keySel = document.getElementById('pinv-desig-select');
   keySel.innerHTML = row.keys.map(k=>'<option value="'+_esc(k)+'">'+_esc(dlabel(k))+'</option>').join('');
   keySel.value = desig;
-  const roleSel = document.getElementById('pinv-role-select');
-  roleSel.value = DESIG_ROLE_DEFAULT[desig] || 'doctor';
+  _populatePinvRoleOptions(desig);
   document.getElementById('pinv-name').value  = '';
   document.getElementById('pinv-phone').value = '';
   document.getElementById('pinv-email').value = '';
