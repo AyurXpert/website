@@ -940,6 +940,33 @@ const QS_TEMPLATES = {
   // baseline, not SDM's real confirmed pricing -- every item is editable after Quick Setup
   // runs (amount, label, or delete), same as any other fee.
   hospital: [
+    // ── Administration (Session 110) ── Registration Fee/OPD Consultation here are the
+    // SAME conceptual charge as their OPD-section counterparts below (deliberately -- the
+    // front desk that actually collects them is Reception/Registration Counter, so they
+    // show under Administration too, per Dr. Venkatesh's ask); the rest are genuinely new
+    // administrative processing charges with no other home.
+    { label:'Registration Fee',          category:'opd', fee_type:'registration',        amount:200,  group:'admin_registration' },
+    { label:'OPD Consultation',          category:'opd', fee_type:'consultation',         amount:500,  group:'admin_reception' },
+    { label:'New Patient Case File / Record Charge', category:'custom', fee_type:'reception_case_file', amount:50,  group:'admin_reception' },
+    { label:'Health Card / OP Card Re-issue (Duplicate)', category:'custom', fee_type:'reception_card_reissue', amount:50, group:'admin_reception' },
+    { label:'Hospital Registration / UHID Generation Fee', category:'custom', fee_type:'registration_uhid', amount:100, group:'admin_registration' },
+    { label:'Registration Record Correction Fee', category:'custom', fee_type:'registration_correction', amount:50, group:'admin_registration' },
+    { label:'Admission Paperwork / Processing Fee', category:'custom', fee_type:'admission_paperwork', amount:100, group:'admin_admission' },
+    { label:'Bed Reservation / Advance Booking Fee', category:'custom', fee_type:'admission_bed_reservation', amount:200, group:'admin_admission' },
+    { label:'Discharge Summary Preparation Fee', category:'custom', fee_type:'discharge_summary_prep', amount:100, group:'admin_discharge' },
+    { label:'Duplicate Discharge Summary', category:'custom', fee_type:'discharge_summary_duplicate', amount:100, group:'admin_discharge' },
+    { label:'Insurance / TPA Pre-Authorization Processing', category:'custom', fee_type:'insurance_preauth', amount:200, group:'admin_insurance' },
+    { label:'Insurance Claim Documentation Fee', category:'custom', fee_type:'insurance_documentation', amount:150, group:'admin_insurance' },
+    { label:'Cashless Claim Processing Fee', category:'custom', fee_type:'insurance_cashless_processing', amount:200, group:'admin_insurance' },
+    { label:'Duplicate Bill / Invoice Reprint', category:'custom', fee_type:'billing_duplicate_invoice', amount:50, group:'admin_billing' },
+    { label:'Itemized Bill Preparation (Insurance/Reimbursement)', category:'custom', fee_type:'billing_itemized_prep', amount:100, group:'admin_billing' },
+    { label:'Corporate / Credit Billing Processing Fee', category:'custom', fee_type:'billing_corporate_processing', amount:150, group:'admin_billing' },
+    { label:'Medical Records Photocopy (per set)', category:'custom', fee_type:'mrd_photocopy', amount:100, group:'admin_mrd' },
+    { label:'Duplicate Medical Certificate', category:'custom', fee_type:'mrd_duplicate_certificate', amount:150, group:'admin_mrd' },
+    { label:'Fitness Certificate', category:'custom', fee_type:'mrd_fitness_certificate', amount:150, group:'admin_mrd' },
+    { label:'Medico-Legal Certificate', category:'custom', fee_type:'mrd_mlc_certificate', amount:300, group:'admin_mrd' },
+    { label:'Old Record Retrieval Fee', category:'custom', fee_type:'mrd_record_retrieval', amount:100, group:'admin_mrd' },
+
     // ── OPD (general) ──
     { label:'Registration Fee',          category:'opd', fee_type:'registration',        amount:200  },
     { label:'OPD Consultation',          category:'opd', fee_type:'consultation',         amount:500  },
