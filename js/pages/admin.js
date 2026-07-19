@@ -1475,11 +1475,15 @@ async function _renderStaffingPlan() {
   const wrap = document.getElementById('staffing-plan-wrap');
   wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
 
-  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }] = await Promise.all([
+  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }, { data:liveDuty }] = await Promise.all([
     supabase.from('tenants').select('ug_intake,type,pg_student_strength').eq('id',tenantId).single(),
     supabase.from('profiles').select('designation').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,ncism_code,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_pg_dept',true),
+    // Session 111 -- who's actually covering which front-office duty right now (not just
+    // the required-vs-recruited headcount below), for the Reception & MRD live coverage
+    // card. ended_at is null = currently active session.
+    supabase.from('staff_duty_sessions').select('active_duty').eq('tenant_id',tenantId).is('ended_at',null),
   ]);
 
   if (!isNCISMType(tRow?.type)) {
@@ -1606,11 +1610,33 @@ async function _renderStaffingPlan() {
   const grandPct = grandTotal>0 ? Math.round(Math.min(grandRec,grandTotal)/grandTotal*100) : 100;
   const gc = grandPct>=80?'#2d7a4f':grandPct>=50?'#c9902a':'#c0392b';
 
+  // Session 111 -- live front-office duty coverage. This is a DIFFERENT question from the
+  // required-vs-recruited headcount table above (that's "how many Registration & Billing
+  // Clerks are employed"; this is "who is actually covering Registration/Billing/etc right
+  // now"), fed by duty-select.html's shared-pool duty picker.
+  const DUTY_LABELS_ADMIN = {
+    registration:'Registration', admission:'Admission', discharge:'Discharge',
+    insurance:'Insurance', billing:'Billing', all_duties:'All Duties',
+  };
+  const dutyCounts = {};
+  (liveDuty||[]).forEach(d => { dutyCounts[d.active_duty] = (dutyCounts[d.active_duty]||0)+1; });
+  const dutyKeys = Object.keys(dutyCounts);
+  const liveCoverageHtml = '<div class="cc" style="margin-bottom:14px;padding:12px 16px">'
+    +'<div style="font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🔴 Live Front-Office Duty Coverage</div>'
+    + (dutyKeys.length
+        ? '<div style="display:flex;gap:8px;flex-wrap:wrap">' + dutyKeys.map(k =>
+            '<span style="background:#f0faf5;border:1px solid #b7dfc8;border-radius:8px;padding:4px 10px;font-size:12.5px">'
+            +_esc(DUTY_LABELS_ADMIN[k]||k)+': <strong>'+dutyCounts[k]+'</strong></span>'
+          ).join('') + '</div>'
+        : '<div style="font-size:12px;color:var(--text-muted)">No shared-pool clerk is currently signed into an active duty (via the duty selector at login).</div>')
+    +'</div>';
+
   wrap.innerHTML = '<div class="cc" style="margin-bottom:14px;text-align:center;background:'+gc+'">'
     +'<div style="padding:14px 16px;color:#fff">'
       +'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.85">Staffing Plan — UG Intake '+ug+(pgList.length?' · '+pgList.length+' PG dept(s)':'')+'</div>'
       +'<div style="font-weight:700;font-size:20px;margin-top:2px">'+grandTotal+' total staff needed · '+grandRec+' recruited ('+grandPct+'%)</div>'
     +'</div></div>'
+    + liveCoverageHtml
     + sectionsHtml
     + '<div style="font-size:11px;color:var(--text-muted);margin-top:8px">Numbers scale with UG intake and PG seats sanctioned — same source as HR → NCISM Requirements\' department-wise ladder. Medical Director is excluded from the Doctors total (typically held concurrently by an existing faculty member).</div>';
 }

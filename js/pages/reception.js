@@ -38,6 +38,45 @@ const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
 const _ctx     = { tenantId, userId: profile.id, userName: profile.full_name };
 
+// ── Duty selector gate (Session 111) ───────────────
+// Only shared-pool clerk designations (Registration Clerk / Billing Clerk, per NCISM
+// Sch XX/17 -- one combined designation covering Registration/Admission/Discharge/
+// Insurance/Billing) need to pick an active duty. A plain Receptionist designation (or
+// no designation at all -- the common case for any staff never assigned one via the HR
+// panel/position-invite flow) skips this entirely and lands straight in reception.html
+// exactly as before, so this never disrupts the default front-desk login.
+const DUTY_GATED_DESIGNATIONS = ['registration_clerk', 'billing_clerk'];
+const DUTY_LABELS = {
+  registration: 'Registration Counter', admission: 'Admission Counter',
+  discharge: 'Discharge Counter', insurance: 'Insurance Counter',
+  billing: 'Billing Counter', all_duties: 'All Duties',
+};
+const _dutyGated = profile.role === 'receptionist' && DUTY_GATED_DESIGNATIONS.includes(profile.designation);
+
+if (_dutyGated) {
+  if (!sessionStorage.getItem('ax_duty_session_id')) {
+    // Navigation interrupts the rest of this module harmlessly (everything below is
+    // read-only Supabase fetches/DOM setup, safe to let run until the browser actually
+    // unloads) -- no need to throw to halt execution, which would just add console noise.
+    window.location.replace('duty-select.html?return=reception.html');
+  } else {
+    const bar = document.getElementById('active-duty-bar');
+    document.getElementById('active-duty-label').textContent = DUTY_LABELS[sessionStorage.getItem('ax_duty_active')] || '—';
+    bar.style.display = 'flex';
+  }
+}
+
+window.switchDuty = async function() {
+  if (!confirm('Switch your active duty? This ends your current duty session.')) return;
+  const sessionId = sessionStorage.getItem('ax_duty_session_id');
+  if (sessionId) {
+    await supabase.from('staff_duty_sessions').update({ ended_at: new Date().toISOString() }).eq('id', sessionId);
+  }
+  sessionStorage.removeItem('ax_duty_session_id');
+  sessionStorage.removeItem('ax_duty_active');
+  window.location.replace('duty-select.html?return=reception.html');
+};
+
 // ── Date label ────────────────────────────────────
 document.getElementById('queue-date').textContent = new Date().toLocaleDateString('en-IN', {
   weekday: 'long', day: 'numeric', month: 'long'

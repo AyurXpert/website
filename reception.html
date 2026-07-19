@@ -651,6 +651,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
 <div id="navbar-root"></div>
 
+<!-- ── Active Duty badge (Session 111) — shown only for shared-pool clerks (Registration/Billing Clerk designation) who've picked an active duty via duty-select.html ── -->
+<div id="active-duty-bar" style="display:none;background:#1a4a2e;color:#fff;padding:8px 20px;font-family:'DM Sans',sans-serif;font-size:13px;display:none;align-items:center;justify-content:space-between;gap:12px">
+  <span>Active Duty: <strong id="active-duty-label">—</strong></span>
+  <button id="btn-switch-duty" data-onclick="switchDuty" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif">Switch Duty</button>
+</div>
+
 <div class="page">
 
   <!-- ── Registration Form ──────────────────────── -->
