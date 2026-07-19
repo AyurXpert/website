@@ -244,6 +244,25 @@ const IPD_SUBITEMS = [
 // somewhere to click "+ Add Service" into a brand-new department before its first fee
 // exists (the dynamic "only show tabs with real data" principle, while right for the
 // *other* real clinical departments below, was actively blocking that for these 11).
+// Session 110 correction #6: Dr. Venkatesh's real complaint was that a service added
+// under, say, "Shalya Tantra OPD" (an `opds` row, opd_id-linked) silently didn't count as
+// belonging to the SEPARATE "Shalya Tantra (Surgery)" tab shown further down the nav (a
+// real `departments` row, department_id-linked) -- two different fields, two different
+// tabs, for what he sees as one department. His fix: fold each clinical department's
+// fees into its matching OPD's dropdown entry and remove the standalone duplicate tab
+// entirely -- except Panchakarma, which he explicitly wants kept as its own separate
+// pinned tab (#4) since it has enough distinct treatments to deserve one. `opds.ncism_code`
+// reliably matches `departments.ncism_code` for every real OPD except Screening OPD
+// (confirmed live) -- the stable join key, not a name string.
+function _deptIdForOpd(opd) {
+  if (!opd?.ncism_code || opd.ncism_code === 'PK') return null; // Panchakarma stays out of the fold-in
+  return _allDepts.find(d => d.ncism_code === opd.ncism_code)?.id || null;
+}
+
+function _opdFoldedDeptIds() {
+  return new Set(_opds.map(o => _deptIdForOpd(o)).filter(Boolean));
+}
+
 const GROUP_CONFIG = [
   {
     key:'administration', label:'Administration', alwaysShow: true,
@@ -258,8 +277,17 @@ const GROUP_CONFIG = [
   },
   {
     key:'opd', label:'OPD', alwaysShow: true,
-    match: f => f.category === 'opd',
-    matchSub: (f, sub) => sub === '__general_opd__' ? !f.opd_id : f.opd_id === sub,
+    // Matches: plain OPD-category fees (registration/consultation, opd_id or not), ANY
+    // fee directly linked to a real OPD via opd_id (regardless of category -- a Shalya
+    // Tantra procedure charge is still "Shalya Tantra OPD"'s business), and any fee
+    // linked via department_id to one of the folded-in clinical departments above.
+    match: f => f.category === 'opd' || !!f.opd_id || (!!f.department_id && _opdFoldedDeptIds().has(f.department_id)),
+    matchSub: (f, sub) => {
+      if (sub === '__general_opd__') return !f.opd_id && !_opdFoldedDeptIds().has(f.department_id);
+      if (f.opd_id === sub) return true;
+      const deptId = _deptIdForOpd(_opds.find(o => o.id === sub));
+      return !!deptId && f.department_id === deptId;
+    },
   },
   {
     key:'ipd', label:'IPD', alwaysShow: true,
@@ -321,7 +349,7 @@ const APPROVAL_TEXT = {
 async function loadOPDs() {
   const { data } = await supabase
     .from('opds')
-    .select('id, name')
+    .select('id, name, ncism_code')
     .eq('tenant_id', tenantId)
     .eq('is_active', true)
     .order('name');
@@ -413,10 +441,12 @@ function renderGroupTabs() {
 
   const deptIdsPresent = new Set(_allFees.filter(f => f.department_id).map(f => f.department_id));
   const pkDept = _allDepts.find(d => d.ncism_code === 'PK');
+  const foldedDeptIds = _opdFoldedDeptIds();
   const deptsPresent = _allDepts.filter(d =>
     deptIdsPresent.has(d.id) &&
     !CLAIMED_DEPT_NAMES.has(d.name.trim().toLowerCase()) &&
-    d.id !== pkDept?.id // Panchakarma is its own pinned GROUP_CONFIG entry above, not a generic fallback tab
+    d.id !== pkDept?.id &&        // Panchakarma is its own pinned GROUP_CONFIG entry above
+    !foldedDeptIds.has(d.id)      // every other clinical dept with a matching OPD lives under OPD's dropdown now, not its own tab
   );
   const hasGeneral = _allFees.some(_isGeneralFee);
 
@@ -680,7 +710,15 @@ function _prefillFromActiveGroup() {
   if (grp) {
     if (grp.key === 'opd') {
       catSel.value = 'opd';
-      if (_activeSub !== 'all' && _activeSub !== '__general_opd__') opdSel.value = _activeSub;
+      if (_activeSub !== 'all' && _activeSub !== '__general_opd__') {
+        opdSel.value = _activeSub;
+        // Also pre-fill the matching clinical department (if any) so a service saved
+        // here shows up correctly whichever category the admin ends up picking -- a
+        // Shalya Tantra procedure charge (category=procedure) still needs to land under
+        // "Shalya Tantra OPD", not just opd_id-linked category=opd fees.
+        const deptId = _deptIdForOpd(_opds.find(o => o.id === _activeSub));
+        if (deptId) deptSel.value = deptId;
+      }
     } else if (grp.key === 'ipd') {
       catSel.value = 'ipd';
     } else if (grp.key === 'panchakarma') {
@@ -770,7 +808,9 @@ window.onCategoryChange = function() {
   if (!cat) { typeWrap.style.display = 'none'; opdWrap.style.display = 'none'; tierWrap.style.display = 'none'; return; }
 
   typeWrap.style.display = 'block';
-  opdWrap.style.display  = cat === 'opd' ? 'block' : 'none';
+  // Shown for procedure too, not just opd -- a Shalya Tantra procedure charge still
+  // benefits from being linked to "Shalya Tantra OPD" (Session 110's OPD fold-in fix).
+  opdWrap.style.display  = (cat === 'opd' || cat === 'procedure') ? 'block' : 'none';
 
   if (!TIERABLE_CATEGORIES.includes(cat)) {
     document.getElementById('m-tiered').checked = false;
