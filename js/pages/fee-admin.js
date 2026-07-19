@@ -227,38 +227,16 @@ const IPD_SUBITEMS = [
   ['attendant_bed', 'Attendant Bed'],
 ];
 
-// Session 109 correction: real hospital/teaching_hospital tenants (confirmed on BOTH
-// WASA1631 and SDM, a real production tenant -- this is standard seeding, not test-tenant
-// noise) already carry a broad generic org-tree of departments alongside the NCISM
-// clinical ones: Administration, Diagnostics, Diet / Pathya, IPD, Kriyakalpa, Labour Room,
-// Laundry, OPD, Operation Theatre (Major + Minor + CSSD), Pharmacy, Physiotherapy (plus
-// Finance & Accounts/House Keeping/Security, not relevant to fee-admin.html). The initial
-// service_group-only design was wrong to assume these never exist as real departments --
-// it does, for real tenants -- so every group below now matches EITHER a fee tagged via
-// department_id to that real department OR one tagged via service_group (for the tenants/
-// sub-items that genuinely have no matching department row, e.g. Swasthavritta & Yoga on
-// hospital-type tenants, or Administration's 7 individual counters, which are sub-items of
-// the one real "Administration" department, not separate department rows themselves).
-// Without this merge, manually linking a fee via the existing "Department" dropdown to one
-// of these real rows would silently create a second, duplicate-looking tab with the same
-// name via the generic per-department fallback further down in renderGroupTabs().
-function _deptIdByName(name) {
-  const d = _allDepts.find(d => d.name.trim().toLowerCase() === name.toLowerCase());
-  return d ? d.id : null;
-}
-
-// Guards against the case where the named department doesn't exist for this tenant
-// (_deptIdByName returns null) AND the fee also has no department_id (also null, the
-// overwhelmingly common case) -- a bare `f.department_id === _deptIdByName(name)` would
-// evaluate `null === null` as true and falsely match every department-less fee against
-// every non-existent-department group simultaneously. Found live while testing this
-// exact scenario on WASA1631 (a phantom "Swasthavritta & Yoga" tab, whose department
-// doesn't exist on that tenant, appeared for a fee that had nothing to do with it).
-function _deptMatches(f, name) {
-  const id = _deptIdByName(name);
-  return !!id && f.department_id === id;
-}
-
+// GROUP_CONFIG resolvers match purely on service_group / category / opd_id, per the
+// approved plan -- never on department_id. Some real hospital/teaching_hospital tenants
+// (confirmed on both WASA1631 and SDM) also happen to carry real `departments` rows with
+// the same names (Administration, OPD, IPD, Operation Theatre, Labour Room, Kriyakalpa,
+// Diet/Pathya, Physiotherapy, Diagnostics, Pharmacy, Laundry) from a broader org-tree
+// seeding -- rather than merging that path into these resolvers (which risks two
+// different-looking "sources of truth" for the same tab), those department names are
+// excluded from the "+Add Service" Department picker entirely (see loadDepartments() /
+// CLAIMED_DEPT_NAMES below) so a fee can only ever reach one of these groups the one
+// intended way: via service_group (or category/opd_id for OPD/IPD/Diagnostics).
 const GROUP_CONFIG = [
   {
     key:'administration', label:'Administration',
@@ -268,68 +246,49 @@ const GROUP_CONFIG = [
       ['admin_discharge','Discharge Counter'], ['admin_billing','Billing Counter'],
       ['admin_mrd','MRD'],
     ],
-    match:    f => _deptMatches(f, 'Administration') || (!!f.service_group && f.service_group.startsWith('admin_')),
+    match:    f => !!f.service_group && f.service_group.startsWith('admin_'),
     matchSub: (f, sub) => f.service_group === sub,
   },
   {
     key:'opd', label:'OPD',
-    match: f => f.category === 'opd' || _deptMatches(f, 'OPD'),
+    match: f => f.category === 'opd',
     matchSub: (f, sub) => sub === '__general_opd__' ? !f.opd_id : f.opd_id === sub,
   },
   {
     key:'ipd', label:'IPD',
-    match: f => f.category === 'ipd' || _deptMatches(f, 'IPD'),
+    match: f => f.category === 'ipd',
     matchSub: (f, sub) => sub === 'room' ? (f.fee_type || '').startsWith('room_') : f.fee_type === sub,
   },
   {
     key:'ot', label:'Operation Theatre',
     subItems: [['ot_major','Major OT'], ['ot_minor','Minor OT'], ['ot_cssd','CSSD']],
-    match:    f => _deptMatches(f, 'Operation Theatre (Major + Minor + CSSD)') || ['ot_major','ot_minor','ot_cssd'].includes(f.service_group),
+    match:    f => ['ot_major','ot_minor','ot_cssd'].includes(f.service_group),
     matchSub: (f, sub) => f.service_group === sub,
   },
-  { key:'labour_room', label:'Labour Room', soloTag:'labour_room',
-    match: f => _deptMatches(f, 'Labour Room') || f.service_group === 'labour_room' },
-  { key:'kriyakalpa', label:'Kriyakalpa', soloTag:'kriyakalpa',
-    match: f => _deptMatches(f, 'Kriyakalpa') || f.service_group === 'kriyakalpa' },
-  { key:'swasthavritta_yoga', label:'Swasthavritta & Yoga', soloTag:'swasthavritta_yoga',
-    match: f => _deptMatches(f, 'Swasthavritta & Yoga') || f.service_group === 'swasthavritta_yoga' },
-  { key:'diet_pathya', label:'Diet / Pathya', soloTag:'diet_pathya',
-    match: f => _deptMatches(f, 'Diet / Pathya') || f.service_group === 'diet_pathya' },
-  { key:'physiotherapy', label:'Physiotherapy', soloTag:'physiotherapy',
-    match: f => _deptMatches(f, 'Physiotherapy') || f.service_group === 'physiotherapy' },
+  { key:'labour_room', label:'Labour Room', soloTag:'labour_room', match: f => f.service_group === 'labour_room' },
+  { key:'kriyakalpa', label:'Kriyakalpa', soloTag:'kriyakalpa', match: f => f.service_group === 'kriyakalpa' },
+  { key:'swasthavritta_yoga', label:'Swasthavritta & Yoga', soloTag:'swasthavritta_yoga', match: f => f.service_group === 'swasthavritta_yoga' },
+  { key:'diet_pathya', label:'Diet / Pathya', soloTag:'diet_pathya', match: f => f.service_group === 'diet_pathya' },
+  { key:'physiotherapy', label:'Physiotherapy', soloTag:'physiotherapy', match: f => f.service_group === 'physiotherapy' },
   {
     key:'diagnostics', label:'Diagnostics',
     subItems: [['lab','Lab'], ['radiology','Radiology']],
-    match:    f => f.category === 'lab' || f.category === 'radiology' || _deptMatches(f, 'Diagnostics'),
+    match:    f => f.category === 'lab' || f.category === 'radiology',
     matchSub: (f, sub) => f.category === sub,
   },
-  { key:'pharmacy', label:'Pharmacy', soloTag:'pharmacy',
-    match: f => _deptMatches(f, 'Pharmacy') || f.service_group === 'pharmacy' },
-  { key:'laundry', label:'Laundry', soloTag:'laundry',
-    match: f => _deptMatches(f, 'Laundry') || f.service_group === 'laundry' },
+  { key:'pharmacy', label:'Pharmacy', soloTag:'pharmacy', match: f => f.service_group === 'pharmacy' },
+  { key:'laundry', label:'Laundry', soloTag:'laundry', match: f => f.service_group === 'laundry' },
 ];
 
-// Real department name for each soloTag group's own match() lookup above -- reused by
-// _prefillFromActiveGroup() so "which department name goes with this tag" lives in one
-// place instead of being duplicated between matching and pre-fill logic.
-const GROUP_SOLO_DEPT_NAMES = {
-  labour_room:        'Labour Room',
-  kriyakalpa:         'Kriyakalpa',
-  swasthavritta_yoga: 'Swasthavritta & Yoga',
-  diet_pathya:        'Diet / Pathya',
-  physiotherapy:      'Physiotherapy',
-  pharmacy:           'Pharmacy',
-  laundry:            'Laundry',
-};
-
-// Every real department name a GROUP_CONFIG entry's match() already claims via
-// _deptMatches() above -- the generic per-department fallback in renderGroupTabs() must
-// exclude these, or a department with fees would get BOTH its GROUP_CONFIG tab AND a
-// second, identically-labelled tab from the generic "any real department with fees gets
-// a tab" loop (found live on WASA1631 testing the Physiotherapy department).
+// Real department names that collide with a GROUP_CONFIG group above -- excluded from
+// the "+Add Service" Department dropdown (loadDepartments()) so there's no way to
+// accidentally link a fee to one of these via department_id, and kept as a defensive
+// exclusion in renderGroupTabs()'s generic per-department fallback too (belt-and-braces
+// in case any pre-existing row already has department_id set to one of these).
 const CLAIMED_DEPT_NAMES = new Set([
   'administration', 'opd', 'ipd', 'operation theatre (major + minor + cssd)', 'diagnostics',
-  ...Object.values(GROUP_SOLO_DEPT_NAMES).map(n => n.toLowerCase()),
+  'labour room', 'kriyakalpa', 'swasthavritta & yoga', 'diet / pathya', 'physiotherapy',
+  'pharmacy', 'laundry',
 ]);
 
 // ── Approval text per role ────────────────────────
@@ -371,11 +330,18 @@ async function loadDepartments() {
   const sel = document.getElementById('m-department');
   if (sel) {
     sel.innerHTML = '<option value="">— General / Hospital-wide —</option>';
-    _allDepts.forEach(d => {
-      const opt = document.createElement('option');
-      opt.value = d.id; opt.textContent = d.name;
-      sel.appendChild(opt);
-    });
+    // Departments already covered by a GROUP_CONFIG group (Administration, OPD, IPD, OT,
+    // Labour Room, Kriyakalpa, Diet/Pathya, Physiotherapy, Diagnostics, Pharmacy, Laundry)
+    // are deliberately left out of this picker -- those fees belong via Service Group (or
+    // category/opd_id) instead, so there's exactly one way to reach each of those tabs,
+    // not two competing ones.
+    _allDepts
+      .filter(d => !CLAIMED_DEPT_NAMES.has(d.name.trim().toLowerCase()))
+      .forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.id; opt.textContent = d.name;
+        sel.appendChild(opt);
+      });
   }
 }
 
@@ -681,20 +647,9 @@ function _prefillFromActiveGroup() {
     } else if (grp.key === 'diagnostics') {
       if (_activeSub === 'lab' || _activeSub === 'radiology') catSel.value = _activeSub;
     } else if (grp.soloTag) {
-      // Prefer the real department when this tenant has one (standard org-tree seeding --
-      // confirmed present on both WASA1631 and SDM) so new fees land on the same, single
-      // mechanism match() already recognises. Only fall back to the service_group tag for
-      // tenants missing that department row (e.g. Swasthavritta & Yoga on hospital-type).
-      const realDeptId = _allDepts.find(d => GROUP_SOLO_DEPT_NAMES[grp.key] && d.name.trim().toLowerCase() === GROUP_SOLO_DEPT_NAMES[grp.key].toLowerCase())?.id;
-      if (realDeptId) deptSel.value = realDeptId;
-      else groupSel.value = grp.soloTag;
+      groupSel.value = grp.soloTag;
     } else if (grp.key === 'administration' || grp.key === 'ot') {
-      if (_activeSub !== 'all') {
-        groupSel.value = _activeSub; // a specific counter / OT sub-type -- never a real department itself
-      } else {
-        const realDeptId = _allDepts.find(d => d.name.trim().toLowerCase() === (grp.key === 'administration' ? 'administration' : 'operation theatre (major + minor + cssd)'))?.id;
-        if (realDeptId) deptSel.value = realDeptId;
-      }
+      if (_activeSub !== 'all') groupSel.value = _activeSub; // a specific counter / OT sub-type
     }
   } else if (_activeGroup !== 'all' && _activeGroup !== 'general') {
     deptSel.value = _activeGroup; // real department id (Session 107 fallback)
