@@ -817,7 +817,7 @@ function _fmtD(s) {
 }
 function _roleLabel(r) {
   return {super_admin:'Super Admin',dept_admin:'Dept Admin',doctor:'Doctor',receptionist:'Receptionist',
-    pharmacist:'Pharmacist',nurse:'Nurse',lab_tech:'Lab Tech',accountant:'Accountant',
+    pharmacist:'Pharmacist',nurse:'Nurse',nurse_manager:'Nurse Manager',lab_tech:'Lab Tech',accountant:'Accountant',
     therapist:'Therapist',student:'Student'}[r] || (r||'—');
 }
 function _statusLabel(s) {

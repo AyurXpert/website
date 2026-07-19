@@ -5,7 +5,7 @@ import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 
-requireAuth(['nurse','super_admin','dept_admin','doctor']);
+requireAuth(['nurse','nurse_manager','super_admin','dept_admin','doctor']);
 initNavbar();
 wireDelegatedEvents();
 

@@ -675,12 +675,14 @@ async function renderNurseRatio(regularBeds) {
   if (totalBeds === 0) { panel.style.display = 'none'; return; }
   panel.style.display = '';
 
-  // Count active nurses
+  // Count active nurses. Includes nurse_manager (Session 112 -- Nursing Superintendent/
+  // Deputy Nursing Superintendent moved off the generic 'nurse' role onto their own role,
+  // but they're still part of the nursing establishment headcount for this 1:10 bed ratio)
   const { data: nurses } = await supabase
     .from('profiles')
     .select('id')
     .eq('tenant_id', tenantId)
-    .eq('role', 'nurse')
+    .in('role', ['nurse', 'nurse_manager'])
     .eq('is_active', true);
   const activeNurses = nurses?.length || 0;
 
@@ -721,6 +723,10 @@ async function renderStaffCompliance() {
 
   const roleCounts = {};
   (profiles || []).forEach(p => { roleCounts[p.role] = (roleCounts[p.role] || 0) + 1; });
+  // Session 112: fold nurse_manager (Nursing Superintendent/Deputy) into the 'nurse'
+  // bucket for this table's row-by-row counting -- every SCHEDULE_XX row below keys off
+  // role:'nurse', and without this they'd silently undercount the moment that role exists.
+  roleCounts.nurse = (roleCounts.nurse || 0) + (roleCounts.nurse_manager || 0);
 
   // Build rows. concurrent:true (Medical Director / Principal / Dean) is displayed but
   // excluded from all aggregate totals below — the post is typically held concurrently by

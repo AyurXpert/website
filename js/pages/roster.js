@@ -4,7 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 
-await requireAuth(['super_admin', 'dept_admin']);
+await requireAuth(['super_admin', 'dept_admin', 'nurse_manager']);
 initNavbar();
 wireDelegatedEvents();
 

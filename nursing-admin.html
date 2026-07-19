@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Nursing Administration — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;
+  --red:#c0392b;--cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:10px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh;margin:0}
+.container{max-width:1100px;margin:0 auto;padding:24px 20px 80px}
+.page-header{margin-bottom:20px}
+.page-title{font-size:24px;font-weight:700;color:var(--green-deep);font-family:'Cormorant Garamond',serif}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:2px}
+
+.cc{background:var(--white);border-radius:var(--radius);box-shadow:0 2px 14px rgba(0,0,0,.06);margin-bottom:18px;overflow:hidden}
+.cc-hd{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.cc-title{font-size:15px;font-weight:700;color:var(--green-deep)}
+.cc-sub{font-size:11.5px;color:var(--text-muted);margin-top:2px}
+.cc-body{padding:16px 18px}
+
+.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 16px;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s;text-decoration:none}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-approve{background:var(--green-light);color:var(--green-deep);border:1.5px solid var(--green-mid)}
+.btn-reject{background:#fdecea;color:var(--red);border:1.5px solid #f5b8b8}
+.btn-sm{height:28px;padding:0 12px;font-size:12px}
+
+.leave-card{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;background:var(--cream)}
+.lc-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.lc-name{font-weight:600;font-size:13.5px}
+.lc-meta{font-size:11px;color:var(--text-muted);margin-top:2px}
+.lc-dates{font-size:12px;margin-top:6px}
+.lc-reason{font-size:12px;color:var(--text-mid);font-style:italic;margin-top:4px}
+.lc-actions{display:flex;gap:8px;margin-top:8px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:600}
+
+.snap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.snap-card{border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.snap-dept{font-weight:600;font-size:13px;color:var(--green-deep)}
+.snap-row{display:flex;justify-content:space-between;font-size:12px;margin-top:6px}
+.snap-ok{color:var(--green-mid)}.snap-warn{color:var(--gold)}.snap-deficit{color:var(--red)}
+
+.empty{font-size:12.5px;color:var(--text-muted);padding:12px 0}
+
+.reject-modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:100}
+.reject-modal.show{display:flex}
+.reject-box{background:#fff;border-radius:var(--radius);padding:20px;width:100%;max-width:400px}
+.reject-box textarea{width:100%;height:80px;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:13px;margin:10px 0}
+</style>
+</head>
+<body>
+
+<div id="navbar-root"></div>
+
+<div class="container">
+  <div class="page-header">
+    <div class="page-title">Nursing Administration</div>
+    <div class="page-subtitle">Duty roster, nursing staff leave approval, and NCISM nursing-staffing compliance</div>
+  </div>
+
+  <div class="cc">
+    <div class="cc-hd">
+      <div><div class="cc-title">🗓️ Duty Roster</div><div class="cc-sub">Assign and manage nursing (and other) staff shifts across all wards</div></div>
+      <a class="btn btn-primary" href="roster.html">Open Duty Roster</a>
+    </div>
+  </div>
+
+  <div class="cc">
+    <div class="cc-hd">
+      <div><div class="cc-title">🏖️ Nursing Staff Leave Requests</div><div class="cc-sub">Pending leave requests from nursing staff only (Staff Nurse, Ward Sister, ANM)</div></div>
+    </div>
+    <div class="cc-body" id="leave-list">Loading…</div>
+  </div>
+
+  <div class="cc">
+    <div class="cc-hd">
+      <div><div class="cc-title">📊 Nursing Compliance Snapshot</div><div class="cc-sub" id="snap-sub">—</div></div>
+    </div>
+    <div class="cc-body">
+      <div class="snap-grid" id="snap-grid">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<div class="reject-modal" id="reject-modal">
+  <div class="reject-box">
+    <div style="font-weight:600;margin-bottom:6px">Reject Leave Request</div>
+    <textarea id="reject-reason" placeholder="Reason for rejection…"></textarea>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-reject" data-onclick="confirmReject">Reject</button>
+      <button class="btn" style="background:var(--cream);border:1.5px solid var(--border)" data-onclick="closeRejectModal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module" src="./js/pages/nursing-admin.js"></script>
+</body>
+</html>

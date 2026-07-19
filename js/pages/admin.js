@@ -556,7 +556,12 @@ const DESIG_ROLE_DEFAULT = {
   medical_superintendent:'doctor', deputy_medical_superintendent:'doctor',
   resident_medical_officer:'doctor', emergency_medical_officer:'doctor', general_duty_medical_officer:'doctor',
   administrative_officer:'dept_admin', opd_incharge:'dept_admin',
-  nursing_superintendent:'nurse', deputy_nursing_superintendent:'nurse',
+  // Session 112: Nursing Superintendent/Deputy are managerial positions (NCISM lists them
+  // under the Administration zone, Sch XX/7-8, not the clinical ward zones) -- they get
+  // their own role landing on nursing-admin.html (roster + nursing leave approval +
+  // compliance oversight), not nursing.html's bedside charting tool that plain nursing
+  // staff use.
+  nursing_superintendent:'nurse_manager', deputy_nursing_superintendent:'nurse_manager',
   staff_nurse:'nurse', ward_sister:'nurse', anm:'nurse',
   accountant:'accountant',
   receptionist:'receptionist', registration_clerk:'receptionist', billing_clerk:'receptionist',
@@ -1477,6 +1482,7 @@ window.copyPositionInviteLink = function(){
 const STAFFING_PLAN_ROLE_ORDER = [
   {role:'doctor',       icon:'👨‍⚕️', label:'Doctors'},
   {role:'nurse',        icon:'👩‍⚕️', label:'Nurses'},
+  {role:'nurse_manager',icon:'👩‍💼', label:'Nurse Managers'},
   {role:'pharmacist',   icon:'💊', label:'Pharmacists'},
   {role:'lab_tech',     icon:'🔬', label:'Lab Technicians'},
   {role:'receptionist', icon:'🏥', label:'Receptionists'},
@@ -4428,7 +4434,7 @@ async function _sumToday(table,col){
   }catch{return 0;}
 }
 function _fmt(n){if(!n)return'₹0';if(n>=100000)return'₹'+(n/100000).toFixed(1)+'L';if(n>=1000)return'₹'+(n/1000).toFixed(1)+'K';return'₹'+Math.round(n);}
-function _roleLabel(r){return{super_admin:'Super Admin',dept_admin:'Dept. Admin',doctor:'Doctor',receptionist:'Receptionist',pharmacist:'Pharmacist',nurse:'Nurse',lab_tech:'Lab Technician',accountant:'Accountant',therapist:'Therapist',student:'Student',diet_staff:'Diet / Pathya Staff',mrd_staff:'Medical Records Staff'}[r]||r;}
+function _roleLabel(r){return{super_admin:'Super Admin',dept_admin:'Dept. Admin',doctor:'Doctor',receptionist:'Receptionist',pharmacist:'Pharmacist',nurse:'Nurse',nurse_manager:'Nurse Manager',lab_tech:'Lab Technician',accountant:'Accountant',therapist:'Therapist',student:'Student',diet_staff:'Diet / Pathya Staff',mrd_staff:'Medical Records Staff'}[r]||r;}
 function _tenantLabel(t){return{clinic:'Clinic',hospital:'Hospital',teaching_hospital:'Teaching Hospital',pk_center:'PK Centre',dispensary:'Dispensary',college:'Ayurveda College',pharma:'Pharmaceutical Co.',supplier:'Supplier',dealer:'Dealer',journal:'Journal'}[t]||'Healthcare';}
 function _relDate(iso){if(!iso)return'—';const d=Math.floor((Date.now()-new Date(iso))/60000);if(d<60)return d+'m ago';if(d<1440)return Math.floor(d/60)+'h ago';return Math.floor(d/1440)+'d ago';}
 function _esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
