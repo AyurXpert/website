@@ -1042,16 +1042,25 @@ window.openQuickSetup = function() {
   document.getElementById('qs-note').textContent  =
     `Select the services you offer. Suggested default fees are shown — you can edit amounts after saving.`;
 
+  // Items already present (same category + fee_type) start unchecked and marked, so
+  // re-opening Quick Setup after it's already been run doesn't look like a blank slate
+  // inviting a second full run -- runQuickSetup() also re-checks fresh at click time as
+  // the real guard (see there for why "already unchecked here" alone isn't enough).
+  const existing = new Set(_allFees.map(f => `${f.category}::${f.fee_type}`));
+
   const grid = document.getElementById('qs-grid');
-  grid.innerHTML = tpl.map((t, i) => `
-    <label class="qs-item" for="qs-${i}">
-      <input type="checkbox" id="qs-${i}" value="${i}" checked/>
+  grid.innerHTML = tpl.map((t, i) => {
+    const already = existing.has(`${t.category}::${t.fee_type}`);
+    return `
+    <label class="qs-item${already ? ' qs-item-existing' : ''}" for="qs-${i}">
+      <input type="checkbox" id="qs-${i}" value="${i}" ${already ? '' : 'checked'}/>
       <div class="qs-item-info">
-        <div class="qs-item-name">${t.label}</div>
+        <div class="qs-item-name">${t.label}${already ? ' <span class="qs-existing-tag">Already added</span>' : ''}</div>
         <div class="qs-item-cat">${CAT_LABEL_MAP[t.category] || t.category}</div>
       </div>
       <div class="qs-item-amt">₹${t.amount}</div>
-    </label>`).join('');
+    </label>`;
+  }).join('');
 
   document.getElementById('qs-overlay').classList.add('open');
 };
@@ -1063,12 +1072,32 @@ window.closeQuickSetup = function() {
 window.runQuickSetup = async function() {
   const tpl      = QS_TEMPLATES[facType] || [];
   const checked  = [...document.querySelectorAll('#qs-grid input[type=checkbox]:checked')];
-  const selected = checked.map(cb => tpl[parseInt(cb.value)]).filter(Boolean);
+  let   selected = checked.map(cb => tpl[parseInt(cb.value)]).filter(Boolean);
 
   if (!selected.length) { toast('Select at least one service.', 'error'); return; }
 
   const btn = document.getElementById('btn-qs-save');
   btn.classList.add('loading'); btn.disabled = true;
+
+  // Re-check against the DB fresh, right before inserting -- not just the in-memory
+  // `_allFees` snapshot from page load, and not just openQuickSetup()'s pre-unchecking
+  // (a checkbox can always be re-checked). Found live on SDM: Quick Setup was run twice
+  // with nothing stopping it, silently duplicating the entire 79-item catalog (158 rows,
+  // 2 exact copies of everything, created hours apart) -- same bug class as Session 92's
+  // opd-admin.html seeding race, same fix: query fresh at the moment of the actual write.
+  const { data: existingRows } = await supabase
+    .from('fee_structures')
+    .select('category, fee_type')
+    .eq('tenant_id', tenantId);
+  const existing = new Set((existingRows || []).map(f => `${f.category}::${f.fee_type}`));
+  const skippedCount = selected.filter(t => existing.has(`${t.category}::${t.fee_type}`)).length;
+  selected = selected.filter(t => !existing.has(`${t.category}::${t.fee_type}`));
+
+  if (!selected.length) {
+    btn.classList.remove('loading'); btn.disabled = false;
+    toast('All selected services already exist -- nothing new to add.', 'error');
+    return;
+  }
 
   const isSA = role === 'super_admin';
   // Resolve each item's dept code (e.g. 'PK') to this tenant's real department row by
@@ -1099,6 +1128,13 @@ window.runQuickSetup = async function() {
   btn.classList.remove('loading'); btn.disabled = false;
 
   if (error) { toast(safeErrorMessage(error, 'Could not add services.'), 'error'); return; }
+
+  if (skippedCount) {
+    toast(`${selected.length} service${selected.length > 1 ? 's' : ''} added, ${skippedCount} already existed and were skipped.`, 'success');
+    closeQuickSetup();
+    loadFees();
+    return;
+  }
 
   toast(`${selected.length} service${selected.length > 1 ? 's' : ''} added successfully.`, 'success');
   closeQuickSetup();
