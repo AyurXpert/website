@@ -4,7 +4,7 @@
 //   - Local assets (JS/CSS/images) → Cache first → network → cache update
 //   - External APIs (Supabase, Google Fonts, CDN) → Network only, no caching
 
-const CACHE      = 'ayurxpert-v9';
+const CACHE      = 'ayurxpert-v10';
 const OFFLINE    = './offline.html';
 
 // Security headers injected on every navigation response
@@ -79,10 +79,17 @@ self.addEventListener('fetch', event => {
   if (req.method !== 'GET') return;
   if (isExternal(req.url))  return;
 
-  // Navigation requests → network first + security headers
+  // Navigation requests → network first + security headers. `cache:'no-store'` is
+  // required here for the exact same reason the JS/CSS handler below needs it: without
+  // it, fetch() still honors the browser's own HTTP cache (navigations to pages like
+  // fee-admin.html serve Cache-Control: max-age=600), so a returning visitor within that
+  // window gets a stale pre-deploy page even though this handler's intent is "always hit
+  // the network." Found live (Session 109/110): a real deploy wasn't visible on a real
+  // user's browser despite the origin serving fresh content, confirmed via curl -- the
+  // exact same symptom already fixed for JS/CSS in Session 94, just never extended here.
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: 'no-store' })
         .then(res => {
           if (!res.ok) return caches.match(req).then(c => c || caches.match(OFFLINE));
           // Clone BEFORE withSecHeaders consumes res.body — fixes "body already used" error
