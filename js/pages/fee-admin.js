@@ -194,7 +194,7 @@ const SERVICE_GROUPS = {
   admin_reception:    'Administration — Reception',
   admin_registration: 'Administration — Registration Counter',
   admin_admission:    'Administration — Admission Counter',
-  admin_insurance:    'Administration — Insurance Desk',
+  admin_insurance:    'Administration — Insurance Counter',
   admin_discharge:    'Administration — Discharge Counter',
   admin_billing:      'Administration — Billing Counter',
   admin_mrd:          'Administration — MRD',
@@ -227,57 +227,76 @@ const IPD_SUBITEMS = [
   ['attendant_bed', 'Attendant Bed'],
 ];
 
-// GROUP_CONFIG resolvers match purely on service_group / category / opd_id, per the
-// approved plan -- never on department_id. Some real hospital/teaching_hospital tenants
-// (confirmed on both WASA1631 and SDM) also happen to carry real `departments` rows with
-// the same names (Administration, OPD, IPD, Operation Theatre, Labour Room, Kriyakalpa,
+// GROUP_CONFIG resolvers match purely on service_group / category / opd_id / department_id
+// (Panchakarma only), per the approved plan -- Administration/OT/Labour Room/etc never on
+// department_id (see CLAIMED_DEPT_NAMES below for why). Some real hospital/teaching_hospital
+// tenants (confirmed on both WASA1631 and SDM) also happen to carry real `departments` rows
+// with the same names (Administration, OPD, IPD, Operation Theatre, Labour Room, Kriyakalpa,
 // Diet/Pathya, Physiotherapy, Diagnostics, Pharmacy, Laundry) from a broader org-tree
 // seeding -- rather than merging that path into these resolvers (which risks two
 // different-looking "sources of truth" for the same tab), those department names are
 // excluded from the "+Add Service" Department picker entirely (see loadDepartments() /
 // CLAIMED_DEPT_NAMES below) so a fee can only ever reach one of these groups the one
 // intended way: via service_group (or category/opd_id for OPD/IPD/Diagnostics).
+//
+// `alwaysShow: true` groups (Session 110, per Dr. Venkatesh's explicit ask) render as a
+// tab in this fixed order regardless of whether they have any fees yet -- so there's
+// somewhere to click "+ Add Service" into a brand-new department before its first fee
+// exists (the dynamic "only show tabs with real data" principle, while right for the
+// *other* real clinical departments below, was actively blocking that for these 11).
 const GROUP_CONFIG = [
   {
-    key:'administration', label:'Administration',
+    key:'administration', label:'Administration', alwaysShow: true,
     subItems: [
       ['admin_reception','Reception'], ['admin_registration','Registration Counter'],
-      ['admin_admission','Admission Counter'], ['admin_insurance','Insurance Desk'],
-      ['admin_discharge','Discharge Counter'], ['admin_billing','Billing Counter'],
+      ['admin_admission','Admission Counter'], ['admin_discharge','Discharge Counter'],
+      ['admin_insurance','Insurance Counter'], ['admin_billing','Billing Counter'],
       ['admin_mrd','MRD'],
     ],
     match:    f => !!f.service_group && f.service_group.startsWith('admin_'),
     matchSub: (f, sub) => f.service_group === sub,
   },
   {
-    key:'opd', label:'OPD',
+    key:'opd', label:'OPD', alwaysShow: true,
     match: f => f.category === 'opd',
     matchSub: (f, sub) => sub === '__general_opd__' ? !f.opd_id : f.opd_id === sub,
   },
   {
-    key:'ipd', label:'IPD',
+    key:'ipd', label:'IPD', alwaysShow: true,
     match: f => f.category === 'ipd',
     matchSub: (f, sub) => sub === 'room' ? (f.fee_type || '').startsWith('room_') : f.fee_type === sub,
   },
+  {
+    // Panchakarma is a real clinical department (unlike the service_group-tagged groups
+    // around it) -- resolved by ncism_code, the stable key already used everywhere else
+    // in this app for NCISM departments, not a name string prone to drift/typos.
+    key:'panchakarma', label:'Panchakarma', alwaysShow: true,
+    match: f => {
+      const pk = _allDepts.find(d => d.ncism_code === 'PK');
+      return !!pk && f.department_id === pk.id;
+    },
+  },
+  { key:'kriyakalpa', label:'Kriyakalpa', alwaysShow: true, soloTag:'kriyakalpa', match: f => f.service_group === 'kriyakalpa' },
+  { key:'labour_room', label:'Labour Room', alwaysShow: true, soloTag:'labour_room', match: f => f.service_group === 'labour_room' },
+  { key:'diet_pathya', label:'Diet / Pathya', alwaysShow: true, soloTag:'diet_pathya', match: f => f.service_group === 'diet_pathya' },
+  { key:'physiotherapy', label:'Physiotherapy', alwaysShow: true, soloTag:'physiotherapy', match: f => f.service_group === 'physiotherapy' },
+  { key:'laundry', label:'Laundry', alwaysShow: true, soloTag:'laundry', match: f => f.service_group === 'laundry' },
+  { key:'pharmacy', label:'Pharmacy', alwaysShow: true, soloTag:'pharmacy', match: f => f.service_group === 'pharmacy' },
+  {
+    key:'diagnostics', label:'Diagnostics', alwaysShow: true,
+    subItems: [['lab','Lab'], ['radiology','Radiology']],
+    match:    f => f.category === 'lab' || f.category === 'radiology',
+    matchSub: (f, sub) => f.category === sub,
+  },
+  // Not pinned -- only shown once they actually have a fee, same as any other real
+  // department (Dr. Venkatesh's latest numbered list didn't call these out as pinned).
   {
     key:'ot', label:'Operation Theatre',
     subItems: [['ot_major','Major OT'], ['ot_minor','Minor OT'], ['ot_cssd','CSSD']],
     match:    f => ['ot_major','ot_minor','ot_cssd'].includes(f.service_group),
     matchSub: (f, sub) => f.service_group === sub,
   },
-  { key:'labour_room', label:'Labour Room', soloTag:'labour_room', match: f => f.service_group === 'labour_room' },
-  { key:'kriyakalpa', label:'Kriyakalpa', soloTag:'kriyakalpa', match: f => f.service_group === 'kriyakalpa' },
   { key:'swasthavritta_yoga', label:'Swasthavritta & Yoga', soloTag:'swasthavritta_yoga', match: f => f.service_group === 'swasthavritta_yoga' },
-  { key:'diet_pathya', label:'Diet / Pathya', soloTag:'diet_pathya', match: f => f.service_group === 'diet_pathya' },
-  { key:'physiotherapy', label:'Physiotherapy', soloTag:'physiotherapy', match: f => f.service_group === 'physiotherapy' },
-  {
-    key:'diagnostics', label:'Diagnostics',
-    subItems: [['lab','Lab'], ['radiology','Radiology']],
-    match:    f => f.category === 'lab' || f.category === 'radiology',
-    matchSub: (f, sub) => f.category === sub,
-  },
-  { key:'pharmacy', label:'Pharmacy', soloTag:'pharmacy', match: f => f.service_group === 'pharmacy' },
-  { key:'laundry', label:'Laundry', soloTag:'laundry', match: f => f.service_group === 'laundry' },
 ];
 
 // Real department names that collide with a GROUP_CONFIG group above -- excluded from
@@ -373,13 +392,17 @@ function updateStats() {
 
 window.filterFees = function() { renderTable(); };
 
-// ── Group tabs (Session 109) ───────────────────────
-// Two-level nav: a top-level GROUP_CONFIG group (or a real department, via the generic
-// fallback below -- unchanged from Session 107) only gets a tab once it genuinely has
-// >=1 linked fee. Order matches Dr. Venkatesh's ask: Administration, OPD, IPD, then real
-// departments (Panchakarma among them), then OT/Labour Room/Kriyakalpa/Swasthavritta &
-// Yoga/Diet-Pathya/Physiotherapy/Diagnostics/Pharmacy/Laundry, then a General fallback
-// for anything left over (uncategorised custom/procedure fees).
+// ── Group tabs (Session 109/110) ───────────────────
+// Two-level nav. The 11 `alwaysShow` groups in GROUP_CONFIG (Administration, OPD, IPD,
+// Panchakarma, Kriyakalpa, Labour Room, Diet/Pathya, Physiotherapy, Laundry, Pharmacy,
+// Diagnostics) render in that fixed order every time, whether or not they have a fee yet
+// -- Dr. Venkatesh needs somewhere to click "+ Add Service" into before a department's
+// first fee exists. Every other real department (Kayachikitsa, Shalya Tantra, Shalakya
+// Tantra, Prasuti & Stri Roga, Kaumarabhritya, Agada Tantra, plus non-pinned GROUP_CONFIG
+// groups like Operation Theatre/Swasthavritta & Yoga) still only gets a tab once it
+// genuinely has >=1 linked fee -- same dynamic principle Session 107 built, just no
+// longer applied to the 11 pinned ones. A General fallback covers anything left over
+// (uncategorised custom/procedure fees).
 function _isGeneralFee(f) {
   return !f.department_id && !f.service_group && !['opd','ipd','lab','radiology'].includes(f.category);
 }
@@ -389,19 +412,21 @@ function renderGroupTabs() {
   if (!wrap) return;
 
   const deptIdsPresent = new Set(_allFees.filter(f => f.department_id).map(f => f.department_id));
-  const deptsPresent   = _allDepts.filter(d => deptIdsPresent.has(d.id) && !CLAIMED_DEPT_NAMES.has(d.name.trim().toLowerCase()));
-  const hasGeneral     = _allFees.some(_isGeneralFee);
+  const pkDept = _allDepts.find(d => d.ncism_code === 'PK');
+  const deptsPresent = _allDepts.filter(d =>
+    deptIdsPresent.has(d.id) &&
+    !CLAIMED_DEPT_NAMES.has(d.name.trim().toLowerCase()) &&
+    d.id !== pkDept?.id // Panchakarma is its own pinned GROUP_CONFIG entry above, not a generic fallback tab
+  );
+  const hasGeneral = _allFees.some(_isGeneralFee);
 
   const tabs = [{ key:'all', label:'All Departments' }];
 
   GROUP_CONFIG.forEach(g => {
-    if (_allFees.some(g.match)) tabs.push({ key:g.key, label:g.label });
-    // Real clinical departments (Panchakarma among them) slot in right after IPD, before
-    // Operation Theatre etc. -- matching the order Dr. Venkatesh described.
-    if (g.key === 'ipd') {
-      deptsPresent.forEach(d => tabs.push({ key:d.id, label:d.name }));
-    }
+    if (g.alwaysShow || _allFees.some(g.match)) tabs.push({ key:g.key, label:g.label });
   });
+
+  deptsPresent.forEach(d => tabs.push({ key:d.id, label:d.name }));
 
   if (hasGeneral) tabs.push({ key:'general', label:'General / Hospital-wide' });
 
@@ -421,14 +446,21 @@ function renderSubTabs() {
 
   let subItems;
   if (grp.key === 'opd') {
-    subItems = _opds.map(o => [o.id, o.name]);
-    if (_allFees.some(f => grp.match(f) && !f.opd_id)) subItems = [['__general_opd__', 'General OPD'], ...subItems];
+    subItems = [['__general_opd__', 'General OPD'], ..._opds.map(o => [o.id, o.name])];
   } else if (grp.key === 'ipd') {
     subItems = IPD_SUBITEMS;
   } else {
     subItems = grp.subItems || [];
   }
-  subItems = subItems.filter(([key]) => _allFees.some(f => grp.match(f) && grp.matchSub(f, key)));
+
+  // Pinned (alwaysShow) groups show every sub-item unconditionally, same reasoning as the
+  // group tabs themselves -- Dr. Venkatesh needs to click into an empty OPD/counter/sub-
+  // category to add its first fee, not wait for one to already exist. Non-pinned groups
+  // (Operation Theatre) keep the original "only show sub-items that already have a fee"
+  // behaviour.
+  if (!grp.alwaysShow) {
+    subItems = subItems.filter(([key]) => _allFees.some(f => grp.match(f) && grp.matchSub(f, key)));
+  }
 
   if (subItems.length <= 1) { wrap.innerHTML = ''; return; } // solo-tag groups need no second level
 
@@ -489,9 +521,16 @@ function renderTable() {
 
   const tbody = document.getElementById('fee-tbody');
   if (!rows.length) {
+    // A specific group/sub-item with zero fees still needs a direct way to add its
+    // first one -- the global "+Add Service" button up top does the same thing, but
+    // Dr. Venkatesh asked for an option to add services from inside every department,
+    // not just from a button he has to scroll back up to.
+    const scoped = _activeGroup !== 'all';
     tbody.innerHTML = `<tr><td colspan="6"><div class="empty">
       <div class="empty-icon">📋</div>
-      <div class="empty-text">No fees found</div></div></td></tr>`;
+      <div class="empty-text">No fees found${scoped ? ` in ${_esc(_currentScopeLabel())}` : ''}</div>
+      ${scoped ? `<button class="btn-add" style="margin-top:14px" data-onclick="openModal">+ Add Service to ${_esc(_currentScopeLabel())}</button>` : ''}
+      </div></td></tr>`;
     return;
   }
 
@@ -644,6 +683,9 @@ function _prefillFromActiveGroup() {
       if (_activeSub !== 'all' && _activeSub !== '__general_opd__') opdSel.value = _activeSub;
     } else if (grp.key === 'ipd') {
       catSel.value = 'ipd';
+    } else if (grp.key === 'panchakarma') {
+      const pk = _allDepts.find(d => d.ncism_code === 'PK');
+      if (pk) deptSel.value = pk.id;
     } else if (grp.key === 'diagnostics') {
       if (_activeSub === 'lab' || _activeSub === 'radiology') catSel.value = _activeSub;
     } else if (grp.soloTag) {
