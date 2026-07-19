@@ -66,6 +66,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .dept-tab:hover{background:#fff8e1}
 .dept-tab.active{background:var(--gold);border-color:var(--gold);color:var(--white)}
 
+/* ── Sub-item tabs (Session 109) — second level under a group tab ── */
+.sub-tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px;padding-left:4px}
+.sub-tab{height:28px;padding:0 12px;border:1.5px solid var(--green-mid);border-radius:14px;background:var(--white);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:var(--green-mid);cursor:pointer;transition:all .15s;white-space:nowrap}
+.sub-tab:hover{background:var(--green-light)}
+.sub-tab.active{background:var(--green-mid);border-color:var(--green-mid);color:var(--white)}
+
 .btn-add{height:40px;padding:0 20px;background:var(--green-deep);color:var(--white);border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .2s}
 .btn-add:hover{background:#1f5c37}
 
@@ -191,6 +197,34 @@ tr:hover td{background:rgba(232,245,238,.4)}
   font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .15s
 }
 .btn-quicksetup:hover{background:var(--gold);color:var(--white);border-color:var(--gold)}
+.btn-bedpricing{
+  height:36px;padding:0 16px;background:var(--blue-light);color:var(--blue);
+  border:1.5px solid var(--blue-border);border-radius:8px;font-family:'DM Sans',sans-serif;
+  font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:all .15s;margin-left:8px
+}
+.btn-bedpricing:hover{background:var(--blue);color:var(--white);border-color:var(--blue)}
+
+/* ── Tiered pricing display (Session 109) ── */
+.tier-range{font-family:'Cormorant Garamond',serif;font-size:15px;font-weight:600;color:var(--green-deep)}
+.tier-expand{border:none;background:none;color:var(--text-muted);font-size:11px;cursor:pointer;margin-left:6px;padding:0;text-decoration:underline}
+.tier-expand:hover{color:var(--green-mid)}
+.tier-detail{margin-top:6px;font-size:12px;color:var(--text-mid);line-height:1.7;background:var(--cream);border-radius:6px;padding:8px 10px}
+.tier-tag{font-size:11px;color:var(--text-muted);font-weight:400}
+
+/* ── Add Service modal: bed-tier checkbox + preview ── */
+.field-check{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-dark)}
+.field-check input{width:16px;height:16px;accent-color:var(--green-mid)}
+.tier-preview{display:none;background:var(--green-light);border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--text-dark)}
+.tier-preview .tier-row{display:flex;justify-content:space-between;padding:3px 0}
+.tier-preview .tier-row-empty{color:var(--text-muted);font-style:italic}
+
+/* ── Bed Category Multiplier modal ── */
+.bcm-row{display:grid;grid-template-columns:1fr 110px 90px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.bcm-row:last-child{border-bottom:none}
+.bcm-label{font-size:13.5px;color:var(--text-dark)}
+.bcm-mult{height:36px;padding:0 10px;border:1.5px solid var(--border);border-radius:6px;font-size:14px;text-align:center}
+.bcm-active{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-mid);white-space:nowrap}
+.bcm-active input{width:15px;height:15px;accent-color:var(--green-mid)}
 
 /* Quick setup modal */
 .qs-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:8px}
@@ -253,8 +287,14 @@ tr:hover td{background:rgba(232,245,238,.4)}
     <button class="btn-add" id="btn-add-top" data-onclick="openModal">+ Add Service</button>
   </div>
 
-  <!-- ── Department tabs (Session 107) — dynamic, only departments with >=1 fee show up ── -->
-  <div class="dept-tabs" id="dept-tabs"></div>
+  <!-- ── Group tabs (Session 109) — dynamic two-level nav: Administration/OPD/IPD/
+       Panchakarma/OT/Labour Room/Kriyakalpa/Swasthavritta & Yoga/Diet-Pathya/
+       Physiotherapy/Diagnostics/Pharmacy/Laundry + any other real department, each
+       shown only once it genuinely has >=1 linked fee. A second row of sub-item tabs
+       (e.g. the 7 real OPDs, or Administration's counters) appears under whichever
+       group is active, when that group has more than one sub-item. ── -->
+  <div class="dept-tabs" id="group-tabs"></div>
+  <div class="sub-tabs" id="subgroup-tabs"></div>
 
   <!-- ── Facility profile banner ─────────────────── -->
   <div class="facility-banner" id="facility-banner">
@@ -264,6 +304,9 @@ tr:hover td{background:rgba(232,245,238,.4)}
     </div>
     <button class="btn-quicksetup" id="btn-quicksetup" data-onclick="openQuickSetup">
       ⚡ Quick Setup
+    </button>
+    <button class="btn-bedpricing" id="btn-bedpricing" data-onclick="openBedMultipliers">
+      🛏️ Bed Category Pricing
     </button>
   </div>
 
@@ -302,15 +345,6 @@ tr:hover td{background:rgba(232,245,238,.4)}
       <span class="search-icon">🔍</span>
       <input type="search" id="search-input" placeholder="Search services…" data-oninput="filterFees"/>
     </div>
-    <div class="cat-tabs">
-      <button class="cat-tab active" data-cat="all" data-onclick="setTab" data-onclick-a0="@this" data-onclick-a1="all">All</button>
-      <button class="cat-tab" data-cat="opd"       data-onclick="setTab" data-onclick-a0="@this" data-onclick-a1="opd">OPD</button>
-      <button class="cat-tab" data-cat="ipd"       data-onclick="setTab" data-onclick-a0="@this" data-onclick-a1="ipd">IPD</button>
-      <button class="cat-tab" data-cat="lab"       data-onclick="setTab" data-onclick-a0="@this" data-onclick-a1="lab">Lab</button>
-      <button class="cat-tab" data-cat="procedure" data-onclick="setTab" data-onclick-a0="@this" data-onclick-a1="procedure">Procedure</button>
-      <button class="cat-tab" data-cat="radiology" data-onclick="setTab" data-onclick-a0="@this" data-onclick-a1="radiology">Radiology</button>
-      <button class="cat-tab" data-cat="custom"    data-onclick="setTab" data-onclick-a0="@this" data-onclick-a1="custom">Custom</button>
-    </div>
   </div>
 
   <!-- ── Table ─────────────────────────────────────── -->
@@ -321,7 +355,7 @@ tr:hover td{background:rgba(232,245,238,.4)}
           <tr>
             <th>Service / Label</th>
             <th>Category</th>
-            <th>OPD / Dept</th>
+            <th>OPD / Dept / Group</th>
             <th>Amount</th>
             <th>Status</th>
             <th>Actions</th>
@@ -366,7 +400,7 @@ tr:hover td{background:rgba(232,245,238,.4)}
         </div>
         <div class="field">
           <label>Amount (₹) <span class="req">*</span></label>
-          <input id="m-amount" type="number" min="0" step="0.01" placeholder="0.00"/>
+          <input id="m-amount" type="number" min="0" step="0.01" placeholder="0.00" data-oninput="updateTierPreview"/>
         </div>
       </div>
 
@@ -384,10 +418,25 @@ tr:hover td{background:rgba(232,245,238,.4)}
       </div>
 
       <div class="field">
-        <label>Department <span style="font-weight:400;color:var(--text-muted);font-size:11px">— optional, controls which department tab this shows under</span></label>
+        <label>Department <span style="font-weight:400;color:var(--text-muted);font-size:11px">— optional, for real clinical departments (Panchakarma, Kayachikitsa, etc.)</span></label>
         <select id="m-department">
           <option value="">— General / Hospital-wide —</option>
         </select>
+      </div>
+
+      <div class="field">
+        <label>Service Group <span style="font-weight:400;color:var(--text-muted);font-size:11px">— optional, for Administration/OT/Diagnostics-adjacent billing points that aren't real departments</span></label>
+        <select id="m-group">
+          <option value="">— None —</option>
+        </select>
+      </div>
+
+      <div class="field" id="m-tiered-wrap" style="display:none">
+        <label class="field-check">
+          <input type="checkbox" id="m-tiered" data-onchange="updateTierPreview"/>
+          Vary by bed category (tiered pricing)
+        </label>
+        <div class="tier-preview" id="m-tier-preview"></div>
       </div>
 
       <div class="field">
@@ -425,6 +474,28 @@ tr:hover td{background:rgba(232,245,238,.4)}
       </div>
       <button class="btn-save" id="btn-qs-save" data-onclick="runQuickSetup">
         <span class="btn-text" id="btn-qs-text">Add Selected Fees</span>
+        <span class="btn-spinner"><span class="spinner"></span></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Bed Category Pricing Modal (Session 109) ──── -->
+<div class="modal-overlay" id="bcm-overlay">
+  <div class="modal modal-2">
+    <div class="modal-hdr">
+      <div class="modal-title">Bed Category Pricing</div>
+      <button class="modal-close" data-onclick="closeBedMultipliers">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="qs-note">
+        Any fee marked <strong>"Vary by bed category"</strong> stores one General Ward
+        baseline price — every other tier shown below is computed automatically as
+        <strong>baseline × multiplier</strong>. Raise the baseline once and every tier updates.
+      </div>
+      <div id="bcm-grid"></div>
+      <button class="btn-save" id="btn-bcm-save" data-onclick="saveBedMultipliers">
+        <span class="btn-text" id="btn-bcm-text">Save Multipliers</span>
         <span class="btn-spinner"><span class="spinner"></span></span>
       </button>
     </div>

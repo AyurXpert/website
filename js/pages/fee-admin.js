@@ -16,12 +16,15 @@ const userId    = profile.id;
 const facType   = tenant?.type || 'clinic';
 
 // ── State ─────────────────────────────────────────
-let _allFees    = [];
-let _opds       = [];
-let _allDepts   = [];   // {id, name, ncism_code} -- tenant's real departments (Session 107)
-let _editId     = null;
-let _activeTab  = 'all';
-let _activeDept = 'all'; // 'all' | '__general__' (no department) | a real department id
+let _allFees        = [];
+let _opds           = [];
+let _allDepts       = [];   // {id, name, ncism_code} -- tenant's real departments (Session 107)
+let _bedMultipliers = [];   // {tenant_id, bed_type, multiplier, is_active} -- Session 109
+let _editId         = null;
+let _activeGroup      = 'all'; // 'all' | 'general' | a GROUP_CONFIG key | a real department id
+let _activeSub        = 'all'; // 'all' | a sub-item key within the active group
+let _activeGroupLabel = 'All Departments';
+let _activeSubLabel    = null;
 
 // ── Facility profile ──────────────────────────────
 const FAC_PROFILE = {
@@ -42,16 +45,6 @@ document.getElementById('fac-type').textContent  = `${fac.icon} ${fac.label}`;
 document.getElementById('fac-cats').textContent  =
   fac.cats.map(c => ({ opd:'OPD', ipd:'IPD', lab:'Lab & Diagnostics',
     procedure:'Procedures', radiology:'Radiology', custom:'Custom Services' })[c]).join(' · ');
-
-// Show/dim category tabs based on facility type
-document.querySelectorAll('.cat-tab[data-cat]').forEach(btn => {
-  const cat = btn.dataset.cat;
-  if (cat === 'all') return;
-  if (!fac.cats.includes(cat)) {
-    btn.style.opacity = '0.4';
-    btn.title = `Not typical for ${fac.label}`;
-  }
-});
 
 // ── Role UI setup ─────────────────────────────────
 const roleBadge = document.getElementById('role-badge');
@@ -159,6 +152,15 @@ const CAT_TYPES = {
     // ── Swasthavritta & Yoga ──
     { value:'sw_health_checkup',  label:'Swasthavritta — Health Checkup Package' },
     { value:'sw_yoga_session',    label:'Swasthavritta — Yoga Session' },
+    // ── Operation Theatre / Labour Room / Kriyakalpa / Diet / Laundry ──
+    { value:'ot_major_package',   label:'Operation Theatre — Major OT Package' },
+    { value:'ot_minor_package',   label:'Operation Theatre — Minor OT Package' },
+    { value:'ot_cssd_charge',     label:'Operation Theatre — CSSD Sterilisation Charge' },
+    { value:'labour_room_delivery', label:'Labour Room — Delivery Charge' },
+    { value:'kriya_netra',        label:'Kriyakalpa — Netra Procedure' },
+    { value:'kriya_ent',          label:'Kriyakalpa — ENT Procedure' },
+    { value:'diet_indent',        label:'Diet / Pathya — Special Diet Charge' },
+    { value:'laundry_charge',     label:'Laundry Charge' },
     { value:'other_procedure',    label:'Other Procedure' }
   ],
   radiology: [
@@ -174,6 +176,161 @@ const CAT_TYPES = {
 };
 
 function _esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// ── Group navigation config (Session 109) ─────────────────────────────────
+// Dr. Venkatesh's ask: click "Administration" and see its counters drop down, click a
+// counter to see its services -- same for OPD/IPD/OT etc. Of these named groups, only
+// Panchakarma and (inconsistently, across tenant types) Swasthavritta & Yoga overlap with
+// a real `departments` row -- Administration, MRD, OT, Labour Room, Kriyakalpa, Diet/
+// Pathya, Physiotherapy, Laundry, Pharmacy have NO department row, ever (confirmed via
+// repo search) so they're tagged with the free-text `service_group` column instead (no
+// CHECK constraint -- Session 106 already found a CHECK on a free-growing vocabulary
+// silently blocks every save of a new value, platform-wide). Real departments NOT listed
+// here (Kayachikitsa, Shalya Tantra, Shalakya Tantra, Prasuti & Stri Roga, Kaumarabhritya,
+// Agada Tantra, and Panchakarma itself) keep working exactly as Session 107 built them --
+// an automatic tab once the department has >=1 linked fee -- via the generic fallback in
+// renderGroupTabs(), not through this config at all.
+const SERVICE_GROUPS = {
+  admin_reception:    'Administration — Reception',
+  admin_registration: 'Administration — Registration Counter',
+  admin_admission:    'Administration — Admission Counter',
+  admin_insurance:    'Administration — Insurance Desk',
+  admin_discharge:    'Administration — Discharge Counter',
+  admin_billing:      'Administration — Billing Counter',
+  admin_mrd:          'Administration — MRD',
+  ot_major:           'Operation Theatre — Major OT',
+  ot_minor:           'Operation Theatre — Minor OT',
+  ot_cssd:            'Operation Theatre — CSSD',
+  labour_room:        'Labour Room',
+  kriyakalpa:         'Kriyakalpa',
+  swasthavritta_yoga: 'Swasthavritta & Yoga',
+  diet_pathya:        'Diet / Pathya',
+  physiotherapy:      'Physiotherapy',
+  pharmacy:           'Pharmacy Services',
+  laundry:            'Laundry',
+};
+
+// Same 12-value vocabulary as beds.bed_type (user-guide/bed-admin.html's documented
+// CHECK constraint, mirrored in js/pages/bed-admin.js's BED_LABELS) -- duplicated here
+// rather than imported, matching this codebase's per-page self-containment convention.
+const BED_TYPE_LABELS = {
+  male_general:'Male General Ward', female_general:'Female General Ward', general:'General Ward',
+  twin_sharing:'Twin Sharing', semi_private:'Shared Private', private:'Private Room',
+  deluxe:'Deluxe Private', dormitory:'Dormitory', icu:'ICU', day_care:'Day Care',
+  pk_treatment:'PK Treatment', observation:'Observation',
+};
+
+const IPD_SUBITEMS = [
+  ['admission', 'Admission Charge'],
+  ['room',      'Room Tariff'],
+  ['nursing',   'Nursing Care'],
+  ['attendant_bed', 'Attendant Bed'],
+];
+
+// Session 109 correction: real hospital/teaching_hospital tenants (confirmed on BOTH
+// WASA1631 and SDM, a real production tenant -- this is standard seeding, not test-tenant
+// noise) already carry a broad generic org-tree of departments alongside the NCISM
+// clinical ones: Administration, Diagnostics, Diet / Pathya, IPD, Kriyakalpa, Labour Room,
+// Laundry, OPD, Operation Theatre (Major + Minor + CSSD), Pharmacy, Physiotherapy (plus
+// Finance & Accounts/House Keeping/Security, not relevant to fee-admin.html). The initial
+// service_group-only design was wrong to assume these never exist as real departments --
+// it does, for real tenants -- so every group below now matches EITHER a fee tagged via
+// department_id to that real department OR one tagged via service_group (for the tenants/
+// sub-items that genuinely have no matching department row, e.g. Swasthavritta & Yoga on
+// hospital-type tenants, or Administration's 7 individual counters, which are sub-items of
+// the one real "Administration" department, not separate department rows themselves).
+// Without this merge, manually linking a fee via the existing "Department" dropdown to one
+// of these real rows would silently create a second, duplicate-looking tab with the same
+// name via the generic per-department fallback further down in renderGroupTabs().
+function _deptIdByName(name) {
+  const d = _allDepts.find(d => d.name.trim().toLowerCase() === name.toLowerCase());
+  return d ? d.id : null;
+}
+
+// Guards against the case where the named department doesn't exist for this tenant
+// (_deptIdByName returns null) AND the fee also has no department_id (also null, the
+// overwhelmingly common case) -- a bare `f.department_id === _deptIdByName(name)` would
+// evaluate `null === null` as true and falsely match every department-less fee against
+// every non-existent-department group simultaneously. Found live while testing this
+// exact scenario on WASA1631 (a phantom "Swasthavritta & Yoga" tab, whose department
+// doesn't exist on that tenant, appeared for a fee that had nothing to do with it).
+function _deptMatches(f, name) {
+  const id = _deptIdByName(name);
+  return !!id && f.department_id === id;
+}
+
+const GROUP_CONFIG = [
+  {
+    key:'administration', label:'Administration',
+    subItems: [
+      ['admin_reception','Reception'], ['admin_registration','Registration Counter'],
+      ['admin_admission','Admission Counter'], ['admin_insurance','Insurance Desk'],
+      ['admin_discharge','Discharge Counter'], ['admin_billing','Billing Counter'],
+      ['admin_mrd','MRD'],
+    ],
+    match:    f => _deptMatches(f, 'Administration') || (!!f.service_group && f.service_group.startsWith('admin_')),
+    matchSub: (f, sub) => f.service_group === sub,
+  },
+  {
+    key:'opd', label:'OPD',
+    match: f => f.category === 'opd' || _deptMatches(f, 'OPD'),
+    matchSub: (f, sub) => sub === '__general_opd__' ? !f.opd_id : f.opd_id === sub,
+  },
+  {
+    key:'ipd', label:'IPD',
+    match: f => f.category === 'ipd' || _deptMatches(f, 'IPD'),
+    matchSub: (f, sub) => sub === 'room' ? (f.fee_type || '').startsWith('room_') : f.fee_type === sub,
+  },
+  {
+    key:'ot', label:'Operation Theatre',
+    subItems: [['ot_major','Major OT'], ['ot_minor','Minor OT'], ['ot_cssd','CSSD']],
+    match:    f => _deptMatches(f, 'Operation Theatre (Major + Minor + CSSD)') || ['ot_major','ot_minor','ot_cssd'].includes(f.service_group),
+    matchSub: (f, sub) => f.service_group === sub,
+  },
+  { key:'labour_room', label:'Labour Room', soloTag:'labour_room',
+    match: f => _deptMatches(f, 'Labour Room') || f.service_group === 'labour_room' },
+  { key:'kriyakalpa', label:'Kriyakalpa', soloTag:'kriyakalpa',
+    match: f => _deptMatches(f, 'Kriyakalpa') || f.service_group === 'kriyakalpa' },
+  { key:'swasthavritta_yoga', label:'Swasthavritta & Yoga', soloTag:'swasthavritta_yoga',
+    match: f => _deptMatches(f, 'Swasthavritta & Yoga') || f.service_group === 'swasthavritta_yoga' },
+  { key:'diet_pathya', label:'Diet / Pathya', soloTag:'diet_pathya',
+    match: f => _deptMatches(f, 'Diet / Pathya') || f.service_group === 'diet_pathya' },
+  { key:'physiotherapy', label:'Physiotherapy', soloTag:'physiotherapy',
+    match: f => _deptMatches(f, 'Physiotherapy') || f.service_group === 'physiotherapy' },
+  {
+    key:'diagnostics', label:'Diagnostics',
+    subItems: [['lab','Lab'], ['radiology','Radiology']],
+    match:    f => f.category === 'lab' || f.category === 'radiology' || _deptMatches(f, 'Diagnostics'),
+    matchSub: (f, sub) => f.category === sub,
+  },
+  { key:'pharmacy', label:'Pharmacy', soloTag:'pharmacy',
+    match: f => _deptMatches(f, 'Pharmacy') || f.service_group === 'pharmacy' },
+  { key:'laundry', label:'Laundry', soloTag:'laundry',
+    match: f => _deptMatches(f, 'Laundry') || f.service_group === 'laundry' },
+];
+
+// Real department name for each soloTag group's own match() lookup above -- reused by
+// _prefillFromActiveGroup() so "which department name goes with this tag" lives in one
+// place instead of being duplicated between matching and pre-fill logic.
+const GROUP_SOLO_DEPT_NAMES = {
+  labour_room:        'Labour Room',
+  kriyakalpa:         'Kriyakalpa',
+  swasthavritta_yoga: 'Swasthavritta & Yoga',
+  diet_pathya:        'Diet / Pathya',
+  physiotherapy:      'Physiotherapy',
+  pharmacy:           'Pharmacy',
+  laundry:            'Laundry',
+};
+
+// Every real department name a GROUP_CONFIG entry's match() already claims via
+// _deptMatches() above -- the generic per-department fallback in renderGroupTabs() must
+// exclude these, or a department with fees would get BOTH its GROUP_CONFIG tab AND a
+// second, identically-labelled tab from the generic "any real department with fees gets
+// a tab" loop (found live on WASA1631 testing the Physiotherapy department).
+const CLAIMED_DEPT_NAMES = new Set([
+  'administration', 'opd', 'ipd', 'operation theatre (major + minor + cssd)', 'diagnostics',
+  ...Object.values(GROUP_SOLO_DEPT_NAMES).map(n => n.toLowerCase()),
+]);
 
 // ── Approval text per role ────────────────────────
 const APPROVAL_TEXT = {
@@ -234,7 +391,7 @@ async function loadFees() {
   if (error) { console.error(error); return; }
   _allFees = data || [];
   updateStats();
-  renderDeptTabs();
+  renderGroupTabs();
   renderTable();
 }
 
@@ -248,48 +405,117 @@ function updateStats() {
   document.getElementById('stat-total').textContent   = _allFees.length;
 }
 
-// ── Tab filter ─────────────────────────────────────
-window.setTab = function(btn, cat) {
-  document.querySelectorAll('.cat-tab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  _activeTab = cat;
-  renderTable();
-};
-
 window.filterFees = function() { renderTable(); };
 
-// ── Department tabs (Session 107) ──────────────────
-// Dynamic: a department only gets a tab once it genuinely has >=1 linked fee -- so e.g.
-// Administration or MRD appear the moment a fee is added there, while departments that
-// never bill (Finance, Security) never show a tab at all. "General" covers fees with no
-// specific department (Registration, IPD room rates, Lab, Radiology -- charged the same
-// regardless of which clinical department admitted the patient).
-function renderDeptTabs() {
-  const wrap = document.getElementById('dept-tabs');
+// ── Group tabs (Session 109) ───────────────────────
+// Two-level nav: a top-level GROUP_CONFIG group (or a real department, via the generic
+// fallback below -- unchanged from Session 107) only gets a tab once it genuinely has
+// >=1 linked fee. Order matches Dr. Venkatesh's ask: Administration, OPD, IPD, then real
+// departments (Panchakarma among them), then OT/Labour Room/Kriyakalpa/Swasthavritta &
+// Yoga/Diet-Pathya/Physiotherapy/Diagnostics/Pharmacy/Laundry, then a General fallback
+// for anything left over (uncategorised custom/procedure fees).
+function _isGeneralFee(f) {
+  return !f.department_id && !f.service_group && !['opd','ipd','lab','radiology'].includes(f.category);
+}
+
+function renderGroupTabs() {
+  const wrap = document.getElementById('group-tabs');
   if (!wrap) return;
 
   const deptIdsPresent = new Set(_allFees.filter(f => f.department_id).map(f => f.department_id));
-  const hasGeneral = _allFees.some(f => !f.department_id);
-  const deptsPresent = _allDepts.filter(d => deptIdsPresent.has(d.id));
+  const deptsPresent   = _allDepts.filter(d => deptIdsPresent.has(d.id) && !CLAIMED_DEPT_NAMES.has(d.name.trim().toLowerCase()));
+  const hasGeneral     = _allFees.some(_isGeneralFee);
 
-  if (!deptsPresent.length && !hasGeneral) { wrap.innerHTML = ''; return; }
+  const tabs = [{ key:'all', label:'All Departments' }];
 
-  const allBtn = `<button class="dept-tab${_activeDept === 'all' ? ' active' : ''}" data-onclick="setDeptTab" data-onclick-a0="@this" data-onclick-a1="all">All Departments</button>`;
-  const generalBtn = hasGeneral
-    ? `<button class="dept-tab${_activeDept === '__general__' ? ' active' : ''}" data-onclick="setDeptTab" data-onclick-a0="@this" data-onclick-a1="__general__">General / Hospital-wide</button>`
-    : '';
-  const deptBtns = deptsPresent.map(d =>
-    `<button class="dept-tab${_activeDept === d.id ? ' active' : ''}" data-onclick="setDeptTab" data-onclick-a0="@this" data-onclick-a1="${_esc(d.id)}">${_esc(d.name)}</button>`
+  GROUP_CONFIG.forEach(g => {
+    if (_allFees.some(g.match)) tabs.push({ key:g.key, label:g.label });
+    // Real clinical departments (Panchakarma among them) slot in right after IPD, before
+    // Operation Theatre etc. -- matching the order Dr. Venkatesh described.
+    if (g.key === 'ipd') {
+      deptsPresent.forEach(d => tabs.push({ key:d.id, label:d.name }));
+    }
+  });
+
+  if (hasGeneral) tabs.push({ key:'general', label:'General / Hospital-wide' });
+
+  wrap.innerHTML = tabs.map(t =>
+    `<button class="dept-tab${_activeGroup === t.key ? ' active' : ''}" data-onclick="setGroupTab" data-onclick-a0="@this" data-onclick-a1="${_esc(t.key)}">${_esc(t.label)}</button>`
   ).join('');
 
-  wrap.innerHTML = allBtn + generalBtn + deptBtns;
+  renderSubTabs();
 }
 
-window.setDeptTab = function(btn, deptId) {
-  document.querySelectorAll('.dept-tab').forEach(b => b.classList.remove('active'));
+function renderSubTabs() {
+  const wrap = document.getElementById('subgroup-tabs');
+  if (!wrap) return;
+
+  const grp = GROUP_CONFIG.find(g => g.key === _activeGroup);
+  if (!grp) { wrap.innerHTML = ''; return; }
+
+  let subItems;
+  if (grp.key === 'opd') {
+    subItems = _opds.map(o => [o.id, o.name]);
+    if (_allFees.some(f => grp.match(f) && !f.opd_id)) subItems = [['__general_opd__', 'General OPD'], ...subItems];
+  } else if (grp.key === 'ipd') {
+    subItems = IPD_SUBITEMS;
+  } else {
+    subItems = grp.subItems || [];
+  }
+  subItems = subItems.filter(([key]) => _allFees.some(f => grp.match(f) && grp.matchSub(f, key)));
+
+  if (subItems.length <= 1) { wrap.innerHTML = ''; return; } // solo-tag groups need no second level
+
+  wrap.innerHTML =
+    `<button class="sub-tab${_activeSub === 'all' ? ' active' : ''}" data-onclick="setSubTab" data-onclick-a0="@this" data-onclick-a1="all">All</button>` +
+    subItems.map(([key, label]) =>
+      `<button class="sub-tab${_activeSub === key ? ' active' : ''}" data-onclick="setSubTab" data-onclick-a0="@this" data-onclick-a1="${_esc(key)}">${_esc(label)}</button>`
+    ).join('');
+}
+
+window.setGroupTab = function(btn, key) {
+  document.querySelectorAll('#group-tabs .dept-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  _activeDept = deptId;
+  _activeGroup      = key;
+  _activeGroupLabel = btn.textContent;
+  _activeSub        = 'all';
+  _activeSubLabel   = null;
+  renderSubTabs();
   renderTable();
+};
+
+window.setSubTab = function(btn, key) {
+  document.querySelectorAll('#subgroup-tabs .sub-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  _activeSub      = key;
+  _activeSubLabel = key === 'all' ? null : btn.textContent;
+  renderTable();
+};
+
+// Computed client-side from the row's General-Ward baseline (`amount`) x each active
+// bed_category_multipliers row -- never a second query per row, never stored redundantly.
+function _tieredAmountDisplay(f) {
+  const base   = parseFloat(f.amount) || 0;
+  const active = _bedMultipliers.filter(m => m.is_active);
+
+  if (!active.length) {
+    return `₹${base.toLocaleString('en-IN')} <span class="tier-tag">base — no bed categories configured</span>`;
+  }
+
+  const amounts = active.map(m => base * parseFloat(m.multiplier));
+  const min = Math.min(...amounts), max = Math.max(...amounts);
+  const rowId = 'tier-' + f.id;
+
+  return `<span class="tier-range">₹${min.toLocaleString('en-IN', { maximumFractionDigits: 0 })}–₹${max.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>` +
+    `<button type="button" class="tier-expand" data-onclick="toggleTierExpand" data-onclick-a0="${rowId}">▾ tiers</button>` +
+    `<div class="tier-detail" id="${rowId}" style="display:none">` +
+    active.map(m => `<div>${_esc(BED_TYPE_LABELS[m.bed_type] || m.bed_type)}: ₹${(base * parseFloat(m.multiplier)).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>`).join('') +
+    `</div>`;
+}
+
+window.toggleTierExpand = function(rowId) {
+  const el = document.getElementById(rowId);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 };
 
 function renderTable() {
@@ -307,7 +533,9 @@ function renderTable() {
     const catCls   = 'cat-' + (f.category || 'custom');
     const catLabel = CAT_LABELS[f.category] || f.category;
     const opdDeptLabel = _deptOrOpdLabel(f);
-    const amount   = `₹${parseFloat(f.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    const amount   = f.pricing_mode === 'tiered'
+      ? _tieredAmountDisplay(f)
+      : `₹${parseFloat(f.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
     const status   = f.approval_status || 'pending';
     const statusLabel = { pending:'Pending', dept_approved:'Dept. Approved', active:'Active', rejected:'Rejected' }[status] || status;
     const creator  = f.creator?.full_name || '—';
@@ -424,6 +652,55 @@ window.deleteFee = async function(id) {
 };
 
 // ── Modal ─────────────────────────────────────────
+function populateGroupSelect() {
+  const sel = document.getElementById('m-group');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— None —</option>' +
+    Object.entries(SERVICE_GROUPS).map(([k, label]) => `<option value="${k}">${_esc(label)}</option>`).join('');
+}
+
+// Pre-fill whichever location field the active group/sub-item actually uses, so the
+// admin doesn't need to know service_group vs opd_id vs department_id vs category --
+// they just see the field for what they were already looking at pre-filled for them
+// (same convenience Session 107 built for the Department field alone).
+function _prefillFromActiveGroup() {
+  const catSel   = document.getElementById('m-category');
+  const opdSel   = document.getElementById('m-opd');
+  const deptSel  = document.getElementById('m-department');
+  const groupSel = document.getElementById('m-group');
+
+  opdSel.value = ''; deptSel.value = ''; groupSel.value = '';
+
+  const grp = GROUP_CONFIG.find(g => g.key === _activeGroup);
+  if (grp) {
+    if (grp.key === 'opd') {
+      catSel.value = 'opd';
+      if (_activeSub !== 'all' && _activeSub !== '__general_opd__') opdSel.value = _activeSub;
+    } else if (grp.key === 'ipd') {
+      catSel.value = 'ipd';
+    } else if (grp.key === 'diagnostics') {
+      if (_activeSub === 'lab' || _activeSub === 'radiology') catSel.value = _activeSub;
+    } else if (grp.soloTag) {
+      // Prefer the real department when this tenant has one (standard org-tree seeding --
+      // confirmed present on both WASA1631 and SDM) so new fees land on the same, single
+      // mechanism match() already recognises. Only fall back to the service_group tag for
+      // tenants missing that department row (e.g. Swasthavritta & Yoga on hospital-type).
+      const realDeptId = _allDepts.find(d => GROUP_SOLO_DEPT_NAMES[grp.key] && d.name.trim().toLowerCase() === GROUP_SOLO_DEPT_NAMES[grp.key].toLowerCase())?.id;
+      if (realDeptId) deptSel.value = realDeptId;
+      else groupSel.value = grp.soloTag;
+    } else if (grp.key === 'administration' || grp.key === 'ot') {
+      if (_activeSub !== 'all') {
+        groupSel.value = _activeSub; // a specific counter / OT sub-type -- never a real department itself
+      } else {
+        const realDeptId = _allDepts.find(d => d.name.trim().toLowerCase() === (grp.key === 'administration' ? 'administration' : 'operation theatre (major + minor + cssd)'))?.id;
+        if (realDeptId) deptSel.value = realDeptId;
+      }
+    }
+  } else if (_activeGroup !== 'all' && _activeGroup !== 'general') {
+    deptSel.value = _activeGroup; // real department id (Session 107 fallback)
+  }
+}
+
 window.openModal = function() {
   _editId = null;
   document.getElementById('modal-title').textContent = 'Add New Service';
@@ -433,13 +710,13 @@ window.openModal = function() {
   document.getElementById('m-notes').value   = '';
   document.getElementById('m-opd-wrap').style.display = 'none';
   document.getElementById('m-type-wrap').style.display = 'none';
+  document.getElementById('m-tiered').checked = false;
   document.getElementById('m-approval-note').style.display = 'block';
   document.getElementById('m-approval-text').textContent = APPROVAL_TEXT[role] || '';
 
-  // Pre-fill the department if a specific department tab is active when "+Add Service"
-  // is clicked -- saves re-picking it in the modal for the common case.
-  const deptSel = document.getElementById('m-department');
-  if (deptSel) deptSel.value = (_activeDept !== 'all' && _activeDept !== '__general__') ? _activeDept : '';
+  _prefillFromActiveGroup();
+  onCategoryChange();
+  updateTierPreview();
 
   const btnTxt = document.getElementById('btn-save-text');
   btnTxt.textContent = role === 'super_admin' ? 'Save & Activate' : 'Submit for Approval';
@@ -459,8 +736,12 @@ window.openEdit = function(id) {
   document.getElementById('m-opd').value      = f.opd_id || '';
   const deptSel = document.getElementById('m-department');
   if (deptSel) deptSel.value = f.department_id || '';
+  const groupSel = document.getElementById('m-group');
+  if (groupSel) groupSel.value = f.service_group || '';
   onCategoryChange();
   document.getElementById('m-opd').value      = f.opd_id || '';
+  document.getElementById('m-tiered').checked = f.pricing_mode === 'tiered';
+  updateTierPreview();
   // Set fee_type
   const sel = document.getElementById('m-type-select');
   const inp = document.getElementById('m-type-input');
@@ -476,17 +757,31 @@ window.closeModal = function() {
   document.getElementById('modal-overlay').classList.remove('open');
 };
 
+// Tiered pricing (Tier A/B per the RCM article Dr. Venkatesh shared) only makes sense
+// for IPD room/nursing charges and clinical procedures (Panchakarma etc.) -- labs,
+// radiology, and custom one-off charges (Tier C: materials/diagnostics) stay always flat.
+const TIERABLE_CATEGORIES = ['ipd', 'procedure'];
+
 window.onCategoryChange = function() {
   const cat     = document.getElementById('m-category').value;
   const typeWrap = document.getElementById('m-type-wrap');
   const opdWrap  = document.getElementById('m-opd-wrap');
+  const tierWrap = document.getElementById('m-tiered-wrap');
   const sel      = document.getElementById('m-type-select');
   const inp      = document.getElementById('m-type-input');
 
-  if (!cat) { typeWrap.style.display = 'none'; opdWrap.style.display = 'none'; return; }
+  if (!cat) { typeWrap.style.display = 'none'; opdWrap.style.display = 'none'; tierWrap.style.display = 'none'; return; }
 
   typeWrap.style.display = 'block';
   opdWrap.style.display  = cat === 'opd' ? 'block' : 'none';
+
+  if (!TIERABLE_CATEGORIES.includes(cat)) {
+    document.getElementById('m-tiered').checked = false;
+    tierWrap.style.display = 'none';
+    updateTierPreview();
+  } else {
+    tierWrap.style.display = 'block';
+  }
 
   const types = CAT_TYPES[cat];
   if (cat === 'custom' || !types || types.length === 0) {
@@ -507,6 +802,23 @@ window.onCategoryChange = function() {
   }
 };
 
+// Live preview of what every bed category will actually bill, computed as
+// baseline x multiplier -- so the admin sees the real numbers before saving instead of
+// typing in one amount per tier.
+window.updateTierPreview = function() {
+  const wrap    = document.getElementById('m-tier-preview');
+  const checked = document.getElementById('m-tiered').checked;
+  if (!checked) { wrap.style.display = 'none'; return; }
+
+  wrap.style.display = 'block';
+  const base = parseFloat(document.getElementById('m-amount').value) || 0;
+  const active = _bedMultipliers.filter(m => m.is_active);
+
+  wrap.innerHTML = active.length
+    ? active.map(m => `<div class="tier-row"><span>${_esc(BED_TYPE_LABELS[m.bed_type] || m.bed_type)}</span><span>₹${(base * parseFloat(m.multiplier)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span></div>`).join('')
+    : '<div class="tier-row-empty">No bed categories configured yet — set them up via "Bed Category Pricing".</div>';
+};
+
 // ── Save fee ──────────────────────────────────────
 window.saveFee = async function() {
   const label    = document.getElementById('m-label').value.trim();
@@ -515,6 +827,8 @@ window.saveFee = async function() {
   const notes    = document.getElementById('m-notes').value.trim();
   const opdId    = document.getElementById('m-opd').value || null;
   const deptId   = document.getElementById('m-department')?.value || null;
+  const groupTag = document.getElementById('m-group')?.value || null;
+  const tiered   = TIERABLE_CATEGORIES.includes(category) && document.getElementById('m-tiered').checked;
 
   const sel  = document.getElementById('m-type-select');
   const inp  = document.getElementById('m-type-input');
@@ -537,6 +851,8 @@ window.saveFee = async function() {
     notes:           notes || null,
     opd_id:          opdId,
     department_id:   deptId,
+    service_group:   groupTag,
+    pricing_mode:    tiered ? 'tiered' : 'flat',
     approval_status: isSuperAdmin ? 'active' : 'pending',
     is_active:       isSuperAdmin,
     created_by:      userId,
@@ -630,7 +946,7 @@ const QS_TEMPLATES = {
     { label:'Injection (IM/SC)',         category:'procedure', fee_type:'injection',       amount:100  },
     { label:'IV Cannula / Fluid',        category:'procedure', fee_type:'iv_cannula',      amount:300  },
     { label:'Nebulization',              category:'procedure', fee_type:'nebulization',    amount:150  },
-    { label:'Physiotherapy Session',     category:'procedure', fee_type:'physiotherapy',   amount:300  },
+    { label:'Physiotherapy Session',     category:'procedure', fee_type:'physiotherapy',   amount:300,  group:'physiotherapy' },
 
     // ── Kayachikitsa (Internal Medicine) ──
     { label:'Kayachikitsa — Snehapana (Internal Oleation)', category:'procedure', fee_type:'kay_snehapana', amount:600, dept:'KAY' },
@@ -757,7 +1073,9 @@ window.runQuickSetup = async function() {
   const isSA = role === 'super_admin';
   // Resolve each item's dept code (e.g. 'PK') to this tenant's real department row by
   // ncism_code -- items with no dept code (general OPD/IPD/Lab/Radiology charges) stay
-  // department_id null, landing in the "General / Hospital-wide" bucket.
+  // department_id null, landing in the "General / Hospital-wide" bucket. `group:` (Session
+  // 109) is the equivalent tag for groups with no real department row (Administration,
+  // OT, Physiotherapy, etc.) -- passed straight through to service_group.
   const deptByCode = Object.fromEntries(_allDepts.map(d => [d.ncism_code, d.id]));
   const rows = selected.map(t => ({
     tenant_id:       tenantId,
@@ -768,6 +1086,8 @@ window.runQuickSetup = async function() {
     notes:           t.notes || null,
     opd_id:          null,
     department_id:   t.dept ? (deptByCode[t.dept] || null) : null,
+    service_group:   t.group || null,
+    pricing_mode:    'flat',
     approval_status: isSA ? 'active' : 'pending',
     is_active:       isSA,
     created_by:      userId,
@@ -793,13 +1113,23 @@ function toast(msg, type = 'success') {
   setTimeout(() => el.classList.remove('show'), 3000);
 }
 
-// ── Export (Session 107) ───────────────────────────
+// ── Export (Session 107/109) ───────────────────────
+function _matchesActiveGroup(f) {
+  if (_activeGroup === 'all') return true;
+  if (_activeGroup === 'general') return _isGeneralFee(f);
+
+  const grp = GROUP_CONFIG.find(g => g.key === _activeGroup);
+  if (!grp) return f.department_id === _activeGroup; // real department (Session 107 fallback)
+
+  if (!grp.match(f)) return false;
+  if (_activeSub !== 'all') return grp.matchSub(f, _activeSub);
+  return true;
+}
+
 function _currentFilteredFees() {
   const q = document.getElementById('search-input').value.toLowerCase();
   return _allFees.filter(f => {
-    if (_activeTab !== 'all' && f.category !== _activeTab) return false;
-    if (_activeDept === '__general__' && f.department_id) return false;
-    if (_activeDept !== 'all' && _activeDept !== '__general__' && f.department_id !== _activeDept) return false;
+    if (!_matchesActiveGroup(f)) return false;
     if (q && !f.label?.toLowerCase().includes(q) &&
              !f.fee_type?.toLowerCase().includes(q) &&
              !f.notes?.toLowerCase().includes(q)) return false;
@@ -808,14 +1138,25 @@ function _currentFilteredFees() {
 }
 
 function _deptOrOpdLabel(f) {
+  if (f.service_group) return SERVICE_GROUPS[f.service_group] || f.service_group;
   const deptName = f.department_id ? (_allDepts.find(d => d.id === f.department_id)?.name || '—') : null;
   return deptName || f.opds?.name || '—';
 }
 
 function _currentScopeLabel() {
-  if (_activeDept === '__general__') return 'General / Hospital-wide';
-  if (_activeDept !== 'all') return _allDepts.find(d => d.id === _activeDept)?.name || 'Filtered';
-  return 'All Departments';
+  return _activeSubLabel ? `${_activeGroupLabel} — ${_activeSubLabel}` : _activeGroupLabel;
+}
+
+// Plain-text (no HTML/buttons) amount string for CSV/PDF exports -- the interactive
+// range+expand widget in _tieredAmountDisplay() only makes sense on-screen.
+function _exportAmountText(f) {
+  if (f.pricing_mode !== 'tiered') return `₹${parseFloat(f.amount || 0).toLocaleString('en-IN')}`;
+  const base   = parseFloat(f.amount) || 0;
+  const active = _bedMultipliers.filter(m => m.is_active);
+  if (!active.length) return `₹${base.toLocaleString('en-IN')} (base, no tiers configured)`;
+  const amounts = active.map(m => base * parseFloat(m.multiplier));
+  const min = Math.min(...amounts), max = Math.max(...amounts);
+  return `₹${min.toLocaleString('en-IN', { maximumFractionDigits: 0 })}–₹${max.toLocaleString('en-IN', { maximumFractionDigits: 0 })} (tiered by bed category)`;
 }
 
 window.exportCsv = function(scope) {
@@ -829,7 +1170,7 @@ window.exportCsv = function(scope) {
     f.label || '',
     CAT_LABELS[f.category] || f.category || '',
     _deptOrOpdLabel(f),
-    f.amount || 0,
+    _exportAmountText(f),
     statusLabels[f.approval_status] || f.approval_status || '',
   ])].map(r => r.map(esc).join(',')).join('\r\n');
 
@@ -858,7 +1199,7 @@ window.exportPdf = function(scope) {
     <td>${_esc(f.label)}</td>
     <td>${_esc(CAT_LABELS[f.category] || f.category)}</td>
     <td>${_esc(_deptOrOpdLabel(f))}</td>
-    <td class="ctr">₹${parseFloat(f.amount || 0).toLocaleString('en-IN')}</td>
+    <td class="ctr">${_esc(_exportAmountText(f))}</td>
     <td class="ctr">${_esc(statusLabels[f.approval_status] || f.approval_status)}</td>
   </tr>`).join('');
 
@@ -905,8 +1246,76 @@ window.exportPdf = function(scope) {
   setTimeout(() => { try { w.print(); } catch (e) {} }, 350);
 };
 
+// ── Bed Category Multipliers (Session 109) ────────
+async function loadBedMultipliers() {
+  const { data } = await supabase
+    .from('bed_category_multipliers')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .order('multiplier');
+  _bedMultipliers = data || [];
+}
+
+window.openBedMultipliers = function() {
+  const wrap = document.getElementById('bcm-grid');
+  const readOnly = role === 'accountant';
+
+  wrap.innerHTML = _bedMultipliers.length
+    ? _bedMultipliers.map(m => `
+      <div class="bcm-row">
+        <span class="bcm-label">${_esc(BED_TYPE_LABELS[m.bed_type] || m.bed_type)}</span>
+        <input type="number" min="0" step="0.05" class="bcm-mult" data-bed="${_esc(m.bed_type)}" value="${m.multiplier}" ${readOnly ? 'disabled' : ''}/>
+        <label class="bcm-active"><input type="checkbox" data-bed-active="${_esc(m.bed_type)}" ${m.is_active ? 'checked' : ''} ${readOnly ? 'disabled' : ''}/> Active</label>
+      </div>`).join('')
+    : '<div class="empty-text">No bed categories configured for this tenant yet.</div>';
+
+  document.getElementById('btn-bcm-save').style.display = readOnly ? 'none' : 'block';
+  document.getElementById('bcm-overlay').classList.add('open');
+};
+
+window.closeBedMultipliers = function() {
+  document.getElementById('bcm-overlay').classList.remove('open');
+};
+
+window.saveBedMultipliers = async function() {
+  const rows = _bedMultipliers.map(m => {
+    const multInput   = document.querySelector(`.bcm-mult[data-bed="${m.bed_type}"]`);
+    const activeInput = document.querySelector(`[data-bed-active="${m.bed_type}"]`);
+    return {
+      tenant_id:  tenantId,
+      bed_type:   m.bed_type,
+      multiplier: parseFloat(multInput?.value) || 1.0,
+      is_active:  activeInput?.checked ?? m.is_active,
+    };
+  });
+
+  const btn = document.getElementById('btn-bcm-save');
+  btn.classList.add('loading'); btn.disabled = true;
+
+  const { error } = await supabase
+    .from('bed_category_multipliers')
+    .upsert(rows, { onConflict: 'tenant_id,bed_type' });
+
+  btn.classList.remove('loading'); btn.disabled = false;
+
+  if (error) { toast(safeErrorMessage(error, 'Could not save bed category pricing.'), 'error'); return; }
+
+  toast('Bed category pricing updated.', 'success');
+  closeBedMultipliers();
+  await loadBedMultipliers();
+  renderTable();
+};
+
 // ── Boot ──────────────────────────────────────────
 window.toast = toast;
+populateGroupSelect();
+// Seeds default bed-category multipliers for this tenant on first-ever visit here (Session
+// 99's tenant_migrations registry). supabase-js's query builder is a thenable, not a real
+// Promise -- .catch() on it throws (documented gotcha, TECHNICAL_REFERENCE.md) -- so this
+// must be try/await, not .then()/.catch() chaining. Harmless no-op for accountant role
+// (the RPC checks super_admin/dept_admin internally) and once already applied.
+try { await supabase.rpc('apply_silent_pending_migrations'); } catch (e) { /* non-fatal */ }
 await loadOPDs();
 await loadDepartments();
+await loadBedMultipliers();
 await loadFees();
