@@ -33,7 +33,21 @@ export async function registerTenant({
       password,
       options: { data: { full_name: fullName } }
     });
-    if (authError) throw new Error(safeErrorMessage(authError, 'Could not create account. Please try again.'));
+    if (authError) {
+      // safeErrorMessage() is deliberately generic everywhere else (never
+      // echoes raw Postgres/Auth internals to end users), but "this email
+      // already has an account" is not sensitive here -- it's the single
+      // most actionable thing a signing-up user can hear, and every
+      // mainstream signup form says exactly this. Emails are unique across
+      // the whole Supabase project, not per-tenant, so this commonly fires
+      // when someone reuses an email already registered under a different
+      // organisation, not just a real duplicate signup attempt.
+      const already = authError.code === 'user_already_exists'
+        || /already registered|already exists/i.test(authError.message || '');
+      throw new Error(already
+        ? 'This email is already registered on AyurXpert (possibly under a different organisation). Please use a different email address.'
+        : safeErrorMessage(authError, 'Could not create account. Please try again.'));
+    }
 
     const userId = authData.user.id;
 
@@ -121,7 +135,21 @@ export async function registerStaff({
       password,
       options: { data: { full_name: fullName } }
     });
-    if (authError) throw new Error(safeErrorMessage(authError, 'Could not create account. Please try again.'));
+    if (authError) {
+      // safeErrorMessage() is deliberately generic everywhere else (never
+      // echoes raw Postgres/Auth internals to end users), but "this email
+      // already has an account" is not sensitive here -- it's the single
+      // most actionable thing a signing-up user can hear, and every
+      // mainstream signup form says exactly this. Emails are unique across
+      // the whole Supabase project, not per-tenant, so this commonly fires
+      // when someone reuses an email already registered under a different
+      // organisation, not just a real duplicate signup attempt.
+      const already = authError.code === 'user_already_exists'
+        || /already registered|already exists/i.test(authError.message || '');
+      throw new Error(already
+        ? 'This email is already registered on AyurXpert (possibly under a different organisation). Please use a different email address.'
+        : safeErrorMessage(authError, 'Could not create account. Please try again.'));
+    }
 
     const { error: profileError } = await supabase
       .from('profiles')

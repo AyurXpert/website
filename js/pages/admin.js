@@ -1489,8 +1489,10 @@ window.viewPendingInvites = function(idxStr){
       +'<div style="font-weight:600;font-size:13px">'+_esc(who)+'</div>'
       +(contact?'<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:6px">'+_esc(contact)+'</div>':'')
       +'<div style="background:var(--green-light);border-radius:6px;padding:8px 10px;font-size:11.5px;word-break:break-all;margin-bottom:8px">'+_esc(link)+'</div>'
+      +'<div style="display:flex;gap:8px">'
       +'<button data-onclick="copyPendingInviteLink" data-onclick-a0="'+idxStr+'" data-onclick-a1="'+subIdx+'" style="height:32px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">Copy Link</button>'
-      +'</div>';
+      +'<button data-onclick="cancelPendingInvite" data-onclick-a0="'+idxStr+'" data-onclick-a1="'+subIdx+'" style="height:32px;padding:0 14px;background:#fff;color:#c0392b;border:1px solid #e0b0b0;border-radius:6px;font-size:12px;cursor:pointer">Cancel Invite</button>'
+      +'</div></div>';
   }).join('');
   document.getElementById('pending-invites-modal').style.display = 'flex';
 };
@@ -1507,6 +1509,34 @@ window.copyPendingInviteLink = function(idxStr, subIdxStr){
   navigator.clipboard.writeText(link)
     .then(()=>_toast('Link copied!'))
     .catch(()=>_toast('Could not copy — select the link text manually.', true));
+};
+
+// Session 114 -- there was previously no way to remove a wrong/stale invite
+// (e.g. an email that turned out to already be registered under a
+// different organisation) short of a direct DB edit; it would just sit as
+// "pending" forever. Soft-cancel via status='revoked' -- position_invites'
+// own status CHECK constraint already anticipated this exact action
+// (pending/joined/revoked, confirmed live), so this needed no schema/RLS
+// migration; the existing "🔗 N pending" chip/query already filters on
+// status='pending', so a revoked invite disappears from it immediately.
+window.cancelPendingInvite = async function(idxStr, subIdxStr){
+  const entry = _pendingInviteRegistry[Number(idxStr)];
+  const inv = entry && entry.pending[Number(subIdxStr)];
+  if(!inv) return;
+  const who = inv.candidate_name || inv.phone || inv.email || 'this candidate';
+  if(!confirm('Cancel the invite for '+who+'? They will no longer be able to join using this link.')) return;
+
+  const { error } = await supabase.from('position_invites').update({ status:'revoked' }).eq('id', inv.id);
+  if(error){ _toast(safeErrorMessage(error,'Could not cancel invite.'), true); return; }
+
+  entry.pending.splice(Number(subIdxStr), 1);
+  if(entry.pending.length){
+    window.viewPendingInvites(idxStr);
+  } else {
+    closePendingInvitesModal();
+  }
+  _toast('Invite cancelled.');
+  if(document.getElementById('hr-ncism-panel').style.display!=='none') _renderNcismStaffing();
 };
 
 // ── Staffing Plan — required staff by designation, grouped by HMS role ────────
