@@ -3,6 +3,7 @@ import { initNavbar }  from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { logAudit } from '../core/auditLogger.js';
 
 wireDelegatedEvents();
 
@@ -15,6 +16,7 @@ const _role    = _profile?.role;
 
 const sess     = getCurrentProfile();
 const tenantId = getCurrentTenantId();
+const _ctx     = { tenantId, userId: _profile?.id, userName: _profile?.full_name };
 
 initNavbar();
 
@@ -241,7 +243,7 @@ function renderRevenue(from, to) {
 async function loadOutstanding() {
   const { data, error } = await supabase
     .from('bills')
-    .select('id, created_at, final_amount, bill_type, payment_mode, status, patients(name)')
+    .select('id, created_at, final_amount, bill_type, payer_type, payment_mode, status, patients(name)')
     .eq('tenant_id', tenantId)
     .in('status', ['pending','partial'])
     .order('created_at', { ascending: true });
@@ -264,6 +266,16 @@ function renderOutstanding() {
     const days = Math.floor((today - created) / 86400000);
     if (days <= 7) aging['0-7'] += f; else if (days <= 30) aging['8-30'] += f; else aging['31+'] += f;
     const ageCls = days > 30 ? 'color:var(--red)' : days > 7 ? 'color:var(--gold)' : '';
+    // Session 114 -- IPD self-pay bills (generated in ipd.html once charges
+    // are locked) get a Collect action right here rather than a separate
+    // "Ward Billing Queue" view, since Outstanding already lists every
+    // unpaid bill regardless of type -- no need to duplicate that list.
+    const canCollect = b.bill_type === 'ipd' && b.payer_type === 'self_pay';
+    const actionCell = canCollect
+      ? `<select id="pm-${b.id}" style="height:26px;font-size:11px;border:1.5px solid var(--border);border-radius:5px;padding:0 4px;margin-right:4px">
+           <option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option>
+         </select><button class="btn btn-outline btn-sm" style="height:26px;padding:0 10px;font-size:11px" data-onclick="collectIpdPayment" data-onclick-a0="${b.id}">Collect</button>`
+      : '—';
     return `<tr>
       <td style="font-size:12px">${_fmtD(b.created_at?.slice(0,10))}</td>
       <td>${b.patients?.name || '—'}</td>
@@ -272,8 +284,9 @@ function renderOutstanding() {
       <td><span class="badge b-${b.status}">${b.status}</span></td>
       <td style="${ageCls};font-weight:500">${days} days</td>
       <td style="font-size:12px">${b.payment_mode || '—'}</td>
+      <td>${actionCell}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="7" class="empty">No outstanding bills</td></tr>';
+  }).join('') || '<tr><td colspan="8" class="empty">No outstanding bills</td></tr>';
 
   document.getElementById('out-total').textContent = '₹' + _n(total);
 
@@ -287,6 +300,20 @@ function renderOutstanding() {
     <div class="aging-bar"><div class="aging-fill ${a.cls}" style="width:${total?Math.round(a.val/total*100):0}%"></div></div>
   </div>`).join('');
 }
+
+// Session 114 -- collect final payment on a self-pay IPD bill. The
+// sync_ipd_admission_on_bill_settled DB trigger (sql/session114_...sql)
+// picks up the resulting patient_due=0 and advances ipd_admissions to
+// paid_cleared automatically -- nothing else to do client-side.
+window.collectIpdPayment = async function(billId) {
+  const payMode = document.getElementById('pm-'+billId)?.value || 'cash';
+  if (!confirm('Mark this IPD bill as fully paid?')) return;
+  const { error } = await supabase.from('bills').update({ status: 'paid', payment_mode: payMode }).eq('id', billId);
+  if (error) { _toast(safeErrorMessage(error, 'Could not record payment.'), 'error'); return; }
+  await logAudit('ipd_payment_collected', 'bills', billId, { payment_mode: payMode }, _ctx);
+  _toast('Payment recorded.', 'success');
+  await loadOutstanding();
+};
 
 // ── Expenses ─────────────────────────────────────────
 async function loadExpenses(from, to) {

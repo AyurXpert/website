@@ -4,6 +4,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenant } from '../core/auth.j
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { logAudit } from '../core/auditLogger.js';
 
 requireAuth(['nurse','nurse_manager','super_admin','dept_admin','doctor']);
 initNavbar();
@@ -14,6 +15,8 @@ const profile   = getCurrentProfile();
 const tenant    = getCurrentTenant();
 const tenantId  = tenant?.id;
 const userId    = profile?.id;
+const _ctx      = { tenantId, userId, userName: profile?.full_name };
+function _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 let _admissions = [];
 let _activeAdm  = null;
@@ -39,7 +42,7 @@ window.switchTab = function(tab, el) {
   document.querySelectorAll('.module-tab').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   _activeTab = tab;
-  ['vitals','mar','io','notes','handover','ward-proc','risk'].forEach(t => {
+  ['vitals','mar','io','notes','handover','ward-proc','risk','discharge'].forEach(t => {
     const el = document.getElementById('tab-'+t);
     if (el) el.hidden = t !== tab;
   });
@@ -61,9 +64,14 @@ window.setShift = function(el, shift) {
 window.loadWardPatients = async function() {
   const deptId = document.getElementById('ward-select').value;
   if (!deptId) return;
+  // Session 114 -- a patient stays chartable/selectable through the
+  // reconciliation window (clinically_discharged): they're still physically
+  // on the ward until the nurse locks charges, per the confirmed policy
+  // decision. beds(id,...) needed here (not just bed_number) so
+  // lockChargesAndFreeBed() can free the actual bed row.
   const { data } = await supabase.from('ipd_admissions')
-    .select('id,admission_date,diagnosis_primary,patients(id,name,age,gender,phone),beds(bed_number,ward_name)')
-    .eq('tenant_id', tenantId).eq('department_id', deptId).eq('status','admitted')
+    .select('id,admission_date,diagnosis_primary,status,disposition,patients(id,name,age,gender,phone),beds(id,bed_number,ward_name)')
+    .eq('tenant_id', tenantId).eq('department_id', deptId).in('status',['admitted','clinically_discharged'])
     .order('admission_date');
   _admissions = data || [];
   document.getElementById('pt-list-count').textContent = _admissions.length;
@@ -74,7 +82,7 @@ window.loadWardPatients = async function() {
   }
   list.innerHTML = _admissions.map(a => `
     <div class="pt-list-item${_activeAdm?.id===a.id?' active':''}" data-onclick="selectPatient" data-onclick-a0="${a.id}">
-      <div class="pt-li-name">${a.patients?.name||'—'}</div>
+      <div class="pt-li-name">${a.patients?.name||'—'}${a.status==='clinically_discharged' ? ' <span style="font-size:9px;font-weight:700;color:#8a5000;background:#fff3e0;border-radius:6px;padding:1px 6px">DISCHARGE ORDERED</span>' : ''}</div>
       <div class="pt-li-meta">
         Bed ${a.beds?.bed_number||'?'} · ${a.patients?.age||'?'}/${(a.patients?.gender||'').charAt(0).toUpperCase()||'?'} · Day ${_daysSince(a.admission_date)}
       </div>
@@ -96,11 +104,12 @@ window.selectPatient = function(id) {
 };
 
 function loadTabData(tab) {
-  if (tab === 'vitals')   loadVitals();
-  if (tab === 'mar')      loadMar();
-  if (tab === 'io')       loadIo();
-  if (tab === 'notes')    loadNotes();
-  if (tab === 'handover') loadHandovers();
+  if (tab === 'vitals')    loadVitals();
+  if (tab === 'mar')       loadMar();
+  if (tab === 'io')        loadIo();
+  if (tab === 'notes')     loadNotes();
+  if (tab === 'handover')  loadHandovers();
+  if (tab === 'discharge') loadDischargeReconciliation();
 }
 
 // ── Vitals Chart ──────────────────────────────────────────────────────────────
@@ -471,6 +480,135 @@ window.loadWardProcedures = async function() {
       </div>
       <div style="font-size:11px;color:var(--text-mid);margin-top:3px">${p.done_by_designation?.replace('_',' ')} · ${p.outcome?.replace('_',' ')} ${p.notes ? '· '+p.notes : ''}</div>
     </div>`).join('');
+};
+
+// ── Discharge Reconciliation (Session 114) ──────────────────────────────────────
+// Shared staging table (ipd_stay_charges) for both this normal-path nurse
+// screen and the billing clerk's fast-path manual-add pass (ipd.js) -- see
+// sql/session114_ipd_discharge_workflow.sql for why a staging table exists
+// instead of writing straight into bill_items.
+const DISCHARGE_STATUS_LABELS = {
+  pending:'Pending confirmation', confirmed:'Confirmed', billed:'Billed', voided:'Voided',
+};
+
+window.loadDischargeReconciliation = async function() {
+  const readyWrap = document.getElementById('disc-recon-body');
+  const notReady  = document.getElementById('disc-not-ready');
+  if (!_activeAdm || _activeAdm.status !== 'clinically_discharged') {
+    readyWrap.style.display = 'none';
+    notReady.style.display  = '';
+    notReady.textContent = _activeAdm
+      ? "This patient's discharge hasn't been ordered by a doctor yet."
+      : 'Select a patient whose discharge has been ordered by a doctor to begin reconciliation.';
+    return;
+  }
+  notReady.style.display  = 'none';
+  readyWrap.style.display = '';
+
+  const admId = _activeAdm.id;
+  const { data: staged } = await supabase.from('ipd_stay_charges')
+    .select('*').eq('ipd_admission_id', admId).order('added_at');
+  let rows = staged || [];
+
+  // Pull PK therapy sessions linked to this admission that aren't staged
+  // yet, price-matching by therapy_name against fee_structures (Panchakarma
+  // procedure fees, category='procedure', label e.g. "Panchakarma —
+  // Abhyanga"). pk_therapy_sessions has no stored price -- it's a pure
+  // clinical scheduling record -- so this is a real lookup, not a stored-
+  // amount read, and free-text therapy_name vs free-text fee label may not
+  // always match. Unmatched sessions still get staged (status 'pending',
+  // unit_price 0) with a "price not found" note rather than silently
+  // skipped, so the nurse always sees every session and can fill in the
+  // price manually instead of it vanishing from the reconciliation list.
+  const stagedRefIds = new Set(rows.filter(r => r.source_ref_id).map(r => r.source_ref_id));
+  const { data: sessions } = await supabase.from('pk_therapy_sessions')
+    .select('id, therapy_name, scheduled_date')
+    .eq('ipd_admission_id', admId);
+  const newSessionRows = (sessions || []).filter(s => !stagedRefIds.has(s.id));
+  if (newSessionRows.length) {
+    const { data: feeRows } = await supabase.from('fee_structures')
+      .select('label, amount, gst_percent')
+      .eq('tenant_id', tenantId).eq('category', 'procedure').eq('is_active', true);
+    const inserts = newSessionRows.map(s => {
+      const match = (feeRows || []).find(f => (f.label||'').toLowerCase().includes((s.therapy_name||'').toLowerCase().trim()) && s.therapy_name?.trim());
+      return {
+        tenant_id: tenantId, ipd_admission_id: admId, source: 'pk_session', source_ref_id: s.id,
+        description: match ? s.therapy_name : `${s.therapy_name || 'PK Session'} (price not found — verify)`,
+        quantity: 1, unit_price: match?.amount || 0, gst_percent: match?.gst_percent ?? null,
+        amount: match?.amount || 0, status: 'pending', added_by: userId,
+      };
+    });
+    const { data: inserted } = await supabase.from('ipd_stay_charges').insert(inserts).select('*');
+    rows = rows.concat(inserted || []);
+  }
+
+  renderReconciliationList(rows);
+};
+
+function renderReconciliationList(rows) {
+  const el = document.getElementById('recon-list');
+  if (!rows.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px">No charges yet.</div>';
+    return;
+  }
+  const total = rows.filter(r => r.status !== 'voided').reduce((s,r) => s + (Number(r.amount)||0), 0);
+  el.innerHTML = rows.map(r => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;background:${r.status==='voided'?'#f5f5f5':'#fafff7'}">
+      <div>
+        <div style="font-size:13px;font-weight:600;${r.status==='voided'?'text-decoration:line-through;color:var(--text-muted)':''}">${_esc(r.description)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${r.quantity} × ₹${Number(r.unit_price).toLocaleString('en-IN')} = ₹${Number(r.amount).toLocaleString('en-IN')} · ${DISCHARGE_STATUS_LABELS[r.status]||r.status}</div>
+      </div>
+      ${r.status==='pending' || r.status==='confirmed' ? `<button class="btn btn-secondary btn-sm" data-onclick="voidStayCharge" data-onclick-a0="${r.id}">Remove</button>` : ''}
+    </div>`).join('') +
+    `<div style="text-align:right;font-weight:700;font-size:13px;margin-top:8px;color:var(--green-deep)">Total so far: ₹${total.toLocaleString('en-IN')}</div>`;
+}
+
+window.addManualCharge = async function() {
+  if (!_activeAdm) return;
+  const description = document.getElementById('rc-desc').value.trim();
+  const qty   = parseFloat(document.getElementById('rc-qty').value) || 1;
+  const price = parseFloat(document.getElementById('rc-price').value) || 0;
+  if (!description || price <= 0) { _alert('error','Enter a description and amount.'); return; }
+  const { error } = await supabase.from('ipd_stay_charges').insert({
+    tenant_id: tenantId, ipd_admission_id: _activeAdm.id, source: 'manual',
+    description, quantity: qty, unit_price: price, amount: qty * price,
+    status: 'confirmed', added_by: userId,
+  });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not add charge.')); return; }
+  document.getElementById('rc-desc').value  = '';
+  document.getElementById('rc-qty').value   = '1';
+  document.getElementById('rc-price').value = '';
+  loadDischargeReconciliation();
+};
+
+window.voidStayCharge = async function(chargeId) {
+  const { error } = await supabase.from('ipd_stay_charges').update({ status: 'voided' }).eq('id', chargeId);
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not remove charge.')); return; }
+  loadDischargeReconciliation();
+};
+
+window.lockChargesAndFreeBed = async function() {
+  if (!_activeAdm) return;
+  if (!confirm('Lock charges and free the bed? Once locked, only the billing clerk can adjust charges.')) return;
+  const admId = _activeAdm.id;
+  const bedId = _activeAdm.beds?.id;
+
+  await supabase.from('ipd_stay_charges').update({ status: 'confirmed' })
+    .eq('ipd_admission_id', admId).eq('status', 'pending');
+
+  const { error } = await supabase.from('ipd_admissions').update({
+    status: 'charges_locked', charges_locked_at: new Date().toISOString(),
+  }).eq('id', admId);
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not lock charges.')); return; }
+
+  if (bedId) await supabase.from('beds').update({ status: 'vacant' }).eq('id', bedId);
+
+  await logAudit('ipd_charges_locked', 'ipd_admissions', admId, { by: profile?.full_name }, _ctx);
+  _alert('success', 'Charges locked and bed freed. Billing clerk can now generate the final bill.');
+  loadWardPatients();
+  document.getElementById('patient-content').style.display = 'none';
+  document.getElementById('no-patient-msg').style.display  = '';
+  _activeAdm = null;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

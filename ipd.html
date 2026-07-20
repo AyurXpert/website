@@ -109,6 +109,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;
 }
 .status-admitted{background:var(--success-bg);color:var(--success-text);border:1px solid var(--success-border)}
+.status-inprogress{background:#fff3e0;color:#8a5000;border:1px solid #ffcc80}
 .status-discharged{background:#f0f0f0;color:#555}
 .status-lama{background:var(--gold-light);color:#7a5a00;border:1px solid #e0c060}
 .status-transferred{background:#e3f0ff;color:#1a4080;border:1px solid #a8c8f0}
@@ -482,8 +483,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <input type="hidden" id="dis-adm-id"/>
       <input type="hidden" id="dis-bed-id"/>
       <input type="hidden" id="dis-patient-id"/>
-      <input type="hidden" id="dis-bill-id"/>
-      <input type="hidden" id="dis-bill-total" value="0"/>
 
       <div class="adm-detail-card" id="dis-detail-card"></div>
 
@@ -496,6 +495,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <div class="discharge-opt deceased" data-val="deceased" data-onclick="selectDischargeType" data-onclick-a0="@this">Deceased</div>
         </div>
         <input type="hidden" id="dis-type" value="discharged"/>
+        <div id="dis-type-note" style="font-size:11.5px;color:var(--text-muted);margin-top:6px">
+          Orders discharge — the nurse reconciles stay charges and the bed is freed once that's locked.
+        </div>
       </div>
 
       <div class="field-row">
@@ -526,49 +528,74 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <input id="dis-transfer-to" type="text" placeholder="Name of receiving facility"/>
       </div>
     </div>
-      <!-- Insurance settlement — shown only for insurance patients -->
-      <div id="dis-ins-section" style="display:none;border:1.5px solid #f0c060;border-radius:10px;padding:14px 14px 10px;background:#fffdf5;margin-bottom:12px">
-        <div id="dis-ins-heading" style="font-size:11px;font-weight:600;color:var(--gold);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">🏥 Insurance Settlement</div>
-        <div class="field-row">
-          <div class="field">
-            <label>Approved Amount (₹)</label>
-            <input id="dis-ins-approved" type="number" min="0" step="0.01" placeholder="Amount approved by TPA" data-oninput="_updateDischargeDue"/>
-          </div>
-          <div class="field">
-            <label>Claim Status</label>
-            <select id="dis-ins-claim-status">
-              <option value="submitted">Submitted to TPA ✓</option>
-              <option value="pre_auth_approved">Pre-Auth Approved</option>
-              <option value="pre_auth_pending">Pre-Auth Pending</option>
-            </select>
-          </div>
-        </div>
-        <!-- Live patient-due row -->
-        <div id="dis-due-row" style="display:none;justify-content:space-between;align-items:center;padding:8px 12px;background:#fff8f0;border-radius:6px;margin:8px 0 4px;font-size:13px">
-          <span style="color:var(--text-mid)">Patient Due (Total − Approved)</span>
-          <strong id="dis-due-amt" style="color:var(--red)">₹0</strong>
-        </div>
-        <!-- Collect patient due now -->
-        <div id="dis-collect-wrap" style="display:none;margin-top:8px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
-            <input type="checkbox" id="dis-collect-now" data-onchange="_toggleCollectNow"/>
-            <span>Collect patient due now at discharge</span>
-          </label>
-          <div id="dis-collect-mode" style="display:none;margin-top:8px">
-            <label style="font-size:12px;color:var(--text-mid)">Payment Mode</label>
-            <div style="display:flex;gap:8px;margin-top:4px">
-              <label class="pt-btn"><input type="radio" name="dis_pay_mode" value="cash" checked/><span>Cash</span></label>
-              <label class="pt-btn"><input type="radio" name="dis_pay_mode" value="upi"/><span>UPI</span></label>
-              <label class="pt-btn"><input type="radio" name="dis_pay_mode" value="card"/><span>Card</span></label>
-            </div>
-          </div>
-        </div>
-        <div style="font-size:11px;color:var(--text-mid);margin-top:6px">Accountant handles TPA follow-up and final settlement via Finance → Insurance Cycles.</div>
-      </div>
 
     <div class="drawer-footer">
       <button class="btn btn-secondary" data-onclick="closeDischargeDrawer">Cancel</button>
       <button class="btn btn-primary" id="btn-discharge-save" data-onclick="saveDischarge">Confirm Discharge</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     GENERATE IPD BILL DRAWER (Session 114 — billing clerk)
+     ══════════════════════════════════════════════════════ -->
+<div class="drawer-overlay" id="bill-overlay">
+  <div class="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title">Generate IPD Bill</span>
+      <button class="drawer-close" data-onclick="closeGenerateBillDrawer">&#x2715;</button>
+    </div>
+    <div class="drawer-body">
+      <input type="hidden" id="bill-adm-id"/>
+      <div class="adm-detail-card" id="bill-detail-card"></div>
+
+      <div class="field">
+        <label>Payer Type <span class="req">*</span></label>
+        <select id="bill-payer-type">
+          <option value="self_pay">Self-Pay</option>
+          <option value="insurance">Insurance / TPA</option>
+          <option value="pmjay">PMJAY (Ayushman)</option>
+          <option value="cghs">CGHS</option>
+          <option value="echs">ECHS</option>
+          <option value="esi">ESIC</option>
+          <option value="corporate">Corporate</option>
+        </select>
+      </div>
+
+      <div class="sec" style="margin-top:14px">Room Tariff</div>
+      <div id="bill-room-tariff" style="font-size:12.5px;color:var(--text-mid);padding:8px 0"></div>
+
+      <div class="sec" style="margin-top:14px">Add Charge</div>
+      <div class="field-row" style="display:grid;grid-template-columns:2fr 1fr;gap:8px">
+        <div class="field">
+          <label>Description</label>
+          <input id="bc-desc" type="text" placeholder="e.g. OT consumables, extra investigation…"/>
+        </div>
+        <div class="field">
+          <label>Qty</label>
+          <input id="bc-qty" type="number" min="1" step="1" value="1"/>
+        </div>
+      </div>
+      <div class="field">
+        <label>Unit Price (₹)</label>
+        <input id="bc-price" type="number" min="0" step="0.01" placeholder="0.00"/>
+      </div>
+      <div style="margin-top:6px;display:flex;justify-content:flex-end" class="no-print">
+        <button class="btn btn-secondary btn-sm" data-onclick="addBillCharge">+ Add Charge</button>
+      </div>
+
+      <div class="sec" style="margin-top:16px">Stay Charges</div>
+      <div id="bill-charges-list"></div>
+
+      <div style="margin-top:14px;padding:12px 14px;background:var(--green-light);border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:13px;font-weight:600;color:var(--green-deep)">Bill Total (incl. GST)</span>
+        <strong id="bill-grand-total" style="font-size:16px;color:var(--green-deep)">₹0</strong>
+      </div>
+    </div>
+
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" data-onclick="closeGenerateBillDrawer">Cancel</button>
+      <button class="btn btn-primary" id="btn-generate-bill" data-onclick="confirmGenerateBill">Generate Bill</button>
     </div>
   </div>
 </div>
@@ -582,7 +609,32 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <span class="drawer-title">Admission Details</span>
       <button class="drawer-close" data-onclick="closeNotesDrawer">&#x2715;</button>
     </div>
-    <div class="drawer-body" id="notes-body"></div>
+    <div class="drawer-body">
+      <div id="notes-body"></div>
+
+      <!-- Session 114 -- super_admin-only escape hatch. Hidden for every
+           other role; shown/populated by openNotesDrawer(). -->
+      <div id="bypass-section" style="display:none;margin-top:16px;border-top:1.5px dashed var(--border);padding-top:14px">
+        <div style="font-size:11px;font-weight:700;color:#c0392b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">⚠ Super Admin Override</div>
+        <input type="hidden" id="bypass-adm-id"/>
+        <div class="field">
+          <label>Force Status To</label>
+          <select id="bypass-target-status">
+            <option value="admitted">Admitted</option>
+            <option value="clinically_discharged">Clinically Discharged</option>
+            <option value="charges_locked">Charges Locked</option>
+            <option value="bill_generated">Bill Generated</option>
+            <option value="paid_cleared">Paid Cleared</option>
+            <option value="discharged">Discharged</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Reason <span class="req">*</span></label>
+          <textarea id="bypass-reason" placeholder="Why is this override needed? (required, logged to the audit trail)" style="height:60px" data-oninput="_toggleBypassBtn"></textarea>
+        </div>
+        <button class="btn btn-secondary" id="btn-bypass-confirm" data-onclick="confirmForceStatus" disabled style="width:100%;color:#c0392b;border-color:#c0392b">Force Status Change</button>
+      </div>
+    </div>
     <div class="drawer-footer">
       <button class="btn btn-secondary" data-onclick="closeNotesDrawer">Close</button>
     </div>
@@ -795,6 +847,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <option value="discharged">Discharged</option>
       <option value="lama">LAMA</option>
       <option value="transferred">Transferred</option>
+      <option value="deceased">Deceased</option>
     </select>
     <div class="filter-spacer"></div>
     <button class="btn btn-secondary btn-sm" data-onclick="loadAll">&#8635; Refresh</button>

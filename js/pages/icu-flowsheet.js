@@ -20,11 +20,14 @@ document.getElementById('sel-date').value = new Date().toISOString().split('T')[
 
 // Load admitted patients
 async function loadAdmissions() {
+  // Session 114 -- stays selectable through the reconciliation window
+  // (clinically_discharged): the patient hasn't physically left the ward
+  // yet at that stage, so ICU charting should stay available.
   const {data} = await supabase.from('ipd_admissions').select(`
     id,admission_date,diagnosis_primary,
     patient:patients(id,name),
     bed:beds(bed_number,ward_name)
-  `).eq('tenant_id',tenantId).eq('status','admitted').order('admission_date');
+  `).eq('tenant_id',tenantId).in('status',['admitted','clinically_discharged']).order('admission_date');
   _admissions = data || [];
   const sel = document.getElementById('sel-patient');
   sel.innerHTML = '<option value="">— Select Admitted Patient —</option>' +

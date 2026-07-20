@@ -599,25 +599,37 @@ window.switchWriteoffTab = function(name, btn) {
 };
 
 window.approveWriteoff = async function(woId, billId) {
+  // Session 114 -- fixed a real, confirmed bug found while verifying the
+  // discharge-billing insurance path: approved_by/requested_by are `uuid
+  // references profiles(id)` columns, but this and rejectWriteoff()/
+  // submitWriteoff() below were sending currentUser.full_name (a text
+  // name), which Postgres rejects outright (22P02) -- meaning the entire
+  // write-off feature (submit, approve, reject) has never worked for any
+  // real logged-in user. Confirmed live: the exact same PATCH that fails
+  // with "invalid input syntax for type uuid" here succeeds once the value
+  // is currentUser.id instead.
   if (!confirm('Approve this write-off request?')) return;
   const { error: e1 } = await supabase
     .from('insurance_write_offs')
     .update({
       status: 'approved',
-      approved_by: currentUser?.full_name || currentUser?.id,
+      approved_by: currentUser?.id,
       approved_at: new Date().toISOString()
     })
     .eq('id', woId);
   if (e1) { alert('Error: ' + e1.message); return; }
 
-  // Update bill claim status
-  await supabase
-    .from('bills')
-    .update({ insurance_claim_status: 'rejected' })
-    .eq('id', billId)
-    .eq('tenant_id', tenantId);
-
-  await logAudit('approve_write_off', { write_off_id: woId, bill_id: billId });
+  // Session 114 -- removed a second bug found alongside the one above: this
+  // used to also set bills.insurance_claim_status='rejected' right after
+  // approving, unconditionally overwriting whatever the DB's own
+  // trg_write_off_approval trigger (sql/session78_rpc_baseline.sql,
+  // generalized in sql/session114_ipd_discharge_workflow.sql) had just
+  // correctly set -- an approved, paid-off bill would show as "Rejected"
+  // in every claims report. The trigger already sets insurance_claim_status
+  // correctly (and, for reason_type != 'insurance_writeoff' -- promissory
+  // note/corporate credit -- deliberately leaves it untouched), so nothing
+  // needs to happen here at all.
+  await logAudit('approve_write_off', 'insurance_write_offs', woId, { bill_id: billId }, { tenantId, userId: currentUser?.id, userName: currentUser?.full_name });
   await loadWriteoffs();
   await loadActiveClaims();
 };
@@ -628,12 +640,12 @@ window.rejectWriteoff = async function(woId) {
     .from('insurance_write_offs')
     .update({
       status: 'rejected',
-      approved_by: currentUser?.full_name || currentUser?.id,
+      approved_by: currentUser?.id,
       approved_at: new Date().toISOString()
     })
     .eq('id', woId);
   if (error) { alert(safeErrorMessage(error, 'Could not reject write-off.')); return; }
-  await logAudit('reject_write_off', { write_off_id: woId });
+  await logAudit('reject_write_off', 'insurance_write_offs', woId, {}, { tenantId, userId: currentUser?.id, userName: currentUser?.full_name });
   await loadWriteoffs();
 };
 
@@ -709,16 +721,16 @@ window.submitWriteoff = async function() {
   if (!amount || amount <= 0) { alert('Please enter a valid write-off amount.'); return; }
   if (!reason)        { alert('Please select a reason.'); return; }
 
-  const { error } = await supabase.from('insurance_write_offs').insert({
+  const { data: woRow, error } = await supabase.from('insurance_write_offs').insert({
     tenant_id:    tenantId,
     bill_id:      billId,
     amount:       amount,
     reason:       reason,
     notes:        notes || null,
     status:       'pending',
-    requested_by: currentUser?.full_name || currentUser?.id,
+    requested_by: currentUser?.id,
     requested_at: new Date().toISOString()
-  });
+  }).select('id').single();
 
   if (error) {
     if (error.code === '42P01') {
@@ -729,7 +741,7 @@ window.submitWriteoff = async function() {
     return;
   }
 
-  await logAudit('request_write_off', { bill_id: billId, amount, reason });
+  await logAudit('request_write_off', 'insurance_write_offs', woRow?.id, { bill_id: billId, amount, reason }, { tenantId, userId: currentUser?.id, userName: currentUser?.full_name });
   closeModal('modal-writeoff-bg');
   await loadWriteoffs();
   renderWriteoffTables();

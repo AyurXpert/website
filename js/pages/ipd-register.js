@@ -75,7 +75,8 @@ window.loadRegister = async function() {
 
   let q = supabase.from('ipd_admissions')
     .select(`
-      id, admission_date, admitted_at, discharged_at, status, diagnosis_primary, diet_type,
+      id, admission_date, admitted_at, discharged_at, charges_locked_at, status, disposition,
+      diagnosis_primary, diet_type,
       patients(id, name, age, gender, phone),
       profiles!admitting_doctor_id(full_name),
       departments(name, ncism_code),
@@ -89,7 +90,14 @@ window.loadRegister = async function() {
 
   if (deptId) q = q.eq('department_id', deptId);
   if (docId)  q = q.eq('admitting_doctor_id', docId);
-  if (status) q = q.eq('status', status);
+  // Session 114 -- status (lifecycle) and disposition (reason) are now split.
+  // "Admitted" covers both fully-active and mid-discharge-process admissions
+  // (still physically on the ward until charges_locked); "Discharged" means
+  // status is terminal AND the disposition was a normal discharge; LAMA/
+  // Transferred/Deceased now live in `disposition`, never `status`.
+  if (status === 'admitted') q = q.in('status', ['admitted','clinically_discharged']);
+  else if (status === 'discharged') q = q.eq('status','discharged').eq('disposition','discharged');
+  else if (status) q = q.eq('disposition', status);
 
   const { data, error } = await q.limit(1000);
   if (error) {
@@ -109,8 +117,11 @@ function _ipdNo(row) {
 }
 
 function _los(row) {
+  // Session 114 -- LOS uses charges_locked_at (the real bed-vacate moment),
+  // not discharged_at (now stamped at MRD's final record release, which can
+  // trail the patient's actual ward departure by hours or days).
   const start = row.admitted_at || row.admission_date;
-  const end   = row.discharged_at || null;
+  const end   = row.charges_locked_at || null;
   if (!start) return '—';
   const s = new Date(start);
   const e = end ? new Date(end) : new Date();
@@ -118,9 +129,16 @@ function _los(row) {
   return days || '<1';
 }
 
-function _statusBadge(s) {
-  const cls = {admitted:'b-admitted', discharged:'b-discharged', lama:'b-lama', transferred:'b-transferred', deceased:'b-deceased'}[s] || '';
-  const label = {admitted:'Admitted', discharged:'Discharged', lama:'LAMA', transferred:'Transferred', deceased:'Deceased'}[s] || s;
+function _statusBadge(row) {
+  // Session 114 -- for a closed admission, disposition (lama/transferred/
+  // deceased/discharged) is the meaningful label, not the lifecycle `status`
+  // (which is now just 'discharged' for every closed case regardless of why).
+  const isActive = ['admitted','clinically_discharged'].includes(row.status);
+  const key = isActive ? row.status : (row.disposition || row.status);
+  const cls = {admitted:'b-admitted', clinically_discharged:'b-admitted', discharged:'b-discharged',
+               lama:'b-lama', transferred:'b-transferred', deceased:'b-deceased'}[key] || '';
+  const label = {admitted:'Admitted', clinically_discharged:'Admitted (Discharge Ordered)', discharged:'Discharged',
+                 lama:'LAMA', transferred:'Transferred', deceased:'Deceased'}[key] || key;
   return `<span class="badge ${cls}">${_esc(label)}</span>`;
 }
 
@@ -147,23 +165,28 @@ function _renderTable() {
       <td style="font-size:11px">${bed.ward_name ? _esc(bed.ward_name)+'<br>' : ''}${bed.bed_number ? `<span style="color:var(--text-muted)">Bed ${_esc(bed.bed_number)}</span>` : '—'}</td>
       <td style="font-size:11px">${doc.full_name ? 'Dr. '+_esc(doc.full_name) : '—'}</td>
       <td style="font-size:11px;max-width:150px">${_esc(r.diagnosis_primary||'—')}</td>
-      <td>${_statusBadge(r.status)}</td>
-      <td style="font-size:11px;white-space:nowrap">${r.discharged_at ? _fmtDate(r.discharged_at.slice(0,10)) : '—'}</td>
+      <td>${_statusBadge(r)}</td>
+      <td style="font-size:11px;white-space:nowrap">${r.charges_locked_at ? _fmtDate(r.charges_locked_at.slice(0,10)) : '—'}</td>
       <td style="text-align:center;font-size:12px;font-weight:500">${_los(r)}</td>
     </tr>`;
   }).join('');
 }
 
 function _updateSummary(from, to) {
-  const active    = _rows.filter(r => r.status === 'admitted').length;
-  const discharged= _rows.filter(r => r.status === 'discharged').length;
-  const other     = _rows.filter(r => ['lama','transferred'].includes(r.status)).length;
-  const deceased  = _rows.filter(r => r.status === 'deceased').length;
+  // Session 114 -- active/discharged/other/deceased now read disposition for
+  // closed cases (status is just 'discharged' for all of them regardless of
+  // why); "active" includes clinically_discharged since the patient hasn't
+  // physically left the ward yet at that stage.
+  const active    = _rows.filter(r => ['admitted','clinically_discharged'].includes(r.status)).length;
+  const discharged= _rows.filter(r => r.disposition === 'discharged').length;
+  const other     = _rows.filter(r => ['lama','transferred'].includes(r.disposition)).length;
+  const deceased  = _rows.filter(r => r.disposition === 'deceased').length;
 
-  // Average LOS for discharged patients
-  const disRows = _rows.filter(r => r.status === 'discharged' && r.admitted_at && r.discharged_at);
+  // Average LOS for discharged patients -- charges_locked_at (bed-vacate
+  // moment), not discharged_at (now trails to MRD's final release).
+  const disRows = _rows.filter(r => r.disposition === 'discharged' && r.admitted_at && r.charges_locked_at);
   const avgLOS  = disRows.length
-    ? (disRows.reduce((sum, r) => sum + Math.round((new Date(r.discharged_at)-new Date(r.admitted_at))/86400000), 0) / disRows.length).toFixed(1)
+    ? (disRows.reduce((sum, r) => sum + Math.round((new Date(r.charges_locked_at)-new Date(r.admitted_at))/86400000), 0) / disRows.length).toFixed(1)
     : '—';
 
   document.getElementById('s-total').textContent     = _rows.length;

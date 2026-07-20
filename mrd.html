@@ -114,6 +114,10 @@ tr:hover td{background:#f8fdf9}
 .b-waiting{background:#fff8e1;color:#7a5200;border-color:#ffe082}
 .b-discharged{background:#e3f2fd;color:#1565c0;border-color:#90caf9}
 .b-admitted{background:#f3e5f5;color:#6a1b9a;border-color:#ce93d8}
+.b-inprogress{background:#fff3e0;color:#8a5000;border-color:#ffcc80}
+.b-lama{background:#fce4ec;color:#ad1457;border-color:#f48fb1}
+.b-transferred{background:#e0f2f1;color:#00695c;border-color:#80cbc4}
+.b-deceased{background:#eceff1;color:#455a64;border-color:#b0bec5}
 
 /* Empty */
 .empty{text-align:center;padding:36px 20px;color:var(--text-muted);font-size:13px}
@@ -250,9 +254,11 @@ tr:hover td{background:#f8fdf9}
       <select id="ipd-status" data-onchange="filterIPD">
         <option value="">All Statuses</option>
         <option value="admitted">Admitted</option>
+        <option value="pending_release">Pending Release (Paid — Awaiting MRD)</option>
         <option value="discharged">Discharged</option>
         <option value="lama">LAMA</option>
         <option value="transferred">Transferred</option>
+        <option value="deceased">Deceased</option>
       </select>
       <input type="month" id="ipd-month" data-onchange="filterIPD" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit"/>
       <button class="btn btn-outline btn-sm" data-onclick="exportIPDCSV">Export CSV</button>
@@ -268,7 +274,7 @@ tr:hover td{background:#f8fdf9}
             <tr>
               <th>Admission Date</th><th>Patient</th><th>Age/Gender</th>
               <th>Department</th><th>Admitting Doctor</th><th>Diagnosis</th>
-              <th>Discharge Date</th><th>LOS (days)</th><th>Status</th>
+              <th>Discharge Date</th><th>LOS (days)</th><th>Status</th><th>Action</th>
             </tr>
           </thead>
           <tbody id="ipd-tbody"></tbody>

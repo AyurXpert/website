@@ -4,6 +4,7 @@ import { initNavbar } from '../components/navbar.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { logAudit } from '../core/auditLogger.js';
 
 const ALLOWED = ['super_admin','dept_admin','mrd_staff'];
 await requireAuth(ALLOWED);
@@ -11,6 +12,7 @@ if (!hasModule('mrd')) { window.location.replace('admin.html'); }
 
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
+const _ctx     = { tenantId, userId: profile?.id, userName: profile?.full_name };
 
 initNavbar();
 wireDelegatedEvents();
@@ -108,7 +110,7 @@ window.openPatientFile = async function(patientId) {
     supabase.from('patients').select('*').eq('id', patientId).single(),
     supabase.from('visits').select('id,created_at,status,chief_complaint,opds(name),profiles!doctor_id(full_name)').eq('patient_id',patientId).order('created_at',{ascending:false}),
     supabase.from('bills').select('id,created_at,final_amount,status,payment_mode').eq('patient_id',patientId).eq('tenant_id',tenantId).order('created_at',{ascending:false}),
-    supabase.from('ipd_admissions').select('id,admission_date,discharged_at,status,diagnosis_primary,departments(name)').eq('patient_id',patientId).order('admission_date',{ascending:false}),
+    supabase.from('ipd_admissions').select('id,admission_date,discharged_at,charges_locked_at,status,disposition,diagnosis_primary,departments(name)').eq('patient_id',patientId).order('admission_date',{ascending:false}),
   ]);
 
   const initials = (pat.name||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
@@ -168,9 +170,9 @@ window.openPatientFile = async function(patientId) {
             ${ipd.map(a => `<div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:6px;font-size:12px">
               <div style="display:flex;justify-content:space-between;margin-bottom:4px">
                 <strong>${_esc(a.departments?.name||'IPD')}</strong>
-                <span class="badge b-${a.status}">${_esc(a.status)}</span>
+                ${_ipdBadge(a)}
               </div>
-              <div style="color:var(--text-muted)">Admitted: ${_fmtD(a.admission_date)} ${a.discharged_at ? '→ Discharged: '+_fmtD(a.discharged_at.slice(0,10)) : '(current)'}</div>
+              <div style="color:var(--text-muted)">Admitted: ${_fmtD(a.admission_date)} ${a.charges_locked_at ? '→ Discharged: '+_fmtD(a.charges_locked_at.slice(0,10)) : '(current)'}</div>
               ${a.diagnosis_primary ? `<div style="margin-top:3px;color:var(--text-dark)">${_esc(a.diagnosis_primary)}</div>` : ''}
             </div>`).join('')}
           ` : ''}
@@ -375,13 +377,39 @@ window.exportDiagCSV = function() {
 };
 
 // ── IPD Registry ──────────────────────────────────────────
+// Session 114 -- lifecycle status and disposition (reason) are now split.
+// A closed admission's status is always 'discharged' regardless of why --
+// the real reason (lama/transferred/deceased/discharged) lives in
+// disposition. "Admitted" now covers both admitted and clinically_discharged
+// (patient hasn't physically left the ward yet at the latter stage).
+const IPD_STAGE_LABELS = {
+  clinically_discharged: 'Admitted (Discharge Ordered)',
+  charges_locked:        'Charges Locked',
+  bill_generated:        'Bill Generated',
+  paid_cleared:          'Paid — Awaiting Release',
+};
+function _ipdBadge(a) {
+  if (['admitted','clinically_discharged'].includes(a.status)) {
+    return `<span class="badge b-admitted">${_esc(IPD_STAGE_LABELS[a.status] || 'Admitted')}</span>`;
+  }
+  if (a.status !== 'discharged') {
+    // charges_locked / bill_generated / paid_cleared -- bed already vacated,
+    // billing/payment in progress, MRD hasn't released the record yet.
+    return `<span class="badge b-inprogress">${_esc(IPD_STAGE_LABELS[a.status] || a.status)}</span>`;
+  }
+  const key = a.disposition || 'discharged';
+  const cls = { discharged:'b-discharged', lama:'b-lama', transferred:'b-transferred', deceased:'b-deceased' }[key] || 'b-discharged';
+  const label = { discharged:'Discharged', lama:'LAMA', transferred:'Transferred', deceased:'Deceased' }[key] || key;
+  return `<span class="badge ${cls}">${_esc(label)}</span>`;
+}
+
 async function loadIPD() {
   const { data, error } = await supabase
     .from('ipd_admissions')
-    .select('id,admission_date,admitted_at,discharged_at,status,diagnosis_primary,patients(name,age,gender),departments(name),profiles!admitting_doctor_id(full_name)')
+    .select('id,admission_date,admitted_at,discharged_at,charges_locked_at,status,disposition,diagnosis_primary,discharge_diagnosis_ayurveda,patients(name,age,gender),departments(name),profiles!admitting_doctor_id(full_name)')
     .eq('tenant_id', tenantId)
     .order('admission_date', { ascending: false });
-  if (error) { document.getElementById('ipd-tbody').innerHTML = '<tr><td colspan="9" class="empty">IPD module not available</td></tr>'; return; }
+  if (error) { document.getElementById('ipd-tbody').innerHTML = '<tr><td colspan="10" class="empty">IPD module not available</td></tr>'; return; }
   _ipdData = data || [];
   filterIPD();
 }
@@ -390,19 +418,26 @@ window.filterIPD = function() {
   const q      = document.getElementById('ipd-search').value.toLowerCase();
   const status = document.getElementById('ipd-status').value;
   const month  = document.getElementById('ipd-month').value;
-  const filtered = _ipdData.filter(a =>
-    (!q      || a.patients?.name?.toLowerCase().includes(q)) &&
-    (!status || a.status === status) &&
-    (!month  || a.admission_date?.startsWith(month))
-  );
+  const filtered = _ipdData.filter(a => {
+    if (q && !a.patients?.name?.toLowerCase().includes(q)) return false;
+    if (month && !a.admission_date?.startsWith(month)) return false;
+    if (!status) return true;
+    if (status === 'admitted')        return ['admitted','clinically_discharged'].includes(a.status);
+    if (status === 'pending_release') return a.status === 'paid_cleared';
+    if (status === 'discharged')      return a.status === 'discharged' && (a.disposition || 'discharged') === 'discharged';
+    return a.disposition === status; // 'lama' / 'transferred'
+  });
   document.getElementById('ipd-count-lbl').textContent = `${filtered.length} records`;
   const tbody = document.getElementById('ipd-tbody');
   tbody.innerHTML = filtered.map(a => {
-    const admDate = a.admission_date || a.admitted_at?.slice(0,10);
-    const disDate = a.discharged_at?.slice(0,10);
-    const los = admDate && disDate
-      ? Math.max(1, Math.round((new Date(disDate)-new Date(admDate))/86400000))
-      : (a.status==='admitted' ? Math.round((new Date()-new Date(admDate))/86400000)+' (ongoing)' : '—');
+    const admDate  = a.admission_date || a.admitted_at?.slice(0,10);
+    // charges_locked_at -- the real bed-vacate moment -- not discharged_at
+    // (now stamped at MRD's final release, which can trail actual ward
+    // departure by hours or days).
+    const exitDate = a.charges_locked_at?.slice(0,10);
+    const los = admDate && exitDate
+      ? Math.max(1, Math.round((new Date(exitDate)-new Date(admDate))/86400000))
+      : (['admitted','clinically_discharged'].includes(a.status) ? Math.round((new Date()-new Date(admDate))/86400000)+' (ongoing)' : '—');
     return `<tr>
       <td style="font-size:12px;white-space:nowrap">${_fmtD(admDate)}</td>
       <td style="font-weight:500">${_esc(a.patients?.name||'—')}</td>
@@ -410,11 +445,38 @@ window.filterIPD = function() {
       <td style="font-size:12px">${_esc(a.departments?.name||'—')}</td>
       <td style="font-size:12px">${_esc(a.profiles?.full_name||'—')}</td>
       <td style="font-size:12px;max-width:180px;word-break:break-word">${_esc(a.diagnosis_primary||'—')}</td>
-      <td style="font-size:12px">${disDate ? _fmtD(disDate) : '—'}</td>
+      <td style="font-size:12px">${exitDate ? _fmtD(exitDate) : '—'}</td>
       <td style="text-align:center;font-weight:500">${los}</td>
-      <td><span class="badge b-${a.status}">${_esc(a.status)}</span></td>
+      <td>${_ipdBadge(a)}</td>
+      <td>${a.status === 'paid_cleared'
+        ? `<button class="btn-sm btn-green" data-onclick="releaseIpdRecord" data-onclick-a0="${a.id}">Release</button>`
+        : '—'}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="9" class="empty">No IPD admissions found</td></tr>';
+  }).join('') || '<tr><td colspan="10" class="empty">No IPD admissions found</td></tr>';
+};
+
+// Session 114 -- MRD's final gate: only releases once payment has cleared
+// (status='paid_cleared', set by the sync_ipd_admission_on_bill_settled DB
+// trigger) AND the discharge summary is actually filled in. Reuses the
+// existing discharge-summary fields already on ipd_admissions (populated by
+// ipd.js's saveAndPrintDischarge) rather than a new data model.
+window.releaseIpdRecord = async function(admId) {
+  const adm = _ipdData.find(a => a.id === admId);
+  if (!adm) return;
+  if (!adm.discharge_diagnosis_ayurveda && !adm.diagnosis_primary) {
+    _toast('Discharge summary is incomplete — cannot release.', 'error');
+    return;
+  }
+  if (!confirm('Release this record? The discharge summary and case file become available to the patient.')) return;
+
+  const { error } = await supabase.from('ipd_admissions').update({
+    status: 'discharged', discharged_at: new Date().toISOString(),
+  }).eq('id', admId);
+  if (error) { _toast(safeErrorMessage(error, 'Could not release record.'), 'error'); return; }
+
+  await logAudit('ipd_record_released', 'ipd_admissions', admId, { by: profile?.full_name }, _ctx);
+  _toast('Record released.', 'success');
+  await loadIPD();
 };
 
 window.exportIPDCSV = function() {
@@ -422,8 +484,8 @@ window.exportIPDCSV = function() {
     AdmissionDate: a.admission_date, Patient: a.patients?.name,
     Age: a.patients?.age, Gender: a.patients?.gender,
     Department: a.departments?.name, Doctor: a.profiles?.full_name,
-    Diagnosis: a.diagnosis_primary, DischargeDate: a.discharged_at?.slice(0,10),
-    Status: a.status,
+    Diagnosis: a.diagnosis_primary, DischargeDate: a.charges_locked_at?.slice(0,10),
+    Status: a.status, Disposition: a.disposition || '',
   })), 'ipd_registry');
 };
 

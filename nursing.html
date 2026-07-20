@@ -158,6 +158,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <button class="module-tab" data-onclick="switchTab" data-onclick-a0="handover" data-onclick-a1="@this">🔄 Shift Handover</button>
     <button class="module-tab" data-onclick="switchTab" data-onclick-a0="ward-proc" data-onclick-a1="@this">🩹 Ward Procedures</button>
     <button class="module-tab" data-onclick="switchTab" data-onclick-a0="risk" data-onclick-a1="@this">⚠️ Risk Assessment</button>
+    <button class="module-tab" data-onclick="switchTab" data-onclick-a0="discharge" data-onclick-a1="@this">🚪 Discharge Reconciliation</button>
   </div>
 
   <!-- Ward + Shift selector -->
@@ -576,6 +577,41 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
           <div class="sec" style="margin-top:16px">Assessment History</div>
           <div id="risk-history"><div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px">No assessments recorded yet.</div></div>
+        </div>
+
+        <!-- TAB: Discharge Reconciliation -->
+        <div id="tab-discharge" class="rp-body" hidden>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Once a doctor orders discharge, confirm every chargeable service this patient received during the stay, then lock charges to free the bed. Billing generates the final invoice from what's confirmed here.</div>
+
+          <div id="disc-not-ready" style="text-align:center;color:var(--text-muted);padding:24px;font-size:13px">Select a patient whose discharge has been ordered by a doctor to begin reconciliation.</div>
+
+          <div id="disc-recon-body" style="display:none">
+            <div class="sec">Add Manual Charge</div>
+            <div class="field-row c2">
+              <div class="field">
+                <label>Description</label>
+                <input id="rc-desc" type="text" placeholder="e.g. OT consumables, dressing charges, extra investigation…"/>
+              </div>
+              <div class="field">
+                <label>Qty</label>
+                <input id="rc-qty" type="number" min="1" step="1" value="1"/>
+              </div>
+            </div>
+            <div class="field">
+              <label>Unit Price (₹)</label>
+              <input id="rc-price" type="number" min="0" step="0.01" placeholder="0.00"/>
+            </div>
+            <div style="margin-top:6px;display:flex;justify-content:flex-end" class="no-print">
+              <button class="btn btn-secondary btn-sm" data-onclick="addManualCharge">+ Add Charge</button>
+            </div>
+
+            <div class="sec" style="margin-top:18px">Stay Charges — This Admission</div>
+            <div id="recon-list"><div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px">No charges yet.</div></div>
+
+            <div style="margin-top:16px;display:flex;justify-content:flex-end" class="no-print">
+              <button class="btn btn-primary" id="btn-lock-charges" data-onclick="lockChargesAndFreeBed">🔒 Lock Charges &amp; Free Bed</button>
+            </div>
+          </div>
         </div>
 
       </div>

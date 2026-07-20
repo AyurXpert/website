@@ -1,10 +1,12 @@
-import { requireAuth, getCurrentTenantId, getCurrentProfile } from '../core/auth.js';
+import { requireAuth, getCurrentTenantId, getCurrentProfile, getCurrentRole } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { isNCISMType } from '../config/ncism.js';
+import { logAudit } from '../core/auditLogger.js';
+import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 
 /*
   SQL to run in Supabase (one time) before using this page:
@@ -50,6 +52,17 @@ initNavbar();
 wireDelegatedEvents();
 const tenantId = getCurrentTenantId();
 const myProfile = getCurrentProfile();
+const myRole    = getCurrentRole();
+const _ctx      = { tenantId, userId: myProfile.id, userName: myProfile.full_name };
+// Session 114 -- who may actually trigger a discharge/exit. The page itself
+// still allows receptionist (billing-clerk designation needs page access for
+// the later billing step), but the discharge TRIGGER is doctor/nurse/admin
+// only -- closes the "any receptionist can discharge with zero checks" gap.
+const DISCHARGE_ROLES = ['doctor','nurse','super_admin','dept_admin'];
+// Session 114 -- who may generate the final IPD bill. Matches finance.js's
+// own ALLOWED list (billing-clerk designation is a receptionist role) --
+// not doctor/nurse, whose job ends once charges are locked.
+const BILLING_ROLES = ['receptionist','cashier','accountant','finance_manager','super_admin','dept_admin'];
 
 let _admissions  = [];
 let _depts       = [];
@@ -88,8 +101,8 @@ window.loadAll = async function loadAll() {
     supabase
       .from('ipd_admissions')
       .select(`
-        id, tenant_id, admission_date, admitted_at, discharged_at,
-        status, diagnosis_primary, diet_type, notes,
+        id, tenant_id, admission_date, admitted_at, discharged_at, charges_locked_at,
+        status, disposition, diagnosis_primary, diet_type, notes,
         patients(id, name, phone, abha_number, age, gender),
         beds(id, bed_number, ward_name, bed_type, department_id),
         departments(id, name, ncism_code),
@@ -124,14 +137,18 @@ window.loadAll = async function loadAll() {
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
 function renderStats() {
-  const admitted   = _admissions.filter(a => a.status === 'admitted').length;
+  // Session 114 -- "admitted" now covers clinically_discharged too (patient
+  // hasn't physically left the ward yet at that stage); "today discharged"
+  // uses charges_locked_at (the real bed-vacate moment), not discharged_at
+  // (now stamped at MRD's final release, which can trail actual departure).
+  const admitted   = _admissions.filter(a => ['admitted','clinically_discharged'].includes(a.status)).length;
   const vacant     = _allBeds.filter(b => b.status === 'vacant').length;
   const today      = new Date().toISOString().slice(0, 10);
   const todayDis   = _admissions.filter(a =>
-    a.discharged_at && a.discharged_at.slice(0,10) === today
+    a.charges_locked_at && a.charges_locked_at.slice(0,10) === today
   ).length;
 
-  const currentAdm = _admissions.filter(a => a.status === 'admitted');
+  const currentAdm = _admissions.filter(a => ['admitted','clinically_discharged'].includes(a.status));
   let avgLos = '—';
   if (currentAdm.length) {
     const now = Date.now();
@@ -313,9 +330,14 @@ window.applyFilters = function() {
   const deptFilter = document.getElementById('filter-dept').value;
   const statFilter = document.getElementById('filter-status').value;
 
+  // Session 114 -- status (lifecycle) and disposition (reason) are split.
+  // 'admitted' spans both admitted and clinically_discharged; 'discharged'
+  // means the terminal status with a normal-discharge disposition; LAMA/
+  // Transferred/Deceased now live in disposition, never status.
   let rows = _admissions;
-  if (statFilter) rows = rows.filter(a => a.status === statFilter);
-  else if (statFilter === '') rows = rows; // all
+  if (statFilter === 'admitted')        rows = rows.filter(a => ['admitted','clinically_discharged'].includes(a.status));
+  else if (statFilter === 'discharged') rows = rows.filter(a => a.status === 'discharged' && (a.disposition||'discharged') === 'discharged');
+  else if (statFilter)                  rows = rows.filter(a => a.disposition === statFilter);
   if (deptFilter) rows = rows.filter(a => a.departments?.id === deptFilter);
   if (search) rows = rows.filter(a => (a.patients?.name || '').toLowerCase().includes(search));
 
@@ -336,6 +358,8 @@ function renderTable(rows) {
     const doctor  = a.profiles || {};
     const days    = _daysSince(a.admitted_at);
     const canDischarge = a.status === 'admitted';
+    const canOrderDischarge = canDischarge && DISCHARGE_ROLES.includes(myRole);
+    const canGenerateBill = a.status === 'charges_locked' && BILLING_ROLES.includes(myRole);
     const admittedHrsAgo = a.admitted_at ? (Date.now() - new Date(a.admitted_at)) / 3600000 : 999;
     const needsCarePlan  = canDischarge && !_carePlanAdmIds.has(a.id) && admittedHrsAgo < 48;
 
@@ -357,7 +381,7 @@ function renderTable(rows) {
         <span class="days-chip">${days}d</span>
         ${needsCarePlan ? `<div style="font-size:9px;color:#c0392b;font-weight:700;margin-top:3px">⚠ No Care Plan</div>` : ''}
       </td>
-      <td><span class="status-badge status-${a.status}">${_statusLabel(a.status)}</span></td>
+      <td>${_statusBadgeHtml(a)}</td>
       <td>
         <div class="row-actions">
           <button class="icon-btn" data-onclick="openNotesDrawer" data-onclick-a0="${a.id}" title="View details">&#128203;</button>
@@ -366,7 +390,8 @@ function renderTable(rows) {
           <button class="icon-btn" data-onclick="openDietDrawer" data-onclick-a0="${a.id}" title="Palha-Diet Indent" style="font-size:11px">🍲</button>
           <button class="icon-btn" data-onclick="printDischargeSummary" data-onclick-a0="${a.id}" title="Print Discharge Summary" style="font-size:11px">🖨</button>
           ${canDischarge ? `<button class="icon-btn" data-onclick="openOtDrawer" data-onclick-a0="${a.id}" title="OT Procedures" style="font-size:10px;font-weight:700;color:#1a4080;border-color:#a8c8f0;background:#e3f0ff">OT</button>` : ''}
-          ${canDischarge ? `<button class="icon-btn danger" data-onclick="openDischargeDrawer" data-onclick-a0="${a.id}" title="Discharge">&#10006;</button>` : ''}
+          ${canOrderDischarge ? `<button class="icon-btn danger" data-onclick="openDischargeDrawer" data-onclick-a0="${a.id}" title="Order Discharge / Exit">&#10006;</button>` : ''}
+          ${canGenerateBill ? `<button class="icon-btn" data-onclick="openGenerateBillDrawer" data-onclick-a0="${a.id}" title="Generate IPD Bill" style="font-size:10px;font-weight:700;color:#1a4a2e;border-color:#b8ddc6;background:#e8f5ee">💰</button>` : ''}
         </div>
       </td>
     </tr>`;
@@ -604,27 +629,32 @@ window.saveAdmission = async function() {
 };
 
 // ── Discharge drawer ──────────────────────────────────────────────────────────
-window.openDischargeDrawer = async function(admId) {
+// Session 114 -- this drawer now only ORDERS a discharge (normal path,
+// status -> clinically_discharged) or records a fast-track EXIT (LAMA/
+// transferred/deceased, status -> charges_locked, bed freed immediately).
+// It no longer completes a discharge in one step and no longer touches any
+// insurance bill -- billing (room tariff + reconciled stay charges + GST)
+// happens later, in the billing clerk's Generate IPD Bill step, from
+// whatever charges the nurse (or, for fast-path exits, the billing clerk
+// directly) has confirmed by then.
+window.openDischargeDrawer = function(admId) {
   const adm = _admissions.find(a => a.id === admId);
   if (!adm) return;
 
   document.getElementById('dis-adm-id').value    = admId;
   document.getElementById('dis-bed-id').value    = adm.beds?.id || '';
   document.getElementById('dis-patient-id').value = adm.patients?.id || '';
-  document.getElementById('dis-bill-id').value   = '';
   document.getElementById('dis-date').value      = new Date().toISOString().slice(0,10);
   document.getElementById('dis-summary').value   = '';
   document.getElementById('dis-condition').value = '';
   document.getElementById('dis-transfer-to').value = '';
   document.getElementById('dis-type').value      = 'discharged';
   document.getElementById('dis-transfer-field').style.display = 'none';
-  document.getElementById('dis-ins-section').style.display    = 'none';
-  document.getElementById('dis-ins-approved').value           = '';
-  document.getElementById('dis-ins-claim-status').value       = 'submitted';
 
   document.querySelectorAll('.discharge-opt').forEach(o => {
     o.classList.toggle('selected', o.dataset.val === 'discharged');
   });
+  _updateDischargeSaveLabel('discharged');
 
   const pt   = adm.patients || {};
   const bed  = adm.beds || {};
@@ -638,61 +668,24 @@ window.openDischargeDrawer = async function(admId) {
     ${adm.diagnosis_primary ? `<div class="adm-detail-row"><span>Diagnosis</span><strong>${_esc(adm.diagnosis_primary)}</strong></div>` : ''}
   `;
 
-  // Check for an insurance/PMJAY bill and show settlement fields if found
-  const patId = adm.patients?.id;
-  if (patId) {
-    const { data: insBill } = await supabase
-      .from('bills')
-      .select('id, payer_type, final_amount, insurance_claim_status')
-      .eq('patient_id', patId)
-      .eq('tenant_id', tenantId)
-      .neq('payer_type', 'self_pay')
-      .in('status', ['pending', 'partial'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (insBill) {
-      document.getElementById('dis-bill-id').value    = insBill.id;
-      document.getElementById('dis-bill-total').value = insBill.final_amount || 0;
-      document.getElementById('dis-ins-section').style.display = '';
-      const labels = { insurance:'Insurance/TPA', pmjay:'PMJAY (Ayushman)', cghs:'CGHS / ECHS', echs:'ECHS', esi:'ESIC', corporate:'Corporate' };
-      document.getElementById('dis-ins-heading').textContent =
-        `🏥 ${labels[insBill.payer_type] || 'Insurance'} Settlement`;
-      if (insBill.insurance_claim_status && insBill.insurance_claim_status !== 'not_applicable') {
-        document.getElementById('dis-ins-claim-status').value = insBill.insurance_claim_status;
-      }
-      _updateDischargeDue();
-    }
-  }
-
   document.getElementById('discharge-overlay').classList.add('open');
 };
 window.closeDischargeDrawer = function() {
   document.getElementById('discharge-overlay').classList.remove('open');
 };
 
-window._updateDischargeDue = function() {
-  const total    = parseFloat(document.getElementById('dis-bill-total').value) || 0;
-  const approved = parseFloat(document.getElementById('dis-ins-approved').value) || 0;
-  const due      = Math.max(0, total - approved);
-  const dueRow   = document.getElementById('dis-due-row');
-  const dueAmt   = document.getElementById('dis-due-amt');
-  const collectW = document.getElementById('dis-collect-wrap');
-  if (total > 0) {
-    dueRow.style.display    = 'flex';
-    dueAmt.textContent      = `₹${due.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
-    collectW.style.display  = due > 0 ? '' : 'none';
-    if (due <= 0) {
-      document.getElementById('dis-collect-now').checked = false;
-      document.getElementById('dis-collect-mode').style.display = 'none';
-    }
-  }
+const DISCHARGE_TYPE_NOTES = {
+  discharged: "Orders discharge — the nurse reconciles stay charges and the bed is freed once that's locked.",
+  lama: 'Fast-track exit — bed is freed immediately. Billing clerk will get a chance to add any charges before the bill is generated.',
+  transferred: 'Fast-track exit — bed is freed immediately. Billing clerk will get a chance to add any charges before the bill is generated.',
+  deceased: 'Fast-track exit — bed is freed immediately. Billing clerk will get a chance to add any charges before the bill is generated.',
 };
-
-window._toggleCollectNow = function() {
-  const checked = document.getElementById('dis-collect-now').checked;
-  document.getElementById('dis-collect-mode').style.display = checked ? '' : 'none';
-};
+function _updateDischargeSaveLabel(disType) {
+  const note = document.getElementById('dis-type-note');
+  if (note) note.textContent = DISCHARGE_TYPE_NOTES[disType] || '';
+  const btn = document.getElementById('btn-discharge-save');
+  if (btn) btn.textContent = disType === 'discharged' ? 'Order Discharge' : 'Confirm Exit';
+}
 
 window.selectDischargeType = function(el) {
   document.querySelectorAll('.discharge-opt').forEach(o => o.classList.remove('selected'));
@@ -700,61 +693,57 @@ window.selectDischargeType = function(el) {
   document.getElementById('dis-type').value = el.dataset.val;
   document.getElementById('dis-transfer-field').style.display =
     el.dataset.val === 'transferred' ? '' : 'none';
+  _updateDischargeSaveLabel(el.dataset.val);
 };
 
 window.saveDischarge = async function() {
   const admId   = document.getElementById('dis-adm-id').value;
   const bedId   = document.getElementById('dis-bed-id').value;
-  const disType = document.getElementById('dis-type').value;
+  const disType = document.getElementById('dis-type').value; // 'discharged' | 'lama' | 'transferred' | 'deceased'
   const disDate = document.getElementById('dis-date').value;
   const summary = document.getElementById('dis-summary').value.trim();
 
   if (!disDate) { _alert('error','Enter discharge date.'); return; }
 
   const btn = document.getElementById('btn-discharge-save');
-  btn.disabled = true; btn.textContent = 'Discharging…';
+  btn.disabled = true; btn.textContent = disType === 'discharged' ? 'Ordering…' : 'Processing…';
 
+  if (disType === 'discharged') {
+    const { error } = await supabase.from('ipd_admissions').update({
+      status: 'clinically_discharged', disposition: 'discharged',
+      clinically_discharged_at: new Date().toISOString(),
+      discharge_ordered_by: myProfile.id, discharge_order_notes: summary || null,
+    }).eq('id', admId);
+    if (error) {
+      btn.disabled = false; _updateDischargeSaveLabel(disType);
+      _alert('error', safeErrorMessage(error, 'Could not order discharge. Please try again.')); return;
+    }
+    await logAudit('ipd_order_discharge', 'ipd_admissions', admId, { by: myProfile.full_name }, _ctx);
+    closeDischargeDrawer();
+    _alert('success', 'Discharge ordered — nurse will reconcile stay charges next.');
+    await loadAll();
+    return;
+  }
+
+  // Fast path -- LAMA / transferred / deceased. Urgent/exceptional exits
+  // shouldn't wait on the full gate sequence: jump straight to
+  // charges_locked and free the bed now (same immediate-bed-free behavior
+  // as before), but the billing clerk still gets a manual-add-charge pass
+  // before a bill is generated (plan decision #6).
   const { error } = await supabase.from('ipd_admissions').update({
-    status:       disType,
-    discharged_at: new Date().toISOString(),
+    status: 'charges_locked', disposition: disType,
+    clinically_discharged_at: new Date().toISOString(),
+    charges_locked_at: new Date().toISOString(),
+    discharge_ordered_by: myProfile.id, discharge_order_notes: summary || null,
     notes: summary || null,
   }).eq('id', admId);
 
   if (error) {
-    btn.disabled = false; btn.textContent = 'Confirm Discharge';
-    _alert('error', safeErrorMessage(error, 'Discharge failed. Please try again.')); return;
+    btn.disabled = false; _updateDischargeSaveLabel(disType);
+    _alert('error', safeErrorMessage(error, 'Could not record exit. Please try again.')); return;
   }
 
-  // Free the bed
   if (bedId) await supabase.from('beds').update({ status: 'vacant' }).eq('id', bedId);
-
-  // Update insurance bill if present
-  const billId     = document.getElementById('dis-bill-id').value;
-  const insVisible = document.getElementById('dis-ins-section').style.display !== 'none';
-  if (billId && insVisible) {
-    const totalBill   = parseFloat(document.getElementById('dis-bill-total').value) || 0;
-    const approved    = parseFloat(document.getElementById('dis-ins-approved').value) || 0;
-    const claimStatus = document.getElementById('dis-ins-claim-status').value || 'submitted';
-
-    if (approved > totalBill && totalBill > 0) {
-      btn.disabled = false; btn.textContent = 'Confirm Discharge';
-      _alert('error', `Approved amount (₹${approved.toLocaleString('en-IN')}) cannot exceed total bill (₹${totalBill.toLocaleString('en-IN')}).`);
-      return;
-    }
-
-    const insUpdate = { insurance_claim_status: claimStatus };
-    if (approved > 0) insUpdate.insurance_approved_amount = approved;
-
-    const collectNow  = document.getElementById('dis-collect-now').checked;
-    const patientDue  = Math.max(0, totalBill - approved);
-    if (collectNow && patientDue > 0) {
-      const payMode          = document.querySelector('input[name="dis_pay_mode"]:checked')?.value || 'cash';
-      insUpdate.status       = 'partial';   // patient portion settled; TPA portion pending
-      insUpdate.payment_mode = payMode;
-    }
-
-    await supabase.from('bills').update(insUpdate).eq('id', billId);
-  }
 
   // ABDM M2 — create care context for DischargeSummary FHIR type (fire-and-forget)
   const adm = _admissions.find(a => a.id === admId);
@@ -762,9 +751,199 @@ window.saveDischarge = async function() {
     _abdmCareContextDischarge(adm, admId).catch(() => {});
   }
 
-  btn.disabled = false; btn.textContent = 'Confirm Discharge';
+  await logAudit('ipd_fast_track_exit', 'ipd_admissions', admId, { disposition: disType, by: myProfile.full_name }, _ctx);
   closeDischargeDrawer();
-  _alert('success', 'Patient discharged successfully.');
+  _alert('success', 'Patient exit recorded and bed freed.');
+  await loadAll();
+};
+
+// ── Generate IPD Bill (Session 114 — billing clerk) ─────────────────────────
+// Shared by both the normal path (nurse already locked confirmed charges)
+// and the fast path (billing clerk gets this same add/remove UI as a
+// one-shot reconciliation pass, since fast-track exits skip the nurse step
+// entirely -- see confirmed plan decision #6).
+let _billTariff  = null;
+let _billCharges = [];
+
+window.openGenerateBillDrawer = async function(admId) {
+  const adm = _admissions.find(a => a.id === admId);
+  if (!adm) return;
+
+  document.getElementById('bill-adm-id').value = admId;
+  const pt   = adm.patients || {};
+  const bed  = adm.beds || {};
+  const dept = adm.departments || {};
+  const days = _daysSince(adm.admitted_at);
+  document.getElementById('bill-detail-card').innerHTML = `
+    <div class="adm-detail-row"><span>Patient</span><strong>${_esc(pt.name||'—')}</strong></div>
+    <div class="adm-detail-row"><span>Bed</span><strong>${_esc(bed.bed_number||'—')} (${_esc(bed.bed_type||'—')})</strong></div>
+    <div class="adm-detail-row"><span>Department</span><strong>${_esc(dept.name||'—')}</strong></div>
+    <div class="adm-detail-row"><span>Admitted</span><strong>${_fmt(adm.admission_date)} (${days} days)</strong></div>
+  `;
+
+  // Informational prefill only -- no payer/insurance field exists on
+  // ipd_admissions or patients (confirmed), so this just checks the
+  // patient's most recent non-self-pay bill as a hint; billing clerk
+  // confirms or changes it before generating.
+  let payerHint = 'self_pay';
+  if (pt.id) {
+    const { data: recentBill } = await supabase.from('bills')
+      .select('payer_type').eq('patient_id', pt.id).eq('tenant_id', tenantId)
+      .neq('payer_type', 'self_pay').order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (recentBill) payerHint = recentBill.payer_type;
+  }
+  document.getElementById('bill-payer-type').value = payerHint;
+
+  document.getElementById('bill-overlay').classList.add('open');
+  await _refreshBillPreview(adm);
+};
+
+window.closeGenerateBillDrawer = function() {
+  document.getElementById('bill-overlay').classList.remove('open');
+};
+
+async function _refreshBillPreview(adm) {
+  const bed        = adm.beds || {};
+  const admittedAt = new Date(adm.admitted_at);
+  const throughAt  = adm.charges_locked_at ? new Date(adm.charges_locked_at) : new Date();
+  const tariff = await computeRoomTariff({ supabase, tenantId, bed, admissionDate: admittedAt, throughDate: throughAt });
+
+  const tariffEl = document.getElementById('bill-room-tariff');
+  if (tariff.error) {
+    tariffEl.innerHTML = `<span style="color:#c0392b">⚠ ${_esc(tariff.error)}</span>`;
+    _billTariff = null;
+  } else {
+    tariffEl.innerHTML = `${tariff.days} day${tariff.days>1?'s':''} × ₹${tariff.dailyRate.toLocaleString('en-IN')} (${_esc(bed.bed_type||'—')}) = <strong>₹${tariff.total.toLocaleString('en-IN')}</strong>${tariff.gstPercent!=null ? ' + GST '+tariff.gstPercent+'%' : ''}`;
+    _billTariff = tariff;
+  }
+
+  await _loadBillCharges(adm.id);
+}
+
+async function _loadBillCharges(admId) {
+  const { data } = await supabase.from('ipd_stay_charges')
+    .select('*').eq('ipd_admission_id', admId).not('status','in','(voided,billed)')
+    .order('added_at');
+  _billCharges = data || [];
+  _renderBillCharges();
+}
+
+function _renderBillCharges() {
+  const el = document.getElementById('bill-charges-list');
+  el.innerHTML = _billCharges.length
+    ? _billCharges.map(r => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:5px;background:#fafff7">
+        <div>
+          <div style="font-size:12.5px;font-weight:600">${_esc(r.description)}</div>
+          <div style="font-size:10.5px;color:var(--text-muted)">${r.quantity} × ₹${Number(r.unit_price).toLocaleString('en-IN')} = ₹${Number(r.amount).toLocaleString('en-IN')}</div>
+        </div>
+        <button class="icon-btn" data-onclick="voidBillCharge" data-onclick-a0="${r.id}" title="Remove" style="font-size:11px">&#10005;</button>
+      </div>`).join('')
+    : '<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:12.5px">No stay charges recorded.</div>';
+  _updateBillGrandTotal();
+}
+
+function _updateBillGrandTotal() {
+  const tariffTotal  = _billTariff ? _billTariff.total : 0;
+  const tariffGst    = _billTariff?.gstPercent ? tariffTotal * _billTariff.gstPercent / 100 : 0;
+  const chargesTotal = _billCharges.reduce((s,r) => s + (Number(r.amount)||0), 0);
+  const chargesGst   = _billCharges.reduce((s,r) => s + (Number(r.amount)||0) * (Number(r.gst_percent)||0) / 100, 0);
+  const grand = tariffTotal + tariffGst + chargesTotal + chargesGst;
+  document.getElementById('bill-grand-total').textContent = '₹' + grand.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+}
+
+window.addBillCharge = async function() {
+  const admId = document.getElementById('bill-adm-id').value;
+  const description = document.getElementById('bc-desc').value.trim();
+  const qty   = parseFloat(document.getElementById('bc-qty').value) || 1;
+  const price = parseFloat(document.getElementById('bc-price').value) || 0;
+  if (!description || price <= 0) { _alert('error','Enter a description and amount.'); return; }
+  const { error } = await supabase.from('ipd_stay_charges').insert({
+    tenant_id: tenantId, ipd_admission_id: admId, source: 'manual',
+    description, quantity: qty, unit_price: price, amount: qty * price,
+    status: 'confirmed', added_by: myProfile.id,
+  });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not add charge.')); return; }
+  document.getElementById('bc-desc').value  = '';
+  document.getElementById('bc-qty').value   = '1';
+  document.getElementById('bc-price').value = '';
+  await _loadBillCharges(admId);
+};
+
+window.voidBillCharge = async function(chargeId) {
+  const admId = document.getElementById('bill-adm-id').value;
+  const { error } = await supabase.from('ipd_stay_charges').update({ status: 'voided' }).eq('id', chargeId);
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not remove charge.')); return; }
+  await _loadBillCharges(admId);
+};
+
+window.confirmGenerateBill = async function() {
+  const admId = document.getElementById('bill-adm-id').value;
+  const adm = _admissions.find(a => a.id === admId);
+  if (!adm) return;
+  if (!_billTariff) { _alert('error','Fix the room tariff issue above before generating the bill.'); return; }
+
+  const payerType = document.getElementById('bill-payer-type').value;
+  const btn = document.getElementById('btn-generate-bill');
+  btn.disabled = true; btn.textContent = 'Generating…';
+
+  const tariffGst    = _billTariff.gstPercent ? _billTariff.total * _billTariff.gstPercent / 100 : 0;
+  const chargesTotal = _billCharges.reduce((s,r) => s + (Number(r.amount)||0), 0);
+  const chargesGst   = _billCharges.reduce((s,r) => s + (Number(r.amount)||0) * (Number(r.gst_percent)||0) / 100, 0);
+  const finalAmount  = _billTariff.total + tariffGst + chargesTotal + chargesGst;
+
+  // chk_insurance_workflow_sync requires self_pay <-> not_applicable,
+  // anything else <-> a real (non not_applicable) claim status. Insurance
+  // provider/TPA/policy details aren't captured here (no such field exists
+  // on ipd_admissions/patients to copy from) -- Insurance Counter fills
+  // those in via the existing finance.html / insurance-claims.html flow,
+  // which this bill surfaces in automatically once payer_type != self_pay.
+  const insuranceClaimStatus = payerType === 'self_pay' ? 'not_applicable' : 'pre_auth_pending';
+
+  const { data: bill, error: billErr } = await supabase.from('bills').insert({
+    tenant_id: tenantId, patient_id: adm.patients?.id,
+    bill_type: 'ipd', total_amount: finalAmount, final_amount: finalAmount,
+    payer_type: payerType, insurance_claim_status: insuranceClaimStatus,
+    status: 'pending', payment_mode: null,
+  }).select('id').single();
+
+  if (billErr) {
+    btn.disabled = false; btn.textContent = 'Generate Bill';
+    _alert('error', safeErrorMessage(billErr, 'Could not generate bill.')); return;
+  }
+
+  const billItems = [{
+    bill_id: bill.id, tenant_id: tenantId, item_type: 'room_tariff',
+    description: `Room Tariff — ${_billTariff.days} day${_billTariff.days>1?'s':''} × ${adm.beds?.bed_type||''}`,
+    quantity: _billTariff.days, price: _billTariff.dailyRate, total: _billTariff.total,
+    gst_percent: _billTariff.gstPercent, gst_amount: tariffGst,
+  }].concat(_billCharges.map(r => ({
+    bill_id: bill.id, tenant_id: tenantId, item_type: r.source,
+    description: r.description, quantity: Math.round(r.quantity), price: r.unit_price, total: r.amount,
+    gst_percent: r.gst_percent, gst_amount: (Number(r.amount)||0) * (Number(r.gst_percent)||0) / 100,
+  })));
+
+  const { error: itemsErr } = await supabase.from('bill_items').insert(billItems);
+  if (itemsErr) {
+    btn.disabled = false; btn.textContent = 'Generate Bill';
+    _alert('error', safeErrorMessage(itemsErr, 'Bill created but items failed — contact support.')); return;
+  }
+
+  if (_billCharges.length) {
+    await supabase.from('ipd_stay_charges').update({ status: 'billed', billed_bill_id: bill.id })
+      .in('id', _billCharges.map(r => r.id));
+  }
+
+  const { error: admErr } = await supabase.from('ipd_admissions').update({
+    status: 'bill_generated', bill_generated_at: new Date().toISOString(), discharge_bill_id: bill.id,
+  }).eq('id', admId);
+  if (admErr) _alert('error', safeErrorMessage(admErr, 'Bill created but admission status update failed.'));
+
+  await logAudit('ipd_bill_generated', 'bills', bill.id, { admission_id: admId, final_amount: finalAmount }, _ctx);
+
+  btn.disabled = false; btn.textContent = 'Generate Bill';
+  closeGenerateBillDrawer();
+  _alert('success', `IPD bill generated — ₹${finalAmount.toLocaleString('en-IN')}.`);
   await loadAll();
 };
 
@@ -821,7 +1000,7 @@ window.openNotesDrawer = function(admId) {
       <div class="adm-detail-row"><span>Department</span><strong>${_esc(dept.name||'—')}</strong></div>
       <div class="adm-detail-row"><span>Doctor</span><strong>${_esc(doc.full_name||'—')}</strong></div>
       <div class="adm-detail-row"><span>Admitted</span><strong>${_fmt(adm.admission_date)} (${days} days)</strong></div>
-      <div class="adm-detail-row"><span>Status</span><strong>${_statusLabel(adm.status)}</strong></div>
+      <div class="adm-detail-row"><span>Status</span><strong>${_statusLabel(adm.status==='discharged' ? (adm.disposition||'discharged') : adm.status)}</strong></div>
     </div>
     ${adm.diagnosis_primary || adm.diet_type || adm.notes ? `
     <div class="adm-detail-card">
@@ -833,9 +1012,60 @@ window.openNotesDrawer = function(admId) {
       <div class="adm-detail-row"><span>Discharged</span><strong>${new Date(adm.discharged_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</strong></div>
     </div>` : ''}
   `;
+
+  // Session 114 -- super_admin-only bypass/override, not dept_admin (per
+  // confirmed plan decision). Mandatory reason, button stays disabled until
+  // one is entered (matching duty-select.html's disabled-until-valid pattern).
+  const bypassSection = document.getElementById('bypass-section');
+  if (myRole === 'super_admin') {
+    document.getElementById('bypass-adm-id').value = admId;
+    document.getElementById('bypass-target-status').value = adm.status;
+    document.getElementById('bypass-reason').value = '';
+    document.getElementById('btn-bypass-confirm').disabled = true;
+    bypassSection.style.display = '';
+  } else {
+    bypassSection.style.display = 'none';
+  }
+
   document.getElementById('notes-overlay').classList.add('open');
 };
 window.closeNotesDrawer = function() { document.getElementById('notes-overlay').classList.remove('open'); };
+
+window._toggleBypassBtn = function() {
+  document.getElementById('btn-bypass-confirm').disabled = !document.getElementById('bypass-reason').value.trim();
+};
+
+window.confirmForceStatus = async function() {
+  const admId  = document.getElementById('bypass-adm-id').value;
+  const target = document.getElementById('bypass-target-status').value;
+  const reason = document.getElementById('bypass-reason').value.trim();
+  if (!reason) return;
+  const adm = _admissions.find(a => a.id === admId);
+  if (!adm) return;
+  if (!confirm(`Force this admission's status to "${_statusLabel(target)}"? This bypasses the normal discharge/billing gates and is logged to the audit trail.`)) return;
+
+  const update = { status: target };
+  const stampCol = {
+    clinically_discharged: 'clinically_discharged_at', charges_locked: 'charges_locked_at',
+    bill_generated: 'bill_generated_at', paid_cleared: 'paid_cleared_at', discharged: 'discharged_at',
+  }[target];
+  if (stampCol) update[stampCol] = new Date().toISOString();
+
+  const { error } = await supabase.from('ipd_admissions').update(update).eq('id', admId);
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not force status change.')); return; }
+
+  if (['charges_locked','bill_generated','paid_cleared','discharged'].includes(target) && adm.beds?.id) {
+    await supabase.from('beds').update({ status: 'vacant' }).eq('id', adm.beds.id);
+  }
+
+  await logAudit('ipd_status_override', 'ipd_admissions', admId, {
+    from_status: adm.status, to_status: target, reason, patient_name: adm.patients?.name,
+  }, _ctx);
+
+  closeNotesDrawer();
+  _alert('success', `Status forced to "${_statusLabel(target)}".`);
+  await loadAll();
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function _daysSince(isoTs) {
@@ -848,7 +1078,24 @@ function _fmt(dateStr) {
   return d.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
 }
 function _statusLabel(s) {
-  return {admitted:'Admitted',discharged:'Discharged',lama:'LAMA',transferred:'Transferred',deceased:'Deceased'}[s] || s;
+  return {admitted:'Admitted', clinically_discharged:'Discharge Ordered', charges_locked:'Charges Locked',
+    bill_generated:'Bill Generated', paid_cleared:'Paid — Awaiting Release',
+    discharged:'Discharged', lama:'LAMA', transferred:'Transferred', deceased:'Deceased'}[s] || s;
+}
+// Session 114 -- status (lifecycle) and disposition (reason) are split. A
+// closed admission's status is always 'discharged' regardless of why -- the
+// real reason lives in disposition. In-progress billing stages (charges_
+// locked/bill_generated/paid_cleared) share one visual style since they're
+// all "bed vacated, financial process still running."
+function _statusBadgeHtml(a) {
+  if (['admitted','clinically_discharged'].includes(a.status)) {
+    return `<span class="status-badge status-${a.status==='admitted'?'admitted':'inprogress'}">${_esc(_statusLabel(a.status))}</span>`;
+  }
+  if (a.status !== 'discharged') {
+    return `<span class="status-badge status-inprogress">${_esc(_statusLabel(a.status))}</span>`;
+  }
+  const key = a.disposition || 'discharged';
+  return `<span class="status-badge status-${key}">${_esc(_statusLabel(key))}</span>`;
 }
 function _alert(type, msg) {
   const el = document.getElementById('alert');
