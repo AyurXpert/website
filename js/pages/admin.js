@@ -1065,11 +1065,16 @@ window.seedHrOrgStructure = async function(){
 // Invite button's data-onclick index always resolves against the latest render
 // (whole-row objects can't safely round-trip through a data-* attribute).
 let _ladderRowRegistry = [];
+// Same per-render lifetime as _ladderRowRegistry — backs the "🔗 N pending" chip so a
+// previously generated invite link can be re-copied without re-entering candidate details
+// (Session 113: closing the invite modal after "Generate Link" had no way back to that token).
+let _pendingInviteRegistry = [];
 
 async function _renderNcismStaffing() {
   const wrap = document.getElementById('ncism-staff-table-wrap');
   wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
   _ladderRowRegistry = [];
+  _pendingInviteRegistry = [];
 
   const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }, { data:invites }, { data:opds }] = await Promise.all([
     supabase.from('tenants').select('ug_intake,type,pg_student_strength').eq('id',tenantId).single(),
@@ -1250,8 +1255,9 @@ async function _renderNcismStaffing() {
       const rowIdx=_ladderRowRegistry.push({deptId:dept.id, deptName:dept.name, keys:row.keys, label:row.label})-1;
       const invKey=dept.id+'|'+row.keys[0];
       const pending=invitesByRow[invKey]||[];
+      const pendIdx=pending.length?_pendingInviteRegistry.push({label:row.label, pending})-1:-1;
       const inviteBtn='<button data-onclick="openPositionInvite" data-onclick-a0="'+rowIdx+'" style="height:22px;padding:0 9px;font-size:10.5px;background:transparent;color:var(--green-deep);border:1px solid var(--green-deep);border-radius:6px;cursor:pointer;white-space:nowrap">+ Add if needed</button>'
-        +(pending.length?' <span style="font-size:10.5px;color:#7a5a10">🔗 '+pending.length+' pending</span>':'');
+        +(pending.length?' <button data-onclick="viewPendingInvites" data-onclick-a0="'+pendIdx+'" style="height:22px;padding:0 8px;font-size:10.5px;color:#7a5a10;background:#fff8e6;border:1px solid #e8d5a0;border-radius:6px;cursor:pointer;white-space:nowrap">🔗 '+pending.length+' pending</button>':'');
       return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 16px;font-size:12px;color:var(--text-muted)">'
         +'<span>'+_esc(row.label)+' <span style="font-size:10.5px;color:var(--text-muted)">('+_esc(row.ref)+', suggested '+row.count+')</span>'
         +(a?' — <strong style="color:var(--green-deep)">'+a+'</strong> currently assigned':'')+'</span>'
@@ -1282,10 +1288,11 @@ async function _renderNcismStaffing() {
       const rowIdx=_ladderRowRegistry.push({deptId:dept.id, deptName:dept.name, keys:row.keys, label:row.label})-1;
       const invKey=dept.id+'|'+row.keys[0];
       const pending=invitesByRow[invKey]||[];
+      const pendIdx=pending.length?_pendingInviteRegistry.push({label:row.label, pending})-1:-1;
       const inviteCell = gap>0
         ? '<button data-onclick="openPositionInvite" data-onclick-a0="'+rowIdx+'" style="height:24px;padding:0 10px;font-size:11px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap">+ Invite</button>'
-          +(pending.length?' <span style="font-size:10.5px;color:#7a5a10">🔗 '+pending.length+' pending</span>':'')
-        : '';
+          +(pending.length?' <button data-onclick="viewPendingInvites" data-onclick-a0="'+pendIdx+'" style="height:24px;padding:0 8px;font-size:10.5px;color:#7a5a10;background:#fff8e6;border:1px solid #e8d5a0;border-radius:6px;cursor:pointer;white-space:nowrap">🔗 '+pending.length+' pending</button>':'')
+        : (pending.length?' <button data-onclick="viewPendingInvites" data-onclick-a0="'+pendIdx+'" style="height:24px;padding:0 8px;font-size:10.5px;color:#7a5a10;background:#fff8e6;border:1px solid #e8d5a0;border-radius:6px;cursor:pointer;white-space:nowrap">🔗 '+pending.length+' pending</button>':'');
       let sectionHeader='';
       if(distinctZones.size>1 && row.zone!==prevZone){
         prevZone=row.zone;
@@ -1463,6 +1470,40 @@ window.submitPositionInvite = async function(){
 
 window.copyPositionInviteLink = function(){
   const link = document.getElementById('pinv-link-text').textContent || '';
+  navigator.clipboard.writeText(link)
+    .then(()=>_toast('Link copied!'))
+    .catch(()=>_toast('Could not copy — select the link text manually.', true));
+};
+
+// ── Pending Invites modal — re-copy a link that was already generated, without ──
+// re-entering candidate details or creating a duplicate invite (Session 113).
+window.viewPendingInvites = function(idxStr){
+  const entry = _pendingInviteRegistry[Number(idxStr)];
+  if(!entry) return;
+  document.getElementById('pending-invites-subtitle').textContent = entry.label;
+  document.getElementById('pending-invites-list').innerHTML = entry.pending.map((inv,subIdx)=>{
+    const link = window.location.origin + '/signup.html?pinv=' + inv.token;
+    const who = inv.candidate_name || inv.phone || inv.email || 'Unnamed candidate';
+    const contact = [inv.phone, inv.email].filter(Boolean).join(' · ');
+    return '<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px">'
+      +'<div style="font-weight:600;font-size:13px">'+_esc(who)+'</div>'
+      +(contact?'<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:6px">'+_esc(contact)+'</div>':'')
+      +'<div style="background:var(--green-light);border-radius:6px;padding:8px 10px;font-size:11.5px;word-break:break-all;margin-bottom:8px">'+_esc(link)+'</div>'
+      +'<button data-onclick="copyPendingInviteLink" data-onclick-a0="'+idxStr+'" data-onclick-a1="'+subIdx+'" style="height:32px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">Copy Link</button>'
+      +'</div>';
+  }).join('');
+  document.getElementById('pending-invites-modal').style.display = 'flex';
+};
+
+window.closePendingInvitesModal = function(){
+  document.getElementById('pending-invites-modal').style.display = 'none';
+};
+
+window.copyPendingInviteLink = function(idxStr, subIdxStr){
+  const entry = _pendingInviteRegistry[Number(idxStr)];
+  const inv = entry && entry.pending[Number(subIdxStr)];
+  if(!inv) return;
+  const link = window.location.origin + '/signup.html?pinv=' + inv.token;
   navigator.clipboard.writeText(link)
     .then(()=>_toast('Link copied!'))
     .catch(()=>_toast('Could not copy — select the link text manually.', true));

@@ -919,6 +919,21 @@ tr:hover td{background:#fafff8}
   </div>
 </div>
 
+<!-- Session 113 -- Pending Position Invites modal (re-copy a link already sent) -->
+<div id="pending-invites-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;max-width:440px;width:100%;margin:16px;max-height:80vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-weight:600;font-size:15px">Pending Invites</span>
+      <button data-onclick="closePendingInvitesModal" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted)">&times;</button>
+    </div>
+    <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:14px" id="pending-invites-subtitle"></div>
+    <div id="pending-invites-list"></div>
+    <div style="display:flex;margin-top:6px">
+      <button data-onclick="closePendingInvitesModal" style="flex:1;height:40px;border:1.5px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:13px">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- Department Detail drill-down (Departments tab, Phase 1) -->
 <div id="dept-detail-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:14px;padding:24px;max-width:600px;width:100%;margin:16px;max-height:86vh;overflow-y:auto">
