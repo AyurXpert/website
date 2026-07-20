@@ -170,7 +170,7 @@ function _injectNavbar(profile, tenant, role) {
       <div class="ax-right">
         <div class="ax-user-info">
           <span class="ax-user-name">${profile.full_name || 'User'}</span>
-          <span class="ax-user-role">${_roleLabel(role)}</span>
+          <span class="ax-user-role">${_userRoleLine(profile, role)}</span>
         </div>
         <a href="account-settings.html" class="ax-account-link" id="ax-account-link">Account</a>
         <button class="ax-logout-btn" id="ax-logout-btn">Logout</button>
@@ -182,7 +182,7 @@ function _injectNavbar(profile, tenant, role) {
     <div class="ax-mobile-menu" id="ax-mobile-menu">
       <div class="ax-mobile-links">${mobileHTML}</div>
       <div class="ax-mobile-footer">
-        <span>${profile.full_name || ''} &nbsp;·&nbsp; ${_roleLabel(role)}</span>
+        <span>${profile.full_name || ''} &nbsp;·&nbsp; ${_userRoleLine(profile, role)}</span>
         <a href="account-settings.html" class="ax-mobile-account">Account</a>
         <button class="ax-mobile-logout" id="ax-mobile-logout">Logout</button>
       </div>
@@ -343,6 +343,22 @@ function _roleLabel(role) {
   return { super_admin:'Super Admin', dept_admin:'Dept. Admin', doctor:'Doctor', receptionist:'Receptionist',
     pharmacist:'Pharmacist', nurse:'Nurse', lab_tech:'Lab Technician', accountant:'Accountant',
     student:'Student', therapist:'Therapist' }[role] || role;
+}
+
+// Session 113 -- role alone ("Receptionist") was showing for a Registration Clerk / Billing
+// Clerk with no indication of their actual designation. Role stays the primary/authoritative
+// label (it's what actually drives permissions -- designation is just a finer job title used
+// for duty-gating and NCISM staffing counts), but shown together whenever a designation is
+// set, e.g. "Registration Clerk · Receptionist". No hardcoded designation map here (that
+// already exists once in admin.js's DESIG_MAP and shouldn't drift into a second copy) --
+// snake_case -> Title Case covers every designation value in use without needing one.
+function _formatDesignation(designation) {
+  if (!designation) return '';
+  return designation.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+function _userRoleLine(profile, role) {
+  const desig = _formatDesignation(profile?.designation);
+  return desig ? `${desig} · ${_roleLabel(role)}` : _roleLabel(role);
 }
 function _tenantTypeLabel(type) {
   return { clinic:'Clinic', hospital:'Hospital', pk_center:'Panchakarma Center', dispensary:'Dispensary',

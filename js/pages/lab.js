@@ -5,7 +5,12 @@ import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 
-requireAuth(['lab_tech','super_admin','dept_admin','doctor','nurse']);
+// Session 113 -- receptionist added so front-desk staff can check whether a patient's
+// report is ready when they call in (Dr. Venkatesh's ask). Deliberately read-only and
+// Pathology-only -- see _isReceptionist gating below, and _applyReceptionistOrderView()
+// for what's withheld (actual result values/critical flags, all edit/release actions,
+// Imaging/AERB/PCPNDT which are unrelated to front-desk work).
+requireAuth(['lab_tech','super_admin','dept_admin','doctor','nurse','receptionist']);
 initNavbar();
 wireDelegatedEvents();
 
@@ -14,6 +19,7 @@ const profile   = getCurrentProfile();
 const tenant    = getCurrentTenant();
 const tenantId  = tenant?.id;
 const userId    = profile?.id;
+const _isReceptionist = profile?.role === 'receptionist';
 
 let _orders      = [];
 let _activeOrder = null;
@@ -310,6 +316,38 @@ function renderOrderDetail() {
   document.getElementById('ph-doctor').textContent = `Dr. ${o.profiles?.full_name||'—'}`;
   document.getElementById('ph-collect').textContent= o.collected_at ? new Date(o.collected_at).toLocaleString('en-IN') : '—';
   document.getElementById('ph-rdate').textContent  = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+
+  if (_isReceptionist) _applyReceptionistOrderView();
+}
+
+// Reception's Clinical Lab access is read-only status-checking only ("is the patient's
+// report ready, they're calling to ask") -- never editing/releasing results, and never
+// seeing actual result values or critical flags, which stay lab_tech/doctor/nurse/admin
+// territory. Runs after renderOrderDetail()'s normal (lab_tech-oriented) render, hiding
+// every mutation control and replacing the detailed results grid with a plain status line.
+function _applyReceptionistOrderView() {
+  document.querySelectorAll('[data-onclick="markSampleCollected"],[data-onclick="saveResults"],[data-onclick="printReport"]')
+    .forEach(el => { el.style.display = 'none'; });
+  document.getElementById('sample-bar').style.display = 'none';
+  document.getElementById('critical-banner').classList.remove('show');
+  const ayurvedaBlock = document.querySelector('.ayurveda-interp');
+  if (ayurvedaBlock) ayurvedaBlock.style.display = 'none';
+
+  const o = _activeOrder;
+  const STATUS_TEXT = {
+    pending:           '🕓 Awaiting sample collection',
+    sample_collected:  '🧪 Sample collected — testing in progress',
+    in_progress:       '🧪 Testing in progress',
+    completed:         '✅ Report ready — available at the front desk',
+    cancelled:         '✗ Order cancelled',
+  };
+  const testNames = (_activeItems||[]).map(i => i.test_name).join(', ') || 'No tests listed';
+  document.getElementById('test-categories').innerHTML =
+    `<div style="background:var(--green-light,#f0faf5);border:1px solid #b7dfc8;border-radius:10px;padding:14px 16px">
+       <div style="font-weight:700;font-size:14px;margin-bottom:6px">${STATUS_TEXT[o?.status]||o?.status||'—'}</div>
+       <div style="font-size:12.5px;color:var(--text-muted)">Tests ordered: ${_esc(testNames)}</div>
+       <div style="font-size:11px;color:var(--text-muted);margin-top:8px">Result values and clinical interpretation are only visible to clinical staff.</div>
+     </div>`;
 }
 
 function renderTestRow(item) {
@@ -965,13 +1003,22 @@ window.printPcpndtLog = function() { window.print(); };
 // ── Init ──────────────────────────────────────────────────────────────────────
 updateDateLabel();
 await loadOrders();
-await loadSignatories();
 
-// Add imaging order button to tab-imaging header
-document.getElementById('tab-imaging').querySelector('.panel-hdr').insertAdjacentHTML(
-  'beforeend',
-  `<button class="btn btn-sm no-print" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);color:#fff;height:28px;font-size:11px" data-onclick="openNewImgOrder">+ New Order</button>`
-);
+if (_isReceptionist) {
+  // Reception's Clinical Lab access is Pathology-status-checking only -- Imaging/AERB/
+  // PCPNDT are unrelated to front-desk work (AERB/PCPNDT are radiation-safety/PCPNDT-Act
+  // registers with their own access expectations independent of this app).
+  document.querySelectorAll('.module-tab[data-onclick-a0="imaging"],.module-tab[data-onclick-a0="aerb"],.module-tab[data-onclick-a0="pcpndt"]')
+    .forEach(btn => { btn.style.display = 'none'; });
+} else {
+  await loadSignatories();
+
+  // Add imaging order button to tab-imaging header
+  document.getElementById('tab-imaging').querySelector('.panel-hdr').insertAdjacentHTML(
+    'beforeend',
+    `<button class="btn btn-sm no-print" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.4);color:#fff;height:28px;font-size:11px" data-onclick="openNewImgOrder">+ New Order</button>`
+  );
+}
 
 // Realtime: new orders
 supabase.channel('lab-orders')
