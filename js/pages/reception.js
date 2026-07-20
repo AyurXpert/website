@@ -370,22 +370,34 @@ async function loadFees(opdId) {
   _surchargeDefault = 0;
 
   if (opdId) {
+    // Registration/Consultation/Surcharge are category='opd' fees distinguished by
+    // fee_type (not category -- category is just 'opd' for all three, a mismatch with
+    // this file's older assumption that silently zeroed every fee). Most are seeded via
+    // Quick Setup as hospital-wide (opd_id null); an OPD-specific override (opd_id set
+    // to this exact OPD) is preferred when one has been manually created for it.
     const { data } = await supabase
       .from('fee_structures')
-      .select('category, amount')
+      .select('fee_type, amount, opd_id')
       .eq('tenant_id', tenantId)
-      .eq('opd_id', opdId)
+      .eq('category', 'opd')
       .eq('approval_status', 'active')
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .in('fee_type', ['registration', 'consultation', 'on_request_surcharge']);
 
+    const byType = {};
     (data || []).forEach(f => {
-      if (f.category === 'registration') document.getElementById('reg-fee').value = f.amount;
-      if (f.category === 'consultation')  document.getElementById('fee').value = f.amount;
-      if (f.category === 'on_request') {
-        _surchargeDefault = parseFloat(f.amount) || 0;
-        document.getElementById('surcharge').value = _surchargeDefault;
-      }
+      const isSpecific = f.opd_id === opdId;
+      const isGeneral  = !f.opd_id;
+      if (!isSpecific && !isGeneral) return; // belongs to a different specific OPD
+      if (!byType[f.fee_type] || isSpecific) byType[f.fee_type] = f;
     });
+
+    if (byType.registration) document.getElementById('reg-fee').value = byType.registration.amount;
+    if (byType.consultation) document.getElementById('fee').value = byType.consultation.amount;
+    if (byType.on_request_surcharge) {
+      _surchargeDefault = parseFloat(byType.on_request_surcharge.amount) || 0;
+      document.getElementById('surcharge').value = _surchargeDefault;
+    }
   }
 
   if (_patient) document.getElementById('reg-fee').value = '0';
@@ -500,13 +512,26 @@ function _ageFromDob(dob) {
 // ── Patient search (phone / name / UHID) ──────────
 let _phoneTimer = null;
 let _newFamilyMember = false;
+
+function _showPhoneHint(msg, kind) {
+  const el = document.getElementById('phone-hint');
+  el.textContent = msg;
+  el.className = 'field-hint ' + (kind || 'info');
+  el.style.display = 'block';
+}
+function _hidePhoneHint() {
+  const el = document.getElementById('phone-hint');
+  el.style.display = 'none';
+}
+
 document.getElementById('phone').addEventListener('input', function() {
   clearTimeout(_phoneTimer);
   const val = this.value.trim();
-  if (!val) { _clearTag(); return; }
+  if (!val) { _clearTag(); _hidePhoneHint(); return; }
   const isUhid  = val.toUpperCase().startsWith('AYX-');
   const isPhone = /^[+\d\s\-]{6,}$/.test(val) && !isUhid;
   const isName  = !isPhone && !isUhid && val.length >= 3;
+  _hidePhoneHint();
   if (isPhone)     _phoneTimer = setTimeout(() => _searchPhone(val), 350);
   else if (isUhid && val.length >= 10) _phoneTimer = setTimeout(() => _searchUhid(val), 350);
   else if (isName) _phoneTimer = setTimeout(() => _searchName(val), 350);
@@ -524,10 +549,12 @@ async function _searchPhone(phone) {
 
   if (!data || data.length === 0) {
     _clearTag();
+    _showPhoneHint('No existing patient with this number — fill in the details below to register a new patient. This number will be saved as their contact phone.', 'info');
     const opdId = document.getElementById('opd').value;
     if (opdId) await loadFees(opdId);
     return;
   }
+  _hidePhoneHint();
   if (data.length === 1) await _selectPatient(data[0]);
   else _showPicker(data, phone);
 }
@@ -541,7 +568,12 @@ async function _searchName(query) {
     .ilike('name', `%${query}%`)
     .limit(8);
 
-  if (!data || data.length === 0) { _clearTag(); return; }
+  if (!data || data.length === 0) {
+    _clearTag();
+    _showPhoneHint('No existing patient matches that name. To register a new patient, search by their phone number instead — a name search alone can\'t create a record.', 'warn');
+    return;
+  }
+  _hidePhoneHint();
   if (data.length === 1) await _selectPatient(data[0]);
   else _showPicker(data, query);
 }
@@ -552,7 +584,12 @@ async function _searchUhid(uhid) {
   const { data } = await supabase
     .rpc('search_patient_by_uhid', { p_tenant_id: tenantId, p_uhid_suffix: suffix });
 
-  if (!data || data.length === 0) { _clearTag(); return; }
+  if (!data || data.length === 0) {
+    _clearTag();
+    _showPhoneHint('No patient found with this UHID. Double-check the code, or search by phone number instead.', 'warn');
+    return;
+  }
+  _hidePhoneHint();
   if (data.length === 1) await _selectPatient(data[0]);
   else _showPicker(data, uhid);
 }

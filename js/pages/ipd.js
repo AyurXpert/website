@@ -405,6 +405,7 @@ window.openAdmitDrawer = function() {
   document.getElementById('patient-results').innerHTML = '';
   document.getElementById('patient-results').classList.remove('show');
   document.getElementById('spt').classList.remove('show');
+  document.getElementById('spt-open-adm-warn').style.display = 'none';
   document.getElementById('search-area').style.display = '';
   document.getElementById('btn-step1-next').disabled = true;
   document.getElementById('adm-dept').value    = '';
@@ -490,7 +491,7 @@ window.selectPatientById = function(id) {
   if (p) selectPatient(p);
 };
 
-window.selectPatient = function(p) {
+window.selectPatient = function(p, visitId) {
   _selectedPatient = p;
   document.getElementById('spt-name').textContent = p.name;
   const meta = [p.phone, p.gender, p.age ? p.age+'y' : ''].filter(Boolean).join(' · ');
@@ -499,11 +500,60 @@ window.selectPatient = function(p) {
   document.getElementById('search-area').style.display = 'none';
   document.getElementById('patient-results').classList.remove('show');
   document.getElementById('btn-step1-next').disabled = false;
+  _prefillAdmissionDiagnosis(p.id, visitId);
+  _checkOpenAdmissionWarning(p.id);
 };
+
+// Surfaces the same open-admission check saveAdmission() enforces, but at patient-selection
+// time -- so front-desk staff learn a patient is already admitted before filling in the whole
+// form, not only after clicking Admit. saveAdmission()'s own fresh DB check is the real gate;
+// this is just earlier, friendlier feedback.
+async function _checkOpenAdmissionWarning(patientId) {
+  const warn = document.getElementById('spt-open-adm-warn');
+  warn.style.display = 'none';
+  const { data: openAdms } = await supabase.from('ipd_admissions')
+    .select('id, beds(bed_number)')
+    .eq('tenant_id', tenantId).eq('patient_id', patientId)
+    .neq('status', 'discharged');
+  if (_selectedPatient?.id !== patientId) return; // selection changed while this was in flight
+  if (openAdms && openAdms.length) {
+    const bedLabel = openAdms[0].beds?.bed_number || 'a bed';
+    warn.textContent = `⚠ This patient already has an open IPD admission (${bedLabel}). Discharge that admission first — a new one can't be created until then.`;
+    warn.style.display = 'block';
+    document.getElementById('btn-step1-next').disabled = true;
+  }
+}
+
+// Pre-fills the Admission Order's diagnosis field from the patient's consultation record --
+// editable afterward, never forced -- so a diagnosis the doctor already documented doesn't
+// have to be retyped from scratch by whoever runs the Admit Patient flow. Prefers the exact
+// visit that triggered admission (doctor.html's "Open IPD Admission" link passes ?visit_id=);
+// falls back to the patient's most recent visit for a plain manual search-and-admit.
+async function _prefillAdmissionDiagnosis(patientId, visitId) {
+  document.getElementById('adm-diagnosis').value = '';
+  let targetVisitId = visitId || null;
+  if (!targetVisitId) {
+    const { data: recentVisit } = await supabase.from('visits')
+      .select('id').eq('tenant_id', tenantId).eq('patient_id', patientId)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    targetVisitId = recentVisit?.id || null;
+  }
+  if (!targetVisitId) return;
+  const { data: notes } = await supabase.from('consultation_notes')
+    .select('ayurveda_diagnosis, modern_diagnosis, diagnosis_namc_label, diagnosis_icd10_label')
+    .eq('visit_id', targetVisitId).maybeSingle();
+  const dx = notes?.ayurveda_diagnosis || notes?.diagnosis_namc_label || notes?.modern_diagnosis || notes?.diagnosis_icd10_label || '';
+  // Only fill if the field is still empty -- a user who already started typing (or a second,
+  // slower-resolving call) should never have their own entry silently clobbered.
+  if (dx && !document.getElementById('adm-diagnosis').value.trim()) {
+    document.getElementById('adm-diagnosis').value = dx;
+  }
+}
 
 window.clearPatientSelection = function() {
   _selectedPatient = null;
   document.getElementById('spt').classList.remove('show');
+  document.getElementById('spt-open-adm-warn').style.display = 'none';
   document.getElementById('search-area').style.display = '';
   document.getElementById('pt-search').value = '';
   document.getElementById('patient-results').classList.remove('show');
@@ -565,6 +615,19 @@ window.saveAdmission = async function() {
   if (!bedId)    { _alert('error','Select a bed.'); return; }
   if (!doctorId) { _alert('error','Select an admitting doctor.'); return; }
   if (!admDate)  { _alert('error','Enter admission date.'); return; }
+
+  // Guard against admitting the same patient into a second bed while an earlier
+  // admission is still open (not yet fully discharged) -- queried fresh against
+  // the DB rather than the in-memory list, since that can be stale by save time.
+  const { data: openAdms } = await supabase.from('ipd_admissions')
+    .select('id, beds(bed_number)')
+    .eq('tenant_id', tenantId).eq('patient_id', _selectedPatient.id)
+    .neq('status', 'discharged');
+  if (openAdms && openAdms.length) {
+    const bedLabel = openAdms[0].beds?.bed_number || 'a bed';
+    _alert('error', `${_selectedPatient.name} already has an open IPD admission (${bedLabel}). Discharge that admission before creating a new one.`);
+    return;
+  }
 
   const btn = document.getElementById('btn-admit-save');
   btn.disabled = true; btn.textContent = 'Admitting…';
@@ -1269,7 +1332,7 @@ if (_qPatientId) {
     .single();
   if (_qPt) {
     openAdmitDrawer();
-    selectPatient(_qPt);
+    selectPatient(_qPt, _qp.get('visit_id') || null);
   }
 }
 
@@ -1627,7 +1690,8 @@ window.openCarePlanDrawer = async function(admId, patientId) {
   }
 };
 
-window.closeCarePlanDrawer = function() {
+window.closeCarePlanDrawer = function(isBackdropClick) {
+  if (isBackdropClick === false) return; // click landed inside the drawer panel, not the backdrop itself
   document.getElementById('cp-drawer').style.display = 'none';
 };
 
