@@ -70,6 +70,7 @@ let _allBeds     = [];
 let _doctors     = [];
 let _opdDoctors  = [];   // { doctor_id, opd_id } — for NCISM ward auth
 let _selectedPatient = null;
+let _selectedVisitId = null;
 
 // NABH Care Plan (AAC.3 CORE) — declared here (not near its own section further down) because
 // renderTable() reads _carePlanAdmIds, and renderTable() runs as part of loadAll()'s continuation
@@ -401,6 +402,7 @@ function renderTable(rows) {
 // ── Admit drawer ──────────────────────────────────────────────────────────────
 window.openAdmitDrawer = function() {
   _selectedPatient = null;
+  _selectedVisitId = null;
   document.getElementById('pt-search').value = '';
   document.getElementById('patient-results').innerHTML = '';
   document.getElementById('patient-results').classList.remove('show');
@@ -493,6 +495,7 @@ window.selectPatientById = function(id) {
 
 window.selectPatient = function(p, visitId) {
   _selectedPatient = p;
+  _selectedVisitId = visitId || null; // only the explicit doctor.html handoff visit -- never a guessed one
   document.getElementById('spt-name').textContent = p.name;
   const meta = [p.phone, p.gender, p.age ? p.age+'y' : ''].filter(Boolean).join(' · ');
   document.getElementById('spt-meta').textContent = meta;
@@ -552,6 +555,7 @@ async function _prefillAdmissionDiagnosis(patientId, visitId) {
 
 window.clearPatientSelection = function() {
   _selectedPatient = null;
+  _selectedVisitId = null;
   document.getElementById('spt').classList.remove('show');
   document.getElementById('spt-open-adm-warn').style.display = 'none';
   document.getElementById('search-area').style.display = '';
@@ -655,6 +659,18 @@ window.saveAdmission = async function() {
     notes:               notes || null,
     ...mlcData,
   });
+
+  // Being admitted resolves any OPD visit this patient still has open at Reception's
+  // queue level -- otherwise it lingers forever and trips reception.html's "stale visit
+  // from a previous day" end-of-day banner even though the patient has since moved to
+  // IPD. Closes every still-open visit for this patient, not just the one that
+  // triggered this admission (if any) -- once admitted, none of them are still "waiting".
+  if (!admErr) {
+    await supabase.from('visits')
+      .update({ status: 'completed' })
+      .eq('tenant_id', tenantId).eq('patient_id', _selectedPatient.id)
+      .in('status', ['waiting', 'in_progress']);
+  }
 
   if (admErr) {
     btn.disabled = false; btn.textContent = 'Admit Patient';
