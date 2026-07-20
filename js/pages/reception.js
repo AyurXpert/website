@@ -49,7 +49,7 @@ const DUTY_GATED_DESIGNATIONS = ['registration_clerk', 'billing_clerk'];
 const DUTY_LABELS = {
   registration: 'Registration Counter', admission: 'Admission Counter',
   discharge: 'Discharge Counter', insurance: 'Insurance Counter',
-  billing: 'Billing Counter', all_duties: 'All Duties',
+  billing: 'Billing Counter',
 };
 const _dutyGated = profile.role === 'receptionist' && DUTY_GATED_DESIGNATIONS.includes(profile.designation);
 
@@ -61,7 +61,14 @@ if (_dutyGated) {
     window.location.replace('duty-select.html?return=reception.html');
   } else {
     const bar = document.getElementById('active-duty-bar');
-    document.getElementById('active-duty-label').textContent = DUTY_LABELS[sessionStorage.getItem('ax_duty_active')] || '—';
+    // Session 113: ax_duty_active is now a JSON-encoded array (a clerk can cover more than
+    // one counter) -- fall back to treating it as a single legacy string if JSON.parse fails,
+    // so a session started just before this change doesn't show a blank label.
+    let dutyKeys;
+    try { dutyKeys = JSON.parse(sessionStorage.getItem('ax_duty_active')); if (!Array.isArray(dutyKeys)) throw 0; }
+    catch { dutyKeys = [sessionStorage.getItem('ax_duty_active')]; }
+    document.getElementById('active-duty-label').textContent =
+      dutyKeys.map(k => DUTY_LABELS[k] || k).join(' + ') || '—';
     bar.style.display = 'flex';
   }
 }

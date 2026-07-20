@@ -15,18 +15,15 @@ const DESIGNATION_LABELS = {
   billing_clerk:      'Billing Clerk',
 };
 
-const DUTY_LABELS = {
-  registration: 'Registration Counter',
-  admission:    'Admission Counter',
-  discharge:    'Discharge Counter',
-  insurance:    'Insurance Counter',
-  billing:      'Billing Counter',
-  all_duties:   'All Duties',
-};
-
 // Registration/Admission/Billing are the cash-handling counters (per the shared-pool
 // research Dr. Venkatesh brought Session 111) -- the drawer field only makes sense there.
-const CASH_HANDLING_DUTIES = ['registration', 'admission', 'billing', 'all_duties'];
+const CASH_HANDLING_DUTIES = ['registration', 'admission', 'billing'];
+
+// The 5 real, storable duty values. 'all_duties' is not one of them -- it's a UI-only
+// shortcut button that selects/deselects all 5 (Session 113: a clerk needs to pick an
+// arbitrary subset, e.g. just Registration + Billing, not just "one" or "literally all"),
+// so what actually gets stored is always the concrete list, never a sentinel.
+const ALL_DUTY_KEYS = ['registration', 'admission', 'discharge', 'insurance', 'billing'];
 
 document.getElementById('user-name').textContent = profile.full_name || 'Staff';
 document.getElementById('user-designation').textContent = DESIGNATION_LABELS[profile.designation] || 'Receptionist';
@@ -41,28 +38,47 @@ const RETURN_ALLOWLIST = ['reception.html'];
 const _returnParam = new URLSearchParams(window.location.search).get('return');
 const returnTo = RETURN_ALLOWLIST.includes(_returnParam) ? _returnParam : 'reception.html';
 
-let _selected = null;
+const _selected = new Set();
+
+function _syncDutyButtons() {
+  document.querySelectorAll('.duty-btn[data-onclick-a1]').forEach(b => {
+    const key = b.getAttribute('data-onclick-a1');
+    const isSelected = key === 'all_duties' ? ALL_DUTY_KEYS.every(k => _selected.has(k)) : _selected.has(key);
+    b.classList.toggle('selected', isSelected);
+  });
+  const anyCash = [..._selected].some(k => CASH_HANDLING_DUTIES.includes(k));
+  document.getElementById('drawer-field').classList.toggle('show', anyCash);
+  document.getElementById('btn-confirm').disabled = _selected.size === 0;
+}
 
 window.selectDuty = function(btn, duty) {
-  document.querySelectorAll('.duty-btn').forEach(b => b.classList.remove('selected'));
-  btn.classList.add('selected');
-  _selected = duty;
-  document.getElementById('drawer-field').classList.toggle('show', CASH_HANDLING_DUTIES.includes(duty));
-  document.getElementById('btn-confirm').disabled = false;
+  if (duty === 'all_duties') {
+    // Toggle-all shortcut, not a stored value -- if everything is already selected,
+    // clicking it again clears the board rather than being a no-op dead click.
+    const allSelected = ALL_DUTY_KEYS.every(k => _selected.has(k));
+    if (allSelected) _selected.clear();
+    else ALL_DUTY_KEYS.forEach(k => _selected.add(k));
+  } else if (_selected.has(duty)) {
+    _selected.delete(duty);
+  } else {
+    _selected.add(duty);
+  }
+  _syncDutyButtons();
 };
 
 window.confirmDuty = async function() {
-  if (!_selected) return;
+  if (_selected.size === 0) return;
   const btn = document.getElementById('btn-confirm');
   btn.disabled = true;
   btn.textContent = 'Starting…';
 
   const drawerId = document.getElementById('drawer-id').value.trim() || null;
+  const dutyList = [..._selected];
 
   const { data, error } = await supabase.from('staff_duty_sessions').insert({
     tenant_id:      tenantId,
     profile_id:     profile.id,
-    active_duty:    _selected,
+    active_duty:    dutyList,
     cash_drawer_id: drawerId,
   }).select('id').single();
 
@@ -74,7 +90,7 @@ window.confirmDuty = async function() {
   }
 
   sessionStorage.setItem('ax_duty_session_id', data.id);
-  sessionStorage.setItem('ax_duty_active', _selected);
+  sessionStorage.setItem('ax_duty_active', JSON.stringify(dutyList));
   // nosemgrep: javascript.browser.security.open-redirect.js-open-redirect -- returnTo is already validated against RETURN_ALLOWLIST above, not passed through raw
   window.location.replace(returnTo);
 };

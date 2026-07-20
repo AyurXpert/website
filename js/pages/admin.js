@@ -1538,15 +1538,21 @@ async function _renderStaffingPlan() {
   const wrap = document.getElementById('staffing-plan-wrap');
   wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
 
-  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }, { data:liveDuty }] = await Promise.all([
+  const _todayStart = new Date(); _todayStart.setHours(0,0,0,0);
+
+  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }, { data:dutySessionsToday }] = await Promise.all([
     supabase.from('tenants').select('ug_intake,type,pg_student_strength').eq('id',tenantId).single(),
     supabase.from('profiles').select('designation').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,ncism_code,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_pg_dept',true),
-    // Session 111 -- who's actually covering which front-office duty right now (not just
-    // the required-vs-recruited headcount below), for the Reception & MRD live coverage
-    // card. ended_at is null = currently active session.
-    supabase.from('staff_duty_sessions').select('active_duty').eq('tenant_id',tenantId).is('ended_at',null),
+    // Session 111/113 -- who's covering which front-office duty (not just the
+    // required-vs-recruited headcount below), for the Reception & MRD live coverage card
+    // and the Duty Roster Log (Session 113: cash-drawer reconciliation -- which drawer was
+    // open, by whom, for how long, across today's whole shift, not just right now).
+    supabase.from('staff_duty_sessions')
+      .select('id,active_duty,cash_drawer_id,started_at,ended_at,profiles(full_name)')
+      .eq('tenant_id',tenantId).gte('started_at',_todayStart.toISOString())
+      .order('started_at',{ascending:false}),
   ]);
 
   if (!isNCISMType(tRow?.type)) {
@@ -1673,16 +1679,28 @@ async function _renderStaffingPlan() {
   const grandPct = grandTotal>0 ? Math.round(Math.min(grandRec,grandTotal)/grandTotal*100) : 100;
   const gc = grandPct>=80?'#2d7a4f':grandPct>=50?'#c9902a':'#c0392b';
 
-  // Session 111 -- live front-office duty coverage. This is a DIFFERENT question from the
-  // required-vs-recruited headcount table above (that's "how many Registration & Billing
-  // Clerks are employed"; this is "who is actually covering Registration/Billing/etc right
-  // now"), fed by duty-select.html's shared-pool duty picker.
+  // Session 111/113 -- live front-office duty coverage + Duty Roster Log. This is a
+  // DIFFERENT question from the required-vs-recruited headcount table above (that's "how
+  // many Registration & Billing Clerks are employed"; this is "who is actually covering
+  // Registration/Billing/etc right now, and — for cash-reconciliation purposes — who
+  // covered what today with which drawer, for how long"), fed by duty-select.html's
+  // shared-pool duty picker. active_duty is an array since Session 113 (a clerk can cover
+  // an arbitrary subset of counters, not just one or literally all).
   const DUTY_LABELS_ADMIN = {
     registration:'Registration', admission:'Admission', discharge:'Discharge',
-    insurance:'Insurance', billing:'Billing', all_duties:'All Duties',
+    insurance:'Insurance', billing:'Billing',
   };
+  const _fmtDuration = ms => {
+    const mins = Math.max(0, Math.round(ms/60000));
+    const h = Math.floor(mins/60), m = mins%60;
+    return h>0 ? h+'h '+m+'m' : m+'m';
+  };
+  const _fmtTime = iso => new Date(iso).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'});
+
   const dutyCounts = {};
-  (liveDuty||[]).forEach(d => { dutyCounts[d.active_duty] = (dutyCounts[d.active_duty]||0)+1; });
+  (dutySessionsToday||[]).filter(d=>!d.ended_at).forEach(d => {
+    (d.active_duty||[]).forEach(k => { dutyCounts[k] = (dutyCounts[k]||0)+1; });
+  });
   const dutyKeys = Object.keys(dutyCounts);
   const liveCoverageHtml = '<div class="cc" style="margin-bottom:14px;padding:12px 16px">'
     +'<div style="font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🔴 Live Front-Office Duty Coverage</div>'
@@ -1694,12 +1712,48 @@ async function _renderStaffingPlan() {
         : '<div style="font-size:12px;color:var(--text-muted)">No shared-pool clerk is currently signed into an active duty (via the duty selector at login).</div>')
     +'</div>';
 
+  // Duty Roster Log — today's full history (active + already-ended sessions), for
+  // end-of-shift cash-drawer reconciliation: which staff member had which drawer open,
+  // covering which counter(s), and for how long.
+  const rosterRowsHtml = (dutySessionsToday||[]).map(d => {
+    const dutiesLabel = (d.active_duty||[]).map(k=>DUTY_LABELS_ADMIN[k]||k).join(' + ') || '—';
+    const drawer = d.cash_drawer_id ? _esc(d.cash_drawer_id) : '<span style="color:var(--text-muted)">—</span>';
+    const isActive = !d.ended_at;
+    const durationMs = (isActive ? Date.now() : new Date(d.ended_at).getTime()) - new Date(d.started_at).getTime();
+    const statusHtml = isActive
+      ? '<span style="color:#2d7a4f;font-weight:600">🟢 Active</span>'
+      : '<span style="color:var(--text-muted)">Ended '+_fmtTime(d.ended_at)+'</span>';
+    return '<tr>'
+      +'<td style="padding:6px 12px 6px 16px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(d.profiles?.full_name||'—')+'</td>'
+      +'<td style="padding:6px 10px;font-size:12px;border-bottom:1px solid #f0f4f2">'+_esc(dutiesLabel)+'</td>'
+      +'<td style="padding:6px 10px;font-size:12px;text-align:center;border-bottom:1px solid #f0f4f2">'+drawer+'</td>'
+      +'<td style="padding:6px 10px;font-size:11px;color:var(--text-muted);text-align:center;border-bottom:1px solid #f0f4f2">'+_fmtTime(d.started_at)+'</td>'
+      +'<td style="padding:6px 10px;font-size:11px;text-align:center;border-bottom:1px solid #f0f4f2">'+statusHtml+'</td>'
+      +'<td style="padding:6px 10px;font-size:11px;text-align:center;border-bottom:1px solid #f0f4f2">'+_fmtDuration(durationMs)+'</td>'
+      +'</tr>';
+  }).join('');
+  const dutyRosterLogHtml = '<div class="cc" style="margin-bottom:14px;padding:0">'
+    +'<div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px">📋 Duty Roster Log — Today</div>'
+    + (rosterRowsHtml
+        ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+          +'<thead><tr style="background:#f5faf7">'
+          +'<th style="padding:6px 12px 6px 16px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Staff</th>'
+          +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Duty / Duties</th>'
+          +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Drawer / Till</th>'
+          +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Started</th>'
+          +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Status</th>'
+          +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Duration</th>'
+          +'</tr></thead><tbody>'+rosterRowsHtml+'</tbody></table></div>'
+        : '<div style="padding:12px 16px;font-size:12px;color:var(--text-muted)">No duty sessions started today yet.</div>')
+    +'</div>';
+
   wrap.innerHTML = '<div class="cc" style="margin-bottom:14px;text-align:center;background:'+gc+'">'
     +'<div style="padding:14px 16px;color:#fff">'
       +'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.85">Staffing Plan — UG Intake '+ug+(pgList.length?' · '+pgList.length+' PG dept(s)':'')+'</div>'
       +'<div style="font-weight:700;font-size:20px;margin-top:2px">'+grandTotal+' total staff needed · '+grandRec+' recruited ('+grandPct+'%)</div>'
     +'</div></div>'
     + liveCoverageHtml
+    + dutyRosterLogHtml
     + sectionsHtml
     + '<div style="font-size:11px;color:var(--text-muted);margin-top:8px">Numbers scale with UG intake and PG seats sanctioned — same source as HR → NCISM Requirements\' department-wise ladder. Medical Director is excluded from the Doctors total (typically held concurrently by an existing faculty member).</div>';
 }

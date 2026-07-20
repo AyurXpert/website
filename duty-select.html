@@ -66,8 +66,8 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 
   <div class="cc">
     <div class="user-line">Logged in as <strong id="user-name">—</strong> · <span id="user-designation">—</span></div>
-    <div class="cc-title" style="margin-top:16px">Choose a duty</div>
-    <div class="cc-sub">Covering more than one at once (common at smaller intake tiers)? Pick "All Duties" instead of picking just one.</div>
+    <div class="cc-title" style="margin-top:16px">Choose your duty (or duties)</div>
+    <div class="cc-sub">Tap every counter you're covering this shift — pick just one, a few, or use "All Duties" to select every counter at once.</div>
 
     <div class="duty-grid" id="duty-grid">
       <button class="duty-btn" data-onclick="selectDuty" data-onclick-a0="@this" data-onclick-a1="registration">Registration Counter</button>
@@ -75,7 +75,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
       <button class="duty-btn" data-onclick="selectDuty" data-onclick-a0="@this" data-onclick-a1="discharge">Discharge Counter</button>
       <button class="duty-btn" data-onclick="selectDuty" data-onclick-a0="@this" data-onclick-a1="insurance">Insurance Counter</button>
       <button class="duty-btn" data-onclick="selectDuty" data-onclick-a0="@this" data-onclick-a1="billing">Billing Counter</button>
-      <button class="duty-btn all-duties" data-onclick="selectDuty" data-onclick-a0="@this" data-onclick-a1="all_duties">All Duties (covering everything this shift)</button>
+      <button class="duty-btn all-duties" data-onclick="selectDuty" data-onclick-a0="@this" data-onclick-a1="all_duties">All Duties (select every counter)</button>
     </div>
 
     <div class="field" id="drawer-field">
