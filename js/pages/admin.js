@@ -499,7 +499,7 @@ const DESIGS = [
   {v:'medical_superintendent',      l:'Medical Superintendent',          cat:'Administration', lv:2, d:'Runs day-to-day hospital operations — duty rosters, bed management, discipline (Sch XX/2).'},
   {v:'deputy_medical_superintendent',l:'Deputy Medical Superintendent',  cat:'Administration', lv:3, d:'Assists the Medical Superintendent; covers IPD/OPD operational oversight (Sch XX/3).'},
   {v:'administrative_officer',      l:'Administrative Officer',          cat:'Administration', lv:4, d:'Non-clinical administration — HR records, procurement paperwork, statutory filings (Sch XX/4).'},
-  {v:'opd_incharge',                l:'OPD In-charge',                   cat:'Administration', lv:3, d:'Office Superintendent — coordinates OPD registration desks and daily patient flow (Sch XX/9).'},
+  {v:'opd_incharge',                l:'Office Superintendent',           cat:'Administration', lv:3, d:'Administers hospital office/OPD administrative staff — registration desks, clerical operations and daily patient flow (Sch XX/9).'},
   {v:'hod',                         l:'Head of Department (HOD)',        cat:'Faculty',        lv:1, d:'Senior-most faculty in a clinical department — teaching, patient care and NCISM compliance for that dept (Sch I).'},
   {v:'professor',                   l:'Professor',                       cat:'Faculty',        lv:2, d:'Senior teaching faculty — UG/PG teaching, OPD/IPD supervision, PG guide eligibility (Sch I).'},
   {v:'associate_professor',         l:'Associate Professor',             cat:'Faculty',        lv:3, d:'Mid-senior teaching faculty supporting the Professor/HOD in teaching and clinical duties (Sch I).'},
@@ -531,7 +531,9 @@ const DESIGS = [
   {v:'medical_record_officer',      l:'Medical Record Officer',          cat:'Admin Staff',    lv:2, d:'Owns the Medical Records Department — filing, retrieval, MLC register upkeep (Sch XX/18).'},
   {v:'medical_record_technician',   l:'Medical Record Technician',       cat:'Admin Staff',    lv:3, d:'Maintains and retrieves patient case records (Sch XX/18).'},
   {v:'public_relations_officer',    l:'Public Relations Officer',        cat:'Admin Staff',    lv:3, d:'Handles patient grievances, feedback and external communications.'},
+  {v:'finance_manager',             l:'Finance Manager / Accounts Officer', cat:'Admin Staff',  lv:1, d:'Heads the finance department under the Administrator — owns billing, payroll and insurance claims oversight; Clerks/Accounts Staff and Store Keepers work under this position (Sch XX/10, XX/11).'},
   {v:'accountant',                  l:'Accountant',                      cat:'Admin Staff',    lv:2, d:'Books, reconciles and reports hospital finances — billing, payroll, insurance claims (Sch XX/10, XX/11).'},
+  {v:'store_keeper',                l:'Store Keeper (Main / Pharmacy Store)', cat:'Admin Staff', lv:3, d:'Manages stock receipt, storage and issue for the main or pharmacy store, under the Finance Manager.'},
   {v:'lab_incharge',                l:'Lab In-charge',                   cat:'Diagnostics',    lv:1, d:'Heads the pathology lab — quality control, staffing, report sign-off.'},
   {v:'roganidana_pg',               l:'PG Roganidana (Report Signatory)', cat:'Diagnostics',   lv:1, d:'PG-qualified Roganidana faculty who signs off Ayurvedic diagnostic interpretations.'},
   {v:'pathologist',                 l:'Pathologist (Part-time)',          cat:'Diagnostics',    lv:1, d:'Part-time specialist validating pathology reports.'},
@@ -583,7 +585,7 @@ const DESIG_ROLE_DEFAULT = {
   // see the note below on why they carry no separate headcount) -- their HMS
   // Login Role default is dept_admin like other admin-zone positions, just
   // displayed under their own title rather than the generic "Dept. Admin"
-  // label (see APEX_ROLE_LABEL below). Was defaulting to 'doctor' before this.
+  // label (see APEX_DESIGS/_effectiveRoleLabel below). Was defaulting to 'doctor' before this.
   medical_director:'dept_admin', principal:'dept_admin',
   medical_superintendent:'doctor', deputy_medical_superintendent:'doctor',
   resident_medical_officer:'doctor', emergency_medical_officer:'doctor', general_duty_medical_officer:'doctor',
@@ -595,7 +597,7 @@ const DESIG_ROLE_DEFAULT = {
   // staff use.
   nursing_superintendent:'nurse_manager', deputy_nursing_superintendent:'nurse_manager',
   staff_nurse:'nurse', ward_sister:'nurse', anm:'nurse',
-  accountant:'accountant',
+  accountant:'accountant', finance_manager:'finance_manager', store_keeper:'pharmacist',
   receptionist:'receptionist', registration_clerk:'receptionist', billing_clerk:'receptionist',
   medical_record_officer:'mrd_staff', medical_record_technician:'mrd_staff',
   pharmacist:'pharmacist', chief_pharmacist:'pharmacist', pharmacy_assistant:'pharmacist',
