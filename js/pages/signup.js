@@ -19,6 +19,7 @@ let _prefillRole   = _urlParams.get('role') || '';
 // Position-invite state, populated by _loadPositionInvite() below when ?pinv= is present
 let _pinvDeptId = null;
 let _pinvDesignation = null;
+let _pinvSecondaryRole = null;
 
 window.upperizeInput = function(el) {
   el.value = el.value.toUpperCase();
@@ -121,6 +122,7 @@ async function _loadPositionInvite() {
   _prefillRole      = row.role || '';
   _pinvDeptId       = row.department_id || null;
   _pinvDesignation  = row.designation || null;
+  _pinvSecondaryRole = row.secondary_role || null;
   _positionInviteValid = true;
 
   // Hide the generic role/department pickers entirely — this join is pre-scoped
@@ -228,6 +230,7 @@ window.handleSignup = async function() {
     stateRegId:   stateReg || null,
     departmentId: deptId   || null,
     designation:  _positionInviteValid ? _pinvDesignation : null,
+    secondaryRole: _positionInviteValid ? _pinvSecondaryRole : null,
   });
 
   if (!result.success) {

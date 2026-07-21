@@ -631,7 +631,7 @@ const DESIG_SEL_HTML = '<option value="">— Not Set —</option>' +
 window.loadHR = async function(sub='staff') {
   _hrSub(sub);
   const [{data:staff},{data:depts}] = await Promise.all([
-    supabase.from('profiles').select('id,full_name,role,designation,phone,status,is_active,created_at,department_id').eq('tenant_id',tenantId).order('full_name'),
+    supabase.from('profiles').select('id,full_name,role,secondary_role,designation,phone,status,is_active,created_at,department_id').eq('tenant_id',tenantId).order('full_name'),
     supabase.from('departments').select('id,name').eq('tenant_id',tenantId),
   ]);
   const dm={}; (depts||[]).forEach(d=>{dm[d.id]=d.name;});
@@ -1441,6 +1441,14 @@ function _populatePinvRoleOptions(desig){
   roleSel.innerHTML = INVITE_ROLES.map(r=>'<option value="'+_esc(r)+'">'+_esc(_roleLabel(r))+'</option>').join('');
   roleSel.value = INVITE_ROLES.includes(defaultRole) ? defaultRole : INVITE_ROLES[0];
   roleSel.disabled = false;
+
+  // Secondary role -- optional, for designations that genuinely need two hats
+  // at once (Deputy Medical Superintendent, Professor/HOD with departmental
+  // admin duties, etc.). Defaults to none; admin picks it deliberately.
+  const secSel = document.getElementById('pinv-secondary-role-select');
+  secSel.innerHTML = '<option value="">— None —</option>'
+    + INVITE_ROLES.map(r=>'<option value="'+_esc(r)+'">'+_esc(_roleLabel(r))+'</option>').join('');
+  secSel.value = '';
 }
 
 window.onPinvDesigChange = function(){
@@ -1481,13 +1489,16 @@ window.submitPositionInvite = async function(){
   const deptId = document.getElementById('pinv-dept-id').value || null;
   const designation = document.getElementById('pinv-desig-select').value;
   const roleVal = document.getElementById('pinv-role-select').value;
+  const secondaryRoleVal = document.getElementById('pinv-secondary-role-select').value;
   const name  = document.getElementById('pinv-name').value.trim();
   const phone = document.getElementById('pinv-phone').value.trim();
   const email = document.getElementById('pinv-email').value.trim();
   if(!phone && !email){ _toast('Enter a phone number or email to invite.', true); return; }
+  if(secondaryRoleVal && secondaryRoleVal===roleVal){ _toast('Secondary role must be different from HMS Login Role.', true); return; }
 
   const { data, error } = await supabase.from('position_invites').insert({
     tenant_id: tenantId, department_id: deptId, designation, role: roleVal,
+    secondary_role: secondaryRoleVal || null,
     candidate_name: name || null, phone: phone || null, email: email || null,
     created_by: profile.id,
   }).select('token').single();
@@ -2088,16 +2099,21 @@ function renderStaffTable(staff){
   if(!staff.length){tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-ico">👥</div><div class="empty-ttl">No staff found</div></div></td></tr>`;return;}
   const canPromote = role === 'super_admin';
   tbody.innerHTML=staff.map(s=>{
-    const showPromote = canPromote && s.is_active && !['super_admin','dept_admin'].includes(s.role);
-    const showDelete = ['rejected','pending_approval'].includes(s.status);
+    const isFullAdmin = ['super_admin','dept_admin'].includes(s.role);
+    const hasSecondaryAdmin = s.secondary_role === 'dept_admin';
+    const showPromote = canPromote && s.is_active && !isFullAdmin && !hasSecondaryAdmin;
+    const showRevoke  = canPromote && s.is_active && !isFullAdmin && hasSecondaryAdmin;
+    const showDelete  = ['rejected','pending_approval'].includes(s.status);
     const actionCell = showPromote
-      ? `<button class="btn-outline" style="font-size:11px;padding:4px 10px" data-onclick="promoteToDeptAdmin" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}" data-onclick-a2="${_esc(s.role)}">⬆ Promote to Admin</button>`
+      ? `<button class="btn-outline" style="font-size:11px;padding:4px 10px" data-onclick="promoteToDeptAdmin" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}" data-onclick-a2="${_esc(s.role)}">⬆ Add Admin Access</button>`
+      : showRevoke
+      ? `<button class="btn-outline" style="font-size:11px;padding:4px 10px;color:#c0392b;border-color:#e0b0b0" data-onclick="revokeDeptAdminAccess" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">⬇ Revoke Admin</button>`
       : showDelete
       ? `<button class="btn-outline" style="font-size:11px;padding:4px 10px;color:#c0392b;border-color:#e0b0b0" data-onclick="deleteRejectedStaff" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">🗑 Delete</button>`
       : '—';
     return `<tr>
     <td><strong>${_esc(s.full_name||'—')}</strong></td>
-    <td><span class="chip g">${_roleLabel(s.role)}</span></td>
+    <td><span class="chip g">${_roleLabel(s.role)}</span>${s.secondary_role?` <span class="chip" style="background:#fdf3e0;color:#7a5a10;border:1px solid #e8d5a0">+ ${_esc(_roleLabel(s.secondary_role))}</span>`:''}</td>
     <td><select class="desig-sel" data-id="${s.id}" data-onchange="saveDesig" data-onchange-a0="@this">${DESIG_SEL_HTML}</select></td>
     <td>${_esc(s.dept_name)}</td>
     <td>${_esc(s.phone||'—')}</td>
@@ -2109,12 +2125,25 @@ function renderStaffTable(staff){
   staff.forEach(s=>{const sel=tbody.querySelector(`select[data-id="${s.id}"]`);if(sel&&s.designation)sel.value=s.designation;});
 }
 
+// Session 117 -- grants dept_admin as a SECONDARY role now (see
+// promote_to_dept_admin RPC), so the staff member's normal role/landing page
+// (e.g. doctor -> doctor.html) stays intact -- they simply gain admin.html
+// access on top of it. Reversible via revokeDeptAdminAccess below.
 window.promoteToDeptAdmin = async function(staffId, staffName, previousRole){
-  if(!confirm(`Promote ${staffName} to Dept. Admin? This grants full HR, Finance, Settings and Subscription access for your organisation. This cannot be undone from this screen.`)) return;
+  if(!confirm(`Give ${staffName} admin access? They'll keep their current role (${_roleLabel(previousRole)}) and everything that comes with it, and additionally gain full HR, Finance, Settings and Subscription access for your organisation.`)) return;
   const {error} = await supabase.rpc('promote_to_dept_admin', {p_staff_id: staffId});
-  if(error){ _toast(safeErrorMessage(error,'Could not promote staff.'), true); return; }
+  if(error){ _toast(safeErrorMessage(error,'Could not grant admin access.'), true); return; }
   await logAudit('promote_to_dept_admin', 'profiles', staffId, {staff_name: staffName, previous_role: previousRole}, {tenantId, userId: profile.id, userName: profile.full_name});
-  _toast(staffName+' promoted to Dept. Admin.');
+  _toast(staffName+' now has admin access too.');
+  window.loadHR && window.loadHR('staff');
+};
+
+window.revokeDeptAdminAccess = async function(staffId, staffName){
+  if(!confirm(`Remove admin access from ${staffName}? They'll keep their normal role and lose access to admin.html.`)) return;
+  const {error} = await supabase.from('profiles').update({secondary_role:null}).eq('id',staffId).eq('tenant_id',tenantId);
+  if(error){ _toast(safeErrorMessage(error,'Could not update.'), true); return; }
+  await logAudit('revoke_dept_admin_secondary_role', 'profiles', staffId, {staff_name: staffName}, {tenantId, userId: profile.id, userName: profile.full_name});
+  _toast('Admin access removed from '+staffName+'.');
   window.loadHR && window.loadHR('staff');
 };
 

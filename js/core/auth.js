@@ -108,7 +108,7 @@ export async function registerTenant({
 
 export async function registerStaff({
   fullName, email, password, phone,
-  role, tenantCode, hprId = null, stateRegId = null, departmentId = null, designation = null
+  role, tenantCode, hprId = null, stateRegId = null, departmentId = null, designation = null, secondaryRole = null
 }) {
   try {
     const { data: subRows, error: tenantError } = await supabase
@@ -165,6 +165,7 @@ export async function registerStaff({
         ...(stateRegId   ? { state_reg_id:   stateRegId   } : {}),
         ...(departmentId ? { department_id:  departmentId } : {}),
         ...(designation  ? { designation:    designation  } : {}),
+        ...(secondaryRole ? { secondary_role: secondaryRole } : {}),
       });
     if (profileError) throw new Error(safeErrorMessage(profileError, 'Could not create profile. Please try again.'));
 
@@ -197,6 +198,7 @@ async function _finalizeLogin(user, profile) {
   sessionStorage.setItem(SESSION_KEYS.TENANT,    JSON.stringify(profile.tenants));
   sessionStorage.setItem(SESSION_KEYS.TENANT_ID, profile.tenant_id);
   sessionStorage.setItem(SESSION_KEYS.ROLE,      profile.role);
+  sessionStorage.setItem(SESSION_KEYS.SECONDARY_ROLE, profile.secondary_role || '');
 
   // §7h — compute effective modules: type defaults merged with tenant overrides
   const _defMods = DEFAULT_MODULES[profile.tenants?.type] || {};
@@ -417,6 +419,13 @@ export function getCurrentRole() {
   return sessionStorage.getItem(SESSION_KEYS.ROLE) || null;
 }
 
+// A second, additive system-access role (e.g. a doctor who also holds
+// dept_admin for a Deputy MS / HOD-type position) -- null for the vast
+// majority of staff who only ever have one role.
+export function getCurrentSecondaryRole() {
+  return sessionStorage.getItem(SESSION_KEYS.SECONDARY_ROLE) || null;
+}
+
 export function getCurrentTenant() {
   const raw = sessionStorage.getItem(SESSION_KEYS.TENANT);
   return raw ? JSON.parse(raw) : null;
@@ -571,12 +580,20 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html') 
     sessionStorage.setItem(SESSION_KEYS.TENANT,    JSON.stringify(profile.tenants));
     sessionStorage.setItem(SESSION_KEYS.TENANT_ID, profile.tenant_id);
     sessionStorage.setItem(SESSION_KEYS.ROLE,      profile.role);
+    sessionStorage.setItem(SESSION_KEYS.SECONDARY_ROLE, profile.secondary_role || '');
   }
 
   if (allowedRoles.length > 0) {
     const role = getCurrentRole();
-    // super_admin can access any protected page
-    if (role !== ROLES.SUPER_ADMIN && !allowedRoles.includes(role)) {
+    const secondaryRole = getCurrentSecondaryRole();
+    // super_admin can access any protected page. A secondary_role (e.g. a
+    // doctor also holding dept_admin for Deputy MS / HOD-type positions) grants
+    // the SAME access as if it were the primary role, on top of -- never
+    // instead of -- whatever the primary role already allows.
+    const hasAccess = role === ROLES.SUPER_ADMIN
+      || allowedRoles.includes(role)
+      || (secondaryRole && allowedRoles.includes(secondaryRole));
+    if (!hasAccess) {
       window.location.replace(ROLE_HOME[role] || 'admin.html');
       return;
     }

@@ -1,15 +1,16 @@
 // js/components/navbar.js
 // White-label grouped-dropdown navbar — runs on every protected page.
 
-import { getCurrentProfile, getCurrentTenant, getCurrentRole, logout, hasModule } from '../core/auth.js';
+import { getCurrentProfile, getCurrentTenant, getCurrentRole, getCurrentSecondaryRole, logout, hasModule } from '../core/auth.js';
 
 export function initNavbar() {
   const profile = getCurrentProfile();
   const tenant  = getCurrentTenant();
   const role    = getCurrentRole();
+  const secondaryRole = getCurrentSecondaryRole();
   if (!profile || !tenant) return;
   _injectStyles();
-  _injectNavbar(profile, tenant, role);
+  _injectNavbar(profile, tenant, role, secondaryRole);
   _injectWatermark();
   _injectPopup();
 }
@@ -22,7 +23,7 @@ const PK    = ['pk_center','hospital','teaching_hospital','college'];
 // ── Group + item definitions ─────────────────────────────────────────────────
 // types: null = all org types | array = restricted types
 // A group is hidden if all its items are filtered out.
-function _buildGroups(role, type) {
+function _buildGroups(role, type, secondaryRole) {
   const ALL_ROLES = ['super_admin','dept_admin','doctor','receptionist','pharmacist','nurse','lab_tech','accountant','therapist'];
   const ADMIN_ROLES = ['super_admin','dept_admin'];
   const CLINICAL    = ['super_admin','dept_admin','doctor','nurse'];
@@ -116,7 +117,7 @@ function _buildGroups(role, type) {
   return raw.map(g => ({
     ...g,
     items: g.items.filter(item =>
-      item.roles.includes(role) &&
+      (item.roles.includes(role) || (secondaryRole && item.roles.includes(secondaryRole))) &&
       (item.types === null || item.types.includes(type)) &&
       (!item.platformOnly || isPlatformAdmin) &&
       (!item.module || hasModule(item.module))
@@ -125,8 +126,8 @@ function _buildGroups(role, type) {
 }
 
 // ── Inject navbar ─────────────────────────────────────────────────────────────
-function _injectNavbar(profile, tenant, role) {
-  const groups      = _buildGroups(role, tenant.type);
+function _injectNavbar(profile, tenant, role, secondaryRole) {
+  const groups      = _buildGroups(role, tenant.type, secondaryRole);
   const currentPage = window.location.pathname.split('/').pop() || 'admin.html';
 
   const logoHTML = tenant.logo_url
@@ -195,8 +196,10 @@ function _injectNavbar(profile, tenant, role) {
   document.getElementById('ax-mobile-logout').addEventListener('click', _handleLogout);
   document.getElementById('ax-hamburger').addEventListener('click', _toggleMenu);
 
-  // Inject slide-over admin sidebar on all super/dept admin pages except admin.html
-  if ((role === 'super_admin' || role === 'dept_admin') && !_isAdminHtml()) {
+  // Inject slide-over admin sidebar on all super/dept admin pages except admin.html --
+  // also fires for a secondary_role='dept_admin' (e.g. a Deputy MS whose primary role
+  // is doctor), so they have a way to actually reach admin.html from their normal pages.
+  if ((role === 'super_admin' || role === 'dept_admin' || secondaryRole === 'dept_admin') && !_isAdminHtml()) {
     _injectAdminSidebarOverlay(tenant, profile, role);
   }
 }
@@ -341,8 +344,9 @@ function _toggleMenu() {
 
 function _roleLabel(role) {
   return { super_admin:'Super Admin', dept_admin:'Dept. Admin', doctor:'Doctor', receptionist:'Receptionist',
-    pharmacist:'Pharmacist', nurse:'Nurse', lab_tech:'Lab Technician', accountant:'Accountant',
-    student:'Student', therapist:'Therapist' }[role] || role;
+    pharmacist:'Pharmacist', nurse:'Nurse', nurse_manager:'Nurse Manager', lab_tech:'Lab Technician', accountant:'Accountant',
+    cashier:'Cashier', finance_manager:'Finance Manager', student:'Student', therapist:'Therapist',
+    diet_staff:'Diet / Pathya Staff', mrd_staff:'Medical Records Staff' }[role] || role;
 }
 
 // Session 113 -- role alone ("Receptionist") was showing for a Registration Clerk / Billing
@@ -358,7 +362,10 @@ function _formatDesignation(designation) {
 }
 function _userRoleLine(profile, role) {
   const desig = _formatDesignation(profile?.designation);
-  return desig ? `${desig} · ${_roleLabel(role)}` : _roleLabel(role);
+  const roleLabel = profile?.secondary_role
+    ? `${_roleLabel(role)} + ${_roleLabel(profile.secondary_role)}`
+    : _roleLabel(role);
+  return desig ? `${desig} · ${roleLabel}` : roleLabel;
 }
 function _tenantTypeLabel(type) {
   return { clinic:'Clinic', hospital:'Hospital', pk_center:'Panchakarma Center', dispensary:'Dispensary',

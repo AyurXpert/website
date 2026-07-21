@@ -109,12 +109,13 @@ export const PAYMENT_METHODS = {
 
 // ── sessionStorage keys ──
 export const SESSION_KEYS = {
-  USER:      'ayurxpert_user',
-  PROFILE:   'ayurxpert_profile',
-  TENANT:    'ayurxpert_tenant',
-  TENANT_ID: 'ayurxpert_tenant_id',
-  ROLE:      'ayurxpert_role',
-  MODULES:   'ayurxpert_modules',
+  USER:           'ayurxpert_user',
+  PROFILE:        'ayurxpert_profile',
+  TENANT:         'ayurxpert_tenant',
+  TENANT_ID:      'ayurxpert_tenant_id',
+  ROLE:           'ayurxpert_role',
+  SECONDARY_ROLE: 'ayurxpert_secondary_role',
+  MODULES:        'ayurxpert_modules',
 };
 
 // ── Misc ──
