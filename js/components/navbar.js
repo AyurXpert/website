@@ -9,9 +9,10 @@ export function initNavbar() {
   const role    = getCurrentRole();
   const secondaryRole = getCurrentSecondaryRole();
   const hasMonitoringAccess = getCurrentHasMonitoringAccess();
+  const isDeptScoped = !!profile?.scope_department_id;
   if (!profile || !tenant) return;
   _injectStyles();
-  _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess);
+  _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess, isDeptScoped);
   _injectWatermark();
   _injectPopup();
 }
@@ -24,7 +25,7 @@ const PK    = ['pk_center','hospital','teaching_hospital','college'];
 // ── Group + item definitions ─────────────────────────────────────────────────
 // types: null = all org types | array = restricted types
 // A group is hidden if all its items are filtered out.
-function _buildGroups(role, type, secondaryRole, hasMonitoringAccess) {
+function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScoped) {
   const ALL_ROLES = ['super_admin','dept_admin','doctor','receptionist','pharmacist','nurse','lab_tech','accountant','therapist'];
   const ADMIN_ROLES = ['super_admin','dept_admin'];
   const CLINICAL    = ['super_admin','dept_admin','doctor','nurse'];
@@ -37,6 +38,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess) {
       items: [
         { href:'reception.html',     label:'Reception',     roles:FRONT_DESK,                    types:null, module:'opd'        },
         { href:'doctor.html',        label:'Doctor Queue',  roles:CLINICAL,                      types:null, module:'opd'        },
+        { href:'dept-admin.html',    label:'My Department', roles:[],                            types:null, module:'opd', deptScoped:true },
         { href:'screening.html',     label:'Screening OPD', roles:CLINICAL,                      types:HOSP, module:'opd'        },
         { href:'opd-admin.html',     label:'OPD Setup',     roles:ADMIN_ROLES,                   types:null, module:'opd'        },
         { href:'dept-hub.html',      label:'Departments',   roles:CLINICAL.concat(ADMIN_ROLES),  types:HOSP, module:'opd'        },
@@ -118,7 +120,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess) {
   return raw.map(g => ({
     ...g,
     items: g.items.filter(item =>
-      (item.roles.includes(role) || (secondaryRole && item.roles.includes(secondaryRole)) || (item.monitoringSafe && hasMonitoringAccess)) &&
+      (item.roles.includes(role) || (secondaryRole && item.roles.includes(secondaryRole)) || (item.monitoringSafe && hasMonitoringAccess) || (item.deptScoped && isDeptScoped)) &&
       (item.types === null || item.types.includes(type)) &&
       (!item.platformOnly || isPlatformAdmin) &&
       (!item.module || hasModule(item.module))
@@ -127,8 +129,8 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess) {
 }
 
 // ── Inject navbar ─────────────────────────────────────────────────────────────
-function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess) {
-  const groups      = _buildGroups(role, tenant.type, secondaryRole, hasMonitoringAccess);
+function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess, isDeptScoped) {
+  const groups      = _buildGroups(role, tenant.type, secondaryRole, hasMonitoringAccess, isDeptScoped);
   const currentPage = window.location.pathname.split('/').pop() || 'admin.html';
 
   const logoHTML = tenant.logo_url

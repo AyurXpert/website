@@ -109,7 +109,7 @@ export async function registerTenant({
 export async function registerStaff({
   fullName, email, password, phone,
   role, tenantCode, hprId = null, stateRegId = null, departmentId = null, designation = null, secondaryRole = null,
-  hasMonitoringAccess = false
+  hasMonitoringAccess = false, scopeDepartmentId = null
 }) {
   try {
     const { data: subRows, error: tenantError } = await supabase
@@ -168,6 +168,7 @@ export async function registerStaff({
         ...(designation  ? { designation:    designation  } : {}),
         ...(secondaryRole ? { secondary_role: secondaryRole } : {}),
         ...(hasMonitoringAccess ? { has_monitoring_access: true } : {}),
+        ...(scopeDepartmentId ? { scope_department_id: scopeDepartmentId } : {}),
       });
     if (profileError) throw new Error(safeErrorMessage(profileError, 'Could not create profile. Please try again.'));
 

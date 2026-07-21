@@ -448,7 +448,9 @@ window.loadStaffAccess = async function() {
   document.querySelectorAll('.btn-approve[data-id]').forEach(btn=>{
     btn.addEventListener('click',async()=>{
       const id=btn.dataset.id; btn.disabled=true;
-      const{error}=await supabase.from('profiles').update({status:'active',is_active:true,approved_by:profile.id,approved_at:new Date().toISOString()}).eq('id',id).eq('tenant_id',tenantId);
+      // Session 120 -- was a direct profiles.update(), same silent-no-op RLS gap as
+      // saveDesig for any non-super_admin dept_admin. Routed through a matching RPC.
+      const{error}=await supabase.rpc('dept_admin_approve_staff', {p_staff_id:id});
       if(error){_toast(safeErrorMessage(error,'Failed to approve staff.'),true);btn.disabled=false;}
       else{document.getElementById('arow-'+id)?.remove();_toast('Staff approved.');window.loadStaffAccess();loadStats();}
     });
@@ -640,7 +642,7 @@ const DESIG_SEL_HTML = '<option value="">— Not Set —</option>' +
 window.loadHR = async function(sub='staff') {
   _hrSub(sub);
   const [{data:staff},{data:depts}] = await Promise.all([
-    supabase.from('profiles').select('id,full_name,role,secondary_role,has_monitoring_access,designation,phone,status,is_active,created_at,department_id').eq('tenant_id',tenantId).order('full_name'),
+    supabase.from('profiles').select('id,full_name,role,secondary_role,has_monitoring_access,scope_department_id,designation,phone,status,is_active,created_at,department_id').eq('tenant_id',tenantId).order('full_name'),
     supabase.from('departments').select('id,name').eq('tenant_id',tenantId),
   ]);
   const dm={}; (depts||[]).forEach(d=>{dm[d.id]=d.name;});
@@ -1497,6 +1499,9 @@ window.openPositionInvite = function(idxStr){
   // monitoring-only, no admin grant) but stays a plain checkbox admin can
   // toggle for any designation, not locked to this one.
   document.getElementById('pinv-monitoring-check').checked = (desig === 'deputy_medical_superintendent');
+  // Professor/HOD default to department-scoped (Session 120, Phase 3) --
+  // admin as well as doctor of that OPD only, per Dr. Venkatesh's original ask.
+  document.getElementById('pinv-deptscope-check').checked = ['professor','hod'].includes(desig);
   document.getElementById('pinv-link-box').style.display = 'none';
   document.getElementById('pinv-form-fields').style.display = '';
   document.getElementById('pinv-submit-btn').style.display = '';
@@ -1514,16 +1519,19 @@ window.submitPositionInvite = async function(){
   const roleVal = document.getElementById('pinv-role-select').value;
   const secondaryRoleVal = document.getElementById('pinv-secondary-role-select').value;
   const hasMonitoringAccess = document.getElementById('pinv-monitoring-check').checked;
+  const isDeptScoped = document.getElementById('pinv-deptscope-check').checked;
   const name  = document.getElementById('pinv-name').value.trim();
   const phone = document.getElementById('pinv-phone').value.trim();
   const email = document.getElementById('pinv-email').value.trim();
   if(!phone && !email){ _toast('Enter a phone number or email to invite.', true); return; }
   if(secondaryRoleVal && secondaryRoleVal===roleVal){ _toast('Secondary role must be different from HMS Login Role.', true); return; }
+  if(isDeptScoped && !deptId){ _toast('This position has no specific department to scope to.', true); return; }
 
   const { data, error } = await supabase.from('position_invites').insert({
     tenant_id: tenantId, department_id: deptId, designation, role: roleVal,
     secondary_role: secondaryRoleVal || null,
     has_monitoring_access: hasMonitoringAccess,
+    scope_department_id: isDeptScoped ? deptId : null,
     candidate_name: name || null, phone: phone || null, email: email || null,
     created_by: profile.id,
   }).select('token').single();
@@ -2131,17 +2139,21 @@ function renderStaffTable(staff){
     const showRevoke  = canPromote && s.is_active && !isFullAdmin && hasSecondaryAdmin;
     const showGrantMonitor  = canPromote && s.is_active && !hasFullAccess && !s.has_monitoring_access;
     const showRevokeMonitor = canPromote && s.is_active && !hasFullAccess && s.has_monitoring_access;
+    const showScopeDept   = canPromote && s.is_active && !hasFullAccess && !s.scope_department_id && s.department_id;
+    const showUnscopeDept = canPromote && s.is_active && !hasFullAccess && s.scope_department_id;
     const showDelete  = ['rejected','pending_approval'].includes(s.status);
     let actionCell = '';
     if (showPromote) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px" data-onclick="promoteToDeptAdmin" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}" data-onclick-a2="${_esc(s.role)}">⬆ Add Admin Access</button>`;
     if (showRevoke) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px;color:#c0392b;border-color:#e0b0b0" data-onclick="revokeDeptAdminAccess" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">⬇ Revoke Admin</button>`;
     if (showGrantMonitor) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px" data-onclick="grantMonitoringAccess" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">👁 Add Monitoring</button>`;
     if (showRevokeMonitor) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px;color:#c0392b;border-color:#e0b0b0" data-onclick="revokeMonitoringAccess" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">⬇ Revoke Monitoring</button>`;
+    if (showScopeDept) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px" data-onclick="scopeToDepartment" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}" data-onclick-a2="${_esc(s.department_id)}">🏥 Scope to Dept</button>`;
+    if (showUnscopeDept) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px;color:#c0392b;border-color:#e0b0b0" data-onclick="unscopeFromDepartment" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">⬇ Remove Scope</button>`;
     if (showDelete) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px;color:#c0392b;border-color:#e0b0b0" data-onclick="deleteRejectedStaff" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">🗑 Delete</button>`;
     if (!actionCell) actionCell = '—';
     return `<tr>
     <td><strong>${_esc(s.full_name||'—')}</strong></td>
-    <td><span class="chip g">${_esc(_effectiveRoleLabel(s.role,s.designation))}</span>${s.secondary_role?` <span class="chip" style="background:#fdf3e0;color:#7a5a10;border:1px solid #e8d5a0">+ ${_esc(_effectiveRoleLabel(s.secondary_role,s.designation))}</span>`:''}${s.has_monitoring_access?` <span class="chip" style="background:#eaf3fb;color:#1a5a8a;border:1px solid #b8d8ee">👁 Monitoring</span>`:''}</td>
+    <td><span class="chip g">${_esc(_effectiveRoleLabel(s.role,s.designation))}</span>${s.secondary_role?` <span class="chip" style="background:#fdf3e0;color:#7a5a10;border:1px solid #e8d5a0">+ ${_esc(_effectiveRoleLabel(s.secondary_role,s.designation))}</span>`:''}${s.has_monitoring_access?` <span class="chip" style="background:#eaf3fb;color:#1a5a8a;border:1px solid #b8d8ee">👁 Monitoring</span>`:''}${s.scope_department_id?` <span class="chip" style="background:#eaf3ec;color:#1a5a3a;border:1px solid #b8dfc4">🏥 Scoped: ${_esc(s.dept_name)}</span>`:''}</td>
     <td><select class="desig-sel" data-id="${s.id}" data-onchange="saveDesig" data-onchange-a0="@this">${DESIG_SEL_HTML}</select></td>
     <td>${_esc(s.dept_name)}</td>
     <td>${_esc(s.phone||'—')}</td>
@@ -2197,6 +2209,29 @@ window.revokeMonitoringAccess = async function(staffId, staffName){
   window.loadHR && window.loadHR('staff');
 };
 
+// Session 120 -- Phase 3 first slice (HOD department scoping). Always scopes
+// to the staff member's OWN department_id -- deliberately no separate picker,
+// keeps this a 1-click action matching their existing department assignment.
+// Grants a dept-admin.html landing (read-only snapshot + roster editing for
+// that one department only, via the hod_* RPCs -- never org-wide access).
+window.scopeToDepartment = async function(staffId, staffName, deptId){
+  if(!confirm(`Scope ${staffName} to their department only? They'll get a department dashboard + roster editing limited to it -- no other department, no org-wide admin.`)) return;
+  const {error} = await supabase.from('profiles').update({scope_department_id:deptId}).eq('id',staffId).eq('tenant_id',tenantId);
+  if(error){ _toast(safeErrorMessage(error,'Could not update.'), true); return; }
+  await logAudit('scope_to_department', 'profiles', staffId, {staff_name: staffName, department_id: deptId}, {tenantId, userId: profile.id, userName: profile.full_name});
+  _toast('Department scope granted to '+staffName+'.');
+  window.loadHR && window.loadHR('staff');
+};
+
+window.unscopeFromDepartment = async function(staffId, staffName){
+  if(!confirm(`Remove department scope from ${staffName}?`)) return;
+  const {error} = await supabase.from('profiles').update({scope_department_id:null}).eq('id',staffId).eq('tenant_id',tenantId);
+  if(error){ _toast(safeErrorMessage(error,'Could not update.'), true); return; }
+  await logAudit('unscope_from_department', 'profiles', staffId, {staff_name: staffName}, {tenantId, userId: profile.id, userName: profile.full_name});
+  _toast('Department scope removed from '+staffName+'.');
+  window.loadHR && window.loadHR('staff');
+};
+
 // Cleans up an already-rejected (or still pending_approval) join request straight
 // from the All Staff list -- for when "Reject" already happened elsewhere, or a
 // request has sat pending too long and the admin just wants it gone. Same
@@ -2209,9 +2244,14 @@ window.deleteRejectedStaff = async function(staffId, staffName){
   window.loadHR && window.loadHR('staff');
 };
 
+// Session 120 -- was a direct profiles.update(), which silently no-oped (no
+// error, false "success" toast) for any dept_admin who wasn't literally
+// role='super_admin' -- profiles' UPDATE RLS only ever allowed self-edit or
+// super_admin. Routed through a SECURITY DEFINER RPC that properly accepts
+// primary OR secondary dept_admin instead.
 window.saveDesig = async function(sel){
   const id=sel.dataset.id, val=sel.value;
-  const{error}=await supabase.from('profiles').update({designation:val||null}).eq('id',id).eq('tenant_id',tenantId);
+  const{error}=await supabase.rpc('dept_admin_update_designation', {p_staff_id:id, p_designation:val||null});
   if(error)_toast(safeErrorMessage(error,'Could not save designation.'),true);
   else{_toast('Designation updated.');const s=(window._staffAll||[]).find(x=>x.id===id);if(s)s.designation=val||null;}
 };

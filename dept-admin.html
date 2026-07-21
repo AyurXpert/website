@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Department Dashboard — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--red:#c0392b;--red-light:#fdecea;
+  --cream:#faf8f3;--white:#fff;--border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1100px;margin:0 auto;padding:28px 20px 80px}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px;margin-bottom:20px}
+.scope-note{font-size:11.5px;color:var(--text-muted);background:var(--green-light);border:1px solid var(--border);border-radius:6px;padding:6px 10px;display:inline-block;margin-top:6px}
+
+.snap-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px}
+.snap-title{font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.snap-row{font-size:13px}
+.snap-muted{font-size:12px;color:var(--text-muted);margin-top:6px}
+.snap-muted .ok{color:var(--green-mid);font-weight:600}
+.snap-muted .warn{color:var(--red);font-weight:600}
+.staff-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f4f2;font-size:13px}
+.staff-row .muted{color:var(--text-muted);font-size:11px}
+.tag{font-size:10.5px;padding:2px 8px;border-radius:8px;white-space:nowrap}
+.tag.ok{background:var(--green-light);color:var(--green-mid)}
+.tag.danger{background:var(--red-light);color:var(--red)}
+.tag.muted{background:#f0f0f0;color:var(--text-muted)}
+.empty,.empty-sm{color:var(--text-muted);font-size:13px;padding:20px 0}
+
+.roster-wrap{overflow-x:auto;background:var(--white);border:1px solid var(--border);border-radius:var(--radius)}
+#roster-table{width:100%;border-collapse:collapse;font-size:12.5px}
+#roster-table th{background:#f5faf7;padding:8px 6px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);border-bottom:1.5px solid var(--border)}
+#roster-table td{padding:6px;text-align:center;border-bottom:1px solid #f0f4f2}
+.shift-label{font-weight:600;text-align:left!important;padding-left:12px!important;white-space:nowrap}
+.roster-cell{background:var(--green-light);border-radius:6px;padding:4px 6px;font-size:11.5px;display:flex;align-items:center;justify-content:space-between;gap:4px}
+.cell-x{background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;line-height:1;padding:0 2px}
+.cell-add{background:none;border:1px dashed var(--border);border-radius:6px;color:var(--text-muted);font-size:11px;cursor:pointer;padding:5px 8px;width:100%}
+.cell-add:hover{border-color:var(--green-mid);color:var(--green-mid)}
+
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1200;align-items:center;justify-content:center}
+.modal-box{background:#fff;border-radius:14px;padding:24px;max-width:380px;width:100%;margin:16px}
+.modal-box .field{margin-bottom:14px}
+.modal-box label{font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+.modal-box select{width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:14px}
+.btn{height:38px;padding:0 16px;border-radius:var(--radius);font-size:13px;font-weight:500;cursor:pointer;border:none}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-secondary{background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep)}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--green-deep);color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s;z-index:2000}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{background:var(--red)}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="page-wrap">
+  <div class="page-title" id="dept-title">Loading…</div>
+  <div class="page-subtitle" id="dept-subtitle"></div>
+  <div class="scope-note">You're scoped to this department only — no other department, no org-wide admin.</div>
+  <div style="height:16px"></div>
+
+  <div id="dd-body"><div class="empty">Loading…</div></div>
+
+  <div class="snap-card">
+    <div class="snap-title">🗓️ This Week's Duty Roster</div>
+    <div class="roster-wrap"><table id="roster-table"></table></div>
+  </div>
+</div>
+
+<div id="assign-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div style="font-weight:600;font-size:15px;margin-bottom:14px" id="assign-label"></div>
+    <input type="hidden" id="assign-date"/>
+    <input type="hidden" id="assign-shift"/>
+    <div class="field"><label>Staff</label><select id="assign-staff"></select></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+      <button class="btn btn-secondary" data-onclick="closeAssignModal">Cancel</button>
+      <button class="btn btn-primary" data-onclick="confirmAssignShift">Assign</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script type="module" src="js/pages/dept-admin.js"></script>
+</body>
+</html>
