@@ -456,12 +456,37 @@ window.loadStaffAccess = async function() {
   document.querySelectorAll('.btn-reject[data-id]').forEach(btn=>{
     btn.addEventListener('click',async()=>{
       const id=btn.dataset.id; btn.disabled=true;
-      const{error}=await supabase.from('profiles').update({status:'rejected',approved_by:profile.id,approved_at:new Date().toISOString()}).eq('id',id).eq('tenant_id',tenantId);
-      if(error){_toast(safeErrorMessage(error,'Failed to reject request.'),true);btn.disabled=false;}
-      else{document.getElementById('arow-'+id)?.remove();_toast('Request rejected.');window.loadStaffAccess();loadStats();}
+      const{error}=await _rejectAndDeleteStaff(id);
+      if(error){_toast(error,true);btn.disabled=false;}
+      else{document.getElementById('arow-'+id)?.remove();_toast('Request rejected and removed.');window.loadStaffAccess();loadStats();}
     });
   });
 };
+
+// Rejecting a join request used to just flip profiles.status='rejected' and stop —
+// the login account (and the original position_invites record) stayed forever,
+// cluttering All Staff. This now fully deletes the account via the reject-staff
+// Edge Function (needs the GoTrue Admin API / service-role key to remove the
+// auth.users row, same pattern as mfa-admin-reset -- see js/pages/hr.js's
+// resetStaffMfa for the twin client-side call). Only ever valid against a
+// pending_approval/rejected profile -- the function itself re-checks this
+// server-side, never trusting the caller.
+async function _rejectAndDeleteStaff(targetUserId){
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return { error: 'Session expired — please log in again.' };
+  try {
+    const res = await fetch('https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/reject-staff', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ targetUserId }),
+    });
+    const result = await res.json();
+    if (!res.ok) return { error: result.error || 'Could not reject request.' };
+    return { success: true };
+  } catch (err) {
+    return { error: safeErrorMessage(err, 'Could not reject request.') };
+  }
+}
 
 // ────────────────────────────────────────────────
 // SECTION 2 — HUMAN RESOURCES
@@ -1412,7 +1437,9 @@ function _populatePinvRoleOptions(desig){
 }
 
 window.onPinvDesigChange = function(){
-  _populatePinvRoleOptions(document.getElementById('pinv-desig-select').value);
+  const desig = document.getElementById('pinv-desig-select').value;
+  document.getElementById('pinv-desig-label').textContent = DESIG_MAP[desig]?.l || desig || '—';
+  _populatePinvRoleOptions(desig);
 };
 
 window.openPositionInvite = function(idxStr){
@@ -1424,7 +1451,14 @@ window.openPositionInvite = function(idxStr){
   document.getElementById('pinv-dept-name').textContent = row.deptName;
   document.getElementById('pinv-desig-label').textContent = dlabel(desig);
   const keySel = document.getElementById('pinv-desig-select');
-  keySel.innerHTML = row.keys.map(k=>'<option value="'+_esc(k)+'">'+_esc(dlabel(k))+'</option>').join('');
+  // Widened from just this ladder row's key(s) to every designation sharing its
+  // NCISM zone category (e.g. every Administration position, not only the one
+  // gap clicked) -- lets the admin invite ANY open position in the department
+  // from one modal. HMS Login Role keeps auto-following whichever designation
+  // is picked (see _populatePinvRoleOptions) so it can't be mis-assigned.
+  const cat = DESIG_MAP[desig]?.cat;
+  const options = cat ? DESIGS.filter(d=>d.cat===cat).map(d=>d.v) : row.keys;
+  keySel.innerHTML = options.map(k=>'<option value="'+_esc(k)+'">'+_esc(dlabel(k))+'</option>').join('');
   keySel.value = desig;
   _populatePinvRoleOptions(desig);
   document.getElementById('pinv-name').value  = '';
@@ -1456,7 +1490,18 @@ window.submitPositionInvite = async function(){
     created_by: profile.id,
   }).select('token').single();
 
-  if(error){ _toast(safeErrorMessage(error,'Could not create invite.'), true); return; }
+  if(error){
+    // A 403/RLS-denied insert here almost always means the browser's login
+    // session went stale mid-page (observed live: works for the first invite
+    // of a visit, then 403s on a later one) -- a plain refresh/re-login clears
+    // it. Surfaced explicitly since the generic fallback gave no way to tell
+    // this apart from a real backend problem.
+    const isPermissionDenied = error.code === '42501' || /row-level security|permission denied/i.test(error.message||'');
+    _toast(isPermissionDenied
+      ? 'Your session may have expired — please refresh the page and try again.'
+      : safeErrorMessage(error,'Could not create invite.'), true);
+    return;
+  }
 
   const link = window.location.origin + '/signup.html?pinv=' + data.token;
   document.getElementById('pinv-link-text').textContent = link;
@@ -2042,6 +2087,12 @@ function renderStaffTable(staff){
   const canPromote = role === 'super_admin';
   tbody.innerHTML=staff.map(s=>{
     const showPromote = canPromote && s.is_active && !['super_admin','dept_admin'].includes(s.role);
+    const showDelete = ['rejected','pending_approval'].includes(s.status);
+    const actionCell = showPromote
+      ? `<button class="btn-outline" style="font-size:11px;padding:4px 10px" data-onclick="promoteToDeptAdmin" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}" data-onclick-a2="${_esc(s.role)}">⬆ Promote to Admin</button>`
+      : showDelete
+      ? `<button class="btn-outline" style="font-size:11px;padding:4px 10px;color:#c0392b;border-color:#e0b0b0" data-onclick="deleteRejectedStaff" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">🗑 Delete</button>`
+      : '—';
     return `<tr>
     <td><strong>${_esc(s.full_name||'—')}</strong></td>
     <td><span class="chip g">${_roleLabel(s.role)}</span></td>
@@ -2050,7 +2101,7 @@ function renderStaffTable(staff){
     <td>${_esc(s.phone||'—')}</td>
     <td><span class="chip ${s.is_active?'g':'grey'}">${s.is_active?'Active':s.status}</span></td>
     <td style="font-size:12px;color:var(--text-muted)">${_relDate(s.created_at)}</td>
-    <td>${showPromote?`<button class="btn-outline" style="font-size:11px;padding:4px 10px" data-onclick="promoteToDeptAdmin" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}" data-onclick-a2="${_esc(s.role)}">⬆ Promote to Admin</button>`:'—'}</td>
+    <td>${actionCell}</td>
   </tr>`;
   }).join('');
   staff.forEach(s=>{const sel=tbody.querySelector(`select[data-id="${s.id}"]`);if(sel&&s.designation)sel.value=s.designation;});
@@ -2062,6 +2113,18 @@ window.promoteToDeptAdmin = async function(staffId, staffName, previousRole){
   if(error){ _toast(safeErrorMessage(error,'Could not promote staff.'), true); return; }
   await logAudit('promote_to_dept_admin', 'profiles', staffId, {staff_name: staffName, previous_role: previousRole}, {tenantId, userId: profile.id, userName: profile.full_name});
   _toast(staffName+' promoted to Dept. Admin.');
+  window.loadHR && window.loadHR('staff');
+};
+
+// Cleans up an already-rejected (or still pending_approval) join request straight
+// from the All Staff list -- for when "Reject" already happened elsewhere, or a
+// request has sat pending too long and the admin just wants it gone. Same
+// full-delete Edge Function as the Login Access reject button.
+window.deleteRejectedStaff = async function(staffId, staffName){
+  if(!confirm(`Permanently delete ${staffName||'this'}'s login request? This removes their account entirely and cannot be undone.`)) return;
+  const{error}=await _rejectAndDeleteStaff(staffId);
+  if(error){_toast(error,true);return;}
+  _toast('Deleted.');
   window.loadHR && window.loadHR('staff');
 };
 
