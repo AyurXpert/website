@@ -45,6 +45,8 @@ function _weekDates(){
 }
 
 let _staffList = [];
+let _deptDoctors = [];
+let _deptOpds = [];
 let _rosterByKey = {}; // `${date}|${shiftType}` -> row
 
 async function loadAll(){
@@ -56,7 +58,7 @@ async function loadAll(){
 
   const [{ data:dept }, { data:staff }, { data:roster }, { data:tRow }] = await Promise.all([
     supabase.from('departments').select('id,name,category,ncism_code,opd_id,is_active').eq('id',deptId).single(),
-    supabase.from('profiles').select('id,full_name,designation').eq('tenant_id',tenantId).eq('department_id',deptId).eq('is_active',true).order('full_name'),
+    supabase.from('profiles').select('id,full_name,designation,role').eq('tenant_id',tenantId).eq('department_id',deptId).eq('is_active',true).order('full_name'),
     supabase.from('duty_roster').select('id,profile_id,shift_date,shift_type,is_confirmed').eq('tenant_id',tenantId).eq('department_id',deptId).gte('shift_date',weekStart).lte('shift_date',weekEnd),
     supabase.from('tenants').select('opd_daily_target,type').eq('id',tenantId).single(),
   ]);
@@ -64,6 +66,7 @@ async function loadAll(){
   if (!dept) { document.getElementById('dd-body').innerHTML = '<div class="empty">Department not found.</div>'; return; }
 
   _staffList = staff || [];
+  _deptDoctors = _staffList.filter(s=>s.role==='doctor');
   _rosterByKey = {};
   (roster||[]).forEach(r => { _rosterByKey[r.shift_date+'|'+r.shift_type] = r; });
 
@@ -88,6 +91,15 @@ async function loadAll(){
       ${target!=null ? `<div class="snap-muted">Today's target: <strong>${target}</strong> — ${total>=target?'<span class="ok">met</span>':`<span class="warn">${target-total} more needed</span>`}</div>` : ''}
     </div>`;
   }
+
+  // OPD(s) belonging to this department -- primary (dept.opd_id) + any
+  // specialty/split children (parent_department_id=deptId), same relationship
+  // dept-admin.js's queue count above already relies on.
+  const orParts = [`parent_department_id.eq.${deptId}`];
+  if (dept.opd_id) orParts.push(`id.eq.${dept.opd_id}`);
+  const { data:opds } = await supabase.from('opds').select('id,name,ncism_code').eq('tenant_id',tenantId).or(orParts.join(','));
+  _deptOpds = opds || [];
+  await renderOpdDoctors();
 
   // Staff + today's duty/leave status
   const staffIds = _staffList.map(s=>s.id);
@@ -117,6 +129,75 @@ async function loadAll(){
 
   renderRoster(weekDates);
 }
+
+// NCISM §7 dedicated-consultant pairs -- for a client-side hint only; the
+// real, unbypassable enforcement lives in hod_add_opd_doctor server-side.
+const DEDICATED_PAIRS = { SHNT:'SHAK', SHAK:'SHNT', PST2:'STR', STR:'PST2' };
+
+async function renderOpdDoctors(){
+  const wrap = document.getElementById('opd-doctors-wrap');
+  if (!_deptOpds.length) { wrap.innerHTML = ''; return; }
+
+  const { data:assignments } = await supabase.from('opd_doctors')
+    .select('id,opd_id,doctor_id,is_active_today').eq('tenant_id',tenantId).in('opd_id',_deptOpds.map(o=>o.id));
+  const byOpd = {};
+  (assignments||[]).forEach(a => { (byOpd[a.opd_id] = byOpd[a.opd_id]||[]).push(a); });
+
+  wrap.innerHTML = _deptOpds.map(opd => {
+    const rows = (byOpd[opd.id]||[]);
+    const assignedIds = rows.map(r=>r.doctor_id);
+    const unassigned = _deptDoctors.filter(d=>!assignedIds.includes(d.id));
+    const rowsHtml = rows.length ? rows.map(r => {
+      const doc = _deptDoctors.find(d=>d.id===r.doctor_id);
+      return `<div class="staff-row">
+        <span>${_esc(doc?.full_name || 'Unknown doctor')}</span>
+        <span style="display:flex;align-items:center;gap:8px">
+          <label style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:4px">
+            <input type="checkbox" data-onchange="toggleOpdDoctorToday" data-onchange-a0="${_esc(r.id)}" data-onchange-a1="@this" ${r.is_active_today?'checked':''}/> Active today
+          </label>
+          <button class="cell-x" style="position:static" data-onclick="removeOpdDoctor" data-onclick-a0="${_esc(r.id)}">&times;</button>
+        </span>
+      </div>`;
+    }).join('') : '<div class="empty-sm">No doctors assigned to this OPD yet.</div>';
+    const addHtml = unassigned.length
+      ? `<div style="display:flex;gap:8px;margin-top:8px">
+          <select id="add-doc-${_esc(opd.id)}" style="flex:1;height:34px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12.5px">
+            ${unassigned.map(d=>`<option value="${_esc(d.id)}">${_esc(d.full_name)}</option>`).join('')}
+          </select>
+          <button class="btn btn-secondary" style="height:34px;padding:0 12px;font-size:12px" data-onclick="addOpdDoctor" data-onclick-a0="${_esc(opd.id)}">+ Add</button>
+        </div>`
+      : '<div class="empty-sm">All department doctors are already assigned here.</div>';
+    return `<div class="snap-card">
+      <div class="snap-title">🩺 ${_esc(opd.name)}${DEDICATED_PAIRS[opd.ncism_code]?' <span style="font-weight:400;text-transform:none;color:var(--text-muted)">(NCISM §7 dedicated consultant)</span>':''}</div>
+      ${rowsHtml}
+      ${addHtml}
+    </div>`;
+  }).join('');
+}
+
+window.addOpdDoctor = async function(opdId){
+  const sel = document.getElementById('add-doc-'+opdId);
+  const doctorId = sel?.value;
+  if (!doctorId) return;
+  const { error } = await supabase.rpc('hod_add_opd_doctor', { p_department_id: deptId, p_opd_id: opdId, p_doctor_id: doctorId });
+  if (error) { _toast(safeErrorMessage(error, 'Could not add doctor.'), true); return; }
+  _toast('Doctor added and marked active today.');
+  await renderOpdDoctors();
+};
+
+window.removeOpdDoctor = async function(opdDoctorId){
+  if (!confirm('Remove this doctor from the OPD?')) return;
+  const { error } = await supabase.rpc('hod_remove_opd_doctor', { p_department_id: deptId, p_opd_doctor_id: opdDoctorId });
+  if (error) { _toast(safeErrorMessage(error, 'Could not remove doctor.'), true); return; }
+  _toast('Doctor removed.');
+  await renderOpdDoctors();
+};
+
+window.toggleOpdDoctorToday = async function(opdDoctorId, chk){
+  const { error } = await supabase.rpc('hod_toggle_opd_doctor_today', { p_department_id: deptId, p_opd_doctor_id: opdDoctorId, p_active: chk.checked });
+  if (error) { _toast(safeErrorMessage(error, 'Could not update.'), true); chk.checked = !chk.checked; return; }
+  _toast('Updated.');
+};
 
 function renderRoster(weekDates){
   const head = '<tr><th>Shift</th>' + weekDates.map(d=>`<th>${d.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'})}</th>`).join('') + '</tr>';
