@@ -577,7 +577,14 @@ const DESIG_CATS = [...new Set(DESIGS.map(d=>d.cat))];
 // no dedicated OT/CSSD role built yet).
 const DESIG_ROLE_DEFAULT = {
   professor:'doctor', hod:'doctor', associate_professor:'doctor', assistant_professor:'doctor',
-  senior_resident:'doctor', junior_resident:'doctor', medical_director:'doctor',
+  senior_resident:'doctor', junior_resident:'doctor',
+  // Session 118: Medical Director/Principal are the apex administrative authority
+  // (Sch XX/1, and typically held concurrently by an existing faculty member --
+  // see the note below on why they carry no separate headcount) -- their HMS
+  // Login Role default is dept_admin like other admin-zone positions, just
+  // displayed under their own title rather than the generic "Dept. Admin"
+  // label (see APEX_ROLE_LABEL below). Was defaulting to 'doctor' before this.
+  medical_director:'dept_admin', principal:'dept_admin',
   medical_superintendent:'doctor', deputy_medical_superintendent:'doctor',
   resident_medical_officer:'doctor', emergency_medical_officer:'doctor', general_duty_medical_officer:'doctor',
   administrative_officer:'dept_admin', opd_incharge:'dept_admin',
@@ -1435,10 +1442,20 @@ async function _renderNcismStaffing() {
 const INVITE_ROLES = ['doctor','receptionist','pharmacist','nurse','nurse_manager','lab_tech',
   'therapist','accountant','cashier','finance_manager','student','diet_staff','mrd_staff','dept_admin'];
 
+// Apex admin-zone designations whose dept_admin option shows their own title
+// (e.g. "Medical Director (Dean/Principal/Director)") instead of the generic
+// "Dept. Admin" label -- same underlying access, just named for who's
+// actually holding it. Requested (Session 118) after Medical Director/
+// Principal/Dean invites had no way to show their own title in this dropdown.
+const APEX_DESIGS = ['medical_director','principal'];
+function _effectiveRoleLabel(roleVal, desig){
+  return (roleVal==='dept_admin' && APEX_DESIGS.includes(desig)) ? (DESIG_MAP[desig]?.l || _roleLabel(roleVal)) : _roleLabel(roleVal);
+}
+
 function _populatePinvRoleOptions(desig){
   const roleSel = document.getElementById('pinv-role-select');
   const defaultRole = DESIG_ROLE_DEFAULT[desig] || 'doctor';
-  roleSel.innerHTML = INVITE_ROLES.map(r=>'<option value="'+_esc(r)+'">'+_esc(_roleLabel(r))+'</option>').join('');
+  roleSel.innerHTML = INVITE_ROLES.map(r=>'<option value="'+_esc(r)+'">'+_esc(_effectiveRoleLabel(r,desig))+'</option>').join('');
   roleSel.value = INVITE_ROLES.includes(defaultRole) ? defaultRole : INVITE_ROLES[0];
   roleSel.disabled = false;
 
@@ -2113,7 +2130,7 @@ function renderStaffTable(staff){
       : '—';
     return `<tr>
     <td><strong>${_esc(s.full_name||'—')}</strong></td>
-    <td><span class="chip g">${_roleLabel(s.role)}</span>${s.secondary_role?` <span class="chip" style="background:#fdf3e0;color:#7a5a10;border:1px solid #e8d5a0">+ ${_esc(_roleLabel(s.secondary_role))}</span>`:''}</td>
+    <td><span class="chip g">${_esc(_effectiveRoleLabel(s.role,s.designation))}</span>${s.secondary_role?` <span class="chip" style="background:#fdf3e0;color:#7a5a10;border:1px solid #e8d5a0">+ ${_esc(_effectiveRoleLabel(s.secondary_role,s.designation))}</span>`:''}</td>
     <td><select class="desig-sel" data-id="${s.id}" data-onchange="saveDesig" data-onchange-a0="@this">${DESIG_SEL_HTML}</select></td>
     <td>${_esc(s.dept_name)}</td>
     <td>${_esc(s.phone||'—')}</td>
@@ -2180,7 +2197,7 @@ function renderHierarchy(staff){
           <div class="hname">${_esc(s.full_name||'—')}</div>
           <div class="hdesig">${DESIG_MAP[s.designation]?.l||s.designation} · ${_esc(s.dept_name)}</div>
         </div>
-        <span class="chip g">${_roleLabel(s.role)}</span>
+        <span class="chip g">${_esc(_effectiveRoleLabel(s.role,s.designation))}</span>
       </div>`).join('')}</div>
     </div>`;
   }).filter(Boolean).join('');
