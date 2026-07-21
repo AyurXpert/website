@@ -5,7 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, SCHEDULE_IV } from '../config/ncism.js';
 
-await requireAuth(['super_admin','dept_admin','accountant']);
+await requireAuth(['super_admin','dept_admin','accountant'], 'login.html', { monitoringSafe: true });
 initNavbar();
 wireDelegatedEvents();
 const tenantId = getCurrentTenantId();

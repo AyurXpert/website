@@ -1,16 +1,17 @@
 // js/components/navbar.js
 // White-label grouped-dropdown navbar — runs on every protected page.
 
-import { getCurrentProfile, getCurrentTenant, getCurrentRole, getCurrentSecondaryRole, logout, hasModule } from '../core/auth.js';
+import { getCurrentProfile, getCurrentTenant, getCurrentRole, getCurrentSecondaryRole, getCurrentHasMonitoringAccess, logout, hasModule } from '../core/auth.js';
 
 export function initNavbar() {
   const profile = getCurrentProfile();
   const tenant  = getCurrentTenant();
   const role    = getCurrentRole();
   const secondaryRole = getCurrentSecondaryRole();
+  const hasMonitoringAccess = getCurrentHasMonitoringAccess();
   if (!profile || !tenant) return;
   _injectStyles();
-  _injectNavbar(profile, tenant, role, secondaryRole);
+  _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess);
   _injectWatermark();
   _injectPopup();
 }
@@ -23,7 +24,7 @@ const PK    = ['pk_center','hospital','teaching_hospital','college'];
 // ── Group + item definitions ─────────────────────────────────────────────────
 // types: null = all org types | array = restricted types
 // A group is hidden if all its items are filtered out.
-function _buildGroups(role, type, secondaryRole) {
+function _buildGroups(role, type, secondaryRole, hasMonitoringAccess) {
   const ALL_ROLES = ['super_admin','dept_admin','doctor','receptionist','pharmacist','nurse','lab_tech','accountant','therapist'];
   const ADMIN_ROLES = ['super_admin','dept_admin'];
   const CLINICAL    = ['super_admin','dept_admin','doctor','nurse'];
@@ -92,11 +93,11 @@ function _buildGroups(role, type, secondaryRole) {
         { href:'mrd.html',               label:'Medical Records',  roles:['super_admin','dept_admin'],                         types:null, module:'mrd'      },
         { href:'opd-register.html',      label:'OPD Register',     roles:['super_admin','dept_admin','doctor','receptionist'],    types:null, module:'opd'      },
         { href:'ipd-register.html',      label:'IPD Register',     roles:['super_admin','dept_admin','doctor','nurse'],            types:HOSP, module:'ipd'      },
-        { href:'reports.html',           label:'Reports',          roles:['super_admin','dept_admin','accountant','lab_tech'],  types:null, module:'finance'  },
+        { href:'reports.html',           label:'Reports',          roles:['super_admin','dept_admin','accountant','lab_tech'],  types:null, module:'finance', monitoringSafe:true },
         { href:'fee-admin.html',         label:'Fee Management',   roles:['super_admin','dept_admin'],                         types:null, module:'finance'  },
         { href:'lab.html',               label:'Clinical Lab',     roles:ALL_ROLES,                                            types:null, module:'lab'      },
         { href:'lab-nabl.html',          label:'NABL Quality',     roles:['super_admin','dept_admin','lab_tech','doctor'],       types:null, module:'lab'      },
-        { href:'ncism-compliance.html',  label:'NCISM Compliance', roles:ADMIN_ROLES,                                          types:NCISM,module:'ncism'    },
+        { href:'ncism-compliance.html',  label:'NCISM Compliance', roles:ADMIN_ROLES,                                          types:NCISM,module:'ncism', monitoringSafe:true },
         { href:'quality.html',           label:'Quality',          roles:ADMIN_ROLES,                                          types:null, module:'quality'  },
         { href:'pharmacovigilance.html', label:'Pharmacovigilance',roles:ADMIN_ROLES,                                          types:NCISM,module:'quality'  },
         { href:'iqac.html',              label:'IQAC',             roles:ADMIN_ROLES,                                          types:NCISM,module:'quality'  },
@@ -117,7 +118,7 @@ function _buildGroups(role, type, secondaryRole) {
   return raw.map(g => ({
     ...g,
     items: g.items.filter(item =>
-      (item.roles.includes(role) || (secondaryRole && item.roles.includes(secondaryRole))) &&
+      (item.roles.includes(role) || (secondaryRole && item.roles.includes(secondaryRole)) || (item.monitoringSafe && hasMonitoringAccess)) &&
       (item.types === null || item.types.includes(type)) &&
       (!item.platformOnly || isPlatformAdmin) &&
       (!item.module || hasModule(item.module))
@@ -126,8 +127,8 @@ function _buildGroups(role, type, secondaryRole) {
 }
 
 // ── Inject navbar ─────────────────────────────────────────────────────────────
-function _injectNavbar(profile, tenant, role, secondaryRole) {
-  const groups      = _buildGroups(role, tenant.type, secondaryRole);
+function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess) {
+  const groups      = _buildGroups(role, tenant.type, secondaryRole, hasMonitoringAccess);
   const currentPage = window.location.pathname.split('/').pop() || 'admin.html';
 
   const logoHTML = tenant.logo_url

@@ -108,7 +108,8 @@ export async function registerTenant({
 
 export async function registerStaff({
   fullName, email, password, phone,
-  role, tenantCode, hprId = null, stateRegId = null, departmentId = null, designation = null, secondaryRole = null
+  role, tenantCode, hprId = null, stateRegId = null, departmentId = null, designation = null, secondaryRole = null,
+  hasMonitoringAccess = false
 }) {
   try {
     const { data: subRows, error: tenantError } = await supabase
@@ -166,6 +167,7 @@ export async function registerStaff({
         ...(departmentId ? { department_id:  departmentId } : {}),
         ...(designation  ? { designation:    designation  } : {}),
         ...(secondaryRole ? { secondary_role: secondaryRole } : {}),
+        ...(hasMonitoringAccess ? { has_monitoring_access: true } : {}),
       });
     if (profileError) throw new Error(safeErrorMessage(profileError, 'Could not create profile. Please try again.'));
 
@@ -199,6 +201,7 @@ async function _finalizeLogin(user, profile) {
   sessionStorage.setItem(SESSION_KEYS.TENANT_ID, profile.tenant_id);
   sessionStorage.setItem(SESSION_KEYS.ROLE,      profile.role);
   sessionStorage.setItem(SESSION_KEYS.SECONDARY_ROLE, profile.secondary_role || '');
+  sessionStorage.setItem(SESSION_KEYS.MONITORING_ACCESS, profile.has_monitoring_access ? '1' : '');
 
   // §7h — compute effective modules: type defaults merged with tenant overrides
   const _defMods = DEFAULT_MODULES[profile.tenants?.type] || {};
@@ -426,6 +429,13 @@ export function getCurrentSecondaryRole() {
   return sessionStorage.getItem(SESSION_KEYS.SECONDARY_ROLE) || null;
 }
 
+// A narrow, read-only cross-cutting grant (e.g. Deputy MS) -- deliberately
+// separate from role/secondaryRole, since it never unlocks a write action,
+// only page-load access to pages independently verified to be mutation-free.
+export function getCurrentHasMonitoringAccess() {
+  return sessionStorage.getItem(SESSION_KEYS.MONITORING_ACCESS) === '1';
+}
+
 export function getCurrentTenant() {
   const raw = sessionStorage.getItem(SESSION_KEYS.TENANT);
   return raw ? JSON.parse(raw) : null;
@@ -535,7 +545,7 @@ function _startInactivityWatch() {
   _resetInactivity();
 }
 
-export async function requireAuth(allowedRoles = [], redirectTo = 'login.html') {
+export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', { monitoringSafe = false } = {}) {
   // Hide page content immediately — prevents cached page flashing after logout (WASA 5.7)
   document.documentElement.style.visibility = 'hidden';
 
@@ -581,6 +591,7 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html') 
     sessionStorage.setItem(SESSION_KEYS.TENANT_ID, profile.tenant_id);
     sessionStorage.setItem(SESSION_KEYS.ROLE,      profile.role);
     sessionStorage.setItem(SESSION_KEYS.SECONDARY_ROLE, profile.secondary_role || '');
+    sessionStorage.setItem(SESSION_KEYS.MONITORING_ACCESS, profile.has_monitoring_access ? '1' : '');
   }
 
   if (allowedRoles.length > 0) {
@@ -589,10 +600,15 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html') 
     // super_admin can access any protected page. A secondary_role (e.g. a
     // doctor also holding dept_admin for Deputy MS / HOD-type positions) grants
     // the SAME access as if it were the primary role, on top of -- never
-    // instead of -- whatever the primary role already allows.
+    // instead of -- whatever the primary role already allows. monitoringSafe
+    // is narrower still: it's set only on pages independently verified to
+    // contain zero mutating actions (or whose one write is already RLS-gated
+    // to a different role), so a monitoring-access grant can never reach a
+    // page that lets it actually change anything (Session 119).
     const hasAccess = role === ROLES.SUPER_ADMIN
       || allowedRoles.includes(role)
-      || (secondaryRole && allowedRoles.includes(secondaryRole));
+      || (secondaryRole && allowedRoles.includes(secondaryRole))
+      || (monitoringSafe && getCurrentHasMonitoringAccess());
     if (!hasAccess) {
       window.location.replace(ROLE_HOME[role] || 'admin.html');
       return;

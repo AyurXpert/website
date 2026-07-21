@@ -20,6 +20,7 @@ let _prefillRole   = _urlParams.get('role') || '';
 let _pinvDeptId = null;
 let _pinvDesignation = null;
 let _pinvSecondaryRole = null;
+let _pinvHasMonitoringAccess = false;
 
 window.upperizeInput = function(el) {
   el.value = el.value.toUpperCase();
@@ -123,6 +124,7 @@ async function _loadPositionInvite() {
   _pinvDeptId       = row.department_id || null;
   _pinvDesignation  = row.designation || null;
   _pinvSecondaryRole = row.secondary_role || null;
+  _pinvHasMonitoringAccess = !!row.has_monitoring_access;
   _positionInviteValid = true;
 
   // Hide the generic role/department pickers entirely — this join is pre-scoped
@@ -231,6 +233,7 @@ window.handleSignup = async function() {
     departmentId: deptId   || null,
     designation:  _positionInviteValid ? _pinvDesignation : null,
     secondaryRole: _positionInviteValid ? _pinvSecondaryRole : null,
+    hasMonitoringAccess: _positionInviteValid ? _pinvHasMonitoringAccess : false,
   });
 
   if (!result.success) {

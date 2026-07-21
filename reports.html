@@ -192,7 +192,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId, g
 import { initNavbar } from './js/components/navbar.js';
 import { supabase } from './js/core/db/supabaseClient.js';
 
-await requireAuth(['lab_tech', 'accountant', 'cashier', 'finance_manager', 'dept_admin', 'super_admin']);
+await requireAuth(['lab_tech', 'accountant', 'cashier', 'finance_manager', 'dept_admin', 'super_admin'], 'login.html', { monitoringSafe: true });
 initNavbar();
 
 const role     = getCurrentRole();
