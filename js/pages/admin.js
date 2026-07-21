@@ -1423,23 +1423,31 @@ async function _renderNcismStaffing() {
 }
 
 // ── Position Invite modal — turn a ladder gap into a shareable join link ──
-// Session 111 correction: the HMS Login Role dropdown used to be a static list of all 10
-// roles regardless of which designation was being invited -- confusing (why would
-// "Registration & Billing Clerks" show Doctor/Nurse/Therapist as choices?) and a real
-// mis-assignment risk. Now scoped to only the role(s) that designation actually maps to
-// via DESIG_ROLE_DEFAULT -- for the overwhelming majority of designations that's exactly
-// one option, pre-selected and effectively locked (nothing else was ever valid anyway).
+// Session 116 correction: Designation is locked to the exact ladder row clicked
+// (no dropdown, no widening to the rest of the department -- Dr. Venkatesh's
+// explicit call after trying the widened version). HMS Login Role goes the
+// OTHER way -- it's now a real dropdown of every assignable system role,
+// deliberately reopening what Session 111 had locked down, because one
+// designation can legitimately need different login access on different staff
+// (e.g. a Deputy Medical Superintendent who should get dept_admin access
+// instead of the plain doctor default). DESIG_ROLE_DEFAULT still supplies the
+// pre-selected default so the common case needs no extra click.
+const INVITE_ROLES = ['doctor','receptionist','pharmacist','nurse','nurse_manager','lab_tech',
+  'therapist','accountant','cashier','finance_manager','student','diet_staff','mrd_staff','dept_admin'];
+
 function _populatePinvRoleOptions(desig){
   const roleSel = document.getElementById('pinv-role-select');
-  const role = DESIG_ROLE_DEFAULT[desig] || 'doctor';
-  roleSel.innerHTML = '<option value="'+_esc(role)+'">'+_esc(_roleLabel(role))+'</option>';
-  roleSel.value = role;
+  const defaultRole = DESIG_ROLE_DEFAULT[desig] || 'doctor';
+  roleSel.innerHTML = INVITE_ROLES.map(r=>'<option value="'+_esc(r)+'">'+_esc(_roleLabel(r))+'</option>').join('');
+  roleSel.value = INVITE_ROLES.includes(defaultRole) ? defaultRole : INVITE_ROLES[0];
+  roleSel.disabled = false;
 }
 
 window.onPinvDesigChange = function(){
+  // Designation select is locked/disabled below -- kept as a harmless no-op
+  // in case it's ever re-enabled, rather than removing the wiring.
   const desig = document.getElementById('pinv-desig-select').value;
   document.getElementById('pinv-desig-label').textContent = DESIG_MAP[desig]?.l || desig || '—';
-  _populatePinvRoleOptions(desig);
 };
 
 window.openPositionInvite = function(idxStr){
@@ -1451,15 +1459,9 @@ window.openPositionInvite = function(idxStr){
   document.getElementById('pinv-dept-name').textContent = row.deptName;
   document.getElementById('pinv-desig-label').textContent = dlabel(desig);
   const keySel = document.getElementById('pinv-desig-select');
-  // Widened from just this ladder row's key(s) to every designation sharing its
-  // NCISM zone category (e.g. every Administration position, not only the one
-  // gap clicked) -- lets the admin invite ANY open position in the department
-  // from one modal. HMS Login Role keeps auto-following whichever designation
-  // is picked (see _populatePinvRoleOptions) so it can't be mis-assigned.
-  const cat = DESIG_MAP[desig]?.cat;
-  const options = cat ? DESIGS.filter(d=>d.cat===cat).map(d=>d.v) : row.keys;
-  keySel.innerHTML = options.map(k=>'<option value="'+_esc(k)+'">'+_esc(dlabel(k))+'</option>').join('');
+  keySel.innerHTML = '<option value="'+_esc(desig)+'">'+_esc(dlabel(desig))+'</option>';
   keySel.value = desig;
+  keySel.disabled = true;
   _populatePinvRoleOptions(desig);
   document.getElementById('pinv-name').value  = '';
   document.getElementById('pinv-phone').value = '';
@@ -4622,7 +4624,7 @@ async function _sumToday(table,col){
   }catch{return 0;}
 }
 function _fmt(n){if(!n)return'₹0';if(n>=100000)return'₹'+(n/100000).toFixed(1)+'L';if(n>=1000)return'₹'+(n/1000).toFixed(1)+'K';return'₹'+Math.round(n);}
-function _roleLabel(r){return{super_admin:'Super Admin',dept_admin:'Dept. Admin',doctor:'Doctor',receptionist:'Receptionist',pharmacist:'Pharmacist',nurse:'Nurse',nurse_manager:'Nurse Manager',lab_tech:'Lab Technician',accountant:'Accountant',therapist:'Therapist',student:'Student',diet_staff:'Diet / Pathya Staff',mrd_staff:'Medical Records Staff'}[r]||r;}
+function _roleLabel(r){return{super_admin:'Super Admin',dept_admin:'Dept. Admin',doctor:'Doctor',receptionist:'Receptionist',pharmacist:'Pharmacist',nurse:'Nurse',nurse_manager:'Nurse Manager',lab_tech:'Lab Technician',accountant:'Accountant',cashier:'Cashier',finance_manager:'Finance Manager',therapist:'Therapist',student:'Student',diet_staff:'Diet / Pathya Staff',mrd_staff:'Medical Records Staff'}[r]||r;}
 function _tenantLabel(t){return{clinic:'Clinic',hospital:'Hospital',teaching_hospital:'Teaching Hospital',pk_center:'PK Centre',dispensary:'Dispensary',college:'Ayurveda College',pharma:'Pharmaceutical Co.',supplier:'Supplier',dealer:'Dealer',journal:'Journal'}[t]||'Healthcare';}
 function _relDate(iso){if(!iso)return'—';const d=Math.floor((Date.now()-new Date(iso))/60000);if(d<60)return d+'m ago';if(d<1440)return Math.floor(d/60)+'h ago';return Math.floor(d/1440)+'d ago';}
 function _esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
