@@ -1,4 +1,4 @@
-import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId, getCurrentRole } from '../core/auth.js';
+import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId, getCurrentRole, getCurrentSecondaryRole } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
@@ -12,6 +12,11 @@ const profile   = getCurrentProfile();
 const tenant    = getCurrentTenant();
 const tenantId  = getCurrentTenantId();
 const role      = getCurrentRole();
+// Session 123 -- a secondary_role='dept_admin' caller (e.g. Medical Director/
+// MS whose primary role is doctor) counts as dept_admin-tier here too --
+// buildActions() below used to check the raw primary role only, so they
+// could reach this page but never saw a single action button.
+const isDeptAdminTier = role === 'dept_admin' || getCurrentSecondaryRole() === 'dept_admin';
 const userId    = profile.id;
 const facType   = tenant?.type || 'clinic';
 
@@ -604,7 +609,7 @@ function buildActions(f) {
     }
   }
 
-  if (role === 'dept_admin') {
+  if (isDeptAdminTier) {
     if (s === 'pending') {
       btns += `<button class="act-btn act-approve" data-onclick="approveFee" data-onclick-a0="${f.id}">✓ Approve</button>`;
       btns += `<button class="act-btn act-reject"  data-onclick="rejectFee" data-onclick-a0="${f.id}">✗ Reject</button>`;
