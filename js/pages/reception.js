@@ -2859,20 +2859,120 @@ function _setMode(mode) {
   }
 }
 
-// ── Queue / Appointments tabs ──────────────────────
+// ── Queue / Appointments / Lab Bills tabs ──────────
 document.getElementById('tab-queue').addEventListener('click', () => {
   document.getElementById('tab-queue').classList.add('active');
   document.getElementById('tab-appts').classList.remove('active');
+  document.getElementById('tab-labbills').classList.remove('active');
   document.getElementById('queue-list').style.display = '';
   document.getElementById('appt-list').style.display  = 'none';
+  document.getElementById('lab-bills-list').style.display = 'none';
 });
 document.getElementById('tab-appts').addEventListener('click', () => {
   document.getElementById('tab-appts').classList.add('active');
   document.getElementById('tab-queue').classList.remove('active');
+  document.getElementById('tab-labbills').classList.remove('active');
   document.getElementById('queue-list').style.display  = 'none';
   document.getElementById('appt-list').style.display   = '';
+  document.getElementById('lab-bills-list').style.display = 'none';
   loadTodaysAppointments();
 });
+document.getElementById('tab-labbills').addEventListener('click', () => {
+  document.getElementById('tab-labbills').classList.add('active');
+  document.getElementById('tab-queue').classList.remove('active');
+  document.getElementById('tab-appts').classList.remove('active');
+  document.getElementById('queue-list').style.display  = 'none';
+  document.getElementById('appt-list').style.display   = 'none';
+  document.getElementById('lab-bills-list').style.display = '';
+  loadPendingLabBills();
+});
+
+// ── Pending Lab/Investigation Bills (Session 126) ──
+// Shows lab_orders whose charge hasn't actually been collected yet (payment_status
+// 'pending' = blocking the lab; 'waived' = an emergency bypass already let the lab
+// proceed but the money is still owed) -- reuses bill_items via lab_order_id instead
+// of a parallel ledger, matching the existing Session 124 OPD lab billing rebuild.
+async function loadPendingLabBills() {
+  const { data: orders, error } = await supabase
+    .from('lab_orders')
+    .select('id, priority, payment_status, created_at, visits(token_number, patients(name)), lab_order_items(test_name)')
+    .eq('tenant_id', tenantId)
+    .in('payment_status', ['pending', 'waived']);
+  if (error) { console.warn('[reception] loadPendingLabBills:', error.message); return; }
+
+  const orderIds = (orders || []).map(o => o.id);
+  let amountByOrder = {};
+  if (orderIds.length) {
+    const { data: items } = await supabase.from('bill_items').select('lab_order_id,total,gst_amount').in('lab_order_id', orderIds);
+    (items || []).forEach(i => {
+      amountByOrder[i.lab_order_id] = (amountByOrder[i.lab_order_id] || 0) + (Number(i.total) || 0) + (Number(i.gst_amount) || 0);
+    });
+  }
+
+  const rank = { stat: 0, urgent: 1, routine: 2 };
+  const sorted = (orders || []).slice().sort((a, b) =>
+    (rank[a.priority] ?? 2) - (rank[b.priority] ?? 2) || new Date(a.created_at) - new Date(b.created_at));
+
+  document.getElementById('labbills-count').textContent = sorted.length ? `(${sorted.length})` : '';
+  const list = document.getElementById('lab-bills-list');
+  if (!sorted.length) {
+    list.innerHTML = `<div class="q-empty"><div class="q-empty-icon">✅</div><div class="q-empty-text">No pending lab/investigation bills</div></div>`;
+    return;
+  }
+
+  list.innerHTML = sorted.map(o => {
+    const tests    = _esc((o.lab_order_items || []).map(i => i.test_name).join(', ') || '—');
+    const amount   = amountByOrder[o.id] || 0;
+    const tokenNo  = o.visits?.token_number || '—';
+    const name     = o.visits?.patients?.name || '—';
+    const isWaived = o.payment_status === 'waived';
+    const priorityBadge = o.priority !== 'routine'
+      ? `<span class="badge" style="background:#ffe0e0;color:#a01a1a">${_esc(o.priority.toUpperCase())}</span>` : '';
+    const waivedBadge = isWaived
+      ? `<span class="badge" style="background:#ffe0cc;color:#7a1a1a">🚨 WAIVED — lab proceeding</span>` : '';
+
+    return `<div class="q-item">
+      <div class="q-token waiting">${_esc(tokenNo)}</div>
+      <div class="q-info">
+        <div class="q-name">${_esc(name)} ${priorityBadge}${waivedBadge}</div>
+        <div class="q-row2"><span style="color:var(--text-mid)">${tests}</span></div>
+        <div class="q-row3">Amount due: <strong>₹${amount.toFixed(2)}</strong></div>
+      </div>
+      <div class="q-right" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <select id="pm-${o.id}" style="height:26px;font-size:11px;border-radius:5px;border:1px solid var(--border)">
+          <option value="cash">Cash</option>
+          <option value="upi">UPI</option>
+          <option value="card">Card</option>
+        </select>
+        <div style="display:flex;gap:4px">
+          <button class="q-edit-btn" data-onclick="collectLabPayment" data-onclick-a0="${o.id}" style="width:auto;padding:0 8px;font-size:11px;background:var(--green-mid);color:#fff">💰 Collect</button>
+          ${!isWaived ? `<button class="q-edit-btn" data-onclick="waiveLabPayment" data-onclick-a0="${o.id}" style="width:auto;padding:0 8px;font-size:11px;background:#a01a1a;color:#fff">⚠ Waive</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.collectLabPayment = async function(orderId) {
+  const mode = document.getElementById('pm-' + orderId)?.value || 'cash';
+  const { error } = await supabase.from('lab_orders').update({
+    payment_status: 'paid',
+    payment_mode: mode,
+    payment_collected_by: profile.id,
+    payment_collected_at: new Date().toISOString(),
+  }).eq('id', orderId);
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not record payment.')); return; }
+  _alert('success', 'Payment collected — lab notified.');
+  loadPendingLabBills();
+};
+
+window.waiveLabPayment = async function(orderId) {
+  if (!confirm('Waive payment for this investigation? The lab will proceed immediately; this still shows as owed until collected manually later.')) return;
+  const { error } = await supabase.from('lab_orders').update({ payment_status: 'waived' }).eq('id', orderId);
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not waive payment.')); return; }
+  _alert('success', 'Payment waived — lab can proceed.');
+  loadPendingLabBills();
+};
 
 // ── Book Appointment ───────────────────────────────
 async function bookAppointment() {
@@ -3031,11 +3131,19 @@ await loadOPDs();
 await loadDoctors('');
 await loadQueue();
 await loadTodaysAppointments();
+await loadPendingLabBills();
 await _checkStaleVisits();
 renderPromoBanner('promo-banner', { supabase, tenantId });
 setInterval(loadQueue, 30_000);
 setInterval(loadTodaysAppointments, 30_000);
+setInterval(loadPendingLabBills, 30_000);
 setInterval(_checkStaleVisits, 5 * 60_000);
+
+// Live update the moment a doctor submits/waives a lab order, instead of waiting
+// for the 30s poll -- matches the "instantly reflect at reception" requirement.
+supabase.channel('lab-orders-reception')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'lab_orders', filter: `tenant_id=eq.${tenantId}` }, () => loadPendingLabBills())
+  .subscribe();
 
 // ── NABH Allergy System (Reception) ──────────────────────────
 let _receptionPatientId = null;

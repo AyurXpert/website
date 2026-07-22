@@ -222,6 +222,7 @@ function renderQueue() {
     const tests = _summarizeTests(o.lab_order_items);
     const hasCritical = (o.lab_order_items||[]).some(t => t.is_critical);
     const isActive = _activeOrder?.id === o.id;
+    const paymentDue = o.payment_status === 'pending';
     return `<div class="order-item${isActive?' selected':''}" data-onclick="selectOrder" data-onclick-a0="${o.id}">
       <div style="display:flex;align-items:center;justify-content:space-between">
         <span class="order-pt-name">${o.patients?.name||'—'}${hasCritical?'<span style="color:var(--red);margin-left:4px">⚠</span>':''}</span>
@@ -230,6 +231,7 @@ function renderQueue() {
       <div class="order-meta">
         <span class="status-dot dot-${o.status}"></span>${{pending:'Awaiting sample',sample_collected:'Sample collected',in_progress:'In progress',completed:'Completed',cancelled:'Cancelled'}[o.status]||o.status}
         · ${o.patients?.age||'—'}${o.patients?.gender?('/'+o.patients.gender.charAt(0).toUpperCase()):''}
+        ${paymentDue ? '<span style="color:#7a4a00;font-weight:700;margin-left:4px">⏳ Payment due</span>' : o.payment_status === 'waived' ? '<span style="color:#7a1a1a;font-weight:700;margin-left:4px">🚨 Waived</span>' : ''}
       </div>
       <div class="order-tests">${tests||'No tests listed'}</div>
     </div>`;
@@ -277,11 +279,14 @@ function renderOrderDetail() {
 
   // Sample bar
   const sBar = document.getElementById('sample-bar');
+  const paymentDue = o.payment_status === 'pending';
+  const paymentBar = document.getElementById('payment-due-bar');
+  if (paymentBar) paymentBar.style.display = paymentDue ? 'block' : 'none';
   if (o.status === 'pending') {
     sBar.classList.remove('collected');
     document.getElementById('s-collect-time').value= o.collected_at
       ? o.collected_at.slice(0,16) : new Date().toISOString().slice(0,16);
-    document.getElementById('collect-btn').style.display = 'inline-flex';
+    document.getElementById('collect-btn').style.display = paymentDue ? 'none' : 'inline-flex';
   } else {
     sBar.classList.add('collected');
     document.getElementById('s-collect-time').value= o.collected_at?.slice(0,16)||'';
@@ -429,6 +434,10 @@ window.evalResult = function(id, testName, val) {
 // ── Sample collection ─────────────────────────────────────────────────────────
 window.markSampleCollected = async function() {
   if (!_activeOrder) return;
+  if (_activeOrder.payment_status === 'pending') {
+    _alert('error', 'Payment is still pending for this order — it must be collected or waived at reception first.');
+    return;
+  }
   const collectTime= document.getElementById('s-collect-time').value;
   const { error } = await supabase.from('lab_orders').update({
     status: 'sample_collected',

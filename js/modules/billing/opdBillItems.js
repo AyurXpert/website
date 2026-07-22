@@ -14,7 +14,7 @@
 // extra read. Matches ipd.js's convention that a bill's grand total is
 // sum(item.total) + sum(item.gst_amount) on top of any flat fee columns
 // (item.total itself is the pre-GST amount).
-export async function addOpdBillItem({ supabase, tenantId, billId, itemType, description, quantity, price, gstPercent = 0 }) {
+export async function addOpdBillItem({ supabase, tenantId, billId, itemType, description, quantity, price, gstPercent = 0, labOrderId = null }) {
   const total = Math.round((Number(quantity) || 1) * (Number(price) || 0) * 100) / 100;
   const gstAmount = Math.round(total * (Number(gstPercent) || 0) / 100 * 100) / 100;
 
@@ -22,6 +22,7 @@ export async function addOpdBillItem({ supabase, tenantId, billId, itemType, des
     bill_id: billId, tenant_id: tenantId, item_type: itemType, description,
     quantity: Math.round(Number(quantity) || 1), price: Number(price) || 0,
     total, gst_percent: gstPercent || 0, gst_amount: gstAmount,
+    lab_order_id: labOrderId,
   });
   if (insertErr) return { error: insertErr };
 

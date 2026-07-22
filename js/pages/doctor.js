@@ -3545,7 +3545,7 @@ function _computeLabBillingLines(labSelected, feeRows) {
 // here must never stop the clinical order itself, which has already been
 // saved by the time this runs. Unmatched tests are surfaced, never silently
 // charged ₹0 or silently dropped.
-async function _billLabOrder(labSelected) {
+async function _billLabOrder(labSelected, labOrderId) {
   try {
     const { data: bill } = await supabase.from('bills').select('id')
       .eq('visit_id', _activeVisitId).eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).maybeSingle();
@@ -3560,6 +3560,7 @@ async function _billLabOrder(labSelected) {
       const { error } = await addOpdBillItem({
         supabase, tenantId, billId: bill.id, itemType: 'lab',
         description: line.description, quantity: 1, price: line.price, gstPercent: line.gst_percent,
+        labOrderId,
       });
       if (error) unmatched.push(line.description + ' (billing failed)');
     }
@@ -3633,15 +3634,27 @@ window.submitLabOrder = async function() {
   if (_labSelected.size === 0) { alert('Select at least one test.'); return; }
   if (!_activePatient) return;
 
+  const priority = document.getElementById('lo-priority').value || 'routine';
+  const clinicalNotes = document.getElementById('lo-notes').value.trim() || null;
+  const bypassPayment = document.getElementById('lo-bypass-payment').checked;
+
   // Create lab_orders record -- lab_orders has no patient_id column at all
   // (confirmed live, zero rows exist in the whole platform); it routes
   // through visit_id -> visits.patient_id only, matching how lab.js already
   // reads it back. Sending patient_id here made every submission fail with
   // a schema error -- lab ordering from doctor.html has never worked.
+  // Session 126 -- payment_status gates whether lab.js can act on this order at
+  // all (see markSampleCollected there); 'waived' is the emergency/STAT bypass,
+  // set explicitly here rather than inferred from priority, since a STAT test
+  // that's still fully payable shouldn't automatically skip the payment step.
   const { data: order, error: oErr } = await supabase.from('lab_orders').insert({
     tenant_id:  tenantId,
     visit_id:   _activeVisitId,
     status:     'pending',
+    priority,
+    clinical_notes: clinicalNotes,
+    ordered_by: profile.id,
+    payment_status: bypassPayment ? 'waived' : 'pending',
   }).select('id').single();
   if (oErr) { alert('Error creating order: ' + oErr.message); return; }
 
@@ -3658,13 +3671,15 @@ window.submitLabOrder = async function() {
   const newTests = [..._labSelected.keys()].join(', ');
   document.getElementById('as-inv-lab').value = existingText ? existingText + ', ' + newTests : newTests;
 
-  // Session 124 Step 4 -- bill at order time (matches how registration/
-  // consultation fees are already collected same-day). Never blocks the
-  // clinical order, which is already saved above regardless of what happens here.
-  const { unmatched, noBill } = await _billLabOrder(_labSelected);
+  // Session 124 Step 4 (charge attaches to the bill immediately) + Session 126
+  // (payment now gates the lab, unless bypassed above) -- billing itself is never
+  // blocking, the clinical order is already saved regardless of what happens here.
+  const { unmatched, noBill } = await _billLabOrder(_labSelected, order.id);
 
   closeLabOrderModal();
-  let msg = `✅ Lab order submitted: ${_labSelected.size} tests ordered. Lab technician will be notified.`;
+  let msg = `✅ Lab order submitted: ${_labSelected.size} tests ordered.`;
+  if (bypassPayment) msg += `\n\n🚨 Emergency bypass — lab can proceed immediately. Payment is still owed and will show as pending at reception.`;
+  else msg += `\n\n⏳ Payment pending — patient must pay at reception before the lab can collect the sample.`;
   if (noBill) msg += `\n\n⚠ No bill found for this visit -- lab charges were not added. Please add them manually via reception.`;
   else if (unmatched.length) msg += `\n\n⚠ No price found for: ${unmatched.join(', ')} -- please add these to the bill manually.`;
   alert(msg);
@@ -3675,7 +3690,7 @@ async function loadLabResults() {
   if (!_activeVisitId) return;
   const { data: orders, error: ordErr } = await supabase
     .from('lab_orders')
-    .select('id,status')
+    .select('id,status,payment_status')
     .eq('tenant_id', tenantId)
     .eq('visit_id', _activeVisitId);
   if (ordErr) { console.warn('[lab] loadLabResults:', ordErr.message); return; }
@@ -3703,6 +3718,7 @@ async function loadLabResults() {
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
         <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;background:${isDone?'var(--green-light)':'#e3f0ff'};color:${isDone?'var(--green-deep)':'#1a4080'}">${_esc(isDone?'REPORT READY':{pending:'PENDING',sample_collected:'SAMPLE COLLECTED',in_progress:'IN PROGRESS'}[o.status]||o.status)}</span>
         ${o.order_date ? `<span style="font-size:10px;color:var(--text-muted)">${_fmtDate(o.order_date)}</span>` : ''}
+        ${o.payment_status === 'pending' ? '<span style="color:#7a4a00;font-size:10px;font-weight:700">⏳ PAYMENT PENDING</span>' : ''}
         ${criticals.length ? '<span style="color:var(--red);font-size:11px;font-weight:700">⚠ CRITICAL</span>' : ''}
       </div>
       <div style="line-height:1.8">${items.map(i => `<span style="font-size:11px;${i.is_critical?'color:var(--red);font-weight:700':i.is_abnormal?'color:#7a5c00':''}">${_esc(i.test_name)}${i.result_value?' = <strong>'+_esc(i.result_value)+'</strong>':''}</span>`).join(' · ')}</div>
