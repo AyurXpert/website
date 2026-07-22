@@ -7,6 +7,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
+import { renderPromoBanner } from '../components/promoBanner.js';
 import {
   requestABHAOtp, enrollABHA,
   checkAndGenerateMobileOTP, verifyCommMobileOtp, finalizeAbhaEnrollment,
@@ -3031,6 +3032,7 @@ await loadDoctors('');
 await loadQueue();
 await loadTodaysAppointments();
 await _checkStaleVisits();
+renderPromoBanner('promo-banner', { supabase, tenantId });
 setInterval(loadQueue, 30_000);
 setInterval(loadTodaysAppointments, 30_000);
 setInterval(_checkStaleVisits, 5 * 60_000);

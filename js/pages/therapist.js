@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { renderPromoBanner } from '../components/promoBanner.js';
 
 /*
   SQL to run once in Supabase:
@@ -779,3 +780,4 @@ window.saveKitAudit = async function() {
 };
 
 await loadAll();
+renderPromoBanner('promo-banner', { supabase, tenantId });

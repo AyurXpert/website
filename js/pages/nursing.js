@@ -6,6 +6,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { logAudit } from '../core/auditLogger.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
+import { renderPromoBanner } from '../components/promoBanner.js';
 
 requireAuth(['nurse','nurse_manager','super_admin','dept_admin','doctor']);
 initNavbar();
@@ -27,6 +28,7 @@ let _shift      = 'morning';
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.getElementById('nursing-date').value = new Date().toISOString().slice(0,10);
 document.getElementById('io-date-label').textContent = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+renderPromoBanner('promo-banner', { supabase, tenantId });
 
 // Load departments for ward selector
 const { data: depts } = await supabase.from('departments')

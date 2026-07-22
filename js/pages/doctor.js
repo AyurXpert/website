@@ -8,6 +8,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType } from '../config/ncism.js';
 import { addOpdBillItem } from '../modules/billing/opdBillItems.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
+import { renderPromoBanner } from '../components/promoBanner.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'super_admin', 'dept_admin']);
@@ -3260,7 +3261,7 @@ window.saveVishaCase = async function() {
 // ── Boot ──────────────────────────────────────────
 _initNamaste();
 _initIcd10();
-await Promise.all([loadQueue(), loadAlerts(), loadInventory(), _loadOpdAttendanceBanner(), loadOpdList(), loadDoctorOpds()]);
+await Promise.all([loadQueue(), loadAlerts(), loadInventory(), _loadOpdAttendanceBanner(), loadOpdList(), loadDoctorOpds(), renderPromoBanner('promo-banner', { supabase, tenantId })]);
 
 async function _loadOpdAttendanceBanner() {
   const { data: t } = await supabase.from('tenants').select('ug_intake,opd_daily_target,type').eq('id', tenantId).single();
