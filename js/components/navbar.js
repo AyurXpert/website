@@ -10,9 +10,10 @@ export function initNavbar() {
   const secondaryRole = getCurrentSecondaryRole();
   const hasMonitoringAccess = getCurrentHasMonitoringAccess();
   const isDeptScoped = !!profile?.scope_department_id;
+  const designation = profile?.designation || null;
   if (!profile || !tenant) return;
   _injectStyles();
-  _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess, isDeptScoped);
+  _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess, isDeptScoped, designation);
   _injectWatermark();
   _injectPopup();
 }
@@ -25,7 +26,7 @@ const PK    = ['pk_center','hospital','teaching_hospital','college'];
 // ── Group + item definitions ─────────────────────────────────────────────────
 // types: null = all org types | array = restricted types
 // A group is hidden if all its items are filtered out.
-function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScoped) {
+function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScoped, designation) {
   const ALL_ROLES = ['super_admin','dept_admin','doctor','receptionist','pharmacist','nurse','lab_tech','accountant','therapist'];
   const ADMIN_ROLES = ['super_admin','dept_admin'];
   const CLINICAL    = ['super_admin','dept_admin','doctor','nurse'];
@@ -92,6 +93,11 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'insurance-claims.html',  label:'Insurance Claims', roles:['super_admin','dept_admin','accountant'],             types:null, module:'finance'  },
         { href:'hr.html',                label:'HR',               roles:['super_admin','dept_admin'],                         types:null, module:'hr'       },
         { href:'recruitment.html',       label:'Recruitment',      roles:['super_admin','dept_admin'],                         types:null, module:'hr'       },
+        // Session 128 -- Deputy MS's role is plain 'doctor' (same as every other
+        // doctor), so a roles:[] check can't single them out; designations:[...]
+        // mirrors the existing deptScoped/monitoringSafe pattern for gating on
+        // something other than role.
+        { href:'intern-roster.html',     label:'Intern Roster',    roles:[],                                                   types:NCISM, module:'hr', designations:['deputy_medical_superintendent'] },
         { href:'mrd.html',               label:'Medical Records',  roles:['super_admin','dept_admin'],                         types:null, module:'mrd'      },
         { href:'opd-register.html',      label:'OPD Register',     roles:['super_admin','dept_admin','doctor','receptionist'],    types:null, module:'opd'      },
         { href:'ipd-register.html',      label:'IPD Register',     roles:['super_admin','dept_admin','doctor','nurse'],            types:HOSP, module:'ipd'      },
@@ -120,7 +126,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
   return raw.map(g => ({
     ...g,
     items: g.items.filter(item =>
-      (item.roles.includes(role) || (secondaryRole && item.roles.includes(secondaryRole)) || (item.monitoringSafe && hasMonitoringAccess) || (item.deptScoped && isDeptScoped)) &&
+      (item.roles.includes(role) || (secondaryRole && item.roles.includes(secondaryRole)) || (item.monitoringSafe && hasMonitoringAccess) || (item.deptScoped && isDeptScoped) || (item.designations && designation && item.designations.includes(designation))) &&
       (item.types === null || item.types.includes(type)) &&
       (!item.platformOnly || isPlatformAdmin) &&
       (!item.module || hasModule(item.module))
@@ -129,8 +135,8 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
 }
 
 // ── Inject navbar ─────────────────────────────────────────────────────────────
-function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess, isDeptScoped) {
-  const groups      = _buildGroups(role, tenant.type, secondaryRole, hasMonitoringAccess, isDeptScoped);
+function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess, isDeptScoped, designation) {
+  const groups      = _buildGroups(role, tenant.type, secondaryRole, hasMonitoringAccess, isDeptScoped, designation);
   const currentPage = window.location.pathname.split('/').pop() || 'admin.html';
 
   const logoHTML = tenant.logo_url
