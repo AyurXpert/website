@@ -22,19 +22,21 @@ const today = new Date().toISOString().slice(0,10);
 document.getElementById('q-date').textContent = new Date(today + 'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short'});
 document.getElementById('ss-date').textContent = new Date(today + 'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
 
-// Get Screening OPD id for this tenant
-const { data: screenOpd } = await supabase
+// Get Screening OPD id for this tenant. Two ncism_code conventions exist side by side:
+// 'SCREEN' (short-form, current default seeding) and 'SCREENING_OPD' (long-form, legacy
+// tenants like Srishti Ayurveda) — check both rather than assuming one.
+const { data: screenOpds } = await supabase
   .from('opds')
   .select('id')
   .eq('tenant_id', tenantId)
-  .eq('ncism_code', 'SCREENING_OPD')
-  .single();
+  .in('ncism_code', ['SCREEN', 'SCREENING_OPD']);
+const screenOpd = screenOpds?.[0];
 
 if (!screenOpd) {
   document.getElementById('queue-list').innerHTML = `
     <div class="queue-empty">
       <strong>Screening OPD not configured.</strong><br><br>
-      Go to OPD Admin and ensure the Screening OPD (NCISM code: SCREENING_OPD) is active for your organisation.
+      Go to OPD Admin and ensure the Screening OPD (NCISM code: SCREEN) is active for your organisation.
     </div>`;
 } else {
   _screeningOpdId = screenOpd.id;
