@@ -81,6 +81,11 @@ async function loadQueue() {
       items:prescription_items(id, medicine_name, medicine_id, dosage, frequency, duration)
     `)
     .eq('tenant_id', tenantId)
+    // Session 127 -- defensive: a trainee doctor never creates a prescriptions
+    // row directly in v1 (only a supervising doctor's finalize does, which
+    // always defaults to 'finalized'), but gating here too matches the same
+    // review_status check already applied to lab_orders for consistency.
+    .eq('review_status', 'finalized')
     .gte('created_at', start.toISOString())
     .order('created_at', { ascending: true });
 

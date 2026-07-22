@@ -11,7 +11,7 @@ import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
-await requireAuth(['doctor', 'super_admin', 'dept_admin']);
+await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
 initNavbar();
 wireDelegatedEvents();
 
@@ -59,6 +59,34 @@ const tenantId = getCurrentTenantId();
 const tenant   = getCurrentTenant?.() || JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
 const userId   = profile.id;
 const _ctx     = { tenantId, userId, userName: profile.full_name };
+
+// ── Session 127 — Trainee Doctor (PG/Intern) draft-and-countersign workflow ──
+// NCISM requires every PG/intern's clinical activity be individually logged
+// for academic assessment, so trainees get their own login rather than sharing
+// a supervising doctor's -- but they can only draft, never finalize a
+// medico-legal document. _canReview covers every role that could plausibly
+// supervise (a plain 'doctor' review's their own department's trainees; admin
+// roles can review across departments too).
+const _isTrainee  = profile.role === 'trainee_doctor';
+const _canReview  = ['doctor', 'super_admin', 'dept_admin'].includes(profile.role);
+let _activeDraftId    = null;  // consultation_notes.id of the draft being reviewed, if any
+let _activeDraftedBy  = null;  // that draft's original trainee author (profile.id) -- credited on finalize
+
+// Resolves this profile's department scope (scope_department_id) to the set of
+// opd ids that department's OPD serves, via ncism_code -- departments and opds
+// share the same code space (e.g. both use 'KAY' for Kayachikitsa) rather than
+// a direct FK, matching how screening.js/bed-admin.js already resolve this.
+// Returns null if the profile has no department scope (e.g. a super_admin
+// reviewing tenant-wide, or a trainee never assigned one).
+async function _scopedOpdIds() {
+  if (!profile.scope_department_id) return null;
+  const { data: dept } = await supabase.from('departments').select('ncism_code')
+    .eq('id', profile.scope_department_id).maybeSingle();
+  if (!dept?.ncism_code) return null;
+  const { data: opds } = await supabase.from('opds').select('id')
+    .eq('tenant_id', tenantId).eq('ncism_code', dept.ncism_code);
+  return (opds || []).map(o => o.id);
+}
 
 // ── Tenant feature gating ─────────────────────────
 // All 4 Disposition options are always visible.
@@ -149,19 +177,27 @@ async function loadInventory() {
 // ── Load queue ────────────────────────────────────
 let _queueTab = 'opd';
 
+// Session 127 -- only reviewer-capable roles get the Pending Review tab at all;
+// a trainee has no one to review, and hiding it for them avoids any confusion.
+if (_canReview) document.getElementById('q-tab-review').style.display = '';
+
 window.switchQueueTab = function(tab) {
   _queueTab = tab;
   document.getElementById('q-search').value = '';
-  const opd  = document.getElementById('q-tab-opd');
-  const tele = document.getElementById('q-tab-tele');
-  const ipd  = document.getElementById('q-tab-ipd');
-  [opd, tele, ipd].forEach(b => { b.style.background = 'none'; b.style.color = 'var(--text-muted)'; b.style.borderBottom = '2px solid transparent'; b.style.fontWeight = '500'; });
+  const opd    = document.getElementById('q-tab-opd');
+  const tele   = document.getElementById('q-tab-tele');
+  const ipd    = document.getElementById('q-tab-ipd');
+  const review = document.getElementById('q-tab-review');
+  [opd, tele, ipd, review].forEach(b => { b.style.background = 'none'; b.style.color = 'var(--text-muted)'; b.style.borderBottom = '2px solid transparent'; b.style.fontWeight = '500'; });
   if (tab === 'opd') {
     opd.style.background = 'var(--green-light)'; opd.style.color = 'var(--green-deep)'; opd.style.borderBottom = '2px solid var(--green-mid)'; opd.style.fontWeight = '600';
     loadQueue();
   } else if (tab === 'tele') {
     tele.style.background = '#dbeafe'; tele.style.color = '#1d4ed8'; tele.style.borderBottom = '2px solid #2563eb'; tele.style.fontWeight = '600';
     loadQueue();
+  } else if (tab === 'review') {
+    review.style.background = '#fff4e5'; review.style.color = '#7a4a00'; review.style.borderBottom = '2px solid #e8c48a'; review.style.fontWeight = '600';
+    loadPendingReviews();
   } else {
     ipd.style.background = '#fce7f3'; ipd.style.color = '#be185d'; ipd.style.borderBottom = '2px solid #db2777'; ipd.style.fontWeight = '600';
     loadIPDPatients();
@@ -172,14 +208,31 @@ async function loadQueue() {
   const list  = document.getElementById('q-list');
   const start = new Date(); start.setHours(0, 0, 0, 0);
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('visits')
     .select('id, token_number, status, chief_complaint, created_at, is_on_request, visit_category, is_teleconsultation, meeting_url, patients(id, name, phone, abha_number, abha_address)')
     .eq('tenant_id', tenantId)
-    .eq('doctor_id', userId)
     .in('status', ['waiting', 'in_progress'])
     .gte('created_at', start.toISOString())
     .order('token_number', { ascending: true });
+
+  // Session 127 -- a trainee's queue is department-scoped (not doctor_id-owned,
+  // since they aren't the visit's assigned doctor); everyone else keeps the
+  // existing doctor_id-owned behaviour completely unchanged.
+  if (_isTrainee) {
+    const opdIds = await _scopedOpdIds();
+    if (!opdIds || !opdIds.length) {
+      list.innerHTML = `<div class="q-empty">No department assigned yet — ask an admin to set your department scope.</div>`;
+      document.getElementById('q-count').textContent = 0;
+      document.getElementById('q-tele-count').textContent = 0;
+      return;
+    }
+    query = query.in('opd_id', opdIds);
+  } else {
+    query = query.eq('doctor_id', userId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('loadQueue error:', error.message, '| code:', error.code);
@@ -187,7 +240,25 @@ async function loadQueue() {
     return;
   }
 
-  const all   = data || [];
+  let all = data || [];
+
+  // Exclude visits someone has already drafted/finalized a consultation for --
+  // for a trainee, any existing row means it's already spoken for; for the
+  // reviewing doctor, a still-open 'pending_review' draft means a trainee
+  // already claimed it, so send them to the Pending Review tab instead of
+  // letting two people work the same visit independently.
+  if (all.length) {
+    const visitIds = all.map(v => v.id);
+    const { data: existing } = await supabase.from('consultation_notes')
+      .select('visit_id, review_status').in('visit_id', visitIds);
+    const excludeIds = new Set(
+      _isTrainee
+        ? (existing || []).map(n => n.visit_id)
+        : (existing || []).filter(n => n.review_status === 'pending_review').map(n => n.visit_id)
+    );
+    if (excludeIds.size) all = all.filter(v => !excludeIds.has(v.id));
+  }
+
   const opdQ  = all.filter(v => !v.is_teleconsultation);
   const teleQ = all.filter(v =>  v.is_teleconsultation);
 
@@ -271,6 +342,84 @@ async function loadIPDPatients() {
     </div>`;
   }).join('');
 }
+
+// ── Pending Review (Session 127 -- Trainee Doctor drafts) ─────────────────
+async function loadPendingReviews() {
+  const list = document.getElementById('q-list');
+  list.innerHTML = '<div class="q-empty"><div class="q-empty-icon">⏳</div>Loading…</div>';
+
+  let query = supabase
+    .from('consultation_notes')
+    .select('id, visit_id, modern_diagnosis, ayurveda_diagnosis, provisional_modern, created_at, visits(id, token_number, chief_complaint, patients(id, name)), profiles!drafted_by(full_name)')
+    .eq('tenant_id', tenantId)
+    .eq('review_status', 'pending_review')
+    .order('created_at', { ascending: true });
+
+  // Reviewer's own department scope (if any) narrows this the same way a
+  // trainee's queue is narrowed -- a Kayachikitsa professor only reviews
+  // Kayachikitsa trainees' drafts. Tenant-wide for anyone with no scope set
+  // (typically super_admin/dept_admin).
+  const opdIds = await _scopedOpdIds();
+
+  const { data, error } = await query;
+  if (error) { list.innerHTML = `<div class="q-empty" style="color:#e74c3c">Error: ${_esc(safeErrorMessage(error, 'Could not load pending reviews.'))}</div>`; return; }
+
+  let rows = data || [];
+  if (opdIds) {
+    // consultation_notes has no opd_id directly -- filter via the joined visit's opd
+    // by re-checking visit membership against the scoped set fetched for loadQueue.
+    const { data: scopedVisits } = await supabase.from('visits').select('id').eq('tenant_id', tenantId).in('opd_id', opdIds);
+    const scopedVisitIds = new Set((scopedVisits || []).map(v => v.id));
+    rows = rows.filter(r => scopedVisitIds.has(r.visit_id));
+  }
+
+  document.getElementById('q-review-count').textContent = rows.length;
+  if (!rows.length) { list.innerHTML = '<div class="q-empty"><div class="q-empty-icon">📝</div>No drafts pending review</div>'; return; }
+
+  list.innerHTML = rows.map(r => {
+    const v = r.visits || {};
+    const diag = r.provisional_modern || r.modern_diagnosis || r.ayurveda_diagnosis || '—';
+    return `<div class="q-card" data-onclick="openReviewDraft" data-onclick-a0="${_esc(r.id)}">
+      <div class="q-card-top">
+        <div class="q-token" style="background:#fff4e5;color:#7a4a00;font-size:9px;font-weight:700;min-width:36px">#${v.token_number||'—'}</div>
+        <div class="q-name">${_esc(v.patients?.name || '—')}</div>
+      </div>
+      <div class="q-meta">
+        <span class="badge" style="background:#fff4e5;color:#7a4a00">Drafted by ${_esc(r.profiles?.full_name || '—')}</span>
+      </div>
+      <div class="q-complaint">${_esc(v.chief_complaint || diag)}</div>
+    </div>`;
+  }).join('');
+}
+
+window.openReviewDraft = async function(consultationNoteId) {
+  const { data: draft, error } = await supabase
+    .from('consultation_notes')
+    .select('*, profiles!drafted_by(full_name)')
+    .eq('id', consultationNoteId)
+    .single();
+  if (error || !draft) { _toast('Could not load this draft.', 'error'); return; }
+
+  _activeDraftId   = draft.id;
+  _activeDraftedBy = draft.drafted_by;
+
+  await startConsultation(draft.visit_id);
+
+  document.getElementById('draft-author').textContent = draft.profiles?.full_name || 'Trainee';
+  const summaryLines = [
+    draft.history_notes        && `<strong>History:</strong> ${_esc(draft.history_notes)}`,
+    (draft.bp_systolic || draft.pulse_rate) && `<strong>Vitals:</strong> BP ${draft.bp_systolic||'—'}/${draft.bp_diastolic||'—'}, Pulse ${draft.pulse_rate||'—'}, Temp ${draft.temperature||'—'}`,
+    draft.provisional_modern   && `<strong>Provisional (Modern):</strong> ${_esc(draft.provisional_modern)}`,
+    draft.provisional_ayurveda && `<strong>Provisional (Ayurveda):</strong> ${_esc(draft.provisional_ayurveda)}`,
+    draft.inv_lab              && `<strong>Labs suggested:</strong> ${_esc(draft.inv_lab)}`,
+    draft.clinical_reasoning   && `<strong>Reasoning:</strong> ${_esc(draft.clinical_reasoning)}`,
+  ].filter(Boolean);
+  document.getElementById('draft-summary').innerHTML = summaryLines.join('<br>') || 'No detailed notes recorded.';
+  document.getElementById('draft-review-panel').style.display = 'block';
+
+  const btn = document.getElementById('btn-complete');
+  btn.textContent = '✓ Finalize & Send to Pharmacy';
+};
 
 // ── Patient search ────────────────────────────────
 let _searchTimeout = null;
@@ -586,6 +735,14 @@ function subscribeRealtime() {
 // ── Start consultation ────────────────────────────
 window.startConsultation = async function(visitId) {
   _activeVisitId = visitId;
+
+  // Session 127 -- reset review-draft linkage on every fresh open; openReviewDraft()
+  // re-sets these itself right after calling this function when opening via the
+  // Pending Review tab.
+  _activeDraftId   = null;
+  _activeDraftedBy = null;
+  document.getElementById('draft-review-panel').style.display = 'none';
+  document.getElementById('btn-complete').textContent = _isTrainee ? '📝 Submit for Review' : '✓ Complete & Send to Pharmacy';
 
   await supabase.from('visits').update({ status: 'in_progress' }).eq('id', visitId);
 
@@ -1291,28 +1448,26 @@ function _getDiffList() {
 }
 
 // ── Complete consultation ─────────────────────────
-document.getElementById('btn-complete').addEventListener('click', completeConsultation);
+// Session 127 -- both completeConsultation() (normal doctor / reviewing
+// professor) and submitForReview() (trainee) need the exact same ~90-field
+// collection off the consultation form; extracted so the trainee's draft and
+// the professor's own consultation are always built from one source, not two
+// copies that could quietly drift apart. Pure DOM reads except for the one
+// visits.update side effect (chief_complaint/pain_score), which is harmless
+// and correct to run regardless of who's submitting.
+async function _collectConsultationFields() {
+  const disposition = document.querySelector('input[name=disposition]:checked')?.value || 'opd';
+  const chiefComplaint = document.getElementById('h-complaint').value.trim();
 
-async function completeConsultation() {
-  if (!_activeVisitId) return;
+  // chief_complaint and pain_score live in visits table, not consultation_notes
+  const painVal = document.getElementById('h-pain-score').value;
+  const visitUpd = { chief_complaint: chiefComplaint || undefined };
+  if (painVal !== '') visitUpd.pain_score = parseInt(painVal);
+  if (Object.keys(visitUpd).length) {
+    await supabase.from('visits').update(visitUpd).eq('id', _activeVisitId);
+  }
 
-  const btn = document.getElementById('btn-complete');
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
-
-  try {
-    const disposition = document.querySelector('input[name=disposition]:checked')?.value || 'opd';
-    const chiefComplaint = document.getElementById('h-complaint').value.trim();
-
-    // chief_complaint and pain_score live in visits table, not consultation_notes
-    const painVal = document.getElementById('h-pain-score').value;
-    const visitUpd = { chief_complaint: chiefComplaint || undefined };
-    if (painVal !== '') visitUpd.pain_score = parseInt(painVal);
-    if (Object.keys(visitUpd).length) {
-      await supabase.from('visits').update(visitUpd).eq('id', _activeVisitId);
-    }
-
-    const notes = {
+  const notes = {
       // History
       duration:            document.getElementById('h-duration').value.trim(),
       severity:            document.getElementById('h-severity').value,
@@ -1446,6 +1601,32 @@ async function completeConsultation() {
     const ogData  = collectObsGynData();
     if (ogData)  notes.proforma_data = { ...(notes.proforma_data || {}), obsgyn_exam: ogData };
 
+  return { notes, disposition };
+}
+
+document.getElementById('btn-complete').addEventListener('click', () => {
+  // Session 127 -- a trainee never has finalize authority, regardless of
+  // whether this visit came from their own department queue or (in principle)
+  // anywhere else; everyone else keeps the exact existing behaviour.
+  (_isTrainee ? submitForReview() : completeConsultation());
+});
+
+async function completeConsultation() {
+  if (!_activeVisitId) return;
+
+  const btn = document.getElementById('btn-complete');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    const { notes, disposition } = await _collectConsultationFields();
+
+    // Session 127 -- finalizing a trainee's draft credits the original
+    // author permanently, even though this consultation_notes row is a brand
+    // new one written by the reviewing doctor (v1 deliberately doesn't hydrate
+    // the trainee's fields into this form -- see openReviewDraft()).
+    if (_activeDraftId) notes.drafted_by = _activeDraftedBy;
+
     // Save to consultation_notes
     const { error: cnErr } = await supabase.from('consultation_notes').insert({
       visit_id:  _activeVisitId,
@@ -1456,6 +1637,18 @@ async function completeConsultation() {
     if (cnErr) {
       console.error('consultation_notes error — message:', cnErr.message, '| details:', cnErr.details, '| hint:', cnErr.hint, '| code:', cnErr.code);
       throw cnErr;
+    }
+
+    // Session 127 -- close out the original draft this consultation reviewed
+    // (so it stops showing in Pending Review) and hand the lab orders the
+    // trainee already placed for this visit over to the lab/reception, now
+    // under the finalizing doctor's sign-off.
+    if (_activeDraftId) {
+      await supabase.from('consultation_notes')
+        .update({ review_status: 'finalized', finalized_by: userId }).eq('id', _activeDraftId);
+      await supabase.from('lab_orders')
+        .update({ review_status: 'finalized', finalized_by: userId })
+        .eq('visit_id', _activeVisitId).eq('review_status', 'pending_review');
     }
 
     // Create prescription record for pharmacy
@@ -1573,6 +1766,45 @@ async function completeConsultation() {
     _toast(safeErrorMessage(err, 'Error saving consultation. Please try again.'), 'error');
     btn.disabled = false;
     btn.textContent = '✓ Complete & Send to Pharmacy';
+  }
+}
+
+// Session 127 -- the trainee's equivalent of completeConsultation(): saves the
+// same consultation form, but only ever as a pending_review draft. Deliberately
+// does NOT mark the visit completed, create the prescription/education records,
+// raise referrals, write the audit log entry, or fire ABDM care-context creation
+// -- all of that is a real clinical/legal action that only happens once a
+// supervising doctor actually finalizes it (see completeConsultation()'s
+// _activeDraftId branch). Medicines/labs the trainee entered are still visible
+// to the reviewing doctor via the draft summary panel in openReviewDraft().
+async function submitForReview() {
+  if (!_activeVisitId) return;
+
+  const btn = document.getElementById('btn-complete');
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
+
+  try {
+    const { notes } = await _collectConsultationFields();
+
+    const { error } = await supabase.from('consultation_notes').insert({
+      visit_id:      _activeVisitId,
+      tenant_id:     tenantId,
+      doctor_id:     userId,
+      drafted_by:    userId,
+      review_status: 'pending_review',
+      ...notes,
+    });
+    if (error) throw error;
+
+    _toast(`${_activePatient?.name} — submitted for Professor review.`, 'info');
+    _closeConsult();
+    loadQueue();
+  } catch (err) {
+    console.error('submitForReview caught:', err?.message, err?.details, err?.hint);
+    _toast(safeErrorMessage(err, 'Error submitting draft. Please try again.'), 'error');
+    btn.disabled = false;
+    btn.textContent = '📝 Submit for Review';
   }
 }
 
@@ -2930,6 +3162,10 @@ function _closeConsult() {
   _activeVisit      = null;
   _activeNcismCode  = null;
   _activeReferralId = null;
+  _activeDraftId    = null;
+  _activeDraftedBy  = null;
+  document.getElementById('draft-review-panel').style.display = 'none';
+  document.getElementById('btn-complete').textContent = _isTrainee ? '📝 Submit for Review' : '✓ Complete & Send to Pharmacy';
   document.getElementById('ref-banner').style.display = 'none';
   document.getElementById('tab-btn-proforma').style.display  = 'none';
   document.getElementById('tab-btn-visha').style.display      = 'none';
@@ -3662,6 +3898,11 @@ window.submitLabOrder = async function() {
   // all (see markSampleCollected there); 'waived' is the emergency/STAT bypass,
   // set explicitly here rather than inferred from priority, since a STAT test
   // that's still fully payable shouldn't automatically skip the payment step.
+  // Session 127 -- a trainee's lab order stays invisible to lab.js/reception's
+  // Lab Bills panel (both now also check review_status) until the supervising
+  // doctor finalizes the consultation, even though it's billed immediately
+  // below same as any other order -- matches "no draft order reaches the
+  // payment counter/lab until the professor signs off."
   const { data: order, error: oErr } = await supabase.from('lab_orders').insert({
     tenant_id:  tenantId,
     visit_id:   _activeVisitId,
@@ -3670,6 +3911,8 @@ window.submitLabOrder = async function() {
     clinical_notes: clinicalNotes,
     ordered_by: profile.id,
     payment_status: bypassPayment ? 'waived' : 'pending',
+    drafted_by: _isTrainee ? profile.id : null,
+    review_status: _isTrainee ? 'pending_review' : 'finalized',
   }).select('id').single();
   if (oErr) { alert('Error creating order: ' + oErr.message); return; }
 

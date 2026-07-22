@@ -164,6 +164,10 @@ async function loadOrders() {
     .select(`*, visits(patients(id,name,age,gender,phone,abha_number)), profiles!ordered_by(full_name), lab_order_items(id,test_name,test_category,panel_label,result_value,is_abnormal,is_critical)`)
     .eq('tenant_id', tenantId)
     .eq('order_date', date)
+    // Session 127 -- a trainee doctor's draft order (review_status='pending_review')
+    // stays invisible here until the supervising doctor finalizes it; existing/
+    // normal orders default to 'finalized' so this is fully backward compatible.
+    .eq('review_status', 'finalized')
     .order('priority', { ascending: false }) // stat > urgent > routine
     .order('created_at');
 

@@ -2897,6 +2897,9 @@ async function loadPendingLabBills() {
     .from('lab_orders')
     .select('id, priority, payment_status, created_at, visits(token_number, patients(name)), lab_order_items(test_name)')
     .eq('tenant_id', tenantId)
+    // Session 127 -- a trainee doctor's still-unreviewed draft order shouldn't
+    // reach the payment counter at all until a supervising doctor finalizes it.
+    .eq('review_status', 'finalized')
     .in('payment_status', ['pending', 'waived']);
   if (error) { console.warn('[reception] loadPendingLabBills:', error.message); return; }
 

@@ -27,6 +27,7 @@ export const ROLES = {
   DIET_STAFF:      'diet_staff',
   MRD_STAFF:       'mrd_staff',
   NURSE_MANAGER:   'nurse_manager',
+  TRAINEE_DOCTOR:  'trainee_doctor',
 };
 
 // ── Where each role lands after login ──
@@ -48,6 +49,7 @@ export const ROLE_HOME = {
   diet_staff:      'palha-diet.html',
   mrd_staff:       'mrd.html',
   nurse_manager:   'nursing-admin.html',
+  trainee_doctor:  'doctor.html',
 };
 
 // ── Roles required to enroll in MFA (CERT-In §4.1 — privileged/sensitive accounts) ──

@@ -707,6 +707,11 @@ const DESIG_ROLE_DEFAULT = {
   medical_director:'dept_admin', principal:'dept_admin',
   medical_superintendent:'doctor', deputy_medical_superintendent:'doctor',
   resident_medical_officer:'doctor', emergency_medical_officer:'doctor', general_duty_medical_officer:'doctor',
+  // Session 127: PG/Intern positions now get their own real login (Trainee
+  // Doctor role) instead of no login access at all -- NCISM requires every
+  // PG/intern's clinical activity be individually logged, which a shared
+  // login under a supervising doctor's account would make impossible.
+  pg_scholar:'trainee_doctor', intern:'trainee_doctor',
   administrative_officer:'dept_admin', opd_incharge:'dept_admin',
   // Session 112: Nursing Superintendent/Deputy are managerial positions (NCISM lists them
   // under the Administration zone, Sch XX/7-8, not the clinical ward zones) -- they get
@@ -1561,7 +1566,7 @@ async function _renderNcismStaffing() {
 // (e.g. a Deputy Medical Superintendent who should get dept_admin access
 // instead of the plain doctor default). DESIG_ROLE_DEFAULT still supplies the
 // pre-selected default so the common case needs no extra click.
-const INVITE_ROLES = ['doctor','receptionist','pharmacist','nurse','nurse_manager','lab_tech',
+const INVITE_ROLES = ['doctor','trainee_doctor','receptionist','pharmacist','nurse','nurse_manager','lab_tech',
   'therapist','accountant','cashier','finance_manager','student','diet_staff','mrd_staff','dept_admin'];
 
 // Apex admin-zone designations whose dept_admin option shows their own title
@@ -4877,7 +4882,7 @@ async function _sumToday(table,col){
   }catch{return 0;}
 }
 function _fmt(n){if(!n)return'₹0';if(n>=100000)return'₹'+(n/100000).toFixed(1)+'L';if(n>=1000)return'₹'+(n/1000).toFixed(1)+'K';return'₹'+Math.round(n);}
-function _roleLabel(r){return{super_admin:'Super Admin',dept_admin:'Dept. Admin',doctor:'Doctor',receptionist:'Receptionist',pharmacist:'Pharmacist',nurse:'Nurse',nurse_manager:'Nurse Manager',lab_tech:'Lab Technician',accountant:'Accountant',cashier:'Cashier',finance_manager:'Finance Manager',therapist:'Therapist',student:'Student',diet_staff:'Diet / Pathya Staff',mrd_staff:'Medical Records Staff'}[r]||r;}
+function _roleLabel(r){return{super_admin:'Super Admin',dept_admin:'Dept. Admin',doctor:'Doctor',trainee_doctor:'Trainee Doctor (PG/Intern)',receptionist:'Receptionist',pharmacist:'Pharmacist',nurse:'Nurse',nurse_manager:'Nurse Manager',lab_tech:'Lab Technician',accountant:'Accountant',cashier:'Cashier',finance_manager:'Finance Manager',therapist:'Therapist',student:'Student',diet_staff:'Diet / Pathya Staff',mrd_staff:'Medical Records Staff'}[r]||r;}
 function _tenantLabel(t){return{clinic:'Clinic',hospital:'Hospital',teaching_hospital:'Teaching Hospital',pk_center:'PK Centre',dispensary:'Dispensary',college:'Ayurveda College',pharma:'Pharmaceutical Co.',supplier:'Supplier',dealer:'Dealer',journal:'Journal'}[t]||'Healthcare';}
 function _relDate(iso){if(!iso)return'—';const d=Math.floor((Date.now()-new Date(iso))/60000);if(d<60)return d+'m ago';if(d<1440)return Math.floor(d/60)+'h ago';return Math.floor(d/1440)+'d ago';}
 function _esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
