@@ -396,6 +396,113 @@ window.loadAccounts = async function() {
 };
 
 // ────────────────────────────────────────────────
+// SECTION HR — APPROVALS (Phase 4, Session 122)
+// Medical Director/Principal/Medical Superintendent-initiated structural
+// changes (staff delete, department/OPD create/deactivate) are blocked at
+// the database level (a trigger on departments/opds, and a caller-designation
+// check inside reject-staff) and land here instead. Real "who can decide"
+// enforcement lives entirely in the decide_approval() RPC -- this panel's own
+// role check below is only a display hint (hide buttons that would fail).
+// ────────────────────────────────────────────────
+const APPROVAL_ACTION_LABELS = {
+  staff_delete:            'Delete staff account',
+  department_create:       'Create department',
+  department_deactivate:   'Deactivate department',
+  opd_create:               'Create OPD',
+  opd_deactivate:            'Deactivate OPD',
+};
+
+function _approvalSummary(row){
+  const p = row.payload || {};
+  switch(row.action_type){
+    case 'staff_delete':          return _esc(p.staff_name || 'Unknown staff member');
+    case 'department_create':     return _esc(p.name || '—') + (p.ncism_code ? ' ('+_esc(p.ncism_code)+')' : '');
+    case 'department_deactivate': return _esc(p.department_name || p.department_id || '—');
+    case 'opd_create':            return _esc(p.name || '—');
+    case 'opd_deactivate':        return _esc(p.opd_name || p.opd_id || '—');
+    default: return '—';
+  }
+}
+
+window.loadPendingDecisions = async function(){
+  const wrap = document.getElementById('pending-decisions-body');
+  const { data, error } = await supabase.from('pending_approvals')
+    .select('id,action_type,payload,reason,status,requested_at,decided_at,decision_notes,requester:profiles!requested_by(full_name,designation)')
+    .eq('tenant_id', tenantId).order('requested_at', { ascending: false }).limit(50);
+
+  if (error) { wrap.innerHTML = '<div class="empty"><div class="empty-ttl">'+_esc(safeErrorMessage(error,'Could not load requests.'))+'</div></div>'; return; }
+  if (!data || !data.length) { wrap.innerHTML = '<div class="empty"><div class="empty-ico">✅</div><div class="empty-ttl">No approval requests yet</div></div>'; return; }
+
+  // Client-side hint only (see banner comment above) -- whether THIS viewer is
+  // a plausible decider for a request from a given requester designation.
+  const iAmSuperAdmin = role === 'super_admin';
+  const iAmDirectorTier = ['medical_director','principal'].includes(profile?.designation)
+    && (role === 'dept_admin' || profile?.secondary_role === 'dept_admin');
+
+  wrap.innerHTML = data.map(row => {
+    const requesterDesig = row.requester?.designation;
+    const iCanDecide = iAmSuperAdmin || (requesterDesig === 'medical_superintendent' && iAmDirectorTier);
+    const statusChip = row.status === 'pending' ? '<span class="chip r">Pending</span>'
+      : row.status === 'approved' ? '<span class="chip g">Approved'+(row.action_type==='staff_delete'?' — awaiting deletion':'')+'</span>'
+      : row.status === 'executed' ? '<span class="chip g">Executed</span>'
+      : '<span class="chip grey">Rejected</span>';
+    const actionsHtml = (row.status==='pending' && iCanDecide)
+      ? `<button class="btn-outline" style="font-size:11px;padding:4px 10px" data-onclick="decidePendingApproval" data-onclick-a0="${_esc(row.id)}" data-onclick-a1="@true" data-onclick-a2="${_esc(row.action_type)}">✅ Approve</button>
+         <button class="btn-outline" style="font-size:11px;padding:4px 10px;color:#c0392b;border-color:#e0b0b0" data-onclick="decidePendingApproval" data-onclick-a0="${_esc(row.id)}" data-onclick-a1="@false" data-onclick-a2="${_esc(row.action_type)}">✕ Reject</button>`
+      : (row.status==='approved' && row.action_type==='staff_delete' && iAmSuperAdmin)
+      ? `<button class="btn-outline" style="font-size:11px;padding:4px 10px;color:#c0392b;border-color:#e0b0b0" data-onclick="finishStaffDeletion" data-onclick-a0="${_esc(row.id)}" data-onclick-a1="${_esc(row.payload?.staff_id||'')}">🗑 Finish Deletion</button>`
+      : '—';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f0f4f2;flex-wrap:wrap">
+      <div>
+        <div style="font-size:13px;font-weight:600">${_esc(APPROVAL_ACTION_LABELS[row.action_type]||row.action_type)}: ${_approvalSummary(row)}</div>
+        <div style="font-size:11.5px;color:var(--text-muted)">Requested by ${_esc(row.requester?.full_name||'—')} (${_esc(DESIG_MAP[requesterDesig]?.l||requesterDesig||'—')}) · ${_relDate(row.requested_at)}${row.reason?' · "'+_esc(row.reason)+'"':''}</div>
+        ${row.decision_notes ? `<div style="font-size:11.5px;color:var(--text-muted)">Decision note: ${_esc(row.decision_notes)}</div>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">${statusChip}${actionsHtml}</div>
+    </div>`;
+  }).join('');
+};
+
+window.decidePendingApproval = async function(requestId, approve, actionType){
+  const notes = approve ? null : (prompt('Reason for rejecting (optional):') || null);
+  const { error } = await supabase.rpc('decide_approval', { p_request_id: requestId, p_approve: approve, p_notes: notes });
+  if (error) { _toast(safeErrorMessage(error, 'Could not decide this request.'), true); return; }
+
+  if (approve && actionType === 'staff_delete') {
+    // Two-step for staff deletion (see migration comment) -- immediately follow
+    // through so it reads as one action from the approver's side.
+    const { data:row } = await supabase.from('pending_approvals').select('payload').eq('id', requestId).single();
+    await _finishStaffDeletionInternal(requestId, row?.payload?.staff_id);
+  } else {
+    _toast(approve ? 'Approved.' : 'Rejected.');
+  }
+  window.loadPendingDecisions();
+};
+
+window.finishStaffDeletion = async function(requestId, staffId){
+  await _finishStaffDeletionInternal(requestId, staffId);
+  window.loadPendingDecisions();
+};
+
+async function _finishStaffDeletionInternal(requestId, staffId){
+  if (!staffId) { _toast('Approved, but the staff record is missing — nothing to delete.', true); return; }
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) { _toast('Session expired — please log in again.', true); return; }
+  try {
+    const res = await fetch('https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/reject-staff', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ targetUserId: staffId, approvalRequestId: requestId }),
+    });
+    const result = await res.json();
+    if (!res.ok) { _toast(result.error || 'Approved, but deletion failed.', true); return; }
+    _toast('Approved and deleted.');
+  } catch (err) {
+    _toast(safeErrorMessage(err, 'Approved, but deletion failed.'), true);
+  }
+}
+
+// ────────────────────────────────────────────────
 // SECTION HR — LOGIN ACCESS (Staff Account Management)
 // ────────────────────────────────────────────────
 window.loadStaffAccess = async function() {
@@ -458,6 +565,15 @@ window.loadStaffAccess = async function() {
   document.querySelectorAll('.btn-reject[data-id]').forEach(btn=>{
     btn.addEventListener('click',async()=>{
       const id=btn.dataset.id; btn.disabled=true;
+      if (_isGatedForApproval()) {
+        const name = btn.closest('tr')?.querySelector('strong')?.textContent || 'this staff member';
+        const { error } = await supabase.rpc('request_approval', {
+          p_action_type: 'staff_delete', p_payload: { staff_id: id, staff_name: name }, p_reason: null,
+        });
+        if (error) { _toast(safeErrorMessage(error, 'Could not submit request.'), true); btn.disabled=false; return; }
+        _toast('Submitted for approval.'); btn.disabled=false;
+        return;
+      }
       const{error}=await _rejectAndDeleteStaff(id);
       if(error){_toast(error,true);btn.disabled=false;}
       else{document.getElementById('arow-'+id)?.remove();_toast('Request rejected and removed.');window.loadStaffAccess();loadStats();}
@@ -658,11 +774,13 @@ function _hrSub(sub){
   document.getElementById('hr-plan-panel').style.display       = sub==='plan'      ? '' : 'none';
   document.getElementById('hr-access-panel').style.display     = sub==='access'    ? '' : 'none';
   document.getElementById('hr-dept-panel').style.display       = sub==='dept'      ? '' : 'none';
+  document.getElementById('hr-decisions-panel').style.display  = sub==='decisions' ? '' : 'none';
   document.getElementById('hr-seed-bar').style.display         = (sub==='ncism'||sub==='dept') ? 'flex' : 'none';
   if (sub === 'ncism')   _renderNcismStaffing();
   if (sub === 'plan')    _renderStaffingPlan();
   if (sub === 'access')  window.loadStaffAccess();
   if (sub === 'dept')    _renderDeptStaff();
+  if (sub === 'decisions') window.loadPendingDecisions();
 }
 
 // ── NCISM Schedule XX — Hospital Staff Requirements ──────────────────
@@ -2236,7 +2354,23 @@ window.unscopeFromDepartment = async function(staffId, staffName){
 // from the All Staff list -- for when "Reject" already happened elsewhere, or a
 // request has sat pending too long and the admin just wants it gone. Same
 // full-delete Edge Function as the Login Access reject button.
+// Session 122 -- Medical Director/Principal/Medical Superintendent can't
+// delete a staff account directly (blocked server-side inside reject-staff
+// itself, not just here) -- they submit a request instead. Everyone else's
+// delete is unchanged.
+const GATED_APPROVAL_DESIGS = ['medical_director','principal','medical_superintendent'];
+function _isGatedForApproval(){ return GATED_APPROVAL_DESIGS.includes(profile?.designation); }
+
 window.deleteRejectedStaff = async function(staffId, staffName){
+  if (_isGatedForApproval()) {
+    if(!confirm(`Submit a request to delete ${staffName||'this staff member'}? This needs sign-off before it takes effect.`)) return;
+    const { error } = await supabase.rpc('request_approval', {
+      p_action_type: 'staff_delete', p_payload: { staff_id: staffId, staff_name: staffName }, p_reason: null,
+    });
+    if (error) { _toast(safeErrorMessage(error, 'Could not submit request.'), true); return; }
+    _toast('Submitted for approval.');
+    return;
+  }
   if(!confirm(`Permanently delete ${staffName||'this'}'s login request? This removes their account entirely and cannot be undone.`)) return;
   const{error}=await _rejectAndDeleteStaff(staffId);
   if(error){_toast(error,true);return;}

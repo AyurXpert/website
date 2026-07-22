@@ -1,4 +1,4 @@
-import { requireAuth, getCurrentTenantId } from '../core/auth.js';
+import { requireAuth, getCurrentTenantId, getCurrentProfile } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { safeErrorMessage } from '../utils/errors.js';
@@ -10,6 +10,20 @@ initNavbar();
 wireDelegatedEvents();
 
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+// Session 122 (Phase 4) -- Medical Director/Principal/Medical Superintendent
+// can't create/deactivate an OPD directly (also blocked server-side by a
+// trigger on the opds table) -- they submit a request instead via
+// request_approval(), reviewed in admin.js's HR > Approvals tab.
+const GATED_APPROVAL_DESIGS = ['medical_director','principal','medical_superintendent'];
+const _profile = getCurrentProfile();
+function _isGatedForApproval(){ return GATED_APPROVAL_DESIGS.includes(_profile?.designation); }
+async function _submitApproval(actionType, payload, reason){
+  const { error } = await supabase.rpc('request_approval', { p_action_type: actionType, p_payload: payload, p_reason: reason || null });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not submit request.')); return false; }
+  _alert('success', 'Submitted for approval — a Super Admin will review this.');
+  return true;
+}
 
 const tenantId = getCurrentTenantId();
 let _opds        = [];
@@ -231,6 +245,12 @@ function renderOpdList() {
 
 // ── Toggle OPD active ──────────────────────────────
 async function toggleOpdActive(opdId, currentlyActive) {
+  if (currentlyActive && _isGatedForApproval()) {
+    const opd = _opds.find(o => o.id === opdId);
+    await _submitApproval('opd_deactivate', { opd_id: opdId, opd_name: opd?.name || null }, `Deactivate OPD "${opd?.name||''}"`);
+    return;
+  }
+
   const { error } = await supabase
     .from('opds')
     .update({ is_active: !currentlyActive })
@@ -278,6 +298,17 @@ document.getElementById('btn-save-opd').addEventListener('click', async () => {
 
   const btn = document.getElementById('btn-save-opd');
   btn.disabled = true; btn.textContent = 'Saving…';
+
+  if (_isGatedForApproval()) {
+    const ok = await _submitApproval('opd_create', {
+      name, ncism_code: ncism || null, description: desc || null,
+      is_specialty_clinic: isSpecialty, parent_department_id: isSpecialty ? parentDept : null,
+      specialty_proforma_key: isSpecialty && proformaKey ? proformaKey : null,
+    }, `Create OPD "${name}"`);
+    btn.disabled = false; btn.textContent = 'Save OPD';
+    if (ok) _resetOpdForm();
+    return;
+  }
 
   const { error } = await supabase.from('opds').insert({
     tenant_id:             tenantId,

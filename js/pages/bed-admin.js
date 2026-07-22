@@ -1,4 +1,4 @@
-import { requireAuth, getCurrentTenantId } from '../core/auth.js';
+import { requireAuth, getCurrentTenantId, getCurrentProfile } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { safeErrorMessage } from '../utils/errors.js';
@@ -10,6 +10,16 @@ wireDelegatedEvents();
 await requireAuth(['super_admin', 'dept_admin']);
 initNavbar();
 const tenantId = getCurrentTenantId();
+
+// Session 122 (Phase 4) -- Medical Director/Principal/Medical Superintendent
+// can't create a department directly (blocked server-side by a trigger on
+// departments too) -- they submit a request instead. Deleting a department
+// is a hard delete (not a soft deactivate) and has deliberately been left
+// with NO request path -- too destructive to queue; only a non-gated
+// dept_admin/super_admin can do it, same as today.
+const GATED_APPROVAL_DESIGS = ['medical_director','principal','medical_superintendent'];
+const _profile = getCurrentProfile();
+function _isGatedForApproval(){ return GATED_APPROVAL_DESIGS.includes(_profile?.designation); }
 
 // This file's original long-form codes (KAYACHIKITSA, ...) — still the real convention
 // for WASA1631/Srishti's existing department data. SDM (and any future tenant, since
@@ -1642,6 +1652,18 @@ window.saveDept = async function() {
     is_active:             isActive,
   };
 
+  if (!id && _isGatedForApproval()) {
+    const { tenant_id, ...requestPayload } = payload; // tenant is derived server-side, not trusted from the client
+    const { error } = await supabase.rpc('request_approval', {
+      p_action_type: 'department_create', p_payload: requestPayload, p_reason: `Create department "${name}"`,
+    });
+    btn.disabled = false; btn.textContent = 'Save Department';
+    if (error) { _alert('error', safeErrorMessage(error, 'Could not submit request.')); return; }
+    closeDeptDrawer();
+    _alert('success', 'Submitted for approval — a Super Admin will review this.');
+    return;
+  }
+
   let error;
   if (id) {
     ({ error } = await supabase.from('departments').update(payload).eq('id', id));
@@ -1659,6 +1681,14 @@ window.saveDept = async function() {
 };
 
 window.deleteDept = async function(id) {
+  // Deliberately no approval-request path for department deletion (too
+  // destructive to queue) -- a gated designation simply can't do this at
+  // all, same as e.g. "Promote to Admin" being super_admin-only with no
+  // request alternative. Ask a non-gated dept_admin/super_admin instead.
+  if (_isGatedForApproval()) {
+    _alert('error', 'Deleting a department isn\'t available to your role — please ask a Super Admin.');
+    return;
+  }
   const dept = _depts.find(d => d.id === id);
   const bedCount = _beds.filter(b => b.department_id === id).length;
   let msg = `Delete department "${dept?.name}"?`;
