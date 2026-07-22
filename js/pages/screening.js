@@ -44,6 +44,59 @@ if (!screenOpd) {
   await loadQueue();
 }
 
+// ── Chief-complaint → specialty auto-suggestion ────────────────────────────────
+// Keyed by ncism_code (not department id/name), so this works regardless of which
+// OPDs/departments a given tenant actually has seeded -- a code with no matching
+// department here just means no suggestion fires, exactly like any complaint text
+// that doesn't match a keyword. Never blocks or replaces manual selection; the
+// nurse can always change it, matching the screening-review-and-confirm model.
+const CC_KEYWORD_MAP = {
+  KAY: ['fever','cough','cold','diabetes','sugar','hypertension','blood pressure','joint pain','arthritis','weakness','fatigue','tired','indigestion','acidity','gastritis','constipation','headache','migraine','asthma','breathless','chest pain','body ache','giddiness','vomiting','loose motion','diarrhea'],
+  PK:  ['panchakarma','detox','back pain','spondylosis','sciatica','stiffness','stress','obesity','weight loss','rejuvenation','slip disc','cervical spondylosis','rasayana'],
+  SHAL:['wound','injury','piles','hemorrhoids','fistula','fissure','hernia','swelling','lump','abscess','ulcer','burn','fracture','cyst'],
+  SHAK:['eye pain','vision','ear pain','nose block','sore throat','sinus','tonsil','hearing loss','watering eye','redness in eye','nasal block'],
+  KAU: ['child','infant','baby','pediatric','paediatric','vaccination','growth delay'],
+  SW:  ['wellness','yoga','general checkup','health checkup','immunity','lifestyle','diet consultation'],
+  PST: ['pregnancy','menstrual','periods','gynec','pcod','pcos','infertility','delivery','antenatal','menopause','leucorrhea','white discharge'],
+  AGD: ['poisoning','snake bite','insect bite','toxicity','drug overdose'],
+};
+
+let _deptManuallyOverridden = false;
+
+function _suggestDeptCode(text) {
+  const t = (text || '').toLowerCase().trim();
+  if (!t) return null;
+  for (const [code, keywords] of Object.entries(CC_KEYWORD_MAP)) {
+    if (keywords.some(k => t.includes(k))) return code;
+  }
+  return null;
+}
+
+function _autoSuggestDept() {
+  if (_deptManuallyOverridden) return;
+  const code = _suggestDeptCode(document.getElementById('scr-cc').value);
+  const hint = document.getElementById('scr-dept-suggest-hint');
+  if (!code) { if (hint) hint.style.display = 'none'; return; }
+  const dept = _departments.find(d => d.ncism_code === code);
+  if (!dept) { if (hint) hint.style.display = 'none'; return; }
+  const sel = document.getElementById('scr-dept');
+  if (sel.value !== dept.id) {
+    sel.value = dept.id;
+    onDeptChange();
+  }
+  if (hint) {
+    hint.textContent = `💡 Suggested "${dept.name}" based on the complaint — confirm or change if needed.`;
+    hint.style.display = '';
+  }
+}
+
+document.getElementById('scr-cc').addEventListener('input', _autoSuggestDept);
+document.getElementById('scr-dept').addEventListener('change', () => {
+  _deptManuallyOverridden = true;
+  const hint = document.getElementById('scr-dept-suggest-hint');
+  if (hint) hint.style.display = 'none';
+});
+
 // ── Load departments for routing ──────────────────────────────────────────────
 async function loadDepartments() {
   const { data } = await supabase
@@ -160,6 +213,8 @@ window.selectVisit = function(visitId) {
   document.getElementById('scr-dept').value         = '';
   document.getElementById('scr-instructions').value = '';
   document.getElementById('btn-route').disabled     = true;
+  document.getElementById('scr-dept-suggest-hint').style.display = 'none';
+  _deptManuallyOverridden = false;
 
   // Show form
   document.getElementById('form-empty').style.display    = 'none';
@@ -167,6 +222,7 @@ window.selectVisit = function(visitId) {
   document.getElementById('alert').classList.remove('show');
 
   _renderQueue();  // re-render to highlight active
+  _autoSuggestDept();  // pre-fill from any complaint reception already captured
 };
 
 window.clearSelection = function() {
