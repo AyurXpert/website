@@ -3451,11 +3451,18 @@ const LAB_CATALOG = {
   imaging_ecg:['X-Ray Chest (PA view)','X-Ray (specify area)','USG Abdomen & Pelvis','USG Pelvis (Obstetric)','ECG (12-lead)','ECHO (Echocardiography)'],
   other:['Coagulation Profile (PT/INR/aPTT)','PAP Smear','FNAC (specify site)','Biopsy (specify site)','Procalcitonin (PCT)'],
 };
-let _labSelected = new Set();
+// Session 124 Step 2 -- Map instead of Set: value tracks which panel (if any)
+// a test was added via, so lab.js's queue can show a clean "CBC" grouping
+// and later billing can reconstruct "was a complete panel ordered" without
+// re-deriving intent from test names. Clicking a panel button (re)tags all
+// its tests with that panel's label; manually toggling one checkbox breaks
+// its panel association (null = individually selected) since that's a
+// deliberate choice on that one test, separate from the bundle.
+let _labSelected = new Map();
 
 function openLabOrderModal() {
   if (!_activePatient) { alert('Select a patient first.'); return; }
-  _labSelected = new Set();
+  _labSelected = new Map();
   // Build panels
   document.getElementById('lo-panels').innerHTML = LAB_PANELS.map(p =>
     `<button data-onclick="_selectPanelFromAttr" data-onclick-a0="${_esc(JSON.stringify(p.tests))}" data-onclick-a1="${_esc(p.label)}"
@@ -3478,7 +3485,7 @@ function openLabOrderModal() {
 }
 
 window.selectPanel = function(tests, label) {
-  tests.forEach(t => _labSelected.add(t));
+  tests.forEach(t => _labSelected.set(t, label));
   // Check corresponding checkboxes
   document.querySelectorAll('#lo-cats input[type=checkbox]').forEach(cb => {
     if (_labSelected.has(cb.value)) cb.checked = true;
@@ -3487,7 +3494,10 @@ window.selectPanel = function(tests, label) {
 };
 
 window.toggleLabTest = function(name, checked) {
-  checked ? _labSelected.add(name) : _labSelected.delete(name);
+  // A manual check always means "individually selected" (null panel), even
+  // if this test also belongs to a panel that was clicked earlier -- an
+  // explicit action on this one test overrides whatever bundle it came from.
+  checked ? _labSelected.set(name, null) : _labSelected.delete(name);
   updateLabCount();
 };
 
@@ -3503,26 +3513,29 @@ window.submitLabOrder = async function() {
   if (_labSelected.size === 0) { alert('Select at least one test.'); return; }
   if (!_activePatient) return;
 
-  // Create lab_orders record
+  // Create lab_orders record -- lab_orders has no patient_id column at all
+  // (confirmed live, zero rows exist in the whole platform); it routes
+  // through visit_id -> visits.patient_id only, matching how lab.js already
+  // reads it back. Sending patient_id here made every submission fail with
+  // a schema error -- lab ordering from doctor.html has never worked.
   const { data: order, error: oErr } = await supabase.from('lab_orders').insert({
     tenant_id:  tenantId,
-    patient_id: _activePatient.id,
     visit_id:   _activeVisitId,
     status:     'pending',
   }).select('id').single();
   if (oErr) { alert('Error creating order: ' + oErr.message); return; }
 
   // Create lab_order_items
-  const items = [..._labSelected].map(name => {
+  const items = [..._labSelected.entries()].map(([name, panelLabel]) => {
     const cat = Object.entries(LAB_CATALOG).find(([c,ts]) => ts.includes(name))?.[0] || 'other';
-    return { order_id:order.id, tenant_id:tenantId, test_name:name, test_category:cat };
+    return { order_id:order.id, tenant_id:tenantId, test_name:name, test_category:cat, panel_label: panelLabel };
   });
   const { error: iErr } = await supabase.from('lab_order_items').insert(items);
   if (iErr) { alert('Error adding tests: ' + iErr.message); return; }
 
   // Update as-inv-lab text field
   const existingText = document.getElementById('as-inv-lab').value.trim();
-  const newTests = [..._labSelected].join(', ');
+  const newTests = [..._labSelected.keys()].join(', ');
   document.getElementById('as-inv-lab').value = existingText ? existingText + ', ' + newTests : newTests;
 
   closeLabOrderModal();

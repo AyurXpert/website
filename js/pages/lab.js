@@ -161,7 +161,7 @@ async function loadOrders() {
   const date = getViewDate();
   const { data, error } = await supabase
     .from('lab_orders')
-    .select(`*, visits(patients(id,name,age,gender,phone,abha_number)), profiles!ordered_by(full_name), lab_order_items(id,test_name,test_category,result_value,is_abnormal,is_critical)`)
+    .select(`*, visits(patients(id,name,age,gender,phone,abha_number)), profiles!ordered_by(full_name), lab_order_items(id,test_name,test_category,panel_label,result_value,is_abnormal,is_critical)`)
     .eq('tenant_id', tenantId)
     .eq('order_date', date)
     .order('priority', { ascending: false }) // stat > urgent > routine
@@ -192,6 +192,21 @@ function updateStats() {
   document.getElementById('queue-count').textContent= _orders.length + ' orders';
 }
 
+// Session 124 Step 2 -- groups tests ordered via a panel button (doctor.js's
+// LAB_PANELS) into one label (e.g. "CBC") instead of listing all 5 test
+// names -- display convenience only, not a completeness check (a panel with
+// one test later removed still shows grouped here; billing time re-verifies
+// completeness independently, see Step 4).
+function _summarizeTests(items) {
+  const byPanel = {};
+  const individual = [];
+  (items || []).forEach(t => {
+    if (t.panel_label) (byPanel[t.panel_label] = byPanel[t.panel_label] || []).push(t);
+    else individual.push(t.test_name);
+  });
+  return [...Object.keys(byPanel), ...individual].join(', ');
+}
+
 // ── Queue rendering ───────────────────────────────────────────────────────────
 function renderQueue() {
   const q      = document.getElementById('q-search').value.toLowerCase();
@@ -204,7 +219,7 @@ function renderQueue() {
     list.innerHTML = `<div class="empty-queue">No orders</div>`; return;
   }
   list.innerHTML = filtered.map(o => {
-    const tests = (o.lab_order_items||[]).map(t => t.test_name).join(', ');
+    const tests = _summarizeTests(o.lab_order_items);
     const hasCritical = (o.lab_order_items||[]).some(t => t.is_critical);
     const isActive = _activeOrder?.id === o.id;
     return `<div class="order-item${isActive?' selected':''}" data-onclick="selectOrder" data-onclick-a0="${o.id}">
