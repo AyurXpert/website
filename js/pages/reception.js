@@ -6,6 +6,7 @@ import { logAudit } from '../core/auditLogger.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import {
   requestABHAOtp, enrollABHA,
   checkAndGenerateMobileOTP, verifyCommMobileOtp, finalizeAbhaEnrollment,
@@ -377,7 +378,7 @@ async function loadFees(opdId) {
     // to this exact OPD) is preferred when one has been manually created for it.
     const { data } = await supabase
       .from('fee_structures')
-      .select('fee_type, amount, opd_id')
+      .select('fee_type, amount, opd_id, promo_price, promo_valid_until')
       .eq('tenant_id', tenantId)
       .eq('category', 'opd')
       .eq('approval_status', 'active')
@@ -392,10 +393,10 @@ async function loadFees(opdId) {
       if (!byType[f.fee_type] || isSpecific) byType[f.fee_type] = f;
     });
 
-    if (byType.registration) document.getElementById('reg-fee').value = byType.registration.amount;
-    if (byType.consultation) document.getElementById('fee').value = byType.consultation.amount;
+    if (byType.registration) document.getElementById('reg-fee').value = getEffectivePrice(byType.registration);
+    if (byType.consultation) document.getElementById('fee').value = getEffectivePrice(byType.consultation);
     if (byType.on_request_surcharge) {
-      _surchargeDefault = parseFloat(byType.on_request_surcharge.amount) || 0;
+      _surchargeDefault = getEffectivePrice(byType.on_request_surcharge);
       document.getElementById('surcharge').value = _surchargeDefault;
     }
   }

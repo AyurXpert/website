@@ -5,6 +5,7 @@ import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { logAudit } from '../core/auditLogger.js';
+import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 
 requireAuth(['nurse','nurse_manager','super_admin','dept_admin','doctor']);
 initNavbar();
@@ -527,15 +528,16 @@ window.loadDischargeReconciliation = async function() {
   const newSessionRows = (sessions || []).filter(s => !stagedRefIds.has(s.id));
   if (newSessionRows.length) {
     const { data: feeRows } = await supabase.from('fee_structures')
-      .select('label, amount, gst_percent')
+      .select('label, amount, gst_percent, promo_price, promo_valid_until')
       .eq('tenant_id', tenantId).eq('category', 'procedure').eq('is_active', true);
     const inserts = newSessionRows.map(s => {
       const match = (feeRows || []).find(f => (f.label||'').toLowerCase().includes((s.therapy_name||'').toLowerCase().trim()) && s.therapy_name?.trim());
+      const price = match ? getEffectivePrice(match) : 0;
       return {
         tenant_id: tenantId, ipd_admission_id: admId, source: 'pk_session', source_ref_id: s.id,
         description: match ? s.therapy_name : `${s.therapy_name || 'PK Session'} (price not found — verify)`,
-        quantity: 1, unit_price: match?.amount || 0, gst_percent: match?.gst_percent ?? null,
-        amount: match?.amount || 0, status: 'pending', added_by: userId,
+        quantity: 1, unit_price: price, gst_percent: match?.gst_percent ?? null,
+        amount: price, status: 'pending', added_by: userId,
       };
     });
     const { data: inserted } = await supabase.from('ipd_stay_charges').insert(inserts).select('*');

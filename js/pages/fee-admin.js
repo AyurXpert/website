@@ -575,7 +575,10 @@ function renderTable() {
     const opdDeptLabel = _deptOrOpdLabel(f);
     const amount   = f.pricing_mode === 'tiered'
       ? _tieredAmountDisplay(f)
-      : `₹${parseFloat(f.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+      : `₹${parseFloat(f.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+        + (_hasActivePromo(f)
+            ? `<div class="fee-notes" style="color:#8a5a00">🎁 ₹${parseFloat(f.promo_price).toLocaleString('en-IN')} until ${new Date(f.promo_valid_until).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}</div>`
+            : '');
     const status   = f.approval_status || 'pending';
     const statusLabel = { pending:'Pending', dept_approved:'Dept. Approved', active:'Active', rejected:'Rejected' }[status] || status;
     const creator  = f.creator?.full_name || '—';
@@ -634,6 +637,13 @@ function buildActions(f) {
     }
     if (s === 'active') {
       btns += `<button class="act-btn act-reject" data-onclick="deactivateFee" data-onclick-a0="${f.id}">Deactivate</button>`;
+      // Session 125 -- promo pricing deliberately not offered on tiered
+      // (bed-category multiplier) fees for this first pass.
+      if (f.pricing_mode !== 'tiered') {
+        btns += _hasActivePromo(f)
+          ? `<button class="act-btn act-reject" data-onclick="clearPromo" data-onclick-a0="${f.id}">🎁 Clear Promo</button>`
+          : `<button class="act-btn act-edit" data-onclick="openPromoModal" data-onclick-a0="${f.id}">🎁 Set Promo</button>`;
+      }
     }
     if (s !== 'rejected' && s !== 'active') {
       btns += `<button class="act-btn act-reject" data-onclick="rejectFee" data-onclick-a0="${f.id}">✗ Reject</button>`;
@@ -671,6 +681,61 @@ window.deactivateFee = async function(id) {
     approved_by_super: null
   }).eq('id', id);
   toast('Fee deactivated.', 'success');
+  loadFees();
+};
+
+// ── Promo pricing (Session 125) ───────────────────
+// A promo is "active" purely by comparing dates client-side -- the real
+// auto-revert guarantee lives in js/modules/billing/effectivePrice.js,
+// which every billing consumer calls; this badge is just a display echo
+// of the same rule so fee-admin.html shows the truth.
+function _hasActivePromo(f) {
+  return !!(f.promo_valid_until && f.promo_price != null && new Date() < new Date(f.promo_valid_until));
+}
+
+window.openPromoModal = function(id) {
+  const f = _allFees.find(x => x.id === id);
+  if (!f) return;
+  document.getElementById('promo-fee-id').value = id;
+  document.getElementById('promo-fee-label').textContent = f.label + ' (currently ₹' + parseFloat(f.amount||0).toLocaleString('en-IN') + ')';
+  document.getElementById('promo-price').value = '';
+  document.getElementById('promo-until').value = '';
+  document.getElementById('promo-reason').value = '';
+  document.getElementById('promo-modal-overlay').classList.add('open');
+};
+
+window.closePromoModal = function() {
+  document.getElementById('promo-modal-overlay').classList.remove('open');
+};
+
+window.savePromo = async function() {
+  const id     = document.getElementById('promo-fee-id').value;
+  const price  = document.getElementById('promo-price').value;
+  const until  = document.getElementById('promo-until').value;
+  const reason = document.getElementById('promo-reason').value.trim();
+
+  if (price === '' || Number(price) < 0) { toast('Enter a valid promo price (0 or more).', 'error'); return; }
+  if (!until) { toast('Set an expiry date for the promo.', 'error'); return; }
+
+  const { error } = await supabase.from('fee_structures').update({
+    promo_price: Number(price),
+    promo_valid_until: new Date(until + 'T23:59:59').toISOString(),
+    promo_reason: reason || null,
+  }).eq('id', id);
+
+  if (error) { toast(safeErrorMessage(error, 'Could not set promo.'), 'error'); return; }
+  toast('Promo price set.', 'success');
+  closePromoModal();
+  loadFees();
+};
+
+window.clearPromo = async function(id) {
+  if (!confirm('Clear this promo? The fee will immediately go back to its normal price.')) return;
+  const { error } = await supabase.from('fee_structures').update({
+    promo_price: null, promo_valid_until: null, promo_reason: null,
+  }).eq('id', id);
+  if (error) { toast(safeErrorMessage(error, 'Could not clear promo.'), 'error'); return; }
+  toast('Promo cleared.', 'success');
   loadFees();
 };
 

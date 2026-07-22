@@ -7,6 +7,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType } from '../config/ncism.js';
 import { addOpdBillItem } from '../modules/billing/opdBillItems.js';
+import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'super_admin', 'dept_admin']);
@@ -3520,7 +3521,7 @@ function _computeLabBillingLines(labSelected, feeRows) {
     const bundleFeeLabel = PANEL_FEE_MAP[panelLabel];
     const bundleFee = bundleFeeLabel ? byLabel[bundleFeeLabel] : null;
     if (isComplete && bundleFee) {
-      lines.push({ description: bundleFee.label, price: Number(bundleFee.amount) || 0, gst_percent: Number(bundleFee.gst_percent) || 0 });
+      lines.push({ description: bundleFee.label, price: getEffectivePrice(bundleFee), gst_percent: Number(bundleFee.gst_percent) || 0 });
     } else {
       // Not a complete/priceable bundle -- fall back to individual pricing
       // for every test in this group, same path as never-tagged tests.
@@ -3531,7 +3532,7 @@ function _computeLabBillingLines(labSelected, feeRows) {
   for (const testName of individual) {
     const feeLabel = TEST_LABEL_OVERRIDES[testName] || testName;
     const fee = byLabel[feeLabel];
-    if (fee) lines.push({ description: fee.label, price: Number(fee.amount) || 0, gst_percent: Number(fee.gst_percent) || 0 });
+    if (fee) lines.push({ description: fee.label, price: getEffectivePrice(fee), gst_percent: Number(fee.gst_percent) || 0 });
     else unmatched.push(testName);
   }
 
@@ -3550,7 +3551,7 @@ async function _billLabOrder(labSelected) {
     if (!bill) return { billed: [], unmatched: [], noBill: true };
 
     const { data: feeRows } = await supabase.from('fee_structures')
-      .select('label,amount,gst_percent').eq('tenant_id', tenantId).eq('is_active', true).in('category', ['lab','radiology']);
+      .select('label,amount,gst_percent,promo_price,promo_valid_until').eq('tenant_id', tenantId).eq('is_active', true).in('category', ['lab','radiology']);
 
     const { lines, unmatched } = _computeLabBillingLines(labSelected, feeRows || []);
 

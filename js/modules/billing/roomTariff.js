@@ -5,11 +5,13 @@
 // row in fee_structures (category='ipd') before a bill can be generated for
 // that bed type -- simpler, more predictable code, at the cost of a one-time
 // admin setup task (see fee-admin.html -> Administration -> IPD Room Tariff).
+import { getEffectivePrice } from './effectivePrice.js';
+
 export async function computeRoomTariff({ supabase, tenantId, bed, admissionDate, throughDate }) {
   const days = Math.max(1, Math.ceil((throughDate - admissionDate) / 86400000));
   const { data: rateRow, error } = await supabase
     .from('fee_structures')
-    .select('amount, gst_percent')
+    .select('amount, gst_percent, promo_price, promo_valid_until')
     .eq('tenant_id', tenantId)
     .eq('category', 'ipd')
     .eq('fee_type', 'room_' + bed.bed_type)
@@ -20,10 +22,11 @@ export async function computeRoomTariff({ supabase, tenantId, bed, admissionDate
     return { error: `No room rate configured for bed type "${bed.bed_type}" — add it in fee-admin.html (Administration → IPD Room Tariff) before generating this bill.` };
   }
 
+  const dailyRate = getEffectivePrice(rateRow);
   return {
     days,
-    dailyRate: Number(rateRow.amount) || 0,
-    total: days * (Number(rateRow.amount) || 0),
+    dailyRate,
+    total: days * dailyRate,
     gstPercent: rateRow.gst_percent ?? null,
   };
 }
