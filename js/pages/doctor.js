@@ -565,6 +565,21 @@ function subscribeRealtime() {
       event: 'INSERT', schema: 'public', table: 'referrals',
       filter: `tenant_id=eq.${tenantId}`
     }, () => loadIncomingReferrals())
+    // Session 126 -- lab.js pushed new orders to the lab dashboard already, but
+    // nothing pushed status changes (sample collected / report ready) back out to
+    // the doctor -- previously required reopening the visit to see updated status.
+    // Filtered broadly by tenant (a per-visit filter can't be re-subscribed every
+    // time the active patient changes) and narrowed client-side to the open visit.
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'lab_orders',
+      filter: `tenant_id=eq.${tenantId}`
+    }, payload => {
+      if (payload.new?.visit_id !== _activeVisitId) return;
+      loadLabResults();
+      if (payload.new.status === 'completed' && payload.old?.status !== 'completed') {
+        _toast('🧪 Lab report ready', 'info');
+      }
+    })
     .subscribe();
 }
 

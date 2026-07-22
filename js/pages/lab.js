@@ -176,6 +176,13 @@ async function loadOrders() {
   });
   renderQueue();
   updateStats();
+
+  // Deliberately NOT re-rendering the open detail pane here even though _activeOrder
+  // may be stale after this reload -- renderOrderDetail() rebuilds test-category HTML
+  // straight from _activeItems, which would blow away any result values a tech has
+  // typed but not yet saved. The queue-list badge (which this realtime widening exists
+  // for) already reflects the change; the detail pane catches up next time they
+  // reselect the order.
 }
 
 function updateStats() {
@@ -1044,9 +1051,12 @@ if (_isReceptionist) {
   );
 }
 
-// Realtime: new orders
+// Realtime: new orders + status/payment changes from doctor.js or reception.js's
+// new Lab Bills panel (Session 126) -- was INSERT-only, so a payment collected at
+// reception never cleared the "Payment due" badge here until some unrelated
+// action happened to reload the queue.
 supabase.channel('lab-orders')
-  .on('postgres_changes', { event:'INSERT', schema:'public', table:'lab_orders', filter:`tenant_id=eq.${tenantId}` }, () => loadOrders())
+  .on('postgres_changes', { event:'*', schema:'public', table:'lab_orders', filter:`tenant_id=eq.${tenantId}` }, () => loadOrders())
   .subscribe();
 supabase.channel('img-orders')
   .on('postgres_changes', { event:'INSERT', schema:'public', table:'imaging_orders', filter:`tenant_id=eq.${tenantId}` }, () => { if(!document.getElementById('tab-imaging').hidden) loadImagingOrders(); })
