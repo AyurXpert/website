@@ -997,6 +997,11 @@ const QS_TEMPLATES = {
     { label:'Blood — Thyroid (T3/T4/TSH)', category:'lab', fee_type:'blood_thyroid',      amount:700  },
     { label:'Blood Sugar — Fasting',     category:'lab', fee_type:'blood_sugar_fasting',  amount:150  },
     { label:'Blood Sugar — PP',          category:'lab', fee_type:'blood_sugar_pp',       amount:150  },
+    // Session 124 Step 4 -- doctor.js's "Blood Sugar" panel bundles FBS+PPBS+HbA1c,
+    // but unlike the other 6 panels there's no single bundle fee for it (real-world
+    // labs don't bundle HbA1c with same-day sugar tests) -- it always decomposes to
+    // 3 individual charges. HbA1c itself had no fee entry at all until now.
+    { label:'HbA1c',                     category:'lab', fee_type:'hba1c',                amount:500  },
     { label:'Urine — Routine',           category:'lab', fee_type:'urine_routine',        amount:200  },
     { label:'Stool — Routine',           category:'lab', fee_type:'stool_routine',        amount:150  },
     { label:'Culture & Sensitivity',     category:'lab', fee_type:'culture_sensitivity',  amount:800  },
@@ -1035,8 +1040,11 @@ const QS_TEMPLATES = {
     { label:'Leptospira IgM',                category:'lab', fee_type:'leptospira_igm',        amount:700  },
     { label:'ANA (Antinuclear Antibody)',    category:'lab', fee_type:'ana',                   amount:900  },
     { label:'Sputum AFB (ZN Stain)',         category:'lab', fee_type:'sputum_afb',            amount:200  },
-    { label:'ECG (12-lead)',                 category:'lab', fee_type:'ecg_12_lead',           amount:300  },
-    { label:'ECHO (Echocardiography)',       category:'lab', fee_type:'echo',                  amount:1500 },
+    // ECG (12-lead) / ECHO (Echocardiography) deliberately NOT added here --
+    // the radiology block below already has 'ECG'/'Echo (2D Echo)' (Session
+    // 89/109); doctor.js's TEST_LABEL_OVERRIDES resolves those two lab-
+    // ordered test names to these existing radiology entries instead of
+    // creating priced duplicates.
     { label:'Coagulation Profile (PT/INR/aPTT)', category:'lab', fee_type:'coagulation_profile', amount:400 },
     { label:'PAP Smear',                     category:'lab', fee_type:'pap_smear',             amount:500  },
     { label:'FNAC (specify site)',           category:'lab', fee_type:'fnac',                  amount:800  },

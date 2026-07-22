@@ -6,6 +6,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType } from '../config/ncism.js';
+import { addOpdBillItem } from '../modules/billing/opdBillItems.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'super_admin', 'dept_admin']);
@@ -3451,6 +3452,123 @@ const LAB_CATALOG = {
   imaging_ecg:['X-Ray Chest (PA view)','X-Ray (specify area)','USG Abdomen & Pelvis','USG Pelvis (Obstetric)','ECG (12-lead)','ECHO (Echocardiography)'],
   other:['Coagulation Profile (PT/INR/aPTT)','PAP Smear','FNAC (specify site)','Biopsy (specify site)','Procalcitonin (PCT)'],
 };
+
+// Session 124 Step 4 -- explicit panel -> fee_structures label mapping.
+// Deliberately NOT automatic string-matching -- verified by hand against the
+// real fee-admin.js catalog (Step 1) rather than guessed, since a silent
+// mismatch here means a patient gets billed wrong. 'Blood Sugar' is
+// deliberately absent: unlike the other 6 panels, no single bundle fee
+// exists for it (real labs don't bundle HbA1c with same-day sugar tests) --
+// it always decomposes to its 3 individual tests instead.
+const PANEL_FEE_MAP = {
+  'CBC':            'Blood — CBC',
+  'LFT':            'Blood — LFT',
+  'KFT / RFT':      'Blood — RFT',   // KFT (Kidney) and RFT (Renal) are the same test, regional naming only
+  'Lipid Profile':  'Blood — Lipid Profile',
+  'TFT':            'Blood — Thyroid (T3/T4/TSH)',
+  'Urine R/M':      'Urine — Routine',
+};
+
+// Known near-miss label variants between doctor.js's exact order test names
+// and fee-admin.js's catalog labels (found during Step 1's cross-check) --
+// e.g. "Urine Culture & Sensitivity" (ordered) vs "Culture & Sensitivity"
+// (priced) are the same real-world charge, just phrased differently.
+// X-Ray/USG variants resolve to the RADIOLOGY category, not lab, since
+// that's genuinely where their pricing lives.
+const TEST_LABEL_OVERRIDES = {
+  'Urine Culture & Sensitivity': 'Culture & Sensitivity',
+  'Blood Culture & Sensitivity': 'Culture & Sensitivity',
+  'Stool Routine & Microscopy':  'Stool — Routine',
+  'Biopsy (specify site)':       'Biopsy',
+  'X-Ray Chest (PA view)':       'X-Ray',
+  'X-Ray (specify area)':        'X-Ray',
+  'USG Abdomen & Pelvis':        'Ultrasound (USG)',
+  'USG Pelvis (Obstetric)':      'Ultrasound (USG)',
+  'ECG (12-lead)':               'ECG',
+  'ECHO (Echocardiography)':     'Echo (2D Echo)',
+  // The 'Blood Sugar' panel (unlike the other 6) has no bundle fee and
+  // always decomposes to individual pricing -- caught by testing that these
+  // 2 exact-match a completely different fee label convention (found live,
+  // would otherwise have always shown "unmatched" even with a real fee).
+  'Fasting Blood Sugar (FBS)':      'Blood Sugar — Fasting',
+  'Post-Prandial Blood Sugar (PPBS)': 'Blood Sugar — PP',
+};
+
+// Turns this order's Map<testName, panelLabel> into priced billing lines.
+// A tagged panel only bundles if EVERY one of its real tests (per LAB_PANELS,
+// never trusted from the tag alone) is actually present -- a partial panel
+// (one test unchecked after the panel button was clicked) decomposes to
+// individual pricing for whatever remains, same as a never-tagged test.
+function _computeLabBillingLines(labSelected, feeRows) {
+  const byLabel = {};
+  feeRows.forEach(f => { byLabel[f.label] = f; });
+
+  const byPanel = {};
+  const individual = [];
+  for (const [testName, panelLabel] of labSelected.entries()) {
+    if (panelLabel) (byPanel[panelLabel] = byPanel[panelLabel] || []).push(testName);
+    else individual.push(testName);
+  }
+
+  const lines = [];
+  const unmatched = [];
+
+  for (const [panelLabel, taggedTests] of Object.entries(byPanel)) {
+    const panelDef = LAB_PANELS.find(p => p.label === panelLabel);
+    const isComplete = panelDef && panelDef.tests.length === taggedTests.length
+      && panelDef.tests.every(t => taggedTests.includes(t));
+    const bundleFeeLabel = PANEL_FEE_MAP[panelLabel];
+    const bundleFee = bundleFeeLabel ? byLabel[bundleFeeLabel] : null;
+    if (isComplete && bundleFee) {
+      lines.push({ description: bundleFee.label, price: Number(bundleFee.amount) || 0, gst_percent: Number(bundleFee.gst_percent) || 0 });
+    } else {
+      // Not a complete/priceable bundle -- fall back to individual pricing
+      // for every test in this group, same path as never-tagged tests.
+      individual.push(...taggedTests);
+    }
+  }
+
+  for (const testName of individual) {
+    const feeLabel = TEST_LABEL_OVERRIDES[testName] || testName;
+    const fee = byLabel[feeLabel];
+    if (fee) lines.push({ description: fee.label, price: Number(fee.amount) || 0, gst_percent: Number(fee.gst_percent) || 0 });
+    else unmatched.push(testName);
+  }
+
+  return { lines, unmatched };
+}
+
+// Attaches this lab order's charges to the visit's existing OPD bill
+// (Step 3's addOpdBillItem) -- deliberately non-blocking: a billing hiccup
+// here must never stop the clinical order itself, which has already been
+// saved by the time this runs. Unmatched tests are surfaced, never silently
+// charged ₹0 or silently dropped.
+async function _billLabOrder(labSelected) {
+  try {
+    const { data: bill } = await supabase.from('bills').select('id')
+      .eq('visit_id', _activeVisitId).eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (!bill) return { billed: [], unmatched: [], noBill: true };
+
+    const { data: feeRows } = await supabase.from('fee_structures')
+      .select('label,amount,gst_percent').eq('tenant_id', tenantId).eq('is_active', true).in('category', ['lab','radiology']);
+
+    const { lines, unmatched } = _computeLabBillingLines(labSelected, feeRows || []);
+
+    for (const line of lines) {
+      const { error } = await addOpdBillItem({
+        supabase, tenantId, billId: bill.id, itemType: 'lab',
+        description: line.description, quantity: 1, price: line.price, gstPercent: line.gst_percent,
+      });
+      if (error) unmatched.push(line.description + ' (billing failed)');
+    }
+
+    return { billed: lines.map(l => l.description), unmatched };
+  } catch (err) {
+    console.error('lab order billing error:', err);
+    return { billed: [], unmatched: [...labSelected.keys()] };
+  }
+}
+
 // Session 124 Step 2 -- Map instead of Set: value tracks which panel (if any)
 // a test was added via, so lab.js's queue can show a clean "CBC" grouping
 // and later billing can reconstruct "was a complete panel ordered" without
@@ -3538,8 +3656,16 @@ window.submitLabOrder = async function() {
   const newTests = [..._labSelected.keys()].join(', ');
   document.getElementById('as-inv-lab').value = existingText ? existingText + ', ' + newTests : newTests;
 
+  // Session 124 Step 4 -- bill at order time (matches how registration/
+  // consultation fees are already collected same-day). Never blocks the
+  // clinical order, which is already saved above regardless of what happens here.
+  const { unmatched, noBill } = await _billLabOrder(_labSelected);
+
   closeLabOrderModal();
-  alert(`✅ Lab order submitted: ${_labSelected.size} tests ordered. Lab technician will be notified.`);
+  let msg = `✅ Lab order submitted: ${_labSelected.size} tests ordered. Lab technician will be notified.`;
+  if (noBill) msg += `\n\n⚠ No bill found for this visit -- lab charges were not added. Please add them manually via reception.`;
+  else if (unmatched.length) msg += `\n\n⚠ No price found for: ${unmatched.join(', ')} -- please add these to the bill manually.`;
+  alert(msg);
   loadLabResults();
 };
 
