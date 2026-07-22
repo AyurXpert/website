@@ -1001,6 +1001,46 @@ const QS_TEMPLATES = {
     { label:'Stool — Routine',           category:'lab', fee_type:'stool_routine',        amount:150  },
     { label:'Culture & Sensitivity',     category:'lab', fee_type:'culture_sensitivity',  amount:800  },
     { label:'Biopsy',                    category:'lab', fee_type:'biopsy',               amount:1500 },
+    // Session 124 -- individually-orderable tests from doctor.js's LAB_CATALOG
+    // with no panel of their own (see LAB_PANELS' 7 named panels above) --
+    // label text matches doctor.js's test names exactly, needed for the
+    // billing-time match in Step 4. Amounts are a structural placeholder
+    // baseline only, NOT confirmed real pricing -- same convention as the
+    // rest of this catalog (Session 106) -- edit these to your real rates.
+    { label:'ESR (Westergren)',              category:'lab', fee_type:'esr',                  amount:100  },
+    { label:'Peripheral Blood Smear',        category:'lab', fee_type:'peripheral_smear',      amount:150  },
+    { label:'Reticulocyte Count',            category:'lab', fee_type:'reticulocyte_count',    amount:150  },
+    { label:'Blood Group & Rh Type',         category:'lab', fee_type:'blood_group_rh',        amount:100  },
+    { label:'Random Blood Sugar (RBS)',      category:'lab', fee_type:'blood_sugar_random',    amount:100  },
+    { label:'Serum Calcium',                 category:'lab', fee_type:'serum_calcium',         amount:200  },
+    { label:'Serum Iron',                    category:'lab', fee_type:'serum_iron',            amount:300  },
+    { label:'TIBC',                          category:'lab', fee_type:'tibc',                  amount:300  },
+    { label:'Vitamin D (25-OH)',             category:'lab', fee_type:'vitamin_d',             amount:1200 },
+    { label:'Vitamin B12',                   category:'lab', fee_type:'vitamin_b12',           amount:900  },
+    { label:'CRP (C-Reactive Protein)',      category:'lab', fee_type:'crp',                   amount:400  },
+    { label:'Urine — Ketone Bodies',         category:'lab', fee_type:'urine_ketone',          amount:100  },
+    { label:'Urine — Bile Salts/Pigments',   category:'lab', fee_type:'urine_bile',            amount:100  },
+    { label:'Urine — Casts',                 category:'lab', fee_type:'urine_casts',           amount:100  },
+    { label:'Urine Pregnancy Test (UPT)',    category:'lab', fee_type:'urine_pregnancy_test',  amount:150  },
+    { label:'Stool — Occult Blood',          category:'lab', fee_type:'stool_occult_blood',    amount:150  },
+    { label:'Widal Test (TO + TH)',          category:'lab', fee_type:'widal_test',            amount:250  },
+    { label:'RA Factor (Rheumatoid Factor)', category:'lab', fee_type:'ra_factor',             amount:350  },
+    { label:'ASO Titre',                     category:'lab', fee_type:'aso_titre',             amount:350  },
+    { label:'HIV I & II (Rapid)',            category:'lab', fee_type:'hiv_rapid',             amount:300  },
+    { label:'HBsAg (Hepatitis B)',           category:'lab', fee_type:'hbsag',                 amount:300  },
+    { label:'Anti-HCV (Hepatitis C)',        category:'lab', fee_type:'anti_hcv',              amount:500  },
+    { label:'Malaria (MP / RDT)',            category:'lab', fee_type:'malaria_mp_rdt',        amount:200  },
+    { label:'Dengue NS1 Antigen',            category:'lab', fee_type:'dengue_ns1',            amount:500  },
+    { label:'Dengue IgM / IgG',              category:'lab', fee_type:'dengue_igm_igg',        amount:600  },
+    { label:'Leptospira IgM',                category:'lab', fee_type:'leptospira_igm',        amount:700  },
+    { label:'ANA (Antinuclear Antibody)',    category:'lab', fee_type:'ana',                   amount:900  },
+    { label:'Sputum AFB (ZN Stain)',         category:'lab', fee_type:'sputum_afb',            amount:200  },
+    { label:'ECG (12-lead)',                 category:'lab', fee_type:'ecg_12_lead',           amount:300  },
+    { label:'ECHO (Echocardiography)',       category:'lab', fee_type:'echo',                  amount:1500 },
+    { label:'Coagulation Profile (PT/INR/aPTT)', category:'lab', fee_type:'coagulation_profile', amount:400 },
+    { label:'PAP Smear',                     category:'lab', fee_type:'pap_smear',             amount:500  },
+    { label:'FNAC (specify site)',           category:'lab', fee_type:'fnac',                  amount:800  },
+    { label:'Procalcitonin (PCT)',           category:'lab', fee_type:'procalcitonin',         amount:1500 },
 
     // ── Radiology ──
     { label:'X-Ray',                     category:'radiology', fee_type:'xray',           amount:400  },
