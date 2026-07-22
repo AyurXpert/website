@@ -1,4 +1,4 @@
-import { login, verifyMfaAndFinishLogin } from '../core/auth.js';
+import { login, verifyMfaAndFinishLogin, verifyBackupCodeAndFinishLogin } from '../core/auth.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { isValidEmail } from '../utils/validators.js';
 
@@ -189,15 +189,48 @@ async function handleLogin() {
 
 // ── STEP 3: MFA code ──────────────────────────────────────────────────────────
 const mfaCodeEl  = document.getElementById('mfa-code');
+const mfaBackupCodeEl = document.getElementById('mfa-backup-code');
+const mfaCodeField = document.getElementById('mfa-code-field');
+const mfaBackupField = document.getElementById('mfa-backup-field');
+const linkUseBackup = document.getElementById('link-use-backup');
 const btnMfaVerify = document.getElementById('btn-mfa-verify');
 let _pendingFactorId = null;
+let _usingBackupCode = false;
 
 btnMfaVerify.addEventListener('click', handleMfaVerify);
 mfaCodeEl.addEventListener('keydown', e => { if (e.key === 'Enter') handleMfaVerify(); });
 mfaCodeEl.addEventListener('input', clearAlerts);
+mfaBackupCodeEl.addEventListener('keydown', e => { if (e.key === 'Enter') handleMfaVerify(); });
+mfaBackupCodeEl.addEventListener('input', clearAlerts);
+
+linkUseBackup.addEventListener('click', e => {
+  e.preventDefault();
+  _usingBackupCode = !_usingBackupCode;
+  mfaCodeField.classList.toggle('hidden', _usingBackupCode);
+  mfaBackupField.classList.toggle('hidden', !_usingBackupCode);
+  linkUseBackup.textContent = _usingBackupCode
+    ? 'Have your authenticator app? Use a code instead'
+    : 'Lost your device? Use a backup code instead';
+  clearAlerts();
+  (_usingBackupCode ? mfaBackupCodeEl : mfaCodeEl).focus();
+});
 
 async function handleMfaVerify() {
   clearAlerts();
+
+  if (_usingBackupCode) {
+    const code = mfaBackupCodeEl.value.trim();
+    if (!code) { showAlert('Please enter your backup code.'); mfaBackupCodeEl.focus(); return; }
+    _setLoading(btnMfaVerify, true);
+    const result = await verifyBackupCodeAndFinishLogin({ code });
+    _setLoading(btnMfaVerify, false);
+    if (!result.success) {
+      showAlert(result.error || 'Invalid or already-used backup code.');
+      mfaBackupCodeEl.classList.add('error');
+    }
+    return;
+  }
+
   const code = mfaCodeEl.value.trim();
   if (!/^\d{6}$/.test(code)) { showAlert('Please enter the 6-digit code.'); mfaCodeEl.focus(); return; }
   _setLoading(btnMfaVerify, true);

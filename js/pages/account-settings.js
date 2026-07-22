@@ -41,10 +41,55 @@ async function loadFactorState() {
   if (verified) {
     document.getElementById('factor-since').textContent = `Enabled ${_formatDate(verified.created_at)}`;
     _showState('state-enrolled');
+    document.getElementById('backup-codes-card').style.display = '';
+    loadBackupCodesStatus();
   } else {
     _showState('state-not-enrolled');
+    document.getElementById('backup-codes-card').style.display = 'none';
   }
 }
+
+// ── Backup recovery codes (Session 129) ──
+async function loadBackupCodesStatus() {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { count, error } = await supabase.from('mfa_backup_codes')
+    .select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('used_at', null);
+  const el = document.getElementById('bc-status');
+  if (error) { el.textContent = 'Could not load backup code status.'; return; }
+  el.textContent = count > 0
+    ? `You have ${count} unused backup code(s).`
+    : 'No backup codes set up yet — generate a set so you can recover access if you ever lose your authenticator device.';
+}
+
+window.generateBackupCodes = async function () {
+  if (document.getElementById('bc-status').textContent.includes('unused') &&
+      !confirm('Generating new codes invalidates any existing unused ones. Continue?')) return;
+
+  const btn = document.getElementById('btn-generate-codes');
+  btn.disabled = true;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch('https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/mfa-backup-generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+    });
+    const result = await res.json();
+    if (!res.ok) { _toast(result.error || 'Could not generate backup codes.'); return; }
+
+    document.getElementById('bc-codes-list').innerHTML = result.codes.map(c => `<div>${c}</div>`).join('');
+    document.getElementById('bc-reveal').style.display = 'block';
+  } catch (err) {
+    _toast(safeErrorMessage(err, 'Could not generate backup codes.'));
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+window.dismissBackupCodes = function () {
+  document.getElementById('bc-reveal').style.display = 'none';
+  document.getElementById('bc-codes-list').innerHTML = '';
+  loadBackupCodesStatus();
+};
 
 window.startEnroll = async function () {
   const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Authenticator App' });

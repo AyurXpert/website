@@ -295,6 +295,43 @@ export async function verifyMfaAndFinishLogin({ factorId, code }) {
   }
 }
 
+// Session 129 -- self-service recovery when the authenticator app/device is
+// unavailable. The caller already has a valid aal1 session at this point
+// (login() already completed signInWithPassword() before the MFA screen
+// renders), so mfa-backup-verify only needs that session's JWT, not the
+// password again. On success the account's TOTP factor(s) are already gone
+// server-side, so requireAuth()'s existing mandatory-MFA check will force a
+// fresh enrollment on the very next protected-page load -- no new logic
+// needed here beyond finishing this login exactly like a normal MFA pass.
+export async function verifyBackupCodeAndFinishLogin({ code }) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Session expired. Please log in again.');
+
+    const res = await fetch('https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/mfa-backup-verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ code }),
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || 'Invalid or already-used backup code.');
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*, tenants(*)')
+      .eq('id', user.id)
+      .single();
+    if (profileError) throw new Error('Profile not found. Please contact your administrator.');
+
+    await _finalizeLogin(user, profile);
+    return { success: true };
+  } catch (error) {
+    console.error('verifyBackupCodeAndFinishLogin error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 
 // ═══════════════════════════════════════════════════════════
 // 4. LOGOUT

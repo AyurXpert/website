@@ -135,6 +135,28 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
     </div>
   </div>
 
+  <!-- Session 129 -- self-service recovery if the authenticator app/device is
+       ever lost or broken (e.g. a phone clock-drift issue), so a locked-out
+       account never depends on someone else being able to reset it. -->
+  <div class="cc" id="backup-codes-card" style="display:none">
+    <div class="cc-hd">
+      <div class="cc-title">Backup Recovery Codes</div>
+      <div class="cc-sub">Single-use codes to log in if you ever lose access to your authenticator app</div>
+    </div>
+    <div class="cc-body">
+      <div id="bc-status" style="font-size:13px;color:var(--text-mid);margin-bottom:14px">Loading…</div>
+      <button class="btn btn-outline" id="btn-generate-codes" data-onclick="generateBackupCodes">Generate New Backup Codes</button>
+
+      <div id="bc-reveal" style="display:none;margin-top:16px">
+        <div class="alert alert-error show" style="background:var(--gold-light);border:1.5px solid var(--gold);color:var(--text-dark)">
+          ⚠️ Save these somewhere safe now — they will not be shown again, and generating new ones invalidates these.
+        </div>
+        <div id="bc-codes-list" style="font-family:monospace;font-size:14px;line-height:2;background:var(--cream,#faf8f3);border:1px solid var(--border);border-radius:8px;padding:14px 18px;margin:10px 0"></div>
+        <button class="btn btn-primary" style="width:auto" data-onclick="dismissBackupCodes">I've saved these codes</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <div class="toast" id="toast"></div>

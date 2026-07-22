@@ -104,15 +104,22 @@
           <div class="role-info-sub">Enter the 6-digit code from your authenticator app</div>
         </div>
       </div>
-      <div class="field">
+      <div class="field" id="mfa-code-field">
         <label for="mfa-code">Authentication code</label>
         <input type="text" id="mfa-code" inputmode="numeric" maxlength="6"
           autocomplete="one-time-code" placeholder="000000"/>
+      </div>
+      <div class="field hidden" id="mfa-backup-field">
+        <label for="mfa-backup-code">Backup recovery code</label>
+        <input type="text" id="mfa-backup-code" maxlength="11" placeholder="XXXXX-XXXXX" style="text-transform:uppercase"/>
       </div>
       <button class="btn-submit" id="btn-mfa-verify" type="button">
         <span class="btn-text">Verify</span>
         <span class="btn-spinner"><span class="spinner"></span></span>
       </button>
+      <div style="text-align:center;margin-top:10px">
+        <a href="#" id="link-use-backup" style="font-size:12.5px;color:var(--text-muted,#7a9485)">Lost your device? Use a backup code instead</a>
+      </div>
     </div>
 
     </form>
