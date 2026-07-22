@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Intern Rotation Roster — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--red:#c0392b;--red-light:#fdecea;
+  --cream:#faf8f3;--white:#fff;--border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1100px;margin:0 auto;padding:28px 20px 80px}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px;margin-bottom:20px}
+.note{font-size:11.5px;color:var(--text-mid);background:var(--green-light);border:1px solid var(--border);border-radius:6px;padding:8px 12px;margin-bottom:16px}
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:18px}
+.card-title{font-size:13px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+.field{margin-bottom:14px}
+.field label{font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+.field input,.field textarea{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit}
+.field input{height:38px}
+.btn{height:38px;padding:0 16px;border-radius:var(--radius);font-size:13px;font-weight:500;cursor:pointer;border:none}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-secondary{background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.stop-count-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.stop-chip{font-size:11px;font-weight:600;padding:4px 10px;border-radius:10px;background:var(--green-light);color:var(--green-deep)}
+.plan-table-wrap{overflow-x:auto}
+#plan-table{width:100%;border-collapse:collapse;font-size:12px}
+#plan-table th{background:#f5faf7;padding:7px 8px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);border-bottom:1.5px solid var(--border);white-space:nowrap}
+#plan-table td{padding:6px 8px;border-bottom:1px solid #f0f4f2;white-space:nowrap}
+.area-pill{display:inline-block;padding:2px 7px;border-radius:8px;font-size:10.5px;background:var(--green-light);color:var(--green-deep);margin-right:2px}
+.history-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f0f4f2;font-size:13px}
+.status-tag{font-size:10.5px;padding:2px 8px;border-radius:8px;font-weight:600}
+.status-pending{background:#fff4e5;color:#7a4a00}
+.status-approved{background:var(--green-light);color:var(--green-mid)}
+.status-rejected{background:var(--red-light);color:var(--red)}
+.empty{color:var(--text-muted);font-size:13px;padding:16px 0}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--green-deep);color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s;z-index:2000}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{background:var(--red)}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="page-wrap">
+  <div class="page-title">Intern Rotation Roster</div>
+  <div class="page-subtitle">Draft the year's OPD/Lab/Screening/Pharmacy rotation for all interns — Medical Superintendent approval required before it takes effect</div>
+  <div class="note">Intern IPD posting and PG postings are handled separately by each department's own HOD/admin — this page covers only the shared, bed-share-proportioned rotation.</div>
+
+  <div class="card">
+    <div class="card-title">Draft a New Plan</div>
+    <div class="field" style="max-width:260px">
+      <label>Rotation Start Date</label>
+      <input id="rp-start-date" type="date"/>
+    </div>
+    <div id="rp-intern-count" class="empty">Loading interns…</div>
+    <button class="btn btn-primary" id="btn-compute" data-onclick="computePlan" disabled>Compute Suggested Plan</button>
+
+    <div id="rp-plan-section" style="display:none;margin-top:18px">
+      <div class="card-title">Suggested Distribution (12 stops/year)</div>
+      <div class="stop-count-row" id="rp-stop-counts"></div>
+      <div class="plan-table-wrap">
+        <table id="plan-table"></table>
+      </div>
+      <div class="field" style="margin-top:14px">
+        <label>Reason / Notes for Medical Superintendent</label>
+        <textarea id="rp-reason" rows="2" placeholder="e.g. Rotation plan for the 2026-27 intern batch"></textarea>
+      </div>
+      <button class="btn btn-primary" id="btn-submit-roster" data-onclick="submitRosterForApproval">Submit for MS Approval</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Your Submitted Rosters</div>
+    <div id="rp-history"><div class="empty">Loading…</div></div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script type="module" src="js/pages/intern-roster.js"></script>
+</body>
+</html>

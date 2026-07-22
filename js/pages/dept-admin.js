@@ -56,11 +56,14 @@ async function loadAll(){
   const weekDates = _weekDates();
   const weekStart = _dateStr(weekDates[0]), weekEnd = _dateStr(weekDates[6]);
 
-  const [{ data:dept }, { data:staff }, { data:roster }, { data:tRow }] = await Promise.all([
+  const [{ data:dept }, { data:staff }, { data:roster }, { data:tRow }, { data:trainees }] = await Promise.all([
     supabase.from('departments').select('id,name,category,ncism_code,opd_id,is_active').eq('id',deptId).single(),
     supabase.from('profiles').select('id,full_name,designation,role').eq('tenant_id',tenantId).eq('department_id',deptId).eq('is_active',true).order('full_name'),
     supabase.from('duty_roster').select('id,profile_id,shift_date,shift_type,is_confirmed').eq('tenant_id',tenantId).eq('department_id',deptId).gte('shift_date',weekStart).lte('shift_date',weekEnd),
     supabase.from('tenants').select('opd_daily_target,type').eq('id',tenantId).single(),
+    // PG/Intern postings are scope_department_id-based (position_invites'
+    // plumbing), not the plain department_id membership used for regular staff.
+    supabase.from('profiles').select('id,full_name,designation').eq('tenant_id',tenantId).eq('scope_department_id',deptId).eq('role','trainee_doctor').eq('is_active',true).order('full_name'),
   ]);
 
   if (!dept) { document.getElementById('dd-body').innerHTML = '<div class="empty">Department not found.</div>'; return; }
@@ -127,7 +130,63 @@ async function loadAll(){
       ${staffHtml}
     </div>`;
 
+  _trainees = trainees || [];
+  await renderTraineePostings();
+
   renderRoster(weekDates);
+}
+
+// ── Trainee Postings (Session 128) ──────────────────────────────────────────
+let _trainees = [];
+
+async function renderTraineePostings(){
+  const wrap = document.getElementById('trainee-postings-wrap');
+  if (!_trainees.length) { wrap.innerHTML = '<div class="empty-sm">No PGs/interns are currently scoped to your department.</div>'; return; }
+
+  const today = new Date().toISOString().slice(0,10);
+  const { data: current } = await supabase.from('trainee_postings')
+    .select('id,profile_id,area,posting_start_date,posting_end_date')
+    .eq('tenant_id',tenantId).eq('department_id',deptId)
+    .lte('posting_start_date',today).gte('posting_end_date',today)
+    .in('profile_id', _trainees.map(t=>t.id));
+  const currentByProfile = {}; (current||[]).forEach(c => { currentByProfile[c.profile_id] = c; });
+
+  wrap.innerHTML = _trainees.map(t => {
+    const cur = currentByProfile[t.id];
+    const status = cur
+      ? `<span class="tag ok">${cur.area==='ipd'?'🏥 IPD':'🚪 OPD'} until ${cur.posting_end_date}</span>`
+      : '<span class="tag muted">No active posting</span>';
+    return `<div class="staff-row">
+      <span>${_esc(t.full_name)} <span class="muted">(${_esc(_formatDesignation(t.designation))})</span></span>
+      <span style="display:flex;align-items:center;gap:8px">
+        ${status}
+        <button class="btn btn-secondary" style="height:28px;padding:0 10px;font-size:11px" data-onclick="openAssignPosting" data-onclick-a0="${_esc(t.id)}">Assign</button>
+      </span>
+    </div>`;
+  }).join('');
+}
+
+window.openAssignPosting = function(profileId){
+  const t = _trainees.find(x=>x.id===profileId);
+  if (!t) return;
+  const area = t.designation === 'pg_scholar'
+    ? (prompt(`Assign ${t.full_name} to OPD or IPD? Type "opd" or "ipd".`, 'opd') || '').toLowerCase().trim()
+    : 'ipd'; // interns only get direct HOD assignment for IPD -- their OPD/Lab/Screening/Pharmacy rotation comes from the Deputy MS roster
+  if (!['opd','ipd'].includes(area)) return;
+  const start = prompt('Posting start date (YYYY-MM-DD):', new Date().toISOString().slice(0,10));
+  if (!start) return;
+  const end = prompt('Posting end date (YYYY-MM-DD):', '');
+  if (!end) return;
+  _assignPosting(profileId, area, start, end);
+};
+
+async function _assignPosting(profileId, area, start, end){
+  const { error } = await supabase.rpc('hod_assign_trainee_posting', {
+    p_profile_id: profileId, p_department_id: deptId, p_area: area, p_start: start, p_end: end,
+  });
+  if (error) { _toast(safeErrorMessage(error, 'Could not assign posting.'), true); return; }
+  _toast('Posting assigned.');
+  renderTraineePostings();
 }
 
 // NCISM §7 dedicated-consultant pairs -- for a client-side hint only; the

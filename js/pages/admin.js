@@ -410,6 +410,10 @@ const APPROVAL_ACTION_LABELS = {
   department_deactivate:   'Deactivate department',
   opd_create:               'Create OPD',
   opd_deactivate:            'Deactivate OPD',
+  // Session 128: Deputy MS's proposed intern rotation roster -- decidable by
+  // the Medical Superintendent (or super_admin), per decide_approval()'s new
+  // requester-designation branch.
+  intern_roster:           'Intern rotation roster',
 };
 
 function _approvalSummary(row){
@@ -420,6 +424,10 @@ function _approvalSummary(row){
     case 'department_deactivate': return _esc(p.department_name || p.department_id || '—');
     case 'opd_create':            return _esc(p.name || '—');
     case 'opd_deactivate':        return _esc(p.opd_name || p.opd_id || '—');
+    case 'intern_roster': {
+      const n = Array.isArray(p.postings) ? new Set(p.postings.map(x => x.profile_id)).size : 0;
+      return `${n} intern(s), starting ${_esc(p.rotation_start || '—')}`;
+    }
     default: return '—';
   }
 }

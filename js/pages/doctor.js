@@ -72,20 +72,43 @@ const _canReview  = ['doctor', 'super_admin', 'dept_admin'].includes(profile.rol
 let _activeDraftId    = null;  // consultation_notes.id of the draft being reviewed, if any
 let _activeDraftedBy  = null;  // that draft's original trainee author (profile.id) -- credited on finalize
 
-// Resolves this profile's department scope (scope_department_id) to the set of
-// opd ids that department's OPD serves, via ncism_code -- departments and opds
-// share the same code space (e.g. both use 'KAY' for Kayachikitsa) rather than
-// a direct FK, matching how screening.js/bed-admin.js already resolve this.
-// Returns null if the profile has no department scope (e.g. a super_admin
-// reviewing tenant-wide, or a trainee never assigned one).
-async function _scopedOpdIds() {
-  if (!profile.scope_department_id) return null;
+// Resolves a department id to the set of opd ids that department's OPD serves,
+// via ncism_code -- departments and opds share the same code space (e.g. both
+// use 'KAY' for Kayachikitsa) rather than a direct FK, matching how
+// screening.js/bed-admin.js already resolve this.
+async function _opdIdsForDept(departmentId) {
   const { data: dept } = await supabase.from('departments').select('ncism_code')
-    .eq('id', profile.scope_department_id).maybeSingle();
+    .eq('id', departmentId).maybeSingle();
   if (!dept?.ncism_code) return null;
   const { data: opds } = await supabase.from('opds').select('id')
     .eq('tenant_id', tenantId).eq('ncism_code', dept.ncism_code);
   return (opds || []).map(o => o.id);
+}
+
+// Resolves this profile's department scope to the set of opd ids that
+// department's OPD serves. Session 128 -- a trainee_doctor's scope is now
+// primarily driven by trainee_postings (the Deputy-MS-approved rotation
+// roster, or a direct HOD assignment), checked for a posting whose date
+// range covers today; the static scope_department_id (set at invite time)
+// is only a fallback for a trainee with no active posting row yet. Every
+// other role (HOD reviewing their department's Pending Review queue, etc.)
+// is unaffected -- they never have postings, only the static field.
+// Returns null if nothing resolves (e.g. a super_admin reviewing tenant-wide,
+// or a trainee never assigned/posted at all).
+async function _scopedOpdIds() {
+  if (_isTrainee) {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: posting } = await supabase.from('trainee_postings')
+      .select('department_id, area')
+      .eq('tenant_id', tenantId).eq('profile_id', userId)
+      .lte('posting_start_date', today).gte('posting_end_date', today)
+      .eq('area', 'opd')
+      .order('posting_start_date', { ascending: false })
+      .limit(1).maybeSingle();
+    if (posting?.department_id) return _opdIdsForDept(posting.department_id);
+  }
+  if (!profile.scope_department_id) return null;
+  return _opdIdsForDept(profile.scope_department_id);
 }
 
 // ── Tenant feature gating ─────────────────────────
