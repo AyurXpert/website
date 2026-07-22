@@ -152,12 +152,32 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
           ⚠️ Save these somewhere safe now — they will not be shown again, and generating new ones invalidates these.
         </div>
         <div id="bc-codes-list" style="font-family:monospace;font-size:14px;line-height:2;background:var(--cream,#faf8f3);border:1px solid var(--border);border-radius:8px;padding:14px 18px;margin:10px 0"></div>
-        <button class="btn btn-primary" style="width:auto" data-onclick="dismissBackupCodes">I've saved these codes</button>
+        <div class="btn-row" style="gap:8px;flex-wrap:wrap">
+          <button class="btn btn-outline" style="width:auto" data-onclick="downloadBackupCodes">⬇ Download as text file</button>
+          <button class="btn btn-outline" style="width:auto" data-onclick="printBackupCodes">🖨 Print</button>
+          <button class="btn btn-primary" style="width:auto" data-onclick="dismissBackupCodes">I've saved these codes</button>
+        </div>
       </div>
     </div>
   </div>
 
 </div>
+
+<!-- Print-only view -- everything else on the page is hidden via @media print below -->
+<div id="bc-print-area">
+  <h2>AyurXpert — Backup Recovery Codes</h2>
+  <p id="bc-print-account"></p>
+  <p>Each code works once. Keep this somewhere only you can access.</p>
+  <div id="bc-print-list" style="font-family:monospace;font-size:16px;line-height:2.2"></div>
+</div>
+
+<style>
+#bc-print-area{display:none}
+@media print{
+  body > *:not(#bc-print-area){display:none!important}
+  #bc-print-area{display:block!important}
+}
+</style>
 
 <div class="toast" id="toast"></div>
 

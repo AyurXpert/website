@@ -61,6 +61,8 @@ async function loadBackupCodesStatus() {
     : 'No backup codes set up yet — generate a set so you can recover access if you ever lose your authenticator device.';
 }
 
+let _revealedCodes = [];
+
 window.generateBackupCodes = async function () {
   if (document.getElementById('bc-status').textContent.includes('unused') &&
       !confirm('Generating new codes invalidates any existing unused ones. Continue?')) return;
@@ -76,6 +78,7 @@ window.generateBackupCodes = async function () {
     const result = await res.json();
     if (!res.ok) { _toast(result.error || 'Could not generate backup codes.'); return; }
 
+    _revealedCodes = result.codes;
     document.getElementById('bc-codes-list').innerHTML = result.codes.map(c => `<div>${c}</div>`).join('');
     document.getElementById('bc-reveal').style.display = 'block';
   } catch (err) {
@@ -85,9 +88,39 @@ window.generateBackupCodes = async function () {
   }
 };
 
+window.downloadBackupCodes = function () {
+  if (!_revealedCodes.length) return;
+  const profile = getCurrentProfile();
+  const lines = [
+    'AyurXpert — Backup Recovery Codes',
+    `Account: ${profile?.full_name || '—'}`,
+    `Generated: ${new Date().toLocaleString('en-IN')}`,
+    'Each code works once. Keep this file somewhere only you can access.',
+    '',
+    ..._revealedCodes,
+  ];
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'ayurxpert-backup-codes.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+window.printBackupCodes = function () {
+  if (!_revealedCodes.length) return;
+  const profile = getCurrentProfile();
+  document.getElementById('bc-print-account').textContent =
+    `Account: ${profile?.full_name || '—'} — Generated: ${new Date().toLocaleString('en-IN')}`;
+  document.getElementById('bc-print-list').innerHTML = _revealedCodes.map(c => `<div>${c}</div>`).join('');
+  window.print();
+};
+
 window.dismissBackupCodes = function () {
   document.getElementById('bc-reveal').style.display = 'none';
   document.getElementById('bc-codes-list').innerHTML = '';
+  _revealedCodes = [];
   loadBackupCodesStatus();
 };
 
