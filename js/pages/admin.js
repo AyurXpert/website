@@ -6,6 +6,7 @@ import { logAudit }   from '../core/auditLogger.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS, SCHEDULE_IV, NCISM_OPDS } from '../config/ncism.js';
+import { SUPABASE_URL } from '../config/constants.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -5969,7 +5970,13 @@ async function _abdmCall(action, extra = {}) {
 window.checkBridgeUrl = async function() {
   const el = document.getElementById('bridge-url-status');
   el.textContent = 'Fetching from ABDM…';
-  const data = await _abdmCall('get_bridge_services');
+  let data;
+  try {
+    data = await _abdmCall('get_bridge_services');
+  } catch (err) {
+    el.innerHTML = `<span style="color:#dc2626">Error: ${_esc(safeErrorMessage(err))}</span>`;
+    return;
+  }
   const url = data?.bridge?.url ?? null;
   const expected = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-webhook';
   if (url) {
@@ -5988,7 +5995,13 @@ window.updateBridgeUrl = async function() {
   if (!url) { alert('Enter a URL first'); return; }
   const el = document.getElementById('bridge-url-status');
   el.textContent = 'Updating…';
-  const data = await _abdmCall('update_bridge_url', { url });
+  let data;
+  try {
+    data = await _abdmCall('update_bridge_url', { url });
+  } catch (err) {
+    el.innerHTML = `<span style="color:#dc2626">Error: ${_esc(safeErrorMessage(err))}</span>`;
+    return;
+  }
   if (data?.status === 202 || data?.status === 200) {
     el.innerHTML = `<span style="color:#16a34a;font-weight:600">✅ Updated! ABDM will now send callbacks to: ${_esc(url)}</span>`;
   } else {
@@ -5999,7 +6012,13 @@ window.updateBridgeUrl = async function() {
 window.checkBridgeServices = async function() {
   const el = document.getElementById('bridge-services-body');
   el.textContent = 'Loading…';
-  const data = await _abdmCall('get_bridge_services');
+  let data;
+  try {
+    data = await _abdmCall('get_bridge_services');
+  } catch (err) {
+    el.innerHTML = `<span style="color:#dc2626">Error: ${_esc(safeErrorMessage(err))}</span>`;
+    return;
+  }
   const services = data?.services ?? [];
   if (!services.length) { el.innerHTML = `<span style="color:var(--text-muted)">No services found. ${_esc(JSON.stringify(data))}</span>`; return; }
   el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
