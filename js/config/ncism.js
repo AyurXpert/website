@@ -8,6 +8,26 @@ export function isNCISMType(t) { return t === 'college' || t === 'teaching_hospi
 
 export const CLINICAL_CODES = new Set(['KAY', 'PK', 'SHAL', 'SHAK', 'KAU', 'PST', 'AGD']);
 
+// Departments where round-the-clock NURSING duty is actually required — used to scope
+// the Nursing Superintendent's view of roster.html (Session 131). Covers both the
+// short-form codes (CLINICAL_CODES above) AND the legacy long-form codes some tenants
+// still carry (see CLAUDE.md's short-form/long-form drift notes, e.g. Sessions 94/96/126) —
+// checking only one convention would silently show an empty roster for the other.
+// Screening OPD included (both 'SCREEN' and legacy 'SCREENING_OPD'); IPD/Labour Room/
+// Operation Theatre have no ncism_code at all (matched by exact name in NURSING_DEPT_NAMES).
+export const NURSING_DUTY_CODES = new Set([
+  'KAY', 'KAYACHIKITSA',
+  'PK', 'PANCHAKARMA',
+  'SHAL', 'SHALYA_TANTRA',
+  'SHAK', 'SHALAKYA_KNM', 'SHALAKYA_NETRA',
+  'KAU', 'KAUMARABHRITYA',
+  'AGD', 'AGADA_TANTRA',
+  'PST', 'STRI_ROGA_PRASUTI',
+  'SCREEN', 'SCREENING_OPD',
+]);
+
+export const NURSING_DEPT_NAMES = new Set(['IPD', 'Labour Room', 'Operation Theatre (Major + Minor + CSSD)']);
+
 export const UG_BED_RATIOS = { KAY: .20, PK: .25, SHAL: .20, SHAK: .10, KAU: .10, AGD: .05, PST: .10 };
 
 export const WARD_NAMES = {

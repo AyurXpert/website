@@ -1,8 +1,9 @@
-import { requireAuth, getCurrentTenantId, getCurrentProfile } from '../core/auth.js';
+import { requireAuth, getCurrentTenantId, getCurrentProfile, getCurrentRole } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { NURSING_DUTY_CODES, NURSING_DEPT_NAMES } from '../config/ncism.js';
 
 await requireAuth(['super_admin', 'dept_admin', 'nurse_manager']);
 initNavbar();
@@ -10,6 +11,7 @@ wireDelegatedEvents();
 
 const tenantId = getCurrentTenantId();
 const profile  = getCurrentProfile();
+const role     = getCurrentRole();
 
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
@@ -58,6 +60,14 @@ async function loadDepartments() {
   const { data } = await supabase.from('departments')
     .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active',true).order('name');
   _depts = data || [];
+
+  // Nursing Superintendent only needs departments where round-the-clock nursing duty
+  // is actually required (the 7 bedded wards + IPD/Labour Room/OT/Screening OPD) --
+  // not every org department (Administration, Sanskrit & Samhita, Security, etc. have
+  // no nursing staff at all). super_admin/dept_admin keep the full list unchanged.
+  if (role === 'nurse_manager') {
+    _depts = _depts.filter(d => NURSING_DUTY_CODES.has(d.ncism_code) || NURSING_DEPT_NAMES.has(d.name));
+  }
 
   const fd = document.getElementById('filter-dept');
   const md = document.getElementById('m-dept');
