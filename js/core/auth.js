@@ -659,7 +659,14 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
   // after they enroll, or worse, leave a real gap open after an admin reset.
   // Only queried for the mandatory-role population to avoid the extra Auth-API
   // round trip for every other role's page loads.
-  if (MFA_MANDATORY_ROLES.includes(getCurrentRole()) && currentPage !== 'account-settings.html') {
+  // A secondary_role grant (e.g. Medical Superintendent given dept_admin's
+  // HR/Approvals access) extends page access the same as the primary role
+  // (see hasAccess above) -- MFA enforcement must extend the same way, or
+  // someone with real admin-equivalent access never gets forced to enroll.
+  const mfaCheckSecondaryRole = getCurrentSecondaryRole();
+  const mfaMandatory = MFA_MANDATORY_ROLES.includes(getCurrentRole())
+    || (mfaCheckSecondaryRole && MFA_MANDATORY_ROLES.includes(mfaCheckSecondaryRole));
+  if (mfaMandatory && currentPage !== 'account-settings.html') {
     const { data: factors } = await supabase.auth.mfa.listFactors();
     const hasVerifiedFactor = factors?.totp?.some(f => f.status === 'verified');
     if (!hasVerifiedFactor) {
