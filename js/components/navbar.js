@@ -2,6 +2,8 @@
 // White-label grouped-dropdown navbar — runs on every protected page.
 
 import { getCurrentProfile, getCurrentTenant, getCurrentRole, getCurrentSecondaryRole, getCurrentHasMonitoringAccess, logout, hasModule } from '../core/auth.js';
+import { DESIG_MAP, ROLE_DUTY_FALLBACK } from '../config/designations.js';
+import { escapeHtml } from '../utils/validators.js';
 
 export function initNavbar() {
   const profile = getCurrentProfile();
@@ -16,6 +18,7 @@ export function initNavbar() {
   _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess, isDeptScoped, designation);
   _injectWatermark();
   _injectPopup();
+  _injectDutiesModal(profile, role, designation);
 }
 
 // ── Type sets ────────────────────────────────────────────────────────────────
@@ -157,13 +160,32 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
     </div>`;
   }).join('');
 
+  // "Help" group — same 3 items for every role, every page (Session 131):
+  // My Duties & Responsibilities (per-designation text), Copy Organisation
+  // Code, User Guide. Mirrors admin.html's sidebar-footer pattern (which only
+  // super_admin/dept_admin ever saw) but via the shared navbar so it reaches
+  // every staff role uniformly, without touching ~30 individual page files.
+  const helpGroupHTML = `<div class="ax-group">
+    <button class="ax-group-btn">🧾 Help <span class="ax-caret">▾</span></button>
+    <div class="ax-dropdown">
+      <button type="button" class="ax-dd-item" id="ax-dd-duties">📌 My Duties &amp; Responsibilities</button>
+      <button type="button" class="ax-dd-item" id="ax-dd-copycode">📋 Copy Organisation Code</button>
+      <a class="ax-dd-item" href="user-manual.html" target="_blank" rel="noopener">📖 User Guide</a>
+    </div>
+  </div>`;
+
   // Mobile flat list (all items)
   const mobileHTML = groups.map(g =>
     `<div class="ax-mob-group">
       <div class="ax-mob-group-label">${g.icon} ${g.label}</div>
       ${g.items.map(i => `<a href="${i.href}" class="ax-link${i.href===currentPage?' active':''}">${i.label}</a>`).join('')}
     </div>`
-  ).join('');
+  ).join('') + `<div class="ax-mob-group">
+      <div class="ax-mob-group-label">🧾 Help</div>
+      <button type="button" class="ax-link" id="ax-mob-dd-duties">📌 My Duties &amp; Responsibilities</button>
+      <button type="button" class="ax-link" id="ax-mob-dd-copycode">📋 Copy Organisation Code</button>
+      <a class="ax-link" href="user-manual.html" target="_blank" rel="noopener">📖 User Guide</a>
+    </div>`;
 
   const nav = document.createElement('nav');
   nav.id = 'ax-navbar';
@@ -176,7 +198,7 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
           <span class="ax-tagline">${_tenantTypeLabel(tenant.type)}${tenant.tenant_code ? ' · ' + tenant.tenant_code : ''}${NCISM.includes(tenant.type) && tenant.ug_intake ? ' · UG ' + tenant.ug_intake : ''}</span>
         </div>
       </div>
-      <div class="ax-groups" id="ax-groups">${groupsHTML}</div>
+      <div class="ax-groups" id="ax-groups">${groupsHTML}${helpGroupHTML}</div>
       <div class="ax-right">
         <div class="ax-user-info">
           <span class="ax-user-name">${profile.full_name || 'User'}</span>
@@ -204,6 +226,11 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
   document.getElementById('ax-logout-btn').addEventListener('click', _handleLogout);
   document.getElementById('ax-mobile-logout').addEventListener('click', _handleLogout);
   document.getElementById('ax-hamburger').addEventListener('click', _toggleMenu);
+
+  document.getElementById('ax-dd-duties').addEventListener('click', _showDutiesModal);
+  document.getElementById('ax-mob-dd-duties').addEventListener('click', _showDutiesModal);
+  document.getElementById('ax-dd-copycode').addEventListener('click', () => _copyOrgCode(tenant));
+  document.getElementById('ax-mob-dd-copycode').addEventListener('click', () => _copyOrgCode(tenant));
 
   // Inject slide-over admin sidebar on all super/dept admin pages except admin.html --
   // also fires for a secondary_role='dept_admin' (e.g. a Deputy MS whose primary role
@@ -344,6 +371,57 @@ function _injectPopup() {
 function _showPopup() { document.getElementById('ax-popup-overlay').classList.add('show'); }
 function _hidePopup() { document.getElementById('ax-popup-overlay').classList.remove('show'); }
 
+// ── Duties & Responsibilities modal (Session 131) ─────────────────────────────
+// Shows the logged-in staffer's own designation duty text (NCISM Schedule XX
+// wording, DESIG_MAP — single source of truth shared with admin.js's HR
+// ladder) or a plain role-level fallback when no designation is set.
+function _injectDutiesModal(profile, role, designation) {
+  const desigEntry = designation ? DESIG_MAP[designation] : null;
+  const title = escapeHtml(desigEntry?.l || _roleLabel(role));
+  const body  = escapeHtml(desigEntry?.d || ROLE_DUTY_FALLBACK[role] || 'No duty description available for this role yet.');
+
+  const overlay = document.createElement('div');
+  overlay.id = 'ax-duties-overlay';
+  overlay.innerHTML = `
+    <div id="ax-duties-modal" role="dialog" aria-modal="true">
+      <div class="ax-popup-icon">📌</div>
+      <div class="ax-popup-title">${title}</div>
+      <div class="ax-popup-body">${body}</div>
+      <div class="ax-popup-btns">
+        <button class="ax-popup-learn" id="ax-duties-guide">📖 Open Complete HMS User Guide</button>
+        <button class="ax-popup-close" id="ax-duties-close">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) _hideDutiesModal(); });
+  document.getElementById('ax-duties-guide').addEventListener('click', () => window.open('user-manual.html', '_blank', 'noopener'));
+  document.getElementById('ax-duties-close').addEventListener('click', _hideDutiesModal);
+}
+function _showDutiesModal() { document.getElementById('ax-duties-overlay').classList.add('show'); }
+function _hideDutiesModal() { document.getElementById('ax-duties-overlay').classList.remove('show'); }
+
+// ── Copy Organisation Code + lightweight toast (Session 131) ──────────────────
+function _copyOrgCode(tenant) {
+  const code = tenant?.tenant_code || '';
+  if (!code) { _navToast('No organisation code set for this tenant.', true); return; }
+  navigator.clipboard.writeText(code)
+    .then(() => _navToast('Organisation code copied: ' + code))
+    .catch(() => _navToast('Code: ' + code));
+}
+function _navToast(msg, isError = false) {
+  let el = document.getElementById('ax-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'ax-toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.background = isError ? '#7f1d1d' : '#1a4a2e';
+  el.classList.add('show');
+  clearTimeout(el._hideTimer);
+  el._hideTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function _handleLogout() { await logout(); }
 function _toggleMenu() {
@@ -444,6 +522,8 @@ function _injectStyles() {
   }
   .ax-dd-item:hover{background:#e8f5ee;color:#1a4a2e}
   .ax-dd-item.active{background:rgba(201,144,42,.12);color:#7a5c00;font-weight:600}
+  button.ax-dd-item{width:100%;background:none;border:none;font-family:inherit;text-align:left;cursor:pointer}
+  button.ax-link{width:100%;background:none;border:none;font-family:inherit;text-align:left;cursor:pointer}
 
   /* Right section */
   .ax-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
@@ -497,9 +577,9 @@ function _injectStyles() {
   #ax-watermark strong{font-weight:600;color:#2d7a4f}
 
   /* Popup */
-  #ax-popup-overlay{display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px}
-  #ax-popup-overlay.show{display:flex}
-  #ax-popup{background:#fff;border-radius:20px;padding:32px 28px;max-width:380px;width:100%;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.18);animation:axPopIn .25s cubic-bezier(.34,1.56,.64,1) both}
+  #ax-popup-overlay,#ax-duties-overlay{display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px}
+  #ax-popup-overlay.show,#ax-duties-overlay.show{display:flex}
+  #ax-popup,#ax-duties-modal{background:#fff;border-radius:20px;padding:32px 28px;max-width:380px;width:100%;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.18);animation:axPopIn .25s cubic-bezier(.34,1.56,.64,1) both}
   .ax-popup-icon{font-size:44px;margin-bottom:14px}
   .ax-popup-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:#1a4a2e;margin-bottom:10px}
   .ax-popup-body{font-size:14px;color:#6b7280;line-height:1.75;margin-bottom:24px}
@@ -508,6 +588,12 @@ function _injectStyles() {
   .ax-popup-learn:hover{background:#1f5c37}
   .ax-popup-close{height:46px;padding:0 20px;background:#f3f4f6;color:#374151;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;cursor:pointer}
   @keyframes axPopIn{from{opacity:0;transform:scale(.92) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+
+  /* Toast (Session 131 — Copy Organisation Code confirmation) */
+  #ax-toast{position:fixed;bottom:14px;left:50%;transform:translateX(-50%) translateY(20px);z-index:2100;
+    background:#1a4a2e;color:#fff;font-family:'DM Sans',sans-serif;font-size:13px;padding:10px 20px;border-radius:10px;
+    box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;white-space:nowrap}
+  #ax-toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   `;
   document.head.appendChild(s);
 }
