@@ -86,6 +86,7 @@ const DESIG_LABELS = {
   deputy_medical_superintendent:'Deputy Medical Superintendent', administrative_officer:'Administrative Officer',
   opd_incharge:'Office Superintendent', resident_medical_officer:'Resident Medical Officer',
   emergency_medical_officer:'Emergency Medical Officer', general_duty_medical_officer:'General Duty Medical Officer',
+  resident_surgical_officer:'Resident Surgical Officer',
   nursing_superintendent:'Nursing Superintendent (Matron)', deputy_nursing_superintendent:'Assistant Matron',
   staff_nurse:'Staff Nurse', ward_sister:'Ward Sister', anm:'Auxiliary Nurse Midwife',
   accountant:'Accountant', receptionist:'Receptionist', registration_clerk:'Registration Clerk',

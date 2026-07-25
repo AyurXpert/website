@@ -640,6 +640,7 @@ const DESIG_ROLE_DEFAULT = {
   medical_director:'dept_admin', principal:'dept_admin',
   medical_superintendent:'doctor', deputy_medical_superintendent:'doctor',
   resident_medical_officer:'doctor', emergency_medical_officer:'doctor', general_duty_medical_officer:'doctor',
+  resident_surgical_officer:'doctor',
   // Session 127: PG/Intern positions now get their own real login (Trainee
   // Doctor role) instead of no login access at all -- NCISM requires every
   // PG/intern's clinical activity be individually logged, which a shared
@@ -797,11 +798,18 @@ const NCISM_XX_ROWS = [
   // Medical IPD
   ['Medical IPD','Nursing Staff (1 per 10 beds)',['staff_nurse','ward_sister'],{60:4,100:6,150:9,200:12},'Sch XX/32'],
   ['Medical IPD','Ayah (1 per 20 beds)',['attender','anm'],{60:2,100:3,150:5,200:6},'Sch XX/33'],
-  ['Medical IPD','Resident Medical Officer — Medical',['emergency_medical_officer','general_duty_medical_officer'],{60:2,100:2,150:2,200:2},'Sch XX/34'],
+  // Confirmed with Dr. Venkatesh: Medical In-Patients' ward doctor should be the same
+  // Resident Medical Officer (RMO) designation/title used for Administration's Sch XX/6,
+  // not a separate GDMO-only post -- 'resident_medical_officer' listed first so the
+  // ladder's "+ Invite" button defaults to that designation, matching the row's own label.
+  ['Medical IPD','Resident Medical Officer — Medical',['resident_medical_officer','emergency_medical_officer','general_duty_medical_officer'],{60:2,100:2,150:2,200:2},'Sch XX/34'],
   // Surgical IPD
   ['Surgical IPD','Nursing Staff (1 per 10 beds)',['staff_nurse','ward_sister'],{60:3,100:4,150:6,200:8},'Sch XX/35'],
   ['Surgical IPD','Ayah (1 per 20 beds)',['attender','anm'],{60:2,100:2,150:3,200:4},'Sch XX/36'],
-  ['Surgical IPD','Resident Surgical Officer',['emergency_medical_officer','general_duty_medical_officer'],{60:2,100:2,150:2,200:2},'Sch XX/37'],
+  // Confirmed with Dr. Venkatesh: Surgical In-Patients gets its own distinct Resident
+  // Surgical Officer (RSO) designation, matching this row's label -- 'resident_surgical_officer'
+  // added to designations.js specifically for this (previously didn't exist at all).
+  ['Surgical IPD','Resident Surgical Officer',['resident_surgical_officer','emergency_medical_officer','general_duty_medical_officer'],{60:2,100:2,150:2,200:2},'Sch XX/37'],
   // Panchakarma
   ['Panchakarma','PK Nursing Staff',['staff_nurse'],{60:1,100:1,150:2,200:2},'Sch XX/38'],
   ['Panchakarma','PK Therapists (Male + Female equal)',['pk_incharge','senior_therapist','therapist'],{60:4,100:8,150:12,200:16},'Sch XX/40'],
@@ -875,7 +883,7 @@ const NCISM_SUM_GRPS = [
     {l:'Medical Superintendent',                      k:['medical_superintendent']},
     {l:'Deputy Medical Superintendent',               k:['deputy_medical_superintendent']},
     {l:'Administrator (Non-clinical)',                k:['administrative_officer']},
-    {l:'RMO / EMO / Resident MO (Admin + IPD × 3)',  k:['resident_medical_officer','emergency_medical_officer','general_duty_medical_officer']},
+    {l:'RMO / EMO / Resident MO / RSO (Admin + IPD × 3)',  k:['resident_medical_officer','emergency_medical_officer','general_duty_medical_officer','resident_surgical_officer']},
     {l:'House Officer / Clinical Registrar (BAMS)',   k:['junior_resident']},
   ]},
   {s:'Nursing',rows:[
