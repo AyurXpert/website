@@ -653,7 +653,13 @@ const DESIG_ROLE_DEFAULT = {
   // staff use.
   nursing_superintendent:'nurse_manager', deputy_nursing_superintendent:'nurse_manager',
   staff_nurse:'nurse', ward_sister:'nurse', anm:'nurse',
-  accountant:'accountant', finance_manager:'finance_manager', store_keeper:'pharmacist',
+  // store_keeper defaulted to 'pharmacist' before this -- looked like a copy/paste slip:
+  // designations.js's own description has Store Keeper "under the Finance Manager" and
+  // categorised as Admin Staff, not Pharmacy. Only became consequential once the
+  // Finance & Accounts NCISM_XX_ROWS rows below were fixed to use their own distinct
+  // keys instead of all sharing 'accountant' -- before that, this row's key was never
+  // actually reachable via any real Schedule XX row.
+  accountant:'accountant', finance_manager:'finance_manager', store_keeper:'accountant',
   receptionist:'receptionist', registration_clerk:'receptionist', billing_clerk:'receptionist',
   medical_record_officer:'mrd_staff', medical_record_technician:'mrd_staff',
   pharmacist:'pharmacist', chief_pharmacist:'pharmacist', pharmacy_assistant:'pharmacist',
@@ -753,10 +759,15 @@ const NCISM_XX_ROWS = [
   ['Administration','Assistant Matron',['deputy_nursing_superintendent'],{60:2,100:3,150:4,200:5},'Sch XX/8'],
   ['Administration','Office Superintendent',['opd_incharge'],{60:1,100:1,150:1,200:1},'Sch XX/9'],
   ['Administration','Multi-tasking Support Staff',['attender'],{60:3,100:3,150:4,200:4},'Sch XX/12'],
-  // Finance & Accounts (separate zone from Administration)
-  ['Finance & Accounts','Finance Manager / Accounts Officer',['accountant'],{60:1,100:1,150:1,200:1},'NCISM §Admin'],
+  // Finance & Accounts (separate zone from Administration). These 3 rows previously all
+  // shared keys:['accountant'] -- since designations.js has always had distinct
+  // finance_manager/accountant/store_keeper values, that bug meant the same 2 generic
+  // "Accountant"-designated staff got counted against all 3 positions simultaneously,
+  // showing false full compliance on Finance Manager and Store Keeper even when nobody
+  // was ever actually assigned those specific designations.
+  ['Finance & Accounts','Finance Manager / Accounts Officer',['finance_manager'],{60:1,100:1,150:1,200:1},'NCISM §Admin'],
   ['Finance & Accounts','Clerks & Accounts Staff',['accountant'],{60:1,100:2,150:3,200:4},'Sch XX/10'],
-  ['Finance & Accounts','Store Keeper (Main / Pharmacy Store)',['accountant'],{60:1,100:1,150:1,200:1},'Sch XX/11'],
+  ['Finance & Accounts','Store Keeper (Main / Pharmacy Store)',['store_keeper'],{60:1,100:1,150:1,200:1},'Sch XX/11'],
   // Reception & MRD
   ['Reception & MRD','Receptionist cum Telephone Operator',['receptionist'],{60:3,100:4,150:4,200:4},'Sch XX/16'],
   ['Reception & MRD','Registration & Billing Clerks',['registration_clerk','billing_clerk'],{60:1,100:2,150:3,200:4},'Sch XX/17'],
@@ -863,7 +874,7 @@ const NCISM_SUM_GRPS = [
     {l:'Office Superintendent',                       k:['opd_incharge']},
   ]},
   {s:'Finance & Accounts',rows:[
-    {l:'Finance Mgr + Accountants + Store Keeper',    k:['accountant']},
+    {l:'Finance Mgr + Accountants + Store Keeper',    k:['finance_manager','accountant','store_keeper']},
   ]},
   {s:'OT / CSSD',rows:[
     {l:'OT Nurse / CSSD / Anushastra Technician',    k:['ot_technician','cssd_incharge','cssd_technician']},
