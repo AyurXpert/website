@@ -62,9 +62,10 @@ async function loadDepartments() {
   _depts = data || [];
 
   // Nursing Superintendent only needs departments where round-the-clock nursing duty
-  // is actually required (the 7 bedded wards + IPD/Labour Room/OT/Screening OPD) --
-  // not every org department (Administration, Sanskrit & Samhita, Security, etc. have
-  // no nursing staff at all). super_admin/dept_admin keep the full list unchanged.
+  // is actually required (the 7 bedded wards + IPD/Labour Room/OT/Screening OPD/
+  // Diagnostics, per Schedule XX/29's USG & ECG nursing line) -- not every org department
+  // (Administration, Sanskrit & Samhita, Security, etc. have no nursing staff at all).
+  // super_admin/dept_admin keep the full list unchanged.
   if (role === 'nurse_manager') {
     _depts = _depts.filter(d => NURSING_DUTY_CODES.has(d.ncism_code) || NURSING_DEPT_NAMES.has(d.name));
   }

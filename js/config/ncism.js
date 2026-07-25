@@ -14,7 +14,10 @@ export const CLINICAL_CODES = new Set(['KAY', 'PK', 'SHAL', 'SHAK', 'KAU', 'PST'
 // still carry (see CLAUDE.md's short-form/long-form drift notes, e.g. Sessions 94/96/126) —
 // checking only one convention would silently show an empty roster for the other.
 // Screening OPD included (both 'SCREEN' and legacy 'SCREENING_OPD'); IPD/Labour Room/
-// Operation Theatre have no ncism_code at all (matched by exact name in NURSING_DEPT_NAMES).
+// Operation Theatre/Diagnostics have no ncism_code at all (matched by exact name in
+// NURSING_DEPT_NAMES). Diagnostics added post-Session-131 — Schedule XX/29 requires
+// dedicated Nursing Staff for USG & ECG, a real ward-duty nursing line even though the
+// department is otherwise lab-tech/radiographer staffed.
 export const NURSING_DUTY_CODES = new Set([
   'KAY', 'KAYACHIKITSA',
   'PK', 'PANCHAKARMA',
@@ -26,7 +29,7 @@ export const NURSING_DUTY_CODES = new Set([
   'SCREEN', 'SCREENING_OPD',
 ]);
 
-export const NURSING_DEPT_NAMES = new Set(['IPD', 'Labour Room', 'Operation Theatre (Major + Minor + CSSD)']);
+export const NURSING_DEPT_NAMES = new Set(['IPD', 'Labour Room', 'Operation Theatre (Major + Minor + CSSD)', 'Diagnostics']);
 
 export const UG_BED_RATIOS = { KAY: .20, PK: .25, SHAL: .20, SHAK: .10, KAU: .10, AGD: .05, PST: .10 };
 
