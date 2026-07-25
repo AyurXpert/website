@@ -133,6 +133,16 @@ async function _loadPositionInvite() {
   document.getElementById('staff-role').closest('.field').style.display = 'none';
   document.getElementById('dept-field').style.display = 'none';
 
+  // Pre-fill (never lock) name/phone/email from whatever the admin typed when creating
+  // the invite — previously these always came through blank, so the staff member had no
+  // way to know or confirm what the admin had on file, and any typo on either side went
+  // uncaught. Left fully editable so the staff member can correct a mistake either side
+  // made before submitting.
+  let prefilledContact = false;
+  if (row.candidate_name) { document.getElementById('staff-name').value = row.candidate_name; prefilledContact = true; }
+  if (row.phone)          { document.getElementById('staff-phone').value = row.phone; prefilledContact = true; }
+  if (row.email)          { document.getElementById('staff-email').value = row.email; prefilledContact = true; }
+
   const banner = document.getElementById('position-invite-banner');
   const bannerTx = document.getElementById('position-invite-banner-text');
   const desigLabel = DESIG_LABELS[_pinvDesignation] || _pinvDesignation;
@@ -140,7 +150,8 @@ async function _loadPositionInvite() {
   // nosemgrep: javascript.browser.security.raw-html-concat.raw-html-concat -- every interpolated value (tenant_name/tenant_code, desigLabel, department_name) is passed through _esc() before concatenation
   bannerTx.innerHTML = `You're joining <strong>${_esc(row.tenant_name || row.tenant_code)}</strong> as <strong>${_esc(desigLabel)}</strong>`
     + (row.department_name ? ` in the <strong>${_esc(row.department_name)}</strong> department` : '')
-    + `.<br/>Fill in your details below to set up your account — your admin will be notified for final approval.`;
+    + `.<br/>Fill in your details below to set up your account — your admin will be notified for final approval.`
+    + (prefilledContact ? `<br/><span style="opacity:.85">We've pre-filled your name/phone/email below from what your admin entered — please check them and correct anything that's wrong.</span>` : '');
 }
 
 (async function _boot() {

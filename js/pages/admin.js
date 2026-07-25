@@ -702,11 +702,10 @@ window.loadHR = async function(sub='staff') {
   // designation seniority within that department, then name) instead of plain
   // alphabetical-by-name — makes it possible to actually find/review a department's
   // staff together instead of them being scattered across the whole tenant.
-  const _lv=d=>DESIG_MAP[d]?.lv??99;
   window._staffAll=(staff||[])
     .map(s=>({...s,dept_name:dById[s.department_id]?.name||'—',_deptRank:_staffDeptRank(dById[s.department_id])}))
     .sort((a,b)=> (a._deptRank-b._deptRank) || (a.dept_name||'').localeCompare(b.dept_name||'')
-      || (_lv(a.designation)-_lv(b.designation)) || (a.full_name||'').localeCompare(b.full_name||''));
+      || (_hierarchyRank(a.designation)-_hierarchyRank(b.designation)) || (a.full_name||'').localeCompare(b.full_name||''));
 
   // Department filter — same order as the table itself, so picking a department in the
   // dropdown jumps straight to what's already visible as that section in the list.
@@ -824,6 +823,25 @@ const NCISM_XX_ROWS = [
   // now; citation already existed in this file's self-assessment checklist, see 'screening_opd')
   ['Screening OPD','Screening OPD Nursing Staff',['staff_nurse'],{60:1,100:1,150:1,200:1},'Sch XVI §40(m)'],
 ];
+
+// Within-department seniority order for "All Staff" (below) -- primarily Schedule XX's
+// own row order, NOT designations.js's per-category `lv`. A zone like Administration mixes
+// several genuinely different seniority tracks (Medical Superintendent's Administration
+// track, Nursing Superintendent's Nursing track, Receptionist's Admin Staff track) whose
+// `lv` values are only meaningful WITHIN their own category -- e.g. Nursing Superintendent
+// (Nursing lv:1) and Receptionist (Admin Staff lv:1) aren't equal seniority in a real
+// hospital, but a plain lv-vs-lv compare treats them as tied, and Medical Superintendent
+// (Administration lv:2) would sort BELOW Nursing Superintendent despite outranking them.
+// NCISM_XX_ROWS already lists Administration's positions in their real Schedule XX order
+// (Medical Director -> Medical Superintendent -> Deputy MS -> ... -> Nursing Superintendent
+// -> ... -> MTS), so using each designation's row position here reuses that authoritative
+// order directly instead of re-deriving a second, inconsistent one. Falls back to lv (offset
+// past every Schedule XX rank) for designations Schedule XX doesn't track at all -- Schedule I
+// faculty (professor/hod/...) and Academic (pg_scholar/intern), which only ever appear inside
+// their own clinical department anyway, not mixed into a multi-track zone like Administration.
+const DESIG_NCISM_RANK = {};
+NCISM_XX_ROWS.forEach(([,,keys], i) => { keys.forEach(k => { if(!(k in DESIG_NCISM_RANK)) DESIG_NCISM_RANK[k]=i; }); });
+function _hierarchyRank(desig){ return DESIG_NCISM_RANK[desig] ?? (1000 + (DESIG_MAP[desig]?.lv ?? 99)); }
 
 // Optional Schedule XX rows — real per the source table, but conditional (dark room
 // assistant only applies to non-digital X-ray, which nothing in the schema tracks) or
