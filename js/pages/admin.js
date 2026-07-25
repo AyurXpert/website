@@ -681,14 +681,6 @@ const DESIG_ROLE_DEFAULT = {
 // counted in the Schedule I faculty ladder isn't double-counted as a second, separate person.
 const FACULTY_CONCURRENT_POSTS = new Set(['medical_director']);
 
-// Populate designation filter
-const dfilter = document.getElementById('hr-desig-filter');
-DESIG_CATS.forEach(cat=>{
-  const grp=document.createElement('optgroup'); grp.label=cat;
-  DESIGS.filter(d=>d.cat===cat).forEach(d=>{const o=document.createElement('option');o.value=d.v;o.textContent=d.l;grp.appendChild(o);});
-  dfilter.appendChild(grp);
-});
-
 // Build designation select HTML once
 const DESIG_SEL_HTML = '<option value="">— Not Set —</option>' +
   DESIG_CATS.map(cat=>`<optgroup label="${cat}">${DESIGS.filter(d=>d.cat===cat).map(d=>`<option value="${d.v}">${d.l}</option>`).join('')}</optgroup>`).join('');
@@ -709,6 +701,25 @@ window.loadHR = async function(sub='staff') {
     .map(s=>({...s,dept_name:dById[s.department_id]?.name||'—',_deptRank:_staffDeptRank(dById[s.department_id])}))
     .sort((a,b)=> (a._deptRank-b._deptRank) || (a.dept_name||'').localeCompare(b.dept_name||'')
       || (_lv(a.designation)-_lv(b.designation)) || (a.full_name||'').localeCompare(b.full_name||''));
+
+  // Department filter — same order as the table itself, so picking a department in the
+  // dropdown jumps straight to what's already visible as that section in the list.
+  const dFilter = document.getElementById('hr-dept-filter');
+  if (dFilter) {
+    const preserve = dFilter.value;
+    const deptOpts = [...(depts||[])].sort((a,b)=>_staffDeptRank(a)-_staffDeptRank(b) || (a.name||'').localeCompare(b.name||''));
+    while (dFilter.options.length > 1) dFilter.remove(1);
+    deptOpts.forEach(d => {
+      const o = document.createElement('option');
+      o.value = d.id; o.textContent = d.name;
+      dFilter.appendChild(o);
+    });
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '__none__'; noneOpt.textContent = 'No Department Assigned';
+    dFilter.appendChild(noneOpt);
+    dFilter.value = preserve;
+  }
+
   if(sub==='staff') renderStaffTable(window._staffAll);
   if(sub==='hierarchy') renderHierarchy(window._staffAll);
 };
@@ -2199,10 +2210,10 @@ async function _renderDeptStaff() {
 window.filterStaff = function(){
   const q=(document.getElementById('hr-search').value||'').toLowerCase();
   const r=document.getElementById('hr-role-filter').value;
-  const d=document.getElementById('hr-desig-filter').value;
+  const d=document.getElementById('hr-dept-filter').value;
   renderStaffTable((window._staffAll||[]).filter(s=>
     (!q||(s.full_name||'').toLowerCase().includes(q)||(s.phone||'').includes(q)) &&
-    (!r||s.role===r) && (!d||s.designation===d)
+    (!r||s.role===r) && (!d || (d==='__none__' ? !s.department_id : s.department_id===d))
   ));
 };
 
