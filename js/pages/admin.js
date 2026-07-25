@@ -1072,6 +1072,20 @@ const ORG_ZONE_MAP = {
   'Physiotherapy':'PHYSIOTHERAPY', 'Yoga & Wellness':'SW', 'Diet / Pathya':'DIET_PATHYA',
   'CSSD':'OT', 'Screening OPD':'SCREEN',
 };
+// Medical IPD / Surgical IPD's Nursing Staff + Ayah rows (Sch XX/32-33, XX/35-36) are
+// genuinely per-bed ratios (1 nurse/10 beds, 1 ayah/20 beds), not fixed headcounts like the
+// Resident Officer rows — Dr. Venkatesh confirmed these should compute live from real
+// configured beds (bed-admin.html) rather than the static NCISM handbook per-UG-tier table,
+// so the requirement always matches the real ward size instead of an assumed proportion.
+// Grouping matches the existing self-assessment checklist text (NCISM Sec 7(11)/7(12)):
+// Medical IPD = Kayachikitsa + Panchakarma + Kaumarabhritya + Agada Tantra (Vishachikitsa);
+// Surgical IPD = Shalya Tantra + Shalakya Tantra + Prasuti & Stri Roga.
+const IPD_MEDICAL_BED_CODES = ['KAY','PK','KAU','AGD'];
+const IPD_SURGICAL_BED_CODES = ['SHAL','SHAK','PST'];
+const BED_DERIVED_ROWS = {
+  'Sch XX/32': {zoneKey:'IPD_MEDICAL',  per:10}, 'Sch XX/33': {zoneKey:'IPD_MEDICAL',  per:20},
+  'Sch XX/35': {zoneKey:'IPD_SURGICAL', per:10}, 'Sch XX/36': {zoneKey:'IPD_SURGICAL', per:20},
+};
 // Friendlier sub-section heading for a zone, shown inside a department's ladder table
 // whenever it merges rows from more than one NCISM_XX_ROWS zone (e.g. IPD_PARENT holds
 // both 'Medical IPD' and 'Surgical IPD') — falls back to the raw zone label otherwise.
@@ -1103,8 +1117,10 @@ function _ncismRoleMinimums(ug){
 
 // Required-staff ladder for a single department row. mandated=false means NCISM
 // prescribes no headcount for this function (Housekeeping/Laundry/Security) — never
-// fabricate a number in that case, just track actual staff.
-function deptRequirement(dept, ug){
+// fabricate a number in that case, just track actual staff. bedTotals (optional) --
+// {IPD_MEDICAL:n, IPD_SURGICAL:n} real configured bed counts -- overrides the static
+// per-UG-tier table for the genuinely per-bed Nursing/Ayah rows (BED_DERIVED_ROWS).
+function deptRequirement(dept, ug, bedTotals){
   if(!dept || !ug) return {mandated:false, ladder:[], required:0, optional:[]};
   const ladder=[];
   let mandated=false;
@@ -1143,7 +1159,8 @@ function deptRequirement(dept, ug){
     if(rows.length){
       mandated=true;
       rows.forEach(([zone,label,keys,req,ref])=>{
-        const c=req[ug]||0;
+        const bedRule=BED_DERIVED_ROWS[ref];
+        const c=bedRule ? Math.ceil((bedTotals?.[bedRule.zoneKey]||0)/bedRule.per) : (req[ug]||0);
         if(c){ ladder.push({zone,label,count:c,ref,keys,facultyHeld:FACULTY_CONCURRENT_POSTS.has(keys[0])}); }
       });
     }
@@ -1159,15 +1176,25 @@ function deptRequirement(dept, ug){
 }
 
 // Required/actual/gap rollup for a top-level section — sums the section's own row + all its children
-function sectionRollup(node, ug, staffByDept){
+function sectionRollup(node, ug, staffByDept, bedTotals){
   const rows=_dedupById([node.dept, ...node.children].filter(Boolean));
   let required=0, actual=0, mandated=false;
   rows.forEach(d=>{
-    const r=deptRequirement(d,ug);
+    const r=deptRequirement(d,ug,bedTotals);
     if(r.mandated){ mandated=true; required+=r.required; }
     actual += (staffByDept[d.id]||[]).length;
   });
   return {required, actual, mandated, gap:Math.max(0,required-actual)};
+}
+
+// Real configured bed counts, summed per IPD sub-section grouping (BED_DERIVED_ROWS above) --
+// shared by both _renderNcismStaffing() and _renderDeptStaff(), each doing their own `beds`
+// fetch since they already run independent Promise.all data loads.
+function _computeIpdBedTotals(depts, bedsRows){
+  const deptCode = {}; (depts||[]).forEach(d=>{ deptCode[d.id]=d.ncism_code; });
+  const byCode = {}; (bedsRows||[]).forEach(b=>{ const c=deptCode[b.department_id]; if(c) byCode[c]=(byCode[c]||0)+1; });
+  const sum = codes => codes.reduce((s,c)=>s+(byCode[c]||0),0);
+  return { IPD_MEDICAL: sum(IPD_MEDICAL_BED_CODES), IPD_SURGICAL: sum(IPD_SURGICAL_BED_CODES) };
 }
 
 window.seedHrOrgStructure = async function(){
@@ -1242,14 +1269,16 @@ async function _renderNcismStaffing() {
   _ladderRowRegistry = [];
   _pendingInviteRegistry = [];
 
-  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }, { data:invites }, { data:opds }] = await Promise.all([
+  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }, { data:invites }, { data:opds }, { data:bedsRows }] = await Promise.all([
     supabase.from('tenants').select('ug_intake,type,pg_student_strength').eq('id',tenantId).single(),
     supabase.from('profiles').select('designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,name,ncism_code,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_pg_dept',true),
     supabase.from('position_invites').select('id,department_id,designation,phone,candidate_name,token').eq('tenant_id',tenantId).eq('status','pending'),
     supabase.from('opds').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('beds').select('department_id').eq('tenant_id',tenantId),
   ]);
+  const bedTotals = _computeIpdBedTotals(depts, bedsRows);
 
   // Pending invites grouped by "deptId|designation" for the ladder's per-row chip
   const invitesByRow = {};
@@ -1331,7 +1360,7 @@ async function _renderNcismStaffing() {
   tree.forEach(node=>{
     if(!node.dept) return;
     _dedupById([node.dept, ...node.children]).forEach(d=>{
-      const r=deptRequirement(d,ug);
+      const r=deptRequirement(d,ug,bedTotals);
       if(!r.mandated) return;
       r.ladder.forEach(row=>{ if(row.facultyHeld) return; grandReq+=row.count; grandMet+=Math.min(cntDeptD(d.id,row.keys),row.count); });
     });
@@ -1435,7 +1464,7 @@ async function _renderNcismStaffing() {
   }
 
   function ladderTableHtml(dept){
-    const req=deptRequirement(dept,ug);
+    const req=deptRequirement(dept,ug,bedTotals);
     if(!req.mandated){
       const actual=(byDept[dept.id]||[]).length;
       return '<div style="padding:6px 16px 10px;font-size:12px;color:var(--text-muted)">Not NCISM-mandated — tracked for operational completeness. <strong>'+actual+'</strong> active staff currently assigned.</div>'
@@ -1494,7 +1523,7 @@ async function _renderNcismStaffing() {
         +'<span style="font-weight:600;font-size:13px">'+def.icon+' '+_esc(def.label)+'</span>'
         +'<span style="font-size:11px;color:var(--text-muted)">Not yet configured</span></div></div>';
     }
-    const roll=sectionRollup(node,ug,byDept);
+    const roll=sectionRollup(node,ug,byDept,bedTotals);
     const pillColor=!roll.mandated?'#6b7280':roll.gap>0?'#c0392b':'#2d7a4f';
     const pillText=!roll.mandated?roll.actual+' staff (not NCISM-mandated)':'Req '+roll.required+' · Actual '+roll.actual+(roll.gap>0?' · Gap −'+roll.gap:' · ✅ met');
 
@@ -2015,13 +2044,15 @@ async function _renderDeptStaff() {
   wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
 
   const today = new Date().toISOString().slice(0,10);
-  const [{ data:tRow },{ data:depts },{ data:allStaff },{ data:rosterRows },{ data:opds }] = await Promise.all([
+  const [{ data:tRow },{ data:depts },{ data:allStaff },{ data:rosterRows },{ data:opds },{ data:bedsRows }] = await Promise.all([
     supabase.from('tenants').select('ug_intake').eq('id',tenantId).single(),
     supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_active,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('profiles').select('id,full_name,role,designation,department_id,is_active,status').eq('tenant_id',tenantId),
     supabase.from('duty_roster').select('department_id,profile_id,shift_type,is_confirmed').eq('tenant_id',tenantId).eq('shift_date',today),
     supabase.from('opds').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('beds').select('department_id').eq('tenant_id',tenantId),
   ]);
+  const bedTotals = _computeIpdBedTotals(depts, bedsRows);
 
   const ugRaw=tRow?.ug_intake||0;
   const ug=[60,100,150,200].includes(ugRaw)?ugRaw:(ugRaw>=150?150:ugRaw>=100?100:ugRaw>0?60:0);
@@ -2201,7 +2232,7 @@ async function _renderDeptStaff() {
         +'<span style="font-size:11px;color:var(--text-muted)">Not yet configured — click <strong>Seed HR Org Structure</strong> above</span></div></div>';
       return;
     }
-    const roll=sectionRollup(node,ug,byDept);
+    const roll=sectionRollup(node,ug,byDept,bedTotals);
     const pillColor=!roll.mandated?'#6b7280':roll.gap>0?'#c0392b':'#2d7a4f';
     const pillText=!roll.mandated
       ?roll.actual+' staff (not NCISM-mandated)'
