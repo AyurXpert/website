@@ -930,8 +930,19 @@ const ORG_EXISTING_NCISM = {PK:1, SW:1};
 // New child department rows the seeder creates, nested one level under a top-level key.
 // Labour Room/Kriyakalpa/Diet-Pathya are deliberately top-level (ORG_TREE_DEF above), not
 // nested under Panchakarma/Yoga — kept separate per Dr. Venkatesh's spec.
+// IPD_MEDICAL/IPD_SURGICAL added after finding "Medical IPD"/"Surgical IPD" Schedule XX rows
+// were both being checked against the one generic "IPD" department — since profiles has no
+// field recording which ward a nurse/ayah/RMO actually works, the same real staff got counted
+// as fulfilling BOTH sections' requirements independently (8 real nurses showing "8 recruited"
+// against Medical's need for 6 AND against Surgical's need for 4 simultaneously). Dr. Venkatesh
+// confirmed the sections should stay genuinely separate rather than pooled -- these two real
+// child departments let staff be individually assigned to whichever ward they actually work,
+// the same pattern OT already uses. Existing "IPD"-assigned staff need manual reassignment
+// (the system has no way to infer which ward they're actually in).
 const ORG_CHILD_DEFS = [
   {key:'OT', label:'Operation Theatre (Major + Minor + CSSD)', parent:'IPD_PARENT'},
+  {key:'IPD_MEDICAL',  label:'Medical In-Patients',  parent:'IPD_PARENT'},
+  {key:'IPD_SURGICAL', label:'Surgical In-Patients', parent:'IPD_PARENT'},
 ];
 // Existing clinical/OPD department ncism_codes to nest under the new OPD umbrella.
 // Panchakarma + Swasthavritta-Yoga are excluded — they stay top-level per Dr. Venkatesh's spec.
@@ -1056,7 +1067,7 @@ function _scheduleIFacultyTotal(depts, ug) {
 const ORG_ZONE_MAP = {
   'Administration':'ADMIN', 'Finance & Accounts':'FINANCE', 'Reception & MRD':'ADMIN',
   'OPD Nursing':'OPD_PARENT', 'Pharmacy':'PHARMACY', 'Diagnostics':'DIAGNOSTICS',
-  'Medical IPD':'IPD_PARENT', 'Surgical IPD':'IPD_PARENT', 'Panchakarma':'PK',
+  'Medical IPD':'IPD_MEDICAL', 'Surgical IPD':'IPD_SURGICAL', 'Panchakarma':'PK',
   'Operation Theatre':'OT', 'Labour Room':'LABOUR_ROOM', 'Kriyakalpa':'KRIYAKALPA',
   'Physiotherapy':'PHYSIOTHERAPY', 'Yoga & Wellness':'SW', 'Diet / Pathya':'DIET_PATHYA',
   'CSSD':'OT', 'Screening OPD':'SCREEN',
@@ -1160,7 +1171,7 @@ function sectionRollup(node, ug, staffByDept){
 }
 
 window.seedHrOrgStructure = async function(){
-  if(!confirm('This creates the missing HR department rows (Administration, Finance, OPD, IPD, Labour Room, Kriyakalpa, Diet / Pathya, Physiotherapy, Diagnostics, Pharmacy, House Keeping, Laundry, Security) and re-parents existing OPD departments under the new "OPD" umbrella + Operation Theatre under "IPD". Safe to run more than once. Continue?')) return;
+  if(!confirm('This creates the missing HR department rows (Administration, Finance, OPD, IPD, Labour Room, Kriyakalpa, Diet / Pathya, Physiotherapy, Diagnostics, Pharmacy, House Keeping, Laundry, Security) and re-parents existing OPD departments under the new "OPD" umbrella + Operation Theatre + Medical In-Patients + Surgical In-Patients under "IPD". Safe to run more than once. Staff currently assigned to the generic "IPD" department will need to be individually reassigned to Medical or Surgical In-Patients afterward. Continue?')) return;
 
   const {data:rawDepts, error:fetchErr} = await supabase.from('departments')
     .select('id,name,ncism_code,category,parent_department_id').eq('tenant_id',tenantId);

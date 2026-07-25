@@ -29,7 +29,13 @@ export const NURSING_DUTY_CODES = new Set([
   'SCREEN', 'SCREENING_OPD',
 ]);
 
-export const NURSING_DEPT_NAMES = new Set(['IPD', 'Labour Room', 'Operation Theatre (Major + Minor + CSSD)', 'Diagnostics']);
+// Medical/Surgical In-Patients added when "IPD" was split into 2 real sub-departments
+// (admin.js's ORG_CHILD_DEFS) so Medical/Surgical ward nursing staff could be counted
+// separately instead of the same real nurses double-counting against both sections'
+// Schedule XX requirements. "IPD" (the now-empty parent) is kept in the set too, since
+// any not-yet-reassigned staff still sit there until an admin moves them to one of the
+// two wards.
+export const NURSING_DEPT_NAMES = new Set(['IPD', 'Medical In-Patients', 'Surgical In-Patients', 'Labour Room', 'Operation Theatre (Major + Minor + CSSD)', 'Diagnostics']);
 
 export const UG_BED_RATIOS = { KAY: .20, PK: .25, SHAL: .20, SHAK: .10, KAU: .10, AGD: .05, PST: .10 };
 
