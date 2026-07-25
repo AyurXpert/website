@@ -690,6 +690,9 @@ const FACULTY_CONCURRENT_POSTS = new Set(['medical_director']);
 // Build designation select HTML once
 const DESIG_SEL_HTML = '<option value="">— Not Set —</option>' +
   DESIG_CATS.map(cat=>`<optgroup label="${cat}">${DESIGS.filter(d=>d.cat===cat).map(d=>`<option value="${d.v}">${d.l}</option>`).join('')}</optgroup>`).join('');
+// Department select options for each All Staff row -- rebuilt every loadHR() call
+// (tenant-specific, unlike DESIG_SEL_HTML above) by loadHR, read by renderStaffTable.
+let _deptSelOptsHtml = '<option value="">— No Department —</option>';
 
 window.loadHR = async function(sub='staff') {
   _hrSub(sub);
@@ -707,12 +710,18 @@ window.loadHR = async function(sub='staff') {
     .sort((a,b)=> (a._deptRank-b._deptRank) || (a.dept_name||'').localeCompare(b.dept_name||'')
       || (_hierarchyRank(a.designation)-_hierarchyRank(b.designation)) || (a.full_name||'').localeCompare(b.full_name||''));
 
+  // Same sorted department list backs both the filter dropdown below AND each row's
+  // editable Department select in renderStaffTable() -- cached module-level since it's
+  // tenant-specific (unlike DESIG_SEL_HTML, which is static and built once at load).
+  const deptOpts = [...(depts||[])].sort((a,b)=>_staffDeptRank(a)-_staffDeptRank(b) || (a.name||'').localeCompare(b.name||''));
+  _deptSelOptsHtml = '<option value="">— No Department —</option>'
+    + deptOpts.map(d=>`<option value="${_esc(d.id)}">${_esc(d.name)}</option>`).join('');
+
   // Department filter — same order as the table itself, so picking a department in the
   // dropdown jumps straight to what's already visible as that section in the list.
   const dFilter = document.getElementById('hr-dept-filter');
   if (dFilter) {
     const preserve = dFilter.value;
-    const deptOpts = [...(depts||[])].sort((a,b)=>_staffDeptRank(a)-_staffDeptRank(b) || (a.name||'').localeCompare(b.name||''));
     while (dFilter.options.length > 1) dFilter.remove(1);
     deptOpts.forEach(d => {
       const o = document.createElement('option');
@@ -2322,14 +2331,22 @@ function renderStaffTable(staff){
     <td><strong>${_esc(s.full_name||'—')}</strong></td>
     <td><span class="chip g">${_esc(_effectiveRoleLabel(s.role,s.designation))}</span>${s.secondary_role?` <span class="chip" style="background:#fdf3e0;color:#7a5a10;border:1px solid #e8d5a0">+ ${_esc(_effectiveRoleLabel(s.secondary_role,s.designation))}</span>`:''}${s.has_monitoring_access?` <span class="chip" style="background:#eaf3fb;color:#1a5a8a;border:1px solid #b8d8ee">👁 Monitoring</span>`:''}${s.scope_department_id?` <span class="chip" style="background:#eaf3ec;color:#1a5a3a;border:1px solid #b8dfc4">🏥 Scoped: ${_esc(s.dept_name)}</span>`:''}</td>
     <td><select class="desig-sel" data-id="${s.id}" data-onchange="saveDesig" data-onchange-a0="@this">${DESIG_SEL_HTML}</select></td>
-    <td>${_esc(s.dept_name)}</td>
+    <td><select class="dept-sel" data-id="${s.id}" data-onchange="saveDept" data-onchange-a0="@this">${_deptSelOptsHtml}</select></td>
     <td>${_esc(s.phone||'—')}</td>
     <td><span class="chip ${s.is_active?'g':'grey'}">${s.is_active?'Active':s.status}</span></td>
     <td style="font-size:12px;color:var(--text-muted)">${_relDate(s.created_at)}</td>
     <td>${actionCell}</td>
   </tr>`;
   }).join('');
-  staff.forEach(s=>{const sel=tbody.querySelector(`select[data-id="${s.id}"]`);if(sel&&s.designation)sel.value=s.designation;});
+  // Two selects share the same data-id per row (designation + department) -- must be
+  // scoped by class too, or querySelector's first-match-wins would silently leave the
+  // department dropdown stuck on its default option for every row.
+  staff.forEach(s=>{
+    const desigSel=tbody.querySelector(`select.desig-sel[data-id="${s.id}"]`);
+    if(desigSel&&s.designation)desigSel.value=s.designation;
+    const deptSel=tbody.querySelector(`select.dept-sel[data-id="${s.id}"]`);
+    if(deptSel&&s.department_id)deptSel.value=s.department_id;
+  });
 }
 
 // Session 117 -- grants dept_admin as a SECONDARY role now (see
@@ -2437,6 +2454,21 @@ window.saveDesig = async function(sel){
   const{error}=await supabase.rpc('dept_admin_update_designation', {p_staff_id:id, p_designation:val||null});
   if(error)_toast(safeErrorMessage(error,'Could not save designation.'),true);
   else{_toast('Designation updated.');const s=(window._staffAll||[]).find(x=>x.id===id);if(s)s.designation=val||null;}
+};
+
+// Session 133 -- the department column was previously plain read-only text; the only
+// way to set it at all was via signup/invite time. Surfaced by the Medical/Surgical
+// IPD split, where existing staff need individually reassigning to whichever ward
+// they actually work. Mirrors saveDesig()'s exact pattern/RPC-authorization model.
+window.saveDept = async function(sel){
+  const id=sel.dataset.id, val=sel.value;
+  const{error}=await supabase.rpc('dept_admin_update_department', {p_staff_id:id, p_department_id:val||null});
+  if(error){_toast(safeErrorMessage(error,'Could not save department.'),true);return;}
+  _toast('Department updated.');
+  // Full reload rather than patching window._staffAll in place -- the row's department
+  // rank/hierarchy position and section grouping all need recomputing against the new
+  // department, not just its displayed name.
+  window.loadHR && window.loadHR('staff');
 };
 
 function renderHierarchy(staff){
