@@ -697,10 +697,18 @@ window.loadHR = async function(sub='staff') {
   _hrSub(sub);
   const [{data:staff},{data:depts}] = await Promise.all([
     supabase.from('profiles').select('id,full_name,role,secondary_role,has_monitoring_access,scope_department_id,designation,phone,status,is_active,created_at,department_id').eq('tenant_id',tenantId).order('full_name'),
-    supabase.from('departments').select('id,name').eq('tenant_id',tenantId),
+    supabase.from('departments').select('id,name,ncism_code,category').eq('tenant_id',tenantId),
   ]);
-  const dm={}; (depts||[]).forEach(d=>{dm[d.id]=d.name;});
-  window._staffAll=(staff||[]).map(s=>({...s,dept_name:dm[s.department_id]||'—'}));
+  const dById={}; (depts||[]).forEach(d=>{dById[d.id]=d;});
+  // Sort by (department's position in the standard Admin->Security hierarchy, then
+  // designation seniority within that department, then name) instead of plain
+  // alphabetical-by-name — makes it possible to actually find/review a department's
+  // staff together instead of them being scattered across the whole tenant.
+  const _lv=d=>DESIG_MAP[d]?.lv??99;
+  window._staffAll=(staff||[])
+    .map(s=>({...s,dept_name:dById[s.department_id]?.name||'—',_deptRank:_staffDeptRank(dById[s.department_id])}))
+    .sort((a,b)=> (a._deptRank-b._deptRank) || (a.dept_name||'').localeCompare(b.dept_name||'')
+      || (_lv(a.designation)-_lv(b.designation)) || (a.full_name||'').localeCompare(b.full_name||''));
   if(sub==='staff') renderStaffTable(window._staffAll);
   if(sub==='hierarchy') renderHierarchy(window._staffAll);
 };
@@ -905,6 +913,21 @@ const OPD_SCREENING_CODE = 'SCREEN';
 // Swasthavritta-Yoga) and some pre-existing rows carry an unrelated legacy `category` value (e.g.
 // "clinical" from the Infrastructure Setup feature) that would otherwise shadow the real match.
 function _deptKey(d){ return (d && (d.ncism_code || d.category)) || null; }
+
+// Same top-to-bottom section order as buildDeptTree()/ORG_TREE_DEF (Departments/Dept.
+// Staff/NCISM Staffing tabs) — derived from it rather than hand-duplicated, so "All Staff"
+// (a flat, searchable table) sorts into the exact same department order the rest of this
+// HR section already uses, instead of its previous plain alphabetical-by-name order.
+const STAFF_DEPT_ORDER = ORG_TREE_DEF.flatMap(def => {
+  if (def.key === 'OPD_PARENT') return [OPD_SCREENING_CODE, ...OPD_CHILD_NCISM_CODES];
+  const children = ORG_CHILD_DEFS.filter(c => c.parent === def.key).map(c => c.key);
+  return [def.key, ...children];
+});
+function _staffDeptRank(dept) {
+  if (!dept) return STAFF_DEPT_ORDER.length + 1; // unassigned staff sort last
+  const idx = STAFF_DEPT_ORDER.indexOf(_deptKey(dept));
+  return idx === -1 ? STAFF_DEPT_ORDER.length : idx; // unmapped depts sort just before "unassigned"
+}
 
 // Session 96: the "OPD" section's children are built from the real `opds` table (OPD Setup,
 // opd-admin.html) rather than `departments.parent_department_id` — so it always reflects
@@ -2187,7 +2210,13 @@ function renderStaffTable(staff){
   const tbody=document.getElementById('staff-tbody');
   if(!staff.length){tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-ico">👥</div><div class="empty-ttl">No staff found</div></div></td></tr>`;return;}
   const canPromote = role === 'super_admin';
+  let _prevDeptGroup;
   tbody.innerHTML=staff.map(s=>{
+    let groupHeader = '';
+    if (s.dept_name !== _prevDeptGroup) {
+      _prevDeptGroup = s.dept_name;
+      groupHeader = `<tr><td colspan="8" style="background:var(--green-light);color:var(--green-deep);font-weight:700;font-size:11px;padding:6px 10px;text-transform:uppercase;letter-spacing:.5px">${_esc(s.dept_name==='—'?'No Department Assigned':s.dept_name)}</td></tr>`;
+    }
     const isFullAdmin = ['super_admin','dept_admin'].includes(s.role);
     const hasSecondaryAdmin = s.secondary_role === 'dept_admin';
     const hasFullAccess = isFullAdmin || hasSecondaryAdmin;
@@ -2207,7 +2236,7 @@ function renderStaffTable(staff){
     if (showUnscopeDept) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px;color:#c0392b;border-color:#e0b0b0" data-onclick="unscopeFromDepartment" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">⬇ Remove Scope</button>`;
     if (showDelete) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px;color:#c0392b;border-color:#e0b0b0" data-onclick="deleteRejectedStaff" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">🗑 Delete</button>`;
     if (!actionCell) actionCell = '—';
-    return `<tr>
+    return groupHeader + `<tr>
     <td><strong>${_esc(s.full_name||'—')}</strong></td>
     <td><span class="chip g">${_esc(_effectiveRoleLabel(s.role,s.designation))}</span>${s.secondary_role?` <span class="chip" style="background:#fdf3e0;color:#7a5a10;border:1px solid #e8d5a0">+ ${_esc(_effectiveRoleLabel(s.secondary_role,s.designation))}</span>`:''}${s.has_monitoring_access?` <span class="chip" style="background:#eaf3fb;color:#1a5a8a;border:1px solid #b8d8ee">👁 Monitoring</span>`:''}${s.scope_department_id?` <span class="chip" style="background:#eaf3ec;color:#1a5a3a;border:1px solid #b8dfc4">🏥 Scoped: ${_esc(s.dept_name)}</span>`:''}</td>
     <td><select class="desig-sel" data-id="${s.id}" data-onchange="saveDesig" data-onchange-a0="@this">${DESIG_SEL_HTML}</select></td>
