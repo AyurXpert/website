@@ -98,6 +98,7 @@ const DESIG_LABELS = {
   senior_therapist:'Senior Therapist', therapist:'Therapist', yoga_instructor:'Yoga Instructor',
   palha_diet_incharge:'Palha-diet In-charge', dietitian:'Dietitian', diet_cook:'Ayurvedic Diet Cook', attender:'Attender',
   ot_attendant:'OT Attendant', anushastra_technician:'Anushastra Karma Technician', cssd_aya:'CSSD / Sterilisation Aya',
+  ecg_technician:'ECG Technician', microbiology_lab_assistant:'Lab Assistant — Microbiology',
 };
 
 let _positionInviteValid = false;

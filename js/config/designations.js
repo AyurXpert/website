@@ -56,6 +56,13 @@ export const DESIGS = [
   {v:'radiographer',                l:'Radiographer / X-ray Technician',  cat:'Diagnostics',    lv:2, d:'Operates X-ray/imaging equipment and AERB safety logs (Sch XX/26).'},
   {v:'lab_attendant',               l:'Lab Attendant',                    cat:'Diagnostics',    lv:3, d:'Assists lab technicians — specimen handling and housekeeping of the lab (Sch XX/25).'},
   {v:'dark_room_assistant',         l:'Dark Room Assistant',              cat:'Diagnostics',    lv:3, d:'Develops X-ray film in the dark room — only needed if using non-digital X-ray equipment (Sch XX/27, optional).'},
+  // Session 134: split out of lab_technician/lab_attendant, which had been silently
+  // double-counting the same staff against two Schedule XX rows each within Diagnostics
+  // (Sch XX/24 Lab Technician and Sch XX/28 ECG Technician both checked lab_technician;
+  // Sch XX/25 Lab Attendant and Sch XX/31 Lab Assistant — Microbiology both checked
+  // lab_attendant) — same overlap class as the OT Attendant/CSSD Aya fix above.
+  {v:'ecg_technician',              l:'ECG Technician',                   cat:'Diagnostics',    lv:2, d:'Operates/records the electrocardiogram machine (Sch XX/28).'},
+  {v:'microbiology_lab_assistant',  l:'Lab Assistant — Microbiology',     cat:'Diagnostics',    lv:3, d:'Assists the Microbiologist — culture prep and specimen handling in the microbiology section (Sch XX/31).'},
   {v:'ot_technician',               l:'OT Technician / Surgical Tech',   cat:'Clinical',       lv:7, d:'Assists surgeons — instrument prep, sterile technique, OT equipment upkeep (Sch XX/43).'},
   {v:'ophthalmic_technician',       l:'Ophthalmic Technician',           cat:'Clinical',       lv:7, d:'Assists Shalakya-Netra faculty with eye examinations and minor procedures.'},
   {v:'ent_technician',              l:'ENT Technician / Audiologist',    cat:'Clinical',       lv:7, d:'Assists Shalakya-KNM faculty with ENT examinations, audiometry and minor procedures.'},

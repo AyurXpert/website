@@ -665,7 +665,7 @@ const DESIG_ROLE_DEFAULT = {
   medical_record_officer:'mrd_staff', medical_record_technician:'mrd_staff',
   pharmacist:'pharmacist', chief_pharmacist:'pharmacist', pharmacy_assistant:'pharmacist',
   lab_technician:'lab_tech', lab_attendant:'lab_tech', radiographer:'lab_tech', microbiologist:'lab_tech',
-  dark_room_assistant:'lab_tech',
+  dark_room_assistant:'lab_tech', ecg_technician:'lab_tech', microbiology_lab_assistant:'lab_tech',
   ot_technician:'nurse', cssd_technician:'nurse', cssd_incharge:'nurse',
   ot_attendant:'nurse', anushastra_technician:'nurse', cssd_aya:'nurse',
   pk_incharge:'therapist', senior_therapist:'therapist', therapist:'therapist', yoga_instructor:'therapist',
@@ -789,13 +789,19 @@ const NCISM_XX_ROWS = [
   ['Pharmacy','Pharmacist (Ayurveda-qualified)',['pharmacist'],{60:2,100:2,150:3,200:4},'Sch XX/22'],
   ['Pharmacy','Dispensary In-charge',['chief_pharmacist'],{60:1,100:1,150:1,200:1},'Sch XX/23'],
   // Diagnostics
+  // Session 134: ECG Technician and Lab Assistant — Microbiology used to share
+  // lab_technician/lab_attendant with the two rows just above them, so inviting one
+  // Lab Technician (or Lab Attendant) silently satisfied both rows at once within this
+  // same Diagnostics department — found live (Dr. Venkatesh: inviting Lab Technician
+  // (DMLT) also showed a pending invite under ECG Technician). Split into their own
+  // designations, same fix pattern as OT Attendant/CSSD Aya above.
   ['Diagnostics','Lab Technician (DMLT)',['lab_technician'],{60:2,100:2,150:3,200:4},'Sch XX/24'],
   ['Diagnostics','Lab Attendant',['lab_attendant'],{60:1,100:1,150:2,200:3},'Sch XX/25'],
   ['Diagnostics','X-ray Technician / Radiographer',['radiographer'],{60:1,100:1,150:1,200:1},'Sch XX/26'],
-  ['Diagnostics','ECG Technician',['lab_technician'],{60:1,100:1,150:2,200:2},'Sch XX/28'],
+  ['Diagnostics','ECG Technician',['ecg_technician'],{60:1,100:1,150:2,200:2},'Sch XX/28'],
   ['Diagnostics','Nursing Staff — USG & ECG',['staff_nurse'],{60:1,100:1,150:1,200:1},'Sch XX/29'],
   ['Diagnostics','Microbiologist (MSc)',['microbiologist'],{60:1,100:1,150:1,200:1},'Sch XX/30'],
-  ['Diagnostics','Lab Assistant — Microbiology',['lab_attendant'],{60:1,100:1,150:2,200:2},'Sch XX/31'],
+  ['Diagnostics','Lab Assistant — Microbiology',['microbiology_lab_assistant'],{60:1,100:1,150:2,200:2},'Sch XX/31'],
   // Medical IPD
   ['Medical IPD','Nursing Staff (1 per 10 beds)',['staff_nurse','ward_sister'],{60:4,100:6,150:9,200:12},'Sch XX/32'],
   ['Medical IPD','Ayah (1 per 20 beds)',['attender','anm'],{60:2,100:3,150:5,200:6},'Sch XX/33'],
@@ -906,8 +912,8 @@ const NCISM_SUM_GRPS = [
     {l:'Dispensary In-charge',                        k:['chief_pharmacist']},
   ]},
   {s:'Diagnostics',rows:[
-    {l:'Lab Technician',                              k:['lab_technician']},
-    {l:'Lab Attendant',                               k:['lab_attendant']},
+    {l:'Lab Technician / ECG Technician',             k:['lab_technician','ecg_technician']},
+    {l:'Lab Attendant / Microbiology Lab Assistant',  k:['lab_attendant','microbiology_lab_assistant']},
     {l:'X-ray Technician / Radiographer',             k:['radiographer']},
     {l:'Microbiologist',                              k:['microbiologist']},
   ]},
