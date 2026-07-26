@@ -97,6 +97,7 @@ const DESIG_LABELS = {
   cssd_technician:'CSSD Technician', cssd_incharge:'CSSD In-charge', pk_incharge:'Panchakarma In-charge',
   senior_therapist:'Senior Therapist', therapist:'Therapist', yoga_instructor:'Yoga Instructor',
   palha_diet_incharge:'Palha-diet In-charge', dietitian:'Dietitian', diet_cook:'Ayurvedic Diet Cook', attender:'Attender',
+  ot_attendant:'OT Attendant', anushastra_technician:'Anushastra Karma Technician', cssd_aya:'CSSD / Sterilisation Aya',
 };
 
 let _positionInviteValid = false;

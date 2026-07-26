@@ -667,6 +667,7 @@ const DESIG_ROLE_DEFAULT = {
   lab_technician:'lab_tech', lab_attendant:'lab_tech', radiographer:'lab_tech', microbiologist:'lab_tech',
   dark_room_assistant:'lab_tech',
   ot_technician:'nurse', cssd_technician:'nurse', cssd_incharge:'nurse',
+  ot_attendant:'nurse', anushastra_technician:'nurse', cssd_aya:'nurse',
   pk_incharge:'therapist', senior_therapist:'therapist', therapist:'therapist', yoga_instructor:'therapist',
   panchakarma_cook:'therapist',
   palha_diet_incharge:'diet_staff', dietitian:'diet_staff', diet_cook:'diet_staff',
@@ -817,8 +818,8 @@ const NCISM_XX_ROWS = [
   ['Panchakarma','Clerk cum Receptionist',['receptionist'],{60:1,100:1,150:1,200:1},'Sch XX/42'],
   // Operation Theatre
   ['Operation Theatre','OT Nursing Staff',['ot_technician','staff_nurse'],{60:1,100:2,150:3,200:4},'Sch XX/43'],
-  ['Operation Theatre','OT Attendants',['attender'],{60:2,100:3,150:4,200:5},'Sch XX/44'],
-  ['Operation Theatre','Anushastra Karma Technician',['cssd_technician'],{60:1,100:1,150:2,200:2},'Sch XX/45'],
+  ['Operation Theatre','OT Attendants',['ot_attendant'],{60:2,100:3,150:4,200:5},'Sch XX/44'],
+  ['Operation Theatre','Anushastra Karma Technician',['anushastra_technician'],{60:1,100:1,150:2,200:2},'Sch XX/45'],
   // Labour Room
   ['Labour Room','Nursing Staff — Labour Room (3 shifts)',['staff_nurse','ward_sister'],{60:3,100:3,150:6,200:6},'Sch XX/46'],
   ['Labour Room','Aya (1 per shift)',['attender','anm'],{60:3,100:3,150:3,200:3},'Sch XX/47'],
@@ -834,8 +835,16 @@ const NCISM_XX_ROWS = [
   ['Diet / Pathya','Multi-tasking Staff',['attender'],{60:2,100:2,150:3,200:4},'Sch XX/54'],
   // CSSD (Central Sterilization — source document's own serial numbers repeat 52/53
   // from the Diet section above; kept as CS1/CS2 here to avoid a duplicate ref key)
+  // Session 134: OT Attendants/Anushastra Karma Technician above and this pair used to
+  // share designation keys (attender, cssd_technician) with CSSD/Sterilisation Aya and
+  // CSSD/Sterilisation Staff respectively — since OT and CSSD collapse into the same
+  // single "Operation Theatre (Major + Minor + CSSD)" department, that meant inviting
+  // one attender or one cssd_technician silently satisfied BOTH Schedule XX rows at
+  // once. Now split into their own designations (ot_attendant/anushastra_technician
+  // above, cssd_aya below) — cssd_incharge/cssd_technician stay as-is for CS1 since
+  // that pair was never actually shared with anything else.
   ['CSSD','CSSD / Sterilisation Staff',['cssd_incharge','cssd_technician'],{60:1,100:1,150:1,200:1},'Sch XX/CS1'],
-  ['CSSD','CSSD / Sterilisation Aya',['attender','anm'],{60:1,100:1,150:1,200:1},'Sch XX/CS2'],
+  ['CSSD','CSSD / Sterilisation Aya',['cssd_aya'],{60:1,100:1,150:1,200:1},'Sch XX/CS2'],
   // Screening OPD (Session 94 — Screening OPD didn't have a departments row at all until
   // now; citation already existed in this file's self-assessment checklist, see 'screening_opd')
   ['Screening OPD','Screening OPD Nursing Staff',['staff_nurse'],{60:1,100:1,150:1,200:1},'Sch XVI §40(m)'],
@@ -890,7 +899,7 @@ const NCISM_SUM_GRPS = [
     {l:'Matron / Nursing Superintendent',             k:['nursing_superintendent']},
     {l:'Assistant Matron',                            k:['deputy_nursing_superintendent']},
     {l:'Staff Nurse — all zones (OPD+IPD+PK+OT+LR)', k:['staff_nurse','ward_sister']},
-    {l:'Ayah / Attendant — all zones (IPD+Admin+OT)', k:['attender','anm']},
+    {l:'Ayah / Attendant — all zones (IPD+Admin+OT+CSSD)', k:['attender','anm','ot_attendant','cssd_aya']},
   ]},
   {s:'Pharmacy',rows:[
     {l:'Pharmacist',                                  k:['pharmacist','pharmacy_assistant']},
@@ -912,7 +921,7 @@ const NCISM_SUM_GRPS = [
     {l:'Finance Mgr + Accountants + Store Keeper',    k:['finance_manager','accountant','store_keeper']},
   ]},
   {s:'OT / CSSD',rows:[
-    {l:'OT Nurse / CSSD / Anushastra Technician',    k:['ot_technician','cssd_incharge','cssd_technician']},
+    {l:'OT Nurse / CSSD / Anushastra Technician',    k:['ot_technician','cssd_incharge','cssd_technician','anushastra_technician']},
   ]},
   {s:'Therapy & Wellness',rows:[
     {l:'PK / Kriyakalpa / Physiotherapy Therapist',  k:['pk_incharge','senior_therapist','therapist']},
@@ -1282,6 +1291,12 @@ let _pendingInviteRegistry = [];
 
 async function _renderNcismStaffing() {
   const wrap = document.getElementById('ncism-staff-table-wrap');
+  // Preserve whichever zones were expanded (and the scroll position) across a re-render --
+  // this function re-runs after every invite/revoke/seed action while the admin is mid-way
+  // through a specific department's ladder, and a full innerHTML rebuild used to silently
+  // collapse everything back to closed, forcing them to re-find their place (Session 134).
+  const openZoneKeys = new Set([...wrap.querySelectorAll('.ncism-zs.z-open')].map(el=>el.dataset.zoneKey).filter(Boolean));
+  const scrollY = window.scrollY;
   wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
   _ladderRowRegistry = [];
   _pendingInviteRegistry = [];
@@ -1535,7 +1550,7 @@ async function _renderNcismStaffing() {
   const deptTreeHtml=tree.map(node=>{
     const {def,dept,children}=node;
     if(!dept){
-      return '<div class="ncism-zs" style="opacity:.6">'
+      return '<div class="ncism-zs" style="opacity:.6" data-zone-key="'+_esc(def.key)+'">'
         +'<div class="ncism-zh" style="cursor:default">'
         +'<span style="font-weight:600;font-size:13px">'+def.icon+' '+_esc(def.label)+'</span>'
         +'<span style="font-size:11px;color:var(--text-muted)">Not yet configured</span></div></div>';
@@ -1553,7 +1568,7 @@ async function _renderNcismStaffing() {
         +'</div>';
     });
 
-    return '<div class="ncism-zs">'
+    return '<div class="ncism-zs" data-zone-key="'+_esc(def.key)+'">'
       +'<div class="ncism-zh ncism-toggle">'
       +'<span style="font-weight:600;font-size:13px">'+def.icon+' '+_esc(def.label)
         +(children.length?' <span style="font-size:11px;font-weight:400;color:var(--text-muted)">('+children.length+' sub-section'+(children.length>1?'s':'')+')</span>':'')
@@ -1605,7 +1620,12 @@ async function _renderNcismStaffing() {
     });
   }
 
-  // All zones start closed — user expands whichever section they want via click (Session 134)
+  // Re-open whatever was open before this re-render (e.g. after generating an invite);
+  // a fresh render with nothing previously open (first load / tab switch) stays all-closed.
+  wrap.querySelectorAll('.ncism-zs').forEach(el=>{
+    if (openZoneKeys.has(el.dataset.zoneKey)) el.classList.add('z-open');
+  });
+  window.scrollTo(0, scrollY);
 }
 
 // ── Position Invite modal — turn a ladder gap into a shareable join link ──

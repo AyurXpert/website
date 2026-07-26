@@ -65,7 +65,15 @@ export const DESIGS = [
   {v:'wellness_counsellor',         l:'Wellness Counsellor',             cat:'Wellness',       lv:3, d:'Provides lifestyle and preventive-health counselling under Swasthavritta.'},
   {v:'clinical_psychologist',       l:'Clinical Psychologist / Counsellor', cat:'Wellness',    lv:2, d:'Provides psychological assessment and counselling support (Manasaroga referrals).'},
   {v:'cssd_incharge',               l:'CSSD In-charge / Sterilisation Supervisor', cat:'Clinical',   lv:6, d:'Owns central sterilisation protocols and instrument-tracking logs (Sch XX/CS1).'},
-  {v:'cssd_technician',             l:'CSSD Technician / Sterilisation Tech',     cat:'Clinical',    lv:7, d:'Operates autoclaves and sterilisation equipment; also covers Anushastra Karma technician duties (Sch XX/45, CS1).'},
+  {v:'cssd_technician',             l:'CSSD Technician / Sterilisation Tech',     cat:'Clinical',    lv:7, d:'Operates autoclaves and sterilisation equipment (Sch XX/CS1).'},
+  // Session 134: split out of the generic attender/cssd_technician designations, which had
+  // been silently double-counting the same staff against two Schedule XX rows each (an
+  // attender satisfied both OT Attendants AND CSSD/Sterilisation Aya; a cssd_technician
+  // satisfied both Anushastra Karma Technician AND CSSD/Sterilisation Staff) since there was
+  // no way to tell which specific post a given staff member actually held.
+  {v:'ot_attendant',                l:'OT Attendant',                    cat:'Support',        lv:3, d:'Ward-helper duties specific to the Operation Theatre — patient shifting, instrument runs (Sch XX/44).'},
+  {v:'anushastra_technician',       l:'Anushastra Karma Technician',      cat:'Clinical',       lv:7, d:'Assists Shalya Tantra faculty with Agnikarma/Raktamokshana/Ksharakarma procedures (Sch XX/45).'},
+  {v:'cssd_aya',                    l:'CSSD / Sterilisation Aya',        cat:'Support',        lv:3, d:'Ward-helper duties specific to the central sterilisation unit — pack handling, area upkeep (Sch XX/CS2).'},
   {v:'maintenance_engineer',        l:'Maintenance Engineer',            cat:'Support',        lv:1, d:'Maintains biomedical equipment, electrical and civil infrastructure.'},
   {v:'maintenance_supervisor',      l:'Maintenance Supervisor',          cat:'Support',        lv:2, d:'Supervises day-to-day maintenance staff and complaint resolution.'},
   {v:'bmw_officer',                 l:'Biomedical Waste Officer',        cat:'Support',        lv:1, d:'Owns BMW segregation, CBWTF pickup logs and SPCB compliance reporting.'},
@@ -78,7 +86,7 @@ export const DESIGS = [
   {v:'laundry_supervisor',          l:'Laundry Supervisor',              cat:'Support',        lv:1, d:'Oversees linen collection, washing cycles and BMW-compliant handling of soiled linen.'},
   {v:'laundry_worker',              l:'Laundry Worker',                  cat:'Support',        lv:2, d:'Washes, dries and distributes hospital linen across wards and OT.'},
   {v:'driver',                      l:'Driver / Ambulance Driver',       cat:'Support',        lv:2, d:'Drives the ambulance/hospital vehicles, on-call for patient transport.'},
-  {v:'attender',                    l:'Attender / Helper',               cat:'Support',        lv:3, d:'General ward/OT/admin helper duties — patient shifting, errands (Sch XX/12, 33, 36, 44).'},
+  {v:'attender',                    l:'Attender / Helper',               cat:'Support',        lv:3, d:'General ward/admin helper duties — patient shifting, errands (Sch XX/12, 33, 36).'},
 ];
 export const DESIG_MAP = Object.fromEntries(DESIGS.map(d=>[d.v,d]));
 export const DESIG_CATS = [...new Set(DESIGS.map(d=>d.cat))];
