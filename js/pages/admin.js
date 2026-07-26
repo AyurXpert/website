@@ -724,6 +724,10 @@ window.loadHR = async function(sub='staff') {
   // on HR load regardless of which sub-tab is active, not just after visiting Login
   // Access itself (window.loadStaffAccess() below keeps it live once that tab is open).
   _setBadge('hr-tab-access-badge', (staff||[]).filter(s=>s.status==='pending_approval').length);
+  // NCISM Requirements tab badge — likewise visible immediately on HR load, not just
+  // after visiting that tab (_renderNcismStaffing() keeps it live once that tab is open;
+  // the realtime subscription above keeps it live even while sitting on a different tab).
+  _computeNcismComplianceGap().then(gap => _setBadge('hr-tab-ncism-badge', gap||0));
 
   // Same sorted department list backs both the filter dropdown below AND each row's
   // editable Department select in renderStaffTable() -- cached module-level since it's
@@ -1242,6 +1246,76 @@ function _computeIpdBedTotals(depts, bedsRows){
   return { IPD_MEDICAL: sum(IPD_MEDICAL_BED_CODES), IPD_SURGICAL: sum(IPD_SURGICAL_BED_CODES) };
 }
 
+// Grand compliance across the whole configured department tree — per-position min-capped,
+// deduped by id (the OPD section's Shalakya children intentionally share one real department
+// id, see _buildOpdChildren, and must not be counted twice). Extracted as its own pure
+// function (Session 134) so _renderNcismStaffing()'s full ladder and the HR sub-nav's
+// lightweight "NCISM Requirements" tab badge (_computeNcismComplianceGap() below) both call
+// this ONE implementation and can never silently disagree on the gap number.
+function _computeGrandCompliance(tree, ug, bedTotals, cntDeptD){
+  let grandReq=0, grandMet=0;
+  tree.forEach(node=>{
+    if(!node.dept) return;
+    _dedupById([node.dept, ...node.children]).forEach(d=>{
+      const r=deptRequirement(d,ug,bedTotals);
+      if(!r.mandated) return;
+      r.ladder.forEach(row=>{ if(row.facultyHeld) return; grandReq+=row.count; grandMet+=Math.min(cntDeptD(d.id,row.keys),row.count); });
+    });
+  });
+  return {grandReq, grandMet};
+}
+
+// Lightweight badge-only version of the NCISM compliance gap — fetches less than the full
+// _renderNcismStaffing() (skips position_invites and the redundant separate pgDepts query,
+// since deptRequirement() already reads is_pg_dept/pg_seats_sanctioned straight off each
+// department row) and never touches the DOM table, just returns a number. Returns null when
+// NCISM Staffing Compliance doesn't apply at all (not a Teaching Hospital/College, or no UG
+// intake configured yet) so the caller can hide the badge outright rather than show "0".
+async function _computeNcismComplianceGap(){
+  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:opds }, { data:bedsRows }] = await Promise.all([
+    supabase.from('tenants').select('ug_intake,type').eq('id',tenantId).single(),
+    supabase.from('profiles').select('designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('opds').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('beds').select('department_id').eq('tenant_id',tenantId),
+  ]);
+  if (!isNCISMType(tRow?.type)) return null;
+  const ugRaw = tRow?.ug_intake || 0;
+  const ug = [60,100,150,200].includes(ugRaw) ? ugRaw : (ugRaw>=150?150:ugRaw>=100?100:ugRaw>0?60:0);
+  if (!ug) return null;
+
+  const bedTotals = _computeIpdBedTotals(depts, bedsRows);
+  const byDept={};
+  (rawStaff||[]).forEach(s=>{ if(!s.department_id) return; (byDept[s.department_id]=byDept[s.department_id]||[]).push(s); });
+  const cntDeptD=(deptId,keys)=>(byDept[deptId]||[]).filter(s=>(keys||[]).includes(s.designation)).length;
+
+  const tree=buildDeptTree(depts||[], opds||[]);
+  const {grandReq, grandMet} = _computeGrandCompliance(tree, ug, bedTotals, cntDeptD);
+  return Math.max(0, grandReq-grandMet);
+}
+
+// Debounced so a burst of realtime events (e.g. bulk staff/bed edits) triggers one recompute,
+// not one per row changed.
+let _ncismBadgeDebounce = null;
+function _refreshNcismBadgeDebounced(){
+  clearTimeout(_ncismBadgeDebounce);
+  _ncismBadgeDebounce = setTimeout(async () => {
+    const gap = await _computeNcismComplianceGap();
+    _setBadge('hr-tab-ncism-badge', gap||0);
+  }, 600);
+}
+
+// Realtime — Session 134: any change to staff assignment, bed counts, or department
+// setup can move the compliance gap, so the HR sub-nav's badge stays live without the
+// admin needing to reopen HR or click into NCISM Requirements. Bound once per page load
+// (module-level channels, same fire-and-forget pattern as lab.js/doctor.js's live feeds
+// elsewhere in this codebase — never unsubscribed, matches this page's own lifetime).
+supabase.channel('ncism-badge-live')
+  .on('postgres_changes', { event:'*', schema:'public', table:'profiles',    filter:`tenant_id=eq.${tenantId}` }, _refreshNcismBadgeDebounced)
+  .on('postgres_changes', { event:'*', schema:'public', table:'beds',       filter:`tenant_id=eq.${tenantId}` }, _refreshNcismBadgeDebounced)
+  .on('postgres_changes', { event:'*', schema:'public', table:'departments',filter:`tenant_id=eq.${tenantId}` }, _refreshNcismBadgeDebounced)
+  .subscribe();
+
 window.seedHrOrgStructure = async function(){
   if(!confirm('This creates the missing HR department rows (Administration, Finance, OPD, IPD, Labour Room, Kriyakalpa, Diet / Pathya, Physiotherapy, Diagnostics, Pharmacy, House Keeping, Laundry, Security) and re-parents existing OPD departments under the new "OPD" umbrella + Operation Theatre + Medical In-Patients + Surgical In-Patients under "IPD". Safe to run more than once. Staff currently assigned to the generic "IPD" department will need to be individually reassigned to Medical or Surgical In-Patients afterward. Continue?')) return;
 
@@ -1404,20 +1478,12 @@ async function _renderNcismStaffing() {
   // sourced from the real opds table — see buildDeptTree/_buildOpdChildren).
   const tree=buildDeptTree(depts||[], opds||[]);
 
-  // Grand compliance — per-position min-capped, summed across the actual configured department
-  // tree. Deduped by id — the OPD section's Shalakya children intentionally share one real
-  // department id (see _buildOpdChildren) and must not be counted twice here.
-  let grandReq=0, grandMet=0;
-  tree.forEach(node=>{
-    if(!node.dept) return;
-    _dedupById([node.dept, ...node.children]).forEach(d=>{
-      const r=deptRequirement(d,ug,bedTotals);
-      if(!r.mandated) return;
-      r.ladder.forEach(row=>{ if(row.facultyHeld) return; grandReq+=row.count; grandMet+=Math.min(cntDeptD(d.id,row.keys),row.count); });
-    });
-  });
+  // Grand compliance — shared pure function (_computeGrandCompliance) also backs the HR
+  // sub-nav's "NCISM Requirements" tab badge, so the two can never disagree.
+  const {grandReq, grandMet} = _computeGrandCompliance(tree, ug, bedTotals, cntDeptD);
   const grandPct=grandReq>0?Math.round(grandMet/grandReq*100):100;
   const hc=grandPct>=80?'#2d7a4f':grandPct>=50?'#c9902a':'#c0392b';
+  _setBadge('hr-tab-ncism-badge', Math.max(0,grandReq-grandMet));
 
   // ── Summary table (designation-wise totals across ALL zones) ─────────
   let sumRows='';
