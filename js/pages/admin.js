@@ -750,6 +750,8 @@ window.loadHR = async function(sub='staff') {
   _computeNcismComplianceGap().then(gap => _setBadge('hr-tab-ncism-badge', gap||0));
   // Approvals tab badge — same "set on HR load, kept live by realtime" pattern.
   _computePendingApprovalsCount().then(n => _setBadge('hr-tab-decisions-badge', n));
+  // Extra Staff tab badge — same pattern.
+  _fetchExtraStaffList().then(list => _setBadge('hr-tab-extra-badge', list ? list.reduce((s,r)=>s+r.extra,0) : 0));
 
   // Same sorted department list backs both the filter dropdown below AND each row's
   // editable Department select in renderStaffTable() -- cached module-level since it's
@@ -787,12 +789,14 @@ function _hrSub(sub){
   document.getElementById('hr-access-panel').style.display     = sub==='access'    ? '' : 'none';
   document.getElementById('hr-dept-panel').style.display       = sub==='dept'      ? '' : 'none';
   document.getElementById('hr-decisions-panel').style.display  = sub==='decisions' ? '' : 'none';
+  document.getElementById('hr-extra-panel').style.display      = sub==='extra'     ? '' : 'none';
   document.getElementById('hr-seed-bar').style.display         = (sub==='ncism'||sub==='dept') ? 'flex' : 'none';
   if (sub === 'ncism')   _renderNcismStaffing();
   if (sub === 'plan')    _renderStaffingPlan();
   if (sub === 'access')  window.loadStaffAccess();
   if (sub === 'dept')    _renderDeptStaff();
   if (sub === 'decisions') window.loadPendingDecisions();
+  if (sub === 'extra')   _renderExtraStaff();
 }
 
 // ── NCISM Schedule XX — Hospital Staff Requirements ──────────────────
@@ -1109,9 +1113,31 @@ function buildDeptTree(depts, opds){
 // id (2 display cards, 1 real department/faculty pool), which would otherwise double-count in
 // any aggregate loop. Display loops that render individual cards must NOT use this — both
 // Shalakya cards need to render.
+//
+// Session 134 fix: naive "first occurrence wins" silently kept the WRONG twin every time --
+// NCISM_OPDS always lists Shalakya-Netra before Shalakya-KNM, and Netra's clone is the one
+// _buildOpdChildren deliberately zeroes out (ncism_code:'SHNT', not in SCHEDULE_I_CODES, so
+// deptRequirement() returns mandated:false for it) while KNM's clone (ncism_code:'SHAK') is
+// the one actually carrying the real Schedule I ladder. Since Netra always sorts first, dedup
+// always kept the empty twin and threw away the real one -- silently dropping that
+// department's entire Schedule I requirement from the OPD zone pill, the Grand Total pill,
+// and the Dept. Staff cards (all 3 share this function), while the individual per-card ladder
+// tables still rendered correctly since THEY iterate the raw undeduped children array. Found
+// live: reproduced on WASA1631, a debug dump of sectionRollup()'s `rows` confirmed the KNM
+// entry was completely absent. Now prefers whichever twin actually carries the Schedule I
+// requirement (SCHEDULE_I_CODES) when two entries collide on id -- for every OTHER dedup
+// case (a real accidental duplicate) both sides have the same ncism_code, so this falls back
+// to the original first-wins behavior unchanged.
 function _dedupById(rows){
-  const seen = new Set();
-  return rows.filter(d=>{ if(!d || seen.has(d.id)) return false; seen.add(d.id); return true; });
+  const byId = new Map();
+  rows.forEach(d=>{
+    if(!d) return;
+    const existing = byId.get(d.id);
+    if(!existing || (!SCHEDULE_I_CODES.includes(existing.ncism_code) && SCHEDULE_I_CODES.includes(d.ncism_code))){
+      byId.set(d.id, d);
+    }
+  });
+  return [...byId.values()];
 }
 
 // Departments that carry the Schedule I faculty ladder (8-10 clinical teaching depts + optional PG depts)
@@ -1332,6 +1358,94 @@ async function _computeNcismComplianceGap(){
   return Math.max(0, grandReq-grandMet);
 }
 
+// ── Extra Staff — positions recruited above the NCISM minimum ──────────────────────
+// Requested (Session 134) after Dr. Venkatesh spotted a Swasthavritta Assistant Professor
+// showing 2 recruited against 1 required and couldn't tell if that was a mistake. Walks the
+// same deduped tree as _computeGrandCompliance (see _dedupById's fix above -- the Shalakya
+// Netra/KNM pair must resolve to exactly one entry here too, not zero and not two) and
+// collects every ladder row where actual > required.
+function _collectExtraStaff(tree, ug, bedTotals, byDept){
+  const cntDeptD=(deptId,keys)=>(byDept[deptId]||[]).filter(s=>(keys||[]).includes(s.designation)).length;
+  const list=[];
+  tree.forEach(node=>{
+    if(!node.dept) return;
+    _dedupById([node.dept, ...node.children]).forEach(d=>{
+      const r=deptRequirement(d,ug,bedTotals);
+      if(!r.mandated) return;
+      r.ladder.forEach(row=>{
+        if(row.facultyHeld) return;
+        const a=cntDeptD(d.id,row.keys);
+        if(a>row.count) list.push({deptName:d.name, label:row.label, ref:row.ref, required:row.count, actual:a, extra:a-row.count});
+      });
+    });
+  });
+  return list;
+}
+
+// Shared fetch used by both the full "Extra Staff" tab render and the lightweight badge --
+// same 5-query shape as _computeNcismComplianceGap(), same not-applicable gating.
+async function _fetchExtraStaffList(){
+  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:opds }, { data:bedsRows }] = await Promise.all([
+    supabase.from('tenants').select('ug_intake,type').eq('id',tenantId).single(),
+    supabase.from('profiles').select('designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('opds').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('beds').select('department_id').eq('tenant_id',tenantId),
+  ]);
+  if (!isNCISMType(tRow?.type)) return null;
+  const ugRaw = tRow?.ug_intake || 0;
+  const ug = [60,100,150,200].includes(ugRaw) ? ugRaw : (ugRaw>=150?150:ugRaw>=100?100:ugRaw>0?60:0);
+  if (!ug) return null;
+
+  const bedTotals = _computeIpdBedTotals(depts, bedsRows);
+  const byDept={};
+  (rawStaff||[]).forEach(s=>{ if(!s.department_id) return; (byDept[s.department_id]=byDept[s.department_id]||[]).push(s); });
+  const tree=buildDeptTree(depts||[], opds||[]);
+  return _collectExtraStaff(tree, ug, bedTotals, byDept);
+}
+
+async function _renderExtraStaff(){
+  const wrap = document.getElementById('extra-staff-wrap');
+  wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
+  const list = await _fetchExtraStaffList();
+
+  if (list===null){
+    wrap.innerHTML = '<div class="empty"><div class="empty-ico">ℹ</div><div class="empty-ttl">Extra Staff tracking only applies to Teaching Hospital / College tenants with UG intake configured.</div></div>';
+    _setBadge('hr-tab-extra-badge', 0);
+    return;
+  }
+  const total = list.reduce((s,r)=>s+r.extra,0);
+  _setBadge('hr-tab-extra-badge', total);
+
+  if (!list.length){
+    wrap.innerHTML = '<div class="empty"><div class="empty-ico">✅</div><div class="empty-ttl">No positions recruited above the NCISM minimum right now.</div></div>';
+    return;
+  }
+  const rows = list.map(r =>
+    '<tr><td style="padding:7px 12px 7px 16px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(r.deptName)+'</td>'
+    +'<td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(r.label)+'</td>'
+    +'<td style="padding:7px 10px;text-align:center;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+_esc(r.ref)+'</td>'
+    +'<td style="padding:7px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+r.required+'</td>'
+    +'<td style="padding:7px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+r.actual+'</td>'
+    +'<td style="padding:7px 10px;text-align:center;font-weight:700;color:#a66a00;border-bottom:1px solid #f0f4f2">+'+r.extra+'</td></tr>'
+  ).join('');
+
+  wrap.innerHTML =
+    '<div style="background:var(--green-deep);color:#fff;border-radius:var(--radius) var(--radius) 0 0;padding:12px 18px">'
+      +'<div style="font-weight:600;font-size:14px">Extra Staff — Recruited Above NCISM Minimum</div>'
+      +'<div style="font-size:11px;opacity:.75;margin-top:2px">Not a compliance problem — just staff to be aware of when planning transfers, budget, or new invites. '+list.length+' position(s), '+total+' extra staff total.</div>'
+    +'</div>'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+      +'<thead><tr style="background:#f5faf7">'
+      +'<th style="padding:6px 12px 6px 16px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Department</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Position</th>'
+      +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Ref</th>'
+      +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Required</th>'
+      +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Actual</th>'
+      +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Extra</th>'
+      +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+
 // Debounced so a burst of realtime events (e.g. bulk staff/bed edits) triggers one recompute,
 // not one per row changed.
 let _ncismBadgeDebounce = null;
@@ -1365,11 +1479,25 @@ function _refreshAccessBadgeDebounced(){
   }, 600);
 }
 
+// Extra Staff tab badge — same trigger set as the NCISM compliance badge (a designation/
+// department/bed change can create or clear a surplus just as easily as a gap).
+let _extraBadgeDebounce = null;
+function _refreshExtraBadgeDebounced(){
+  clearTimeout(_extraBadgeDebounce);
+  _extraBadgeDebounce = setTimeout(async () => {
+    const list = await _fetchExtraStaffList();
+    _setBadge('hr-tab-extra-badge', list ? list.reduce((s,r)=>s+r.extra,0) : 0);
+  }, 600);
+}
+
 supabase.channel('ncism-badge-live')
   .on('postgres_changes', { event:'*', schema:'public', table:'profiles',    filter:`tenant_id=eq.${tenantId}` }, _refreshNcismBadgeDebounced)
   .on('postgres_changes', { event:'*', schema:'public', table:'profiles',    filter:`tenant_id=eq.${tenantId}` }, _refreshAccessBadgeDebounced)
+  .on('postgres_changes', { event:'*', schema:'public', table:'profiles',    filter:`tenant_id=eq.${tenantId}` }, _refreshExtraBadgeDebounced)
   .on('postgres_changes', { event:'*', schema:'public', table:'beds',       filter:`tenant_id=eq.${tenantId}` }, _refreshNcismBadgeDebounced)
+  .on('postgres_changes', { event:'*', schema:'public', table:'beds',       filter:`tenant_id=eq.${tenantId}` }, _refreshExtraBadgeDebounced)
   .on('postgres_changes', { event:'*', schema:'public', table:'departments',filter:`tenant_id=eq.${tenantId}` }, _refreshNcismBadgeDebounced)
+  .on('postgres_changes', { event:'*', schema:'public', table:'departments',filter:`tenant_id=eq.${tenantId}` }, _refreshExtraBadgeDebounced)
   .subscribe();
 
 // Same live-badge pattern for the ⚖️ Approvals tab's pending-count badge.
@@ -1667,6 +1795,11 @@ async function _renderNcismStaffing() {
     let prevZone=null;
     const trs=req.ladder.map(row=>{
       const a=cntDeptD(dept.id,row.keys), gap=Math.max(0,row.count-a);
+      // Session 134: surplus above the NCISM minimum isn't itself a problem, but it's easy
+      // to mistake for a data-entry mistake (found live: Dr. Venkatesh spotted a Swasthavritta
+      // Assistant Professor showing 2 recruited against 1 required and wasn't sure if that
+      // was intentional or an error). Flag it visibly here instead of leaving it silently ✅.
+      const extra=Math.max(0,a-row.count);
       const rc=a>=row.count?'#2d7a4f':a>0?'#c9902a':'#c0392b';
       const si=a>=row.count?'✅':a>0?'⚠️':'❌';
       const rowIdx=_ladderRowRegistry.push({deptId:dept.id, deptName:dept.name, keys:row.keys, label:row.label})-1;
@@ -1686,13 +1819,14 @@ async function _renderNcismStaffing() {
       const labelHtml=dutyDesc
         ? '<span title="'+_esc(dutyDesc)+'" style="border-bottom:1px dotted var(--text-muted);cursor:help">'+_esc(row.label)+'</span>'
         : _esc(row.label);
-      return sectionHeader+'<tr>'
+      const extraBg=extra>0?' style="background:#fdf6e3"':'';
+      return sectionHeader+'<tr'+extraBg+'>'
         +'<td style="padding:6px 12px 6px 16px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+labelHtml
           +(row.facultyHeld?'<br><span style="font-size:10px;font-weight:400;color:var(--text-muted)">Typically held concurrently by an existing faculty member — not counted in section/hospital totals</span>':'')+'</td>'
         +'<td style="padding:6px 10px;text-align:center;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+_esc(row.ref)+'</td>'
         +'<td style="padding:6px 10px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2">'+row.count+'</td>'
         +'<td style="padding:6px 10px;text-align:center;color:'+rc+';font-weight:600;border-bottom:1px solid #f0f4f2">'+a+'</td>'
-        +'<td style="padding:6px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+si+(gap>0?' <span style="font-size:11px;color:#c0392b">−'+gap+'</span>':'')+'</td>'
+        +'<td style="padding:6px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+si+(gap>0?' <span style="font-size:11px;color:#c0392b">−'+gap+'</span>':'')+(extra>0?' <span style="font-size:11px;color:#a66a00;font-weight:700" title="More staff hold this designation in this department than Schedule XX requires">+'+extra+' extra</span>':'')+'</td>'
         +'<td style="padding:6px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+inviteCell+'</td>'
         +'</tr>';
     }).join('');
