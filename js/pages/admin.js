@@ -434,6 +434,27 @@ function _approvalSummary(row){
   }
 }
 
+// Client-side hint only (see loadPendingDecisions banner comment) -- whether THIS viewer
+// is a plausible decider for a request from a given requester designation. Shared (Session
+// 134) between the full Approvals list and the HR sub-nav's own badge count, so "how many
+// need MY attention" can never disagree between the two.
+function _canDecideApproval(requesterDesig){
+  const iAmSuperAdmin = role === 'super_admin';
+  const iAmDirectorTier = ['medical_director','principal'].includes(profile?.designation)
+    && (role === 'dept_admin' || profile?.secondary_role === 'dept_admin');
+  return iAmSuperAdmin || (requesterDesig === 'medical_superintendent' && iAmDirectorTier);
+}
+
+// Lightweight badge-only count, mirrors loadPendingDecisions()'s own filter exactly (see
+// _canDecideApproval above) so it's usable from loadHR() without paying for the full list.
+async function _computePendingApprovalsCount(){
+  const { data, error } = await supabase.from('pending_approvals')
+    .select('id,requester:profiles!requested_by(designation)')
+    .eq('tenant_id', tenantId).eq('status','pending');
+  if (error || !data) return 0;
+  return data.filter(r=>_canDecideApproval(r.requester?.designation)).length;
+}
+
 window.loadPendingDecisions = async function(){
   const wrap = document.getElementById('pending-decisions-body');
   const { data, error } = await supabase.from('pending_approvals')
@@ -441,17 +462,16 @@ window.loadPendingDecisions = async function(){
     .eq('tenant_id', tenantId).order('requested_at', { ascending: false }).limit(50);
 
   if (error) { wrap.innerHTML = '<div class="empty"><div class="empty-ttl">'+_esc(safeErrorMessage(error,'Could not load requests.'))+'</div></div>'; return; }
-  if (!data || !data.length) { wrap.innerHTML = '<div class="empty"><div class="empty-ico">✅</div><div class="empty-ttl">No approval requests yet</div></div>'; return; }
 
-  // Client-side hint only (see banner comment above) -- whether THIS viewer is
-  // a plausible decider for a request from a given requester designation.
-  const iAmSuperAdmin = role === 'super_admin';
-  const iAmDirectorTier = ['medical_director','principal'].includes(profile?.designation)
-    && (role === 'dept_admin' || profile?.secondary_role === 'dept_admin');
+  // Badge = requests actually actionable by THIS viewer, not the raw pending count --
+  // avoids showing a nonzero badge to someone who has no way to act on it.
+  _setBadge('hr-tab-decisions-badge', (data||[]).filter(r=>r.status==='pending' && _canDecideApproval(r.requester?.designation)).length);
+
+  if (!data || !data.length) { wrap.innerHTML = '<div class="empty"><div class="empty-ico">✅</div><div class="empty-ttl">No approval requests yet</div></div>'; return; }
 
   wrap.innerHTML = data.map(row => {
     const requesterDesig = row.requester?.designation;
-    const iCanDecide = iAmSuperAdmin || (requesterDesig === 'medical_superintendent' && iAmDirectorTier);
+    const iCanDecide = _canDecideApproval(requesterDesig);
     const statusChip = row.status === 'pending' ? '<span class="chip r">Pending</span>'
       : row.status === 'approved' ? '<span class="chip g">Approved'+(row.action_type==='staff_delete'?' — awaiting deletion':'')+'</span>'
       : row.status === 'executed' ? '<span class="chip g">Executed</span>'
@@ -728,6 +748,8 @@ window.loadHR = async function(sub='staff') {
   // after visiting that tab (_renderNcismStaffing() keeps it live once that tab is open;
   // the realtime subscription above keeps it live even while sitting on a different tab).
   _computeNcismComplianceGap().then(gap => _setBadge('hr-tab-ncism-badge', gap||0));
+  // Approvals tab badge — same "set on HR load, kept live by realtime" pattern.
+  _computePendingApprovalsCount().then(n => _setBadge('hr-tab-decisions-badge', n));
 
   // Same sorted department list backs both the filter dropdown below AND each row's
   // editable Department select in renderStaffTable() -- cached module-level since it's
@@ -1310,10 +1332,40 @@ function _refreshNcismBadgeDebounced(){
 // admin needing to reopen HR or click into NCISM Requirements. Bound once per page load
 // (module-level channels, same fire-and-forget pattern as lab.js/doctor.js's live feeds
 // elsewhere in this codebase — never unsubscribed, matches this page's own lifetime).
+// Login Access tab badge — Session 134 follow-up: this one was only ever refreshed by
+// loadHR() (page/section load) and window.loadStaffAccess()'s own approve/reject handlers,
+// unlike NCISM Requirements/Approvals below, which both got a real subscription from the
+// start. A signup approved/rejected from a different browser tab/session (or the pending
+// account itself completing/cancelling signup) never reached this one without a manual
+// reload. profiles is already a publication member (added just above for the NCISM badge),
+// so this needed a handler, not another ALTER PUBLICATION.
+let _accessBadgeDebounce = null;
+function _refreshAccessBadgeDebounced(){
+  clearTimeout(_accessBadgeDebounce);
+  _accessBadgeDebounce = setTimeout(async () => {
+    const { count } = await supabase.from('profiles').select('id', { count:'exact', head:true })
+      .eq('tenant_id', tenantId).eq('status', 'pending_approval');
+    _setBadge('hr-tab-access-badge', count||0);
+  }, 600);
+}
+
 supabase.channel('ncism-badge-live')
   .on('postgres_changes', { event:'*', schema:'public', table:'profiles',    filter:`tenant_id=eq.${tenantId}` }, _refreshNcismBadgeDebounced)
+  .on('postgres_changes', { event:'*', schema:'public', table:'profiles',    filter:`tenant_id=eq.${tenantId}` }, _refreshAccessBadgeDebounced)
   .on('postgres_changes', { event:'*', schema:'public', table:'beds',       filter:`tenant_id=eq.${tenantId}` }, _refreshNcismBadgeDebounced)
   .on('postgres_changes', { event:'*', schema:'public', table:'departments',filter:`tenant_id=eq.${tenantId}` }, _refreshNcismBadgeDebounced)
+  .subscribe();
+
+// Same live-badge pattern for the ⚖️ Approvals tab's pending-count badge.
+let _approvalsBadgeDebounce = null;
+function _refreshApprovalsBadgeDebounced(){
+  clearTimeout(_approvalsBadgeDebounce);
+  _approvalsBadgeDebounce = setTimeout(async () => {
+    _setBadge('hr-tab-decisions-badge', await _computePendingApprovalsCount());
+  }, 600);
+}
+supabase.channel('approvals-badge-live')
+  .on('postgres_changes', { event:'*', schema:'public', table:'pending_approvals', filter:`tenant_id=eq.${tenantId}` }, _refreshApprovalsBadgeDebounced)
   .subscribe();
 
 window.seedHrOrgStructure = async function(){
