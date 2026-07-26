@@ -1605,8 +1605,7 @@ async function _renderNcismStaffing() {
     });
   }
 
-  // Auto-open first 3 sections
-  [...wrap.querySelectorAll('.ncism-zs')].slice(0,3).forEach(el=>el.classList.add('z-open'));
+  // All zones start closed — user expands whichever section they want via click (Session 134)
 }
 
 // ── Position Invite modal — turn a ladder gap into a shareable join link ──
