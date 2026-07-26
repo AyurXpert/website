@@ -1246,16 +1246,32 @@ function deptRequirement(dept, ug, bedTotals){
   return {mandated:true, ladder, required:ladder.reduce((s,r)=>s+(r.facultyHeld?0:r.count),0), optional};
 }
 
-// Required/actual/gap rollup for a top-level section — sums the section's own row + all its children
+// Required/actual/gap rollup for a top-level section — sums the section's own row + all its children.
+// Session 134 fix: `actual` used to be the department's raw total headcount (any staff,
+// any designation), compared against `required` (sum of ladder position counts) -- an
+// apples-to-oranges comparison that could show "✅ met" with a healthy-looking actual
+// number even when the specific designations the ladder needs are completely unfilled
+// (found live: Yoga & Wellness showed "Actual 4 · met" at the zone level while its own
+// Yoga Demonstrator row underneath showed 0/1, because 4 staff happened to be assigned
+// to that department under other designations). Now sums the same designation-matched,
+// per-row min-capped count _computeGrandCompliance() uses, so this can't drift from the
+// Grand Total pill or the Hospital-wide Total table again. `headcount` (raw, unfiltered)
+// is kept separately for the "not NCISM-mandated" departments (Housekeeping/Security/etc.)
+// where there's no ladder to match against and a plain headcount is the correct thing to show.
 function sectionRollup(node, ug, staffByDept, bedTotals){
   const rows=_dedupById([node.dept, ...node.children].filter(Boolean));
-  let required=0, actual=0, mandated=false;
+  const cntDeptD=(deptId,keys)=>(staffByDept[deptId]||[]).filter(s=>(keys||[]).includes(s.designation)).length;
+  let required=0, actual=0, mandated=false, headcount=0;
   rows.forEach(d=>{
     const r=deptRequirement(d,ug,bedTotals);
-    if(r.mandated){ mandated=true; required+=r.required; }
-    actual += (staffByDept[d.id]||[]).length;
+    headcount += (staffByDept[d.id]||[]).length;
+    if(r.mandated){
+      mandated=true;
+      required+=r.required;
+      r.ladder.forEach(row=>{ if(row.facultyHeld) return; actual+=Math.min(cntDeptD(d.id,row.keys),row.count); });
+    }
   });
-  return {required, actual, mandated, gap:Math.max(0,required-actual)};
+  return {required, actual, mandated, gap:Math.max(0,required-actual), headcount};
 }
 
 // Real configured bed counts, summed per IPD sub-section grouping (BED_DERIVED_ROWS above) --
@@ -1702,7 +1718,7 @@ async function _renderNcismStaffing() {
     }
     const roll=sectionRollup(node,ug,byDept,bedTotals);
     const pillColor=!roll.mandated?'#6b7280':roll.gap>0?'#c0392b':'#2d7a4f';
-    const pillText=!roll.mandated?roll.actual+' staff (not NCISM-mandated)':'Req '+roll.required+' · Actual '+roll.actual+(roll.gap>0?' · Gap −'+roll.gap:' · ✅ met');
+    const pillText=!roll.mandated?roll.headcount+' staff (not NCISM-mandated)':'Req '+roll.required+' · Actual '+roll.actual+(roll.gap>0?' · Gap −'+roll.gap:' · ✅ met');
 
     let body='<div style="padding:8px 0 6px"><div style="font-size:11px;font-weight:700;color:var(--text-muted);margin:0 0 4px 16px">'+_esc(dept.name)+'</div>'+ladderTableHtml(dept)+'</div>';
     children.forEach(c=>{
@@ -2416,7 +2432,7 @@ async function _renderDeptStaff() {
     const roll=sectionRollup(node,ug,byDept,bedTotals);
     const pillColor=!roll.mandated?'#6b7280':roll.gap>0?'#c0392b':'#2d7a4f';
     const pillText=!roll.mandated
-      ?roll.actual+' staff (not NCISM-mandated)'
+      ?roll.headcount+' staff (not NCISM-mandated)'
       :'Req '+roll.required+' · Actual '+roll.actual+(roll.gap>0?' · Gap −'+roll.gap:' · ✅ met');
 
     const cardOpts=(def.key==='IPD_PARENT'&&!(byDept[dept.id]||[]).find(s=>['hod','professor'].includes(s.designation)||s.role==='dept_admin'))
