@@ -512,6 +512,15 @@ async function _finishStaffDeletionInternal(requestId, staffId){
   }
 }
 
+// Shared show/hide-with-count badge updater — used for the sidebar's pending badge,
+// the Login Access tab's own badge, and the HR sub-nav's "Login Access" tab badge
+// (Session 134), so all three never disagree with each other.
+function _setBadge(id, count){
+  const el = document.getElementById(id);
+  if(!el) return;
+  if(count>0){ el.textContent=count; el.style.display=''; } else { el.style.display='none'; }
+}
+
 // ────────────────────────────────────────────────
 // SECTION HR — LOGIN ACCESS (Staff Account Management)
 // ────────────────────────────────────────────────
@@ -523,9 +532,9 @@ window.loadStaffAccess = async function() {
     _count('profiles',[['tenant_id',tenantId],['status','suspended']]),
   ]);
 
-  // Sidebar badge
-  const sb=document.getElementById('badge-pending');
-  if(sb){if(pending>0){sb.textContent=pending;sb.style.display='';}else{sb.style.display='none';}}
+  // Sidebar badge + HR sub-nav "Login Access" tab badge
+  _setBadge('badge-pending', pending);
+  _setBadge('hr-tab-access-badge', pending);
 
   // Summary cards
   const acGrid=document.getElementById('access-stats');
@@ -539,8 +548,7 @@ window.loadStaffAccess = async function() {
   // Pending approvals table
   const approvals = await getPendingApprovals();
   const wrap  = document.getElementById('approvals-body');
-  const badge = document.getElementById('approval-badge');
-  if(badge){if(approvals.length){badge.textContent=approvals.length;badge.style.display='';}else{badge.style.display='none';}}
+  _setBadge('approval-badge', approvals.length);
 
   if(!approvals.length){
     wrap.innerHTML=`<div class="empty"><div class="empty-ico">✅</div><div class="empty-ttl">All clear — no pending approvals</div></div>`;
@@ -711,6 +719,11 @@ window.loadHR = async function(sub='staff') {
     .map(s=>({...s,dept_name:dById[s.department_id]?.name||'—',_deptRank:_staffDeptRank(dById[s.department_id])}))
     .sort((a,b)=> (a._deptRank-b._deptRank) || (a.dept_name||'').localeCompare(b.dept_name||'')
       || (_hierarchyRank(a.designation)-_hierarchyRank(b.designation)) || (a.full_name||'').localeCompare(b.full_name||''));
+
+  // Login Access tab badge — set from this same staff fetch so it's visible immediately
+  // on HR load regardless of which sub-tab is active, not just after visiting Login
+  // Access itself (window.loadStaffAccess() below keeps it live once that tab is open).
+  _setBadge('hr-tab-access-badge', (staff||[]).filter(s=>s.status==='pending_approval').length);
 
   // Same sorted department list backs both the filter dropdown below AND each row's
   // editable Department select in renderStaffTable() -- cached module-level since it's
