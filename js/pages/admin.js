@@ -1485,8 +1485,12 @@ async function _renderNcismStaffing() {
       const pendIdx=pending.length?_pendingInviteRegistry.push({label:row.label, pending})-1:-1;
       const inviteBtn='<button data-onclick="openPositionInvite" data-onclick-a0="'+rowIdx+'" style="height:22px;padding:0 9px;font-size:10.5px;background:transparent;color:var(--green-deep);border:1px solid var(--green-deep);border-radius:6px;cursor:pointer;white-space:nowrap">+ Add if needed</button>'
         +(pending.length?' <button data-onclick="viewPendingInvites" data-onclick-a0="'+pendIdx+'" style="height:22px;padding:0 8px;font-size:10.5px;color:#7a5a10;background:#fff8e6;border:1px solid #e8d5a0;border-radius:6px;cursor:pointer;white-space:nowrap">🔗 '+pending.length+' pending</button>':'');
+      const optDutyDesc=DESIG_MAP[row.keys[0]]?.d||'';
+      const optLabelHtml=optDutyDesc
+        ? '<span title="'+_esc(optDutyDesc)+'" style="border-bottom:1px dotted var(--text-muted);cursor:help">'+_esc(row.label)+'</span>'
+        : _esc(row.label);
       return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 16px;font-size:12px;color:var(--text-muted)">'
-        +'<span>'+_esc(row.label)+' <span style="font-size:10.5px;color:var(--text-muted)">('+_esc(row.ref)+', suggested '+row.count+')</span>'
+        +'<span>'+optLabelHtml+' <span style="font-size:10.5px;color:var(--text-muted)">('+_esc(row.ref)+', suggested '+row.count+')</span>'
         +(a?' — <strong style="color:var(--green-deep)">'+a+'</strong> currently assigned':'')+'</span>'
         +inviteBtn+'</div>';
     }).join('');
@@ -1525,8 +1529,12 @@ async function _renderNcismStaffing() {
         prevZone=row.zone;
         sectionHeader='<tr><td colspan="6" style="padding:7px 12px 5px 16px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--green-deep);background:#f0faf5;border-bottom:1px solid #f0f4f2">'+_esc(ZONE_SECTION_LABEL[row.zone]||row.zone)+'</td></tr>';
       }
+      const dutyDesc=DESIG_MAP[row.keys[0]]?.d||'';
+      const labelHtml=dutyDesc
+        ? '<span title="'+_esc(dutyDesc)+'" style="border-bottom:1px dotted var(--text-muted);cursor:help">'+_esc(row.label)+'</span>'
+        : _esc(row.label);
       return sectionHeader+'<tr>'
-        +'<td style="padding:6px 12px 6px 16px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(row.label)
+        +'<td style="padding:6px 12px 6px 16px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+labelHtml
           +(row.facultyHeld?'<br><span style="font-size:10px;font-weight:400;color:var(--text-muted)">Typically held concurrently by an existing faculty member — not counted in section/hospital totals</span>':'')+'</td>'
         +'<td style="padding:6px 10px;text-align:center;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+_esc(row.ref)+'</td>'
         +'<td style="padding:6px 10px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2">'+row.count+'</td>'
