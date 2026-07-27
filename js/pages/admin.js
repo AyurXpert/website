@@ -1680,16 +1680,29 @@ async function _renderNcismStaffing() {
     'Medical IPD':'Med IPD','Surgical IPD':'Surg IPD','Panchakarma':'PK',
     'Operation Theatre':'OT','Labour Room':'LR','Kriyakalpa':'Kriyakalpa',
     'Physiotherapy':'Physio','Yoga & Wellness':'Yoga','Diet / Pathya':'Diet','CSSD':'CSSD'};
-  // Compute which zones each desig key appears in (for display only)
+  // Compute which zones each desig key appears in (for display only). Attributed by keys[0]
+  // only -- see ugReqForGroup below for why (same bug, same fix, same reasoning).
   const keyZones={};
   NCISM_XX_ROWS.forEach(([zone,,keys,req])=>{
     const r=req[ug]||0;
     if(!r)return;
-    keys.forEach(k=>{if(!keyZones[k])keyZones[k]=[];const ab=ZA[zone]||zone;if(!keyZones[k].includes(ab))keyZones[k].push(ab);});
+    const k=keys[0];
+    if(!keyZones[k])keyZones[k]=[];const ab=ZA[zone]||zone;if(!keyZones[k].includes(ab))keyZones[k].push(ab);
   });
 
-  // ugReqForGroup: sum requirements for all XX rows that contain ANY key from gKeys (no double-count)
-  const ugReqForGroup=gKeys=>NCISM_XX_ROWS.reduce((s,[,,keys,req])=>s+(keys.some(k=>gKeys.includes(k))?(req[ug]||0):0),0);
+  // ugReqForGroup: sum requirements for XX rows attributable to gKeys.
+  // Session 136 -- was `keys.some(k=>gKeys.includes(k))`, matching a row if ANY of its
+  // acceptable designations fell in gKeys. Broke down for NCISM_XX_ROWS rows whose keys span
+  // TWO different NCISM_SUM_GRPS groups -- Sch XX/43 "OT Nursing Staff" accepts EITHER
+  // ot_technician (OT/CSSD group) OR staff_nurse (Nursing group), so its requirement (2 at
+  // UG100) got counted into BOTH groups' totals, while the 2 real hires (recruited under
+  // ot_technician) only credited toward one -- a phantom −2 gap appeared on "Staff Nurse —
+  // all zones" even though the post was genuinely fully staffed. Exhaustive sweep confirmed
+  // this is the ONLY such cross-group row in the table. Fixed by attributing each row to its
+  // FIRST key only, matching the identical rule _renderStaffingPlan()/_ncismRoleMinimums()
+  // already use for exactly this reason (see their own comments) -- now all three places that
+  // state an aggregate headcount total agree.
+  const ugReqForGroup=gKeys=>NCISM_XX_ROWS.reduce((s,[,,keys,req])=>s+(gKeys.includes(keys[0])?(req[ug]||0):0),0);
 
   // Department tree — shared with 🏥 Dept. Staff and Departments (same order, same OPD rows,
   // sourced from the real opds table — see buildDeptTree/_buildOpdChildren).
