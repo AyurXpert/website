@@ -1382,6 +1382,42 @@ function _collectExtraStaff(tree, ug, bedTotals, byDept){
   return list;
 }
 
+// ── Shared compliance summary banner (Session 136) ──────────────────────────
+// Requested by Dr. Venkatesh after the Staff Nurse cross-group double-count bug: wherever
+// NCISM staff compliance is shown, it should read the same way and never look confusing --
+// (1) Required vs Recruited, capped so it reads "127/127" when genuinely fully staffed
+// rather than a raw number that can overshoot; (2) any staff recruited ABOVE the minimum
+// called out separately with an explanation, never folded into the compliance number; (3)
+// the true total headcount of the organisation, so nothing looks hidden. Always sourced from
+// _computeGrandCompliance()/_collectExtraStaff() -- the same department-tree-scoped, real-
+// configured-departments-only computation already used for the top pill and the HR sub-nav
+// badge -- so this can never disagree with them. Inserted at the top of both the NCISM
+// Requirements tab and the Staffing Plan tab.
+function _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff}){
+  const pct = grandReq>0 ? Math.round(Math.min(grandMet,grandReq)/grandReq*100) : 100;
+  const hc = pct>=100?'#2d7a4f':pct>=80?'#c9902a':'#c0392b';
+  const extra = extraList||[];
+  const extraTotal = extra.reduce((s,r)=>s+r.extra,0);
+  return '<div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px">'
+    +'<div style="background:'+hc+';color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
+      +'<div style="font-weight:700;font-size:14px">'+(pct>=100?'✅':'⚠️')+' NCISM Staff Compliance</div>'
+      +'<div style="font-size:15px;font-weight:700">Required '+grandReq+' · Recruited '+Math.min(grandMet,grandReq)+' <span style="font-weight:400;font-size:12px;opacity:.85">('+pct+'%)</span></div>'
+    +'</div>'
+    +(extraTotal>0
+      ? '<div style="padding:10px 16px;background:#fff8ec;border-bottom:1px solid var(--border);font-size:12.5px;line-height:1.6">'
+        +'<strong>➕ '+extraTotal+' staff recruited above the NCISM minimum</strong> — not a compliance problem, just staff to be aware of when planning transfers, budget, or new invites: '
+        +extra.map(r=>_esc(r.label)+' in '+_esc(r.deptName)+' (required '+r.required+', have '+r.actual+', <strong>+'+r.extra+'</strong>)').join('; ')
+        +'</div>'
+      : '')
+    +'<div style="padding:9px 16px;background:#f5faf7;font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+      +'<span>👥 Total Staff in Organisation: <strong style="color:var(--text-dark);font-size:13.5px">'+totalOrgStaff+'</strong></span>'
+      +(totalOrgStaff>grandMet+extraTotal
+        ?'<span>(includes '+(totalOrgStaff-grandMet-extraTotal)+' account(s) outside NCISM tracking, e.g. platform/admin logins or roles Schedule I/XX doesn\'t cover)</span>'
+        :'')
+    +'</div>'
+  +'</div>';
+}
+
 // Shared fetch used by both the full "Extra Staff" tab render and the lightweight badge --
 // same 5-query shape as _computeNcismComplianceGap(), same not-applicable gating.
 async function _fetchExtraStaffList(){
@@ -1711,9 +1747,14 @@ async function _renderNcismStaffing() {
   // Grand compliance — shared pure function (_computeGrandCompliance) also backs the HR
   // sub-nav's "NCISM Requirements" tab badge, so the two can never disagree.
   const {grandReq, grandMet} = _computeGrandCompliance(tree, ug, bedTotals, cntDeptD);
-  const grandPct=grandReq>0?Math.round(grandMet/grandReq*100):100;
-  const hc=grandPct>=80?'#2d7a4f':grandPct>=50?'#c9902a':'#c0392b';
   _setBadge('hr-tab-ncism-badge', Math.max(0,grandReq-grandMet));
+
+  // Session 136 -- shared summary banner (Required/Recruited capped, Extra Staff called out
+  // separately, true org headcount shown) inserted at the top of this tab; same data _collectExtraStaff
+  // already computes for the Extra Staff tab, reused here so the two can't disagree either.
+  const extraList = _collectExtraStaff(tree, ug, bedTotals, byDept);
+  const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId]]);
+  const summaryBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff});
 
   // ── Summary table (designation-wise totals across ALL zones) ─────────
   let sumRows='';
@@ -1754,24 +1795,24 @@ async function _renderNcismStaffing() {
         +'</tr>';
     });
   });
-  // Grand total row
-  let gtUG=0,gtPG=0,gtTotal=0,gtRec=0;
-  NCISM_SUM_GRPS.forEach(({rows})=>{
-    rows.forEach(({k,fac:fk,pgOnly})=>{
-      if(k.some(key=>FACULTY_CONCURRENT_POSTS.has(key)))return;
-      const ugR=fk?FAC_UG[fk]||0:pgOnly?0:ugReqForGroup(k);
-      const pgA=k.reduce((s,key)=>s+(keyTotPG[key]||0),0);
-      if(pgOnly&&pgList.length===0)return;
-      gtUG+=ugR; gtPG+=pgA; gtTotal+=ugR+pgA; gtRec+=cntD(k);
-    });
-  });
+  // Grand total row — Session 136: was its own independently-summed gtUG/gtPG/gtTotal/gtRec
+  // (via ugReqForGroup/cntD across NCISM_SUM_GRPS), which is a DIFFERENT computation from
+  // _computeGrandCompliance's department-tree total above (that one only counts departments
+  // actually configured for this tenant; this one always summed the full NCISM_XX_ROWS table
+  // regardless). For a fully-seeded tenant they happen to agree, but showing two independently-
+  // computed "grand totals" on the same tab is exactly the confusion Dr. Venkatesh asked to
+  // eliminate -- so this row now just displays the same canonical grandReq/grandMet the summary
+  // banner above and the top pill/badge already use, instead of recomputing its own. No UG/PG
+  // split at this row (grandReq/grandMet don't track that split) -- the per-designation rows
+  // above still show their own UG/PG breakdown.
+  const gtTotal=grandReq, gtRec=Math.min(grandMet,grandReq);
   const gtGap=Math.max(0,gtTotal-gtRec);
-  const gtPct=gtTotal>0?Math.round(Math.min(gtRec,gtTotal)/gtTotal*100):100;
+  const gtPct=gtTotal>0?Math.round(gtRec/gtTotal*100):100;
   const gtC=gtPct>=80?'#2d7a4f':gtPct>=50?'#c9902a':'#c0392b';
   const gtRow='<tr style="background:#1a4a2e;color:#fff">'
     +'<td style="padding:8px 12px 8px 14px;font-weight:700;font-size:13px" colspan="2">GRAND TOTAL — All NCISM-Mandated Positions</td>'
-    +'<td style="padding:8px 10px;text-align:center;font-weight:700">'+gtUG+'</td>'
-    +'<td style="padding:8px 10px;text-align:center;font-weight:700">'+(gtPG>0?'+'+gtPG:'—')+'</td>'
+    +'<td style="padding:8px 10px;text-align:center;font-weight:700">—</td>'
+    +'<td style="padding:8px 10px;text-align:center;font-weight:700">—</td>'
     +'<td style="padding:8px 10px;text-align:center;font-weight:700;font-size:15px">'+gtTotal+'</td>'
     +'<td style="padding:8px 10px;text-align:center;font-weight:700;font-size:15px">'+gtRec+'</td>'
     +'<td style="padding:8px 10px;text-align:center;font-weight:700"><span style="background:'+gtC+'44;color:#fff;border:1px solid '+gtC+'88;padding:2px 10px;border-radius:10px">'+gtPct+'%</span>'+(gtGap>0?' <span style="font-size:12px;color:#fca5a5">−'+gtGap+'</span>':'')+'</td>'
@@ -1915,11 +1956,9 @@ async function _renderNcismStaffing() {
       +'<div><div style="font-weight:600;font-size:14px">NCISM Staffing Compliance — Schedule I + XX</div>'
         +'<div style="font-size:11px;opacity:.75;margin-top:2px">UG Intake: '+ug+' · Department-wise · Active profiles with designation + department assigned</div>'
       +'</div>'
-      +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
-        +'<div style="background:'+hc+'44;border:1px solid '+hc+'88;padding:3px 14px;border-radius:12px;font-size:13px;font-weight:700">'+grandPct+'% Compliant</div>'
-        +'<a href="signup.html" style="background:#ffffff22;color:#fff;padding:3px 12px;border-radius:8px;font-size:12px;text-decoration:none;border:1px solid #ffffff44">+ Add Staff</a>'
-      +'</div>'
+      +'<a href="signup.html" style="background:#ffffff22;color:#fff;padding:3px 12px;border-radius:8px;font-size:12px;text-decoration:none;border:1px solid #ffffff44">+ Add Staff</a>'
     +'</div>'
+    +'<div style="padding:14px 16px 0">'+summaryBannerHtml+'</div>'
     +'<div style="padding:10px 16px;background:#f0faf5;border-bottom:1px solid var(--border)">'
       +'<div style="font-size:12px;font-weight:700;color:var(--green-deep);margin-bottom:6px">📋 Faculty Required — Schedule I ('+clinDepts+' teaching depts configured, per Regulation 34 — varies by department, see table below)</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:20px;font-size:13px;align-items:center">'
@@ -2185,10 +2224,10 @@ async function _renderStaffingPlan() {
 
   const _todayStart = new Date(); _todayStart.setHours(0,0,0,0);
 
-  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }, { data:dutySessionsToday }] = await Promise.all([
+  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }, { data:dutySessionsToday }, { data:opds }, { data:bedsRows }] = await Promise.all([
     supabase.from('tenants').select('ug_intake,type,pg_student_strength').eq('id',tenantId).single(),
-    supabase.from('profiles').select('designation').eq('tenant_id',tenantId).eq('is_active',true),
-    supabase.from('departments').select('id,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('profiles').select('designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,ncism_code,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_pg_dept',true),
     // Session 111/113 -- who's covering which front-office duty (not just the
     // required-vs-recruited headcount below), for the Reception & MRD live coverage card
@@ -2198,6 +2237,11 @@ async function _renderStaffingPlan() {
       .select('id,active_duty,cash_drawer_id,started_at,ended_at,profiles(full_name)')
       .eq('tenant_id',tenantId).gte('started_at',_todayStart.toISOString())
       .order('started_at',{ascending:false}),
+    // Session 136 -- needed to build the same department tree _computeGrandCompliance()/
+    // _collectExtraStaff() use, so this tab's summary banner can't disagree with the NCISM
+    // Requirements tab's.
+    supabase.from('opds').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('beds').select('department_id').eq('tenant_id',tenantId),
   ]);
 
   if (!isNCISMType(tRow?.type)) {
@@ -2215,6 +2259,19 @@ async function _renderStaffingPlan() {
   (rawStaff||[]).forEach(s => { if(s.designation) byDesig[s.designation]=(byDesig[s.designation]||0)+1; });
   const cntD = keys => keys.reduce((s,k)=>s+(byDesig[k]||0),0);
   const pgList = pgDepts || [];
+
+  // Session 136 -- shared summary banner, same canonical computation the NCISM Requirements
+  // tab uses (department-tree-scoped _computeGrandCompliance/_collectExtraStaff), so this
+  // tab's headline can never disagree with that one's.
+  const bedTotals = _computeIpdBedTotals(depts, bedsRows);
+  const byDept = {};
+  (rawStaff||[]).forEach(s=>{ if(!s.department_id) return; (byDept[s.department_id]=byDept[s.department_id]||[]).push(s); });
+  const cntDeptD = (deptId,keys)=>(byDept[deptId]||[]).filter(s=>(keys||[]).includes(s.designation)).length;
+  const tree = buildDeptTree(depts||[], opds||[]);
+  const {grandReq, grandMet} = _computeGrandCompliance(tree, ug, bedTotals, cntDeptD);
+  const extraList = _collectExtraStaff(tree, ug, bedTotals, byDept);
+  const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId]]);
+  const summaryBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff});
 
   const facTotal=_scheduleIFacultyTotal(depts, ug);
   const clinDepts=facTotal.count;
@@ -2267,7 +2324,6 @@ async function _renderStaffingPlan() {
     (byRole[role] = byRole[role] || []).push(ck);
   });
 
-  let grandTotal=0, grandRec=0;
   const sectionsHtml = STAFFING_PLAN_ROLE_ORDER.filter(r=>byRole[r.role]?.length).map(({role,icon,label})=>{
     let roleTotal=0, roleRec=0;
     const rowsHtml = byRole[role].map(ck=>{
@@ -2299,7 +2355,6 @@ async function _renderStaffingPlan() {
         +'</tr>';
     }).join('');
 
-    grandTotal+=roleTotal; grandRec+=roleRec;
     const pct = roleTotal>0 ? Math.round(Math.min(roleRec,roleTotal)/roleTotal*100) : 100;
     const pc = pct>=80?'#2d7a4f':pct>=50?'#c9902a':'#c0392b';
 
@@ -2320,9 +2375,6 @@ async function _renderStaffingPlan() {
         +'</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'
       +'</div>';
   }).join('');
-
-  const grandPct = grandTotal>0 ? Math.round(Math.min(grandRec,grandTotal)/grandTotal*100) : 100;
-  const gc = grandPct>=80?'#2d7a4f':grandPct>=50?'#c9902a':'#c0392b';
 
   // Session 111/113 -- live front-office duty coverage + Duty Roster Log. This is a
   // DIFFERENT question from the required-vs-recruited headcount table above (that's "how
@@ -2392,15 +2444,12 @@ async function _renderStaffingPlan() {
         : '<div style="padding:12px 16px;font-size:12px;color:var(--text-muted)">No duty sessions started today yet.</div>')
     +'</div>';
 
-  wrap.innerHTML = '<div class="cc" style="margin-bottom:14px;text-align:center;background:'+gc+'">'
-    +'<div style="padding:14px 16px;color:#fff">'
-      +'<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.85">Staffing Plan — UG Intake '+ug+(pgList.length?' · '+pgList.length+' PG dept(s)':'')+'</div>'
-      +'<div style="font-weight:700;font-size:20px;margin-top:2px">'+grandTotal+' total staff needed · '+grandRec+' recruited ('+grandPct+'%)</div>'
-    +'</div></div>'
+  wrap.innerHTML = '<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);font-weight:700;margin-bottom:8px">Staffing Plan — UG Intake '+ug+(pgList.length?' · '+pgList.length+' PG dept(s)':'')+'</div>'
+    + summaryBannerHtml
     + liveCoverageHtml
     + dutyRosterLogHtml
     + sectionsHtml
-    + '<div style="font-size:11px;color:var(--text-muted);margin-top:8px">Numbers scale with UG intake and PG seats sanctioned — same source as HR → NCISM Requirements\' department-wise ladder. Medical Director is excluded from the Doctors total (typically held concurrently by an existing faculty member).</div>';
+    + '<div style="font-size:11px;color:var(--text-muted);margin-top:8px">The role-by-role breakdown below scales with UG intake and PG seats sanctioned. The summary above is the same canonical total as HR → NCISM Requirements — they can\'t disagree.</div>';
 }
 
 // ── Departmental Staff Distribution ──────────────────────────────────
