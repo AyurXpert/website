@@ -322,6 +322,10 @@ table.ct{width:100%;border-collapse:collapse;background:var(--white);font-size:1
   </div>
   </div><!-- ncism-metrics -->
 
+  <!-- Session 136 -- shared canonical NCISM staff compliance summary, same computation
+       and wording as admin.html's HR tabs, so this report can never disagree with them. -->
+  <div id="ncism-staff-summary-banner" style="margin-top:20px"></div>
+
   <!-- Faculty compliance — NCISM Schedule I -->
   <div class="faculty-section" id="faculty-section" style="display:none">
     <div class="faculty-hdr">
@@ -332,8 +336,9 @@ table.ct{width:100%;border-collapse:collapse;background:var(--white);font-size:1
     <div class="fstat-row" id="faculty-stats"></div>
 
     <div class="faculty-note amber">
-      &#9888; Numbers based on NCISM Schedule I (approximate). Verify exact figures from official NCISM gazette.
-      Full per-department auto-tracking requires two SQL migrations — see note below the table.
+      &#9888; Real per-department Schedule IV requirement, matched against each department's actual
+      recruited Professor/Associate/Assistant Professor headcount (by designation, not just role) —
+      same computation as HR &rarr; NCISM Requirements on admin.html.
     </div>
 
     <div class="table-wrap">
@@ -346,20 +351,12 @@ table.ct{width:100%;border-collapse:collapse;background:var(--white);font-size:1
             <th class="center">Assoc. Prof<br><span style="font-size:9px;opacity:.7">Required</span></th>
             <th class="center">Asst. Prof<br><span style="font-size:9px;opacity:.7">Required</span></th>
             <th class="center">Min Total<br><span style="font-size:9px;opacity:.7">Required</span></th>
-            <th class="center">On Record<br><span style="font-size:9px;opacity:.7">profiles</span></th>
+            <th class="center">On Record<br><span style="font-size:9px;opacity:.7">by designation</span></th>
             <th class="center">Status</th>
           </tr>
         </thead>
         <tbody id="faculty-tbody"></tbody>
       </table>
-    </div>
-
-    <div class="faculty-note blue" style="margin-top:12px">
-      <strong>To enable per-department auto-tracking, run in Supabase SQL Editor:</strong><br>
-      <code style="font-size:11px;display:block;margin-top:6px;white-space:pre-wrap">ALTER TABLE profiles ADD COLUMN IF NOT EXISTS department_id uuid REFERENCES departments(id);
-ALTER TABLE profiles ADD COLUMN IF NOT EXISTS designation text
-  CHECK (designation IN ('professor','associate_professor','assistant_professor','senior_resident','junior_resident','demonstrator','tutor'));
-COMMENT ON COLUMN profiles.designation IS 'NCISM faculty designation — required for Schedule I compliance tracking';</code>
     </div>
   </div>
 
@@ -373,8 +370,10 @@ COMMENT ON COLUMN profiles.designation IS 'NCISM faculty designation — require
     <div class="fstat-row" id="staff-stats"></div>
 
     <div class="faculty-note amber">
-      &#9888; Role counts are totals from the system — not zone-wise allocated. Verify actual zone postings physically.
-      Numbers for 100-intake are interpolated. Partial-time roles (Anaesthesiologist, Pathologist, Radiologist) are not shown.
+      &#9888; Matched by real designation and department (not just system role) — same
+      per-position Schedule XX ladder as HR &rarr; NCISM Requirements on admin.html. Zone
+      groups reflect real configured departments; a department with nothing configured yet
+      shows no rows here rather than a fabricated number.
     </div>
 
     <div class="table-wrap">
@@ -384,7 +383,7 @@ COMMENT ON COLUMN profiles.designation IS 'NCISM faculty designation — require
             <th>Zone</th>
             <th>Designation</th>
             <th class="center">Required<br><span style="font-size:9px;opacity:.7">(your intake)</span></th>
-            <th class="center">System Role</th>
+            <th class="center">Sch Ref</th>
             <th class="center">On Record</th>
             <th class="center">Status</th>
           </tr>
