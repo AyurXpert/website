@@ -4,14 +4,22 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { NURSING_DUTY_CODES, NURSING_DEPT_NAMES } from '../config/ncism.js';
+import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
 
-await requireAuth(['super_admin', 'dept_admin', 'nurse_manager']);
+// Session 137: widened from admin-only to also let plain nursing staff/ayahs
+// (role 'nurse', covers both designations) view the roster -- read-only,
+// gated below via _canEdit. super_admin/dept_admin always retain full edit;
+// nurse_manager's edit ability is now further gated on being the currently-
+// resolved nursing head (see loadHeadGate()), not just holding the role.
+await requireAuth(['super_admin', 'dept_admin', 'nurse_manager', 'nurse']);
 initNavbar();
 wireDelegatedEvents();
 
 const tenantId = getCurrentTenantId();
 const profile  = getCurrentProfile();
 const role     = getCurrentRole();
+let _canEdit   = role === 'super_admin' || role === 'dept_admin'; // refined once headship resolves, for nurse_manager
+let _holidays  = new Map(); // 'YYYY-MM-DD' -> occasion name, for the visible week
 
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
@@ -61,12 +69,13 @@ async function loadDepartments() {
     .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active',true).order('name');
   _depts = data || [];
 
-  // Nursing Superintendent only needs departments where round-the-clock nursing duty
-  // is actually required (the 7 bedded wards + IPD/Labour Room/OT/Screening OPD/
-  // Diagnostics, per Schedule XX/29's USG & ECG nursing line) -- not every org department
-  // (Administration, Sanskrit & Samhita, Security, etc. have no nursing staff at all).
-  // super_admin/dept_admin keep the full list unchanged.
-  if (role === 'nurse_manager') {
+  // Nursing Superintendent (and, Session 137, plain nursing staff/ayahs viewing
+  // read-only) only need departments where round-the-clock nursing duty is
+  // actually required (the 7 bedded wards + IPD/Labour Room/OT/Screening OPD/
+  // Diagnostics, per Schedule XX/29's USG & ECG nursing line) -- not every org
+  // department (Administration, Sanskrit & Samhita, Security, etc. have no
+  // nursing staff at all). super_admin/dept_admin keep the full list unchanged.
+  if (role === 'nurse_manager' || role === 'nurse') {
     _depts = _depts.filter(d => NURSING_DUTY_CODES.has(d.ncism_code) || NURSING_DEPT_NAMES.has(d.name));
   }
 
@@ -83,6 +92,39 @@ async function loadDepartments() {
     });
     if (preserve) sel.value = preserve;
   });
+
+  // Plain nursing staff/ayah, Session 137: default the view to their own
+  // ward for convenience -- still free to switch to any other nursing dept.
+  if (role === 'nurse' && profile.department_id && _depts.some(d => d.id === profile.department_id)) {
+    fd.value = profile.department_id;
+  }
+}
+
+// Session 137: nurse_manager's edit ability is gated on actually being the
+// currently-resolved nursing head (default = Nursing Superintendent
+// designation, or an explicit delegate) -- not just holding the role. The
+// other 3 nurse_manager accounts, and every plain nurse/ayah, get read-only.
+async function loadHeadGate() {
+  if (role !== 'nurse_manager') return; // super_admin/dept_admin already true; plain nurse stays false
+  const headship = await resolveNursingHeadship(supabase, tenantId);
+  _canEdit = canActAsNursingHead(headship, profile.id, role, profile.designation);
+  if (!_canEdit) {
+    _alert('info', `Read-only — ${headship.effectiveHead?.full_name || 'the current Nursing Head'} is currently the only nursing account that can edit this roster.`);
+  }
+  _applyEditGate();
+}
+
+// Hides/disables every write-capable control when !_canEdit. Read-only
+// visitors still see the full grid, gap banner, and on-call table.
+function _applyEditGate() {
+  document.getElementById('btn-add-shift').style.display = _canEdit ? '' : 'none';
+}
+
+async function loadHolidays() {
+  const dates = _weekDates();
+  const { data } = await supabase.from('public_holidays').select('holiday_date,name')
+    .eq('tenant_id', tenantId).gte('holiday_date', dates[0]).lte('holiday_date', dates[6]);
+  _holidays = new Map((data||[]).map(h => [h.holiday_date, h.name]));
 }
 
 async function loadDoctors() {
@@ -112,11 +154,22 @@ async function loadRoster() {
     .gte('shift_date', dates[0])
     .lte('shift_date', dates[6]);
   if (deptFilter) q = q.eq('department_id', deptFilter);
-  const { data } = await q;
+  const [{ data }] = await Promise.all([q, loadHolidays()]);
   _roster = data || [];
   renderRoster();
   renderOnCall();
   updateGapBanner();
+}
+
+// Session 137: public holidays "pre-filled into every roster" -- a small 🎉
+// marker + tooltip on the matching date column, in both tables below. A live
+// read against public_holidays, not copied into duty_roster.
+function _dateHeaderHtml(d) {
+  const holidayName = _holidays.get(d);
+  return `<th class="${_isToday(d)?'today-col':''}"${holidayName?` title="Public Holiday: ${_esc(holidayName)}" style="background:#fdf3e0"`:''}>`
+    + `${_fmtDay(d)}<br><span style="font-weight:400;font-size:10px">${_fmtDate(d)}</span>`
+    + (holidayName ? `<br><span style="font-size:9px;color:#7a5a10">🎉 ${_esc(holidayName)}</span>` : '')
+    + `</th>`;
 }
 
 // ── Render weekly roster ───────────────────────────
@@ -129,7 +182,7 @@ function renderRoster() {
   const thead = document.getElementById('roster-thead');
   thead.innerHTML = `<tr>
     <th class="shift-col">Shift</th>
-    ${dates.map((d,i) => `<th class="${_isToday(d)?'today-col':''}">${_fmtDay(d)}<br><span style="font-weight:400;font-size:10px">${_fmtDate(d)}</span></th>`).join('')}
+    ${dates.map(d => _dateHeaderHtml(d)).join('')}
   </tr>`;
 
   // Body — one group of rows per dept
@@ -185,7 +238,7 @@ function renderOnCall() {
   const thead = document.getElementById('oncall-thead');
   thead.innerHTML = `<tr>
     <th class="shift-col">Specialty Dept</th>
-    ${dates.map(d => `<th class="${_isToday(d)?'today-col':''}">${_fmtDay(d)}<br><span style="font-weight:400;font-size:10px">${_fmtDate(d)}</span></th>`).join('')}
+    ${dates.map(d => _dateHeaderHtml(d)).join('')}
   </tr>`;
 
   const tbody = document.getElementById('oncall-tbody');
@@ -255,6 +308,11 @@ document.getElementById('btn-add-shift').addEventListener('click', () => openMod
 
 // ── Modal ──────────────────────────────────────────
 function openModal(deptId, date, shift, entryId) {
+  // Session 137: read-only visitors (plain nurse/ayah, or a nurse_manager who
+  // isn't currently the resolved head) can see every cell but not edit it --
+  // guarded here so it covers every entry point (grid cells, on-call cells,
+  // + Add Shift) in one place, not just the buttons _applyEditGate() hides.
+  if (!_canEdit) { _alert('info', 'Read-only — only the current Nursing Head can edit this roster.'); return; }
   _editEntry = entryId ? _roster.find(r => r.id === entryId) : null;
 
   document.getElementById('m-dept').value  = deptId || '';
@@ -341,5 +399,6 @@ function _alert(type, msg) {
 
 // ── Boot ───────────────────────────────────────────
 updateWeekLabel();
-await Promise.all([loadDepartments(), loadDoctors()]);
+_applyEditGate(); // correct immediately for super_admin/dept_admin/plain nurse; loadHeadGate() may still flip it for nurse_manager
+await Promise.all([loadDepartments(), loadDoctors(), loadHeadGate()]);
 await loadRoster();
