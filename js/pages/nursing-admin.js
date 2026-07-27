@@ -5,6 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType } from '../config/ncism.js';
+import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
 
 await requireAuth(['nurse_manager', 'super_admin', 'dept_admin']);
 initNavbar();
@@ -12,6 +13,7 @@ wireDelegatedEvents();
 
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
+const role     = profile?.role;
 
 // Session 112: nursing-scoped leave list -- deliberately NOT hr.html's tenant-wide,
 // all-roles pending-leave list (that would expose every other department's staff's
@@ -186,5 +188,72 @@ async function loadComplianceSnapshot() {
   grid.innerHTML = ladderHtml + '<div style="grid-column:1/-1;font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 4px">🔴 On Duty Today, By Department</div>' + onDutyHtml;
 }
 
+// ── Nursing Head delegation (Session 137) ───────────────────────────
+// Default head = whoever holds the nursing_superintendent designation;
+// tenants.nursing_head_delegate_id is an explicit override, set/cleared via
+// the update_nursing_head_delegate RPC (tenants' own RLS blocks a direct
+// .update() from anyone but super_admin -- same RLS-too-narrow bug class as
+// Session 120's profiles fix). Shared resolution logic with roster.js, so
+// write-access gating there can never disagree with what's shown here.
+async function loadHeadship() {
+  const body = document.getElementById('headship-body');
+  const headship = await resolveNursingHeadship(supabase, tenantId);
+  const canAct = canActAsNursingHead(headship, profile.id, role, profile.designation);
+
+  if (!headship.defaultHead) {
+    body.innerHTML = '<div class="empty">No staff with the Nursing Superintendent designation found yet -- assign one via HR → All Staff before headship delegation can work.</div>';
+    return;
+  }
+
+  const chip = (p, tag) => p ? `<span class="badge" style="background:var(--green-light);color:var(--green-deep);font-weight:600">${_esc(p.full_name)}${tag ? ' — '+tag : ''}</span>` : '';
+
+  let html = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">'
+    + '<span style="font-size:12.5px;color:var(--text-muted)">Currently editing:</span>'
+    + chip(headship.effectiveHead, headship.delegate ? 'acting head' : 'default')
+    + '</div>';
+
+  if (canAct) {
+    if (headship.delegate) {
+      html += `<button class="btn btn-reject btn-sm" data-onclick="resetNursingHeadship">↺ Reset to ${_esc(headship.defaultHead.full_name)} (default)</button>`;
+    } else {
+      const deputies = headship.candidates.filter(c => c.designation === 'deputy_nursing_superintendent');
+      if (deputies.length) {
+        html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+          + '<span style="font-size:12.5px;color:var(--text-muted)">Delegate to (e.g. while on leave):</span>'
+          + '<select id="delegate-select" style="height:32px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12.5px">'
+          + deputies.map(d => `<option value="${_esc(d.id)}">${_esc(d.full_name)}</option>`).join('')
+          + '</select>'
+          + '<button class="btn btn-primary btn-sm" data-onclick="delegateNursingHeadship">Delegate</button>'
+          + '</div>';
+      } else {
+        html += '<div class="empty">No Deputy Nursing Superintendents on record to delegate to.</div>';
+      }
+    }
+  } else {
+    html += '<div class="empty">Only the current head, Medical Director/Principal/Medical Superintendent, or super_admin can change this.</div>';
+  }
+
+  body.innerHTML = html;
+}
+
+window.delegateNursingHeadship = async function() {
+  const sel = document.getElementById('delegate-select');
+  const delegateId = sel?.value;
+  const delegateName = sel?.options[sel.selectedIndex]?.textContent;
+  if (!delegateId) return;
+  if (!confirm(`Delegate nursing headship to ${delegateName}? They'll get full duty-roster edit access; you'll be read-only until this is reset back.`)) return;
+  const { error } = await supabase.rpc('update_nursing_head_delegate', { p_delegate_id: delegateId });
+  if (error) { alert(safeErrorMessage(error, 'Could not delegate headship.')); return; }
+  await loadHeadship();
+};
+
+window.resetNursingHeadship = async function() {
+  if (!confirm('Reset nursing headship back to the default (Nursing Superintendent)?')) return;
+  const { error } = await supabase.rpc('update_nursing_head_delegate', { p_delegate_id: null });
+  if (error) { alert(safeErrorMessage(error, 'Could not reset headship.')); return; }
+  await loadHeadship();
+};
+
+await loadHeadship();
 await loadNursingLeaves();
 await loadComplianceSnapshot();
