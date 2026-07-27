@@ -541,6 +541,7 @@ tr:hover td{background:#fafff8}
           <button class="btn-outline hr-tab" data-sub="dept">🏥 Dept. Staff</button>
           <button class="btn-outline hr-tab" data-sub="decisions">⚖️ Approvals<span class="badge-count red" id="hr-tab-decisions-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="extra">➕ Extra Staff<span class="badge-count" id="hr-tab-extra-badge" style="display:none;margin-left:6px">0</span></button>
+          <button class="btn-outline hr-tab" data-sub="leave" id="hr-tab-leave-btn" style="display:none">📅 Leave &amp; Holidays</button>
         </div>
       </div>
       <div id="hr-seed-bar" style="display:none;background:#fef9ec;border:1px solid #f5c842;border-radius:8px;padding:8px 14px;margin-bottom:14px;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
@@ -630,6 +631,13 @@ tr:hover td{background:#fafff8}
             <div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>
           </div>
         </div>
+      </div>
+
+      <!-- Leave & Holidays panel (Session 137, Nursing Roster Phase 1) -- Medical
+           Director/Principal/Medical Superintendent (+ super_admin) only: public
+           holiday calendar + CL/EL quota entry, pre-filled into every roster. -->
+      <div id="hr-leave-panel" style="display:none">
+        <div id="leave-holidays-wrap"></div>
       </div>
     </div>
 

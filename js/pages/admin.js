@@ -790,6 +790,7 @@ function _hrSub(sub){
   document.getElementById('hr-dept-panel').style.display       = sub==='dept'      ? '' : 'none';
   document.getElementById('hr-decisions-panel').style.display  = sub==='decisions' ? '' : 'none';
   document.getElementById('hr-extra-panel').style.display      = sub==='extra'     ? '' : 'none';
+  document.getElementById('hr-leave-panel').style.display      = sub==='leave'     ? '' : 'none';
   document.getElementById('hr-seed-bar').style.display         = (sub==='ncism'||sub==='dept') ? 'flex' : 'none';
   if (sub === 'ncism')   _renderNcismStaffing();
   if (sub === 'plan')    _renderStaffingPlan();
@@ -797,6 +798,18 @@ function _hrSub(sub){
   if (sub === 'dept')    _renderDeptStaff();
   if (sub === 'decisions') window.loadPendingDecisions();
   if (sub === 'extra')   _renderExtraStaff();
+  if (sub === 'leave')   _renderLeaveHolidays();
+}
+
+// Session 137 (Nursing Roster Phase 1): who can manage the public holiday
+// calendar + CL/EL quotas -- Dr. Venkatesh's exact instruction was "Medical
+// director or Medical superintendent dashboard", so this deliberately does
+// NOT reuse the broader APEX_DESIGS (Medical Director/Principal only) --
+// Medical Superintendent needs it too, Deputy MS was not asked for.
+const LEAVE_HOLIDAY_ADMIN_DESIGS = ['medical_director','principal','medical_superintendent'];
+if (role==='super_admin' || LEAVE_HOLIDAY_ADMIN_DESIGS.includes(profile?.designation)) {
+  const btn = document.getElementById('hr-tab-leave-btn');
+  if (btn) btn.style.display = '';
 }
 
 // ── NCISM Schedule XX — Hospital Staff Requirements ──────────────────
@@ -1086,6 +1099,118 @@ async function _renderExtraStaff(){
       +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Extra</th>'
       +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
+
+// ── Leave & Holidays (Session 137, Nursing Roster Phase 1) ──────────────
+// Medical Director/Principal/Medical Superintendent (+ super_admin) manage a
+// real public-holiday calendar and CL/EL day quotas here. Quotas are
+// tenant-wide only for now (Dr. Venkatesh's explicit choice over
+// per-individual) -- "days used so far" is deliberately NOT stored, it's
+// computed live from approved staff_leaves rows for the year, same
+// computed-read-over-stored-state convention as promo pricing (Session 125).
+let _currentQuotaId = null;
+async function _renderLeaveHolidays(){
+  const wrap = document.getElementById('leave-holidays-wrap');
+  wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
+
+  const year = new Date().getFullYear();
+  const [{ data:holidays },{ data:quotaRow },{ data:usedRows }] = await Promise.all([
+    supabase.from('public_holidays').select('id,holiday_date,name').eq('tenant_id',tenantId)
+      .gte('holiday_date', year+'-01-01').lte('holiday_date', year+'-12-31').order('holiday_date'),
+    supabase.from('leave_quotas').select('id,casual_leave_days,earned_leave_days')
+      .eq('tenant_id',tenantId).is('profile_id',null).eq('effective_year',year).maybeSingle(),
+    supabase.from('staff_leaves').select('leave_type,from_date,to_date').eq('tenant_id',tenantId)
+      .eq('status','approved').gte('from_date', year+'-01-01').lte('from_date', year+'-12-31'),
+  ]);
+
+  const quota = quotaRow || { casual_leave_days:12, earned_leave_days:15 };
+  // supabase-js's upsert() has no way to target a PARTIAL unique index (the
+  // blanket-default row's uniqueness is only enforced WHERE profile_id IS
+  // NULL, see sql/session137_leave_quotas_null_uniq_fix.sql) -- PostgREST's
+  // on_conflict param is a bare column list, it can't carry a WHERE clause,
+  // so ON CONFLICT (tenant_id,effective_year) 42P10-errors ("no unique or
+  // exclusion constraint matching") every time. Real bug caught live testing
+  // the save-twice case. Fixed with explicit check-then-write instead.
+  _currentQuotaId = quotaRow?.id || null;
+  const usedDays = t => (usedRows||[]).filter(r=>r.leave_type===t)
+    .reduce((s,r)=> s + (Math.round((new Date(r.to_date)-new Date(r.from_date))/86400000)+1), 0);
+  const clUsed = usedDays('casual'), elUsed = usedDays('earned');
+
+  const holidayRows = (holidays||[]).length ? (holidays||[]).map(h=>{
+    const past = h.holiday_date < todayStr;
+    return '<tr'+(past?' style="opacity:.55"':'')+'>'
+      +'<td>'+new Date(h.holiday_date+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric',weekday:'short'})+'</td>'
+      +'<td>'+_esc(h.name)+'</td>'
+      +'<td><button class="btn-outline" style="font-size:11px;padding:3px 10px;color:#c0392b;border-color:#e0b0b0" data-onclick="deletePublicHoliday" data-onclick-a0="'+_esc(h.id)+'" data-onclick-a1="'+_esc(h.name)+'">🗑 Remove</button></td>'
+    +'</tr>';
+  }).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:20px">No holidays entered for '+year+' yet.</td></tr>';
+
+  wrap.innerHTML =
+    '<div class="cc" style="margin-bottom:20px">'
+      +'<div class="cc-hd"><span class="cc-title">🏖️ Public Holiday Calendar — '+year+'</span>'
+        +'<span style="font-size:11.5px;color:var(--text-muted)">Shown on every duty roster in the HMS</span></div>'
+      +'<div style="padding:14px 20px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid var(--border)">'
+        +'<div><label style="display:block;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Date</label>'
+          +'<input type="date" id="new-holiday-date" style="height:36px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:13px"/></div>'
+        +'<div style="flex:1;min-width:200px"><label style="display:block;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Occasion</label>'
+          +'<input type="text" id="new-holiday-name" placeholder="e.g. Independence Day" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:13px;box-sizing:border-box"/></div>'
+        +'<button class="btn-primary" style="height:36px;padding:0 18px" data-onclick="addPublicHoliday">+ Add Holiday</button>'
+      +'</div>'
+      +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+        +'<thead><tr style="background:#f5faf7">'
+          +'<th style="padding:8px 16px;text-align:left;font-size:10.5px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Date</th>'
+          +'<th style="padding:8px 16px;text-align:left;font-size:10.5px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Occasion</th>'
+          +'<th style="padding:8px 16px;text-align:left;font-size:10.5px;text-transform:uppercase;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)"></th>'
+        +'</tr></thead><tbody>'+holidayRows+'</tbody></table></div>'
+    +'</div>'
+    +'<div class="cc">'
+      +'<div class="cc-hd"><span class="cc-title">📋 Leave Quotas — '+year+'</span>'
+        +'<span style="font-size:11.5px;color:var(--text-muted)">One organisation-wide default (per-person overrides not yet built)</span></div>'
+      +'<div style="padding:16px 20px;display:flex;gap:24px;flex-wrap:wrap;align-items:flex-end">'
+        +'<div><label style="display:block;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Casual Leave (CL) / year</label>'
+          +'<input type="number" min="0" id="quota-cl" value="'+quota.casual_leave_days+'" style="height:36px;width:100px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:13px"/>'
+          +'<div style="font-size:11px;color:var(--text-muted);margin-top:4px">'+clUsed+' day(s) approved so far this year</div></div>'
+        +'<div><label style="display:block;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px">Earned Leave (EL) / year</label>'
+          +'<input type="number" min="0" id="quota-el" value="'+quota.earned_leave_days+'" style="height:36px;width:100px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:13px"/>'
+          +'<div style="font-size:11px;color:var(--text-muted);margin-top:4px">'+elUsed+' day(s) approved so far this year</div></div>'
+        +'<button class="btn-primary" style="height:36px;padding:0 18px" data-onclick="saveLeaveQuota">Save Quota</button>'
+      +'</div>'
+      +'<div style="padding:0 20px 16px;font-size:11.5px;color:var(--text-muted)">Medical leave is always available on request regardless of this quota (staff_leaves\' existing "medical" leave type) — CL/EL are the only two counted against an annual allotment.</div>'
+    +'</div>';
+}
+
+window.addPublicHoliday = async function(){
+  const dateEl = document.getElementById('new-holiday-date'), nameEl = document.getElementById('new-holiday-name');
+  const holiday_date = dateEl.value, name = (nameEl.value||'').trim();
+  if (!holiday_date || !name) { _toast('Enter both a date and an occasion name.', true); return; }
+  const { error } = await supabase.from('public_holidays').insert({ tenant_id:tenantId, holiday_date, name, created_by:profile.id });
+  if (error) { _toast(safeErrorMessage(error, error.code==='23505' ? 'A holiday is already entered for that date.' : 'Could not add holiday.'), true); return; }
+  await logAudit('add_public_holiday', 'public_holidays', null, { holiday_date, name }, { tenantId, userId: profile.id, userName: profile.full_name });
+  _toast(name+' added to the holiday calendar.');
+  _renderLeaveHolidays();
+};
+
+window.deletePublicHoliday = async function(id, name){
+  if (!confirm('Remove "'+name+'" from the holiday calendar?')) return;
+  const { error } = await supabase.from('public_holidays').delete().eq('id',id).eq('tenant_id',tenantId);
+  if (error) { _toast(safeErrorMessage(error, 'Could not remove holiday.'), true); return; }
+  await logAudit('delete_public_holiday', 'public_holidays', id, { name }, { tenantId, userId: profile.id, userName: profile.full_name });
+  _toast('Holiday removed.');
+  _renderLeaveHolidays();
+};
+
+window.saveLeaveQuota = async function(){
+  const cl = parseInt(document.getElementById('quota-cl').value, 10);
+  const el = parseInt(document.getElementById('quota-el').value, 10);
+  if (!(cl>=0) || !(el>=0)) { _toast('Enter valid CL/EL day counts.', true); return; }
+  const year = new Date().getFullYear();
+  const { error } = _currentQuotaId
+    ? await supabase.from('leave_quotas').update({ casual_leave_days:cl, earned_leave_days:el }).eq('id', _currentQuotaId).eq('tenant_id', tenantId)
+    : await supabase.from('leave_quotas').insert({ tenant_id:tenantId, profile_id:null, effective_year:year, casual_leave_days:cl, earned_leave_days:el, created_by:profile.id });
+  if (error) { _toast(safeErrorMessage(error, 'Could not save quota.'), true); return; }
+  await logAudit('save_leave_quota', 'leave_quotas', _currentQuotaId, { year, casual_leave_days:cl, earned_leave_days:el }, { tenantId, userId: profile.id, userName: profile.full_name });
+  _toast('Leave quota saved for '+year+'.');
+  _renderLeaveHolidays();
+};
 
 // Debounced so a burst of realtime events (e.g. bulk staff/bed edits) triggers one recompute,
 // not one per row changed.
