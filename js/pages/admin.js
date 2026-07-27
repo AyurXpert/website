@@ -2066,7 +2066,7 @@ async function _renderDeptStaff() {
   const [{ data:tRow },{ data:depts },{ data:allStaff },{ data:rosterRows },{ data:opds },{ data:bedsRows }] = await Promise.all([
     supabase.from('tenants').select('ug_intake').eq('id',tenantId).single(),
     supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_active,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
-    supabase.from('profiles').select('id,full_name,role,designation,department_id,is_active,status').eq('tenant_id',tenantId),
+    supabase.from('profiles').select('id,full_name,role,designation,department_id,scope_department_id,is_active,status').eq('tenant_id',tenantId),
     supabase.from('duty_roster').select('department_id,profile_id,shift_type,is_confirmed').eq('tenant_id',tenantId).eq('shift_date',today),
     supabase.from('opds').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('beds').select('department_id').eq('tenant_id',tenantId),
@@ -2111,6 +2111,25 @@ async function _renderDeptStaff() {
   const FACULTY_DESIGS=['hod','professor','associate_professor','assistant_professor'];
   const SENIOR_RES=['senior_resident','junior_resident'];
 
+  // Session 137: Dept Admin assignment picker -- collapsed by default, toggled
+  // open via toggleDeptAdminPicker(). Lists every active staff member of THIS
+  // department so super_admin/Medical Director/Principal can explicitly assign
+  // one as Dept Admin (writes profiles.scope_department_id, the same grant
+  // dept-admin.html itself checks -- a real access change, not just a label).
+  function _deptAdminPickerHtml(deptId,staff,explicitAdmin){
+    const pickId='dept-admin-picker-'+deptId;
+    const selId='dept-admin-select-'+deptId;
+    const options=staff.map(s=>'<option value="'+_esc(s.id)+'"'+(explicitAdmin&&explicitAdmin.id===s.id?' selected':'')+'>'+_esc(s.full_name||'?')+' ('+_esc(_dl(s.designation))+')</option>').join('');
+    return '<button class="btn-outline" style="font-size:10px;padding:2px 8px;margin-left:6px" data-onclick="toggleDeptAdminPicker" data-onclick-a0="'+_esc(pickId)+'">✏️ Change</button>'
+      +'<div id="'+_esc(pickId)+'" style="display:none;margin-top:6px;gap:6px;align-items:center;flex-wrap:wrap">'
+        +(staff.length
+          ?'<select id="'+_esc(selId)+'" style="height:28px;border:1.5px solid var(--border);border-radius:6px;padding:0 6px;font-size:11.5px">'+options+'</select>'
+            +'<button class="btn-outline" style="font-size:11px;padding:3px 10px" data-onclick="assignDeptAdminFromCard" data-onclick-a0="'+_esc(deptId)+'" data-onclick-a1="'+_esc(selId)+'">Assign</button>'
+          :'<span style="font-size:11px;color:var(--text-muted)">No staff assigned to this department yet.</span>')
+        +(explicitAdmin?'<button class="btn-outline" style="font-size:11px;padding:3px 10px;color:#c0392b;border-color:#e0b0b0" data-onclick="resetDeptAdminToDefault" data-onclick-a0="'+_esc(explicitAdmin.id)+'" data-onclick-a1="'+_esc(explicitAdmin.full_name||'this staff member')+'">↺ Reset to Default</button>':'')
+      +'</div>';
+  }
+
   function _deptCard(dept,staff,opts={}){
     const sorted=[...staff].sort((a,b)=>_lv(a.designation)-_lv(b.designation));
     const hod=sorted.find(s=>['hod','professor'].includes(s.designation)||s.role==='dept_admin');
@@ -2119,7 +2138,18 @@ async function _renderDeptStaff() {
     const residents=sorted.filter(s=>SENIOR_RES.includes(s.designation));
     const interns=sorted.filter(s=>INTERN_DESIGS.includes(s.designation));
     const others=sorted.filter(s=>!FACULTY_DESIGS.includes(s.designation)&&!SENIOR_RES.includes(s.designation)&&!INTERN_DESIGS.includes(s.designation));
-    const admin=staff.find(s=>s.role==='dept_admin');
+    // Interns/HOD row shown only for clinical/academic departments (has an
+    // ncism_code) -- a non-clinical section like Finance & Accounts has no
+    // HOD/Professor concept at all (Session 137, Dr. Venkatesh's explicit ask).
+    const isClinical=!!(dept?.ncism_code);
+    // Dept Admin resolution (Session 137): an explicit scope_department_id
+    // assignment (made via the picker below, or the legacy All Staff action)
+    // always wins; otherwise a clinical dept's HOD/Professor IS the Dept Admin
+    // by default -- no separate designation needed. Non-clinical depts have no
+    // default at all until someone is explicitly assigned.
+    const explicitAdmin=staff.find(s=>s.scope_department_id===dept.id) || staff.find(s=>s.role==='dept_admin');
+    const admin=explicitAdmin || (isClinical ? hod : null);
+    const adminIsAutoHod = !explicitAdmin && !!admin;
     const deptCode=dept?.ncism_code?('NCISM: '+dept.ncism_code):(dept?.category?('Section: '+dept.category):'Non-NCISM');
     const isPG=dept?.is_pg_dept;
     const pgSeats=dept?.pg_seats_sanctioned||0;
@@ -2128,17 +2158,26 @@ async function _renderDeptStaff() {
     const emptyChip=label=>'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c;margin:2px">'+label+' — not assigned</span>';
 
     let rows='';
-    // Admin row
+    // Dept Admin row -- clinical depts default to their HOD/Professor
+    // automatically; only super_admin/Medical Director/Principal can override
+    // via the picker (restricted to the org's designated approvers, per
+    // Dr. Venkatesh's explicit instruction).
+    const canAssignDeptAdmin = role==='super_admin' || APEX_DESIGS.includes(profile?.designation);
+    const adminCell=(admin?badge(admin):emptyChip('Dept Admin'))
+      +(adminIsAutoHod?'<span style="font-size:10.5px;color:var(--text-muted);margin-left:2px">(default — HOD)</span>':'')
+      +(canAssignDeptAdmin?_deptAdminPickerHtml(dept.id,staff,explicitAdmin):'');
     rows+='<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">'
       +'<div style="min-width:120px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;padding-top:3px">Dept Admin</div>'
-      +'<div style="flex:1">'+(admin?badge(admin):emptyChip('Dept Admin'))+'</div></div>';
+      +'<div style="flex:1">'+adminCell+'</div></div>';
     // HOD row (falls back to an acting HOD borrowed from another dept, e.g. IPD → Shalya HOD)
-    const hodCell=hod?badge(hod)
-      :actingHod?(badge(actingHod)+'<span style="font-size:11px;color:var(--text-muted);margin-left:4px">('+_esc(opts.actingHodNote||'acting')+')</span>')
-      :emptyChip('HOD/Professor');
-    rows+='<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">'
-      +'<div style="min-width:120px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;padding-top:3px">Head of Dept</div>'
-      +'<div style="flex:1">'+hodCell+'</div></div>';
+    if(isClinical||actingHod){
+      const hodCell=hod?badge(hod)
+        :actingHod?(badge(actingHod)+'<span style="font-size:11px;color:var(--text-muted);margin-left:4px">('+_esc(opts.actingHodNote||'acting')+')</span>')
+        :emptyChip('HOD/Professor');
+      rows+='<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">'
+        +'<div style="min-width:120px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;padding-top:3px">Head of Dept</div>'
+        +'<div style="flex:1">'+hodCell+'</div></div>';
+    }
     // Faculty row
     if(faculty.length||isPG){
       rows+='<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">'
@@ -2152,7 +2191,6 @@ async function _renderDeptStaff() {
         +'<div style="flex:1">'+(residents.length?residents.map(badge).join(''):(isPG?emptyChip('Senior Resident'):'<span style="font-size:12px;color:var(--text-muted)">None assigned</span>'))+'</div></div>';
     }
     // Interns — show for all depts (clinical determined by ncism_code)
-    const isClinical=!!(dept?.ncism_code);
     if(interns.length||isClinical){
       const internChip=interns.length
         ?interns.map(s=>'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#fef9ec;border:1px solid #f5c842;color:#854d0e;margin:2px">'+_esc(s.full_name||'?')+'<span style="color:var(--text-muted);margin-left:4px">'+_dl(s.designation)+'</span></span>').join('')
@@ -2424,6 +2462,41 @@ window.unscopeFromDepartment = async function(staffId, staffName){
   await logAudit('unscope_from_department', 'profiles', staffId, {staff_name: staffName}, {tenantId, userId: profile.id, userName: profile.full_name});
   _toast('Department scope removed from '+staffName+'.');
   window.loadHR && window.loadHR('staff');
+};
+
+// Session 137 -- Dept. Staff tab's own Dept Admin assignment picker (distinct
+// from the All Staff table's Scope-to-Dept action above: that one always
+// scopes a staff member to their OWN department_id; this one lets
+// super_admin/Medical Director/Principal explicitly pick ANY staff member of
+// the department being viewed, even if their own department_id differs).
+// Same underlying grant (scope_department_id) and the same widened
+// dept-admin.html page -- just a different, department-card-first entry point.
+window.toggleDeptAdminPicker = function(pickId){
+  const el = document.getElementById(pickId);
+  if(!el) return;
+  el.style.display = (el.style.display === 'none' || !el.style.display) ? 'flex' : 'none';
+};
+
+window.assignDeptAdminFromCard = async function(deptId, selId){
+  const sel = document.getElementById(selId);
+  const staffId = sel?.value;
+  if(!staffId) return;
+  const staffName = sel.options[sel.selectedIndex]?.textContent || 'this staff member';
+  if(!confirm(`Assign ${staffName} as Dept Admin for this department? They'll get a department-scoped dashboard (My Department) — staff/roster/OPD-doctor management limited to this department only, no other department, no org-wide admin.`)) return;
+  const {error} = await supabase.from('profiles').update({scope_department_id:deptId}).eq('id',staffId).eq('tenant_id',tenantId);
+  if(error){ _toast(safeErrorMessage(error,'Could not assign Dept Admin.'), true); return; }
+  await logAudit('assign_dept_admin_via_card', 'profiles', staffId, {department_id: deptId, staff_name: staffName}, {tenantId, userId: profile.id, userName: profile.full_name});
+  _toast(staffName+' assigned as Dept Admin.');
+  window.loadHR && window.loadHR('dept');
+};
+
+window.resetDeptAdminToDefault = async function(staffId, staffName){
+  if(!confirm(`Remove ${staffName}'s explicit Dept Admin assignment? A clinical department falls back to its HOD/Professor automatically; a non-clinical one will show as unassigned again.`)) return;
+  const {error} = await supabase.from('profiles').update({scope_department_id:null}).eq('id',staffId).eq('tenant_id',tenantId);
+  if(error){ _toast(safeErrorMessage(error,'Could not update.'), true); return; }
+  await logAudit('reset_dept_admin_to_default', 'profiles', staffId, {staff_name: staffName}, {tenantId, userId: profile.id, userName: profile.full_name});
+  _toast('Reset to default for '+staffName+'.');
+  window.loadHR && window.loadHR('dept');
 };
 
 // Cleans up an already-rejected (or still pending_approval) join request straight

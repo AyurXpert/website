@@ -13,8 +13,14 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, UG_BED_RATIOS } from '../config/ncism.js';
+import { ROLE_HOME } from '../config/constants.js';
 
-await requireAuth(['doctor']);
+// Session 137: widened from doctor-only to any active staff member -- access
+// is gated purely by scope_department_id below, not by primary role. This lets
+// a non-clinical Dept Admin (Finance Manager, Front-Office Supervisor, etc.)
+// use the exact same scoped dashboard a clinical HOD already used, instead of
+// needing the much broader secondary_role='dept_admin' org-wide grant.
+await requireAuth([]);
 initNavbar();
 wireDelegatedEvents();
 
@@ -24,7 +30,7 @@ const deptId   = profile?.scope_department_id || null;
 
 if (!deptId) {
   // Not actually scoped -- this page is meaningless without it.
-  window.location.replace('doctor.html');
+  window.location.replace(ROLE_HOME[profile?.role] || 'index.html');
 }
 
 const SHIFT_LABELS = { morning:'Morning', afternoon:'Afternoon', night:'Night', on_call:'On-Call' };
