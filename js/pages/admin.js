@@ -12,7 +12,7 @@ import {
   FACULTY_CONCURRENT_POSTS, NCISM_XX_ROWS, ORG_TREE_DEF, OPD_CHILD_NCISM_CODES,
   _deptKey, buildDeptTree, _dedupById, _scheduleIFacultyTotal, deptRequirement,
   _computeIpdBedTotals, _computeGrandCompliance, _collectExtraStaff,
-  _renderComplianceSummaryBanner,
+  _renderComplianceSummaryBanner, SCHEDULE_I_CODES,
 } from '../config/ncismStaffCompliance.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
@@ -2065,6 +2065,17 @@ async function _renderStaffingPlan() {
 // hospital-wide operational oversight authority (Sch XX/2-3/6).
 const OVERSIGHT_DESIGS = ['medical_superintendent','deputy_medical_superintendent','resident_medical_officer'];
 
+// Session 137 (part 2): departments with no faculty of their own can borrow a
+// SPECIFIC other department's faculty as Dept Admin candidates, per
+// Dr. Venkatesh's explicit per-department mapping -- keyed by _deptKey()
+// (category for these non-NCISM-coded sections), value is the source
+// department's ncism_code. Only that source dept's FACULTY_DESIGS staff are
+// added, not its whole roster.
+const DEPT_ADMIN_BORROW_FACULTY = {
+  OT: 'SHAL', IPD_SURGICAL: 'SHAL', LABOUR_ROOM: 'PST', KRIYAKALPA: 'SHAK',
+  DIET_PATHYA: 'SW', PHYSIOTHERAPY: 'PK', DIAGNOSTICS: 'RNV', PHARMACY: 'DG',
+};
+
 async function _renderDeptStaff() {
   const wrap = document.getElementById('dept-staff-wrap');
   // Preserve which department cards were expanded before this re-render (e.g.
@@ -2093,6 +2104,8 @@ async function _renderDeptStaff() {
   // department's own staff, since these positions have hospital-wide
   // authority and a department may have no dedicated senior staff of its own.
   const oversightCandidates = activeStaff.filter(s=>OVERSIGHT_DESIGS.includes(s.designation));
+  // Source-department lookup for DEPT_ADMIN_BORROW_FACULTY, by real ncism_code.
+  const deptByNcismCode={}; (depts||[]).forEach(d=>{ if(d.ncism_code) deptByNcismCode[d.ncism_code]=d; });
 
   // Group staff by department_id
   const byDept={};
@@ -2134,9 +2147,15 @@ async function _renderDeptStaff() {
   // MS/RMOs, Session 137), so a department with no dedicated senior staff of
   // its own (Screening OPD, the OPD umbrella section) can still be assigned a
   // real Dept Admin / acting HOD. super_admin/Medical Director/Principal only.
-  function _deptAdminPickerHtml(deptId,pool,explicitAdmin){
-    const pickId='dept-admin-picker-'+deptId;
-    const selId='dept-admin-select-'+deptId;
+  // domKey disambiguates DOM ids when the same real dept.id is rendered as TWO
+  // separate cards (Panchakarma/Swasthavritta&Yoga -- one top-level
+  // operational section, one faculty-only clone nested under OPD, Session
+  // 137 part 2) -- deptId (used in the actual DB write) stays the real id
+  // either way, only the element ids/keys need to differ so the two cards'
+  // Change buttons/accordions don't collide via a shared getElementById match.
+  function _deptAdminPickerHtml(deptId,domKey,pool,explicitAdmin){
+    const pickId='dept-admin-picker-'+domKey;
+    const selId='dept-admin-select-'+domKey;
     const options=pool.map(s=>'<option value="'+_esc(s.id)+'"'+(explicitAdmin&&explicitAdmin.id===s.id?' selected':'')+'>'+_esc(s.full_name||'?')+' ('+_esc(_dl(s.designation))+')</option>').join('');
     return '<button class="btn-outline" style="font-size:10px;padding:2px 8px;margin-left:6px" data-onclick="toggleAssignPicker" data-onclick-a0="'+_esc(pickId)+'">✏️ Change</button>'
       +'<div id="'+_esc(pickId)+'" style="display:none;margin-top:6px;gap:6px;align-items:center;flex-wrap:wrap">'
@@ -2153,9 +2172,9 @@ async function _renderDeptStaff() {
   // different acting HOD and Dept Admin at once) and from profiles.designation
   // (an acting HOD assignment here must never be mistaken for a real Schedule
   // I faculty appointment).
-  function _hodPickerHtml(deptId,pool,explicitHod){
-    const pickId='hod-picker-'+deptId;
-    const selId='hod-select-'+deptId;
+  function _hodPickerHtml(deptId,domKey,pool,explicitHod){
+    const pickId='hod-picker-'+domKey;
+    const selId='hod-select-'+domKey;
     const options=pool.map(s=>'<option value="'+_esc(s.id)+'"'+(explicitHod&&explicitHod.id===s.id?' selected':'')+'>'+_esc(s.full_name||'?')+' ('+_esc(_dl(s.designation))+')</option>').join('');
     return '<button class="btn-outline" style="font-size:10px;padding:2px 8px;margin-left:6px" data-onclick="toggleAssignPicker" data-onclick-a0="'+_esc(pickId)+'">✏️ Change</button>'
       +'<div id="'+_esc(pickId)+'" style="display:none;margin-top:6px;gap:6px;align-items:center;flex-wrap:wrap">'
@@ -2184,6 +2203,22 @@ async function _renderDeptStaff() {
     // ncism_code) -- a non-clinical section like Finance & Accounts has no
     // HOD/Professor concept at all (Session 137, Dr. Venkatesh's explicit ask).
     const isClinical=!!(dept?.ncism_code);
+    // Session 137 part 2: Panchakarma/Swasthavritta&Yoga are rendered as TWO
+    // cards from the same real dept.id -- a faculty-only clone nested under
+    // OPD (dept._facultyOnlyView, built by _buildOpdChildren) and their own
+    // top-level operational section. domKey disambiguates DOM ids between the
+    // two; the real dept.id is still used for every DB write either way.
+    const isFacultyOnlyClone = !!dept?._facultyOnlyView;
+    const domKey = dept.id + (isFacultyOnlyClone ? '-opdclone' : '');
+    // Any card rendered as an OPD-section child that has a real Schedule I
+    // faculty ladder (the 6 teaching depts + the PK/SW OPD clones) is
+    // faculty-only in its PICKER too -- "no other staff except their
+    // respective faculties," applied uniformly across every such OPD card per
+    // Dr. Venkatesh's explicit instruction. Screening OPD is an OPD child but
+    // NOT in SCHEDULE_I_CODES (no faculty ladder), so it correctly falls
+    // through to the general oversight-candidate rule below instead.
+    const isScheduleITeaching = !!(dept?.ncism_code && SCHEDULE_I_CODES.includes(dept.ncism_code));
+    const facultyOnlyPicker = !!opts.isOpdChild && isScheduleITeaching;
     // Dept Admin resolution (Session 137): an explicit scope_department_id
     // assignment (made via the picker below, or the legacy All Staff action)
     // always wins; otherwise a clinical dept's HOD/Professor IS the Dept Admin
@@ -2203,11 +2238,24 @@ async function _renderDeptStaff() {
     const showDuty=!!(opts.showDuty&&dept);
     const badge=s=>'<span title="'+_esc(_dd(s.designation))+'" style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#f0faf5;border:1px solid #b7dfc8;color:#1a4a2e;margin:2px">'+_esc(s.full_name||'?')+'<span style="color:var(--text-muted);margin-left:4px">'+_dl(s.designation)+'</span>'+(showDuty?dutyChip(dept.id,s.id):'')+'</span>';
     const emptyChip=label=>'<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c;margin:2px">'+label+' — not assigned</span>';
-    // Assignment picker candidate pool -- this department's own staff PLUS
-    // tenant-wide oversight candidates (Administration's MS/Deputy MS/RMOs),
-    // deduped, so a department with no senior staff of its own can still name
-    // one of these hospital-wide-authority positions (Session 137).
-    const pickerPool=(()=>{const seen=new Set();const out=[];[...staff,...oversightCandidates].forEach(s=>{if(!seen.has(s.id)){seen.add(s.id);out.push(s);}});return out;})();
+    // Assignment picker candidate pool (Session 137 part 2):
+    // - Faculty-only OPD cards (teaching depts + PK/SW OPD clones): ONLY this
+    //   department's own Professor/Assoc/Asst/HOD staff -- no oversight
+    //   candidates, no other staff types, per Dr. Venkatesh's explicit
+    //   "applied to all OPDs" instruction.
+    // - Everything else: this department's own staff + tenant-wide oversight
+    //   candidates (MS/Deputy MS/RMO) + (if mapped) a SPECIFIC other
+    //   department's faculty via DEPT_ADMIN_BORROW_FACULTY.
+    let pickerPool;
+    if(facultyOnlyPicker){
+      pickerPool = staff.filter(s=>FACULTY_DESIGS.includes(s.designation));
+    } else {
+      const borrowCode = DEPT_ADMIN_BORROW_FACULTY[_deptKey(dept)];
+      const borrowedDept = borrowCode ? deptByNcismCode[borrowCode] : null;
+      const borrowedFaculty = borrowedDept ? activeStaff.filter(s=>s.department_id===borrowedDept.id && FACULTY_DESIGS.includes(s.designation)) : [];
+      const seen=new Set(); pickerPool=[];
+      [...staff,...oversightCandidates,...borrowedFaculty].forEach(s=>{if(!seen.has(s.id)){seen.add(s.id);pickerPool.push(s);}});
+    }
 
     let rows='';
     // Dept Admin row -- clinical depts default to their HOD/Professor
@@ -2217,7 +2265,7 @@ async function _renderDeptStaff() {
     const canAssignDeptAdmin = role==='super_admin' || APEX_DESIGS.includes(profile?.designation);
     const adminCell=(admin?badge(admin):emptyChip('Dept Admin'))
       +(adminIsAutoHod?'<span style="font-size:10.5px;color:var(--text-muted);margin-left:2px">(default — HOD)</span>':'')
-      +(canAssignDeptAdmin?_deptAdminPickerHtml(dept.id,pickerPool,explicitAdmin):'');
+      +(canAssignDeptAdmin?_deptAdminPickerHtml(dept.id,domKey,pickerPool,explicitAdmin):'');
     rows+='<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">'
       +'<div style="min-width:120px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;padding-top:3px">Dept Admin</div>'
       +'<div style="flex:1">'+adminCell+'</div></div>';
@@ -2227,7 +2275,7 @@ async function _renderDeptStaff() {
         :actingHod?(badge(actingHod)+'<span style="font-size:11px;color:var(--text-muted);margin-left:4px">('+_esc(opts.actingHodNote||'acting')+')</span>')
         :emptyChip('HOD/Professor'))
         +(explicitHod?'<span style="font-size:10.5px;color:var(--text-muted);margin-left:2px">(assigned)</span>':'')
-        +(canAssignDeptAdmin?_hodPickerHtml(dept.id,pickerPool,explicitHod):'');
+        +(canAssignDeptAdmin?_hodPickerHtml(dept.id,domKey,pickerPool,explicitHod):'');
       rows+='<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">'
         +'<div style="min-width:120px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;padding-top:3px">Head of Dept</div>'
         +'<div style="flex:1">'+hodCell+'</div></div>';
@@ -2238,6 +2286,13 @@ async function _renderDeptStaff() {
         +'<div style="min-width:120px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;padding-top:3px">Faculty</div>'
         +'<div style="flex:1">'+(faculty.length?faculty.map(badge).join(''):emptyChip('Faculty'))+'</div></div>';
     }
+    // Session 137 part 2: a faculty-only OPD clone (Panchakarma/Swasthavritta&
+    // Yoga's OPD-nested twin) shows ONLY the Dept Admin/HOD/Faculty rows above
+    // -- Residents/Interns/Others belong on its sibling top-level operational
+    // section instead, which shares the same real dept.id/staff and already
+    // renders them (Dr. Venkatesh's explicit example: Panchakarma's own
+    // section shows Faculty+Residents+Interns+Admin+Nursing+Therapy together).
+    if(!isFacultyOnlyClone){
     // Senior/Junior Residents
     if(residents.length||isPG){
       rows+='<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">'
@@ -2263,6 +2318,7 @@ async function _renderDeptStaff() {
           +'<div style="flex:1">'+members.map(badge).join('')+'</div></div>';
       });
     }
+    }
     if(!staff.length){rows='<div style="padding:12px 0;color:var(--text-muted);font-size:13px">No active staff assigned to this department. Assign staff via <strong>All Staff</strong> tab or <a href="signup.html" style="color:var(--green-mid)">invite new members</a>.</div>';}
 
     const pgBadge=isPG?('<span style="background:#fef9ec;border:1px solid #f5c842;color:#854d0e;padding:1px 8px;border-radius:8px;font-size:11px;margin-left:6px">PG — '+pgSeats+' seats</span>'):'';
@@ -2271,16 +2327,16 @@ async function _renderDeptStaff() {
     // accordion (reuses the same ncism-zs/-zh/-zb/-arr classes + z-open state
     // as the NCISM Requirements tab, per Dr. Venkatesh's explicit ask for
     // consistent behaviour) -- collapsed by default, state preserved across
-    // re-renders via openDeptKeys below.
-    const zoneKey='dept-'+(dept?.id||'unknown');
-    return '<div class="cc ncism-zs" data-zone-key="'+_esc(zoneKey)+'" style="margin-bottom:12px">'
+    // re-renders via openDeptKeys below. domKey (not dept.id) keeps this
+    // unique between Panchakarma/SW's two rendered instances (Session 137 part 2).
+    return '<div class="cc ncism-zs" data-zone-key="'+_esc('dept-'+domKey)+'" style="margin-bottom:12px">'
       +'<div class="cc-hd ncism-toggle" style="border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:4px;cursor:pointer">'
         +'<div>'
           +'<div style="font-weight:700;font-size:14px">'+_esc(dept?dept.name:'—')+pgBadge+'</div>'
           +'<div style="font-size:11px;color:var(--text-muted);margin-top:2px">'+deptCode+' · <strong>'+staff.length+'</strong> active staff</div>'
         +'</div>'
         +'<div style="display:flex;align-items:center;gap:6px">'
-          +(interns.length===0&&isClinical?'<span style="background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:11px">⚠️ No interns</span>':'')
+          +(!isFacultyOnlyClone&&interns.length===0&&isClinical?'<span style="background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:11px">⚠️ No interns</span>':'')
           +(hod?'<span style="background:#f0faf5;border:1px solid #b7dfc8;color:#1a4a2e;padding:2px 8px;border-radius:8px;font-size:11px">HoD ✅</span>':'<span style="background:#fff0f0;border:1px solid #fca5a5;color:#b91c1c;padding:2px 8px;border-radius:8px;font-size:11px">No HoD</span>')
           +'<span class="ncism-arr">▼</span>'
         +'</div>'
@@ -2364,7 +2420,7 @@ async function _renderDeptStaff() {
       const sharedNote=c._sharedWith?'<div style="font-size:10px;color:var(--text-muted);margin:-4px 0 6px">Shared teaching faculty pool with '+_esc(c._sharedWith)+' (NCISM Note 2: ~50% each speciality)</div>':'';
       bodyHtml+='<div style="margin-left:20px;border-left:2px solid var(--border);padding-left:12px;margin-top:8px">'
         +sharedNote
-        +_deptCard(c,byDept[c.id]||[],def.key==='OPD_PARENT'?{showDuty:true}:{})
+        +_deptCard(c,byDept[c.id]||[],def.key==='OPD_PARENT'?{showDuty:true,isOpdChild:true}:{})
         +'</div>';
     });
 
