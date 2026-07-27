@@ -720,12 +720,24 @@ window._acceptReferral = async function() {
 };
 
 // ── Realtime subscription ─────────────────────────
+// Session 135 -- was a single 'doctor-live' channel with 4 chained .on() filters
+// across 4 different tables. Confirmed live (side-by-side against a working
+// single-table control channel, same auth session, same update) that Supabase
+// Realtime silently drops delivery on this project for at least the lab_orders
+// filter when bundled this way -- the channel subscribes "ok" with a valid
+// server-assigned id, but no postgres_changes event ever arrives. Root cause
+// not fully explained (not documented as a known Realtime limitation as of this
+// session), but the fix is proven: one channel per table, matching the pattern
+// every other page in this codebase (lab.js, etc.) already uses successfully.
 function subscribeRealtime() {
-  supabase.channel('doctor-live')
+  supabase.channel('doctor-live-visits')
     .on('postgres_changes', {
       event: '*', schema: 'public', table: 'visits',
       filter: `tenant_id=eq.${tenantId}`
     }, () => { if (_queueTab !== 'ipd') loadQueue(); })
+    .subscribe();
+
+  supabase.channel('doctor-live-alerts')
     .on('postgres_changes', {
       event: 'INSERT', schema: 'public', table: 'doctor_alerts',
       filter: `doctor_id=eq.${userId}`
@@ -733,15 +745,21 @@ function subscribeRealtime() {
       loadAlerts();
       _toast(`New on-request: ${payload.new.patient_name} — ${payload.new.message}`, 'alert');
     })
+    .subscribe();
+
+  supabase.channel('doctor-live-referrals')
     .on('postgres_changes', {
       event: 'INSERT', schema: 'public', table: 'referrals',
       filter: `tenant_id=eq.${tenantId}`
     }, () => loadIncomingReferrals())
-    // Session 126 -- lab.js pushed new orders to the lab dashboard already, but
-    // nothing pushed status changes (sample collected / report ready) back out to
-    // the doctor -- previously required reopening the visit to see updated status.
-    // Filtered broadly by tenant (a per-visit filter can't be re-subscribed every
-    // time the active patient changes) and narrowed client-side to the open visit.
+    .subscribe();
+
+  // Session 126 -- lab.js pushed new orders to the lab dashboard already, but
+  // nothing pushed status changes (sample collected / report ready) back out to
+  // the doctor -- previously required reopening the visit to see updated status.
+  // Filtered broadly by tenant (a per-visit filter can't be re-subscribed every
+  // time the active patient changes) and narrowed client-side to the open visit.
+  supabase.channel('doctor-live-lab-orders')
     .on('postgres_changes', {
       event: 'UPDATE', schema: 'public', table: 'lab_orders',
       filter: `tenant_id=eq.${tenantId}`

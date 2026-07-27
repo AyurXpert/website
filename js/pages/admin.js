@@ -1490,14 +1490,35 @@ function _refreshExtraBadgeDebounced(){
   }, 600);
 }
 
-supabase.channel('ncism-badge-live')
-  .on('postgres_changes', { event:'*', schema:'public', table:'profiles',    filter:`tenant_id=eq.${tenantId}` }, _refreshNcismBadgeDebounced)
-  .on('postgres_changes', { event:'*', schema:'public', table:'profiles',    filter:`tenant_id=eq.${tenantId}` }, _refreshAccessBadgeDebounced)
-  .on('postgres_changes', { event:'*', schema:'public', table:'profiles',    filter:`tenant_id=eq.${tenantId}` }, _refreshExtraBadgeDebounced)
-  .on('postgres_changes', { event:'*', schema:'public', table:'beds',       filter:`tenant_id=eq.${tenantId}` }, _refreshNcismBadgeDebounced)
-  .on('postgres_changes', { event:'*', schema:'public', table:'beds',       filter:`tenant_id=eq.${tenantId}` }, _refreshExtraBadgeDebounced)
-  .on('postgres_changes', { event:'*', schema:'public', table:'departments',filter:`tenant_id=eq.${tenantId}` }, _refreshNcismBadgeDebounced)
-  .on('postgres_changes', { event:'*', schema:'public', table:'departments',filter:`tenant_id=eq.${tenantId}` }, _refreshExtraBadgeDebounced)
+// Session 135 -- was a single 'ncism-badge-live' channel with 7 chained .on()
+// filters across 3 tables. Confirmed live (same methodology that caught the
+// identical bug in doctor.js's subscribeRealtime()) that Supabase Realtime on
+// this project silently drops delivery when multiple *different* tables'
+// postgres_changes filters are bundled onto one channel -- the channel
+// subscribes "ok" with valid ids for every filter, but events never arrive.
+// Fixed by using one channel per table (matching every other working realtime
+// subscription in this codebase), consolidating each table's multiple
+// callbacks into one handler instead of one .on() per callback.
+supabase.channel('profiles-badge-live')
+  .on('postgres_changes', { event:'*', schema:'public', table:'profiles', filter:`tenant_id=eq.${tenantId}` }, () => {
+    _refreshNcismBadgeDebounced();
+    _refreshAccessBadgeDebounced();
+    _refreshExtraBadgeDebounced();
+  })
+  .subscribe();
+
+supabase.channel('beds-badge-live')
+  .on('postgres_changes', { event:'*', schema:'public', table:'beds', filter:`tenant_id=eq.${tenantId}` }, () => {
+    _refreshNcismBadgeDebounced();
+    _refreshExtraBadgeDebounced();
+  })
+  .subscribe();
+
+supabase.channel('departments-badge-live')
+  .on('postgres_changes', { event:'*', schema:'public', table:'departments', filter:`tenant_id=eq.${tenantId}` }, () => {
+    _refreshNcismBadgeDebounced();
+    _refreshExtraBadgeDebounced();
+  })
   .subscribe();
 
 // Same live-badge pattern for the ⚖️ Approvals tab's pending-count badge.
