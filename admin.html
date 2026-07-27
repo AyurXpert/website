@@ -175,6 +175,19 @@ th{text-align:left;padding:10px 16px;font-size:11px;font-weight:600;color:var(--
 td{padding:11px 16px;font-size:13.5px;border-bottom:1px solid #f0f4f2;vertical-align:middle}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:#fafff8}
+/* All Staff table -- with the Name/Role/Designation/Department columns this
+   table genuinely needs more width than a typical laptop's effective CSS
+   viewport (DPI scaling commonly narrows it well below the physical 1366px),
+   so .tw's horizontal scroll is unavoidable. Without this, the Actions
+   column's scrollbar sits at the very bottom of a long staff list --
+   effectively undiscoverable. Pinning it to the visible right edge means the
+   action buttons are always reachable regardless of scroll position or how
+   many rows are above (Session 137, Dr. Venkatesh's second screenshot on the
+   same issue). */
+.staff-table th:last-child,.staff-table td:last-child{position:sticky;right:0;box-shadow:-2px 0 4px rgba(0,0,0,.06)}
+.staff-table th:last-child{background:#fafafa;z-index:2}
+.staff-table td:last-child{background:var(--white);z-index:1}
+.staff-table tr:hover td:last-child{background:#fafff8}
 
 /* ── Chips ── */
 .chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500}
@@ -566,7 +579,7 @@ tr:hover td{background:#fafff8}
             </select>
           </div>
           <div class="tw">
-            <table>
+            <table class="staff-table">
               <thead><tr><th>Name</th><th>Role</th><th>Designation</th><th>Department</th><th>Phone</th><th>Status</th><th>Joined</th><th style="width:180px;min-width:180px">Actions</th></tr></thead>
               <tbody id="staff-tbody"><tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">Loading…</td></tr></tbody>
             </table>
