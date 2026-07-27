@@ -2189,7 +2189,12 @@ async function _renderDeptStaff() {
     // always wins; otherwise a clinical dept's HOD/Professor IS the Dept Admin
     // by default -- no separate designation needed. Non-clinical depts have no
     // default at all until someone is explicitly assigned.
-    const explicitAdmin=staff.find(s=>s.scope_department_id===dept.id) || staff.find(s=>s.role==='dept_admin');
+    // Must search activeStaff (tenant-wide, closure var), NOT just this dept's
+    // own `staff` array -- the picker can assign an oversight candidate (MS/
+    // Deputy MS/RMO) whose OWN department_id differs from this card's dept, so
+    // they'd never be found in `staff` even though the write succeeded (real
+    // bug caught live: assignment silently appeared to not persist).
+    const explicitAdmin=activeStaff.find(s=>s.scope_department_id===dept.id) || staff.find(s=>s.role==='dept_admin');
     const admin=explicitAdmin || (isClinical ? hod : null);
     const adminIsAutoHod = !explicitAdmin && !!admin;
     const deptCode=dept?.ncism_code?('NCISM: '+dept.ncism_code):(dept?.category?('Section: '+dept.category):'Non-NCISM');
@@ -2553,6 +2558,13 @@ window.assignDeptAdminFromCard = async function(deptId, selId){
   if(!staffId) return;
   const staffName = sel.options[sel.selectedIndex]?.textContent || 'this staff member';
   if(!confirm(`Assign ${staffName} as Dept Admin for this department? They'll get a department-scoped dashboard (My Department) — staff/roster/OPD-doctor management limited to this department only, no other department, no org-wide admin.`)) return;
+  // Exactly one Dept Admin per department: clear anyone else currently scoped
+  // here first (otherwise two people can end up simultaneously scoped to the
+  // same department, and which one displays becomes arbitrary -- real bug
+  // found live when a prior assignment had silently succeeded under the
+  // since-fixed display bug).
+  const {error: clearErr} = await supabase.from('profiles').update({scope_department_id:null}).eq('tenant_id',tenantId).eq('scope_department_id',deptId).neq('id',staffId);
+  if(clearErr){ _toast(safeErrorMessage(clearErr,'Could not update.'), true); return; }
   const {error} = await supabase.from('profiles').update({scope_department_id:deptId}).eq('id',staffId).eq('tenant_id',tenantId);
   if(error){ _toast(safeErrorMessage(error,'Could not assign Dept Admin.'), true); return; }
   await logAudit('assign_dept_admin_via_card', 'profiles', staffId, {department_id: deptId, staff_name: staffName}, {tenantId, userId: profile.id, userName: profile.full_name});
