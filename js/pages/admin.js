@@ -2497,15 +2497,26 @@ function renderStaffTable(staff){
     const showScopeDept   = canPromote && s.is_active && !hasFullAccess && !s.scope_department_id && s.department_id;
     const showUnscopeDept = canPromote && s.is_active && !hasFullAccess && s.scope_department_id;
     const showDelete  = ['rejected','pending_approval'].includes(s.status);
+    // Stacked in a fixed-width flex column (not left as bare inline-block
+    // buttons) -- a row with several conditional actions at once (Dr Dms's
+    // Add Admin Access + Revoke Monitoring + Remove Scope, e.g.) previously
+    // let each button keep its own natural (unwrapped) text width, so once
+    // the auto table layout squeezed this column down, the longest button
+    // simply overflowed past the table/page's right edge instead of wrapping
+    // -- real bug Dr. Venkatesh screenshotted (the whole page "exceeding the
+    // screen"). Each button below is now width:100% of a capped 168px
+    // column, so its own label wraps onto a 2nd line instead of bleeding out.
     let actionCell = '';
-    if (showPromote) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px" data-onclick="promoteToDeptAdmin" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}" data-onclick-a2="${_esc(s.role)}">⬆ Add Admin Access</button>`;
-    if (showRevoke) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px;color:#c0392b;border-color:#e0b0b0" data-onclick="revokeDeptAdminAccess" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">⬇ Revoke Admin</button>`;
-    if (showGrantMonitor) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px" data-onclick="grantMonitoringAccess" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">👁 Add Monitoring</button>`;
-    if (showRevokeMonitor) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px;color:#c0392b;border-color:#e0b0b0" data-onclick="revokeMonitoringAccess" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">⬇ Revoke Monitoring</button>`;
-    if (showScopeDept) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px" data-onclick="scopeToDepartment" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}" data-onclick-a2="${_esc(s.department_id)}">🏥 Scope to Dept</button>`;
-    if (showUnscopeDept) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px;color:#c0392b;border-color:#e0b0b0" data-onclick="unscopeFromDepartment" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">⬇ Remove Scope</button>`;
-    if (showDelete) actionCell += `<button class="btn-outline" style="font-size:11px;padding:4px 10px;margin:2px;color:#c0392b;border-color:#e0b0b0" data-onclick="deleteRejectedStaff" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">🗑 Delete</button>`;
-    if (!actionCell) actionCell = '—';
+    const _actBtn='style="font-size:11px;padding:4px 8px;width:100%;box-sizing:border-box;white-space:normal;text-align:left"';
+    const _actBtnDanger='style="font-size:11px;padding:4px 8px;width:100%;box-sizing:border-box;white-space:normal;text-align:left;color:#c0392b;border-color:#e0b0b0"';
+    if (showPromote) actionCell += `<button class="btn-outline" ${_actBtn} data-onclick="promoteToDeptAdmin" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}" data-onclick-a2="${_esc(s.role)}">⬆ Add Admin Access</button>`;
+    if (showRevoke) actionCell += `<button class="btn-outline" ${_actBtnDanger} data-onclick="revokeDeptAdminAccess" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">⬇ Revoke Admin</button>`;
+    if (showGrantMonitor) actionCell += `<button class="btn-outline" ${_actBtn} data-onclick="grantMonitoringAccess" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">👁 Add Monitoring</button>`;
+    if (showRevokeMonitor) actionCell += `<button class="btn-outline" ${_actBtnDanger} data-onclick="revokeMonitoringAccess" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">⬇ Revoke Monitoring</button>`;
+    if (showScopeDept) actionCell += `<button class="btn-outline" ${_actBtn} data-onclick="scopeToDepartment" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}" data-onclick-a2="${_esc(s.department_id)}">🏥 Scope to Dept</button>`;
+    if (showUnscopeDept) actionCell += `<button class="btn-outline" ${_actBtnDanger} data-onclick="unscopeFromDepartment" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">⬇ Remove Scope</button>`;
+    if (showDelete) actionCell += `<button class="btn-outline" ${_actBtnDanger} data-onclick="deleteRejectedStaff" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">🗑 Delete</button>`;
+    actionCell = actionCell ? `<div style="display:flex;flex-direction:column;gap:4px;width:168px">${actionCell}</div>` : '—';
     return groupHeader + `<tr>
     <td><strong>${_esc(s.full_name||'—')}</strong></td>
     <td><span class="chip g">${_esc(_effectiveRoleLabel(s.role,s.designation))}</span>${s.secondary_role?` <span class="chip" style="background:#fdf3e0;color:#7a5a10;border:1px solid #e8d5a0">+ ${_esc(_effectiveRoleLabel(s.secondary_role,s.designation))}</span>`:''}${s.has_monitoring_access?` <span class="chip" style="background:#eaf3fb;color:#1a5a8a;border:1px solid #b8d8ee">👁 Monitoring</span>`:''}${s.scope_department_id?` <span class="chip" style="background:#eaf3ec;color:#1a5a3a;border:1px solid #b8dfc4">🏥 Scoped: ${_esc(s.dept_name)}</span>`:''}</td>
