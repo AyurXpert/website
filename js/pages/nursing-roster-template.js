@@ -4,7 +4,8 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { NURSING_DUTY_CODES, NURSING_DEPT_NAMES } from '../config/ncism.js';
+import { isNursingDutyDept, shiftsForDept } from '../config/ncism.js';
+import { _computeIpdBedTotals } from '../config/ncismStaffCompliance.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
 
 // Session 139 (Nursing Duty Roster Phase 3): template editor for the
@@ -13,6 +14,15 @@ import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/n
 // (nursing_roster_settings.cycle, Phase 2). Edit gating mirrors roster.js
 // exactly: super_admin/dept_admin always can; nurse_manager only if
 // currently the resolved Nursing Head.
+//
+// Session 141: shift columns are now per-department (shiftsForDept()) --
+// 'general' (single 9am-5pm shift) for OPD/Screening OPD/Panchakarma/
+// Diagnostics, the classic 3-shift ward pattern for Medical/Surgical
+// In-Patients/OT/Labour Room. The nurse pool is tenant-wide (any active
+// Staff Nurse/Ward Sister/ANM, not scoped to the department's own
+// recruitment) -- real posting/rotation puts nurses on duty in wards they
+// aren't permanently assigned to. Medical/Surgical In-Patients also show a
+// bed-derived (1 per 10 beds) suggested nurse count per shift.
 await requireAuth(['super_admin', 'dept_admin', 'nurse_manager']);
 initNavbar();
 wireDelegatedEvents();
@@ -21,21 +31,23 @@ const tenantId = getCurrentTenantId();
 const profile  = getCurrentProfile();
 const role     = getCurrentRole();
 
-const SHIFTS = ['morning', 'afternoon', 'night'];
-const SHIFT_LABELS = { morning: 'Morning', afternoon: 'Afternoon', night: 'Night' };
+const SHIFT_LABELS = { morning: 'Morning', afternoon: 'Afternoon', night: 'Night', general: 'General Duty (9am–5pm)' };
 const CYCLE_DAYS = { weekly: 7, fortnightly: 14, monthly: 30 };
+const BED_DEPT_ZONE = { 'Medical In-Patients': 'IPD_MEDICAL', 'Surgical In-Patients': 'IPD_SURGICAL' };
 
 let _canEdit = role === 'super_admin' || role === 'dept_admin';
 let _depts = [];
 let _selectedDept = null;
+let _selectedDeptShifts = ['morning', 'afternoon', 'night'];
+let _requiredPerShift = null; // bed-derived suggestion, Medical/Surgical In-Patients only
 let _template = null;   // { id, cycle_length } or null
 let _slots = [];        // template slots, with .profiles.full_name joined
-let _pool = [];         // nursing staff assignable in the selected department
+let _pool = [];         // nursing staff assignable (tenant-wide)
 
 async function loadDepartments() {
   const { data } = await supabase.from('departments')
     .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true).order('name');
-  _depts = (data || []).filter(d => NURSING_DUTY_CODES.has(d.ncism_code) || NURSING_DEPT_NAMES.has(d.name));
+  _depts = (data || []).filter(isNursingDutyDept);
 
   const sel = document.getElementById('filter-dept');
   _depts.forEach(d => {
@@ -44,6 +56,25 @@ async function loadDepartments() {
     o.textContent = d.name + (d.ncism_code ? ` (${d.ncism_code})` : '');
     sel.appendChild(o);
   });
+}
+
+// Bed-derived suggestion for Medical/Surgical In-Patients, reusing the same
+// _computeIpdBedTotals() grouping the NCISM staffing ladder already uses
+// (real beds are still tracked under the original clinical departments'
+// ncism_code -- KAY/PK/KAU/AGD for Medical, SHAL/SHAK/PST for Surgical --
+// not under the Medical/Surgical In-Patients department rows directly;
+// confirmed live before assuming a simpler direct department_id bed count
+// would work, since it would silently return 0).
+async function _loadRequiredPerShift(deptName) {
+  const zone = BED_DEPT_ZONE[deptName];
+  if (!zone) { _requiredPerShift = null; return; }
+  const [{ data: allDepts }, { data: beds }] = await Promise.all([
+    supabase.from('departments').select('id,ncism_code').eq('tenant_id', tenantId).eq('is_active', true),
+    supabase.from('beds').select('department_id').eq('tenant_id', tenantId),
+  ]);
+  const bedTotals = _computeIpdBedTotals(allDepts || [], beds || []);
+  const bedCount = bedTotals[zone] || 0;
+  _requiredPerShift = bedCount > 0 ? { bedCount, perShift: Math.ceil(bedCount / 10) } : null;
 }
 
 async function loadEditGate() {
@@ -66,11 +97,18 @@ document.getElementById('filter-dept').addEventListener('change', async (e) => {
 async function loadTemplateForDept() {
   document.getElementById('tpl-readonly-note').style.display = _canEdit ? 'none' : '';
 
+  const deptObj = _depts.find(d => d.id === _selectedDept);
+  _selectedDeptShifts = shiftsForDept(deptObj);
+
   const [{ data: settingRow }, { data: templateRow }, { data: poolRows }] = await Promise.all([
     supabase.from('nursing_roster_settings').select('cycle').eq('tenant_id', tenantId).maybeSingle(),
     supabase.from('nursing_roster_templates').select('id,cycle_length').eq('tenant_id', tenantId).eq('department_id', _selectedDept).maybeSingle(),
-    supabase.from('profiles').select('id,full_name').eq('tenant_id', tenantId).eq('department_id', _selectedDept)
+    // Session 141: tenant-wide pool, not scoped to this department's own
+    // recruitment -- a nurse gets POSTED to duty here, not necessarily
+    // permanently assigned here.
+    supabase.from('profiles').select('id,full_name').eq('tenant_id', tenantId)
       .in('designation', ['staff_nurse', 'ward_sister', 'anm']).eq('is_active', true).order('full_name'),
+    _loadRequiredPerShift(deptObj?.name),
   ]);
 
   _pool = poolRows || [];
@@ -79,9 +117,10 @@ async function loadTemplateForDept() {
   const tenantCycleDays = CYCLE_DAYS[settingRow?.cycle || 'weekly'];
   const cycleLength = _template?.cycle_length || tenantCycleDays;
 
-  document.getElementById('tpl-sub').textContent = _template
+  const bedNote = _requiredPerShift ? ` · ${_requiredPerShift.bedCount} beds → ${_requiredPerShift.perShift} nurse${_requiredPerShift.perShift === 1 ? '' : 's'} required per shift (1 per 10 beds)` : '';
+  document.getElementById('tpl-sub').textContent = (_template
     ? `${cycleLength}-day template (locked in when first built)`
-    : `No template yet -- will be built as a ${tenantCycleDays}-day pattern (current tenant cycle: ${settingRow?.cycle || 'weekly'})`;
+    : `No template yet -- will be built as a ${tenantCycleDays}-day pattern (current tenant cycle: ${settingRow?.cycle || 'weekly'})`) + bedNote;
 
   if (_template) {
     const { data: slotRows } = await supabase.from('nursing_roster_template_slots')
@@ -103,37 +142,65 @@ function _poolOptionsHtml(excludeIds) {
     .map(p => `<option value="${_esc(p.id)}">${_esc(p.full_name)}</option>`).join('');
 }
 
+// One "+ Add" row per still-needed slot -- for a bed-linked department this
+// shows exactly how many more nurses are needed (each pre-labelled with the
+// 10-bed block it would cover), not just a single generic add affordance.
+// Beyond the suggested minimum (or for non-bed-linked places), a single
+// plain "+ Add" row still lets the head add extra staff freely.
+function _addSlotRowsHtml(day, shift, cellSlots, isGeneral) {
+  if (!_canEdit) return '';
+  const assignedIds = cellSlots.map(s => s.profile_id);
+  const options = _poolOptionsHtml(assignedIds);
+  if (!options) return _pool.length ? '' : '<div class="slot-beds">No nursing staff recruited in this hospital yet.</div>';
+
+  const filled = cellSlots.length;
+  const suggestedTotal = _requiredPerShift ? _requiredPerShift.perShift : 0;
+  const neededMore = Math.max(0, suggestedTotal - filled);
+  let html = '';
+
+  const addRow = (slotIndex, bedStart, bedEnd, label) => `<div class="add-slot-row">
+    <select id="add-nurse-${day}-${shift}-${slotIndex}"><option value="">${_esc(label)}</option>${options}</select>
+    ${isGeneral ? '' : `<input type="number" id="add-bed-start-${day}-${shift}-${slotIndex}" placeholder="Bed#" value="${bedStart ?? ''}"/>
+    <input type="number" id="add-bed-end-${day}-${shift}-${slotIndex}" placeholder="to" value="${bedEnd ?? ''}"/>`}
+    <button class="btn btn-sm btn-secondary" data-onclick="addSlot" data-onclick-a0="${day}" data-onclick-a1="${shift}" data-onclick-a2="${slotIndex}">Add</button>
+  </div>`;
+
+  if (neededMore > 0) {
+    for (let i = 0; i < neededMore; i++) {
+      const slotIndex = filled + i + 1;
+      const bedStart = !isGeneral ? (slotIndex - 1) * 10 + 1 : null;
+      const bedEnd = !isGeneral ? Math.min(slotIndex * 10, _requiredPerShift.bedCount) : null;
+      html += addRow(slotIndex, bedStart, bedEnd, `+ Add nurse (${bedStart}–${bedEnd}) — required`);
+    }
+  } else {
+    const nextSlotIndex = filled ? Math.max(...cellSlots.map(s => s.slot_index)) + 1 : 1;
+    html += addRow(nextSlotIndex, null, null, '+ Add nurse…');
+  }
+  return html;
+}
+
 function renderGrid(cycleLength) {
+  const isGeneral = _selectedDeptShifts[0] === 'general';
+
+  const thead = document.getElementById('tpl-thead');
+  thead.innerHTML = `<tr><th class="day-col">Day</th>${_selectedDeptShifts.map(s => `<th>${_esc(SHIFT_LABELS[s])}</th>`).join('')}</tr>`;
+
   const tbody = document.getElementById('tpl-tbody');
   let html = '';
   for (let day = 0; day < cycleLength; day++) {
     html += `<tr><td class="day-col">Day ${day + 1}</td>`;
-    SHIFTS.forEach(shift => {
+    _selectedDeptShifts.forEach(shift => {
       const cellSlots = _slots.filter(s => s.day_offset === day && s.shift_type === shift)
         .sort((a, b) => a.slot_index - b.slot_index);
-      const assignedIds = cellSlots.map(s => s.profile_id);
       html += `<td class="shift-cell">`;
       cellSlots.forEach(s => {
-        const beds = (s.bed_range_start && s.bed_range_end) ? ` <span class="slot-beds">(Beds ${s.bed_range_start}–${s.bed_range_end})</span>` : '';
+        const beds = (!isGeneral && s.bed_range_start && s.bed_range_end) ? ` <span class="slot-beds">(Beds ${s.bed_range_start}–${s.bed_range_end})</span>` : '';
         html += `<div class="slot-row">
           <span><span class="slot-name">${_esc(s.profiles?.full_name || '—')}</span>${beds}</span>
           ${_canEdit ? `<button class="slot-remove" data-onclick="removeSlot" data-onclick-a0="${_esc(s.id)}">✕</button>` : ''}
         </div>`;
       });
-      if (_canEdit) {
-        const nextSlotIndex = cellSlots.length ? Math.max(...cellSlots.map(s => s.slot_index)) + 1 : 1;
-        const options = _poolOptionsHtml(assignedIds);
-        if (options) {
-          html += `<div class="add-slot-row">
-            <select id="add-nurse-${day}-${shift}"><option value="">+ Add nurse…</option>${options}</select>
-            <input type="number" id="add-bed-start-${day}-${shift}" placeholder="Bed#"/>
-            <input type="number" id="add-bed-end-${day}-${shift}" placeholder="to"/>
-            <button class="btn btn-sm btn-secondary" data-onclick="addSlot" data-onclick-a0="${day}" data-onclick-a1="${shift}" data-onclick-a2="${nextSlotIndex}">Add</button>
-          </div>`;
-        } else if (!_pool.length) {
-          html += `<div class="slot-beds">No nursing staff assigned to this department yet.</div>`;
-        }
-      }
+      html += _addSlotRowsHtml(day, shift, cellSlots, isGeneral);
       html += `</td>`;
     });
     html += `</tr>`;
@@ -148,11 +215,11 @@ function renderGrid(cycleLength) {
 }
 
 window.addSlot = async function(day, shift, slotIndex) {
-  const sel = document.getElementById(`add-nurse-${day}-${shift}`);
+  const sel = document.getElementById(`add-nurse-${day}-${shift}-${slotIndex}`);
   const profileId = sel?.value;
   if (!profileId) return;
-  const bedStart = document.getElementById(`add-bed-start-${day}-${shift}`)?.value;
-  const bedEnd = document.getElementById(`add-bed-end-${day}-${shift}`)?.value;
+  const bedStart = document.getElementById(`add-bed-start-${day}-${shift}-${slotIndex}`)?.value;
+  const bedEnd = document.getElementById(`add-bed-end-${day}-${shift}-${slotIndex}`)?.value;
 
   const { error } = await supabase.rpc('save_nursing_roster_template_slot', {
     p_department_id: _selectedDept, p_day_offset: Number(day), p_shift_type: shift, p_slot_index: Number(slotIndex),

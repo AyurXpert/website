@@ -3,7 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { NURSING_DUTY_CODES, NURSING_DEPT_NAMES } from '../config/ncism.js';
+import { isNursingDutyDept, shiftsForDept } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
 
 // Session 137: widened from admin-only to also let plain nursing staff/ayahs
@@ -31,9 +31,12 @@ let _roster     = [];     // duty_roster rows for current week
 let _editEntry  = null;   // existing row being edited
 let _newSlotIndex = 1;    // Session 139: next free slot_index when adding a new entry (multi-staff-per-shift)
 
-const SHIFTS      = ['morning','afternoon','night'];
-const SHIFT_LABELS = { morning:'Morning', afternoon:'Afternoon', night:'Night', on_call:'On-Call' };
-const SHIFT_TIMES  = { morning:'06:00–14:00', afternoon:'14:00–22:00', night:'22:00–06:00', on_call:'24hr specialist' };
+// Session 141: SHIFTS is no longer a fixed global set -- shiftsForDept(dept)
+// computes which shift(s) apply per department (a single 'general' 9am-5pm
+// day shift for OPD/Screening OPD/Panchakarma/Diagnostics, the classic
+// 3-shift ward pattern for everything else).
+const SHIFT_LABELS = { morning:'Morning', afternoon:'Afternoon', night:'Night', general:'General Duty', on_call:'On-Call' };
+const SHIFT_TIMES  = { morning:'06:00–14:00', afternoon:'14:00–22:00', night:'22:00–06:00', general:'09:00–17:00', on_call:'24hr specialist' };
 
 // ── Utilities ──────────────────────────────────────
 function _getMonday(d) {
@@ -71,13 +74,13 @@ async function loadDepartments() {
   _depts = data || [];
 
   // Nursing Superintendent (and, Session 137, plain nursing staff/ayahs viewing
-  // read-only) only need departments where round-the-clock nursing duty is
-  // actually required (the 7 bedded wards + IPD/Labour Room/OT/Screening OPD/
-  // Diagnostics, per Schedule XX/29's USG & ECG nursing line) -- not every org
-  // department (Administration, Sanskrit & Samhita, Security, etc. have no
-  // nursing staff at all). super_admin/dept_admin keep the full list unchanged.
+  // read-only) only need departments where nursing duty is actually required
+  // -- not every org department (Administration, Sanskrit & Samhita, Security,
+  // etc. have no nursing staff at all). super_admin/dept_admin keep the full
+  // list unchanged. Session 141: uses the real nursing-duty place list
+  // (isNursingDutyDept()) instead of the old per-clinical-department model.
   if (role === 'nurse_manager' || role === 'nurse') {
-    _depts = _depts.filter(d => NURSING_DUTY_CODES.has(d.ncism_code) || NURSING_DEPT_NAMES.has(d.name));
+    _depts = _depts.filter(isNursingDutyDept);
   }
 
   const fd = document.getElementById('filter-dept');
@@ -199,7 +202,7 @@ function renderRoster() {
   let html = '';
   depts.forEach(dept => {
     html += `<tr><td colspan="8" style="background:var(--green-light);color:var(--green-deep);font-weight:600;font-size:11px;padding:5px 10px;text-transform:uppercase;letter-spacing:.5px">${_esc(dept.name)}</td></tr>`;
-    SHIFTS.forEach(shift => {
+    shiftsForDept(dept).forEach(shift => {
       html += `<tr>
         <td class="shift-label"><span class="shift-badge ${shift}">${SHIFT_LABELS[shift]}</span><br><span style="font-size:9px">${SHIFT_TIMES[shift]}</span></td>
         ${dates.map(d => {
@@ -288,7 +291,7 @@ function updateGapBanner() {
   const depts = deptFilter ? _depts.filter(d => d.id === deptFilter) : _depts;
   let gaps = 0;
   depts.forEach(dept => {
-    SHIFTS.forEach(shift => {
+    shiftsForDept(dept).forEach(shift => {
       dates.forEach(d => {
         const has = _roster.some(r => r.department_id === dept.id && r.shift_date === d && r.shift_type === shift);
         if (!has) gaps++;
@@ -297,7 +300,7 @@ function updateGapBanner() {
   });
   const banner = document.getElementById('gap-banner');
   if (gaps > 0) {
-    banner.textContent = `⚠ NCISM §51(5) compliance issue: ${gaps} shift${gaps>1?'s':''} unassigned this week — 24×7 coverage not met.`;
+    banner.textContent = `⚠ NCISM §51(5) compliance issue: ${gaps} shift${gaps>1?'s':''} unassigned this week.`;
     banner.classList.add('show');
   } else {
     banner.textContent = '';
@@ -324,6 +327,19 @@ document.getElementById('btn-today').addEventListener('click', () => {
 document.getElementById('filter-dept').addEventListener('change', loadRoster);
 document.getElementById('btn-add-shift').addEventListener('click', () => openModal(null, _dateStr(new Date()), 'morning', null, 1));
 
+// Session 141: the shift dropdown is now dynamic per department -- a
+// day-only place (OPD/Screening OPD/Panchakarma/Diagnostics) only offers
+// "General Duty", everything else keeps the classic 3-shift + on-call set.
+// Re-run whenever the modal opens or the department selector inside it changes.
+function _refreshShiftOptions(deptId, selectedShift) {
+  const dept = _depts.find(d => d.id === deptId);
+  const opts = [...(dept ? shiftsForDept(dept) : ['morning', 'afternoon', 'night']), 'on_call'];
+  const sel = document.getElementById('m-shift');
+  sel.innerHTML = opts.map(s => `<option value="${s}">${_esc(SHIFT_LABELS[s])} (${_esc(SHIFT_TIMES[s])})</option>`).join('');
+  sel.value = opts.includes(selectedShift) ? selectedShift : opts[0];
+}
+document.getElementById('m-dept').addEventListener('change', (e) => _refreshShiftOptions(e.target.value, document.getElementById('m-shift').value));
+
 // ── Modal ──────────────────────────────────────────
 // Session 139: `slotIndex` is the new concurrent-staff slot this modal writes
 // to -- either the specific slot being edited (entryId set) or the next free
@@ -349,7 +365,7 @@ function openModal(deptId, date, shift, entryId, slotIndex) {
 
   document.getElementById('m-dept').value  = deptId || '';
   document.getElementById('m-date').value  = date;
-  document.getElementById('m-shift').value = shift;
+  _refreshShiftOptions(deptId, shift);
   document.getElementById('m-doctor').value = _editEntry?.profile_id || '';
   document.getElementById('m-bed-start').value = _editEntry?.bed_range_start || '';
   document.getElementById('m-bed-end').value = _editEntry?.bed_range_end || '';
@@ -443,9 +459,12 @@ async function openRequestChangeModal(entry) {
 
   const sel = document.getElementById('rc-covering');
   sel.innerHTML = '<option value="">— No specific colleague, just flag it —</option>';
+  // Session 141: tenant-wide, not scoped to this shift's own department --
+  // matches the roster template editor's pool (a nurse can cover a shift in
+  // a ward she isn't permanently recruited to).
   const { data: pool } = await supabase.from('profiles')
     .select('id,full_name')
-    .eq('tenant_id', tenantId).eq('department_id', entry.department_id).eq('is_active', true)
+    .eq('tenant_id', tenantId).eq('is_active', true)
     .in('designation', ['staff_nurse', 'ward_sister', 'anm'])
     .neq('id', profile.id)
     .order('full_name');

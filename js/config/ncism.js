@@ -8,34 +8,41 @@ export function isNCISMType(t) { return t === 'college' || t === 'teaching_hospi
 
 export const CLINICAL_CODES = new Set(['KAY', 'PK', 'SHAL', 'SHAK', 'KAU', 'PST', 'AGD']);
 
-// Departments where round-the-clock NURSING duty is actually required — used to scope
-// the Nursing Superintendent's view of roster.html (Session 131). Covers both the
-// short-form codes (CLINICAL_CODES above) AND the legacy long-form codes some tenants
-// still carry (see CLAUDE.md's short-form/long-form drift notes, e.g. Sessions 94/96/126) —
-// checking only one convention would silently show an empty roster for the other.
-// Screening OPD included (both 'SCREEN' and legacy 'SCREENING_OPD'); IPD/Labour Room/
-// Operation Theatre/Diagnostics have no ncism_code at all (matched by exact name in
-// NURSING_DEPT_NAMES). Diagnostics added post-Session-131 — Schedule XX/29 requires
-// dedicated Nursing Staff for USG & ECG, a real ward-duty nursing line even though the
-// department is otherwise lab-tech/radiographer staffed.
-export const NURSING_DUTY_CODES = new Set([
-  'KAY', 'KAYACHIKITSA',
-  'PK', 'PANCHAKARMA',
-  'SHAL', 'SHALYA_TANTRA',
-  'SHAK', 'SHALAKYA_KNM', 'SHALAKYA_NETRA',
-  'KAU', 'KAUMARABHRITYA',
-  'AGD', 'AGADA_TANTRA',
-  'PST', 'STRI_ROGA_PRASUTI',
-  'SCREEN', 'SCREENING_OPD',
-]);
+// Session 141: real nursing-duty PLACES, confirmed with Dr. Venkatesh --
+// replaces the old NURSING_DUTY_CODES/NURSING_DEPT_NAMES pairing, which
+// listed the 7 individual clinical department codes (Kayachikitsa, Shalya
+// Tantra, etc.) as if each needed its own dedicated nursing duty roster.
+// Per NCISM Schedule XX, OPD nursing (Sch XX/20) is one POOLED "All OPDs"
+// duty, not one nurse per specialty clinic -- so the real places are the
+// ones below, split into two groups by whether they need round-the-clock
+// coverage or a single 9am-5pm "General Duty" shift (see shiftsForDept()).
+//
+// Matched by ncism_code where a stable code exists across tenants (PK,
+// SCREEN/legacy SCREENING_OPD); by exact name otherwise, since OPD/
+// Diagnostics/Medical & Surgical In-Patients/Operation Theatre/Labour Room
+// have no ncism_code at all. Every tenant registered since Session 95's
+// default org seeding already gets Medical In-Patients/Surgical In-Patients
+// as real departments (confirmed live on both SDM and the WASA test tenant)
+// -- so this list applies uniformly, no split-vs-not-split branching needed.
+export const NURSING_GENERAL_DUTY_CODES = new Set(['PK', 'PANCHAKARMA', 'SCREEN', 'SCREENING_OPD']);
+export const NURSING_GENERAL_DUTY_NAMES = new Set(['OPD', 'Diagnostics']);
+export const NURSING_24X7_NAMES = new Set(['Medical In-Patients', 'Surgical In-Patients', 'Operation Theatre (Major + Minor + CSSD)', 'Labour Room']);
 
-// Medical/Surgical In-Patients added when "IPD" was split into 2 real sub-departments
-// (admin.js's ORG_CHILD_DEFS) so Medical/Surgical ward nursing staff could be counted
-// separately instead of the same real nurses double-counting against both sections'
-// Schedule XX requirements. "IPD" (the now-empty parent) is kept in the set too, since
-// any not-yet-reassigned staff still sit there until an admin moves them to one of the
-// two wards.
-export const NURSING_DEPT_NAMES = new Set(['IPD', 'Medical In-Patients', 'Surgical In-Patients', 'Labour Room', 'Operation Theatre (Major + Minor + CSSD)', 'Diagnostics']);
+export function isNursingDutyDept(dept) {
+  return NURSING_GENERAL_DUTY_CODES.has(dept?.ncism_code) || NURSING_GENERAL_DUTY_NAMES.has(dept?.name) || NURSING_24X7_NAMES.has(dept?.name);
+}
+
+// Which shift(s) apply to this place -- a single 'general' (9am-5pm) shift
+// for the 4 day-only places, or the classic 3-shift round-the-clock ward
+// pattern for the other 4. Any department NOT in either nursing-duty set
+// (Administration, academic departments, etc.) keeps the classic 3-shift
+// default -- this only overrides the shift model for real nursing places,
+// leaving roster.html's existing RMO/EMO/GDMO doctor-duty behavior for
+// every other department untouched.
+export function shiftsForDept(dept) {
+  if (NURSING_GENERAL_DUTY_CODES.has(dept?.ncism_code) || NURSING_GENERAL_DUTY_NAMES.has(dept?.name)) return ['general'];
+  return ['morning', 'afternoon', 'night'];
+}
 
 export const UG_BED_RATIOS = { KAY: .20, PK: .25, SHAL: .20, SHAK: .10, KAU: .10, AGD: .05, PST: .10 };
 

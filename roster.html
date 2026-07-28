@@ -15,7 +15,7 @@
   --red:#c0392b;--cream:#faf8f3;--white:#fff;
   --border:#d8e4dd;--radius:8px;
   --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
-  --shift-morning:#e8f5ee;--shift-afternoon:#fff8e8;--shift-night:#f0e8ff;--shift-oncall:#e8f0ff;--gap:#fdecea
+  --shift-morning:#e8f5ee;--shift-afternoon:#fff8e8;--shift-night:#f0e8ff;--shift-oncall:#e8f0ff;--shift-general:#eef7ee;--gap:#fdecea
 }
 *{box-sizing:border-box}
 body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh;margin:0}
@@ -47,6 +47,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .shift-cell.afternoon{background:var(--shift-afternoon)}
 .shift-cell.night{background:var(--shift-night)}
 .shift-cell.on_call{background:var(--shift-oncall)}
+.shift-cell.general{background:var(--shift-general)}
 .shift-cell.gap{background:var(--gap) !important;border:1.5px dashed var(--red) !important}
 .slot-item{cursor:pointer;border-radius:4px;padding:3px 4px;transition:background .15s}
 .slot-item:hover{filter:brightness(.92)}
@@ -78,6 +79,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .shift-badge.afternoon{background:var(--shift-afternoon);color:#7a5a00}
 .shift-badge.night{background:var(--shift-night);color:#5a1a8b}
 .shift-badge.on_call{background:var(--shift-oncall);color:#1a308b}
+.shift-badge.general{background:var(--shift-general);color:var(--green-deep)}
 .alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:14px;display:none}
 .alert.show{display:block}
 .alert.success{background:#e8f5ee;border:1px solid var(--green-mid);color:var(--green-deep)}
