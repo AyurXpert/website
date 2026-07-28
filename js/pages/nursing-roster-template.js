@@ -212,6 +212,13 @@ function _addSlotRowsHtml(day, shift, cellSlots, isGeneral) {
 }
 
 function renderGrid(cycleLength) {
+  // Session 143: OPD's 3 required nurses each cover a fixed, named zone
+  // (Session 142) -- Dr. Venkatesh found the original layout (all 3 stacked
+  // inside one "General Duty" cell per day) confusing, with no visible
+  // header saying who's posted where. Give OPD its own column-per-zone
+  // layout instead of the generic shift-column grid every other place uses.
+  if (_requiredPerShift?.mode === 'opd') { renderOpdGroupedGrid(cycleLength); return; }
+
   const isGeneral = _selectedDeptShifts[0] === 'general';
 
   const thead = document.getElementById('tpl-thead');
@@ -234,6 +241,56 @@ function renderGrid(cycleLength) {
         </div>`;
       });
       html += _addSlotRowsHtml(day, shift, cellSlots, isGeneral);
+      html += `</td>`;
+    });
+    html += `</tr>`;
+  }
+  tbody.innerHTML = html;
+
+  if (_canEdit) {
+    const today = new Date().toISOString().slice(0, 10);
+    const startInput = document.getElementById('roll-start-date');
+    if (!startInput.value) startInput.value = today;
+  }
+}
+
+// Session 143: one column per zone (slot_index N = zone N, fixed for the
+// life of the template -- matches how save_nursing_roster_template_slot()/
+// addSlot() already key everything by day+shift+slot_index), Day 1..N as
+// rows underneath. Each cell holds exactly one nurse for that zone/day --
+// "distribute 3 nurses among these 3 groups", not extra backup slots.
+function renderOpdGroupedGrid(cycleLength) {
+  const groups = _requiredPerShift.groups;
+  const shift = 'general';
+
+  const thead = document.getElementById('tpl-thead');
+  thead.innerHTML = `<tr><th class="day-col">Day</th>${groups.map((g, i) => `<th>Zone ${i + 1}<br><span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0">${_esc(g)}</span></th>`).join('')}</tr>`;
+
+  const tbody = document.getElementById('tpl-tbody');
+  let html = '';
+  for (let day = 0; day < cycleLength; day++) {
+    html += `<tr><td class="day-col">Day ${day + 1}</td>`;
+    groups.forEach((zoneLabel, i) => {
+      const slotIndex = i + 1;
+      const existing = _slots.find(s => s.day_offset === day && s.shift_type === shift && s.slot_index === slotIndex);
+      html += `<td class="shift-cell">`;
+      if (existing) {
+        html += `<div class="slot-row">
+          <span class="slot-name">${_esc(existing.profiles?.full_name || '—')}</span>
+          ${_canEdit ? `<button class="slot-remove" data-onclick="removeSlot" data-onclick-a0="${_esc(existing.id)}">✕</button>` : ''}
+        </div>`;
+      } else if (_canEdit) {
+        const options = _poolOptionsHtml([]);
+        if (options) {
+          html += `<div class="add-slot-row">
+            <select id="add-nurse-${day}-${shift}-${slotIndex}"><option value="">+ Add nurse…</option>${options}</select>
+            <input type="hidden" id="add-coverage-${day}-${shift}-${slotIndex}" value="${_esc(zoneLabel)}"/>
+            <button class="btn btn-sm btn-secondary" data-onclick="addSlot" data-onclick-a0="${day}" data-onclick-a1="${shift}" data-onclick-a2="${slotIndex}">Add</button>
+          </div>`;
+        } else if (!_pool.length) {
+          html += `<div class="slot-beds">No nursing staff recruited in this hospital yet.</div>`;
+        }
+      }
       html += `</td>`;
     });
     html += `</tr>`;
