@@ -95,8 +95,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
   <div class="page-header">
     <div>
-      <div class="page-title">24×7 Duty Roster</div>
-      <div class="page-subtitle">NCISM §51(5) — RMO / EMO / On-Call Consultant schedule with gap detection</div>
+      <div class="page-title" id="page-title">24×7 Duty Roster</div>
+      <div class="page-subtitle" id="page-subtitle">NCISM §51(5) — RMO / EMO / On-Call Consultant schedule with gap detection</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <a class="btn btn-secondary btn-sm" href="nursing-admin.html">← Back to Nursing Administration</a>
@@ -124,7 +124,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
   <!-- Duty Roster Table -->
   <div class="section-header">
-    <div class="section-header-title">🏥 Duty Roster — RMO / EMO / GDMO</div>
+    <div class="section-header-title" id="main-section-title">🏥 Duty Roster — RMO / EMO / GDMO</div>
     <div style="font-size:11px;color:var(--text-muted)">Click any cell to assign or change the duty officer</div>
   </div>
 
@@ -135,17 +135,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     </table>
   </div>
 
-  <!-- On-Call Specialty Roster -->
-  <div class="section-header" style="margin-top:32px">
-    <div class="section-header-title">📞 On-Call Specialty Consultant Roster</div>
-    <div style="font-size:11px;color:var(--text-muted)">NCISM §18i — Specialist on-call coverage per department</div>
-  </div>
+  <!-- On-Call Specialty Roster -- doctor/specialist-only concept, hidden for
+       nursing-scoped viewers (nurse_manager/nurse) since none of their
+       departments ever use shift_type='on_call'; see roster.js boot logic. -->
+  <div id="oncall-section">
+    <div class="section-header" style="margin-top:32px">
+      <div class="section-header-title">📞 On-Call Specialty Consultant Roster</div>
+      <div style="font-size:11px;color:var(--text-muted)">NCISM §18i — Specialist on-call coverage per department</div>
+    </div>
 
-  <div style="overflow-x:auto">
-    <table class="roster-table" id="oncall-table">
-      <thead id="oncall-thead"></thead>
-      <tbody id="oncall-tbody"></tbody>
-    </table>
+    <div style="overflow-x:auto">
+      <table class="roster-table" id="oncall-table">
+        <thead id="oncall-thead"></thead>
+        <tbody id="oncall-tbody"></tbody>
+      </table>
+    </div>
   </div>
 
 </div>

@@ -21,6 +21,24 @@ const role     = getCurrentRole();
 let _canEdit   = role === 'super_admin' || role === 'dept_admin'; // refined once headship resolves, for nurse_manager
 let _holidays  = new Map(); // 'YYYY-MM-DD' -> occasion name, for the visible week
 
+// This page was originally built as the doctor RMO/EMO/GDMO on-call duty
+// roster (NCISM §51(5)) and later reused wholesale for the Nursing Duty
+// Roster (Sessions 137-143) rather than split into a separate page. A
+// nurse_manager/nurse's department list is already scoped down to just the
+// 8 real nursing-duty places (isNursingDutyDept, loadDepartments() below) --
+// for them this page is ALWAYS the nursing roster, never the doctor one, so
+// the header text and NCISM citation need to say so instead of "RMO / EMO /
+// GDMO". The On-Call Specialty Consultant table is a separate doctor-
+// specialist concept (shift_type='on_call') that no nursing department ever
+// uses in this data model -- shown to a nurse it would just be a permanent,
+// unfixable wall of "Unassigned", so it's hidden entirely for this view.
+const _isNursingScopedView = role === 'nurse_manager' || role === 'nurse';
+if (_isNursingScopedView) {
+  document.getElementById('page-subtitle').textContent = 'NCISM §18h/18i — ward & OPD nursing shift schedule with gap detection';
+  document.getElementById('main-section-title').textContent = '🏥 Nursing Duty Roster';
+  document.getElementById('oncall-section').style.display = 'none';
+}
+
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 // ── State ──────────────────────────────────────────
@@ -300,7 +318,8 @@ function updateGapBanner() {
   });
   const banner = document.getElementById('gap-banner');
   if (gaps > 0) {
-    banner.textContent = `⚠ NCISM §51(5) compliance issue: ${gaps} shift${gaps>1?'s':''} unassigned this week.`;
+    const section = _isNursingScopedView ? '§18h/18i' : '§51(5)';
+    banner.textContent = `⚠ NCISM ${section} compliance issue: ${gaps} shift${gaps>1?'s':''} unassigned this week.`;
     banner.classList.add('show');
   } else {
     banner.textContent = '';
