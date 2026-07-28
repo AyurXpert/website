@@ -4,7 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { isNursingDutyDept, shiftsForDept } from '../config/ncism.js';
+import { isNursingDutyDept, shiftsForDept, OPD_POOLED_NURSE_COUNT, OPD_COVERAGE_GROUPS } from '../config/ncism.js';
 import { _computeIpdBedTotals } from '../config/ncismStaffCompliance.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
 
@@ -58,23 +58,40 @@ async function loadDepartments() {
   });
 }
 
-// Bed-derived suggestion for Medical/Surgical In-Patients, reusing the same
-// _computeIpdBedTotals() grouping the NCISM staffing ladder already uses
-// (real beds are still tracked under the original clinical departments'
-// ncism_code -- KAY/PK/KAU/AGD for Medical, SHAL/SHAK/PST for Surgical --
-// not under the Medical/Surgical In-Patients department rows directly;
-// confirmed live before assuming a simpler direct department_id bed count
-// would work, since it would silently return 0).
+// Suggested per-shift nurse count -- two different sources depending on the
+// department:
+// (a) Medical/Surgical In-Patients: bed-derived (1 per 10 beds), reusing the
+//     same _computeIpdBedTotals() grouping the NCISM staffing ladder already
+//     uses (real beds are still tracked under the original clinical
+//     departments' ncism_code -- KAY/PK/KAU/AGD for Medical, SHAL/SHAK/PST
+//     for Surgical -- not under the Medical/Surgical In-Patients department
+//     rows directly; confirmed live before assuming a simpler direct
+//     department_id bed count would work, since it would silently return 0).
+// (b) OPD: a flat, UG-intake-tier-based headcount (Sch XX/20, same table
+//     nursing-admin.js's compliance ladder uses) -- OPD has no beds -- split
+//     into 3 named coverage zones (Session 142, confirmed with Dr. Venkatesh)
+//     across the 10 real Schedule XVIII outpatient clinics.
 async function _loadRequiredPerShift(deptName) {
   const zone = BED_DEPT_ZONE[deptName];
-  if (!zone) { _requiredPerShift = null; return; }
-  const [{ data: allDepts }, { data: beds }] = await Promise.all([
-    supabase.from('departments').select('id,ncism_code').eq('tenant_id', tenantId).eq('is_active', true),
-    supabase.from('beds').select('department_id').eq('tenant_id', tenantId),
-  ]);
-  const bedTotals = _computeIpdBedTotals(allDepts || [], beds || []);
-  const bedCount = bedTotals[zone] || 0;
-  _requiredPerShift = bedCount > 0 ? { bedCount, perShift: Math.ceil(bedCount / 10) } : null;
+  if (zone) {
+    const [{ data: allDepts }, { data: beds }] = await Promise.all([
+      supabase.from('departments').select('id,ncism_code').eq('tenant_id', tenantId).eq('is_active', true),
+      supabase.from('beds').select('department_id').eq('tenant_id', tenantId),
+    ]);
+    const bedTotals = _computeIpdBedTotals(allDepts || [], beds || []);
+    const bedCount = bedTotals[zone] || 0;
+    _requiredPerShift = bedCount > 0 ? { mode: 'bed', bedCount, perShift: Math.ceil(bedCount / 10) } : null;
+    return;
+  }
+  if (deptName === 'OPD') {
+    const { data: tenantRow } = await supabase.from('tenants').select('ug_intake').eq('id', tenantId).single();
+    const ugRaw = tenantRow?.ug_intake;
+    const ug = [60, 100, 150, 200].includes(ugRaw) ? ugRaw : (ugRaw >= 150 ? 150 : ugRaw >= 100 ? 100 : ugRaw > 0 ? 60 : 0);
+    const perShift = OPD_POOLED_NURSE_COUNT[ug] || 0;
+    _requiredPerShift = perShift > 0 ? { mode: 'opd', perShift, groups: OPD_COVERAGE_GROUPS } : null;
+    return;
+  }
+  _requiredPerShift = null;
 }
 
 async function loadEditGate() {
@@ -117,14 +134,19 @@ async function loadTemplateForDept() {
   const tenantCycleDays = CYCLE_DAYS[settingRow?.cycle || 'weekly'];
   const cycleLength = _template?.cycle_length || tenantCycleDays;
 
-  const bedNote = _requiredPerShift ? ` · ${_requiredPerShift.bedCount} beds → ${_requiredPerShift.perShift} nurse${_requiredPerShift.perShift === 1 ? '' : 's'} required per shift (1 per 10 beds)` : '';
+  let requiredNote = '';
+  if (_requiredPerShift?.mode === 'bed') {
+    requiredNote = ` · ${_requiredPerShift.bedCount} beds → ${_requiredPerShift.perShift} nurse${_requiredPerShift.perShift === 1 ? '' : 's'} required per shift (1 per 10 beds)`;
+  } else if (_requiredPerShift?.mode === 'opd') {
+    requiredNote = ` · ${_requiredPerShift.perShift} nurses required (Sch XX/20, pooled across all OPDs), split into ${_requiredPerShift.groups.length} coverage zones`;
+  }
   document.getElementById('tpl-sub').textContent = (_template
     ? `${cycleLength}-day template (locked in when first built)`
-    : `No template yet -- will be built as a ${tenantCycleDays}-day pattern (current tenant cycle: ${settingRow?.cycle || 'weekly'})`) + bedNote;
+    : `No template yet -- will be built as a ${tenantCycleDays}-day pattern (current tenant cycle: ${settingRow?.cycle || 'weekly'})`) + requiredNote;
 
   if (_template) {
     const { data: slotRows } = await supabase.from('nursing_roster_template_slots')
-      .select('id,day_offset,shift_type,slot_index,profile_id,bed_range_start,bed_range_end,profiles(full_name)')
+      .select('id,day_offset,shift_type,slot_index,profile_id,bed_range_start,bed_range_end,coverage_label,profiles(full_name)')
       .eq('template_id', _template.id);
     _slots = slotRows || [];
   } else {
@@ -142,11 +164,12 @@ function _poolOptionsHtml(excludeIds) {
     .map(p => `<option value="${_esc(p.id)}">${_esc(p.full_name)}</option>`).join('');
 }
 
-// One "+ Add" row per still-needed slot -- for a bed-linked department this
-// shows exactly how many more nurses are needed (each pre-labelled with the
-// 10-bed block it would cover), not just a single generic add affordance.
-// Beyond the suggested minimum (or for non-bed-linked places), a single
-// plain "+ Add" row still lets the head add extra staff freely.
+// One "+ Add" row per still-needed slot -- for a bed-linked department or
+// OPD (Session 142) this shows exactly how many more nurses are needed
+// (each pre-labelled with the 10-bed block, or OPD coverage zone, it would
+// cover), not just a single generic add affordance. Beyond the suggested
+// minimum (or for places with no suggestion at all), a single plain
+// "+ Add" row still lets the head add extra staff freely.
 function _addSlotRowsHtml(day, shift, cellSlots, isGeneral) {
   if (!_canEdit) return '';
   const assignedIds = cellSlots.map(s => s.profile_id);
@@ -154,27 +177,36 @@ function _addSlotRowsHtml(day, shift, cellSlots, isGeneral) {
   if (!options) return _pool.length ? '' : '<div class="slot-beds">No nursing staff recruited in this hospital yet.</div>';
 
   const filled = cellSlots.length;
+  const mode = _requiredPerShift?.mode;
   const suggestedTotal = _requiredPerShift ? _requiredPerShift.perShift : 0;
   const neededMore = Math.max(0, suggestedTotal - filled);
   let html = '';
 
-  const addRow = (slotIndex, bedStart, bedEnd, label) => `<div class="add-slot-row">
+  const addRow = (slotIndex, bedStart, bedEnd, coverageLabel, label) => `<div class="add-slot-row">
     <select id="add-nurse-${day}-${shift}-${slotIndex}"><option value="">${_esc(label)}</option>${options}</select>
     ${isGeneral ? '' : `<input type="number" id="add-bed-start-${day}-${shift}-${slotIndex}" placeholder="Bed#" value="${bedStart ?? ''}"/>
     <input type="number" id="add-bed-end-${day}-${shift}-${slotIndex}" placeholder="to" value="${bedEnd ?? ''}"/>`}
+    <input type="hidden" id="add-coverage-${day}-${shift}-${slotIndex}" value="${_esc(coverageLabel || '')}"/>
     <button class="btn btn-sm btn-secondary" data-onclick="addSlot" data-onclick-a0="${day}" data-onclick-a1="${shift}" data-onclick-a2="${slotIndex}">Add</button>
   </div>`;
 
   if (neededMore > 0) {
     for (let i = 0; i < neededMore; i++) {
       const slotIndex = filled + i + 1;
-      const bedStart = !isGeneral ? (slotIndex - 1) * 10 + 1 : null;
-      const bedEnd = !isGeneral ? Math.min(slotIndex * 10, _requiredPerShift.bedCount) : null;
-      html += addRow(slotIndex, bedStart, bedEnd, `+ Add nurse (${bedStart}–${bedEnd}) — required`);
+      if (mode === 'opd') {
+        const zone = _requiredPerShift.groups[slotIndex - 1] || null;
+        html += zone
+          ? addRow(slotIndex, null, null, zone, `+ Add nurse (covers: ${zone}) — required`)
+          : addRow(slotIndex, null, null, null, '+ Add nurse — required');
+      } else {
+        const bedStart = (slotIndex - 1) * 10 + 1;
+        const bedEnd = Math.min(slotIndex * 10, _requiredPerShift.bedCount);
+        html += addRow(slotIndex, bedStart, bedEnd, null, `+ Add nurse (${bedStart}–${bedEnd}) — required`);
+      }
     }
   } else {
     const nextSlotIndex = filled ? Math.max(...cellSlots.map(s => s.slot_index)) + 1 : 1;
-    html += addRow(nextSlotIndex, null, null, '+ Add nurse…');
+    html += addRow(nextSlotIndex, null, null, null, '+ Add nurse…');
   }
   return html;
 }
@@ -195,8 +227,9 @@ function renderGrid(cycleLength) {
       html += `<td class="shift-cell">`;
       cellSlots.forEach(s => {
         const beds = (!isGeneral && s.bed_range_start && s.bed_range_end) ? ` <span class="slot-beds">(Beds ${s.bed_range_start}–${s.bed_range_end})</span>` : '';
+        const coverage = s.coverage_label ? ` <span class="slot-beds">(covers: ${_esc(s.coverage_label)})</span>` : '';
         html += `<div class="slot-row">
-          <span><span class="slot-name">${_esc(s.profiles?.full_name || '—')}</span>${beds}</span>
+          <span><span class="slot-name">${_esc(s.profiles?.full_name || '—')}</span>${beds}${coverage}</span>
           ${_canEdit ? `<button class="slot-remove" data-onclick="removeSlot" data-onclick-a0="${_esc(s.id)}">✕</button>` : ''}
         </div>`;
       });
@@ -220,10 +253,12 @@ window.addSlot = async function(day, shift, slotIndex) {
   if (!profileId) return;
   const bedStart = document.getElementById(`add-bed-start-${day}-${shift}-${slotIndex}`)?.value;
   const bedEnd = document.getElementById(`add-bed-end-${day}-${shift}-${slotIndex}`)?.value;
+  const coverageLabel = document.getElementById(`add-coverage-${day}-${shift}-${slotIndex}`)?.value || null;
 
   const { error } = await supabase.rpc('save_nursing_roster_template_slot', {
     p_department_id: _selectedDept, p_day_offset: Number(day), p_shift_type: shift, p_slot_index: Number(slotIndex),
     p_profile_id: profileId, p_bed_range_start: bedStart ? Number(bedStart) : null, p_bed_range_end: bedEnd ? Number(bedEnd) : null,
+    p_coverage_label: coverageLabel,
   });
   if (error) { _alert('error', safeErrorMessage(error, 'Could not save this slot.')); return; }
   await loadTemplateForDept();

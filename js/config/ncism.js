@@ -44,6 +44,25 @@ export function shiftsForDept(dept) {
   return ['morning', 'afternoon', 'night'];
 }
 
+// Session 142: NCISM Schedule XX/20 "Nursing Staff — All OPDs" -- a pooled
+// duty desk, not one nurse per specialty clinic, sized by UG intake tier
+// (same table nursing-admin.js's compliance ladder already uses).
+export const OPD_POOLED_NURSE_COUNT = { 60: 3, 100: 3, 150: 3, 200: 5 };
+
+// Confirmed with Dr. Venkatesh: the pooled OPD nurses are split into 3
+// physical/specialty coverage zones across the 10 real Schedule XVIII
+// outpatient clinics (Screening OPD included -- it's one of the 10, distinct
+// from the standalone "Screening OPD" nursing-duty PLACE above, which
+// instead covers triage staffing, not this pooled OPD-consultation duty).
+// Only 3 zones are defined -- a 200-intake tier's 5th (and 4th) required
+// nurse falls back to an unlabelled generic slot rather than a fabricated
+// 4th/5th zone nobody has specified.
+export const OPD_COVERAGE_GROUPS = [
+  'Kayachikitsa, Agada Tantra, Panchakarma, Kaumarabhritya OPD',
+  'Screening OPD, Swasthavritta, Shalya Tantra OPD',
+  'Shalakya (Netra), Shalakya (Karna-Nasa-Mukha), Prasuti & Stri Roga OPD',
+];
+
 export const UG_BED_RATIOS = { KAY: .20, PK: .25, SHAL: .20, SHAK: .10, KAU: .10, AGD: .05, PST: .10 };
 
 export const WARD_NAMES = {
