@@ -44,6 +44,24 @@ export function shiftsForDept(dept) {
   return ['morning', 'afternoon', 'night'];
 }
 
+// Real-usage bug found on SDM (Dr. Venkatesh): Fill All (Fixed Teams) fills
+// one department at a time with no awareness of what that same nurse is
+// already committed to in every OTHER department -- since General Duty
+// (09:00-17:00) physically overlaps both Morning (06:00-14:00) and
+// Afternoon (14:00-22:00), the same nurse ended up posted to several
+// departments at once for the same real hours (e.g. Morning in Labour Room
+// AND General Duty in OPD/Diagnostics/Panchakarma/Screening OPD, every
+// single day). Night (22:00-06:00) never overlaps anything else -- shifts
+// only touch at the boundary, not across it. Static table over interval
+// math since there are only 4 known shift types.
+const SHIFT_OVERLAPS = {
+  morning:   { morning: true,  afternoon: false, night: false, general: true  },
+  afternoon: { morning: false, afternoon: true,  night: false, general: true  },
+  night:     { morning: false, afternoon: false, night: true,  general: false },
+  general:   { morning: true,  afternoon: true,  night: false, general: true  },
+};
+export function shiftsOverlap(a, b) { return !!SHIFT_OVERLAPS[a]?.[b]; }
+
 // Session 142: NCISM Schedule XX/20 "Nursing Staff — All OPDs" -- a pooled
 // duty desk, not one nurse per specialty clinic, sized by UG intake tier
 // (same table nursing-admin.js's compliance ladder already uses).

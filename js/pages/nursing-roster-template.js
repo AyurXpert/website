@@ -4,7 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { isNursingDutyDept, shiftsForDept } from '../config/ncism.js';
+import { isNursingDutyDept, shiftsForDept, shiftsOverlap } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
 import { computeRequiredPerShift } from '../modules/roster/requiredStaffing.js';
 
@@ -43,6 +43,7 @@ let _template = null;   // { id, cycle_length } or null
 let _slots = [];        // template slots, with .profiles.full_name joined
 let _pool = [];         // nursing staff assignable (tenant-wide)
 let _cycleLength = 7;   // current dept's template length, set in loadTemplateForDept
+let _busyElsewhere = new Set(); // profile_ids already posted to an overlapping shift in ANOTHER department
 
 async function loadDepartments() {
   const { data } = await supabase.from('departments')
@@ -67,6 +68,36 @@ async function loadDepartments() {
 // this page's own default (see _addSlotRowsHtml/_buildFillGroups).
 async function _loadRequiredPerShift(deptName) {
   _requiredPerShift = await computeRequiredPerShift(supabase, tenantId, deptName);
+}
+
+// Real bug found on SDM (Dr. Venkatesh): Fill All only ever looked at the
+// CURRENT department's own template -- since it's called once per
+// department with no cross-department awareness, the same nurse (usually
+// whoever sorts first alphabetically) kept landing as the fixed team member
+// in several departments at once. General Duty (09:00-17:00) physically
+// overlaps both Morning (06:00-14:00) and Afternoon (14:00-22:00), so a
+// nurse fixed to Labour Room's Morning shift would also show up in OPD's/
+// Diagnostics'/Panchakarma's/Screening OPD's General Duty shift, every
+// single day, once each department was filled independently. Computes which
+// pool members already hold an overlapping-time slot in any OTHER
+// department's CURRENT template -- used to grey them out of the manual add
+// dropdown and exclude them from Fill All's pool for this department.
+async function _loadBusyElsewhere(deptShifts) {
+  _busyElsewhere = new Set();
+  if (!_selectedDept) return;
+
+  const { data: otherTemplates } = await supabase.from('nursing_roster_templates')
+    .select('id').eq('tenant_id', tenantId).neq('department_id', _selectedDept);
+  const otherIds = (otherTemplates || []).map(t => t.id);
+  if (!otherIds.length) return;
+
+  const { data: otherSlots } = await supabase.from('nursing_roster_template_slots')
+    .select('profile_id,shift_type').in('template_id', otherIds);
+  (otherSlots || []).forEach(s => {
+    if (s.profile_id && deptShifts.some(myShift => shiftsOverlap(myShift, s.shift_type))) {
+      _busyElsewhere.add(s.profile_id);
+    }
+  });
 }
 
 async function loadEditGate() {
@@ -101,6 +132,7 @@ async function loadTemplateForDept() {
     supabase.from('profiles').select('id,full_name').eq('tenant_id', tenantId)
       .in('designation', ['staff_nurse', 'ward_sister', 'anm']).eq('is_active', true).order('full_name'),
     _loadRequiredPerShift(deptObj?.name),
+    _loadBusyElsewhere(_selectedDeptShifts),
   ]);
 
   _pool = poolRows || [];
@@ -138,7 +170,10 @@ async function loadTemplateForDept() {
 
 function _poolOptionsHtml(excludeIds) {
   return _pool.filter(p => !excludeIds.includes(p.id))
-    .map(p => `<option value="${_esc(p.id)}">${_esc(p.full_name)}</option>`).join('');
+    .map(p => _busyElsewhere.has(p.id)
+      ? `<option value="" disabled>${_esc(p.full_name)} — busy elsewhere (overlapping shift)</option>`
+      : `<option value="${_esc(p.id)}">${_esc(p.full_name)}</option>`)
+    .join('');
 }
 
 // One "+ Add" row per still-needed slot -- for a bed-linked department or
@@ -331,17 +366,20 @@ function _buildFillGroups() {
 
 window.fillAllFixedTeams = async function() {
   if (!_pool.length) { _alert('error', 'No nursing staff recruited in this hospital yet.'); return; }
+  const availablePool = _pool.filter(p => !_busyElsewhere.has(p.id));
+  if (!availablePool.length) { _alert('error', 'Every recruited nurse already has an overlapping shift assigned in another department -- free someone up first, or recruit more nursing staff.'); return; }
   const groups = _buildFillGroups();
   if (!groups.length) { _alert('info', 'Nothing to fill -- every required slot already has a nurse assigned.'); return; }
   const totalDays = groups.reduce((sum, g) => sum + g.days.length, 0);
-  if (!confirm(`Assign one fixed nurse to each of ${groups.length} still-open shift seat${groups.length === 1 ? '' : 's'} for the rest of this cycle (${totalDays} day-slot${totalDays === 1 ? '' : 's'} total)? Already-filled slots are left untouched.`)) return;
+  const skippedNote = availablePool.length < _pool.length ? ` (${_pool.length - availablePool.length} pool member${_pool.length - availablePool.length === 1 ? '' : 's'} skipped -- already busy elsewhere)` : '';
+  if (!confirm(`Assign one fixed nurse to each of ${groups.length} still-open shift seat${groups.length === 1 ? '' : 's'} for the rest of this cycle (${totalDays} day-slot${totalDays === 1 ? '' : 's'} total)?${skippedNote} Already-filled slots are left untouched.`)) return;
 
   const btn = document.getElementById('btn-fill-all');
   btn.disabled = true; btn.textContent = 'Filling…';
 
   let poolIdx = 0;
   for (const g of groups) {
-    const nurse = _pool[poolIdx % _pool.length];
+    const nurse = availablePool[poolIdx % availablePool.length];
     poolIdx++;
     for (const day of g.days) {
       const { error } = await supabase.rpc('save_nursing_roster_template_slot', {
