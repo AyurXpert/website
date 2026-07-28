@@ -6,7 +6,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNursingDutyDept, shiftsForDept, shiftsOverlap } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
-import { computeRequiredPerShift } from '../modules/roster/requiredStaffing.js';
+import { computeRequiredPerShift, distributeAcrossShifts } from '../modules/roster/requiredStaffing.js';
 
 // Session 139 (Nursing Duty Roster Phase 3): template editor for the
 // "Template-Based Rolling Schedule" -- a repeating base pattern per
@@ -144,9 +144,15 @@ async function loadTemplateForDept() {
 
   let requiredNote = '';
   if (_requiredPerShift?.mode === 'bed') {
-    requiredNote = ` · ${_requiredPerShift.bedCount} beds → ${_requiredPerShift.perShift} nurse${_requiredPerShift.perShift === 1 ? '' : 's'} required per shift (1 per 10 beds)`;
+    const byShift = distributeAcrossShifts(_requiredPerShift.total, _selectedDeptShifts);
+    const perShiftDesc = _selectedDeptShifts.map(s => `${SHIFT_LABELS[s]}: ${byShift[s]}`).join(', ');
+    requiredNote = ` · ${_requiredPerShift.bedCount} beds → ${_requiredPerShift.total} nurse${_requiredPerShift.total === 1 ? '' : 's'} required total (1 per 10 beds), spread across shifts as ${perShiftDesc}`;
   } else if (_requiredPerShift?.mode === 'opd') {
-    requiredNote = ` · ${_requiredPerShift.perShift} nurses required (Sch XX/20, pooled across all OPDs), split into ${_requiredPerShift.groups.length} coverage zones`;
+    requiredNote = ` · ${_requiredPerShift.total} nurses required (Sch XX/20, pooled across all OPDs), split into ${_requiredPerShift.groups.length} coverage zones`;
+  } else if (_requiredPerShift?.mode === 'ot') {
+    const byShift = distributeAcrossShifts(_requiredPerShift.total, _selectedDeptShifts);
+    const perShiftDesc = _selectedDeptShifts.map(s => `${SHIFT_LABELS[s]}: ${byShift[s]}`).join(', ');
+    requiredNote = ` · ${_requiredPerShift.total} nurse${_requiredPerShift.total === 1 ? '' : 's'} required total (Sch XX/43), spread across shifts as ${perShiftDesc}`;
   }
   document.getElementById('tpl-sub').textContent = (_template
     ? `${cycleLength}-day template (locked in when first built)`
@@ -190,7 +196,8 @@ function _addSlotRowsHtml(day, shift, cellSlots, isGeneral) {
 
   const filled = cellSlots.length;
   const mode = _requiredPerShift?.mode;
-  const suggestedTotal = _requiredPerShift ? _requiredPerShift.perShift : 0;
+  const perShiftByType = _requiredPerShift ? distributeAcrossShifts(_requiredPerShift.total, _selectedDeptShifts) : {};
+  const suggestedTotal = _requiredPerShift ? (perShiftByType[shift] ?? 0) : 0;
   const neededMore = Math.max(0, suggestedTotal - filled);
   let html = '';
 
@@ -210,10 +217,18 @@ function _addSlotRowsHtml(day, shift, cellSlots, isGeneral) {
         html += zone
           ? addRow(slotIndex, null, null, zone, `+ Add nurse (covers: ${zone}) — required`)
           : addRow(slotIndex, null, null, null, '+ Add nurse — required');
-      } else {
-        const bedStart = (slotIndex - 1) * 10 + 1;
-        const bedEnd = Math.min(slotIndex * 10, _requiredPerShift.bedCount);
+      } else if (mode === 'bed') {
+        // Beds are split evenly across THIS SHIFT's own slot count -- not a
+        // fixed 10-per-slot block, since that only made sense back when
+        // every slot in every shift shared one department-wide total (the
+        // now-fixed x3 bug). 6 total nurses for 60 beds, 2 per shift, means
+        // each of those 2 covers 30 beds during their shift, not 10.
+        const blockSize = Math.ceil(_requiredPerShift.bedCount / suggestedTotal);
+        const bedStart = (slotIndex - 1) * blockSize + 1;
+        const bedEnd = Math.min(slotIndex * blockSize, _requiredPerShift.bedCount);
         html += addRow(slotIndex, bedStart, bedEnd, null, `+ Add nurse (${bedStart}–${bedEnd}) — required`);
+      } else {
+        html += addRow(slotIndex, null, null, null, '+ Add nurse — required');
       }
     }
   } else {
@@ -345,13 +360,15 @@ function _buildFillGroups() {
     return groups;
   }
 
+  const perShiftByType = _requiredPerShift ? distributeAcrossShifts(_requiredPerShift.total, _selectedDeptShifts) : {};
   _selectedDeptShifts.forEach(shift => {
-    const suggestedTotal = _requiredPerShift ? _requiredPerShift.perShift : 1;
+    const suggestedTotal = _requiredPerShift ? (perShiftByType[shift] ?? 0) : 1;
     for (let slotIndex = 1; slotIndex <= suggestedTotal; slotIndex++) {
       let bedStart = null, bedEnd = null;
       if (_requiredPerShift?.mode === 'bed') {
-        bedStart = (slotIndex - 1) * 10 + 1;
-        bedEnd = Math.min(slotIndex * 10, _requiredPerShift.bedCount);
+        const blockSize = Math.ceil(_requiredPerShift.bedCount / suggestedTotal);
+        bedStart = (slotIndex - 1) * blockSize + 1;
+        bedEnd = Math.min(slotIndex * blockSize, _requiredPerShift.bedCount);
       }
       const days = [];
       for (let day = 0; day < _cycleLength; day++) {

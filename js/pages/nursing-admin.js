@@ -6,7 +6,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, isNursingDutyDept, shiftsForDept } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead, canDecideShiftChange } from '../modules/roster/nursingHeadship.js';
-import { computeRequiredPerShift } from '../modules/roster/requiredStaffing.js';
+import { computeRequiredPerShift, distributeAcrossShifts } from '../modules/roster/requiredStaffing.js';
 
 await requireAuth(['nurse_manager', 'super_admin', 'dept_admin']);
 initNavbar();
@@ -463,10 +463,16 @@ window.previewRotation = async function() {
     }
     const requiredPerShift = await computeRequiredPerShift(supabase, tenantId, dept.name);
     const shifts = shiftsForDept(dept);
-    const perShiftCount = requiredPerShift ? requiredPerShift.perShift : 1;
+    // Real bug found on SDM: this used to multiply a per-shift count by the
+    // shift count to get a "total" -- but requiredPerShift.total (bed-
+    // derived or Sch. XX intake-tier) IS ALREADY the real NCISM total, not a
+    // per-shift figure. Multiplying by shifts.length was demanding 3x more
+    // nurses than NCISM actually requires (e.g. Medical In-Patients' real
+    // total of 6 was being inflated to 18).
+    const requiredTotal = requiredPerShift ? requiredPerShift.total : shifts.length;
     perDept[dept.id] = {
       template: tpl || null, cycleLength: tpl?.cycle_length || tenantCycleDays,
-      uniqueNurses, requiredPerShift, shifts, requiredTotal: perShiftCount * shifts.length,
+      uniqueNurses, requiredPerShift, shifts, requiredTotal,
     };
   }
 
@@ -568,16 +574,18 @@ window.confirmApplyRotation = async function() {
         }
       }
     } else {
-      const perShiftCount = requiredPerShift ? requiredPerShift.perShift : 1;
+      const perShiftByType = requiredPerShift ? distributeAcrossShifts(requiredPerShift.total, info.shifts) : {};
       outer:
       for (const shift of info.shifts) {
+        const perShiftCount = requiredPerShift ? (perShiftByType[shift] ?? 0) : 1;
         for (let slotIndex = 1; slotIndex <= perShiftCount; slotIndex++) {
           if (poolIdx >= incomingIds.length) break outer;
           const nurseId = incomingIds[poolIdx]; poolIdx++;
           let bedStart = null, bedEnd = null;
           if (requiredPerShift?.mode === 'bed') {
-            bedStart = (slotIndex - 1) * 10 + 1;
-            bedEnd = Math.min(slotIndex * 10, requiredPerShift.bedCount);
+            const blockSize = Math.ceil(requiredPerShift.bedCount / perShiftCount);
+            bedStart = (slotIndex - 1) * blockSize + 1;
+            bedEnd = Math.min(slotIndex * blockSize, requiredPerShift.bedCount);
           }
           for (let day = 0; day < info.cycleLength; day++) {
             await supabase.rpc('save_nursing_roster_template_slot', {

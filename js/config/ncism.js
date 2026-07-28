@@ -81,6 +81,13 @@ export const OPD_COVERAGE_GROUPS = [
   'Shalakya (Netra), Shalakya (Karna-Nasa-Mukha), Prasuti & Stri Roga OPD',
 ];
 
+// Schedule XX/43 "OT Nursing Staff" -- same verified table nursing-admin.js's
+// compliance ladder (NURSING_XX_ROWS) already uses. Extracted here so the
+// roster/rotation features (requiredStaffing.js) can apply the real NCISM
+// total instead of the generic "1 per shift" default that was previously
+// standing in for it (2 for a 100-intake tier, not 3).
+export const OT_NURSE_COUNT = { 60: 1, 100: 2, 150: 3, 200: 4 };
+
 export const UG_BED_RATIOS = { KAY: .20, PK: .25, SHAL: .20, SHAK: .10, KAU: .10, AGD: .05, PST: .10 };
 
 export const WARD_NAMES = {

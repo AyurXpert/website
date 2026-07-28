@@ -1,22 +1,26 @@
 import { _computeIpdBedTotals } from '../../config/ncismStaffCompliance.js';
-import { OPD_POOLED_NURSE_COUNT, OPD_COVERAGE_GROUPS } from '../../config/ncism.js';
+import { OPD_POOLED_NURSE_COUNT, OPD_COVERAGE_GROUPS, OT_NURSE_COUNT } from '../../config/ncism.js';
 
-// Shared by nursing-roster-template.js and nursing-admin.js (Session 144's
-// department rotation preview needs the exact same per-department required-
-// headcount numbers the template editor already computes, so this was
-// extracted out rather than duplicated) -- two different sources depending
-// on the department:
-// (a) Medical/Surgical In-Patients: bed-derived (1 per 10 beds), reusing the
-//     same _computeIpdBedTotals() grouping the NCISM staffing ladder uses
-//     (real beds are still tracked under the original clinical departments'
-//     ncism_code, not under these two rows directly).
-// (b) OPD: a flat, UG-intake-tier-based headcount (Sch XX/20) split into 3
-//     named coverage zones across the 10 real Schedule XVIII outpatient
-//     clinics (Session 142).
-// Every other nursing-duty department (Labour Room, OT, Panchakarma,
-// Screening OPD, Diagnostics) has no formal suggestion source -- returns
-// null, meaning "1 per shift" is the caller's own default.
+// Shared by nursing-roster-template.js and nursing-admin.js -- both need the
+// exact same per-department required-headcount numbers so the two pages can
+// never disagree.
+//
+// Real bug found live on SDM (Dr. Venkatesh, 19 recruited nurses but the
+// roster demanded ~42 concurrent seats): this used to return a per-SHIFT
+// count that every caller then multiplied by the department's shift count
+// (3 for a round-the-clock ward) to get a "total". But the bed-derived
+// number (bedCount/10) and the OPD/OT intake-tier numbers ARE ALREADY the
+// real NCISM Schedule XX TOTAL for that department (verified against
+// nursing-admin.js's own compliance ladder, e.g. Schedule XX/32's Medical
+// IPD total of 6 for a 100-intake tier exactly equals 60 beds / 10) --
+// multiplying by 3 shifts was demanding 3x more nurses than NCISM actually
+// requires. Now returns the TOTAL only; distributeAcrossShifts() below
+// spreads that total across the department's actual shifts.
 const BED_DEPT_ZONE = { 'Medical In-Patients': 'IPD_MEDICAL', 'Surgical In-Patients': 'IPD_SURGICAL' };
+
+function _ugTier(ugRaw) {
+  return [60, 100, 150, 200].includes(ugRaw) ? ugRaw : (ugRaw >= 150 ? 150 : ugRaw >= 100 ? 100 : ugRaw > 0 ? 60 : 0);
+}
 
 export async function computeRequiredPerShift(supabase, tenantId, deptName) {
   const zone = BED_DEPT_ZONE[deptName];
@@ -27,14 +31,31 @@ export async function computeRequiredPerShift(supabase, tenantId, deptName) {
     ]);
     const bedTotals = _computeIpdBedTotals(allDepts || [], beds || []);
     const bedCount = bedTotals[zone] || 0;
-    return bedCount > 0 ? { mode: 'bed', bedCount, perShift: Math.ceil(bedCount / 10) } : null;
+    const total = Math.ceil(bedCount / 10);
+    return total > 0 ? { mode: 'bed', bedCount, total } : null;
   }
   if (deptName === 'OPD') {
     const { data: tenantRow } = await supabase.from('tenants').select('ug_intake').eq('id', tenantId).single();
-    const ugRaw = tenantRow?.ug_intake;
-    const ug = [60, 100, 150, 200].includes(ugRaw) ? ugRaw : (ugRaw >= 150 ? 150 : ugRaw >= 100 ? 100 : ugRaw > 0 ? 60 : 0);
-    const perShift = OPD_POOLED_NURSE_COUNT[ug] || 0;
-    return perShift > 0 ? { mode: 'opd', perShift, groups: OPD_COVERAGE_GROUPS } : null;
+    const total = OPD_POOLED_NURSE_COUNT[_ugTier(tenantRow?.ug_intake)] || 0;
+    return total > 0 ? { mode: 'opd', total, groups: OPD_COVERAGE_GROUPS } : null;
+  }
+  if (deptName === 'Operation Theatre (Major + Minor + CSSD)') {
+    const { data: tenantRow } = await supabase.from('tenants').select('ug_intake').eq('id', tenantId).single();
+    const total = OT_NURSE_COUNT[_ugTier(tenantRow?.ug_intake)] || 0;
+    return total > 0 ? { mode: 'ot', total } : null;
   }
   return null;
+}
+
+// Spreads a department's real required TOTAL across its actual shifts as
+// evenly as possible (front-loads the remainder onto the earlier shifts, in
+// shiftsForDept()'s own order -- arbitrary but deterministic). A single-
+// shift department (OPD's 'general') trivially gets the whole total.
+export function distributeAcrossShifts(total, shifts) {
+  const n = shifts.length;
+  const base = Math.floor(total / n);
+  const remainder = total % n;
+  const result = {};
+  shifts.forEach((s, i) => { result[s] = base + (i < remainder ? 1 : 0); });
+  return result;
 }
