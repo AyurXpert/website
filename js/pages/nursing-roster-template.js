@@ -43,6 +43,7 @@ let _requiredPerShift = null; // bed-derived suggestion, Medical/Surgical In-Pat
 let _template = null;   // { id, cycle_length } or null
 let _slots = [];        // template slots, with .profiles.full_name joined
 let _pool = [];         // nursing staff assignable (tenant-wide)
+let _cycleLength = 7;   // current dept's template length, set in loadTemplateForDept
 
 async function loadDepartments() {
   const { data } = await supabase.from('departments')
@@ -133,6 +134,7 @@ async function loadTemplateForDept() {
 
   const tenantCycleDays = CYCLE_DAYS[settingRow?.cycle || 'weekly'];
   const cycleLength = _template?.cycle_length || tenantCycleDays;
+  _cycleLength = cycleLength;
 
   let requiredNote = '';
   if (_requiredPerShift?.mode === 'bed') {
@@ -156,6 +158,7 @@ async function loadTemplateForDept() {
   document.getElementById('tpl-empty').style.display = 'none';
   document.getElementById('tpl-table').style.display = '';
   document.getElementById('roll-card').style.display = _template ? '' : 'none';
+  document.getElementById('fill-all-bar').style.display = (_canEdit && _pool.length) ? '' : 'none';
   renderGrid(cycleLength);
 }
 
@@ -303,6 +306,83 @@ function renderOpdGroupedGrid(cycleLength) {
     if (!startInput.value) startInput.value = today;
   }
 }
+
+// "Fill All" (round-robin auto-assign) -- Dr. Venkatesh's ask: manually
+// picking a nurse + clicking Add for every single day x shift x slot cell
+// is impractical once all nursing staff are recruited. Walks every still-
+// EMPTY required slot (day-major, shift/zone-minor -- same ordering the
+// grid renders in) and assigns pool members in rotation, wrapping around
+// when the pool is smaller than the slot count. Never touches a slot that
+// already has a nurse -- remove it first to reassign. Within a single day,
+// skips a pool member already used that day (if the pool is large enough)
+// so the same nurse isn't double-booked across two shifts on one date.
+function _buildFillTargets() {
+  const targets = [];
+  const opdMode = _requiredPerShift?.mode === 'opd';
+
+  for (let day = 0; day < _cycleLength; day++) {
+    if (opdMode) {
+      _requiredPerShift.groups.forEach((zoneLabel, i) => {
+        const slotIndex = i + 1;
+        const existing = _slots.some(s => s.day_offset === day && s.shift_type === 'general' && s.slot_index === slotIndex);
+        if (!existing) targets.push({ day, shift: 'general', slotIndex, bedStart: null, bedEnd: null, coverageLabel: zoneLabel });
+      });
+      continue;
+    }
+    _selectedDeptShifts.forEach(shift => {
+      const cellSlots = _slots.filter(s => s.day_offset === day && s.shift_type === shift);
+      const filled = cellSlots.length;
+      const suggestedTotal = _requiredPerShift ? _requiredPerShift.perShift : 1;
+      const neededMore = Math.max(0, suggestedTotal - filled);
+      for (let i = 0; i < neededMore; i++) {
+        const slotIndex = filled + i + 1;
+        let bedStart = null, bedEnd = null;
+        if (_requiredPerShift?.mode === 'bed') {
+          bedStart = (slotIndex - 1) * 10 + 1;
+          bedEnd = Math.min(slotIndex * 10, _requiredPerShift.bedCount);
+        }
+        targets.push({ day, shift, slotIndex, bedStart, bedEnd, coverageLabel: null });
+      }
+    });
+  }
+  return targets;
+}
+
+window.fillAllRoundRobin = async function() {
+  if (!_pool.length) { _alert('error', 'No nursing staff recruited in this hospital yet.'); return; }
+  const targets = _buildFillTargets();
+  if (!targets.length) { _alert('info', 'Nothing to fill -- every required slot already has a nurse assigned.'); return; }
+  if (!confirm(`Assign nurses in rotation to ${targets.length} empty slot${targets.length === 1 ? '' : 's'}? Already-filled slots are left untouched.`)) return;
+
+  const btn = document.getElementById('btn-fill-all');
+  btn.disabled = true; btn.textContent = 'Filling…';
+
+  let poolIdx = 0;
+  let lastDay = -1;
+  let usedToday = new Set();
+  for (const t of targets) {
+    if (t.day !== lastDay) { usedToday = new Set(); lastDay = t.day; }
+    let attempts = 0;
+    while (usedToday.has(_pool[poolIdx % _pool.length].id) && attempts < _pool.length) { poolIdx++; attempts++; }
+    const nurse = _pool[poolIdx % _pool.length];
+    usedToday.add(nurse.id);
+    poolIdx++;
+
+    const { error } = await supabase.rpc('save_nursing_roster_template_slot', {
+      p_department_id: _selectedDept, p_day_offset: t.day, p_shift_type: t.shift, p_slot_index: t.slotIndex,
+      p_profile_id: nurse.id, p_bed_range_start: t.bedStart, p_bed_range_end: t.bedEnd, p_coverage_label: t.coverageLabel,
+    });
+    if (error) {
+      btn.disabled = false; btn.textContent = '🔁 Fill All (Round-Robin)';
+      _alert('error', safeErrorMessage(error, 'Stopped partway through -- some slots may already be filled.'));
+      await loadTemplateForDept();
+      return;
+    }
+  }
+
+  btn.disabled = false; btn.textContent = '🔁 Fill All (Round-Robin)';
+  await loadTemplateForDept();
+};
 
 window.addSlot = async function(day, shift, slotIndex) {
   const sel = document.getElementById(`add-nurse-${day}-${shift}-${slotIndex}`);
