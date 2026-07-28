@@ -5,7 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType } from '../config/ncism.js';
-import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
+import { resolveNursingHeadship, canActAsNursingHead, canDecideShiftChange } from '../modules/roster/nursingHeadship.js';
 
 await requireAuth(['nurse_manager', 'super_admin', 'dept_admin']);
 initNavbar();
@@ -23,6 +23,56 @@ const NURSING_DESIGNATIONS = ['staff_nurse', 'ward_sister', 'anm'];
 const NURSING_LABELS = { staff_nurse: 'Staff Nurse', ward_sister: 'Ward Sister', anm: 'ANM' };
 
 let _rejectingLeaveId = null;
+
+// ── Shift Change Requests (Nursing Duty Roster Phase 4, Session 140) ─
+// Individual requests to change a SPECIFIC already-assigned shift --
+// distinct from the generic multi-day leave list below (a shift-change
+// request is a staff_leaves row with related_duty_roster_id set). Decided
+// by the resolved Nursing Head only -- deliberately narrower than every
+// other gate in this feature (canDecideShiftChange excludes MD/Principal/
+// MS, unlike canActAsNursingHead), per the original design note.
+async function loadShiftChangeRequests() {
+  const el = document.getElementById('shift-change-list');
+  const headship = await resolveNursingHeadship(supabase, tenantId);
+  const canDecide = canDecideShiftChange(headship, profile.id, role);
+
+  const { data, error } = await supabase.from('staff_leaves')
+    .select('id,reason,requested_at:created_at,requester:profiles!staff_leaves_profile_id_fkey(full_name),covering:profiles!staff_leaves_covering_profile_id_fkey(full_name),duty_roster!related_duty_roster_id(shift_date,shift_type,departments(name))')
+    .eq('tenant_id', tenantId).eq('status', 'pending').not('related_duty_roster_id', 'is', null)
+    .order('created_at', { ascending: false });
+
+  if (error) { el.innerHTML = `<div class="empty">${_esc(safeErrorMessage(error, 'Could not load shift-change requests.'))}</div>`; return; }
+
+  if (!data?.length) { el.innerHTML = '<div class="empty">No pending shift-change requests.</div>'; return; }
+
+  const SHIFT_LABELS = { morning: 'Morning', afternoon: 'Afternoon', night: 'Night', on_call: 'On-Call' };
+
+  el.innerHTML = data.map(r => {
+    const shift = r.duty_roster;
+    const shiftLabel = shift ? `${SHIFT_LABELS[shift.shift_type] || shift.shift_type} · ${_esc((shift.shift_date || '').slice(0, 10))}${shift.departments?.name ? ' · ' + _esc(shift.departments.name) : ''}` : '—';
+    return `<div class="leave-card">
+      <div class="lc-top">
+        <div>
+          <div class="lc-name">${_esc(r.requester?.full_name || '—')}</div>
+          <div class="lc-meta">${shiftLabel}</div>
+        </div>
+      </div>
+      ${r.covering?.full_name ? `<div class="lc-dates">👤 Proposed covering: ${_esc(r.covering.full_name)}</div>` : `<div class="lc-dates">⚠ No covering colleague proposed -- will be marked unassigned if approved</div>`}
+      ${r.reason ? `<div class="lc-reason">"${_esc(r.reason)}"</div>` : ''}
+      ${canDecide ? `<div class="lc-actions">
+        <button class="btn btn-approve btn-sm" data-onclick="decideShiftChange" data-onclick-a0="${r.id}" data-onclick-a1="@true">✓ Approve</button>
+        <button class="btn btn-reject btn-sm" data-onclick="decideShiftChange" data-onclick-a0="${r.id}" data-onclick-a1="@false">✗ Reject</button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+window.decideShiftChange = async function(leaveId, approve) {
+  const notes = approve ? null : (prompt('Reason for rejecting (optional):') || null);
+  const { error } = await supabase.rpc('decide_shift_change_request', { p_leave_id: leaveId, p_approve: approve, p_notes: notes });
+  if (error) { alert(safeErrorMessage(error, 'Could not decide this request.')); return; }
+  await loadShiftChangeRequests();
+};
 
 // ── Nursing Staff Leave Requests (Session 112) ──────────────────────
 // Reuses hr.js's exact approveLeave()/confirmReject() Supabase-update pattern, scoped to
@@ -254,6 +304,62 @@ window.resetNursingHeadship = async function() {
   await loadHeadship();
 };
 
+// ── Roster Cycle (Nursing Duty Roster Phase 2, Session 138) ─────────
+// Nursing Head proposes weekly/fortnightly/monthly; MS/Deputy MS (or
+// super_admin) approves via the same pending_approvals maker-checker
+// mechanism Session 128 used for the intern rotation roster. The RPC
+// re-derives "is this caller really the current head" server-side (mirrors
+// nursingHeadship.js's own resolution) -- this page's canAct check below is
+// only a display hint, same as everywhere else this pattern is used.
+const CYCLE_LABELS = { weekly: 'Weekly (7 days)', fortnightly: 'Fortnightly (14 days)', monthly: 'Monthly (30 days)' };
+
+async function loadRosterCycle() {
+  const body = document.getElementById('cycle-body');
+  const headship = await resolveNursingHeadship(supabase, tenantId);
+  const canAct = canActAsNursingHead(headship, profile.id, role, profile.designation);
+
+  const [{ data: setting }, { data: pending }] = await Promise.all([
+    supabase.from('nursing_roster_settings').select('cycle').eq('tenant_id', tenantId).maybeSingle(),
+    supabase.from('pending_approvals')
+      .select('id,payload,requested_at,requester:profiles!requested_by(full_name)')
+      .eq('tenant_id', tenantId).eq('action_type', 'nursing_roster_cycle').eq('status', 'pending')
+      .order('requested_at', { ascending: false }).limit(1),
+  ]);
+
+  const currentCycle = setting?.cycle || 'weekly';
+  const pendingReq = pending?.[0] || null;
+
+  let html = `<div style="margin-bottom:10px"><span style="font-size:12.5px;color:var(--text-muted)">Current cycle:</span> `
+    + `<span class="badge" style="background:var(--green-light);color:var(--green-deep);font-weight:600">${_esc(CYCLE_LABELS[currentCycle] || currentCycle)}</span></div>`;
+
+  if (pendingReq) {
+    const reqCycle = pendingReq.payload?.cycle;
+    html += `<div class="empty">⏳ Change to <strong>${_esc(CYCLE_LABELS[reqCycle] || reqCycle)}</strong> requested by ${_esc(pendingReq.requester?.full_name || '—')} on ${_esc((pendingReq.requested_at || '').slice(0, 10))} -- awaiting Medical Superintendent / Deputy MS approval.</div>`;
+  } else if (canAct) {
+    html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+      + '<select id="cycle-select" style="height:32px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12.5px">'
+      + Object.entries(CYCLE_LABELS).map(([v, l]) => `<option value="${v}" ${v === currentCycle ? 'selected' : ''}>${_esc(l)}</option>`).join('')
+      + '</select>'
+      + '<button class="btn btn-primary btn-sm" data-onclick="requestRosterCycleChange">Request Change</button>'
+      + '</div>';
+  } else {
+    html += '<div class="empty">Only the current Nursing Head can request a cycle change.</div>';
+  }
+
+  body.innerHTML = html;
+}
+
+window.requestRosterCycleChange = async function() {
+  const sel = document.getElementById('cycle-select');
+  const cycle = sel?.value;
+  if (!cycle) return;
+  const { error } = await supabase.rpc('request_nursing_roster_cycle', { p_cycle: cycle });
+  if (error) { alert(safeErrorMessage(error, 'Could not submit the roster-cycle change request.')); return; }
+  await loadRosterCycle();
+};
+
 await loadHeadship();
+await loadShiftChangeRequests();
 await loadNursingLeaves();
 await loadComplianceSnapshot();
+await loadRosterCycle();

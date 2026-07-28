@@ -42,18 +42,22 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .roster-table th.shift-col{background:var(--green-mid);width:100px}
 .roster-table td{padding:6px 8px;border:1px solid var(--border);vertical-align:middle;text-align:center}
 .roster-table td.shift-label{background:var(--cream);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);white-space:nowrap}
-.shift-cell{min-height:48px;cursor:pointer;border-radius:4px;transition:background .15s}
-.shift-cell:hover{filter:brightness(.95)}
+.shift-cell{min-height:48px;border-radius:4px}
 .shift-cell.morning{background:var(--shift-morning)}
 .shift-cell.afternoon{background:var(--shift-afternoon)}
 .shift-cell.night{background:var(--shift-night)}
 .shift-cell.on_call{background:var(--shift-oncall)}
 .shift-cell.gap{background:var(--gap) !important;border:1.5px dashed var(--red) !important}
+.slot-item{cursor:pointer;border-radius:4px;padding:3px 4px;transition:background .15s}
+.slot-item:hover{filter:brightness(.92)}
+.slot-item+.slot-item{border-top:1px dashed rgba(0,0,0,.1)}
 .cell-name{font-weight:600;font-size:12px;color:var(--green-deep);display:block;line-height:1.3}
 .cell-status{font-size:10px;color:var(--text-muted);margin-top:2px}
 .cell-confirmed{font-size:10px;color:var(--green-mid);font-weight:500}
-.cell-add{font-size:11px;color:var(--text-muted);font-style:italic}
-.cell-gap-label{font-size:11px;color:var(--red);font-weight:600}
+.cell-beds{font-size:9.5px;color:var(--text-muted)}
+.cell-add{font-size:11px;color:var(--text-muted);font-style:italic;cursor:pointer;padding:3px 4px;border-radius:4px}
+.cell-add:hover{background:rgba(0,0,0,.05)}
+.cell-gap-label{font-size:11px;color:var(--red);font-weight:600;cursor:pointer;display:block;padding:4px}
 .today-col th,.today-col td{border-left:2px solid var(--green-mid)!important;border-right:2px solid var(--green-mid)!important}
 .section-header{background:var(--green-light);border:1px solid var(--border);border-radius:var(--radius);padding:10px 16px;margin:20px 0 12px;display:flex;justify-content:space-between;align-items:center}
 .section-header-title{font-weight:700;font-size:14px;color:var(--green-deep)}
@@ -172,6 +176,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <option value="">— Select —</option>
         </select>
       </div>
+      <div class="field" style="display:flex;gap:8px">
+        <div style="flex:1">
+          <label>Bed range from (optional)</label>
+          <input id="m-bed-start" type="number" placeholder="e.g. 1"/>
+        </div>
+        <div style="flex:1">
+          <label>to</label>
+          <input id="m-bed-end" type="number" placeholder="e.g. 10"/>
+        </div>
+      </div>
       <div class="field">
         <label class="check-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
           <input type="checkbox" id="m-confirmed"/>
@@ -188,6 +202,35 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <button class="btn btn-danger btn-sm" id="btn-remove-shift" style="display:none;margin-right:auto" data-onclick="removeShift">Remove</button>
       <button class="btn btn-secondary btn-sm" data-onclick="closeModal">Cancel</button>
       <button class="btn btn-primary btn-sm" id="btn-save-shift" data-onclick="saveShift">Save Assignment</button>
+    </div>
+  </div>
+</div>
+
+<!-- Request Shift Change Modal (Session 140, Phase 4) -->
+<div class="modal-overlay" id="request-change-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Request Shift Change</span>
+      <button class="modal-close" data-onclick="closeRequestChangeModal">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Your Shift</label>
+        <div id="rc-shift-info" style="font-size:13px;font-weight:600;color:var(--green-deep)"></div>
+      </div>
+      <div class="field">
+        <label>Propose a Covering Colleague (optional)</label>
+        <select id="rc-covering"></select>
+      </div>
+      <div class="field">
+        <label>Reason</label>
+        <input id="rc-reason" type="text" placeholder="e.g. family emergency, medical appointment"/>
+      </div>
+      <div style="font-size:11.5px;color:var(--text-muted)">The current Nursing Head will review this. If approved with a covering colleague named, the shift reassigns automatically; otherwise it's marked unassigned for the Head to fill.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" data-onclick="closeRequestChangeModal">Cancel</button>
+      <button class="btn btn-primary btn-sm" id="btn-submit-request-change" data-onclick="submitRequestChange">Submit Request</button>
     </div>
   </div>
 </div>

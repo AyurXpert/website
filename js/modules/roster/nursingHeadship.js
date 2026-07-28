@@ -29,3 +29,15 @@ export function canActAsNursingHead(headship, profileId, role, designation) {
     || ['medical_director','principal','medical_superintendent'].includes(designation)
     || headship.effectiveHead?.id === profileId;
 }
+
+// Session 140 (Nursing Duty Roster Phase 4): deliberately NARROWER than
+// canActAsNursingHead() above -- individual shift-change requests are an
+// internal nursing operational matter, explicitly NOT escalated to MD/
+// Principal/MS the way template edits and headship delegation are (per the
+// original Phase 3 design note: "shift-swap notifications go to the head
+// only, not MS/DMS"). Only the resolved effective head themselves, or
+// super_admin, can decide -- mirrors the server-side
+// _nursing_head_only_ok() RPC exactly.
+export function canDecideShiftChange(headship, profileId, role) {
+  return role === 'super_admin' || headship.effectiveHead?.id === profileId;
+}

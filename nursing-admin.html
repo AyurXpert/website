@@ -79,8 +79,25 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   <div class="cc">
     <div class="cc-hd">
       <div><div class="cc-title">🗓️ Duty Roster</div><div class="cc-sub">Assign and manage nursing (and other) staff shifts across all wards</div></div>
-      <a class="btn btn-primary" href="roster.html">Open Duty Roster</a>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn btn-primary" href="roster.html">Open Duty Roster</a>
+        <a class="btn btn-primary" href="nursing-roster-template.html" style="background:var(--gold);color:#5a3d0a">🔁 Roster Template</a>
+      </div>
     </div>
+  </div>
+
+  <div class="cc">
+    <div class="cc-hd">
+      <div><div class="cc-title">📅 Roster Cycle</div><div class="cc-sub">How often the duty roster repeats -- changes need Medical Superintendent / Deputy MS approval</div></div>
+    </div>
+    <div class="cc-body" id="cycle-body">Loading…</div>
+  </div>
+
+  <div class="cc">
+    <div class="cc-hd">
+      <div><div class="cc-title">🔄 Shift Change Requests</div><div class="cc-sub">Individual shift-change requests -- decided by the current Nursing Head only, not Medical Superintendent/Deputy MS</div></div>
+    </div>
+    <div class="cc-body" id="shift-change-list">Loading…</div>
   </div>
 
   <div class="cc">

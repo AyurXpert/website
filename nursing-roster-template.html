@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Nursing Roster Template — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;
+  --red:#c0392b;--cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+  --shift-morning:#e8f5ee;--shift-afternoon:#fff8e8;--shift-night:#f0e8ff;
+}
+*{box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh;margin:0}
+.container{max-width:1200px;margin:0 auto;padding:24px 20px 80px}
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.page-title{font-size:22px;font-weight:700;color:var(--green-deep);font-family:'Cormorant Garamond',serif}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:2px}
+.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}
+.btn-danger{background:#fdecea;color:var(--red);border:1.5px solid #f5b8b8}
+.btn-sm{height:26px;padding:0 10px;font-size:11.5px}
+.field select,.field input{width:100%;border:1.5px solid var(--border);border-radius:var(--radius);padding:7px 9px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fff;outline:none}
+
+.cc{background:var(--white);border-radius:10px;box-shadow:0 2px 14px rgba(0,0,0,.06);margin-bottom:18px;overflow:hidden}
+.cc-hd{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.cc-title{font-size:15px;font-weight:700;color:var(--green-deep)}
+.cc-sub{font-size:11.5px;color:var(--text-muted);margin-top:2px}
+.cc-body{padding:16px 18px}
+
+.controls-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+.controls-bar .field{min-width:220px}
+.badge{display:inline-block;padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;background:var(--green-light);color:var(--green-deep)}
+
+.tpl-table{width:100%;border-collapse:collapse;font-size:12px}
+.tpl-table th,.tpl-table td{border:1px solid var(--border);padding:6px;vertical-align:top}
+.tpl-table th{background:var(--green-deep);color:#fff;font-weight:600;font-size:11.5px;padding:8px 6px}
+.day-col{width:70px;background:var(--green-light);font-weight:700;color:var(--green-deep);text-align:center;font-size:12.5px}
+.shift-cell{min-width:180px}
+.slot-row{display:flex;justify-content:space-between;align-items:center;gap:6px;background:var(--cream);border-radius:6px;padding:4px 6px;margin-bottom:4px;font-size:11.5px}
+.slot-name{font-weight:600}
+.slot-beds{color:var(--text-muted);font-size:10.5px}
+.slot-remove{cursor:pointer;color:var(--red);font-weight:700;border:none;background:none;font-size:13px;padding:0 2px}
+.add-slot-row{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.add-slot-row select{font-size:11px;padding:4px 6px;flex:1;min-width:100px}
+.add-slot-row input{font-size:11px;padding:4px 6px;width:44px}
+
+.roll-panel{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.result-box{margin-top:12px;padding:12px 14px;border-radius:8px;background:var(--green-light);font-size:12.5px;display:none}
+.result-box.show{display:block}
+.result-box.warn{background:#fdf3e0}
+.result-line{margin-top:4px}
+.empty{font-size:12.5px;color:var(--text-muted);padding:10px 0}
+.alert{display:none;margin-bottom:14px;padding:10px 16px;border-radius:var(--radius);font-size:13px;font-weight:500}
+.alert.show{display:block}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1.5px solid var(--green-mid)}
+.alert.error{background:#fdecea;color:var(--red);border:1.5px solid #f5b8b8}
+.alert.info{background:var(--gold-light);color:#7a5a10;border:1.5px solid var(--gold)}
+</style>
+</head>
+<body>
+
+<div id="navbar-root"></div>
+
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Nursing Roster Template</div>
+      <div class="page-subtitle">A repeating base pattern per department -- roll it forward into the real duty roster whenever the current cycle is running low</div>
+    </div>
+    <a class="btn btn-secondary" href="roster.html">← Back to Duty Roster</a>
+  </div>
+
+  <div id="alert" class="alert"></div>
+
+  <div class="cc">
+    <div class="cc-hd">
+      <div><div class="cc-title">Department Template</div><div class="cc-sub" id="tpl-sub">Loading…</div></div>
+      <div class="field" style="min-width:260px">
+        <select id="filter-dept"><option value="">Select a department…</option></select>
+      </div>
+    </div>
+    <div class="cc-body">
+      <div id="tpl-readonly-note" class="empty" style="display:none">Read-only -- only the current Nursing Head (or MD/Principal/MS/super_admin) can edit a roster template.</div>
+      <div style="overflow-x:auto">
+        <table class="tpl-table" id="tpl-table" style="display:none">
+          <thead><tr><th class="day-col">Day</th><th>Morning</th><th>Afternoon</th><th>Night</th></tr></thead>
+          <tbody id="tpl-tbody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="tpl-empty">Select a department above to view or build its roster template.</div>
+    </div>
+  </div>
+
+  <div class="cc" id="roll-card" style="display:none">
+    <div class="cc-hd">
+      <div><div class="cc-title">🔁 Roll Forward</div><div class="cc-sub">Generate real duty-roster dates from this template, starting on a chosen date</div></div>
+    </div>
+    <div class="cc-body">
+      <div class="roll-panel">
+        <div class="field" style="max-width:200px">
+          <input type="date" id="roll-start-date"/>
+        </div>
+        <button class="btn btn-primary" id="btn-roll" data-onclick="rollForward">Generate Next Cycle</button>
+      </div>
+      <div class="result-box" id="roll-result"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module" src="./js/pages/nursing-roster-template.js"></script>
+</body>
+</html>

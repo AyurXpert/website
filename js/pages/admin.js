@@ -422,7 +422,13 @@ const APPROVAL_ACTION_LABELS = {
   // the Medical Superintendent (or super_admin), per decide_approval()'s new
   // requester-designation branch.
   intern_roster:           'Intern rotation roster',
+  // Session 138 (Nursing Duty Roster Phase 2): Nursing Head's proposed
+  // roster-cycle length -- decidable by the Medical Superintendent/Deputy MS
+  // (or super_admin).
+  nursing_roster_cycle:    'Nursing duty-roster cycle length',
 };
+
+const NURSING_CYCLE_LABELS = { weekly: 'Weekly (7 days)', fortnightly: 'Fortnightly (14 days)', monthly: 'Monthly (30 days)' };
 
 function _approvalSummary(row){
   const p = row.payload || {};
@@ -436,6 +442,7 @@ function _approvalSummary(row){
       const n = Array.isArray(p.postings) ? new Set(p.postings.map(x => x.profile_id)).size : 0;
       return `${n} intern(s), starting ${_esc(p.rotation_start || '—')}`;
     }
+    case 'nursing_roster_cycle': return `Change to ${_esc(NURSING_CYCLE_LABELS[p.cycle] || p.cycle || '—')}`;
     default: return '—';
   }
 }
@@ -448,7 +455,14 @@ function _canDecideApproval(requesterDesig){
   const iAmSuperAdmin = role === 'super_admin';
   const iAmDirectorTier = ['medical_director','principal'].includes(profile?.designation)
     && (role === 'dept_admin' || profile?.secondary_role === 'dept_admin');
-  return iAmSuperAdmin || (requesterDesig === 'medical_superintendent' && iAmDirectorTier);
+  // Session 138: MS/Deputy MS decide a Nursing Head's roster-cycle request --
+  // designation-only check (no extra role/secondary_role gate), mirrors
+  // decide_approval()'s server-side branch and Session 128's simpler
+  // deputy_medical_superintendent-deciding-intern_roster precedent.
+  const iAmMsTier = ['medical_superintendent','deputy_medical_superintendent'].includes(profile?.designation);
+  if (requesterDesig === 'medical_superintendent') return iAmSuperAdmin || iAmDirectorTier;
+  if (['nursing_superintendent','deputy_nursing_superintendent'].includes(requesterDesig)) return iAmSuperAdmin || iAmMsTier;
+  return iAmSuperAdmin;
 }
 
 // Lightweight badge-only count, mirrors loadPendingDecisions()'s own filter exactly (see

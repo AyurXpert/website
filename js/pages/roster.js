@@ -29,6 +29,7 @@ let _depts      = [];
 let _doctors    = [];
 let _roster     = [];     // duty_roster rows for current week
 let _editEntry  = null;   // existing row being edited
+let _newSlotIndex = 1;    // Session 139: next free slot_index when adding a new entry (multi-staff-per-shift)
 
 const SHIFTS      = ['morning','afternoon','night'];
 const SHIFT_LABELS = { morning:'Morning', afternoon:'Afternoon', night:'Night', on_call:'On-Call' };
@@ -149,7 +150,13 @@ async function loadRoster() {
   const dates = _weekDates();
   const deptFilter = document.getElementById('filter-dept').value;
   let q = supabase.from('duty_roster')
-    .select('id,department_id,profile_id,shift_date,shift_type,is_confirmed,notes,profiles(full_name)')
+    // Session 139: duty_roster has always had 2 FKs to profiles (profile_id AND
+    // created_by) -- an unhinted `profiles(full_name)` embed is ambiguous and
+    // PostgREST returns HTTP 300. This session's schema migration apparently
+    // forced a PostgREST schema-cache refresh that surfaced this pre-existing
+    // bug for the first time (caught live -- loadRoster() 300'd for every
+    // tenant, not something specific to the new multi-slot columns).
+    .select('id,department_id,profile_id,shift_date,shift_type,slot_index,bed_range_start,bed_range_end,is_confirmed,notes,profiles!duty_roster_profile_id_fkey(full_name)')
     .eq('tenant_id', tenantId)
     .gte('shift_date', dates[0])
     .lte('shift_date', dates[6]);
@@ -196,37 +203,53 @@ function renderRoster() {
       html += `<tr>
         <td class="shift-label"><span class="shift-badge ${shift}">${SHIFT_LABELS[shift]}</span><br><span style="font-size:9px">${SHIFT_TIMES[shift]}</span></td>
         ${dates.map(d => {
-          const entry = _roster.find(r => r.department_id === dept.id && r.shift_date === d && r.shift_type === shift);
-          return _cellHtml(dept.id, d, shift, entry);
+          const entries = _roster.filter(r => r.department_id === dept.id && r.shift_date === d && r.shift_type === shift);
+          return _cellHtml(dept.id, d, shift, entries);
         }).join('')}
       </tr>`;
     });
   });
   tbody.innerHTML = html;
-
-  // Attach cell click handlers
-  tbody.querySelectorAll('.shift-cell').forEach(cell => {
-    cell.addEventListener('click', () => openModal(
-      cell.dataset.dept, cell.dataset.date, cell.dataset.shift, cell.dataset.entryId || null
-    ));
-  });
+  _wireCellClicks(tbody);
 }
 
-function _cellHtml(deptId, date, shift, entry) {
+// Session 139: a cell can now hold several concurrent staff (multi-nurse
+// wards, sized by real bed-count ratios) -- render every duty_roster row for
+// that dept/date/shift as its own clickable line, plus a trailing "+ Add"
+// affordance (or the unassigned-gap label if the cell is completely empty)
+// to assign one more without disturbing the existing slots.
+function _cellHtml(deptId, date, shift, entries) {
   const today = _isToday(date);
-  if (!entry) {
+  if (!entries.length) {
     return `<td class="${today?'today-col':''}">
-      <div class="shift-cell gap ${shift}" data-dept="${deptId}" data-date="${date}" data-shift="${shift}">
-        <span class="cell-gap-label">⚠ Unassigned</span>
+      <div class="shift-cell gap ${shift}">
+        <span class="cell-gap-label" data-dept="${deptId}" data-date="${date}" data-shift="${shift}" data-entry-id="" data-slot-index="1">⚠ Unassigned</span>
       </div></td>`;
   }
-  const name = entry.profiles?.full_name || '—';
-  return `<td class="${today?'today-col':''}">
-    <div class="shift-cell ${shift}" data-dept="${deptId}" data-date="${date}" data-shift="${shift}" data-entry-id="${entry.id}">
+  const maxSlot = Math.max(...entries.map(e => e.slot_index || 1));
+  const items = entries.map(entry => {
+    const name = entry.profiles?.full_name || '—';
+    const beds = (entry.bed_range_start && entry.bed_range_end) ? `<span class="cell-beds">Beds ${entry.bed_range_start}–${entry.bed_range_end}</span>` : '';
+    return `<div class="slot-item" data-dept="${deptId}" data-date="${date}" data-shift="${shift}" data-entry-id="${entry.id}" data-slot-index="${entry.slot_index || 1}">
       <span class="cell-name">${_esc(name)}</span>
+      ${beds}
       ${entry.is_confirmed ? '<span class="cell-confirmed">✓ Confirmed</span>' : '<span class="cell-status">Pending confirm</span>'}
       ${entry.notes ? `<span class="cell-status">${_esc(entry.notes)}</span>` : ''}
+    </div>`;
+  }).join('');
+  return `<td class="${today?'today-col':''}">
+    <div class="shift-cell ${shift}">
+      ${items}
+      <div class="cell-add" data-dept="${deptId}" data-date="${date}" data-shift="${shift}" data-entry-id="" data-slot-index="${maxSlot + 1}">+ Add</div>
     </div></td>`;
+}
+
+function _wireCellClicks(tbody) {
+  tbody.querySelectorAll('.slot-item, .cell-add, .cell-gap-label').forEach(el => {
+    el.addEventListener('click', () => openModal(
+      el.dataset.dept, el.dataset.date, el.dataset.shift, el.dataset.entryId || null, Number(el.dataset.slotIndex) || 1
+    ));
+  });
 }
 
 // ── On-Call roster ─────────────────────────────────
@@ -249,18 +272,13 @@ function renderOnCall() {
     html += `<tr>
       <td class="shift-label"><span class="shift-badge on_call">${_esc(dept.ncism_code || '—')}</span><br><span style="font-size:10px;color:var(--text-mid)">${_esc(dept.name)}</span></td>
       ${dates.map(d => {
-        const entry = _roster.find(r => r.department_id === dept.id && r.shift_date === d && r.shift_type === 'on_call');
-        return _cellHtml(dept.id, d, 'on_call', entry);
+        const entries = _roster.filter(r => r.department_id === dept.id && r.shift_date === d && r.shift_type === 'on_call');
+        return _cellHtml(dept.id, d, 'on_call', entries);
       }).join('')}
     </tr>`;
   });
   tbody.innerHTML = html;
-
-  tbody.querySelectorAll('.shift-cell').forEach(cell => {
-    cell.addEventListener('click', () => openModal(
-      cell.dataset.dept, cell.dataset.date, cell.dataset.shift, cell.dataset.entryId || null
-    ));
-  });
+  _wireCellClicks(tbody);
 }
 
 // ── Gap detection ──────────────────────────────────
@@ -304,21 +322,37 @@ document.getElementById('btn-today').addEventListener('click', () => {
   _weekStart = _getMonday(new Date()); updateWeekLabel(); loadRoster();
 });
 document.getElementById('filter-dept').addEventListener('change', loadRoster);
-document.getElementById('btn-add-shift').addEventListener('click', () => openModal(null, _dateStr(new Date()), 'morning', null));
+document.getElementById('btn-add-shift').addEventListener('click', () => openModal(null, _dateStr(new Date()), 'morning', null, 1));
 
 // ── Modal ──────────────────────────────────────────
-function openModal(deptId, date, shift, entryId) {
+// Session 139: `slotIndex` is the new concurrent-staff slot this modal writes
+// to -- either the specific slot being edited (entryId set) or the next free
+// one for a brand-new assignment in an already-occupied cell (multi-nurse
+// wards can have several people on the same shift/date).
+function openModal(deptId, date, shift, entryId, slotIndex) {
   // Session 137: read-only visitors (plain nurse/ayah, or a nurse_manager who
   // isn't currently the resolved head) can see every cell but not edit it --
   // guarded here so it covers every entry point (grid cells, on-call cells,
   // + Add Shift) in one place, not just the buttons _applyEditGate() hides.
-  if (!_canEdit) { _alert('info', 'Read-only — only the current Nursing Head can edit this roster.'); return; }
+  if (!_canEdit) {
+    // Session 140 (Phase 4): a read-only visitor clicking their OWN assigned
+    // shift gets a "Request Change" flow instead of the generic block --
+    // everyone else's shifts (or an empty/gap cell) stay purely informational,
+    // since requesting a change to someone else's shift isn't this nurse's call.
+    const ownEntry = entryId ? _roster.find(r => r.id === entryId && r.profile_id === profile.id) : null;
+    if (ownEntry) { openRequestChangeModal(ownEntry); return; }
+    _alert('info', 'Read-only — only the current Nursing Head can edit this roster.');
+    return;
+  }
   _editEntry = entryId ? _roster.find(r => r.id === entryId) : null;
+  _newSlotIndex = slotIndex || 1;
 
   document.getElementById('m-dept').value  = deptId || '';
   document.getElementById('m-date').value  = date;
   document.getElementById('m-shift').value = shift;
   document.getElementById('m-doctor').value = _editEntry?.profile_id || '';
+  document.getElementById('m-bed-start').value = _editEntry?.bed_range_start || '';
+  document.getElementById('m-bed-end').value = _editEntry?.bed_range_end || '';
   document.getElementById('m-confirmed').checked = _editEntry?.is_confirmed || false;
   document.getElementById('m-notes').value = _editEntry?.notes || '';
 
@@ -348,6 +382,8 @@ window.saveShift = async function() {
   const date     = document.getElementById('m-date').value;
   const shift    = document.getElementById('m-shift').value;
   const doctorId = document.getElementById('m-doctor').value;
+  const bedStart = document.getElementById('m-bed-start').value;
+  const bedEnd   = document.getElementById('m-bed-end').value;
   const confirmed= document.getElementById('m-confirmed').checked;
   const notes    = document.getElementById('m-notes').value.trim();
 
@@ -361,15 +397,16 @@ window.saveShift = async function() {
   const payload = {
     tenant_id: tenantId, department_id: deptId,
     profile_id: doctorId, shift_date: date,
-    shift_type: shift, is_confirmed: confirmed,
-    notes: notes || null,
+    shift_type: shift, slot_index: _editEntry ? _editEntry.slot_index : _newSlotIndex,
+    bed_range_start: bedStart ? Number(bedStart) : null, bed_range_end: bedEnd ? Number(bedEnd) : null,
+    is_confirmed: confirmed, notes: notes || null,
   };
 
   let error;
   if (_editEntry) {
     ({ error } = await supabase.from('duty_roster').update(payload).eq('id', _editEntry.id));
   } else {
-    ({ error } = await supabase.from('duty_roster').upsert(payload, { onConflict: 'tenant_id,department_id,shift_date,shift_type' }));
+    ({ error } = await supabase.from('duty_roster').upsert(payload, { onConflict: 'tenant_id,department_id,shift_date,shift_type,slot_index' }));
   }
 
   btn.disabled = false; btn.textContent = 'Save Assignment';
@@ -387,6 +424,62 @@ window.removeShift = async function() {
   closeModal();
   _alert('success', 'Shift removed.');
   await loadRoster();
+};
+
+// ── Request Shift Change (Nursing Duty Roster Phase 4, Session 140) ────
+// A read-only nurse/ayah viewing their OWN assigned shift can ask for a
+// change instead of just seeing a blocked message. Reuses the existing
+// staff_leaves approval flow server-side (request_shift_change() RPC) --
+// this is deliberately NOT a full edit; only the shift being changed and an
+// optional proposed covering colleague are collected.
+let _requestChangeEntry = null;
+
+async function openRequestChangeModal(entry) {
+  _requestChangeEntry = entry;
+  const deptName = _depts.find(d => d.id === entry.department_id)?.name || '';
+  document.getElementById('rc-shift-info').textContent =
+    `${SHIFT_LABELS[entry.shift_type] || entry.shift_type} · ${_fmtDate(entry.shift_date)}${deptName ? ' · ' + deptName : ''}`;
+  document.getElementById('rc-reason').value = '';
+
+  const sel = document.getElementById('rc-covering');
+  sel.innerHTML = '<option value="">— No specific colleague, just flag it —</option>';
+  const { data: pool } = await supabase.from('profiles')
+    .select('id,full_name')
+    .eq('tenant_id', tenantId).eq('department_id', entry.department_id).eq('is_active', true)
+    .in('designation', ['staff_nurse', 'ward_sister', 'anm'])
+    .neq('id', profile.id)
+    .order('full_name');
+  (pool || []).forEach(p => {
+    const o = document.createElement('option');
+    o.value = p.id; o.textContent = p.full_name;
+    sel.appendChild(o);
+  });
+
+  document.getElementById('request-change-modal').classList.add('show');
+}
+
+window.closeRequestChangeModal = function() {
+  document.getElementById('request-change-modal').classList.remove('show');
+  _requestChangeEntry = null;
+};
+
+window.submitRequestChange = async function() {
+  if (!_requestChangeEntry) return;
+  const covering = document.getElementById('rc-covering').value || null;
+  const reason = document.getElementById('rc-reason').value.trim();
+
+  const btn = document.getElementById('btn-submit-request-change');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+
+  const { error } = await supabase.rpc('request_shift_change', {
+    p_duty_roster_id: _requestChangeEntry.id, p_covering_profile_id: covering, p_reason: reason || null,
+  });
+
+  btn.disabled = false; btn.textContent = 'Submit Request';
+
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not submit this request.')); return; }
+  closeRequestChangeModal();
+  _alert('success', 'Change request submitted — the Nursing Head will review it.');
 };
 
 // ── Alert ──────────────────────────────────────────
