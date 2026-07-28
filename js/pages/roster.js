@@ -337,6 +337,20 @@ function _refreshShiftOptions(deptId, selectedShift) {
   const sel = document.getElementById('m-shift');
   sel.innerHTML = opts.map(s => `<option value="${s}">${_esc(SHIFT_LABELS[s])} (${_esc(SHIFT_TIMES[s])})</option>`).join('');
   sel.value = opts.includes(selectedShift) ? selectedShift : opts[0];
+  _refreshStaffLabels(dept);
+}
+
+// The same modal/dropdown (role in ['doctor','nurse']) backs both the
+// original RMO/EMO/GDMO doctor duty rows and every nursing department added
+// since -- "Officer / Doctor" was left over from before nursing departments
+// shared this page, confusing for a nurse/ayah shift. Swap the wording when
+// the selected department is a nursing-duty place.
+function _refreshStaffLabels(dept) {
+  const isNursing = dept ? isNursingDutyDept(dept) : false;
+  document.getElementById('m-doctor-label').textContent = isNursing ? 'Nurse / Staff' : 'Officer / Doctor';
+  document.getElementById('m-confirmed-label').textContent = isNursing
+    ? 'Mark as confirmed (staff has acknowledged)'
+    : 'Mark as confirmed (doctor has acknowledged)';
 }
 document.getElementById('m-dept').addEventListener('change', (e) => _refreshShiftOptions(e.target.value, document.getElementById('m-shift').value));
 
