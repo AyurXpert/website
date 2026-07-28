@@ -93,7 +93,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div id="tpl-readonly-note" class="empty" style="display:none">Read-only -- only the current Nursing Head (or MD/Principal/MS/super_admin) can edit a roster template.</div>
       <div id="fill-all-bar" style="display:none;margin-bottom:12px">
         <button class="btn btn-secondary btn-sm" id="btn-fill-all" data-onclick="fillAllFixedTeams">🔁 Fill All (Fixed Teams)</button>
-        <span class="slot-beds" style="margin-left:8px">Assigns one fixed nurse per shift seat for the whole cycle -- the same nurse every day, not reshuffled daily. Already-filled slots are left untouched -- remove one first if you want to reassign it.</span>
+        <button class="btn btn-secondary btn-sm" id="btn-clear-all" data-onclick="clearAllSlots" style="color:var(--red);border-color:#f5b8b8">🗑️ Clear All Slots</button>
+        <span class="slot-beds" style="margin-left:8px">Assigns one fixed nurse per shift seat for the whole cycle -- the same nurse every day, not reshuffled daily. Already-filled slots are left untouched -- use Clear All Slots first if this department still has an old day-by-day pattern from before, then Fill All to rebuild it.</span>
       </div>
       <div style="overflow-x:auto">
         <table class="tpl-table" id="tpl-table" style="display:none">

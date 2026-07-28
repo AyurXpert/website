@@ -361,6 +361,36 @@ window.fillAllFixedTeams = async function() {
   await loadTemplateForDept();
 };
 
+// Fill All deliberately never overwrites an already-filled slot -- but that
+// means a department that was filled BEFORE the Fixed-Teams change (the
+// original day-by-day rotation) never gets automatically corrected just by
+// re-running Fill All, since every slot already has *some* nurse in it.
+// Real-usage finding (Dr. Venkatesh, SDM tenant): the old pattern was still
+// showing after the code fix, hard refresh, and a CDN cache purge -- because
+// none of those touch existing DATA, only code. This wipes every slot in
+// the current department's template so Fill All can rebuild it fresh.
+window.clearAllSlots = async function() {
+  if (!_slots.length) { _alert('info', 'This department has no slots to clear.'); return; }
+  if (!confirm(`Remove all ${_slots.length} assigned slots in this department's template? You can re-run Fill All afterward to rebuild it with the current fixed-team logic.`)) return;
+
+  const btn = document.getElementById('btn-clear-all');
+  btn.disabled = true; btn.textContent = 'Clearing…';
+
+  for (const s of _slots) {
+    const { error } = await supabase.rpc('delete_nursing_roster_template_slot', { p_slot_id: s.id });
+    if (error) {
+      btn.disabled = false; btn.textContent = '🗑️ Clear All Slots';
+      _alert('error', safeErrorMessage(error, 'Stopped partway through clearing.'));
+      await loadTemplateForDept();
+      return;
+    }
+  }
+
+  btn.disabled = false; btn.textContent = '🗑️ Clear All Slots';
+  _alert('success', 'All slots cleared -- click Fill All (Fixed Teams) to rebuild this department.');
+  await loadTemplateForDept();
+};
+
 window.addSlot = async function(day, shift, slotIndex) {
   const sel = document.getElementById(`add-nurse-${day}-${shift}-${slotIndex}`);
   const profileId = sel?.value;
