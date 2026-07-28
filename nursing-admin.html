@@ -57,6 +57,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .reject-modal.show{display:flex}
 .reject-box{background:#fff;border-radius:var(--radius);padding:20px;width:100%;max-width:400px}
 .reject-box textarea{width:100%;height:80px;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:13px;margin:10px 0}
+
+.wide-box{background:#fff;border-radius:var(--radius);padding:20px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto}
+.seq-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--cream)}
+.seq-pos{font-weight:700;color:var(--green-deep);width:20px}
+.seq-name{flex:1;font-size:13px}
+.seq-arrows{display:flex;gap:4px}
+.seq-arrows button{width:24px;height:24px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px}
+.seq-arrows button:disabled{opacity:.3;cursor:default}
+.move-row{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border-bottom:1px solid var(--border);font-size:12.5px}
+.move-row:last-child{border-bottom:none}
+.move-warn{color:var(--gold);font-weight:600}
+.move-deficit{color:var(--red);font-weight:600}
 </style>
 </head>
 <body>
@@ -95,6 +107,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
   <div class="cc">
     <div class="cc-hd">
+      <div><div class="cc-title">🔀 Department Rotation</div><div class="cc-sub">Move nurses to a different department each new cycle, in a fixed sequence you configure once</div></div>
+      <button class="btn btn-secondary btn-sm" data-onclick="openRotationSequenceModal">⚙️ Configure Sequence</button>
+    </div>
+    <div class="cc-body" id="rotation-body">Loading…</div>
+  </div>
+
+  <div class="cc">
+    <div class="cc-hd">
       <div><div class="cc-title">🔄 Shift Change Requests</div><div class="cc-sub">Individual shift-change requests -- decided by the current Nursing Head only, not Medical Superintendent/Deputy MS</div></div>
     </div>
     <div class="cc-body" id="shift-change-list">Loading…</div>
@@ -124,6 +144,30 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div style="display:flex;gap:8px">
       <button class="btn btn-reject" data-onclick="confirmReject">Reject</button>
       <button class="btn" style="background:var(--cream);border:1.5px solid var(--border)" data-onclick="closeRejectModal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="reject-modal" id="rotation-seq-modal">
+  <div class="wide-box">
+    <div style="font-weight:600;margin-bottom:4px">Department Rotation Sequence</div>
+    <div class="cc-sub" style="margin-bottom:12px">The order departments rotate through each new cycle -- a nurse currently in the department at position N moves to the department at position N+1 (wrapping back to the first after the last).</div>
+    <div id="seq-list"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-primary btn-sm" data-onclick="saveRotationSequence">Save Sequence</button>
+      <button class="btn btn-sm" style="background:var(--cream);border:1.5px solid var(--border)" data-onclick="closeRotationSequenceModal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="reject-modal" id="rotation-preview-modal">
+  <div class="wide-box">
+    <div style="font-weight:600;margin-bottom:4px">Preview: Next-Cycle Rotation</div>
+    <div class="cc-sub" style="margin-bottom:12px">Review every proposed move before anything is written. Nothing changes until you click Confirm.</div>
+    <div id="preview-body"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-primary btn-sm" id="btn-confirm-rotation" data-onclick="confirmApplyRotation">✅ Confirm &amp; Apply Rotation</button>
+      <button class="btn btn-sm" style="background:var(--cream);border:1.5px solid var(--border)" data-onclick="closeRotationPreviewModal">Cancel</button>
     </div>
   </div>
 </div>

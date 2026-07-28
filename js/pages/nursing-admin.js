@@ -4,8 +4,9 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { isNCISMType } from '../config/ncism.js';
+import { isNCISMType, isNursingDutyDept, shiftsForDept } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead, canDecideShiftChange } from '../modules/roster/nursingHeadship.js';
+import { computeRequiredPerShift } from '../modules/roster/requiredStaffing.js';
 
 await requireAuth(['nurse_manager', 'super_admin', 'dept_admin']);
 initNavbar();
@@ -358,8 +359,246 @@ window.requestRosterCycleChange = async function() {
   await loadRosterCycle();
 };
 
+// ── Department Rotation (Session 144) ───────────────────────────────
+// Fill All (Fixed Teams, previous session) keeps a nurse in the SAME
+// department for a whole cycle -- this is the tenant-wide follow-up:
+// moving that nurse to a DIFFERENT department for the NEXT cycle, in a
+// fixed sequence Dr. Venkatesh configures once (not random reassignment),
+// with an explicit preview the Nursing Head reviews before anything is
+// written. "Fixed sequence" = department at position N always hands its
+// current occupants to the department at position N+1, wrapping back to
+// the first after the last -- a conga line across every configured
+// department at once.
+const CYCLE_DAYS = { weekly: 7, fortnightly: 14, monthly: 30 };
+let _rotationDepts = [];     // all nursing-duty departments {id,name,ncism_code}
+let _rotationSequence = [];  // ordered array of department ids (configured, or default = name order)
+let _seqDraft = [];          // in-modal working copy while reordering
+let _previewSnapshot = null; // computed in previewRotation(), reused by confirmApplyRotation()
+
+async function loadRotationSection() {
+  const body = document.getElementById('rotation-body');
+  const { data: allDepts } = await supabase.from('departments')
+    .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true).order('name');
+  _rotationDepts = (allDepts || []).filter(isNursingDutyDept);
+
+  if (_rotationDepts.length < 2) {
+    body.innerHTML = '<div class="empty">Need at least 2 nursing-duty departments before a rotation makes sense.</div>';
+    return;
+  }
+
+  const { data: seqRows } = await supabase.from('nursing_dept_rotation_sequence')
+    .select('department_id,seq_order').eq('tenant_id', tenantId).order('seq_order');
+  const configuredIds = (seqRows || []).map(r => r.department_id).filter(id => _rotationDepts.some(d => d.id === id));
+  _rotationSequence = configuredIds.length === _rotationDepts.length ? configuredIds : _rotationDepts.map(d => d.id);
+
+  const headship = await resolveNursingHeadship(supabase, tenantId);
+  const canAct = canActAsNursingHead(headship, profile.id, role, profile.designation);
+
+  const names = _rotationSequence.map(id => _rotationDepts.find(d => d.id === id)?.name || '—');
+  let html = `<div style="font-size:12.5px;margin-bottom:10px"><span style="color:var(--text-muted)">Sequence:</span> ${names.map(_esc).join(' → ')} → <em>(back to start)</em></div>`;
+  html += canAct
+    ? '<button class="btn btn-primary btn-sm" data-onclick="previewRotation">👁️ Preview Next-Cycle Rotation</button>'
+    : '<div class="empty">Only the current Nursing Head can run a rotation.</div>';
+  body.innerHTML = html;
+}
+
+window.openRotationSequenceModal = function() {
+  _seqDraft = _rotationSequence.slice();
+  _renderSeqList();
+  document.getElementById('rotation-seq-modal').classList.add('show');
+};
+window.closeRotationSequenceModal = function() {
+  document.getElementById('rotation-seq-modal').classList.remove('show');
+};
+function _renderSeqList() {
+  const el = document.getElementById('seq-list');
+  el.innerHTML = _seqDraft.map((id, i) => {
+    const name = _rotationDepts.find(d => d.id === id)?.name || '—';
+    return `<div class="seq-row">
+      <span class="seq-pos">${i + 1}</span>
+      <span class="seq-name">${_esc(name)}</span>
+      <div class="seq-arrows">
+        <button data-onclick="moveSeqItem" data-onclick-a0="${i}" data-onclick-a1="-1" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button data-onclick="moveSeqItem" data-onclick-a0="${i}" data-onclick-a1="1" ${i === _seqDraft.length - 1 ? 'disabled' : ''}>↓</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+window.moveSeqItem = function(index, dir) {
+  const i = Number(index), j = i + Number(dir);
+  if (j < 0 || j >= _seqDraft.length) return;
+  [_seqDraft[i], _seqDraft[j]] = [_seqDraft[j], _seqDraft[i]];
+  _renderSeqList();
+};
+window.saveRotationSequence = async function() {
+  const { error } = await supabase.rpc('save_nursing_rotation_sequence', { p_department_ids: _seqDraft });
+  if (error) { alert(safeErrorMessage(error, 'Could not save the rotation sequence.')); return; }
+  closeRotationSequenceModal();
+  await loadRotationSection();
+};
+
+// Snapshots every configured department's CURRENT template (unique assigned
+// nurses, required headcount) and computes the proposed department-to-
+// department moves -- pure read/compute, writes nothing. Cached on
+// _previewSnapshot so Confirm reuses the exact numbers the head reviewed,
+// rather than silently recomputing (and potentially drifting) at write time.
+window.previewRotation = async function() {
+  if (_rotationSequence.length < 2) { alert('Need at least 2 departments in the rotation sequence.'); return; }
+
+  const { data: settingRow } = await supabase.from('nursing_roster_settings').select('cycle').eq('tenant_id', tenantId).maybeSingle();
+  const tenantCycleDays = CYCLE_DAYS[settingRow?.cycle || 'weekly'];
+
+  const perDept = {};
+  for (const dept of _rotationDepts) {
+    if (!_rotationSequence.includes(dept.id)) continue;
+    const { data: tpl } = await supabase.from('nursing_roster_templates')
+      .select('id,cycle_length').eq('tenant_id', tenantId).eq('department_id', dept.id).maybeSingle();
+    let uniqueNurses = [];
+    if (tpl) {
+      const { data: slots } = await supabase.from('nursing_roster_template_slots')
+        .select('profile_id,profiles(full_name)').eq('template_id', tpl.id);
+      const seen = new Map();
+      (slots || []).forEach(s => { if (s.profile_id && !seen.has(s.profile_id)) seen.set(s.profile_id, s.profiles?.full_name || '—'); });
+      uniqueNurses = [...seen.entries()].map(([id, name]) => ({ id, name }));
+    }
+    const requiredPerShift = await computeRequiredPerShift(supabase, tenantId, dept.name);
+    const shifts = shiftsForDept(dept);
+    const perShiftCount = requiredPerShift ? requiredPerShift.perShift : 1;
+    perDept[dept.id] = {
+      template: tpl || null, cycleLength: tpl?.cycle_length || tenantCycleDays,
+      uniqueNurses, requiredPerShift, shifts, requiredTotal: perShiftCount * shifts.length,
+    };
+  }
+
+  const seq = _rotationSequence;
+  const moves = [];
+  seq.forEach((deptId, i) => {
+    const toId = seq[(i + 1) % seq.length];
+    const toName = _rotationDepts.find(d => d.id === toId)?.name || '—';
+    const fromName = _rotationDepts.find(d => d.id === deptId)?.name || '—';
+    (perDept[deptId].uniqueNurses || []).forEach(n => {
+      moves.push({ profileId: n.id, name: n.name, fromName, toDeptId: toId, toName });
+    });
+  });
+
+  const deptStatus = seq.map(deptId => {
+    const incoming = moves.filter(m => m.toDeptId === deptId).length;
+    const required = perDept[deptId].requiredTotal;
+    const name = _rotationDepts.find(d => d.id === deptId)?.name || '—';
+    const status = (incoming === 0 && required > 0) ? 'none' : incoming < required ? 'short' : incoming > required ? 'surplus' : 'ok';
+    return { deptId, name, incoming, required, status };
+  });
+
+  _previewSnapshot = { perDept, seq, moves };
+  _renderPreview(deptStatus);
+  document.getElementById('rotation-preview-modal').classList.add('show');
+};
+
+function _renderPreview(deptStatus) {
+  const el = document.getElementById('preview-body');
+  const { moves } = _previewSnapshot;
+
+  const statusLabel = d => d.status === 'ok' ? '✓ matches required'
+    : d.status === 'surplus' ? `⚠ ${d.incoming - d.required} more than required -- extra staff won't be auto-placed`
+    : d.status === 'none' ? '❌ no incoming nurses'
+    : `❌ short by ${d.required - d.incoming} -- those seats will stay unassigned`;
+  const statusClass = d => d.status === 'ok' ? '' : d.status === 'surplus' ? 'move-warn' : 'move-deficit';
+
+  let html = '<div style="font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;margin-bottom:6px">Department Headcount After Rotation</div>';
+  html += deptStatus.map(d => `<div class="move-row"><span>${_esc(d.name)}</span><span class="${statusClass(d)}">${d.incoming} incoming / ${d.required} required — ${statusLabel(d)}</span></div>`).join('');
+
+  html += '<div style="font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;margin:14px 0 6px">Proposed Moves</div>';
+  html += moves.length
+    ? moves.map(m => `<div class="move-row"><span>${_esc(m.name)}</span><span>${_esc(m.fromName)} → ${_esc(m.toName)}</span></div>`).join('')
+    : '<div class="empty">No department currently has an assigned nurse to rotate -- run Fill All (Fixed Teams) on at least one department first.</div>';
+
+  el.innerHTML = html;
+  document.getElementById('btn-confirm-rotation').style.display = moves.length ? '' : 'none';
+}
+
+window.closeRotationPreviewModal = function() {
+  document.getElementById('rotation-preview-modal').classList.remove('show');
+  _previewSnapshot = null;
+};
+
+// Applies exactly what was previewed: for every department in the sequence,
+// clears its CURRENT template slots entirely, then refills from its
+// incoming nurse group only (the previous department's outgoing occupants).
+// Deliberately does NOT wrap around to reuse an incoming nurse across
+// several seats within the same department when the group is smaller than
+// required -- unlike Fill All's tenant-wide-pool wraparound (fine there,
+// small-pool testing convenience), reusing one rotating nurse into two
+// CONCURRENT seats here would silently claim one person can cover two beds/
+// shifts at once. A shortfall is left as a genuine gap instead, matching
+// what the preview already told the head to expect.
+window.confirmApplyRotation = async function() {
+  if (!_previewSnapshot || !_previewSnapshot.moves.length) return;
+  if (!confirm('This replaces the current template for every department in the rotation sequence. Continue?')) return;
+
+  const btn = document.getElementById('btn-confirm-rotation');
+  btn.disabled = true; btn.textContent = 'Applying…';
+
+  const { perDept, seq, moves } = _previewSnapshot;
+
+  for (const deptId of seq) {
+    const info = perDept[deptId];
+
+    if (info.template) {
+      const { data: existingSlots } = await supabase.from('nursing_roster_template_slots')
+        .select('id').eq('template_id', info.template.id);
+      for (const s of (existingSlots || [])) {
+        await supabase.rpc('delete_nursing_roster_template_slot', { p_slot_id: s.id });
+      }
+    }
+
+    const incomingIds = moves.filter(m => m.toDeptId === deptId).map(m => m.profileId);
+    if (!incomingIds.length) continue;
+
+    const requiredPerShift = info.requiredPerShift;
+    let poolIdx = 0;
+
+    if (requiredPerShift?.mode === 'opd') {
+      for (let z = 0; z < requiredPerShift.groups.length && poolIdx < incomingIds.length; z++) {
+        const nurseId = incomingIds[poolIdx]; poolIdx++;
+        for (let day = 0; day < info.cycleLength; day++) {
+          await supabase.rpc('save_nursing_roster_template_slot', {
+            p_department_id: deptId, p_day_offset: day, p_shift_type: 'general', p_slot_index: z + 1,
+            p_profile_id: nurseId, p_bed_range_start: null, p_bed_range_end: null, p_coverage_label: requiredPerShift.groups[z],
+          });
+        }
+      }
+    } else {
+      const perShiftCount = requiredPerShift ? requiredPerShift.perShift : 1;
+      outer:
+      for (const shift of info.shifts) {
+        for (let slotIndex = 1; slotIndex <= perShiftCount; slotIndex++) {
+          if (poolIdx >= incomingIds.length) break outer;
+          const nurseId = incomingIds[poolIdx]; poolIdx++;
+          let bedStart = null, bedEnd = null;
+          if (requiredPerShift?.mode === 'bed') {
+            bedStart = (slotIndex - 1) * 10 + 1;
+            bedEnd = Math.min(slotIndex * 10, requiredPerShift.bedCount);
+          }
+          for (let day = 0; day < info.cycleLength; day++) {
+            await supabase.rpc('save_nursing_roster_template_slot', {
+              p_department_id: deptId, p_day_offset: day, p_shift_type: shift, p_slot_index: slotIndex,
+              p_profile_id: nurseId, p_bed_range_start: bedStart, p_bed_range_end: bedEnd, p_coverage_label: null,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  btn.disabled = false; btn.textContent = '✅ Confirm & Apply Rotation';
+  closeRotationPreviewModal();
+  alert('Rotation applied. Remember to click Generate Next Cycle on nursing-roster-template.html for each department to stamp these into the real dated roster.');
+  await loadRotationSection();
+};
+
 await loadHeadship();
 await loadShiftChangeRequests();
 await loadNursingLeaves();
 await loadComplianceSnapshot();
 await loadRosterCycle();
+await loadRotationSection();

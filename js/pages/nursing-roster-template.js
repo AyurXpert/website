@@ -4,9 +4,9 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { isNursingDutyDept, shiftsForDept, OPD_POOLED_NURSE_COUNT, OPD_COVERAGE_GROUPS } from '../config/ncism.js';
-import { _computeIpdBedTotals } from '../config/ncismStaffCompliance.js';
+import { isNursingDutyDept, shiftsForDept } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
+import { computeRequiredPerShift } from '../modules/roster/requiredStaffing.js';
 
 // Session 139 (Nursing Duty Roster Phase 3): template editor for the
 // "Template-Based Rolling Schedule" -- a repeating base pattern per
@@ -33,7 +33,6 @@ const role     = getCurrentRole();
 
 const SHIFT_LABELS = { morning: 'Morning', afternoon: 'Afternoon', night: 'Night', general: 'General Duty (9am–5pm)' };
 const CYCLE_DAYS = { weekly: 7, fortnightly: 14, monthly: 30 };
-const BED_DEPT_ZONE = { 'Medical In-Patients': 'IPD_MEDICAL', 'Surgical In-Patients': 'IPD_SURGICAL' };
 
 let _canEdit = role === 'super_admin' || role === 'dept_admin';
 let _depts = [];
@@ -59,40 +58,15 @@ async function loadDepartments() {
   });
 }
 
-// Suggested per-shift nurse count -- two different sources depending on the
-// department:
-// (a) Medical/Surgical In-Patients: bed-derived (1 per 10 beds), reusing the
-//     same _computeIpdBedTotals() grouping the NCISM staffing ladder already
-//     uses (real beds are still tracked under the original clinical
-//     departments' ncism_code -- KAY/PK/KAU/AGD for Medical, SHAL/SHAK/PST
-//     for Surgical -- not under the Medical/Surgical In-Patients department
-//     rows directly; confirmed live before assuming a simpler direct
-//     department_id bed count would work, since it would silently return 0).
-// (b) OPD: a flat, UG-intake-tier-based headcount (Sch XX/20, same table
-//     nursing-admin.js's compliance ladder uses) -- OPD has no beds -- split
-//     into 3 named coverage zones (Session 142, confirmed with Dr. Venkatesh)
-//     across the 10 real Schedule XVIII outpatient clinics.
+// Suggested per-shift nurse count -- computeRequiredPerShift() (shared with
+// nursing-admin.js's rotation preview, Session 144, so both pages can never
+// disagree on a department's required headcount) handles the two special
+// sources: Medical/Surgical In-Patients (bed-derived, 1 per 10 beds) and OPD
+// (flat UG-intake-tier headcount split into 3 coverage zones, Session 142).
+// Every other nursing-duty department returns null, meaning "1 per shift" is
+// this page's own default (see _addSlotRowsHtml/_buildFillGroups).
 async function _loadRequiredPerShift(deptName) {
-  const zone = BED_DEPT_ZONE[deptName];
-  if (zone) {
-    const [{ data: allDepts }, { data: beds }] = await Promise.all([
-      supabase.from('departments').select('id,ncism_code').eq('tenant_id', tenantId).eq('is_active', true),
-      supabase.from('beds').select('department_id').eq('tenant_id', tenantId),
-    ]);
-    const bedTotals = _computeIpdBedTotals(allDepts || [], beds || []);
-    const bedCount = bedTotals[zone] || 0;
-    _requiredPerShift = bedCount > 0 ? { mode: 'bed', bedCount, perShift: Math.ceil(bedCount / 10) } : null;
-    return;
-  }
-  if (deptName === 'OPD') {
-    const { data: tenantRow } = await supabase.from('tenants').select('ug_intake').eq('id', tenantId).single();
-    const ugRaw = tenantRow?.ug_intake;
-    const ug = [60, 100, 150, 200].includes(ugRaw) ? ugRaw : (ugRaw >= 150 ? 150 : ugRaw >= 100 ? 100 : ugRaw > 0 ? 60 : 0);
-    const perShift = OPD_POOLED_NURSE_COUNT[ug] || 0;
-    _requiredPerShift = perShift > 0 ? { mode: 'opd', perShift, groups: OPD_COVERAGE_GROUPS } : null;
-    return;
-  }
-  _requiredPerShift = null;
+  _requiredPerShift = await computeRequiredPerShift(supabase, tenantId, deptName);
 }
 
 async function loadEditGate() {
