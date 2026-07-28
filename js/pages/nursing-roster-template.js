@@ -381,6 +381,32 @@ function _buildFillGroups() {
   return groups;
 }
 
+// Core fill logic for whichever department is CURRENTLY LOADED (_selectedDept/
+// _pool/_busyElsewhere/etc, set by loadTemplateForDept()) -- no confirm()/
+// alert()/button-state here, so both the single-department button below and
+// the "All Departments" bulk action can share it.
+async function _fillDeptFixedTeams() {
+  if (!_pool.length) return { status: 'no-pool' };
+  const availablePool = _pool.filter(p => !_busyElsewhere.has(p.id));
+  if (!availablePool.length) return { status: 'all-busy' };
+  const groups = _buildFillGroups();
+  if (!groups.length) return { status: 'nothing-to-fill' };
+
+  let poolIdx = 0;
+  for (const g of groups) {
+    const nurse = availablePool[poolIdx % availablePool.length];
+    poolIdx++;
+    for (const day of g.days) {
+      const { error } = await supabase.rpc('save_nursing_roster_template_slot', {
+        p_department_id: _selectedDept, p_day_offset: day, p_shift_type: g.shift, p_slot_index: g.slotIndex,
+        p_profile_id: nurse.id, p_bed_range_start: g.bedStart, p_bed_range_end: g.bedEnd, p_coverage_label: g.coverageLabel,
+      });
+      if (error) return { status: 'error', error };
+    }
+  }
+  return { status: 'filled', seats: groups.length, skipped: _pool.length - availablePool.length };
+}
+
 window.fillAllFixedTeams = async function() {
   if (!_pool.length) { _alert('error', 'No nursing staff recruited in this hospital yet.'); return; }
   const availablePool = _pool.filter(p => !_busyElsewhere.has(p.id));
@@ -393,26 +419,12 @@ window.fillAllFixedTeams = async function() {
 
   const btn = document.getElementById('btn-fill-all');
   btn.disabled = true; btn.textContent = 'Filling…';
-
-  let poolIdx = 0;
-  for (const g of groups) {
-    const nurse = availablePool[poolIdx % availablePool.length];
-    poolIdx++;
-    for (const day of g.days) {
-      const { error } = await supabase.rpc('save_nursing_roster_template_slot', {
-        p_department_id: _selectedDept, p_day_offset: day, p_shift_type: g.shift, p_slot_index: g.slotIndex,
-        p_profile_id: nurse.id, p_bed_range_start: g.bedStart, p_bed_range_end: g.bedEnd, p_coverage_label: g.coverageLabel,
-      });
-      if (error) {
-        btn.disabled = false; btn.textContent = '🔁 Fill All (Fixed Teams)';
-        _alert('error', safeErrorMessage(error, 'Stopped partway through -- some slots may already be filled.'));
-        await loadTemplateForDept();
-        return;
-      }
-    }
-  }
-
+  const result = await _fillDeptFixedTeams();
   btn.disabled = false; btn.textContent = '🔁 Fill All (Fixed Teams)';
+
+  if (result.status === 'error') {
+    _alert('error', safeErrorMessage(result.error, 'Stopped partway through -- some slots may already be filled.'));
+  }
   await loadTemplateForDept();
 };
 
@@ -424,26 +436,147 @@ window.fillAllFixedTeams = async function() {
 // showing after the code fix, hard refresh, and a CDN cache purge -- because
 // none of those touch existing DATA, only code. This wipes every slot in
 // the current department's template so Fill All can rebuild it fresh.
+async function _clearDeptSlots() {
+  if (!_slots.length) return { status: 'empty' };
+  for (const s of _slots) {
+    const { error } = await supabase.rpc('delete_nursing_roster_template_slot', { p_slot_id: s.id });
+    if (error) return { status: 'error', error };
+  }
+  return { status: 'cleared', count: _slots.length };
+}
+
 window.clearAllSlots = async function() {
   if (!_slots.length) { _alert('info', 'This department has no slots to clear.'); return; }
   if (!confirm(`Remove all ${_slots.length} assigned slots in this department's template? You can re-run Fill All afterward to rebuild it with the current fixed-team logic.`)) return;
 
   const btn = document.getElementById('btn-clear-all');
   btn.disabled = true; btn.textContent = 'Clearing…';
+  const result = await _clearDeptSlots();
+  btn.disabled = false; btn.textContent = '🗑️ Clear All Slots';
 
-  for (const s of _slots) {
-    const { error } = await supabase.rpc('delete_nursing_roster_template_slot', { p_slot_id: s.id });
-    if (error) {
-      btn.disabled = false; btn.textContent = '🗑️ Clear All Slots';
-      _alert('error', safeErrorMessage(error, 'Stopped partway through clearing.'));
-      await loadTemplateForDept();
-      return;
+  if (result.status === 'error') {
+    _alert('error', safeErrorMessage(result.error, 'Stopped partway through clearing.'));
+  } else {
+    _alert('success', 'All slots cleared -- click Fill All (Fixed Teams) to rebuild this department.');
+  }
+  await loadTemplateForDept();
+};
+
+// ── Bulk actions across every nursing-duty department (Dr. Venkatesh's
+// ask: doing Fill All/Clear All/Generate Next Cycle one department at a
+// time was tedious with 8 real departments). Each loops over _depts,
+// switching _selectedDept + the visible dropdown so loadTemplateForDept()
+// refreshes the busy-elsewhere check fresh for every department in turn
+// (important -- a nurse fixed to department A partway through the loop must
+// correctly show as busy once we reach department B), then restores
+// whichever department the head was originally looking at.
+function _renderBulkResult(lines) {
+  const box = document.getElementById('bulk-result');
+  box.innerHTML = lines.map(l => `<div class="result-line">${l}</div>`).join('');
+  box.className = 'result-box show';
+}
+
+window.fillAllDepartmentsFixedTeams = async function() {
+  if (!_depts.length) { _alert('error', 'No nursing-duty departments found.'); return; }
+  if (!confirm(`Run Fill All (Fixed Teams) across all ${_depts.length} nursing-duty departments? Already-filled slots are left untouched in each.`)) return;
+
+  const btn = document.getElementById('btn-bulk-fill-all');
+  btn.disabled = true; btn.textContent = 'Filling all departments…';
+  const sel = document.getElementById('filter-dept');
+  const originalDept = _selectedDept;
+
+  const lines = [];
+  for (const dept of _depts) {
+    _selectedDept = dept.id;
+    sel.value = dept.id;
+    await loadTemplateForDept();
+    const result = await _fillDeptFixedTeams();
+    if (result.status === 'filled') {
+      lines.push(`✅ <strong>${_esc(dept.name)}</strong> — ${result.seats} seat${result.seats === 1 ? '' : 's'} filled${result.skipped ? ` (${result.skipped} pool member${result.skipped === 1 ? '' : 's'} skipped — busy elsewhere)` : ''}`);
+    } else if (result.status === 'nothing-to-fill') {
+      lines.push(`— <strong>${_esc(dept.name)}</strong> — already fully filled`);
+    } else if (result.status === 'all-busy') {
+      lines.push(`⚠ <strong>${_esc(dept.name)}</strong> — every recruited nurse already busy elsewhere, nothing assigned`);
+    } else if (result.status === 'no-pool') {
+      lines.push(`⚠ <strong>${_esc(dept.name)}</strong> — no nursing staff recruited yet`);
+    } else if (result.status === 'error') {
+      lines.push(`❌ <strong>${_esc(dept.name)}</strong> — ${_esc(safeErrorMessage(result.error, 'error'))}`);
     }
   }
 
-  btn.disabled = false; btn.textContent = '🗑️ Clear All Slots';
-  _alert('success', 'All slots cleared -- click Fill All (Fixed Teams) to rebuild this department.');
-  await loadTemplateForDept();
+  _selectedDept = originalDept;
+  sel.value = originalDept || '';
+  if (originalDept) await loadTemplateForDept();
+
+  btn.disabled = false; btn.textContent = '🔁 Fill All (Fixed Teams) — All Departments';
+  _renderBulkResult(lines);
+};
+
+window.clearAllDepartmentsSlots = async function() {
+  if (!_depts.length) { _alert('error', 'No nursing-duty departments found.'); return; }
+  if (!confirm(`Remove ALL assigned slots across all ${_depts.length} nursing-duty departments' templates? You'll need to re-run Fill All afterward to rebuild them.`)) return;
+
+  const btn = document.getElementById('btn-bulk-clear-all');
+  btn.disabled = true; btn.textContent = 'Clearing all departments…';
+  const sel = document.getElementById('filter-dept');
+  const originalDept = _selectedDept;
+
+  const lines = [];
+  for (const dept of _depts) {
+    _selectedDept = dept.id;
+    sel.value = dept.id;
+    await loadTemplateForDept();
+    const result = await _clearDeptSlots();
+    if (result.status === 'cleared') {
+      lines.push(`🗑️ <strong>${_esc(dept.name)}</strong> — ${result.count} slot${result.count === 1 ? '' : 's'} cleared`);
+    } else if (result.status === 'empty') {
+      lines.push(`— <strong>${_esc(dept.name)}</strong> — nothing to clear`);
+    } else if (result.status === 'error') {
+      lines.push(`❌ <strong>${_esc(dept.name)}</strong> — ${_esc(safeErrorMessage(result.error, 'error'))}`);
+    }
+  }
+
+  _selectedDept = originalDept;
+  sel.value = originalDept || '';
+  if (originalDept) await loadTemplateForDept();
+
+  btn.disabled = false; btn.textContent = '🗑️ Clear All Slots — All Departments';
+  _renderBulkResult(lines);
+};
+
+window.rollForwardAllDepartments = async function() {
+  const date = document.getElementById('bulk-roll-start-date').value;
+  if (!date) { _alert('error', 'Pick a start date first.'); return; }
+  if (!_depts.length) { _alert('error', 'No nursing-duty departments found.'); return; }
+  if (!confirm(`Generate the next cycle's real duty-roster dates (starting ${date}) for all ${_depts.length} nursing-duty departments?`)) return;
+
+  const btn = document.getElementById('btn-bulk-roll');
+  btn.disabled = true; btn.textContent = 'Generating…';
+  const sel = document.getElementById('filter-dept');
+  const originalDept = _selectedDept;
+
+  const lines = [];
+  for (const dept of _depts) {
+    _selectedDept = dept.id;
+    sel.value = dept.id;
+    await loadTemplateForDept();
+    if (!_template) { lines.push(`— <strong>${_esc(dept.name)}</strong> — no template built yet, skipped`); continue; }
+
+    const { data, error } = await supabase.rpc('roll_nursing_roster_template', { p_department_id: dept.id, p_start_date: date });
+    if (error) { lines.push(`❌ <strong>${_esc(dept.name)}</strong> — ${_esc(safeErrorMessage(error, 'error'))}`); continue; }
+    const gapsCount = (data.gaps || []).length;
+    const subsCount = (data.substitutions || []).length;
+    lines.push(`✅ <strong>${_esc(dept.name)}</strong> — ${data.created} shift${data.created === 1 ? '' : 's'} generated`
+      + (subsCount ? `, ${subsCount} leave substitution${subsCount === 1 ? '' : 's'}` : '')
+      + (gapsCount ? `, <span style="color:#8b1a1a">⚠ ${gapsCount} gap${gapsCount === 1 ? '' : 's'}</span>` : ''));
+  }
+
+  _selectedDept = originalDept;
+  sel.value = originalDept || '';
+  if (originalDept) await loadTemplateForDept();
+
+  btn.disabled = false; btn.textContent = '🔁 Generate Next Cycle — All Departments';
+  _renderBulkResult(lines);
 };
 
 window.addSlot = async function(day, shift, slotIndex) {
@@ -516,3 +649,5 @@ function _alert(type, msg) {
 }
 
 await Promise.all([loadDepartments(), loadEditGate()]);
+document.getElementById('bulk-card').style.display = _canEdit ? '' : 'none';
+document.getElementById('bulk-roll-start-date').value = new Date().toISOString().slice(0, 10);
