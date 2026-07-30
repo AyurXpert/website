@@ -65,6 +65,19 @@ th.today-col{background:#c9902a!important}
 td.today-col{background:#fdf6e3}
 .section-header{background:var(--green-light);border:1px solid var(--border);border-radius:var(--radius);padding:10px 16px;margin:20px 0 12px;display:flex;justify-content:space-between;align-items:center}
 .section-header-title{font-weight:700;font-size:14px;color:var(--green-deep)}
+.tab-bar{display:flex;gap:4px;margin-bottom:18px;border-bottom:2px solid var(--border)}
+.tab-btn{background:none;border:none;padding:10px 18px;font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;font-family:'DM Sans',sans-serif}
+.tab-btn.active{color:var(--green-deep);border-bottom-color:var(--green-deep)}
+.tab-btn:hover{color:var(--green-deep)}
+.leave-card{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;background:#fff}
+.lc-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.lc-name{font-weight:600;font-size:13.5px;color:var(--green-deep)}
+.lc-meta{font-size:11px;color:var(--text-muted);margin-top:2px}
+.lc-dates{font-size:12px;margin-top:6px}
+.lc-reason{font-size:12px;color:var(--text-mid);font-style:italic;margin-top:4px}
+.lc-actions{display:flex;gap:8px;margin-top:8px}
+.leave-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:600;background:#fdf3e2;color:#7a5a10}
+.empty{font-size:12.5px;color:var(--text-muted);padding:12px 0}
 /* Modal */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center}
 .modal-overlay.show{display:flex}
@@ -109,6 +122,13 @@ td.today-col{background:#fdf6e3}
 
   <div id="alert" class="alert"></div>
 
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-btn-schedule" data-onclick="switchTab" data-onclick-a0="schedule">🗓️ Weekly Schedule</button>
+    <button class="tab-btn" id="tab-btn-leave" data-onclick="switchTab" data-onclick-a0="leave">📋 Leave &amp; Weekly Off</button>
+  </div>
+
+  <div id="tab-schedule">
   <!-- Controls -->
   <div class="controls-bar">
     <div class="week-nav">
@@ -155,7 +175,52 @@ td.today-col{background:#fdf6e3}
       </table>
     </div>
   </div>
+  </div>
 
+  <!-- Session 145: Leave & Weekly Off tab -- consolidates the nursing leave-
+       request queue (mirrors nursing-admin.html's card so the Nursing Head
+       doesn't have to leave this page) with a new Weekly Off tracker
+       (profiles.weekly_off_day -- one fixed rest weekday per nurse, separate
+       from CL/EL leave quota; see sql/session145_nursing_weekly_off.sql). -->
+  <div id="tab-leave" style="display:none">
+    <div class="section-header">
+      <div class="section-header-title">🏖️ Pending Leave Requests</div>
+      <div style="font-size:11px;color:var(--text-muted)">Nursing staff only (Staff Nurse / Ward Sister / ANM)</div>
+    </div>
+    <div id="leave-request-list"></div>
+
+    <div class="section-header" style="margin-top:28px">
+      <div class="section-header-title">📆 Weekly Off Schedule</div>
+      <div style="font-size:11px;color:var(--text-muted)">Each nurse's fixed weekly rest day — separate from CL/EL leave</div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="roster-table">
+        <thead><tr><th style="text-align:left">Nurse</th><th style="text-align:left">Weekly Off Day</th><th style="text-align:left">This Week</th></tr></thead>
+        <tbody id="weekly-off-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- Reject Leave Modal (Session 145, mirrors nursing-admin.html) -->
+<div class="modal-overlay" id="reject-leave-modal">
+  <div class="modal" style="width:380px">
+    <div class="modal-header">
+      <span class="modal-title">Reject Leave Request</span>
+      <button class="modal-close" data-onclick="closeRejectLeaveModal">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Reason</label>
+        <textarea id="reject-leave-reason" rows="3" placeholder="Reason for rejection…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" data-onclick="closeRejectLeaveModal">Cancel</button>
+      <button class="btn btn-danger btn-sm" data-onclick="confirmRejectLeave">Reject</button>
+    </div>
+  </div>
 </div>
 
 <!-- Assign Shift Modal -->

@@ -39,6 +39,15 @@ if (_isNursingScopedView) {
   document.getElementById('oncall-section').style.display = 'none';
 }
 
+// Session 145: Leave & Weekly Off tab shows other staff's personal leave
+// reasons/rejection notes -- same privacy boundary nursing-admin.html's
+// leave card already draws (Session 112: "not hr.html's tenant-wide,
+// all-roles pending-leave list"). A plain nurse/ayah can view the roster
+// read-only but must not see this tab; nurse_manager/dept_admin/super_admin
+// keep the same access nursing-admin.html already grants them.
+const _canSeeLeaveTab = role === 'super_admin' || role === 'dept_admin' || role === 'nurse_manager';
+if (!_canSeeLeaveTab) { document.getElementById('tab-btn-leave').style.display = 'none'; }
+
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 // ── State ──────────────────────────────────────────
@@ -188,6 +197,11 @@ async function loadRoster() {
   renderRoster();
   renderOnCall();
   updateGapBanner();
+  // Session 145: keep the Weekly Off tab's "This Week" column in sync with
+  // week-nav clicks -- only if that tab has already been opened once (avoids
+  // fetching/rendering leave-tab data on every load for viewers who never
+  // open it, e.g. plain nurses who can't see the tab at all).
+  if (_nursingStaffOff.length) renderWeeklyOff();
 }
 
 // Session 137: public holidays "pre-filled into every roster" -- a small 🎉
@@ -560,6 +574,157 @@ window.submitRequestChange = async function() {
   closeRequestChangeModal();
   _alert('success', 'Change request submitted — the Nursing Head will review it.');
 };
+
+// ── Tabs (Session 145) ──────────────────────────────
+window.switchTab = function(tab) {
+  document.getElementById('tab-schedule').style.display = tab === 'schedule' ? '' : 'none';
+  document.getElementById('tab-leave').style.display = tab === 'leave' ? '' : 'none';
+  document.getElementById('tab-btn-schedule').classList.toggle('active', tab === 'schedule');
+  document.getElementById('tab-btn-leave').classList.toggle('active', tab === 'leave');
+  if (tab === 'leave') { loadLeaveRequests(); loadWeeklyOff(); }
+};
+
+// ── Leave Requests (Session 145) ────────────────────
+// Mirrors nursing-admin.js's loadNursingLeaves()/approveLeave()/
+// confirmReject() exactly (same designation scope, same status/columns) so
+// the Nursing Head can act on a request without leaving this page --
+// nursing-admin.html's own card is untouched and still works the same way.
+const NURSING_DESIGNATIONS = ['staff_nurse', 'ward_sister', 'anm'];
+const NURSING_LABELS = { staff_nurse: 'Staff Nurse', ward_sister: 'Ward Sister', anm: 'ANM' };
+let _rejectingLeaveId = null;
+
+async function loadLeaveRequests() {
+  const el = document.getElementById('leave-request-list');
+  if (!el) return;
+  el.innerHTML = 'Loading…';
+
+  const { data: nursingStaff } = await supabase.from('profiles')
+    .select('id').eq('tenant_id', tenantId).in('designation', NURSING_DESIGNATIONS);
+  const nursingIds = (nursingStaff || []).map(s => s.id);
+
+  if (!nursingIds.length) {
+    el.innerHTML = '<div class="empty">No nursing staff (Staff Nurse / Ward Sister / ANM designation) found yet.</div>';
+    return;
+  }
+
+  const { data: leaves, error } = await supabase.from('staff_leaves')
+    .select('*, profiles!profile_id(full_name, designation)')
+    .eq('tenant_id', tenantId).eq('status', 'pending')
+    .in('profile_id', nursingIds)
+    .order('created_at', { ascending: false });
+
+  if (error) { el.innerHTML = `<div class="empty">${_esc(safeErrorMessage(error, 'Could not load leave requests.'))}</div>`; return; }
+  if (!leaves?.length) { el.innerHTML = '<div class="empty">No pending leave requests from nursing staff.</div>'; return; }
+
+  el.innerHTML = leaves.map(l => {
+    const days = _leaveDays(l.from_date, l.to_date);
+    const desigLabel = NURSING_LABELS[l.profiles?.designation] || l.profiles?.designation || '—';
+    return `<div class="leave-card">
+      <div class="lc-top">
+        <div>
+          <div class="lc-name">${_esc(l.profiles?.full_name || '—')} <span style="font-weight:400;color:var(--text-muted)">(${_esc(desigLabel)})</span></div>
+          <div class="lc-meta">Applied ${_esc((l.created_at || '').slice(0, 10))}</div>
+        </div>
+        <span class="leave-badge">${_esc(l.leave_type || 'leave')}</span>
+      </div>
+      <div class="lc-dates">📅 ${_esc(l.from_date)} → ${_esc(l.to_date)} · ${days} day${days > 1 ? 's' : ''}</div>
+      ${l.reason ? `<div class="lc-reason">"${_esc(l.reason)}"</div>` : ''}
+      ${_canEdit ? `<div class="lc-actions">
+        <button class="btn btn-secondary btn-sm" data-onclick="approveLeaveRequest" data-onclick-a0="${l.id}">✓ Approve</button>
+        <button class="btn btn-danger btn-sm" data-onclick="openRejectLeaveModal" data-onclick-a0="${l.id}">✗ Reject</button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function _leaveDays(from, to) {
+  if (!from || !to) return 1;
+  return Math.round((new Date(to) - new Date(from)) / 86400000) + 1;
+}
+
+window.approveLeaveRequest = async function(id) {
+  const { error } = await supabase.from('staff_leaves').update({
+    status: 'approved', approved_by: profile.id, approved_at: new Date().toISOString(),
+  }).eq('id', id);
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not approve. Please try again.')); return; }
+  _alert('success', 'Leave approved.');
+  await loadLeaveRequests();
+};
+
+window.openRejectLeaveModal = function(id) {
+  _rejectingLeaveId = id;
+  document.getElementById('reject-leave-reason').value = '';
+  document.getElementById('reject-leave-modal').classList.add('show');
+};
+window.closeRejectLeaveModal = function() {
+  document.getElementById('reject-leave-modal').classList.remove('show');
+  _rejectingLeaveId = null;
+};
+window.confirmRejectLeave = async function() {
+  const reason = document.getElementById('reject-leave-reason').value.trim();
+  if (!reason) { _alert('error', 'Please enter a reason for rejection.'); return; }
+  const { error } = await supabase.from('staff_leaves').update({
+    status: 'rejected', approved_by: profile.id, approved_at: new Date().toISOString(),
+    rejection_reason: reason,
+  }).eq('id', _rejectingLeaveId);
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not reject. Please try again.')); return; }
+  closeRejectLeaveModal();
+  _alert('success', 'Leave rejected.');
+  await loadLeaveRequests();
+};
+
+// ── Weekly Off (Session 145) ────────────────────────
+// One fixed weekday off per nurse (profiles.weekly_off_day, 0=Sunday..
+// 6=Saturday), staggered across the team by whoever sets it -- deliberately
+// NOT auto-rotated and deliberately separate from CL/EL leave_quotas (a
+// routine rest day isn't "leave"). Informational/tracking only for now --
+// does not yet stop Fill All/Roll Forward from booking a shift on this day
+// (see TODO note in sql/session145_nursing_weekly_off.sql).
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+let _nursingStaffOff = [];
+
+async function loadWeeklyOff() {
+  const { data } = await supabase.from('profiles')
+    .select('id,full_name,weekly_off_day')
+    .eq('tenant_id', tenantId).eq('is_active', true)
+    .in('designation', NURSING_DESIGNATIONS)
+    .order('full_name');
+  _nursingStaffOff = data || [];
+  renderWeeklyOff();
+}
+
+function renderWeeklyOff() {
+  const tbody = document.getElementById('weekly-off-tbody');
+  if (!tbody) return;
+  if (!_nursingStaffOff.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="empty">No nursing staff (Staff Nurse / Ward Sister / ANM designation) found yet.</td></tr>';
+    return;
+  }
+  const dates = _weekDates();
+  tbody.innerHTML = _nursingStaffOff.map(n => {
+    const offDate = dates.find(d => new Date(d).getDay() === n.weekly_off_day);
+    const thisWeekLabel = (n.weekly_off_day == null) ? '—' : (offDate ? `${_fmtDay(offDate)}, ${_fmtDate(offDate)}` : '—');
+    const options = ['<option value="">— Not set —</option>']
+      .concat(WEEKDAY_NAMES.map((name, i) => `<option value="${i}" ${n.weekly_off_day === i ? 'selected' : ''}>${name}</option>`))
+      .join('');
+    return `<tr>
+      <td>${_esc(n.full_name)}</td>
+      <td><select class="weekly-off-select" data-profile="${n.id}" ${_canEdit ? '' : 'disabled'} style="border:1.5px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px">${options}</select></td>
+      <td>${thisWeekLabel}</td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('.weekly-off-select').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      const val = sel.value === '' ? null : Number(sel.value);
+      sel.disabled = true;
+      const { error } = await supabase.rpc('set_nurse_weekly_off', { p_profile_id: sel.dataset.profile, p_weekly_off_day: val });
+      if (error) { _alert('error', safeErrorMessage(error, 'Could not update weekly off.')); sel.disabled = false; return; }
+      _alert('success', 'Weekly off updated.');
+      await loadWeeklyOff();
+    });
+  });
+}
 
 // ── Alert ──────────────────────────────────────────
 function _alert(type, msg) {
