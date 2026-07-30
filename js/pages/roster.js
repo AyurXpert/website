@@ -254,7 +254,7 @@ function _cellHtml(deptId, date, shift, entries) {
     return `<div class="slot-item" data-dept="${deptId}" data-date="${date}" data-shift="${shift}" data-entry-id="${entry.id}" data-slot-index="${entry.slot_index || 1}">
       <span class="cell-name">${_esc(name)}</span>
       ${beds}
-      ${entry.is_confirmed ? '<span class="cell-confirmed">✓ Confirmed</span>' : '<span class="cell-status">Pending confirm</span>'}
+      ${entry.is_confirmed ? '<span class="cell-confirmed">✓ Confirmed</span>' : '<span class="cell-pending">Pending confirm</span>'}
       ${entry.notes ? `<span class="cell-status">${_esc(entry.notes)}</span>` : ''}
     </div>`;
   }).join('');
