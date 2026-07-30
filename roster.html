@@ -78,6 +78,16 @@ td.today-col{background:#fdf6e3}
 .lc-actions{display:flex;gap:8px;margin-top:8px}
 .leave-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:600;background:#fdf3e2;color:#7a5a10}
 .empty{font-size:12.5px;color:var(--text-muted);padding:12px 0}
+.monitor-dept-header{background:var(--green-light);color:var(--green-deep);font-weight:600;font-size:12px;padding:8px 14px;text-transform:uppercase;letter-spacing:.5px;border-radius:6px;margin:14px 0 8px}
+.monitor-row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:8px;background:#fff}
+.monitor-name{font-weight:600;font-size:13px;color:var(--green-deep)}
+.monitor-meta{font-size:11.5px;color:var(--text-muted);margin-top:2px}
+.attendance-actions{display:flex;gap:6px}
+.btn-present{background:var(--green-light);color:var(--green-mid);border:1.5px solid var(--green-mid)}
+.btn-absent{background:#fdecea;color:var(--red);border:1.5px solid #f5b8b8}
+.attendance-mark{font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:8px}
+.attendance-mark.present{background:var(--green-light);color:var(--green-deep)}
+.attendance-mark.absent{background:#fdecea;color:#8b1a1a}
 /* Modal */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center}
 .modal-overlay.show{display:flex}
@@ -126,6 +136,7 @@ td.today-col{background:#fdf6e3}
   <div class="tab-bar">
     <button class="tab-btn active" id="tab-btn-schedule" data-onclick="switchTab" data-onclick-a0="schedule">🗓️ Weekly Schedule</button>
     <button class="tab-btn" id="tab-btn-leave" data-onclick="switchTab" data-onclick-a0="leave">📋 Leave &amp; Weekly Off</button>
+    <button class="tab-btn" id="tab-btn-monitor" data-onclick="switchTab" data-onclick-a0="monitor" style="display:none">👁️ On-Ground Duty Monitor</button>
   </div>
 
   <div id="tab-schedule">
@@ -199,6 +210,29 @@ td.today-col{background:#fdf6e3}
         <tbody id="weekly-off-tbody"></tbody>
       </table>
     </div>
+  </div>
+
+  <!-- Session 147: On-Ground Duty Monitor -- read-only shift visibility +
+       attendance marking (present/absent) for whichever departments this
+       viewer supervises (all nursing-duty depts for the resolved Nursing
+       Head/super_admin/dept_admin, or their own assigned zone for a
+       deputy_nursing_superintendent via nursing_zone_assignments).
+       Deliberately NOT scheduling/editing -- that stays on the Weekly
+       Schedule tab above, unchanged. -->
+  <div id="tab-monitor" style="display:none">
+    <div class="controls-bar">
+      <div class="week-nav">
+        <button class="btn-week" id="btn-monitor-prev">&#8249;</button>
+        <div class="week-label" id="monitor-date-label">Loading…</div>
+        <button class="btn-week" id="btn-monitor-next">&#8250;</button>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="btn-monitor-today">Today</button>
+    </div>
+    <div class="section-header">
+      <div class="section-header-title">👁️ On-Ground Duty Monitor</div>
+      <div style="font-size:11px;color:var(--text-muted)">Mark whether the scheduled nurse actually reported for duty</div>
+    </div>
+    <div id="monitor-list"></div>
   </div>
 
 </div>

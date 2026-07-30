@@ -604,9 +604,91 @@ window.confirmApplyRotation = async function() {
   await loadRotationSection();
 };
 
+// ── Nursing Supervision Zones (Session 147) ─────────────────────────
+// On-ground duty MONITORING only (view + attendance-marking on roster.
+// html's new tab) -- deliberately NOT a scheduling/editing delegation,
+// which stays with whoever the resolved Nursing Head is (unchanged).
+// Group count is dynamic: however many active nursing_superintendent/
+// deputy_nursing_superintendent profiles exist at this tenant, that's how
+// many candidates the Matron can assign a department to -- not hardcoded
+// to a fixed "4 groups".
+let _zoneDepts = [];       // nursing-duty departments {id,name}
+let _zoneCandidates = [];  // active nursing_superintendent/deputy_nursing_superintendent profiles
+let _zoneAssignments = {}; // department_id -> profile_id (current)
+
+async function loadSupervisionZones() {
+  const body = document.getElementById('zones-body');
+  const { data: allDepts } = await supabase.from('departments')
+    .select('id,name').eq('tenant_id', tenantId).eq('is_active', true).order('name');
+  _zoneDepts = (allDepts || []).filter(isNursingDutyDept);
+
+  const { data: candidates } = await supabase.from('profiles')
+    .select('id,full_name,designation').eq('tenant_id', tenantId).eq('is_active', true)
+    .in('designation', ['nursing_superintendent', 'deputy_nursing_superintendent']).order('full_name');
+  _zoneCandidates = candidates || [];
+
+  const { data: assignRows } = await supabase.from('nursing_zone_assignments')
+    .select('department_id,profile_id').eq('tenant_id', tenantId);
+  _zoneAssignments = {};
+  (assignRows || []).forEach(r => { _zoneAssignments[r.department_id] = r.profile_id; });
+
+  const headship = await resolveNursingHeadship(supabase, tenantId);
+  const canAct = canActAsNursingHead(headship, profile.id, role, profile.designation);
+  document.getElementById('zones-edit-btn').style.display = canAct ? '' : 'none';
+
+  if (!_zoneCandidates.length) {
+    body.innerHTML = '<div class="empty">No staff with Nursing Superintendent/Assistant Matron designation found yet.</div>';
+    return;
+  }
+  if (!_zoneDepts.length) {
+    body.innerHTML = '<div class="empty">No nursing-duty departments found yet.</div>';
+    return;
+  }
+
+  body.innerHTML = _zoneDepts.map(d => {
+    const assignedId = _zoneAssignments[d.id];
+    const person = assignedId ? _zoneCandidates.find(c => c.id === assignedId) : null;
+    return `<div class="move-row"><span>${_esc(d.name)}</span><span>${person ? _esc(person.full_name) : '<em style="color:var(--text-muted)">Unassigned</em>'}</span></div>`;
+  }).join('');
+}
+
+window.openZonesModal = function() {
+  _renderZonesList();
+  document.getElementById('zones-modal').classList.add('show');
+};
+window.closeZonesModal = function() {
+  document.getElementById('zones-modal').classList.remove('show');
+};
+function _renderZonesList() {
+  const el = document.getElementById('zones-list');
+  el.innerHTML = _zoneDepts.map(d => {
+    const current = _zoneAssignments[d.id] || '';
+    const options = ['<option value="">— Unassigned —</option>']
+      .concat(_zoneCandidates.map(c => `<option value="${_esc(c.id)}" ${current === c.id ? 'selected' : ''}>${_esc(c.full_name)}${c.designation === 'nursing_superintendent' ? ' (Matron)' : ''}</option>`))
+      .join('');
+    return `<div class="seq-row">
+      <span class="seq-name">${_esc(d.name)}</span>
+      <select data-zone-dept="${_esc(d.id)}" style="height:32px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12.5px">${options}</select>
+    </div>`;
+  }).join('');
+}
+
+window.saveZoneAssignments = async function() {
+  const selects = document.querySelectorAll('#zones-list select[data-zone-dept]');
+  const assignments = [];
+  selects.forEach(sel => {
+    if (sel.value) assignments.push({ department_id: sel.dataset.zoneDept, profile_id: sel.value });
+  });
+  const { error } = await supabase.rpc('save_nursing_zone_assignments', { p_assignments: assignments });
+  if (error) { alert(safeErrorMessage(error, 'Could not save supervision zones.')); return; }
+  closeZonesModal();
+  await loadSupervisionZones();
+};
+
 await loadHeadship();
 await loadShiftChangeRequests();
 await loadNursingLeaves();
 await loadComplianceSnapshot();
 await loadRosterCycle();
 await loadRotationSection();
+await loadSupervisionZones();

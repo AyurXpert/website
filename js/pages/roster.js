@@ -575,13 +575,16 @@ window.submitRequestChange = async function() {
   _alert('success', 'Change request submitted — the Nursing Head will review it.');
 };
 
-// ── Tabs (Session 145) ──────────────────────────────
+// ── Tabs (Session 145, extended Session 147) ────────
 window.switchTab = function(tab) {
   document.getElementById('tab-schedule').style.display = tab === 'schedule' ? '' : 'none';
   document.getElementById('tab-leave').style.display = tab === 'leave' ? '' : 'none';
+  document.getElementById('tab-monitor').style.display = tab === 'monitor' ? '' : 'none';
   document.getElementById('tab-btn-schedule').classList.toggle('active', tab === 'schedule');
   document.getElementById('tab-btn-leave').classList.toggle('active', tab === 'leave');
+  document.getElementById('tab-btn-monitor').classList.toggle('active', tab === 'monitor');
   if (tab === 'leave') { loadLeaveRequests(); loadWeeklyOff(); }
+  if (tab === 'monitor') { loadMonitorShifts(); }
 };
 
 // ── Leave Requests (Session 145) ────────────────────
@@ -726,6 +729,109 @@ function renderWeeklyOff() {
   });
 }
 
+// ── On-Ground Duty Monitor (Session 147) ────────────
+// Read-only shift visibility + attendance marking (present/absent) --
+// deliberately NOT scheduling/editing, which stays exclusively with the
+// resolved Nursing Head (Weekly Schedule tab above, unchanged). Visibility
+// is scoped to whichever nursing-duty departments this viewer supervises:
+// all of them for super_admin/dept_admin/the resolved Nursing Head, or just
+// their own assigned zone for a deputy_nursing_superintendent
+// (nursing_zone_assignments, Session 147). Hidden entirely for a plain
+// nurse/ayah -- same privacy-tier convention as the Leave & Weekly Off tab.
+let _monitorDeptIds = [];
+let _canSeeMonitorTab = false;
+let _monitorDate = _dateStr(new Date());
+let _monitorShifts = [];
+
+async function loadMonitorScope() {
+  if (role === 'super_admin' || role === 'dept_admin') {
+    _monitorDeptIds = _depts.filter(isNursingDutyDept).map(d => d.id);
+    _canSeeMonitorTab = true;
+  } else if (role === 'nurse_manager') {
+    if (_canEdit) {
+      // The resolved Nursing Head (Matron or her acting delegate) sees every
+      // nursing-duty department, same as her scheduling authority already does.
+      _monitorDeptIds = _depts.filter(isNursingDutyDept).map(d => d.id);
+      _canSeeMonitorTab = true;
+    } else {
+      const { data } = await supabase.from('nursing_zone_assignments')
+        .select('department_id').eq('tenant_id', tenantId).eq('profile_id', profile.id);
+      _monitorDeptIds = (data || []).map(r => r.department_id);
+      _canSeeMonitorTab = _monitorDeptIds.length > 0;
+    }
+  } else {
+    _monitorDeptIds = [];
+    _canSeeMonitorTab = false;
+  }
+  document.getElementById('tab-btn-monitor').style.display = _canSeeMonitorTab ? '' : 'none';
+}
+
+function _updateMonitorDateLabel() {
+  document.getElementById('monitor-date-label').textContent =
+    `${_fmtDay(_monitorDate)}, ${_fmtDate(_monitorDate)}`;
+}
+
+async function loadMonitorShifts() {
+  _updateMonitorDateLabel();
+  if (!_monitorDeptIds.length) { _monitorShifts = []; renderMonitor(); return; }
+  const { data } = await supabase.from('duty_roster')
+    .select(`id,department_id,shift_type,attendance_status,attendance_marked_at,
+      profiles!duty_roster_profile_id_fkey(full_name),
+      marker:profiles!duty_roster_attendance_marked_by_fkey(full_name)`)
+    .eq('tenant_id', tenantId).eq('shift_date', _monitorDate)
+    .in('department_id', _monitorDeptIds);
+  _monitorShifts = data || [];
+  renderMonitor();
+}
+
+function renderMonitor() {
+  const el = document.getElementById('monitor-list');
+  if (!_canSeeMonitorTab) { el.innerHTML = '<div class="empty">No supervision zone assigned yet -- ask the Matron to assign one via Nursing Administration → Nursing Supervision Zones.</div>'; return; }
+  if (!_monitorShifts.length) { el.innerHTML = '<div class="empty">No shifts scheduled for this date in your supervised department(s).</div>'; return; }
+
+  const byDept = {};
+  _monitorShifts.forEach(s => { (byDept[s.department_id] = byDept[s.department_id] || []).push(s); });
+
+  let html = '';
+  Object.entries(byDept).forEach(([deptId, shifts]) => {
+    const deptName = _depts.find(d => d.id === deptId)?.name || '—';
+    html += `<div class="monitor-dept-header">${_esc(deptName)}</div>`;
+    html += shifts.map(s => {
+      const name = s.profiles?.full_name || '—';
+      const shiftLabel = SHIFT_LABELS[s.shift_type] || s.shift_type;
+      const actionsHtml = s.attendance_status
+        ? `<span class="attendance-mark ${s.attendance_status}">${s.attendance_status === 'present' ? '✓ Present' : '✗ Absent'}</span>
+           <button class="btn btn-secondary btn-sm" data-onclick="markAttendance" data-onclick-a0="${s.id}" data-onclick-a1="@null">Undo</button>`
+        : `<button class="btn btn-present btn-sm" data-onclick="markAttendance" data-onclick-a0="${s.id}" data-onclick-a1="present">✓ Present</button>
+           <button class="btn btn-absent btn-sm" data-onclick="markAttendance" data-onclick-a0="${s.id}" data-onclick-a1="absent">✗ Absent</button>`;
+      const metaHtml = s.attendance_status
+        ? `${_esc(shiftLabel)} · marked by ${_esc(s.marker?.full_name || '—')} ${_esc(s.attendance_marked_at ? new Date(s.attendance_marked_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '')}`
+        : _esc(shiftLabel);
+      return `<div class="monitor-row">
+        <div><div class="monitor-name">${_esc(name)}</div><div class="monitor-meta">${metaHtml}</div></div>
+        <div class="attendance-actions">${actionsHtml}</div>
+      </div>`;
+    }).join('');
+  });
+  el.innerHTML = html;
+}
+
+window.markAttendance = async function(dutyRosterId, status) {
+  const { error } = await supabase.rpc('mark_duty_attendance', { p_duty_roster_id: dutyRosterId, p_status: status });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not mark attendance.')); return; }
+  await loadMonitorShifts();
+};
+
+document.getElementById('btn-monitor-prev').addEventListener('click', () => {
+  const d = new Date(_monitorDate); d.setDate(d.getDate() - 1); _monitorDate = _dateStr(d); loadMonitorShifts();
+});
+document.getElementById('btn-monitor-next').addEventListener('click', () => {
+  const d = new Date(_monitorDate); d.setDate(d.getDate() + 1); _monitorDate = _dateStr(d); loadMonitorShifts();
+});
+document.getElementById('btn-monitor-today').addEventListener('click', () => {
+  _monitorDate = _dateStr(new Date()); loadMonitorShifts();
+});
+
 // ── Alert ──────────────────────────────────────────
 function _alert(type, msg) {
   const el = document.getElementById('alert');
@@ -738,4 +844,5 @@ function _alert(type, msg) {
 updateWeekLabel();
 _applyEditGate(); // correct immediately for super_admin/dept_admin/plain nurse; loadHeadGate() may still flip it for nurse_manager
 await Promise.all([loadDepartments(), loadDoctors(), loadHeadGate()]);
+await loadMonitorScope(); // needs _canEdit (loadHeadGate) + _depts (loadDepartments) already resolved
 await loadRoster();

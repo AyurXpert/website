@@ -115,6 +115,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
   <div class="cc">
     <div class="cc-hd">
+      <div><div class="cc-title">👥 Nursing Supervision Zones</div><div class="cc-sub">Assign each nursing-duty department to a group head for on-ground duty monitoring (not scheduling -- that stays here)</div></div>
+      <button class="btn btn-secondary btn-sm" id="zones-edit-btn" data-onclick="openZonesModal" style="display:none">✏️ Assign Zones</button>
+    </div>
+    <div class="cc-body" id="zones-body">Loading…</div>
+  </div>
+
+  <div class="cc">
+    <div class="cc-hd">
       <div><div class="cc-title">🔄 Shift Change Requests</div><div class="cc-sub">Individual shift-change requests -- decided by the current Nursing Head only, not Medical Superintendent/Deputy MS</div></div>
     </div>
     <div class="cc-body" id="shift-change-list">Loading…</div>
@@ -144,6 +152,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div style="display:flex;gap:8px">
       <button class="btn btn-reject" data-onclick="confirmReject">Reject</button>
       <button class="btn" style="background:var(--cream);border:1.5px solid var(--border)" data-onclick="closeRejectModal">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="reject-modal" id="zones-modal">
+  <div class="wide-box">
+    <div style="font-weight:600;margin-bottom:4px">Assign Nursing Supervision Zones</div>
+    <div class="cc-sub" style="margin-bottom:12px">Assign each nursing-duty department to one group head (the Matron or an Assistant Matron) for on-ground duty monitoring + attendance marking only -- scheduling stays here, unchanged.</div>
+    <div id="zones-list"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn btn-primary btn-sm" data-onclick="saveZoneAssignments">Save Zones</button>
+      <button class="btn btn-sm" style="background:var(--cream);border:1.5px solid var(--border)" data-onclick="closeZonesModal">Cancel</button>
     </div>
   </div>
 </div>
