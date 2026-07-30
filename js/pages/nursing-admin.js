@@ -7,6 +7,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, isNursingDutyDept, shiftsForDept } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead, canDecideShiftChange } from '../modules/roster/nursingHeadship.js';
 import { computeRequiredPerShift, distributeAcrossShifts } from '../modules/roster/requiredStaffing.js';
+import { checkCycleExpiry } from '../modules/roster/cycleExpiry.js';
 
 await requireAuth(['nurse_manager', 'super_admin', 'dept_admin']);
 initNavbar();
@@ -685,6 +686,39 @@ window.saveZoneAssignments = async function() {
   await loadSupervisionZones();
 };
 
+// ── Cycle Expiry Banner (Session 148) ───────────────────────────────
+// Roll Forward is entirely manual (confirmed via grep -- no cron/scheduled
+// job anywhere calls roll_nursing_roster_template()), so a department's
+// roster can silently run out of scheduled dates with nobody noticing.
+// Warns once the last already-generated shift_date is within 3 days (or
+// already past) -- links straight to nursing-roster-template.html.
+async function loadCycleExpiryBanner() {
+  const el = document.getElementById('expiry-banner');
+  const { data: allDepts } = await supabase.from('departments')
+    .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true).order('name');
+  const nursingDepts = (allDepts || []).filter(isNursingDutyDept);
+
+  const results = await checkCycleExpiry(supabase, nursingDepts);
+  const concerning = results.filter(r => r.status !== 'ok');
+  if (!concerning.length) { el.style.display = 'none'; return; }
+
+  const hasUrgent = concerning.some(r => r.status === 'expired' || r.status === 'none');
+  el.className = `expiry-banner ${hasUrgent ? 'danger' : 'warn'}`;
+  el.style.display = '';
+
+  const lines = concerning.map(r => {
+    if (r.status === 'none') return `<div class="expiry-line">❌ <strong>${_esc(r.deptName)}</strong> — no roster generated yet</div>`;
+    if (r.status === 'expired') {
+      const daysAgo = Math.abs(r.daysLeft);
+      return `<div class="expiry-line">❌ <strong>${_esc(r.deptName)}</strong> — roster ended ${daysAgo} day${daysAgo === 1 ? '' : 's'} ago (${_esc(r.lastDate)})</div>`;
+    }
+    return `<div class="expiry-line">⚠ <strong>${_esc(r.deptName)}</strong> — roster ends in ${r.daysLeft} day${r.daysLeft === 1 ? '' : 's'} (${_esc(r.lastDate)})</div>`;
+  }).join('');
+
+  el.innerHTML = `<strong>${hasUrgent ? '🔴' : '⚠️'} ${concerning.length} department${concerning.length === 1 ? '' : 's'} need${concerning.length === 1 ? 's' : ''} the next roster cycle generated</strong>${lines}`
+    + `<div style="margin-top:8px"><a href="nursing-roster-template.html" style="color:inherit;font-weight:600;text-decoration:underline">Go to Roster Template →</a></div>`;
+}
+
 await loadHeadship();
 await loadShiftChangeRequests();
 await loadNursingLeaves();
@@ -692,3 +726,4 @@ await loadComplianceSnapshot();
 await loadRosterCycle();
 await loadRotationSection();
 await loadSupervisionZones();
+await loadCycleExpiryBanner();

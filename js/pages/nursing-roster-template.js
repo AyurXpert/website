@@ -7,6 +7,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { isNursingDutyDept, shiftsForDept, shiftsOverlap } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
 import { computeRequiredPerShift, distributeAcrossShifts } from '../modules/roster/requiredStaffing.js';
+import { checkCycleExpiry } from '../modules/roster/cycleExpiry.js';
 
 // Session 139 (Nursing Duty Roster Phase 3): template editor for the
 // "Template-Based Rolling Schedule" -- a repeating base pattern per
@@ -671,6 +672,33 @@ function _alert(type, msg) {
   setTimeout(() => el.className = 'alert', 5000);
 }
 
+// ── Cycle Expiry Banner (Session 148) ───────────────────────────────
+// Same check as nursing-admin.html's banner (shared js/modules/roster/
+// cycleExpiry.js) -- shown here too since this is where the actual fix
+// (Generate Next Cycle) happens.
+async function loadCycleExpiryBanner() {
+  const el = document.getElementById('expiry-banner');
+  const results = await checkCycleExpiry(supabase, _depts);
+  const concerning = results.filter(r => r.status !== 'ok');
+  if (!concerning.length) { el.style.display = 'none'; return; }
+
+  const hasUrgent = concerning.some(r => r.status === 'expired' || r.status === 'none');
+  el.className = `expiry-banner ${hasUrgent ? 'danger' : 'warn'}`;
+  el.style.display = '';
+
+  const lines = concerning.map(r => {
+    if (r.status === 'none') return `<div class="expiry-line">❌ <strong>${_esc(r.deptName)}</strong> — no roster generated yet</div>`;
+    if (r.status === 'expired') {
+      const daysAgo = Math.abs(r.daysLeft);
+      return `<div class="expiry-line">❌ <strong>${_esc(r.deptName)}</strong> — roster ended ${daysAgo} day${daysAgo === 1 ? '' : 's'} ago (${_esc(r.lastDate)})</div>`;
+    }
+    return `<div class="expiry-line">⚠ <strong>${_esc(r.deptName)}</strong> — roster ends in ${r.daysLeft} day${r.daysLeft === 1 ? '' : 's'} (${_esc(r.lastDate)})</div>`;
+  }).join('');
+
+  el.innerHTML = `<strong>${hasUrgent ? '🔴' : '⚠️'} ${concerning.length} department${concerning.length === 1 ? '' : 's'} need${concerning.length === 1 ? 's' : ''} the next roster cycle generated</strong>${lines}`;
+}
+
 await Promise.all([loadDepartments(), loadEditGate()]);
 document.getElementById('bulk-card').style.display = _canEdit ? '' : 'none';
 document.getElementById('bulk-roll-start-date').value = new Date().toISOString().slice(0, 10);
+await loadCycleExpiryBanner();
