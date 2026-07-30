@@ -129,7 +129,7 @@ async function loadTemplateForDept() {
     // Session 141: tenant-wide pool, not scoped to this department's own
     // recruitment -- a nurse gets POSTED to duty here, not necessarily
     // permanently assigned here.
-    supabase.from('profiles').select('id,full_name').eq('tenant_id', tenantId)
+    supabase.from('profiles').select('id,full_name,weekly_off_day').eq('tenant_id', tenantId)
       .in('designation', ['staff_nurse', 'ward_sister', 'anm']).eq('is_active', true).order('full_name'),
     _loadRequiredPerShift(deptObj?.name),
     _loadBusyElsewhere(_selectedDeptShifts),
@@ -381,6 +381,18 @@ function _buildFillGroups() {
   return groups;
 }
 
+// Session 146: day_offset 0 is treated as Monday (matching this app's
+// existing week-view convention, roster.js's _getMonday()) so a nurse's
+// weekly_off_day (0=Sunday..6=Saturday, JS Date.getDay() convention) can be
+// mapped onto a template day_offset at all -- this is a best-effort guess
+// for whichever real date a cycle eventually gets rolled forward against;
+// roll_nursing_roster_template()'s own date-based check is the guaranteed,
+// accurate enforcement regardless of whether this guess holds for any given
+// cycle's actual chosen start date.
+function _dowForDayOffset(dayOffset) {
+  return (dayOffset + 1) % 7;
+}
+
 // Core fill logic for whichever department is CURRENTLY LOADED (_selectedDept/
 // _pool/_busyElsewhere/etc, set by loadTemplateForDept()) -- no confirm()/
 // alert()/button-state here, so both the single-department button below and
@@ -393,10 +405,19 @@ async function _fillDeptFixedTeams() {
   if (!groups.length) return { status: 'nothing-to-fill' };
 
   let poolIdx = 0;
+  let weeklyOffSkips = 0;
   for (const g of groups) {
     const nurse = availablePool[poolIdx % availablePool.length];
     poolIdx++;
     for (const day of g.days) {
+      // Session 146: leave this nurse's own weekly-off day unfilled instead
+      // of booking them into it -- the head can see the gap directly in the
+      // template and staff a relief nurse for that specific day, rather than
+      // only discovering it as a silent gap after Roll Forward.
+      if (nurse.weekly_off_day != null && _dowForDayOffset(day) === nurse.weekly_off_day) {
+        weeklyOffSkips++;
+        continue;
+      }
       const { error } = await supabase.rpc('save_nursing_roster_template_slot', {
         p_department_id: _selectedDept, p_day_offset: day, p_shift_type: g.shift, p_slot_index: g.slotIndex,
         p_profile_id: nurse.id, p_bed_range_start: g.bedStart, p_bed_range_end: g.bedEnd, p_coverage_label: g.coverageLabel,
@@ -404,7 +425,7 @@ async function _fillDeptFixedTeams() {
       if (error) return { status: 'error', error };
     }
   }
-  return { status: 'filled', seats: groups.length, skipped: _pool.length - availablePool.length };
+  return { status: 'filled', seats: groups.length, skipped: _pool.length - availablePool.length, weeklyOffSkips };
 }
 
 window.fillAllFixedTeams = async function() {
@@ -424,6 +445,8 @@ window.fillAllFixedTeams = async function() {
 
   if (result.status === 'error') {
     _alert('error', safeErrorMessage(result.error, 'Stopped partway through -- some slots may already be filled.'));
+  } else if (result.weeklyOffSkips) {
+    _alert('info', `Filled ${result.seats} seat${result.seats === 1 ? '' : 's'} -- left ${result.weeklyOffSkips} day-slot${result.weeklyOffSkips === 1 ? '' : 's'} open where the assigned nurse's weekly off falls. Add a relief nurse for those days manually.`);
   }
   await loadTemplateForDept();
 };
@@ -492,7 +515,7 @@ window.fillAllDepartmentsFixedTeams = async function() {
     await loadTemplateForDept();
     const result = await _fillDeptFixedTeams();
     if (result.status === 'filled') {
-      lines.push(`✅ <strong>${_esc(dept.name)}</strong> — ${result.seats} seat${result.seats === 1 ? '' : 's'} filled${result.skipped ? ` (${result.skipped} pool member${result.skipped === 1 ? '' : 's'} skipped — busy elsewhere)` : ''}`);
+      lines.push(`✅ <strong>${_esc(dept.name)}</strong> — ${result.seats} seat${result.seats === 1 ? '' : 's'} filled${result.skipped ? ` (${result.skipped} pool member${result.skipped === 1 ? '' : 's'} skipped — busy elsewhere)` : ''}${result.weeklyOffSkips ? ` · ${result.weeklyOffSkips} day-slot${result.weeklyOffSkips === 1 ? '' : 's'} left open for weekly off` : ''}`);
     } else if (result.status === 'nothing-to-fill') {
       lines.push(`— <strong>${_esc(dept.name)}</strong> — already fully filled`);
     } else if (result.status === 'all-busy') {
@@ -634,8 +657,8 @@ function renderRollResult(result) {
     subs.forEach(s => { html += `<div class="result-line">— ${_esc(s.date)} ${SHIFT_LABELS[s.shift_type]}: ${_esc(_nameFor(s.original_profile_id))} → ${_esc(_nameFor(s.covering_profile_id))} (on approved leave)</div>`; });
   }
   if (gaps.length) {
-    html += `<div class="result-line" style="color:#8b1a1a"><strong>⚠ ${gaps.length} gap${gaps.length === 1 ? '' : 's'} -- on approved leave, no covering staff assigned:</strong></div>`;
-    gaps.forEach(g => { html += `<div class="result-line">— ${_esc(g.date)} ${SHIFT_LABELS[g.shift_type]}: ${_esc(_nameFor(g.profile_id))}</div>`; });
+    html += `<div class="result-line" style="color:#8b1a1a"><strong>⚠ ${gaps.length} gap${gaps.length === 1 ? '' : 's'} -- needs manual staffing:</strong></div>`;
+    gaps.forEach(g => { html += `<div class="result-line">— ${_esc(g.date)} ${SHIFT_LABELS[g.shift_type]}: ${_esc(_nameFor(g.profile_id))} (${_esc(g.reason)})</div>`; });
   }
   box.innerHTML = html;
   box.className = 'result-box show' + (gaps.length ? ' warn' : '');
