@@ -140,6 +140,7 @@ async function loadHeadGate() {
 // visitors still see the full grid, gap banner, and on-call table.
 function _applyEditGate() {
   document.getElementById('btn-add-shift').style.display = _canEdit ? '' : 'none';
+  document.getElementById('btn-confirm-all').style.display = _canEdit ? '' : 'none';
 }
 
 async function loadHolidays() {
@@ -345,6 +346,32 @@ document.getElementById('btn-today').addEventListener('click', () => {
 });
 document.getElementById('filter-dept').addEventListener('change', loadRoster);
 document.getElementById('btn-add-shift').addEventListener('click', () => openModal(null, _dateStr(new Date()), 'morning', null, 1));
+
+// Bulk-confirm every currently-visible unconfirmed shift (respects the week
+// range + department filter already applied to _roster by loadRoster()) --
+// avoids clicking through each shift's edit modal one at a time just to tick
+// "confirmed". Fill All / Generate Next Cycle never set is_confirmed (that's
+// a separate "staff has actually acknowledged" signal), so a freshly-filled
+// roster starts entirely unconfirmed by design; this is the fast path to
+// clear that once the head has actually verified/notified the assignments.
+document.getElementById('btn-confirm-all').addEventListener('click', async () => {
+  const unconfirmed = _roster.filter(r => !r.is_confirmed);
+  if (!unconfirmed.length) { _alert('info', 'Nothing to confirm — every visible shift is already confirmed.'); return; }
+  if (!confirm(`Mark all ${unconfirmed.length} unconfirmed shift${unconfirmed.length > 1 ? 's' : ''} in the current view as confirmed?`)) return;
+
+  const btn = document.getElementById('btn-confirm-all');
+  btn.disabled = true; btn.textContent = 'Confirming…';
+
+  const { error } = await supabase.from('duty_roster')
+    .update({ is_confirmed: true })
+    .in('id', unconfirmed.map(r => r.id));
+
+  btn.disabled = false; btn.textContent = '✓ Confirm All Visible';
+
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not confirm shifts.')); return; }
+  _alert('success', `${unconfirmed.length} shift${unconfirmed.length > 1 ? 's' : ''} confirmed.`);
+  await loadRoster();
+});
 
 // Session 141: the shift dropdown is now dynamic per department -- a
 // day-only place (OPD/Screening OPD/Panchakarma/Diagnostics) only offers
