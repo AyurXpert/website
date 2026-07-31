@@ -726,13 +726,13 @@ function renderWeeklyOff() {
   const tbody = document.getElementById('weekly-off-tbody');
   if (!tbody) return;
   if (!_nursingStaffOff.length) {
-    tbody.innerHTML = '<tr><td colspan="3" class="empty">No nursing staff (Staff Nurse / Ward Sister / ANM designation) found yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">No nursing staff (Staff Nurse / Ward Sister / ANM designation) found yet.</td></tr>';
     return;
   }
   const dates = _weekDates();
   const cap = _weeklyOffCap();
   const counts = _weeklyOffCounts();
-  tbody.innerHTML = _nursingStaffOff.map(n => {
+  tbody.innerHTML = _nursingStaffOff.map((n, idx) => {
     const offDate = dates.find(d => new Date(d).getDay() === n.weekly_off_day);
     const thisWeekLabel = (n.weekly_off_day == null) ? '—' : (offDate ? `${_fmtDay(offDate)}, ${_fmtDate(offDate)}` : '—');
     const options = ['<option value="">— Not set —</option>']
@@ -742,6 +742,7 @@ function renderWeeklyOff() {
       }))
       .join('');
     return `<tr>
+      <td>${idx + 1}</td>
       <td>${_esc(n.full_name)}</td>
       <td><select class="weekly-off-select" data-profile="${n.id}" ${_canEdit ? '' : 'disabled'} style="border:1.5px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px">${options}</select></td>
       <td>${thisWeekLabel}</td>
