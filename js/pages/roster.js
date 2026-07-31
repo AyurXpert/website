@@ -74,8 +74,17 @@ function _getMonday(d) {
   m.setHours(0,0,0,0);
   return m;
 }
+// Local Y-M-D, not UTC -- d.toISOString() converts to UTC first, which
+// silently rolls back to the previous calendar day for any positive-offset
+// timezone (e.g. India, UTC+5:30) whenever d is a local-midnight Date (as
+// every date this function is called with always is, via _weekDates()) --
+// found live 1 Aug 2026 testing SDM: the whole Weekly Schedule/Weekly Off
+// week was rendering one day earlier than the real week.
 function _dateStr(d) {
-  return d.toISOString().split('T')[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 function _fmtDate(d) {
   return new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
