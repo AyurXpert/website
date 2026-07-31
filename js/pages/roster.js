@@ -150,6 +150,8 @@ async function loadHeadGate() {
 function _applyEditGate() {
   document.getElementById('btn-add-shift').style.display = _canEdit ? '' : 'none';
   document.getElementById('btn-confirm-all').style.display = _canEdit ? '' : 'none';
+  const autoBtn = document.getElementById('btn-auto-assign-weekly-off');
+  if (autoBtn) autoBtn.style.display = _canEdit ? '' : 'none';
 }
 
 async function loadHolidays() {
@@ -678,11 +680,22 @@ window.confirmRejectLeave = async function() {
 
 // ── Weekly Off (Session 145) ────────────────────────
 // One fixed weekday off per nurse (profiles.weekly_off_day, 0=Sunday..
-// 6=Saturday), staggered across the team by whoever sets it -- deliberately
-// NOT auto-rotated and deliberately separate from CL/EL leave_quotas (a
-// routine rest day isn't "leave"). Informational/tracking only for now --
-// does not yet stop Fill All/Roll Forward from booking a shift on this day
-// (see TODO note in sql/session145_nursing_weekly_off.sql).
+// 6=Saturday), staggered across the team -- deliberately separate from
+// CL/EL leave_quotas (a routine rest day isn't "leave"). Informational/
+// tracking only for now -- does not yet stop Fill All/Roll Forward from
+// booking a shift on this day (see TODO note in sql/session145_nursing_
+// weekly_off.sql).
+//
+// Session 149: two follow-on asks from Dr. Venkatesh. (1) "Auto-Assign in
+// Sequence" seeds every not-yet-set nurse with a day, round-robin, instead
+// of the Matron having to click through each one by hand -- an already-set
+// nurse is left untouched, so this is safe to click repeatedly as new staff
+// join. (2) A "fair share" cap (ceil(total nursing staff / 7), so the 7 days
+// can never end up wildly uneven) is enforced two ways: the auto-assign
+// sequence skips a day once it's at cap, and the per-nurse dropdown disables
+// (not hides -- the Matron still needs to see why) any day already at cap
+// for every OTHER nurse. A nurse's own current day is never disabled, so
+// switching them away and back always stays possible.
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 let _nursingStaffOff = [];
 
@@ -696,6 +709,19 @@ async function loadWeeklyOff() {
   renderWeeklyOff();
 }
 
+// Max nurses that may share the same weekly off day, spread as evenly as
+// possible across all 7 days.
+function _weeklyOffCap() {
+  const total = _nursingStaffOff.length;
+  return total ? Math.max(1, Math.ceil(total / 7)) : 0;
+}
+
+function _weeklyOffCounts() {
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  _nursingStaffOff.forEach(n => { if (n.weekly_off_day != null) counts[n.weekly_off_day]++; });
+  return counts;
+}
+
 function renderWeeklyOff() {
   const tbody = document.getElementById('weekly-off-tbody');
   if (!tbody) return;
@@ -704,11 +730,16 @@ function renderWeeklyOff() {
     return;
   }
   const dates = _weekDates();
+  const cap = _weeklyOffCap();
+  const counts = _weeklyOffCounts();
   tbody.innerHTML = _nursingStaffOff.map(n => {
     const offDate = dates.find(d => new Date(d).getDay() === n.weekly_off_day);
     const thisWeekLabel = (n.weekly_off_day == null) ? '—' : (offDate ? `${_fmtDay(offDate)}, ${_fmtDate(offDate)}` : '—');
     const options = ['<option value="">— Not set —</option>']
-      .concat(WEEKDAY_NAMES.map((name, i) => `<option value="${i}" ${n.weekly_off_day === i ? 'selected' : ''}>${name}</option>`))
+      .concat(WEEKDAY_NAMES.map((name, i) => {
+        const atCap = counts[i] >= cap && n.weekly_off_day !== i;
+        return `<option value="${i}" ${n.weekly_off_day === i ? 'selected' : ''} ${atCap ? 'disabled' : ''}>${name}${atCap ? ' — full' : ''}</option>`;
+      }))
       .join('');
     return `<tr>
       <td>${_esc(n.full_name)}</td>
@@ -728,6 +759,45 @@ function renderWeeklyOff() {
     });
   });
 }
+
+// Seeds every nurse who has no weekly off set yet, round-robin across the 7
+// days, skipping any day already at its fair-share cap. Nurses who already
+// have a day set (whether by a past auto-assign or a manual Matron edit) are
+// left untouched -- this is meant to be safe to re-run whenever new staff join.
+async function autoAssignWeeklyOff() {
+  if (!_canEdit) return;
+  const unset = _nursingStaffOff.filter(n => n.weekly_off_day == null);
+  if (!unset.length) { _alert('info', 'Every nurse already has a weekly off day set.'); return; }
+  if (!confirm(`Auto-assign a weekly off day, spread evenly in sequence, to ${unset.length} nurse${unset.length > 1 ? 's' : ''} who don't have one set yet?`)) return;
+
+  const cap = _weeklyOffCap();
+  const counts = _weeklyOffCounts();
+  const assignments = [];
+  let day = 0;
+  for (const n of unset) {
+    let tries = 0;
+    while (counts[day] >= cap && tries < 7) { day = (day + 1) % 7; tries++; }
+    assignments.push({ profile: n.id, day });
+    counts[day]++;
+    day = (day + 1) % 7;
+  }
+
+  const btn = document.getElementById('btn-auto-assign-weekly-off');
+  btn.disabled = true; btn.textContent = 'Assigning…';
+  for (const a of assignments) {
+    const { error } = await supabase.rpc('set_nurse_weekly_off', { p_profile_id: a.profile, p_weekly_off_day: a.day });
+    if (error) {
+      _alert('error', safeErrorMessage(error, 'Could not auto-assign weekly off.'));
+      btn.disabled = false; btn.textContent = '🔀 Auto-Assign in Sequence';
+      await loadWeeklyOff();
+      return;
+    }
+  }
+  btn.disabled = false; btn.textContent = '🔀 Auto-Assign in Sequence';
+  _alert('success', `Weekly off assigned for ${assignments.length} nurse${assignments.length > 1 ? 's' : ''}.`);
+  await loadWeeklyOff();
+}
+document.getElementById('btn-auto-assign-weekly-off')?.addEventListener('click', autoAssignWeeklyOff);
 
 // ── On-Ground Duty Monitor (Session 147) ────────────
 // Read-only shift visibility + attendance marking (present/absent) --

@@ -202,7 +202,10 @@ td.today-col{background:#fdf6e3}
 
     <div class="section-header" style="margin-top:28px">
       <div class="section-header-title">📆 Weekly Off Schedule</div>
-      <div style="font-size:11px;color:var(--text-muted)">Each nurse's fixed weekly rest day — separate from CL/EL leave</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:11px;color:var(--text-muted)">Fixed weekly rest day, separate from CL/EL leave — a day already at fair-share capacity is blocked below</div>
+        <button class="btn btn-secondary btn-sm" id="btn-auto-assign-weekly-off">🔀 Auto-Assign in Sequence</button>
+      </div>
     </div>
     <div style="overflow-x:auto">
       <table class="roster-table">
