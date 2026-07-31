@@ -45,6 +45,47 @@ let _slots = [];        // template slots, with .profiles.full_name joined
 let _pool = [];         // nursing staff assignable (tenant-wide)
 let _cycleLength = 7;   // current dept's template length, set in loadTemplateForDept
 let _busyElsewhere = new Set(); // profile_ids already posted to an overlapping shift in ANOTHER department
+let _expiry = []; // per-department { deptId, lastDate, status }, from checkCycleExpiry() -- also drives the suggested start date below
+
+// Local Y-M-D, not UTC -- avoids the roster.js bug (fixed Session 149) where
+// .toISOString() on a local date silently rolls back a day for any positive-
+// UTC-offset timezone (e.g. India, UTC+5:30).
+function _localDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// Real question from Dr. Venkatesh testing SDM: the start-date field was
+// defaulting to today even though a cycle was already generated through
+// 3 Aug -- nothing stopped him from accidentally overwriting still-active
+// days. Default to the day AFTER whatever's already generated instead, so
+// the field is correct out of the box; only fall back to today if this
+// department has never had a roster generated at all.
+function _suggestedStartDate(deptId) {
+  const rec = _expiry.find(r => r.deptId === deptId);
+  if (rec?.lastDate) {
+    const d = new Date(rec.lastDate);
+    d.setDate(d.getDate() + 1);
+    return _localDateStr(d);
+  }
+  return _localDateStr(new Date());
+}
+
+// Bulk action shares one start date across every department -- default to
+// the day after the LATEST last-generated date among them, so no
+// department's still-active days get silently overwritten (a department
+// whose own cycle ended earlier just gets a small, visible gap instead,
+// same "honest gap" convention used everywhere else in this feature).
+function _suggestedBulkStartDate() {
+  const dated = _expiry.filter(r => r.lastDate);
+  if (!dated.length) return _localDateStr(new Date());
+  const latest = dated.reduce((max, r) => (new Date(r.lastDate) > new Date(max.lastDate) ? r : max));
+  const d = new Date(latest.lastDate);
+  d.setDate(d.getDate() + 1);
+  return _localDateStr(d);
+}
 
 async function loadDepartments() {
   const { data } = await supabase.from('departments')
@@ -276,9 +317,8 @@ function renderGrid(cycleLength) {
   tbody.innerHTML = html;
 
   if (_canEdit) {
-    const today = new Date().toISOString().slice(0, 10);
     const startInput = document.getElementById('roll-start-date');
-    if (!startInput.value) startInput.value = today;
+    if (!startInput.value) startInput.value = _suggestedStartDate(_selectedDept);
   }
 }
 
@@ -326,9 +366,8 @@ function renderOpdGroupedGrid(cycleLength) {
   tbody.innerHTML = html;
 
   if (_canEdit) {
-    const today = new Date().toISOString().slice(0, 10);
     const startInput = document.getElementById('roll-start-date');
-    if (!startInput.value) startInput.value = today;
+    if (!startInput.value) startInput.value = _suggestedStartDate(_selectedDept);
   }
 }
 
@@ -601,6 +640,11 @@ window.rollForwardAllDepartments = async function() {
 
   btn.disabled = false; btn.textContent = '🔁 Generate Next Cycle — All Departments';
   _renderBulkResult(lines);
+
+  // Refresh so the field's default reflects what was JUST generated, not
+  // what's now a stale (already-overwritten) start date.
+  await loadCycleExpiryBanner();
+  document.getElementById('bulk-roll-start-date').value = _suggestedBulkStartDate();
 };
 
 window.addSlot = async function(day, shift, slotIndex) {
@@ -639,6 +683,9 @@ window.rollForward = async function() {
 
   if (error) { _alert('error', safeErrorMessage(error, 'Could not roll the roster forward.')); return; }
   renderRollResult(data);
+
+  await loadCycleExpiryBanner();
+  document.getElementById('roll-start-date').value = _suggestedStartDate(_selectedDept);
 };
 
 function _nameFor(id) {
@@ -678,8 +725,8 @@ function _alert(type, msg) {
 // (Generate Next Cycle) happens.
 async function loadCycleExpiryBanner() {
   const el = document.getElementById('expiry-banner');
-  const results = await checkCycleExpiry(supabase, _depts);
-  const concerning = results.filter(r => r.status !== 'ok');
+  _expiry = await checkCycleExpiry(supabase, _depts);
+  const concerning = _expiry.filter(r => r.status !== 'ok');
   if (!concerning.length) { el.style.display = 'none'; return; }
 
   const hasUrgent = concerning.some(r => r.status === 'expired' || r.status === 'none');
@@ -700,5 +747,5 @@ async function loadCycleExpiryBanner() {
 
 await Promise.all([loadDepartments(), loadEditGate()]);
 document.getElementById('bulk-card').style.display = _canEdit ? '' : 'none';
-document.getElementById('bulk-roll-start-date').value = new Date().toISOString().slice(0, 10);
-await loadCycleExpiryBanner();
+await loadCycleExpiryBanner(); // populates _expiry, used by the suggested-date default below
+document.getElementById('bulk-roll-start-date').value = _suggestedBulkStartDate();
