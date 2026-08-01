@@ -710,7 +710,7 @@ let _nursingStaffOff = [];
 
 async function loadWeeklyOff() {
   const { data } = await supabase.from('profiles')
-    .select('id,full_name,weekly_off_day')
+    .select('id,full_name,weekly_off_day,is_relief_pool')
     .eq('tenant_id', tenantId).eq('is_active', true)
     .in('designation', NURSING_DESIGNATIONS)
     .order('full_name');
@@ -735,7 +735,7 @@ function renderWeeklyOff() {
   const tbody = document.getElementById('weekly-off-tbody');
   if (!tbody) return;
   if (!_nursingStaffOff.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty">No nursing staff (Staff Nurse / Ward Sister / ANM designation) found yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">No nursing staff (Staff Nurse / Ward Sister / ANM designation) found yet.</td></tr>';
     return;
   }
   const dates = _weekDates();
@@ -755,6 +755,7 @@ function renderWeeklyOff() {
       <td>${_esc(n.full_name)}</td>
       <td><select class="weekly-off-select" data-profile="${n.id}" ${_canEdit ? '' : 'disabled'} style="border:1.5px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px">${options}</select></td>
       <td>${thisWeekLabel}</td>
+      <td><input type="checkbox" class="relief-pool-checkbox" data-profile="${n.id}" ${n.is_relief_pool ? 'checked' : ''} ${_canEdit ? '' : 'disabled'}/></td>
     </tr>`;
   }).join('');
 
@@ -765,6 +766,16 @@ function renderWeeklyOff() {
       const { error } = await supabase.rpc('set_nurse_weekly_off', { p_profile_id: sel.dataset.profile, p_weekly_off_day: val });
       if (error) { _alert('error', safeErrorMessage(error, 'Could not update weekly off.')); sel.disabled = false; return; }
       _alert('success', 'Weekly off updated.');
+      await loadWeeklyOff();
+    });
+  });
+
+  tbody.querySelectorAll('.relief-pool-checkbox').forEach(cb => {
+    cb.addEventListener('change', async () => {
+      cb.disabled = true;
+      const { error } = await supabase.rpc('set_nurse_relief_pool', { p_profile_id: cb.dataset.profile, p_is_relief_pool: cb.checked });
+      if (error) { _alert('error', safeErrorMessage(error, 'Could not update relief-pool status.')); cb.checked = !cb.checked; cb.disabled = false; return; }
+      _alert('success', cb.checked ? 'Added to the relief pool.' : 'Removed from the relief pool.');
       await loadWeeklyOff();
     });
   });

@@ -810,8 +810,18 @@ function renderRollResult(result) {
     html += `<div class="result-line">🎉 ${result.holiday_count} of them fall on a public holiday -- nursing duty still applies, shown for awareness only.</div>`;
   }
   if (subs.length) {
-    html += `<div class="result-line"><strong>${subs.length} covered by a leave substitute:</strong></div>`;
-    subs.forEach(s => { html += `<div class="result-line">— ${_esc(s.date)} ${SHIFT_LABELS[s.shift_type]}: ${_esc(_nameFor(s.original_profile_id))} → ${_esc(_nameFor(s.covering_profile_id))} (on approved leave)</div>`; });
+    // Session 149: relief-pool substitutions (weekly off) shown separately
+    // from leave substitutions -- different reason, worth telling apart.
+    const leaveSubs = subs.filter(s => s.via !== 'relief_pool');
+    const reliefSubs = subs.filter(s => s.via === 'relief_pool');
+    if (leaveSubs.length) {
+      html += `<div class="result-line"><strong>${leaveSubs.length} covered by a leave substitute:</strong></div>`;
+      leaveSubs.forEach(s => { html += `<div class="result-line">— ${_esc(s.date)} ${SHIFT_LABELS[s.shift_type]}: ${_esc(_nameFor(s.original_profile_id))} → ${_esc(_nameFor(s.covering_profile_id))} (on approved leave)</div>`; });
+    }
+    if (reliefSubs.length) {
+      html += `<div class="result-line">🌟 <strong>${reliefSubs.length} covered by the relief pool:</strong></div>`;
+      reliefSubs.forEach(s => { html += `<div class="result-line">— ${_esc(s.date)} ${SHIFT_LABELS[s.shift_type]}: ${_esc(_nameFor(s.original_profile_id))} → ${_esc(_nameFor(s.covering_profile_id))} (weekly off)</div>`; });
+    }
   }
   if (gaps.length) {
     html += `<div class="result-line" style="color:#8b1a1a"><strong>⚠ ${gaps.length} gap${gaps.length === 1 ? '' : 's'} -- needs manual staffing:</strong></div>`;
