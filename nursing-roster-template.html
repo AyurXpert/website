@@ -24,6 +24,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .page-header{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:20px}
 .page-title{font-size:22px;font-weight:700;color:var(--green-deep);font-family:'Cormorant Garamond',serif}
 .page-subtitle{font-size:13px;color:var(--text-muted);margin-top:2px}
+.page-nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.page-nav-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;border:1.5px solid var(--border);color:var(--text-mid);background:#fff;transition:all .15s}
+.page-nav-link:hover{border-color:var(--green-mid);color:var(--green-deep)}
+.page-nav-link.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep);cursor:default}
 .btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s}
 .btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
 .btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}
@@ -81,7 +85,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="page-title">Nursing Roster Template</div>
       <div class="page-subtitle">A repeating base pattern per department -- roll it forward into the real duty roster whenever the current cycle is running low</div>
     </div>
-    <a class="btn btn-secondary" href="roster.html">← Back to Duty Roster</a>
+  </div>
+
+  <div class="page-nav">
+    <a class="page-nav-link" href="nursing-admin.html">🏥 Nursing Administration</a>
+    <a class="page-nav-link" href="roster.html">🗓️ Duty Roster</a>
+    <span class="page-nav-link active">🔁 Roster Template</span>
   </div>
 
   <div id="alert" class="alert"></div>

@@ -24,6 +24,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .page-title{font-size:24px;font-weight:700;color:var(--green-deep);font-family:'Cormorant Garamond',serif}
 .page-subtitle{font-size:13px;color:var(--text-muted);margin-top:2px}
 
+.page-nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.page-nav-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;border:1.5px solid var(--border);color:var(--text-mid);background:#fff;transition:all .15s}
+.page-nav-link:hover{border-color:var(--green-mid);color:var(--green-deep)}
+.page-nav-link.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep);cursor:default}
+
 .cc{background:var(--white);border-radius:var(--radius);box-shadow:0 2px 14px rgba(0,0,0,.06);margin-bottom:18px;overflow:hidden}
 .cc-hd{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
 .cc-title{font-size:15px;font-weight:700;color:var(--green-deep)}
@@ -84,6 +89,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   <div class="page-header">
     <div class="page-title">Nursing Administration</div>
     <div class="page-subtitle">Duty roster, nursing staff leave approval, and NCISM nursing-staffing compliance</div>
+  </div>
+
+  <div class="page-nav">
+    <span class="page-nav-link active">🏥 Nursing Administration</span>
+    <a class="page-nav-link" href="roster.html">🗓️ Duty Roster</a>
+    <a class="page-nav-link" href="nursing-roster-template.html">🔁 Roster Template</a>
   </div>
 
   <div id="expiry-banner" style="display:none"></div>

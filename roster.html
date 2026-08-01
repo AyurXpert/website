@@ -30,6 +30,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .page-header{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:20px}
 .page-title{font-size:22px;font-weight:700;color:var(--green-deep);font-family:'Cormorant Garamond',serif}
 .page-subtitle{font-size:13px;color:var(--text-muted);margin-top:2px}
+.page-nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.page-nav-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;border:1.5px solid var(--border);color:var(--text-mid);background:#fff;transition:all .15s}
+.page-nav-link:hover{border-color:var(--green-mid);color:var(--green-deep)}
+.page-nav-link.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep);cursor:default}
 .controls-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:18px}
 .week-nav{display:flex;align-items:center;gap:8px}
 .week-label{font-weight:600;font-size:13px;color:var(--green-deep);min-width:160px;text-align:center}
@@ -125,9 +129,14 @@ td.today-col{background:#fdf6e3}
       <div class="page-subtitle" id="page-subtitle">NCISM §51(5) — RMO / EMO / On-Call Consultant schedule with gap detection</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <a class="btn btn-secondary btn-sm" href="nursing-admin.html">← Back to Nursing Administration</a>
       <button class="btn btn-primary btn-sm" id="btn-add-shift">+ Assign Shift</button>
     </div>
+  </div>
+
+  <div class="page-nav">
+    <a class="page-nav-link" href="nursing-admin.html">🏥 Nursing Administration</a>
+    <span class="page-nav-link active">🗓️ Duty Roster</span>
+    <a class="page-nav-link" href="nursing-roster-template.html">🔁 Roster Template</a>
   </div>
 
   <div id="alert" class="alert"></div>
