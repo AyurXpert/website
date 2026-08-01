@@ -644,7 +644,7 @@ async function loadCycleExpiryBanner() {
     .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true).order('name');
   const nursingDepts = (allDepts || []).filter(isNursingDutyDept);
 
-  const results = await checkCycleExpiry(supabase, nursingDepts);
+  const results = await checkCycleExpiry(supabase, tenantId, nursingDepts);
   const concerning = results.filter(r => r.status !== 'ok');
   if (!concerning.length) { el.style.display = 'none'; return; }
 
@@ -657,8 +657,13 @@ async function loadCycleExpiryBanner() {
   // noisy on this overview page; the one summary line plus the link to
   // where the actual fix happens is enough. nursing-roster-template.js's
   // own banner (right where Generate Next Cycle lives) is simplified the
-  // same way, for consistency.
+  // same way, for consistency. Also names any queued cycle-length change
+  // that will auto-apply the next time one of these departments generates
+  // its next cycle (roll_nursing_roster_template(), same session) -- a
+  // heads-up before clicking Generate, not something requiring action.
+  const transitioning = concerning.filter(r => r.willTransition);
   el.innerHTML = `<strong>${hasUrgent ? '🔴' : '⚠️'} ${concerning.length} department${concerning.length === 1 ? '' : 's'} need${concerning.length === 1 ? 's' : ''} the next roster cycle generated</strong>`
+    + (transitioning.length ? `<div style="margin-top:6px">ℹ️ Next cycle will transition to ${transitioning[0].tenantDays} days for ${transitioning.length} of these department${transitioning.length === 1 ? '' : 's'}.</div>` : '')
     + `<div style="margin-top:8px"><a href="nursing-roster-template.html" style="color:inherit;font-weight:600;text-decoration:underline">Go to Roster Template →</a></div>`;
 }
 

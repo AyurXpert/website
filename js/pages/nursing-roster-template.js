@@ -177,19 +177,42 @@ async function loadRosterCycle() {
   const headship = await resolveNursingHeadship(supabase, tenantId);
   const canAct = canActAsNursingHead(headship, profile.id, role, profile.designation);
 
-  const [{ data: setting }, { data: pending }] = await Promise.all([
+  const [{ data: setting }, { data: pending }, { data: templates }] = await Promise.all([
     supabase.from('nursing_roster_settings').select('cycle').eq('tenant_id', tenantId).maybeSingle(),
     supabase.from('pending_approvals')
       .select('id,payload,requested_at,requester:profiles!requested_by(full_name)')
       .eq('tenant_id', tenantId).eq('action_type', 'nursing_roster_cycle').eq('status', 'pending')
       .order('requested_at', { ascending: false }).limit(1),
+    // A department's template cycle_length is locked in the moment it's
+    // FIRST built, from whatever the tenant cycle was at that time.
+    supabase.from('nursing_roster_templates').select('department_id,cycle_length').eq('tenant_id', tenantId),
   ]);
 
   _tenantCycleKey = setting?.cycle || 'weekly';
   const pendingReq = pending?.[0] || null;
+  const tenantDays = CYCLE_DAYS[_tenantCycleKey] || 7;
+
+  const deptNameById = new Map(_depts.map(d => [d.id, d.name]));
+  const mismatched = (templates || [])
+    .filter(t => deptNameById.has(t.department_id) && t.cycle_length !== tenantDays)
+    .map(t => ({ name: deptNameById.get(t.department_id), length: t.cycle_length }));
 
   let html = `<div style="margin-bottom:10px"><span style="font-size:12.5px;color:var(--text-muted)">Current cycle:</span> `
     + `<span class="badge" style="background:var(--green-light);color:var(--green-deep);font-weight:600">${_esc(CYCLE_LABELS[_tenantCycleKey] || _tenantCycleKey)}</span></div>`;
+
+  if (mismatched.length) {
+    // Session 149: a hospital roster can't change structural length
+    // mid-cycle -- resetting these the moment a change is approved would
+    // touch live bed-slot allocations and attendance still in effect. This
+    // is informational only, not something the head needs to act on: each
+    // department below queues the new length automatically, the next time
+    // its OWN Generate Next Cycle runs (once its current cycle has actually
+    // finished) -- roll_nursing_roster_template() adopts it right then.
+    html += `<div class="empty" style="color:#7a5a10;background:var(--gold-light);border:1.5px solid var(--gold);border-radius:8px;padding:8px 10px;margin-bottom:10px">`
+      + `ℹ️ ${mismatched.length} department${mismatched.length === 1 ? '' : 's'} still on an older cycle length, queued to switch to ${tenantDays} days automatically at their next Generate Next Cycle: `
+      + mismatched.map(m => `<strong>${_esc(m.name)}</strong> (currently ${m.length}-day)`).join(', ')
+      + `. No action needed.</div>`;
+  }
 
   if (pendingReq) {
     const reqCycle = pendingReq.payload?.cycle;
@@ -239,8 +262,7 @@ async function loadTemplateForDept() {
   const deptObj = _depts.find(d => d.id === _selectedDept);
   _selectedDeptShifts = shiftsForDept(deptObj);
 
-  const [{ data: settingRow }, { data: templateRow }, { data: poolRows }] = await Promise.all([
-    supabase.from('nursing_roster_settings').select('cycle').eq('tenant_id', tenantId).maybeSingle(),
+  const [{ data: templateRow }, { data: poolRows }] = await Promise.all([
     supabase.from('nursing_roster_templates').select('id,cycle_length').eq('tenant_id', tenantId).eq('department_id', _selectedDept).maybeSingle(),
     // Session 141: tenant-wide pool, not scoped to this department's own
     // recruitment -- a nurse gets POSTED to duty here, not necessarily
@@ -254,9 +276,13 @@ async function loadTemplateForDept() {
   _pool = poolRows || [];
   _template = templateRow || null;
 
-  const tenantCycleDays = CYCLE_DAYS[settingRow?.cycle || 'weekly'];
+  // _tenantCycleKey comes from loadRosterCycle() (always run before a
+  // department can be selected) -- one source of truth instead of a second,
+  // independently-timed nursing_roster_settings fetch here.
+  const tenantCycleDays = CYCLE_DAYS[_tenantCycleKey] || 7;
   const cycleLength = _template?.cycle_length || tenantCycleDays;
   _cycleLength = cycleLength;
+  const cycleMismatch = !!(_template && _template.cycle_length !== tenantCycleDays);
 
   let requiredNote = '';
   if (_requiredPerShift?.mode === 'bed') {
@@ -270,9 +296,10 @@ async function loadTemplateForDept() {
     const perShiftDesc = _selectedDeptShifts.map(s => `${SHIFT_LABELS[s]}: ${byShift[s]}`).join(', ');
     requiredNote = ` · ${_requiredPerShift.total} nurse${_requiredPerShift.total === 1 ? '' : 's'} required total (Sch XX/43), spread across shifts as ${perShiftDesc}`;
   }
-  document.getElementById('tpl-sub').textContent = (_template
+  document.getElementById('tpl-sub').innerHTML = ((_template
     ? `${cycleLength}-day template (locked in when first built)`
-    : `No template yet -- will be built as a ${tenantCycleDays}-day pattern (current tenant cycle: ${settingRow?.cycle || 'weekly'})`) + requiredNote;
+      + (cycleMismatch ? ` <strong style="color:#7a5a10">ℹ️ tenant cycle is now ${_esc(CYCLE_LABELS[_tenantCycleKey] || _tenantCycleKey)} (${tenantCycleDays} days) — this department will switch automatically at its next Generate Next Cycle, no action needed</strong>` : '')
+    : `No template yet -- will be built as a ${tenantCycleDays}-day pattern (current tenant cycle: ${_esc(CYCLE_LABELS[_tenantCycleKey] || _tenantCycleKey)})`) + requiredNote);
 
   if (_template) {
     const { data: slotRows } = await supabase.from('nursing_roster_template_slots')
@@ -707,7 +734,8 @@ window.rollForwardAllDepartments = async function() {
     const subsCount = (data.substitutions || []).length;
     lines.push(`✅ <strong>${_esc(dept.name)}</strong> — ${data.created} shift${data.created === 1 ? '' : 's'} generated`
       + (subsCount ? `, ${subsCount} leave substitution${subsCount === 1 ? '' : 's'}` : '')
-      + (gapsCount ? `, <span style="color:#8b1a1a">⚠ ${gapsCount} gap${gapsCount === 1 ? '' : 's'}</span>` : ''));
+      + (gapsCount ? `, <span style="color:#8b1a1a">⚠ ${gapsCount} gap${gapsCount === 1 ? '' : 's'}</span>` : '')
+      + (data.cycle_transitioned ? `, <span style="color:#7a5a10">🔁 switched ${data.old_cycle_days}→${data.new_cycle_days} days</span>` : ''));
   }
 
   _selectedDept = originalDept;
@@ -775,6 +803,9 @@ function renderRollResult(result) {
   const gaps = result.gaps || [];
   const subs = result.substitutions || [];
   let html = `<div class="result-line">✅ <strong>${result.created}</strong> shift${result.created === 1 ? '' : 's'} generated.</div>`;
+  if (result.cycle_transitioned) {
+    html += `<div class="result-line">🔁 This department's template just switched from ${result.old_cycle_days} to <strong>${result.new_cycle_days} days</strong>, matching the currently-approved roster cycle.</div>`;
+  }
   if (result.holiday_count > 0) {
     html += `<div class="result-line">🎉 ${result.holiday_count} of them fall on a public holiday -- nursing duty still applies, shown for awareness only.</div>`;
   }
@@ -803,7 +834,7 @@ function _alert(type, msg) {
 // (Generate Next Cycle) happens.
 async function loadCycleExpiryBanner() {
   const el = document.getElementById('expiry-banner');
-  _expiry = await checkCycleExpiry(supabase, _depts);
+  _expiry = await checkCycleExpiry(supabase, tenantId, _depts);
   const concerning = _expiry.filter(r => r.status !== 'ok');
   if (!concerning.length) { el.style.display = 'none'; return; }
 
@@ -815,8 +846,13 @@ async function loadCycleExpiryBanner() {
   // Venkatesh found the full list too noisy; one summary line is enough,
   // especially here where the actual fix (Generate Next Cycle) is right
   // below. nursing-admin.js's banner simplified the same way, so the two
-  // pages never show different detail for the same underlying data.
-  el.innerHTML = `<strong>${hasUrgent ? '🔴' : '⚠️'} ${concerning.length} department${concerning.length === 1 ? '' : 's'} need${concerning.length === 1 ? 's' : ''} the next roster cycle generated</strong>`;
+  // pages never show different detail for the same underlying data. Also
+  // names any queued cycle-length change that will auto-apply the moment
+  // Generate Next Cycle is clicked for one of these departments, so the
+  // head sees it coming beforehand instead of being surprised after.
+  const transitioning = concerning.filter(r => r.willTransition);
+  el.innerHTML = `<strong>${hasUrgent ? '🔴' : '⚠️'} ${concerning.length} department${concerning.length === 1 ? '' : 's'} need${concerning.length === 1 ? 's' : ''} the next roster cycle generated</strong>`
+    + (transitioning.length ? `<div style="margin-top:6px">ℹ️ Next cycle will transition to ${transitioning[0].tenantDays} days for ${transitioning.length} of these department${transitioning.length === 1 ? '' : 's'}.</div>` : '');
 }
 
 await Promise.all([loadDepartments(), loadEditGate()]);
