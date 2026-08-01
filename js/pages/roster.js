@@ -926,3 +926,14 @@ _applyEditGate(); // correct immediately for super_admin/dept_admin/plain nurse;
 await Promise.all([loadDepartments(), loadDoctors(), loadHeadGate()]);
 await loadMonitorScope(); // needs _canEdit (loadHeadGate) + _depts (loadDepartments) already resolved
 await loadRoster();
+
+// Session 149: deep-link support (?tab=leave / ?tab=monitor) -- the new
+// tab-row shortcuts on nursing-admin.html/nursing-roster-template.html link
+// straight here instead of always opening to Weekly Schedule. Falls back to
+// the default schedule tab if the requested one isn't visible for this
+// viewer (e.g. a plain nurse's ?tab=leave, or ?tab=monitor with no
+// supervision zone assigned) -- _canSeeLeaveTab/_canSeeMonitorTab are the
+// same checks that already hide those tab buttons entirely.
+const _requestedTab = new URLSearchParams(location.search).get('tab');
+if (_requestedTab === 'leave' && _canSeeLeaveTab) { window.switchTab('leave'); }
+else if (_requestedTab === 'monitor' && _canSeeMonitorTab) { window.switchTab('monitor'); }
