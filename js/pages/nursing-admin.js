@@ -306,60 +306,6 @@ window.resetNursingHeadship = async function() {
   await loadHeadship();
 };
 
-// ── Roster Cycle (Nursing Duty Roster Phase 2, Session 138) ─────────
-// Nursing Head proposes weekly/fortnightly/monthly; MS/Deputy MS (or
-// super_admin) approves via the same pending_approvals maker-checker
-// mechanism Session 128 used for the intern rotation roster. The RPC
-// re-derives "is this caller really the current head" server-side (mirrors
-// nursingHeadship.js's own resolution) -- this page's canAct check below is
-// only a display hint, same as everywhere else this pattern is used.
-const CYCLE_LABELS = { weekly: 'Weekly (7 days)', fortnightly: 'Fortnightly (14 days)', monthly: 'Monthly (30 days)' };
-
-async function loadRosterCycle() {
-  const body = document.getElementById('cycle-body');
-  const headship = await resolveNursingHeadship(supabase, tenantId);
-  const canAct = canActAsNursingHead(headship, profile.id, role, profile.designation);
-
-  const [{ data: setting }, { data: pending }] = await Promise.all([
-    supabase.from('nursing_roster_settings').select('cycle').eq('tenant_id', tenantId).maybeSingle(),
-    supabase.from('pending_approvals')
-      .select('id,payload,requested_at,requester:profiles!requested_by(full_name)')
-      .eq('tenant_id', tenantId).eq('action_type', 'nursing_roster_cycle').eq('status', 'pending')
-      .order('requested_at', { ascending: false }).limit(1),
-  ]);
-
-  const currentCycle = setting?.cycle || 'weekly';
-  const pendingReq = pending?.[0] || null;
-
-  let html = `<div style="margin-bottom:10px"><span style="font-size:12.5px;color:var(--text-muted)">Current cycle:</span> `
-    + `<span class="badge" style="background:var(--green-light);color:var(--green-deep);font-weight:600">${_esc(CYCLE_LABELS[currentCycle] || currentCycle)}</span></div>`;
-
-  if (pendingReq) {
-    const reqCycle = pendingReq.payload?.cycle;
-    html += `<div class="empty">⏳ Change to <strong>${_esc(CYCLE_LABELS[reqCycle] || reqCycle)}</strong> requested by ${_esc(pendingReq.requester?.full_name || '—')} on ${_esc((pendingReq.requested_at || '').slice(0, 10))} -- awaiting Medical Superintendent / Deputy MS approval.</div>`;
-  } else if (canAct) {
-    html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
-      + '<select id="cycle-select" style="height:32px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12.5px">'
-      + Object.entries(CYCLE_LABELS).map(([v, l]) => `<option value="${v}" ${v === currentCycle ? 'selected' : ''}>${_esc(l)}</option>`).join('')
-      + '</select>'
-      + '<button class="btn btn-primary btn-sm" data-onclick="requestRosterCycleChange">Request Change</button>'
-      + '</div>';
-  } else {
-    html += '<div class="empty">Only the current Nursing Head can request a cycle change.</div>';
-  }
-
-  body.innerHTML = html;
-}
-
-window.requestRosterCycleChange = async function() {
-  const sel = document.getElementById('cycle-select');
-  const cycle = sel?.value;
-  if (!cycle) return;
-  const { error } = await supabase.rpc('request_nursing_roster_cycle', { p_cycle: cycle });
-  if (error) { alert(safeErrorMessage(error, 'Could not submit the roster-cycle change request.')); return; }
-  await loadRosterCycle();
-};
-
 // ── Department Rotation (Session 144) ───────────────────────────────
 // Fill All (Fixed Teams, previous session) keeps a nurse in the SAME
 // department for a whole cycle -- this is the tenant-wide follow-up:
@@ -706,16 +652,13 @@ async function loadCycleExpiryBanner() {
   el.className = `expiry-banner ${hasUrgent ? 'danger' : 'warn'}`;
   el.style.display = '';
 
-  const lines = concerning.map(r => {
-    if (r.status === 'none') return `<div class="expiry-line">❌ <strong>${_esc(r.deptName)}</strong> — no roster generated yet</div>`;
-    if (r.status === 'expired') {
-      const daysAgo = Math.abs(r.daysLeft);
-      return `<div class="expiry-line">❌ <strong>${_esc(r.deptName)}</strong> — roster ended ${daysAgo} day${daysAgo === 1 ? '' : 's'} ago (${_esc(r.lastDate)})</div>`;
-    }
-    return `<div class="expiry-line">⚠ <strong>${_esc(r.deptName)}</strong> — roster ends in ${r.daysLeft} day${r.daysLeft === 1 ? '' : 's'} (${_esc(r.lastDate)})</div>`;
-  }).join('');
-
-  el.innerHTML = `<strong>${hasUrgent ? '🔴' : '⚠️'} ${concerning.length} department${concerning.length === 1 ? '' : 's'} need${concerning.length === 1 ? 's' : ''} the next roster cycle generated</strong>${lines}`
+  // Session 149: dropped the per-department breakdown lines here -- Dr.
+  // Venkatesh found the full list (one line per affected department) too
+  // noisy on this overview page; the one summary line plus the link to
+  // where the actual fix happens is enough. nursing-roster-template.js's
+  // own banner (right where Generate Next Cycle lives) is simplified the
+  // same way, for consistency.
+  el.innerHTML = `<strong>${hasUrgent ? '🔴' : '⚠️'} ${concerning.length} department${concerning.length === 1 ? '' : 's'} need${concerning.length === 1 ? 's' : ''} the next roster cycle generated</strong>`
     + `<div style="margin-top:8px"><a href="nursing-roster-template.html" style="color:inherit;font-weight:600;text-decoration:underline">Go to Roster Template →</a></div>`;
 }
 
@@ -723,7 +666,6 @@ await loadHeadship();
 await loadShiftChangeRequests();
 await loadNursingLeaves();
 await loadComplianceSnapshot();
-await loadRosterCycle();
 await loadRotationSection();
 await loadSupervisionZones();
 await loadCycleExpiryBanner();

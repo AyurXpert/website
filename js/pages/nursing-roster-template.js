@@ -46,6 +46,7 @@ let _pool = [];         // nursing staff assignable (tenant-wide)
 let _cycleLength = 7;   // current dept's template length, set in loadTemplateForDept
 let _busyElsewhere = new Set(); // profile_ids already posted to an overlapping shift in ANOTHER department
 let _expiry = []; // per-department { deptId, lastDate, status }, from checkCycleExpiry() -- also drives the suggested start date below
+let _tenantCycleKey = 'weekly'; // nursing_roster_settings.cycle, refreshed by loadRosterCycle() -- used for the bulk action's "To" date
 
 // Local Y-M-D, not UTC -- avoids the roster.js bug (fixed Session 149) where
 // .toISOString() on a local date silently rolls back a day for any positive-
@@ -85,6 +86,20 @@ function _suggestedBulkStartDate() {
   const d = new Date(latest.lastDate);
   d.setDate(d.getDate() + 1);
   return _localDateStr(d);
+}
+
+// It's a fixed-length cycle (weekly/fortnightly/monthly, set via the Roster
+// Cycle card below), so once a "From" date is picked the end date isn't a
+// separate decision -- just show it, so the head can see the real range
+// before generating instead of only ever seeing a single start date.
+function _updateCycleEndDisplay(fromInputId, toSpanId, days) {
+  const fromVal = document.getElementById(fromInputId)?.value;
+  const toEl = document.getElementById(toSpanId);
+  if (!toEl) return;
+  if (!fromVal) { toEl.textContent = '—'; return; }
+  const d = new Date(fromVal);
+  d.setDate(d.getDate() + (days - 1));
+  toEl.textContent = _localDateStr(d);
 }
 
 async function loadDepartments() {
@@ -147,6 +162,65 @@ async function loadEditGate() {
   const headship = await resolveNursingHeadship(supabase, tenantId);
   _canEdit = canActAsNursingHead(headship, profile.id, role, profile.designation);
 }
+
+// ── Roster Cycle (Session 149: moved here from nursing-admin.html, per
+// Dr. Venkatesh -- this is where the cycle length actually matters, right
+// next to the "From"/"To" dates it determines, rather than a separate admin
+// page). Same maker-checker flow as before: Nursing Head proposes weekly/
+// fortnightly/monthly, MS/Deputy MS (or super_admin) approves via
+// pending_approvals. The RPC re-derives "is this caller really the current
+// head" server-side -- canAct below is only a display hint.
+const CYCLE_LABELS = { weekly: 'Weekly (7 days)', fortnightly: 'Fortnightly (14 days)', monthly: 'Monthly (30 days)' };
+
+async function loadRosterCycle() {
+  const body = document.getElementById('cycle-body');
+  const headship = await resolveNursingHeadship(supabase, tenantId);
+  const canAct = canActAsNursingHead(headship, profile.id, role, profile.designation);
+
+  const [{ data: setting }, { data: pending }] = await Promise.all([
+    supabase.from('nursing_roster_settings').select('cycle').eq('tenant_id', tenantId).maybeSingle(),
+    supabase.from('pending_approvals')
+      .select('id,payload,requested_at,requester:profiles!requested_by(full_name)')
+      .eq('tenant_id', tenantId).eq('action_type', 'nursing_roster_cycle').eq('status', 'pending')
+      .order('requested_at', { ascending: false }).limit(1),
+  ]);
+
+  _tenantCycleKey = setting?.cycle || 'weekly';
+  const pendingReq = pending?.[0] || null;
+
+  let html = `<div style="margin-bottom:10px"><span style="font-size:12.5px;color:var(--text-muted)">Current cycle:</span> `
+    + `<span class="badge" style="background:var(--green-light);color:var(--green-deep);font-weight:600">${_esc(CYCLE_LABELS[_tenantCycleKey] || _tenantCycleKey)}</span></div>`;
+
+  if (pendingReq) {
+    const reqCycle = pendingReq.payload?.cycle;
+    html += `<div class="empty">⏳ Change to <strong>${_esc(CYCLE_LABELS[reqCycle] || reqCycle)}</strong> requested by ${_esc(pendingReq.requester?.full_name || '—')} on ${_esc((pendingReq.requested_at || '').slice(0, 10))} -- awaiting Medical Superintendent / Deputy MS approval.</div>`;
+  } else if (canAct) {
+    html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+      + '<select id="cycle-select" style="height:32px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12.5px">'
+      + Object.entries(CYCLE_LABELS).map(([v, l]) => `<option value="${v}" ${v === _tenantCycleKey ? 'selected' : ''}>${_esc(l)}</option>`).join('')
+      + '</select>'
+      + '<button class="btn btn-primary btn-sm" data-onclick="requestRosterCycleChange">Request Change</button>'
+      + '</div>';
+  } else {
+    html += '<div class="empty">Only the current Nursing Head can request a cycle change.</div>';
+  }
+
+  body.innerHTML = html;
+
+  // Cycle length only ever changes AFTER MS/Deputy MS approval (not on
+  // request), so this just keeps the bulk "To" date in sync with whatever's
+  // actually active right now.
+  _updateCycleEndDisplay('bulk-roll-start-date', 'bulk-roll-end-date', CYCLE_DAYS[_tenantCycleKey] || 7);
+}
+
+window.requestRosterCycleChange = async function() {
+  const sel = document.getElementById('cycle-select');
+  const cycle = sel?.value;
+  if (!cycle) return;
+  const { error } = await supabase.rpc('request_nursing_roster_cycle', { p_cycle: cycle });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not submit the roster-cycle change request.')); return; }
+  await loadRosterCycle();
+};
 
 document.getElementById('filter-dept').addEventListener('change', async (e) => {
   _selectedDept = e.target.value || null;
@@ -319,6 +393,7 @@ function renderGrid(cycleLength) {
   if (_canEdit) {
     const startInput = document.getElementById('roll-start-date');
     if (!startInput.value) startInput.value = _suggestedStartDate(_selectedDept);
+    _updateCycleEndDisplay('roll-start-date', 'roll-end-date', _cycleLength);
   }
 }
 
@@ -368,6 +443,7 @@ function renderOpdGroupedGrid(cycleLength) {
   if (_canEdit) {
     const startInput = document.getElementById('roll-start-date');
     if (!startInput.value) startInput.value = _suggestedStartDate(_selectedDept);
+    _updateCycleEndDisplay('roll-start-date', 'roll-end-date', _cycleLength);
   }
 }
 
@@ -645,6 +721,7 @@ window.rollForwardAllDepartments = async function() {
   // what's now a stale (already-overwritten) start date.
   await loadCycleExpiryBanner();
   document.getElementById('bulk-roll-start-date').value = _suggestedBulkStartDate();
+  _updateCycleEndDisplay('bulk-roll-start-date', 'bulk-roll-end-date', CYCLE_DAYS[_tenantCycleKey] || 7);
 };
 
 window.addSlot = async function(day, shift, slotIndex) {
@@ -686,6 +763,7 @@ window.rollForward = async function() {
 
   await loadCycleExpiryBanner();
   document.getElementById('roll-start-date').value = _suggestedStartDate(_selectedDept);
+  _updateCycleEndDisplay('roll-start-date', 'roll-end-date', _cycleLength);
 };
 
 function _nameFor(id) {
@@ -733,19 +811,24 @@ async function loadCycleExpiryBanner() {
   el.className = `expiry-banner ${hasUrgent ? 'danger' : 'warn'}`;
   el.style.display = '';
 
-  const lines = concerning.map(r => {
-    if (r.status === 'none') return `<div class="expiry-line">❌ <strong>${_esc(r.deptName)}</strong> — no roster generated yet</div>`;
-    if (r.status === 'expired') {
-      const daysAgo = Math.abs(r.daysLeft);
-      return `<div class="expiry-line">❌ <strong>${_esc(r.deptName)}</strong> — roster ended ${daysAgo} day${daysAgo === 1 ? '' : 's'} ago (${_esc(r.lastDate)})</div>`;
-    }
-    return `<div class="expiry-line">⚠ <strong>${_esc(r.deptName)}</strong> — roster ends in ${r.daysLeft} day${r.daysLeft === 1 ? '' : 's'} (${_esc(r.lastDate)})</div>`;
-  }).join('');
-
-  el.innerHTML = `<strong>${hasUrgent ? '🔴' : '⚠️'} ${concerning.length} department${concerning.length === 1 ? '' : 's'} need${concerning.length === 1 ? 's' : ''} the next roster cycle generated</strong>${lines}`;
+  // Session 149: dropped the per-department breakdown lines -- Dr.
+  // Venkatesh found the full list too noisy; one summary line is enough,
+  // especially here where the actual fix (Generate Next Cycle) is right
+  // below. nursing-admin.js's banner simplified the same way, so the two
+  // pages never show different detail for the same underlying data.
+  el.innerHTML = `<strong>${hasUrgent ? '🔴' : '⚠️'} ${concerning.length} department${concerning.length === 1 ? '' : 's'} need${concerning.length === 1 ? 's' : ''} the next roster cycle generated</strong>`;
 }
 
 await Promise.all([loadDepartments(), loadEditGate()]);
 document.getElementById('bulk-card').style.display = _canEdit ? '' : 'none';
 await loadCycleExpiryBanner(); // populates _expiry, used by the suggested-date default below
+await loadRosterCycle(); // populates _tenantCycleKey, used by the bulk "To" date below
 document.getElementById('bulk-roll-start-date').value = _suggestedBulkStartDate();
+_updateCycleEndDisplay('bulk-roll-start-date', 'bulk-roll-end-date', CYCLE_DAYS[_tenantCycleKey] || 7);
+
+// Live-recompute "To" whenever the head edits a "From" date by hand, not
+// just when this page sets one programmatically.
+document.getElementById('bulk-roll-start-date').addEventListener('change', () =>
+  _updateCycleEndDisplay('bulk-roll-start-date', 'bulk-roll-end-date', CYCLE_DAYS[_tenantCycleKey] || 7));
+document.getElementById('roll-start-date').addEventListener('change', () =>
+  _updateCycleEndDisplay('roll-start-date', 'roll-end-date', _cycleLength));

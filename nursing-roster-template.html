@@ -88,6 +88,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
   <div id="expiry-banner" style="display:none"></div>
 
+  <div class="cc">
+    <div class="cc-hd">
+      <div><div class="cc-title">📅 Roster Cycle</div><div class="cc-sub">How often the duty roster repeats -- changes need Medical Superintendent / Deputy MS approval</div></div>
+    </div>
+    <div class="cc-body" id="cycle-body">Loading…</div>
+  </div>
+
   <div class="cc" id="bulk-card" style="display:none">
     <div class="cc-hd">
       <div><div class="cc-title">⚡ Bulk Actions — All Departments</div><div class="cc-sub">Run Fill All, Clear All, or Generate Next Cycle across every nursing-duty department in one click, instead of one at a time</div></div>
@@ -98,9 +105,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <button class="btn btn-secondary btn-sm" id="btn-bulk-clear-all" data-onclick="clearAllDepartmentsSlots" style="color:var(--red);border-color:#f5b8b8">🗑️ Clear All Slots — All Departments</button>
       </div>
       <div class="roll-panel">
-        <div class="field" style="max-width:200px">
+        <div class="field" style="max-width:170px">
           <input type="date" id="bulk-roll-start-date"/>
         </div>
+        <span style="font-size:12.5px;color:var(--text-mid)">to <strong id="bulk-roll-end-date">—</strong></span>
         <button class="btn btn-primary btn-sm" id="btn-bulk-roll" data-onclick="rollForwardAllDepartments">🔁 Generate Next Cycle — All Departments</button>
       </div>
       <div class="result-box" id="bulk-result"></div>
@@ -137,9 +145,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     </div>
     <div class="cc-body">
       <div class="roll-panel">
-        <div class="field" style="max-width:200px">
+        <div class="field" style="max-width:170px">
           <input type="date" id="roll-start-date"/>
         </div>
+        <span style="font-size:12.5px;color:var(--text-mid)">to <strong id="roll-end-date">—</strong></span>
         <button class="btn btn-primary" id="btn-roll" data-onclick="rollForward">Generate Next Cycle</button>
       </div>
       <div class="result-box" id="roll-result"></div>
