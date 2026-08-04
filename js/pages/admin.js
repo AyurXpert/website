@@ -2072,7 +2072,15 @@ async function _renderStaffingPlan() {
     let roleTotal=0, roleRec=0;
     const rowsHtml = byRole[role].map(ck=>{
       const info = byKey[ck];
-      const dLabel = DESIG_MAP[ck]?.l || ck;
+      // Sch XX/43 "OT Nursing Staff" is the one row in NCISM_XX_ROWS whose
+      // alternate key is a genuinely different profession (Staff Nurse),
+      // not just a synonym title (unlike e.g. staff_nurse/ward_sister) --
+      // real gap found live: this table's designation-grouped label showed
+      // bare "OT Technician", which reads as excluding nurses even though
+      // real Staff Nurses fill 2 of these seats at SDM. Every other
+      // multi-key row stays as its own primary label -- only this one
+      // documented exception gets the suffix.
+      const dLabel = (DESIG_MAP[ck]?.l || ck) + (ck === 'ot_technician' && info.altKeys.has('staff_nurse') ? ' / Staff Nurse' : '');
       if(FACULTY_CONCURRENT_POSTS.has(ck)){
         return '<tr><td style="padding:6px 12px 6px 20px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(dLabel)+'</td>'
           +'<td colspan="5" style="padding:6px 12px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">Typically held concurrently by an existing faculty member — not counted separately</td></tr>';
