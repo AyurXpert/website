@@ -39,7 +39,7 @@ async function loadShiftChangeRequests() {
   const canDecide = canDecideShiftChange(headship, profile.id, role);
 
   const { data, error } = await supabase.from('staff_leaves')
-    .select('id,reason,requested_at:created_at,requester:profiles!staff_leaves_profile_id_fkey(full_name),covering:profiles!staff_leaves_covering_profile_id_fkey(full_name),duty_roster!related_duty_roster_id(shift_date,shift_type,departments(name))')
+    .select('id,reason,covering_status,requested_at:created_at,requester:profiles!staff_leaves_profile_id_fkey(full_name),covering:profiles!staff_leaves_covering_profile_id_fkey(full_name),duty_roster!related_duty_roster_id(shift_date,shift_type,departments(name))')
     .eq('tenant_id', tenantId).eq('status', 'pending').not('related_duty_roster_id', 'is', null)
     .order('created_at', { ascending: false });
 
@@ -59,7 +59,7 @@ async function loadShiftChangeRequests() {
           <div class="lc-meta">${shiftLabel}</div>
         </div>
       </div>
-      ${r.covering?.full_name ? `<div class="lc-dates">👤 Proposed covering: ${_esc(r.covering.full_name)}</div>` : `<div class="lc-dates">⚠ No covering colleague proposed -- will be marked unassigned if approved</div>`}
+      ${r.covering?.full_name ? `<div class="lc-dates">👤 Proposed covering: ${_esc(r.covering.full_name)} ${_coveringStatusBadge(r.covering_status)}${r.covering_status !== 'accepted' ? ' -- will be marked unassigned if approved now' : ''}</div>` : `<div class="lc-dates">⚠ No covering colleague proposed -- will be marked unassigned if approved</div>`}
       ${r.reason ? `<div class="lc-reason">"${_esc(r.reason)}"</div>` : ''}
       ${canDecide ? `<div class="lc-actions">
         <button class="btn btn-approve btn-sm" data-onclick="decideShiftChange" data-onclick-a0="${r.id}" data-onclick-a1="@true">✓ Approve</button>
@@ -96,7 +96,7 @@ async function loadNursingLeaves() {
 
   const { data: leaves, error } = await supabase
     .from('staff_leaves')
-    .select('*, profiles!profile_id(full_name, designation)')
+    .select('*, profiles!profile_id(full_name, designation), covering:profiles!covering_profile_id(full_name)')
     .eq('tenant_id', tenantId)
     .eq('status', 'pending')
     .in('profile_id', nursingIds)
@@ -122,6 +122,7 @@ async function loadNursingLeaves() {
       </div>
       <div class="lc-dates">📅 ${_esc(l.from_date)} → ${_esc(l.to_date)} · ${days} day${days > 1 ? 's' : ''}</div>
       ${l.reason ? `<div class="lc-reason">"${_esc(l.reason)}"</div>` : ''}
+      ${l.covering?.full_name ? `<div class="lc-meta">🤝 Charge given to: <strong>${_esc(l.covering.full_name)}</strong> ${_coveringStatusBadge(l.covering_status)}</div>` : ''}
       <div class="lc-actions">
         <button class="btn btn-approve btn-sm" data-onclick="approveLeave" data-onclick-a0="${l.id}">✓ Approve</button>
         <button class="btn btn-reject btn-sm" data-onclick="openRejectModal" data-onclick-a0="${l.id}">✗ Reject</button>
@@ -133,6 +134,15 @@ async function loadNursingLeaves() {
 function _leaveDays(from, to) {
   if (!from || !to) return 1;
   return Math.round((new Date(to) - new Date(from)) / 86400000) + 1;
+}
+
+// Session 149: covering_profile_id is only ever actually usable once the
+// named colleague has accepted -- see sql/session149_covering_acceptance.sql.
+function _coveringStatusBadge(status) {
+  if (status === 'accepted') return '<span style="color:var(--green-mid,#2d7a4f);font-weight:600">✓ accepted</span>';
+  if (status === 'declined') return '<span style="color:var(--red,#c0392b);font-weight:600">✗ declined</span>';
+  if (status === 'pending') return '<span style="color:var(--gold,#c9902a);font-weight:600">⏳ awaiting response</span>';
+  return '';
 }
 
 window.approveLeave = async function(id) {

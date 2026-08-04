@@ -141,6 +141,14 @@ td.today-col{background:#fdf6e3}
 
   <div id="alert" class="alert"></div>
 
+  <!-- Session 149: covering-colleague consent -- visible to EVERY viewer
+       regardless of role (this is the only page a plain nurse/ayah can
+       reach), since it's about THEM specifically, not other staff's leave
+       details (unlike the Leave & Weekly Off tab below, which stays
+       role-gated). Populated whenever someone is named as covering staff on
+       a pending leave or shift-change request and hasn't responded yet. -->
+  <div id="covering-requests-section" style="display:none;margin-bottom:16px"></div>
+
   <!-- Tabs -->
   <div class="tab-bar">
     <button class="tab-btn active" id="tab-btn-schedule" data-onclick="switchTab" data-onclick-a0="schedule">🗓️ Weekly Schedule</button>

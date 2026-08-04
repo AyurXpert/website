@@ -598,6 +598,57 @@ window.switchTab = function(tab) {
   if (tab === 'monitor') { loadMonitorShifts(); }
 };
 
+// ── Covering Requests For You (Session 149) ─────────
+// Any staff_leaves row (a leave application OR a shift-change request --
+// same table, Session 140) that names the CURRENT viewer as
+// covering_profile_id and is still covering_status='pending'. Visible to
+// every role -- unlike the Leave & Weekly Off tab below, this is safe for a
+// plain nurse to see since it's only ever about a request naming her
+// specifically, not other staff's private leave details. Accepting runs a
+// real busy-check server-side (respond_to_covering_request()); declining
+// just clears it -- either way the requester's covering_profile_id is then
+// either genuinely usable or treated as an honest gap, never blindly
+// trusted the way it was before this session.
+async function loadCoveringRequests() {
+  const section = document.getElementById('covering-requests-section');
+  if (!section) return;
+  const { data } = await supabase.from('staff_leaves')
+    .select('id,leave_type,from_date,to_date,reason,related_duty_roster_id,requester:profiles!staff_leaves_profile_id_fkey(full_name)')
+    .eq('tenant_id', tenantId).eq('covering_profile_id', profile.id).eq('covering_status', 'pending')
+    .order('from_date');
+  const requests = data || [];
+  if (!requests.length) { section.style.display = 'none'; section.innerHTML = ''; return; }
+
+  section.style.display = '';
+  section.innerHTML = requests.map(r => {
+    const isShiftChange = !!r.related_duty_roster_id;
+    const dateLabel = r.from_date === r.to_date
+      ? _fmtDate(r.from_date)
+      : `${_fmtDate(r.from_date)} → ${_fmtDate(r.to_date)}`;
+    return `<div class="leave-card" style="border-color:var(--gold);background:var(--gold-light, #fdf3e2)">
+      <div class="lc-top">
+        <div>
+          <div class="lc-name">🤝 ${_esc(r.requester?.full_name || '—')} asked you to cover ${isShiftChange ? 'a shift' : 'their leave'}</div>
+          <div class="lc-meta">${dateLabel}</div>
+        </div>
+      </div>
+      ${r.reason ? `<div class="lc-reason">"${_esc(r.reason)}"</div>` : ''}
+      <div class="lc-actions">
+        <button class="btn btn-primary btn-sm" data-onclick="respondToCoveringRequest" data-onclick-a0="${r.id}" data-onclick-a1="accept">✓ Accept</button>
+        <button class="btn btn-secondary btn-sm" data-onclick="respondToCoveringRequest" data-onclick-a0="${r.id}" data-onclick-a1="decline">✗ Decline</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.respondToCoveringRequest = async function(id, action) {
+  const accept = action === 'accept';
+  const { error } = await supabase.rpc('respond_to_covering_request', { p_leave_id: id, p_accept: accept });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not respond to this request.')); return; }
+  _alert('success', accept ? 'Coverage accepted.' : 'Coverage declined.');
+  await loadCoveringRequests();
+};
+
 // ── Leave Requests (Session 145) ────────────────────
 // Mirrors nursing-admin.js's loadNursingLeaves()/approveLeave()/
 // confirmReject() exactly (same designation scope, same status/columns) so
@@ -937,6 +988,7 @@ _applyEditGate(); // correct immediately for super_admin/dept_admin/plain nurse;
 await Promise.all([loadDepartments(), loadDoctors(), loadHeadGate()]);
 await loadMonitorScope(); // needs _canEdit (loadHeadGate) + _depts (loadDepartments) already resolved
 await loadRoster();
+await loadCoveringRequests(); // every viewer, regardless of role -- see comment above the function
 
 // Session 149: deep-link support (?tab=leave / ?tab=monitor) -- the new
 // tab-row shortcuts on nursing-admin.html/nursing-roster-template.html link

@@ -272,13 +272,23 @@ function renderPendingLeaves() {
       </div>
       <div class="lc-dates">📅 ${_fmtD(l.from_date)} → ${_fmtD(l.to_date)} &nbsp;·&nbsp; ${days} day${days>1?'s':''}</div>
       ${l.reason ? `<div class="lc-reason">"${_esc(l.reason)}"</div>` : ''}
-      ${l.covering ? `<div class="lc-meta">🤝 Charge given to: <strong>${_esc(l.covering.full_name)}</strong> (${_roleLabel(l.covering.role)})</div>` : ''}
+      ${l.covering ? `<div class="lc-meta">🤝 Charge given to: <strong>${_esc(l.covering.full_name)}</strong> (${_roleLabel(l.covering.role)}) ${_coveringStatusBadge(l.covering_status)}</div>` : ''}
       <div class="lc-actions">
         <button class="btn btn-approve btn-sm" data-onclick="approveLeave" data-onclick-a0="${l.id}">✓ Approve</button>
         <button class="btn btn-reject btn-sm" data-onclick="openRejectModal" data-onclick-a0="${l.id}">✗ Reject</button>
       </div>
     </div>`;
   }).join('');
+}
+
+// Session 149: covering_profile_id is only ever actually usable once the
+// named colleague has accepted -- surfaced here so whoever's approving the
+// leave can see at a glance whether coverage is real yet, not just proposed.
+function _coveringStatusBadge(status) {
+  if (status === 'accepted') return '<span style="color:var(--green-mid,#2d7a4f);font-weight:600">✓ accepted</span>';
+  if (status === 'declined') return '<span style="color:var(--red,#c0392b);font-weight:600">✗ declined — treated as no coverage</span>';
+  if (status === 'pending') return '<span style="color:var(--gold,#c9902a);font-weight:600">⏳ awaiting her response</span>';
+  return '';
 }
 
 window.renderLeaveList = function() {
@@ -305,7 +315,7 @@ window.renderLeaveList = function() {
       </div>
       <div class="lc-dates">📅 ${_fmtD(l.from_date)} → ${_fmtD(l.to_date)} · ${days} day${days>1?'s':''}</div>
       ${l.reason ? `<div class="lc-reason">"${_esc(l.reason)}"</div>` : ''}
-      ${l.covering ? `<div class="lc-meta">🤝 Charge given to: <strong>${_esc(l.covering.full_name)}</strong> (${_roleLabel(l.covering.role)})</div>` : ''}
+      ${l.covering ? `<div class="lc-meta">🤝 Charge given to: <strong>${_esc(l.covering.full_name)}</strong> (${_roleLabel(l.covering.role)}) ${_coveringStatusBadge(l.covering_status)}</div>` : ''}
       ${l.rejection_reason ? `<div style="font-size:12px;color:var(--red);margin-top:4px">Rejected: ${_esc(l.rejection_reason)}</div>` : ''}
     </div>`;
   }).join('');
