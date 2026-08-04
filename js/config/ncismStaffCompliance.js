@@ -63,11 +63,19 @@ export const NCISM_XX_ROWS = [
   ['Reception & MRD','Receptionist cum Telephone Operator',['receptionist'],{60:1,100:1,150:1,200:1},'Sch XX/14'],
   ['Reception & MRD','Registration & Billing Clerks',['registration_clerk','billing_clerk'],{60:2,100:2,150:4,200:4},'Sch XX/15'],
   ['Reception & MRD','Medical Record Technician',['medical_record_officer','medical_record_technician'],{60:1,100:1,150:1,200:1},'Sch XX/16'],
-  // OPD Nursing — new schedule names 3 specific posts (Atyayika/Emergency, Shalya Tantra,
-  // Prasuti & Stri Roga) rather than a pool across all 10 outpatient clinics; headcount is
-  // unchanged (3/3/3/5) so this is a label-only update. AyurXpert has no tracked
-  // Atyayika/Emergency department entity yet — deferred, see memory.
-  ['OPD Nursing','Nursing Staff (Atyayika / Shalya / Prasuti & Stri Roga, pooled across OPD)',['staff_nurse','ward_sister'],{60:3,100:3,150:3,200:5},'Sch XX/18'],
+  // OPD Nursing — Sch XX/18 names 3 SPECIFIC posts ("one each for atyayika, Shalya and
+  // Prasuti and Streeroga"), not a pool across all 10 outpatient clinics like the old
+  // schedule's "All OPDs" framing. Session 151: split into 3 dedicated rows, each attributed
+  // directly to its real department (no double-counting -- the 3 rows sum to the exact same
+  // total the old pooled row had: 3/3/3/5). Atyayika/Emergency is a NEW department (see
+  // ORG_TREE_DEF's 'ATYAYIKA' entry below) backing emergency.html, which already existed as a
+  // clinical module but had zero department/NCISM wiring until now. The 200-tier's "5(1+2+2)"
+  // breakdown is the only tier the source document splits explicitly; 60/100/150's flat "3" is
+  // taken as 1 each (1+1+1=3), the only reading that reconciles with the pooled total.
+  ['Atyayika / Emergency','Nursing Staff — Atyayika (Emergency)',['staff_nurse','ward_sister'],{60:1,100:1,150:1,200:1},'Sch XX/18'],
+  ['Shalya Tantra Nursing','Nursing Staff — Shalya Tantra OPD',['staff_nurse','ward_sister'],{60:1,100:1,150:1,200:2},'Sch XX/18'],
+  ['Prasuti & Stri Roga Nursing','Nursing Staff — Prasuti & Stri Roga OPD',['staff_nurse','ward_sister'],{60:1,100:1,150:1,200:2},'Sch XX/18'],
+  // Aya/MTS (Sch XX/19) has no per-post breakdown in the source document -- stays pooled.
   ['OPD Nursing','Aya — All OPDs',['attender','anm'],{60:3,100:3,150:3,200:5},'Sch XX/19'],
   // Pharmacy
   ['Pharmacy','Pharmacist (Ayurveda-qualified)',['pharmacist'],{60:2,100:2,150:3,200:4},'Sch XX/20'],
@@ -129,14 +137,26 @@ export const NCISM_XX_OPTIONAL_ROWS = [
   ['Kriyakalpa','Kriyakalpa Therapists',['therapist','senior_therapist'],{60:2,100:2,150:4,200:4},'no longer in Sch XX (2026-27)'],
 ];
 
-// 12 top-level department-tree sections, in Dr. Venkatesh's fixed order. `key` resolves to
+// 13 top-level department-tree sections, in Dr. Venkatesh's fixed order. `key` resolves to
 // a department row via department.category (synthetic zones) or department.ncism_code
 // (real NCISM depts).
+// Session 151: added ATYAYIKA -- Schedule XIX treats Atyayika (Emergency) as its own
+// OPD+IPD-hybrid zone, distinct from every other schedule (the MESA&R UG 2026-27 circular's
+// item 12 references it separately from Schedule XX). Kept top-level rather than nested under
+// OPD/IPD, same treatment as Labour Room/Kriyakalpa (operationally distinct zones that also
+// straddle OPD/IPD character). Auto-seedable for both new and existing NCISM tenants via
+// admin.js's existing seedHrOrgStructure() -- adding one ORG_TREE_DEF entry is the whole
+// change needed there, no separate SQL migration (same pattern OT/IPD_MEDICAL/IPD_SURGICAL
+// used originally). Backs emergency.html, which already existed as a real clinical module
+// (Case Register/RMO Duty Log/Observation Beds/MLC Register) but had zero department/NCISM
+// wiring until now -- this only wires the NCISM staffing-compliance side; emergency.html's own
+// clinical tables are still self-contained (no department_id), left unchanged.
 export const ORG_TREE_DEF = [
   {key:'ADMIN',              label:'Administration',   icon:'🏛️'},
   {key:'FINANCE',            label:'Finance & Accounts',icon:'💰'},
   {key:'OPD_PARENT',         label:'OPD',               icon:'🚪'},
   {key:'IPD_PARENT',         label:'IPD',               icon:'🛏️'},
+  {key:'ATYAYIKA',           label:'Atyayika / Emergency', icon:'🚑'},
   {key:'PK',                 label:'Panchakarma',       icon:'🌿'},
   {key:'LABOUR_ROOM',        label:'Labour Room',       icon:'🤱'},
   {key:'KRIYAKALPA',         label:'Kriyakalpa',        icon:'👁️'},
@@ -253,6 +273,11 @@ export const ORG_ZONE_MAP = {
   'Operation Theatre':'OT', 'Labour Room':'LABOUR_ROOM', 'Kriyakalpa':'KRIYAKALPA',
   'Physiotherapy':'PHYSIOTHERAPY', 'Yoga & Wellness':'SW', 'Diet / Pathya':'DIET_PATHYA',
   'CSSD':'OT', 'Screening OPD':'SCREEN',
+  // Session 151: the 3-way OPD Nursing split -- Atyayika/Emergency is the new top-level
+  // ATYAYIKA zone; Shalya Tantra / Prasuti & Stri Roga map directly to their own real
+  // ncism_code (SHAL/PST) so the row shows on their existing Schedule-I teaching-department
+  // cards, not a separate synthetic zone.
+  'Atyayika / Emergency':'ATYAYIKA', 'Shalya Tantra Nursing':'SHAL', 'Prasuti & Stri Roga Nursing':'PST',
 };
 
 // Medical IPD / Surgical IPD's Nursing Staff + MTS rows are genuinely per-bed derived —

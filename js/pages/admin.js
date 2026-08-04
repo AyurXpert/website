@@ -1315,7 +1315,7 @@ supabase.channel('approvals-badge-live')
   .subscribe();
 
 window.seedHrOrgStructure = async function(){
-  if(!confirm('This creates the missing HR department rows (Administration, Finance, OPD, IPD, Labour Room, Kriyakalpa, Diet / Pathya, Physiotherapy, Diagnostics, Pharmacy, House Keeping, Laundry, Security) and re-parents existing OPD departments under the new "OPD" umbrella + Operation Theatre + Medical In-Patients + Surgical In-Patients under "IPD". Safe to run more than once. Staff currently assigned to the generic "IPD" department will need to be individually reassigned to Medical or Surgical In-Patients afterward. Continue?')) return;
+  if(!confirm('This creates the missing HR department rows (Administration, Finance, OPD, IPD, Atyayika / Emergency, Labour Room, Kriyakalpa, Diet / Pathya, Physiotherapy, Diagnostics, Pharmacy, House Keeping, Laundry, Security) and re-parents existing OPD departments under the new "OPD" umbrella + Operation Theatre + Medical In-Patients + Surgical In-Patients under "IPD". Safe to run more than once. Staff currently assigned to the generic "IPD" department will need to be individually reassigned to Medical or Surgical In-Patients afterward. Continue?')) return;
 
   const {data:rawDepts, error:fetchErr} = await supabase.from('departments')
     .select('id,name,ncism_code,category,parent_department_id').eq('tenant_id',tenantId);
