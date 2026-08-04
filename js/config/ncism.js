@@ -12,7 +12,7 @@ export const CLINICAL_CODES = new Set(['KAY', 'PK', 'SHAL', 'SHAK', 'KAU', 'PST'
 // replaces the old NURSING_DUTY_CODES/NURSING_DEPT_NAMES pairing, which
 // listed the 7 individual clinical department codes (Kayachikitsa, Shalya
 // Tantra, etc.) as if each needed its own dedicated nursing duty roster.
-// Per NCISM Schedule XX, OPD nursing (Sch XX/20) is one POOLED "All OPDs"
+// Per NCISM Schedule XX, OPD nursing (Sch XX/18) is one POOLED "All OPDs"
 // duty, not one nurse per specialty clinic -- so the real places are the
 // ones below, split into two groups by whether they need round-the-clock
 // coverage or a single 9am-5pm "General Duty" shift (see shiftsForDept()).

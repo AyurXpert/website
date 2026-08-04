@@ -42,7 +42,7 @@ const _ctx     = { tenantId, userId: profile.id, userName: profile.full_name };
 
 // ── Duty selector gate (Session 111) ───────────────
 // Only shared-pool clerk designations (Registration Clerk / Billing Clerk, per NCISM
-// Sch XX/17 -- one combined designation covering Registration/Admission/Discharge/
+// Sch XX/15 -- one combined designation covering Registration/Admission/Discharge/
 // Insurance/Billing) need to pick an active duty. A plain Receptionist designation (or
 // no designation at all -- the common case for any staff never assigned one via the HR
 // panel/position-invite flow) skips this entirely and lands straight in reception.html

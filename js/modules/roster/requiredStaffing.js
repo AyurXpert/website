@@ -1,4 +1,4 @@
-import { _computeIpdBedTotals } from '../../config/ncismStaffCompliance.js';
+import { _computeIpdBedTotals, _combinedIpdNursingSplit } from '../../config/ncismStaffCompliance.js';
 import { OPD_POOLED_NURSE_COUNT, OPD_COVERAGE_GROUPS, OT_NURSE_COUNT } from '../../config/ncism.js';
 
 // Shared by nursing-roster-template.js and nursing-admin.js -- both need the
@@ -16,6 +16,11 @@ import { OPD_POOLED_NURSE_COUNT, OPD_COVERAGE_GROUPS, OT_NURSE_COUNT } from '../
 // multiplying by 3 shifts was demanding 3x more nurses than NCISM actually
 // requires. Now returns the TOTAL only; distributeAcrossShifts() below
 // spreads that total across the department's actual shifts.
+//
+// Session 150 (MESA&R UG 2026-27 circular): Medical+Surgical IPD nursing is now ONE combined
+// ratio (_combinedIpdNursingSplit, ncismStaffCompliance.js) rather than two independent
+// 1-per-10-bed pools -- reused here (not reimplemented) so this page's suggested nurse count
+// can never drift from the compliance ladder's Required number.
 const BED_DEPT_ZONE = { 'Medical In-Patients': 'IPD_MEDICAL', 'Surgical In-Patients': 'IPD_SURGICAL' };
 
 function _ugTier(ugRaw) {
@@ -31,7 +36,7 @@ export async function computeRequiredPerShift(supabase, tenantId, deptName) {
     ]);
     const bedTotals = _computeIpdBedTotals(allDepts || [], beds || []);
     const bedCount = bedTotals[zone] || 0;
-    const total = Math.ceil(bedCount / 10);
+    const total = _combinedIpdNursingSplit(bedTotals)[zone] || 0;
     return total > 0 ? { mode: 'bed', bedCount, total } : null;
   }
   if (deptName === 'OPD') {

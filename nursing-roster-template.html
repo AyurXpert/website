@@ -142,6 +142,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     </div>
     <div class="cc-body">
       <div id="tpl-readonly-note" class="empty" style="display:none">Read-only -- only the current Nursing Head (or MD/Principal/MS/super_admin) can edit a roster template.</div>
+      <!-- Session 149: explains a deliberately-empty department (e.g. nursing
+           post retained for NCISM compliance, real coverage from other
+           staff, nurse redeployed to Relief Pool) so it never reads as an
+           unexplained gap. -->
+      <div id="dept-note-display" style="display:none;background:var(--gold-light);border:1.5px solid var(--gold);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12.5px;color:#7a5a10">
+        <strong>ℹ️ Note:</strong> <span id="dept-note-text"></span>
+        <button class="btn btn-secondary btn-sm" id="btn-edit-dept-note" style="margin-left:8px;height:22px;padding:0 8px;font-size:11px">Edit</button>
+      </div>
+      <div id="dept-note-edit" style="display:none;margin-bottom:12px">
+        <textarea id="dept-note-input" rows="2" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-family:'DM Sans',sans-serif;font-size:12.5px" placeholder="e.g. Covered by interns/RMO on-site; nurse redeployed to Relief Pool"></textarea>
+        <div style="margin-top:6px;display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" id="btn-save-dept-note">Save Note</button>
+          <button class="btn btn-secondary btn-sm" id="btn-cancel-dept-note">Cancel</button>
+        </div>
+      </div>
       <div id="fill-all-bar" style="display:none;margin-bottom:12px">
         <button class="btn btn-secondary btn-sm" id="btn-fill-all" data-onclick="fillAllFixedTeams">🔁 Fill All (Fixed Teams)</button>
         <button class="btn btn-secondary btn-sm" id="btn-clear-all" data-onclick="clearAllSlots" style="color:var(--red);border-color:#f5b8b8">🗑️ Clear All Slots</button>

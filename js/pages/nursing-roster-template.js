@@ -263,7 +263,7 @@ async function loadTemplateForDept() {
   _selectedDeptShifts = shiftsForDept(deptObj);
 
   const [{ data: templateRow }, { data: poolRows }] = await Promise.all([
-    supabase.from('nursing_roster_templates').select('id,cycle_length').eq('tenant_id', tenantId).eq('department_id', _selectedDept).maybeSingle(),
+    supabase.from('nursing_roster_templates').select('id,cycle_length,notes').eq('tenant_id', tenantId).eq('department_id', _selectedDept).maybeSingle(),
     // Session 141: tenant-wide pool, not scoped to this department's own
     // recruitment -- a nurse gets POSTED to duty here, not necessarily
     // permanently assigned here.
@@ -288,13 +288,13 @@ async function loadTemplateForDept() {
   if (_requiredPerShift?.mode === 'bed') {
     const byShift = distributeAcrossShifts(_requiredPerShift.total, _selectedDeptShifts);
     const perShiftDesc = _selectedDeptShifts.map(s => `${SHIFT_LABELS[s]}: ${byShift[s]}`).join(', ');
-    requiredNote = ` · ${_requiredPerShift.bedCount} beds → ${_requiredPerShift.total} nurse${_requiredPerShift.total === 1 ? '' : 's'} required total (1 per 10 beds), spread across shifts as ${perShiftDesc}`;
+    requiredNote = ` · ${_requiredPerShift.bedCount} beds → ${_requiredPerShift.total} nurse${_requiredPerShift.total === 1 ? '' : 's'} required total (combined Medical+Surgical IPD ratio, Sch XX/27), spread across shifts as ${perShiftDesc}`;
   } else if (_requiredPerShift?.mode === 'opd') {
-    requiredNote = ` · ${_requiredPerShift.total} nurses required (Sch XX/20, pooled across all OPDs), split into ${_requiredPerShift.groups.length} coverage zones`;
+    requiredNote = ` · ${_requiredPerShift.total} nurses required (Sch XX/18, pooled across all OPDs), split into ${_requiredPerShift.groups.length} coverage zones`;
   } else if (_requiredPerShift?.mode === 'ot') {
     const byShift = distributeAcrossShifts(_requiredPerShift.total, _selectedDeptShifts);
     const perShiftDesc = _selectedDeptShifts.map(s => `${SHIFT_LABELS[s]}: ${byShift[s]}`).join(', ');
-    requiredNote = ` · ${_requiredPerShift.total} nurse${_requiredPerShift.total === 1 ? '' : 's'} required total (Sch XX/43), spread across shifts as ${perShiftDesc}`;
+    requiredNote = ` · ${_requiredPerShift.total} nurse${_requiredPerShift.total === 1 ? '' : 's'} required total (Sch XX/35), spread across shifts as ${perShiftDesc}`;
   }
   document.getElementById('tpl-sub').innerHTML = ((_template
     ? `${cycleLength}-day template (locked in when first built)`
@@ -315,7 +315,51 @@ async function loadTemplateForDept() {
   document.getElementById('roll-card').style.display = _template ? '' : 'none';
   document.getElementById('fill-all-bar').style.display = (_canEdit && _pool.length) ? '' : 'none';
   renderGrid(cycleLength);
+  _renderDeptNote();
 }
+
+// Session 149: department-level note explaining a deliberately-empty
+// template (nursing post retained for NCISM compliance, real coverage from
+// other staff, nurse redeployed to Relief Pool). Visible to every viewer;
+// only _canEdit can change it.
+function _renderDeptNote() {
+  const display = document.getElementById('dept-note-display');
+  const editBox = document.getElementById('dept-note-edit');
+  const editBtn = document.getElementById('btn-edit-dept-note');
+  editBox.style.display = 'none';
+  if (!_template) { display.style.display = 'none'; return; }
+  if (_template.notes) {
+    document.getElementById('dept-note-text').textContent = _template.notes;
+    display.style.display = '';
+    editBtn.style.display = _canEdit ? '' : 'none';
+    editBtn.textContent = 'Edit';
+  } else if (_canEdit) {
+    // No note yet -- still show the box so the head has a way to add one.
+    document.getElementById('dept-note-text').textContent = '— none —';
+    display.style.display = '';
+    editBtn.style.display = '';
+    editBtn.textContent = '+ Add Note';
+  } else {
+    display.style.display = 'none';
+  }
+}
+
+document.getElementById('btn-edit-dept-note').addEventListener('click', () => {
+  document.getElementById('dept-note-input').value = _template?.notes || '';
+  document.getElementById('dept-note-edit').style.display = '';
+  document.getElementById('dept-note-display').style.display = 'none';
+});
+document.getElementById('btn-cancel-dept-note').addEventListener('click', () => {
+  document.getElementById('dept-note-edit').style.display = 'none';
+  _renderDeptNote();
+});
+document.getElementById('btn-save-dept-note').addEventListener('click', async () => {
+  const note = document.getElementById('dept-note-input').value.trim();
+  const { error } = await supabase.rpc('set_department_roster_note', { p_department_id: _selectedDept, p_note: note || null });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not save this note.')); return; }
+  _alert('success', 'Note saved.');
+  await loadTemplateForDept();
+});
 
 function _poolOptionsHtml(excludeIds) {
   return _pool.filter(p => !excludeIds.includes(p.id))

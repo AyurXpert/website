@@ -17,7 +17,11 @@ import { SCHEDULE_IV, NCISM_OPDS } from './ncism.js';
 // ladder row (a tenant can record who holds the title and Invite if genuinely vacant) but
 // excluded from every AGGREGATE minimum-headcount total, so a Professor already counted in
 // the Schedule I faculty ladder isn't double-counted as a second, separate person.
-export const FACULTY_CONCURRENT_POSTS = new Set(['medical_director']);
+// Session 150 (MESA&R UG 2026-27 circular, confirmed with Dr. Venkatesh's NCISM consultant):
+// added 'palha_diet_incharge' — the new Schedule XX describes Pathya In-charge as "assign
+// additional charge to a Dietician or any teaching faculty", i.e. an existing staff member's
+// added responsibility, not a dedicated new headcount, the same shape as Medical Director.
+export const FACULTY_CONCURRENT_POSTS = new Set(['medical_director', 'palha_diet_incharge']);
 
 // Real Schedule XX operational-staff requirements, one row per position. `keys` lists every
 // designation that can fill the post — almost always because the same real person could be
@@ -29,81 +33,100 @@ export const FACULTY_CONCURRENT_POSTS = new Set(['medical_director']);
 // avoid a single row's requirement being counted twice into two different designation
 // buckets (Session 136 -- confirmed via exhaustive sweep this is the ONLY row whose keys
 // span two conceptually different designation groups in the whole table).
+// Session 150 (MESA&R UG 2026-27 circular, Ref No. 3/2026/MARB/Visitation, 15.01.2026, item
+// 13 — "Schedule XX shall be replaced by the following") — confirmed with Dr. Venkatesh's
+// NCISM consultant before implementing. Refs below use the NEW document's own row numbering
+// (1-45), not the old schedule's. Rows genuinely absent from the new table (Administrator
+// (Non-clinical), Dispensary In-charge, Diagnostics' USG & ECG nursing, Lab Assistant —
+// Microbiology, PK's Clerk cum Receptionist, Kriyakalpa Therapists) were removed outright,
+// not merely deprioritised — the new document lists nothing in their place. Two rows moved
+// from a flat UG-intake-tier lookup to a total-hospital-bed THRESHOLD bracket (Assistant
+// Matron, Registration & Billing Clerks — see BED_BRACKET_ROWS below); Medical + Surgical IPD
+// nursing merged into one combined ratio (see _combinedIpdNursingSplit below, Dr. Venkatesh's
+// explicit choice to keep splitting the combined total proportionally across both ward cards
+// rather than showing one merged line). See memory `mesar_2026_27_schedule_xx_implementation.md`.
 export const NCISM_XX_ROWS = [
   // Administration
-  ['Administration','Medical Director / Principal / Dean',['medical_director'],{60:1,100:1,150:1,200:1},'Sch XX/1'],
-  ['Administration','Medical Superintendent',['medical_superintendent'],{60:1,100:1,150:1,200:1},'Sch XX/2'],
-  ['Administration','Deputy Medical Superintendent',['deputy_medical_superintendent'],{60:1,100:1,150:2,200:2},'Sch XX/3'],
-  ['Administration','Administrator (Non-clinical)',['administrative_officer'],{60:1,100:1,150:2,200:2},'Sch XX/4'],
-  ['Administration','RMO / Emergency Medical Officer (24×7)',['resident_medical_officer','emergency_medical_officer'],{60:2,100:3,150:4,200:5},'Sch XX/6'],
-  ['Administration','Matron / Nursing Superintendent',['nursing_superintendent'],{60:1,100:1,150:1,200:1},'Sch XX/7'],
-  ['Administration','Assistant Matron',['deputy_nursing_superintendent'],{60:2,100:3,150:4,200:5},'Sch XX/8'],
-  ['Administration','Office Superintendent',['opd_incharge'],{60:1,100:1,150:1,200:1},'Sch XX/9'],
-  ['Administration','Multi-tasking Support Staff',['attender'],{60:3,100:3,150:4,200:4},'Sch XX/12'],
+  ['Administration','Medical Director / Principal / Dean',['medical_director'],{60:1,100:1,150:1,200:1},'Sch I (apex)'],
+  ['Administration','Medical Superintendent',['medical_superintendent'],{60:1,100:1,150:1,200:1},'Sch XX/1'],
+  ['Administration','Deputy Medical Superintendent',['deputy_medical_superintendent'],{60:1,100:1,150:2,200:2},'Sch XX/2'],
+  ['Administration','RMO / Emergency Medical Officer (24×7)',['resident_medical_officer','emergency_medical_officer'],{60:2,100:3,150:4,200:5},'Sch XX/3'],
+  ['Administration','Matron / Nursing Superintendent',['nursing_superintendent'],{60:1,100:1,150:1,200:1},'Sch XX/4'],
+  ['Administration','Assistant Matron (day + night shifts)',['deputy_nursing_superintendent'],{60:2,100:2,150:4,200:4},'Sch XX/5'],
+  ['Administration','Office Superintendent',['opd_incharge'],{60:1,100:1,150:1,200:1},'Sch XX/6'],
+  ['Administration','Multi-tasking Support Staff',['attender'],{60:3,100:3,150:4,200:4},'Sch XX/9'],
   // Finance & Accounts (separate zone from Administration).
   ['Finance & Accounts','Finance Manager / Accounts Officer',['finance_manager'],{60:1,100:1,150:1,200:1},'NCISM §Admin'],
-  ['Finance & Accounts','Clerks & Accounts Staff',['accountant'],{60:1,100:2,150:3,200:4},'Sch XX/10'],
-  ['Finance & Accounts','Store Keeper (Main / Pharmacy Store)',['store_keeper'],{60:1,100:1,150:1,200:1},'Sch XX/11'],
+  ['Finance & Accounts','Clerks & Accountants',['accountant'],{60:1,100:2,150:3,200:4},'Sch XX/7'],
+  ['Finance & Accounts','Store Keeper (Main / Pharmacy Store)',['store_keeper'],{60:1,100:1,150:1,200:1},'Sch XX/8'],
   // Reception & MRD
-  ['Reception & MRD','Receptionist cum Telephone Operator',['receptionist'],{60:3,100:4,150:4,200:4},'Sch XX/16'],
-  ['Reception & MRD','Registration & Billing Clerks',['registration_clerk','billing_clerk'],{60:1,100:2,150:3,200:4},'Sch XX/17'],
-  ['Reception & MRD','Medical Record Technician',['medical_record_officer','medical_record_technician'],{60:1,100:1,150:1,200:1},'Sch XX/18'],
-  // OPD Nursing
-  ['OPD Nursing','Nursing Staff — All OPDs',['staff_nurse','ward_sister'],{60:3,100:3,150:3,200:5},'Sch XX/20'],
-  ['OPD Nursing','Aya — All OPDs',['attender','anm'],{60:3,100:3,150:3,200:5},'Sch XX/21'],
+  ['Reception & MRD','Receptionist cum Telephone Operator',['receptionist'],{60:1,100:1,150:1,200:1},'Sch XX/14'],
+  ['Reception & MRD','Registration & Billing Clerks',['registration_clerk','billing_clerk'],{60:2,100:2,150:4,200:4},'Sch XX/15'],
+  ['Reception & MRD','Medical Record Technician',['medical_record_officer','medical_record_technician'],{60:1,100:1,150:1,200:1},'Sch XX/16'],
+  // OPD Nursing — new schedule names 3 specific posts (Atyayika/Emergency, Shalya Tantra,
+  // Prasuti & Stri Roga) rather than a pool across all 10 outpatient clinics; headcount is
+  // unchanged (3/3/3/5) so this is a label-only update. AyurXpert has no tracked
+  // Atyayika/Emergency department entity yet — deferred, see memory.
+  ['OPD Nursing','Nursing Staff (Atyayika / Shalya / Prasuti & Stri Roga, pooled across OPD)',['staff_nurse','ward_sister'],{60:3,100:3,150:3,200:5},'Sch XX/18'],
+  ['OPD Nursing','Aya — All OPDs',['attender','anm'],{60:3,100:3,150:3,200:5},'Sch XX/19'],
   // Pharmacy
-  ['Pharmacy','Pharmacist (Ayurveda-qualified)',['pharmacist'],{60:2,100:2,150:3,200:4},'Sch XX/22'],
-  ['Pharmacy','Dispensary In-charge',['chief_pharmacist'],{60:1,100:1,150:1,200:1},'Sch XX/23'],
+  ['Pharmacy','Pharmacist (Ayurveda-qualified)',['pharmacist'],{60:2,100:2,150:3,200:4},'Sch XX/20'],
   // Diagnostics
-  ['Diagnostics','Lab Technician (DMLT)',['lab_technician'],{60:2,100:2,150:3,200:4},'Sch XX/24'],
-  ['Diagnostics','Lab Attendant',['lab_attendant'],{60:1,100:1,150:2,200:3},'Sch XX/25'],
-  ['Diagnostics','X-ray Technician / Radiographer',['radiographer'],{60:1,100:1,150:1,200:1},'Sch XX/26'],
-  ['Diagnostics','ECG Technician',['ecg_technician'],{60:1,100:1,150:2,200:2},'Sch XX/28'],
-  ['Diagnostics','Nursing Staff — USG & ECG',['staff_nurse'],{60:1,100:1,150:1,200:1},'Sch XX/29'],
-  ['Diagnostics','Microbiologist (MSc)',['microbiologist'],{60:1,100:1,150:1,200:1},'Sch XX/30'],
-  ['Diagnostics','Lab Assistant — Microbiology',['microbiology_lab_assistant'],{60:1,100:1,150:2,200:2},'Sch XX/31'],
-  // Medical IPD
-  ['Medical IPD','Nursing Staff (1 per 10 beds)',['staff_nurse','ward_sister'],{60:4,100:6,150:9,200:12},'Sch XX/32'],
-  ['Medical IPD','Ayah (1 per 20 beds)',['attender','anm'],{60:2,100:3,150:5,200:6},'Sch XX/33'],
-  ['Medical IPD','Resident Medical Officer — Medical',['resident_medical_officer','emergency_medical_officer','general_duty_medical_officer'],{60:2,100:2,150:2,200:2},'Sch XX/34'],
+  ['Diagnostics','Lab Technician (DMLT)',['lab_technician'],{60:2,100:2,150:3,200:4},'Sch XX/21'],
+  ['Diagnostics','Lab Attendant',['lab_attendant'],{60:1,100:1,150:2,200:3},'Sch XX/22'],
+  ['Diagnostics','X-ray Technician / Radiographer',['radiographer'],{60:1,100:1,150:1,200:1},'Sch XX/23'],
+  ['Diagnostics','Dark Room Assistant (non-digital X-ray only)',['dark_room_assistant'],{60:1,100:1,150:1,200:1},'Sch XX/24'],
+  ['Diagnostics','ECG Technician',['ecg_technician'],{60:1,100:1,150:2,200:2},'Sch XX/25'],
+  ['Diagnostics','Microbiologist (MSc, part-time)',['microbiologist'],{60:1,100:1,150:1,200:1},'Sch XX/26'],
+  // Medical IPD — Nursing Staff row's {ug} numbers are unused (see _combinedIpdNursingSplit,
+  // deptRequirement's ref==='Sch XX/27' branch overrides them from real bed counts).
+  ['Medical IPD','Nursing Staff (combined 1 per 30 IPD beds + relievers, split by bed share)',['staff_nurse','ward_sister'],{60:0,100:0,150:0,200:0},'Sch XX/27'],
+  ['Medical IPD','MTS (1 per 20 beds)',['attender','anm'],{60:2,100:3,150:5,200:6},'Sch XX/28'],
+  ['Medical IPD','Resident Medical Officer — Medical',['resident_medical_officer','emergency_medical_officer','general_duty_medical_officer'],{60:2,100:2,150:2,200:2},'Sch XX/29'],
   // Surgical IPD
-  ['Surgical IPD','Nursing Staff (1 per 10 beds)',['staff_nurse','ward_sister'],{60:3,100:4,150:6,200:8},'Sch XX/35'],
-  ['Surgical IPD','Ayah (1 per 20 beds)',['attender','anm'],{60:2,100:2,150:3,200:4},'Sch XX/36'],
-  ['Surgical IPD','Resident Surgical Officer',['resident_surgical_officer','emergency_medical_officer','general_duty_medical_officer'],{60:2,100:2,150:2,200:2},'Sch XX/37'],
+  ['Surgical IPD','Nursing Staff (combined 1 per 30 IPD beds + relievers, split by bed share)',['staff_nurse','ward_sister'],{60:0,100:0,150:0,200:0},'Sch XX/27'],
+  ['Surgical IPD','MTS (1 per 20 beds)',['attender','anm'],{60:2,100:2,150:3,200:4},'Sch XX/30'],
+  ['Surgical IPD','Resident Surgical Officer',['resident_surgical_officer','emergency_medical_officer','general_duty_medical_officer'],{60:2,100:2,150:2,200:2},'Sch XX/31'],
   // Panchakarma
-  ['Panchakarma','PK Nursing Staff',['staff_nurse'],{60:1,100:1,150:2,200:2},'Sch XX/38'],
-  ['Panchakarma','PK Therapists (Male + Female equal)',['pk_incharge','senior_therapist','therapist'],{60:4,100:8,150:12,200:16},'Sch XX/40'],
-  ['Panchakarma','House Officer / Clinical Registrar (BAMS)',['junior_resident'],{60:1,100:1,150:1,200:1},'Sch XX/41'],
-  ['Panchakarma','Clerk cum Receptionist',['receptionist'],{60:1,100:1,150:1,200:1},'Sch XX/42'],
+  ['Panchakarma','PK Nursing Staff',['staff_nurse'],{60:1,100:1,150:2,200:2},'Sch XX/32'],
+  ['Panchakarma','PK Therapists (Male + Female equal)',['pk_incharge','senior_therapist','therapist'],{60:6,100:10,150:16,200:20},'Sch XX/33'],
+  ['Panchakarma','House Officer / Clinical Registrar (BAMS)',['junior_resident'],{60:1,100:1,150:1,200:1},'Sch XX/34'],
   // Operation Theatre
-  ['Operation Theatre','OT Nursing Staff',['ot_technician','staff_nurse'],{60:1,100:2,150:3,200:4},'Sch XX/43'],
-  ['Operation Theatre','OT Attendants',['ot_attendant'],{60:2,100:3,150:4,200:5},'Sch XX/44'],
-  ['Operation Theatre','Anushastra Karma Technician',['anushastra_technician'],{60:1,100:1,150:2,200:2},'Sch XX/45'],
+  ['Operation Theatre','OT Nursing Staff',['ot_technician','staff_nurse'],{60:1,100:2,150:3,200:4},'Sch XX/35'],
+  ['Operation Theatre','OT Attendants',['ot_attendant'],{60:2,100:3,150:4,200:5},'Sch XX/36'],
+  ['Operation Theatre','Anushastra Karma Technician',['anushastra_technician'],{60:1,100:1,150:2,200:2},'Sch XX/37'],
   // Labour Room
-  ['Labour Room','Nursing Staff — Labour Room (3 shifts)',['staff_nurse','ward_sister'],{60:3,100:3,150:6,200:6},'Sch XX/46'],
-  ['Labour Room','Aya (1 per shift)',['attender','anm'],{60:3,100:3,150:3,200:3},'Sch XX/47'],
-  // Therapy
-  ['Kriyakalpa','Kriyakalpa Therapists',['therapist','senior_therapist'],{60:2,100:2,150:4,200:4},'Sch XX/48'],
-  ['Physiotherapy','Physiotherapist',['therapist'],{60:1,100:1,150:1,200:1},'Sch XX/49'],
-  ['Physiotherapy','Attendant / Aya',['attender'],{60:1,100:1,150:1,200:1},'Sch XX/50'],
+  ['Labour Room','Nursing Staff — Labour Room (3 shifts)',['staff_nurse','ward_sister'],{60:3,100:3,150:6,200:6},'Sch XX/38'],
+  ['Labour Room','MTS — preferably Female (1 per shift)',['attender','anm'],{60:3,100:3,150:3,200:3},'Sch XX/39'],
+  // Physiotherapy
+  ['Physiotherapy','Physiotherapist',['therapist'],{60:1,100:1,150:1,200:1},'Sch XX/40'],
+  ['Physiotherapy','Attendant / MTS',['attender'],{60:1,100:1,150:1,200:1},'Sch XX/41'],
   // Yoga & Wellness
-  ['Yoga & Wellness','Yoga Demonstrator',['yoga_instructor'],{60:1,100:1,150:1,200:1},'Sch XX/51'],
-  // Diet / Pathya
-  ['Diet / Pathya','Diet In-charge (BAMS / MSc Dietetics)',['palha_diet_incharge','dietitian'],{60:1,100:1,150:1,200:1},'Sch XX/52'],
-  ['Diet / Pathya','Pathya Cooks',['diet_cook'],{60:2,100:2,150:3,200:4},'Sch XX/53'],
-  ['Diet / Pathya','Multi-tasking Staff',['attender'],{60:2,100:2,150:3,200:4},'Sch XX/54'],
-  // CSSD (Central Sterilization)
+  ['Yoga & Wellness','Yoga Demonstrator',['yoga_instructor'],{60:1,100:1,150:1,200:1},'Sch XX/42'],
+  // Diet / Pathya — In-charge tracked via FACULTY_CONCURRENT_POSTS (additional-charge post,
+  // not a dedicated headcount — see that Set's comment).
+  ['Diet / Pathya','Diet In-charge (additional charge — Dietician or teaching faculty)',['palha_diet_incharge','dietitian'],{60:1,100:1,150:1,200:1},'Sch XX/43'],
+  ['Diet / Pathya','Pathya Cooks',['diet_cook'],{60:2,100:2,150:3,200:4},'Sch XX/44'],
+  ['Diet / Pathya','Multi-tasking Staff',['attender'],{60:2,100:2,150:3,200:4},'Sch XX/45'],
+  // CSSD (Central Sterilization) — not a real official Schedule XX line item (custom-added,
+  // "CS" ref), untouched by this circular.
   ['CSSD','CSSD / Sterilisation Staff',['cssd_incharge','cssd_technician'],{60:1,100:1,150:1,200:1},'Sch XX/CS1'],
   ['CSSD','CSSD / Sterilisation Aya',['cssd_aya'],{60:1,100:1,150:1,200:1},'Sch XX/CS2'],
-  // Screening OPD
+  // Screening OPD — Sch XVI §40(m), a different schedule, untouched by this circular.
   ['Screening OPD','Screening OPD Nursing Staff',['staff_nurse'],{60:1,100:1,150:1,200:1},'Sch XVI §40(m)'],
 ];
 
 // Optional Schedule XX rows — real per the source table, but conditional or newly-added.
 // Never counted toward the mandatory ladder, required total, or compliance %.
+// Session 150: Dark Room Assistant promoted to mandatory (new Sch XX/24 lists it
+// unconditionally, no longer "non-digital X-ray only" caveat in the requirements table
+// itself — kept the caveat in the label since it's still true in practice). Kriyakalpa
+// Therapists demoted here — the new Schedule XX has no Kriyakalpa section at all; kept
+// visible/trackable rather than deleted outright since kriyakalpa.html is a real tracked
+// clinical module, just no longer NCISM-mandated.
 export const NCISM_XX_OPTIONAL_ROWS = [
-  ['Diagnostics','Dark Room Assistant (non-digital X-ray only)',['dark_room_assistant'],{60:1,100:1,150:1,200:1},'Sch XX/27'],
-  ['Panchakarma','Cook — Preparation Room',['panchakarma_cook'],{60:1,100:1,150:2,200:2},'Sch XX/39'],
+  ['Panchakarma','Cook — Preparation Room',['panchakarma_cook'],{60:1,100:1,150:2,200:2},'Sch XX/39 (2024 numbering, not in 2026-27 replacement)'],
+  ['Kriyakalpa','Kriyakalpa Therapists',['therapist','senior_therapist'],{60:2,100:2,150:4,200:4},'no longer in Sch XX (2026-27)'],
 ];
 
 // 12 top-level department-tree sections, in Dr. Venkatesh's fixed order. `key` resolves to
@@ -232,17 +255,48 @@ export const ORG_ZONE_MAP = {
   'CSSD':'OT', 'Screening OPD':'SCREEN',
 };
 
-// Medical IPD / Surgical IPD's Nursing Staff + Ayah rows (Sch XX/32-33, XX/35-36) are
-// genuinely per-bed ratios (1 nurse/10 beds, 1 ayah/20 beds) — computed live from real
-// configured beds (bed-admin.html) rather than the static NCISM handbook per-UG-tier table.
-// Medical IPD = Kayachikitsa + Panchakarma + Kaumarabhritya + Agada Tantra (Vishachikitsa);
-// Surgical IPD = Shalya Tantra + Shalakya Tantra + Prasuti & Stri Roga.
+// Medical IPD / Surgical IPD's Nursing Staff + MTS rows are genuinely per-bed derived —
+// computed live from real configured beds (bed-admin.html) rather than the static NCISM
+// handbook per-UG-tier table. Nursing Staff (Sch XX/27) is the Session 150 combined ratio
+// (_combinedIpdNursingSplit); MTS (Sch XX/28, XX/30) is still a plain 1-per-20-beds ratio
+// (BED_DERIVED_ROWS). Medical IPD = Kayachikitsa + Panchakarma + Kaumarabhritya + Agada Tantra
+// (Vishachikitsa); Surgical IPD = Shalya Tantra + Shalakya Tantra + Prasuti & Stri Roga.
 export const IPD_MEDICAL_BED_CODES = ['KAY','PK','KAU','AGD'];
 export const IPD_SURGICAL_BED_CODES = ['SHAL','SHAK','PST'];
+// Session 150: Nursing Staff (old Sch XX/32, XX/35) moved out to the combined-ratio branch
+// below (_combinedIpdNursingSplit) — only the per-bed MTS/Ayah rows still use this plain
+// ratio mechanism.
 export const BED_DERIVED_ROWS = {
-  'Sch XX/32': {zoneKey:'IPD_MEDICAL',  per:10}, 'Sch XX/33': {zoneKey:'IPD_MEDICAL',  per:20},
-  'Sch XX/35': {zoneKey:'IPD_SURGICAL', per:10}, 'Sch XX/36': {zoneKey:'IPD_SURGICAL', per:20},
+  'Sch XX/28': {zoneKey:'IPD_MEDICAL',  per:20},
+  'Sch XX/30': {zoneKey:'IPD_SURGICAL', per:20},
 };
+
+// Session 150 (MESA&R UG 2026-27): a total-hospital-bed THRESHOLD bracket, replacing a flat
+// UG-intake-tier lookup — Assistant Matron and Registration & Billing Clerks are no longer
+// sized off the UG intake tier at all, just whether the tenant has ≤100 or 101-200 real beds
+// (Medical + Surgical IPD combined).
+export const BED_BRACKET_ROWS = {
+  'Sch XX/5':  {threshold:100, low:2, high:4},
+  'Sch XX/15': {threshold:100, low:2, high:4},
+};
+
+// Session 150 (MESA&R UG 2026-27, new Sch XX/27): Medical + Surgical IPD nursing is now ONE
+// combined ratio — 1 nurse per 30 total IPD beds across 3 shifts, plus a shared reliever pool
+// (1 up to 100 total beds, 2 above) — instead of two independent 1-per-10-bed pools. This is
+// the same reliever concept the Relief Pool feature (Session 149) was built to cover, now
+// formally backed by regulation. Dr. Venkatesh's explicit choice: keep showing a nursing line
+// on both the Medical IPD and Surgical IPD cards, splitting the combined total proportionally
+// by each ward's real bed share (rounding drift absorbed into Surgical's share so the two
+// always sum exactly to the combined total).
+export function _combinedIpdNursingSplit(bedTotals){
+  const med = bedTotals?.IPD_MEDICAL||0, surg = bedTotals?.IPD_SURGICAL||0, total = med+surg;
+  if(!total) return {IPD_MEDICAL:0, IPD_SURGICAL:0};
+  const perShift = Math.ceil(total/30);
+  const relievers = total<=100 ? 1 : 2;
+  const combined = perShift*3 + relievers;
+  const medCount = Math.round(combined*med/total);
+  return {IPD_MEDICAL:medCount, IPD_SURGICAL:combined-medCount};
+}
 
 // Required-staff ladder for a single department row. mandated=false means NCISM prescribes
 // no headcount for this function (Housekeeping/Laundry/Security) — never fabricate a number
@@ -286,8 +340,16 @@ export function deptRequirement(dept, ug, bedTotals){
     if(rows.length){
       mandated=true;
       rows.forEach(([zone,label,keys,req,ref])=>{
-        const bedRule=BED_DERIVED_ROWS[ref];
-        const c=bedRule ? Math.ceil((bedTotals?.[bedRule.zoneKey]||0)/bedRule.per) : (req[ug]||0);
+        let c;
+        if(ref==='Sch XX/27'){
+          c = _combinedIpdNursingSplit(bedTotals)[zone==='Medical IPD' ? 'IPD_MEDICAL' : 'IPD_SURGICAL'];
+        } else {
+          const bedRule=BED_DERIVED_ROWS[ref];
+          const bracket=BED_BRACKET_ROWS[ref];
+          if(bedRule) c=Math.ceil((bedTotals?.[bedRule.zoneKey]||0)/bedRule.per);
+          else if(bracket){ const tb=(bedTotals?.IPD_MEDICAL||0)+(bedTotals?.IPD_SURGICAL||0); c = tb<=bracket.threshold ? bracket.low : bracket.high; }
+          else c = req[ug]||0;
+        }
         if(c){ ladder.push({zone,label,count:c,ref,keys,facultyHeld:FACULTY_CONCURRENT_POSTS.has(keys[0])}); }
       });
     }

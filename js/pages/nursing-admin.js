@@ -8,6 +8,7 @@ import { isNCISMType, isNursingDutyDept, shiftsForDept } from '../config/ncism.j
 import { resolveNursingHeadship, canActAsNursingHead, canDecideShiftChange } from '../modules/roster/nursingHeadship.js';
 import { computeRequiredPerShift, distributeAcrossShifts } from '../modules/roster/requiredStaffing.js';
 import { checkCycleExpiry } from '../modules/roster/cycleExpiry.js';
+import { _computeIpdBedTotals, _combinedIpdNursingSplit } from '../config/ncismStaffCompliance.js';
 
 await requireAuth(['nurse_manager', 'super_admin', 'dept_admin']);
 initNavbar();
@@ -179,29 +180,38 @@ window.confirmReject = async function() {
 // counting approach, NOT ncism-compliance.js's role-based one -- the nursing-relevant
 // subset only) + a live duty_roster on-duty-today count per department, which doesn't
 // exist anywhere else in the app.
+// Session 150 (MESA&R UG 2026-27 circular): refs/counts updated to match the replaced
+// Schedule XX (see ncismStaffCompliance.js). IPD Nursing is now a single sentinel row --
+// req is unused, the real number comes from _combinedIpdNursingSplit (same combined
+// bed-derived ratio as admin.js's ladder, reused here so the two pages can't disagree).
+const IPD_NURSING_SENTINEL = '__combined_ipd__';
 const NURSING_XX_ROWS = [
-  ['Matron / Nursing Superintendent', ['nursing_superintendent'], { 60: 1, 100: 1, 150: 1, 200: 1 }, 'Sch XX/7'],
-  ['Assistant Matron', ['deputy_nursing_superintendent'], { 60: 2, 100: 3, 150: 4, 200: 5 }, 'Sch XX/8'],
-  ['Nursing Staff — All OPDs', ['staff_nurse', 'ward_sister'], { 60: 3, 100: 3, 150: 3, 200: 5 }, 'Sch XX/20'],
-  ['Nursing Staff — Medical IPD (1 per 10 beds)', ['staff_nurse', 'ward_sister'], { 60: 4, 100: 6, 150: 9, 200: 12 }, 'Sch XX/32'],
-  ['Nursing Staff — Surgical IPD (1 per 10 beds)', ['staff_nurse', 'ward_sister'], { 60: 3, 100: 4, 150: 6, 200: 8 }, 'Sch XX/35'],
-  ['PK Nursing Staff', ['staff_nurse'], { 60: 1, 100: 1, 150: 2, 200: 2 }, 'Sch XX/38'],
-  ['OT Nursing Staff', ['staff_nurse'], { 60: 1, 100: 2, 150: 3, 200: 4 }, 'Sch XX/43'],
-  ['Nursing Staff — Labour Room (3 shifts)', ['staff_nurse', 'ward_sister'], { 60: 3, 100: 3, 150: 6, 200: 6 }, 'Sch XX/46'],
+  ['Matron / Nursing Superintendent', ['nursing_superintendent'], { 60: 1, 100: 1, 150: 1, 200: 1 }, 'Sch XX/4'],
+  ['Assistant Matron (day + night shifts)', ['deputy_nursing_superintendent'], { 60: 2, 100: 2, 150: 4, 200: 4 }, 'Sch XX/5'],
+  ['Nursing Staff (Atyayika/Shalya/Prasuti, pooled across OPD)', ['staff_nurse', 'ward_sister'], { 60: 3, 100: 3, 150: 3, 200: 5 }, 'Sch XX/18'],
+  ['Nursing Staff — Medical + Surgical IPD (combined, 1 per 30 beds + relievers)', ['staff_nurse', 'ward_sister'], IPD_NURSING_SENTINEL, 'Sch XX/27'],
+  ['PK Nursing Staff', ['staff_nurse'], { 60: 1, 100: 1, 150: 2, 200: 2 }, 'Sch XX/32'],
+  ['OT Nursing Staff', ['staff_nurse'], { 60: 1, 100: 2, 150: 3, 200: 4 }, 'Sch XX/35'],
+  ['Nursing Staff — Labour Room (3 shifts)', ['staff_nurse', 'ward_sister'], { 60: 3, 100: 3, 150: 6, 200: 6 }, 'Sch XX/38'],
 ];
 
 async function loadComplianceSnapshot() {
   const grid = document.getElementById('snap-grid');
   const sub = document.getElementById('snap-sub');
 
-  const [{ data: tRow }, { data: allStaff }, { data: depts }] = await Promise.all([
+  const [{ data: tRow }, { data: allStaff }, { data: depts }, { data: bedsRows }] = await Promise.all([
     supabase.from('tenants').select('type,ug_intake').eq('id', tenantId).single(),
     supabase.from('profiles').select('id,designation').eq('tenant_id', tenantId).eq('is_active', true),
-    supabase.from('departments').select('id,name').eq('tenant_id', tenantId).eq('is_active', true),
+    supabase.from('departments').select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true),
+    supabase.from('beds').select('department_id').eq('tenant_id', tenantId),
   ]);
 
   const recruitedByDesig = {};
   (allStaff || []).forEach(s => { if (s.designation) recruitedByDesig[s.designation] = (recruitedByDesig[s.designation] || 0) + 1; });
+  const ipdBedTotals = _computeIpdBedTotals(depts || [], bedsRows || []);
+  const ipdSplit = _combinedIpdNursingSplit(ipdBedTotals);
+  const ipdNursingTotal = ipdSplit.IPD_MEDICAL + ipdSplit.IPD_SURGICAL;
+  const ipdCombined = ipdBedTotals.IPD_MEDICAL + ipdBedTotals.IPD_SURGICAL;
 
   let ladderHtml = '';
   if (isNCISMType(tRow?.type) && tRow?.ug_intake) {
@@ -209,14 +219,14 @@ async function loadComplianceSnapshot() {
     const ug = [60, 100, 150, 200].includes(ugRaw) ? ugRaw : (ugRaw >= 150 ? 150 : ugRaw >= 100 ? 100 : ugRaw > 0 ? 60 : 0);
     sub.textContent = `UG Intake: ${ug} · Required vs recruited (tenant-wide) + who's actually on duty today, by department`;
     ladderHtml = NURSING_XX_ROWS.map(([label, keys, req, ref]) => {
-      const total = req[ug] || 0;
+      const total = req === IPD_NURSING_SENTINEL ? ipdNursingTotal : (req[ug] || 0);
       const recruited = keys.reduce((sum, k) => sum + (recruitedByDesig[k] || 0), 0);
       const gap = Math.max(0, total - recruited);
       const cls = recruited >= total && total > 0 ? 'snap-ok' : recruited > 0 ? 'snap-warn' : 'snap-deficit';
       const icon = recruited >= total && total > 0 ? '✅' : recruited > 0 ? '⚠️' : '❌';
       return `<div class="snap-card">
         <div class="snap-dept">${_esc(label)}</div>
-        <div style="font-size:10.5px;color:var(--text-muted)">${_esc(ref)}</div>
+        <div style="font-size:10.5px;color:var(--text-muted)">${_esc(ref)}${req === IPD_NURSING_SENTINEL && ipdCombined ? ` · ${ipdCombined} real beds` : ''}</div>
         <div class="snap-row"><span>Required</span><strong>${total}</strong></div>
         <div class="snap-row"><span>Recruited</span><strong class="${cls}">${recruited} ${icon}</strong></div>
         ${gap > 0 ? `<div class="snap-row snap-deficit"><span>Gap</span><strong>−${gap}</strong></div>` : ''}

@@ -680,8 +680,9 @@ const DESIG_ROLE_DEFAULT = {
   professor:'doctor', hod:'doctor', associate_professor:'doctor', assistant_professor:'doctor',
   senior_resident:'doctor', junior_resident:'doctor',
   // Session 118: Medical Director/Principal are the apex administrative authority
-  // (Sch XX/1, and typically held concurrently by an existing faculty member --
-  // see the note below on why they carry no separate headcount) -- their HMS
+  // (Sch I, apex -- no longer a dedicated Sch XX line since the 2026-27 circular --
+  // and typically held concurrently by an existing faculty member, see the note
+  // below on why they carry no separate headcount) -- their HMS
   // Login Role default is dept_admin like other admin-zone positions, just
   // displayed under their own title rather than the generic "Dept. Admin"
   // label (see APEX_DESIGS/_effectiveRoleLabel below). Was defaulting to 'doctor' before this.
@@ -696,7 +697,7 @@ const DESIG_ROLE_DEFAULT = {
   pg_scholar:'trainee_doctor', intern:'trainee_doctor',
   administrative_officer:'dept_admin', opd_incharge:'dept_admin',
   // Session 112: Nursing Superintendent/Deputy are managerial positions (NCISM lists them
-  // under the Administration zone, Sch XX/7-8, not the clinical ward zones) -- they get
+  // under the Administration zone, Sch XX/4-5, not the clinical ward zones) -- they get
   // their own role landing on nursing-admin.html (roster + nursing leave approval +
   // compliance oversight), not nursing.html's bedside charting tool that plain nursing
   // staff use.
@@ -1473,7 +1474,7 @@ async function _renderNcismStaffing() {
   // ugReqForGroup: sum requirements for XX rows attributable to gKeys.
   // Session 136 -- was `keys.some(k=>gKeys.includes(k))`, matching a row if ANY of its
   // acceptable designations fell in gKeys. Broke down for NCISM_XX_ROWS rows whose keys span
-  // TWO different NCISM_SUM_GRPS groups -- Sch XX/43 "OT Nursing Staff" accepts EITHER
+  // TWO different NCISM_SUM_GRPS groups -- Sch XX/35 "OT Nursing Staff" accepts EITHER
   // ot_technician (OT/CSSD group) OR staff_nurse (Nursing group), so its requirement (2 at
   // UG100) got counted into BOTH groups' totals, while the 2 real hires (recruited under
   // ot_technician) only credited toward one -- a phantom −2 gap appeared on "Staff Nurse —
@@ -2072,7 +2073,7 @@ async function _renderStaffingPlan() {
     let roleTotal=0, roleRec=0;
     const rowsHtml = byRole[role].map(ck=>{
       const info = byKey[ck];
-      // Sch XX/43 "OT Nursing Staff" is the one row in NCISM_XX_ROWS whose
+      // Sch XX/35 "OT Nursing Staff" is the one row in NCISM_XX_ROWS whose
       // alternate key is a genuinely different profession (Staff Nurse),
       // not just a synonym title (unlike e.g. staff_nurse/ward_sister) --
       // real gap found live: this table's designation-grouped label showed
@@ -2209,7 +2210,7 @@ async function _renderStaffingPlan() {
 // a department with no dedicated senior staff of its own (Screening OPD, the
 // synthetic OPD umbrella section, etc.) -- Dr. Venkatesh's explicit ask,
 // Session 137: Medical Superintendent/Deputy MS/RMOs already have real
-// hospital-wide operational oversight authority (Sch XX/2-3/6).
+// hospital-wide operational oversight authority (Sch XX/1-3).
 const OVERSIGHT_DESIGS = ['medical_superintendent','deputy_medical_superintendent','resident_medical_officer'];
 
 // Session 137 (part 2): departments with no faculty of their own can borrow a
