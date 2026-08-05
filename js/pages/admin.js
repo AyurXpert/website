@@ -854,6 +854,17 @@ function _hierarchyRank(desig){ return DESIG_NCISM_RANK[desig] ?? (1000 + (DESIG
 // NCISM_XX_OPTIONAL_ROWS -- also moved to js/config/ncismStaffCompliance.js.
 
 // Summary groups — each desig key appears in EXACTLY ONE group to avoid double-counting
+// Session 153: Administrator (Non-clinical), Dispensary In-charge, and Lab Attendant's
+// "Microbiology Lab Assistant" merge were all removed here -- their designations
+// (administrative_officer/chief_pharmacist/microbiology_lab_assistant) were dropped outright
+// from NCISM_XX_ROWS in Session 150 (the 2026-27 circular has no line for them at all), but
+// this hand-maintained list never got updated to match -- leaving 3 ghost/misleading rows: 2
+// showed a confusing "—/—/—/1/⚠️" (looks like a compliance gap, isn't one -- there's no
+// requirement to fall short of), and the 3rd silently double-counted anyone with
+// microbiology_lab_assistant into "Lab Attendant"'s recruited total. Real staff holding any of
+// these 3 designations now surface in the Extra Staff tab instead (FORMER_NCISM_DESIGNATIONS,
+// ncismStaffCompliance.js) -- visible with Depute/Terminate actions, not silently invisible OR
+// showing as a fake gap.
 const NCISM_SUM_GRPS = [
   {s:'Faculty (Schedule I)',rows:[
     {l:'Professor / HOD',                             k:['professor','hod'],                                                                    fac:'p'},
@@ -865,7 +876,6 @@ const NCISM_SUM_GRPS = [
     {l:'Medical Director / Principal / Dean',         k:['medical_director']},
     {l:'Medical Superintendent',                      k:['medical_superintendent']},
     {l:'Deputy Medical Superintendent',               k:['deputy_medical_superintendent']},
-    {l:'Administrator (Non-clinical)',                k:['administrative_officer']},
     {l:'RMO / EMO / Resident MO / RSO (Admin + IPD × 3)',  k:['resident_medical_officer','emergency_medical_officer','general_duty_medical_officer','resident_surgical_officer']},
     {l:'House Officer / Clinical Registrar (BAMS)',   k:['junior_resident']},
   ]},
@@ -877,11 +887,10 @@ const NCISM_SUM_GRPS = [
   ]},
   {s:'Pharmacy',rows:[
     {l:'Pharmacist',                                  k:['pharmacist','pharmacy_assistant']},
-    {l:'Dispensary In-charge',                        k:['chief_pharmacist']},
   ]},
   {s:'Diagnostics',rows:[
     {l:'Lab Technician / ECG Technician',             k:['lab_technician','ecg_technician']},
-    {l:'Lab Attendant / Microbiology Lab Assistant',  k:['lab_attendant','microbiology_lab_assistant']},
+    {l:'Lab Attendant',                               k:['lab_attendant']},
     {l:'X-ray Technician / Radiographer',             k:['radiographer']},
     {l:'Microbiologist',                              k:['microbiologist']},
   ]},
@@ -1073,7 +1082,8 @@ async function _fetchExtraStaffList(){
   // aggregate number.
   (rawStaff||[]).forEach(s=>{ if(!s.department_id) return; (byDept[s.department_id]=byDept[s.department_id]||[]).push(s); });
   const tree=buildDeptTree(depts||[], opds||[]);
-  return _collectExtraStaff(tree, ug, bedTotals, byDept);
+  const deptNameById={}; (depts||[]).forEach(d=>{ deptNameById[d.id]=d.name; });
+  return _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById);
 }
 
 async function _renderExtraStaff(){
@@ -1573,7 +1583,8 @@ async function _renderNcismStaffing() {
   // Session 136 -- shared summary banner (Required/Recruited capped, Extra Staff called out
   // separately, true org headcount shown) inserted at the top of this tab; same data _collectExtraStaff
   // already computes for the Extra Staff tab, reused here so the two can't disagree either.
-  const extraList = _collectExtraStaff(tree, ug, bedTotals, byDept);
+  const deptNameById={}; (depts||[]).forEach(d=>{ deptNameById[d.id]=d.name; });
+  const extraList = _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById);
   const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId]]);
   const summaryBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff});
 
@@ -2090,7 +2101,8 @@ async function _renderStaffingPlan() {
   const cntDeptD = (deptId,keys)=>(byDept[deptId]||[]).filter(s=>(keys||[]).includes(s.designation)).length;
   const tree = buildDeptTree(depts||[], opds||[]);
   const {grandReq, grandMet} = _computeGrandCompliance(tree, ug, bedTotals, cntDeptD);
-  const extraList = _collectExtraStaff(tree, ug, bedTotals, byDept);
+  const deptNameById={}; (depts||[]).forEach(d=>{ deptNameById[d.id]=d.name; });
+  const extraList = _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById);
   const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId]]);
   const summaryBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff});
 
@@ -5573,7 +5585,8 @@ async function _renderNcismChecklist(ugIntake, orgType) {
     const cntDeptD = (deptId,keys)=>(byDept[deptId]||[]).filter(s=>(keys||[]).includes(s.designation)).length;
     const tree = buildDeptTree(depts, opds);
     const {grandReq, grandMet} = _computeGrandCompliance(tree, ugTier, bedTotals, cntDeptD);
-    const extraList = _collectExtraStaff(tree, ugTier, bedTotals, byDept);
+    const deptNameById={}; depts.forEach(d=>{ deptNameById[d.id]=d.name; });
+    const extraList = _collectExtraStaff(tree, ugTier, bedTotals, byDept, deptNameById);
     const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId]]);
     staffComplianceBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff});
   }

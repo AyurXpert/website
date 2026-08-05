@@ -333,7 +333,8 @@ async function loadAll() {
   const bannerEl = document.getElementById('ncism-staff-summary-banner');
   if (bannerEl) {
     const { grandReq, grandMet } = _computeGrandCompliance(tree, ugTier, bedTotals, cntDeptD);
-    const extraList = _collectExtraStaff(tree, ugTier, bedTotals, byDept);
+    const deptNameById = {}; (depts || []).forEach(d => { deptNameById[d.id] = d.name; });
+    const extraList = _collectExtraStaff(tree, ugTier, bedTotals, byDept, deptNameById);
     bannerEl.innerHTML = _renderComplianceSummaryBanner({ grandReq, grandMet, extraList, totalOrgStaff: totalOrgStaffCount });
   }
 

@@ -137,6 +137,25 @@ export const NCISM_XX_OPTIONAL_ROWS = [
   ['Kriyakalpa','Kriyakalpa Therapists',['therapist','senior_therapist'],{60:2,100:2,150:4,200:4},'no longer in Sch XX (2026-27)'],
 ];
 
+// Session 153 follow-up: 3 designations that were REMOVED OUTRIGHT by the 2026-27 circular
+// (Session 150) -- no row anywhere in NCISM_XX_ROWS/NCISM_XX_OPTIONAL_ROWS, unlike Kriyakalpa
+// Therapists above (whose keys, staff_nurse/therapist, are still tracked elsewhere -- these 3
+// have zero remaining tracked use anywhere). Confirmed against designations.js's own "no longer
+// a dedicated Sch XX post" notes -- deliberately a small curated list, not an inferred "anything
+// not in NCISM_XX_ROWS" check, since most designations in this app (nurse_manager, mrd_staff,
+// etc.) were never meant to be Sch XX-tracked at all and would be massively over-flagged by a
+// blanket check. Real staff still holding one of these now show up in _collectExtraStaff() below
+// as fully "extra" (required=0) instead of silently vanishing from every compliance view --
+// found live (Dr. Venkatesh, 5 Aug 2026) when SDM's real Administrator/Dispensary In-charge
+// staff turned up as unexplained "—/—/—/1/⚠️" ghost rows in admin.html's legacy summary table
+// with no way to act on them anywhere, including the Extra Staff tab, which should have caught
+// them but couldn't (its ladder walk only ever iterates rows that still exist).
+export const FORMER_NCISM_DESIGNATIONS = [
+  {key:'administrative_officer', label:'Administrator (Non-clinical)'},
+  {key:'chief_pharmacist', label:'Dispensary In-charge / Chief Pharmacist'},
+  {key:'microbiology_lab_assistant', label:'Lab Assistant — Microbiology'},
+];
+
 // 13 top-level department-tree sections, in Dr. Venkatesh's fixed order. `key` resolves to
 // a department row via department.category (synthetic zones) or department.ncism_code
 // (real NCISM depts).
@@ -423,7 +442,12 @@ export function _computeGrandCompliance(tree, ug, bedTotals, cntDeptD){
 // actions on each -- never an algorithm silently choosing for him. byDept entries need id/
 // full_name populated by the caller for this to work (cntDeptD itself only ever needed
 // designation, so this is additive, not a breaking change to any existing caller).
-export function _collectExtraStaff(tree, ug, bedTotals, byDept){
+// deptNameById (optional, Session 153 follow-up): deptId -> name lookup for the
+// FORMER_NCISM_DESIGNATIONS pass below, which isn't reachable via the tree walk (that walk only
+// ever visits departments/rows the current NCISM_XX_ROWS still mandates). Omitting it just falls
+// back to '—' for those rows' deptName -- harmless for ncism-compliance.js's caller, which only
+// ever sums .extra and never renders deptName/staff.
+export function _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById){
   const cntDeptD=(deptId,keys)=>(byDept[deptId]||[]).filter(s=>(keys||[]).includes(s.designation)).length;
   const list=[];
   tree.forEach(node=>{
@@ -442,6 +466,25 @@ export function _collectExtraStaff(tree, ug, bedTotals, byDept){
       });
     });
   });
+
+  // Session 153 follow-up: staff holding a FORMER_NCISM_DESIGNATIONS key are 100% "extra" by
+  // definition (required=0 -- the position doesn't exist in the current schedule at all) and
+  // would otherwise never surface anywhere, since the tree walk above only ever iterates rows
+  // that still exist. Scanned across every department real staff are actually posted to (not
+  // just tree-walked NCISM departments), so nobody's missed regardless of where they landed.
+  Object.entries(byDept).forEach(([deptId, staffList])=>{
+    FORMER_NCISM_DESIGNATIONS.forEach(({key,label})=>{
+      const matched=(staffList||[]).filter(s=>s.designation===key);
+      if(!matched.length) return;
+      list.push({
+        deptId, deptName:(deptNameById && deptNameById[deptId]) || '—',
+        label, ref:'Removed from Sch XX (2026-27 circular)',
+        required:0, actual:matched.length, extra:matched.length,
+        staff:matched.map(s=>({id:s.id, full_name:s.full_name})),
+      });
+    });
+  });
+
   return list;
 }
 
