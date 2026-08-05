@@ -565,11 +565,17 @@ function _setBadge(id, count){
 // SECTION HR — LOGIN ACCESS (Staff Account Management)
 // ────────────────────────────────────────────────
 window.loadStaffAccess = async function() {
-  const [total, active, pending, suspended] = await Promise.all([
+  // Session 154: "Total Accounts" deliberately stays unfiltered (a genuine "every account this
+  // org has ever had, in any state" inventory, unlike the NCISM headcount banner's "Total Staff
+  // in Organisation" which was fixed to mean "currently employed") -- terminated staff are no
+  // longer folded silently into it though; they get their own explicit stat instead, matching
+  // how Suspended already gets its own bucket rather than being hidden inside Active/Total.
+  const [total, active, pending, suspended, terminated] = await Promise.all([
     _count('profiles',[['tenant_id',tenantId]]),
     _count('profiles',[['tenant_id',tenantId],['is_active',true]]),
     _count('profiles',[['tenant_id',tenantId],['status','pending_approval']]),
     _count('profiles',[['tenant_id',tenantId],['status','suspended']]),
+    _count('profiles',[['tenant_id',tenantId],['status','inactive']]),
   ]);
 
   // Sidebar badge + HR sub-nav "Login Access" tab badge
@@ -578,12 +584,16 @@ window.loadStaffAccess = async function() {
 
   // Summary cards
   const acGrid=document.getElementById('access-stats');
-  if(acGrid) acGrid.innerHTML=[
-    {ico:'👥',cls:'b',   num:total,    lbl:'Total Accounts',   sub:'all staff'},
-    {ico:'✅',cls:'g',   num:active,   lbl:'Active',            sub:'can log in'},
-    {ico:'⏳',cls:'r',   num:pending,  lbl:'Pending Approval',  sub:'awaiting review'},
-    {ico:'🚫',cls:'p',   num:suspended,lbl:'Suspended',         sub:'access revoked'},
-  ].map(c=>`<div class="sc"><div class="sc-ico ${c.cls}">${c.ico}</div><div class="sc-num">${c.num??'—'}</div><div class="sc-lbl">${c.lbl}</div><div class="sc-sub">${c.sub}</div></div>`).join('');
+  if(acGrid){
+    acGrid.style.gridTemplateColumns='repeat(5,1fr)';
+    acGrid.innerHTML=[
+      {ico:'👥',cls:'b',   num:total,     lbl:'Total Accounts',   sub:'all-time, every state'},
+      {ico:'✅',cls:'g',   num:active,    lbl:'Active',            sub:'can log in'},
+      {ico:'⏳',cls:'r',   num:pending,   lbl:'Pending Approval',  sub:'awaiting review'},
+      {ico:'🚫',cls:'p',   num:suspended, lbl:'Suspended',         sub:'access revoked'},
+      {ico:'⛔',cls:'p',   num:terminated,lbl:'Terminated',        sub:'see Terminated Staff tab'},
+    ].map(c=>`<div class="sc"><div class="sc-ico ${c.cls}">${c.ico}</div><div class="sc-num">${c.num??'—'}</div><div class="sc-lbl">${c.lbl}</div><div class="sc-sub">${c.sub}</div></div>`).join('');
+  }
 
   // Pending approvals table
   const approvals = await getPendingApprovals();
@@ -742,7 +752,10 @@ let _deptSelOptsHtml = '<option value="">— No Department —</option>';
 window.loadHR = async function(sub='staff') {
   _hrSub(sub);
   const [{data:staff},{data:depts}] = await Promise.all([
-    supabase.from('profiles').select('id,full_name,role,secondary_role,has_monitoring_access,scope_department_id,designation,phone,status,is_active,created_at,department_id').eq('tenant_id',tenantId).order('full_name'),
+    // Session 154: .neq('status','inactive') -- terminated staff no longer belong anywhere in
+    // this array (window._staffAll backs All Staff, Hierarchy View, and every department-scoped
+    // count that reads from it). They live exclusively in the new Terminated Staff tab now.
+    supabase.from('profiles').select('id,full_name,role,secondary_role,has_monitoring_access,scope_department_id,designation,phone,status,is_active,created_at,department_id').eq('tenant_id',tenantId).neq('status','inactive').order('full_name'),
     supabase.from('departments').select('id,name,ncism_code,category').eq('tenant_id',tenantId),
   ]);
   const dById={}; (depts||[]).forEach(d=>{dById[d.id]=d;});
@@ -767,6 +780,9 @@ window.loadHR = async function(sub='staff') {
   _computePendingApprovalsCount().then(n => _setBadge('hr-tab-decisions-badge', n));
   // Extra Staff tab badge — same pattern.
   _fetchExtraStaffList().then(list => _setBadge('hr-tab-extra-badge', list ? list.reduce((s,r)=>s+r.extra,0) : 0));
+  // Terminated Staff tab badge (Session 154) — separate query since window._staffAll now
+  // excludes them entirely (can't derive the count from the filtered array above).
+  _count('profiles',[['tenant_id',tenantId],['status','inactive']]).then(n => _setBadge('hr-tab-terminated-badge', n));
 
   // Same sorted department list backs both the filter dropdown below AND each row's
   // editable Department select in renderStaffTable() -- cached module-level since it's
@@ -805,6 +821,7 @@ function _hrSub(sub){
   document.getElementById('hr-dept-panel').style.display       = sub==='dept'      ? '' : 'none';
   document.getElementById('hr-decisions-panel').style.display  = sub==='decisions' ? '' : 'none';
   document.getElementById('hr-extra-panel').style.display      = sub==='extra'     ? '' : 'none';
+  document.getElementById('hr-terminated-panel').style.display = sub==='terminated'? '' : 'none';
   document.getElementById('hr-leave-panel').style.display      = sub==='leave'     ? '' : 'none';
   document.getElementById('hr-seed-bar').style.display         = (sub==='ncism'||sub==='dept') ? 'flex' : 'none';
   if (sub === 'ncism')   _renderNcismStaffing();
@@ -813,6 +830,7 @@ function _hrSub(sub){
   if (sub === 'dept')    _renderDeptStaff();
   if (sub === 'decisions') window.loadPendingDecisions();
   if (sub === 'extra')   _renderExtraStaff();
+  if (sub === 'terminated') _renderTerminatedStaff();
   if (sub === 'leave')   _renderLeaveHolidays();
 }
 
@@ -1114,7 +1132,7 @@ async function _renderExtraStaff(){
       '<div style="display:flex;align-items:center;gap:6px;padding:2px 0;flex-wrap:wrap">'
         +'<span style="font-size:12px">'+_esc(s.full_name||'—')+'</span>'
         +'<button class="btn-outline" style="font-size:10.5px;padding:2px 7px" data-onclick="openDeputeModal" data-onclick-a0="'+_esc(s.id)+'" data-onclick-a1="'+_esc(s.full_name||'this staff member')+'" data-onclick-a2="'+_esc(r.deptId||'')+'">🔄 Depute</button>'
-        +'<button class="btn-outline" style="font-size:10.5px;padding:2px 7px;color:#c0392b;border-color:#e0b0b0" data-onclick="terminateExtraStaff" data-onclick-a0="'+_esc(s.id)+'" data-onclick-a1="'+_esc(s.full_name||'this staff member')+'">🗑 Terminate</button>'
+        +'<button class="btn-outline" style="font-size:10.5px;padding:2px 7px;color:#c0392b;border-color:#e0b0b0" data-onclick="openTerminateModal" data-onclick-a0="'+_esc(s.id)+'" data-onclick-a1="'+_esc(s.full_name||'this staff member')+'">🗑 Terminate</button>'
       +'</div>'
     ).join('') || '<span style="font-size:11px;color:var(--text-muted)">—</span>';
     return '<tr><td style="padding:7px 12px 7px 16px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(r.deptName)+'</td>'
@@ -1173,33 +1191,103 @@ window.submitDepute = async function(){
   _renderExtraStaff();
 };
 
-window.terminateExtraStaff = async function(staffId, staffName){
+// Session 154: Terminate now goes through a modal that requires a reason (terminate_staff()'s
+// RPC itself also enforces this server-side -- a reason isn't just a UI nicety, the record is
+// meaningless without it once it lands on the Terminated Staff tab). Reachable from the Extra
+// Staff tab's per-staff row.
+window.openTerminateModal = function(staffId, staffName){
+  document.getElementById('terminate-staff-id').value = staffId;
+  document.getElementById('terminate-staff-name').textContent = staffName;
+  document.getElementById('terminate-reason').value = '';
+  document.getElementById('terminate-modal').style.display = 'flex';
+};
+window.closeTerminateModal = function(){
+  document.getElementById('terminate-modal').style.display = 'none';
+};
+window.submitTerminate = async function(){
+  const staffId = document.getElementById('terminate-staff-id').value;
+  const staffName = document.getElementById('terminate-staff-name').textContent;
+  const reason = document.getElementById('terminate-reason').value.trim();
+  if (!reason) { _toast('A reason for termination is required.', true); return; }
+
   if (_isGatedForApproval()) {
     if(!confirm(`Submit a request to terminate ${staffName}? This needs sign-off before it takes effect.`)) return;
     const { error } = await supabase.rpc('request_approval', {
-      p_action_type: 'staff_terminate', p_payload: { staff_id: staffId, staff_name: staffName }, p_reason: null,
+      p_action_type: 'staff_terminate', p_payload: { staff_id: staffId, staff_name: staffName, reason }, p_reason: null,
     });
     if (error) { _toast(safeErrorMessage(error, 'Could not submit request.'), true); return; }
+    closeTerminateModal();
     _toast('Submitted for approval.');
     return;
   }
-  if(!confirm(`Terminate ${staffName}? This revokes their login and removes them from all department staffing counts. It can be undone later from All Staff (Reactivate).`)) return;
-  const { error } = await supabase.rpc('terminate_staff', { p_staff_id: staffId });
+  if(!confirm(`Terminate ${staffName}? This revokes their login and removes them from every staffing count in the HMS. Reversible any time from the Terminated Staff tab.`)) return;
+  const { error } = await supabase.rpc('terminate_staff', { p_staff_id: staffId, p_reason: reason });
   if (error) { _toast(safeErrorMessage(error, 'Could not terminate staff.'), true); return; }
-  await logAudit('terminate_staff', 'profiles', staffId, { staff_name: staffName }, {tenantId, userId: profile.id, userName: profile.full_name});
+  await logAudit('terminate_staff', 'profiles', staffId, { staff_name: staffName, reason }, {tenantId, userId: profile.id, userName: profile.full_name});
+  closeTerminateModal();
   _toast(staffName+' terminated.');
   _renderExtraStaff();
   window.loadHR && window.loadHR('staff');
+  _count('profiles',[['tenant_id',tenantId],['status','inactive']]).then(n => _setBadge('hr-tab-terminated-badge', n));
 };
 
 window.reactivateStaff = async function(staffId, staffName){
-  if(!confirm(`Reactivate ${staffName}? Restores their login and counts them again in department staffing.`)) return;
+  if(!confirm(`Reactivate ${staffName}? Restores their login and counts them again in every staffing view.`)) return;
   const { error } = await supabase.rpc('reactivate_staff', { p_staff_id: staffId });
   if (error) { _toast(safeErrorMessage(error, 'Could not reactivate staff.'), true); return; }
   await logAudit('reactivate_staff', 'profiles', staffId, { staff_name: staffName }, {tenantId, userId: profile.id, userName: profile.full_name});
   _toast(staffName+' reactivated.');
+  _renderTerminatedStaff();
   window.loadHR && window.loadHR('staff');
+  _count('profiles',[['tenant_id',tenantId],['status','inactive']]).then(n => _setBadge('hr-tab-terminated-badge', n));
 };
+
+// ── Terminated Staff tab (Session 154) — the only place a terminated account is visible;
+// excluded from All Staff/Login Access/every headcount elsewhere. Recruited/Joined date is
+// profiles.created_at (no separate HR "date of joining" field exists yet) -- the account's
+// creation date is the closest real proxy the schema has today.
+async function _renderTerminatedStaff(){
+  const wrap = document.getElementById('terminated-staff-wrap');
+  wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
+
+  const [{ data:staff }, { data:depts }] = await Promise.all([
+    supabase.from('profiles').select('id,full_name,designation,department_id,created_at,terminated_at,termination_reason')
+      .eq('tenant_id',tenantId).eq('status','inactive').order('terminated_at',{ascending:false}),
+    supabase.from('departments').select('id,name').eq('tenant_id',tenantId),
+  ]);
+  _setBadge('hr-tab-terminated-badge', (staff||[]).length);
+
+  if (!staff?.length){
+    wrap.innerHTML = '<div class="empty"><div class="empty-ico">✅</div><div class="empty-ttl">No terminated staff.</div></div>';
+    return;
+  }
+  const dById={}; (depts||[]).forEach(d=>{ dById[d.id]=d.name; });
+  const rows = staff.map(s => `<tr>
+    <td style="font-weight:600">${_esc(s.full_name||'—')}</td>
+    <td>${_esc(DESIG_MAP[s.designation]?.l||s.designation||'—')}</td>
+    <td>${_esc(dById[s.department_id]||'—')}</td>
+    <td style="font-size:12px;color:var(--text-muted)">${_relDate(s.created_at)}</td>
+    <td style="font-size:12px;color:var(--text-muted)">${s.terminated_at?_relDate(s.terminated_at):'—'}</td>
+    <td style="font-size:12.5px;max-width:260px">${_esc(s.termination_reason||'—')}</td>
+    <td><button class="btn-outline" style="font-size:11px;padding:4px 8px" data-onclick="reactivateStaff" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">✅ Reactivate</button></td>
+  </tr>`).join('');
+
+  wrap.innerHTML =
+    '<div style="background:#c0392b;color:#fff;border-radius:var(--radius) var(--radius) 0 0;padding:12px 18px">'
+      +'<div style="font-weight:600;font-size:14px">🚫 Terminated Staff</div>'
+      +'<div style="font-size:11px;opacity:.85;margin-top:2px">'+staff.length+' account(s). Not counted anywhere else in the HMS — visible here only, reversible via Reactivate.</div>'
+    +'</div>'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+      +'<thead><tr style="background:#f5faf7">'
+      +'<th style="padding:6px 12px 6px 16px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Name</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Designation</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Department</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Recruited / Joined</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Terminated</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Reason</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Actions</th>'
+      +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
 
 // ── Leave & Holidays (Session 137, Nursing Roster Phase 1) ──────────────
 // Medical Director/Principal/Medical Superintendent (+ super_admin) manage a
@@ -1585,7 +1673,12 @@ async function _renderNcismStaffing() {
   // already computes for the Extra Staff tab, reused here so the two can't disagree either.
   const deptNameById={}; (depts||[]).forEach(d=>{ deptNameById[d.id]=d.name; });
   const extraList = _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById);
-  const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId]]);
+  // Session 153 follow-up: was unfiltered by is_active -- terminated accounts are still real
+// profiles rows, so "Total Staff" kept counting them even though every other number on this
+// banner (Recruited/Extra) correctly excludes them once Terminate started being used for real.
+// Filtering here makes "Total Staff" mean "currently employed" (what Terminate is actually for),
+// so Total = Recruited + Extra + outside-tracking holds again instead of silently drifting.
+const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_active',true]]);
   const summaryBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff});
 
   // ── Summary table (designation-wise totals across ALL zones) ─────────
@@ -2103,7 +2196,12 @@ async function _renderStaffingPlan() {
   const {grandReq, grandMet} = _computeGrandCompliance(tree, ug, bedTotals, cntDeptD);
   const deptNameById={}; (depts||[]).forEach(d=>{ deptNameById[d.id]=d.name; });
   const extraList = _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById);
-  const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId]]);
+  // Session 153 follow-up: was unfiltered by is_active -- terminated accounts are still real
+// profiles rows, so "Total Staff" kept counting them even though every other number on this
+// banner (Recruited/Extra) correctly excludes them once Terminate started being used for real.
+// Filtering here makes "Total Staff" mean "currently employed" (what Terminate is actually for),
+// so Total = Recruited + Extra + outside-tracking holds again instead of silently drifting.
+const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_active',true]]);
   const summaryBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff});
 
   const facTotal=_scheduleIFacultyTotal(depts, ug);
@@ -2733,11 +2831,9 @@ function renderStaffTable(staff){
     const showScopeDept   = canPromote && s.is_active && !hasFullAccess && !s.scope_department_id && s.department_id;
     const showUnscopeDept = canPromote && s.is_active && !hasFullAccess && s.scope_department_id;
     const showDelete  = ['rejected','pending_approval'].includes(s.status);
-    // Session 153: reverses the new Terminate action (Extra Staff tab) -- scoped precisely to
-    // status='inactive' (not 'rejected'/'pending_approval'/'suspended'/'blocked', which already
-    // mean something else and have their own separate flows) so this button only ever appears
-    // for someone actually terminated through this feature.
-    const showReactivate = canPromote && !s.is_active && s.status === 'inactive';
+    // Reactivate moved to the dedicated Terminated Staff tab (Session 154) -- terminated staff
+    // (status='inactive') are now excluded from window._staffAll entirely (loadHR()'s query),
+    // so this row template never even sees one; no in-place Reactivate button needed here.
     // Stacked in a fixed-width flex column (not left as bare inline-block
     // buttons) -- a row with several conditional actions at once (Dr Dms's
     // Add Admin Access + Revoke Monitoring + Remove Scope, e.g.) previously
@@ -2757,7 +2853,6 @@ function renderStaffTable(staff){
     if (showScopeDept) actionCell += `<button class="btn-outline" ${_actBtn} data-onclick="scopeToDepartment" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}" data-onclick-a2="${_esc(s.department_id)}">🏥 Scope to Dept</button>`;
     if (showUnscopeDept) actionCell += `<button class="btn-outline" ${_actBtnDanger} data-onclick="unscopeFromDepartment" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">⬇ Remove Scope</button>`;
     if (showDelete) actionCell += `<button class="btn-outline" ${_actBtnDanger} data-onclick="deleteRejectedStaff" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">🗑 Delete</button>`;
-    if (showReactivate) actionCell += `<button class="btn-outline" ${_actBtn} data-onclick="reactivateStaff" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">✅ Reactivate</button>`;
     actionCell = actionCell ? `<div style="display:flex;flex-direction:column;gap:4px;width:168px">${actionCell}</div>` : '—';
     return groupHeader + `<tr>
     <td><strong>${_esc(s.full_name||'—')}</strong></td>
@@ -5587,7 +5682,12 @@ async function _renderNcismChecklist(ugIntake, orgType) {
     const {grandReq, grandMet} = _computeGrandCompliance(tree, ugTier, bedTotals, cntDeptD);
     const deptNameById={}; depts.forEach(d=>{ deptNameById[d.id]=d.name; });
     const extraList = _collectExtraStaff(tree, ugTier, bedTotals, byDept, deptNameById);
-    const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId]]);
+    // Session 153 follow-up: was unfiltered by is_active -- terminated accounts are still real
+// profiles rows, so "Total Staff" kept counting them even though every other number on this
+// banner (Recruited/Extra) correctly excludes them once Terminate started being used for real.
+// Filtering here makes "Total Staff" mean "currently employed" (what Terminate is actually for),
+// so Total = Recruited + Extra + outside-tracking holds again instead of silently drifting.
+const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_active',true]]);
     staffComplianceBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff});
   }
 

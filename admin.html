@@ -541,6 +541,7 @@ tr:hover td{background:#fafff8}
           <button class="btn-outline hr-tab" data-sub="dept">🏥 Dept. Staff</button>
           <button class="btn-outline hr-tab" data-sub="decisions">⚖️ Approvals<span class="badge-count red" id="hr-tab-decisions-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="extra">➕ Extra Staff<span class="badge-count" id="hr-tab-extra-badge" style="display:none;margin-left:6px">0</span></button>
+          <button class="btn-outline hr-tab" data-sub="terminated">🚫 Terminated Staff<span class="badge-count" id="hr-tab-terminated-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="leave" id="hr-tab-leave-btn" style="display:none">📅 Leave &amp; Holidays</button>
         </div>
       </div>
@@ -617,6 +618,12 @@ tr:hover td{background:#fafff8}
       <!-- Extra Staff panel — positions recruited above the NCISM minimum (Session 134) -->
       <div id="hr-extra-panel" style="display:none">
         <div id="extra-staff-wrap"></div>
+      </div>
+
+      <!-- Terminated Staff panel (Session 154) — the ONLY place terminated staff appear; they're
+           excluded from All Staff/Login Access/every headcount elsewhere in the HMS. -->
+      <div id="hr-terminated-panel" style="display:none">
+        <div id="terminated-staff-wrap"></div>
       </div>
 
       <!-- Login Access panel -->
@@ -992,6 +999,26 @@ tr:hover td{background:#fafff8}
     <div id="pending-invites-list"></div>
     <div style="display:flex;margin-top:6px">
       <button data-onclick="closePendingInvitesModal" style="flex:1;height:40px;border:1.5px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:13px">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Session 154 -- Terminate modal (captures a required reason), used by the Extra Staff tab -->
+<div id="terminate-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;max-width:420px;width:100%;margin:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-weight:600;font-size:15px">Terminate Staff</span>
+      <button data-onclick="closeTerminateModal" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted)">&times;</button>
+    </div>
+    <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">
+      Terminating <strong id="terminate-staff-name"></strong>. This revokes their login and removes them from every staffing count in the HMS — they'll move to the Terminated Staff tab. Reversible any time from there (Reactivate).
+    </div>
+    <input type="hidden" id="terminate-staff-id"/>
+    <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Reason for Termination <span style="font-weight:400;text-transform:none">(required)</span></label>
+    <textarea id="terminate-reason" rows="3" placeholder="e.g. Resigned, end of contract, disciplinary action…" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;box-sizing:border-box;resize:vertical"></textarea>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button data-onclick="submitTerminate" style="flex:1;height:40px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">Terminate</button>
+      <button data-onclick="closeTerminateModal" style="height:40px;padding:0 20px;border:1.5px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:13px">Cancel</button>
     </div>
   </div>
 </div>

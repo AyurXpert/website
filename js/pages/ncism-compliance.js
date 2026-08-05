@@ -216,7 +216,10 @@ async function loadAll() {
     supabase.from('opds').select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true),
     supabase.from('beds').select('department_id').eq('tenant_id', tenantId),
     supabase.from('profiles').select('designation,department_id').eq('tenant_id', tenantId).eq('is_active', true),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+    // Session 153 follow-up: filtered to is_active -- was counting terminated accounts too,
+    // silently drifting "Total Staff" ahead of Recruited+Extra+outside-tracking once Terminate
+    // started being used for real (same fix as admin.js's 3 call sites of this banner).
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('is_active', true),
   ]);
   const totalOrgStaffCount = totalOrgStaff.count ?? 0;
 
