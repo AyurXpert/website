@@ -26,7 +26,11 @@ export const CLINICAL_CODES = new Set(['KAY', 'PK', 'SHAL', 'SHAK', 'KAU', 'PST'
 // -- so this list applies uniformly, no split-vs-not-split branching needed.
 export const NURSING_GENERAL_DUTY_CODES = new Set(['PK', 'PANCHAKARMA', 'SCREEN', 'SCREENING_OPD']);
 export const NURSING_GENERAL_DUTY_NAMES = new Set(['OPD', 'Diagnostics']);
-export const NURSING_24X7_NAMES = new Set(['Medical In-Patients', 'Surgical In-Patients', 'Operation Theatre (Major + Minor + CSSD)', 'Labour Room']);
+// Session 152 (TODO_LATER §53 piece 3): Atyayika/Emergency joins the round-the-clock group,
+// not the day-only one -- Schedule XIX treats it as an ICU-character ward (§21f: fully
+// air-conditioned, oxygen/vacuum outlets, nursing counter inside), and emergency.js's own RMO
+// Duty Log already runs a 3-shift Morning/Evening/Night pattern for it, not a single day shift.
+export const NURSING_24X7_NAMES = new Set(['Medical In-Patients', 'Surgical In-Patients', 'Operation Theatre (Major + Minor + CSSD)', 'Labour Room', 'Atyayika / Emergency']);
 
 export function isNursingDutyDept(dept) {
   return NURSING_GENERAL_DUTY_CODES.has(dept?.ncism_code) || NURSING_GENERAL_DUTY_NAMES.has(dept?.name) || NURSING_24X7_NAMES.has(dept?.name);
@@ -87,6 +91,13 @@ export const OPD_COVERAGE_GROUPS = [
 // total instead of the generic "1 per shift" default that was previously
 // standing in for it (2 for a 100-intake tier, not 3).
 export const OT_NURSE_COUNT = { 60: 1, 100: 2, 150: 3, 200: 4 };
+
+// Session 152 (TODO_LATER §53 piece 3): Schedule XX/18 "Nursing Staff -- Atyayika (Emergency)"
+// -- same verified per-UG-tier table ncismStaffCompliance.js's ORG_TREE_DEF ATYAYIKA row
+// already uses for the HR compliance ladder (Session 151). Extracted here on the same pattern
+// as OT_NURSE_COUNT so nursing-roster-template.js's suggested-slot count can't drift from the
+// compliance ladder's Required number.
+export const ATYAYIKA_NURSE_COUNT = { 60: 1, 100: 1, 150: 1, 200: 1 };
 
 export const UG_BED_RATIOS = { KAY: .20, PK: .25, SHAL: .20, SHAK: .10, KAU: .10, AGD: .05, PST: .10 };
 

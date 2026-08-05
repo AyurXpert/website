@@ -295,6 +295,10 @@ async function loadTemplateForDept() {
     const byShift = distributeAcrossShifts(_requiredPerShift.total, _selectedDeptShifts);
     const perShiftDesc = _selectedDeptShifts.map(s => `${SHIFT_LABELS[s]}: ${byShift[s]}`).join(', ');
     requiredNote = ` · ${_requiredPerShift.total} nurse${_requiredPerShift.total === 1 ? '' : 's'} required total (Sch XX/35), spread across shifts as ${perShiftDesc}`;
+  } else if (_requiredPerShift?.mode === 'atyayika') {
+    const byShift = distributeAcrossShifts(_requiredPerShift.total, _selectedDeptShifts);
+    const perShiftDesc = _selectedDeptShifts.map(s => `${SHIFT_LABELS[s]}: ${byShift[s]}`).join(', ');
+    requiredNote = ` · ${_requiredPerShift.total} nurse${_requiredPerShift.total === 1 ? '' : 's'} required total (Sch XX/18), spread across shifts as ${perShiftDesc}`;
   }
   document.getElementById('tpl-sub').innerHTML = ((_template
     ? `${cycleLength}-day template (locked in when first built)`

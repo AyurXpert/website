@@ -13,6 +13,34 @@ const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
 const role     = getCurrentRole();
 
+// Session 152: the tenant's real Atyayika/Emergency department row (Session 151), if one has
+// been seeded yet (admin.html → HR → "Seed HR Org Structure"). Resolved once at boot and
+// stamped onto every new case so admin.html's Department Detail drill-down can show Emergency's
+// real activity, same as every other department. Session 152 follow-up (Dr. Venkatesh, 5 Aug
+// 2026): Atyayika is mandatory NCISM infrastructure (Schedule XIX/XX), not optional — a tenant
+// that hasn't run admin.html's "Seed HR Org Structure" yet gets the department row created here
+// automatically instead of silently going without it. Uses the exact same row shape
+// seedHrOrgStructure()'s ORG_TREE_DEF insert would produce ({tenant_id, name, category:'ATYAYIKA',
+// is_active:true}), so a later real seeding pass finds it already present and skips it (that
+// insert path already no-ops on an existing category match). Best-effort: if the insert somehow
+// fails (e.g. RLS on a role this page doesn't expect), falls back to department_id=null exactly
+// like before — a page load must never be blocked by this. Theoretical race (two staff opening
+// emergency.html at the exact same moment on a never-seeded tenant could both insert) is
+// accepted, not guarded with a DB constraint — the same tolerance seedHrOrgStructure() itself
+// already has, and this only matters for the first-ever emergency.html load on a given tenant.
+let _emergencyDeptId = null;
+async function _resolveEmergencyDept() {
+  const { data } = await supabase.from('departments').select('id')
+    .eq('tenant_id', tenantId).eq('category', 'ATYAYIKA').eq('is_active', true).limit(1).maybeSingle();
+  if (data?.id) { _emergencyDeptId = data.id; return; }
+
+  const { data: created, error } = await supabase.from('departments')
+    .insert({ tenant_id: tenantId, name: 'Atyayika / Emergency', category: 'ATYAYIKA', is_active: true })
+    .select('id').single();
+  if (error) { console.error('[emergency.js] auto-seed of Atyayika department failed, continuing without department linkage:', error.message); _emergencyDeptId = null; return; }
+  _emergencyDeptId = created?.id || null;
+}
+
 // Default date = today
 const todayStr = new Date().toISOString().split('T')[0];
 document.getElementById('filter-date').value = todayStr;
@@ -199,6 +227,7 @@ window.saveCase = async function() {
     status:'active', rmo_id:profile.id,
     is_mlc:isMLC, is_obs_bed:isObs,
     obs_bed_no:isObs ? (document.getElementById('nc-obs-bed').value||null) : null,
+    department_id:_emergencyDeptId,
   };
   if (isMLC) {
     payload.mlc_number      = document.getElementById('nc-mlc-no').value.trim()||null;
@@ -517,4 +546,5 @@ function _toast(msg,isErr=false){ const el=document.getElementById('toast'); el.
 
 // Boot
 loadDoctors();
+_resolveEmergencyDept();
 await loadAll();

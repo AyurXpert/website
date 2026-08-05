@@ -3014,17 +3014,18 @@ window.openDeptDetail = async function(deptId){
   body.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
   modal.style.display = 'flex';
 
-  const opdIds = await _renderDeptSnapshot(deptId);
-  _ddSubscribeRealtime(deptId, opdIds);
+  const snap = await _renderDeptSnapshot(deptId);
+  _ddSubscribeRealtime(deptId, snap?.opdIds, snap?.isEmergencyDept);
 };
 
-// Phase 3 — live updates. Subscribes to postgres_changes on the 3 tables that feed the
-// snapshot (visits for OPD queue, duty_roster, staff_leaves) and re-runs the same snapshot
-// render on any matching change, so the modal updates itself while open instead of needing
-// a manual re-open. Same channel/removeChannel pattern already used by reception.js's Scan
-// & Share flow — one modal open = one set of channels, torn down on close.
+// Phase 3 — live updates. Subscribes to postgres_changes on the tables that feed the
+// snapshot (visits for OPD queue, duty_roster, staff_leaves, and — Session 152 — emergency_cases
+// for the Atyayika/Emergency department's case activity) and re-runs the same snapshot render on
+// any matching change, so the modal updates itself while open instead of needing a manual
+// re-open. Same channel/removeChannel pattern already used by reception.js's Scan & Share flow —
+// one modal open = one set of channels, torn down on close.
 let _ddChannels = [];
-function _ddSubscribeRealtime(deptId, opdIds){
+function _ddSubscribeRealtime(deptId, opdIds, isEmergencyDept){
   _ddChannels.forEach(ch=>supabase.removeChannel(ch));
   _ddChannels = [];
   const refresh = () => { if(_ddCurrentDeptId===deptId) _renderDeptSnapshot(deptId); };
@@ -3038,6 +3039,13 @@ function _ddSubscribeRealtime(deptId, opdIds){
         .subscribe()
     );
   });
+  if(isEmergencyDept){
+    _ddChannels.push(
+      supabase.channel('dept-detail-emergency-'+deptId)
+        .on('postgres_changes',{event:'*',schema:'public',table:'emergency_cases',filter:'department_id=eq.'+deptId}, refresh)
+        .subscribe()
+    );
+  }
   _ddChannels.push(
     supabase.channel('dept-detail-roster-'+deptId)
       .on('postgres_changes',{event:'*',schema:'public',table:'duty_roster',filter:'department_id=eq.'+deptId}, refresh)
@@ -3117,6 +3125,33 @@ async function _renderDeptSnapshot(deptId){
     </div>`;
   }
 
+  // Session 152 — Atyayika/Emergency has no opd_id (it's a case register, not a queue), so it
+  // never hits the OPD block above. emergency_cases.department_id (added this session) lets
+  // this drill-down show its real activity the same way — today's case volume by status, plus
+  // MLC count, mirroring the OPD Queue block's layout/tone.
+  let emergencyHtml = '';
+  const isEmergencyDept = dept.category === 'ATYAYIKA';
+  if(isEmergencyDept){
+    const { data:cases } = await supabase.from('emergency_cases')
+      .select('status,is_mlc').eq('tenant_id',tenantId).eq('department_id',deptId)
+      .gte('arrival_time',todayStart).lt('arrival_time',tomorrowStart);
+    const ec = cases||[];
+    const active = ec.filter(c=>c.status==='active').length;
+    const obs = ec.filter(c=>c.status==='observation').length;
+    const admitted = ec.filter(c=>c.status==='admitted').length;
+    const mlc = ec.filter(c=>c.is_mlc).length;
+    emergencyHtml = `<div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🚑 Emergency Cases Today</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:12.5px">
+        <span style="background:#fdecea;border:1px solid #fca5a5;border-radius:8px;padding:4px 10px">🔴 Active: <strong>${active}</strong></span>
+        <span style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:4px 10px">🛏 Observation: <strong>${obs}</strong></span>
+        <span style="background:var(--blue-light);border:1px solid var(--blue);border-radius:8px;padding:4px 10px">⬆️ Admitted: <strong>${admitted}</strong></span>
+        <span style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;padding:4px 10px">⚖️ MLC: <strong>${mlc}</strong></span>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">Total cases registered today: <strong>${ec.length}</strong></div>
+    </div>`;
+  }
+
   const catLabels={clinical:'Clinical',pre_clinical:'Pre-clinical',para_clinical:'Para-clinical'};
   const showAcademicBadge = isNCISMType(tRow?.type);
   document.getElementById('dd-title').textContent = dept.name;
@@ -3147,12 +3182,13 @@ async function _renderDeptSnapshot(deptId){
 
   body.innerHTML = `
     ${queueHtml}
+    ${emergencyHtml}
     <div>
       <div style="font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">👥 Staff &amp; Stakeholders (${staffList.length})</div>
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">${onDutyCount} on duty today · ${onLeaveCount} on leave today</div>
       ${staffHtml}
     </div>`;
-  return opdIds;
+  return { opdIds, isEmergencyDept };
 }
 
 window.closeDeptDetailModal = function(){
@@ -3179,7 +3215,7 @@ window.applyDeptDateRange = async function(){
   const dayCount = Math.round((new Date(to+'T00:00:00Z')-new Date(from+'T00:00:00Z'))/86400000)+1;
 
   const [{ data:dept }, { data:tRow }, { data:staff }] = await Promise.all([
-    supabase.from('departments').select('opd_id,ncism_code').eq('id',deptId).single(),
+    supabase.from('departments').select('opd_id,ncism_code,category').eq('id',deptId).single(),
     supabase.from('tenants').select('opd_daily_target').eq('id',tenantId).single(),
     supabase.from('profiles').select('id').eq('tenant_id',tenantId).eq('department_id',deptId),
   ]);
@@ -3199,6 +3235,24 @@ window.applyDeptDateRange = async function(){
       <div style="font-size:11px;font-weight:700;color:var(--green-deep);margin-bottom:4px">🚪 OPD Visits</div>
       <div style="font-size:12.5px">Registered: <strong>${total}</strong> · Completed: <strong>${counts.completed}</strong> · Incomplete: <strong>${counts.incomplete}</strong> · Still waiting/in-progress: <strong>${counts.waiting+counts.in_progress}</strong></div>
       ${target!=null?`<div style="font-size:11px;color:var(--text-muted);margin-top:2px">Prorated NCISM target for ${dayCount} day${dayCount>1?'s':''}: <strong>${target}</strong> ${total>=target?'<span style="color:#2d7a4f">✅ met</span>':`<span style="color:#c0392b">${target-total} short</span>`}</div>`:''}
+    </div>`;
+  }
+
+  // Session 152 — Atyayika/Emergency has no opd_id, so the OPD block above never fires for it;
+  // emergency_cases.department_id gives this range view the same case-activity summary the
+  // Today snapshot gets.
+  let emergencyRangeHtml = '';
+  if(dept?.category === 'ATYAYIKA'){
+    const { data:cases } = await supabase.from('emergency_cases')
+      .select('status,is_mlc').eq('tenant_id',tenantId).eq('department_id',deptId)
+      .gte('arrival_time',fromStart).lt('arrival_time',toEnd);
+    const ec = cases||[];
+    const discharged = ec.filter(c=>c.status==='discharged').length;
+    const admittedFromEr = ec.filter(c=>c.status==='admitted').length;
+    const mlc = ec.filter(c=>c.is_mlc).length;
+    emergencyRangeHtml = `<div style="margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--green-deep);margin-bottom:4px">🚑 Emergency Cases</div>
+      <div style="font-size:12.5px">Registered: <strong>${ec.length}</strong> · Admitted: <strong>${admittedFromEr}</strong> · Discharged: <strong>${discharged}</strong> · MLC: <strong>${mlc}</strong></div>
     </div>`;
   }
 
@@ -3226,10 +3280,10 @@ window.applyDeptDateRange = async function(){
     }
   }
 
-  const nothing = !opdHtml && !ipdHtml && !leaveHtml;
+  const nothing = !opdHtml && !emergencyRangeHtml && !ipdHtml && !leaveHtml;
   rangeBody.innerHTML = nothing
     ? '<div style="font-size:12px;color:var(--text-muted)">No OPD visits, IPD admissions or leave recorded for this department in the selected range.</div>'
-    : opdHtml + ipdHtml + leaveHtml;
+    : opdHtml + emergencyRangeHtml + ipdHtml + leaveHtml;
 };
 function _fmtDD(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '—'; }
 

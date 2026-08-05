@@ -1,5 +1,5 @@
 import { _computeIpdBedTotals, _combinedIpdNursingSplit } from '../../config/ncismStaffCompliance.js';
-import { OPD_POOLED_NURSE_COUNT, OPD_COVERAGE_GROUPS, OT_NURSE_COUNT } from '../../config/ncism.js';
+import { OPD_POOLED_NURSE_COUNT, OPD_COVERAGE_GROUPS, OT_NURSE_COUNT, ATYAYIKA_NURSE_COUNT } from '../../config/ncism.js';
 
 // Shared by nursing-roster-template.js and nursing-admin.js -- both need the
 // exact same per-department required-headcount numbers so the two pages can
@@ -48,6 +48,12 @@ export async function computeRequiredPerShift(supabase, tenantId, deptName) {
     const { data: tenantRow } = await supabase.from('tenants').select('ug_intake').eq('id', tenantId).single();
     const total = OT_NURSE_COUNT[_ugTier(tenantRow?.ug_intake)] || 0;
     return total > 0 ? { mode: 'ot', total } : null;
+  }
+  // Session 152 (TODO_LATER §53 piece 3) -- Sch XX/18, same intake-tier-table pattern as OT above.
+  if (deptName === 'Atyayika / Emergency') {
+    const { data: tenantRow } = await supabase.from('tenants').select('ug_intake').eq('id', tenantId).single();
+    const total = ATYAYIKA_NURSE_COUNT[_ugTier(tenantRow?.ug_intake)] || 0;
+    return total > 0 ? { mode: 'atyayika', total } : null;
   }
   return null;
 }
