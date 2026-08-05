@@ -1056,7 +1056,7 @@ async function _computeNcismComplianceGap(){
 async function _fetchExtraStaffList(){
   const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:opds }, { data:bedsRows }] = await Promise.all([
     supabase.from('tenants').select('ug_intake,type').eq('id',tenantId).single(),
-    supabase.from('profiles').select('designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('profiles').select('id,full_name,designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('opds').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('beds').select('department_id').eq('tenant_id',tenantId),
@@ -1068,6 +1068,9 @@ async function _fetchExtraStaffList(){
 
   const bedTotals = _computeIpdBedTotals(depts, bedsRows);
   const byDept={};
+  // Session 153: id/full_name added to the select above (was designation/department_id only)
+  // so _collectExtraStaff can list the real people behind each "+N extra" count, not just the
+  // aggregate number.
   (rawStaff||[]).forEach(s=>{ if(!s.department_id) return; (byDept[s.department_id]=byDept[s.department_id]||[]).push(s); });
   const tree=buildDeptTree(depts||[], opds||[]);
   return _collectExtraStaff(tree, ug, bedTotals, byDept);
@@ -1090,19 +1093,33 @@ async function _renderExtraStaff(){
     wrap.innerHTML = '<div class="empty"><div class="empty-ico">✅</div><div class="empty-ttl">No positions recruited above the NCISM minimum right now.</div></div>';
     return;
   }
-  const rows = list.map(r =>
-    '<tr><td style="padding:7px 12px 7px 16px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(r.deptName)+'</td>'
+  // Session 153: each row's "extra" count is now backed by the real people holding that
+  // position in that department (r.staff, from _collectExtraStaff) -- ALL of them shown, not
+  // just an algorithmically-guessed "who's the surplus one" (there's no seniority/hire-date
+  // signal to base that on honestly). Each gets a Depute (reassign department) and Terminate
+  // action so Dr. Venkatesh can act directly from this tab instead of hunting the same person
+  // down in All Staff.
+  const rows = list.map(r => {
+    const staffHtml = (r.staff||[]).map(s =>
+      '<div style="display:flex;align-items:center;gap:6px;padding:2px 0;flex-wrap:wrap">'
+        +'<span style="font-size:12px">'+_esc(s.full_name||'—')+'</span>'
+        +'<button class="btn-outline" style="font-size:10.5px;padding:2px 7px" data-onclick="openDeputeModal" data-onclick-a0="'+_esc(s.id)+'" data-onclick-a1="'+_esc(s.full_name||'this staff member')+'" data-onclick-a2="'+_esc(r.deptId||'')+'">🔄 Depute</button>'
+        +'<button class="btn-outline" style="font-size:10.5px;padding:2px 7px;color:#c0392b;border-color:#e0b0b0" data-onclick="terminateExtraStaff" data-onclick-a0="'+_esc(s.id)+'" data-onclick-a1="'+_esc(s.full_name||'this staff member')+'">🗑 Terminate</button>'
+      +'</div>'
+    ).join('') || '<span style="font-size:11px;color:var(--text-muted)">—</span>';
+    return '<tr><td style="padding:7px 12px 7px 16px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(r.deptName)+'</td>'
     +'<td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(r.label)+'</td>'
     +'<td style="padding:7px 10px;text-align:center;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+_esc(r.ref)+'</td>'
     +'<td style="padding:7px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+r.required+'</td>'
     +'<td style="padding:7px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+r.actual+'</td>'
-    +'<td style="padding:7px 10px;text-align:center;font-weight:700;color:#a66a00;border-bottom:1px solid #f0f4f2">+'+r.extra+'</td></tr>'
-  ).join('');
+    +'<td style="padding:7px 10px;text-align:center;font-weight:700;color:#a66a00;border-bottom:1px solid #f0f4f2">+'+r.extra+'</td>'
+    +'<td style="padding:7px 10px 7px 12px;border-bottom:1px solid #f0f4f2;min-width:220px">'+staffHtml+'</td></tr>';
+  }).join('');
 
   wrap.innerHTML =
     '<div style="background:var(--green-deep);color:#fff;border-radius:var(--radius) var(--radius) 0 0;padding:12px 18px">'
       +'<div style="font-weight:600;font-size:14px">Extra Staff — Recruited Above NCISM Minimum</div>'
-      +'<div style="font-size:11px;opacity:.75;margin-top:2px">Not a compliance problem — just staff to be aware of when planning transfers, budget, or new invites. '+list.length+' position(s), '+total+' extra staff total.</div>'
+      +'<div style="font-size:11px;opacity:.75;margin-top:2px">Not a compliance problem — just staff to be aware of when planning transfers, budget, or new invites. '+list.length+' position(s), '+total+' extra staff total. All staff holding the position are listed (not just "the extra ones") since NCISM data alone can\'t say which specific person is surplus — that\'s your call.</div>'
     +'</div>'
     +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
       +'<thead><tr style="background:#f5faf7">'
@@ -1112,8 +1129,67 @@ async function _renderExtraStaff(){
       +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Required</th>'
       +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Actual</th>'
       +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Extra</th>'
+      +'<th style="padding:6px 10px 6px 12px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Staff / Actions</th>'
       +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
+
+// ── Depute (reassign department) + Terminate/Reactivate -- Session 153 ─────────────
+// Depute reuses dept_admin_update_department() (Session 133) unchanged. Terminate/
+// Reactivate are new (terminate_staff()/reactivate_staff() RPCs, sql/session153_*) --
+// soft-deactivate (status='inactive', is_active=false), never a hard delete, so it's
+// always reversible. Gated designations (medical_director/principal/medical_superintendent)
+// can't terminate directly -- same request_approval() detour deleteRejectedStaff already
+// uses, re-checked server-side inside terminate_staff() itself.
+window.openDeputeModal = function(staffId, staffName, currentDeptId){
+  document.getElementById('depute-staff-id').value = staffId;
+  document.getElementById('depute-staff-name').textContent = staffName;
+  const sel = document.getElementById('depute-dept-select');
+  sel.innerHTML = _deptSelOptsHtml;
+  if (currentDeptId) sel.value = currentDeptId;
+  document.getElementById('depute-modal').style.display = 'flex';
+};
+window.closeDeputeModal = function(){
+  document.getElementById('depute-modal').style.display = 'none';
+};
+window.submitDepute = async function(){
+  const staffId = document.getElementById('depute-staff-id').value;
+  const staffName = document.getElementById('depute-staff-name').textContent;
+  const deptId = document.getElementById('depute-dept-select').value || null;
+  const { error } = await supabase.rpc('dept_admin_update_department', { p_staff_id: staffId, p_department_id: deptId });
+  if (error) { _toast(safeErrorMessage(error, 'Could not depute staff.'), true); return; }
+  await logAudit('depute_extra_staff', 'profiles', staffId, { staff_name: staffName, department_id: deptId }, {tenantId, userId: profile.id, userName: profile.full_name});
+  closeDeputeModal();
+  _toast(staffName+' deputed to the new department.');
+  _renderExtraStaff();
+};
+
+window.terminateExtraStaff = async function(staffId, staffName){
+  if (_isGatedForApproval()) {
+    if(!confirm(`Submit a request to terminate ${staffName}? This needs sign-off before it takes effect.`)) return;
+    const { error } = await supabase.rpc('request_approval', {
+      p_action_type: 'staff_terminate', p_payload: { staff_id: staffId, staff_name: staffName }, p_reason: null,
+    });
+    if (error) { _toast(safeErrorMessage(error, 'Could not submit request.'), true); return; }
+    _toast('Submitted for approval.');
+    return;
+  }
+  if(!confirm(`Terminate ${staffName}? This revokes their login and removes them from all department staffing counts. It can be undone later from All Staff (Reactivate).`)) return;
+  const { error } = await supabase.rpc('terminate_staff', { p_staff_id: staffId });
+  if (error) { _toast(safeErrorMessage(error, 'Could not terminate staff.'), true); return; }
+  await logAudit('terminate_staff', 'profiles', staffId, { staff_name: staffName }, {tenantId, userId: profile.id, userName: profile.full_name});
+  _toast(staffName+' terminated.');
+  _renderExtraStaff();
+  window.loadHR && window.loadHR('staff');
+};
+
+window.reactivateStaff = async function(staffId, staffName){
+  if(!confirm(`Reactivate ${staffName}? Restores their login and counts them again in department staffing.`)) return;
+  const { error } = await supabase.rpc('reactivate_staff', { p_staff_id: staffId });
+  if (error) { _toast(safeErrorMessage(error, 'Could not reactivate staff.'), true); return; }
+  await logAudit('reactivate_staff', 'profiles', staffId, { staff_name: staffName }, {tenantId, userId: profile.id, userName: profile.full_name});
+  _toast(staffName+' reactivated.');
+  window.loadHR && window.loadHR('staff');
+};
 
 // ── Leave & Holidays (Session 137, Nursing Roster Phase 1) ──────────────
 // Medical Director/Principal/Medical Superintendent (+ super_admin) manage a
@@ -2645,6 +2721,11 @@ function renderStaffTable(staff){
     const showScopeDept   = canPromote && s.is_active && !hasFullAccess && !s.scope_department_id && s.department_id;
     const showUnscopeDept = canPromote && s.is_active && !hasFullAccess && s.scope_department_id;
     const showDelete  = ['rejected','pending_approval'].includes(s.status);
+    // Session 153: reverses the new Terminate action (Extra Staff tab) -- scoped precisely to
+    // status='inactive' (not 'rejected'/'pending_approval'/'suspended'/'blocked', which already
+    // mean something else and have their own separate flows) so this button only ever appears
+    // for someone actually terminated through this feature.
+    const showReactivate = canPromote && !s.is_active && s.status === 'inactive';
     // Stacked in a fixed-width flex column (not left as bare inline-block
     // buttons) -- a row with several conditional actions at once (Dr Dms's
     // Add Admin Access + Revoke Monitoring + Remove Scope, e.g.) previously
@@ -2664,6 +2745,7 @@ function renderStaffTable(staff){
     if (showScopeDept) actionCell += `<button class="btn-outline" ${_actBtn} data-onclick="scopeToDepartment" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}" data-onclick-a2="${_esc(s.department_id)}">🏥 Scope to Dept</button>`;
     if (showUnscopeDept) actionCell += `<button class="btn-outline" ${_actBtnDanger} data-onclick="unscopeFromDepartment" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">⬇ Remove Scope</button>`;
     if (showDelete) actionCell += `<button class="btn-outline" ${_actBtnDanger} data-onclick="deleteRejectedStaff" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">🗑 Delete</button>`;
+    if (showReactivate) actionCell += `<button class="btn-outline" ${_actBtn} data-onclick="reactivateStaff" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">✅ Reactivate</button>`;
     actionCell = actionCell ? `<div style="display:flex;flex-direction:column;gap:4px;width:168px">${actionCell}</div>` : '—';
     return groupHeader + `<tr>
     <td><strong>${_esc(s.full_name||'—')}</strong></td>

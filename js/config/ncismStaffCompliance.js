@@ -415,6 +415,14 @@ export function _computeGrandCompliance(tree, ug, bedTotals, cntDeptD){
 
 // Positions recruited above the NCISM minimum — walks the same deduped tree as
 // _computeGrandCompliance, collects every ladder row where actual > required.
+// Session 153: also returns the real staff (id, full_name, department_id) holding that
+// position in that department -- ALL of them, not just "the extra ones" (there's no seniority/
+// hire-date signal anywhere that could honestly say WHICH specific person is the surplus one --
+// fabricating that would be worse than not picking at all). admin.js's Extra Staff tab lists
+// them all so a real person (Dr. Venkatesh) makes that judgment call, with Terminate/Depute
+// actions on each -- never an algorithm silently choosing for him. byDept entries need id/
+// full_name populated by the caller for this to work (cntDeptD itself only ever needed
+// designation, so this is additive, not a breaking change to any existing caller).
 export function _collectExtraStaff(tree, ug, bedTotals, byDept){
   const cntDeptD=(deptId,keys)=>(byDept[deptId]||[]).filter(s=>(keys||[]).includes(s.designation)).length;
   const list=[];
@@ -426,7 +434,11 @@ export function _collectExtraStaff(tree, ug, bedTotals, byDept){
       r.ladder.forEach(row=>{
         if(row.facultyHeld) return;
         const a=cntDeptD(d.id,row.keys);
-        if(a>row.count) list.push({deptName:d.name, label:row.label, ref:row.ref, required:row.count, actual:a, extra:a-row.count});
+        if(a>row.count){
+          const staff=(byDept[d.id]||[]).filter(s=>(row.keys||[]).includes(s.designation))
+            .map(s=>({id:s.id, full_name:s.full_name}));
+          list.push({deptId:d.id, deptName:d.name, label:row.label, ref:row.ref, required:row.count, actual:a, extra:a-row.count, staff});
+        }
       });
     });
   });

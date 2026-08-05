@@ -996,6 +996,26 @@ tr:hover td{background:#fafff8}
   </div>
 </div>
 
+<!-- Session 153 -- Depute (reassign department) modal, used by the Extra Staff tab -->
+<div id="depute-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;max-width:380px;width:100%;margin:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-weight:600;font-size:15px">Depute to Another Department</span>
+      <button data-onclick="closeDeputeModal" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted)">&times;</button>
+    </div>
+    <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">
+      Moving <strong id="depute-staff-name"></strong> to a new department. Their HR posting changes immediately — reversible any time from here or the All Staff tab.
+    </div>
+    <input type="hidden" id="depute-staff-id"/>
+    <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">New Department</label>
+    <select id="depute-dept-select" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:14px"></select>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button data-onclick="submitDepute" style="flex:1;height:40px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">Depute</button>
+      <button data-onclick="closeDeputeModal" style="height:40px;padding:0 20px;border:1.5px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:13px">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Department Detail drill-down (Departments tab, Phase 1) -->
 <div id="dept-detail-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:14px;padding:24px;max-width:600px;width:100%;margin:16px;max-height:86vh;overflow-y:auto">
