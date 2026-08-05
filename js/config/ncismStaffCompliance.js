@@ -488,6 +488,74 @@ export function _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById){
   return list;
 }
 
+// Session 155: who actually makes up "Total Staff − Recruited − Extra" (the "N account(s)
+// outside NCISM tracking" line in the summary banner below) -- Dr. Venkatesh found that number
+// genuinely confusing without knowing WHO it meant and WHY, live-verified against SDM's real 7:
+// an admin login with no designation, 2 "additional-charge" posts NCISM deliberately doesn't
+// give a separate slot (Medical Director/Diet In-charge), a position removed outright from the
+// 2026-27 schedule (a Panchakarma clerk-receptionist), 2 positions downgraded from mandatory to
+// optional (Kriyakalpa Therapists), and a real job whose old pooled requirement got split into
+// department-specific lines that this person's actual posting doesn't match (pooled OPD
+// nursing). Four genuinely different reasons, so a generic footnote can never explain all of
+// them -- this reconstructs the real reason per person instead of guessing.
+//
+// Reuses the exact same consumed-IDs walk _collectExtraStaff does (so "untracked" here can never
+// disagree with "extra" there), then classifies everyone left over. allStaff must be the full
+// active-staff list (not just byDept's department-scoped view) so staff with no department_id
+// at all (e.g. a platform login) are still caught.
+export function _collectUntrackedStaff(tree, ug, bedTotals, byDept, allStaff, deptNameById){
+  const consumedIds = new Set();
+  tree.forEach(node=>{
+    if(!node.dept) return;
+    _dedupById([node.dept, ...node.children]).forEach(d=>{
+      const r=deptRequirement(d,ug,bedTotals);
+      if(!r.mandated) return;
+      r.ladder.forEach(row=>{
+        if(row.facultyHeld) return;
+        (byDept[d.id]||[]).filter(s=>(row.keys||[]).includes(s.designation)).forEach(s=>consumedIds.add(s.id));
+      });
+    });
+  });
+  Object.entries(byDept).forEach(([deptId, staffList])=>{
+    FORMER_NCISM_DESIGNATIONS.forEach(({key})=>{
+      (staffList||[]).filter(s=>s.designation===key).forEach(s=>consumedIds.add(s.id));
+    });
+  });
+
+  const mandatoryKeys=new Set(); NCISM_XX_ROWS.forEach(([,,keys])=>keys.forEach(k=>mandatoryKeys.add(k)));
+  const optionalKeys=new Set(); NCISM_XX_OPTIONAL_ROWS.forEach(([,,keys])=>keys.forEach(k=>optionalKeys.add(k)));
+  const facultyKeys=new Set(['professor','hod','associate_professor','assistant_professor','senior_resident']);
+  const deptById={}; tree.forEach(n=>{ if(n.dept) deptById[n.dept.id]=n.dept; (n.children||[]).forEach(c=>{ deptById[c.id]=c; }); });
+
+  const list=[];
+  (allStaff||[]).forEach(s=>{
+    if(consumedIds.has(s.id)) return;
+    const deptName=(deptNameById && deptNameById[s.department_id]) || '—';
+    let reason;
+    if(!s.designation){
+      reason='No designation assigned — likely a platform/admin login, not a clinical or NCISM-tracked staff position.';
+    } else if(FACULTY_CONCURRENT_POSTS.has(s.designation)){
+      reason='NCISM treats this as an additional-charge duty (meant to be held by someone already counted in another required position, not a separate hire) — never given its own headcount slot.';
+    } else {
+      // Check THIS person's own department for a specific optional-row match first -- more
+      // precise than a global "is this key mandatory anywhere" check, since some designations
+      // (e.g. 'therapist') are mandatory in one department and merely optional in another.
+      const dept=deptById[s.department_id];
+      const deptKey=dept ? _deptKey(dept) : null;
+      const optionalMatch=dept ? NCISM_XX_OPTIONAL_ROWS.find(([zone,,keys])=>ORG_ZONE_MAP[zone]===deptKey && keys.includes(s.designation)) : null;
+      if(optionalMatch){
+        reason='This position ("'+optionalMatch[1]+'") was downgraded from mandatory to optional in the current NCISM schedule for this department — tracked here for your own records, not counted toward compliance.';
+      } else if(mandatoryKeys.has(s.designation) || facultyKeys.has(s.designation)){
+        reason='This designation has a real NCISM requirement, but not in the department this person is currently posted to — check whether they should be deputed to where that requirement actually lives.';
+      } else {
+        reason='Not part of NCISM Schedule I/XX tracking at all — a support/administrative role the regulation doesn\'t prescribe a headcount for.';
+      }
+    }
+    list.push({id:s.id, full_name:s.full_name, designation:s.designation, deptName, reason});
+  });
+  return list;
+}
+
 function _esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 // ── Shared compliance summary banner ─────────────────────────────────────────
@@ -498,11 +566,16 @@ function _esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 // number; (3) the true total headcount of the organisation, so nothing looks hidden. Always
 // sourced from _computeGrandCompliance()/_collectExtraStaff() above, so this can never
 // disagree with any page that computes its Required/Recruited numbers the same way.
-export function _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff}){
+export function _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff, untrackedList}){
   const pct = grandReq>0 ? Math.round(Math.min(grandMet,grandReq)/grandReq*100) : 100;
   const hc = pct>=100?'#2d7a4f':pct>=80?'#c9902a':'#c0392b';
   const extra = extraList||[];
   const extraTotal = extra.reduce((s,r)=>s+r.extra,0);
+  const untracked = untrackedList||[];
+  // Session 155: the plain-text "N account(s) outside NCISM tracking" footnote was confusing on
+  // its own -- Dr. Venkatesh had to ask why specific real staff landed there. Now expandable
+  // (plain <details>/<summary>, no JS needed) into the real list + a per-person reason, computed
+  // by _collectUntrackedStaff() so it can never drift from the actual compliance math above it.
   return '<div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:16px">'
     +'<div style="background:'+hc+';color:#fff;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
       +'<div style="font-weight:700;font-size:14px">'+(pct>=100?'✅':'⚠️')+' NCISM Staff Compliance</div>'
@@ -514,11 +587,24 @@ export function _renderComplianceSummaryBanner({grandReq, grandMet, extraList, t
         +extra.map(r=>_esc(r.label)+' in '+_esc(r.deptName)+' (required '+r.required+', have '+r.actual+', <strong>+'+r.extra+'</strong>)').join('; ')
         +'</div>'
       : '')
-    +'<div style="padding:9px 16px;background:#f5faf7;font-size:12.5px;color:var(--text-muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+    +'<div style="padding:9px 16px;background:#f5faf7;font-size:12.5px;color:var(--text-muted)">'
+      +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
       +'<span>👥 Total Staff in Organisation: <strong style="color:var(--text-dark);font-size:13.5px">'+totalOrgStaff+'</strong></span>'
-      +(totalOrgStaff>grandMet+extraTotal
-        ?'<span>(includes '+(totalOrgStaff-grandMet-extraTotal)+' account(s) outside NCISM tracking, e.g. platform/admin logins or roles Schedule I/XX doesn\'t cover)</span>'
+      +(untracked.length
+        ?'<span>(includes '+untracked.length+' account(s) outside NCISM tracking)</span>'
         :'')
+      +'</div>'
+      +(untracked.length
+        ? '<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--green-mid);font-weight:600">Who, and why? (click to expand)</summary>'
+          +'<div style="margin-top:6px;display:flex;flex-direction:column;gap:6px">'
+          +untracked.map(u=>'<div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 10px">'
+            +'<strong style="color:var(--text-dark)">'+_esc(u.full_name||'—')+'</strong>'
+            +(u.designation?' <span style="color:var(--text-muted)">('+_esc(u.designation.replace(/_/g,' '))+')</span>':'')
+            +' — '+_esc(u.deptName)
+            +'<div style="margin-top:2px;font-size:11.5px;color:var(--text-muted)">'+_esc(u.reason)+'</div>'
+          +'</div>').join('')
+          +'</div></details>'
+        : '')
     +'</div>'
   +'</div>';
 }

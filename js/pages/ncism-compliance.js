@@ -7,7 +7,7 @@ import { isNCISMType, SCHEDULE_IV } from '../config/ncism.js';
 import {
   SCHEDULE_I_CODES, FACULTY_CONCURRENT_POSTS, buildDeptTree, _dedupById,
   deptRequirement, _computeIpdBedTotals, _renderComplianceSummaryBanner,
-  _computeGrandCompliance, _collectExtraStaff,
+  _computeGrandCompliance, _collectExtraStaff, _collectUntrackedStaff,
 } from '../config/ncismStaffCompliance.js';
 
 await requireAuth(['super_admin','dept_admin','accountant'], 'login.html', { monitoringSafe: true });
@@ -215,7 +215,7 @@ async function loadAll() {
     // unlike the observation-excluded `bedsRes` above which is a different feature).
     supabase.from('opds').select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true),
     supabase.from('beds').select('department_id').eq('tenant_id', tenantId),
-    supabase.from('profiles').select('designation,department_id').eq('tenant_id', tenantId).eq('is_active', true),
+    supabase.from('profiles').select('id,full_name,designation,department_id').eq('tenant_id', tenantId).eq('is_active', true),
     // Session 153 follow-up: filtered to is_active -- was counting terminated accounts too,
     // silently drifting "Total Staff" ahead of Recruited+Extra+outside-tracking once Terminate
     // started being used for real (same fix as admin.js's 3 call sites of this banner).
@@ -338,7 +338,8 @@ async function loadAll() {
     const { grandReq, grandMet } = _computeGrandCompliance(tree, ugTier, bedTotals, cntDeptD);
     const deptNameById = {}; (depts || []).forEach(d => { deptNameById[d.id] = d.name; });
     const extraList = _collectExtraStaff(tree, ugTier, bedTotals, byDept, deptNameById);
-    bannerEl.innerHTML = _renderComplianceSummaryBanner({ grandReq, grandMet, extraList, totalOrgStaff: totalOrgStaffCount });
+    const untrackedList = _collectUntrackedStaff(tree, ugTier, bedTotals, byDept, rawStaffDesigRes.data, deptNameById);
+    bannerEl.innerHTML = _renderComplianceSummaryBanner({ grandReq, grandMet, extraList, totalOrgStaff: totalOrgStaffCount, untrackedList });
   }
 
   await renderFaculty(tree, bedTotals, cntDeptD, ugTier);

@@ -11,7 +11,7 @@ import { DESIGS, DESIG_MAP, DESIG_CATS } from '../config/designations.js';
 import {
   FACULTY_CONCURRENT_POSTS, NCISM_XX_ROWS, ORG_TREE_DEF, OPD_CHILD_NCISM_CODES,
   _deptKey, buildDeptTree, _dedupById, _scheduleIFacultyTotal, deptRequirement,
-  _computeIpdBedTotals, _computeGrandCompliance, _collectExtraStaff,
+  _computeIpdBedTotals, _computeGrandCompliance, _collectExtraStaff, _collectUntrackedStaff,
   _renderComplianceSummaryBanner, SCHEDULE_I_CODES,
 } from '../config/ncismStaffCompliance.js';
 
@@ -1052,7 +1052,7 @@ function sectionRollup(node, ug, staffByDept, bedTotals){
 async function _computeNcismComplianceGap(){
   const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:opds }, { data:bedsRows }] = await Promise.all([
     supabase.from('tenants').select('ug_intake,type').eq('id',tenantId).single(),
-    supabase.from('profiles').select('designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('profiles').select('id,full_name,designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('opds').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('beds').select('department_id').eq('tenant_id',tenantId),
@@ -1568,7 +1568,7 @@ async function _renderNcismStaffing() {
 
   const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }, { data:invites }, { data:opds }, { data:bedsRows }] = await Promise.all([
     supabase.from('tenants').select('ug_intake,type,pg_student_strength').eq('id',tenantId).single(),
-    supabase.from('profiles').select('designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('profiles').select('id,full_name,designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,name,ncism_code,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_pg_dept',true),
     supabase.from('position_invites').select('id,department_id,designation,phone,candidate_name,token').eq('tenant_id',tenantId).eq('status','pending'),
@@ -1673,13 +1673,16 @@ async function _renderNcismStaffing() {
   // already computes for the Extra Staff tab, reused here so the two can't disagree either.
   const deptNameById={}; (depts||[]).forEach(d=>{ deptNameById[d.id]=d.name; });
   const extraList = _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById);
+  // Session 155: who + why for the "N account(s) outside NCISM tracking" line -- same source
+  // used everywhere this banner renders, so the explanation can never disagree with the number.
+  const untrackedList = _collectUntrackedStaff(tree, ug, bedTotals, byDept, rawStaff, deptNameById);
   // Session 153 follow-up: was unfiltered by is_active -- terminated accounts are still real
 // profiles rows, so "Total Staff" kept counting them even though every other number on this
 // banner (Recruited/Extra) correctly excludes them once Terminate started being used for real.
 // Filtering here makes "Total Staff" mean "currently employed" (what Terminate is actually for),
 // so Total = Recruited + Extra + outside-tracking holds again instead of silently drifting.
 const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_active',true]]);
-  const summaryBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff});
+  const summaryBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff, untrackedList});
 
   // ── Summary table (designation-wise totals across ALL zones) ─────────
   let sumRows='';
@@ -2151,7 +2154,7 @@ async function _renderStaffingPlan() {
 
   const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }, { data:dutySessionsToday }, { data:opds }, { data:bedsRows }] = await Promise.all([
     supabase.from('tenants').select('ug_intake,type,pg_student_strength').eq('id',tenantId).single(),
-    supabase.from('profiles').select('designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('profiles').select('id,full_name,designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
     supabase.from('departments').select('id,ncism_code,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_pg_dept',true),
     // Session 111/113 -- who's covering which front-office duty (not just the
@@ -2196,13 +2199,16 @@ async function _renderStaffingPlan() {
   const {grandReq, grandMet} = _computeGrandCompliance(tree, ug, bedTotals, cntDeptD);
   const deptNameById={}; (depts||[]).forEach(d=>{ deptNameById[d.id]=d.name; });
   const extraList = _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById);
+  // Session 155: who + why for the "N account(s) outside NCISM tracking" line -- same source
+  // used everywhere this banner renders, so the explanation can never disagree with the number.
+  const untrackedList = _collectUntrackedStaff(tree, ug, bedTotals, byDept, rawStaff, deptNameById);
   // Session 153 follow-up: was unfiltered by is_active -- terminated accounts are still real
 // profiles rows, so "Total Staff" kept counting them even though every other number on this
 // banner (Recruited/Extra) correctly excludes them once Terminate started being used for real.
 // Filtering here makes "Total Staff" mean "currently employed" (what Terminate is actually for),
 // so Total = Recruited + Extra + outside-tracking holds again instead of silently drifting.
 const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_active',true]]);
-  const summaryBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff});
+  const summaryBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff, untrackedList});
 
   const facTotal=_scheduleIFacultyTotal(depts, ug);
   const clinDepts=facTotal.count;
@@ -5659,7 +5665,7 @@ async function _renderNcismChecklist(ugIntake, orgType) {
     // Session 136 -- for the shared canonical compliance banner (designation+department
     // scoped), separate from the plain role-count `staffRes` above which the existing
     // role-level checklist items below still use unchanged.
-    supabase.from('profiles').select('designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('profiles').select('id,full_name,designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
   ]);
 
   const opds       = opdRes.data    || [];
@@ -5682,13 +5688,16 @@ async function _renderNcismChecklist(ugIntake, orgType) {
     const {grandReq, grandMet} = _computeGrandCompliance(tree, ugTier, bedTotals, cntDeptD);
     const deptNameById={}; depts.forEach(d=>{ deptNameById[d.id]=d.name; });
     const extraList = _collectExtraStaff(tree, ugTier, bedTotals, byDept, deptNameById);
+    // Session 155: who + why for the "N account(s) outside NCISM tracking" line -- same source
+    // used everywhere this banner renders, so the explanation can never disagree with the number.
+    const untrackedList = _collectUntrackedStaff(tree, ugTier, bedTotals, byDept, rawStaffDesigRes.data, deptNameById);
     // Session 153 follow-up: was unfiltered by is_active -- terminated accounts are still real
 // profiles rows, so "Total Staff" kept counting them even though every other number on this
 // banner (Recruited/Extra) correctly excludes them once Terminate started being used for real.
 // Filtering here makes "Total Staff" mean "currently employed" (what Terminate is actually for),
 // so Total = Recruited + Extra + outside-tracking holds again instead of silently drifting.
 const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_active',true]]);
-    staffComplianceBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff});
+    staffComplianceBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff, untrackedList});
   }
 
   const activeOpds  = opds.filter(o => o.is_active).length;
