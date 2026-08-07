@@ -32,10 +32,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   position:fixed;top:var(--nav-h);left:0;right:0;bottom:0;
   display:grid;
   grid-template-columns:320px 1fr;
-  grid-template-rows:auto 1fr;
+  grid-template-rows:auto auto 1fr;
   overflow:hidden;gap:0
 }
-#ncism-opd-banner{grid-column:1 / -1}
+/* Explicit placement (not DOM-order auto-flow) — an empty #promo-banner div
+   (no active promo, the common case) still claims a grid cell despite having
+   zero visible content, which without pinning here bumps .q-panel/.c-panel
+   into the wrong row/column (queue ends up wide-top, consultation narrow-
+   bottom). Found + fixed 7 Aug 2026 — see CLAUDE.md Known Issues. */
+#ncism-opd-banner{grid-column:1 / -1;grid-row:1}
+#promo-banner{grid-column:1 / -1;grid-row:2}
+.q-panel{grid-column:1;grid-row:3}
+.c-panel{grid-column:2;grid-row:3}
 @media(max-width:860px){
   body{overflow:auto}
   .page{display:block;margin-top:var(--nav-h)}
