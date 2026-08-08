@@ -6,7 +6,7 @@ import { logAudit }   from '../core/auditLogger.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS } from '../config/ncism.js';
-import { SUPABASE_URL } from '../config/constants.js';
+import { SUPABASE_URL, SESSION_KEYS } from '../config/constants.js';
 import { DESIGS, DESIG_MAP, DESIG_CATS } from '../config/designations.js';
 import {
   FACULTY_CONCURRENT_POSTS, NCISM_XX_ROWS, ORG_TREE_DEF, OPD_CHILD_NCISM_CODES,
@@ -122,7 +122,7 @@ function _showSection(target, sub) {
   if (target==='packages')       window.loadPackages();
   if (target==='modules')        window.loadModules();
   if (target==='accounts')           window.loadAccounts();
-  if (target==='abdm-bridge')        window.loadAbdmCallbacks();
+  if (target==='abdm-bridge')        { window.loadAbdmCallbacks(); window.loadFacilityRegistration(); }
   if (target==='compliance-reports') {
     const today = new Date().toISOString().slice(0,7);
     document.getElementById('sdf-month').value    = today;
@@ -6719,6 +6719,68 @@ async function _abdmCall(action, extra = {}) {
   });
   return res.json();
 }
+
+// Session 158: per-tenant HFR Facility Registration — the platform's ABDM Bridge
+// certification (SBXID_033899) is shared across every tenant, but each hospital still
+// needs its own Health Facility Registry ID (tenants.hfr_id), which every abdm-hip/
+// abdm-auth call resolves as X-HIP-ID / the HIU facility identity. Direct table write
+// (not an RPC) since tenants_update RLS already scopes a super_admin to their own
+// tenant.id — see the ABDM multi-tenant architecture note in CLAUDE.md.
+window.loadFacilityRegistration = function() {
+  const nameEl = document.getElementById('fac-tenant-name');
+  if (nameEl) nameEl.textContent = tenant?.name || 'this organisation';
+  const hfrInput = document.getElementById('fac-hfr-id');
+  const hiuInput = document.getElementById('fac-hiu-id');
+  if (!hfrInput || !hiuInput) return;
+  hfrInput.value = tenant?.hfr_id || '';
+  hiuInput.value = (tenant?.abdm_hiu_id && tenant.abdm_hiu_id !== tenant?.hfr_id) ? tenant.abdm_hiu_id : '';
+
+  const statusEl = document.getElementById('fac-reg-status');
+  if (statusEl) {
+    statusEl.innerHTML = tenant?.hfr_id
+      ? `<span style="color:#16a34a;font-weight:600">✅ Registered — Facility ID ${_esc(tenant.hfr_id)}</span>`
+      : `<span style="color:#dc2626;font-weight:600">⚠️ Not registered — ABDM calls for ${_esc(tenant?.name || 'this organisation')} will silently fall back to the platform's default test facility until a Facility ID is entered below.</span>`;
+  }
+
+  const iAmSuperAdmin = role === 'super_admin';
+  hfrInput.disabled = !iAmSuperAdmin;
+  hiuInput.disabled = !iAmSuperAdmin;
+  const saveBtn = document.getElementById('fac-reg-save-btn');
+  if (saveBtn) saveBtn.style.display = iAmSuperAdmin ? '' : 'none';
+  const roNote = document.getElementById('fac-reg-readonly-note');
+  if (roNote) roNote.style.display = iAmSuperAdmin ? 'none' : '';
+};
+
+window.saveFacilityRegistration = async function() {
+  if (role !== 'super_admin') { alert('Only a Super Admin can update this.'); return; }
+  const hfrId    = document.getElementById('fac-hfr-id').value.trim();
+  const hiuIdRaw = document.getElementById('fac-hiu-id').value.trim();
+  if (!hfrId) { alert("Enter your HFR Facility ID first — register at facility.abdm.gov.in if you don't have one yet."); return; }
+  const btn      = document.getElementById('fac-reg-save-btn');
+  const statusEl = document.getElementById('fac-reg-status');
+  if (btn) btn.disabled = true;
+  if (statusEl) statusEl.textContent = 'Saving…';
+  // RPC, not a direct .update() — tenants_update RLS is super_admin-only but a plain
+  // client write silently no-ops even for a real super_admin (confirmed live, Session
+  // 158: updated_at never moved), the same RLS-too-narrow gotcha already routed around
+  // for nursing_head_delegate_id (Session 137) and department_id (Session 133).
+  const { error } = await supabase.rpc('update_tenant_abdm_facility', {
+    p_hfr_id: hfrId, p_hiu_id: hiuIdRaw || null,
+  });
+  if (btn) btn.disabled = false;
+  if (error) {
+    if (statusEl) statusEl.innerHTML = `<span style="color:#dc2626">${_esc(safeErrorMessage(error, 'Could not save.'))}</span>`;
+    return;
+  }
+  if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a;font-weight:600">✅ Saved — Facility ID ${_esc(hfrId)}. ABDM calls for this organisation will now identify as this facility.</span>`;
+  // Keep the in-memory + cached session copy in sync so every other page reads the
+  // fresh value immediately, without needing a fresh login.
+  if (tenant) {
+    tenant.hfr_id = hfrId;
+    tenant.abdm_hiu_id = hiuIdRaw || hfrId;
+    try { sessionStorage.setItem(SESSION_KEYS.TENANT, JSON.stringify(tenant)); } catch {}
+  }
+};
 
 window.checkBridgeUrl = async function() {
   const el = document.getElementById('bridge-url-status');
