@@ -896,9 +896,9 @@ tr:hover td{background:#fafff8}
         </div>
         <div style="padding:14px 20px">
           <div style="font-size:12.5px;color:var(--text-mid);line-height:1.6;margin-bottom:14px">
-            AyurXpert's ABDM Bridge certification (Sandbox ID <code style="background:#f5f5f5;padding:1px 5px;border-radius:3px">SBXID_033899</code>) is shared across every tenant on the platform — you do not need your own ABDM certification. But every hospital using ABDM still needs its own <strong>Health Facility Registry (HFR)</strong> Facility ID, which identifies <strong id="fac-tenant-name">this organisation</strong> specifically on every consent, link, and data-flow call. Without one entered here, ABDM calls silently fall back to the platform's default test facility.
+            AyurXpert's ABDM Bridge certification (Sandbox ID <code style="background:#f5f5f5;padding:1px 5px;border-radius:3px">SBXID_033899</code>) is shared across every tenant on the platform — you do not need your own ABDM certification. But every hospital using ABDM still needs its own <strong>Health Facility Registry (HFR)</strong> Facility ID, which identifies <strong id="fac-tenant-name">this organisation</strong> specifically on every consent, link, and data-flow call — and that Facility ID must then be registered as a service under AyurXpert's Bridge on ABDM's own systems before ABDM will recognize it. Saving below does both steps in one go. Without this, ABDM calls silently fall back to the platform's default test facility.
             <br><br>
-            Register your facility at <a href="https://facility.abdm.gov.in" target="_blank" rel="noopener">facility.abdm.gov.in</a> using your hospital's own PAN/license details, then enter the Facility ID you receive below.
+            Register your facility at <a href="https://facility.abdm.gov.in" target="_blank" rel="noopener">facility.abdm.gov.in</a> using your hospital's own PAN/license details, then enter the Facility ID you receive below. (You don't need to wait for full validation — "Submitted" status is enough to function.)
           </div>
           <div id="fac-reg-status" style="font-size:13px;margin-bottom:12px">Loading…</div>
           <div style="display:grid;gap:12px;max-width:440px">
@@ -911,7 +911,11 @@ tr:hover td{background:#fafff8}
               <input id="fac-hiu-id" type="text" placeholder="Leave blank to use the Facility ID" style="width:100%;height:38px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:14px;font-family:'DM Sans',sans-serif"/>
             </div>
             <div>
-              <button id="fac-reg-save-btn" class="btn-primary btn-sm" data-onclick="saveFacilityRegistration" style="height:36px">Save</button>
+              <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Display Name on ABHA App <span style="font-weight:400;text-transform:none">(optional — max 15 characters, shown to patients when they search for this facility)</span></label>
+              <input id="fac-hip-name" type="text" maxlength="15" placeholder="e.g. Srishti Ayurveda" style="width:100%;height:38px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:14px;font-family:'DM Sans',sans-serif"/>
+            </div>
+            <div>
+              <button id="fac-reg-save-btn" class="btn-primary btn-sm" data-onclick="saveFacilityRegistration" style="height:36px">Save &amp; Register with ABDM</button>
               <span id="fac-reg-readonly-note" style="display:none;font-size:11.5px;color:var(--text-muted);margin-left:8px">Only a Super Admin can update this.</span>
             </div>
           </div>

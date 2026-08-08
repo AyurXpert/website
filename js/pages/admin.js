@@ -6729,11 +6729,13 @@ async function _abdmCall(action, extra = {}) {
 window.loadFacilityRegistration = function() {
   const nameEl = document.getElementById('fac-tenant-name');
   if (nameEl) nameEl.textContent = tenant?.name || 'this organisation';
-  const hfrInput = document.getElementById('fac-hfr-id');
-  const hiuInput = document.getElementById('fac-hiu-id');
+  const hfrInput  = document.getElementById('fac-hfr-id');
+  const hiuInput  = document.getElementById('fac-hiu-id');
+  const nameInput = document.getElementById('fac-hip-name');
   if (!hfrInput || !hiuInput) return;
   hfrInput.value = tenant?.hfr_id || '';
   hiuInput.value = (tenant?.abdm_hiu_id && tenant.abdm_hiu_id !== tenant?.hfr_id) ? tenant.abdm_hiu_id : '';
+  if (nameInput && !nameInput.value) nameInput.value = (tenant?.name || '').replace(/[%$*#@(~&!]/g, '').slice(0, 15).trim();
 
   const statusEl = document.getElementById('fac-reg-status');
   if (statusEl) {
@@ -6745,6 +6747,7 @@ window.loadFacilityRegistration = function() {
   const iAmSuperAdmin = role === 'super_admin';
   hfrInput.disabled = !iAmSuperAdmin;
   hiuInput.disabled = !iAmSuperAdmin;
+  if (nameInput) nameInput.disabled = !iAmSuperAdmin;
   const saveBtn = document.getElementById('fac-reg-save-btn');
   if (saveBtn) saveBtn.style.display = iAmSuperAdmin ? '' : 'none';
   const roNote = document.getElementById('fac-reg-readonly-note');
@@ -6753,32 +6756,56 @@ window.loadFacilityRegistration = function() {
 
 window.saveFacilityRegistration = async function() {
   if (role !== 'super_admin') { alert('Only a Super Admin can update this.'); return; }
-  const hfrId    = document.getElementById('fac-hfr-id').value.trim();
-  const hiuIdRaw = document.getElementById('fac-hiu-id').value.trim();
+  const hfrId       = document.getElementById('fac-hfr-id').value.trim();
+  const hiuIdRaw     = document.getElementById('fac-hiu-id').value.trim();
+  const hipNameRaw  = document.getElementById('fac-hip-name').value.trim();
   if (!hfrId) { alert("Enter your HFR Facility ID first — register at facility.abdm.gov.in if you don't have one yet."); return; }
   const btn      = document.getElementById('fac-reg-save-btn');
   const statusEl = document.getElementById('fac-reg-status');
   if (btn) btn.disabled = true;
   if (statusEl) statusEl.textContent = 'Saving…';
-  // RPC, not a direct .update() — tenants_update RLS is super_admin-only but a plain
-  // client write silently no-ops even for a real super_admin (confirmed live, Session
-  // 158: updated_at never moved), the same RLS-too-narrow gotcha already routed around
-  // for nursing_head_delegate_id (Session 137) and department_id (Session 133).
+
+  // Step 1: persist locally (RPC, not a direct .update() — tenants_update RLS is
+  // super_admin-only but a plain client write silently no-ops even for a real
+  // super_admin, confirmed live Session 158: updated_at never moved — the same
+  // RLS-too-narrow gotcha already routed around for nursing_head_delegate_id
+  // (Session 137) and department_id (Session 133).
   const { error } = await supabase.rpc('update_tenant_abdm_facility', {
     p_hfr_id: hfrId, p_hiu_id: hiuIdRaw || null,
   });
-  if (btn) btn.disabled = false;
   if (error) {
+    if (btn) btn.disabled = false;
     if (statusEl) statusEl.innerHTML = `<span style="color:#dc2626">${_esc(safeErrorMessage(error, 'Could not save.'))}</span>`;
     return;
   }
-  if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a;font-weight:600">✅ Saved — Facility ID ${_esc(hfrId)}. ABDM calls for this organisation will now identify as this facility.</span>`;
-  // Keep the in-memory + cached session copy in sync so every other page reads the
-  // fresh value immediately, without needing a fresh login.
   if (tenant) {
     tenant.hfr_id = hfrId;
     tenant.abdm_hiu_id = hiuIdRaw || hfrId;
     try { sessionStorage.setItem(SESSION_KEYS.TENANT, JSON.stringify(tenant)); } catch {}
+  }
+  if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">✅ Saved locally. Registering with ABDM Bridge…</span>`;
+
+  // Step 2: register this Facility ID as a service (HIP+HIU) under AyurXpert's Bridge
+  // on ABDM's own systems (§3.2.5, MutipleHRPAddUpdateServices). This is the step that
+  // was missing before Session 158 — saving locally alone tells only OUR Edge
+  // Functions which facility to identify as; ABDM's servers won't recognize the
+  // facility ID at all until this call succeeds. Safe to re-run for an
+  // already-registered facility (Add/Update, not Add-only).
+  const facilityName = tenant?.name || 'AyurXpert Facility';
+  const hipName = hipNameRaw || facilityName;
+  let data;
+  try {
+    data = await _abdmCall('register_hip_service', { facilityId: hfrId, facilityName, hipName, types: ['HIP','HIU'] });
+  } catch (err) {
+    if (btn) btn.disabled = false;
+    if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">✅ Saved locally.</span> <span style="color:#dc2626;font-weight:600">⚠️ ABDM Bridge registration failed: ${_esc(safeErrorMessage(err))}</span> <span style="color:var(--text-muted)">— ABDM calls for this facility will not work until this step succeeds. Try again below.</span>`;
+    return;
+  }
+  if (btn) btn.disabled = false;
+  if (data?.success) {
+    if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a;font-weight:600">✅ Registered — Facility ID ${_esc(hfrId)} is now live on AyurXpert's ABDM Bridge as "${_esc(hipName)}". ABDM calls for this organisation will now identify as this facility.</span>`;
+  } else {
+    if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">✅ Saved locally.</span> <span style="color:#dc2626;font-weight:600">⚠️ ABDM Bridge registration error:</span> <span style="color:var(--text-muted)">${_esc(JSON.stringify(data?.error ?? data))}</span>`;
   }
 };
 
