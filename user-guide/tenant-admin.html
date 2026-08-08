@@ -86,7 +86,7 @@
 <header class="top-banner">
   <div>
     <h1>Tenant Administration — Master Control Guide</h1>
-    <div class="banner-sub">AyurXpert HMS · Covers admin.html · Last updated: 14 Jul 2026, Session 89</div>
+    <div class="banner-sub">AyurXpert HMS · Covers admin.html · Last updated: 8 Aug 2026, Session 158</div>
   </div>
   <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
 </header>
@@ -115,6 +115,7 @@
 
       <a href="#modules">9. Feature Modules</a>
       <a href="#abdm-bridge">10. ABDM Bridge</a>
+      <a href="#abdm-activate" class="sub">10.1 Activating ABDM Services</a>
       <a href="#quick-links">11. Quick Links</a>
 
       <a href="#scenarios">12. Common Scenarios</a>
@@ -233,7 +234,23 @@
     <hr />
 
     <h2 id="abdm-bridge">10. ABDM Bridge</h2>
-    <p>Shows recent ABDM (Ayushman Bharat Digital Mission) callback activity — HIP linking, consent requests, and health data exchange events routed through the tenant's ABDM integration.</p>
+    <p>Shows recent ABDM (Ayushman Bharat Digital Mission) callback activity — HIP linking, consent requests, and health data exchange events routed through the tenant's ABDM integration. AyurXpert's own ABDM Bridge certification (Sandbox ID <code>SBXID_033899</code>) already covers every tenant on the platform — you do not need any certification of your own. What your organisation does still need, one time, is its own Health Facility Registry (HFR) Facility ID, covered in 10.1 below.</p>
+
+    <h3 id="abdm-activate" style="scroll-margin-top: 10px">10.1 Activating ABDM Services (HFR Facility Registration)</h3>
+    <p>Until this is done, ABDM services (ABHA verification, Scan &amp; Share, consent-based data exchange) are not active for your organisation. This is entirely self-service — <span class="badge badge-super_admin">super_admin</span> only, no platform admin involvement needed.</p>
+
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body"><strong>Register with India's Health Facility Registry (HFR)</strong> — go to <code>facility.abdm.gov.in</code> and register your hospital using its own PAN/license details. You'll receive a <strong>Facility ID</strong> (e.g. <code>IN2910XXXXXX</code>). You don't need to wait for full "Validated" status — "Submitted" is enough for ABDM services to work.</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>Open ABDM Bridge Configuration</strong> — in admin.html's sidebar, click <strong>🏛️ ABDM Bridge</strong> (Section 10 above).</div></li>
+      <li><span class="step-num">3</span><div class="step-body"><strong>Enter your Facility ID</strong> — in the "This Organisation's HFR Facility Registration" panel, paste the Facility ID from Step 1. Optionally set a Display Name (max 15 characters) — this is what patients see when searching for your facility on the ABHA app.</div></li>
+      <li><span class="step-num">4</span><div class="step-body"><strong>Click "Save &amp; Register with ABDM"</strong> — this does two things in one click: saves the Facility ID to your organisation's record, and registers it live with ABDM's own systems as a service under AyurXpert's Bridge. Both are required — the first alone is not enough for ABDM to recognize your facility.</div></li>
+      <li><span class="step-num">5</span><div class="step-body"><strong>Confirm</strong> — the status message should read "✅ Registered — Facility ID … is now live on AyurXpert's ABDM Bridge." ABDM services are active for your organisation from this point, no further setup or waiting required.</div></li>
+    </ol>
+
+    <div class="box box-warn">
+      <strong>A Facility ID can only belong to one organisation on the platform</strong>
+      If you enter a Facility ID already registered to another tenant, Save will be rejected with a clear message naming the conflicting organisation — double-check the ID from your HFR registration email/portal before entering it here.
+    </div>
 
     <hr />
 
@@ -276,6 +293,6 @@
   </main>
 </div>
 
-<footer>AyurXpert Technologies™ — Internal reference document. Last updated Session 89, 14 Jul 2026.</footer>
+<footer>AyurXpert Technologies™ — Internal reference document. Last updated Session 158, 8 Aug 2026.</footer>
 </body>
 </html>

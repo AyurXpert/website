@@ -244,6 +244,19 @@
       <p>Go to Pricing → GST Rate, update the number, click Save. Every fee display across the platform (this page and every tenant's dashboard) reflects the new rate immediately — no other changes needed.</p>
     </div>
 
+    <div class="scenario">
+      <h4>D. A tenant asks how to activate ABDM services for their organisation</h4>
+      <p>Entirely self-service — no action needed from the platform admin. Point them to their own admin.html → 🏛️ ABDM Bridge → "This Organisation's HFR Facility Registration" panel (the panel itself links directly to the full instructions), or relay the 5 steps directly:</p>
+      <ol class="steps">
+        <li><span class="step-num">1</span><div class="step-body">Register the hospital at <code>facility.abdm.gov.in</code> (their own PAN/license) to get an HFR Facility ID. "Submitted" status is enough — no need to wait for full validation.</div></li>
+        <li><span class="step-num">2</span><div class="step-body">Log in as their organisation's Super Admin → admin.html sidebar → 🏛️ ABDM Bridge.</div></li>
+        <li><span class="step-num">3</span><div class="step-body">Enter the Facility ID (and optionally a 15-character Display Name for the ABHA app).</div></li>
+        <li><span class="step-num">4</span><div class="step-body">Click "Save &amp; Register with ABDM" — one click saves it locally and registers it live with ABDM's own Bridge-services API.</div></li>
+        <li><span class="step-num">5</span><div class="step-body">Confirm the status shows "✅ Registered" — ABDM services are active immediately, no further action needed.</div></li>
+      </ol>
+      <p>Full technical detail on why both steps 1 and 4 are independently required: §8.2. Full tenant-facing version of these same 5 steps: <code>user-guide/tenant-admin.html</code> §10.1.</p>
+    </div>
+
     <hr />
 
     <h2 id="troubleshoot">6. Troubleshooting</h2>
