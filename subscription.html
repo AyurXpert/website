@@ -318,6 +318,13 @@ tr.row-expired:hover td{background:#ffe9e9}
       <label>Trial Ends Date</label>
       <input id="e-trial-ends" type="date"/>
     </div>
+    <div class="field" id="e-abdm-field" style="display:none">
+      <label>ABDM Bridge Status</label>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span id="e-abdm-status" style="font-size:13px"></span>
+        <button id="e-abdm-deactivate-btn" class="btn btn-outline" style="display:none;color:#c0392b;border-color:#e0b0b0;font-size:12px;padding:4px 10px" data-onclick="deactivatePlatformAbdmFacility">🚫 Deactivate</button>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-primary" style="flex:1" data-onclick="saveSubscription">💾 Save</button>
       <button class="btn btn-outline" data-onclick="closeModal">Cancel</button>

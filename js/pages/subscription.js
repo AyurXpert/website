@@ -37,7 +37,7 @@ let _tenants = [];
 async function init() {
   const { data } = await supabase
     .from('tenants')
-    .select('id, name, type, tenant_code, is_active, plan_type, subscription_status, max_users, subscription_expiry, trial_ends_at, billing_cycle')
+    .select('id, name, type, tenant_code, is_active, plan_type, subscription_status, max_users, subscription_expiry, trial_ends_at, billing_cycle, hfr_id, abdm_hiu_id')
     .order('name');
 
   _tenants = (data || []).map(t => {
@@ -126,7 +126,78 @@ window.openEdit = function(tenantId) {
   document.getElementById('e-expiry').value             = t.subscription_expiry || '';
   document.getElementById('e-trial-ends').value         = t.trial_ends_at || '';
   document.getElementById('e-billing-cycle').value      = t.billing_cycle || '';
+
+  // Session 158: surfaced here so suspending/terminating a tenant doesn't
+  // silently leave their ABDM Bridge registration untouched — a real gap until
+  // now (deactivation only existed self-service on the tenant's own admin.html).
+  const abdmField  = document.getElementById('e-abdm-field');
+  const abdmStatus = document.getElementById('e-abdm-status');
+  const abdmBtn    = document.getElementById('e-abdm-deactivate-btn');
+  if (abdmField) {
+    abdmField.style.display = '';
+    if (t.hfr_id) {
+      abdmStatus.innerHTML = `✅ Registered — Facility ID <code>${_esc(t.hfr_id)}</code>`;
+      abdmBtn.style.display = '';
+    } else {
+      abdmStatus.textContent = '— Not registered with ABDM';
+      abdmBtn.style.display = 'none';
+    }
+  }
+
   document.getElementById('edit-modal').classList.add('open');
+};
+
+// Session 158: withdraws a tenant's Facility ID from ABDM's Bridge and clears
+// their local record — for a tenant being suspended/terminated, or any other
+// platform-level reason ABDM access should stop. Reuses the same register_hip_
+// service action (active:false) the tenant's own self-service Deactivate button
+// uses; authorized here via is_platform_admin (can act on ANY tenant's facility,
+// unlike a super_admin who's restricted to their own), verified server-side.
+window.deactivatePlatformAbdmFacility = async function() {
+  const tenantId = document.getElementById('e-tenant-id').value;
+  const t = _tenants.find(t => t.id === tenantId);
+  if (!t?.hfr_id) return;
+  if (!confirm(`Deactivate ABDM services for ${t.name}?\n\nFacility ID ${t.hfr_id} will be withdrawn from AyurXpert's ABDM Bridge — ABHA verification, Scan & Share, and consent-based data exchange will stop working for this organisation until they register a Facility ID again.`)) return;
+
+  const btn = document.getElementById('e-abdm-deactivate-btn');
+  const abdmStatus = document.getElementById('e-abdm-status');
+  btn.disabled = true;
+  abdmStatus.textContent = 'Deactivating…';
+
+  const { data: { session } } = await supabase.auth.getSession();
+  let data;
+  try {
+    const res = await fetch(`https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({
+        action: 'register_hip_service',
+        facilityId: t.hfr_id, facilityName: t.name, types: ['HIP','HIU'], active: false,
+      }),
+    });
+    data = await res.json();
+  } catch (err) {
+    btn.disabled = false;
+    abdmStatus.innerHTML = `<span style="color:#dc2626">⚠️ Could not reach ABDM: ${_esc(safeErrorMessage(err))}</span>`;
+    return;
+  }
+  if (!data?.success) {
+    btn.disabled = false;
+    abdmStatus.innerHTML = `<span style="color:#dc2626">⚠️ ABDM Bridge deactivation error: ${_esc(JSON.stringify(data?.error ?? data))}</span>`;
+    return;
+  }
+
+  const { error } = await supabase.rpc('platform_clear_tenant_abdm_facility', { p_tenant_id: tenantId });
+  btn.disabled = false;
+  if (error) {
+    abdmStatus.innerHTML = `<span style="color:#16a34a">✅ Deactivated on ABDM.</span> <span style="color:#dc2626">⚠️ ${_esc(safeErrorMessage(error, 'Could not clear the local record.'))}</span>`;
+    return;
+  }
+  t.hfr_id = null;
+  t.abdm_hiu_id = null;
+  abdmStatus.textContent = '— Not registered with ABDM';
+  btn.style.display = 'none';
+  _toast('✅ ABDM services deactivated for ' + t.name);
 };
 
 window.closeModal = function() {

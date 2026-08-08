@@ -6812,16 +6812,37 @@ window.saveFacilityRegistration = async function() {
   const hiuIdRaw     = document.getElementById('fac-hiu-id').value.trim();
   const hipNameRaw  = document.getElementById('fac-hip-name').value.trim();
   if (!hfrId) { alert("Enter your HFR Facility ID first — register at facility.abdm.gov.in if you don't have one yet."); return; }
-  // Captured before any local/ABDM state changes below — used after a successful
-  // new registration to withdraw a now-superseded old Facility ID (e.g. correcting
-  // a typo) instead of leaving it orphaned active on ABDM's Bridge forever.
   const previousHfrId = tenant?.hfr_id || null;
+  const facilityName  = tenant?.name || 'AyurXpert Facility';
   const btn      = document.getElementById('fac-reg-save-btn');
   const statusEl = document.getElementById('fac-reg-status');
   if (btn) btn.disabled = true;
   if (statusEl) statusEl.textContent = 'Saving…';
+  let statusHtml = '';
 
-  // Step 1: persist locally (RPC, not a direct .update() — tenants_update RLS is
+  // Step 1 (superseding a different, previously-registered Facility ID only —
+  // e.g. correcting a typo): deactivate the OLD id on ABDM's Bridge FIRST, while
+  // tenants.hfr_id in the DB still equals it. Order matters here — register_hip_
+  // service's own authorization check (added Session 158, see abdm-auth) verifies
+  // a super_admin's target facilityId against their tenant's CURRENT DB value, so
+  // this has to run before Step 2 overwrites it to the new id, or the deactivate
+  // call would be rejected as unauthorized even though it's legitimately correcting
+  // this tenant's own registration. Best-effort either way — a failure here is
+  // noted, not fatal, since the new registration below is what actually matters.
+  if (previousHfrId && previousHfrId !== hfrId) {
+    try {
+      const oldData = await _abdmCall('register_hip_service', {
+        facilityId: previousHfrId, facilityName, types: ['HIP','HIU'], active: false,
+      });
+      statusHtml += oldData?.success
+        ? `<span style="color:var(--text-muted)">Previous Facility ID ${_esc(previousHfrId)} deactivated. </span>`
+        : `<span style="color:#c9902a">Could not deactivate the previous Facility ID ${_esc(previousHfrId)} — it may still show active on ABDM's Bridge; deactivate it manually if needed. </span>`;
+    } catch {
+      statusHtml += `<span style="color:#c9902a">Could not deactivate the previous Facility ID ${_esc(previousHfrId)} — it may still show active on ABDM's Bridge; deactivate it manually if needed. </span>`;
+    }
+  }
+
+  // Step 2: persist locally (RPC, not a direct .update() — tenants_update RLS is
   // super_admin-only but a plain client write silently no-ops even for a real
   // super_admin, confirmed live Session 158: updated_at never moved — the same
   // RLS-too-narrow gotcha already routed around for nursing_head_delegate_id
@@ -6831,7 +6852,7 @@ window.saveFacilityRegistration = async function() {
   });
   if (error) {
     if (btn) btn.disabled = false;
-    if (statusEl) statusEl.innerHTML = `<span style="color:#dc2626">${_esc(safeErrorMessage(error, 'Could not save.'))}</span>`;
+    if (statusEl) statusEl.innerHTML = statusHtml + `<span style="color:#dc2626">${_esc(safeErrorMessage(error, 'Could not save.'))}</span>`;
     return;
   }
   if (tenant) {
@@ -6839,49 +6860,30 @@ window.saveFacilityRegistration = async function() {
     tenant.abdm_hiu_id = hiuIdRaw || hfrId;
     try { sessionStorage.setItem(SESSION_KEYS.TENANT, JSON.stringify(tenant)); } catch {}
   }
-  if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">✅ Saved locally. Registering with ABDM Bridge…</span>`;
+  if (statusEl) statusEl.innerHTML = statusHtml + `<span style="color:#16a34a">✅ Saved locally. Registering with ABDM Bridge…</span>`;
 
-  // Step 2: register this Facility ID as a service (HIP+HIU) under AyurXpert's Bridge
+  // Step 3: register this Facility ID as a service (HIP+HIU) under AyurXpert's Bridge
   // on ABDM's own systems (§3.2.5, MutipleHRPAddUpdateServices). This is the step that
   // was missing before Session 158 — saving locally alone tells only OUR Edge
   // Functions which facility to identify as; ABDM's servers won't recognize the
   // facility ID at all until this call succeeds. Safe to re-run for an
   // already-registered facility (Add/Update, not Add-only).
-  const facilityName = tenant?.name || 'AyurXpert Facility';
   const hipName = hipNameRaw || facilityName;
   let data;
   try {
     data = await _abdmCall('register_hip_service', { facilityId: hfrId, facilityName, hipName, types: ['HIP','HIU'] });
   } catch (err) {
     if (btn) btn.disabled = false;
-    if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">✅ Saved locally.</span> <span style="color:#dc2626;font-weight:600">⚠️ ABDM Bridge registration failed: ${_esc(safeErrorMessage(err))}</span> <span style="color:var(--text-muted)">— ABDM calls for this facility will not work until this step succeeds. Try again below.</span>`;
+    if (statusEl) statusEl.innerHTML = statusHtml + `<span style="color:#16a34a">✅ Saved locally.</span> <span style="color:#dc2626;font-weight:600">⚠️ ABDM Bridge registration failed: ${_esc(safeErrorMessage(err))}</span> <span style="color:var(--text-muted)">— ABDM calls for this facility will not work until this step succeeds. Try again below.</span>`;
     return;
   }
   if (btn) btn.disabled = false;
   if (!data?.success) {
-    if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">✅ Saved locally.</span> <span style="color:#dc2626;font-weight:600">⚠️ ABDM Bridge registration error:</span> <span style="color:var(--text-muted)">${_esc(JSON.stringify(data?.error ?? data))}</span>`;
+    if (statusEl) statusEl.innerHTML = statusHtml + `<span style="color:#16a34a">✅ Saved locally.</span> <span style="color:#dc2626;font-weight:600">⚠️ ABDM Bridge registration error:</span> <span style="color:var(--text-muted)">${_esc(JSON.stringify(data?.error ?? data))}</span>`;
     return;
   }
 
-  let statusHtml = `<span style="color:#16a34a;font-weight:600">✅ Registered — Facility ID ${_esc(hfrId)} is now live on AyurXpert's ABDM Bridge as "${_esc(hipName)}". ABDM calls for this organisation will now identify as this facility.</span>`;
-
-  // Superseding a different, previously-registered Facility ID (e.g. correcting a
-  // typo) — withdraw the old one from ABDM's Bridge so it doesn't sit orphaned
-  // active forever. Best-effort: the new registration above already succeeded and
-  // is the one that actually matters, so a failure here is noted, not fatal.
-  if (previousHfrId && previousHfrId !== hfrId) {
-    try {
-      const oldData = await _abdmCall('register_hip_service', {
-        facilityId: previousHfrId, facilityName, types: ['HIP','HIU'], active: false,
-      });
-      statusHtml += oldData?.success
-        ? ` <span style="color:var(--text-muted)">(Previous Facility ID ${_esc(previousHfrId)} has been deactivated.)</span>`
-        : ` <span style="color:#c9902a">(Could not deactivate the previous Facility ID ${_esc(previousHfrId)} — it may still show active on ABDM's Bridge; deactivate it manually if needed.)</span>`;
-    } catch {
-      statusHtml += ` <span style="color:#c9902a">(Could not deactivate the previous Facility ID ${_esc(previousHfrId)} — it may still show active on ABDM's Bridge; deactivate it manually if needed.)</span>`;
-    }
-  }
-
+  statusHtml += `<span style="color:#16a34a;font-weight:600">✅ Registered — Facility ID ${_esc(hfrId)} is now live on AyurXpert's ABDM Bridge as "${_esc(hipName)}". ABDM calls for this organisation will now identify as this facility.</span>`;
   if (statusEl) statusEl.innerHTML = statusHtml;
 };
 
