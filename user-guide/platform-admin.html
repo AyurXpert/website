@@ -332,6 +332,11 @@
       "Save &amp; Register with ABDM" on the panel does both in sequence — saves locally, then calls ABDM's live API. Live-verified against the real ABDM sandbox (registration succeeded, independently re-confirmed via "Check Bridge Services" that ABDM's own systems list the facility as an Active HIP+HIU service).
     </div>
 
+    <div class="box box-critical">
+      <strong>Unregistered tenants cannot use ABDM at all — a deliberate, complete block, not a partial one (8 Aug 2026)</strong>
+      Earlier the same day this section was written, a real gap was found: M2's HIP-initiated linking silently fell back to the platform's default facility ID for a tenant with no <code>hfr_id</code>, meaning an unregistered tenant's care contexts could get pushed into ABDM's real national records under a <em>different</em> hospital's identity — with zero error shown anywhere. Rather than patch that one path, the decision was made to block ALL ABDM functions outright for an unregistered tenant — including M1 ABHA account operations, which never had a facility-misattribution risk to begin with. One uniform rule ("no registration = zero ABDM interaction") is far easier to state and defend than a rule with exceptions. Enforced server-side in both Edge Functions that accept tenant-initiated ABDM calls (<code>abdm-auth</code>, <code>abdm-hip</code>) — a client-side check would not be sufficient, since it could be bypassed by calling the API directly. Local HMS operation (patients, visits, prescriptions) is completely unaffected either way — it never depended on ABDM.
+    </div>
+
     <h3 id="abdm-routing">8.3 How One Shared Webhook Reaches the Right Tenant</h3>
     <p>Every ABDM callback — for every tenant, for every flow (Scan &amp; Share, consent, data-flow) — arrives at the same single URL: <code>https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-webhook</code>. ABDM does not know or care that this URL serves multiple hospitals; from ABDM's side, each Facility ID is a distinct, independently-addressable participant.</p>
     <p>The webhook resolves which tenant a given inbound request belongs to by reading the <strong><code>X-HIU-ID</code> or <code>X-HIP-ID</code> header ABDM itself sends on every callback</strong>, and matching it against <code>tenants.abdm_hiu_id</code> / <code>tenants.hfr_id</code>:</p>
@@ -405,6 +410,10 @@ USING (tenant_id = (
     <div class="scenario">
       <h4>Q: How does one Bridge serve multiple, unrelated hospitals?</h4>
       <p>A: The Bridge certification (SBXID_033899) is AyurXpert Technologies' own — it authenticates AyurXpert as a legitimate platform to ABDM. Each hospital using the platform is separately identified to ABDM by its own government-issued HFR Facility ID, registered as a distinct service under that one Bridge. See §8.1–8.2.</p>
+    </div>
+    <div class="scenario">
+      <h4>Q: What happens if a hospital tenant hasn't completed HFR registration yet?</h4>
+      <p>A: Nothing — every ABDM function is blocked outright, server-side, for that tenant, not just the facility-specific ones. Enforced in both Edge Functions that handle tenant-initiated ABDM calls, so it can't be bypassed by calling the API directly rather than going through the UI. The tenant's local HMS operation (patients, visits, prescriptions) is entirely unaffected — only ABDM-specific functions are gated. See §8.2's critical box.</p>
     </div>
     <div class="scenario">
       <h4>Q: If two hospitals share infrastructure, how do you guarantee Hospital A never sees Hospital B's patient data?</h4>
