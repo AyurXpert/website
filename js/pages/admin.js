@@ -6750,8 +6750,60 @@ window.loadFacilityRegistration = function() {
   if (nameInput) nameInput.disabled = !iAmSuperAdmin;
   const saveBtn = document.getElementById('fac-reg-save-btn');
   if (saveBtn) saveBtn.style.display = iAmSuperAdmin ? '' : 'none';
+  const deactivateBtn = document.getElementById('fac-reg-deactivate-btn');
+  if (deactivateBtn) deactivateBtn.style.display = (iAmSuperAdmin && tenant?.hfr_id) ? '' : 'none';
   const roNote = document.getElementById('fac-reg-readonly-note');
   if (roNote) roNote.style.display = iAmSuperAdmin ? 'none' : '';
+};
+
+// Session 158: withdraws the CURRENTLY-registered facility from ABDM's Bridge
+// (active:false via the same register_hip_service action) and clears the local
+// record, so "Registered" status correctly reflects reality afterward. For an
+// organisation going inactive, or undoing a mistaken registration entirely
+// (as opposed to correcting it to a different ID — see the auto-deactivate-old-id
+// logic in saveFacilityRegistration() below, which handles that case instead).
+window.deactivateFacilityRegistration = async function() {
+  if (role !== 'super_admin') { alert('Only a Super Admin can update this.'); return; }
+  if (!tenant?.hfr_id) return;
+  if (!confirm(`Deactivate ABDM services for ${tenant?.name || 'this organisation'}?\n\nFacility ID ${tenant.hfr_id} will be withdrawn from AyurXpert's ABDM Bridge — ABHA verification, Scan & Share, and consent-based data exchange will stop working for this organisation until a Facility ID is registered again.`)) return;
+
+  const btn      = document.getElementById('fac-reg-deactivate-btn');
+  const statusEl = document.getElementById('fac-reg-status');
+  if (btn) btn.disabled = true;
+  if (statusEl) statusEl.textContent = 'Deactivating…';
+
+  const facilityName = tenant?.name || 'AyurXpert Facility';
+  let data;
+  try {
+    data = await _abdmCall('register_hip_service', {
+      facilityId: tenant.hfr_id, facilityName, types: ['HIP','HIU'], active: false,
+    });
+  } catch (err) {
+    if (btn) btn.disabled = false;
+    if (statusEl) statusEl.innerHTML = `<span style="color:#dc2626;font-weight:600">⚠️ Could not reach ABDM: ${_esc(safeErrorMessage(err))}</span>`;
+    return;
+  }
+  if (!data?.success) {
+    if (btn) btn.disabled = false;
+    if (statusEl) statusEl.innerHTML = `<span style="color:#dc2626;font-weight:600">⚠️ ABDM Bridge deactivation error:</span> <span style="color:var(--text-muted)">${_esc(JSON.stringify(data?.error ?? data))}</span>`;
+    return;
+  }
+
+  const { error } = await supabase.rpc('clear_tenant_abdm_facility');
+  if (btn) btn.disabled = false;
+  if (error) {
+    if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">✅ Deactivated on ABDM.</span> <span style="color:#dc2626">⚠️ ${_esc(safeErrorMessage(error, 'Could not clear the local record.'))}</span>`;
+    return;
+  }
+  if (tenant) {
+    tenant.hfr_id = null;
+    tenant.abdm_hiu_id = null;
+    try { sessionStorage.setItem(SESSION_KEYS.TENANT, JSON.stringify(tenant)); } catch {}
+  }
+  document.getElementById('fac-hfr-id').value = '';
+  document.getElementById('fac-hiu-id').value = '';
+  window.loadFacilityRegistration();
+  if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a;font-weight:600">✅ Deactivated — this organisation is no longer registered with ABDM.</span>`;
 };
 
 window.saveFacilityRegistration = async function() {
@@ -6760,6 +6812,10 @@ window.saveFacilityRegistration = async function() {
   const hiuIdRaw     = document.getElementById('fac-hiu-id').value.trim();
   const hipNameRaw  = document.getElementById('fac-hip-name').value.trim();
   if (!hfrId) { alert("Enter your HFR Facility ID first — register at facility.abdm.gov.in if you don't have one yet."); return; }
+  // Captured before any local/ABDM state changes below — used after a successful
+  // new registration to withdraw a now-superseded old Facility ID (e.g. correcting
+  // a typo) instead of leaving it orphaned active on ABDM's Bridge forever.
+  const previousHfrId = tenant?.hfr_id || null;
   const btn      = document.getElementById('fac-reg-save-btn');
   const statusEl = document.getElementById('fac-reg-status');
   if (btn) btn.disabled = true;
@@ -6802,11 +6858,31 @@ window.saveFacilityRegistration = async function() {
     return;
   }
   if (btn) btn.disabled = false;
-  if (data?.success) {
-    if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a;font-weight:600">✅ Registered — Facility ID ${_esc(hfrId)} is now live on AyurXpert's ABDM Bridge as "${_esc(hipName)}". ABDM calls for this organisation will now identify as this facility.</span>`;
-  } else {
+  if (!data?.success) {
     if (statusEl) statusEl.innerHTML = `<span style="color:#16a34a">✅ Saved locally.</span> <span style="color:#dc2626;font-weight:600">⚠️ ABDM Bridge registration error:</span> <span style="color:var(--text-muted)">${_esc(JSON.stringify(data?.error ?? data))}</span>`;
+    return;
   }
+
+  let statusHtml = `<span style="color:#16a34a;font-weight:600">✅ Registered — Facility ID ${_esc(hfrId)} is now live on AyurXpert's ABDM Bridge as "${_esc(hipName)}". ABDM calls for this organisation will now identify as this facility.</span>`;
+
+  // Superseding a different, previously-registered Facility ID (e.g. correcting a
+  // typo) — withdraw the old one from ABDM's Bridge so it doesn't sit orphaned
+  // active forever. Best-effort: the new registration above already succeeded and
+  // is the one that actually matters, so a failure here is noted, not fatal.
+  if (previousHfrId && previousHfrId !== hfrId) {
+    try {
+      const oldData = await _abdmCall('register_hip_service', {
+        facilityId: previousHfrId, facilityName, types: ['HIP','HIU'], active: false,
+      });
+      statusHtml += oldData?.success
+        ? ` <span style="color:var(--text-muted)">(Previous Facility ID ${_esc(previousHfrId)} has been deactivated.)</span>`
+        : ` <span style="color:#c9902a">(Could not deactivate the previous Facility ID ${_esc(previousHfrId)} — it may still show active on ABDM's Bridge; deactivate it manually if needed.)</span>`;
+    } catch {
+      statusHtml += ` <span style="color:#c9902a">(Could not deactivate the previous Facility ID ${_esc(previousHfrId)} — it may still show active on ABDM's Bridge; deactivate it manually if needed.)</span>`;
+    }
+  }
+
+  if (statusEl) statusEl.innerHTML = statusHtml;
 };
 
 window.checkBridgeUrl = async function() {
