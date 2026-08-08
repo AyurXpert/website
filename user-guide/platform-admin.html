@@ -363,12 +363,18 @@ USING (tenant_id = (
           <tr><td>link_tokens</td><td>HIP-init/User-init linking tokens</td><td>tenant-scoped, ALL commands</td></tr>
           <tr><td>audit_logs</td><td>Every logged staff action</td><td>tenant-scoped INSERT+SELECT (no UPDATE/DELETE policy at all — a written entry cannot be altered or removed via the app)</td></tr>
           <tr><td>abdm_callbacks</td><td>Raw inbound ABDM webhook payloads (pre-routing)</td><td><code>service_role only</code> — zero access for any tenant's own staff, any role, under any circumstance</td></tr>
+          <tr><td>profiles</td><td>Staff accounts — name, phone, designation, medical registration number, qualification</td><td>tenant-scoped SELECT (fixed 8 Aug 2026 — see box below), + <code>is_platform_admin</code> cross-tenant bypass</td></tr>
         </tbody>
       </table>
     </div>
     <div class="box box-tip">
       <strong>The Bridge webhook itself is the one deliberate exception, and it's tightly scoped</strong>
       ABDM's inbound callbacks arrive with no AyurXpert user session at all (there's no logged-in "user" — it's a machine-to-machine call from ABDM), so <code>abdm-webhook</code> necessarily uses Supabase's service-role key, which bypasses RLS by design. Isolation there is enforced by <strong>explicit code</strong> instead: resolve exactly one <code>tenantId</code> from ABDM's own header (§8.3), then scope every operation to it — not by RLS. This is why the uniqueness fix in §8.3 mattered: it's the one place in the whole system where isolation depends on a mapping being correct rather than a database constraint being unbypassable.
+    </div>
+
+    <div class="box box-critical">
+      <strong>A real cross-tenant leak was found and fixed the same day this section was written — profiles, not health data, but worth being upfront about</strong>
+      <code>profiles</code> (staff accounts — not patient/ABDM data) had a SELECT policy of a bare <code>true</code>, meaning any authenticated staff member at any tenant could read every other tenant's staff records, including medical registration numbers and phone numbers. Confirmed real (158 profiles across 4 tenants, all mutually readable) and fixed the same session. <strong>The first fix attempt broke login for every role platform-wide</strong> — a raw self-referential subquery in the policy triggered Postgres's infinite-recursion detection the instant it was exercised — caught within minutes via immediate live testing and rolled back before it could affect real traffic. The corrected fix routes the lookup through a <code>SECURITY DEFINER</code> helper function instead of a raw subquery, which avoids the recursion by design. Re-verified: a real authenticated user's completely unfiltered query against <code>profiles</code> now returns only their own tenant's rows (11 of 158, zero leaked) where it previously returned all 158. Full narrative, including why the "obvious" fix broke things: memory <code>session158_profiles_rls_cross_tenant_leak_fix.md</code>.
     </div>
 
     <h3 id="abdm-encryption">8.5 Encryption of Health Data In Transit</h3>
