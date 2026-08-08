@@ -22,5 +22,14 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return "You're logged in as a different account in another tab (or your session changed) — log out, log back in as an admin, and try again.";
   }
 
+  // update_tenant_abdm_facility()'s cross-tenant HFR Facility ID conflict guard
+  // (Session 158) — the message itself is deliberately written to be safe to show
+  // (no schema/constraint names, just the conflicting organisation's name), and
+  // actionable: a super_admin needs to know WHY their save was rejected here, not
+  // just that it failed.
+  if (error?.code === 'P0001' && error?.message?.startsWith('This Facility ID is already registered')) {
+    return error.message;
+  }
+
   return fallback;
 }
