@@ -169,6 +169,11 @@
       </table>
     </div>
 
+    <div class="box box-warn">
+      <strong>Suspending/terminating a tenant does NOT automatically stop their ABDM access</strong>
+      Changing Status here is purely a billing-state change — it has no automatic effect on ABDM. If a tenant has a registered Facility ID (shown in this same modal as "ABDM Bridge Status"), a 🚫 <strong>Deactivate</strong> button appears next to it — click it separately to withdraw that tenant's Facility ID from AyurXpert's ABDM Bridge. This is a deliberate, non-automatic action (Session 158) — an automatic hook was considered and rejected, since a temporary status change (e.g. a short billing lapse) silently killing a hospital's live ABDM integration was judged too disruptive to real patient-facing operations to do implicitly.
+    </div>
+
     <div class="box box-tip">
       <strong>Effective expiry date</strong>
       Whichever of Subscription Expiry or Trial Ends is set is used to compute "days left" everywhere in the app (this page's status chips, the tenant's own expiry banner). If both are set, Subscription Expiry takes priority once the plan is no longer Trial.
