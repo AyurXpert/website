@@ -85,7 +85,7 @@
 <header class="top-banner">
   <div>
     <h1>Platform Admin — Subscription &amp; Billing Guide</h1>
-    <div class="banner-sub">AyurXpert Platform · Covers subscription.html · <span id="last-updated-inline">Last updated: 14 Jul 2026, Session 89</span></div>
+    <div class="banner-sub">AyurXpert Platform · Covers subscription.html + ABDM multi-tenant architecture · <span id="last-updated-inline">Last updated: 8 Aug 2026, Session 158</span></div>
   </div>
   <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
 </header>
@@ -115,6 +115,17 @@
       <a href="#scenarios">5. Common Scenarios</a>
       <a href="#troubleshoot">6. Troubleshooting</a>
       <a href="#tech">7. Technical Reference</a>
+
+      <a href="#abdm-arch">8. ABDM Multi-Tenant Bridge &amp; Data Security</a>
+      <a href="#abdm-bridge-model" class="sub">8.1 The Bridge Model</a>
+      <a href="#abdm-facility-reg" class="sub">8.2 Facility Registration (2 Steps)</a>
+      <a href="#abdm-routing" class="sub">8.3 Webhook Routing to the Right Tenant</a>
+      <a href="#abdm-isolation" class="sub">8.4 Database-Enforced Tenant Isolation</a>
+      <a href="#abdm-encryption" class="sub">8.5 Encryption of Health Data In Transit</a>
+      <a href="#abdm-consent" class="sub">8.6 Consent-Gated Access</a>
+      <a href="#abdm-secrets" class="sub">8.7 Credential &amp; Secret Management</a>
+      <a href="#abdm-audit" class="sub">8.8 Audit Logging &amp; Traceability</a>
+      <a href="#abdm-qa" class="sub">8.9 Anticipated ABDM/NHA Questions</a>
     </nav>
   </aside>
 
@@ -268,9 +279,141 @@
       </table>
     </div>
 
+    <hr />
+
+    <h2 id="abdm-arch">8. ABDM Multi-Tenant Bridge Architecture &amp; Data Security</h2>
+    <p>Written for answering ABDM/NHA reviewer questions on <strong>how one AyurXpert platform serves many hospital tenants through a single ABDM Bridge registration, and how one tenant's health data is kept from ever being visible to another.</strong> Every claim below was directly verified against the live production database and Edge Function source on <strong>8 Aug 2026 (Session 158)</strong> — not written from memory. If asked for proof during a real ABDM review, every mechanism described here can be demonstrated live.</p>
+
+    <div class="box box-warn">
+      <strong>This is an internal technical reference, not a polished external answer</strong>
+      Adapt the wording before sending anything verbatim to ABDM/NHA or an auditor. The substance is accurate as of the verification date above — re-verify anything load-bearing before quoting it if significant time has passed, the same way every other section of this guide should be treated.
+    </div>
+
+    <h3 id="abdm-bridge-model">8.1 The Bridge Model — One Certification, Many Facilities</h3>
+    <p>AyurXpert is registered with NHA as a single <strong>ABDM Bridge System</strong> (Sandbox ID <code>SBXID_033899</code>) — not as an individual Health Information Provider/User (HIP/HIU) per hospital. This is the standard, NHA-sanctioned architecture for a multi-tenant HMS vendor: one Bridge certification (WASA + FT security assessment, M1/M2/M3 functional testing) covers every tenant on the platform, rather than requiring each hospital to independently certify.</p>
+    <p>Two distinct identities are involved, and they scale differently:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Identity</th><th>Scope</th><th>Set once, or per tenant?</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Bridge registration</strong> (<code>SBXID_033899</code>, Client ID/Secret)</td><td>Platform-wide — AyurXpert Technologies as a company</td><td>Once, ever. Never re-done per tenant.</td></tr>
+          <tr><td><strong>HFR Facility ID</strong> (e.g. <code>IN2910002132</code>)</td><td>One specific hospital's real government registration in India's Health Facility Registry</td><td>Once per tenant, self-service since Session 158 (admin.html → ABDM Bridge Configuration)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>A tenant hospital never needs its own ABDM certification, its own WASA/FT audit, or its own NHA demo — those are all satisfied once, at the platform level. What each tenant DOES still need is its own Facility ID, covered next.</p>
+
+    <h3 id="abdm-facility-reg">8.2 Facility Registration — Two Required Steps</h3>
+    <p>Having a Facility ID recorded in AyurXpert's own database is <strong>not sufficient by itself</strong> — ABDM's own systems must independently be told that Facility ID belongs to AyurXpert's Bridge. Both steps are required, and both happen from admin.html → ABDM Bridge Configuration (super_admin only, dept_admin sees it read-only):</p>
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body"><strong>Government HFR registration</strong> — the hospital's own admin registers at <code>facility.abdm.gov.in</code> using the hospital's PAN/license details (AyurXpert cannot do this on a tenant's behalf — it is the hospital's own legal registration). "Submitted" status is sufficient to proceed; full NHA validation is not required for the facility to function (confirmed live: Srishti Ayurveda's <code>IN2910002132</code> has worked in production since "Submitted" status, has never reached "Validated").</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>Bridge-service registration</strong> — the resulting Facility ID is registered as a HIP+HIU service under AyurXpert's own Bridge via ABDM's <code>MutipleHRPAddUpdateServices</code> API (<code>register_hip_service</code> action, <code>abdm-auth</code> Edge Function). Without this second step, ABDM's servers do not recognize the Facility ID as part of AyurXpert's Bridge at all, regardless of what AyurXpert's own database says.</div></li>
+    </ol>
+    <div class="box box-tip">
+      <strong>Both steps are one click</strong>
+      "Save &amp; Register with ABDM" on the panel does both in sequence — saves locally, then calls ABDM's live API. Live-verified against the real ABDM sandbox (registration succeeded, independently re-confirmed via "Check Bridge Services" that ABDM's own systems list the facility as an Active HIP+HIU service).
+    </div>
+
+    <h3 id="abdm-routing">8.3 How One Shared Webhook Reaches the Right Tenant</h3>
+    <p>Every ABDM callback — for every tenant, for every flow (Scan &amp; Share, consent, data-flow) — arrives at the same single URL: <code>https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-webhook</code>. ABDM does not know or care that this URL serves multiple hospitals; from ABDM's side, each Facility ID is a distinct, independently-addressable participant.</p>
+    <p>The webhook resolves which tenant a given inbound request belongs to by reading the <strong><code>X-HIU-ID</code> or <code>X-HIP-ID</code> header ABDM itself sends on every callback</strong>, and matching it against <code>tenants.abdm_hiu_id</code> / <code>tenants.hfr_id</code>:</p>
+    <pre><code class="code-block">// supabase/functions/abdm-webhook/index.ts
+if (hiuHeaderId) {
+  tenantId = (SELECT id FROM tenants WHERE abdm_hiu_id = hiuHeaderId).id;
+}
+if (!tenantId && hipHeaderId) {
+  tenantId = (SELECT id FROM tenants WHERE hfr_id = hipHeaderId OR abdm_hiu_id = hipHeaderId).id;
+}
+// every subsequent read/write in this request is explicitly scoped to that tenantId</code></pre>
+    <div class="box box-critical">
+      <strong>This routing is only as safe as the ID mapping is 1:1 — found and fixed 8 Aug 2026</strong>
+      Until Session 158, nothing in the database prevented two different tenants from ending up with the same <code>hfr_id</code>/<code>abdm_hiu_id</code> — which would have made this exact lookup ambiguous or wrong, silently misrouting one tenant's ABDM traffic to another. Confirmed live that no existing tenant collided, then added partial unique indexes (<code>tenants_hfr_id_unique</code>, <code>tenants_abdm_hiu_id_unique</code> — NULLs allowed, since most tenants haven't registered yet) plus a proactive conflict check inside <code>update_tenant_abdm_facility()</code> that rejects a save with a clear message rather than allowing a silent collision. Live-verified: attempted to overwrite WASA1631's Facility ID with Srishti's real registered ID, got a clean rejection naming the conflicting organisation, confirmed via direct query that nothing was actually changed.
+    </div>
+
+    <h3 id="abdm-isolation">8.4 Tenant Data Isolation — Enforced by the Database, Not by Application Code</h3>
+    <p>AyurXpert runs a single shared Postgres database (via Supabase) for every tenant — <strong>not</strong> a separate database per hospital. This is a deliberate, standard multi-tenant SaaS architecture, and the isolation guarantee comes from <strong>Postgres Row Level Security (RLS)</strong>, enforced by the database engine itself on every single query — not by trusting application/frontend code to filter correctly.</p>
+    <p>The pattern, identical across every clinical and ABDM-related table:</p>
+    <pre><code class="code-block">-- Applied to patients, visits, abdm_consents, hiu_consent_requests,
+-- hiu_received_records, link_tokens, audit_logs, and more
+USING (tenant_id = (
+  SELECT profiles.tenant_id FROM profiles WHERE profiles.id = auth.uid()
+))</code></pre>
+    <p><code>auth.uid()</code> is the caller's own verified identity from their Supabase Auth session (JWT) — not something a request can spoof. A staff member logged in as Hospital A can only ever have Postgres return rows whose <code>tenant_id</code> matches Hospital A's own tenant — for every query, including ones a future bug in AyurXpert's own JavaScript might accidentally construct without a tenant filter. The database refuses the row regardless.</p>
+    <div class="table-wrap">
+      <table class="schema-table">
+        <thead><tr><th>Table</th><th>Contains</th><th>RLS status (verified live, 8 Aug 2026)</th></tr></thead>
+        <tbody>
+          <tr><td>patients / visits</td><td>Patient records, clinical visits</td><td>tenant-scoped SELECT/UPDATE via profiles.tenant_id</td></tr>
+          <tr><td>abdm_consents</td><td>HIP-side consent state</td><td>tenant-scoped, ALL commands</td></tr>
+          <tr><td>hiu_consent_requests</td><td>Outbound consent requests + encryption key material</td><td>tenant-scoped, ALL commands</td></tr>
+          <tr><td>hiu_received_records</td><td><strong>Actual pulled external patient health data (M3 flow)</strong></td><td>tenant-scoped, ALL commands</td></tr>
+          <tr><td>link_tokens</td><td>HIP-init/User-init linking tokens</td><td>tenant-scoped, ALL commands</td></tr>
+          <tr><td>audit_logs</td><td>Every logged staff action</td><td>tenant-scoped INSERT+SELECT (no UPDATE/DELETE policy at all — a written entry cannot be altered or removed via the app)</td></tr>
+          <tr><td>abdm_callbacks</td><td>Raw inbound ABDM webhook payloads (pre-routing)</td><td><code>service_role only</code> — zero access for any tenant's own staff, any role, under any circumstance</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="box box-tip">
+      <strong>The Bridge webhook itself is the one deliberate exception, and it's tightly scoped</strong>
+      ABDM's inbound callbacks arrive with no AyurXpert user session at all (there's no logged-in "user" — it's a machine-to-machine call from ABDM), so <code>abdm-webhook</code> necessarily uses Supabase's service-role key, which bypasses RLS by design. Isolation there is enforced by <strong>explicit code</strong> instead: resolve exactly one <code>tenantId</code> from ABDM's own header (§8.3), then scope every operation to it — not by RLS. This is why the uniqueness fix in §8.3 mattered: it's the one place in the whole system where isolation depends on a mapping being correct rather than a database constraint being unbypassable.
+    </div>
+
+    <h3 id="abdm-encryption">8.5 Encryption of Health Data In Transit</h3>
+    <p>Actual clinical data exchanged with ABDM (the FHIR bundles pushed during a Pull Records/M2 flow, or fetched during an M3 HIU consent flow) is encrypted end-to-end using ABDM's own mandated scheme (Fidelius-compatible), independent of and in addition to standard HTTPS/TLS transport encryption:</p>
+    <ul style="margin:0 0 14px 20px">
+      <li>ECDH key exchange (Curve25519, expressed as a short Weierstrass curve to match ABDM's real wire format)</li>
+      <li>AES-256 key derived via <strong>HKDF-SHA256</strong> from the ECDH shared secret</li>
+      <li>Payload encrypted with <strong>AES-256-GCM</strong> (authenticated encryption)</li>
+    </ul>
+    <p>Confirmed working against the real ABDM sandbox, not just locally reasoned about — 3 independent successful Pull Records round trips (6–7 Aug 2026), each completing in 3–8 seconds end-to-end.</p>
+
+    <h3 id="abdm-consent">8.6 Consent-Gated Access — Not an AyurXpert Policy, an ABDM-Enforced One</h3>
+    <p>AyurXpert cannot request another facility's data for a patient without that patient explicitly granting consent through ABDM's own consent-manager flow (approved on the patient's ABHA/PHR app, not inside AyurXpert). Confirmed end-to-end, live: consent request raised → patient grants on their own app → data fetched only after grant → <strong>consent revoke actually deletes AyurXpert's locally-stored copy of that data</strong> server-side, not just a status flag — genuine ABDM data-erasure compliance, verified 7 Aug 2026.</p>
+
+    <h3 id="abdm-secrets">8.7 Credential &amp; Secret Management</h3>
+    <p>The Bridge's Client ID and Client Secret exist only as Supabase Edge Function environment secrets — set once via <code>supabase secrets set</code>, read server-side inside Edge Functions, and <strong>never included in any response sent to a browser</strong>, for any tenant, any role. No tenant's staff — including a super_admin — can retrieve these credentials through the application, because the application never has them client-side to begin with.</p>
+
+    <h3 id="abdm-audit">8.8 Audit Logging &amp; Traceability</h3>
+    <p>Every significant staff action is logged to <code>audit_logs</code> (tenant_id, user_id, action, affected table/record, timestamp) — 1,191+ entries and actively growing at time of writing. The table's own RLS only permits INSERT and SELECT, with no UPDATE or DELETE policy at all — once written, an entry cannot be altered or removed through the application by anyone, including the account that created it.</p>
+
+    <h3 id="abdm-qa">8.9 Anticipated ABDM/NHA Questions</h3>
+
+    <div class="scenario">
+      <h4>Q: How does one Bridge serve multiple, unrelated hospitals?</h4>
+      <p>A: The Bridge certification (SBXID_033899) is AyurXpert Technologies' own — it authenticates AyurXpert as a legitimate platform to ABDM. Each hospital using the platform is separately identified to ABDM by its own government-issued HFR Facility ID, registered as a distinct service under that one Bridge. See §8.1–8.2.</p>
+    </div>
+    <div class="scenario">
+      <h4>Q: If two hospitals share infrastructure, how do you guarantee Hospital A never sees Hospital B's patient data?</h4>
+      <p>A: Enforced at the database engine level via Postgres Row Level Security, not by application code — every query is automatically filtered to the caller's own <code>tenant_id</code>, derived from their authenticated session, and this cannot be bypassed by a bug in AyurXpert's own frontend code. See §8.4.</p>
+    </div>
+    <div class="scenario">
+      <h4>Q: How does an inbound ABDM callback get routed to the correct hospital, given one shared webhook URL?</h4>
+      <p>A: By the Facility ID ABDM itself sends in the request header, matched against a database-enforced-unique mapping. See §8.3.</p>
+    </div>
+    <div class="scenario">
+      <h4>Q: Is patient health data encrypted, or just access-controlled?</h4>
+      <p>A: Both. Data exchanged with ABDM is end-to-end encrypted per ABDM's own Fidelius-compatible scheme (§8.5), independent of standard TLS. At rest, data sits in Supabase's managed Postgres infrastructure, which provides standard cloud-provider disk-level encryption; access to any given row is additionally gated by RLS regardless of encryption. <em>(If a formal attestation of encryption-at-rest is needed for a specific audit, confirm the exact wording from Supabase's own compliance documentation/DPA rather than this guide — that's infrastructure-vendor territory, not something re-verified in this session.)</em></p>
+    </div>
+    <div class="scenario">
+      <h4>Q: Can a hospital's own staff pull another hospital's patient's data by mistake?</h4>
+      <p>A: No — RLS scopes every read to the staff member's own tenant, and ABDM's own consent framework additionally requires that specific patient's explicit consent grant before any cross-facility data request can even be raised. Two independent gates, not one.</p>
+    </div>
+    <div class="scenario">
+      <h4>Q: Who can change which Facility ID a hospital is registered under?</h4>
+      <p>A: Only that hospital's own Super Admin (role-gated both client-side and inside the server-side RPC, which independently re-derives the caller's own tenant — never trusts a client-supplied tenant identity).</p>
+    </div>
+    <div class="scenario">
+      <h4>Q: What happens when a patient revokes consent?</h4>
+      <p>A: AyurXpert's locally-stored copy of that patient's pulled records is deleted server-side, not just hidden — verified live, 7 Aug 2026. See §8.6.</p>
+    </div>
+    <div class="scenario">
+      <h4>Q: Is there an audit trail of who accessed or changed what?</h4>
+      <p>A: Yes — every action is logged with who, what, when, and which tenant, and the log itself cannot be edited or deleted through the application once written. See §8.8.</p>
+    </div>
+
   </main>
 </div>
 
-<footer>AyurXpert Technologies™ — Internal reference document. Last updated Session 89, 14 Jul 2026.</footer>
+<footer>AyurXpert Technologies™ — Internal reference document. Last updated Session 158, 8 Aug 2026.</footer>
 </body>
 </html>
