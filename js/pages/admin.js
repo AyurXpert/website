@@ -12,7 +12,7 @@ import {
   FACULTY_CONCURRENT_POSTS, NCISM_XX_ROWS, ORG_TREE_DEF, OPD_CHILD_NCISM_CODES,
   _deptKey, buildDeptTree, _dedupById, _scheduleIFacultyTotal, deptRequirement,
   _computeIpdBedTotals, _computeGrandCompliance, _collectExtraStaff, _collectUntrackedStaff,
-  _renderComplianceSummaryBanner, SCHEDULE_I_CODES,
+  _renderComplianceSummaryBanner, SCHEDULE_I_CODES, _combinedIpdNursingSplit,
 } from '../config/ncismStaffCompliance.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
@@ -1635,11 +1635,24 @@ async function _renderNcismStaffing() {
     'Medical IPD':'Med IPD','Surgical IPD':'Surg IPD','Panchakarma':'PK',
     'Operation Theatre':'OT','Labour Room':'LR','Kriyakalpa':'Kriyakalpa',
     'Physiotherapy':'Physio','Yoga & Wellness':'Yoga','Diet / Pathya':'Diet','CSSD':'CSSD'};
+  // Session 159: Sch XX/27 (Medical/Surgical IPD "Nursing Staff", the MESA&R combined-ratio
+  // row) deliberately stores {60:0,100:0,150:0,200:0} in NCISM_XX_ROWS -- Session 150 made its
+  // real number bed-derived-only (_combinedIpdNursingSplit), computed via deptRequirement()'s
+  // own ref==='Sch XX/27' branch elsewhere. Both keyZones and ugReqForGroup below read req[ug]
+  // directly and never knew about that override, so "Staff Nurse — all zones" silently dropped
+  // Med/Surg IPD from both its zone list ("OPD+IPD+PK+OT+LR" claimed, IPD never actually
+  // appeared) and its numeric total (showed 8, real total ~21) -- found live while checking a
+  // real NCISM compliance screenshot against the code with Dr. Venkatesh. This one small helper
+  // is the single place both call sites now go through, so they can't drift apart again.
+  const _rowEffectiveReq=(zone,req,ref)=>ref==='Sch XX/27'
+    ? _combinedIpdNursingSplit(bedTotals)[zone==='Medical IPD'?'IPD_MEDICAL':'IPD_SURGICAL']
+    : (req[ug]||0);
+
   // Compute which zones each desig key appears in (for display only). Attributed by keys[0]
   // only -- see ugReqForGroup below for why (same bug, same fix, same reasoning).
   const keyZones={};
-  NCISM_XX_ROWS.forEach(([zone,,keys,req])=>{
-    const r=req[ug]||0;
+  NCISM_XX_ROWS.forEach(([zone,,keys,req,ref])=>{
+    const r=_rowEffectiveReq(zone,req,ref);
     if(!r)return;
     const k=keys[0];
     if(!keyZones[k])keyZones[k]=[];const ab=ZA[zone]||zone;if(!keyZones[k].includes(ab))keyZones[k].push(ab);
@@ -1657,7 +1670,7 @@ async function _renderNcismStaffing() {
   // FIRST key only, matching the identical rule _renderStaffingPlan()/_ncismRoleMinimums()
   // already use for exactly this reason (see their own comments) -- now all three places that
   // state an aggregate headcount total agree.
-  const ugReqForGroup=gKeys=>NCISM_XX_ROWS.reduce((s,[,,keys,req])=>s+(gKeys.includes(keys[0])?(req[ug]||0):0),0);
+  const ugReqForGroup=gKeys=>NCISM_XX_ROWS.reduce((s,[zone,,keys,req,ref])=>s+(gKeys.includes(keys[0])?_rowEffectiveReq(zone,req,ref):0),0);
 
   // Department tree — shared with 🏥 Dept. Staff and Departments (same order, same OPD rows,
   // sourced from the real opds table — see buildDeptTree/_buildOpdChildren).
@@ -2248,8 +2261,13 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
   bump('assistant_professor', FAC_UG.b);
   bump('senior_resident', 0);
   byKey['senior_resident'].pgOnly = true;
-  NCISM_XX_ROWS.forEach(([zone,,keys,req])=>{
-    const c=req[ug]||0;
+  // Session 159: same Sch XX/27 bed-derived-override bug as _renderNcismStaffing's
+  // ugReqForGroup (found together, same root cause -- see that fix's comment) -- Medical/
+  // Surgical IPD "Nursing Staff" rows store a zeroed req[ug] placeholder here too, so the
+  // Staffing Plan's "Nurses" bucket was silently missing the bed-derived Med/Surg IPD
+  // headcount the exact same way.
+  NCISM_XX_ROWS.forEach(([zone,,keys,req,ref])=>{
+    const c = ref==='Sch XX/27' ? _combinedIpdNursingSplit(bedTotals)[zone==='Medical IPD'?'IPD_MEDICAL':'IPD_SURGICAL'] : (req[ug]||0);
     if(!c) return;
     bump(keys[0], c, keys);
     byKey[keys[0]].zones.add(ZA[zone]||zone);
