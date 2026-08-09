@@ -3,7 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { isNursingDutyDept, shiftsForDept } from '../config/ncism.js';
+import { isNursingDutyDept, shiftsForDept, shiftsOverlap } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
 
 // Session 137: widened from admin-only to also let plain nursing staff/ayahs
@@ -478,6 +478,36 @@ window.closeModal = function() {
   _editEntry = null;
 };
 
+// Session 159: real-data check found manual assignment here was the actual
+// source of live cross-department double-bookings and weekly-off
+// violations that Fill All/Roll Forward already guard against (see
+// sql/session159_roll_forward_overlap_check.sql for the equivalent
+// materialization-time fix on the bulk-generation path). Queries fresh
+// rather than trusting _roster, which is scoped to the current department
+// filter/week view and may not include the nurse's other commitments.
+// Returns a human-readable warning string, or null if no conflict found.
+async function _checkShiftConflict(profileId, date, shiftType, excludeEntryId) {
+  const [{ data: prof }, { data: sameDay }] = await Promise.all([
+    supabase.from('profiles').select('weekly_off_day').eq('id', profileId).maybeSingle(),
+    supabase.from('duty_roster')
+      .select('id,department_id,shift_type,departments(name)')
+      .eq('tenant_id', tenantId).eq('profile_id', profileId).eq('shift_date', date),
+  ]);
+
+  const warnings = [];
+  const dow = new Date(date + 'T00:00:00').getDay();
+  if (prof?.weekly_off_day != null && prof.weekly_off_day === dow) {
+    warnings.push(`This is ${WEEKDAY_NAMES[dow]} — this staff member's designated weekly off day.`);
+  }
+  const overlapping = (sameDay || [])
+    .filter(r => r.id !== excludeEntryId && shiftsOverlap(r.shift_type, shiftType));
+  if (overlapping.length) {
+    const names = overlapping.map(r => `${r.departments?.name || 'another department'} (${r.shift_type})`).join(', ');
+    warnings.push(`Already assigned an overlapping shift the same day: ${names}.`);
+  }
+  return warnings.length ? '⚠ ' + warnings.join(' ') : null;
+}
+
 window.saveShift = async function() {
   const deptId   = document.getElementById('m-dept').value;
   const date     = document.getElementById('m-date').value;
@@ -491,6 +521,15 @@ window.saveShift = async function() {
   if (!deptId)   { _alert('error','Select a department.'); return; }
   if (!date)     { _alert('error','Select a date.'); return; }
   if (!doctorId) { _alert('error','Select a doctor / officer.'); return; }
+
+  // Session 159: real double-bookings found live on SDM traced back to this
+  // exact modal -- unlike Fill All/Roll Forward (both of which check
+  // cross-department overlap and weekly off before writing), a manual
+  // per-cell assignment here went straight to a raw upsert with zero
+  // checks. Warn-and-confirm rather than a hard block -- a Nursing Head
+  // covering a genuine emergency may have a real reason to override.
+  const conflict = await _checkShiftConflict(doctorId, date, shift, _editEntry?.id);
+  if (conflict && !confirm(conflict + '\n\nAssign anyway?')) return;
 
   const btn = document.getElementById('btn-save-shift');
   btn.disabled = true; btn.textContent = 'Saving…';
