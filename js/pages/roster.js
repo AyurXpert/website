@@ -693,8 +693,15 @@ window.respondToCoveringRequest = async function(id, action) {
 // confirmReject() exactly (same designation scope, same status/columns) so
 // the Nursing Head can act on a request without leaving this page --
 // nursing-admin.html's own card is untouched and still works the same way.
-const NURSING_DESIGNATIONS = ['staff_nurse', 'ward_sister', 'anm'];
-const NURSING_LABELS = { staff_nurse: 'Staff Nurse', ward_sister: 'Ward Sister', anm: 'ANM' };
+// Session 159: widened to include the OT/CSSD group -- now that
+// _find_relief_nurse() scopes relief matching by designation group, this
+// tab needs to show/manage weekly-off and relief-rotation status for that
+// group too, not just the general Staff Nurse/Ward Sister/ANM pool.
+const NURSING_DESIGNATIONS = ['staff_nurse', 'ward_sister', 'anm', 'ot_technician', 'cssd_incharge', 'cssd_aya', 'anushastra_technician'];
+const NURSING_LABELS = {
+  staff_nurse: 'Staff Nurse', ward_sister: 'Ward Sister', anm: 'ANM',
+  ot_technician: 'OT Nursing Staff', cssd_incharge: 'CSSD In-charge', cssd_aya: 'CSSD Aya', anushastra_technician: 'Anushastra Technician',
+};
 let _rejectingLeaveId = null;
 
 async function loadLeaveRequests() {
@@ -800,13 +807,28 @@ let _nursingStaffOff = [];
 
 async function loadWeeklyOff() {
   const { data } = await supabase.from('profiles')
-    .select('id,full_name,weekly_off_day,is_relief_pool')
+    .select('id,full_name,weekly_off_day,relief_exempt,relief_exempt_reason')
     .eq('tenant_id', tenantId).eq('is_active', true)
     .in('designation', NURSING_DESIGNATIONS)
     .order('full_name');
   _nursingStaffOff = data || [];
+  // Session 159: relief load transparency -- so "am I really being treated
+  // fairly" has a real number behind it, not just "trust the algorithm".
+  // Trailing 30 days ending today, same window _find_relief_nurse() itself
+  // uses for fair-rotation selection.
+  const today = _dateStr(new Date());
+  const since = _dateStr(new Date(Date.now() - 30 * 86400000));
+  const ids = _nursingStaffOff.map(n => n.id);
+  _reliefLoad = {};
+  if (ids.length) {
+    const { data: loadRows } = await supabase.from('duty_roster')
+      .select('profile_id').eq('tenant_id', tenantId).eq('is_relief_assignment', true)
+      .gte('shift_date', since).lte('shift_date', today).in('profile_id', ids);
+    (loadRows || []).forEach(r => { _reliefLoad[r.profile_id] = (_reliefLoad[r.profile_id] || 0) + 1; });
+  }
   renderWeeklyOff();
 }
+let _reliefLoad = {};
 
 // Max nurses that may share the same weekly off day, spread as evenly as
 // possible across all 7 days.
@@ -825,7 +847,7 @@ function renderWeeklyOff() {
   const tbody = document.getElementById('weekly-off-tbody');
   if (!tbody) return;
   if (!_nursingStaffOff.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty">No nursing staff (Staff Nurse / Ward Sister / ANM designation) found yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No nursing staff (Staff Nurse / Ward Sister / ANM / OT / CSSD designation) found yet.</td></tr>';
     return;
   }
   const dates = _weekDates();
@@ -840,12 +862,24 @@ function renderWeeklyOff() {
         return `<option value="${i}" ${n.weekly_off_day === i ? 'selected' : ''} ${atCap ? 'disabled' : ''}>${name}${atCap ? ' — full' : ''}</option>`;
       }))
       .join('');
+    const load = _reliefLoad[n.id] || 0;
+    // Session 159: auto-enroll by default -- every nurse is "in rotation"
+    // unless explicitly exempted (with a required, recorded reason), so the
+    // status pill defaults to the positive state instead of needing an
+    // opt-in click to ever show anything.
+    const reliefStatusHtml = n.relief_exempt
+      ? `<span class="relief-exempt" title="${_esc(n.relief_exempt_reason || '')}">🚫 Exempt</span>`
+      : `<span class="relief-in-rotation">✅ In rotation</span>`;
+    const reliefBtnHtml = _canEdit
+      ? `<button class="btn btn-secondary btn-sm relief-exempt-btn" data-profile="${n.id}" data-exempt="${n.relief_exempt ? '' : '1'}" style="margin-left:6px;font-size:10.5px;padding:2px 8px">${n.relief_exempt ? 'Re-enrol' : 'Exempt…'}</button>`
+      : '';
     return `<tr>
       <td>${idx + 1}</td>
       <td>${_esc(n.full_name)}</td>
       <td><select class="weekly-off-select" data-profile="${n.id}" ${_canEdit ? '' : 'disabled'} style="border:1.5px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px">${options}</select></td>
       <td>${thisWeekLabel}</td>
-      <td><input type="checkbox" class="relief-pool-checkbox" data-profile="${n.id}" ${n.is_relief_pool ? 'checked' : ''} ${_canEdit ? '' : 'disabled'}/></td>
+      <td>${load} shift${load === 1 ? '' : 's'}</td>
+      <td>${reliefStatusHtml}${reliefBtnHtml}</td>
     </tr>`;
   }).join('');
 
@@ -860,12 +894,22 @@ function renderWeeklyOff() {
     });
   });
 
-  tbody.querySelectorAll('.relief-pool-checkbox').forEach(cb => {
-    cb.addEventListener('change', async () => {
-      cb.disabled = true;
-      const { error } = await supabase.rpc('set_nurse_relief_pool', { p_profile_id: cb.dataset.profile, p_is_relief_pool: cb.checked });
-      if (error) { _alert('error', safeErrorMessage(error, 'Could not update relief-pool status.')); cb.checked = !cb.checked; cb.disabled = false; return; }
-      _alert('success', cb.checked ? 'Added to the relief pool.' : 'Removed from the relief pool.');
+  tbody.querySelectorAll('.relief-exempt-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const profileId = btn.dataset.profile;
+      const exempting = btn.dataset.exempt === '1';
+      let reason = null;
+      if (exempting) {
+        reason = prompt('Reason for exempting this nurse from relief rotation (required — e.g. medical accommodation, probation, contract limits):');
+        if (reason === null) return; // cancelled
+        if (!reason.trim()) { _alert('error', 'A reason is required to exempt a nurse from relief rotation.'); return; }
+      } else if (!confirm('Re-enrol this nurse into relief rotation?')) {
+        return;
+      }
+      btn.disabled = true;
+      const { error } = await supabase.rpc('set_nurse_relief_exempt', { p_profile_id: profileId, p_exempt: exempting, p_reason: reason });
+      if (error) { _alert('error', safeErrorMessage(error, 'Could not update relief-rotation status.')); btn.disabled = false; return; }
+      _alert('success', exempting ? 'Exempted from relief rotation.' : 'Re-enrolled into relief rotation.');
       await loadWeeklyOff();
     });
   });

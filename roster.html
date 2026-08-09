@@ -96,6 +96,9 @@ td.today-col{background:#fdf6e3}
 .coverage-ok{color:var(--green-deep);font-weight:600;font-size:11.5px}
 .coverage-gap{color:#8b1a1a;font-weight:600;font-size:11.5px}
 .coverage-note{color:var(--text-muted);font-style:italic;font-size:11.5px}
+/* Session 159: relief rotation status pills */
+.relief-in-rotation{background:var(--green-light);color:var(--green-deep);font-size:11px;font-weight:600;padding:3px 9px;border-radius:8px}
+.relief-exempt{background:#fdecea;color:#8b1a1a;font-size:11px;font-weight:600;padding:3px 9px;border-radius:8px;cursor:help}
 /* Modal */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center}
 .modal-overlay.show{display:flex}
@@ -228,10 +231,10 @@ td.today-col{background:#fdf6e3}
         <button class="btn btn-secondary btn-sm" id="btn-auto-assign-weekly-off">🔀 Auto-Assign in Sequence</button>
       </div>
     </div>
-    <div style="font-size:11px;color:var(--text-muted);margin:-6px 0 8px">🌟 Relief Pool — a relief-eligible nurse keeps their own ward seat, but is auto-booked to cover a colleague's weekly-off shift instead of leaving it vacant, whenever they're actually free that day</div>
+    <div style="font-size:11px;color:var(--text-muted);margin:-6px 0 8px">🌟 Relief Rotation — Session 159: every active nurse is in rotation by default (no more picking favourites); a nurse keeps their own ward seat but is auto-booked to cover a colleague's weekly-off/leave/absence shift when genuinely free, picking whoever's covered least in the last 30 days first. Exempt someone only for a real, recorded reason.</div>
     <div style="overflow-x:auto">
       <table class="roster-table">
-        <thead><tr><th style="text-align:left;width:40px">#</th><th style="text-align:left">Nurse</th><th style="text-align:left">Weekly Off Day</th><th style="text-align:left">This Week</th><th style="text-align:left">🌟 Relief Pool</th></tr></thead>
+        <thead><tr><th style="text-align:left;width:40px">#</th><th style="text-align:left">Nurse</th><th style="text-align:left">Weekly Off Day</th><th style="text-align:left">This Week</th><th style="text-align:left">Relief Load (30d)</th><th style="text-align:left">🌟 Relief Rotation</th></tr></thead>
         <tbody id="weekly-off-tbody"></tbody>
       </table>
     </div>
