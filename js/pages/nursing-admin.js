@@ -8,6 +8,7 @@ import { isNCISMType, isNursingDutyDept, shiftsForDept } from '../config/ncism.j
 import { resolveNursingHeadship, canActAsNursingHead, canDecideShiftChange } from '../modules/roster/nursingHeadship.js';
 import { computeRequiredPerShift, distributeAcrossShifts } from '../modules/roster/requiredStaffing.js';
 import { checkCycleExpiry } from '../modules/roster/cycleExpiry.js';
+import { findUncoveredAbsences } from '../modules/roster/coverageGaps.js';
 import { _computeIpdBedTotals, _combinedIpdNursingSplit } from '../config/ncismStaffCompliance.js';
 
 await requireAuth(['nurse_manager', 'super_admin', 'dept_admin']);
@@ -687,7 +688,49 @@ async function loadCycleExpiryBanner() {
     + `<div style="margin-top:8px"><a href="nursing-roster-template.html" style="color:inherit;font-weight:600;text-decoration:underline">Go to Roster Template →</a></div>`;
 }
 
+// Local Y-M-D, not UTC -- same fix as roster.js/nursing-roster-template.js's
+// own _dateStr()/_localDateStr() (Session 149 found .toISOString() silently
+// rolls back a day for India's UTC+5:30).
+function _todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// ── Coverage Gap Banner (Session 159) ───────────────────────────────
+// mark_duty_attendance() auto-tries relief-pool coverage the instant a
+// shift is marked Absent (roster.html's On-Ground Duty Monitor) -- this is
+// the "did it work" surface for whoever's on this overview page, not just
+// whoever happened to be the one marking attendance. Live via realtime
+// (duty_roster is already a publication member, Session 134/152), so a
+// same-day absence with no coverage shows up here without a reload.
+async function loadCoverageGapBanner() {
+  const el = document.getElementById('coverage-gap-banner');
+  const { data: allDepts } = await supabase.from('departments')
+    .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true);
+  const nursingDeptIds = (allDepts || []).filter(isNursingDutyDept).map(d => d.id);
+
+  const gaps = await findUncoveredAbsences(supabase, tenantId, nursingDeptIds, _todayStr());
+  if (!gaps.length) { el.style.display = 'none'; return; }
+
+  el.className = 'expiry-banner danger';
+  el.style.display = '';
+  const lines = gaps.map(g => `${_esc(g.profile_name)} — ${_esc(g.department_name)} (${_esc(g.shift_type)})`).join('<br>');
+  el.innerHTML = `<strong>🚨 ${gaps.length} shift${gaps.length === 1 ? '' : 's'} today ${gaps.length === 1 ? 'has' : 'have'} an absence with no relief nurse available</strong>`
+    + `<div style="margin-top:6px">${lines}</div>`
+    + `<div style="margin-top:8px"><a href="roster.html?tab=monitor" style="color:inherit;font-weight:600;text-decoration:underline">Go to On-Ground Duty Monitor →</a></div>`;
+}
+
+let _coverageBadgeDebounce = null;
+function _refreshCoverageGapBannerDebounced() {
+  clearTimeout(_coverageBadgeDebounce);
+  _coverageBadgeDebounce = setTimeout(loadCoverageGapBanner, 600);
+}
+supabase.channel('coverage-gap-live')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'duty_roster', filter: `tenant_id=eq.${tenantId}` }, _refreshCoverageGapBannerDebounced)
+  .subscribe();
+
 await loadHeadship();
+await loadCoverageGapBanner();
 await loadShiftChangeRequests();
 await loadNursingLeaves();
 await loadComplianceSnapshot();

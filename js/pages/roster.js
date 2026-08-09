@@ -956,13 +956,22 @@ async function loadMonitorShifts() {
   _updateMonitorDateLabel();
   if (!_monitorDeptIds.length) { _monitorShifts = []; renderMonitor(); return; }
   const { data } = await supabase.from('duty_roster')
-    .select(`id,department_id,shift_type,attendance_status,attendance_marked_at,
+    .select(`id,department_id,shift_type,attendance_status,attendance_marked_at,covering_for_id,
       profiles!duty_roster_profile_id_fkey(full_name),
       marker:profiles!duty_roster_attendance_marked_by_fkey(full_name)`)
     .eq('tenant_id', tenantId).eq('shift_date', _monitorDate)
     .in('department_id', _monitorDeptIds);
   _monitorShifts = data || [];
   renderMonitor();
+}
+
+// Session 159: covering rows are just normal duty_roster rows (covering_for_id
+// set) already present in _monitorShifts -- no extra query needed to know
+// who covered what, just a lookup built from data already fetched above.
+function _coveringNameByOriginalId() {
+  const map = {};
+  _monitorShifts.forEach(s => { if (s.covering_for_id) map[s.covering_for_id] = s.profiles?.full_name || '—'; });
+  return map;
 }
 
 function renderMonitor() {
@@ -972,6 +981,7 @@ function renderMonitor() {
 
   const byDept = {};
   _monitorShifts.forEach(s => { (byDept[s.department_id] = byDept[s.department_id] || []).push(s); });
+  const coveringNameByOriginalId = _coveringNameByOriginalId();
 
   let html = '';
   Object.entries(byDept).forEach(([deptId, shifts]) => {
@@ -985,9 +995,19 @@ function renderMonitor() {
            <button class="btn btn-secondary btn-sm" data-onclick="markAttendance" data-onclick-a0="${s.id}" data-onclick-a1="@null">Undo</button>`
         : `<button class="btn btn-present btn-sm" data-onclick="markAttendance" data-onclick-a0="${s.id}" data-onclick-a1="present">✓ Present</button>
            <button class="btn btn-absent btn-sm" data-onclick="markAttendance" data-onclick-a0="${s.id}" data-onclick-a1="absent">✗ Absent</button>`;
-      const metaHtml = s.attendance_status
+      let metaHtml = s.attendance_status
         ? `${_esc(shiftLabel)} · marked by ${_esc(s.marker?.full_name || '—')} ${_esc(s.attendance_marked_at ? new Date(s.attendance_marked_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '')}`
         : _esc(shiftLabel);
+      // Session 159: an absence auto-tries relief-pool coverage the moment
+      // it's marked (mark_duty_attendance) -- show what actually happened,
+      // right on the row, rather than making the head go looking for it.
+      if (s.attendance_status === 'absent') {
+        const coveringName = coveringNameByOriginalId[s.id];
+        metaHtml += coveringName
+          ? `<br><span class="coverage-ok">✅ Covered by ${_esc(coveringName)}</span>`
+          : `<br><span class="coverage-gap">⚠️ No relief nurse available — needs manual coverage</span>`;
+      }
+      if (s.covering_for_id) metaHtml += `<br><span class="coverage-note">🔁 Covering for another nurse's absence</span>`;
       return `<div class="monitor-row">
         <div><div class="monitor-name">${_esc(name)}</div><div class="monitor-meta">${metaHtml}</div></div>
         <div class="attendance-actions">${actionsHtml}</div>
@@ -998,8 +1018,16 @@ function renderMonitor() {
 }
 
 window.markAttendance = async function(dutyRosterId, status) {
-  const { error } = await supabase.rpc('mark_duty_attendance', { p_duty_roster_id: dutyRosterId, p_status: status });
+  const { data, error } = await supabase.rpc('mark_duty_attendance', { p_duty_roster_id: dutyRosterId, p_status: status });
   if (error) { _alert('error', safeErrorMessage(error, 'Could not mark attendance.')); return; }
+  // Session 159: immediate feedback on what the auto-coverage attempt found
+  // -- the row itself gets the same detail on next render (below), this is
+  // just the instant confirmation.
+  if (data?.status === 'absent' && data?.covered) {
+    _alert('success', `Marked absent — auto-covered by ${data.covering_name}.`);
+  } else if (data?.status === 'absent' && data?.covered === false) {
+    _alert('info', 'Marked absent — no relief nurse available. This shift needs manual coverage.');
+  }
   await loadMonitorShifts();
 };
 
