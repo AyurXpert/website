@@ -909,9 +909,9 @@ export function _rowStatusInfo(keys, rec, total, extraList, untrackedList){
   if (otherUntracked.length) parts.push(otherUntracked.length+' ('
     +otherUntracked.map(e=>e.full_name+' — '+e.deptName).join(', ')
     +') outside NCISM tracking for a different reason — see "Who, and why?" above.');
-  if (extraSum>0) parts.push(extraSum+' genuinely recruited above the NCISM minimum (see ➕ Extra Staff tab).');
+  if (extraSum>0) parts.push(extraSum+' genuinely recruited above the NCISM minimum (see 🏢 Organisation Staff tab).');
   const unexplained = (rec-total) - matchedUntracked.length - extraSum;
-  if (unexplained>0) parts.push(unexplained+' not accounted for by either the Extra Staff or untracked-staff lists — worth a closer look.');
+  if (unexplained>0) parts.push(unexplained+' not accounted for by the Organisation Staff or untracked-staff lists — worth a closer look.');
   // Only a genuine misposting (or something totally unaccounted for) is actually actionable --
   // "downgraded to optional" and genuine Extra Staff are both informational, so a row made up
   // entirely of those two stays green instead of flagging a violet "needs attention" that has
@@ -931,8 +931,8 @@ export function _renderComplianceLegend(){
     +'<div style="font-weight:700;color:var(--text-dark);margin-bottom:6px">ℹ️ Reading the Recruited column</div>'
     +'<div>Each row’s <strong>Recruited</strong> is a flat, tenant-wide headcount for that designation — it can sit above <strong>Total Needed</strong> without meaning the organisation over-hired, and the GRAND TOTAL row is unaffected either way (it caps every position at its own requirement, per department, so a surplus in one place can never hide a real shortfall elsewhere).</div>'
     +'<div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">'
-      +'<div><span style="color:#2d7a4f;font-weight:700">✅ Green</span> — fully staffed, or above Total Needed for a reason that needs no action: hover it. Either the surplus is genuine (already listed on the <strong>➕ Extra Staff</strong> tab), or the extra person is in a department where this designation was downgraded to optional under the current schedule — real staff, real work, just not a mandated post there.</div>'
-      +'<div><span style="color:#7c5cbf;font-weight:700">🔀 Violet</span> — Recruited reads above Total Needed and genuinely needs a look: hover to see who. It means a real NCISM designation is posted to a department with no matching requirement at all (a schedule update removed or moved that line, or the posting is simply out of date). Check "Who, and why?" in the compliance banner above, then <strong>Depute</strong> them (🏥 Dept. Staff or ➕ Extra Staff tab) to where the requirement actually is.</div>'
+      +'<div><span style="color:#2d7a4f;font-weight:700">✅ Green</span> — fully staffed, or above Total Needed for a reason that needs no action: hover it. Either the surplus is genuine (already listed on the <strong>🏢 Organisation Staff</strong> tab), or the extra person is in a department where this designation was downgraded to optional under the current schedule — real staff, real work, just not a mandated post there.</div>'
+      +'<div><span style="color:#7c5cbf;font-weight:700">🔀 Violet</span> — Recruited reads above Total Needed and genuinely needs a look: hover to see who. It means a real NCISM designation is posted to a department with no matching requirement at all (a schedule update removed or moved that line, or the posting is simply out of date). Check "Who, and why?" in the compliance banner above, then <strong>Depute</strong> them (🏥 Dept. Staff or 🏢 Organisation Staff tab) to where the requirement actually is.</div>'
       +'<div><span style="color:#c9902a;font-weight:700">⚠️ Amber</span> — short-staffed, some recruited.</div>'
       +'<div><span style="color:#c0392b;font-weight:700">❌ Red</span> — nobody recruited yet.</div>'
     +'</div>'

@@ -779,8 +779,6 @@ window.loadHR = async function(sub='staff') {
   _computeNcismComplianceGap().then(gap => _setBadge('hr-tab-ncism-badge', gap||0));
   // Approvals tab badge — same "set on HR load, kept live by realtime" pattern.
   _computePendingApprovalsCount().then(n => _setBadge('hr-tab-decisions-badge', n));
-  // Extra Staff tab badge — same pattern.
-  _fetchExtraStaffList().then(list => _setBadge('hr-tab-extra-badge', list ? list.reduce((s,r)=>s+r.extra,0) : 0));
   // Organisation Staff tab badge (Session 164) — same pattern.
   _fetchOrganisationStaffList().then(data => _setBadge('hr-tab-orgstaff-badge', data ? data.list.reduce((s,r)=>s+r.extra,0) : 0));
   // Terminated Staff tab badge (Session 154) — separate query since window._staffAll now
@@ -823,7 +821,6 @@ function _hrSub(sub){
   document.getElementById('hr-access-panel').style.display     = sub==='access'    ? '' : 'none';
   document.getElementById('hr-dept-panel').style.display       = sub==='dept'      ? '' : 'none';
   document.getElementById('hr-decisions-panel').style.display  = sub==='decisions' ? '' : 'none';
-  document.getElementById('hr-extra-panel').style.display      = sub==='extra'     ? '' : 'none';
   document.getElementById('hr-orgstaff-panel').style.display   = sub==='orgstaff'  ? '' : 'none';
   document.getElementById('hr-terminated-panel').style.display = sub==='terminated'? '' : 'none';
   document.getElementById('hr-leave-panel').style.display      = sub==='leave'     ? '' : 'none';
@@ -833,7 +830,6 @@ function _hrSub(sub){
   if (sub === 'access')  window.loadStaffAccess();
   if (sub === 'dept')    _renderDeptStaff();
   if (sub === 'decisions') window.loadPendingDecisions();
-  if (sub === 'extra')   _renderExtraStaff();
   if (sub === 'orgstaff') _renderOrganisationStaff();
   if (sub === 'terminated') _renderTerminatedStaff();
   if (sub === 'leave')   _renderLeaveHolidays();
@@ -1093,102 +1089,10 @@ async function _computeNcismComplianceGap(){
 // _renderComplianceSummaryBanner -- moved to js/config/ncismStaffCompliance.js (imported at
 // the top of this file) so ncism-compliance.html can reuse the exact same banner.
 
-// Shared fetch used by both the full "Extra Staff" tab render and the lightweight badge --
-// same 5-query shape as _computeNcismComplianceGap(), same not-applicable gating.
-async function _fetchExtraStaffList(){
-  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:opds }, { data:bedsRows }] = await Promise.all([
-    supabase.from('tenants').select('ug_intake,type').eq('id',tenantId).single(),
-    supabase.from('profiles').select('id,full_name,designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
-    supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
-    supabase.from('opds').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
-    supabase.from('beds').select('department_id').eq('tenant_id',tenantId),
-  ]);
-  if (!isNCISMType(tRow?.type)) return null;
-  const ugRaw = tRow?.ug_intake || 0;
-  const ug = [60,100,150,200].includes(ugRaw) ? ugRaw : (ugRaw>=150?150:ugRaw>=100?100:ugRaw>0?60:0);
-  if (!ug) return null;
-
-  const bedTotals = _computeIpdBedTotals(depts, bedsRows);
-  const byDept={};
-  // Session 153: id/full_name added to the select above (was designation/department_id only)
-  // so _collectExtraStaff can list the real people behind each "+N extra" count, not just the
-  // aggregate number.
-  (rawStaff||[]).forEach(s=>{ if(!s.department_id) return; (byDept[s.department_id]=byDept[s.department_id]||[]).push(s); });
-  const tree=buildDeptTree(depts||[], opds||[]);
-  const deptNameById={}; (depts||[]).forEach(d=>{ deptNameById[d.id]=d.name; });
-  // Session 163: _collectStaffClassification (not the bare _collectExtraStaff) so this tab also
-  // includes genuine hospital-wide surplus -- someone whose real NCISM designation has zero
-  // matching requirement in their current department AND no real gap anywhere else in the
-  // organisation either. Same canonical reclassification every other consumer of Extra/
-  // Untracked now goes through.
-  return _collectStaffClassification(tree, ug, bedTotals, byDept, rawStaff, deptNameById).extraList;
-}
-
-async function _renderExtraStaff(){
-  const wrap = document.getElementById('extra-staff-wrap');
-  wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
-  const list = await _fetchExtraStaffList();
-
-  if (list===null){
-    wrap.innerHTML = '<div class="empty"><div class="empty-ico">ℹ</div><div class="empty-ttl">Extra Staff tracking only applies to Teaching Hospital / College tenants with UG intake configured.</div></div>';
-    _setBadge('hr-tab-extra-badge', 0);
-    return;
-  }
-  const total = list.reduce((s,r)=>s+r.extra,0);
-  _setBadge('hr-tab-extra-badge', total);
-
-  if (!list.length){
-    wrap.innerHTML = '<div class="empty"><div class="empty-ico">✅</div><div class="empty-ttl">No positions recruited above the NCISM minimum right now.</div></div>';
-    return;
-  }
-  // Session 153: each row's "extra" count is now backed by the real people holding that
-  // position in that department (r.staff, from _collectExtraStaff) -- ALL of them shown, not
-  // just an algorithmically-guessed "who's the surplus one" (there's no seniority/hire-date
-  // signal to base that on honestly). Each gets a Depute (reassign department) and Terminate
-  // action so Dr. Venkatesh can act directly from this tab instead of hunting the same person
-  // down in All Staff.
-  const rows = list.map(r => {
-    const staffHtml = (r.staff||[]).map(s =>
-      '<div style="display:flex;align-items:center;gap:6px;padding:2px 0;flex-wrap:wrap">'
-        +'<span style="font-size:12px">'+_esc(s.full_name||'—')+'</span>'
-        +'<button class="btn-outline" style="font-size:10.5px;padding:2px 7px" data-onclick="openDeputeModal" data-onclick-a0="'+_esc(s.id)+'" data-onclick-a1="'+_esc(s.full_name||'this staff member')+'" data-onclick-a2="'+_esc(r.deptId||'')+'">🔄 Depute</button>'
-        +'<button class="btn-outline" style="font-size:10.5px;padding:2px 7px;color:#c0392b;border-color:#e0b0b0" data-onclick="openTerminateModal" data-onclick-a0="'+_esc(s.id)+'" data-onclick-a1="'+_esc(s.full_name||'this staff member')+'">🗑 Terminate</button>'
-      +'</div>'
-    ).join('') || '<span style="font-size:11px;color:var(--text-muted)">—</span>';
-    return '<tr><td style="padding:7px 12px 7px 16px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(r.deptName)+'</td>'
-    +'<td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(r.label)+'</td>'
-    +'<td style="padding:7px 10px;text-align:center;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+_esc(r.ref)+'</td>'
-    +'<td style="padding:7px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+r.required+'</td>'
-    +'<td style="padding:7px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+r.actual+'</td>'
-    +'<td style="padding:7px 10px;text-align:center;font-weight:700;color:#a66a00;border-bottom:1px solid #f0f4f2">+'+r.extra+'</td>'
-    +'<td style="padding:7px 10px 7px 12px;border-bottom:1px solid #f0f4f2;min-width:220px">'+staffHtml+'</td></tr>';
-  }).join('');
-
-  wrap.innerHTML =
-    '<div style="background:var(--green-deep);color:#fff;border-radius:var(--radius) var(--radius) 0 0;padding:12px 18px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">'
-      +'<div><div style="font-weight:600;font-size:14px">Extra Staff — Recruited Above NCISM Minimum</div>'
-      +'<div style="font-size:11px;opacity:.75;margin-top:2px">Not a compliance problem — just staff to be aware of when planning transfers, budget, or new invites. '+list.length+' position(s), '+total+' extra staff total. All staff holding the position are listed (not just "the extra ones") since NCISM data alone can\'t say which specific person is surplus — that\'s your call.</div></div>'
-      // Session 164: this tab only ever shows the narrower "genuine, per-department surplus"
-      // slice -- the Organisation Staff tab is the comprehensive view (also includes
-      // downgraded-to-optional, additional-charge, and not-NCISM-tracked-at-all staff), built
-      // for the "clear picture of where the org stands vs. NCISM" ask.
-      +'<button class="btn-outline" style="background:#ffffff22;color:#fff;padding:5px 12px;border-radius:8px;font-size:11.5px;border:1px solid #ffffff44;white-space:nowrap;cursor:pointer" data-onclick="_goToHrTab" data-onclick-a0="orgstaff">🏢 Full Organisation Staff report →</button>'
-    +'</div>'
-    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
-      +'<thead><tr style="background:#f5faf7">'
-      +'<th style="padding:6px 12px 6px 16px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Department</th>'
-      +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Position</th>'
-      +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Ref</th>'
-      +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Required</th>'
-      +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Actual</th>'
-      +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Extra</th>'
-      +'<th style="padding:6px 10px 6px 12px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Staff / Actions</th>'
-      +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
-}
-
-window._goToHrTab = function(sub){ document.querySelector(`.hr-tab[data-sub="${sub}"]`)?.click(); };
-
-// ── Organisation Staff -- Session 164 ────────────────────────────────────────────────────
+// ── Organisation Staff -- Session 164 (Session 165: absorbed the retired "Extra Staff" tab --
+// _collectOrganisationStaff() was confirmed a strict superset of it, computed by literally
+// calling the same _collectExtraStaff() this tab used to call directly, so keeping both tabs
+// was pure duplication with zero unique information in the narrower one) ─────────────────
 // Dr. Venkatesh's explicit two-category model: every active staff member is either "NCISM
 // Compliance Staff" (the NCISM Requirements tab's Grand Total) or "Organisation Staff" (here),
 // no third fuzzy bucket. Originally built as a separate standalone page (organisation-staff.html)
@@ -1306,11 +1210,10 @@ window.submitDepute = async function(){
   _toast(staffName+' deputed to the new department.');
   // Session 161: Depute is now also reachable from the NCISM Requirements/Staffing Plan
   // banners' "Who, and why?" list (deputing an untracked/mis-posted person to a real gap), not
-  // just the Extra Staff tab -- refresh whichever HR sub-tab is actually visible so the acting
-  // page's own numbers update immediately, instead of always refreshing Extra Staff regardless
-  // of where the click came from.
+  // just the Organisation Staff tab -- refresh whichever HR sub-tab is actually visible so the
+  // acting page's own numbers update immediately, instead of always refreshing one tab
+  // regardless of where the click came from.
   const _panelVisible = id => document.getElementById(id)?.style.display !== 'none';
-  if (_panelVisible('hr-extra-panel')) _renderExtraStaff();
   if (_panelVisible('hr-orgstaff-panel')) _renderOrganisationStaff();
   if (_panelVisible('hr-ncism-panel')) _renderNcismStaffing();
   if (_panelVisible('hr-plan-panel')) _renderStaffingPlan();
@@ -1351,7 +1254,6 @@ window.submitTerminate = async function(){
   await logAudit('terminate_staff', 'profiles', staffId, { staff_name: staffName, reason }, {tenantId, userId: profile.id, userName: profile.full_name});
   closeTerminateModal();
   _toast(staffName+' terminated.');
-  _renderExtraStaff();
   _renderOrganisationStaff();
   window.loadHR && window.loadHR('staff');
   _count('profiles',[['tenant_id',tenantId],['status','inactive']]).then(n => _setBadge('hr-tab-terminated-badge', n));
@@ -1560,14 +1462,18 @@ function _refreshAccessBadgeDebounced(){
   }, 600);
 }
 
-// Extra Staff tab badge — same trigger set as the NCISM compliance badge (a designation/
-// department/bed change can create or clear a surplus just as easily as a gap).
-let _extraBadgeDebounce = null;
-function _refreshExtraBadgeDebounced(){
-  clearTimeout(_extraBadgeDebounce);
-  _extraBadgeDebounce = setTimeout(async () => {
-    const list = await _fetchExtraStaffList();
-    _setBadge('hr-tab-extra-badge', list ? list.reduce((s,r)=>s+r.extra,0) : 0);
+// Organisation Staff tab badge — same trigger set as the NCISM compliance badge (a
+// designation/department/bed change can create or clear a surplus just as easily as a gap).
+// Session 165: renamed from _refreshExtraBadgeDebounced when the "Extra Staff" tab was retired
+// (this is the exact same live-badge mechanism, just pointed at the superset tab that replaced
+// it -- carrying this over deliberately, since dropping it would have silently lost real-time
+// badge updates as a side effect of the retirement, not just the tab itself).
+let _orgStaffBadgeDebounce = null;
+function _refreshOrgStaffBadgeDebounced(){
+  clearTimeout(_orgStaffBadgeDebounce);
+  _orgStaffBadgeDebounce = setTimeout(async () => {
+    const data = await _fetchOrganisationStaffList();
+    _setBadge('hr-tab-orgstaff-badge', data ? data.list.reduce((s,r)=>s+r.extra,0) : 0);
   }, 600);
 }
 
@@ -1584,21 +1490,21 @@ supabase.channel('profiles-badge-live')
   .on('postgres_changes', { event:'*', schema:'public', table:'profiles', filter:`tenant_id=eq.${tenantId}` }, () => {
     _refreshNcismBadgeDebounced();
     _refreshAccessBadgeDebounced();
-    _refreshExtraBadgeDebounced();
+    _refreshOrgStaffBadgeDebounced();
   })
   .subscribe();
 
 supabase.channel('beds-badge-live')
   .on('postgres_changes', { event:'*', schema:'public', table:'beds', filter:`tenant_id=eq.${tenantId}` }, () => {
     _refreshNcismBadgeDebounced();
-    _refreshExtraBadgeDebounced();
+    _refreshOrgStaffBadgeDebounced();
   })
   .subscribe();
 
 supabase.channel('departments-badge-live')
   .on('postgres_changes', { event:'*', schema:'public', table:'departments', filter:`tenant_id=eq.${tenantId}` }, () => {
     _refreshNcismBadgeDebounced();
-    _refreshExtraBadgeDebounced();
+    _refreshOrgStaffBadgeDebounced();
   })
   .subscribe();
 

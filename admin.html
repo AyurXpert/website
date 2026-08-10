@@ -543,7 +543,6 @@ tr:hover td{background:#fafff8}
           <button class="btn-outline hr-tab" data-sub="access">Login Access<span class="badge-count red" id="hr-tab-access-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="dept">🏥 Dept. Staff</button>
           <button class="btn-outline hr-tab" data-sub="decisions">⚖️ Approvals<span class="badge-count red" id="hr-tab-decisions-badge" style="display:none;margin-left:6px">0</span></button>
-          <button class="btn-outline hr-tab" data-sub="extra">➕ Extra Staff<span class="badge-count" id="hr-tab-extra-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="orgstaff">🏢 Organisation Staff<span class="badge-count" id="hr-tab-orgstaff-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="terminated">🚫 Terminated Staff<span class="badge-count" id="hr-tab-terminated-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="leave" id="hr-tab-leave-btn" style="display:none">📅 Leave &amp; Holidays</button>
@@ -619,18 +618,16 @@ tr:hover td{background:#fafff8}
         </div>
       </div>
 
-      <!-- Extra Staff panel — positions recruited above the NCISM minimum (Session 134) -->
-      <div id="hr-extra-panel" style="display:none">
-        <div id="extra-staff-wrap"></div>
-      </div>
-
       <!-- Organisation Staff panel (Session 164) — the comprehensive "everyone beyond the
-           strict NCISM minimum" view: folds Extra Staff's genuine per-department surplus
-           together with every _collectUntrackedStaff() reason (wrong department, downgraded
-           to optional, additional-charge, not NCISM-tracked at all, no designation) into one
-           list, so Total Staff = NCISM Compliance Staff + Organisation Staff, exactly, with no
-           third fuzzy bucket. Originally a separate standalone page; moved here per
-           Dr. Venkatesh's direct feedback ("it's regarding staff, should be under HR tab"). -->
+           strict NCISM minimum" view: folds genuine per-department surplus together with every
+           _collectUntrackedStaff() reason (wrong department, downgraded to optional,
+           additional-charge, not NCISM-tracked at all, no designation) into one list, so
+           Total Staff = NCISM Compliance Staff + Organisation Staff, exactly, with no third
+           fuzzy bucket. Originally a separate standalone page, then a dedicated "Extra Staff"
+           tab that only showed the narrower per-department-over-quota subset -- Session 165
+           retired that tab outright once _collectOrganisationStaff() was confirmed to be a
+           strict superset of it (built by literally calling the same underlying function),
+           so keeping both was pure duplication with zero unique information in the old one. -->
       <div id="hr-orgstaff-panel" style="display:none">
         <div id="org-staff-wrap"></div>
       </div>
@@ -1053,7 +1050,7 @@ tr:hover td{background:#fafff8}
   </div>
 </div>
 
-<!-- Session 154 -- Terminate modal (captures a required reason), used by the Extra Staff tab -->
+<!-- Session 154 -- Terminate modal (captures a required reason), used by the Organisation Staff tab and the NCISM Requirements/Staffing Plan "Who, and why?" banner -->
 <div id="terminate-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:14px;padding:24px;max-width:420px;width:100%;margin:16px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -1073,7 +1070,7 @@ tr:hover td{background:#fafff8}
   </div>
 </div>
 
-<!-- Session 153 -- Depute (reassign department) modal, used by the Extra Staff tab -->
+<!-- Session 153 -- Depute (reassign department) modal, used by the Organisation Staff tab and the NCISM Requirements/Staffing Plan "Who, and why?" banner -->
 <div id="depute-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:14px;padding:24px;max-width:380px;width:100%;margin:16px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
