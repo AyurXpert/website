@@ -461,7 +461,7 @@ export function _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById){
         if(a>row.count){
           const staff=(byDept[d.id]||[]).filter(s=>(row.keys||[]).includes(s.designation))
             .map(s=>({id:s.id, full_name:s.full_name}));
-          list.push({deptId:d.id, deptName:d.name, label:row.label, ref:row.ref, required:row.count, actual:a, extra:a-row.count, staff});
+          list.push({deptId:d.id, deptName:d.name, label:row.label, ref:row.ref, required:row.count, actual:a, extra:a-row.count, staff, keys:row.keys});
         }
       });
     });
@@ -480,7 +480,7 @@ export function _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById){
         deptId, deptName:(deptNameById && deptNameById[deptId]) || '—',
         label, ref:'Removed from Sch XX (2026-27 circular)',
         required:0, actual:matched.length, extra:matched.length,
-        staff:matched.map(s=>({id:s.id, full_name:s.full_name})),
+        staff:matched.map(s=>({id:s.id, full_name:s.full_name})), keys:[key],
       });
     });
   });
@@ -605,6 +605,71 @@ export function _renderComplianceSummaryBanner({grandReq, grandMet, extraList, t
           +'</div>').join('')
           +'</div></details>'
         : '')
+    +'</div>'
+  +'</div>';
+}
+
+// Session 160: a designation-wise "legacy rollup" row (admin.js's NCISM Requirements +
+// Staffing Plan tabs) counts real headcount flat, tenant-wide, with no department scoping —
+// so it can show Recruited > Total Needed (e.g. "Staff Nurse 22/21", "Receptionist 2/1")
+// in a case that never reaches the Extra Staff tab at all, which confused Dr. Venkatesh:
+// he correctly expected a numeric surplus to always show up there. Root cause, confirmed
+// against SDM's real live data: neither of those 2 people is a genuine extra hire. One
+// ("Nursing All Op2") is a real Staff Nurse posted to the generic "OPD" department, which
+// lost its own pooled nursing requirement when Session 151 split it into 3 ward-specific
+// rows (Atyayika/Shalya Tantra/Prasuti & Stri Roga) -- she needs deputing to one of those,
+// not counting as surplus. The other ("Clerk PK") is a real Receptionist posted to
+// Panchakarma, whose only requirement for that designation (the old "Clerk cum
+// Receptionist" line) was removed outright by Session 150's MESA&R schedule replacement.
+// Both are correctly caught by _collectUntrackedStaff() (reason: "valid designation, wrong
+// department") and were never going to appear in _collectExtraStaff() (which only flags a
+// SPECIFIC department's headcount exceeding that department's OWN requirement -- true for
+// neither department here). The flat legacy row has no way to tell a viewer that on its
+// own, so it read as an unexplained mismatch.
+//
+// This is the one shared classifier both legacy-rollup call sites use for a row's
+// Recruited cell, so a genuine surplus (informational, tracked on Extra Staff) and a
+// mis-posted-but-otherwise-valid designation (needs Depute, tracked as "outside NCISM
+// tracking") never look identical again -- and so the two call sites can't drift apart on
+// how they explain it. extraList/untrackedList are the exact same lists the compliance
+// summary banner above the table already computes; keys is the row's own designation-key
+// list (NCISM_SUM_GRPS' `k`, or Staffing Plan's `[...info.altKeys]`).
+export function _rowStatusInfo(keys, rec, total, extraList, untrackedList){
+  // Same two-way split the original inline ternary used for every non-surplus case (including
+  // the total===0 edge case, preserved exactly rather than reinterpreted) -- only rec>total>0
+  // gets new treatment below.
+  if (!(rec>=total && total>0)) return rec>0 ? {color:'#c9902a', icon:'⚠️', title:''} : {color:'#c0392b', icon:'❌', title:''};
+  if (rec===total) return {color:'#2d7a4f', icon:'✅', title:''};
+  // rec > total > 0 — figure out what the excess actually is before deciding how to show it.
+  const matchedExtra = (extraList||[]).filter(e=>(e.keys||[]).some(kk=>keys.includes(kk)));
+  const matchedUntracked = (untrackedList||[]).filter(e=>keys.includes(e.designation));
+  const extraSum = matchedExtra.reduce((s,e)=>s+e.extra,0);
+  const parts=[];
+  if (matchedUntracked.length) parts.push(matchedUntracked.length+' ('
+    +matchedUntracked.map(e=>e.full_name+' — '+e.deptName).join(', ')
+    +') posted to a department with no matching requirement for this designation — likely needs deputing, not genuine surplus.');
+  if (extraSum>0) parts.push(extraSum+' genuinely recruited above the NCISM minimum (see ➕ Extra Staff tab).');
+  const unexplained = (rec-total) - matchedUntracked.length - extraSum;
+  if (unexplained>0) parts.push(unexplained+' not accounted for by either the Extra Staff or untracked-staff lists — worth a closer look.');
+  if (matchedUntracked.length>0 || unexplained>0) return {color:'#7c5cbf', icon:'🔀', title:parts.join(' ')};
+  return {color:'#2d7a4f', icon:'✅', title:parts.join(' ')};
+}
+
+// Session 160: static explanatory panel for the bottom of any page/tab that shows the
+// designation-wise legacy rollup (admin.js's NCISM Requirements + Staffing Plan tabs) —
+// Dr. Venkatesh asked for a permanent, always-visible explanation of what the Recruited
+// column's colour/icon means once a real mismatch (Staff Nurse 22/21, Receptionist 2/1,
+// neither on the Extra Staff tab) needed explaining live. Deliberately not a collapsed
+// <details> — the point is not needing to ask again, so the answer shouldn't need a click.
+export function _renderComplianceLegend(){
+  return '<div style="padding:12px 16px;border-top:2px solid var(--border);background:#fafcfb;font-size:12px;color:var(--text-muted);line-height:1.7">'
+    +'<div style="font-weight:700;color:var(--text-dark);margin-bottom:6px">ℹ️ Reading the Recruited column</div>'
+    +'<div>Each row’s <strong>Recruited</strong> is a flat, tenant-wide headcount for that designation — it can sit above <strong>Total Needed</strong> without meaning the organisation over-hired, and the GRAND TOTAL row is unaffected either way (it caps every position at its own requirement, per department, so a surplus in one place can never hide a real shortfall elsewhere).</div>'
+    +'<div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">'
+      +'<div><span style="color:#2d7a4f;font-weight:700">✅ Green</span> — fully staffed. If Recruited reads above Total Needed here, hover it — the surplus is genuine and already listed on the <strong>➕ Extra Staff</strong> tab.</div>'
+      +'<div><span style="color:#7c5cbf;font-weight:700">🔀 Violet</span> — Recruited reads above Total Needed but is <strong>not</strong> genuine surplus: hover to see who. It means a real NCISM designation is posted to a department with no matching requirement (a schedule update removed or moved that line, or the posting is simply out of date). Check "Who, and why?" in the compliance banner above, then <strong>Depute</strong> them (🏥 Dept. Staff or ➕ Extra Staff tab) to where the requirement actually is.</div>'
+      +'<div><span style="color:#c9902a;font-weight:700">⚠️ Amber</span> — short-staffed, some recruited.</div>'
+      +'<div><span style="color:#c0392b;font-weight:700">❌ Red</span> — nobody recruited yet.</div>'
     +'</div>'
   +'</div>';
 }

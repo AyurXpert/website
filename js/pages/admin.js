@@ -12,7 +12,8 @@ import {
   FACULTY_CONCURRENT_POSTS, NCISM_XX_ROWS, ORG_TREE_DEF, OPD_CHILD_NCISM_CODES,
   _deptKey, buildDeptTree, _dedupById, _scheduleIFacultyTotal, deptRequirement,
   _computeIpdBedTotals, _computeGrandCompliance, _collectExtraStaff, _collectUntrackedStaff,
-  _renderComplianceSummaryBanner, SCHEDULE_I_CODES, _combinedIpdNursingSplit,
+  _renderComplianceSummaryBanner, SCHEDULE_I_CODES, _combinedIpdNursingSplit, _rowStatusInfo,
+  _renderComplianceLegend,
 } from '../config/ncismStaffCompliance.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
@@ -1719,8 +1720,7 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
         return;
       }
       const rec=cntD(k), gap=Math.max(0,total-rec);
-      const rc=rec>=total&&total>0?'#2d7a4f':rec>0?'#c9902a':'#c0392b';
-      const si=rec>=total&&total>0?'✅':rec>0?'⚠️':'❌';
+      const {color:rc, icon:si, title:recTitle} = _rowStatusInfo(k, rec, total, extraList, untrackedList);
       let zs;
       if(fk) zs='Schedule I ('+clinDepts+' clinical depts)';
       else if(pgOnly) zs='PG depts only';
@@ -1731,7 +1731,7 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
         +'<td style="padding:5px 10px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2">'+(total>0?ugR:'—')+'</td>'
         +'<td style="padding:5px 10px;text-align:center;color:#c9902a;border-bottom:1px solid #f0f4f2">'+(pgA>0?'+'+pgA:'—')+'</td>'
         +'<td style="padding:5px 10px;text-align:center;font-weight:700;border-bottom:1px solid #f0f4f2">'+(total||'—')+'</td>'
-        +'<td style="padding:5px 10px;text-align:center;color:'+rc+';font-weight:700;border-bottom:1px solid #f0f4f2">'+rec+'</td>'
+        +'<td'+(recTitle?' title="'+_esc(recTitle)+'"':'')+' style="padding:5px 10px;text-align:center;color:'+rc+';font-weight:700;border-bottom:1px solid #f0f4f2'+(recTitle?';cursor:help;text-decoration:underline dotted':'')+'">'+rec+(recTitle?' <span style="font-size:10px">ℹ️</span>':'')+'</td>'
         +'<td style="padding:5px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+si+(gap>0?' <span style="font-size:11px;color:#c0392b">−'+gap+'</span>':'')+'</td>'
         +'</tr>';
     });
@@ -1915,6 +1915,7 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
       +'<div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📊 Hospital-wide Total — Designation-wise (UG + PG combined, legacy rollup)</div>'
       +sumTableHtml
     +'</div>'
+    +_renderComplianceLegend()
     +'<div style="padding:9px 16px;font-size:11px;color:var(--text-muted);background:#fafcfb;display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px">'
       +'<span>* Required/Actual/Gap above is computed per real department (same tree as 🏥 Dept. Staff). Housekeeping/Laundry/Security carry no NCISM-prescribed headcount — actual staff shown for completeness only.</span>'
       +'<a href="ncism-compliance.html" style="color:var(--green-mid);white-space:nowrap">Full NCISM Report →</a>'
@@ -2304,8 +2305,7 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
       }
       const rec=cntD([...info.altKeys]), gap=Math.max(0,total-rec);
       roleTotal+=total; roleRec+=Math.min(rec,total);
-      const rc=rec>=total&&total>0?'#2d7a4f':rec>0?'#c9902a':'#c0392b';
-      const si=rec>=total&&total>0?'✅':rec>0?'⚠️':'❌';
+      const {color:rc, icon:si, title:recTitle} = _rowStatusInfo([...info.altKeys], rec, total, extraList, untrackedList);
       const zs=info.pgOnly?'PG depts only':(['professor','associate_professor','assistant_professor'].includes(ck)?'Schedule I ('+clinDepts+' clinical depts)':[...info.zones].join(' + ')||'—');
       return '<tr>'
         +'<td style="padding:6px 12px 6px 20px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(dLabel)+'</td>'
@@ -2313,7 +2313,7 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
         +'<td style="padding:6px 10px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2">'+(total>0?info.ugTotal:'—')+'</td>'
         +'<td style="padding:6px 10px;text-align:center;color:#c9902a;border-bottom:1px solid #f0f4f2">'+(pgA>0?'+'+pgA:'—')+'</td>'
         +'<td style="padding:6px 10px;text-align:center;font-weight:700;border-bottom:1px solid #f0f4f2">'+(total||'—')+'</td>'
-        +'<td style="padding:6px 10px;text-align:center;color:'+rc+';font-weight:700;border-bottom:1px solid #f0f4f2">'+rec+'</td>'
+        +'<td'+(recTitle?' title="'+_esc(recTitle)+'"':'')+' style="padding:6px 10px;text-align:center;color:'+rc+';font-weight:700;border-bottom:1px solid #f0f4f2'+(recTitle?';cursor:help;text-decoration:underline dotted':'')+'">'+rec+(recTitle?' <span style="font-size:10px">ℹ️</span>':'')+'</td>'
         +'<td style="padding:6px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+si+(gap>0?' <span style="font-size:11px;color:#c0392b">−'+gap+'</span>':'')+'</td>'
         +'</tr>';
     }).join('');
@@ -2412,7 +2412,8 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
     + liveCoverageHtml
     + dutyRosterLogHtml
     + sectionsHtml
-    + '<div style="font-size:11px;color:var(--text-muted);margin-top:8px">The role-by-role breakdown below scales with UG intake and PG seats sanctioned. The summary above is the same canonical total as HR → NCISM Requirements — they can\'t disagree.</div>';
+    + _renderComplianceLegend()
+    + '<div style="font-size:11px;color:var(--text-muted);margin-top:8px">The role-by-role breakdown above scales with UG intake and PG seats sanctioned. The summary at the top is the same canonical total as HR → NCISM Requirements — they can\'t disagree.</div>';
 }
 
 // ── Departmental Staff Distribution ──────────────────────────────────
