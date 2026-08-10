@@ -2259,15 +2259,15 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
     let roleTotal=0, roleRec=0;
     const rowsHtml = byRole[role].map(row=>{
       const ck = row.key;
-      // Sch XX/35 "OT Nursing Staff" is the one row in NCISM_XX_ROWS whose
-      // alternate key is a genuinely different profession (Staff Nurse),
-      // not just a synonym title (unlike e.g. staff_nurse/ward_sister) --
-      // real gap found live: this table's designation-grouped label showed
-      // bare "OT Technician", which reads as excluding nurses even though
-      // real Staff Nurses fill 2 of these seats at SDM. Every other
-      // multi-key row stays as its own primary label -- only this one
-      // documented exception gets the suffix.
-      const dLabel = row.label + (ck === 'ot_technician' && row.altKeys.has('staff_nurse') ? ' / Staff Nurse' : '');
+      // Session 134 gave this row a "/ Staff Nurse" label suffix (Sch XX/35 OT Nursing Staff
+      // accepts either an OT Technician or a Staff Nurse for the same seat) -- removed Session
+      // 160, once that same cross-profession alt key was found to double-count every real
+      // nurse tenant-wide into this row's flat Recruited figure (2+22+1+1=26 on real SDM data).
+      // _designationRollup() now excludes it from altKeys for exactly that reason -- a Staff
+      // Nurse actually covering this OT seat is still correctly credited at the department
+      // level (deptRequirement/Extra Staff/Grand Total), just not folded into this org-wide,
+      // designation-specific row anymore.
+      const dLabel = row.label;
       if(row.facultyHeld){
         return '<tr><td style="padding:6px 12px 6px 20px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(dLabel)+'</td>'
           +'<td colspan="5" style="padding:6px 12px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">Typically held concurrently by an existing faculty member — not counted separately</td></tr>';

@@ -364,6 +364,29 @@ export function _designationRollup(ug, pgList, bedTotals, facTotal){
   });
 
   rows.forEach(r=>{ r.pgAddon = pgAddon[r.key]||0; });
+
+  // Session 160 follow-up: an alternate key inside a row's own `keys` array can mean two
+  // genuinely different things -- "a synonym for the exact same real post" (staff_nurse/
+  // ward_sister, professor/hod -- safe to always count together, since nothing else
+  // independently claims that key too) vs. "a genuinely different profession that happens to
+  // ALSO satisfy this one specific seat" (Sch XX/35 OT Nursing Staff accepts either
+  // ot_technician OR staff_nurse -- but staff_nurse is ALSO its own dedicated "Staff Nurse"
+  // row's canonical key). Blindly unioning the second kind into a flat, org-wide altKeys set
+  // double-counts real people: found live -- the legacy rollup's "OT Nurse / CSSD / Anushastra
+  // Technician" row jumped from a correct 4 to 26 the moment altKeys started including every
+  // real staff_nurse tenant-wide (2+22+1+1, confirmed against SDM's live data), and the same
+  // mechanism inflates "PK / Kriyakalpa / Physiotherapy Therapist" via 'therapist' (also
+  // Physiotherapist's own canonical key). Fixed generically, no new hand-typed exception list:
+  // any alt key that is ALSO some OTHER row's own canonical key is dropped from here (kept only
+  // on that other row, where it belongs) -- a true synonym is never independently canonical
+  // anywhere else, so this can't affect any of the legitimate merges. Per-department seat
+  // fulfilment (deptRequirement/_computeGrandCompliance/Extra Staff) is unaffected -- those
+  // read a row's real `keys` array directly, never this org-wide-only altKeys set.
+  const canonicalKeys = new Set(rows.map(r=>r.key));
+  rows.forEach(r=>{
+    r.altKeys = new Set([...r.altKeys].filter(k=>k===r.key || !canonicalKeys.has(k)));
+  });
+
   return rows;
 }
 
