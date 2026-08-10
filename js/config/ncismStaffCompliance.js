@@ -737,6 +737,53 @@ export function _collectStaffClassification(tree, ug, bedTotals, byDept, allStaf
   return { extraList:[...rawExtra, ...surplusRows], untrackedList };
 }
 
+// ── Organisation Staff (everyone beyond the strict NCISM minimum) ───────────────────────────
+// Session 164: Dr. Venkatesh's explicit ask, after the "22nd Staff Nurse" conversation --
+// "whatever the post, no matter how important it is to run the hospital, if it's out of NCISM
+// compliance it should be [tracked separately], and it's better to keep a separate page to
+// list them." His stated model: TWO complete, non-overlapping categories -- "NCISM Compliance
+// Staff" (the strict Schedule I/XX minimum, already shown by the Grand Total/Department tree)
+// and "Organisation Staff" (literally everyone else, regardless of the specific reason,
+// regardless of how clinically important their real work is). This function is that second
+// category -- the exact complement of _computeGrandCompliance()'s "met" set.
+//
+// Deliberately does NOT reuse _collectStaffClassification()'s narrower Extra/Untracked split
+// (that split still exists, unchanged, for the NCISM Requirements/Staffing Plan/Statistics
+// pages, where the nuance between "genuine surplus" and "informational, no action needed"
+// still adds real value and where ballooning the "+N staff" banner line with every support
+// role would be noisy). This function is for the NEW dedicated page specifically: it folds
+// _collectExtraStaff()'s per-department over-quota rows AND every single reason
+// _collectUntrackedStaff() can produce -- wrong department (whether or not a real gap exists
+// elsewhere), downgraded-to-optional, additional-charge, not-NCISM-tracked-at-all, and even
+// no-designation accounts -- into one single, comprehensive, unified list. Every row still
+// carries its own real, specific `ref` explanation (never a generic "extra"), so nothing about
+// WHY someone is here gets lost -- only the GATING on whether they show up at all is removed.
+export function _collectOrganisationStaff(tree, ug, bedTotals, byDept, allStaff, deptNameById){
+  const extra = _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById);
+  const untracked = _collectUntrackedStaff(tree, ug, bedTotals, byDept, allStaff, deptNameById);
+
+  const groups = {};
+  untracked.forEach(u=>{
+    const gKey=(u.deptId||'none')+'|'+(u.designation||'__none__');
+    if(!groups[gKey]) groups[gKey] = {
+      deptId:u.deptId, deptName:u.deptName, designation:u.designation, reasonType:u.reasonType,
+      label: u.designation ? (DESIG_MAP[u.designation]?.l||u.designation) : 'No designation set',
+      ref: u.reason, staff:[],
+    };
+    groups[gKey].staff.push({id:u.id, full_name:u.full_name});
+  });
+  const untrackedRows = Object.values(groups).map(g=>({
+    deptId:g.deptId, deptName:g.deptName, label:g.label, ref:g.ref, reasonType:g.reasonType,
+    required:0, actual:g.staff.length, extra:g.staff.length,
+    staff:g.staff, keys:g.designation?[g.designation]:[],
+  }));
+
+  return [
+    ...extra.map(e=>({...e, reasonType:e.reasonType||'over_quota'})),
+    ...untrackedRows,
+  ];
+}
+
 function _esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 // ── Shared compliance summary banner ─────────────────────────────────────────

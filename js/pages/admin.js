@@ -1161,9 +1161,14 @@ async function _renderExtraStaff(){
   }).join('');
 
   wrap.innerHTML =
-    '<div style="background:var(--green-deep);color:#fff;border-radius:var(--radius) var(--radius) 0 0;padding:12px 18px">'
-      +'<div style="font-weight:600;font-size:14px">Extra Staff — Recruited Above NCISM Minimum</div>'
-      +'<div style="font-size:11px;opacity:.75;margin-top:2px">Not a compliance problem — just staff to be aware of when planning transfers, budget, or new invites. '+list.length+' position(s), '+total+' extra staff total. All staff holding the position are listed (not just "the extra ones") since NCISM data alone can\'t say which specific person is surplus — that\'s your call.</div>'
+    '<div style="background:var(--green-deep);color:#fff;border-radius:var(--radius) var(--radius) 0 0;padding:12px 18px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">'
+      +'<div><div style="font-weight:600;font-size:14px">Extra Staff — Recruited Above NCISM Minimum</div>'
+      +'<div style="font-size:11px;opacity:.75;margin-top:2px">Not a compliance problem — just staff to be aware of when planning transfers, budget, or new invites. '+list.length+' position(s), '+total+' extra staff total. All staff holding the position are listed (not just "the extra ones") since NCISM data alone can\'t say which specific person is surplus — that\'s your call.</div></div>'
+      // Session 164: this tab only ever shows the narrower "genuine, per-department surplus"
+      // slice -- the new Organisation Staff page is the comprehensive view (also includes
+      // downgraded-to-optional, additional-charge, and not-NCISM-tracked-at-all staff), built
+      // for the "clear picture of where the org stands vs. NCISM" ask.
+      +'<a href="organisation-staff.html" style="background:#ffffff22;color:#fff;padding:5px 12px;border-radius:8px;font-size:11.5px;text-decoration:none;border:1px solid #ffffff44;white-space:nowrap">🏢 Full Organisation Staff report →</a>'
     +'</div>'
     +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
       +'<thead><tr style="background:#f5faf7">'
