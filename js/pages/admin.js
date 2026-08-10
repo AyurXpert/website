@@ -2283,9 +2283,21 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
     byKey[keys[0]].zones.add(ZA[zone]||zone);
   });
 
+  // Session 160: display-only remap for THIS breakdown only -- DESIG_ROLE_DEFAULT's
+  // finance_manager:'finance_manager' is correct and must stay untouched (it's the real HMS
+  // login-role default, and finance_manager genuinely has more access than accountant --
+  // write-off approve/reject, see the Finance role table above). But STAFFING_PLAN_ROLE_ORDER
+  // has no separate 'finance_manager' section, so without this remap the Finance Manager
+  // position -- and any real staff recruited to it -- silently vanished from the entire
+  // Staffing Plan tab (its role bucket existed in byRole but was never in the fixed section
+  // list, so .filter(r=>byRole[r.role]?.length) skipped it outright). Found live, exhaustively
+  // confirmed the only such gap, while explaining why this tab's own visible rows summed to
+  // 121 against its banner's canonical 122. Routes into the same "💰 Finance & Accounts"
+  // section as Accountant/Store Keeper, matching the legacy rollup table's combined row.
+  const STAFFING_PLAN_ROLE_ALIAS = {finance_manager:'accountant'};
   const byRole = {};
   Object.keys(byKey).forEach(ck=>{
-    const role = DESIG_ROLE_DEFAULT[ck] || 'other';
+    const role = STAFFING_PLAN_ROLE_ALIAS[ck] || DESIG_ROLE_DEFAULT[ck] || 'other';
     (byRole[role] = byRole[role] || []).push(ck);
   });
 
