@@ -418,7 +418,7 @@ tr:hover td{background:#fafff8}
       <a class="sb-item" href="ncism-compliance.html" style="text-decoration:none">
         <span class="sb-icon">📋</span><span class="sb-label">NCISM Compliance</span>
       </a>
-      <a class="sb-item" href="organisation-staff.html" style="text-decoration:none">
+      <a class="sb-item" href="admin.html#hr:orgstaff" style="text-decoration:none">
         <span class="sb-icon">🏢</span><span class="sb-label">Organisation Staff</span>
       </a>
       <button class="sb-item" data-target="monthly">
@@ -544,6 +544,7 @@ tr:hover td{background:#fafff8}
           <button class="btn-outline hr-tab" data-sub="dept">🏥 Dept. Staff</button>
           <button class="btn-outline hr-tab" data-sub="decisions">⚖️ Approvals<span class="badge-count red" id="hr-tab-decisions-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="extra">➕ Extra Staff<span class="badge-count" id="hr-tab-extra-badge" style="display:none;margin-left:6px">0</span></button>
+          <button class="btn-outline hr-tab" data-sub="orgstaff">🏢 Organisation Staff<span class="badge-count" id="hr-tab-orgstaff-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="terminated">🚫 Terminated Staff<span class="badge-count" id="hr-tab-terminated-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="leave" id="hr-tab-leave-btn" style="display:none">📅 Leave &amp; Holidays</button>
         </div>
@@ -621,6 +622,17 @@ tr:hover td{background:#fafff8}
       <!-- Extra Staff panel — positions recruited above the NCISM minimum (Session 134) -->
       <div id="hr-extra-panel" style="display:none">
         <div id="extra-staff-wrap"></div>
+      </div>
+
+      <!-- Organisation Staff panel (Session 164) — the comprehensive "everyone beyond the
+           strict NCISM minimum" view: folds Extra Staff's genuine per-department surplus
+           together with every _collectUntrackedStaff() reason (wrong department, downgraded
+           to optional, additional-charge, not NCISM-tracked at all, no designation) into one
+           list, so Total Staff = NCISM Compliance Staff + Organisation Staff, exactly, with no
+           third fuzzy bucket. Originally a separate standalone page; moved here per
+           Dr. Venkatesh's direct feedback ("it's regarding staff, should be under HR tab"). -->
+      <div id="hr-orgstaff-panel" style="display:none">
+        <div id="org-staff-wrap"></div>
       </div>
 
       <!-- Terminated Staff panel (Session 154) — the ONLY place terminated staff appear; they're

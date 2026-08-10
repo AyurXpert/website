@@ -13,7 +13,7 @@ import {
   _deptKey, buildDeptTree, _dedupById, _scheduleIFacultyTotal, deptRequirement,
   _computeIpdBedTotals, _computeGrandCompliance,
   _renderComplianceSummaryBanner, SCHEDULE_I_CODES, _rowStatusInfo,
-  _renderComplianceLegend, _designationRollup, _collectStaffClassification,
+  _renderComplianceLegend, _designationRollup, _collectStaffClassification, _collectOrganisationStaff,
 } from '../config/ncismStaffCompliance.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
@@ -781,6 +781,8 @@ window.loadHR = async function(sub='staff') {
   _computePendingApprovalsCount().then(n => _setBadge('hr-tab-decisions-badge', n));
   // Extra Staff tab badge — same pattern.
   _fetchExtraStaffList().then(list => _setBadge('hr-tab-extra-badge', list ? list.reduce((s,r)=>s+r.extra,0) : 0));
+  // Organisation Staff tab badge (Session 164) — same pattern.
+  _fetchOrganisationStaffList().then(data => _setBadge('hr-tab-orgstaff-badge', data ? data.list.reduce((s,r)=>s+r.extra,0) : 0));
   // Terminated Staff tab badge (Session 154) — separate query since window._staffAll now
   // excludes them entirely (can't derive the count from the filtered array above).
   _count('profiles',[['tenant_id',tenantId],['status','inactive']]).then(n => _setBadge('hr-tab-terminated-badge', n));
@@ -822,6 +824,7 @@ function _hrSub(sub){
   document.getElementById('hr-dept-panel').style.display       = sub==='dept'      ? '' : 'none';
   document.getElementById('hr-decisions-panel').style.display  = sub==='decisions' ? '' : 'none';
   document.getElementById('hr-extra-panel').style.display      = sub==='extra'     ? '' : 'none';
+  document.getElementById('hr-orgstaff-panel').style.display   = sub==='orgstaff'  ? '' : 'none';
   document.getElementById('hr-terminated-panel').style.display = sub==='terminated'? '' : 'none';
   document.getElementById('hr-leave-panel').style.display      = sub==='leave'     ? '' : 'none';
   document.getElementById('hr-seed-bar').style.display         = (sub==='ncism'||sub==='dept') ? 'flex' : 'none';
@@ -831,6 +834,7 @@ function _hrSub(sub){
   if (sub === 'dept')    _renderDeptStaff();
   if (sub === 'decisions') window.loadPendingDecisions();
   if (sub === 'extra')   _renderExtraStaff();
+  if (sub === 'orgstaff') _renderOrganisationStaff();
   if (sub === 'terminated') _renderTerminatedStaff();
   if (sub === 'leave')   _renderLeaveHolidays();
 }
@@ -1165,10 +1169,10 @@ async function _renderExtraStaff(){
       +'<div><div style="font-weight:600;font-size:14px">Extra Staff — Recruited Above NCISM Minimum</div>'
       +'<div style="font-size:11px;opacity:.75;margin-top:2px">Not a compliance problem — just staff to be aware of when planning transfers, budget, or new invites. '+list.length+' position(s), '+total+' extra staff total. All staff holding the position are listed (not just "the extra ones") since NCISM data alone can\'t say which specific person is surplus — that\'s your call.</div></div>'
       // Session 164: this tab only ever shows the narrower "genuine, per-department surplus"
-      // slice -- the new Organisation Staff page is the comprehensive view (also includes
+      // slice -- the Organisation Staff tab is the comprehensive view (also includes
       // downgraded-to-optional, additional-charge, and not-NCISM-tracked-at-all staff), built
       // for the "clear picture of where the org stands vs. NCISM" ask.
-      +'<a href="organisation-staff.html" style="background:#ffffff22;color:#fff;padding:5px 12px;border-radius:8px;font-size:11.5px;text-decoration:none;border:1px solid #ffffff44;white-space:nowrap">🏢 Full Organisation Staff report →</a>'
+      +'<button class="btn-outline" style="background:#ffffff22;color:#fff;padding:5px 12px;border-radius:8px;font-size:11.5px;border:1px solid #ffffff44;white-space:nowrap;cursor:pointer" data-onclick="_goToHrTab" data-onclick-a0="orgstaff">🏢 Full Organisation Staff report →</button>'
     +'</div>'
     +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
       +'<thead><tr style="background:#f5faf7">'
@@ -1178,6 +1182,97 @@ async function _renderExtraStaff(){
       +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Required</th>'
       +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Actual</th>'
       +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Extra</th>'
+      +'<th style="padding:6px 10px 6px 12px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Staff / Actions</th>'
+      +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+
+window._goToHrTab = function(sub){ document.querySelector(`.hr-tab[data-sub="${sub}"]`)?.click(); };
+
+// ── Organisation Staff -- Session 164 ────────────────────────────────────────────────────
+// Dr. Venkatesh's explicit two-category model: every active staff member is either "NCISM
+// Compliance Staff" (the NCISM Requirements tab's Grand Total) or "Organisation Staff" (here),
+// no third fuzzy bucket. Originally built as a separate standalone page (organisation-staff.html)
+// -- moved into HR as a tab per his direct follow-up feedback ("it's regarding staff, should
+// be under HR tab"), which also removes the need for that page's own CSP/script-loading surface
+// entirely (a real bug was found there: the standalone page's CSP never allowed loading the
+// Supabase SDK from cdn.jsdelivr.net, so the whole page silently failed to load any data).
+// _collectOrganisationStaff() (ncismStaffCompliance.js) is the exact complement of
+// _computeGrandCompliance()'s "met" set -- see its own comment for the full reasoning on what
+// counts as "beyond the minimum" here (genuine per-department over-quota, wrong department,
+// downgraded-to-optional, additional-charge, not-NCISM-tracked-at-all, and no-designation
+// accounts, all folded into one list, each with its own real reason shown, never hidden).
+async function _fetchOrganisationStaffList(){
+  const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:opds }, { data:bedsRows }] = await Promise.all([
+    supabase.from('tenants').select('ug_intake,type').eq('id',tenantId).single(),
+    supabase.from('profiles').select('id,full_name,designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_pg_dept,pg_seats_sanctioned').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('opds').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true),
+    supabase.from('beds').select('department_id').eq('tenant_id',tenantId),
+  ]);
+  if (!isNCISMType(tRow?.type)) return null;
+  const ugRaw = tRow?.ug_intake || 0;
+  const ug = [60,100,150,200].includes(ugRaw) ? ugRaw : (ugRaw>=150?150:ugRaw>=100?100:ugRaw>0?60:0);
+  if (!ug) return null;
+
+  const bedTotals = _computeIpdBedTotals(depts, bedsRows);
+  const byDept={};
+  (rawStaff||[]).forEach(s=>{ if(!s.department_id) return; (byDept[s.department_id]=byDept[s.department_id]||[]).push(s); });
+  const tree=buildDeptTree(depts||[], opds||[]);
+  const deptNameById={}; (depts||[]).forEach(d=>{ deptNameById[d.id]=d.name; });
+  const { grandReq, grandMet } = _computeGrandCompliance(tree, ug, bedTotals, (deptId,keys)=>(byDept[deptId]||[]).filter(s=>(keys||[]).includes(s.designation)).length);
+  const list = _collectOrganisationStaff(tree, ug, bedTotals, byDept, rawStaff, deptNameById);
+  return { list, totalActiveStaff: (rawStaff||[]).length, ncismCompliant: Math.min(grandMet, grandReq), grandReq };
+}
+
+async function _renderOrganisationStaff(){
+  const wrap = document.getElementById('org-staff-wrap');
+  wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
+  const data = await _fetchOrganisationStaffList();
+
+  if (data===null){
+    wrap.innerHTML = '<div class="empty"><div class="empty-ico">ℹ</div><div class="empty-ttl">Organisation Staff tracking only applies to Teaching Hospital / College tenants with UG intake configured.</div></div>';
+    _setBadge('hr-tab-orgstaff-badge', 0);
+    return;
+  }
+  const { list, totalActiveStaff, ncismCompliant, grandReq } = data;
+  const orgStaffTotal = list.reduce((s,r)=>s+r.extra,0);
+  _setBadge('hr-tab-orgstaff-badge', orgStaffTotal);
+
+  const introHtml = '<div style="padding:12px 18px;background:#f5faf7;border-bottom:1px solid var(--border);font-size:12.5px;line-height:1.7;color:var(--text-mid)">'
+    +'Every active staff member is in exactly one of two categories: <strong>NCISM Compliance Staff</strong> ('
+    +ncismCompliant+' / '+grandReq+', filling a real Schedule I/XX post — see the NCISM Requirements tab) or <strong>Organisation Staff</strong> ('
+    +orgStaffTotal+', listed below) — everyone else, for whatever real reason, no matter how important their actual work is. '
+    +totalActiveStaff+' total active staff = '+ncismCompliant+' + '+orgStaffTotal+'.'
+    +'</div>';
+
+  if (!list.length){
+    wrap.innerHTML = introHtml + '<div class="empty"><div class="empty-ico">✅</div><div class="empty-ttl">Every active staff member is currently counted toward the NCISM minimum. Nothing to list here.</div></div>';
+    return;
+  }
+
+  const rows = list.map(r=>{
+    const hasDesignation = !!(r.keys && r.keys.length);
+    // No-designation accounts (e.g. a platform/admin login, possibly the viewer's own) aren't a
+    // recruited staff post at all -- Depute/Terminate would be actively wrong here.
+    const staffHtml = (r.staff||[]).map(s=>{
+      const actions = hasDesignation
+        ? '<button class="btn-outline" style="font-size:10.5px;padding:2px 7px" data-onclick="openDeputeModal" data-onclick-a0="'+_esc(s.id)+'" data-onclick-a1="'+_esc(s.full_name||'this staff member')+'" data-onclick-a2="'+_esc(r.deptId||'')+'">🔄 Depute</button>'
+          +'<button class="btn-outline" style="font-size:10.5px;padding:2px 7px;color:#c0392b;border-color:#e0b0b0" data-onclick="openTerminateModal" data-onclick-a0="'+_esc(s.id)+'" data-onclick-a1="'+_esc(s.full_name||'this staff member')+'">🗑 Terminate</button>'
+        : '<span style="font-size:10.5px;color:var(--text-muted)">Manage via Login Access</span>';
+      return '<div style="display:flex;align-items:center;gap:6px;padding:2px 0;flex-wrap:wrap"><span style="font-size:12px">'+_esc(s.full_name||'—')+'</span>'+actions+'</div>';
+    }).join('') || '<span style="font-size:11px;color:var(--text-muted)">—</span>';
+    return '<tr><td style="padding:7px 12px 7px 16px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(r.deptName||'—')+'</td>'
+    +'<td style="padding:7px 10px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(r.label)+'<div style="margin-top:2px;font-size:11px;color:var(--text-muted);max-width:320px">'+_esc(r.ref)+'</div></td>'
+    +'<td style="padding:7px 10px;text-align:center;font-weight:700;border-bottom:1px solid #f0f4f2">'+r.extra+'</td>'
+    +'<td style="padding:7px 10px 7px 12px;border-bottom:1px solid #f0f4f2;min-width:220px">'+staffHtml+'</td></tr>';
+  }).join('');
+
+  wrap.innerHTML = introHtml
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+      +'<thead><tr style="background:#f5faf7">'
+      +'<th style="padding:6px 12px 6px 16px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Department / Where Posted</th>'
+      +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Position &amp; Why</th>'
+      +'<th style="padding:6px 10px;text-align:center;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Count</th>'
       +'<th style="padding:6px 10px 6px 12px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Staff / Actions</th>'
       +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
@@ -1216,6 +1311,7 @@ window.submitDepute = async function(){
   // of where the click came from.
   const _panelVisible = id => document.getElementById(id)?.style.display !== 'none';
   if (_panelVisible('hr-extra-panel')) _renderExtraStaff();
+  if (_panelVisible('hr-orgstaff-panel')) _renderOrganisationStaff();
   if (_panelVisible('hr-ncism-panel')) _renderNcismStaffing();
   if (_panelVisible('hr-plan-panel')) _renderStaffingPlan();
 };
@@ -1256,6 +1352,7 @@ window.submitTerminate = async function(){
   closeTerminateModal();
   _toast(staffName+' terminated.');
   _renderExtraStaff();
+  _renderOrganisationStaff();
   window.loadHR && window.loadHR('staff');
   _count('profiles',[['tenant_id',tenantId],['status','inactive']]).then(n => _setBadge('hr-tab-terminated-badge', n));
 };
