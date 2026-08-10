@@ -911,6 +911,15 @@ const NCISM_SUM_GRPS = [
     {l:'Lab Technician / ECG Technician',             k:['lab_technician','ecg_technician']},
     {l:'Lab Attendant',                               k:['lab_attendant']},
     {l:'X-ray Technician / Radiographer',             k:['radiographer']},
+    // Session 160: was entirely missing from this hand-maintained group list -- Sch XX/24 has
+    // been mandatory (not optional) since Session 150's schedule replacement, so it's a real
+    // NCISM_XX_ROWS row and counted in the canonical tree-based Grand Total, but this legacy
+    // per-designation table never had a row for it at all. That's the exact +1 behind the
+    // 121-(hand-summed "Total Needed")-vs-122-(Grand Total) drift found while investigating the
+    // Staff Nurse/Receptionist surplus confusion -- and it also meant any real Dark Room
+    // Assistant on staff (SDM has one) was invisible on this specific table, not just under-
+    // counted, since a row has to exist here before recruited/required can be shown at all.
+    {l:'Dark Room Assistant',                         k:['dark_room_assistant']},
     {l:'Microbiologist',                              k:['microbiologist']},
   ]},
   {s:'Reception & MRD',rows:[
