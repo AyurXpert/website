@@ -611,6 +611,15 @@ export function _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById){
 // at all (e.g. a platform login) are still caught.
 export function _collectUntrackedStaff(tree, ug, bedTotals, byDept, allStaff, deptNameById){
   const consumedIds = new Set();
+  // Session 161: alongside consuming IDs, also record every REAL shortfall (required > actual)
+  // per designation key -- Dr. Venkatesh asked for the "valid designation, wrong department"
+  // reason to say exactly where the person should go, not just "check whether they should be
+  // deputed", plus a one-click action. gapsByKey[key] collects every department with an open
+  // slot for that key, so the per-person suggestion below can point at a real, currently-short
+  // department -- never a guess, and honestly empty if nothing is actually short right now
+  // (a fully-compliant tenant, like SDM at its deliberate exact-minimum state, has nowhere
+  // better to send them, and the UI says so instead of fabricating a destination).
+  const gapsByKey = {};
   tree.forEach(node=>{
     if(!node.dept) return;
     _dedupById([node.dept, ...node.children]).forEach(d=>{
@@ -618,7 +627,14 @@ export function _collectUntrackedStaff(tree, ug, bedTotals, byDept, allStaff, de
       if(!r.mandated) return;
       r.ladder.forEach(row=>{
         if(row.facultyHeld) return;
-        (byDept[d.id]||[]).filter(s=>(row.keys||[]).includes(s.designation)).forEach(s=>consumedIds.add(s.id));
+        const matched=(byDept[d.id]||[]).filter(s=>(row.keys||[]).includes(s.designation));
+        matched.forEach(s=>consumedIds.add(s.id));
+        const gap = row.count - matched.length;
+        if(gap>0){
+          row.keys.forEach(k=>{
+            (gapsByKey[k]=gapsByKey[k]||[]).push({deptId:d.id, deptName:d.name, gap});
+          });
+        }
       });
     });
   });
@@ -638,6 +654,7 @@ export function _collectUntrackedStaff(tree, ug, bedTotals, byDept, allStaff, de
     if(consumedIds.has(s.id)) return;
     const deptName=(deptNameById && deptNameById[s.department_id]) || '—';
     let reason;
+    let suggestedDept=null;
     if(!s.designation){
       reason='No designation assigned — likely a platform/admin login, not a clinical or NCISM-tracked staff position.';
     } else if(FACULTY_CONCURRENT_POSTS.has(s.designation)){
@@ -652,12 +669,19 @@ export function _collectUntrackedStaff(tree, ug, bedTotals, byDept, allStaff, de
       if(optionalMatch){
         reason='This position ("'+optionalMatch[1]+'") was downgraded from mandatory to optional in the current NCISM schedule for this department — tracked here for your own records, not counted toward compliance.';
       } else if(mandatoryKeys.has(s.designation) || facultyKeys.has(s.designation)){
-        reason='This designation has a real NCISM requirement, but not in the department this person is currently posted to — check whether they should be deputed to where that requirement actually lives.';
+        // Session 161: pick the currently-shortest-staffed qualifying department (largest real
+        // gap first, department name as a deterministic tiebreaker) -- "most urgently needed",
+        // not just "first found". Genuinely empty if nobody's short right now.
+        const candidates=(gapsByKey[s.designation]||[]).slice().sort((a,b)=>b.gap-a.gap || a.deptName.localeCompare(b.deptName));
+        suggestedDept = candidates[0] || null;
+        reason = suggestedDept
+          ? 'This designation has a real NCISM requirement, but not in the department this person is currently posted to — '+suggestedDept.deptName+' is currently short '+suggestedDept.gap+', deputing them there would close a real gap.'
+          : 'This designation has a real NCISM requirement, but not in the department this person is currently posted to — no department currently has an open slot for it, though, so there\'s nowhere better to send them right now.';
       } else {
         reason='Not part of NCISM Schedule I/XX tracking at all — a support/administrative role the regulation doesn\'t prescribe a headcount for.';
       }
     }
-    list.push({id:s.id, full_name:s.full_name, designation:s.designation, deptName, reason});
+    list.push({id:s.id, full_name:s.full_name, designation:s.designation, deptName, reason, suggestedDept});
   });
   return list;
 }
@@ -672,7 +696,11 @@ function _esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 // number; (3) the true total headcount of the organisation, so nothing looks hidden. Always
 // sourced from _computeGrandCompliance()/_collectExtraStaff() above, so this can never
 // disagree with any page that computes its Required/Recruited numbers the same way.
-export function _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff, untrackedList}){
+// Session 161: enableDeputeAction defaults false/absent on purpose -- ncism-compliance.html's
+// standalone report reuses this exact same banner but has no depute-modal/RPC wiring at all
+// (it's a read-only report, not an HR action surface), so the button only ever renders where
+// admin.js explicitly opts in.
+export function _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff, untrackedList, enableDeputeAction}){
   const pct = grandReq>0 ? Math.round(Math.min(grandMet,grandReq)/grandReq*100) : 100;
   const hc = pct>=100?'#2d7a4f':pct>=80?'#c9902a':'#c0392b';
   const extra = extraList||[];
@@ -704,9 +732,19 @@ export function _renderComplianceSummaryBanner({grandReq, grandMet, extraList, t
         ? '<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--green-mid);font-weight:600">Who, and why? (click to expand)</summary>'
           +'<div style="margin-top:6px;display:flex;flex-direction:column;gap:6px">'
           +untracked.map(u=>'<div style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 10px">'
-            +'<strong style="color:var(--text-dark)">'+_esc(u.full_name||'—')+'</strong>'
+            +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">'
+            +'<span><strong style="color:var(--text-dark)">'+_esc(u.full_name||'—')+'</strong>'
             +(u.designation?' <span style="color:var(--text-muted)">('+_esc(u.designation.replace(/_/g,' '))+')</span>':'')
-            +' — '+_esc(u.deptName)
+            +' — '+_esc(u.deptName)+'</span>'
+            // Session 161: only when there's actually somewhere better to send them (a real,
+            // currently-short department, per _collectUntrackedStaff's gapsByKey computation)
+            // AND the caller opted into HR actions -- reuses the exact same openDeputeModal()
+            // the Extra Staff tab already uses, pre-filled with the suggested department
+            // instead of their current one, so Depute is one click instead of a manual hunt.
+            +(enableDeputeAction && u.suggestedDept
+              ? '<button class="btn-outline" style="font-size:10.5px;padding:2px 7px;white-space:nowrap" data-onclick="openDeputeModal" data-onclick-a0="'+_esc(u.id)+'" data-onclick-a1="'+_esc(u.full_name||'this staff member')+'" data-onclick-a2="'+_esc(u.suggestedDept.deptId)+'">🔄 Depute to '+_esc(u.suggestedDept.deptName)+'</button>'
+              : '')
+            +'</div>'
             +'<div style="margin-top:2px;font-size:11.5px;color:var(--text-muted)">'+_esc(u.reason)+'</div>'
           +'</div>').join('')
           +'</div></details>'

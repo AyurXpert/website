@@ -1199,7 +1199,15 @@ window.submitDepute = async function(){
   await logAudit('depute_extra_staff', 'profiles', staffId, { staff_name: staffName, department_id: deptId }, {tenantId, userId: profile.id, userName: profile.full_name});
   closeDeputeModal();
   _toast(staffName+' deputed to the new department.');
-  _renderExtraStaff();
+  // Session 161: Depute is now also reachable from the NCISM Requirements/Staffing Plan
+  // banners' "Who, and why?" list (deputing an untracked/mis-posted person to a real gap), not
+  // just the Extra Staff tab -- refresh whichever HR sub-tab is actually visible so the acting
+  // page's own numbers update immediately, instead of always refreshing Extra Staff regardless
+  // of where the click came from.
+  const _panelVisible = id => document.getElementById(id)?.style.display !== 'none';
+  if (_panelVisible('hr-extra-panel')) _renderExtraStaff();
+  if (_panelVisible('hr-ncism-panel')) _renderNcismStaffing();
+  if (_panelVisible('hr-plan-panel')) _renderStaffingPlan();
 };
 
 // Session 154: Terminate now goes through a modal that requires a reason (terminate_staff()'s
@@ -1666,7 +1674,13 @@ async function _renderNcismStaffing() {
 // Filtering here makes "Total Staff" mean "currently employed" (what Terminate is actually for),
 // so Total = Recruited + Extra + outside-tracking holds again instead of silently drifting.
 const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_active',true]]);
-  const summaryBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff, untrackedList});
+  // Session 161: enableDeputeAction:true is safe here (and on the other HR-section summary
+  // banner) because both only ever render after loadHR() has already populated
+  // _deptSelOptsHtml -- both are HR sub-tabs, reached via _hrSub(), which loadHR() always runs
+  // before. _renderNcismChecklist (Statistics page) deliberately omits this -- it's a separate
+  // top-level section a user can land on without ever visiting HR, so _deptSelOptsHtml isn't
+  // guaranteed populated there.
+  const summaryBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff, untrackedList, enableDeputeAction:true});
 
   // ── Summary table (designation-wise totals across ALL zones) ─────────
   // Session 160: rewritten around rollupRows (_designationRollup) + ROLLUP_SECTIONS -- see
@@ -2215,7 +2229,13 @@ async function _renderStaffingPlan() {
 // Filtering here makes "Total Staff" mean "currently employed" (what Terminate is actually for),
 // so Total = Recruited + Extra + outside-tracking holds again instead of silently drifting.
 const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_active',true]]);
-  const summaryBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff, untrackedList});
+  // Session 161: enableDeputeAction:true is safe here (and on the other HR-section summary
+  // banner) because both only ever render after loadHR() has already populated
+  // _deptSelOptsHtml -- both are HR sub-tabs, reached via _hrSub(), which loadHR() always runs
+  // before. _renderNcismChecklist (Statistics page) deliberately omits this -- it's a separate
+  // top-level section a user can land on without ever visiting HR, so _deptSelOptsHtml isn't
+  // guaranteed populated there.
+  const summaryBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff, untrackedList, enableDeputeAction:true});
 
   const facTotal=_scheduleIFacultyTotal(depts, ug);
   const clinDepts=facTotal.count;
