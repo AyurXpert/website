@@ -653,12 +653,14 @@ export function _collectUntrackedStaff(tree, ug, bedTotals, byDept, allStaff, de
   (allStaff||[]).forEach(s=>{
     if(consumedIds.has(s.id)) return;
     const deptName=(deptNameById && deptNameById[s.department_id]) || '—';
-    let reason;
+    let reason, reasonType;
     let suggestedDept=null;
     if(!s.designation){
       reason='No designation assigned — likely a platform/admin login, not a clinical or NCISM-tracked staff position.';
+      reasonType='no_designation';
     } else if(FACULTY_CONCURRENT_POSTS.has(s.designation)){
       reason='NCISM treats this as an additional-charge duty (meant to be held by someone already counted in another required position, not a separate hire) — never given its own headcount slot.';
+      reasonType='additional_charge';
     } else {
       // Check THIS person's own department for a specific optional-row match first -- more
       // precise than a global "is this key mandatory anywhere" check, since some designations
@@ -668,6 +670,7 @@ export function _collectUntrackedStaff(tree, ug, bedTotals, byDept, allStaff, de
       const optionalMatch=dept ? NCISM_XX_OPTIONAL_ROWS.find(([zone,,keys])=>ORG_ZONE_MAP[zone]===deptKey && keys.includes(s.designation)) : null;
       if(optionalMatch){
         reason='This position ("'+optionalMatch[1]+'") was downgraded from mandatory to optional in the current NCISM schedule for this department — tracked here for your own records, not counted toward compliance.';
+        reasonType='downgraded_optional';
       } else if(mandatoryKeys.has(s.designation) || facultyKeys.has(s.designation)){
         // Session 161: pick the currently-shortest-staffed qualifying department (largest real
         // gap first, department name as a deterministic tiebreaker) -- "most urgently needed",
@@ -677,11 +680,13 @@ export function _collectUntrackedStaff(tree, ug, bedTotals, byDept, allStaff, de
         reason = suggestedDept
           ? 'This designation has a real NCISM requirement, but not in the department this person is currently posted to — '+suggestedDept.deptName+' is currently short '+suggestedDept.gap+', deputing them there would close a real gap.'
           : 'This designation has a real NCISM requirement, but not in the department this person is currently posted to — no department currently has an open slot for it, though, so there\'s nowhere better to send them right now.';
+        reasonType='wrong_department';
       } else {
         reason='Not part of NCISM Schedule I/XX tracking at all — a support/administrative role the regulation doesn\'t prescribe a headcount for.';
+        reasonType='not_tracked';
       }
     }
-    list.push({id:s.id, full_name:s.full_name, designation:s.designation, deptName, reason, suggestedDept});
+    list.push({id:s.id, full_name:s.full_name, designation:s.designation, deptName, reason, reasonType, suggestedDept});
   });
   return list;
 }
@@ -790,13 +795,35 @@ export function _rowStatusInfo(keys, rec, total, extraList, untrackedList){
   const matchedUntracked = (untrackedList||[]).filter(e=>keys.includes(e.designation));
   const extraSum = matchedExtra.reduce((s,e)=>s+e.extra,0);
   const parts=[];
-  if (matchedUntracked.length) parts.push(matchedUntracked.length+' ('
-    +matchedUntracked.map(e=>e.full_name+' — '+e.deptName).join(', ')
+
+  // Session 162: matchedUntracked is no longer treated as one blanket "needs deputing" bucket
+  // -- found live that a genuinely different case ("downgraded to optional": 2 real Kriyakalpa
+  // Therapists, a department where 'therapist' is no longer NCISM-mandated at all) was getting
+  // the exact same "likely needs deputing" wording as a true misposting, which is actively
+  // wrong advice -- there's no department to depute them TO for compliance purposes, they're
+  // just real staff doing real work nobody's required to staff there anymore. Split by the same
+  // reasonType _collectUntrackedStaff() already computes, so the two can't disagree.
+  const wrongDept = matchedUntracked.filter(e=>e.reasonType==='wrong_department');
+  const downgraded = matchedUntracked.filter(e=>e.reasonType==='downgraded_optional');
+  const otherUntracked = matchedUntracked.filter(e=>e.reasonType!=='wrong_department' && e.reasonType!=='downgraded_optional');
+
+  if (wrongDept.length) parts.push(wrongDept.length+' ('
+    +wrongDept.map(e=>e.full_name+' — '+e.deptName).join(', ')
     +') posted to a department with no matching requirement for this designation — likely needs deputing, not genuine surplus.');
+  if (downgraded.length) parts.push(downgraded.length+' ('
+    +downgraded.map(e=>e.full_name+' — '+e.deptName).join(', ')
+    +') in a department where this designation was downgraded to optional under the current schedule — real staff, real work, just no longer a mandated post there; not a compliance concern, no depute needed.');
+  if (otherUntracked.length) parts.push(otherUntracked.length+' ('
+    +otherUntracked.map(e=>e.full_name+' — '+e.deptName).join(', ')
+    +') outside NCISM tracking for a different reason — see "Who, and why?" above.');
   if (extraSum>0) parts.push(extraSum+' genuinely recruited above the NCISM minimum (see ➕ Extra Staff tab).');
   const unexplained = (rec-total) - matchedUntracked.length - extraSum;
   if (unexplained>0) parts.push(unexplained+' not accounted for by either the Extra Staff or untracked-staff lists — worth a closer look.');
-  if (matchedUntracked.length>0 || unexplained>0) return {color:'#7c5cbf', icon:'🔀', title:parts.join(' ')};
+  // Only a genuine misposting (or something totally unaccounted for) is actually actionable --
+  // "downgraded to optional" and genuine Extra Staff are both informational, so a row made up
+  // entirely of those two stays green instead of flagging a violet "needs attention" that has
+  // no real action behind it.
+  if (wrongDept.length>0 || unexplained>0) return {color:'#7c5cbf', icon:'🔀', title:parts.join(' ')};
   return {color:'#2d7a4f', icon:'✅', title:parts.join(' ')};
 }
 
@@ -811,8 +838,8 @@ export function _renderComplianceLegend(){
     +'<div style="font-weight:700;color:var(--text-dark);margin-bottom:6px">ℹ️ Reading the Recruited column</div>'
     +'<div>Each row’s <strong>Recruited</strong> is a flat, tenant-wide headcount for that designation — it can sit above <strong>Total Needed</strong> without meaning the organisation over-hired, and the GRAND TOTAL row is unaffected either way (it caps every position at its own requirement, per department, so a surplus in one place can never hide a real shortfall elsewhere).</div>'
     +'<div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">'
-      +'<div><span style="color:#2d7a4f;font-weight:700">✅ Green</span> — fully staffed. If Recruited reads above Total Needed here, hover it — the surplus is genuine and already listed on the <strong>➕ Extra Staff</strong> tab.</div>'
-      +'<div><span style="color:#7c5cbf;font-weight:700">🔀 Violet</span> — Recruited reads above Total Needed but is <strong>not</strong> genuine surplus: hover to see who. It means a real NCISM designation is posted to a department with no matching requirement (a schedule update removed or moved that line, or the posting is simply out of date). Check "Who, and why?" in the compliance banner above, then <strong>Depute</strong> them (🏥 Dept. Staff or ➕ Extra Staff tab) to where the requirement actually is.</div>'
+      +'<div><span style="color:#2d7a4f;font-weight:700">✅ Green</span> — fully staffed, or above Total Needed for a reason that needs no action: hover it. Either the surplus is genuine (already listed on the <strong>➕ Extra Staff</strong> tab), or the extra person is in a department where this designation was downgraded to optional under the current schedule — real staff, real work, just not a mandated post there.</div>'
+      +'<div><span style="color:#7c5cbf;font-weight:700">🔀 Violet</span> — Recruited reads above Total Needed and genuinely needs a look: hover to see who. It means a real NCISM designation is posted to a department with no matching requirement at all (a schedule update removed or moved that line, or the posting is simply out of date). Check "Who, and why?" in the compliance banner above, then <strong>Depute</strong> them (🏥 Dept. Staff or ➕ Extra Staff tab) to where the requirement actually is.</div>'
       +'<div><span style="color:#c9902a;font-weight:700">⚠️ Amber</span> — short-staffed, some recruited.</div>'
       +'<div><span style="color:#c0392b;font-weight:700">❌ Red</span> — nobody recruited yet.</div>'
     +'</div>'
