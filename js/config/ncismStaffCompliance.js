@@ -11,6 +11,7 @@
 // access) so it can be safely imported into any page module without side effects.
 
 import { SCHEDULE_IV, NCISM_OPDS } from './ncism.js';
+import { DESIG_MAP } from './designations.js';
 
 // Faculty (Schedule I) posts that are typically held concurrently by an existing faculty
 // member per NCISM regulation (e.g. Medical Director) — still tracked as an individual
@@ -282,6 +283,88 @@ export function _scheduleIFacultyTotal(depts, ug) {
     if (req) { tot.p += req.prof; tot.a += req.assoc; tot.b += req.asst; }
   });
   return {p:tot.p, a:tot.a, b:tot.b, count: codes.length};
+}
+
+// ── Canonical per-designation rollup ─────────────────────────────────────────
+// Session 160: the ONE place that walks NCISM_XX_ROWS (+ Schedule I faculty + PG seat add-ons)
+// and produces exactly one row per real designation post, UG+PG combined. Built after finding
+// TWO independent hand-maintained lists in admin.js (the legacy rollup table's NCISM_SUM_GRPS,
+// and the Staffing Plan tab's DESIG_ROLE_DEFAULT/STAFFING_PLAN_ROLE_ORDER pairing) had each
+// silently dropped a real mandatory position -- Dark Room Assistant was never added to
+// NCISM_SUM_GRPS's Diagnostics group when it became mandatory (Session 150), and Finance
+// Manager's role had no matching section in STAFFING_PLAN_ROLE_ORDER at all -- because both
+// require a human to remember to register every new/changed designation in a SECOND list, and
+// NCISM revises Schedule XX/I often enough that this can't be kept caught up by inspection
+// alone (two separate sessions of live user-reported "the totals don't add up" investigation
+// were needed to find these two, and an exhaustive line-by-line cross-check was the only way to
+// confirm nothing else was already missing the same way).
+//
+// Every caller that needs "one row per designation, UG+PG combined" (the legacy rollup table,
+// Staffing Plan's per-role breakdown, and the Statistics page's setup checklist) now calls this
+// instead of re-deriving it independently -- a new/changed NCISM_XX_ROWS row is picked up here
+// automatically, with no second list to remember to touch before it becomes visible anywhere.
+// Grouping rows into display SECTIONS (genuinely editorial -- e.g. bundling Lab Technician +
+// ECG Technician onto one summary line) still needs a small config at each call site, but that
+// config now only affects LABELLING/GROUPING, never EXISTENCE: any key it doesn't mention still
+// renders in full, just filed under a visible fallback bucket instead of vanishing.
+//
+// bedTotals is optional -- omitting it (as the Statistics page's checklist currently does,
+// pending a data-fetch reorder that's a separate, already-flagged issue) just means Sch XX/27
+// rows (Medical/Surgical IPD nursing) contribute 0 instead of their real bed-derived count,
+// exactly matching that call site's pre-existing, documented limitation rather than silently
+// changing its behaviour.
+export function _designationRollup(ug, pgList, bedTotals, facTotal){
+  const rows = [];
+  const byKey = {};
+  const ensure = (key, altKeys) => {
+    if(!byKey[key]){
+      byKey[key] = {
+        key, altKeys:new Set(altKeys||[key]),
+        label:(DESIG_MAP[key]?.l)||key,
+        zones:new Set(), facultyHeld:FACULTY_CONCURRENT_POSTS.has(key), pgOnly:false,
+        ugTotal:0, pgAddon:0,
+      };
+      rows.push(byKey[key]);
+    }
+    (altKeys||[key]).forEach(k=>byKey[key].altKeys.add(k));
+    return byKey[key];
+  };
+
+  // Schedule I faculty -- not real NCISM_XX_ROWS entries (SCHEDULE_IV via
+  // _scheduleIFacultyTotal is a separate table), so bumped explicitly rather than picked up by
+  // the NCISM_XX_ROWS walk below.
+  if(facTotal){
+    ensure('professor', ['professor','hod']).ugTotal += facTotal.p||0;
+    ensure('associate_professor').ugTotal += facTotal.a||0;
+    ensure('assistant_professor').ugTotal += facTotal.b||0;
+  }
+  ensure('senior_resident').pgOnly = true;
+
+  // PG seat-derived add-ons -- the exact math every PG-aware caller already ran independently,
+  // centralised here so it can't drift between call sites either. Keyed by the same designation
+  // strings used as a real row's keys[0] below, so each add-on lands on the right row
+  // automatically.
+  const pgAddon = {};
+  (pgList||[]).forEach(d=>{
+    const seats=d.pg_seats_sanctioned||3, pgBeds=seats*4;
+    pgAddon['senior_resident']=(pgAddon['senior_resident']||0)+Math.ceil(seats/3);
+    pgAddon['staff_nurse']=(pgAddon['staff_nurse']||0)+Math.ceil(pgBeds/10);
+    pgAddon['attender']=(pgAddon['attender']||0)+Math.ceil(pgBeds/20);
+    if(d.ncism_code==='PK') pgAddon['therapist']=(pgAddon['therapist']||0)+Math.ceil(seats/3)*2;
+    if(seats>3) pgAddon['assistant_professor']=(pgAddon['assistant_professor']||0)+Math.ceil((seats-3)/3);
+    if(seats>6) pgAddon['associate_professor']=(pgAddon['associate_professor']||0)+Math.ceil((seats-6)/3);
+  });
+
+  NCISM_XX_ROWS.forEach(([zone,,keys,req,ref])=>{
+    const c = ref==='Sch XX/27'
+      ? (bedTotals ? _combinedIpdNursingSplit(bedTotals)[zone==='Medical IPD'?'IPD_MEDICAL':'IPD_SURGICAL'] : 0)
+      : (req[ug]||0);
+    const row = ensure(keys[0], keys);
+    if(c){ row.ugTotal += c; row.zones.add(zone); }
+  });
+
+  rows.forEach(r=>{ r.pgAddon = pgAddon[r.key]||0; });
+  return rows;
 }
 
 // Maps each NCISM_XX_ROWS zone label onto the department key (category or ncism_code) it lives under
@@ -633,7 +716,8 @@ export function _renderComplianceSummaryBanner({grandReq, grandMet, extraList, t
 // tracking") never look identical again -- and so the two call sites can't drift apart on
 // how they explain it. extraList/untrackedList are the exact same lists the compliance
 // summary banner above the table already computes; keys is the row's own designation-key
-// list (NCISM_SUM_GRPS' `k`, or Staffing Plan's `[...info.altKeys]`).
+// list (a ROLLUP_SECTIONS group's merged altKeys, or Staffing Plan's `[...row.altKeys]` --
+// both ultimately sourced from _designationRollup() below).
 export function _rowStatusInfo(keys, rec, total, extraList, untrackedList){
   // Same two-way split the original inline ternary used for every non-surplus case (including
   // the total===0 edge case, preserved exactly rather than reinterpreted) -- only rec>total>0

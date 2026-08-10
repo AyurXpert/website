@@ -9,11 +9,11 @@ import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS } from '../conf
 import { SUPABASE_URL, SESSION_KEYS } from '../config/constants.js';
 import { DESIGS, DESIG_MAP, DESIG_CATS } from '../config/designations.js';
 import {
-  FACULTY_CONCURRENT_POSTS, NCISM_XX_ROWS, ORG_TREE_DEF, OPD_CHILD_NCISM_CODES,
+  NCISM_XX_ROWS, ORG_TREE_DEF, OPD_CHILD_NCISM_CODES,
   _deptKey, buildDeptTree, _dedupById, _scheduleIFacultyTotal, deptRequirement,
   _computeIpdBedTotals, _computeGrandCompliance, _collectExtraStaff, _collectUntrackedStaff,
-  _renderComplianceSummaryBanner, SCHEDULE_I_CODES, _combinedIpdNursingSplit, _rowStatusInfo,
-  _renderComplianceLegend,
+  _renderComplianceSummaryBanner, SCHEDULE_I_CODES, _rowStatusInfo,
+  _renderComplianceLegend, _designationRollup,
 } from '../config/ncismStaffCompliance.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
@@ -872,73 +872,67 @@ function _hierarchyRank(desig){ return DESIG_NCISM_RANK[desig] ?? (1000 + (DESIG
 
 // NCISM_XX_OPTIONAL_ROWS -- also moved to js/config/ncismStaffCompliance.js.
 
-// Summary groups — each desig key appears in EXACTLY ONE group to avoid double-counting
-// Session 153: Administrator (Non-clinical), Dispensary In-charge, and Lab Attendant's
-// "Microbiology Lab Assistant" merge were all removed here -- their designations
-// (administrative_officer/chief_pharmacist/microbiology_lab_assistant) were dropped outright
-// from NCISM_XX_ROWS in Session 150 (the 2026-27 circular has no line for them at all), but
-// this hand-maintained list never got updated to match -- leaving 3 ghost/misleading rows: 2
-// showed a confusing "—/—/—/1/⚠️" (looks like a compliance gap, isn't one -- there's no
-// requirement to fall short of), and the 3rd silently double-counted anyone with
-// microbiology_lab_assistant into "Lab Attendant"'s recruited total. Real staff holding any of
-// these 3 designations now surface in the Extra Staff tab instead (FORMER_NCISM_DESIGNATIONS,
-// ncismStaffCompliance.js) -- visible with Depute/Terminate actions, not silently invisible OR
-// showing as a fake gap.
-const NCISM_SUM_GRPS = [
-  {s:'Faculty (Schedule I)',rows:[
-    {l:'Professor / HOD',                             k:['professor','hod'],                                                                    fac:'p'},
-    {l:'Associate Professor',                         k:['associate_professor'],                                                                fac:'a'},
-    {l:'Assistant Professor',                         k:['assistant_professor'],                                                                fac:'b'},
-    {l:'Senior Resident (PG scholars only)',          k:['senior_resident'],                                                                    pgOnly:true},
+// Legacy rollup display grouping — Session 160 rewrite. This list used to be the ONLY thing
+// that decided whether a designation appeared in the "Hospital-wide Total" table at all: a
+// key not registered here (Dark Room Assistant, until this session) simply never rendered,
+// with no visible sign anything was missing. It is no longer that -- _designationRollup()
+// (ncismStaffCompliance.js) is now the single source of every real designation post, and this
+// list ONLY decides how known posts are LABELLED and GROUPED for display (e.g. bundling Lab
+// Technician + ECG Technician onto one line, a genuine editorial choice, not a data fact).
+// `keys` here are canonical rollup-row keys (i.e. `_designationRollup()`'s own `row.key` --
+// effectively each NCISM_XX_ROWS entry's keys[0] -- NOT every alternate-eligible designation;
+// synonyms like staff_nurse/ward_sister are already folded into one row by _designationRollup
+// itself via that row's own `keys` array, so they never need listing here). Any designation
+// _designationRollup() produces that ISN'T mentioned in any group below still renders in full
+// -- see the "⚠️ Not Yet Grouped" fallback section in _renderNcismStaffing() -- so a future
+// Schedule XX change can, at worst, show up in a slightly less pretty spot, never nowhere.
+const ROLLUP_SECTIONS = [
+  {s:'Faculty (Schedule I)',groups:[
+    {l:'Professor / HOD',                             keys:['professor']},
+    {l:'Associate Professor',                         keys:['associate_professor']},
+    {l:'Assistant Professor',                         keys:['assistant_professor']},
+    {l:'Senior Resident (PG scholars only)',          keys:['senior_resident']},
   ]},
-  {s:'Clinical — Doctors & Management',rows:[
-    {l:'Medical Director / Principal / Dean',         k:['medical_director']},
-    {l:'Medical Superintendent',                      k:['medical_superintendent']},
-    {l:'Deputy Medical Superintendent',               k:['deputy_medical_superintendent']},
-    {l:'RMO / EMO / Resident MO / RSO (Admin + IPD × 3)',  k:['resident_medical_officer','emergency_medical_officer','general_duty_medical_officer','resident_surgical_officer']},
-    {l:'House Officer / Clinical Registrar (BAMS)',   k:['junior_resident']},
+  {s:'Clinical — Doctors & Management',groups:[
+    {l:'Medical Director / Principal / Dean',         keys:['medical_director']},
+    {l:'Medical Superintendent',                      keys:['medical_superintendent']},
+    {l:'Deputy Medical Superintendent',               keys:['deputy_medical_superintendent']},
+    {l:'RMO / EMO / Resident MO / RSO (Admin + IPD × 3)',  keys:['resident_medical_officer','resident_surgical_officer']},
+    {l:'House Officer / Clinical Registrar (BAMS)',   keys:['junior_resident']},
   ]},
-  {s:'Nursing',rows:[
-    {l:'Matron / Nursing Superintendent',             k:['nursing_superintendent']},
-    {l:'Assistant Matron',                            k:['deputy_nursing_superintendent']},
-    {l:'Staff Nurse — all zones (OPD+IPD+PK+OT+LR)', k:['staff_nurse','ward_sister']},
-    {l:'Ayah / Attendant — all zones (IPD+Admin+OT+CSSD)', k:['attender','anm','ot_attendant','cssd_aya']},
+  {s:'Nursing',groups:[
+    {l:'Matron / Nursing Superintendent',             keys:['nursing_superintendent']},
+    {l:'Assistant Matron',                            keys:['deputy_nursing_superintendent']},
+    {l:'Staff Nurse — all zones (OPD+IPD+PK+OT+LR)', keys:['staff_nurse']},
+    {l:'Ayah / Attendant — all zones (IPD+Admin+OT+CSSD)', keys:['attender','ot_attendant','cssd_aya']},
   ]},
-  {s:'Pharmacy',rows:[
-    {l:'Pharmacist',                                  k:['pharmacist','pharmacy_assistant']},
+  {s:'Pharmacy',groups:[
+    {l:'Pharmacist',                                  keys:['pharmacist']},
   ]},
-  {s:'Diagnostics',rows:[
-    {l:'Lab Technician / ECG Technician',             k:['lab_technician','ecg_technician']},
-    {l:'Lab Attendant',                               k:['lab_attendant']},
-    {l:'X-ray Technician / Radiographer',             k:['radiographer']},
-    // Session 160: was entirely missing from this hand-maintained group list -- Sch XX/24 has
-    // been mandatory (not optional) since Session 150's schedule replacement, so it's a real
-    // NCISM_XX_ROWS row and counted in the canonical tree-based Grand Total, but this legacy
-    // per-designation table never had a row for it at all. That's the exact +1 behind the
-    // 121-(hand-summed "Total Needed")-vs-122-(Grand Total) drift found while investigating the
-    // Staff Nurse/Receptionist surplus confusion -- and it also meant any real Dark Room
-    // Assistant on staff (SDM has one) was invisible on this specific table, not just under-
-    // counted, since a row has to exist here before recruited/required can be shown at all.
-    {l:'Dark Room Assistant',                         k:['dark_room_assistant']},
-    {l:'Microbiologist',                              k:['microbiologist']},
+  {s:'Diagnostics',groups:[
+    {l:'Lab Technician / ECG Technician',             keys:['lab_technician','ecg_technician']},
+    {l:'Lab Attendant',                               keys:['lab_attendant']},
+    {l:'X-ray Technician / Radiographer',             keys:['radiographer']},
+    {l:'Dark Room Assistant',                         keys:['dark_room_assistant']},
+    {l:'Microbiologist',                              keys:['microbiologist']},
   ]},
-  {s:'Reception & MRD',rows:[
-    {l:'Receptionist',                                k:['receptionist']},
-    {l:'Registration & Billing Clerks',               k:['registration_clerk','billing_clerk']},
-    {l:'Medical Record Technician',                   k:['medical_record_officer','medical_record_technician']},
-    {l:'Office Superintendent',                       k:['opd_incharge']},
+  {s:'Reception & MRD',groups:[
+    {l:'Receptionist',                                keys:['receptionist']},
+    {l:'Registration & Billing Clerks',               keys:['registration_clerk']},
+    {l:'Medical Record Technician',                   keys:['medical_record_officer']},
+    {l:'Office Superintendent',                       keys:['opd_incharge']},
   ]},
-  {s:'Finance & Accounts',rows:[
-    {l:'Finance Mgr + Accountants + Store Keeper',    k:['finance_manager','accountant','store_keeper']},
+  {s:'Finance & Accounts',groups:[
+    {l:'Finance Mgr + Accountants + Store Keeper',    keys:['finance_manager','accountant','store_keeper']},
   ]},
-  {s:'OT / CSSD',rows:[
-    {l:'OT Nurse / CSSD / Anushastra Technician',    k:['ot_technician','cssd_incharge','cssd_technician','anushastra_technician']},
+  {s:'OT / CSSD',groups:[
+    {l:'OT Nurse / CSSD / Anushastra Technician',    keys:['ot_technician','cssd_incharge','anushastra_technician']},
   ]},
-  {s:'Therapy & Wellness',rows:[
-    {l:'PK / Kriyakalpa / Physiotherapy Therapist',  k:['pk_incharge','senior_therapist','therapist']},
-    {l:'Yoga Demonstrator',                           k:['yoga_instructor']},
-    {l:'Diet In-charge',                              k:['palha_diet_incharge','dietitian']},
-    {l:'Pathya Cook',                                 k:['diet_cook']},
+  {s:'Therapy & Wellness',groups:[
+    {l:'PK / Kriyakalpa / Physiotherapy Therapist',  keys:['pk_incharge','therapist']},
+    {l:'Yoga Demonstrator',                           keys:['yoga_instructor']},
+    {l:'Diet In-charge',                              keys:['palha_diet_incharge']},
+    {l:'Pathya Cook',                                 keys:['diet_cook']},
   ]},
 ];
 
@@ -1010,11 +1004,18 @@ function _ncismRoleMinimums(ug){
   const add = (role, n) => { if (role) byRole[role] = (byRole[role]||0) + n; };
 
   const fac = _scheduleIFacultyTotal(null, ug);
-  add('doctor', fac.p + fac.a + fac.b);
-
-  NCISM_XX_ROWS.forEach(([,,keys,req]) => {
-    const c = req[ug] || 0;
-    if (c && !FACULTY_CONCURRENT_POSTS.has(keys[0])) add(DESIG_ROLE_DEFAULT[keys[0]], c);
+  // Session 160: now sources every row from _designationRollup() (ncismStaffCompliance.js) --
+  // the same canonical computation the NCISM Requirements/Staffing Plan tabs use -- instead of
+  // a third independent hand-rolled walk over NCISM_XX_ROWS. bedTotals is deliberately omitted
+  // (this call site's beds/departments fetch happens AFTER this function already runs -- a
+  // separate, already-flagged data-fetch-order issue, not touched in this pass) so Sch XX/27
+  // rows (Medical/Surgical IPD nursing) still contribute 0 here, exactly matching this
+  // checklist's pre-existing, documented limitation rather than silently changing its
+  // behaviour.
+  _designationRollup(ug, [], undefined, fac).forEach(row => {
+    if (row.facultyHeld) return;
+    const total = row.ugTotal + row.pgAddon;
+    if (total) add(DESIG_ROLE_DEFAULT[row.key], total);
   });
 
   return byRole;
@@ -1627,60 +1628,20 @@ async function _renderNcismStaffing() {
   const facAct=cntD(['professor','hod','associate_professor','assistant_professor']);
   const facGap=Math.max(0,facReq-facAct);
 
-  // PG additions per desig key
-  const keyTotPG={};
-  pgList.forEach(d=>{
-    const seats=d.pg_seats_sanctioned||3, pgB=seats*4;
-    keyTotPG['senior_resident']=(keyTotPG['senior_resident']||0)+Math.ceil(seats/3);
-    keyTotPG['staff_nurse']=(keyTotPG['staff_nurse']||0)+Math.ceil(pgB/10);
-    keyTotPG['attender']=(keyTotPG['attender']||0)+Math.ceil(pgB/20);
-    if(d.ncism_code==='PK')keyTotPG['therapist']=(keyTotPG['therapist']||0)+Math.ceil(seats/3)*2;
-    if(seats>3)keyTotPG['assistant_professor']=(keyTotPG['assistant_professor']||0)+Math.ceil((seats-3)/3);
-    if(seats>6)keyTotPG['associate_professor']=(keyTotPG['associate_professor']||0)+Math.ceil((seats-6)/3);
-  });
-
   // Zone abbreviations for “Where Required” column
   const ZA={'Administration':'Admin','Finance & Accounts':'Finance','Reception & MRD':'Reception',
     'OPD Nursing':'OPD Nsg','Pharmacy':'Pharmacy','Diagnostics':'Diagnostics',
     'Medical IPD':'Med IPD','Surgical IPD':'Surg IPD','Panchakarma':'PK',
     'Operation Theatre':'OT','Labour Room':'LR','Kriyakalpa':'Kriyakalpa',
     'Physiotherapy':'Physio','Yoga & Wellness':'Yoga','Diet / Pathya':'Diet','CSSD':'CSSD'};
-  // Session 159: Sch XX/27 (Medical/Surgical IPD "Nursing Staff", the MESA&R combined-ratio
-  // row) deliberately stores {60:0,100:0,150:0,200:0} in NCISM_XX_ROWS -- Session 150 made its
-  // real number bed-derived-only (_combinedIpdNursingSplit), computed via deptRequirement()'s
-  // own ref==='Sch XX/27' branch elsewhere. Both keyZones and ugReqForGroup below read req[ug]
-  // directly and never knew about that override, so "Staff Nurse — all zones" silently dropped
-  // Med/Surg IPD from both its zone list ("OPD+IPD+PK+OT+LR" claimed, IPD never actually
-  // appeared) and its numeric total (showed 8, real total ~21) -- found live while checking a
-  // real NCISM compliance screenshot against the code with Dr. Venkatesh. This one small helper
-  // is the single place both call sites now go through, so they can't drift apart again.
-  const _rowEffectiveReq=(zone,req,ref)=>ref==='Sch XX/27'
-    ? _combinedIpdNursingSplit(bedTotals)[zone==='Medical IPD'?'IPD_MEDICAL':'IPD_SURGICAL']
-    : (req[ug]||0);
-
-  // Compute which zones each desig key appears in (for display only). Attributed by keys[0]
-  // only -- see ugReqForGroup below for why (same bug, same fix, same reasoning).
-  const keyZones={};
-  NCISM_XX_ROWS.forEach(([zone,,keys,req,ref])=>{
-    const r=_rowEffectiveReq(zone,req,ref);
-    if(!r)return;
-    const k=keys[0];
-    if(!keyZones[k])keyZones[k]=[];const ab=ZA[zone]||zone;if(!keyZones[k].includes(ab))keyZones[k].push(ab);
-  });
-
-  // ugReqForGroup: sum requirements for XX rows attributable to gKeys.
-  // Session 136 -- was `keys.some(k=>gKeys.includes(k))`, matching a row if ANY of its
-  // acceptable designations fell in gKeys. Broke down for NCISM_XX_ROWS rows whose keys span
-  // TWO different NCISM_SUM_GRPS groups -- Sch XX/35 "OT Nursing Staff" accepts EITHER
-  // ot_technician (OT/CSSD group) OR staff_nurse (Nursing group), so its requirement (2 at
-  // UG100) got counted into BOTH groups' totals, while the 2 real hires (recruited under
-  // ot_technician) only credited toward one -- a phantom −2 gap appeared on "Staff Nurse —
-  // all zones" even though the post was genuinely fully staffed. Exhaustive sweep confirmed
-  // this is the ONLY such cross-group row in the table. Fixed by attributing each row to its
-  // FIRST key only, matching the identical rule _renderStaffingPlan()/_ncismRoleMinimums()
-  // already use for exactly this reason (see their own comments) -- now all three places that
-  // state an aggregate headcount total agree.
-  const ugReqForGroup=gKeys=>NCISM_XX_ROWS.reduce((s,[zone,,keys,req,ref])=>s+(gKeys.includes(keys[0])?_rowEffectiveReq(zone,req,ref):0),0);
+  // Session 160: keyZones/ugReqForGroup (the old per-key requirement + zone-list derivation)
+  // replaced by _designationRollup() -- ONE canonical per-designation computation shared with
+  // the Staffing Plan tab and the Statistics checklist, instead of three independently
+  // hand-rolled copies of essentially the same NCISM_XX_ROWS walk. See that function's own
+  // comment (ncismStaffCompliance.js) for the full reasoning -- it's what closes off the bug
+  // class that let Dark Room Assistant (this table) and Finance Manager (Staffing Plan) each
+  // silently vanish from one specific view while staying correct everywhere else.
+  const rollupRows = _designationRollup(ug, pgList, bedTotals, facTotal);
 
   // Department tree — shared with 🏥 Dept. Staff and Departments (same order, same OPD rows,
   // sourced from the real opds table — see buildDeptTree/_buildOpdChildren).
@@ -1708,43 +1669,67 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
   const summaryBannerHtml = _renderComplianceSummaryBanner({grandReq, grandMet, extraList, totalOrgStaff, untrackedList});
 
   // ── Summary table (designation-wise totals across ALL zones) ─────────
+  // Session 160: rewritten around rollupRows (_designationRollup) + ROLLUP_SECTIONS -- see
+  // both those definitions' comments for the full reasoning. claimedKeys guarantees every
+  // rollup key is rendered in EXACTLY ONE row: a key can never be double-counted by an
+  // accidental duplicate listing across two ROLLUP_SECTIONS groups (it's silently skipped on
+  // the second attempt, which would show up as a suspiciously smaller number -- an honest,
+  // visible symptom -- rather than a silently inflated total), and any key nobody's listed at
+  // all still renders via the fallback pass below instead of vanishing.
+  const rollupByKey = new Map(rollupRows.map(r=>[r.key,r]));
+  const claimedKeys = new Set();
+  function rollupGroupHtml(label, keys){
+    const members = keys.filter(k=>!claimedKeys.has(k)).map(k=>rollupByKey.get(k)).filter(Boolean);
+    members.forEach(r=>claimedKeys.add(r.key));
+    if(!members.length) return '';
+    if(members.some(r=>r.facultyHeld)){
+      return '<tr><td style="padding:5px 12px 5px 20px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(label)+'</td>'
+        +'<td colspan="6" style="padding:5px 12px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">Typically held concurrently by an existing faculty member — not counted separately in totals</td></tr>';
+    }
+    const soloFaculty = members.length===1 && ['professor','associate_professor','assistant_professor'].includes(members[0].key);
+    const soloPgOnly = members.length===1 && members[0].pgOnly;
+    const ugR = members.reduce((s,r)=>s+r.ugTotal,0);
+    const pgA = members.reduce((s,r)=>s+r.pgAddon,0);
+    const total = ugR+pgA;
+    if(soloPgOnly && pgList.length===0){
+      return '<tr><td style="padding:5px 12px 5px 20px;font-size:12.5px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+_esc(label)+'</td>'
+        +'<td colspan="6" style="padding:5px 12px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">Not applicable — no PG departments configured</td></tr>';
+    }
+    const altKeys=[...new Set(members.flatMap(r=>[...r.altKeys]))];
+    const rec=cntD(altKeys), gap=Math.max(0,total-rec);
+    const {color:rc, icon:si, title:recTitle} = _rowStatusInfo(altKeys, rec, total, extraList, untrackedList);
+    let zs;
+    if(soloFaculty) zs='Schedule I ('+clinDepts+' clinical depts)';
+    else if(soloPgOnly) zs='PG depts only';
+    else zs=[...new Set(members.flatMap(r=>[...r.zones].map(z=>ZA[z]||z)))].join(' + ')||'—';
+    return '<tr>'
+      +'<td style="padding:5px 12px 5px 20px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(label)+'</td>'
+      +'<td style="padding:5px 10px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+_esc(zs)+'</td>'
+      +'<td style="padding:5px 10px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2">'+(total>0?ugR:'—')+'</td>'
+      +'<td style="padding:5px 10px;text-align:center;color:#c9902a;border-bottom:1px solid #f0f4f2">'+(pgA>0?'+'+pgA:'—')+'</td>'
+      +'<td style="padding:5px 10px;text-align:center;font-weight:700;border-bottom:1px solid #f0f4f2">'+(total||'—')+'</td>'
+      +'<td'+(recTitle?' title="'+_esc(recTitle)+'"':'')+' style="padding:5px 10px;text-align:center;color:'+rc+';font-weight:700;border-bottom:1px solid #f0f4f2'+(recTitle?';cursor:help;text-decoration:underline dotted':'')+'">'+rec+(recTitle?' <span style="font-size:10px">ℹ️</span>':'')+'</td>'
+      +'<td style="padding:5px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+si+(gap>0?' <span style="font-size:11px;color:#c0392b">−'+gap+'</span>':'')+'</td>'
+      +'</tr>';
+  }
+
   let sumRows='';
-  NCISM_SUM_GRPS.forEach(({s,rows})=>{
-    sumRows+='<tr style="background:#f0faf5"><td colspan="7" style="padding:6px 14px;font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px">'+s+'</td></tr>';
-    rows.forEach(({l,k,fac:fk,pgOnly})=>{
-      if(k.some(key=>FACULTY_CONCURRENT_POSTS.has(key))){
-        sumRows+='<tr><td style="padding:5px 12px 5px 20px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+l+'</td>'
-          +'<td colspan="6" style="padding:5px 12px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">Typically held concurrently by an existing faculty member — not counted separately in totals</td></tr>';
-        return;
-      }
-      let ugR;
-      if(fk) ugR=FAC_UG[fk]||0;
-      else if(pgOnly) ugR=0;
-      else ugR=ugReqForGroup(k);
-      const pgA=k.reduce((s,key)=>s+(keyTotPG[key]||0),0);
-      const total=ugR+pgA;
-      if(pgOnly&&pgList.length===0){
-        sumRows+='<tr><td style="padding:5px 12px 5px 20px;font-size:12.5px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+l+'</td>'
-          +'<td colspan="6" style="padding:5px 12px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">Not applicable — no PG departments configured</td></tr>';
-        return;
-      }
-      const rec=cntD(k), gap=Math.max(0,total-rec);
-      const {color:rc, icon:si, title:recTitle} = _rowStatusInfo(k, rec, total, extraList, untrackedList);
-      let zs;
-      if(fk) zs='Schedule I ('+clinDepts+' clinical depts)';
-      else if(pgOnly) zs='PG depts only';
-      else zs=[...new Set(k.flatMap(key=>keyZones[key]||[]))].join(' + ')||'—';
-      sumRows+='<tr>'
-        +'<td style="padding:5px 12px 5px 20px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+l+'</td>'
-        +'<td style="padding:5px 10px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+zs+'</td>'
-        +'<td style="padding:5px 10px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2">'+(total>0?ugR:'—')+'</td>'
-        +'<td style="padding:5px 10px;text-align:center;color:#c9902a;border-bottom:1px solid #f0f4f2">'+(pgA>0?'+'+pgA:'—')+'</td>'
-        +'<td style="padding:5px 10px;text-align:center;font-weight:700;border-bottom:1px solid #f0f4f2">'+(total||'—')+'</td>'
-        +'<td'+(recTitle?' title="'+_esc(recTitle)+'"':'')+' style="padding:5px 10px;text-align:center;color:'+rc+';font-weight:700;border-bottom:1px solid #f0f4f2'+(recTitle?';cursor:help;text-decoration:underline dotted':'')+'">'+rec+(recTitle?' <span style="font-size:10px">ℹ️</span>':'')+'</td>'
-        +'<td style="padding:5px 10px;text-align:center;border-bottom:1px solid #f0f4f2">'+si+(gap>0?' <span style="font-size:11px;color:#c0392b">−'+gap+'</span>':'')+'</td>'
-        +'</tr>';
-    });
+  ROLLUP_SECTIONS.forEach(({s,groups})=>{
+    let sectionHtml='';
+    groups.forEach(({l,keys})=>{ sectionHtml+=rollupGroupHtml(l,keys); });
+    if(sectionHtml){
+      sumRows+='<tr style="background:#f0faf5"><td colspan="7" style="padding:6px 14px;font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px">'+_esc(s)+'</td></tr>'+sectionHtml;
+    }
   });
+  // Session 160: any designation NCISM_XX_ROWS mandates that ROLLUP_SECTIONS hasn't been told
+  // how to group/label yet still renders here, standalone, under its own DESIG_MAP label --
+  // instead of silently vanishing the way Dark Room Assistant did before this rewrite. The
+  // only way a real requirement can go missing from this table now is a bug in
+  // _designationRollup() itself, not a forgotten second list entry.
+  const leftoverHtml = rollupRows.filter(r=>!claimedKeys.has(r.key)).map(r=>rollupGroupHtml(r.label,[r.key])).join('');
+  if(leftoverHtml){
+    sumRows+='<tr style="background:#fff8e6"><td colspan="7" style="padding:6px 14px;font-size:11px;font-weight:700;color:#8a6512;text-transform:uppercase;letter-spacing:.5px">⚠️ Not Yet Grouped — recently added to Schedule XX, still counted below and in the Grand Total</td></tr>'+leftoverHtml;
+  }
   // Grand total row — Session 136: was its own independently-summed gtUG/gtPG/gtTotal/gtRec
   // (via ugReqForGroup/cntD across NCISM_SUM_GRPS), which is a DIFFERENT computation from
   // _computeGrandCompliance's department-tree total above (that one only counts departments
@@ -2145,16 +2130,15 @@ window.cancelPendingInvite = async function(idxStr, subIdxStr){
 };
 
 // ── Staffing Plan — required staff by designation, grouped by HMS role ────────
-// Attributes each NCISM_XX_ROWS row to exactly ONE canonical designation (its first key —
-// the same rule _ncismRoleMinimums() uses for the Statistics page checklist), then groups by
-// HMS role. Deliberately does NOT reuse NCISM_SUM_GRPS's hand-written groupings — those can
-// double-count: e.g. "OT Nursing Staff" has keys ['ot_technician','staff_nurse'] (either
-// designation can fill the post), and NCISM_SUM_GRPS's separate "OT/CSSD" and "Staff Nurse —
-// all zones" rows each independently pick it up via a different one of those two keys, so a
-// naive per-group sum inflates the nurse total by double-counting that one row. This function
-// and _ncismRoleMinimums() are the two places in the app that state an aggregate headcount
-// total, so they use the identical keys[0]-only attribution rule to guarantee they can't
-// silently disagree with each other again.
+// Session 160: rows come from _designationRollup() (ncismStaffCompliance.js) -- the same
+// canonical, one-row-per-designation computation the NCISM Requirements tab's legacy rollup
+// and _ncismRoleMinimums() (Statistics page checklist) both use. Grouping here is by HMS
+// ROLE (DESIG_ROLE_DEFAULT), not by the legacy rollup's editorial SECTIONS -- a different
+// projection of the exact same underlying rows, so the two tabs can show different groupings
+// without ever disagreeing on the actual numbers. _designationRollup() attributes a row like
+// "OT Nursing Staff" (keys ['ot_technician','staff_nurse'] -- either designation can fill the
+// post) to exactly one canonical key (ot_technician), so it can never be double-counted by
+// landing in two different role buckets the way a naive per-group sum once could.
 const STAFFING_PLAN_ROLE_ORDER = [
   {role:'doctor',       icon:'👨‍⚕️', label:'Doctors'},
   {role:'nurse',        icon:'👩‍⚕️', label:'Nurses'},
@@ -2235,18 +2219,6 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
 
   const facTotal=_scheduleIFacultyTotal(depts, ug);
   const clinDepts=facTotal.count;
-  const FAC_UG={p:facTotal.p, a:facTotal.a, b:facTotal.b};
-
-  const keyTotPG={};
-  pgList.forEach(d=>{
-    const seats=d.pg_seats_sanctioned||3, pgB=seats*4;
-    keyTotPG['senior_resident']=(keyTotPG['senior_resident']||0)+Math.ceil(seats/3);
-    keyTotPG['staff_nurse']=(keyTotPG['staff_nurse']||0)+Math.ceil(pgB/10);
-    keyTotPG['attender']=(keyTotPG['attender']||0)+Math.ceil(pgB/20);
-    if(d.ncism_code==='PK')keyTotPG['therapist']=(keyTotPG['therapist']||0)+Math.ceil(seats/3)*2;
-    if(seats>3)keyTotPG['assistant_professor']=(keyTotPG['assistant_professor']||0)+Math.ceil((seats-3)/3);
-    if(seats>6)keyTotPG['associate_professor']=(keyTotPG['associate_professor']||0)+Math.ceil((seats-6)/3);
-  });
 
   const ZA={'Administration':'Admin','Finance & Accounts':'Finance','Reception & MRD':'Reception',
     'OPD Nursing':'OPD Nsg','Pharmacy':'Pharmacy','Diagnostics':'Diagnostics',
@@ -2254,57 +2226,39 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
     'Operation Theatre':'OT','Labour Room':'LR','Kriyakalpa':'Kriyakalpa',
     'Physiotherapy':'Physio','Yoga & Wellness':'Yoga','Diet / Pathya':'Diet','CSSD':'CSSD'};
 
-  // Canonical per-designation totals — one entry per distinct keys[0] (never counted under a
-  // second designation via an alternate-eligible key), matching _ncismRoleMinimums()'s rule.
-  // altKeys collects every acceptable designation for that post (e.g. staff_nurse OR
-  // ward_sister can both fill a "Staff Nurse" post) — used only for counting real recruited
-  // staff, where unioning is safe since a real person is never double-counted by being
-  // eligible under two names.
-  const byKey = {};
-  const bump = (ck, add, keysForAlt) => {
-    if(!byKey[ck]) byKey[ck] = {ugTotal:0, zones:new Set(), altKeys:new Set(), pgOnly:false};
-    byKey[ck].ugTotal += add;
-    (keysForAlt||[ck]).forEach(k=>byKey[ck].altKeys.add(k));
-  };
-  bump('professor', FAC_UG.p, ['professor','hod']);
-  bump('associate_professor', FAC_UG.a);
-  bump('assistant_professor', FAC_UG.b);
-  bump('senior_resident', 0);
-  byKey['senior_resident'].pgOnly = true;
-  // Session 159: same Sch XX/27 bed-derived-override bug as _renderNcismStaffing's
-  // ugReqForGroup (found together, same root cause -- see that fix's comment) -- Medical/
-  // Surgical IPD "Nursing Staff" rows store a zeroed req[ug] placeholder here too, so the
-  // Staffing Plan's "Nurses" bucket was silently missing the bed-derived Med/Surg IPD
-  // headcount the exact same way.
-  NCISM_XX_ROWS.forEach(([zone,,keys,req,ref])=>{
-    const c = ref==='Sch XX/27' ? _combinedIpdNursingSplit(bedTotals)[zone==='Medical IPD'?'IPD_MEDICAL':'IPD_SURGICAL'] : (req[ug]||0);
-    if(!c) return;
-    bump(keys[0], c, keys);
-    byKey[keys[0]].zones.add(ZA[zone]||zone);
-  });
+  // Session 160: rowset now comes from _designationRollup() (ncismStaffCompliance.js) instead
+  // of an independent bump()/byKey walk over NCISM_XX_ROWS -- one canonical computation shared
+  // with the NCISM Requirements tab and the Statistics checklist, so a Schedule XX change
+  // (like Dark Room Assistant's own row, or the Sch XX/27 bed-derived override) is picked up
+  // here automatically instead of needing a matching hand-edit in this function too.
+  const rollupRows = _designationRollup(ug, pgList, bedTotals, facTotal);
 
-  // Session 160: display-only remap for THIS breakdown only -- DESIG_ROLE_DEFAULT's
+  // Display-only remap for THIS breakdown only -- DESIG_ROLE_DEFAULT's
   // finance_manager:'finance_manager' is correct and must stay untouched (it's the real HMS
   // login-role default, and finance_manager genuinely has more access than accountant --
-  // write-off approve/reject, see the Finance role table above). But STAFFING_PLAN_ROLE_ORDER
-  // has no separate 'finance_manager' section, so without this remap the Finance Manager
-  // position -- and any real staff recruited to it -- silently vanished from the entire
-  // Staffing Plan tab (its role bucket existed in byRole but was never in the fixed section
-  // list, so .filter(r=>byRole[r.role]?.length) skipped it outright). Found live, exhaustively
-  // confirmed the only such gap, while explaining why this tab's own visible rows summed to
-  // 121 against its banner's canonical 122. Routes into the same "💰 Finance & Accounts"
-  // section as Accountant/Store Keeper, matching the legacy rollup table's combined row.
+  // write-off approve/reject, see the Finance role table above). Routes into the same
+  // "💰 Finance & Accounts" section as Accountant/Store Keeper, matching the legacy rollup
+  // table's combined row.
   const STAFFING_PLAN_ROLE_ALIAS = {finance_manager:'accountant'};
   const byRole = {};
-  Object.keys(byKey).forEach(ck=>{
-    const role = STAFFING_PLAN_ROLE_ALIAS[ck] || DESIG_ROLE_DEFAULT[ck] || 'other';
-    (byRole[role] = byRole[role] || []).push(ck);
+  rollupRows.forEach(row=>{
+    const role = STAFFING_PLAN_ROLE_ALIAS[row.key] || DESIG_ROLE_DEFAULT[row.key] || 'other';
+    (byRole[role] = byRole[role] || []).push(row);
+  });
+  // Session 160: STAFFING_PLAN_ROLE_ORDER is now a PREFERRED order + icon/label lookup, not a
+  // whitelist -- Finance Manager's role ('finance_manager') had no entry here at all before the
+  // alias above existed, and silently vanished from the whole tab as a result (found live,
+  // exhaustively confirmed the only such gap at the time). Any FUTURE role this list doesn't
+  // know about still gets its own auto-appended section instead of repeating that bug.
+  const roleDefs = [...STAFFING_PLAN_ROLE_ORDER];
+  Object.keys(byRole).forEach(role=>{
+    if(!roleDefs.some(r=>r.role===role)) roleDefs.push({role, icon:'🔧', label:role.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())});
   });
 
-  const sectionsHtml = STAFFING_PLAN_ROLE_ORDER.filter(r=>byRole[r.role]?.length).map(({role,icon,label})=>{
+  const sectionsHtml = roleDefs.filter(r=>byRole[r.role]?.length).map(({role,icon,label})=>{
     let roleTotal=0, roleRec=0;
-    const rowsHtml = byRole[role].map(ck=>{
-      const info = byKey[ck];
+    const rowsHtml = byRole[role].map(row=>{
+      const ck = row.key;
       // Sch XX/35 "OT Nursing Staff" is the one row in NCISM_XX_ROWS whose
       // alternate key is a genuinely different profession (Staff Nurse),
       // not just a synonym title (unlike e.g. staff_nurse/ward_sister) --
@@ -2313,25 +2267,26 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
       // real Staff Nurses fill 2 of these seats at SDM. Every other
       // multi-key row stays as its own primary label -- only this one
       // documented exception gets the suffix.
-      const dLabel = (DESIG_MAP[ck]?.l || ck) + (ck === 'ot_technician' && info.altKeys.has('staff_nurse') ? ' / Staff Nurse' : '');
-      if(FACULTY_CONCURRENT_POSTS.has(ck)){
+      const dLabel = row.label + (ck === 'ot_technician' && row.altKeys.has('staff_nurse') ? ' / Staff Nurse' : '');
+      if(row.facultyHeld){
         return '<tr><td style="padding:6px 12px 6px 20px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(dLabel)+'</td>'
           +'<td colspan="5" style="padding:6px 12px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">Typically held concurrently by an existing faculty member — not counted separately</td></tr>';
       }
-      const pgA=keyTotPG[ck]||0;
-      const total=info.ugTotal+pgA;
-      if(info.pgOnly&&pgList.length===0){
+      const pgA=row.pgAddon;
+      const total=row.ugTotal+pgA;
+      if(row.pgOnly&&pgList.length===0){
         return '<tr><td style="padding:6px 12px 6px 20px;font-size:12.5px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+_esc(dLabel)+'</td>'
           +'<td colspan="5" style="padding:6px 12px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">Not applicable — no PG departments configured</td></tr>';
       }
-      const rec=cntD([...info.altKeys]), gap=Math.max(0,total-rec);
+      const altKeys=[...row.altKeys];
+      const rec=cntD(altKeys), gap=Math.max(0,total-rec);
       roleTotal+=total; roleRec+=Math.min(rec,total);
-      const {color:rc, icon:si, title:recTitle} = _rowStatusInfo([...info.altKeys], rec, total, extraList, untrackedList);
-      const zs=info.pgOnly?'PG depts only':(['professor','associate_professor','assistant_professor'].includes(ck)?'Schedule I ('+clinDepts+' clinical depts)':[...info.zones].join(' + ')||'—');
+      const {color:rc, icon:si, title:recTitle} = _rowStatusInfo(altKeys, rec, total, extraList, untrackedList);
+      const zs=row.pgOnly?'PG depts only':(['professor','associate_professor','assistant_professor'].includes(ck)?'Schedule I ('+clinDepts+' clinical depts)':[...row.zones].map(z=>ZA[z]||z).join(' + ')||'—');
       return '<tr>'
         +'<td style="padding:6px 12px 6px 20px;font-size:12.5px;border-bottom:1px solid #f0f4f2">'+_esc(dLabel)+'</td>'
         +'<td style="padding:6px 10px;font-size:11px;color:var(--text-muted);border-bottom:1px solid #f0f4f2">'+_esc(zs)+'</td>'
-        +'<td style="padding:6px 10px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2">'+(total>0?info.ugTotal:'—')+'</td>'
+        +'<td style="padding:6px 10px;text-align:center;font-weight:600;border-bottom:1px solid #f0f4f2">'+(total>0?row.ugTotal:'—')+'</td>'
         +'<td style="padding:6px 10px;text-align:center;color:#c9902a;border-bottom:1px solid #f0f4f2">'+(pgA>0?'+'+pgA:'—')+'</td>'
         +'<td style="padding:6px 10px;text-align:center;font-weight:700;border-bottom:1px solid #f0f4f2">'+(total||'—')+'</td>'
         +'<td'+(recTitle?' title="'+_esc(recTitle)+'"':'')+' style="padding:6px 10px;text-align:center;color:'+rc+';font-weight:700;border-bottom:1px solid #f0f4f2'+(recTitle?';cursor:help;text-decoration:underline dotted':'')+'">'+rec+(recTitle?' <span style="font-size:10px">ℹ️</span>':'')+'</td>'
