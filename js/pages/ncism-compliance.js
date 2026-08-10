@@ -7,7 +7,7 @@ import { isNCISMType, SCHEDULE_IV } from '../config/ncism.js';
 import {
   SCHEDULE_I_CODES, FACULTY_CONCURRENT_POSTS, buildDeptTree, _dedupById,
   deptRequirement, _computeIpdBedTotals, _renderComplianceSummaryBanner,
-  _computeGrandCompliance, _collectExtraStaff, _collectUntrackedStaff,
+  _computeGrandCompliance, _collectStaffClassification,
 } from '../config/ncismStaffCompliance.js';
 
 await requireAuth(['super_admin','dept_admin','accountant'], 'login.html', { monitoringSafe: true });
@@ -337,8 +337,10 @@ async function loadAll() {
   if (bannerEl) {
     const { grandReq, grandMet } = _computeGrandCompliance(tree, ugTier, bedTotals, cntDeptD);
     const deptNameById = {}; (depts || []).forEach(d => { deptNameById[d.id] = d.name; });
-    const extraList = _collectExtraStaff(tree, ugTier, bedTotals, byDept, deptNameById);
-    const untrackedList = _collectUntrackedStaff(tree, ugTier, bedTotals, byDept, rawStaffDesigRes.data, deptNameById);
+    // Session 163: _collectStaffClassification, not the bare pair -- see its own comment
+    // (ncismStaffCompliance.js). Keeps this standalone report agreeing with admin.html's HR
+    // tabs on which bucket a given person is in.
+    const { extraList, untrackedList } = _collectStaffClassification(tree, ugTier, bedTotals, byDept, rawStaffDesigRes.data, deptNameById);
     bannerEl.innerHTML = _renderComplianceSummaryBanner({ grandReq, grandMet, extraList, totalOrgStaff: totalOrgStaffCount, untrackedList });
   }
 

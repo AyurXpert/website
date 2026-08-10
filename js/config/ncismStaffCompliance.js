@@ -686,9 +686,55 @@ export function _collectUntrackedStaff(tree, ug, bedTotals, byDept, allStaff, de
         reasonType='not_tracked';
       }
     }
-    list.push({id:s.id, full_name:s.full_name, designation:s.designation, deptName, reason, reasonType, suggestedDept});
+    list.push({id:s.id, full_name:s.full_name, designation:s.designation, deptId:s.department_id||null, deptName, reason, reasonType, suggestedDept});
   });
   return list;
+}
+
+// ── Canonical staff classification — the ONE place that decides Extra vs Untracked ──────────
+// Session 163: Dr. Venkatesh's real question, working through a concrete example ("Nursing All
+// Op2", SDM's 22nd Staff Nurse) -- if every one of the 21 real required seats is already
+// filled correctly, isn't that 22nd nurse genuinely EXTRA, full stop, regardless of which
+// specific department she happens to sit in? Yes. The system was drawing "Extra Staff" too
+// narrowly: it only caught a department exceeding ITS OWN listed quota, which requires a quota
+// to exist there at all. Someone posted to a department with ZERO quota for their designation
+// (not "quota met, one over" -- no quota line at all) fell through into the quieter "outside
+// NCISM tracking" list instead, even when there was genuinely nowhere else in the whole
+// organisation that needed them either (_collectUntrackedStaff's reasonType==='wrong_department'
+// with suggestedDept===null already means exactly this -- computed via gapsByKey, so it's a
+// real "nobody anywhere is short" fact, not a guess).
+//
+// This function is the one place that reclassifies those specific people from "untracked" into
+// "extra" -- called by every page that shows either list, so the Extra Staff tab, its badge
+// count, the "+N staff recruited above minimum" banner line, and the "N account(s) outside
+// tracking" footnote can never disagree on which bucket a given person is in again. A
+// "downgraded to optional" person (e.g. the 2 real Kriyakalpa Therapists) is deliberately NOT
+// reclassified here -- that's a different situation (the post at that specific department was
+// removed from NCISM tracking entirely, not "full up everywhere else too") and stays exactly
+// where Session 162 put it.
+export function _collectStaffClassification(tree, ug, bedTotals, byDept, allStaff, deptNameById){
+  const rawExtra = _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById);
+  const rawUntracked = _collectUntrackedStaff(tree, ug, bedTotals, byDept, allStaff, deptNameById);
+
+  const isGenuineSurplus = u => u.reasonType==='wrong_department' && !u.suggestedDept;
+  const genuineSurplus = rawUntracked.filter(isGenuineSurplus);
+  const untrackedList = rawUntracked.filter(u=>!isGenuineSurplus(u));
+
+  const groups = {};
+  genuineSurplus.forEach(u=>{
+    const gKey=(u.deptId||'none')+'|'+u.designation;
+    if(!groups[gKey]) groups[gKey]={deptId:u.deptId, deptName:u.deptName, designation:u.designation, staff:[]};
+    groups[gKey].staff.push({id:u.id, full_name:u.full_name});
+  });
+  const surplusRows = Object.values(groups).map(g=>({
+    deptId:g.deptId, deptName:g.deptName,
+    label:DESIG_MAP[g.designation]?.l||g.designation,
+    ref:'No NCISM seat available for this designation anywhere in the organisation',
+    required:0, actual:g.staff.length, extra:g.staff.length,
+    staff:g.staff, keys:[g.designation],
+  }));
+
+  return { extraList:[...rawExtra, ...surplusRows], untrackedList };
 }
 
 function _esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}

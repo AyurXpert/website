@@ -11,9 +11,9 @@ import { DESIGS, DESIG_MAP, DESIG_CATS } from '../config/designations.js';
 import {
   NCISM_XX_ROWS, ORG_TREE_DEF, OPD_CHILD_NCISM_CODES,
   _deptKey, buildDeptTree, _dedupById, _scheduleIFacultyTotal, deptRequirement,
-  _computeIpdBedTotals, _computeGrandCompliance, _collectExtraStaff, _collectUntrackedStaff,
+  _computeIpdBedTotals, _computeGrandCompliance,
   _renderComplianceSummaryBanner, SCHEDULE_I_CODES, _rowStatusInfo,
-  _renderComplianceLegend, _designationRollup,
+  _renderComplianceLegend, _designationRollup, _collectStaffClassification,
 } from '../config/ncismStaffCompliance.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
@@ -1112,7 +1112,12 @@ async function _fetchExtraStaffList(){
   (rawStaff||[]).forEach(s=>{ if(!s.department_id) return; (byDept[s.department_id]=byDept[s.department_id]||[]).push(s); });
   const tree=buildDeptTree(depts||[], opds||[]);
   const deptNameById={}; (depts||[]).forEach(d=>{ deptNameById[d.id]=d.name; });
-  return _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById);
+  // Session 163: _collectStaffClassification (not the bare _collectExtraStaff) so this tab also
+  // includes genuine hospital-wide surplus -- someone whose real NCISM designation has zero
+  // matching requirement in their current department AND no real gap anywhere else in the
+  // organisation either. Same canonical reclassification every other consumer of Extra/
+  // Untracked now goes through.
+  return _collectStaffClassification(tree, ug, bedTotals, byDept, rawStaff, deptNameById).extraList;
 }
 
 async function _renderExtraStaff(){
@@ -1661,13 +1666,15 @@ async function _renderNcismStaffing() {
   _setBadge('hr-tab-ncism-badge', Math.max(0,grandReq-grandMet));
 
   // Session 136 -- shared summary banner (Required/Recruited capped, Extra Staff called out
-  // separately, true org headcount shown) inserted at the top of this tab; same data _collectExtraStaff
-  // already computes for the Extra Staff tab, reused here so the two can't disagree either.
+  // separately, true org headcount shown) inserted at the top of this tab; same data
+  // _collectStaffClassification already computes for the Extra Staff tab, reused here so the
+  // two can't disagree either. Session 163: switched from the bare _collectExtraStaff/
+  // _collectUntrackedStaff pair to the canonical reclassifying wrapper -- see that function's
+  // own comment for why (genuine hospital-wide surplus, e.g. a 22nd Staff Nurse when every real
+  // department seat is already filled, now counts as Extra everywhere, not just in the quieter
+  // "Who, and why?" list).
   const deptNameById={}; (depts||[]).forEach(d=>{ deptNameById[d.id]=d.name; });
-  const extraList = _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById);
-  // Session 155: who + why for the "N account(s) outside NCISM tracking" line -- same source
-  // used everywhere this banner renders, so the explanation can never disagree with the number.
-  const untrackedList = _collectUntrackedStaff(tree, ug, bedTotals, byDept, rawStaff, deptNameById);
+  const { extraList, untrackedList } = _collectStaffClassification(tree, ug, bedTotals, byDept, rawStaff, deptNameById);
   // Session 153 follow-up: was unfiltered by is_active -- terminated accounts are still real
 // profiles rows, so "Total Staff" kept counting them even though every other number on this
 // banner (Recruited/Extra) correctly excludes them once Terminate started being used for real.
@@ -2219,10 +2226,8 @@ async function _renderStaffingPlan() {
   const tree = buildDeptTree(depts||[], opds||[]);
   const {grandReq, grandMet} = _computeGrandCompliance(tree, ug, bedTotals, cntDeptD);
   const deptNameById={}; (depts||[]).forEach(d=>{ deptNameById[d.id]=d.name; });
-  const extraList = _collectExtraStaff(tree, ug, bedTotals, byDept, deptNameById);
-  // Session 155: who + why for the "N account(s) outside NCISM tracking" line -- same source
-  // used everywhere this banner renders, so the explanation can never disagree with the number.
-  const untrackedList = _collectUntrackedStaff(tree, ug, bedTotals, byDept, rawStaff, deptNameById);
+  // Session 163: _collectStaffClassification, not the bare pair -- see its own comment.
+  const { extraList, untrackedList } = _collectStaffClassification(tree, ug, bedTotals, byDept, rawStaff, deptNameById);
   // Session 153 follow-up: was unfiltered by is_active -- terminated accounts are still real
 // profiles rows, so "Total Staff" kept counting them even though every other number on this
 // banner (Recruited/Extra) correctly excludes them once Terminate started being used for real.
@@ -5702,10 +5707,8 @@ async function _renderNcismChecklist(ugIntake, orgType) {
     const tree = buildDeptTree(depts, opds);
     const {grandReq, grandMet} = _computeGrandCompliance(tree, ugTier, bedTotals, cntDeptD);
     const deptNameById={}; depts.forEach(d=>{ deptNameById[d.id]=d.name; });
-    const extraList = _collectExtraStaff(tree, ugTier, bedTotals, byDept, deptNameById);
-    // Session 155: who + why for the "N account(s) outside NCISM tracking" line -- same source
-    // used everywhere this banner renders, so the explanation can never disagree with the number.
-    const untrackedList = _collectUntrackedStaff(tree, ugTier, bedTotals, byDept, rawStaffDesigRes.data, deptNameById);
+    // Session 163: _collectStaffClassification, not the bare pair -- see its own comment.
+    const { extraList, untrackedList } = _collectStaffClassification(tree, ugTier, bedTotals, byDept, rawStaffDesigRes.data, deptNameById);
     // Session 153 follow-up: was unfiltered by is_active -- terminated accounts are still real
 // profiles rows, so "Total Staff" kept counting them even though every other number on this
 // banner (Recruited/Extra) correctly excludes them once Terminate started being used for real.
