@@ -5,6 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNursingDutyDept, shiftsForDept, shiftsOverlap, shiftTimes, shiftNames } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
+import { computeRequiredPerShift, distributeAcrossShifts } from '../modules/roster/requiredStaffing.js';
 
 // Session 137: widened from admin-only to also let plain nursing staff/ayahs
 // (role 'nurse', covers both designations) view the roster -- read-only,
@@ -57,20 +58,22 @@ let _doctors    = [];
 let _roster     = [];     // duty_roster rows for current week
 let _editEntry  = null;   // existing row being edited
 let _newSlotIndex = 1;    // Session 139: next free slot_index when adding a new entry (multi-staff-per-shift)
+let _requiredByDept = {}; // Session 166: {deptId: {shift: requiredCount}}, from loadRequiredCounts() -- see comment there
 
 // Session 141: SHIFTS is no longer a fixed global set -- shiftsForDept(dept)
 // computes which shift(s) apply per department (a single 'general' 9am-5pm
 // day shift for OPD/Screening OPD/Panchakarma/Diagnostics, the classic
 // 3-shift ward pattern for everything else).
-const SHIFT_LABELS = { morning:'Morning', afternoon:'Afternoon', night:'Night', general:'General Duty', on_call:'On-Call' };
-const SHIFT_TIMES  = { morning:'06:00–14:00', afternoon:'14:00–22:00', night:'22:00–06:00', general:'09:00–17:00', on_call:'24hr specialist' };
+const SHIFT_LABELS = { morning:'Morning', afternoon:'Evening', night:'Night', general:'General Duty', on_call:'On-Call' };
+const SHIFT_TIMES  = { morning:'08:00–14:00', afternoon:'14:00–20:00', night:'20:00–08:00', general:'09:00–17:00', on_call:'24hr specialist' };
 
-// Session 166: both objects above are the equal_8x3 DEFAULTS -- loadShiftPattern() (called once
-// at boot, before the first renderRoster()) overwrites morning/afternoon/night/general in place
-// with the tenant's actual chosen pattern. on_call is never touched (not a nursing-pattern shift).
+// Session 166: both objects above are the six_six_twelve DEFAULTS (the platform default, per
+// Dr. Venkatesh's explicit call -- was equal_8x3) -- loadShiftPattern() (called once at boot,
+// before the first renderRoster()) overwrites morning/afternoon/night/general in place with the
+// tenant's actual chosen pattern. on_call is never touched (not a nursing-pattern shift).
 async function loadShiftPattern() {
   const { data } = await supabase.from('nursing_roster_settings').select('shift_pattern').eq('tenant_id', tenantId).maybeSingle();
-  const pattern = data?.shift_pattern || 'equal_8x3';
+  const pattern = data?.shift_pattern || 'six_six_twelve';
   Object.assign(SHIFT_TIMES, shiftTimes(pattern));
   Object.assign(SHIFT_LABELS, shiftNames(pattern));
 }
@@ -148,6 +151,40 @@ async function loadDepartments() {
   if (role === 'nurse' && profile.department_id && _depts.some(d => d.id === profile.department_id)) {
     fd.value = profile.department_id;
   }
+}
+
+// Session 166: real finding on SDM -- the gap banner/grid only ever checked "is this cell
+// completely empty", never "does this cell hold the real required headcount". That silently
+// missed 2 different failure modes in opposite directions: (a) a shift-row a department
+// structurally needs ZERO staff for (e.g. Atyayika's Afternoon/Night -- its whole 1-nurse
+// requirement is front-loaded onto Morning by NCISM ratio, Session 152) still rendered the
+// alarming "⚠ Unassigned" red box every single day, inflating the compliance count with false
+// positives; (b) a multi-nurse cell (OPD's 3-slot General Duty, Surgical In-Patients' 2-slot
+// Morning/Afternoon) missing just ONE of its several required nurses on someone's weekly-off day
+// looked fully staffed as long as at least one OTHER nurse's slot was still filled that day --
+// invisible false negatives, never counted in the banner at all. Reuses the exact same
+// computeRequiredPerShift()/distributeAcrossShifts() (requiredStaffing.js) that
+// nursing-roster-template.js/nursing-admin.js already use for the real NCISM-backed required
+// count (bed-derived for Medical/Surgical In-Patients, UG-intake-tier for OPD/OT/Atyayika) --
+// reused, not reimplemented, so this page can't drift from the compliance ladder's own numbers.
+// Departments with no formula (Diagnostics/Panchakarma/Screening OPD/Labour Room) fall back to 1
+// per shift, matching nursing-roster-template.js's own stated convention for the same gap.
+async function loadRequiredCounts() {
+  const nursingDepts = _depts.filter(isNursingDutyDept);
+  const results = await Promise.all(nursingDepts.map(async dept => {
+    const shifts = shiftsForDept(dept);
+    const info = await computeRequiredPerShift(supabase, tenantId, dept.name);
+    const byShift = (info?.total != null) ? distributeAcrossShifts(info.total, shifts) : Object.fromEntries(shifts.map(s => [s, 1]));
+    return [dept.id, byShift];
+  }));
+  _requiredByDept = Object.fromEntries(results);
+}
+
+// Falls back to 1 for a department not covered above (e.g. the original RMO/EMO/GDMO doctor-duty
+// departments super_admin/dept_admin can still see, which this feature was never meant to touch)
+// -- preserves the exact pre-existing "empty = gap" behaviour there, unchanged.
+function _requiredFor(deptId, shift) {
+  return _requiredByDept[deptId]?.[shift] ?? 1;
 }
 
 // Session 137: nurse_manager's edit ability is gated on actually being the
@@ -257,11 +294,12 @@ function renderRoster() {
   depts.forEach(dept => {
     html += `<tr><td colspan="8" style="background:var(--green-light);color:var(--green-deep);font-weight:600;font-size:11px;padding:5px 10px;text-transform:uppercase;letter-spacing:.5px">${_esc(dept.name)}</td></tr>`;
     shiftsForDept(dept).forEach(shift => {
+      const required = _requiredFor(dept.id, shift);
       html += `<tr>
         <td class="shift-label"><span class="shift-badge ${shift}">${SHIFT_LABELS[shift]}</span><br><span style="font-size:9px">${SHIFT_TIMES[shift]}</span></td>
         ${dates.map(d => {
           const entries = _roster.filter(r => r.department_id === dept.id && r.shift_date === d && r.shift_type === shift);
-          return _cellHtml(dept.id, d, shift, entries);
+          return _cellHtml(dept.id, d, shift, entries, required);
         }).join('')}
       </tr>`;
     });
@@ -275,15 +313,30 @@ function renderRoster() {
 // that dept/date/shift as its own clickable line, plus a trailing "+ Add"
 // affordance (or the unassigned-gap label if the cell is completely empty)
 // to assign one more without disturbing the existing slots.
-function _cellHtml(deptId, date, shift, entries) {
+//
+// Session 166: `required` (from loadRequiredCounts(), default 1 for callers that don't pass it --
+// preserves renderOnCall()'s exact original behaviour, which has no required-count concept at
+// all) drives 2 new states beyond the original binary empty/filled: an empty cell with
+// required===0 gets a neutral "Not required" label instead of the alarming red "Unassigned" box
+// (fixes the Atyayika/OT false-positive); a filled-but-understaffed multi-nurse cell
+// (0 < entries.length < required) now shows a "⚠ Short X of Y" marker alongside its existing
+// names instead of silently looking fully staffed (fixes the OPD/Surgical In-Patients blind spot).
+function _cellHtml(deptId, date, shift, entries, required = 1) {
   const today = _isToday(date);
   if (!entries.length) {
+    if (required === 0) {
+      return `<td class="${today?'today-col':''}">
+        <div class="shift-cell not-required ${shift}">
+          <span class="cell-not-required">— Not required —</span>
+        </div></td>`;
+    }
     return `<td class="${today?'today-col':''}">
       <div class="shift-cell gap ${shift}">
         <span class="cell-gap-label" data-dept="${deptId}" data-date="${date}" data-shift="${shift}" data-entry-id="" data-slot-index="1">⚠ Unassigned</span>
       </div></td>`;
   }
   const maxSlot = Math.max(...entries.map(e => e.slot_index || 1));
+  const short = entries.length < required;
   const items = entries.map(entry => {
     const name = entry.profiles?.full_name || '—';
     const beds = (entry.bed_range_start && entry.bed_range_end) ? `<span class="cell-beds">Beds ${entry.bed_range_start}–${entry.bed_range_end}</span>` : '';
@@ -297,6 +350,7 @@ function _cellHtml(deptId, date, shift, entries) {
   return `<td class="${today?'today-col':''}">
     <div class="shift-cell ${shift}">
       ${items}
+      ${short ? `<div class="cell-short">⚠ Short ${entries.length} of ${required}</div>` : ''}
       <div class="cell-add" data-dept="${deptId}" data-date="${date}" data-shift="${shift}" data-entry-id="" data-slot-index="${maxSlot + 1}">+ Add</div>
     </div></td>`;
 }
@@ -339,6 +393,10 @@ function renderOnCall() {
 }
 
 // ── Gap detection ──────────────────────────────────
+// Session 166: counts real missing STAFF (required - filled, summed), not just completely-empty
+// shift-cells -- see the comment on loadRequiredCounts() above for the full "false positive /
+// false negative" reasoning. A dept/shift with required===0 (e.g. Atyayika's Afternoon/Night) is
+// skipped entirely -- it was never a real compliance issue, just a structurally-empty row.
 function updateGapBanner() {
   const dates = _weekDates();
   const deptFilter = document.getElementById('filter-dept').value;
@@ -346,16 +404,18 @@ function updateGapBanner() {
   let gaps = 0;
   depts.forEach(dept => {
     shiftsForDept(dept).forEach(shift => {
+      const required = _requiredFor(dept.id, shift);
+      if (required === 0) return;
       dates.forEach(d => {
-        const has = _roster.some(r => r.department_id === dept.id && r.shift_date === d && r.shift_type === shift);
-        if (!has) gaps++;
+        const filled = _roster.filter(r => r.department_id === dept.id && r.shift_date === d && r.shift_type === shift).length;
+        if (filled < required) gaps += (required - filled);
       });
     });
   });
   const banner = document.getElementById('gap-banner');
   if (gaps > 0) {
     const section = _isNursingScopedView ? '§18h/18i' : '§51(5)';
-    banner.textContent = `⚠ NCISM ${section} compliance issue: ${gaps} shift${gaps>1?'s':''} unassigned this week.`;
+    banner.textContent = `⚠ NCISM ${section} compliance issue: ${gaps} staff assignment${gaps>1?'s':''} unfilled this week.`;
     banner.classList.add('show');
   } else {
     banner.textContent = '';
@@ -1107,6 +1167,7 @@ function _alert(type, msg) {
 updateWeekLabel();
 _applyEditGate(); // correct immediately for super_admin/dept_admin/plain nurse; loadHeadGate() may still flip it for nurse_manager
 await Promise.all([loadDepartments(), loadDoctors(), loadHeadGate(), loadShiftPattern()]);
+await loadRequiredCounts(); // needs _depts (loadDepartments) already resolved; must finish before the first renderRoster()/updateGapBanner()
 await loadMonitorScope(); // needs _canEdit (loadHeadGate) + _depts (loadDepartments) already resolved
 await loadRoster();
 await loadCoveringRequests(); // every viewer, regardless of role -- see comment above the function

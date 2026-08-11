@@ -96,8 +96,10 @@ export const SHIFT_PATTERNS = {
     names: { morning: 'Morning', afternoon: 'Evening', night: 'Night', general: 'General Duty' },
   },
 };
-export function shiftTimes(pattern) { return (SHIFT_PATTERNS[pattern] || SHIFT_PATTERNS.equal_8x3).times; }
-export function shiftNames(pattern) { return (SHIFT_PATTERNS[pattern] || SHIFT_PATTERNS.equal_8x3).names; }
+// Session 166 follow-up: Day-Weighted (6+6+12) is now the platform default, not Equal Thirds --
+// Dr. Venkatesh's explicit call. Matches nursing_roster_settings.shift_pattern's own DB DEFAULT.
+export function shiftTimes(pattern) { return (SHIFT_PATTERNS[pattern] || SHIFT_PATTERNS.six_six_twelve).times; }
+export function shiftNames(pattern) { return (SHIFT_PATTERNS[pattern] || SHIFT_PATTERNS.six_six_twelve).names; }
 
 // Session 142: NCISM Schedule XX/20 "Nursing Staff — All OPDs" -- a pooled
 // duty desk, not one nurse per specialty clinic, sized by UG intake tier

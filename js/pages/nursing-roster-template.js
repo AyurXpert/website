@@ -32,10 +32,11 @@ const tenantId = getCurrentTenantId();
 const profile  = getCurrentProfile();
 const role     = getCurrentRole();
 
-// Session 166: these are the equal_8x3 DEFAULTS -- loadShiftPatternCard() (part of the boot
-// sequence, before any department's grid can be selected/rendered) overwrites all 4 keys in
-// place with the tenant's actual chosen pattern's names+times.
-const SHIFT_LABELS = { morning: 'Morning (06:00–14:00)', afternoon: 'Afternoon (14:00–22:00)', night: 'Night (22:00–06:00)', general: 'General Duty (09:00–17:00)' };
+// Session 166: these are the six_six_twelve DEFAULTS (the platform default, per Dr. Venkatesh's
+// explicit call -- was equal_8x3) -- loadShiftPatternCard() (part of the boot sequence, before
+// any department's grid can be selected/rendered) overwrites all 4 keys in place with the
+// tenant's actual chosen pattern's names+times.
+const SHIFT_LABELS = { morning: 'Morning (08:00–14:00)', afternoon: 'Evening (14:00–20:00)', night: 'Night (20:00–08:00)', general: 'General Duty (09:00–17:00)' };
 const SHIFT_PATTERN_LABELS = { equal_8x3: 'Equal Thirds (8+8+8)', six_six_twelve: 'Day-Weighted (6+6+12)' };
 const CYCLE_DAYS = { weekly: 7, fortnightly: 14, monthly: 30 };
 
@@ -274,7 +275,7 @@ async function loadShiftPatternCard() {
       .order('requested_at', { ascending: false }).limit(1),
   ]);
 
-  const pattern = setting?.shift_pattern || 'equal_8x3';
+  const pattern = setting?.shift_pattern || 'six_six_twelve';
   _applyShiftPatternLabels(pattern); // must run before any department grid renders
   const pendingReq = pending?.[0] || null;
   const names = shiftNames(pattern), times = shiftTimes(pattern);
