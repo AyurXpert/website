@@ -1,4 +1,4 @@
-import { _computeIpdBedTotals, _combinedIpdNursingSplit } from '../../config/ncismStaffCompliance.js';
+import { _computeIpdBedTotals, _combinedIpdNursingSplit, NCISM_XX_ROWS } from '../../config/ncismStaffCompliance.js';
 import { OPD_POOLED_NURSE_COUNT, OPD_COVERAGE_GROUPS, OT_NURSE_COUNT, ATYAYIKA_NURSE_COUNT } from '../../config/ncism.js';
 
 // Shared by nursing-roster-template.js and nursing-admin.js -- both need the
@@ -25,6 +25,29 @@ const BED_DEPT_ZONE = { 'Medical In-Patients': 'IPD_MEDICAL', 'Surgical In-Patie
 
 function _ugTier(ugRaw) {
   return [60, 100, 150, 200].includes(ugRaw) ? ugRaw : (ugRaw >= 150 ? 150 : ugRaw >= 100 ? 100 : ugRaw > 0 ? 60 : 0);
+}
+
+// Session 166 Phase 1: real finding from a live capacity audit on SDM -- this function only ever
+// covered 3 of the 9 real nursing-duty places (bed-derived + OPD + OT + Atyayika); every other
+// place (Panchakarma/Labour Room/Screening OPD/Diagnostics) fell through to null, and every
+// CALLER of computeRequiredPerShift() independently defaulted a null result to a naive "1 per
+// shift" guess -- which happened to be numerically correct for 3 of those 4 places by pure
+// coincidence, and silently WRONG for the 4th: Diagnostics had a real Sch XX nursing line before
+// the 2026-27 MESA&R circular, but Session 150 confirmed it was removed outright (no line in the
+// new schedule) -- the roster has been demanding a phantom nurse there ever since, contributing a
+// real (if small) false gap to every compliance count and capacity calculation built on this data.
+//
+// Fixed properly: looked up directly from NCISM_XX_ROWS (the canonical Schedule XX table) by its
+// real schedule reference, not hand-copied into a second table here -- if a future circular
+// changes these numbers again, this stays correct automatically instead of silently drifting the
+// way the old "1 per shift" guess did. Diagnostics gets an explicit `{mode:'none', total:0}` --
+// distinct from "no data, guess 1" -- so a confirmed real zero can never be mistaken for an unknown.
+const SCHEDULE_REF_BY_DEPT = { 'Panchakarma': 'Sch XX/32', 'Labour Room': 'Sch XX/38', 'Screening OPD': 'Sch XVI §40(m)' };
+function _reqFromScheduleRef(deptName, ugTier) {
+  const ref = SCHEDULE_REF_BY_DEPT[deptName];
+  if (!ref) return null;
+  const row = NCISM_XX_ROWS.find(r => r[0] === deptName && r[4] === ref);
+  return row ? (row[3]?.[ugTier] ?? null) : null;
 }
 
 export async function computeRequiredPerShift(supabase, tenantId, deptName) {
@@ -54,6 +77,14 @@ export async function computeRequiredPerShift(supabase, tenantId, deptName) {
     const { data: tenantRow } = await supabase.from('tenants').select('ug_intake').eq('id', tenantId).single();
     const total = ATYAYIKA_NURSE_COUNT[_ugTier(tenantRow?.ug_intake)] || 0;
     return total > 0 ? { mode: 'atyayika', total } : null;
+  }
+  // Diagnostics: confirmed zero -- see the comment on SCHEDULE_REF_BY_DEPT above. Explicit, not
+  // just "falls through to null", so callers never guess 1 here.
+  if (deptName === 'Diagnostics') return { mode: 'none', total: 0 };
+  if (SCHEDULE_REF_BY_DEPT[deptName]) {
+    const { data: tenantRow } = await supabase.from('tenants').select('ug_intake').eq('id', tenantId).single();
+    const total = _reqFromScheduleRef(deptName, _ugTier(tenantRow?.ug_intake));
+    return total != null ? { mode: 'schedule', total } : null;
   }
   return null;
 }
