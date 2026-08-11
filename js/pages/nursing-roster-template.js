@@ -6,7 +6,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNursingDutyDept, shiftsForDept, shiftsOverlap, shiftTimes, shiftNames } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
-import { computeRequiredPerShift, distributeAcrossShifts } from '../modules/roster/requiredStaffing.js';
+import { computeRequiredPerShift, distributeAcrossShifts, buildRequiredMatrix } from '../modules/roster/requiredStaffing.js';
 import { checkCycleExpiry } from '../modules/roster/cycleExpiry.js';
 
 // Session 139 (Nursing Duty Roster Phase 3): template editor for the
@@ -110,7 +110,18 @@ function _updateCycleEndDisplay(fromInputId, toSpanId, days) {
 async function loadDepartments() {
   const { data } = await supabase.from('departments')
     .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true).order('name');
-  _depts = (data || []).filter(isNursingDutyDept);
+  const nursingDepts = (data || []).filter(isNursingDutyDept);
+
+  // Real finding on SDM (Dr. Venkatesh): Diagnostics stayed selectable here forever even though
+  // the 2026-27 MESA&R circular removed its nursing post entirely (Session 150) -- building a
+  // "home assignment" template for a department with zero real requirement across every one of
+  // its own shifts serves no purpose. Drop it from the picker the same way roster.js now does,
+  // via the same buildRequiredMatrix() so the two pages can't disagree on which departments
+  // qualify.
+  const matrix = await buildRequiredMatrix(supabase, tenantId);
+  const hasRequirement = new Set();
+  matrix.forEach(r => { if (r.required > 0) hasRequirement.add(r.department_id); });
+  _depts = nursingDepts.filter(d => hasRequirement.has(d.id));
 
   const sel = document.getElementById('filter-dept');
   _depts.forEach(d => {

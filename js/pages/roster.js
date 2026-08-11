@@ -144,25 +144,49 @@ async function loadDepartments() {
     _depts = _depts.filter(isNursingDutyDept);
   }
 
+  _populateDeptSelects();
+
+  // Plain nursing staff/ayah, Session 137: default the view to their own
+  // ward for convenience -- still free to switch to any other nursing dept.
+  if (role === 'nurse' && profile.department_id && _depts.some(d => d.id === profile.department_id)) {
+    document.getElementById('filter-dept').value = profile.department_id;
+  }
+}
+
+function _populateDeptSelects() {
   const fd = document.getElementById('filter-dept');
   const md = document.getElementById('m-dept');
   [fd, md].forEach(sel => {
     const preserve = sel.value;
-    while(sel.options.length > (sel === fd ? 1 : 0)) sel.remove(sel.options.length-1);
+    while (sel.options.length > (sel === fd ? 1 : 0)) sel.remove(sel.options.length - 1);
     _depts.forEach(d => {
       const o = document.createElement('option');
       o.value = d.id;
       o.textContent = d.name + (d.ncism_code ? ` (${d.ncism_code})` : '');
       sel.appendChild(o);
     });
-    if (preserve) sel.value = preserve;
+    if (preserve && _depts.some(d => d.id === preserve)) sel.value = preserve;
   });
+}
 
-  // Plain nursing staff/ayah, Session 137: default the view to their own
-  // ward for convenience -- still free to switch to any other nursing dept.
-  if (role === 'nurse' && profile.department_id && _depts.some(d => d.id === profile.department_id)) {
-    fd.value = profile.department_id;
-  }
+// Real finding (Dr. Venkatesh, live on SDM): Diagnostics kept showing a permanent
+// "General Duty -- Not required" row on every viewer's grid, forever, since the 2026-27 MESA&R
+// circular removed its nursing post entirely (Session 150) -- confirmed it still has REAL Sch XX
+// posts (Lab Technician/Radiographer/ECG Technician/etc, ncismStaffCompliance.js), just none of
+// them nursing designations this roster tracks. A "not required" placeholder was the right fix
+// for a department that's SOMETIMES zero (Atyayika's Afternoon/Night, still needed for Morning),
+// but a department that's ALWAYS zero across every one of its own shifts has no roster business
+// at all -- drop it from the grid entirely instead of a row that can only ever say "not required".
+// Scoped to departments loadRequiredCounts() actually has real data for (nursing-duty places) --
+// never touches a plain RMO/EMO/GDMO doctor-duty department, which _requiredByDept never covers.
+function _dropZeroRequirementDepts() {
+  const before = _depts.length;
+  _depts = _depts.filter(d => {
+    const byShift = _requiredByDept[d.id];
+    if (!byShift) return true; // not a nursing-duty dept at all -- untouched
+    return Object.values(byShift).some(n => n > 0);
+  });
+  if (_depts.length !== before) _populateDeptSelects();
 }
 
 // Session 166: real finding on SDM -- the gap banner/grid only ever checked "is this cell
@@ -1198,6 +1222,7 @@ updateWeekLabel();
 _applyEditGate(); // correct immediately for super_admin/dept_admin/plain nurse; loadHeadGate() may still flip it for nurse_manager
 await Promise.all([loadDepartments(), loadDoctors(), loadHeadGate(), loadShiftPattern()]);
 await loadRequiredCounts(); // needs _depts (loadDepartments) already resolved; must finish before the first renderRoster()/updateGapBanner()
+_dropZeroRequirementDepts(); // Diagnostics-class departments (0 required across every one of their own shifts) -- drop the row entirely
 await loadMonitorScope(); // needs _canEdit (loadHeadGate) + _depts (loadDepartments) already resolved
 await loadRoster();
 await loadCoverageCapacity();
