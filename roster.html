@@ -56,6 +56,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .shift-cell.not-required{background:var(--cream) !important;border:1px dashed var(--border) !important}
 .cell-not-required{font-size:11px;color:var(--text-muted);font-style:italic;display:block;padding:4px}
 .cell-short{font-size:10px;color:#8b1a1a;font-weight:600;background:#fdecea;padding:1px 6px;border-radius:8px;display:inline-block;margin-top:2px}
+.cap-card{background:#fff;border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:16px}
+.cap-card-hd{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.cap-card-title{font-size:14px;font-weight:700;color:var(--green-deep)}
+.cap-card-sub{font-size:11px;color:var(--text-muted)}
+.cap-live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green-mid);margin-right:4px;animation:cap-pulse 2s infinite}
+@keyframes cap-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.cap-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.cap-table th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;padding:4px 10px;border-bottom:1.5px solid var(--border)}
+.cap-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.cap-table tr:last-child td{border-bottom:none}
+.cap-sub{font-size:10.5px;color:var(--text-muted);font-weight:400;margin-top:2px}
+.cap-deficit-row td{padding-top:10px}
 .slot-item{cursor:pointer;border-radius:4px;padding:3px 4px;transition:background .15s}
 .slot-item:hover{filter:brightness(.92)}
 .slot-item+.slot-item{border-top:1px dashed rgba(0,0,0,.1)}
@@ -147,6 +159,17 @@ td.today-col{background:#fdf6e3}
     <a class="page-nav-link" href="nursing-admin.html">🏥 Nursing Administration</a>
     <span class="page-nav-link active">🗓️ Duty Roster</span>
     <a class="page-nav-link" href="nursing-roster-template.html">🔁 Roster Template</a>
+  </div>
+
+  <!-- Session 166: whole-organisation nursing Coverage Capacity -- live (realtime-subscribed to
+       profiles/beds/departments), gated to super_admin/dept_admin/nurse_manager here; hidden
+       entirely for plain nurse/ayah viewers. -->
+  <div class="cap-card" id="coverage-capacity-card" style="display:none">
+    <div class="cap-card-hd">
+      <div class="cap-card-title">📊 Nursing Coverage Capacity</div>
+      <div class="cap-card-sub"><span class="cap-live-dot"></span>Live — updates automatically as staff are recruited or removed</div>
+    </div>
+    <div id="coverage-capacity-body">Loading…</div>
   </div>
 
   <div id="alert" class="alert"></div>

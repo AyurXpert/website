@@ -6,6 +6,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { isNursingDutyDept, shiftsForDept, shiftsOverlap, shiftTimes, shiftNames } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
 import { computeRequiredPerShift, distributeAcrossShifts } from '../modules/roster/requiredStaffing.js';
+import { computeCoverageCapacity, renderCoverageCapacityHtml, subscribeCoverageCapacity } from '../modules/roster/coverageCapacity.js';
 
 // Session 137: widened from admin-only to also let plain nursing staff/ayahs
 // (role 'nurse', covers both designations) view the roster -- read-only,
@@ -185,6 +186,20 @@ async function loadRequiredCounts() {
 // -- preserves the exact pre-existing "empty = gap" behaviour there, unchanged.
 function _requiredFor(deptId, shift) {
   return _requiredByDept[deptId]?.[shift] ?? 1;
+}
+
+// Session 166: whole-organisation Coverage Capacity card -- Dr. Venkatesh's explicit ask,
+// visible to super_admin/dept_admin/nurse_manager (Nursing Superintendent and her deputies) here.
+// MD/Medical Superintendent/Deputy MS access is deliberately NOT wired up yet -- see the chat
+// reply this session for why (a real pre-existing duty_roster RLS gap makes it unsafe to grant a
+// new viewer class page access before that's fixed properly).
+const _canSeeCoverageCapacity = ['super_admin', 'dept_admin', 'nurse_manager'].includes(role);
+async function loadCoverageCapacity() {
+  if (!_canSeeCoverageCapacity) return;
+  const card = document.getElementById('coverage-capacity-card');
+  card.style.display = '';
+  const data = await computeCoverageCapacity(supabase, tenantId);
+  document.getElementById('coverage-capacity-body').innerHTML = renderCoverageCapacityHtml(data);
 }
 
 // Session 137: nurse_manager's edit ability is gated on actually being the
@@ -1170,6 +1185,8 @@ await Promise.all([loadDepartments(), loadDoctors(), loadHeadGate(), loadShiftPa
 await loadRequiredCounts(); // needs _depts (loadDepartments) already resolved; must finish before the first renderRoster()/updateGapBanner()
 await loadMonitorScope(); // needs _canEdit (loadHeadGate) + _depts (loadDepartments) already resolved
 await loadRoster();
+await loadCoverageCapacity();
+if (_canSeeCoverageCapacity) subscribeCoverageCapacity(supabase, tenantId, loadCoverageCapacity);
 await loadCoveringRequests(); // every viewer, regardless of role -- see comment above the function
 
 // Session 149: deep-link support (?tab=leave / ?tab=monitor) -- the new
