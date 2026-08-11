@@ -3,7 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { isNursingDutyDept, shiftsForDept, shiftsOverlap } from '../config/ncism.js';
+import { isNursingDutyDept, shiftsForDept, shiftsOverlap, shiftTimes, shiftNames } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
 
 // Session 137: widened from admin-only to also let plain nursing staff/ayahs
@@ -64,6 +64,16 @@ let _newSlotIndex = 1;    // Session 139: next free slot_index when adding a new
 // 3-shift ward pattern for everything else).
 const SHIFT_LABELS = { morning:'Morning', afternoon:'Afternoon', night:'Night', general:'General Duty', on_call:'On-Call' };
 const SHIFT_TIMES  = { morning:'06:00–14:00', afternoon:'14:00–22:00', night:'22:00–06:00', general:'09:00–17:00', on_call:'24hr specialist' };
+
+// Session 166: both objects above are the equal_8x3 DEFAULTS -- loadShiftPattern() (called once
+// at boot, before the first renderRoster()) overwrites morning/afternoon/night/general in place
+// with the tenant's actual chosen pattern. on_call is never touched (not a nursing-pattern shift).
+async function loadShiftPattern() {
+  const { data } = await supabase.from('nursing_roster_settings').select('shift_pattern').eq('tenant_id', tenantId).maybeSingle();
+  const pattern = data?.shift_pattern || 'equal_8x3';
+  Object.assign(SHIFT_TIMES, shiftTimes(pattern));
+  Object.assign(SHIFT_LABELS, shiftNames(pattern));
+}
 
 // ── Utilities ──────────────────────────────────────
 function _getMonday(d) {
@@ -1096,7 +1106,7 @@ function _alert(type, msg) {
 // ── Boot ───────────────────────────────────────────
 updateWeekLabel();
 _applyEditGate(); // correct immediately for super_admin/dept_admin/plain nurse; loadHeadGate() may still flip it for nurse_manager
-await Promise.all([loadDepartments(), loadDoctors(), loadHeadGate()]);
+await Promise.all([loadDepartments(), loadDoctors(), loadHeadGate(), loadShiftPattern()]);
 await loadMonitorScope(); // needs _canEdit (loadHeadGate) + _depts (loadDepartments) already resolved
 await loadRoster();
 await loadCoveringRequests(); // every viewer, regardless of role -- see comment above the function

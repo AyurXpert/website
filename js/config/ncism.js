@@ -66,6 +66,39 @@ const SHIFT_OVERLAPS = {
 };
 export function shiftsOverlap(a, b) { return !!SHIFT_OVERLAPS[a]?.[b]; }
 
+// Session 166: the round-the-clock shift pattern is now a per-tenant choice
+// (nursing_roster_settings.shift_pattern, Nursing-Head-proposed/MS-approved --
+// same maker-checker flow as the roster cycle) between the classic Equal
+// Thirds split and a Day-Weighted 6+6+12 split common in Indian hospital
+// nursing rosters, which concentrates staff on the two busy day windows
+// (morning care/rounds, evening meds/visiting hours) and covers the quieter
+// overnight stretch with one longer shift. General Duty (09:00-17:00) is a
+// structurally separate shift_type and is identical under both patterns --
+// deliberately not listed here as a pattern-varying value.
+//
+// The 6+6+12 times (08:00-14:00/14:00-20:00/20:00-08:00) were chosen so
+// Morning+Evening together still fully bracket General Duty's fixed 9-5 with
+// no gap, exactly like the existing 8+8+8 pattern does -- meaning
+// SHIFT_OVERLAPS/shiftsOverlap() above (and its SQL mirror, _shifts_overlap())
+// needs NO change for either pattern: General still overlaps Morning+Evening/
+// Afternoon and never Night, regardless of which pattern is active.
+export const SHIFT_PATTERNS = {
+  equal_8x3: {
+    label: 'Equal Thirds (8+8+8)',
+    times: { morning: '06:00–14:00', afternoon: '14:00–22:00', night: '22:00–06:00', general: '09:00–17:00' },
+    names: { morning: 'Morning', afternoon: 'Afternoon', night: 'Night', general: 'General Duty' },
+  },
+  six_six_twelve: {
+    label: 'Day-Weighted (6+6+12)',
+    times: { morning: '08:00–14:00', afternoon: '14:00–20:00', night: '20:00–08:00', general: '09:00–17:00' },
+    // 'afternoon' stays the internal shift_type key (unchanged DB value) but reads
+    // as "Evening" here since 2pm-8pm genuinely is evening, not afternoon.
+    names: { morning: 'Morning', afternoon: 'Evening', night: 'Night', general: 'General Duty' },
+  },
+};
+export function shiftTimes(pattern) { return (SHIFT_PATTERNS[pattern] || SHIFT_PATTERNS.equal_8x3).times; }
+export function shiftNames(pattern) { return (SHIFT_PATTERNS[pattern] || SHIFT_PATTERNS.equal_8x3).names; }
+
 // Session 142: NCISM Schedule XX/20 "Nursing Staff — All OPDs" -- a pooled
 // duty desk, not one nurse per specialty clinic, sized by UG intake tier
 // (same table nursing-admin.js's compliance ladder already uses).

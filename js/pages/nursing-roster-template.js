@@ -4,7 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { isNursingDutyDept, shiftsForDept, shiftsOverlap } from '../config/ncism.js';
+import { isNursingDutyDept, shiftsForDept, shiftsOverlap, shiftTimes, shiftNames } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
 import { computeRequiredPerShift, distributeAcrossShifts } from '../modules/roster/requiredStaffing.js';
 import { checkCycleExpiry } from '../modules/roster/cycleExpiry.js';
@@ -32,7 +32,11 @@ const tenantId = getCurrentTenantId();
 const profile  = getCurrentProfile();
 const role     = getCurrentRole();
 
-const SHIFT_LABELS = { morning: 'Morning', afternoon: 'Afternoon', night: 'Night', general: 'General Duty (9am–5pm)' };
+// Session 166: these are the equal_8x3 DEFAULTS -- loadShiftPatternCard() (part of the boot
+// sequence, before any department's grid can be selected/rendered) overwrites all 4 keys in
+// place with the tenant's actual chosen pattern's names+times.
+const SHIFT_LABELS = { morning: 'Morning (06:00–14:00)', afternoon: 'Afternoon (14:00–22:00)', night: 'Night (22:00–06:00)', general: 'General Duty (09:00–17:00)' };
+const SHIFT_PATTERN_LABELS = { equal_8x3: 'Equal Thirds (8+8+8)', six_six_twelve: 'Day-Weighted (6+6+12)' };
 const CYCLE_DAYS = { weekly: 7, fortnightly: 14, monthly: 30 };
 
 let _canEdit = role === 'super_admin' || role === 'dept_admin';
@@ -243,6 +247,72 @@ window.requestRosterCycleChange = async function() {
   const { error } = await supabase.rpc('request_nursing_roster_cycle', { p_cycle: cycle });
   if (error) { _alert('error', safeErrorMessage(error, 'Could not submit the roster-cycle change request.')); return; }
   await loadRosterCycle();
+};
+
+// ── Shift Pattern (Session 166) -- same maker-checker card as Roster Cycle above, just a
+// different tenant-wide setting: how the round-the-clock nursing shifts split across 24 hours.
+// General Duty (09:00-17:00) is unaffected by this either way, so it's never mentioned as a
+// choice here, only as a fixed reference point in the summary line.
+function _applyShiftPatternLabels(pattern) {
+  const names = shiftNames(pattern), times = shiftTimes(pattern);
+  SHIFT_LABELS.morning   = `${names.morning} (${times.morning})`;
+  SHIFT_LABELS.afternoon = `${names.afternoon} (${times.afternoon})`;
+  SHIFT_LABELS.night     = `${names.night} (${times.night})`;
+  SHIFT_LABELS.general   = `${names.general} (${times.general})`;
+}
+
+async function loadShiftPatternCard() {
+  const body = document.getElementById('shift-pattern-body');
+  const headship = await resolveNursingHeadship(supabase, tenantId);
+  const canAct = canActAsNursingHead(headship, profile.id, role, profile.designation);
+
+  const [{ data: setting }, { data: pending }] = await Promise.all([
+    supabase.from('nursing_roster_settings').select('shift_pattern').eq('tenant_id', tenantId).maybeSingle(),
+    supabase.from('pending_approvals')
+      .select('id,payload,requested_at,requester:profiles!requested_by(full_name)')
+      .eq('tenant_id', tenantId).eq('action_type', 'nursing_shift_pattern').eq('status', 'pending')
+      .order('requested_at', { ascending: false }).limit(1),
+  ]);
+
+  const pattern = setting?.shift_pattern || 'equal_8x3';
+  _applyShiftPatternLabels(pattern); // must run before any department grid renders
+  const pendingReq = pending?.[0] || null;
+  const names = shiftNames(pattern), times = shiftTimes(pattern);
+
+  let html = `<div style="margin-bottom:10px"><span style="font-size:12.5px;color:var(--text-muted)">Current pattern:</span> `
+    + `<span class="badge" style="background:var(--green-light);color:var(--green-deep);font-weight:600">${_esc(SHIFT_PATTERN_LABELS[pattern] || pattern)}</span>`
+    + `<div style="margin-top:4px;font-size:11.5px;color:var(--text-muted)">${_esc(names.morning)} ${_esc(times.morning)} · ${_esc(names.afternoon)} ${_esc(times.afternoon)} · ${_esc(names.night)} ${_esc(times.night)} · General Duty ${_esc(times.general)} (always fixed)</div></div>`;
+
+  if (pendingReq) {
+    const reqPattern = pendingReq.payload?.pattern;
+    html += `<div class="empty">⏳ Change to <strong>${_esc(SHIFT_PATTERN_LABELS[reqPattern] || reqPattern)}</strong> requested by ${_esc(pendingReq.requester?.full_name || '—')} on ${_esc((pendingReq.requested_at || '').slice(0, 10))} -- awaiting Medical Superintendent / Deputy MS approval.</div>`;
+  } else if (canAct) {
+    html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+      + '<select id="shift-pattern-select" style="height:32px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12.5px">'
+      + Object.entries(SHIFT_PATTERN_LABELS).map(([v, l]) => `<option value="${v}" ${v === pattern ? 'selected' : ''}>${_esc(l)}</option>`).join('')
+      + '</select>'
+      + '<button class="btn btn-primary btn-sm" data-onclick="requestShiftPatternChange">Request Change</button>'
+      + '</div>'
+      + '<div style="margin-top:6px;font-size:11px;color:var(--text-muted)">Applies tenant-wide, to every round-the-clock nursing ward. General Duty is never affected.</div>';
+  } else {
+    html += '<div class="empty">Only the current Nursing Head can request a shift-pattern change.</div>';
+  }
+
+  body.innerHTML = html;
+
+  // If a department's already selected (e.g. this ran again after a change request was
+  // submitted mid-session), refresh its grid headers so an already-open grid doesn't keep
+  // showing stale shift-time labels.
+  if (_selectedDept) renderGrid(_cycleLength);
+}
+
+window.requestShiftPatternChange = async function() {
+  const sel = document.getElementById('shift-pattern-select');
+  const pattern = sel?.value;
+  if (!pattern) return;
+  const { error } = await supabase.rpc('request_nursing_shift_pattern', { p_pattern: pattern });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not submit the shift-pattern change request.')); return; }
+  await loadShiftPatternCard();
 };
 
 document.getElementById('filter-dept').addEventListener('change', async (e) => {
@@ -917,6 +987,7 @@ await Promise.all([loadDepartments(), loadEditGate()]);
 document.getElementById('bulk-card').style.display = _canEdit ? '' : 'none';
 await loadCycleExpiryBanner(); // populates _expiry, used by the suggested-date default below
 await loadRosterCycle(); // populates _tenantCycleKey, used by the bulk "To" date below
+await loadShiftPatternCard(); // populates SHIFT_LABELS with the tenant's actual pattern, before any grid can render
 document.getElementById('bulk-roll-start-date').value = _suggestedBulkStartDate();
 _updateCycleEndDisplay('bulk-roll-start-date', 'bulk-roll-end-date', CYCLE_DAYS[_tenantCycleKey] || 7);
 
