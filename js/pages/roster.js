@@ -5,7 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNursingDutyDept, shiftsForDept, shiftsOverlap, shiftTimes, shiftNames } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
-import { computeRequiredPerShift, distributeAcrossShifts } from '../modules/roster/requiredStaffing.js';
+import { buildRequiredMatrix } from '../modules/roster/requiredStaffing.js';
 import { computeCoverageCapacity, renderCoverageCapacityHtml, subscribeCoverageCapacity } from '../modules/roster/coverageCapacity.js';
 
 // Session 137: widened from admin-only to also let plain nursing staff/ayahs
@@ -182,14 +182,15 @@ async function loadDepartments() {
 // Departments with no formula (Diagnostics/Panchakarma/Screening OPD/Labour Room) fall back to 1
 // per shift, matching nursing-roster-template.js's own stated convention for the same gap.
 async function loadRequiredCounts() {
-  const nursingDepts = _depts.filter(isNursingDutyDept);
-  const results = await Promise.all(nursingDepts.map(async dept => {
-    const shifts = shiftsForDept(dept);
-    const info = await computeRequiredPerShift(supabase, tenantId, dept.name);
-    const byShift = (info?.total != null) ? distributeAcrossShifts(info.total, shifts) : Object.fromEntries(shifts.map(s => [s, 1]));
-    return [dept.id, byShift];
-  }));
-  _requiredByDept = Object.fromEntries(results);
+  // Session 166 Phase 2: reuses buildRequiredMatrix() (requiredStaffing.js) -- the same matrix
+  // the Generate Week solver consumes -- instead of its own parallel per-department loop, so this
+  // banner and the solver can never compute a different required number for the same department.
+  const rows = await buildRequiredMatrix(supabase, tenantId);
+  _requiredByDept = {};
+  rows.forEach(r => {
+    _requiredByDept[r.department_id] = _requiredByDept[r.department_id] || {};
+    _requiredByDept[r.department_id][r.shift_type] = r.required;
+  });
 }
 
 // Falls back to 1 for a department not covered above (e.g. the original RMO/EMO/GDMO doctor-duty

@@ -1,5 +1,5 @@
 import { _computeIpdBedTotals, _combinedIpdNursingSplit, NCISM_XX_ROWS } from '../../config/ncismStaffCompliance.js';
-import { OPD_POOLED_NURSE_COUNT, OPD_COVERAGE_GROUPS, OT_NURSE_COUNT, ATYAYIKA_NURSE_COUNT } from '../../config/ncism.js';
+import { OPD_POOLED_NURSE_COUNT, OPD_COVERAGE_GROUPS, OT_NURSE_COUNT, ATYAYIKA_NURSE_COUNT, isNursingDutyDept, shiftsForDept } from '../../config/ncism.js';
 
 // Shared by nursing-roster-template.js and nursing-admin.js -- both need the
 // exact same per-department required-headcount numbers so the two pages can
@@ -100,4 +100,24 @@ export function distributeAcrossShifts(total, shifts) {
   const result = {};
   shifts.forEach((s, i) => { result[s] = base + (i < remainder ? 1 : 0); });
   return result;
+}
+
+// Session 166 Phase 2: the flat {department_id, shift_type, required} array preview_nursing_week()/
+// commit_nursing_week() (the weekly solver RPCs) take as input -- built here, once, so every
+// caller (the new Generate Week page, and roster.js's own gap-detection banner if it's ever
+// refactored to share this instead of its own parallel loop) computes the exact same matrix from
+// the exact same real NCISM-formula numbers, never a second hand-built copy.
+export async function buildRequiredMatrix(supabase, tenantId) {
+  const { data: depts } = await supabase.from('departments')
+    .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true);
+  const nursingDepts = (depts || []).filter(isNursingDutyDept);
+
+  const rows = [];
+  for (const dept of nursingDepts) {
+    const shifts = shiftsForDept(dept);
+    const info = await computeRequiredPerShift(supabase, tenantId, dept.name);
+    const byShift = (info?.total != null) ? distributeAcrossShifts(info.total, shifts) : Object.fromEntries(shifts.map(s => [s, 1]));
+    shifts.forEach(s => rows.push({ department_id: dept.id, shift_type: s, required: byShift[s] || 0 }));
+  }
+  return rows;
 }

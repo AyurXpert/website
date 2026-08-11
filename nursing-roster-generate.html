@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Generate Weekly Roster — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;
+  --red:#c0392b;--cream:#faf8f3;--white:#fff;
+  --border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh;margin:0}
+.container{max-width:1200px;margin:0 auto;padding:24px 20px 80px}
+.page-header{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.page-title{font-size:22px;font-weight:700;color:var(--green-deep);font-family:'Cormorant Garamond',serif}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:2px}
+.page-nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.page-nav-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;border:1.5px solid var(--border);color:var(--text-mid);background:#fff;transition:all .15s}
+.page-nav-link:hover{border-color:var(--green-mid);color:var(--green-deep)}
+.page-nav-link.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep);cursor:default}
+.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s}
+.btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
+.btn-primary:disabled{background:#a9c2b3;cursor:not-allowed}
+.btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}
+.btn-secondary:disabled{color:var(--text-muted);border-color:var(--border);cursor:not-allowed}
+.field select,.field input{border:1.5px solid var(--border);border-radius:var(--radius);padding:7px 9px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fff;outline:none}
+
+.cc{background:var(--white);border-radius:10px;box-shadow:0 2px 14px rgba(0,0,0,.06);margin-bottom:18px;overflow:hidden}
+.cc-hd{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.cc-title{font-size:15px;font-weight:700;color:var(--green-deep)}
+.cc-sub{font-size:11.5px;color:var(--text-muted);margin-top:2px}
+.cc-body{padding:16px 18px}
+
+.alert{display:none;margin-bottom:14px;padding:10px 16px;border-radius:var(--radius);font-size:13px;font-weight:500}
+.alert.show{display:block}
+.alert.success{background:var(--green-light);color:var(--green-deep);border:1.5px solid var(--green-mid)}
+.alert.error{background:#fdecea;color:var(--red);border:1.5px solid #f5b8b8}
+.alert.info{background:var(--gold-light);color:#7a5a10;border:1.5px solid var(--gold)}
+
+.week-nav{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn-week{background:none;border:1.5px solid var(--border);border-radius:var(--radius);padding:0 10px;height:32px;cursor:pointer;font-size:14px;color:var(--green-deep)}
+.btn-week:hover{background:var(--green-light)}
+.week-label{font-weight:600;font-size:13.5px;color:var(--green-deep);min-width:170px}
+
+.stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.stat-tile{flex:1;min-width:130px;background:var(--cream);border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center}
+.stat-tile .num{font-size:24px;font-weight:700;color:var(--green-deep);font-family:'Cormorant Garamond',serif}
+.stat-tile .lbl{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.stat-tile.warn .num{color:#7a5a10}
+.stat-tile.danger .num{color:var(--red)}
+
+.via-legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--text-mid);margin-bottom:14px}
+.via-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:10px;background:var(--green-light);color:var(--green-deep);font-weight:600}
+.via-chip.widened{background:var(--gold-light);color:#7a5a10}
+.via-chip.relief{background:#eaf3fb;color:#1a5a8a}
+.via-chip.gap{background:#fdecea;color:var(--red)}
+
+table.gen-table{width:100%;border-collapse:collapse;font-size:12.5px}
+table.gen-table th,table.gen-table td{border:1px solid var(--border);padding:6px 8px;text-align:left}
+table.gen-table th{background:var(--green-deep);color:#fff;font-weight:600;font-size:11px}
+table.gen-table tbody tr:nth-child(even){background:var(--cream)}
+.empty{font-size:12.5px;color:var(--text-muted);padding:10px 0}
+</style>
+</head>
+<body>
+
+<div id="navbar-root"></div>
+
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-title">🆕 Generate Weekly Roster</div>
+      <div class="page-subtitle">Solves the whole week at once — rotating weekly-off, zone-widening, cross-department pairing, honest gaps. Preview before publishing.</div>
+    </div>
+  </div>
+
+  <div class="page-nav">
+    <a class="page-nav-link" href="nursing-admin.html">🏥 Nursing Administration</a>
+    <a class="page-nav-link" href="roster.html">🗓️ Duty Roster</a>
+    <a class="page-nav-link" href="nursing-roster-template.html">🔁 Roster Template</a>
+    <span class="page-nav-link active">🆕 Generate Week</span>
+  </div>
+
+  <div id="alert" class="alert"></div>
+  <div id="readonly-note" class="alert info" style="display:none">Read-only — only the current Nursing Head, Medical Director/Principal/Medical Superintendent, or super_admin can generate or publish a roster week.</div>
+
+  <div class="cc">
+    <div class="cc-hd">
+      <div><div class="cc-title">📅 Week</div><div class="cc-sub">Must start on a Monday</div></div>
+    </div>
+    <div class="cc-body">
+      <div class="week-nav">
+        <button class="btn-week" id="btn-prev-week">&#8249;</button>
+        <div class="week-label" id="week-label">Loading…</div>
+        <button class="btn-week" id="btn-next-week">&#8250;</button>
+        <button class="btn btn-secondary" id="btn-this-week" style="height:32px">This Week</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cc">
+    <div class="cc-hd">
+      <div><div class="cc-title">🔍 Preview</div><div class="cc-sub">Computes the full proposed week — writes nothing until you publish it below</div></div>
+    </div>
+    <div class="cc-body">
+      <button class="btn btn-secondary" id="btn-preview">🔍 Generate Preview</button>
+      <div id="preview-results" style="margin-top:16px;display:none"></div>
+    </div>
+  </div>
+
+  <div class="cc">
+    <div class="cc-hd">
+      <div><div class="cc-title">✅ Publish</div><div class="cc-sub">Replaces any existing roster for this week, in these departments, with the previewed plan above</div></div>
+    </div>
+    <div class="cc-body">
+      <button class="btn btn-primary" id="btn-publish" disabled>✅ Confirm &amp; Publish This Week</button>
+      <div style="font-size:11.5px;color:var(--text-muted);margin-top:8px" id="publish-hint">Generate a preview for this exact week first.</div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/pages/nursingRosterGenerate.js"></script>
+</body>
+</html>
