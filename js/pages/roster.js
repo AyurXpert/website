@@ -1,4 +1,4 @@
-import { requireAuth, getCurrentTenantId, getCurrentProfile, getCurrentRole } from '../core/auth.js';
+import { requireAuth, getCurrentTenantId, getCurrentProfile, getCurrentRole, getCurrentSecondaryRole, getCurrentHasMonitoringAccess } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
@@ -13,14 +13,25 @@ import { computeCoverageCapacity, renderCoverageCapacityHtml, subscribeCoverageC
 // gated below via _canEdit. super_admin/dept_admin always retain full edit;
 // nurse_manager's edit ability is now further gated on being the currently-
 // resolved nursing head (see loadHeadGate()), not just holding the role.
-await requireAuth(['super_admin', 'dept_admin', 'nurse_manager', 'nurse']);
+//
+// Session 166: monitoringSafe:true added -- now safe (duty_roster's write-side RLS is properly
+// role-gated as of this session, see sql/session166c_*.sql) -- admits a has_monitoring_access
+// viewer read-only. Currently only Deputy MS holds that flag without also holding dept_admin
+// (Medical Director defaults to role='dept_admin' directly; Medical Superintendent already gets
+// full access today via secondary_role='dept_admin', see the _canEdit fix below) -- so this one
+// line is what actually grants Deputy MS's first-ever access to this page.
+await requireAuth(['super_admin', 'dept_admin', 'nurse_manager', 'nurse'], 'login.html', { monitoringSafe: true });
 initNavbar();
 wireDelegatedEvents();
 
 const tenantId = getCurrentTenantId();
 const profile  = getCurrentProfile();
 const role     = getCurrentRole();
-let _canEdit   = role === 'super_admin' || role === 'dept_admin'; // refined once headship resolves, for nurse_manager
+// Session 166: real pre-existing bug found while auditing this for the RLS fix above -- a
+// secondary_role='dept_admin' holder (e.g. Medical Superintendent) already had full page ACCESS
+// (requireAuth checks secondary_role) but this line never did, so every edit control stayed
+// hidden for her regardless -- read-only in the UI despite having genuine edit rights server-side.
+let _canEdit   = role === 'super_admin' || role === 'dept_admin' || getCurrentSecondaryRole() === 'dept_admin'; // refined once headship resolves, for nurse_manager
 let _holidays  = new Map(); // 'YYYY-MM-DD' -> occasion name, for the visible week
 
 // This page was originally built as the doctor RMO/EMO/GDMO on-call duty
@@ -188,12 +199,15 @@ function _requiredFor(deptId, shift) {
   return _requiredByDept[deptId]?.[shift] ?? 1;
 }
 
-// Session 166: whole-organisation Coverage Capacity card -- Dr. Venkatesh's explicit ask,
-// visible to super_admin/dept_admin/nurse_manager (Nursing Superintendent and her deputies) here.
-// MD/Medical Superintendent/Deputy MS access is deliberately NOT wired up yet -- see the chat
-// reply this session for why (a real pre-existing duty_roster RLS gap makes it unsafe to grant a
-// new viewer class page access before that's fixed properly).
-const _canSeeCoverageCapacity = ['super_admin', 'dept_admin', 'nurse_manager'].includes(role);
+// Session 166: whole-organisation Coverage Capacity card -- Dr. Venkatesh's explicit ask.
+// Visible to super_admin/dept_admin (primary or secondary role -- covers Medical Director, who
+// defaults to role='dept_admin' directly, and Medical Superintendent, who gets it via
+// secondary_role), nurse_manager (Nursing Superintendent and her deputies), and any
+// has_monitoring_access doctor (covers Deputy MS, the one position that had neither role nor
+// secondary_role granting access before this session's monitoringSafe fix above).
+const _canSeeCoverageCapacity = ['super_admin', 'dept_admin', 'nurse_manager'].includes(role)
+  || getCurrentSecondaryRole() === 'dept_admin'
+  || (role === 'doctor' && getCurrentHasMonitoringAccess());
 async function loadCoverageCapacity() {
   if (!_canSeeCoverageCapacity) return;
   const card = document.getElementById('coverage-capacity-card');
