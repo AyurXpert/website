@@ -58,7 +58,14 @@ if (profile?.role === 'nurse') {
     const n = Number(count) || 0;
     const el = document.getElementById('roster-change-banner');
     el.innerHTML = `🔔 <strong>Your duty roster has changed</strong> — ${n} new or updated shift${n === 1 ? '' : 's'} published. <a href="roster.html">View my roster →</a>`;
-    el.style.display = '';
+    // Real bug found live (Session 167, Dr. Venkatesh testing as nursingip1@sdm.com): this file's
+    // own .alert{display:none} class rule (line ~34) still applies even after clearing the
+    // inline style -- `el.style.display=''` only removes an inline override, it doesn't beat a
+    // class-level CSS rule. This file already has an established .alert.show{display:block}
+    // convention for exactly this (see _alert(), used by #alert-box) -- this banner just never
+    // used it. The check/data/DOM-write were all correct the whole time; the banner was silently
+    // rendering with content, just invisible -- explains why zero console errors ever appeared.
+    el.classList.add('show');
   }).catch(err => console.error('[roster-change-banner]', err)); // was silently swallowed before -- now at least visible in devtools if this isn't the whole fix
 }
 

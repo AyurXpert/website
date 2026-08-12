@@ -107,7 +107,15 @@ async function loadEditGate() {
   } else if (role === 'doctor' && getCurrentHasMonitoringAccess()) {
     _canEdit = false; // Deputy MS: view/preview only, never publish
   }
-  document.getElementById('readonly-note').style.display = _canEdit ? 'none' : '';
+  // Pre-existing bug found live during Session 167's nursing.js banner investigation, same
+  // class: this element carries class="alert info", and .alert{display:none} (a CSS class
+  // rule) still applies after style.display is merely cleared to '' -- an inline style.display
+  // can only override a class rule when explicitly set to a real value, not cleared. The
+  // read-only explanation banner has never actually been visible to a read-only viewer (e.g.
+  // Deputy MS) since this page was built. Fixed using the .alert.show{display:block} convention
+  // this same file already defines and uses correctly elsewhere (see _renderPreview()'s
+  // note.classList.add('show')).
+  document.getElementById('readonly-note').classList.toggle('show', !_canEdit);
   document.getElementById('btn-publish').style.display = _canEdit ? '' : 'none';
 }
 
