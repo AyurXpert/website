@@ -1,5 +1,18 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.0/+esm';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/constants.js';
+// Session 167: this page used to create its OWN separate Supabase client here
+// (createClient(SUPABASE_URL, SUPABASE_ANON_KEY), a pre-existing pattern in this specific
+// file) instead of the shared singleton every other page imports. Adding the roster-changed
+// check first tried fixing that check's own race condition by ALSO importing the shared
+// singleton alongside this file's existing client -- which was the wrong shape of fix: it left
+// TWO GoTrueClient instances alive on the same page sharing the same localStorage auth key,
+// confirmed live (Dr. Venkatesh's real console) as "Multiple GoTrueClient instances detected...
+// may produce undefined behavior" -- and very likely also the cause of the CSP connect-src
+// blocks seen alongside it, both a direct regression from that first attempt. Fixed properly
+// this time: nursing.js now uses the ONE shared singleton for everything, same as roster.js and
+// every other page already does -- eliminating the second client, not adding a third fix on top
+// of the wrong one. Confirmed safe first: nursing.js's own client had zero .auth.* listeners or
+// realtime channel usage of its own to lose -- every use throughout this file is a plain
+// .from(...) query, a mechanical, behavior-preserving substitution.
+import { supabase } from '../core/db/supabaseClient.js';
 import { requireAuth, getCurrentProfile, getCurrentTenant } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
@@ -8,22 +21,11 @@ import { logAudit } from '../core/auditLogger.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { checkRosterChanged } from '../modules/roster/scheduleChangeIndicator.js';
-// Session 167 real-usage fix: this page's own `supabase` const below (createClient() called
-// fresh, not the shared singleton -- a known pre-existing pattern in this specific file, see
-// CLAUDE.md's CSP-hardening notes) has to independently restore its auth session from
-// localStorage on creation. The roster-changed check fires essentially immediately after that
-// client is created, before its session-restore is guaranteed to have completed -- a real,
-// well-known supabase-js race condition. The shared singleton, by contrast, is the exact client
-// instance auth.js's login() used to sign in, so its session is already established by the time
-// any page loads. Imported under an alias so nothing else in this large file (~700 lines, every
-// existing clinical feature) is touched -- only this one new check uses it.
-import { supabase as _sharedSupabase } from '../core/db/supabaseClient.js';
 
 requireAuth(['nurse','nurse_manager','super_admin','dept_admin','doctor']);
 initNavbar();
 wireDelegatedEvents();
 
-const supabase  = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const profile   = getCurrentProfile();
 const tenant    = getCurrentTenant();
 const tenantId  = tenant?.id;
@@ -47,7 +49,7 @@ renderPromoBanner('promo-banner', { supabase, tenantId });
 // nurse_manager has no "own shifts" for this to even apply to). Fire-and-forget, non-blocking --
 // never awaited by anything else on this page, purely additive to the existing boot sequence.
 if (profile?.role === 'nurse') {
-  checkRosterChanged(_sharedSupabase, tenantId, userId).then(({ changed, count }) => {
+  checkRosterChanged(supabase, tenantId, userId).then(({ changed, count }) => {
     if (!changed) return;
     // count crosses a module boundary -- always a real integer by construction
     // (scheduleChangeIndicator.js's `count || 0`), but coerced explicitly here anyway so it can
