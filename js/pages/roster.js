@@ -71,6 +71,8 @@ let _roster     = [];     // duty_roster rows for current week
 let _editEntry  = null;   // existing row being edited
 let _newSlotIndex = 1;    // Session 139: next free slot_index when adding a new entry (multi-staff-per-shift)
 let _requiredByDept = {}; // Session 166: {deptId: {shift: requiredCount}}, from loadRequiredCounts() -- see comment there
+let _nursingPool = [];    // Session 167: active staff_nurse/ward_sister/anm for this tenant, loaded once -- who "off today" is checked against
+let _offByDate   = {};    // 'YYYY-MM-DD' -> [{id,full_name}], recomputed on every loadRoster() -- see computeOffByDate()
 
 // Session 141: SHIFTS is no longer a fixed global set -- shiftsForDept(dept)
 // computes which shift(s) apply per department (a single 'general' 9am-5pm
@@ -299,13 +301,14 @@ async function loadRoster() {
     // forced a PostgREST schema-cache refresh that surfaced this pre-existing
     // bug for the first time (caught live -- loadRoster() 300'd for every
     // tenant, not something specific to the new multi-slot columns).
-    .select('id,department_id,profile_id,shift_date,shift_type,slot_index,bed_range_start,bed_range_end,is_confirmed,notes,profiles!duty_roster_profile_id_fkey(full_name)')
+    .select('id,department_id,profile_id,shift_date,shift_type,slot_index,bed_range_start,bed_range_end,is_confirmed,notes,is_relief_assignment,profiles!duty_roster_profile_id_fkey(full_name)')
     .eq('tenant_id', tenantId)
     .gte('shift_date', dates[0])
     .lte('shift_date', dates[6]);
   if (deptFilter) q = q.eq('department_id', deptFilter);
   const [{ data }] = await Promise.all([q, loadHolidays()]);
   _roster = data || [];
+  await computeOffByDate(dates);
   renderRoster();
   renderOnCall();
   updateGapBanner();
@@ -316,14 +319,48 @@ async function loadRoster() {
   if (_nursingStaffOff.length) renderWeeklyOff();
 }
 
+// Session 167: "who's off today" derived straight from ground truth -- a pool
+// member with zero duty_roster rows anywhere (any department, any shift) on a
+// given date -- rather than recomputing the whole-week solver's rotating-off-
+// day formula. Ground truth is honest regardless of which mechanism actually
+// produced the published week (the new solver, the old Fixed-Team template
+// roll-forward, or a manual assign), and doesn't risk disagreeing with what's
+// really published. A tenant-wide (unfiltered by department) query is used
+// deliberately -- someone cross-covering another department that day is NOT
+// off, just not visible in whichever single department the grid happens to be
+// filtered to right now.
+async function loadNursingPool() {
+  const { data } = await supabase.from('profiles')
+    .select('id,full_name')
+    .eq('tenant_id', tenantId).eq('is_active', true)
+    .in('designation', ['staff_nurse', 'ward_sister', 'anm']);
+  _nursingPool = data || [];
+}
+
+async function computeOffByDate(dates) {
+  _offByDate = {};
+  if (!_nursingPool.length) return;
+  const { data } = await supabase.from('duty_roster')
+    .select('profile_id,shift_date')
+    .eq('tenant_id', tenantId)
+    .gte('shift_date', dates[0]).lte('shift_date', dates[6]);
+  const workingByDate = {};
+  dates.forEach(d => { workingByDate[d] = new Set(); });
+  (data || []).forEach(r => { workingByDate[r.shift_date]?.add(r.profile_id); });
+  dates.forEach(d => { _offByDate[d] = _nursingPool.filter(p => !workingByDate[d].has(p.id)); });
+}
+
 // Session 137: public holidays "pre-filled into every roster" -- a small 🎉
 // marker + tooltip on the matching date column, in both tables below. A live
 // read against public_holidays, not copied into duty_roster.
 function _dateHeaderHtml(d) {
   const holidayName = _holidays.get(d);
+  const off = _offByDate[d] || [];
+  const offNames = off.map(p => p.full_name).join(', ');
   return `<th class="${_isToday(d)?'today-col':''}"${holidayName?` title="Public Holiday: ${_esc(holidayName)}" style="background:#fdf3e0"`:''}>`
     + `${_fmtDay(d)}<br><span style="font-weight:400;font-size:10px">${_fmtDate(d)}</span>`
     + (holidayName ? `<br><span style="font-size:9px;color:#7a5a10">🎉 ${_esc(holidayName)}</span>` : '')
+    + (off.length ? `<br><span class="day-off-badge" title="${_esc(offNames)}">😴 ${off.length} off</span>` : '')
     + `</th>`;
 }
 
@@ -394,8 +431,14 @@ function _cellHtml(deptId, date, shift, entries, required = 1) {
   const items = entries.map(entry => {
     const name = entry.profiles?.full_name || '—';
     const beds = (entry.bed_range_start && entry.bed_range_end) ? `<span class="cell-beds">Beds ${entry.bed_range_start}–${entry.bed_range_end}</span>` : '';
-    return `<div class="slot-item" data-dept="${deptId}" data-date="${date}" data-shift="${shift}" data-entry-id="${entry.id}" data-slot-index="${entry.slot_index || 1}">
+    // Session 167: is_relief_assignment (set by commit_nursing_week() for anything that isn't a
+    // person's own home slot -- same-department widening, cross-department pairing, or general
+    // relief) is a structured signal, not a text-match on `notes` -- highlight it distinctly so
+    // "who's doing extra duty today" is visible at a glance instead of buried in small grey text.
+    const widened = !!entry.is_relief_assignment;
+    return `<div class="slot-item${widened ? ' slot-widened' : ''}" data-dept="${deptId}" data-date="${date}" data-shift="${shift}" data-entry-id="${entry.id}" data-slot-index="${entry.slot_index || 1}">
       <span class="cell-name">${_esc(name)}</span>
+      ${widened ? '<span class="cell-widened-tag">🔁 Extra duty</span>' : ''}
       ${beds}
       ${entry.is_confirmed ? '<span class="cell-confirmed">✓ Confirmed</span>' : '<span class="cell-pending">Pending confirm</span>'}
       ${entry.notes ? `<span class="cell-status">${_esc(entry.notes)}</span>` : ''}
@@ -1224,6 +1267,7 @@ await Promise.all([loadDepartments(), loadDoctors(), loadHeadGate(), loadShiftPa
 await loadRequiredCounts(); // needs _depts (loadDepartments) already resolved; must finish before the first renderRoster()/updateGapBanner()
 _dropZeroRequirementDepts(); // Diagnostics-class departments (0 required across every one of their own shifts) -- drop the row entirely
 await loadMonitorScope(); // needs _canEdit (loadHeadGate) + _depts (loadDepartments) already resolved
+await loadNursingPool(); // must resolve before loadRoster()'s first computeOffByDate() call
 await loadRoster();
 await loadCoverageCapacity();
 if (_canSeeCoverageCapacity) subscribeCoverageCapacity(supabase, tenantId, loadCoverageCapacity);

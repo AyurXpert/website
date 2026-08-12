@@ -16,6 +16,25 @@ import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/n
 // (duty_roster's write-side RLS was closed earlier this session specifically to make this safe);
 // Publish is further gated client-side to _canEdit, matching roster.js's exact convention, with
 // commit_nursing_week()'s own server-side _duty_roster_editor_ok() check as the real enforcement.
+//
+// Session 167: cycle-adaptive generation -- the tenant's approved Roster Cycle setting
+// (nursing_roster_settings.cycle, weekly/fortnightly/monthly, same maker-checker setting the
+// older Fixed-Team template system already reads) now also governs THIS page. Deliberately does
+// NOT touch preview_nursing_week()/commit_nursing_week() themselves -- their rotating weekly-off
+// formula (sort_idx + week_number, mod 7) is scoped to and proven correct for exactly one
+// calendar week; generalizing it to a 14/30-day span directly would mean re-deriving that math
+// for spans that don't cleanly decompose into whole weeks. Instead, a fortnight/month is built by
+// calling the SAME tested single-week RPCs once per Monday in the period and combining the
+// results client-side -- the proven engine is never modified, just called more than once.
+// "Monthly" means exactly 4 consecutive Monday-start weeks (28 days), not a real calendar month --
+// confirmed with Dr. Venkatesh (12 Aug 2026): the solver is inherently Monday-anchored, and a
+// real calendar month would end mid-week with no clean way to close out a partial week.
+// Publish is per-week atomic (reuses commit_nursing_week()'s existing per-week transaction
+// unchanged) but NOT one all-or-nothing transaction across the whole period -- also Dr.
+// Venkatesh's confirmed call: a large multi-week write is more likely to hit a lock/timeout, and
+// requiring all-or-nothing means a single hiccup on week 4 would silently discard weeks 1-3 that
+// published cleanly. A partial-publish failure is reported by exactly which week stopped, so the
+// remaining weeks can just be re-run.
 await requireAuth(['super_admin', 'dept_admin', 'nurse_manager', 'nurse'], 'login.html', { monitoringSafe: true });
 initNavbar();
 wireDelegatedEvents();
@@ -25,11 +44,19 @@ const profile  = getCurrentProfile();
 const role     = getCurrentRole();
 let _canEdit   = role === 'super_admin' || role === 'dept_admin' || getCurrentSecondaryRole() === 'dept_admin';
 
+const CYCLE_WEEKS = { weekly: 1, fortnightly: 2, monthly: 4 };
+const CYCLE_META = {
+  weekly:      { period: 'Week',     periodLower: 'week',     navLabel: '🆕 Generate Week',     pageTitle: '🆕 Generate Weekly Roster',     btnPreview: '🔍 Generate Preview', btnPublish: '✅ Confirm & Publish This Week',     nudgeStep: 'week' },
+  fortnightly: { period: 'Fortnight',periodLower: 'fortnight', navLabel: '🆕 Generate Fortnightly',pageTitle: '🆕 Generate Fortnightly Roster', btnPreview: '🔍 Generate Preview', btnPublish: '✅ Confirm & Publish This Fortnight', nudgeStep: 'fortnight' },
+  monthly:     { period: '4-Week Month', periodLower: '4-week month', navLabel: '🆕 Generate Monthly', pageTitle: '🆕 Generate Monthly Roster', btnPreview: '🔍 Generate Preview', btnPublish: '✅ Confirm & Publish This Month', nudgeStep: 'month' },
+};
+
+let _cycle     = 'weekly';
+let _weekCount = 1;
 let _weekStart = _getMonday(new Date());
 let _deptNames = {};
-let _lastPreview = null;       // the full RPC result, kept so Publish doesn't need to re-fetch it
-let _lastPreviewWeek = null;   // which week the current preview/enable-state belongs to -- a week
-                                // change invalidates it, forcing a fresh preview before publish
+let _lastPreview = null;       // combined { required, byWeek: [{weekStart, result}], merged: <renderable> }
+let _lastPreviewMondays = null; // JSON-stringified array of Monday date-strings the current preview/enable-state covers
 
 function _getMonday(d) {
   const day = d.getDay();
@@ -51,6 +78,28 @@ function _alert(type, msg) {
   el.className = `alert ${type} show`;
 }
 
+async function loadCycle() {
+  const { data } = await supabase.from('nursing_roster_settings').select('cycle').eq('tenant_id', tenantId).maybeSingle();
+  _cycle = data?.cycle || 'weekly';
+  _weekCount = CYCLE_WEEKS[_cycle] || 1;
+  const meta = CYCLE_META[_cycle];
+  document.getElementById('page-title').textContent = meta.pageTitle;
+  document.getElementById('nav-active-label').textContent = meta.navLabel;
+  document.getElementById('period-card-title').textContent = `📅 ${meta.period}`;
+  document.getElementById('period-card-sub').textContent = `Starts on a Monday${_weekCount > 1 ? ` — spans ${_weekCount} weeks` : ''}`;
+  document.getElementById('preview-card-sub').textContent = `Computes the full proposed ${meta.periodLower} at once — writes nothing until you publish it below`;
+  document.getElementById('publish-card-sub').textContent = `Replaces any existing roster for this ${meta.periodLower}, in these departments, with the previewed plan above`;
+  document.getElementById('btn-preview').textContent = meta.btnPreview;
+  document.getElementById('btn-publish').textContent = meta.btnPublish;
+  document.getElementById('this-period-label').textContent = meta.period;
+  document.title = `${meta.pageTitle.replace('🆕 ', '')} — AyurXpert`;
+  if (_weekCount > 1) {
+    const note = document.getElementById('cycle-note');
+    note.textContent = `This tenant's approved Roster Cycle is ${_cycle} — generating ${_weekCount} weeks at once, each solved and (once published) written independently. If a hiccup stops publish partway, the weeks already written stay published; just re-run the remaining ones.`;
+    note.classList.add('show');
+  }
+}
+
 async function loadEditGate() {
   if (role === 'nurse_manager') {
     const headship = await resolveNursingHeadship(supabase, tenantId);
@@ -62,18 +111,27 @@ async function loadEditGate() {
   document.getElementById('btn-publish').style.display = _canEdit ? '' : 'none';
 }
 
+function _periodMondays() {
+  return Array.from({ length: _weekCount }, (_, i) => {
+    const m = new Date(_weekStart);
+    m.setDate(m.getDate() + i * 7);
+    return m;
+  });
+}
+
 function _updateWeekLabel() {
-  const end = new Date(_weekStart); end.setDate(end.getDate() + 6);
+  const mondays = _periodMondays();
+  const end = new Date(mondays[mondays.length - 1]); end.setDate(end.getDate() + 6);
   document.getElementById('week-label').textContent = `${_fmtDate(_weekStart)} – ${_fmtDate(end)}, ${_weekStart.getFullYear()}`;
   document.getElementById('preview-results').style.display = 'none';
   document.getElementById('btn-publish').disabled = true;
-  document.getElementById('publish-hint').textContent = 'Generate a preview for this exact week first.';
+  document.getElementById('publish-hint').textContent = `Generate a preview for this exact ${CYCLE_META[_cycle].periodLower} first.`;
   _lastPreview = null;
-  _lastPreviewWeek = null;
+  _lastPreviewMondays = null;
 }
 
-document.getElementById('btn-prev-week').addEventListener('click', () => { _weekStart.setDate(_weekStart.getDate() - 7); _updateWeekLabel(); });
-document.getElementById('btn-next-week').addEventListener('click', () => { _weekStart.setDate(_weekStart.getDate() + 7); _updateWeekLabel(); });
+document.getElementById('btn-prev-week').addEventListener('click', () => { _weekStart.setDate(_weekStart.getDate() - 7 * _weekCount); _updateWeekLabel(); });
+document.getElementById('btn-next-week').addEventListener('click', () => { _weekStart.setDate(_weekStart.getDate() + 7 * _weekCount); _updateWeekLabel(); });
 document.getElementById('btn-this-week').addEventListener('click', () => { _weekStart = _getMonday(new Date()); _updateWeekLabel(); });
 
 async function loadDeptNames() {
@@ -82,6 +140,31 @@ async function loadDeptNames() {
 }
 
 const VIA_LABEL = { home: 'Home assignment', widened: 'Same-department widening', widened_cross: 'Cross-department pairing', relief: 'Cross-pool relief' };
+
+// Combines N single-week preview_nursing_week() results (one per Monday in the period) into one
+// renderable shape identical to what the single-week page always rendered -- plan/gaps concat
+// straight across weeks (each entry already carries its own real `date`, so nothing needs a
+// week label added); weekly_offs merges per-person off_dates arrays by profile_id, since the
+// same nurse can appear in more than one week's off-list with a different day each time.
+function _mergePreviews(byWeek) {
+  const plan = [], gaps = [];
+  const offsByProfile = {};
+  let pool_count = 0;
+  byWeek.forEach(({ result }) => {
+    (result.plan || []).forEach(p => plan.push(p));
+    (result.gaps || []).forEach(g => gaps.push(g));
+    (result.weekly_offs || []).forEach(o => {
+      if (!offsByProfile[o.profile_id]) offsByProfile[o.profile_id] = { profile_id: o.profile_id, full_name: o.full_name, off_dates: [] };
+      offsByProfile[o.profile_id].off_dates.push(...(o.off_dates || []));
+    });
+    pool_count = Math.max(pool_count, result.pool_count || 0);
+  });
+  return {
+    plan, gaps, pool_count,
+    weekly_offs: Object.values(offsByProfile),
+    plan_count: plan.length, gap_count: gaps.length,
+  };
+}
 
 function _renderPreview(result) {
   const el = document.getElementById('preview-results');
@@ -106,12 +189,12 @@ function _renderPreview(result) {
       + result.gaps.map(g => `<tr><td>${_esc(_fmtDate(g.date))}</td><td>${_esc(_deptNames[g.department_id] || '—')}</td><td>${_esc(g.shift_type)}</td><td>${_esc(g.reason)}</td></tr>`).join('')
       + '</tbody></table>';
   } else {
-    html += '<div class="empty">✅ No gaps — every required slot this week is covered.</div>';
+    html += `<div class="empty">✅ No gaps — every required slot this ${CYCLE_META[_cycle].periodLower} is covered.</div>`;
   }
 
   const offs = result.weekly_offs || [];
   if (offs.length) {
-    html += `<details><summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--green-deep);margin:10px 0">📋 Weekly off this week (${offs.length} staff)</summary>`
+    html += `<details><summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--green-deep);margin:10px 0">📋 Weekly off this ${CYCLE_META[_cycle].periodLower} (${offs.length} staff)</summary>`
       + '<table class="gen-table" style="margin-top:8px"><thead><tr><th>Staff</th><th>Off day(s)</th></tr></thead><tbody>'
       + offs.map(o => `<tr><td>${_esc(o.full_name)}</td><td>${(o.off_dates || []).map(d => _esc(_fmtDate(d))).join(', ')}</td></tr>`).join('')
       + '</tbody></table></details>';
@@ -123,45 +206,69 @@ function _renderPreview(result) {
 
 document.getElementById('btn-preview').addEventListener('click', async () => {
   const btn = document.getElementById('btn-preview');
+  const meta = CYCLE_META[_cycle];
   btn.disabled = true; btn.textContent = 'Generating…';
   try {
     const required = await buildRequiredMatrix(supabase, tenantId);
     if (!required.length) { _alert('error', 'No nursing-duty departments configured yet.'); return; }
-    const { data, error } = await supabase.rpc('preview_nursing_week', { p_week_start: _dateStr(_weekStart), p_required: required });
-    if (error) { _alert('error', safeErrorMessage(error, 'Could not generate a preview.')); return; }
-    _lastPreview = { required, result: data };
-    _lastPreviewWeek = _dateStr(_weekStart);
-    _renderPreview(data);
+    const mondays = _periodMondays();
+    const byWeek = [];
+    for (const monday of mondays) {
+      const { data, error } = await supabase.rpc('preview_nursing_week', { p_week_start: _dateStr(monday), p_required: required });
+      if (error) {
+        _alert('error', safeErrorMessage(error, `Could not generate a preview for the week starting ${_fmtDate(monday)}.`));
+        return;
+      }
+      byWeek.push({ weekStart: _dateStr(monday), result: data });
+    }
+    const merged = _mergePreviews(byWeek);
+    _lastPreview = { required, byWeek };
+    _lastPreviewMondays = JSON.stringify(mondays.map(_dateStr));
+    _renderPreview(merged);
     if (_canEdit) {
       document.getElementById('btn-publish').disabled = false;
-      document.getElementById('publish-hint').textContent = 'This will replace any existing roster for this week in these departments.';
+      document.getElementById('publish-hint').textContent = `This will replace any existing roster for this ${meta.periodLower} in these departments.`;
     }
   } finally {
-    btn.disabled = false; btn.textContent = '🔍 Generate Preview';
+    btn.disabled = false; btn.textContent = meta.btnPreview;
   }
 });
 
 document.getElementById('btn-publish').addEventListener('click', async () => {
-  if (!_lastPreview || _lastPreviewWeek !== _dateStr(_weekStart)) {
-    _alert('error', 'Generate a fresh preview for this week before publishing.');
+  const meta = CYCLE_META[_cycle];
+  const mondays = _periodMondays();
+  const currentMondays = JSON.stringify(mondays.map(_dateStr));
+  if (!_lastPreview || _lastPreviewMondays !== currentMondays) {
+    _alert('error', `Generate a fresh preview for this ${meta.periodLower} before publishing.`);
     return;
   }
-  const gapCount = _lastPreview.result.gap_count ?? (_lastPreview.result.gaps || []).length;
-  if (!confirm(`Publish this week? This replaces any existing roster for ${_dateStr(_weekStart)} – ${_dateStr(new Date(_weekStart.getTime() + 6 * 86400000))} in these departments.${gapCount ? `\n\n${gapCount} honest gap(s) will remain unfilled.` : ''}`)) return;
+  const merged = _mergePreviews(_lastPreview.byWeek);
+  const gapCount = merged.gap_count;
+  const end = new Date(mondays[mondays.length - 1]); end.setDate(end.getDate() + 6);
+  if (!confirm(`Publish this ${meta.periodLower}? This replaces any existing roster for ${_dateStr(_weekStart)} – ${_dateStr(end)} in these departments.${gapCount ? `\n\n${gapCount} honest gap(s) will remain unfilled.` : ''}`)) return;
 
   const btn = document.getElementById('btn-publish');
-  btn.disabled = true; btn.textContent = 'Publishing…';
-  try {
-    const { data, error } = await supabase.rpc('commit_nursing_week', { p_week_start: _dateStr(_weekStart), p_required: _lastPreview.required });
-    if (error) { _alert('error', safeErrorMessage(error, 'Could not publish this week.')); btn.disabled = false; btn.textContent = '✅ Confirm & Publish This Week'; return; }
-    _alert('success', `Published — ${data.created} shift${data.created === 1 ? '' : 's'} written. View it on the Duty Roster page.`);
-    document.getElementById('publish-hint').textContent = 'Published. Generate a fresh preview to publish again.';
-    _lastPreview = null; _lastPreviewWeek = null;
-  } finally {
-    btn.disabled = false; btn.textContent = '✅ Confirm & Publish This Week';
+  btn.disabled = true;
+  let totalCreated = 0;
+  for (let i = 0; i < mondays.length; i++) {
+    const monday = mondays[i];
+    btn.textContent = mondays.length > 1 ? `Publishing week ${i + 1} of ${mondays.length}…` : 'Publishing…';
+    const { data, error } = await supabase.rpc('commit_nursing_week', { p_week_start: _dateStr(monday), p_required: _lastPreview.required });
+    if (error) {
+      _alert('error', safeErrorMessage(error, `Could not publish the week starting ${_fmtDate(monday)}.`)
+        + (i > 0 ? ` ${i} week(s) before it published successfully — only the remaining week(s) need re-running.` : ''));
+      btn.disabled = false; btn.textContent = meta.btnPublish;
+      return;
+    }
+    totalCreated += data.created;
   }
+  _alert('success', `Published — ${totalCreated} shift${totalCreated === 1 ? '' : 's'} written across ${mondays.length} week${mondays.length === 1 ? '' : 's'}. View it on the Duty Roster page.`);
+  document.getElementById('publish-hint').textContent = `Published. Generate a fresh preview to publish again.`;
+  _lastPreview = null; _lastPreviewMondays = null;
+  btn.disabled = false; btn.textContent = meta.btnPublish;
 });
 
+await loadCycle();
 await loadEditGate();
 await loadDeptNames();
 _updateWeekLabel();

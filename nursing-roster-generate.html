@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Generate Weekly Roster — AyurXpert</title>
+<title>Generate Roster — AyurXpert</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <link rel="icon" href="assets/icon.svg"/>
@@ -78,8 +78,8 @@ table.gen-table tbody tr:nth-child(even){background:var(--cream)}
 <div class="container">
   <div class="page-header">
     <div>
-      <div class="page-title">🆕 Generate Weekly Roster</div>
-      <div class="page-subtitle">Solves the whole week at once — rotating weekly-off, zone-widening, cross-department pairing, honest gaps. Preview before publishing.</div>
+      <div class="page-title" id="page-title">🆕 Generate Weekly Roster</div>
+      <div class="page-subtitle" id="page-subtitle">Solves the whole week at once — rotating weekly-off, zone-widening, cross-department pairing, honest gaps. Preview before publishing.</div>
     </div>
   </div>
 
@@ -87,29 +87,30 @@ table.gen-table tbody tr:nth-child(even){background:var(--cream)}
     <a class="page-nav-link" href="nursing-admin.html">🏥 Nursing Administration</a>
     <a class="page-nav-link" href="roster.html">🗓️ Duty Roster</a>
     <a class="page-nav-link" href="nursing-roster-template.html">🔁 Roster Template</a>
-    <span class="page-nav-link active">🆕 Generate Week</span>
+    <span class="page-nav-link active" id="nav-active-label">🆕 Generate Roster</span>
   </div>
 
   <div id="alert" class="alert"></div>
   <div id="readonly-note" class="alert info" style="display:none">Read-only — only the current Nursing Head, Medical Director/Principal/Medical Superintendent, or super_admin can generate or publish a roster week.</div>
+  <div id="cycle-note" class="alert info" style="display:none"></div>
 
   <div class="cc">
     <div class="cc-hd">
-      <div><div class="cc-title">📅 Week</div><div class="cc-sub">Must start on a Monday</div></div>
+      <div><div class="cc-title" id="period-card-title">📅 Week</div><div class="cc-sub" id="period-card-sub">Must start on a Monday</div></div>
     </div>
     <div class="cc-body">
       <div class="week-nav">
         <button class="btn-week" id="btn-prev-week">&#8249;</button>
         <div class="week-label" id="week-label">Loading…</div>
         <button class="btn-week" id="btn-next-week">&#8250;</button>
-        <button class="btn btn-secondary" id="btn-this-week" style="height:32px">This Week</button>
+        <button class="btn btn-secondary" id="btn-this-week" style="height:32px">This <span id="this-period-label">Week</span></button>
       </div>
     </div>
   </div>
 
   <div class="cc">
     <div class="cc-hd">
-      <div><div class="cc-title">🔍 Preview</div><div class="cc-sub">Computes the full proposed week — writes nothing until you publish it below</div></div>
+      <div><div class="cc-title">🔍 Preview</div><div class="cc-sub" id="preview-card-sub">Computes the full proposed week — writes nothing until you publish it below</div></div>
     </div>
     <div class="cc-body">
       <button class="btn btn-secondary" id="btn-preview">🔍 Generate Preview</button>
@@ -119,11 +120,11 @@ table.gen-table tbody tr:nth-child(even){background:var(--cream)}
 
   <div class="cc">
     <div class="cc-hd">
-      <div><div class="cc-title">✅ Publish</div><div class="cc-sub">Replaces any existing roster for this week, in these departments, with the previewed plan above</div></div>
+      <div><div class="cc-title">✅ Publish</div><div class="cc-sub" id="publish-card-sub">Replaces any existing roster for this week, in these departments, with the previewed plan above</div></div>
     </div>
     <div class="cc-body">
-      <button class="btn btn-primary" id="btn-publish" disabled>✅ Confirm &amp; Publish This Week</button>
-      <div style="font-size:11.5px;color:var(--text-muted);margin-top:8px" id="publish-hint">Generate a preview for this exact week first.</div>
+      <button class="btn btn-primary" id="btn-publish" disabled>✅ Confirm &amp; Publish</button>
+      <div style="font-size:11.5px;color:var(--text-muted);margin-top:8px" id="publish-hint">Generate a preview for this exact period first.</div>
     </div>
   </div>
 </div>
