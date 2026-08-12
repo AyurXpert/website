@@ -14,7 +14,7 @@
   --gold:#c9902a;--gold-light:#fdf6e3;
   --red:#c0392b;--red-light:#fdecea;
   --blue:#1a4080;--blue-light:#e3f0ff;
-  --purple:#5a1a8b;--purple-light:#f0e8ff;
+  --purple:#8b1a6b;--purple-light:#f0e8ff;
   --orange:#d35400;
   --cream:#faf8f3;--white:#fff;
   --border:#d8e4dd;--radius:8px;
@@ -27,10 +27,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
 .page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px}
 .ncism-badge{display:inline-block;background:var(--gold);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.4px;margin-left:8px;vertical-align:middle}
-.btn{height:38px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .15s;display:inline-flex;align-items:center;gap:6px}
+.btn{height:44px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:background .15s;display:inline-flex;align-items:center;gap:6px}
 .btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
 .btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}.btn-secondary:hover{background:var(--green-light)}
-.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn-sm{height:44px;padding:0 12px;font-size:12px}
 .alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
 .alert.show{display:block}
 .alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
@@ -90,7 +90,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .field-row.c3{grid-template-columns:1fr 1fr 1fr}
 .field-row.c4{grid-template-columns:1fr 1fr 1fr 1fr}
 .field label{font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:3px}
-.field input,.field select,.field textarea{width:100%;height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white)}
+.field input,.field select,.field textarea{width:100%;height:44px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--white)}
 .field textarea{height:56px;padding:8px 10px;resize:vertical}
 .field input:focus,.field select:focus{outline:none;border-color:var(--green-mid)}
 .vital-warning{color:var(--red);font-size:10px;font-weight:700;margin-top:2px}
@@ -154,7 +154,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
        js/modules/roster/scheduleChangeIndicator.js. Deliberately its own banner, not reused
        inside #alert-box (that one's cleared/overwritten by every vitals/MAR/etc. save on this
        page -- a roster-change notice needs to stay visible independent of clinical actions). -->
-  <div id="roster-change-banner" class="alert info" style="display:none"></div>
+  <!-- Session 167 real bug (2nd round): this deliberately has NO inline style="display:none" --
+       .alert{display:none} (the class rule, line ~34) already handles the default-hidden state,
+       same as #alert-box below it. An inline style here would have HIGHER specificity than any
+       class rule including .alert.show{display:block}, permanently blocking classList.add('show')
+       from ever working regardless of what the JS does -- confirmed live: className correctly
+       showed "alert info show" and computed display was still "none" because of exactly this. -->
+  <div id="roster-change-banner" class="alert info"></div>
   <div id="alert-box" class="alert"></div>
 
   <!-- Module tabs -->
@@ -577,8 +583,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <div style="font-weight:600;font-size:13px;color:var(--green-deep);margin-bottom:8px">Care Plan Interventions</div>
             <textarea id="risk-interventions" placeholder="Fall prevention measures, pressure ulcer care plan, bed rails raised, non-slip footwear, repositioning schedule, pressure-relieving mattress…" style="width:100%;min-height:64px;border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;font-family:inherit;box-sizing:border-box"></textarea>
             <div style="margin-top:10px;display:flex;gap:10px;align-items:center">
-              <button data-onclick="saveRiskAssessment" data-onclick-a0="morse_fall" style="height:36px;padding:0 18px;background:#e67e22;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Save Fall Risk</button>
-              <button data-onclick="saveRiskAssessment" data-onclick-a0="braden" style="height:36px;padding:0 18px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Save Braden Score</button>
+              <button data-onclick="saveRiskAssessment" data-onclick-a0="morse_fall" style="height:44px;padding:0 18px;background:#e67e22;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Save Fall Risk</button>
+              <button data-onclick="saveRiskAssessment" data-onclick-a0="braden" style="height:44px;padding:0 18px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Save Braden Score</button>
               <span id="risk-saved-msg" style="display:none;font-size:12px;color:var(--green-mid);font-weight:600">✅ Saved</span>
             </div>
           </div>

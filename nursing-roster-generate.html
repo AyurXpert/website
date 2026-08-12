@@ -27,12 +27,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .page-nav-link{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;border:1.5px solid var(--border);color:var(--text-mid);background:#fff;transition:all .15s}
 .page-nav-link:hover{border-color:var(--green-mid);color:var(--green-deep)}
 .page-nav-link.active{background:var(--green-deep);color:#fff;border-color:var(--green-deep);cursor:default}
-.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s}
+.btn{display:inline-flex;align-items:center;gap:6px;height:44px;padding:0 16px;border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s}
 .btn-primary{background:var(--green-deep);color:#fff}.btn-primary:hover{background:#1f5c37}
 .btn-primary:disabled{background:#a9c2b3;cursor:not-allowed}
 .btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}
 .btn-secondary:disabled{color:var(--text-muted);border-color:var(--border);cursor:not-allowed}
-.field select,.field input{border:1.5px solid var(--border);border-radius:var(--radius);padding:7px 9px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fff;outline:none}
+.field select,.field input{height:44px;border:1.5px solid var(--border);border-radius:var(--radius);padding:7px 9px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fff;outline:none}
 
 .cc{background:var(--white);border-radius:10px;box-shadow:0 2px 14px rgba(0,0,0,.06);margin-bottom:18px;overflow:hidden}
 .cc-hd{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
@@ -47,7 +47,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .alert.info{background:var(--gold-light);color:#7a5a10;border:1.5px solid var(--gold)}
 
 .week-nav{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.btn-week{background:none;border:1.5px solid var(--border);border-radius:var(--radius);padding:0 10px;height:32px;cursor:pointer;font-size:14px;color:var(--green-deep)}
+.btn-week{background:none;border:1.5px solid var(--border);border-radius:var(--radius);padding:0 10px;height:44px;min-width:44px;cursor:pointer;font-size:14px;color:var(--green-deep)}
 .btn-week:hover{background:var(--green-light)}
 .week-label{font-weight:600;font-size:13.5px;color:var(--green-deep);min-width:170px}
 
@@ -91,8 +91,14 @@ table.gen-table tbody tr:nth-child(even){background:var(--cream)}
   </div>
 
   <div id="alert" class="alert"></div>
-  <div id="readonly-note" class="alert info" style="display:none">Read-only — only the current Nursing Head, Medical Director/Principal/Medical Superintendent, or super_admin can generate or publish a roster week.</div>
-  <div id="cycle-note" class="alert info" style="display:none"></div>
+  <!-- Session 167: no inline style="display:none" on either of these two -- .alert{display:none}
+       (the class rule) already handles default-hidden, matching #alert above. An inline style
+       here has HIGHER specificity than any class rule including .alert.show{display:block} and
+       would permanently block classList.add('show')/toggle('show',...) from ever working,
+       regardless of what the JS does -- the exact bug found live on nursing.html's twin banner
+       (className correctly showed "...show", computed display stayed "none" anyway). -->
+  <div id="readonly-note" class="alert info">Read-only — only the current Nursing Head, Medical Director/Principal/Medical Superintendent, or super_admin can generate or publish a roster week.</div>
+  <div id="cycle-note" class="alert info"></div>
 
   <div class="cc">
     <div class="cc-hd">
@@ -103,7 +109,7 @@ table.gen-table tbody tr:nth-child(even){background:var(--cream)}
         <button class="btn-week" id="btn-prev-week">&#8249;</button>
         <div class="week-label" id="week-label">Loading…</div>
         <button class="btn-week" id="btn-next-week">&#8250;</button>
-        <button class="btn btn-secondary" id="btn-this-week" style="height:32px">This <span id="this-period-label">Week</span></button>
+        <button class="btn btn-secondary" id="btn-this-week" style="height:44px">This <span id="this-period-label">Week</span></button>
       </div>
     </div>
   </div>
