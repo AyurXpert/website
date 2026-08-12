@@ -7,6 +7,7 @@ import { isNursingDutyDept, shiftsForDept, shiftsOverlap, shiftTimes, shiftNames
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
 import { buildRequiredMatrix } from '../modules/roster/requiredStaffing.js';
 import { computeCoverageCapacity, renderCoverageCapacityHtml, subscribeCoverageCapacity } from '../modules/roster/coverageCapacity.js';
+import { markRosterSeen } from '../modules/roster/scheduleChangeIndicator.js';
 
 // Session 137: widened from admin-only to also let plain nursing staff/ayahs
 // (role 'nurse', covers both designations) view the roster -- read-only,
@@ -1269,6 +1270,11 @@ _dropZeroRequirementDepts(); // Diagnostics-class departments (0 required across
 await loadMonitorScope(); // needs _canEdit (loadHeadGate) + _depts (loadDepartments) already resolved
 await loadNursingPool(); // must resolve before loadRoster()'s first computeOffByDate() call
 await loadRoster();
+// Session 167: marks the "your schedule changed" indicator (nursing.html) as seen the moment a
+// plain nurse actually views this page -- regardless of entry point (the banner's own link,
+// the navbar's Duty Roster item, a direct URL). Fire-and-forget, never awaited -- purely a
+// side effect, must never delay or block this page's own render.
+if (role === 'nurse') { markRosterSeen(supabase, profile.id); }
 await loadCoverageCapacity();
 if (_canSeeCoverageCapacity) subscribeCoverageCapacity(supabase, tenantId, loadCoverageCapacity);
 await loadCoveringRequests(); // every viewer, regardless of role -- see comment above the function

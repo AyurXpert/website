@@ -7,6 +7,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { logAudit } from '../core/auditLogger.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
+import { checkRosterChanged } from '../modules/roster/scheduleChangeIndicator.js';
 
 requireAuth(['nurse','nurse_manager','super_admin','dept_admin','doctor']);
 initNavbar();
@@ -29,6 +30,25 @@ let _shift      = 'morning';
 document.getElementById('nursing-date').value = new Date().toISOString().slice(0,10);
 document.getElementById('io-date-label').textContent = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
 renderPromoBanner('promo-banner', { supabase, tenantId });
+
+// Session 167: "your schedule changed" indicator -- plain `nurse` role only (nurse_manager/
+// admins already know when they just published something, and Generate Roster only ever
+// schedules staff_nurse/ward_sister/anm designations, never nursing_superintendent/deputy, so a
+// nurse_manager has no "own shifts" for this to even apply to). Fire-and-forget, non-blocking --
+// never awaited by anything else on this page, purely additive to the existing boot sequence.
+if (profile?.role === 'nurse') {
+  checkRosterChanged(supabase, tenantId, userId).then(({ changed, count }) => {
+    if (!changed) return;
+    // count crosses a module boundary -- always a real integer by construction
+    // (scheduleChangeIndicator.js's `count || 0`), but coerced explicitly here anyway so it can
+    // only ever render as digits, matching the house rule of never trusting a value's origin
+    // when it lands in innerHTML.
+    const n = Number(count) || 0;
+    const el = document.getElementById('roster-change-banner');
+    el.innerHTML = `🔔 <strong>Your duty roster has changed</strong> — ${n} new or updated shift${n === 1 ? '' : 's'} published. <a href="roster.html">View my roster →</a>`;
+    el.style.display = '';
+  });
+}
 
 // Load departments for ward selector
 const { data: depts } = await supabase.from('departments')

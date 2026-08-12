@@ -35,6 +35,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .alert.show{display:block}
 .alert.success{background:var(--green-light);color:var(--green-deep);border:1px solid #b2d8bf}
 .alert.error{background:var(--red-light);color:#8b1a1a;border:1px solid #f5c6c6}
+.alert.info{background:var(--gold-light);color:#7a5a10;border:1px solid #e0c060}
+.alert.info a{color:inherit;font-weight:700;text-decoration:underline}
 
 /* Module tabs */
 .module-tabs{display:flex;gap:0;margin-bottom:20px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden}
@@ -148,6 +150,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   </div>
 
   <div id="promo-banner"></div>
+  <!-- Session 167: "your schedule changed" indicator -- plain nurse role only, populated by
+       js/modules/roster/scheduleChangeIndicator.js. Deliberately its own banner, not reused
+       inside #alert-box (that one's cleared/overwritten by every vitals/MAR/etc. save on this
+       page -- a roster-change notice needs to stay visible independent of clinical actions). -->
+  <div id="roster-change-banner" class="alert info" style="display:none"></div>
   <div id="alert-box" class="alert"></div>
 
   <!-- Module tabs -->
