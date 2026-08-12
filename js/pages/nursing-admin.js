@@ -6,7 +6,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, isNursingDutyDept, shiftsForDept } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead, canDecideShiftChange } from '../modules/roster/nursingHeadship.js';
-import { computeRequiredPerShift, distributeAcrossShifts } from '../modules/roster/requiredStaffing.js';
+import { computeRequiredPerShift, distributeAcrossShifts, buildRequiredMatrix } from '../modules/roster/requiredStaffing.js';
 import { checkCycleExpiry } from '../modules/roster/cycleExpiry.js';
 import { findUncoveredAbsences } from '../modules/roster/coverageGaps.js';
 import { _computeIpdBedTotals, _combinedIpdNursingSplit } from '../config/ncismStaffCompliance.js';
@@ -27,6 +27,35 @@ const NURSING_DESIGNATIONS = ['staff_nurse', 'ward_sister', 'anm'];
 const NURSING_LABELS = { staff_nurse: 'Staff Nurse', ward_sister: 'Ward Sister', anm: 'ANM' };
 
 let _rejectingLeaveId = null;
+
+// Session 167: real bug found live (Dr. Venkatesh, cycle-expiry banner naming "Diagnostics" as
+// needing the next roster cycle generated, despite it having been dropped from every other
+// nursing-duty department list back in Session 166 Part 6 -- zero real Sch XX nursing post since
+// the 2026-27 MESA&R circular removed it). isNursingDutyDept() alone only checks whether a
+// department is one of the 9 real nursing-duty PLACES, not whether it currently has any real
+// requirement -- roster.js/nursing-roster-template.js already layer buildRequiredMatrix()'s
+// "required > 0" check on top of it (_dropZeroRequirementDepts()/loadDepartments()'s
+// hasRequirement set) but this page's 4 independent department-list builders (Cycle Expiry,
+// Coverage Gap, Department Rotation, Supervision Zones) never got the same treatment -- swept
+// all 4, not just the one reported, matching the ladder-wide sweeps this bug class has needed
+// before (Session 134's OT Attendants/CSSD Aya double-count). Cached across the 4 call sites --
+// the requirement matrix is static config for the life of a page load, not something that
+// changes mid-session.
+let _hasReqCache = null;
+async function _reqDeptIds() {
+  if (_hasReqCache) return _hasReqCache;
+  const matrix = await buildRequiredMatrix(supabase, tenantId);
+  _hasReqCache = new Set();
+  matrix.forEach(r => { if (r.required > 0) _hasReqCache.add(r.department_id); });
+  return _hasReqCache;
+}
+async function _loadNursingDutyDepts(cols = 'id,name,ncism_code') {
+  const [{ data: allDepts }, hasReq] = await Promise.all([
+    supabase.from('departments').select(cols).eq('tenant_id', tenantId).eq('is_active', true).order('name'),
+    _reqDeptIds(),
+  ]);
+  return (allDepts || []).filter(d => isNursingDutyDept(d) && hasReq.has(d.id));
+}
 
 // ── Shift Change Requests (Nursing Duty Roster Phase 4, Session 140) ─
 // Individual requests to change a SPECIFIC already-assigned shift --
@@ -345,9 +374,7 @@ let _previewSnapshot = null; // computed in previewRotation(), reused by confirm
 
 async function loadRotationSection() {
   const body = document.getElementById('rotation-body');
-  const { data: allDepts } = await supabase.from('departments')
-    .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true).order('name');
-  _rotationDepts = (allDepts || []).filter(isNursingDutyDept);
+  _rotationDepts = await _loadNursingDutyDepts();
 
   if (_rotationDepts.length < 2) {
     body.innerHTML = '<div class="empty">Need at least 2 nursing-duty departments before a rotation makes sense.</div>';
@@ -586,9 +613,7 @@ let _zoneAssignments = {}; // department_id -> profile_id (current)
 
 async function loadSupervisionZones() {
   const body = document.getElementById('zones-body');
-  const { data: allDepts } = await supabase.from('departments')
-    .select('id,name').eq('tenant_id', tenantId).eq('is_active', true).order('name');
-  _zoneDepts = (allDepts || []).filter(isNursingDutyDept);
+  _zoneDepts = await _loadNursingDutyDepts('id,name');
 
   const { data: candidates } = await supabase.from('profiles')
     .select('id,full_name,designation').eq('tenant_id', tenantId).eq('is_active', true)
@@ -661,9 +686,7 @@ window.saveZoneAssignments = async function() {
 // already past) -- links straight to nursing-roster-template.html.
 async function loadCycleExpiryBanner() {
   const el = document.getElementById('expiry-banner');
-  const { data: allDepts } = await supabase.from('departments')
-    .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true).order('name');
-  const nursingDepts = (allDepts || []).filter(isNursingDutyDept);
+  const nursingDepts = await _loadNursingDutyDepts();
 
   const results = await checkCycleExpiry(supabase, tenantId, nursingDepts);
   const concerning = results.filter(r => r.status !== 'ok');
@@ -705,9 +728,7 @@ function _todayStr() {
 // same-day absence with no coverage shows up here without a reload.
 async function loadCoverageGapBanner() {
   const el = document.getElementById('coverage-gap-banner');
-  const { data: allDepts } = await supabase.from('departments')
-    .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true);
-  const nursingDeptIds = (allDepts || []).filter(isNursingDutyDept).map(d => d.id);
+  const nursingDeptIds = (await _loadNursingDutyDepts()).map(d => d.id);
 
   const gaps = await findUncoveredAbsences(supabase, tenantId, nursingDeptIds, _todayStr());
   if (!gaps.length) { el.style.display = 'none'; return; }
