@@ -160,6 +160,9 @@ p:last-child{margin-bottom:0}
     <a class="nav-link" href="#ipd-ops">IPD Operations</a>
     <a class="nav-link" href="#therapy">PK Therapy</a>
 
+    <div class="nav-section">Nursing Administration</div>
+    <a class="nav-link" href="#nursing-admin">Nursing Superintendent</a>
+
     <div class="nav-section">Admin Modules</div>
     <a class="nav-link" href="#reports">Reports</a>
     <a class="nav-link" href="#purchase">Purchasing</a>
@@ -178,6 +181,11 @@ p:last-child{margin-bottom:0}
 
   <div class="main-title">AyurXpert HMS</div>
   <div class="main-subtitle">Complete User Manual — v1.0 · May 2026</div>
+
+  <!-- Session 167: role-scoped landing -- populated by the script at the bottom of the page.
+       Deliberately never hides any other section (per Dr. Venkatesh's explicit instruction) --
+       this is purely a scroll-to + a visible way back, nothing here is removed or hidden. -->
+  <div id="role-banner" style="display:none"></div>
 
   <!-- ══════════════════════════════════════════════
        OVERVIEW
@@ -245,9 +253,17 @@ p:last-child{margin-bottom:0}
         <div class="role-desc">Dispenses prescriptions, manages inventory, handles GRN and purchase orders.</div>
       </div>
       <div class="role-card">
+        <!-- Session 167: was "→ reception.html, same access as receptionist" -- wrong since
+             nursing.html became the real nurse landing page (bedside Vitals/MAR/Intake-Output/
+             Notes/Shift Handover); corrected while adding role-scoped landing for this file. -->
         <div class="role-name">Nurse</div>
-        <div class="role-home">→ reception.html</div>
-        <div class="role-desc">Same access as receptionist. Can also view doctor queue to assist patients.</div>
+        <div class="role-home">→ nursing.html</div>
+        <div class="role-desc">Bedside IPD nursing — vitals chart, medication administration record, intake-output, nursing notes and shift handover. Also assigned duty shifts via the Nursing Superintendent's roster.</div>
+      </div>
+      <div class="role-card">
+        <div class="role-name">Nursing Superintendent</div>
+        <div class="role-home">→ nursing-admin.html</div>
+        <div class="role-desc">Runs the nursing service — duty roster generation, leave approval, weekly-off, on-ground duty monitoring. See the dedicated <a href="#nursing-admin" style="color:var(--green-deep)">Nursing Superintendent</a> section below.</div>
       </div>
       <div class="role-card">
         <div class="role-name">Therapist</div>
@@ -260,9 +276,11 @@ p:last-child{margin-bottom:0}
         <div class="role-desc">Creates fee structures (pending approval), views billing reports and collections.</div>
       </div>
       <div class="role-card">
+        <!-- Session 167: was "→ reports.html, placeholder for future lab module" -- wrong,
+             lab.html is a full built page (Pathology/Radiology/AERB/PCPNDT), not a placeholder. -->
         <div class="role-name">Lab Tech</div>
-        <div class="role-home">→ reports.html</div>
-        <div class="role-desc">Access to lab-related reports (placeholder for future lab module).</div>
+        <div class="role-home">→ lab.html</div>
+        <div class="role-desc">Pathology Lab (sample collection, result entry, critical alerts), Radiology &amp; Imaging, AERB Log and PCPNDT Register.</div>
       </div>
     </div>
 
@@ -690,6 +708,60 @@ p:last-child{margin-bottom:0}
   </div>
 
   <!-- ══════════════════════════════════════════════
+       NURSING SUPERINTENDENT (Session 167)
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="nursing-admin">
+    <div class="section-title">Nursing Superintendent — Duty Roster &amp; Nursing Administration</div>
+    <p>Pages: <strong>nursing-admin.html</strong> (hub) · <strong>roster.html</strong> (Duty Roster) · <strong>nursing-roster-generate.html</strong> (Generate Roster) · <strong>nursing-roster-template.html</strong> (Roster Template) &nbsp;|&nbsp; Access: nurse_manager, super_admin, dept_admin</p>
+    <p>This is the nursing service's own administration area — separate from bedside nursing.html. It covers building the 24×7 duty roster across every nursing-duty department (Medical/Surgical In-Patients, Operation Theatre, Labour Room, OPD, Screening OPD, Panchakarma, Atyayika/Emergency), approving nursing leave, and monitoring who's actually on duty.</p>
+
+    <div class="subsection">
+      <div class="subsection-title">Who Can Publish Changes — the Nursing Head</div>
+      <p>By default, whoever holds the <strong>Nursing Superintendent</strong> designation is the "Nursing Head" and the only one (besides super_admin/dept_admin) who can generate, publish or edit the roster. The Nursing Head card on nursing-admin.html lets the current head <strong>delegate</strong> to one of the Deputy Nursing Superintendents at any time — the whole roster toolset (Duty Roster, Generate Roster, Roster Template) always follows whoever currently holds this, so the two pages can never disagree on who has edit rights.</p>
+      <div class="tip"><strong>Everyone else can still view.</strong> A plain <strong>nurse</strong> login sees the Duty Roster read-only (their own department by default) and can request a shift change on their own assigned shifts. Medical Director/Principal/Medical Superintendent see it via their administrative access; Deputy MS gets read-only monitoring access.</div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Generating a Week's Roster (recommended path)</div>
+      <p>Use <strong>Generate Roster</strong> (nursing-roster-generate.html) rather than assigning shifts one at a time — it solves an entire period at once: rotating weekly-off, covering gaps from within the same department first, then a small set of clinically-sensible cross-department pairings (e.g. Screening OPD ↔ Panchakarma), and only reports an honest, visible gap if truly nobody is free.</p>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Pick the period</div><div class="step-desc">The page title and button automatically say "Generate Week" / "Generate Fortnightly" / "Generate Monthly" depending on your organisation's approved Roster Cycle setting (weekly/fortnightly/monthly, set on nursing-roster-template.html's Roster Cycle card). Use ‹ › to move to the week/fortnight/month you want, or "This Week" to jump back to today.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click "🔍 Generate Preview"</div><div class="step-desc">Writes nothing yet. Shows nurses in the pool, slots filled vs total, and any honest gaps — plus who's off each day and why (rotating weekly-off or approved leave).</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Review the gaps table</div><div class="step-desc">If any slot genuinely couldn't be filled, it's listed here with the date/department/shift/reason — never hidden or silently forced.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Click "✅ Confirm &amp; Publish"</div><div class="step-desc">This is the actual finalise step — there's no further "approve" or "confirm" stage after this. It replaces any existing roster for that period, in those departments, with the previewed plan, and immediately shows up on the Duty Roster page. For a fortnight/month, each week publishes on its own — if one week fails partway, the weeks before it stay published and you just re-run the rest.</div></div></div>
+      </div>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Reading the Duty Roster Matrix</div>
+      <p>The Weekly Schedule tab on roster.html always shows the <strong>already-published</strong> roster — there is no separate preview/draft view on this page. Whatever was published via Generate Roster (or the older Roster Template/manual assign) appears here exactly as-is.</p>
+      <table class="feature-table">
+        <tr><th>What you see</th><th>What it means</th></tr>
+        <tr><td>✓ Confirmed / Pending confirm</td><td>Tracks whether <em>that individual staff member</em> has personally acknowledged the shift — not whether the roster itself is finalised. A whole week of "Pending confirm" is still a fully real, published roster. Use "✓ Confirm All Visible" to bulk-confirm.</td></tr>
+        <tr><td>🔁 Extra duty</td><td>This person is covering beyond their own home assignment (same-department widening, cross-department pairing, or general relief) — not a mistake, a deliberate gap-fill.</td></tr>
+        <tr><td>😴 N off (in the date header)</td><td>How many nursing staff have no shift anywhere that day — hover for names.</td></tr>
+        <tr><td>⚠ Short X of Y</td><td>A multi-nurse cell (e.g. a large ward) is filled but below its required headcount.</td></tr>
+        <tr><td>⚠ Unassigned / — Not required —</td><td>An empty cell either genuinely needs a nurse (red, click to assign) or structurally needs none for that shift (e.g. Atyayika's Night shift) — these are shown differently on purpose.</td></tr>
+      </table>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Cycle Expiry &amp; Coverage Capacity</div>
+      <p>A banner at the top of nursing-admin.html and nursing-roster-template.html warns when a department's roster is about to run out of already-generated dates (nothing auto-generates on a schedule) — it names the specific department(s) affected and links straight to where you fix it. The <strong>Nursing Coverage Capacity</strong> card on roster.html shows a live, real-time required-vs-available headcount across the whole organisation — useful for judging whether new recruitment is actually needed or the existing pool just needs better rotation.</p>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Leave &amp; Weekly Off</div>
+      <p>The "📋 Leave &amp; Weekly Off" tab on roster.html (and the matching card on nursing-admin.html) is where nursing-scoped leave requests are approved/rejected, and where each nurse's fixed weekly-off day can be set. A designated <strong>Relief Pool</strong> is drawn on automatically whenever generating a roster finds a gap caused by someone's leave or weekly-off.</p>
+    </div>
+
+    <div class="subsection">
+      <div class="subsection-title">On-Ground Duty Monitor</div>
+      <p>The "👁️ On-Ground Duty Monitor" tab is read-only shift visibility plus Present/Absent attendance marking for whichever departments you supervise — marking someone Absent automatically tries to find relief cover from the pool, or honestly reports that none was available. This tab deliberately has <strong>no scheduling/editing capability</strong> — that stays on the Duty Roster/Generate Roster pages. On larger organisations, the Matron can delegate specific departments' monitoring (not editing) to an Assistant Matron via nursing-admin.html's Nursing Supervision Zones card.</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
        REPORTS
        ══════════════════════════════════════════════ -->
   <div class="section" id="reports">
@@ -831,6 +903,84 @@ p:last-child{margin-bottom:0}
   </div>
 
 </main>
+
+<!-- Session 167: role-scoped landing. Deliberately its own small <script type="module">,
+     separate from the plain scroll-spy script below -- this page has always been a static,
+     dependency-free reference doc reachable even with no/expired session (no requireAuth(),
+     no CSP tag, no supabaseClient import), and that's preserved here: designations.js has zero
+     imports of its own (verified before relying on it), so pulling in ROLE_DUTY_FALLBACK as the
+     canonical role list costs nothing network-wise and can't force a login redirect. -->
+<script type="module">
+import { ROLE_DUTY_FALLBACK } from './js/config/designations.js';
+
+// Which roles have a REAL dedicated section to jump to. Deliberately small -- most roles below
+// still have no matching content (see MEMORY.md session167_* notes) and gracefully fall back to
+// the full manual rather than a fabricated or misleading match. super_admin/dept_admin are
+// deliberately excluded -- confirmed no single "admin" section exists; the setup steps +
+// reports + dashboard + purchase sections are ALL written for them, so the existing default
+// (land at the top, nothing scoped away) is already correct for those two roles.
+const ROLE_SECTION = {
+  doctor: 'doctor',
+  trainee_doctor: 'doctor', // same page (doctor.html) -- closest real match, no dedicated trainee content yet
+  receptionist: 'reception',
+  pharmacist: 'dispensary',
+  nurse_manager: 'nursing-admin',
+  therapist: 'therapy',
+  accountant: 'reports',
+};
+const ROLE_LABEL = {
+  super_admin: 'Super Admin', dept_admin: 'Dept Admin', doctor: 'Doctor',
+  trainee_doctor: 'PG Scholar / Intern', receptionist: 'Receptionist', pharmacist: 'Pharmacist',
+  nurse: 'Nurse', nurse_manager: 'Nursing Superintendent', lab_tech: 'Lab Technician',
+  accountant: 'Accountant', cashier: 'Cashier', finance_manager: 'Finance Manager',
+  therapist: 'Therapist', student: 'Student', diet_staff: 'Diet / Pathya Staff', mrd_staff: 'Medical Records Staff',
+};
+
+// ?role= (set by navbar.js's Help/User Guide links, which already know the logged-in role) takes
+// priority -- it also doubles as the deliberate override anyone can type by hand (?role=doctor).
+// sessionStorage is a same-tab-only fallback: navbar.js's links open in a new tab via
+// rel="noopener", and per the HTML spec that puts the new tab in a fresh browsing-context group
+// with its OWN empty sessionStorage -- it does not inherit the opener's, so ?role= is the signal
+// that actually works for the real "open in a new tab" click path; sessionStorage only helps
+// someone who bookmarked/typed this URL directly in an already-logged-in tab.
+const params = new URLSearchParams(location.search);
+const role = params.get('role') || sessionStorage.getItem('ayurxpert_role') || null;
+
+// ?role= is attacker-controllable (anyone can type any string into the URL), so its fallback
+// label (ROLE_LABEL[role] || role -- the raw value when it doesn't match a known role) must never
+// go into innerHTML unescaped, same house rule as every other page's free-text interpolation.
+function _esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+function roleBanner() {
+  const el = document.getElementById('role-banner');
+  const label = role ? _esc(ROLE_LABEL[role] || role) : null;
+  const sectionId = role ? ROLE_SECTION[role] : null; // always one of ROLE_SECTION's own hardcoded values, or undefined -- never raw `role` text
+
+  const pickerOptions = Object.keys(ROLE_DUTY_FALLBACK)
+    .sort((a, b) => (ROLE_LABEL[a] || a).localeCompare(ROLE_LABEL[b] || b))
+    .map(r => `<option value="${_esc(r)}"${r === role ? ' selected' : ''}>${_esc(ROLE_LABEL[r] || r)}</option>`).join('');
+  const picker = `<select id="role-picker" style="margin-left:10px;padding:4px 8px;border-radius:6px;border:1.5px solid var(--border);font-size:12.5px;font-family:'DM Sans',sans-serif;background:#fff">
+    <option value="">— Jump to another role's section —</option>${pickerOptions}
+  </select>`;
+
+  if (!role || role === 'super_admin' || role === 'dept_admin') {
+    el.className = 'note';
+    el.innerHTML = `Showing the full manual.${picker}`;
+  } else if (sectionId) {
+    el.className = 'note';
+    el.innerHTML = `👋 Showing the <strong>${label}</strong> guide (your role) — or <a href="#overview" style="color:inherit;font-weight:600">📖 view the full manual</a> from the top.${picker}`;
+    requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  } else {
+    el.className = 'warn';
+    el.innerHTML = `ℹ️ There's no dedicated guide section for <strong>${label}</strong> yet — showing the full manual instead.${picker}`;
+  }
+  el.style.display = '';
+  document.getElementById('role-picker')?.addEventListener('change', e => {
+    location.href = e.target.value ? `user-manual.html?role=${encodeURIComponent(e.target.value)}` : 'user-manual.html';
+  });
+}
+roleBanner();
+</script>
 
 <script>
 // Highlight active nav link on scroll

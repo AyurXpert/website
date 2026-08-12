@@ -141,6 +141,13 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
 function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess, isDeptScoped, designation) {
   const groups      = _buildGroups(role, tenant.type, secondaryRole, hasMonitoringAccess, isDeptScoped, designation);
   const currentPage = window.location.pathname.split('/').pop() || 'admin.html';
+  // Session 167: user-manual.html's role-scoped landing needs the role passed explicitly --
+  // its Help links open in a new tab via rel="noopener", which per the HTML spec puts the new
+  // tab in a fresh browsing-context group with its OWN sessionStorage (does not inherit the
+  // opener's), so a sessionStorage read on the destination page can't reliably detect who's
+  // logged in. navbar.js already has `role` in scope here, so it's the one place that CAN pass
+  // it reliably.
+  const manualUrl = role ? `user-manual.html?role=${encodeURIComponent(role)}` : 'user-manual.html';
 
   const logoHTML = tenant.logo_url
     ? `<img src="${tenant.logo_url}" alt="${tenant.name}" class="ax-logo"/>`
@@ -170,7 +177,7 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
     <div class="ax-dropdown">
       <button type="button" class="ax-dd-item" id="ax-dd-duties">📌 My Duties &amp; Responsibilities</button>
       <button type="button" class="ax-dd-item" id="ax-dd-copycode">📋 Copy Organisation Code</button>
-      <a class="ax-dd-item" href="user-manual.html" target="_blank" rel="noopener">📖 User Guide</a>
+      <a class="ax-dd-item" href="${manualUrl}" target="_blank" rel="noopener">📖 User Guide</a>
     </div>
   </div>`;
 
@@ -184,7 +191,7 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
       <div class="ax-mob-group-label">🧾 Help</div>
       <button type="button" class="ax-link" id="ax-mob-dd-duties">📌 My Duties &amp; Responsibilities</button>
       <button type="button" class="ax-link" id="ax-mob-dd-copycode">📋 Copy Organisation Code</button>
-      <a class="ax-link" href="user-manual.html" target="_blank" rel="noopener">📖 User Guide</a>
+      <a class="ax-link" href="${manualUrl}" target="_blank" rel="noopener">📖 User Guide</a>
     </div>`;
 
   const nav = document.createElement('nav');
@@ -394,7 +401,10 @@ function _injectDutiesModal(profile, role, designation) {
     </div>`;
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) _hideDutiesModal(); });
-  document.getElementById('ax-duties-guide').addEventListener('click', () => window.open('user-manual.html', '_blank', 'noopener'));
+  // Session 167: same role-passing fix as _injectNavbar()'s Help dropdown links -- noopener
+  // means the new tab can't inherit sessionStorage, so the role has to be passed explicitly.
+  const manualUrl = role ? `user-manual.html?role=${encodeURIComponent(role)}` : 'user-manual.html';
+  document.getElementById('ax-duties-guide').addEventListener('click', () => window.open(manualUrl, '_blank', 'noopener'));
   document.getElementById('ax-duties-close').addEventListener('click', _hideDutiesModal);
 }
 function _showDutiesModal() { document.getElementById('ax-duties-overlay').classList.add('show'); }
