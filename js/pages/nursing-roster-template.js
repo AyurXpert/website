@@ -982,17 +982,44 @@ async function loadCycleExpiryBanner() {
   el.className = `expiry-banner ${hasUrgent ? 'danger' : 'warn'}`;
   el.style.display = '';
 
-  // Session 149: dropped the per-department breakdown lines -- Dr.
-  // Venkatesh found the full list too noisy; one summary line is enough,
-  // especially here where the actual fix (Generate Next Cycle) is right
-  // below. nursing-admin.js's banner simplified the same way, so the two
-  // pages never show different detail for the same underlying data. Also
-  // names any queued cycle-length change that will auto-apply the moment
-  // Generate Next Cycle is clicked for one of these departments, so the
-  // head sees it coming beforehand instead of being surprised after.
+  // Session 149 dropped the per-department breakdown lines -- Session 167
+  // found that went too far even here, right next to Generate Next Cycle:
+  // the department picker below lists 8-9 nursing-duty places, and nothing
+  // told you which one(s) this banner was actually about. Restored just the
+  // names (not the old per-department stats table) -- also flags the same
+  // departments directly in the picker (see loadDepartments()) so they're
+  // still obvious after you've scrolled past this banner. Also names any
+  // queued cycle-length change that will auto-apply the moment Generate
+  // Next Cycle is clicked for one of these departments, so the head sees it
+  // coming beforehand instead of being surprised after.
   const transitioning = concerning.filter(r => r.willTransition);
+  const names = concerning.map(r => _esc(r.deptName)).join(', ');
   el.innerHTML = `<strong>${hasUrgent ? '🔴' : '⚠️'} ${concerning.length} department${concerning.length === 1 ? '' : 's'} need${concerning.length === 1 ? 's' : ''} the next roster cycle generated</strong>`
+    + `<div style="margin-top:4px">${names}</div>`
     + (transitioning.length ? `<div style="margin-top:6px">ℹ️ Next cycle will transition to ${transitioning[0].tenantDays} days for ${transitioning.length} of these department${transitioning.length === 1 ? '' : 's'}.</div>` : '');
+  _flagDeptPicker(concerning);
+}
+
+// Session 167: prefixes the affected department(s) in the picker with the
+// same 🔴/⚠️ the banner above uses (🔴 per-department if expired/never
+// generated, ⚠️ if just expiring within the warning window), so they're
+// still identifiable once you've scrolled past the banner or come back to
+// this page later. Options are rebuilt in loadDepartments(); this only ever
+// runs after that (see boot order at the bottom of the file), so the
+// <option> elements always exist by the time this is called.
+function _flagDeptPicker(concerning) {
+  const sel = document.getElementById('filter-dept');
+  if (!sel) return;
+  const statusById = new Map(concerning.map(r => [r.deptId, r.status]));
+  Array.from(sel.options).forEach(o => {
+    if (!o.value) return; // the blank "All Departments" default
+    const dept = _depts.find(d => d.id === o.value);
+    if (!dept) return;
+    const base = dept.name + (dept.ncism_code ? ` (${dept.ncism_code})` : '');
+    const status = statusById.get(o.value);
+    const icon = status === 'expired' || status === 'none' ? '🔴' : status === 'expiring' ? '⚠️' : null;
+    o.textContent = icon ? `${icon} ${base}` : base;
+  });
 }
 
 await Promise.all([loadDepartments(), loadEditGate()]);

@@ -82,6 +82,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .slot-item.slot-widened{background:#fdf3e2;border-left:3px solid #c9902a;padding-left:5px;margin:1px 0;border-radius:0 4px 4px 0}
 .cell-widened-tag{font-size:9.5px;color:#7a5a10;font-weight:700;background:#fdf3e2;border:1px solid #c9902a;padding:1px 6px;border-radius:8px;display:inline-block;margin-top:2px}
 .day-off-badge{font-size:9.5px;color:#5a3d7a;background:#f0e8ff;border-radius:8px;padding:1px 6px;display:inline-block;margin-top:3px;cursor:help}
+.roster-legend{font-size:11.5px;color:var(--text-mid);background:var(--green-light);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;margin-bottom:10px;line-height:1.7}
+.roster-legend-sep{margin:0 6px;color:var(--text-muted)}
 th.today-col,td.today-col{border-left:2px solid #c9902a!important;border-right:2px solid #c9902a!important}
 th.today-col{background:#c9902a!important}
 td.today-col{background:#fdf6e3}
@@ -215,6 +217,22 @@ td.today-col{background:#fdf6e3}
   <div class="section-header">
     <div class="section-header-title" id="main-section-title">🏥 Duty Roster — RMO / EMO / GDMO</div>
     <div style="font-size:11px;color:var(--text-muted)">Click any cell to assign or change the duty officer</div>
+  </div>
+
+  <!-- Session 167: everything below is ALWAYS the already-published roster -- this page has no
+       preview/draft mode of its own. The separate Preview -> Publish workflow lives entirely on
+       Generate Roster; the moment that's published, this is exactly what shows up here. Added
+       after Dr. Venkatesh asked how to tell a preview from a finalised roster while looking at
+       this exact table -- the real source of confusion was the Pending confirm/Confirmed pills,
+       which track a DIFFERENT thing (has the individual staff member acknowledged this specific
+       shift) and were easy to misread as "not yet finalised." -->
+  <div class="roster-legend">
+    <strong>✅ This is your published roster</strong> — every cell here is already final, whether it came from Generate Roster, Roll Forward, or a manual assign. There's no separate preview/draft view of this page.
+    <span class="roster-legend-sep">·</span>
+    <span class="cell-confirmed" style="font-size:10px">✓ Confirmed</span> / <span class="cell-pending">Pending confirm</span> just tracks whether that staff member has personally acknowledged the shift — not whether the roster itself is finalised.
+    <span class="roster-legend-sep">·</span>
+    <span class="cell-widened-tag">🔁 Extra duty</span> = covering beyond their own home assignment.
+    <span class="day-off-badge">😴 N off</span> = staff with no shift anywhere that day.
   </div>
 
   <div style="overflow-x:auto">
