@@ -8,6 +8,16 @@ import { logAudit } from '../core/auditLogger.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { checkRosterChanged } from '../modules/roster/scheduleChangeIndicator.js';
+// Session 167 real-usage fix: this page's own `supabase` const below (createClient() called
+// fresh, not the shared singleton -- a known pre-existing pattern in this specific file, see
+// CLAUDE.md's CSP-hardening notes) has to independently restore its auth session from
+// localStorage on creation. The roster-changed check fires essentially immediately after that
+// client is created, before its session-restore is guaranteed to have completed -- a real,
+// well-known supabase-js race condition. The shared singleton, by contrast, is the exact client
+// instance auth.js's login() used to sign in, so its session is already established by the time
+// any page loads. Imported under an alias so nothing else in this large file (~700 lines, every
+// existing clinical feature) is touched -- only this one new check uses it.
+import { supabase as _sharedSupabase } from '../core/db/supabaseClient.js';
 
 requireAuth(['nurse','nurse_manager','super_admin','dept_admin','doctor']);
 initNavbar();
@@ -37,7 +47,7 @@ renderPromoBanner('promo-banner', { supabase, tenantId });
 // nurse_manager has no "own shifts" for this to even apply to). Fire-and-forget, non-blocking --
 // never awaited by anything else on this page, purely additive to the existing boot sequence.
 if (profile?.role === 'nurse') {
-  checkRosterChanged(supabase, tenantId, userId).then(({ changed, count }) => {
+  checkRosterChanged(_sharedSupabase, tenantId, userId).then(({ changed, count }) => {
     if (!changed) return;
     // count crosses a module boundary -- always a real integer by construction
     // (scheduleChangeIndicator.js's `count || 0`), but coerced explicitly here anyway so it can
@@ -47,7 +57,7 @@ if (profile?.role === 'nurse') {
     const el = document.getElementById('roster-change-banner');
     el.innerHTML = `🔔 <strong>Your duty roster has changed</strong> — ${n} new or updated shift${n === 1 ? '' : 's'} published. <a href="roster.html">View my roster →</a>`;
     el.style.display = '';
-  });
+  }).catch(err => console.error('[roster-change-banner]', err)); // was silently swallowed before -- now at least visible in devtools if this isn't the whole fix
 }
 
 // Load departments for ward selector
