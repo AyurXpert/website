@@ -67,7 +67,14 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'therapist.html',     label:'Therapy Sessions',roles:CLINICAL.concat(['therapist']),          types:PK,   module:'panchakarma'},
         { href:'palha-diet.html',    label:'Palha Diet',      roles:CLINICAL.concat(ADMIN_ROLES),            types:PK,   module:'panchakarma'},
         { href:'yoga.html',          label:'Yoga Sessions',   roles:CLINICAL.concat(['therapist']),          types:HOSP, module:'panchakarma'},
-        { href:'roster.html',        label:'Duty Roster',     roles:ADMIN_ROLES,                             types:HOSP, module:'hr'         },
+        // Session 167: roster.js's own requireAuth() already grants plain `nurse` read-only
+        // access (Session 137), but this nav item stayed admin-only -- confirmed live by Dr.
+        // Venkatesh that a real nurse login had no discoverable way to reach a page she was
+        // already authorized to view (no link here, none on nursing.html either). Widened to
+        // match the access that already existed, not a new grant -- same pattern every other
+        // item in this group already uses (nursing.html/icu-flowsheet.html/blood-bank.html
+        // just above all already include 'nurse').
+        { href:'roster.html',        label:'Duty Roster',     roles:ADMIN_ROLES.concat(['nurse']),           types:HOSP, module:'hr'         },
         { href:'facility-ops.html',  label:'Facility Ops',    roles:ADMIN_ROLES.concat(['nurse','receptionist']), types:HOSP, module:'hr'    },
         { href:'emergency.html',     label:'Emergency OPD',   roles:CLINICAL.concat(['receptionist']),       types:HOSP, module:'emergency'  },
         { href:'labour-room.html',   label:'Labour Room',     roles:CLINICAL,                                types:HOSP, module:'ipd'        },
