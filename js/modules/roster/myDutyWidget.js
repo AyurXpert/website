@@ -106,7 +106,14 @@ export async function fetchMyDuty(supabase, tenantId, profileId) {
 
 function _esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
-function _rowsHtml(rows, deptNames, shiftLabels, shiftTimesMap) {
+// Session 168 follow-up (3rd round): Dr. Venkatesh's feedback -- every row in the expanded
+// grid looked identical regardless of whether that day had already passed, so a nurse scanning
+// the list had no visual anchor for "where am I right now" beyond reading every date by hand.
+// `todayStr` drives 3 states per row: already-completed (faded + a checkmark), today (gold
+// highlight, same semantic Session 145's roster.html today-column fix already uses for "today"),
+// and upcoming (unstyled, the original look). Purely a display classification -- doesn't touch
+// which rows get fetched or how they're grouped.
+function _rowsHtml(rows, deptNames, shiftLabels, shiftTimesMap, todayStr) {
   if (!rows.length) return '';
   return '<table class="my-duty-table"><tbody>' + rows.map(r => {
     const dept = _esc(deptNames[r.department_id] || '—');
@@ -116,8 +123,12 @@ function _rowsHtml(rows, deptNames, shiftLabels, shiftTimesMap) {
     const note = r.notes ? ` · ${_esc(r.notes)}` : '';
     const relief = r.is_relief_assignment ? ' <span class="my-duty-badge">🔁 Extra duty</span>' : '';
     const confirmed = r.is_confirmed ? '' : ' <span class="my-duty-pending">Pending confirm</span>';
-    return `<tr>
-      <td class="my-duty-date">${_esc(_fmtDay(r.shift_date))}</td>
+    const isPast = r.shift_date < todayStr;
+    const isToday = r.shift_date === todayStr;
+    const rowClass = isToday ? 'my-duty-row-today' : (isPast ? 'my-duty-row-past' : '');
+    const dateMark = isPast ? ' ✓' : (isToday ? ' •' : '');
+    return `<tr class="${rowClass}">
+      <td class="my-duty-date">${_esc(_fmtDay(r.shift_date))}${dateMark}</td>
       <td>
         <div class="my-duty-dept">${dept}${relief}${confirmed}</div>
         <div class="my-duty-shift">${shiftLabel} · ${shiftTime}${beds}${note}</div>
@@ -180,10 +191,10 @@ export function renderMyDutyHtml(data) {
   const periodWordCap = periodWord.charAt(0).toUpperCase() + periodWord.slice(1);
 
   const currentBody = currentRows.length
-    ? _rowsHtml(currentRows, deptNames, shiftLabels, shiftTimesMap)
+    ? _rowsHtml(currentRows, deptNames, shiftLabels, shiftTimesMap, periods.today)
     : `<div class="my-duty-empty">No duty scheduled this ${periodWord}.</div>`;
   const nextBody = nextRows.length
-    ? _rowsHtml(nextRows, deptNames, shiftLabels, shiftTimesMap)
+    ? _rowsHtml(nextRows, deptNames, shiftLabels, shiftTimesMap, periods.today)
     : `<div class="my-duty-empty">Not published yet — check back closer to ${_fmtShort(periods.next.start)}.</div>`;
 
   return `
