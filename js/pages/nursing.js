@@ -21,7 +21,7 @@ import { logAudit } from '../core/auditLogger.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { checkRosterChanged } from '../modules/roster/scheduleChangeIndicator.js';
-import { fetchMyDuty, renderMyDutyHtml } from '../modules/roster/myDutyWidget.js';
+import { fetchMyDuty, renderMyDutyHtml, renderTodayHtml } from '../modules/roster/myDutyWidget.js';
 
 requireAuth(['nurse','nurse_manager','super_admin','dept_admin','doctor']);
 initNavbar();
@@ -75,13 +75,26 @@ if (profile?.role === 'nurse') {
 // unlike the banner above). Same `role === 'nurse'` scoping as that banner and for the same
 // reason -- nurse_manager/admin viewers aren't personally scheduled by the roster solver, so
 // there'd be nothing real to show them. Fire-and-forget, non-blocking.
+//
+// Session 168 follow-up (Dr. Venkatesh, same day, after seeing it live): only today's duty (or
+// "Day Off") stays permanently visible; the full This/Next period grid starts collapsed and
+// expands on click -- see toggleMyDuty() below and #my-duty-full/.show in nursing.html's CSS.
 if (profile?.role === 'nurse') {
   fetchMyDuty(supabase, tenantId, userId).then(data => {
     if (!data) return; // fetchMyDuty() already logged the specific error; nothing to render
+    document.getElementById('my-duty-today').innerHTML = renderTodayHtml(data);
     document.getElementById('my-duty-body').innerHTML = renderMyDutyHtml(data);
     document.getElementById('my-duty-card').style.display = '';
   }).catch(err => console.error('[my-duty-card]', err));
 }
+
+window.toggleMyDuty = function(headerEl) {
+  const full = document.getElementById('my-duty-full');
+  const chevron = document.getElementById('my-duty-chevron');
+  const open = full.classList.toggle('show');
+  headerEl.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (chevron) chevron.textContent = open ? '▴' : '▾';
+};
 
 // Load departments for ward selector
 const { data: depts } = await supabase.from('departments')

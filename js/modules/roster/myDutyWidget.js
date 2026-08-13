@@ -44,6 +44,7 @@ export function computeDutyPeriods(cycle, today = new Date()) {
   const nextEnd = _addDays(nextStart, spanDays - 1);
   return {
     cycle, weeks,
+    today: _dateStr(today),
     current: { start: _dateStr(currentStart), end: _dateStr(currentEnd) },
     next: { start: _dateStr(nextStart), end: _dateStr(nextEnd) },
   };
@@ -108,8 +109,45 @@ function _rowsHtml(rows, deptNames, shiftLabels, shiftTimesMap) {
   }).join('') + '</tbody></table>';
 }
 
-// Renders both columns. `data` is exactly what fetchMyDuty() returns (or null, handled by the
-// caller -- see nursing.js, which just skips rendering entirely on a failed fetch rather than
+// Session 168 follow-up (13 Aug 2026, Dr. Venkatesh's explicit ask after seeing the first
+// version live): the full This-Week/Next-Week grid was always fully expanded, pushing the
+// actual clinical tabs below the fold every time a nurse opened the page. Split into an
+// always-visible ONE-LINE "today" summary (this function) + the full grid tucked behind a
+// click-to-expand dropdown (renderMyDutyHtml(), now only rendered into the hidden section --
+// see nursing.js/nursing.html). "Day Off" here is the same ground-truth signal Session 166's
+// roster.html badge uses -- zero duty_roster rows anywhere for her today, not a computed
+// weekly-off-day guess -- so it can never disagree with what the roster grid itself shows.
+export function renderTodayHtml(data) {
+  const { periods, shiftLabels, shiftTimesMap, deptNames, currentRows } = data;
+  const dateLabel = _esc(_fmtDay(periods.today));
+  const todaysRows = currentRows.filter(r => r.shift_date === periods.today);
+
+  if (!todaysRows.length) {
+    return `<div class="my-duty-today-row">
+      <span class="my-duty-today-date">${dateLabel}</span>
+      <span class="my-duty-today-status off">😴 Day Off</span>
+    </div>`;
+  }
+
+  return todaysRows.map(r => {
+    const dept = _esc(deptNames[r.department_id] || '—');
+    const shiftLabel = _esc(shiftLabels[r.shift_type] || r.shift_type);
+    const shiftTime = _esc(shiftTimesMap[r.shift_type] || '');
+    const beds = (r.bed_range_start && r.bed_range_end) ? ` · Beds ${r.bed_range_start}–${r.bed_range_end}` : '';
+    const note = r.notes ? ` · ${_esc(r.notes)}` : '';
+    const relief = r.is_relief_assignment ? ' <span class="my-duty-badge">🔁 Extra duty</span>' : '';
+    return `<div class="my-duty-today-row">
+      <span class="my-duty-today-date">${dateLabel}</span>
+      <span class="my-duty-today-status duty">🩺 On Duty</span>
+      <span class="my-duty-today-detail">${dept} · ${shiftLabel} · ${shiftTime}${beds}${note}${relief}</span>
+    </div>`;
+  }).join('');
+}
+
+// Renders both columns (the full current-cycle + next-cycle grid) -- lives inside the
+// click-to-expand dropdown, hidden by default; renderTodayHtml() above is what's always
+// visible. `data` is exactly what fetchMyDuty() returns (or null, handled by the caller --
+// see nursing.js, which just skips rendering entirely on a failed fetch rather than
 // showing an empty/misleading card).
 export function renderMyDutyHtml(data) {
   const { periods, shiftLabels, shiftTimesMap, deptNames, currentRows, nextRows } = data;

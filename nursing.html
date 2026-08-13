@@ -130,8 +130,24 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
 /* My Duty widget (Session 168) */
 .my-duty-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);margin-bottom:16px;overflow:hidden}
-.my-duty-hdr{background:var(--green-deep);color:#fff;padding:10px 16px;font-weight:600;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-.my-duty-hdr a{color:#fff;font-size:11px;text-decoration:underline;font-weight:500;white-space:nowrap}
+.my-duty-hdr{background:var(--green-deep);color:#fff;padding:10px 16px;font-weight:600;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;user-select:none}
+.my-duty-hdr:hover{background:#1f5c37}
+.my-duty-chevron{font-size:11px;transition:transform .15s}
+/* Session 168 follow-up: always-visible one-line "today" summary -- the full grid below is
+   hidden until the header is clicked (see .my-duty-full / .show and toggleMyDuty() in
+   nursing.js). Deliberately its own row, not inside the collapsible section, so a nurse always
+   knows at a glance whether she's on duty today or off without expanding anything. */
+.my-duty-today{padding:9px 16px;border-bottom:1px solid var(--border)}
+.my-duty-today-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;padding:2px 0}
+.my-duty-today-date{font-weight:700;color:var(--text-dark);min-width:80px}
+.my-duty-today-status{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;white-space:nowrap}
+.my-duty-today-status.duty{background:var(--green-light);color:var(--green-deep)}
+.my-duty-today-status.off{background:var(--cream);color:var(--text-muted);border:1px solid var(--border)}
+.my-duty-today-detail{color:var(--text-mid);font-size:12px}
+.my-duty-full{display:none}
+.my-duty-full.show{display:block}
+.my-duty-full-hdr{padding:8px 16px 0;text-align:right}
+.my-duty-full-hdr a{font-size:11px;color:var(--green-deep);font-weight:600;text-decoration:underline}
 .my-duty-grid{display:grid;grid-template-columns:1fr 1fr}
 @media(max-width:700px){.my-duty-grid{grid-template-columns:1fr}}
 .my-duty-col{padding:12px 16px}
@@ -187,10 +203,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
        js/modules/roster/myDutyWidget.js) -- shows this cycle's AND next cycle's duty postings
        for the logged-in nurse every time she opens this page, not just a one-shot change
        notice (that's the separate #roster-change-banner above). Hidden by default; JS reveals
-       it once real data has loaded, so a slow/failed fetch never leaves an empty card visible. -->
+       it once real data has loaded, so a slow/failed fetch never leaves an empty card visible.
+       Session 168 follow-up: only #my-duty-today (today's duty, or "Day Off") stays always
+       visible -- the full This/Next period grid (#my-duty-full) starts collapsed and expands
+       only when the header is clicked (toggleMyDuty() in nursing.js), so the card no longer
+       pushes the clinical tabs below the fold on every load. title= gives the hover hint. -->
   <div id="my-duty-card" class="my-duty-card no-print" style="display:none">
-    <div class="my-duty-hdr"><span>🗓️ My Duty Schedule</span><a href="roster.html">Full roster →</a></div>
-    <div id="my-duty-body" class="my-duty-grid"></div>
+    <div class="my-duty-hdr" data-onclick="toggleMyDuty" data-onclick-a0="@this" title="Click to see My Duty Schedule" aria-expanded="false">
+      <span>🗓️ My Duty Schedule</span>
+      <span class="my-duty-chevron" id="my-duty-chevron">▾</span>
+    </div>
+    <div id="my-duty-today" class="my-duty-today"></div>
+    <div id="my-duty-full" class="my-duty-full">
+      <div class="my-duty-full-hdr"><a href="roster.html">Full roster →</a></div>
+      <div id="my-duty-body" class="my-duty-grid"></div>
+    </div>
   </div>
 
   <div id="alert-box" class="alert"></div>
