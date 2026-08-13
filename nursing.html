@@ -130,22 +130,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
 /* My Duty widget (Session 168) */
 .my-duty-card{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);margin-bottom:16px;overflow:hidden}
-.my-duty-hdr{background:var(--green-deep);color:#fff;padding:10px 16px;font-weight:600;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer;user-select:none}
+.my-duty-hdr{background:var(--green-deep);color:#fff;padding:9px 16px 10px;cursor:pointer;user-select:none}
 .my-duty-hdr:hover{background:#1f5c37}
-.my-duty-chevron{font-size:11px;transition:transform .15s}
-/* Session 168 follow-up: always-visible one-line "today" summary -- the full grid below is
-   hidden until the header is clicked (see .my-duty-full / .show and toggleMyDuty() in
-   nursing.js). Deliberately its own row, not inside the collapsible section, so a nurse always
-   knows at a glance whether she's on duty today or off without expanding anything. */
-.my-duty-today{padding:9px 16px;border-bottom:1px solid var(--border)}
-.my-duty-today-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;padding:2px 0}
-.my-duty-today-date{font-weight:700;color:var(--text-dark);min-width:80px}
-.my-duty-today-status{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;white-space:nowrap}
-.my-duty-today-status.duty{background:var(--green-light);color:var(--green-deep)}
-.my-duty-today-status.off{background:var(--cream);color:var(--text-muted);border:1px solid var(--border)}
-.my-duty-today-detail{color:var(--text-mid);font-size:12px}
-.my-duty-weeklyoff{font-size:11px;color:var(--text-muted);padding-top:5px;margin-top:5px;border-top:1px dashed var(--border)}
-.my-duty-weeklyoff strong{color:var(--text-mid);font-weight:700}
+.my-duty-hdr-top{display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:600;font-size:13px}
+.my-duty-chevron{font-size:11px;transition:transform .15s;flex-shrink:0}
+/* Session 168 follow-up (5th round): Dr. Venkatesh's feedback -- the always-visible today
+   summary used to live in its own white bordered box below the header (its own padding +
+   border-bottom), costing extra vertical space beyond the header itself. Moved directly onto
+   the green header bar -- same #my-duty-today id (no nursing.js change needed), same click/
+   hover-to-expand surface, just recolored for the dark background instead of the white-box
+   palette it inherited from being a separate section. */
+.my-duty-hdr-today{margin-top:4px;display:flex;flex-direction:column;gap:2px}
+.my-duty-hdr-today .my-duty-today-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px}
+.my-duty-hdr-today .my-duty-today-date{font-weight:700;color:#fff}
+.my-duty-hdr-today .my-duty-today-status{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;white-space:nowrap;background:rgba(255,255,255,.22);color:#fff}
+.my-duty-hdr-today .my-duty-today-detail{color:#dcefe3;font-size:11.5px}
+.my-duty-hdr-today .my-duty-weeklyoff{font-size:10.5px;color:#cfe8d8;padding-top:2px;margin-top:1px;border-top:1px dashed rgba(255,255,255,.28)}
+.my-duty-hdr-today .my-duty-weeklyoff strong{color:#fff}
 .my-duty-full{display:none}
 .my-duty-full.show{display:block}
 .my-duty-full-hdr{padding:8px 16px 0;text-align:right}
@@ -217,13 +218,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
        Session 168 follow-up: only #my-duty-today (today's duty, or "Day Off") stays always
        visible -- the full This/Next period grid (#my-duty-full) starts collapsed and expands
        only when the header is clicked (toggleMyDuty() in nursing.js), so the card no longer
-       pushes the clinical tabs below the fold on every load. title= gives the hover hint. -->
+       pushes the clinical tabs below the fold on every load. title= gives the hover hint.
+       Session 168 follow-up (5th round): #my-duty-today now lives INSIDE .my-duty-hdr itself
+       (was a separate white box below it) -- one unified green bar, saving the extra
+       box's own padding/border. Same id, same JS -- nursing.js writes to it unchanged. -->
   <div id="my-duty-card" class="my-duty-card no-print" style="display:none">
     <div class="my-duty-hdr" data-onclick="toggleMyDuty" data-onclick-a0="@this" title="Click to see My Duty Schedule" aria-expanded="false">
-      <span>🗓️ My Duty Schedule</span>
-      <span class="my-duty-chevron" id="my-duty-chevron">▾</span>
+      <div class="my-duty-hdr-top">
+        <span>🗓️ My Duty Schedule</span>
+        <span class="my-duty-chevron" id="my-duty-chevron">▾</span>
+      </div>
+      <div id="my-duty-today" class="my-duty-hdr-today"></div>
     </div>
-    <div id="my-duty-today" class="my-duty-today"></div>
     <div id="my-duty-full" class="my-duty-full">
       <div class="my-duty-full-hdr"><a href="roster.html">Full roster →</a></div>
       <div id="my-duty-body" class="my-duty-grid"></div>
