@@ -21,6 +21,7 @@ import { logAudit } from '../core/auditLogger.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { checkRosterChanged } from '../modules/roster/scheduleChangeIndicator.js';
+import { fetchMyDuty, renderMyDutyHtml } from '../modules/roster/myDutyWidget.js';
 
 requireAuth(['nurse','nurse_manager','super_admin','dept_admin','doctor']);
 initNavbar();
@@ -67,6 +68,19 @@ if (profile?.role === 'nurse') {
     // rendering with content, just invisible -- explains why zero console errors ever appeared.
     el.classList.add('show');
   }).catch(err => console.error('[roster-change-banner]', err)); // was silently swallowed before -- now at least visible in devtools if this isn't the whole fix
+}
+
+// Session 168: permanent "My Duty" card -- this cycle's + next cycle's duty postings for the
+// logged-in nurse, shown every time this page loads (not just when something recently changed,
+// unlike the banner above). Same `role === 'nurse'` scoping as that banner and for the same
+// reason -- nurse_manager/admin viewers aren't personally scheduled by the roster solver, so
+// there'd be nothing real to show them. Fire-and-forget, non-blocking.
+if (profile?.role === 'nurse') {
+  fetchMyDuty(supabase, tenantId, userId).then(data => {
+    if (!data) return; // fetchMyDuty() already logged the specific error; nothing to render
+    document.getElementById('my-duty-body').innerHTML = renderMyDutyHtml(data);
+    document.getElementById('my-duty-card').style.display = '';
+  }).catch(err => console.error('[my-duty-card]', err));
 }
 
 // Load departments for ward selector

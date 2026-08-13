@@ -1,0 +1,135 @@
+// Session 168: "My Duty" widget for nursing.html -- a PERMANENT dashboard card showing a plain
+// `nurse`'s own current-cycle and next-cycle duty postings, not just the Session 167 one-shot
+// "your roster changed" banner (that banner tells her something changed; this answers "where am
+// I posted", every time she opens the page, whether or not anything recently changed).
+// Dr. Venkatesh's explicit ask (13 Aug 2026): "can nursing.html show current cycle duty places
+// as well as next cycle duty posting permanently."
+//
+// "Current cycle" / "next cycle" are NOT stored anywhere -- duty_roster is just plain shift_date
+// rows (Session 166/167's solver writes one row per real shift, no period/cycle column) -- so
+// both ranges are derived fresh from today's date + the tenant's approved Roster Cycle setting
+// (nursing_roster_settings.cycle: weekly/fortnightly/monthly), using the exact same
+// Monday-anchored math nursingRosterGenerate.js already uses to define "this period" for
+// generation. That's deliberate: this widget and the Generate Roster page can never disagree
+// about where one period ends and the next begins.
+import { shiftTimes, shiftNames } from '../../config/ncism.js';
+
+const CYCLE_WEEKS  = { weekly: 1, fortnightly: 2, monthly: 4 };
+const CYCLE_LABELS = { weekly: 'week', fortnightly: 'fortnight', monthly: '4-week period' };
+
+function _getMonday(d) {
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1 - day);
+  const m = new Date(d);
+  m.setDate(m.getDate() + diff);
+  m.setHours(0, 0, 0, 0);
+  return m;
+}
+function _addDays(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+function _dateStr(d) {
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+function _fmtShort(dStr) { return new Date(dStr + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); }
+function _fmtDay(dStr) { return new Date(dStr + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }); }
+
+// Pure, DB-free -- exported mainly so it can be unit-reasoned-about/reused without a live client.
+export function computeDutyPeriods(cycle, today = new Date()) {
+  const weeks = CYCLE_WEEKS[cycle] || 1;
+  const spanDays = weeks * 7;
+  const thisMonday = _getMonday(today);
+  const currentStart = thisMonday;
+  const currentEnd = _addDays(thisMonday, spanDays - 1);
+  const nextStart = _addDays(thisMonday, spanDays);
+  const nextEnd = _addDays(nextStart, spanDays - 1);
+  return {
+    cycle, weeks,
+    current: { start: _dateStr(currentStart), end: _dateStr(currentEnd) },
+    next: { start: _dateStr(nextStart), end: _dateStr(nextEnd) },
+  };
+}
+
+// Reads the tenant's cycle + shift-pattern settings, computes the two period ranges, and fetches
+// this one nurse's own duty_roster rows spanning both in a single query (the two ranges are
+// contiguous, so one gte/lte covers both -- split client-side after). Department names fetched
+// separately, matching the codebase's existing convention (roster.js/nursingRosterGenerate.js
+// both do a plain id->name lookup rather than an embedded join -- duty_roster's FK shape hasn't
+// been checked for a department embed, and this avoids that risk entirely).
+export async function fetchMyDuty(supabase, tenantId, profileId) {
+  const { data: settings, error: settingsErr } = await supabase.from('nursing_roster_settings')
+    .select('cycle,shift_pattern').eq('tenant_id', tenantId).maybeSingle();
+  if (settingsErr) console.error('[fetchMyDuty] settings read failed:', settingsErr); // non-fatal -- falls back to defaults below
+
+  const cycle = settings?.cycle || 'weekly';
+  const pattern = settings?.shift_pattern || 'six_six_twelve';
+  const shiftLabels = shiftNames(pattern);
+  const shiftTimesMap = shiftTimes(pattern);
+  const periods = computeDutyPeriods(cycle);
+
+  const { data: rows, error: rosterErr } = await supabase.from('duty_roster')
+    .select('id,department_id,shift_date,shift_type,bed_range_start,bed_range_end,notes,is_relief_assignment,is_confirmed')
+    .eq('tenant_id', tenantId).eq('profile_id', profileId)
+    .gte('shift_date', periods.current.start).lte('shift_date', periods.next.end)
+    .order('shift_date', { ascending: true });
+  if (rosterErr) { console.error('[fetchMyDuty] duty_roster read failed:', rosterErr); return null; }
+
+  const deptIds = [...new Set((rows || []).map(r => r.department_id).filter(Boolean))];
+  const deptNames = {};
+  if (deptIds.length) {
+    const { data: depts, error: deptErr } = await supabase.from('departments').select('id,name').in('id', deptIds);
+    if (deptErr) console.error('[fetchMyDuty] departments read failed:', deptErr);
+    (depts || []).forEach(d => { deptNames[d.id] = d.name; });
+  }
+
+  const currentRows = (rows || []).filter(r => r.shift_date <= periods.current.end);
+  const nextRows = (rows || []).filter(r => r.shift_date >= periods.next.start);
+  return { cycle, periods, shiftLabels, shiftTimesMap, deptNames, currentRows, nextRows };
+}
+
+function _esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+function _rowsHtml(rows, deptNames, shiftLabels, shiftTimesMap) {
+  if (!rows.length) return '';
+  return '<table class="my-duty-table"><tbody>' + rows.map(r => {
+    const dept = _esc(deptNames[r.department_id] || '—');
+    const shiftLabel = _esc(shiftLabels[r.shift_type] || r.shift_type);
+    const shiftTime = _esc(shiftTimesMap[r.shift_type] || '');
+    const beds = (r.bed_range_start && r.bed_range_end) ? ` · Beds ${r.bed_range_start}–${r.bed_range_end}` : '';
+    const note = r.notes ? ` · ${_esc(r.notes)}` : '';
+    const relief = r.is_relief_assignment ? ' <span class="my-duty-badge">🔁 Extra duty</span>' : '';
+    const confirmed = r.is_confirmed ? '' : ' <span class="my-duty-pending">Pending confirm</span>';
+    return `<tr>
+      <td class="my-duty-date">${_esc(_fmtDay(r.shift_date))}</td>
+      <td>
+        <div class="my-duty-dept">${dept}${relief}${confirmed}</div>
+        <div class="my-duty-shift">${shiftLabel} · ${shiftTime}${beds}${note}</div>
+      </td>
+    </tr>`;
+  }).join('') + '</tbody></table>';
+}
+
+// Renders both columns. `data` is exactly what fetchMyDuty() returns (or null, handled by the
+// caller -- see nursing.js, which just skips rendering entirely on a failed fetch rather than
+// showing an empty/misleading card).
+export function renderMyDutyHtml(data) {
+  const { periods, shiftLabels, shiftTimesMap, deptNames, currentRows, nextRows } = data;
+  const periodWord = CYCLE_LABELS[data.cycle] || 'week';
+  const periodWordCap = periodWord.charAt(0).toUpperCase() + periodWord.slice(1);
+
+  const currentBody = currentRows.length
+    ? _rowsHtml(currentRows, deptNames, shiftLabels, shiftTimesMap)
+    : `<div class="my-duty-empty">No duty scheduled this ${periodWord}.</div>`;
+  const nextBody = nextRows.length
+    ? _rowsHtml(nextRows, deptNames, shiftLabels, shiftTimesMap)
+    : `<div class="my-duty-empty">Not published yet — check back closer to ${_fmtShort(periods.next.start)}.</div>`;
+
+  return `
+    <div class="my-duty-col">
+      <div class="my-duty-col-hdr"><span>📅 This ${periodWordCap}</span><span class="my-duty-range">${_fmtShort(periods.current.start)} – ${_fmtShort(periods.current.end)}</span></div>
+      ${currentBody}
+    </div>
+    <div class="my-duty-col">
+      <div class="my-duty-col-hdr"><span>🔜 Next ${periodWordCap}</span><span class="my-duty-range">${_fmtShort(periods.next.start)} – ${_fmtShort(periods.next.end)}</span></div>
+      ${nextBody}
+    </div>`;
+}
