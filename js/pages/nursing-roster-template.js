@@ -862,9 +862,14 @@ window.rollForwardAllDepartments = async function() {
     if (error) { lines.push(`❌ <strong>${_esc(dept.name)}</strong> — ${_esc(safeErrorMessage(error, 'error'))}`); continue; }
     const gapsCount = (data.gaps || []).length;
     const subsCount = (data.substitutions || []).length;
+    const skippedCount = (data.skipped_solver_owned || []).length;
     lines.push(`✅ <strong>${_esc(dept.name)}</strong> — ${data.created} shift${data.created === 1 ? '' : 's'} generated`
       + (subsCount ? `, ${subsCount} leave substitution${subsCount === 1 ? '' : 's'}` : '')
       + (gapsCount ? `, <span style="color:#8b1a1a">⚠ ${gapsCount} gap${gapsCount === 1 ? '' : 's'}</span>` : '')
+      // Session 168: same solver-owned-slot skip as the single-department flow above, just
+      // one summary count here instead of a per-date list (this path already runs across
+      // every department in one pass, so per-date detail would be a lot of noise).
+      + (skippedCount ? `, <span style="color:#1a4080">ℹ️ ${skippedCount} left untouched (already on Generate Roster)</span>` : '')
       + (data.cycle_transitioned ? `, <span style="color:#7a5a10">🔁 switched ${data.old_cycle_days}→${data.new_cycle_days} days</span>` : ''));
   }
 
@@ -956,6 +961,17 @@ function renderRollResult(result) {
   if (gaps.length) {
     html += `<div class="result-line" style="color:#8b1a1a"><strong>⚠ ${gaps.length} gap${gaps.length === 1 ? '' : 's'} -- needs manual staffing:</strong></div>`;
     gaps.forEach(g => { html += `<div class="result-line">— ${_esc(g.date)} ${SHIFT_LABELS[g.shift_type]}: ${_esc(_nameFor(g.profile_id))} (${_esc(g.reason)})</div>`; });
+  }
+  // Session 168: real silent-overwrite risk found and fixed -- Roll Forward's per-slot upsert
+  // had no idea a slot might already be authoritatively owned by Generate Roster (the whole-week
+  // solver), so it would clobber it with the older Fixed-Team template's static assignment with
+  // zero visibility. roll_nursing_roster_template() now leaves any such slot untouched instead
+  // and reports it here, so a Nursing Head can see exactly which dates were deliberately skipped
+  // rather than silently believing everything in this cycle just got (re)generated.
+  const skipped = result.skipped_solver_owned || [];
+  if (skipped.length) {
+    html += `<div class="result-line" style="color:#1a4080"><strong>ℹ️ ${skipped.length} slot${skipped.length === 1 ? '' : 's'} left untouched -- already published by Generate Roster:</strong></div>`;
+    skipped.forEach(s => { html += `<div class="result-line">— ${_esc(s.date)} ${SHIFT_LABELS[s.shift_type]}</div>`; });
   }
   box.innerHTML = html;
   box.className = 'result-box show' + (gaps.length ? ' warn' : '');
