@@ -16,11 +16,6 @@ import { shiftTimes, shiftNames } from '../../config/ncism.js';
 
 const CYCLE_WEEKS  = { weekly: 1, fortnightly: 2, monthly: 4 };
 const CYCLE_LABELS = { weekly: 'week', fortnightly: 'fortnight', monthly: '4-week period' };
-// 0=Sunday..6=Saturday, matching profiles.weekly_off_day's stored convention (JS Date.getDay())
-// -- same array roster.js's WEEKDAY_NAMES already uses, duplicated here rather than shared
-// since there's no common weekday-names module in the codebase yet (nursing-roster-template.js
-// keeps its own copy too).
-const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function _getMonday(d) {
   const day = d.getDay();
@@ -37,6 +32,34 @@ function _dateStr(d) {
 }
 function _fmtShort(dStr) { return new Date(dStr + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); }
 function _fmtDay(dStr) { return new Date(dStr + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }); }
+
+// Every date string from startStr to endStr inclusive.
+function _enumerateDates(startStr, endStr) {
+  const out = [];
+  let d = new Date(startStr + 'T00:00:00');
+  const end = new Date(endStr + 'T00:00:00');
+  while (d <= end) { out.push(_dateStr(d)); d = _addDays(d, 1); }
+  return out;
+}
+
+// Session 168 follow-up (4th round): real bug caught live -- "Weekly Off day: Thursday" and
+// "On Duty, Medical In-Patients" both showed for the SAME today at once. Root cause: this used
+// to read profiles.weekly_off_day, a FIXED per-nurse weekday from the OLDER Fixed-Team roster
+// system (Session 145/146). But Session 166's whole-week solver (the one actually generating
+// SDM's live roster now) deliberately replaced that with a ROTATING day off, computed fresh
+// per week from a stateless formula, and never reads profiles.weekly_off_day at all (confirmed
+// -- grep across every sql/session166*.sql file, zero hits; see session166d's own design note
+// "1. Rotating weekly-off, not fixed... not a stored personal preference"). So that stored
+// column is simply stale for any tenant on the new solver -- displaying it was always going to
+// eventually disagree with the real published schedule, exactly as it just did.
+// Fixed by computing "day(s) off this period" from the SAME duty_roster rows already being
+// displayed -- whichever date(s) in the current period have zero rows for her. This can never
+// disagree with what's actually shown, regardless of which system generated it (rotating
+// solver, the older Fixed-Team template, or a manual assign).
+function _offDaysInPeriod(rows, startStr, endStr) {
+  const worked = new Set(rows.map(r => r.shift_date));
+  return _enumerateDates(startStr, endStr).filter(d => !worked.has(d));
+}
 
 // Pure, DB-free -- exported mainly so it can be unit-reasoned-about/reused without a live client.
 export function computeDutyPeriods(cycle, today = new Date()) {
@@ -72,23 +95,12 @@ export async function fetchMyDuty(supabase, tenantId, profileId) {
   const shiftTimesMap = shiftTimes(pattern);
   const periods = computeDutyPeriods(cycle);
 
-  // Session 168 follow-up (2nd round): Dr. Venkatesh's feedback -- her fixed weekly-off WEEKDAY
-  // (profiles.weekly_off_day, set via roster.js's Leave & Weekly Off tab) was nowhere on this
-  // card at all, only whether TODAY happened to be a day with zero shifts. Both are genuinely
-  // useful and different questions ("which day do I get off every week" vs "am I off today") --
-  // fetched alongside duty_roster rather than replacing anything. Same tenant-wide profiles
-  // SELECT RLS every other page already reads this column under (roster.js reads it for staff
-  // other than the viewer themselves), so no new grant needed for a nurse to read her own.
-  const [{ data: rows, error: rosterErr }, { data: prof, error: profErr }] = await Promise.all([
-    supabase.from('duty_roster')
-      .select('id,department_id,shift_date,shift_type,bed_range_start,bed_range_end,notes,is_relief_assignment,is_confirmed')
-      .eq('tenant_id', tenantId).eq('profile_id', profileId)
-      .gte('shift_date', periods.current.start).lte('shift_date', periods.next.end)
-      .order('shift_date', { ascending: true }),
-    supabase.from('profiles').select('weekly_off_day').eq('id', profileId).maybeSingle(),
-  ]);
+  const { data: rows, error: rosterErr } = await supabase.from('duty_roster')
+    .select('id,department_id,shift_date,shift_type,bed_range_start,bed_range_end,notes,is_relief_assignment,is_confirmed')
+    .eq('tenant_id', tenantId).eq('profile_id', profileId)
+    .gte('shift_date', periods.current.start).lte('shift_date', periods.next.end)
+    .order('shift_date', { ascending: true });
   if (rosterErr) { console.error('[fetchMyDuty] duty_roster read failed:', rosterErr); return null; }
-  if (profErr) console.error('[fetchMyDuty] weekly_off_day read failed:', profErr); // non-fatal -- card still renders, just without this line
 
   const deptIds = [...new Set((rows || []).map(r => r.department_id).filter(Boolean))];
   const deptNames = {};
@@ -100,8 +112,7 @@ export async function fetchMyDuty(supabase, tenantId, profileId) {
 
   const currentRows = (rows || []).filter(r => r.shift_date <= periods.current.end);
   const nextRows = (rows || []).filter(r => r.shift_date >= periods.next.start);
-  const weeklyOffDay = (prof?.weekly_off_day != null) ? prof.weekly_off_day : null;
-  return { cycle, periods, shiftLabels, shiftTimesMap, deptNames, currentRows, nextRows, weeklyOffDay };
+  return { cycle, periods, shiftLabels, shiftTimesMap, deptNames, currentRows, nextRows };
 }
 
 function _esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -146,17 +157,24 @@ function _rowsHtml(rows, deptNames, shiftLabels, shiftTimesMap, todayStr) {
 // roster.html badge uses -- zero duty_roster rows anywhere for her today, not a computed
 // weekly-off-day guess -- so it can never disagree with what the roster grid itself shows.
 export function renderTodayHtml(data) {
-  const { periods, shiftLabels, shiftTimesMap, deptNames, currentRows, weeklyOffDay } = data;
+  const { periods, shiftLabels, shiftTimesMap, deptNames, currentRows } = data;
   const dateLabel = _esc(_fmtDay(periods.today));
   const todaysRows = currentRows.filter(r => r.shift_date === periods.today);
-  const isWeeklyOffToday = weeklyOffDay != null && new Date(periods.today + 'T00:00:00').getDay() === weeklyOffDay;
+  const periodWord = CYCLE_LABELS[data.cycle] || 'week';
 
-  // Weekly-off-day line is a SEPARATE fact from today's status -- "which weekday do I get off
-  // every week" (a fixed, standing assignment) vs. "am I off today specifically" (today's row(s)
-  // above, ground-truth from real duty_roster data). Shown every time, not just when they
-  // coincide, and called out with a matching pill when they do (today IS her regular off day).
-  const offLabel = weeklyOffDay != null ? WEEKDAY_NAMES[weeklyOffDay] : 'Not set yet';
-  const offLine = `<div class="my-duty-weeklyoff">😴 Weekly Off day: <strong>${_esc(offLabel)}</strong>${isWeeklyOffToday ? ' <span class="my-duty-badge">Today</span>' : ''}</div>`;
+  // Ground-truth "day(s) off this period" -- see _offDaysInPeriod()'s comment above for why
+  // this replaced a stored-but-stale profiles.weekly_off_day read. If today itself is the only
+  // day off this period, the "😴 Day Off" status below already says so -- this line then adds
+  // nothing and is skipped to avoid repeating itself.
+  const offDays = _offDaysInPeriod(currentRows, periods.current.start, periods.current.end);
+  const todayIsOnlyOffDay = offDays.length === 1 && offDays[0] === periods.today;
+  let offLine = '';
+  if (!offDays.length) {
+    offLine = `<div class="my-duty-weeklyoff">⚠️ No day off scheduled this ${periodWord} yet.</div>`;
+  } else if (!todayIsOnlyOffDay) {
+    const label = offDays.length === 1 ? `Day off this ${periodWord}` : `Days off this ${periodWord}`;
+    offLine = `<div class="my-duty-weeklyoff">😴 ${_esc(label)}: <strong>${_esc(offDays.map(_fmtDay).join(', '))}</strong></div>`;
+  }
 
   if (!todaysRows.length) {
     return `<div class="my-duty-today-row">
