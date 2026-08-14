@@ -279,4 +279,16 @@ document.getElementById('btn-publish').addEventListener('click', async () => {
 await loadCycle();
 await loadEditGate();
 await loadDeptNames();
+
+// Session 169: nursing-roster-template.js's Roll Forward gap-result links here with
+// ?week=YYYY-MM-DD once it reports unfilled shifts, so the Nursing Head lands straight on the
+// week that needs the cross-department solver instead of having to re-navigate to it manually.
+// Snapped to that date's Monday like every other week-nav path -- an arbitrary mid-week date
+// in the link would silently misalign _weekStart from the grid it's meant to match.
+const _qWeek = new URLSearchParams(location.search).get('week');
+if (_qWeek && /^\d{4}-\d{2}-\d{2}$/.test(_qWeek)) {
+  const d = new Date(_qWeek + 'T00:00:00');
+  if (!isNaN(d)) _weekStart = _getMonday(d);
+}
+
 _updateWeekLabel();

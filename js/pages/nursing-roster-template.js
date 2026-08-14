@@ -852,6 +852,7 @@ window.rollForwardAllDepartments = async function() {
   const originalDept = _selectedDept;
 
   const lines = [];
+  let totalGaps = 0;
   for (const dept of _depts) {
     _selectedDept = dept.id;
     sel.value = dept.id;
@@ -863,6 +864,7 @@ window.rollForwardAllDepartments = async function() {
     const gapsCount = (data.gaps || []).length;
     const subsCount = (data.substitutions || []).length;
     const skippedCount = (data.skipped_solver_owned || []).length;
+    totalGaps += gapsCount;
     lines.push(`✅ <strong>${_esc(dept.name)}</strong> — ${data.created} shift${data.created === 1 ? '' : 's'} generated`
       + (subsCount ? `, ${subsCount} leave substitution${subsCount === 1 ? '' : 's'}` : '')
       + (gapsCount ? `, <span style="color:#8b1a1a">⚠ ${gapsCount} gap${gapsCount === 1 ? '' : 's'}</span>` : '')
@@ -872,6 +874,11 @@ window.rollForwardAllDepartments = async function() {
       + (skippedCount ? `, <span style="color:#1a4080">ℹ️ ${skippedCount} left untouched (already on Generate Roster)</span>` : '')
       + (data.cycle_transitioned ? `, <span style="color:#7a5a10">🔁 switched ${data.old_cycle_days}→${data.new_cycle_days} days</span>` : ''));
   }
+  // Session 169: one solver-nudge link for the whole bulk run rather than one per department --
+  // Generate Roster solves (and would need to re-publish) the whole week across all departments
+  // in a single pass anyway, so a per-department link here would just be the same destination
+  // repeated N times.
+  if (totalGaps > 0) lines.push(_solverNudge(date));
 
   _selectedDept = originalDept;
   sel.value = originalDept || '';
@@ -922,7 +929,7 @@ window.rollForward = async function() {
   btn.disabled = false; btn.textContent = 'Generate Next Cycle';
 
   if (error) { _alert('error', safeErrorMessage(error, 'Could not roll the roster forward.')); return; }
-  renderRollResult(data);
+  renderRollResult(data, date);
 
   await loadCycleExpiryBanner();
   document.getElementById('roll-start-date').value = _suggestedStartDate(_selectedDept);
@@ -933,7 +940,21 @@ function _nameFor(id) {
   return _pool.find(p => p.id === id)?.full_name || '—';
 }
 
-function renderRollResult(result) {
+// Session 169: Roll Forward only ever fills a department's own small fixed team -- it has no
+// cross-department borrowing, so on a thinly-staffed tenant it reports real gaps the whole-week
+// solver (nursing-roster-generate.html) can often close by widening into a neighbouring
+// department (Screening OPD<->Panchakarma, OT<-OPD, etc). Deliberately a suggestion link, not an
+// auto-trigger: Generate Roster's commit fully deletes+rewrites the whole week across every
+// department (including anything already confirmed here), and its Preview-before-Publish step
+// exists specifically so a human reviews that before it goes live -- an automatic chain would
+// skip that check entirely. See CLAUDE.md Session 169 for the reasoning Dr. Venkatesh confirmed.
+function _solverNudge(startDate) {
+  if (!startDate) return '';
+  const href = `nursing-roster-generate.html?week=${encodeURIComponent(startDate)}`;
+  return `<a href="${_esc(href)}" style="color:#1a4080;font-weight:600">🔁 Try the cross-department solver for this week instead? (Generate Roster → Preview)</a>`;
+}
+
+function renderRollResult(result, startDate) {
   const box = document.getElementById('roll-result');
   const gaps = result.gaps || [];
   const subs = result.substitutions || [];
@@ -961,6 +982,7 @@ function renderRollResult(result) {
   if (gaps.length) {
     html += `<div class="result-line" style="color:#8b1a1a"><strong>⚠ ${gaps.length} gap${gaps.length === 1 ? '' : 's'} -- needs manual staffing:</strong></div>`;
     gaps.forEach(g => { html += `<div class="result-line">— ${_esc(g.date)} ${SHIFT_LABELS[g.shift_type]}: ${_esc(_nameFor(g.profile_id))} (${_esc(g.reason)})</div>`; });
+    html += `<div class="result-line" style="margin-top:6px">${_solverNudge(startDate)}</div>`;
   }
   // Session 168: real silent-overwrite risk found and fixed -- Roll Forward's per-slot upsert
   // had no idea a slot might already be authoritatively owned by Generate Roster (the whole-week

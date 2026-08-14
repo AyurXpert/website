@@ -10,18 +10,23 @@
 // summed across every real nursing-duty department, so this can never disagree with them.
 //
 // Available side assumes each person works 6 of 7 days (1 mandatory weekly off) -- the same
-// assumption the whole weekly-off feature is built on. Deliberately does NOT include the
-// OT/CSSD/Anushastra designation group here, even though NCISM's own OT line (Sch XX/35) allows
-// either group to fill that seat and _find_relief_nurse() (SQL) treats them as their own eligible
-// pool for a relief PICK -- checked against real SDM data before assuming otherwise: every one of
-// the 9 nursing-duty places' actual duty_roster/template assignments draws exclusively from
-// staff_nurse/ward_sister/anm; the OT/CSSD/Anushastra-designated staff who DO exist (5 on SDM) are
-// doing genuinely separate CSSD sterilisation/Anushastra Karma work, not covering these 9 places'
-// shifts. Counting them as "available" here would overstate real capacity for this specific table.
+// assumption the whole weekly-off feature is built on. Includes the OT/CSSD/Anushastra
+// designation group alongside staff_nurse/ward_sister/anm -- corrected in Session 169 (Dr.
+// Venkatesh caught this live on SDM, comparing this card's headcount against the real HR
+// ladder): this file originally excluded them on the theory that they "do genuinely separate
+// work, not covering these 9 places' shifts", but that was stale the moment it was written --
+// Session 166f had already moved 2 real OT Technicians into OT's own duty_roster slots the
+// same session, and 166g formally widened preview_nursing_week()'s SQL relief pool to include
+// exactly this same designation set (ot_technician/cssd_incharge/cssd_aya/anushastra_technician,
+// deliberately NOT ot_attendant) as real roster-covering staff. Keep this list in sync with
+// that SQL pool (sql/session166g_widen_relief_pool_ot_cssd_anushastra.sql) if it's ever revised.
 import { isNursingDutyDept, shiftsForDept } from '../../config/ncism.js';
 import { computeRequiredPerShift } from './requiredStaffing.js';
 
-export const NURSING_ELIGIBLE_DESIGNATIONS = ['staff_nurse', 'ward_sister', 'anm'];
+export const NURSING_ELIGIBLE_DESIGNATIONS = [
+  'staff_nurse', 'ward_sister', 'anm',
+  'ot_technician', 'cssd_incharge', 'cssd_aya', 'anushastra_technician',
+];
 
 export async function computeCoverageCapacity(supabase, tenantId) {
   const { data: depts } = await supabase.from('departments')
