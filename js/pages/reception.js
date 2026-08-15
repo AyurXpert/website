@@ -2066,6 +2066,14 @@ document.getElementById('btn-set-abha-addr').addEventListener('click', async () 
     const savedAddr = addrResult?.preferredAbhaAddress ?? (chosen + '@sbx');
     document.getElementById('abha-prof-address').textContent = savedAddr;
     _setEnrollMsg('success', `✓ ABHA Address set: ${savedAddr}`);
+    // Also surface it on the persistent note under the main ABHA Number field —
+    // the enroll panel (and this message) auto-closes in 2s, and the "existing
+    // account → new address" path never populates the ABHA Profile card (no full
+    // demographic profile was fetched for it), so without this the confirmation
+    // was easy to miss entirely and the address was never visible anywhere on
+    // the registration form itself. Real bug found live, Session 170.
+    const abhaNum = document.getElementById('abha').value.trim();
+    _setAbhaNote('verified', `✓ ABHA ${abhaNum ? abhaNum + ' — ' : ''}Address: ${savedAddr}`);
     if (_patient?.id) {
       await supabase.from('patients').update({ abha_address: savedAddr }).eq('id', _patient.id);
     }
