@@ -1659,12 +1659,23 @@ document.getElementById('btn-toggle-aadhaar').addEventListener('click', () => {
 });
 
 // ── ABHA Account Exists modal ─────────────────────
+// Per ABDM demo feedback (Vipul Singh, Session 170): when Aadhaar-based
+// enrollment finds an ABHA already linked, the receptionist gets 2 real
+// choices — carry on with that existing account, or (per the ABDM V3 "Step 6"
+// suggestion/custom-address APIs) mint a new ABHA Address for the SAME
+// existing ABHA number. Note: today's Aadhaar-lookup APIs (enrollABHA /
+// verifyAadhaarLogin) only ever resolve to a single profile, not a list —
+// unlike the Mobile-login flow's accounts[] picker — so "Continue with
+// Existing" goes straight to that one profile rather than a selection step.
+// If ABDM's sandbox is ever seen returning more than one for the same
+// Aadhaar, add a picker here then.
 let _abhaExistsPendingAction = null;
+let _abhaExistsNewAddrTxnId  = null;
 function _maskAbha(fmt) {
   const p = fmt.split('-');
   return p.length === 4 ? `xx-xxxx-xxxx-${p[3]}` : fmt.replace(/\d(?=\d{4})/g, 'x');
 }
-function _showAbhaExistsModal(maskedAbha, onViewProfile, subMsg) {
+function _showAbhaExistsModal(maskedAbha, onContinueExisting, subMsg, newAddrTxnId) {
   const base = maskedAbha
     ? `We have found ABHA <strong>${maskedAbha}</strong> linked to the Aadhaar provided.`
     : 'We have found an existing ABHA account linked to the Aadhaar provided.';
@@ -1672,20 +1683,44 @@ function _showAbhaExistsModal(maskedAbha, onViewProfile, subMsg) {
     ? `${base}<br><span style="display:block;margin-top:6px;font-size:12px;color:#c17f24">${subMsg}</span>`
     : base;
   document.getElementById('abha-exists-overlay').style.display = '';
-  _abhaExistsPendingAction = onViewProfile;
+  _abhaExistsPendingAction = onContinueExisting;
+  _abhaExistsNewAddrTxnId  = newAddrTxnId ?? null;
 }
-document.getElementById('btn-abha-exists-cancel').addEventListener('click', () => {
-  document.getElementById('abha-exists-overlay').style.display = 'none';
-  _abhaExistsPendingAction = null;
-  _setEnrollMsg('', '');
-});
-document.getElementById('btn-abha-exists-view').addEventListener('click', async () => {
+document.getElementById('btn-abha-exists-continue').addEventListener('click', async () => {
   document.getElementById('abha-exists-overlay').style.display = 'none';
   if (typeof _abhaExistsPendingAction === 'function') {
     await _abhaExistsPendingAction();
     _abhaExistsPendingAction = null;
   }
 });
+document.getElementById('btn-abha-exists-newaddr').addEventListener('click', async () => {
+  document.getElementById('abha-exists-overlay').style.display = 'none';
+  await _startNewAbhaAddressFlow(_abhaExistsNewAddrTxnId);
+  _abhaExistsNewAddrTxnId = null;
+});
+
+// Reuses the existing Step 3 "choose/create ABHA Address" panel (built for
+// brand-new ABHA creation) to mint a NEW ABHA Address for an ALREADY-EXISTING
+// account — same underlying getAbhaSuggestions()/setAbhaAddress() calls
+// (ABDM V3 enrol/suggestion + enrol/abha-address), just entered from a
+// different starting point.
+async function _startNewAbhaAddressFlow(txnId) {
+  if (!txnId) {
+    _setEnrollMsg('error', 'Session expired — please verify the Aadhaar OTP again to request a new ABHA Address.');
+    return;
+  }
+  _lastEnrollTxnId = txnId; // btn-set-abha-addr reads this global on save
+  enrollPanel.style.display = '';
+  btnEnroll.textContent = '✕ Cancel';
+  btnEnroll.classList.add('open');
+  document.getElementById('enroll-step-1').style.display = 'none';
+  document.getElementById('enroll-step-2').style.display = 'none';
+  document.getElementById('enroll-step-2b').style.display = 'none';
+  document.getElementById('enroll-step-existing').style.display = 'none';
+  document.getElementById('enroll-step-3').style.display = '';
+  _setEnrollMsg('info', 'This ABHA account already exists — choose a new ABHA Address for it below.');
+  await _loadAbhaSuggestions(txnId);
+}
 
 // ── Existing ABHA: fetch profile via Aadhaar login when ABDM-1008 ─────────────
 async function _fetchExistingAbhaProfile() {
@@ -1863,7 +1898,7 @@ document.getElementById('btn-verify-otp').addEventListener('click', async () => 
       document.getElementById('enroll-step-2').style.display = 'none';
       _clearOtpBoxes('enroll-otp-boxes');
       if (!abha) {
-        _showAbhaExistsModal(null, _fetchExistingAbhaProfile);
+        _showAbhaExistsModal(null, _fetchExistingAbhaProfile, null, res.txnId ?? _enrollTxnId);
         btn.disabled = false; btn.textContent = 'Verify OTP';
         return;
       }
@@ -1925,8 +1960,9 @@ document.getElementById('btn-verify-otp').addEventListener('click', async () => 
               }, 1500);
             },
         mobileMismatch && existingTToken
-          ? 'Your entered mobile differs from the registered one — click View Profile to update it.'
-          : null
+          ? 'Your entered mobile differs from the registered one — click Continue with Existing to update it.'
+          : null,
+        res.txnId ?? _enrollTxnId
       );
       btn.disabled = false; btn.textContent = 'Verify OTP';
       return;
@@ -1959,7 +1995,7 @@ document.getElementById('btn-verify-otp').addEventListener('click', async () => 
     if (alreadyExists) {
       document.getElementById('enroll-step-2').style.display = 'none';
       _clearOtpBoxes('enroll-otp-boxes');
-      _showAbhaExistsModal(null, _fetchExistingAbhaProfile);
+      _showAbhaExistsModal(null, _fetchExistingAbhaProfile, null, _enrollTxnId);
     } else {
       _setEnrollMsg('error', safeErrorMessage(err, 'Enrollment failed. Please try again.'));
     }
