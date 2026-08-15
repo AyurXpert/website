@@ -1006,6 +1006,12 @@ async function handleSubmit() {
         is_on_request:        isOnReq,
         visit_category:       visitCat,
         is_teleconsultation:  isTele,
+        // Which ABHA Address this visit's own care context should be filed under — a
+        // patient can hold several addresses under one ABHA Number (e.g. one per
+        // specialty), and reception may have just reused the last one or created a
+        // fresh one for this visit specifically (see _pendingAbhaAddress). NULL for a
+        // visit with no ABHA involved at all.
+        abha_address:         _pendingAbhaAddress || null,
       }).select().single();
 
     if (vErr) throw vErr;
