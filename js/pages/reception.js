@@ -239,29 +239,49 @@ let _consentPendingOtp = false; // resolved once consent agreed
 
 function _showConsentModal() {
   return new Promise((resolve, reject) => {
-    const overlay = document.getElementById('consent-overlay');
-    const agree   = document.getElementById('btn-consent-agree');
-    const cancel  = document.getElementById('btn-consent-cancel');
+    const overlay  = document.getElementById('consent-overlay');
+    const agree    = document.getElementById('btn-consent-agree');
+    const cancel   = document.getElementById('btn-consent-cancel');
+    const cc7Box   = document.getElementById('cc7');
+    const cc7Name  = document.getElementById('cc7-provider-name');
+    const cc7Label = document.getElementById('cc7-patient');
 
     // Fill dynamic names
-    const patName   = document.getElementById('name').value.trim() || 'the patient';
+    const patName   = document.getElementById('name').value.trim();
     const staffName = profile.full_name || 'the healthcare worker';
-    document.getElementById('cc6-staff').textContent   = staffName;
-    document.getElementById('cc7-patient').textContent = patName;
+    document.getElementById('cc6-staff').textContent = staffName;
+
+    // Aadhaar Number Provider's name — pre-filled from the patient name already
+    // entered on the form (the common case), but left editable: the person
+    // physically providing the Aadhaar number/OTP (e.g. a parent/guardian for a
+    // minor patient) is not always the patient themself. Per ABDM demo feedback
+    // (Vipul Singh, Session 170), this name must be explicitly entered/confirmed
+    // before the beneficiary consent checkbox can be ticked.
+    cc7Name.value = patName;
+    cc7Label.textContent = patName || 'the patient';
 
     // Reset required checkboxes
     document.getElementById('cc6').checked = false;
-    document.getElementById('cc7').checked = false;
-    agree.disabled = true;
+    cc7Box.checked  = false;
+    cc7Box.disabled = !cc7Name.value.trim();
+    agree.disabled  = true;
     overlay.style.display = 'flex';
 
     function updateAgree() {
-      agree.disabled = !(document.getElementById('cc6').checked && document.getElementById('cc7').checked);
+      agree.disabled = !(document.getElementById('cc6').checked && cc7Box.checked);
+    }
+    function updateProviderName() {
+      const v = cc7Name.value.trim();
+      cc7Label.textContent = v || 'the patient';
+      cc7Box.disabled = !v;
+      if (!v) cc7Box.checked = false; // name cleared — revoke the box, don't leave it silently checked
+      updateAgree();
     }
     document.getElementById('cc6').addEventListener('change', updateAgree);
-    document.getElementById('cc7').addEventListener('change', updateAgree);
+    cc7Box.addEventListener('change', updateAgree);
     document.getElementById('cc6-wrap').addEventListener('click', updateAgree);
-    document.getElementById('cc7-wrap').addEventListener('click', updateAgree);
+    document.getElementById('cc7-check-row').addEventListener('click', updateAgree);
+    cc7Name.addEventListener('input', updateProviderName);
 
     agree.onclick = () => {
       overlay.style.display = 'none';

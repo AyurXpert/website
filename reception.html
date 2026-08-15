@@ -23,7 +23,7 @@
   --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
   --border:#d4e6da;--radius:10px;
   --red:#c0392b;--red-light:#fff3f3;--red-border:#f5b8b8;
-  --blue:#1a5276;--blue-light:#eaf0fb;
+  --blue:#1a4080;--blue-light:#e3f0ff;
   --error-bg:#fff3f3;--error-border:#f5b8b8;--error-text:#8b1a1a;
   --success-bg:#f0f9f4;--success-border:#b8ddc6;--success-text:#1a4a2e;
 }
@@ -59,7 +59,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   background:var(--cream);outline:none;-webkit-appearance:none;appearance:none;
   transition:border-color .2s,box-shadow .2s,background .2s
 }
-.field select{
+.field select{height:44px;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a9e90' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;cursor:pointer
 }
@@ -185,7 +185,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   padding:7px 10px;border-radius:6px;display:none;
 }
 .enroll-msg.show   {display:block}
-.enroll-msg.info   {background:#e8f4fd;color:#1a5276}
+.enroll-msg.info   {background:#e8f4fd;color:var(--blue)}
 .enroll-msg.success{background:var(--success-bg);color:var(--success-text)}
 .enroll-msg.error  {background:var(--error-bg);color:var(--error-text)}
 
@@ -570,6 +570,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .c-item input[type=checkbox]{flex-shrink:0;margin-top:2px;accent-color:var(--green-mid);width:15px;height:15px;cursor:pointer}
 .c-item.c-locked input,.c-item.c-na input{cursor:default}
 .c-text{font-size:11.5px;line-height:1.5;color:var(--text-dark)}
+.c-item.c-item-name{cursor:default;flex-direction:column;align-items:stretch;gap:8px}
+.c-item.c-item-name:hover{background:transparent}
+.c-name-label{display:block;font-size:11px;font-weight:600;color:var(--text-dark);margin-bottom:4px}
+.c-name-input{width:100%;height:34px;padding:0 10px;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:12.5px;color:var(--text-dark);box-sizing:border-box}
+.c-name-input:focus{outline:none;border-color:var(--green-mid)}
+.c-check-row{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.c-check-row input[type=checkbox]:disabled{cursor:not-allowed}
 .consent-actions{display:flex;gap:10px;justify-content:flex-end;padding-top:4px}
 .btn-consent-agree{
   height:40px;padding:0 20px;border:none;border-radius:var(--radius);
@@ -968,7 +975,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
                             color:#4a3580;letter-spacing:.5px"/>
             </div>
             <button id="btn-scan-refresh" type="button" class="btn-otp btn-otp-send"
-                    style="height:30px;font-size:11px;padding:0 12px">
+                    style="height:44px;font-size:11px;padding:0 12px">
               Refresh QR
             </button>
           </div>
@@ -1056,11 +1063,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           </div>
           <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
             <button class="btn-otp btn-otp-send" id="btn-download-abha-card" type="button"
-                    style="font-size:12px;height:34px;padding:0 14px">
+                    style="font-size:12px;height:44px;padding:0 14px">
               ⬇ Download ABHA Card
             </button>
             <button class="btn-otp btn-otp-resend" id="btn-update-mobile-open" type="button"
-                    style="font-size:12px;height:34px;padding:0 12px;display:none">
+                    style="font-size:12px;height:44px;padding:0 12px;display:none">
               📱 Update Mobile
             </button>
           </div>
@@ -1422,11 +1429,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <input type="checkbox" id="cc6"/>
         <span class="c-text">I, <strong id="cc6-staff">the healthcare worker</strong>, confirm that I have duly informed and explained the beneficiary of the contents of consent for aforementioned purposes.</span>
       </label>
-      <!-- Item 7: Beneficiary declaration — required checkbox, dynamic patient name -->
-      <label class="c-item" id="cc7-wrap">
-        <input type="checkbox" id="cc7"/>
-        <span class="c-text">I, <strong id="cc7-patient">the patient</strong>, have been explained about the consent as stated above and hereby provide my consent for the aforementioned purposes.</span>
-      </label>
+      <!-- Item 7: Beneficiary declaration — Aadhaar Number Provider must be named before consenting (ABDM demo feedback, Session 170) -->
+      <div class="c-item c-item-name" id="cc7-wrap">
+        <div class="c-name-row">
+          <label for="cc7-provider-name" class="c-name-label">Name of Aadhaar Number Provider (person giving consent, if different from the patient):</label>
+          <input type="text" id="cc7-provider-name" class="c-name-input" placeholder="Enter full name" autocomplete="off"/>
+        </div>
+        <label class="c-check-row" id="cc7-check-row">
+          <input type="checkbox" id="cc7" disabled/>
+          <span class="c-text">I, <strong id="cc7-patient">the patient</strong>, have been explained about the consent as stated above and hereby provide my consent for the aforementioned purposes.</span>
+        </label>
+      </div>
     </div>
     <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;line-height:1.4">
       ⚠ Note: Aadhaar number entered above is transmitted directly to UIDAI for authentication and is <strong>not stored</strong> by AyurXpert at any point.
@@ -1465,7 +1478,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <option value="anaphylaxis">Anaphylaxis</option>
         </select>
       </div>
-      <button data-onclick="saveReceptionAllergy" style="width:100%;height:38px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Save</button>
+      <button data-onclick="saveReceptionAllergy" style="width:100%;height:44px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Save</button>
     </div>
   </div>
 </div>
@@ -1484,7 +1497,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div style="display:flex;gap:10px;justify-content:center">
       <button class="btn-consent-cancel" id="btn-abha-exists-cancel" type="button">Cancel</button>
       <button class="btn-otp btn-otp-verify" id="btn-abha-exists-view" type="button"
-              style="height:40px;padding:0 22px">View Profile</button>
+              style="height:44px;padding:0 22px">View Profile</button>
     </div>
   </div>
 </div>
