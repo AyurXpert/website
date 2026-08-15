@@ -205,6 +205,12 @@ function _checkDemographicMatch(abhaProf) {
 
 // ── Link ABHA to existing patient with demographic gate ────────
 async function _linkAbha(prof, fmt, visitId = null, skipGate = false) {
+  // Capture the profile's own preferred ABHA address (if ABDM returned one) even
+  // when there's no patient row yet to write it to — createPatient() reads this
+  // pending value on final submit. Done before the early-return below so it's
+  // captured regardless of whether _patient exists yet.
+  const _profAddr = prof?.preferredAbhaAddress ?? prof?.phrAddress?.[0] ?? prof?.abhaAddress ?? null;
+  if (_profAddr) _pendingAbhaAddress = _profAddr;
   if (!_patient?.id) return;
   if (!skipGate && _demogMatchResult && !_demogMatchResult.pass) {
     const msg = _demogMatchResult.mobileMismatch
@@ -212,7 +218,9 @@ async function _linkAbha(prof, fmt, visitId = null, skipGate = false) {
       : `Demographic mismatch detected for ABHA ${fmt}.\n\nSome fields (name, gender, or age) do not fully match.\n\nVerify patient identity and confirm to proceed.\n\nLink ABHA ${fmt} to ${_patient.name}?`;
     if (!confirm(msg)) return;
   }
-  await supabase.from('patients').update({ abha_number: fmt }).eq('id', _patient.id);
+  const _abhaUpd = { abha_number: fmt };
+  if (_profAddr && !_patient.abha_address) _abhaUpd.abha_address = _profAddr;
+  await supabase.from('patients').update(_abhaUpd).eq('id', _patient.id);
   // Backfill missing demographics from ABHA profile
   const gMap = { M:'male', F:'female', O:'other', male:'male', female:'female', other:'other' };
   const upd = {};
@@ -233,6 +241,14 @@ let _lastTToken      = null;
 let _lastEnrollTxnId = null;
 let _updMobTxnId     = null;
 let _demogMatchResult = null; // { pass, mobileMismatch } — set by _checkDemographicMatch
+
+// ABHA Address discovered/set for the patient currently being registered — held here
+// because for a brand-new (not-yet-saved) patient there's no patients.id to write to
+// yet. createPatient() is fed this on final submit; _linkAbha() also refreshes it for
+// an existing profile's own preferredAbhaAddress. Real bug found live (Session 170):
+// abha_address was never captured anywhere on the new-patient path at all — only
+// abha_number ever made it into the patients table.
+let _pendingAbhaAddress = null;
 
 // ── Consent Modal ─────────────────────────────────
 let _consentPendingOtp = false; // resolved once consent agreed
@@ -564,7 +580,7 @@ async function _searchPhone(phone) {
   _newFamilyMember = false;
   const { data } = await supabase
     .from('patients')
-    .select('id, name, abha_number, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
+    .select('id, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
     .eq('tenant_id', tenantId)
     .eq('phone', phone)
     .limit(6);
@@ -585,7 +601,7 @@ async function _searchName(query) {
   _newFamilyMember = false;
   const { data } = await supabase
     .from('patients')
-    .select('id, name, abha_number, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
+    .select('id, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
     .eq('tenant_id', tenantId)
     .ilike('name', `%${query}%`)
     .limit(8);
@@ -899,7 +915,7 @@ async function handleSubmit() {
     if (!patient) {
       if (_newFamilyMember) {
         // Receptionist explicitly chose "new family member" — always create fresh
-        patient = await createPatient(name, phone, tenantId, abha, demographics);
+        patient = await createPatient(name, phone, tenantId, abha, demographics, _pendingAbhaAddress);
       } else {
         // ABHA-first: scan/verify flows provide an ABHA number — use it as primary key
         let found = null;
@@ -909,7 +925,7 @@ async function handleSubmit() {
             : abha;
           const { data: byAbha } = await supabase
             .from('patients')
-            .select('id, name, age, gender, date_of_birth, blood_group, abha_number')
+            .select('id, name, age, gender, date_of_birth, blood_group, abha_number, abha_address')
             .eq('tenant_id', tenantId)
             .or(`abha_number.eq.${abha},abha_number.eq.${abhaHyph}`)
             .limit(1);
@@ -918,7 +934,7 @@ async function handleSubmit() {
         if (!found && phone) {
           const { data: byPhone } = await supabase
             .from('patients')
-            .select('id, name, age, gender, date_of_birth, blood_group, abha_number')
+            .select('id, name, age, gender, date_of_birth, blood_group, abha_number, abha_address')
             .eq('phone', phone).eq('tenant_id', tenantId).limit(1);
           const candidate = byPhone?.[0] ?? null;
           if (candidate) {
@@ -928,7 +944,7 @@ async function handleSubmit() {
             found = (!incoming || !stored || stored === incoming) ? candidate : null;
           }
         }
-        patient = found ?? await createPatient(name, phone, tenantId, abha, demographics);
+        patient = found ?? await createPatient(name, phone, tenantId, abha, demographics, _pendingAbhaAddress);
       }
 
       // Backfill demographics on existing patient if fields were blank
@@ -959,8 +975,11 @@ async function handleSubmit() {
     }
 
     // 3. Save ABHA if provided and not already stored
-    if (abha && !_patient?.abha_number) {
-      await supabase.from('patients').update({ abha_number: abha }).eq('id', patient.id);
+    const _abhaPatch = {};
+    if (abha && !_patient?.abha_number) _abhaPatch.abha_number = abha;
+    if (_pendingAbhaAddress && !patient.abha_address) _abhaPatch.abha_address = _pendingAbhaAddress;
+    if (Object.keys(_abhaPatch).length > 0) {
+      await supabase.from('patients').update(_abhaPatch).eq('id', patient.id);
     }
 
     // 4. Next token (resets daily) — reuse todayStart from duplicate check above
@@ -1335,6 +1354,7 @@ function _resetForm() {
     document.getElementById(id).value = '');
   _clearAbhaNote();
   _lastTToken = null;
+  _pendingAbhaAddress = null; // don't leak a set-but-unsaved ABHA address into the next patient
   document.getElementById('demog-warn').classList.remove('show');
   document.getElementById('enroll-step-1').style.display = '';
   document.getElementById('enroll-step-2').style.display = 'none';
@@ -2074,6 +2094,10 @@ document.getElementById('btn-set-abha-addr').addEventListener('click', async () 
     // the registration form itself. Real bug found live, Session 170.
     const abhaNum = document.getElementById('abha').value.trim();
     _setAbhaNote('verified', `✓ ABHA ${abhaNum ? abhaNum + ' — ' : ''}Address: ${savedAddr}`);
+    // Always remember it, even with no patient row yet (brand-new registration) —
+    // createPatient() picks this up on final submit. Write straight to the DB too
+    // when a patient row already exists, same as before.
+    _pendingAbhaAddress = savedAddr;
     if (_patient?.id) {
       await supabase.from('patients').update({ abha_address: savedAddr }).eq('id', _patient.id);
     }
@@ -3174,7 +3198,7 @@ async function checkIn(apptId) {
 
   const { data: patient } = await supabase
     .from('patients')
-    .select('id, name, abha_number, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
+    .select('id, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
     .eq('id', appt.patient_id).single();
 
   if (patient) {

@@ -19,7 +19,7 @@ export async function findPatient(phone, name, tenantId) {
 }
 
 // ➕ Create new patient
-export async function createPatient(name, phone, tenantId, abhaNumber = null, demographics = {}) {
+export async function createPatient(name, phone, tenantId, abhaNumber = null, demographics = {}, abhaAddress = null) {
   const { data, error } = await supabase
     .from('patients')
     .insert({
@@ -27,6 +27,7 @@ export async function createPatient(name, phone, tenantId, abhaNumber = null, de
       phone:          phone.trim(),
       tenant_id:      tenantId,
       abha_number:    abhaNumber || null,
+      abha_address:   abhaAddress || null,
       age:            demographics.age            || null,
       gender:         demographics.gender         || null,
       date_of_birth:  demographics.date_of_birth  || null,
