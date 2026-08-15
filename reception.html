@@ -629,8 +629,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .abha-sug-item:hover,.abha-sug-item.selected{
   background:var(--green-light);border-color:var(--green-mid)
 }
-.abha-sug-item input[type=radio]{accent-color:var(--green-mid);flex-shrink:0}
-.abha-sug-text{font-size:13px;color:var(--green-deep);font-weight:500}
+.abha-sug-item input[type=radio]{
+  /* Reset the .field input,.field select rule (width:100%/height:44px/appearance:none)
+     that this radio otherwise inherits since it lives inside the ABHA .field wrapper —
+     was rendering as a giant blank box, pushing the address text off the row entirely. */
+  accent-color:var(--green-mid);flex-shrink:0;
+  width:16px;height:16px;padding:0;margin:0;
+  border:none;border-radius:0;background:none;
+  appearance:auto;-webkit-appearance:auto;
+}
+.abha-sug-text{font-size:13px;color:var(--green-deep);font-weight:500;word-break:break-all}
 
 /* ── Demog match card ────────────────────────────── */
 .demog-warn{
