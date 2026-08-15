@@ -570,11 +570,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .c-item input[type=checkbox]{flex-shrink:0;margin-top:2px;accent-color:var(--green-mid);width:15px;height:15px;cursor:pointer}
 .c-item.c-locked input,.c-item.c-na input{cursor:default}
 .c-text{font-size:11.5px;line-height:1.5;color:var(--text-dark)}
-.c-item.c-item-name{cursor:default;flex-direction:column;align-items:stretch;gap:8px}
-.c-item.c-item-name:hover{background:transparent}
-.c-name-label{display:block;font-size:11px;font-weight:600;color:var(--text-dark);margin-bottom:4px}
-.c-name-input{width:100%;height:34px;padding:0 10px;border:1.5px solid var(--border);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:12.5px;color:var(--text-dark);box-sizing:border-box}
-.c-name-input:focus{outline:none;border-color:var(--green-mid)}
+.c-item.c-item-name{cursor:default;flex-direction:column;align-items:stretch;gap:8px;border-width:2px;border-color:var(--gold);background:#fffbf2}
+.c-item.c-item-name:hover{background:#fffbf2}
+.c-name-label{display:block;font-size:12px;font-weight:700;color:var(--green-deep);margin-bottom:6px}
+.c-name-sub{display:block;font-weight:400;font-size:10.5px;color:var(--text-muted);margin-top:2px}
+.c-name-badge{display:inline-block;background:var(--gold);color:#fff;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:10px;margin-left:6px;vertical-align:middle}
+.c-name-input{width:100%;height:38px;padding:0 12px;border:2px solid var(--gold);border-radius:6px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--text-dark);box-sizing:border-box;background:#fff}
+.c-name-input:focus{outline:none;border-color:var(--green-mid);box-shadow:0 0 0 3px rgba(201,144,42,.25)}
+.c-name-input::placeholder{color:#c9a86a;font-weight:400}
 .c-check-row{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
 .c-check-row input[type=checkbox]:disabled{cursor:not-allowed}
 .consent-actions{display:flex;gap:10px;justify-content:flex-end;padding-top:4px}
@@ -1432,7 +1435,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <!-- Item 7: Beneficiary declaration — Aadhaar Number Provider must be named before consenting (ABDM demo feedback, Session 170) -->
       <div class="c-item c-item-name" id="cc7-wrap">
         <div class="c-name-row">
-          <label for="cc7-provider-name" class="c-name-label">Name of Aadhaar Number Provider (person giving consent, if different from the patient):</label>
+          <label for="cc7-provider-name" class="c-name-label">✍️ Name of Aadhaar Number Provider<span class="c-name-badge">Required</span><span class="c-name-sub">(person giving consent, if different from the patient)</span></label>
           <input type="text" id="cc7-provider-name" class="c-name-input" placeholder="Enter full name" autocomplete="off"/>
         </div>
         <label class="c-check-row" id="cc7-check-row">
