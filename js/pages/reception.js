@@ -1152,6 +1152,7 @@ async function handleSubmit() {
     _showReceipt({
       token: nextToken, name: patient.name, phone,
       uhid: _uhid(patient.id), abha: abha || patient.abha_number || null,
+      abhaAddress: _pendingAbhaAddress || null,
       opd: opdName, doctor: doctorName,
       category: catLabel, complaint, regFee, consFee, surcharge,
       total, payMode, payStatus, meetingUrl, visitId: visit.id,
@@ -1191,6 +1192,7 @@ async function _showReceipt(d) {
     { l: 'Token',          v: `<strong>#${d.token}</strong>` },
     { l: 'UHID',           v: d.uhid },
     d.abha ? { l: 'ABHA No.',  v: d.abha } : null,
+    d.abhaAddress ? { l: 'ABHA Address', v: d.abhaAddress } : null,
     { l: 'Patient',        v: d.name },
     { l: 'Phone',          v: d.phone },
     { l: 'Visit Category', v: d.category },
