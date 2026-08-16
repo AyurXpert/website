@@ -102,6 +102,7 @@ let _activePackage = null;
 let _screeningOpdId = null;
 let _prevOpdId      = null;  // last specialty OPD of returning patient
 let _prevDoctorId   = null;  // last doctor of returning patient
+let _prevOpdAddress = null;  // ABHA Address that specialty was actually last consulted under
 let _prevOpdName    = null;  // display text for the Follow-up hint — _applyOpdRule()
 let _prevDoctorName = null;  // regenerates this itself so it stays correct after toggling
                               // Visit Category back and forth (real bug found live, Session
@@ -752,6 +753,7 @@ async function _selectPatient(patient) {
 
     _prevOpdId      = null;
     _prevDoctorId   = null;
+    _prevOpdAddress = null;
     _prevOpdName    = null;
     _prevDoctorName = null;
 
@@ -767,7 +769,7 @@ async function _selectPatient(patient) {
       // Returning patient — fetch last specialty (non-screening) visit
       let qry = supabase
         .from('visits')
-        .select('opd_id, doctor_id, opds(name)')
+        .select('opd_id, doctor_id, abha_address, opds(name)')
         .eq('patient_id', patient.id)
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false });
@@ -777,8 +779,9 @@ async function _selectPatient(patient) {
 
       if (prev?.opd_id) {
         // Store for _applyOpdRule to use when category = followup
-        _prevOpdId    = prev.opd_id;
-        _prevDoctorId = prev.doctor_id || null;
+        _prevOpdId      = prev.opd_id;
+        _prevDoctorId   = prev.doctor_id || null;
+        _prevOpdAddress = prev.abha_address || null; // which ABHA Address this specialty was actually last consulted under — lets the address dropdown detect a mismatch and re-trigger triage
         catSel.value  = 'followup';
         await loadDoctors(prev.opd_id);
         await loadFees(prev.opd_id);
@@ -899,7 +902,22 @@ async function _loadAbhaAddressPicker(patient) {
   hint.textContent = addrs.length > 1
     ? 'This patient has used more than one ABHA Address before — choose which applies to this visit, or use "+ Enroll" to create a new one.'
     : 'This visit\'s records will be filed under this ABHA Address. Use "+ Enroll" to create a different one if needed.';
-  sel.onchange = () => { _setPendingAbhaAddress(sel.value); };
+  sel.onchange = () => {
+    _setPendingAbhaAddress(sel.value);
+    // Symmetric to the OPD-category re-triage reminder: picking an ABHA Address
+    // that ISN'T the one the currently-locked specialty was actually consulted
+    // under signals a different concern this time too — re-trigger triage the
+    // same way manually switching Visit Category to OPD does, rather than
+    // leaving Follow-up locked to a specialty that no longer matches the chosen
+    // address. Only fires when we actually know what address the locked
+    // specialty was consulted under (_prevOpdAddress) — never guesses. Dr.
+    // Venkatesh's explicit request, Session 170.
+    const catSel = document.getElementById('visit-category');
+    if (catSel.value === 'followup' && _prevOpdAddress && sel.value !== _prevOpdAddress) {
+      catSel.value = 'opd';
+      _applyOpdRule();
+    }
+  };
 }
 
 function _showPicker(patients, phone) {
@@ -975,6 +993,7 @@ function _clearTag() {
   document.getElementById('f-blood').value  = '';
   _prevOpdId      = null;
   _prevDoctorId   = null;
+  _prevOpdAddress = null;
   _prevOpdName    = null;
   _prevDoctorName = null;
   document.getElementById('opd-routing-hint').style.display = 'none';
