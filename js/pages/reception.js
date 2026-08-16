@@ -868,7 +868,13 @@ async function handleSubmit() {
   document.getElementById('receipt-card').classList.remove('show');
   document.getElementById('receipt-feedback-block').style.display = 'none';
 
-  const phone       = document.getElementById('phone').value.trim();
+  // Normalize to the last 10 digits — strips a stray leading 0 (common Indian
+  // dialing-convention typo) or +91/91 country-code prefix, matching the same
+  // last-10-digits convention already used for ABDM mobile-match comparisons
+  // elsewhere in this file. Real bug found live (Session 170): a "09844210154"
+  // entry didn't match the on-file "9844210154", silently creating a duplicate
+  // patient record instead of finding the existing one.
+  const phone       = document.getElementById('phone').value.replace(/\D/g, '').slice(-10);
   const name        = document.getElementById('name').value.trim();
   const complaint   = document.getElementById('complaint').value.trim();
   const abha        = document.getElementById('abha').value.replace(/\D/g, '').trim() || null;
@@ -1733,6 +1739,26 @@ document.getElementById('btn-abha-exists-newaddr').addEventListener('click', asy
 async function _startNewAbhaAddressFlow(txnId) {
   if (!txnId) {
     _setEnrollMsg('error', 'Session expired — please verify the Aadhaar OTP again to request a new ABHA Address.');
+    return;
+  }
+  // Real bug found live (Session 170): when ABDM's "already exists" response doesn't
+  // directly carry the ABHA Number (only "Continue with Existing" resolves it, via a
+  // separate Aadhaar-login OTP round trip), clicking straight into "Create New ABHA"
+  // left the #abha field empty. Registration then couldn't match this patient by ABHA
+  // Number, the phone match also missed on a data-entry variant, and a full duplicate
+  // patient record got created with the new address but no ABHA Number attached at
+  // all. Require the number to be confirmed first — safer than silently creating an
+  // address-only record with no reliable way back to the right patient.
+  if (!document.getElementById('abha').value.trim()) {
+    enrollPanel.style.display = '';
+    btnEnroll.textContent = '✕ Cancel';
+    btnEnroll.classList.add('open');
+    document.getElementById('enroll-step-1').style.display = 'none';
+    document.getElementById('enroll-step-2').style.display = 'none';
+    document.getElementById('enroll-step-2b').style.display = 'none';
+    document.getElementById('enroll-step-3').style.display = 'none';
+    document.getElementById('enroll-step-existing').style.display = 'none';
+    _setEnrollMsg('error', 'This account\'s ABHA Number isn\'t confirmed yet. Click "Continue with Existing" first to verify it — this prevents creating a duplicate patient record — then you can add a new ABHA Address.');
     return;
   }
   _lastEnrollTxnId = txnId; // btn-set-abha-addr reads this global on save
