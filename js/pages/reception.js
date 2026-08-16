@@ -102,6 +102,16 @@ let _activePackage = null;
 let _screeningOpdId = null;
 let _prevOpdId      = null;  // last specialty OPD of returning patient
 let _prevDoctorId   = null;  // last doctor of returning patient
+let _prevOpdName    = null;  // display text for the Follow-up hint — _applyOpdRule()
+let _prevDoctorName = null;  // regenerates this itself so it stays correct after toggling
+                              // Visit Category back and forth (real bug found live, Session
+                              // 170: switching OPD→Follow-up correctly re-locked the OPD
+                              // field, but the hint text was left stuck on the "New
+                              // complaint — re-triaged at Screening OPD" message from the
+                              // moment before, since _applyOpdRule() only toggled visibility
+                              // and trusted _selectPatient() to have already set the text —
+                              // which it had, but only on first selection, not on later
+                              // manual category toggles).
 let _kaumarOpdId    = null;
 const _doctorMap = {};
 
@@ -463,7 +473,18 @@ function _applyOpdRule() {
     sel.value       = _prevOpdId;
     docSel.disabled = true;
     if (_prevDoctorId) docSel.value = _prevDoctorId;
-    if (hint) hint.style.display = ''; // hint set by _selectPatient
+    if (hint) {
+      // Regenerate from _prevOpdName/_prevDoctorName rather than just toggling
+      // display — real bug found live (Session 170): toggling Visit Category to
+      // OPD then back to Follow-up correctly re-locked the OPD field, but left the
+      // hint stuck on the "New complaint — re-triaged at Screening OPD" text from
+      // the moment before, since this branch previously only ensured the hint was
+      // visible and trusted _selectPatient() to have set the right text — true
+      // only on first selection, not on a later manual category toggle (this
+      // function's only other caller).
+      hint.textContent = _prevOpdName ? `↩ Follow-up · ${_prevOpdName}${_prevDoctorName ? ' · ' + _prevDoctorName : ''}` : '';
+      hint.style.cssText = 'display:block;color:var(--green-mid);font-size:11px;margin-top:4px;font-weight:500';
+    }
   } else {
     // New visit / new complaint / emergency / any other category → Screening OPD
     docSel.disabled = false;
@@ -716,8 +737,10 @@ async function _selectPatient(patient) {
     const catSel = document.getElementById('visit-category');
     const hint   = document.getElementById('opd-routing-hint');
 
-    _prevOpdId    = null;
-    _prevDoctorId = null;
+    _prevOpdId      = null;
+    _prevDoctorId   = null;
+    _prevOpdName    = null;
+    _prevDoctorName = null;
 
     if (count === 0) {
       // New patient → Screening OPD (locked)
@@ -749,6 +772,12 @@ async function _selectPatient(patient) {
         _applyOpdRule(); // locks OPD + doctor to previous values
         const opdName = prev.opds?.name || Array.from(opdSel.options).find(o => o.value === prev.opd_id)?.text || 'Previous OPD';
         const docText = document.getElementById('doctor').options[document.getElementById('doctor').selectedIndex]?.text || '';
+        // Stored so _applyOpdRule() can regenerate this same text itself on any LATER
+        // call (e.g. from the Visit Category dropdown's own change listener, which
+        // doesn't go through _selectPatient again) — these facts don't change across
+        // category toggles, only which branch of _applyOpdRule() is showing right now.
+        _prevOpdName    = opdName;
+        _prevDoctorName = docText;
         if (hint) {
           hint.textContent = `↩ Follow-up · ${opdName}${docText ? ' · ' + docText : ''}`;
           hint.style.cssText = 'display:block;color:var(--green-mid);font-size:11px;margin-top:4px;font-weight:500';
@@ -899,8 +928,10 @@ function _clearTag() {
   document.getElementById('f-gender').value = '';
   document.getElementById('f-dob').value    = '';
   document.getElementById('f-blood').value  = '';
-  _prevOpdId    = null;
-  _prevDoctorId = null;
+  _prevOpdId      = null;
+  _prevDoctorId   = null;
+  _prevOpdName    = null;
+  _prevDoctorName = null;
   document.getElementById('opd-routing-hint').style.display = 'none';
   document.getElementById('doctor').disabled = false;
   _applyOpdRule(); // resets OPD to Screening OPD (locked)
