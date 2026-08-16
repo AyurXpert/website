@@ -809,6 +809,10 @@ async function _selectPatient(patient) {
       }
     }
   }
+  // Runs after _prevOpdAddress is actually known (set just above) — catches the
+  // case where the ABHA Address dropdown's own DEFAULT selection is already a
+  // mismatch, not just a later manual change (see _checkAbhaAddressMismatch).
+  _checkAbhaAddressMismatch();
 
   // Check for active package
   _activePackage = null;
@@ -904,20 +908,30 @@ async function _loadAbhaAddressPicker(patient) {
     : 'This visit\'s records will be filed under this ABHA Address. Use "+ Enroll" to create a different one if needed.';
   sel.onchange = () => {
     _setPendingAbhaAddress(sel.value);
-    // Symmetric to the OPD-category re-triage reminder: picking an ABHA Address
-    // that ISN'T the one the currently-locked specialty was actually consulted
-    // under signals a different concern this time too — re-trigger triage the
-    // same way manually switching Visit Category to OPD does, rather than
-    // leaving Follow-up locked to a specialty that no longer matches the chosen
-    // address. Only fires when we actually know what address the locked
-    // specialty was consulted under (_prevOpdAddress) — never guesses. Dr.
-    // Venkatesh's explicit request, Session 170.
-    const catSel = document.getElementById('visit-category');
-    if (catSel.value === 'followup' && _prevOpdAddress && sel.value !== _prevOpdAddress) {
-      catSel.value = 'opd';
-      _applyOpdRule();
-    }
+    _checkAbhaAddressMismatch();
   };
+}
+
+// Symmetric to the OPD-category re-triage reminder: an ABHA Address that ISN'T
+// the one the currently-locked specialty was actually consulted under signals a
+// different concern this time too — re-trigger triage the same way manually
+// switching Visit Category to OPD does, rather than leaving Follow-up locked to
+// a specialty that no longer matches the chosen address. Only fires when we
+// actually know what address the locked specialty was consulted under
+// (_prevOpdAddress) — never guesses. Dr. Venkatesh's explicit request, Session
+// 170. Real bug found live: this only ran from the dropdown's onchange at
+// first, but the DEFAULT selection (the patient's current address) can itself
+// already be a mismatch — e.g. Reyna's default is now a brand-new address that
+// was never used for her locked Kayachikitsa specialty — and re-selecting an
+// already-selected option fires no change event at all, so the check never ran.
+// Now also called right after the dropdown's initial default is set.
+function _checkAbhaAddressMismatch() {
+  const catSel = document.getElementById('visit-category');
+  const sel    = document.getElementById('abha-addr-select');
+  if (catSel.value === 'followup' && _prevOpdAddress && sel.value && sel.value !== _prevOpdAddress) {
+    catSel.value = 'opd';
+    _applyOpdRule();
+  }
 }
 
 function _showPicker(patients, phone) {
