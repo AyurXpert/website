@@ -868,6 +868,19 @@ async function handleSubmit() {
   document.getElementById('receipt-card').classList.remove('show');
   document.getElementById('receipt-feedback-block').style.display = 'none';
 
+  // Real, serious bug found live (Session 170): when a phone number matches several
+  // patients (e.g. family members sharing one number), the picker appears — but
+  // nothing blocked submitting anyway without picking one. _clearTag() (which the
+  // picker triggers) also wipes the ABHA Number field, so an already-confirmed ABHA
+  // identity from an earlier verify step got silently discarded too. With neither an
+  // explicit patient nor an ABHA Number left, the "by phone" fallback below picked
+  // WHICHEVER matching record came back first — registering a visit under a
+  // completely different patient's name (confirmed live: a Venkatesh visit got
+  // attributed to Reyna). Hard-block here rather than let an ambiguous match through.
+  if (document.getElementById('patient-picker').classList.contains('show')) {
+    return _alert('error', 'Multiple patients share this phone number — please select the correct one from the list above (or "New family member with same number") before registering.');
+  }
+
   // Normalize to the last 10 digits — strips a stray leading 0 (common Indian
   // dialing-convention typo) or +91/91 country-code prefix, matching the same
   // last-10-digits convention already used for ABDM mobile-match comparisons
