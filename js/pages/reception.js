@@ -472,8 +472,21 @@ function _applyOpdRule() {
       loadDoctors(_screeningOpdId);
       loadFees(_screeningOpdId);
       if (hint) {
-        hint.textContent = '🔒 OPD assigned at Screening OPD — not selectable here';
-        hint.style.color   = 'var(--text-muted)';
+        // _prevOpdId set + category deliberately NOT "followup" can only happen if
+        // the receptionist manually switched away from the auto-selected Follow-up
+        // default (Session 170) — the precise signal that this is a genuinely
+        // different complaint from last time, not a continuation. Nudge toward
+        // reconsidering the ABHA Address too, since one ABHA Number can carry
+        // several addresses chosen per visit/specialty (Session 170 pt. 4) — same
+        // complaint+OPD+address all stay put on a real follow-up, but a fresh
+        // triage is also the natural moment to reconsider the address.
+        if (_prevOpdId) {
+          hint.innerHTML = '🔔 New complaint — re-triaged at Screening OPD (not the previous specialty). If this is a different concern than last time, consider whether a new <strong>ABHA Address</strong> for this visit\'s records makes sense too — see the ABHA Address field above.';
+          hint.style.color = 'var(--gold)';
+        } else {
+          hint.textContent = '🔒 OPD assigned at Screening OPD — not selectable here';
+          hint.style.color = 'var(--text-muted)';
+        }
         hint.style.display = '';
       }
     } else {
