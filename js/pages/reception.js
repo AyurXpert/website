@@ -220,7 +220,7 @@ async function _linkAbha(prof, fmt, visitId = null, skipGate = false) {
   // pending value on final submit. Done before the early-return below so it's
   // captured regardless of whether _patient exists yet.
   const _profAddr = prof?.preferredAbhaAddress ?? prof?.phrAddress?.[0] ?? prof?.abhaAddress ?? null;
-  if (_profAddr) _pendingAbhaAddress = _profAddr;
+  if (_profAddr) _setPendingAbhaAddress(_profAddr);
   if (!_patient?.id) return;
   if (!skipGate && _demogMatchResult && !_demogMatchResult.pass) {
     const msg = _demogMatchResult.mobileMismatch
@@ -258,7 +258,20 @@ let _demogMatchResult = null; // { pass, mobileMismatch } — set by _checkDemog
 // an existing profile's own preferredAbhaAddress. Real bug found live (Session 170):
 // abha_address was never captured anywhere on the new-patient path at all — only
 // abha_number ever made it into the patients table.
-let _pendingAbhaAddress = null;
+// Persisted to sessionStorage, not just an in-memory variable — real data-loss
+// bug found live (Session 170): TWO ABHA Addresses were successfully created on
+// ABDM's own side (confirmed via abdm_audit_logs) but were lost locally because
+// the receptionist's internet dropped between creating the address and either
+// selecting the patient or completing registration, wiping the in-memory value
+// on reload/reconnect. A plain page reload should not be able to discard an
+// address ABDM has already committed to.
+const _AX_PENDING_ABHA_KEY = 'ax_pending_abha_address';
+let _pendingAbhaAddress = sessionStorage.getItem(_AX_PENDING_ABHA_KEY) || null;
+function _setPendingAbhaAddress(val) {
+  _pendingAbhaAddress = val || null;
+  if (_pendingAbhaAddress) sessionStorage.setItem(_AX_PENDING_ABHA_KEY, _pendingAbhaAddress);
+  else sessionStorage.removeItem(_AX_PENDING_ABHA_KEY);
+}
 
 // ── Consent Modal ─────────────────────────────────
 let _consentPendingOtp = false; // resolved once consent agreed
@@ -844,7 +857,7 @@ async function _loadAbhaAddressPicker(patient) {
   // reset _pendingAbhaAddress unconditionally, wiping out a brand-new address the
   // moment the receptionist then selected the patient it belonged to.
   const pendingBeforeReset = _pendingAbhaAddress;
-  _pendingAbhaAddress = null;
+  _setPendingAbhaAddress(null);
   if (!patient?.abha_number) { row.style.display = 'none'; return; }
 
   // Which specialty was each past address actually used for? Most-recent visit per
@@ -882,11 +895,11 @@ async function _loadAbhaAddressPicker(patient) {
     const isSelected = isNewPending ? a === pendingBeforeReset : a === patient.abha_address;
     return `<option value="${_esc(a)}"${isSelected ? ' selected' : ''}>${_esc(label)}</option>`;
   }).join('');
-  _pendingAbhaAddress = sel.value;
+  _setPendingAbhaAddress(sel.value);
   hint.textContent = addrs.length > 1
     ? 'This patient has used more than one ABHA Address before — choose which applies to this visit, or use "+ Enroll" to create a new one.'
     : 'This visit\'s records will be filed under this ABHA Address. Use "+ Enroll" to create a different one if needed.';
-  sel.onchange = () => { _pendingAbhaAddress = sel.value; };
+  sel.onchange = () => { _setPendingAbhaAddress(sel.value); };
 }
 
 function _showPicker(patients, phone) {
@@ -955,7 +968,7 @@ function _clearTag() {
   document.getElementById('pt-prakriti').style.display = 'none';
   document.getElementById('abha').value = '';
   document.getElementById('abha-addr-row').style.display = 'none';
-  _pendingAbhaAddress = null;
+  _setPendingAbhaAddress(null);
   document.getElementById('f-age').value    = '';
   document.getElementById('f-gender').value = '';
   document.getElementById('f-dob').value    = '';
@@ -1494,7 +1507,7 @@ function _resetForm() {
     document.getElementById(id).value = '');
   _clearAbhaNote();
   _lastTToken = null;
-  _pendingAbhaAddress = null; // don't leak a set-but-unsaved ABHA address into the next patient
+  _setPendingAbhaAddress(null); // don't leak a set-but-unsaved ABHA address into the next patient
   document.getElementById('abha-addr-row').style.display = 'none';
   document.getElementById('demog-warn').classList.remove('show');
   document.getElementById('enroll-step-1').style.display = '';
@@ -2265,8 +2278,11 @@ document.getElementById('btn-set-abha-addr').addEventListener('click', async () 
     _alert('success', `✓ New ABHA Address created: ${savedAddr}`);
     // Always remember it, even with no patient row yet (brand-new registration) —
     // createPatient() picks this up on final submit. Write straight to the DB too
-    // when a patient row already exists, same as before.
-    _pendingAbhaAddress = savedAddr;
+    // when a patient row already exists, same as before. Persisted to
+    // sessionStorage (_setPendingAbhaAddress) so a dropped connection or page
+    // reload right after this point can't lose an address ABDM already created —
+    // real data loss confirmed live, Session 170 (see abdm_audit_logs).
+    _setPendingAbhaAddress(savedAddr);
     if (_patient?.id) {
       await supabase.from('patients').update({ abha_address: savedAddr }).eq('id', _patient.id);
     }
