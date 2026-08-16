@@ -2220,8 +2220,13 @@ async function _loadAbhaSuggestions(txnId) {
         <span class="abha-sug-text">${a}</span>
       </div>`
     ).join('');
-  } catch {
-    list.innerHTML = '';
+  } catch (err) {
+    // Real gap found live (Session 170): a failed suggestion fetch (e.g. ABDM's
+    // sandbox itself returning a 500 on its Address endpoint — seen live, not
+    // something in our code) silently left the box empty with zero explanation.
+    // The custom-address text field below still works independently of this —
+    // say so, since it's the immediate workaround.
+    list.innerHTML = `<div style="font-size:12px;color:var(--gold)">⚠ Could not load address suggestions: ${_esc(safeErrorMessage(err, 'ABDM service error.'))}<br>You can still type a custom address below.</div>`;
   }
 }
 
