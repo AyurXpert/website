@@ -19,34 +19,43 @@ let _triage         = 'Routine';
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 const today = new Date().toISOString().slice(0,10);
-document.getElementById('q-date').textContent = new Date(today + 'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short'});
-document.getElementById('ss-date').textContent = new Date(today + 'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
 
-// Get Screening OPD id for this tenant. Two ncism_code conventions exist side by side:
-// 'SCREEN' (short-form, current default seeding) and 'SCREENING_OPD' (long-form, legacy
-// tenants like Srishti Ayurveda) — check both rather than assuming one.
-const { data: screenOpds } = await supabase
-  .from('opds')
-  .select('id')
-  .eq('tenant_id', tenantId)
-  .in('ncism_code', ['SCREEN', 'SCREENING_OPD']);
-const screenOpd = screenOpds?.[0];
+// Deferred to the bottom of the file, invoked there instead of running inline
+// here. Real bug found live (Session 170): this block ends by calling
+// window.loadQueue() — but window.loadQueue = async function(){...} (below) is a
+// plain property assignment, not a hoisted function declaration, so it doesn't
+// exist yet at THIS point in the file's top-to-bottom execution. Calling it here
+// threw "window.loadQueue is not a function" and silently halted the rest of
+// this init, leaving the queue stuck on the static "Loading queue…" placeholder
+// forever — a first fix (prefixing the earlier bare `loadQueue()` call with
+// `window.`) was necessary but not sufficient; the actual fix is running this
+// whole block only after every window.* handler in the file has been assigned,
+// via the `await _initScreeningQueue();` call at the very bottom of the file.
+async function _initScreeningQueue() {
+  document.getElementById('q-date').textContent = new Date(today + 'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short'});
+  document.getElementById('ss-date').textContent = new Date(today + 'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
 
-if (!screenOpd) {
-  document.getElementById('queue-list').innerHTML = `
-    <div class="queue-empty">
-      <strong>Screening OPD not configured.</strong><br><br>
-      Go to OPD Admin and ensure the Screening OPD (NCISM code: SCREEN) is active for your organisation.
-    </div>`;
-} else {
-  _screeningOpdId = screenOpd.id;
-  await loadDepartments();
-  // window.loadQueue, not loadQueue — it's assigned as window.loadQueue (line ~121)
-  // so the "↻ Refresh" button's data-onclick="loadQueue" delegated handler can find
-  // it; the bare identifier isn't in module scope, so calling it unprefixed throws
-  // ReferenceError and silently halts the rest of this init (found live, Session
-  // 170 — queue was stuck on the static "Loading queue…" placeholder forever).
-  await window.loadQueue();
+  // Get Screening OPD id for this tenant. Two ncism_code conventions exist side by side:
+  // 'SCREEN' (short-form, current default seeding) and 'SCREENING_OPD' (long-form, legacy
+  // tenants like Srishti Ayurveda) — check both rather than assuming one.
+  const { data: screenOpds } = await supabase
+    .from('opds')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .in('ncism_code', ['SCREEN', 'SCREENING_OPD']);
+  const screenOpd = screenOpds?.[0];
+
+  if (!screenOpd) {
+    document.getElementById('queue-list').innerHTML = `
+      <div class="queue-empty">
+        <strong>Screening OPD not configured.</strong><br><br>
+        Go to OPD Admin and ensure the Screening OPD (NCISM code: SCREEN) is active for your organisation.
+      </div>`;
+  } else {
+    _screeningOpdId = screenOpd.id;
+    await loadDepartments();
+    await window.loadQueue();
+  }
 }
 
 // ── Chief-complaint → specialty auto-suggestion ────────────────────────────────
@@ -375,3 +384,8 @@ function _alert(type, msg) {
   el.textContent = msg;
   if (type === 'success') setTimeout(() => el.classList.remove('show'), 4000);
 }
+
+// Runs the deferred init now that every window.* handler above (loadQueue,
+// selectVisit, onDeptChange, etc.) has actually been assigned — see the comment
+// on _initScreeningQueue() itself for why this can't run any earlier.
+await _initScreeningQueue();
