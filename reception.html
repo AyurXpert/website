@@ -139,6 +139,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .abha-note.verified{color:var(--success-text)}
 .abha-note.pending {color:var(--gold)}
 
+/* ── ABHA Address (per-visit) picker ─────────────────── */
+.abha-addr-row{margin-top:8px;padding:8px 10px;background:var(--cream);border:1.5px solid var(--border);border-radius:7px}
+.abha-addr-label{display:block;font-size:10px;font-weight:600;color:var(--text-dark);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px}
+.abha-addr-select{height:38px;padding:0 10px}
+.abha-addr-hint{font-size:10.5px;color:var(--text-muted);margin-top:5px;line-height:1.4}
+
 /* ── ABHA Enroll button ───────────────────────────── */
 .btn-abha-enroll{
   border:1.5px solid var(--green-deep);background:var(--green-deep);
@@ -753,6 +759,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <button class="btn-abha btn-abha-enroll" id="btn-enroll-abha" type="button">+ Enroll</button>
         </div>
         <div class="abha-note" id="abha-note"><span id="abha-note-text"></span></div>
+
+        <!-- ABHA Address for THIS visit — a patient can hold several addresses under
+             one ABHA Number, chosen per visit (Session 170), not a fixed patient
+             attribute. Shown once a returning patient with an on-file ABHA is
+             selected; hidden if the patient has no known address at all yet. -->
+        <div class="abha-addr-row" id="abha-addr-row" style="display:none">
+          <label for="abha-addr-select" class="abha-addr-label">ABHA Address for this visit</label>
+          <select id="abha-addr-select" class="abha-addr-select"></select>
+          <div class="abha-addr-hint" id="abha-addr-hint"></div>
+        </div>
+
         <div style="margin-top:4px">
           <button class="btn-find-abha-link" id="btn-find-abha" type="button">🔍 Patient has ABHA but no card? Fetch by mobile →</button>
         </div>

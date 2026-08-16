@@ -690,6 +690,7 @@ async function _selectPatient(patient) {
     document.getElementById('abha').value = patient.abha_number;
     _setAbhaNote('verified', `ABHA on record: ${patient.abha_number}`);
   }
+  await _loadAbhaAddressPicker(patient);
 
   document.getElementById('reg-fee').value = '0';
   _updateTotal();
@@ -780,6 +781,40 @@ async function _selectPatient(patient) {
   }
 }
 
+// ── ABHA Address picker — which of this patient's known addresses applies to
+// THIS visit (Session 170: a patient can hold several under one ABHA Number,
+// chosen per visit/specialty). Defaults to their current on-file address;
+// offers every distinct address ever recorded on a past visit as an
+// alternative. Creating a genuinely NEW address still goes through
+// "+ Enroll" → Aadhaar OTP (ABDM requires a live transaction for that,
+// there's no way around it for an already-known patient) — this picker only
+// covers re-choosing among addresses that already exist.
+async function _loadAbhaAddressPicker(patient) {
+  const row  = document.getElementById('abha-addr-row');
+  const sel  = document.getElementById('abha-addr-select');
+  const hint = document.getElementById('abha-addr-hint');
+  sel.innerHTML = '';
+  _pendingAbhaAddress = null;
+  if (!patient?.abha_number) { row.style.display = 'none'; return; }
+
+  const { data: pastVisits } = await supabase
+    .from('visits').select('abha_address').eq('patient_id', patient.id)
+    .not('abha_address', 'is', null);
+  const addrs = [...new Set([patient.abha_address, ...(pastVisits || []).map(v => v.abha_address)].filter(Boolean))];
+
+  if (addrs.length === 0) { row.style.display = 'none'; return; }
+
+  row.style.display = '';
+  sel.innerHTML = addrs.map(a =>
+    `<option value="${_esc(a)}"${a === patient.abha_address ? ' selected' : ''}>${_esc(a)}</option>`
+  ).join('');
+  _pendingAbhaAddress = sel.value;
+  hint.textContent = addrs.length > 1
+    ? 'This patient has used more than one ABHA Address before — choose which applies to this visit, or use "+ Enroll" to create a new one.'
+    : 'This visit\'s records will be filed under this ABHA Address. Use "+ Enroll" to create a different one if needed.';
+  sel.onchange = () => { _pendingAbhaAddress = sel.value; };
+}
+
 function _showPicker(patients, phone) {
   _clearTag();
   const picker = document.getElementById('patient-picker');
@@ -845,6 +880,8 @@ function _clearTag() {
   document.getElementById('patient-picker').classList.remove('show');
   document.getElementById('pt-prakriti').style.display = 'none';
   document.getElementById('abha').value = '';
+  document.getElementById('abha-addr-row').style.display = 'none';
+  _pendingAbhaAddress = null;
   document.getElementById('f-age').value    = '';
   document.getElementById('f-gender').value = '';
   document.getElementById('f-dob').value    = '';
@@ -1380,6 +1417,7 @@ function _resetForm() {
   _clearAbhaNote();
   _lastTToken = null;
   _pendingAbhaAddress = null; // don't leak a set-but-unsaved ABHA address into the next patient
+  document.getElementById('abha-addr-row').style.display = 'none';
   document.getElementById('demog-warn').classList.remove('show');
   document.getElementById('enroll-step-1').style.display = '';
   document.getElementById('enroll-step-2').style.display = 'none';
