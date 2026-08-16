@@ -812,7 +812,7 @@ async function _selectPatient(patient) {
   // Runs after _prevOpdAddress is actually known (set just above) — catches the
   // case where the ABHA Address dropdown's own DEFAULT selection is already a
   // mismatch, not just a later manual change (see _checkAbhaAddressMismatch).
-  _checkAbhaAddressMismatch();
+  await _checkAbhaAddressMismatch();
 
   // Check for active package
   _activePackage = null;
@@ -906,9 +906,9 @@ async function _loadAbhaAddressPicker(patient) {
   hint.textContent = addrs.length > 1
     ? 'This patient has used more than one ABHA Address before — choose which applies to this visit, or use "+ Enroll" to create a new one.'
     : 'This visit\'s records will be filed under this ABHA Address. Use "+ Enroll" to create a different one if needed.';
-  sel.onchange = () => {
+  sel.onchange = async () => {
     _setPendingAbhaAddress(sel.value);
-    _checkAbhaAddressMismatch();
+    await _checkAbhaAddressMismatch();
   };
 }
 
@@ -925,11 +925,23 @@ async function _loadAbhaAddressPicker(patient) {
 // was never used for her locked Kayachikitsa specialty — and re-selecting an
 // already-selected option fires no change event at all, so the check never ran.
 // Now also called right after the dropdown's initial default is set.
-function _checkAbhaAddressMismatch() {
+async function _checkAbhaAddressMismatch() {
   const catSel = document.getElementById('visit-category');
   const sel    = document.getElementById('abha-addr-select');
-  if (catSel.value === 'followup' && _prevOpdAddress && sel.value && sel.value !== _prevOpdAddress) {
+  if (!_prevOpdId || !_prevOpdAddress || !sel.value) return;
+  if (catSel.value === 'followup' && sel.value !== _prevOpdAddress) {
     catSel.value = 'opd';
+    _applyOpdRule(); // self-loads Screening OPD's doctors/fees, no pre-load needed
+  } else if (catSel.value === 'opd' && sel.value === _prevOpdAddress) {
+    // Switching back to the address the specialty was actually consulted under —
+    // restore Follow-up. _applyOpdRule()'s Follow-up branch only SELECTS from the
+    // doctor dropdown's existing options, it doesn't load them — and switching
+    // away to OPD just now replaced those options with Screening OPD's doctors.
+    // Reload Kayachikitsa's (mirrors _selectPatient()'s own pattern) before
+    // _applyOpdRule() tries to re-select the previous doctor, or it'd silently fail.
+    await loadDoctors(_prevOpdId);
+    await loadFees(_prevOpdId);
+    catSel.value = 'followup';
     _applyOpdRule();
   }
 }
