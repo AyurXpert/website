@@ -41,7 +41,12 @@ if (!screenOpd) {
 } else {
   _screeningOpdId = screenOpd.id;
   await loadDepartments();
-  await loadQueue();
+  // window.loadQueue, not loadQueue — it's assigned as window.loadQueue (line ~121)
+  // so the "↻ Refresh" button's data-onclick="loadQueue" delegated handler can find
+  // it; the bare identifier isn't in module scope, so calling it unprefixed throws
+  // ReferenceError and silently halts the rest of this init (found live, Session
+  // 170 — queue was stuck on the static "Loading queue…" placeholder forever).
+  await window.loadQueue();
 }
 
 // ── Chief-complaint → specialty auto-suggestion ────────────────────────────────
@@ -82,7 +87,7 @@ function _autoSuggestDept() {
   const sel = document.getElementById('scr-dept');
   if (sel.value !== dept.id) {
     sel.value = dept.id;
-    onDeptChange();
+    window.onDeptChange(); // same bare-identifier bug as loadQueue() above — window.-assigned, not module-scoped
   }
   if (hint) {
     hint.textContent = `💡 Suggested "${dept.name}" based on the complaint — confirm or change if needed.`;
@@ -357,7 +362,7 @@ window.routePatient = async function() {
   _activeVisit = null;
   document.getElementById('form-empty').style.display     = 'flex';
   document.getElementById('screening-form').style.display = 'none';
-  await loadQueue();
+  await window.loadQueue();
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
