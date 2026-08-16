@@ -836,20 +836,52 @@ async function _loadAbhaAddressPicker(patient) {
   const sel  = document.getElementById('abha-addr-select');
   const hint = document.getElementById('abha-addr-hint');
   sel.innerHTML = '';
+
+  // Preserve a just-created-but-not-yet-saved address (e.g. "Create New ABHA" done
+  // BEFORE searching for/selecting this patient — the common order, since the
+  // patient isn't known yet when starting a fresh Aadhaar-OTP enrollment) instead
+  // of silently discarding it. Real bug found live, Session 170: this used to
+  // reset _pendingAbhaAddress unconditionally, wiping out a brand-new address the
+  // moment the receptionist then selected the patient it belonged to.
+  const pendingBeforeReset = _pendingAbhaAddress;
   _pendingAbhaAddress = null;
   if (!patient?.abha_number) { row.style.display = 'none'; return; }
 
+  // Which specialty was each past address actually used for? Most-recent visit per
+  // address wins as the label — a single address CAN be reused across specialties
+  // by receptionist choice, this is a memory aid for picking the right one on a
+  // follow-up, not a strict guarantee. Real gap found live, Session 170: without
+  // this, a receptionist had no way to tell which of several addresses belonged to
+  // which specialty.
   const { data: pastVisits } = await supabase
-    .from('visits').select('abha_address').eq('patient_id', patient.id)
-    .not('abha_address', 'is', null);
+    .from('visits')
+    .select('abha_address, created_at, opds(name)')
+    .eq('patient_id', patient.id)
+    .not('abha_address', 'is', null)
+    .order('created_at', { ascending: false });
+
+  const specialtyFor = {};
+  (pastVisits || []).forEach(v => {
+    if (!(v.abha_address in specialtyFor)) specialtyFor[v.abha_address] = v.opds?.name ?? null;
+  });
+
   const addrs = [...new Set([patient.abha_address, ...(pastVisits || []).map(v => v.abha_address)].filter(Boolean))];
+
+  // Merge in the preserved pending address if it's genuinely new (not already
+  // among this patient's known addresses) — shown as "(New)", pre-selected.
+  const isNewPending = pendingBeforeReset && !addrs.includes(pendingBeforeReset);
+  if (isNewPending) addrs.unshift(pendingBeforeReset);
 
   if (addrs.length === 0) { row.style.display = 'none'; return; }
 
   row.style.display = '';
-  sel.innerHTML = addrs.map(a =>
-    `<option value="${_esc(a)}"${a === patient.abha_address ? ' selected' : ''}>${_esc(a)}</option>`
-  ).join('');
+  sel.innerHTML = addrs.map(a => {
+    const label = (a === pendingBeforeReset && isNewPending)
+      ? `${a} (New)`
+      : (specialtyFor[a] ? `${a} — ${specialtyFor[a]}` : a);
+    const isSelected = isNewPending ? a === pendingBeforeReset : a === patient.abha_address;
+    return `<option value="${_esc(a)}"${isSelected ? ' selected' : ''}>${_esc(label)}</option>`;
+  }).join('');
   _pendingAbhaAddress = sel.value;
   hint.textContent = addrs.length > 1
     ? 'This patient has used more than one ABHA Address before — choose which applies to this visit, or use "+ Enroll" to create a new one.'
@@ -2223,6 +2255,9 @@ document.getElementById('btn-set-abha-addr').addEventListener('click', async () 
     // the registration form itself. Real bug found live, Session 170.
     const abhaNum = document.getElementById('abha').value.trim();
     _setAbhaNote('verified', `✓ ABHA ${abhaNum ? abhaNum + ' — ' : ''}Address: ${savedAddr}`);
+    // Also a proper toast — the small note line above was easy to miss while
+    // attention was on the suggestion list that's about to auto-collapse.
+    _alert('success', `✓ New ABHA Address created: ${savedAddr}`);
     // Always remember it, even with no patient row yet (brand-new registration) —
     // createPatient() picks this up on final submit. Write straight to the DB too
     // when a patient row already exists, same as before.

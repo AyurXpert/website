@@ -138,7 +138,7 @@ window.loadQueue = async function() {
 
   const { data, error } = await supabase
     .from('visits')
-    .select('id,status,chief_complaint,token_number,created_at,patients(id,name,phone,age,gender,abha_number)')
+    .select('id,status,chief_complaint,token_number,created_at,abha_address,patients(id,name,phone,age,gender,abha_number)')
     .eq('tenant_id', tenantId)
     .eq('opd_id', _screeningOpdId)
     .in('status', ['waiting','in_progress'])
@@ -393,6 +393,12 @@ window.routePatient = async function() {
     chief_complaint:  cc ? cc + '\n' + screeningSummary : screeningSummary,
     token_number:     nextToken,
     is_on_request:    false,
+    // Real gap found live (Session 170): the visit-scoped ABHA Address feature only
+    // ever covered reception.html's own visit-creation insert — but routing FROM
+    // Screening (this function) is the more common real path a specialty visit
+    // actually comes into existence through, and it never carried the address
+    // forward at all. Carry over whatever was on the Screening visit being routed.
+    abha_address:     _activeVisit.abha_address || null,
   };
 
   // Assign doctor — prefer whoever the nurse explicitly picked for this OPD
