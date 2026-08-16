@@ -110,7 +110,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 }
 .field{margin-bottom:14px}
 .field label{display:block;font-size:12px;font-weight:600;color:var(--text-mid);margin-bottom:5px}
-.field input,.field textarea,.field select{
+.field input,.field textarea,.field select{height:44px;
   width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius);
   font-family:'DM Sans',sans-serif;font-size:13px;background:var(--white);outline:none;
 }
@@ -325,6 +325,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
               <option value="">— Select department —</option>
             </select>
             <div id="scr-dept-suggest-hint" style="display:none;font-size:11px;color:#a07030;margin-top:4px"></div>
+          </div>
+          <div class="field">
+            <label>Assign Doctor</label>
+            <select id="scr-doctor">
+              <option value="">— Select department first —</option>
+            </select>
           </div>
           <div class="field">
             <label>Instructions for Specialty OPD Doctor</label>

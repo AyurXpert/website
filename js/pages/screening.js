@@ -225,6 +225,7 @@ window.selectVisit = function(visitId) {
   document.getElementById('scr-naadi').value        = '';
   document.getElementById('scr-notes').value        = '';
   document.getElementById('scr-dept').value         = '';
+  document.getElementById('scr-doctor').innerHTML   = '<option value="">— Select department first —</option>';
   document.getElementById('scr-instructions').value = '';
   document.getElementById('btn-route').disabled     = true;
   document.getElementById('scr-dept-suggest-hint').style.display = 'none';
@@ -276,10 +277,49 @@ window.onDeptChange = function() {
   if (dept) {
     const d = _departments.find(d => d.id === dept);
     btn.textContent = '▙ Route to ' + (d ? d.name : 'OPD');
+    loadOpdDoctors(d?.opd_id ?? null);
   } else {
     btn.textContent = '▙ Route to OPD';
+    loadOpdDoctors(null);
   }
 };
+
+// Real bug found live (Session 170): routePatient() only ever set doctor_id when
+// the person doing the ROUTING happened to themselves be logged in as a doctor —
+// the actual triage workflow (a nurse or admin routing someone else) always left
+// it null, and doctor.js's own queue is filtered strictly by doctor_id === the
+// logged-in doctor's own id (never by OPD), so a routed visit was invisible to
+// every doctor, always, not just in this specific test. Mirrors reception.js's
+// loadDoctors() exactly — same opd_doctors "active today" roster, same fallback
+// when nobody's marked active for that OPD yet.
+async function loadOpdDoctors(opdId) {
+  const sel = document.getElementById('scr-doctor');
+  if (!opdId) { sel.innerHTML = '<option value="">— Select department first —</option>'; return; }
+
+  const { data: opdDocs } = await supabase
+    .from('opd_doctors')
+    .select('doctor_id')
+    .eq('opd_id', opdId)
+    .eq('tenant_id', tenantId)
+    .eq('is_active_today', true);
+
+  const doctorIds = (opdDocs || []).map(d => d.doctor_id);
+  if (doctorIds.length === 0) {
+    sel.innerHTML = '<option value="">— No doctors active today for this OPD —</option>';
+    return;
+  }
+
+  const { data: doctors } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .in('id', doctorIds)
+    .eq('status', 'active')
+    .order('full_name');
+
+  sel.innerHTML = '<option value="">— Select doctor —</option>' +
+    (doctors || []).map(d => `<option value="${d.id}">${_esc(d.full_name)}</option>`).join('');
+  if (doctors?.length === 1) sel.value = doctors[0].id; // only one candidate — pick it, still overridable
+}
 
 // ── Route patient ─────────────────────────────────────────────────────────────
 window.routePatient = async function() {
@@ -355,8 +395,14 @@ window.routePatient = async function() {
     is_on_request:    false,
   };
 
-  // Assign doctor if logged-in user is a doctor
-  if (profile?.role === 'doctor') newVisit.doctor_id = profile.id;
+  // Assign doctor — prefer whoever the nurse explicitly picked for this OPD
+  // (real fix, Session 170: this used to only fire when the person doing the
+  // ROUTING was themselves a doctor, which left doctor_id null for the actual
+  // nurse-triage workflow, making the visit invisible to every doctor's queue).
+  // Fall back to that old self-is-doctor behaviour only if nothing was picked.
+  const scrDoctorId = document.getElementById('scr-doctor').value;
+  if (scrDoctorId) newVisit.doctor_id = scrDoctorId;
+  else if (profile?.role === 'doctor') newVisit.doctor_id = profile.id;
 
   const { error: errNew } = await supabase.from('visits').insert(newVisit);
 
