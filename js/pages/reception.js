@@ -115,6 +115,7 @@ let _prevDoctorName = null;  // regenerates this itself so it stays correct afte
                               // manual category toggles).
 let _kaumarOpdId    = null;
 const _doctorMap = {};
+const _opdMap    = {}; // opd_id → name, for the combined cross-OPD queue's per-OPD token label
 
 // ── Verhoeff checksum validation for Aadhaar ─────
 function _verhoeff(num) {
@@ -380,6 +381,7 @@ async function loadOPDs() {
   _kaumarOpdId    = null;
 
   (data || []).forEach(o => {
+    _opdMap[o.id] = o.name;
     if (!_screeningOpdId && (
       o.ncism_code?.toUpperCase() === 'SCR' ||
       o.name?.toLowerCase().includes('screening')
@@ -1190,12 +1192,23 @@ async function handleSubmit() {
       await supabase.from('patients').update(_abhaPatch).eq('id', patient.id);
     }
 
-    // 4. Next token (resets daily) — reuse todayStart from duplicate check above
-    const { data: lastToken } = await supabase
+    // 4. Next token — per-OPD, resets daily (reuse todayStart from duplicate check above).
+    // Each OPD counts its own patients from 1 each morning (matches screening.js's
+    // routePatient() and doctor.js's emergency-escalation, which already did this
+    // correctly — this was the one remaining creation path still numbering
+    // tenant-wide instead of per-OPD, so the same token could otherwise appear
+    // in two different OPDs' queues on the same day).
+    let tokenQuery = supabase
       .from('visits').select('token_number')
       .eq('tenant_id', tenantId)
       .gte('created_at', todayStart.toISOString())
-      .not('token_number', 'is', null)
+      .not('token_number', 'is', null);
+    // opdId is normally always set (OPD dropdown is always locked to a value before
+    // submit), but match insert's own opdId||null fallback defensively rather than
+    // let an empty string silently match zero rows (which would collide every such
+    // visit's token back down to 1).
+    tokenQuery = opdId ? tokenQuery.eq('opd_id', opdId) : tokenQuery.is('opd_id', null);
+    const { data: lastToken } = await tokenQuery
       .order('token_number', { ascending: false }).limit(1);
 
     const nextToken = (lastToken && lastToken.length > 0) ? lastToken[0].token_number + 1 : 1;
@@ -1409,13 +1422,18 @@ document.getElementById('btn-print').addEventListener('click', () => window.prin
 async function loadQueue() {
   const start = new Date(); start.setHours(0, 0, 0, 0);
 
+  // Token numbers are per-OPD (each OPD counts its own patients from 1 daily), so
+  // this combined cross-OPD view can no longer sort by token_number — two different
+  // OPDs' patients can share the same number. Sort by arrival order instead; the
+  // per-visit OPD name is shown alongside the token in the row itself (below) so
+  // "#3" from Kayachikitsa isn't confused with "#3" from Shalya Tantra.
   const { data: visits } = await supabase
     .from('visits')
-    .select('id, token_number, status, chief_complaint, created_at, is_on_request, visit_category, doctor_id, patients(name)')
+    .select('id, token_number, status, chief_complaint, created_at, is_on_request, visit_category, doctor_id, opd_id, patients(name)')
     .eq('tenant_id', tenantId)
     .in('status', ['waiting', 'in_progress'])
     .gte('created_at', start.toISOString())
-    .order('token_number', { ascending: true });
+    .order('created_at', { ascending: true });
 
   // Fetch payment status for these visits
   const visitIds = (visits || []).map(v => v.id);
@@ -1447,6 +1465,7 @@ async function loadQueue() {
     const t     = new Date(v.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     const wait  = _waitTime(v.created_at);
     const doc   = _doctorMap[v.doctor_id] || '—';
+    const opdNm = _opdMap[v.opd_id] || '';
 
     const catLabel = {
       opd: 'OPD', followup: 'Follow-up', panchakarma: 'Panchakarma',
@@ -1464,10 +1483,11 @@ async function loadQueue() {
     const statusLabel = isActive ? 'With doctor' : 'Waiting';
 
     return `<div class="${itemClass}">
-      <div class="q-token ${tokenClass}">${v.token_number}</div>
+      <div class="q-token ${tokenClass}" title="${_esc(opdNm)} — Token #${v.token_number}">${v.token_number}</div>
       <div class="q-info">
         <div class="q-name">${_esc(v.patients?.name || '—')} ${emergBadge}${onReqBadge}</div>
         <div class="q-row2">
+          ${opdNm ? `<span style="color:var(--text-dark);font-weight:600">${_esc(opdNm)}</span>` : ''}
           <span style="color:var(--text-mid)">${_esc(doc)}</span>
           <span class="badge badge-cat">${_esc(catLabel)}</span>
           ${payBadge}
