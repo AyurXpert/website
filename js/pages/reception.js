@@ -1635,7 +1635,7 @@ function _showAbhaProfile(prof, abhaNumber, tToken) {
 
   // Show / hide action buttons based on tToken availability
   if (tToken) _lastTToken = tToken;
-  document.getElementById('btn-download-abha-card').style.display = _lastTToken ? '' : 'none';
+  document.getElementById('btn-view-abha-card').style.display = _lastTToken ? '' : 'none';
   document.getElementById('btn-update-mobile-open').style.display = _lastTToken ? '' : 'none';
 
   // Auto-fill demographics from ABHA profile
@@ -1666,21 +1666,54 @@ function _calcAgeFromDob(isoDate) {
   if (age >= 0) document.getElementById('f-age').value = age;
 }
 
-// ── Download ABHA Card ────────────────────────────
-document.getElementById('btn-download-abha-card').addEventListener('click', async () => {
+// ── View ABHA Card (preview first, download from inside the preview) ─────
+let _abhaCardData = null; // { mimeType, base64 } for the card currently shown in the view modal
+
+document.getElementById('btn-view-abha-card').addEventListener('click', async () => {
   if (!_lastTToken) return;
-  const btn = document.getElementById('btn-download-abha-card');
-  btn.disabled = true; btn.textContent = 'Downloading…';
+  const btn        = document.getElementById('btn-view-abha-card');
+  const overlay    = document.getElementById('abha-card-view-overlay');
+  const body       = document.getElementById('abha-card-view-body');
+  const msg        = document.getElementById('abha-card-view-msg');
+  const downloadBtn = document.getElementById('btn-abha-card-view-download');
+
+  _abhaCardData = null;
+  downloadBtn.disabled = true;
+  body.innerHTML = '<span style="font-size:13px;color:var(--text-mid)">Loading card…</span>';
+  msg.textContent = '';
+  msg.className = 'enroll-msg';
+  overlay.style.display = '';
+
+  btn.disabled = true; btn.textContent = 'Loading…';
   try {
     const res = await downloadAbhaCard(_lastTToken);
-    const a   = document.createElement('a');
-    a.href     = `data:${res.mimeType};base64,${res.base64}`;
-    a.download = `ABHA_Card_${document.getElementById('abha').value.replace(/-/g,'')}.png`;
-    a.click();
+    _abhaCardData = res;
+    body.innerHTML = '';
+    const img = document.createElement('img');
+    img.src = `data:${res.mimeType};base64,${res.base64}`;
+    img.alt = 'ABHA Card';
+    body.appendChild(img);
+    downloadBtn.disabled = false;
   } catch (err) {
-    alert(safeErrorMessage(err, 'Download failed. Please try again.'));
+    body.innerHTML = '';
+    msg.textContent = safeErrorMessage(err, 'Failed to load ABHA card. Please try again.');
+    msg.className = 'enroll-msg error show';
   }
-  btn.disabled = false; btn.textContent = '⬇ Download ABHA Card';
+  btn.disabled = false; btn.textContent = '👁 View ABHA Card';
+});
+
+document.getElementById('btn-abha-card-view-download').addEventListener('click', () => {
+  if (!_abhaCardData) return;
+  const a = document.createElement('a');
+  a.href = `data:${_abhaCardData.mimeType};base64,${_abhaCardData.base64}`;
+  a.download = `ABHA_Card_${document.getElementById('abha').value.replace(/-/g, '')}.png`;
+  a.click();
+  document.getElementById('abha-card-view-overlay').style.display = 'none';
+});
+
+document.getElementById('btn-abha-card-view-cancel').addEventListener('click', () => {
+  document.getElementById('abha-card-view-overlay').style.display = 'none';
+  _abhaCardData = null;
 });
 
 // ── Update Mobile (ABDM §8.1) ─────────────────────
