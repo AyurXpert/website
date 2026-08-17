@@ -2589,6 +2589,10 @@ document.getElementById('btn-verify-send-otp').addEventListener('click', async (
   const digits = raw.replace(/\D/g, '');
   if (digits.length !== 14) return _setVerifyMsg('error', 'Please enter a valid 14-digit ABHA number.');
 
+  // ABDM demo feedback (Session 171): consent is mandatory before ANY OTP-based
+  // ABHA access, not just new-account enrollment — same modal/gate as +Enroll.
+  try { await _showConsentModal(); } catch { return; }
+
   const btn = document.getElementById('btn-verify-send-otp');
   btn.disabled = true; btn.textContent = 'Sending…';
   _setVerifyMsg('info', 'Sending OTP to ABDM-linked mobile…');
@@ -2841,6 +2845,11 @@ let _addrAccToken = null;
 document.getElementById('btn-addr-search').addEventListener('click', async () => {
   const addr = document.getElementById('verify-addr-input').value.trim();
   if (!addr.includes('@')) return _setVerifyMsg('error', 'Enter a valid ABHA address (e.g. name@abdm).');
+
+  // ABDM demo feedback (Session 171): consent is mandatory before ANY OTP-based
+  // ABHA access, not just new-account enrollment — same modal/gate as +Enroll.
+  try { await _showConsentModal(); } catch { return; }
+
   const btn = document.getElementById('btn-addr-search');
   btn.disabled = true; btn.textContent = 'Searching…';
   _setVerifyMsg('info', 'Searching ABHA address…');
