@@ -2735,6 +2735,7 @@ let _mobOtpTxn       = null;
 let _mobAccounts     = [];
 let _mobVerifyTToken = null;   // T-token from verifyMobileLoginOtp (used by loginVerifyUser)
 let _mobVerifyTxnId  = null;   // txnId for loginVerifyUser step
+let _mobEnteredNumber = null;  // the mobile number this flow verified — not returned in accounts[], so kept aside
 
 document.getElementById('btn-mob-search').addEventListener('click', async () => {
   const mobile = document.getElementById('verify-mobile-input').value.trim();
@@ -2746,6 +2747,7 @@ document.getElementById('btn-mob-search').addEventListener('click', async () => 
   try {
     const res = await sendMobileLoginOtp(mobile);
     _mobOtpTxn = res.txnId;
+    _mobEnteredNumber = mobile;
     document.getElementById('mob-step-1').style.display = 'none';
     document.getElementById('mob-step-3').style.display = '';
     _setVerifyMsg('info', res.message || '✓ OTP sent to your registered mobile.');
@@ -2780,10 +2782,11 @@ async function _handleMobileAccount(account) {
     ABHANumber: abha, healthIdNumber: abha,
     profilePhoto: account.profilePhoto,
     preferredAbhaAddress: account.preferredAbhaAddress,
+    mobile: account.mobile ?? _mobEnteredNumber, // accounts[] doesn't echo it back — this flow verified it via OTP to this exact number
   };
   if (document.getElementById('name').value.trim() === '' && account.name)
     document.getElementById('name').value = account.name;
-  _showAbhaProfile(prof, fmt, null);
+  _showAbhaProfile(prof, fmt, _mobVerifyTToken);
   _setVerifyMsg('success', `ABHA ${fmt} verified.`);
   await _linkAbha(prof, fmt);
   setTimeout(() => { verifyPanel.style.display='none'; btnVerifyAbha.textContent='Verify'; btnVerifyAbha.classList.remove('open'); }, 2000);
