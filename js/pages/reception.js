@@ -3267,32 +3267,27 @@ function _setMode(mode) {
   }
 }
 
-// ── Queue / Appointments / Lab Bills tabs ──────────
+// ── Queue / Appointments / Lab Bills / Reg. Queue tabs ──
+const _allTabs   = ['tab-queue', 'tab-appts', 'tab-labbills', 'tab-regqueue'];
+const _allPanels = ['queue-list', 'appt-list', 'lab-bills-list', 'reg-queue-list'];
+function _activateTab(tabId, panelId) {
+  _allTabs.forEach(id => document.getElementById(id).classList.toggle('active', id === tabId));
+  _allPanels.forEach(id => document.getElementById(id).style.display = (id === panelId) ? '' : 'none');
+}
 document.getElementById('tab-queue').addEventListener('click', () => {
-  document.getElementById('tab-queue').classList.add('active');
-  document.getElementById('tab-appts').classList.remove('active');
-  document.getElementById('tab-labbills').classList.remove('active');
-  document.getElementById('queue-list').style.display = '';
-  document.getElementById('appt-list').style.display  = 'none';
-  document.getElementById('lab-bills-list').style.display = 'none';
+  _activateTab('tab-queue', 'queue-list');
 });
 document.getElementById('tab-appts').addEventListener('click', () => {
-  document.getElementById('tab-appts').classList.add('active');
-  document.getElementById('tab-queue').classList.remove('active');
-  document.getElementById('tab-labbills').classList.remove('active');
-  document.getElementById('queue-list').style.display  = 'none';
-  document.getElementById('appt-list').style.display   = '';
-  document.getElementById('lab-bills-list').style.display = 'none';
+  _activateTab('tab-appts', 'appt-list');
   loadTodaysAppointments();
 });
 document.getElementById('tab-labbills').addEventListener('click', () => {
-  document.getElementById('tab-labbills').classList.add('active');
-  document.getElementById('tab-queue').classList.remove('active');
-  document.getElementById('tab-appts').classList.remove('active');
-  document.getElementById('queue-list').style.display  = 'none';
-  document.getElementById('appt-list').style.display   = 'none';
-  document.getElementById('lab-bills-list').style.display = '';
+  _activateTab('tab-labbills', 'lab-bills-list');
   loadPendingLabBills();
+});
+document.getElementById('tab-regqueue').addEventListener('click', () => {
+  _activateTab('tab-regqueue', 'reg-queue-list');
+  loadRegQueue();
 });
 
 // ── Pending Lab/Investigation Bills (Session 126) ──
@@ -3384,6 +3379,98 @@ window.waiveLabPayment = async function(orderId) {
   _alert('success', 'Payment waived — lab can proceed.');
   loadPendingLabBills();
 };
+
+// ── Registration Queue (queue redesign piece 2, 17 Aug 2026) ──────
+// Only meaningful for a registration_clerk/billing_clerk currently on
+// 'registration' duty (staff_duty_sessions, Session 111/113) -- the
+// abdm-webhook fair-assigns each Scan & Share patient to whichever such
+// clerk currently has the fewest people still waiting to be pulled up.
+// This is a SEPARATE ticket number from the OPD/Screening consultation
+// token created later at Register & Create Visit -- intentionally two
+// different queues (registration wait vs. consultation wait), matching
+// the real hospital model Dr. Venkatesh described.
+let _regQueueSubscription = null;
+
+async function loadRegQueue() {
+  const { data, error } = await supabase
+    .from('abdm_scan_sessions')
+    .select('id, token_number, patient_profile, created_at')
+    .eq('tenant_id', tenantId)
+    .eq('assigned_profile_id', profile.id)
+    .eq('status', 'received')
+    .is('claimed_at', null)
+    .order('token_number', { ascending: true });
+  if (error) { console.warn('[reception] loadRegQueue:', error.message); return; }
+
+  const rows = data || [];
+  document.getElementById('regqueue-count').textContent = rows.length ? `(${rows.length})` : '';
+  const list = document.getElementById('reg-queue-list');
+  if (!rows.length) {
+    list.innerHTML = `<div class="q-empty"><div class="q-empty-icon">📋</div><div class="q-empty-text">No patients waiting to be registered at your counter right now.</div></div>`;
+    return;
+  }
+
+  list.innerHTML = rows.map(r => {
+    const prof = r.patient_profile || {};
+    const name = [prof.firstName, prof.middleName, prof.lastName].filter(Boolean).join(' ') || prof.name || '—';
+    const mobile = prof.mobile ?? prof.mobileNumber ?? prof.phoneNumber ?? '';
+    const waitedFor = _waitTime(r.created_at);
+    return `<div class="q-item">
+      <div class="q-token waiting">${r.token_number ?? '—'}</div>
+      <div class="q-info">
+        <div class="q-name">${_esc(name)}</div>
+        <div class="q-row2"><span style="color:var(--text-mid)">${_esc(mobile || 'Mobile not shared')}</span></div>
+        <div class="q-row3">Shared via Scan &amp; Share · waiting ${waitedFor}</div>
+      </div>
+      <div class="q-right">
+        <button class="q-edit-btn" data-onclick="claimRegQueueEntry" data-onclick-a0="${r.id}"
+                style="width:auto;padding:0 10px;font-size:11px;background:var(--green-mid);color:#fff">Register →</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.claimRegQueueEntry = async function(sessionId) {
+  const { data: updated, error } = await supabase
+    .from('abdm_scan_sessions')
+    .update({ claimed_at: new Date().toISOString(), claimed_by: profile.id })
+    .eq('id', sessionId)
+    .is('claimed_at', null) // race guard -- someone else (or a second click) may have already claimed it
+    .select('token_number, patient_profile')
+    .single();
+
+  if (error || !updated) {
+    _alert('error', 'This patient was already pulled up by someone else — refreshing your queue.');
+    loadRegQueue();
+    return;
+  }
+
+  _onScanReceived(updated.patient_profile);
+  _alert('info', `Registration Token #${updated.token_number} pulled up — complete the form below.`);
+  document.querySelector('.panel')?.scrollIntoView({ behavior: 'smooth' });
+  loadRegQueue();
+};
+
+// Wires up the tab + live subscription only for a clerk actually on Registration
+// duty right now -- everyone else never sees this tab at all (matches the existing
+// duty-gate philosophy: a plain receptionist's page looks exactly as it always has).
+function _initRegistrationQueueIfOnDuty() {
+  if (!_dutyGated) return;
+  let dutyKeys;
+  try { dutyKeys = JSON.parse(sessionStorage.getItem('ax_duty_active')); if (!Array.isArray(dutyKeys)) throw 0; }
+  catch { dutyKeys = [sessionStorage.getItem('ax_duty_active')]; }
+  if (!dutyKeys.includes('registration')) return;
+
+  document.getElementById('tab-regqueue').style.display = '';
+  loadRegQueue();
+  _regQueueSubscription = supabase
+    .channel(`regqueue-${profile.id}`)
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'abdm_scan_sessions',
+      filter: `assigned_profile_id=eq.${profile.id}`,
+    }, () => loadRegQueue())
+    .subscribe();
+}
 
 // ── Book Appointment ───────────────────────────────
 async function bookAppointment() {
@@ -3544,11 +3631,13 @@ await loadQueue();
 await loadTodaysAppointments();
 await loadPendingLabBills();
 await _checkStaleVisits();
+_initRegistrationQueueIfOnDuty();
 renderPromoBanner('promo-banner', { supabase, tenantId });
 setInterval(loadQueue, 30_000);
 setInterval(loadTodaysAppointments, 30_000);
 setInterval(loadPendingLabBills, 30_000);
 setInterval(_checkStaleVisits, 5 * 60_000);
+setInterval(() => { if (_regQueueSubscription) loadRegQueue(); }, 30_000);
 
 // Live update the moment a doctor submits/waives a lab order, instead of waiting
 // for the 30s poll -- matches the "instantly reflect at reception" requirement.
