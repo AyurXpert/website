@@ -244,6 +244,10 @@ export async function loginVerifyUser(tToken, txnId, abhaNumber) {
   const formatted = digits.length === 14
     ? digits.replace(/^(\d{2})(\d{4})(\d{4})(\d{4})$/, '$1-$2-$3-$4')
     : digits;
+  // TEMP diagnostic (17 Aug 2026) — ABDM keeps rejecting this as "Invalid ABHA
+  // Number" regardless of hyphenation; logging the raw accounts[] value to see
+  // whether it's actually masked/malformed before it ever reaches encryption.
+  console.log('[loginVerifyUser] raw abhaNumber param =', JSON.stringify(abhaNumber), 'digits=', digits, 'len=', digits.length, 'formatted=', formatted);
   const encAbhaNumber = await encryptWithABDMCert(formatted, publicKey);
   return callABDM('login_verify_user', { tToken, txnId, encAbhaNumber });
 }
