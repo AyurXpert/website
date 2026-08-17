@@ -192,6 +192,20 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <button class="btn-refresh" data-onclick="loadQueue">&#8635; Refresh</button>
       </div>
     </div>
+    <!-- Multi-counter Screening (queue redesign piece 3, 17 Aug 2026) — same fair-queue
+         pattern as the Registration Queue on reception.html: several staff can triage
+         at once, patients are fair-assigned to whichever is least busy, each sees only
+         their own share (plus anything nobody had claimed yet — see screening.js). A
+         single-triage-nurse tenant that never touches this stays on the old shared
+         undifferentiated queue, unchanged. -->
+    <div class="screening-duty-row" id="screening-duty-row" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:#f4f0fb;border-bottom:1px solid #bbb0e0;font-size:12px">
+      <span id="screening-duty-status" style="color:#4a3580;font-weight:600">Showing the full Screening queue</span>
+      <button id="btn-screening-duty-toggle" type="button" data-onclick="toggleScreeningDuty"
+              style="height:28px;padding:0 12px;font-size:11px;font-weight:600;border-radius:6px;
+                     border:1.5px solid #bbb0e0;background:#fff;color:#4a3580;cursor:pointer;white-space:nowrap">
+        🟢 Start Triaging (fair queue)
+      </button>
+    </div>
     <div class="queue-list" id="queue-list">
       <div class="queue-empty">Loading queue…</div>
     </div>

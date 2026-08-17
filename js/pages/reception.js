@@ -1213,6 +1213,37 @@ async function handleSubmit() {
 
     const nextToken = (lastToken && lastToken.length > 0) ? lastToken[0].token_number + 1 : 1;
 
+    // 4b. Multi-counter Screening fair-assignment (queue redesign piece 3, 17 Aug 2026)
+    // — only matters for a visit actually entering the Screening OPD queue (a new
+    // patient; a returning patient is routed straight to their previous specialty OPD
+    // and never touches this). Same fair-share pattern as piece 2's Registration
+    // Queue: whichever currently-on-'screening'-duty staffer (staff_duty_sessions) has
+    // the fewest patients still waiting gets this one. Nobody on screening duty (or a
+    // tenant that's never turned this on) leaves it null — screening.js then falls
+    // back to its original single shared undifferentiated queue, unchanged.
+    let assignedScreenerId = null;
+    if (opdId && opdId === _screeningOpdId) {
+      const { data: onDuty } = await supabase
+        .from('staff_duty_sessions')
+        .select('profile_id')
+        .eq('tenant_id', tenantId)
+        .is('ended_at', null)
+        .contains('active_duty', ['screening']);
+      if (onDuty?.length) {
+        const screenerIds = [...new Set(onDuty.map(d => d.profile_id))];
+        const { data: pending } = await supabase
+          .from('visits')
+          .select('assigned_screener_id')
+          .in('assigned_screener_id', screenerIds)
+          .eq('opd_id', _screeningOpdId)
+          .in('status', ['waiting', 'in_progress'])
+          .gte('created_at', todayStart.toISOString());
+        const loadByScreener = new Map(screenerIds.map(id => [id, 0]));
+        (pending || []).forEach(v => loadByScreener.set(v.assigned_screener_id, (loadByScreener.get(v.assigned_screener_id) || 0) + 1));
+        assignedScreenerId = [...loadByScreener.entries()].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]))[0][0];
+      }
+    }
+
     // 5. Create visit
     const isTele = visitCat === 'teleconsultation';
     const { data: visit, error: vErr } = await supabase
@@ -1227,6 +1258,7 @@ async function handleSubmit() {
         is_on_request:        isOnReq,
         visit_category:       visitCat,
         is_teleconsultation:  isTele,
+        assigned_screener_id: assignedScreenerId,
         // Which ABHA Address this visit's own care context should be filed under — a
         // patient can hold several addresses under one ABHA Number (e.g. one per
         // specialty), and reception may have just reused the last one or created a

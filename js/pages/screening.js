@@ -16,6 +16,7 @@ let _departments    = [];    // { id, name, ncism_code, opd_id }
 let _queue          = [];    // visits with patients
 let _activeVisit    = null;
 let _triage         = 'Routine';
+let _screeningDutySessionId = sessionStorage.getItem('ax_screening_duty_session_id'); // queue redesign piece 3
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 const today = new Date().toISOString().slice(0,10);
@@ -32,6 +33,7 @@ const today = new Date().toISOString().slice(0,10);
 // whole block only after every window.* handler in the file has been assigned,
 // via the `await _initScreeningQueue();` call at the very bottom of the file.
 async function _initScreeningQueue() {
+  _updateScreeningDutyUI(); // reflect a duty session restored from sessionStorage before the queue query below even runs
   document.getElementById('q-date').textContent = new Date(today + 'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short'});
   document.getElementById('ss-date').textContent = new Date(today + 'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
 
@@ -131,20 +133,65 @@ async function loadDepartments() {
   });
 }
 
+// ── Multi-counter Screening duty toggle (queue redesign piece 3, 17 Aug 2026) ──
+// Same fair-queue pattern as reception.html's Registration Queue: several staff can
+// be on Screening duty at once (staff_duty_sessions, active_duty=['screening']),
+// each new patient reception routes here is fair-assigned to whichever has fewest
+// waiting (see reception.js's _createVisit()). This page just needs to know whether
+// THIS viewer is on duty right now, to decide which queue query to run.
+function _updateScreeningDutyUI() {
+  const btn    = document.getElementById('btn-screening-duty-toggle');
+  const status = document.getElementById('screening-duty-status');
+  if (!btn || !status) return;
+  if (_screeningDutySessionId) {
+    btn.textContent = '🔴 Stop Triaging';
+    status.textContent = 'Showing your fair share (+ anything unclaimed)';
+  } else {
+    btn.textContent = '🟢 Start Triaging (fair queue)';
+    status.textContent = 'Showing the full Screening queue';
+  }
+}
+
+window.toggleScreeningDuty = async function() {
+  if (_screeningDutySessionId) {
+    await supabase.from('staff_duty_sessions')
+      .update({ ended_at: new Date().toISOString() })
+      .eq('id', _screeningDutySessionId);
+    _screeningDutySessionId = null;
+    sessionStorage.removeItem('ax_screening_duty_session_id');
+  } else {
+    const { data, error } = await supabase.from('staff_duty_sessions')
+      .insert({ tenant_id: tenantId, profile_id: profile.id, active_duty: ['screening'] })
+      .select('id').single();
+    if (error) { alert(safeErrorMessage(error, 'Could not start your Screening duty session.')); return; }
+    _screeningDutySessionId = data.id;
+    sessionStorage.setItem('ax_screening_duty_session_id', data.id);
+  }
+  _updateScreeningDutyUI();
+  await window.loadQueue();
+};
+
 // ── Load today's screening queue ──────────────────────────────────────────────
 window.loadQueue = async function() {
   if (!_screeningOpdId) return;
   document.getElementById('queue-list').innerHTML = '<div class="queue-empty">Loading…</div>';
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('visits')
     .select('id,status,chief_complaint,token_number,created_at,abha_address,patients(id,name,phone,age,gender,abha_number)')
     .eq('tenant_id', tenantId)
     .eq('opd_id', _screeningOpdId)
     .in('status', ['waiting','in_progress'])
     .gte('created_at', today + 'T00:00:00')
-    .lte('created_at', today + 'T23:59:59')
-    .order('token_number');
+    .lte('created_at', today + 'T23:59:59');
+  // On duty: only this staffer's fair share, plus anything nobody had claimed at
+  // assignment time (e.g. the gap before anyone toggled on) — never a silent loss.
+  // Not on duty (the default, unchanged for a single-triage-nurse tenant): the full
+  // undifferentiated queue, exactly as before this feature existed.
+  if (_screeningDutySessionId) {
+    query = query.or(`assigned_screener_id.eq.${profile.id},assigned_screener_id.is.null`);
+  }
+  const { data, error } = await query.order('token_number');
 
   if (error) {
     document.getElementById('queue-list').innerHTML = `<div class="queue-empty">Error: ${safeErrorMessage(error, 'Could not load queue.')}</div>`;
