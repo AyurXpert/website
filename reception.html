@@ -1430,16 +1430,25 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 <div class="modal-overlay" id="consent-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="consent-title">
   <div class="consent-modal">
     <div class="consent-title" id="consent-title">ABDM Consent</div>
-    <div class="consent-sub">National Health Authority — Ayushman Bharat Digital Mission<br>Please read and confirm consent before creating an ABHA account.</div>
+    <!-- Two pre-written sub-text variants (enroll/verify) — Session 171 correction 4.
+         _showConsentModal(mode) toggles which is visible; no dynamic HTML injection. -->
+    <div class="consent-sub" id="consent-sub-enroll">National Health Authority — Ayushman Bharat Digital Mission<br>Please read and confirm consent before creating an ABHA account.</div>
+    <div class="consent-sub" id="consent-sub-verify" style="display:none">National Health Authority — Ayushman Bharat Digital Mission<br>Please read and confirm consent before verifying and accessing this ABHA account.</div>
     <div class="consent-declare">I hereby declare that:</div>
     <div class="consent-items">
-      <!-- Item 1: Aadhaar sharing — pre-checked, locked (Aadhaar flow) -->
-      <label class="c-item c-locked">
+      <!-- Item 1: Aadhaar sharing (enroll) / identity verification (verify) — pre-checked,
+           locked. Two pre-written variants, toggled by _showConsentModal(mode) (Session 171). -->
+      <label class="c-item c-locked" id="cc1-wrap-enroll">
         <input type="checkbox" id="cc1" checked disabled/>
         <span class="c-text">I am voluntarily sharing my Aadhaar Number / Virtual ID issued by the Unique Identification Authority of India (<strong>UIDAI</strong>), and my demographic information for the purpose of creating an Ayushman Bharat Health Account number (<strong>ABHA number</strong>) and Ayushman Bharat Health Account address (<strong>ABHA Address</strong>). I authorize NHA to use my Aadhaar number / Virtual ID for performing Aadhaar based authentication with UIDAI as per the provisions of the Aadhaar (Targeted Delivery of Financial and other Subsidies, Benefits and Services) Act, 2016 for the aforesaid purpose. I understand that UIDAI will share my e-KYC details, or response of "Yes" with NHA upon successful authentication.</span>
       </label>
-      <!-- Item 2: Non-Aadhaar intent — unchecked, greyed out (Aadhaar flow selected) -->
-      <label class="c-item c-na">
+      <label class="c-item c-locked" id="cc1-wrap-verify" style="display:none">
+        <input type="checkbox" id="cc1v" checked disabled/>
+        <span class="c-text">I confirm that this Ayushman Bharat Health Account (<strong>ABHA Number</strong> / <strong>ABHA Address</strong>) belongs to me, and I am voluntarily verifying my identity via One-Time Password (<strong>OTP</strong>) for the purpose of accessing my existing ABHA account and sharing my ABHA profile details with this healthcare facility during this encounter. I authorize the National Health Authority (NHA) to share my ABHA profile with this facility upon successful OTP verification.</span>
+      </label>
+      <!-- Item 2: Non-Aadhaar intent — unchecked, greyed out (Aadhaar flow selected).
+           Hidden entirely for verify flows — nothing is being "created". -->
+      <label class="c-item c-na" id="cc2-wrap">
         <input type="checkbox" id="cc2" disabled/>
         <span class="c-text">I intend to create Ayushman Bharat Health Account Number (<strong>ABHA number</strong>) and Ayushman Bharat Health Account address (<strong>ABHA Address</strong>) using document other than Aadhaar. (Click here to proceed further)</span>
       </label>
@@ -1463,10 +1472,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <input type="checkbox" id="cc6"/>
         <span class="c-text">I, <strong id="cc6-staff">the healthcare worker</strong>, confirm that I have duly informed and explained the beneficiary of the contents of consent for aforementioned purposes.</span>
       </label>
-      <!-- Item 7: Beneficiary declaration — Aadhaar Number Provider must be named before consenting (ABDM demo feedback, Session 170) -->
+      <!-- Item 7: Beneficiary declaration — provider name must be named before consenting
+           (ABDM demo feedback, Session 170). Two pre-written label variants, toggled by
+           _showConsentModal(mode) for verify flows (Session 171). -->
       <div class="c-item c-item-name" id="cc7-wrap">
         <div class="c-name-row">
-          <label for="cc7-provider-name" class="c-name-label">✍️ Name of Aadhaar Number Provider<span class="c-name-badge">Required</span><span class="c-name-sub">(person giving consent, if different from the patient)</span></label>
+          <label for="cc7-provider-name" class="c-name-label" id="cc7-label-enroll">✍️ Name of Aadhaar Number Provider<span class="c-name-badge">Required</span><span class="c-name-sub">(person giving consent, if different from the patient)</span></label>
+          <label for="cc7-provider-name" class="c-name-label" id="cc7-label-verify" style="display:none">✍️ Name of Person Verifying<span class="c-name-badge">Required</span><span class="c-name-sub">(ABHA account holder, or their authorized representative if different from the patient)</span></label>
           <input type="text" id="cc7-provider-name" class="c-name-input" placeholder="Enter full name" autocomplete="off"/>
         </div>
         <label class="c-check-row" id="cc7-check-row">
@@ -1475,7 +1487,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         </label>
       </div>
     </div>
-    <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;line-height:1.4">
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;line-height:1.4" id="consent-aadhaar-note">
       ⚠ Note: Aadhaar number entered above is transmitted directly to UIDAI for authentication and is <strong>not stored</strong> by AyurXpert at any point.
     </div>
     <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;line-height:1.4">

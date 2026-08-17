@@ -277,7 +277,15 @@ function _setPendingAbhaAddress(val) {
 // ── Consent Modal ─────────────────────────────────
 let _consentPendingOtp = false; // resolved once consent agreed
 
-function _showConsentModal() {
+// Session 171 correction 4: consent is mandatory both for enrolling a brand-new
+// ABHA (Aadhaar OTP) and for verifying an already-existing one (ABHA Number /
+// ABHA Address). Same checkboxes/gating either way, but the enroll copy ("sharing
+// my Aadhaar Number...for the purpose of creating an ABHA account", "Name of
+// Aadhaar Number Provider") is inaccurate for verify — no Aadhaar digits are
+// entered in that flow and the account already exists. Both wordings are
+// pre-written in the HTML (two labelled item-1/cc7-label/sub-text blocks each);
+// this just toggles which is visible — no dynamic HTML injection.
+function _showConsentModal(mode = 'enroll') {
   return new Promise((resolve, reject) => {
     const overlay  = document.getElementById('consent-overlay');
     const agree    = document.getElementById('btn-consent-agree');
@@ -285,6 +293,16 @@ function _showConsentModal() {
     const cc7Box   = document.getElementById('cc7');
     const cc7Name  = document.getElementById('cc7-provider-name');
     const cc7Label = document.getElementById('cc7-patient');
+
+    const isVerify = mode === 'verify';
+    document.getElementById('consent-sub-enroll').style.display   = isVerify ? 'none' : '';
+    document.getElementById('consent-sub-verify').style.display   = isVerify ? '' : 'none';
+    document.getElementById('cc1-wrap-enroll').style.display      = isVerify ? 'none' : '';
+    document.getElementById('cc1-wrap-verify').style.display      = isVerify ? '' : 'none';
+    document.getElementById('cc2-wrap').style.display             = isVerify ? 'none' : '';
+    document.getElementById('consent-aadhaar-note').style.display = isVerify ? 'none' : '';
+    document.getElementById('cc7-label-enroll').style.display     = isVerify ? 'none' : '';
+    document.getElementById('cc7-label-verify').style.display     = isVerify ? '' : 'none';
 
     // Fill dynamic names
     const patName   = document.getElementById('name').value.trim();
@@ -2590,8 +2608,9 @@ document.getElementById('btn-verify-send-otp').addEventListener('click', async (
   if (digits.length !== 14) return _setVerifyMsg('error', 'Please enter a valid 14-digit ABHA number.');
 
   // ABDM demo feedback (Session 171): consent is mandatory before ANY OTP-based
-  // ABHA access, not just new-account enrollment — same modal/gate as +Enroll.
-  try { await _showConsentModal(); } catch { return; }
+  // ABHA access, not just new-account enrollment — same gate as +Enroll, verify-
+  // specific copy (no Aadhaar-sharing/creation language).
+  try { await _showConsentModal('verify'); } catch { return; }
 
   const btn = document.getElementById('btn-verify-send-otp');
   btn.disabled = true; btn.textContent = 'Sending…';
@@ -2847,8 +2866,9 @@ document.getElementById('btn-addr-search').addEventListener('click', async () =>
   if (!addr.includes('@')) return _setVerifyMsg('error', 'Enter a valid ABHA address (e.g. name@abdm).');
 
   // ABDM demo feedback (Session 171): consent is mandatory before ANY OTP-based
-  // ABHA access, not just new-account enrollment — same modal/gate as +Enroll.
-  try { await _showConsentModal(); } catch { return; }
+  // ABHA access, not just new-account enrollment — same gate as +Enroll, verify-
+  // specific copy (no Aadhaar-sharing/creation language).
+  try { await _showConsentModal('verify'); } catch { return; }
 
   const btn = document.getElementById('btn-addr-search');
   btn.disabled = true; btn.textContent = 'Searching…';
