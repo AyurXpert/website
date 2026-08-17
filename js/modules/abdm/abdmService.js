@@ -233,10 +233,18 @@ export async function reactivateAbhaVerify(txnId, otp) {
 
 // ── Login Verify User — account selection (VRFY_ABHA_301 step 3) ─────────
 // tToken: T-token from login/verify response (valid 5 min).
-// abhaNumber: plain 14-digit ABHA number — encrypted here with RSA-OAEP.
+// abhaNumber: 14-digit ABHA number, any punctuation — ABDM expects it RSA-encrypted
+// in hyphenated XX-XXXX-XXXX-XXXX form (same format requestABHALoginOtp() already
+// uses successfully). Real bug found live (17 Aug 2026): this stripped hyphens
+// instead of adding them — since nothing called loginVerifyUser() until Session
+// 170's Mobile-verify fix, ABDM's "Invalid ABHA Number" rejection was never caught.
 export async function loginVerifyUser(tToken, txnId, abhaNumber) {
   const { publicKey } = await callABDM('get_cert');
-  const encAbhaNumber = await encryptWithABDMCert(String(abhaNumber).replace(/-/g, ''), publicKey);
+  const digits = String(abhaNumber).replace(/\D/g, '');
+  const formatted = digits.length === 14
+    ? digits.replace(/^(\d{2})(\d{4})(\d{4})(\d{4})$/, '$1-$2-$3-$4')
+    : digits;
+  const encAbhaNumber = await encryptWithABDMCert(formatted, publicKey);
   return callABDM('login_verify_user', { tToken, txnId, encAbhaNumber });
 }
 
