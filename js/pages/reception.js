@@ -2765,7 +2765,6 @@ window._selectMobAccount = (el, idx) => {
 };
 
 async function _handleMobileAccount(account) {
-  console.log('[_handleMobileAccount] raw account object from ABDM accounts[] =', JSON.stringify(account));
   const abha = account.ABHANumber ?? account.abhaNumber;
   if (!abha) { _setVerifyMsg('error', 'ABHA number not returned.'); return; }
   const fmt = _fmtAbha(abha);

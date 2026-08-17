@@ -233,23 +233,19 @@ export async function reactivateAbhaVerify(txnId, otp) {
 
 // ── Login Verify User — account selection (VRFY_ABHA_301 step 3) ─────────
 // tToken: T-token from login/verify response (valid 5 min).
-// abhaNumber: 14-digit ABHA number, any punctuation — ABDM expects it RSA-encrypted
-// in hyphenated XX-XXXX-XXXX-XXXX form (same format requestABHALoginOtp() already
-// uses successfully). Real bug found live (17 Aug 2026): this stripped hyphens
-// instead of adding them — since nothing called loginVerifyUser() until Session
-// 170's Mobile-verify fix, ABDM's "Invalid ABHA Number" rejection was never caught.
+// abhaNumber: 14-digit ABHA number, any punctuation — sent PLAIN (hyphenated
+// XX-XXXX-XXXX-XXXX), not RSA-encrypted. Real bug found live (17 Aug 2026):
+// this is a post-OTP account-SELECTION step, not a sensitive-value submission —
+// ABDM already echoes this exact number back in plaintext in the accounts[]
+// list from /profile/login/verify. RSA-encrypting it here (the original,
+// never-actually-tested assumption) got a genuine "Invalid ABHA Number" from
+// ABDM on every attempt, regardless of hyphenation.
 export async function loginVerifyUser(tToken, txnId, abhaNumber) {
-  const { publicKey } = await callABDM('get_cert');
   const digits = String(abhaNumber).replace(/\D/g, '');
   const formatted = digits.length === 14
     ? digits.replace(/^(\d{2})(\d{4})(\d{4})(\d{4})$/, '$1-$2-$3-$4')
     : digits;
-  // TEMP diagnostic (17 Aug 2026) — ABDM keeps rejecting this as "Invalid ABHA
-  // Number" regardless of hyphenation; logging the raw accounts[] value to see
-  // whether it's actually masked/malformed before it ever reaches encryption.
-  console.log('[loginVerifyUser] raw abhaNumber param =', JSON.stringify(abhaNumber), 'digits=', digits, 'len=', digits.length, 'formatted=', formatted);
-  const encAbhaNumber = await encryptWithABDMCert(formatted, publicKey);
-  return callABDM('login_verify_user', { tToken, txnId, encAbhaNumber });
+  return callABDM('login_verify_user', { tToken, txnId, abhaNumber: formatted });
 }
 
 // ── Re-KYC (§8.6) ────────────────────────────────────────────
