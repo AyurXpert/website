@@ -2557,32 +2557,31 @@ async function _applyFindAccount(account) {
   const abha = account.ABHANumber ?? account.abhaNumber;
   if (!abha) { _setFindMsg('error', 'ABHA number not returned.'); return; }
   const fmt = _fmtAbha(abha);
-  // Auto-fill ABHA number field
   document.getElementById('abha').value = fmt;
-  _setAbhaNote('verified', `✓ ABHA fetched via mobile: ${fmt}`);
-  // Auto-fill demographic fields if blank
-  const fullName = account.name ?? [account.firstName, account.middleName, account.lastName].filter(Boolean).join(' ');
-  if (fullName && !document.getElementById('name').value.trim())
-    document.getElementById('name').value = fullName;
-  // Map to profile format for _showAbhaProfile
-  const nameParts = (fullName ?? '').trim().split(/\s+/);
-  const prof = {
-    firstName:  nameParts[0] ?? '',
-    middleName: nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '',
-    lastName:   nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
-    dob: account.dob, gender: account.gender,
-    ABHANumber: abha, healthIdNumber: abha,
-    profilePhoto: account.profilePhoto,
-    preferredAbhaAddress: account.preferredAbhaAddress,
-  };
-  _showAbhaProfile(prof, fmt, account.tToken ?? null);
-  _setFindMsg('success', `✓ ABHA ${fmt} — demographics auto-filled.`);
-  await _linkAbha(prof, fmt);
-  setTimeout(() => {
-    findPanel.style.display = 'none';
-    btnFindAbha.textContent = '🔍 Patient has ABHA but no card? Fetch by mobile →';
-    btnFindAbha.classList.remove('open');
-  }, 2500);
+  _setFindMsg('info', 'Confirming account with ABDM…');
+  try {
+    // Same fix as _handleMobileAccount above: verifyMobileLoginOtp()'s accounts[]
+    // entry is only a selection listing (no mobile, no working card/profile token)
+    // — loginVerifyUser() confirms the chosen account and returns the real ABDM
+    // profile + a profile-scoped T-token that View ABHA Card/Update Mobile need.
+    const prof = await loginVerifyUser(_findTToken, _findVerifyTxnId, abha);
+    const tTok = prof?.tToken ?? _findTToken;
+    _setAbhaNote('verified', `✓ ABHA fetched via mobile: ${fmt}`);
+    if (!document.getElementById('name').value.trim()) {
+      const nm = [prof?.firstName, prof?.middleName, prof?.lastName].filter(Boolean).join(' ') || prof?.name;
+      if (nm) document.getElementById('name').value = nm;
+    }
+    _showAbhaProfile(prof, fmt, tTok);
+    _setFindMsg('success', `✓ ABHA ${fmt} — demographics auto-filled.`);
+    await _linkAbha(prof, fmt);
+    setTimeout(() => {
+      findPanel.style.display = 'none';
+      btnFindAbha.textContent = '🔍 Patient has ABHA but no card? Fetch by mobile →';
+      btnFindAbha.classList.remove('open');
+    }, 2500);
+  } catch (err) {
+    _setFindMsg('error', safeErrorMessage(err, 'Could not confirm the ABHA account. Please try again.'));
+  }
 }
 
 document.getElementById('btn-verify-send-otp').addEventListener('click', async () => {
@@ -2735,7 +2734,6 @@ let _mobOtpTxn       = null;
 let _mobAccounts     = [];
 let _mobVerifyTToken = null;   // T-token from verifyMobileLoginOtp (used by loginVerifyUser)
 let _mobVerifyTxnId  = null;   // txnId for loginVerifyUser step
-let _mobEnteredNumber = null;  // the mobile number this flow verified — not returned in accounts[], so kept aside
 
 document.getElementById('btn-mob-search').addEventListener('click', async () => {
   const mobile = document.getElementById('verify-mobile-input').value.trim();
@@ -2747,7 +2745,6 @@ document.getElementById('btn-mob-search').addEventListener('click', async () => 
   try {
     const res = await sendMobileLoginOtp(mobile);
     _mobOtpTxn = res.txnId;
-    _mobEnteredNumber = mobile;
     document.getElementById('mob-step-1').style.display = 'none';
     document.getElementById('mob-step-3').style.display = '';
     _setVerifyMsg('info', res.message || '✓ OTP sent to your registered mobile.');
@@ -2772,24 +2769,32 @@ async function _handleMobileAccount(account) {
   if (!abha) { _setVerifyMsg('error', 'ABHA number not returned.'); return; }
   const fmt = _fmtAbha(abha);
   document.getElementById('abha').value = fmt;
-  _setAbhaNote('verified', `✓ ABHA verified via Mobile: ${fmt}`);
-  const nameParts = (account.name ?? '').trim().split(/\s+/);
-  const prof = {
-    firstName:  nameParts[0] ?? '',
-    middleName: nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '',
-    lastName:   nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
-    dob: account.dob, gender: account.gender,
-    ABHANumber: abha, healthIdNumber: abha,
-    profilePhoto: account.profilePhoto,
-    preferredAbhaAddress: account.preferredAbhaAddress,
-    mobile: account.mobile ?? _mobEnteredNumber, // accounts[] doesn't echo it back — this flow verified it via OTP to this exact number
-  };
-  if (document.getElementById('name').value.trim() === '' && account.name)
-    document.getElementById('name').value = account.name;
-  _showAbhaProfile(prof, fmt, _mobVerifyTToken);
-  _setVerifyMsg('success', `ABHA ${fmt} verified.`);
-  await _linkAbha(prof, fmt);
-  setTimeout(() => { verifyPanel.style.display='none'; btnVerifyAbha.textContent='Verify'; btnVerifyAbha.classList.remove('open'); }, 2000);
+  _setVerifyMsg('info', 'Confirming account with ABDM…');
+  try {
+    // Real bug found live (Dr. Venkatesh, Session 170): this used to build a
+    // partial profile straight from verifyMobileLoginOtp()'s accounts[] entry
+    // and pass its login/verify T-token to _showAbhaProfile. That token is only
+    // scoped for account SELECTION (mobile-verify) — ABDM correctly 406's any
+    // profile-scoped call made with it (View ABHA Card, Update Mobile), and
+    // accounts[] never carries a mobile number either. The documented design
+    // (see comment at the top of this section) was to call loginVerifyUser()
+    // here to confirm the chosen account — it was imported/wired but never
+    // actually invoked. That's the missing step: it returns the real ABDM
+    // profile (mobile included) plus a freshly profile-scoped T-token.
+    const prof = await loginVerifyUser(_mobVerifyTToken, _mobVerifyTxnId, abha);
+    const tTok = prof?.tToken ?? _mobVerifyTToken;
+    _setAbhaNote('verified', `✓ ABHA verified via Mobile: ${fmt}`);
+    if (document.getElementById('name').value.trim() === '') {
+      const nm = [prof?.firstName, prof?.middleName, prof?.lastName].filter(Boolean).join(' ') || prof?.name;
+      if (nm) document.getElementById('name').value = nm;
+    }
+    _showAbhaProfile(prof, fmt, tTok);
+    _setVerifyMsg('success', `ABHA ${fmt} verified.`);
+    await _linkAbha(prof, fmt);
+    setTimeout(() => { verifyPanel.style.display='none'; btnVerifyAbha.textContent='Verify'; btnVerifyAbha.classList.remove('open'); }, 2000);
+  } catch (err) {
+    _setVerifyMsg('error', safeErrorMessage(err, 'Could not confirm the ABHA account. Please try again.'));
+  }
 }
 
 document.getElementById('btn-mob-resend').addEventListener('click', () => {
