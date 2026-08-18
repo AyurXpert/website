@@ -3073,18 +3073,17 @@ async function _startScanSession(counterId) {
   const hipId     = tenant?.hfr_id || 'IN2910002132';
   // Use NHPR counter ID (e.g. OPD1, IPD1) — must match counterid in NHPR-generated QR
   const requestId = counterId || 'OPD1';
-  const expiry    = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
-  // Upsert — handles both first-time create and refresh of stale session
-  await supabase.from('abdm_scan_sessions').upsert({
-    tenant_id:       tenantId,
-    request_id:      requestId,
-    hip_id:          hipId,
-    status:          'pending',
-    expires_at:      expiry,
-    patient_profile: null,
-  }, { onConflict: 'request_id' });
-
+  // Real bug found live 18 Aug 2026 (Session 173): this used to upsert a 'pending'
+  // placeholder row here (onConflict:'request_id') and then wait for the webhook to
+  // UPDATE it to 'received' -- the pre-piece-2 "one counter = one row" model. Piece 2's
+  // rewrite (17 Aug) made the webhook always INSERT a fresh row per scan instead (its own
+  // comment: "every share becomes its own new row"), and this client-side code was never
+  // updated to match -- the upsert 400'd once request_id's UNIQUE constraint was dropped
+  // to unblock the webhook, and even before that, the UPDATE subscription below would
+  // never have fired against a webhook that only ever inserts. No placeholder needed any
+  // more -- the webhook creates the row itself the moment a real scan arrives; this panel
+  // just needs to hear about it.
   _scanRequestId = requestId;
 
   // QR URL per ABDM PHR v3 — /phr/v3/share-profile with hyphenated params
@@ -3108,14 +3107,21 @@ async function _startScanSession(counterId) {
   document.getElementById('scan-status').className = 'scan-status waiting';
   document.getElementById('scan-status-text').textContent = 'Waiting for patient to scan…';
 
+  if (_scanSubscription) { supabase.removeChannel(_scanSubscription); _scanSubscription = null; }
+  // INSERT, not UPDATE (see note above) — and only react if this scan is either
+  // unassigned (nobody's on Registration duty, the classic single-counter case this
+  // panel was originally built for) or fair-assigned specifically to whoever has this
+  // panel open right now. A scan fair-assigned to a DIFFERENT on-duty clerk belongs in
+  // THEIR "📋 Reg. Queue" tab, not auto-filled into this window.
   _scanSubscription = supabase
-    .channel(`scan-${requestId}`)
+    .channel(`scan-${requestId}-${Date.now()}`)
     .on('postgres_changes', {
-      event: 'UPDATE', schema: 'public', table: 'abdm_scan_sessions',
+      event: 'INSERT', schema: 'public', table: 'abdm_scan_sessions',
       filter: `request_id=eq.${requestId}`,
     }, (payload) => {
-      if (payload.new?.status === 'received') {
-        _onScanReceived(payload.new.patient_profile);
+      const row = payload.new;
+      if (row?.status === 'received' && (row.assigned_profile_id == null || row.assigned_profile_id === profile.id)) {
+        _onScanReceived(row.patient_profile);
       }
     })
     .subscribe();
