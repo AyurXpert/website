@@ -3073,17 +3073,6 @@ async function _startScanSession(counterId) {
   const hipId     = tenant?.hfr_id || 'IN2910002132';
   // Use NHPR counter ID (e.g. OPD1, IPD1) — must match counterid in NHPR-generated QR
   const requestId = counterId || 'OPD1';
-
-  // Real bug found live 18 Aug 2026 (Session 173): this used to upsert a 'pending'
-  // placeholder row here (onConflict:'request_id') and then wait for the webhook to
-  // UPDATE it to 'received' -- the pre-piece-2 "one counter = one row" model. Piece 2's
-  // rewrite (17 Aug) made the webhook always INSERT a fresh row per scan instead (its own
-  // comment: "every share becomes its own new row"), and this client-side code was never
-  // updated to match -- the upsert 400'd once request_id's UNIQUE constraint was dropped
-  // to unblock the webhook, and even before that, the UPDATE subscription below would
-  // never have fired against a webhook that only ever inserts. No placeholder needed any
-  // more -- the webhook creates the row itself the moment a real scan arrives; this panel
-  // just needs to hear about it.
   _scanRequestId = requestId;
 
   // QR URL per ABDM PHR v3 — /phr/v3/share-profile with hyphenated params
@@ -3104,35 +3093,20 @@ async function _startScanSession(counterId) {
     qrContainer.innerHTML = '<div style="color:#c00;font-size:11px;padding:8px">QR failed — refresh and try again.</div>';
   }
 
+  // Session 173 (waiting-room redesign, per Dr. Venkatesh's real workflow, 18 Aug 2026):
+  // this panel used to live-track ONE scan and auto-fill the registration form the
+  // instant it arrived -- built for a patient standing right at the desk. The real
+  // intended use is different: this same QR gets displayed in the waiting area for up
+  // to ~100 patients to scan from their own seat, well before it's their turn -- so it
+  // must NEVER auto-populate anyone's form (no way to know whose turn it is from a scan
+  // alone). Every scan now lands in "📋 Reg. Queue" instead (fair-assigned across
+  // whoever's on Registration duty, or shared-unclaimed if nobody is) and only
+  // populates the form when a receptionist explicitly taps that specific patient's
+  // queue entry once they've actually arrived at the counter. This panel is now a pure
+  // QR display, nothing more -- no live tracking, no expiry, no auto-fill.
   document.getElementById('scan-status').className = 'scan-status waiting';
-  document.getElementById('scan-status-text').textContent = 'Waiting for patient to scan…';
-
-  if (_scanSubscription) { supabase.removeChannel(_scanSubscription); _scanSubscription = null; }
-  // INSERT, not UPDATE (see note above) — and only react if this scan is either
-  // unassigned (nobody's on Registration duty, the classic single-counter case this
-  // panel was originally built for) or fair-assigned specifically to whoever has this
-  // panel open right now. A scan fair-assigned to a DIFFERENT on-duty clerk belongs in
-  // THEIR "📋 Reg. Queue" tab, not auto-filled into this window.
-  _scanSubscription = supabase
-    .channel(`scan-${requestId}-${Date.now()}`)
-    .on('postgres_changes', {
-      event: 'INSERT', schema: 'public', table: 'abdm_scan_sessions',
-      filter: `request_id=eq.${requestId}`,
-    }, (payload) => {
-      const row = payload.new;
-      if (row?.status === 'received' && (row.assigned_profile_id == null || row.assigned_profile_id === profile.id)) {
-        _onScanReceived(row.patient_profile);
-      }
-    })
-    .subscribe();
-
-  // Expire after 10 min
-  setTimeout(() => {
-    if (_scanRequestId === requestId && scanPanel.style.display !== 'none') {
-      document.getElementById('scan-status').className = 'scan-status';
-      document.getElementById('scan-status-text').textContent = 'QR expired. Click Scan QR to try again.';
-    }
-  }, 10 * 60 * 1000);
+  document.getElementById('scan-status-text').textContent =
+    'Display this QR in the waiting area — patients scan it on their own and get a token. Check the 📋 Reg. Queue tab to see and register them as they arrive.';
 }
 
 function _onScanReceived(profile) {
@@ -3430,11 +3404,17 @@ window.waiveLabPayment = async function(orderId) {
 let _regQueueSubscription = null;
 
 async function loadRegQueue() {
+  // Session 173: broadened from "assigned to me only" to "assigned to me OR nobody's
+  // claimed it yet" (assigned_profile_id IS NULL) — a scan can land unassigned if it
+  // arrived before anyone toggled on Registration duty; per Dr. Venkatesh's explicit
+  // call, that must still be visible to SOMEONE rather than silently invisible, so any
+  // receptionist viewing this tab can see and claim it regardless of their own duty
+  // state. Being on duty only affects which NEW scans get fair-assigned to you.
   const { data, error } = await supabase
     .from('abdm_scan_sessions')
-    .select('id, token_number, patient_profile, created_at')
+    .select('id, token_number, patient_profile, created_at, assigned_profile_id')
     .eq('tenant_id', tenantId)
-    .eq('assigned_profile_id', profile.id)
+    .or(`assigned_profile_id.eq.${profile.id},assigned_profile_id.is.null`)
     .eq('status', 'received')
     .is('claimed_at', null)
     .order('token_number', { ascending: true });
@@ -3444,7 +3424,7 @@ async function loadRegQueue() {
   document.getElementById('regqueue-count').textContent = rows.length ? `(${rows.length})` : '';
   const list = document.getElementById('reg-queue-list');
   if (!rows.length) {
-    list.innerHTML = `<div class="q-empty"><div class="q-empty-icon">📋</div><div class="q-empty-text">No patients waiting to be registered at your counter right now.</div></div>`;
+    list.innerHTML = `<div class="q-empty"><div class="q-empty-icon">📋</div><div class="q-empty-text">No patients waiting to be registered right now.</div></div>`;
     return;
   }
 
@@ -3453,12 +3433,13 @@ async function loadRegQueue() {
     const name = [prof.firstName, prof.middleName, prof.lastName].filter(Boolean).join(' ') || prof.name || '—';
     const mobile = prof.mobile ?? prof.mobileNumber ?? prof.phoneNumber ?? '';
     const waitedFor = _waitTime(r.created_at);
+    const unclaimedNote = r.assigned_profile_id == null ? ' · unassigned (no one was on duty when they scanned)' : '';
     return `<div class="q-item">
       <div class="q-token waiting">${r.token_number ?? '—'}</div>
       <div class="q-info">
         <div class="q-name">${_esc(name)}</div>
         <div class="q-row2"><span style="color:var(--text-mid)">${_esc(mobile || 'Mobile not shared')}</span></div>
-        <div class="q-row3">Shared via Scan &amp; Share · waiting ${waitedFor}</div>
+        <div class="q-row3">Shared via Scan &amp; Share · waiting ${waitedFor}${unclaimedNote}</div>
       </div>
       <div class="q-right">
         <button class="q-edit-btn" data-onclick="claimRegQueueEntry" data-onclick-a0="${r.id}"
@@ -3489,24 +3470,29 @@ window.claimRegQueueEntry = async function(sessionId) {
   loadRegQueue();
 };
 
-// Wires up the tab + live subscription only for a clerk actually on Registration
-// duty right now -- everyone else never sees this tab at all (matches the existing
-// duty-gate philosophy: a plain receptionist's page looks exactly as it always has).
-function _initRegistrationQueueIfOnDuty() {
-  if (!_dutyGated) return;
-  let dutyKeys;
-  try { dutyKeys = JSON.parse(sessionStorage.getItem('ax_duty_active')); if (!Array.isArray(dutyKeys)) throw 0; }
-  catch { dutyKeys = [sessionStorage.getItem('ax_duty_active')]; }
-  if (!dutyKeys.includes('registration')) return;
+// Session 173 (waiting-room redesign, per Dr. Venkatesh's real workflow, 18 Aug 2026):
+// previously only wired up for a clerk actually on Registration duty right now (per the
+// old "everyone else never sees this tab" duty-gate philosophy). Real intended usage
+// needs this visible to ANY receptionist at ALL times -- ~100 patients scan a shared
+// waiting-room QR well before anyone's necessarily toggled on duty, and an unassigned
+// scan (nobody was on duty when it arrived) must still be visible to someone rather than
+// silently lost. Being on Registration duty now only affects which NEW scans get
+// fair-assigned specifically to you (see abdm-webhook's patient/share handler) -- it no
+// longer gates whether the shared queue itself is visible.
+function _initRegistrationQueue() {
+  if (profile.role !== 'receptionist') return;
 
   document.getElementById('tab-regqueue').style.display = '';
   loadRegQueue();
+  // No filter — the tenant-scoped SELECT RLS on abdm_scan_sessions already restricts
+  // which rows this connection's postgres_changes events can ever contain (verified),
+  // and loadRegQueue()'s own query decides what's actually rendered. Listens for both a
+  // fresh scan (INSERT) and someone else claiming/releasing an entry elsewhere (UPDATE),
+  // so every receptionist's queue view stays in sync live with everyone else's.
   _regQueueSubscription = supabase
     .channel(`regqueue-${profile.id}`)
-    .on('postgres_changes', {
-      event: 'INSERT', schema: 'public', table: 'abdm_scan_sessions',
-      filter: `assigned_profile_id=eq.${profile.id}`,
-    }, () => loadRegQueue())
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'abdm_scan_sessions' }, () => loadRegQueue())
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'abdm_scan_sessions' }, () => loadRegQueue())
     .subscribe();
 }
 
@@ -3669,7 +3655,7 @@ await loadQueue();
 await loadTodaysAppointments();
 await loadPendingLabBills();
 await _checkStaleVisits();
-_initRegistrationQueueIfOnDuty();
+_initRegistrationQueue();
 renderPromoBanner('promo-banner', { supabase, tenantId });
 setInterval(loadQueue, 30_000);
 setInterval(loadTodaysAppointments, 30_000);
