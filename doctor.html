@@ -22,6 +22,9 @@
   --red:#c0392b;--red-light:#fff3f3;--amber:#e67e22;
   --success-bg:#f0f9f4;--success-border:#b8ddc6;
   --error-bg:#fff3f3;--error-border:#f5b8b8;--error-text:#8b1a1a;
+  --blue:#1a4080;--blue-light:#e3f0ff;--blue-border:#4a7ac8;
+  --purple:#8b1a6b;--purple-light:#f0e8ff;--purple-border:#c0a0e0;
+  --orange:#d35400;
   --nav-h:64px;
 }
 *{box-sizing:border-box}
@@ -220,15 +223,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .fhir-detail{font-size:12px;color:#333;display:flex;flex-direction:column;gap:6px}
 .fhir-row{display:flex;gap:8px;line-height:1.6;flex-wrap:wrap;align-items:flex-start}
 .fhir-lbl{font-weight:700;color:#555;min-width:100px;flex-shrink:0;padding-top:1px}
-.fhir-lbl.dx{color:#1a4a2e}.fhir-lbl.rx{color:#1a3a8a}.fhir-lbl.al{color:#c0392b}
+.fhir-lbl.dx{color:#1a4a2e}.fhir-lbl.rx{color:var(--blue)}.fhir-lbl.al{color:#c0392b}
 .fhir-badge{font-size:10px;padding:1px 6px;border-radius:10px;margin-left:4px;font-weight:600}
 .fhir-list{margin:0;padding-left:18px;flex:1}
 .fhir-list li{margin-bottom:2px}
 .fhir-dose{color:#888;font-style:italic}
 .cs-lbl{font-weight:700;color:#555;min-width:100px;flex-shrink:0;display:inline-block}
-.cs-lbl.dx{color:#1a4a2e}.cs-lbl.rx{color:#1a3a8a}.cs-lbl.al{color:#c0392b}
+.cs-lbl.dx{color:#1a4a2e}.cs-lbl.rx{color:var(--blue)}.cs-lbl.al{color:#c0392b}
 .cs-chip{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;margin:2px 3px;background:#e8f5e9;color:#1a4a2e;border:1px solid #c8e6c9}
-.cs-chip.rx{background:#e8eaf6;color:#1a237e;border-color:#c5cae9}
+.cs-chip.rx{background:#e8eaf6;color:var(--blue);border-color:#c5cae9}
 .cs-chip.al{background:#fde8e8;color:#c0392b;border-color:#fbbaba}
 
 /* Action bar — fixed at viewport bottom, inside right panel */
@@ -254,8 +257,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .btn-escalate-emg{background:var(--red);color:#fff;border:none;border-radius:var(--radius);padding:0 14px;height:40px;font-weight:700;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .15s;white-space:nowrap}
 .btn-escalate-emg:hover{background:#8b1a1a}
 /* §18l — PK Referral */
-.pk-ref-form{background:#f8f4ff;border:1.5px solid #c0a0e0;border-radius:var(--radius);padding:14px 16px;margin-top:6px}
-.pk-auth-notice{padding:10px 14px;background:#e8f0ff;border:1.5px solid #4a7ac8;border-radius:var(--radius);margin-bottom:14px;font-size:12px;color:#1a3080;line-height:1.6}
+.pk-ref-form{background:var(--purple-light);border:1.5px solid var(--purple-border);border-radius:var(--radius);padding:14px 16px;margin-top:6px}
+.pk-auth-notice{padding:10px 14px;background:var(--blue-light);border:1.5px solid var(--blue-border);border-radius:var(--radius);margin-bottom:14px;font-size:12px;color:var(--blue);line-height:1.6}
 .pk-auth-notice.ayurveda{background:#f0fff4;border-color:var(--green-mid);color:var(--green-deep)}
 .pk-incoming-banner{padding:14px 16px;background:#fffbf0;border:1.5px solid var(--gold);border-radius:var(--radius);margin-bottom:14px}
 .pk-incoming-from{font-size:12px;color:var(--text-mid);margin-bottom:10px;line-height:1.6}
@@ -280,13 +283,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 }
 .field{margin-bottom:12px}
 .field label{display:block;font-size:11px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px}
-.field input,.field select,.field textarea{
+.field input,.field select,.field textarea{height:44px;
   width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius);
   font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-dark);
   background:var(--cream);outline:none;transition:border-color .2s,background .2s;
   -webkit-appearance:none;appearance:none
 }
-.field select{
+.field select{height:44px;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a9e90' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;cursor:pointer
 }
@@ -650,7 +653,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 /* Proforma enhancements — hints, notes, headings, calculators */
 .pf-hint{font-size:11px;color:var(--text-muted);font-style:italic;margin-top:2px}
 .pf-note{padding:8px 12px;border-radius:6px;font-size:12px;line-height:1.65;grid-column:span 2;margin:2px 0}
-.pf-note.info{background:#e8f0ff;border-left:3px solid #4a7ac8;color:#1a3080}
+.pf-note.info{background:var(--blue-light);border-left:3px solid var(--blue-border);color:var(--blue)}
 .pf-note.warning{background:#fffbf0;border-left:3px solid var(--gold);color:#7a5a00}
 .pf-note.critical{background:#fdecea;border-left:3px solid var(--red);color:#8b1a1a}
 .pf-note.ayurveda{background:#f0fff4;border-left:3px solid var(--green-mid);color:var(--green-deep)}
@@ -748,11 +751,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .pk-q-card{border:1.5px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px}
 .pk-q-text{font-size:13px;font-weight:600;margin-bottom:8px}
 .pk-opts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
-.pk-opt{border:1.5px solid var(--border);border-radius:8px;padding:7px 8px;font-size:11px;color:var(--text-mid);cursor:pointer;line-height:1.4;transition:all .12s;text-align:center}
+.pk-opt{border:1.5px solid var(--border);border-radius:8px;padding:7px 8px;font-size:11px;color:var(--text-mid);cursor:pointer;line-height:1.4;transition:all .12s;text-align:center;position:relative}
 .pk-opt:hover{border-color:var(--green-mid)}
-.pk-opt.sel-v{background:#e3f0ff;border-color:#4080c0;color:#1a3a6c;font-weight:600}
+.pk-opt.sel-v{background:var(--blue-light);border-color:var(--blue-border);color:var(--blue);font-weight:600}
 .pk-opt.sel-p{background:#fdecea;border-color:#d05020;color:#6a1a1a;font-weight:600}
 .pk-opt.sel-k{background:var(--green-light);border-color:var(--green-mid);color:var(--green-deep);font-weight:600}
+/* Redundant non-color cue for the selected dosha option -- selection was previously shown via
+   background/border/color alone (flagged in the semantic-tag-colors audit, session 12 Aug 2026).
+   color:inherit picks up each dosha's own text color automatically. */
+.pk-opt.sel-v::after,.pk-opt.sel-p::after,.pk-opt.sel-k::after{
+  content:'✓';position:absolute;top:3px;right:5px;font-size:11px;font-weight:700;line-height:1;color:inherit
+}
 .pk-result-box{padding:14px;border:2px solid var(--gold);background:var(--gold-light);border-radius:var(--radius);text-align:center;margin-top:16px}
 .pk-result-dosha{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:700;color:var(--green-deep);line-height:1.2}
 .pk-modal-foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;gap:10px}
@@ -775,16 +784,16 @@ body.medcert-print #mc-print{display:block!important}
 /* ── §18ai/§18aj Mental Health + MHA 2017 ──────────── */
 .mha-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px}
 .mha-modal{background:#fff;border-radius:var(--radius);width:540px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.2);overflow:hidden}
-.mha-modal-hdr{background:#5a1a8b;color:#fff;padding:14px 20px;font-weight:600;font-size:15px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.mha-modal-hdr{background:var(--purple);color:#fff;padding:14px 20px;font-weight:600;font-size:15px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
 .mha-modal-body{padding:18px 20px;overflow-y:auto;flex:1}
 .mha-modal-foot{padding:12px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border);flex-shrink:0}
 .mha-field label{font-size:12px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px}
 .mha-field{margin-bottom:13px}
 .mha-field input,.mha-field select,.mha-field textarea{width:100%;height:38px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif;box-sizing:border-box}
 .mha-field textarea{height:68px;padding:8px 10px;resize:vertical}
-.mha-sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#5a1a8b;margin:14px 0 8px;padding-bottom:3px;border-bottom:1px solid #c0a0e0}
+.mha-sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--purple);margin:14px 0 8px;padding-bottom:3px;border-bottom:1px solid var(--purple-border)}
 .mha-check{display:flex;align-items:flex-start;gap:8px;font-size:13px;padding:5px 0}
-.mha-check input[type=checkbox]{margin-top:2px;accent-color:#5a1a8b;flex-shrink:0}
+.mha-check input[type=checkbox]{margin-top:2px;accent-color:var(--purple);flex-shrink:0}
 /* ── §18bc Pharmacovigilance ADR ─────────────────── */
 .adr-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;display:flex;align-items:center;justify-content:center}
 .adr-modal{background:#fff;border-radius:var(--radius);width:580px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.22);overflow:hidden}
@@ -2441,7 +2450,7 @@ body.medcert-print #mc-print{display:block!important}
                     <input id="imm-next-due" type="date" style="height:36px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:12px;font-family:'DM Sans',sans-serif;width:100%"/>
                   </div>
                 </div>
-                <button data-onclick="saveImmunization" style="height:34px;padding:0 16px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer">Save Vaccination Record</button>
+                <button data-onclick="saveImmunization" style="height:44px;padding:0 16px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer">Save Vaccination Record</button>
               </div>
               <!-- History -->
               <div id="imm-history" style="margin-top:10px"></div>
@@ -2482,13 +2491,13 @@ body.medcert-print #mc-print{display:block!important}
                   <input id="gr-hc" type="number" step="0.1" min="20" max="65" placeholder="—" data-oninput="calcGrowth"/>
                 </div>
                 <div style="display:flex;align-items:flex-end">
-                  <button data-onclick="calcGrowth" style="height:38px;padding:0 12px;background:var(--green-light);color:var(--green-deep);border:1.5px solid var(--green-mid);border-radius:8px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap">↻ Calculate</button>
+                  <button data-onclick="calcGrowth" style="height:44px;padding:0 12px;background:var(--green-light);color:var(--green-deep);border:1.5px solid var(--green-mid);border-radius:8px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer;white-space:nowrap">↻ Calculate</button>
                 </div>
               </div>
               <!-- Percentile meters (weight, height, HC) -->
               <div id="gr-meters"></div>
               <!-- Save button -->
-              <button data-onclick="saveGrowthRecord" style="height:34px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer;margin-top:2px">Save Growth Record</button>
+              <button data-onclick="saveGrowthRecord" style="height:44px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer;margin-top:2px">Save Growth Record</button>
             </div>
             <!-- History table -->
             <div id="growth-history" style="margin-bottom:16px"></div>
@@ -2594,25 +2603,25 @@ body.medcert-print #mc-print{display:block!important}
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
                 <label style="margin-bottom:0">Lab Tests</label>
                 <button id="order-lab-btn" data-onclick="openLabOrderModal" disabled
-                  style="display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 12px;border-radius:6px;border:1.5px solid #1a4080;background:#e3f0ff;color:#1a4080;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">
+                  style="display:inline-flex;align-items:center;gap:5px;height:44px;padding:0 12px;border-radius:6px;border:1.5px solid var(--blue);background:var(--blue-light);color:var(--blue);font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">
                   🧪 Order via Lab Module
                 </button>
               </div>
               <input id="as-inv-lab" type="text" placeholder="CBC, ESR, CRP, HbA1c, Vitamin D, LFT, KFT, Lipid profile…"/>
             </div>
             <!-- Lab results panel for this visit -->
-            <div id="lab-results-panel" style="display:none;margin-top:8px;background:#e3f0ff;border:1.5px solid #9ab8e0;border-radius:8px;padding:10px 14px">
+            <div id="lab-results-panel" style="display:none;margin-top:8px;background:var(--blue-light);border:1.5px solid var(--blue-border);border-radius:8px;padding:10px 14px">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-                <div style="font-size:12px;font-weight:700;color:#1a4080">🔬 Lab Results for this Visit</div>
-                <button data-onclick="loadLabResults" style="font-size:11px;background:none;border:none;color:#1a4080;cursor:pointer;text-decoration:underline">Refresh</button>
+                <div style="font-size:12px;font-weight:700;color:var(--blue)">🔬 Lab Results for this Visit</div>
+                <button data-onclick="loadLabResults" style="font-size:11px;background:none;border:none;color:var(--blue);cursor:pointer;text-decoration:underline">Refresh</button>
               </div>
-              <div id="lab-results-body" style="font-size:12px;color:#1a4080"></div>
+              <div id="lab-results-body" style="font-size:12px;color:var(--blue)"></div>
             </div>
             <div class="field" style="margin-top:8px">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
                 <label style="margin-bottom:0">Imaging / Radiology</label>
                 <button id="order-img-btn" data-onclick="openImgOrderModal" disabled
-                  style="display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 12px;border-radius:6px;border:1.5px solid #5a1a8b;background:#f0e8ff;color:#5a1a8b;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">
+                  style="display:inline-flex;align-items:center;gap:5px;height:44px;padding:0 12px;border-radius:6px;border:1.5px solid var(--purple);background:var(--purple-light);color:var(--purple);font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">
                   📡 Order Imaging
                 </button>
               </div>
@@ -2629,18 +2638,18 @@ body.medcert-print #mc-print{display:block!important}
           </div>
 
           <!-- §18ai — Mental Health Flag -->
-          <div style="margin-top:20px;padding-top:14px;border-top:1px dashed #c0a0e0">
+          <div style="margin-top:20px;padding-top:14px;border-top:1px dashed var(--purple-border)">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
               <div>
-                <div style="font-size:13px;font-weight:600;color:#5a1a8b">🧠 Mental Health — Manovaha (§18ai)</div>
+                <div style="font-size:13px;font-weight:600;color:var(--purple)">🧠 Mental Health — Manovaha (§18ai)</div>
                 <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Flag mental health concerns & generate MHA 2017 consent</div>
               </div>
               <div style="display:flex;gap:8px">
-                <button data-onclick="openMhaFlag" style="display:inline-flex;align-items:center;gap:6px;background:#f0e8ff;border:1.5px solid #c0a0e0;border-radius:8px;padding:0 14px;height:34px;font-size:12px;font-weight:500;color:#5a1a8b;cursor:pointer;font-family:'DM Sans',sans-serif">🚩 Flag Mental Health Concern</button>
-                <button data-onclick="openMhaConsent" style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid #c0a0e0;border-radius:8px;padding:0 14px;height:34px;font-size:12px;font-weight:500;color:#5a1a8b;cursor:pointer;font-family:'DM Sans',sans-serif">📋 MHA 2017 Consent</button>
+                <button data-onclick="openMhaFlag" style="display:inline-flex;align-items:center;gap:6px;background:var(--purple-light);border:1.5px solid var(--purple-border);border-radius:8px;padding:0 14px;height:44px;font-size:12px;font-weight:500;color:var(--purple);cursor:pointer;font-family:'DM Sans',sans-serif">🚩 Flag Mental Health Concern</button>
+                <button data-onclick="openMhaConsent" style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid var(--purple-border);border-radius:8px;padding:0 14px;height:44px;font-size:12px;font-weight:500;color:var(--purple);cursor:pointer;font-family:'DM Sans',sans-serif">📋 MHA 2017 Consent</button>
               </div>
             </div>
-            <div id="mha-flag-summary" style="display:none;margin-top:10px;background:#f0e8ff;border:1.5px solid #c0a0e0;border-radius:8px;padding:10px 14px;font-size:12px;color:#5a1a8b"></div>
+            <div id="mha-flag-summary" style="display:none;margin-top:10px;background:var(--purple-light);border:1.5px solid var(--purple-border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--purple)"></div>
           </div>
 
           <div style="height:20px"></div>
@@ -2866,7 +2875,7 @@ body.medcert-print #mc-print{display:block!important}
           </div>
           <!-- §18bc ADR Reporting -->
           <div style="margin-top:20px;padding-top:14px;border-top:1px dashed #e8a04a">
-            <button data-onclick="openAdrModal" style="display:inline-flex;align-items:center;gap:7px;background:#fdecea;border:1.5px solid #f5c6c6;border-radius:8px;padding:0 16px;height:36px;font-size:13px;font-weight:500;color:#7a1a1a;cursor:pointer;font-family:'DM Sans',sans-serif">⚠ Report Adverse Drug Reaction <span style="font-size:10px;background:#7a1a1a;color:#fff;border-radius:4px;padding:1px 6px;font-weight:400;letter-spacing:.3px">PvPI</span></button>
+            <button data-onclick="openAdrModal" style="display:inline-flex;align-items:center;gap:7px;background:#fdecea;border:1.5px solid #f5c6c6;border-radius:8px;padding:0 16px;height:44px;font-size:13px;font-weight:500;color:#7a1a1a;cursor:pointer;font-family:'DM Sans',sans-serif">⚠ Report Adverse Drug Reaction <span style="font-size:10px;background:#7a1a1a;color:#fff;border-radius:4px;padding:1px 6px;font-weight:400;letter-spacing:.3px">PvPI</span></button>
             <div style="font-size:11px;color:var(--text-muted);margin-top:5px">NCISM §48 · Pharmacovigilance Programme of India</div>
           </div>
           <div style="height:20px"></div>
@@ -2978,7 +2987,7 @@ body.medcert-print #mc-print{display:block!important}
               <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="consent-alts" style="accent-color:var(--green-deep)"/> Alternatives discussed</label>
               <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="consent-questions" style="accent-color:var(--green-deep)"/> Patient questions answered</label>
             </div>
-            <button data-onclick="saveOpdConsent" style="height:34px;padding:0 20px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Record Consent ✓</button>
+            <button data-onclick="saveOpdConsent" style="height:44px;padding:0 20px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Record Consent ✓</button>
             <span id="consent-saved-msg" style="display:none;margin-left:10px;font-size:12px;color:var(--green-mid);font-weight:600">✅ Consent recorded</span>
           </div>
 
@@ -3216,7 +3225,7 @@ body.medcert-print #mc-print{display:block!important}
             <div style="font-size:12px;font-weight:600;color:var(--green-deep);margin-bottom:10px">Ready to assign a bed?</div>
             <div style="font-size:12px;color:var(--text-mid);margin-bottom:12px">Complete the admission order above, then open the IPD module to pick a bed and formally admit the patient.</div>
             <button type="button" data-onclick="openIPDAdmission"
-              style="height:38px;padding:0 20px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px">
+              style="height:44px;padding:0 20px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px">
               &#8599; Open IPD Admission
             </button>
           </div>
@@ -3323,6 +3332,16 @@ body.medcert-print #mc-print{display:block!important}
         <!-- ═══════════════════════════════════════════ -->
         <div id="tab-abdm" hidden>
           <div class="section">
+
+            <!-- Session 175: Care Context Status (HIP side — what WE'VE registered about
+                 this patient), separate from the M3 consent-request panel below (HIU side
+                 — records requested FROM other facilities). Shown regardless of ABHA,
+                 since a care context can exist purely from demographic-only registration
+                 and this is the only place in the app that surfaces that. A real live-demo
+                 gap: Vipul Singh (ABDM/NHA reviewer) checked exactly this tab expecting to
+                 see confirmation a care context was created, found nothing, because the
+                 M3 section below requires ABHA and answers the opposite question anyway. -->
+            <div id="abdm-cc-status" style="margin-bottom:18px"></div>
 
             <!-- shown when patient has no ABHA -->
             <div id="abdm-no-abha" style="display:none;padding:24px;text-align:center;color:#888;font-size:13px;background:#fafdf8;border-radius:8px;border:1px solid #dde6dc">
@@ -3452,8 +3471,8 @@ body.medcert-print #mc-print{display:block!important}
       </label>
     </div>
     <div style="display:flex;gap:10px;margin-bottom:14px">
-      <button data-onclick="uploadClinicalMedia" style="flex:1;height:38px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Upload</button>
-      <button data-onclick="closeMediaModal" style="height:38px;padding:0 16px;border:1.5px solid var(--border);background:#fff;border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit">Close</button>
+      <button data-onclick="uploadClinicalMedia" style="flex:1;height:44px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Upload</button>
+      <button data-onclick="closeMediaModal" style="height:44px;padding:0 16px;border:1.5px solid var(--border);background:#fff;border-radius:7px;cursor:pointer;font-size:13px;font-family:inherit">Close</button>
     </div>
     <div style="font-weight:600;font-size:13px;color:var(--green-deep);margin-bottom:6px">Uploaded Media</div>
     <div id="media-list"><div style="text-align:center;color:var(--text-muted);padding:12px;font-size:13px">Loading…</div></div>
@@ -3509,8 +3528,8 @@ body.medcert-print #mc-print{display:block!important}
       </div>
     </div>
     <div class="mc-modal-foot">
-      <button data-onclick="closeMcModal" style="padding:0 18px;height:38px;background:#f0f0f0;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Cancel</button>
-      <button data-onclick="printMedCert" style="padding:0 20px;height:38px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500">🖨 Print Certificate</button>
+      <button data-onclick="closeMcModal" style="padding:0 18px;height:44px;background:#f0f0f0;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Cancel</button>
+      <button data-onclick="printMedCert" style="padding:0 20px;height:44px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500">🖨 Print Certificate</button>
     </div>
   </div>
 </div>
@@ -3523,7 +3542,7 @@ body.medcert-print #mc-print{display:block!important}
       <button data-onclick="closeMhaFlag" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
     </div>
     <div class="mha-modal-body">
-      <div style="background:#f0e8ff;border:1px solid #c0a0e0;border-radius:8px;padding:10px 14px;font-size:12px;color:#5a1a8b;margin-bottom:14px">
+      <div style="background:var(--purple-light);border:1px solid var(--purple-border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--purple);margin-bottom:14px">
         Mental health concerns must be flagged as per NCISM §18ai. This record is confidential and accessible only to treating doctor.
       </div>
       <div class="mha-sec">Nature of Concern</div>
@@ -3564,8 +3583,8 @@ body.medcert-print #mc-print{display:block!important}
       </div>
     </div>
     <div class="mha-modal-foot">
-      <button data-onclick="closeMhaFlag" style="padding:0 18px;height:38px;background:#f0f0f0;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Cancel</button>
-      <button data-onclick="saveMhaFlag" style="padding:0 20px;height:38px;background:#5a1a8b;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500">Save Flag</button>
+      <button data-onclick="closeMhaFlag" style="padding:0 18px;height:44px;background:#f0f0f0;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Cancel</button>
+      <button data-onclick="saveMhaFlag" style="padding:0 20px;height:44px;background:var(--purple);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500">Save Flag</button>
     </div>
   </div>
 </div>
@@ -3578,7 +3597,7 @@ body.medcert-print #mc-print{display:block!important}
       <button data-onclick="closeMhaConsent" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
     </div>
     <div class="mha-modal-body">
-      <div style="background:#f0e8ff;border:1px solid #c0a0e0;border-radius:8px;padding:10px 14px;font-size:12px;color:#5a1a8b;margin-bottom:14px">
+      <div style="background:var(--purple-light);border:1px solid var(--purple-border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--purple);margin-bottom:14px">
         Mental Healthcare Act 2017 — Section 18 &amp; 19: Every person with mental illness has the right to access mental healthcare and give or withhold consent.
       </div>
 
@@ -3623,9 +3642,9 @@ body.medcert-print #mc-print{display:block!important}
       </div>
     </div>
     <div class="mha-modal-foot">
-      <button data-onclick="closeMhaConsent" style="padding:0 18px;height:38px;background:#f0f0f0;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Cancel</button>
-      <button data-onclick="saveMhaConsent" data-onclick-a0="@true" style="padding:0 16px;height:38px;background:#f0e8ff;border:1.5px solid #c0a0e0;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;color:#5a1a8b">Save &amp; Print</button>
-      <button data-onclick="saveMhaConsent" data-onclick-a0="@false" style="padding:0 20px;height:38px;background:#5a1a8b;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500">Save Consent</button>
+      <button data-onclick="closeMhaConsent" style="padding:0 18px;height:44px;background:#f0f0f0;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Cancel</button>
+      <button data-onclick="saveMhaConsent" data-onclick-a0="@true" style="padding:0 16px;height:44px;background:var(--purple-light);border:1.5px solid var(--purple-border);border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--purple)">Save &amp; Print</button>
+      <button data-onclick="saveMhaConsent" data-onclick-a0="@false" style="padding:0 20px;height:44px;background:var(--purple);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500">Save Consent</button>
     </div>
   </div>
 </div>
@@ -3633,7 +3652,7 @@ body.medcert-print #mc-print{display:block!important}
 <!-- Imaging Order Modal -->
 <div class="mha-overlay" id="img-order-overlay" style="display:none" data-onclick="_closeIfSelf" data-onclick-a0="@isTarget" data-onclick-a1="closeImgOrderModal">
   <div class="mha-modal" style="width:580px">
-    <div class="mha-modal-hdr" style="background:#5a1a8b">
+    <div class="mha-modal-hdr" style="background:var(--purple)">
       <span>📡 Order Imaging / Radiology</span>
       <button data-onclick="closeImgOrderModal" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
     </div>
@@ -3669,8 +3688,8 @@ body.medcert-print #mc-print{display:block!important}
         <label>Clinical Indication</label>
         <input id="io-indication" type="text" placeholder="Reason for this study…" style="width:100%;height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif"/>
       </div>
-      <div id="io-outside-fields" style="display:none;background:#e3f0ff;border:1.5px solid #9ab8e0;border-radius:8px;padding:12px 14px;margin-top:8px">
-        <div style="font-size:11px;font-weight:700;color:#1a4080;margin-bottom:8px">Outside Referral Details</div>
+      <div id="io-outside-fields" style="display:none;background:var(--blue-light);border:1.5px solid var(--blue-border);border-radius:8px;padding:12px 14px;margin-top:8px">
+        <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:8px">Outside Referral Details</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="mha-field"><label>Centre / Lab Name</label><input id="io-centre" type="text" style="width:100%;height:32px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12px;font-family:'DM Sans',sans-serif"/></div>
           <div class="mha-field"><label>Expected Report Date</label><input id="io-exp-date" type="date" style="width:100%;height:32px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12px;font-family:'DM Sans',sans-serif"/></div>
@@ -3678,8 +3697,8 @@ body.medcert-print #mc-print{display:block!important}
       </div>
     </div>
     <div class="mha-modal-foot">
-      <button data-onclick="closeImgOrderModal" style="padding:0 18px;height:38px;background:#f0f0f0;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Cancel</button>
-      <button data-onclick="submitImgOrder" style="padding:0 22px;height:38px;background:#5a1a8b;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500">Submit Imaging Order</button>
+      <button data-onclick="closeImgOrderModal" style="padding:0 18px;height:44px;background:#f0f0f0;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Cancel</button>
+      <button data-onclick="submitImgOrder" style="padding:0 22px;height:44px;background:var(--purple);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500">Submit Imaging Order</button>
     </div>
   </div>
 </div>
@@ -3687,7 +3706,7 @@ body.medcert-print #mc-print{display:block!important}
 <!-- Lab Order Modal -->
 <div class="mha-overlay" id="lab-order-overlay" style="display:none" data-onclick="_closeIfSelf" data-onclick-a0="@isTarget" data-onclick-a1="closeLabOrderModal">
   <div class="mha-modal" style="width:680px;max-height:90vh">
-    <div class="mha-modal-hdr" style="background:#1a4080">
+    <div class="mha-modal-hdr" style="background:var(--blue)">
       <span>🧪 Order Lab Tests</span>
       <button data-onclick="closeLabOrderModal" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
     </div>
@@ -3710,17 +3729,17 @@ body.medcert-print #mc-print{display:block!important}
         <input type="checkbox" id="lo-bypass-payment" style="margin-top:2px"/>
         <span>🚨 Proceed before payment — sample can be collected immediately; reception still shows this as owed and collects payment separately. Use only for genuine emergency/STAT cases.</span>
       </label>
-      <div style="font-size:11px;font-weight:700;color:#1a4080;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">Quick Panels</div>
+      <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">Quick Panels</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px" id="lo-panels"></div>
-      <div style="font-size:11px;font-weight:700;color:#1a4080;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">Select Individual Tests</div>
+      <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px">Select Individual Tests</div>
       <div id="lo-cats"></div>
-      <div style="margin-top:12px;padding:10px 12px;background:#e3f0ff;border-radius:8px;font-size:12px;color:#1a4080">
+      <div style="margin-top:12px;padding:10px 12px;background:var(--blue-light);border-radius:8px;font-size:12px;color:var(--blue)">
         Selected: <strong><span id="lo-count">0</span> tests</strong>
       </div>
     </div>
     <div class="mha-modal-foot">
-      <button data-onclick="closeLabOrderModal" style="padding:0 18px;height:38px;background:#f0f0f0;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Cancel</button>
-      <button data-onclick="submitLabOrder" style="padding:0 22px;height:38px;background:#1a4080;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500">Submit Order to Lab</button>
+      <button data-onclick="closeLabOrderModal" style="padding:0 18px;height:44px;background:#f0f0f0;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Cancel</button>
+      <button data-onclick="submitLabOrder" style="padding:0 22px;height:44px;background:var(--blue);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500">Submit Order to Lab</button>
     </div>
   </div>
 </div>
@@ -3814,7 +3833,7 @@ body.medcert-print #mc-print{display:block!important}
           <div></div>
         </div>
         <div id="adr-med-rows"></div>
-        <button data-onclick="addAdrMedRow" style="display:inline-flex;align-items:center;gap:5px;background:none;border:1.5px dashed #f5c6c6;border-radius:7px;padding:0 12px;height:32px;font-size:12px;color:#7a1a1a;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:4px">+ Add Medicine</button>
+        <button data-onclick="addAdrMedRow" style="display:inline-flex;align-items:center;gap:5px;background:none;border:1.5px dashed #f5c6c6;border-radius:7px;padding:0 12px;height:44px;font-size:12px;color:#7a1a1a;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:4px">+ Add Medicine</button>
       </div>
       <!-- Additional Info -->
       <div class="adr-section">
@@ -3849,9 +3868,9 @@ body.medcert-print #mc-print{display:block!important}
       <div class="adr-pvpi-badge">ℹ After saving, submit this report at <strong style="margin:0 3px">ipc.gov.in/PvPI</strong> or email <strong style="margin:0 3px">pvpi@cdsco.nic.in</strong> — CDSCO Pharmacovigilance Programme of India (NCISM §48)</div>
     </div>
     <div class="adr-modal-foot">
-      <button data-onclick="closeAdrModal" style="padding:0 18px;height:38px;background:#f0f0f0;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Cancel</button>
-      <button data-onclick="saveAdrReport" data-onclick-a0="draft" style="padding:0 18px;height:38px;background:#f5f5f5;border:1.5px solid #ddd;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Save Draft</button>
-      <button data-onclick="saveAdrReport" data-onclick-a0="submitted" style="padding:0 20px;height:38px;background:#7a1a1a;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500">Save &amp; Mark Submitted</button>
+      <button data-onclick="closeAdrModal" style="padding:0 18px;height:44px;background:#f0f0f0;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Cancel</button>
+      <button data-onclick="saveAdrReport" data-onclick-a0="draft" style="padding:0 18px;height:44px;background:#f5f5f5;border:1.5px solid #ddd;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Save Draft</button>
+      <button data-onclick="saveAdrReport" data-onclick-a0="submitted" style="padding:0 20px;height:44px;background:#7a1a1a;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500">Save &amp; Mark Submitted</button>
     </div>
   </div>
 </div>
@@ -3885,8 +3904,8 @@ body.medcert-print #mc-print{display:block!important}
       <!-- Questions rendered by JS -->
     </div>
     <div class="pk-modal-foot">
-      <button data-onclick="resetPrakritiForm" style="height:38px;padding:0 14px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif">↺ Reset</button>
-      <button data-onclick="applyPrakritiResult" style="height:38px;padding:0 22px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif">Apply &amp; Save to Patient Record</button>
+      <button data-onclick="resetPrakritiForm" style="height:44px;padding:0 14px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif">↺ Reset</button>
+      <button data-onclick="applyPrakritiResult" style="height:44px;padding:0 22px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif">Apply &amp; Save to Patient Record</button>
     </div>
   </div>
 </div>
@@ -3928,7 +3947,7 @@ body.medcert-print #mc-print{display:block!important}
           <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase">Reaction</label>
             <input id="new-reaction" type="text" placeholder="e.g. Rash, Swelling, Anaphylaxis" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
         </div>
-        <button data-onclick="saveAllergy" style="height:38px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Save Allergy</button>
+        <button data-onclick="saveAllergy" style="height:44px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Save Allergy</button>
       </div>
     </div>
   </div>

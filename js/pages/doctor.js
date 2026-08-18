@@ -1890,8 +1890,55 @@ async function _abdmGetToken() {
   return session?.access_token || null;
 }
 
+// Session 175: Care Context Status — what WE'VE created about this patient as a HIP
+// (local care_contexts rows), shown regardless of ABHA. Separate concern from the M3
+// consent-request panel below it, which requires ABHA and pulls records FROM other
+// facilities — the opposite direction of data flow. A demographic-only patient (no
+// ABHA at all) can still have a care context; this is the only place in the app that
+// surfaces that fact, closing the gap that made Vipul Singh's live-demo check come up
+// empty (he checked this exact tab expecting to see it, found nothing, because this
+// section didn't exist yet and the M3 section below always required ABHA).
+async function _loadCareContextStatus(patientId) {
+  const el = document.getElementById('abdm-cc-status');
+  if (!el) return;
+  el.innerHTML = `<div style="font-size:12px;color:#888">Loading care context status…</div>`;
+
+  const { data, error } = await supabase
+    .from('care_contexts')
+    .select('care_context_ref, display, hi_types, abha_address, created_at')
+    .eq('patient_id', patientId)
+    .order('created_at', { ascending: false });
+
+  if (error) { el.innerHTML = `<div style="font-size:12px;color:#c0392b">Could not load care context status: ${_esc(safeErrorMessage(error))}</div>`; return; }
+
+  if (!data?.length) {
+    el.innerHTML = `<div style="padding:12px 16px;background:#fdf6f6;border:1px solid #e8c8c8;border-radius:8px;font-size:12.5px;color:#a01a1a">
+      🏥 <strong>No care context on file yet</strong> for this patient — one is created automatically the first time they're registered for a visit. Nothing to discover on ABDM's side until then.
+    </div>`;
+    return;
+  }
+
+  const rows = data.map(cc => {
+    const abhaNote = cc.abha_address
+      ? `🔗 Linked to ABHA <code style="font-size:11px">${_esc(cc.abha_address)}</code>`
+      : `🕓 No ABHA on file — discoverable once the patient adds one and searches for this facility from their PHR app (name/DOB/gender/mobile match)`;
+    return `<div style="padding:8px 12px;background:#fff;border:1px solid var(--border);border-radius:6px;margin-top:6px;font-size:12.5px">
+      <div style="font-weight:600">${_esc(cc.display ?? cc.care_context_ref)}</div>
+      <div style="color:var(--text-muted);margin-top:2px">${(cc.hi_types??[]).map(t=>_esc(t)).join(' · ') || 'No record types set'}</div>
+      <div style="margin-top:4px">${abhaNote}</div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `<div style="padding:12px 16px;background:#f0faf5;border:1px solid #b8ddc4;border-radius:8px">
+    <div style="font-weight:600;font-size:13px;color:var(--green-deep)">🏥 Care Context Status (this hospital, as HIP)</div>
+    <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">${data.length} care context${data.length===1?'':'s'} created for this patient — what ABDM would find if searched for.</div>
+    ${rows}
+  </div>`;
+}
+
 async function _loadAbdmTab() {
   if (!_activePatient) return;
+  _loadCareContextStatus(_activePatient.id);
 
   const raw = _activePatient.abha_address || _activePatient.abha_number || '';
   const abhaAddr = raw

@@ -7009,3 +7009,56 @@ window.loadAbdmCallbacks = async function() {
     </tr>`).join('')}</tbody>
   </table>`;
 };
+
+// Session 175: Test Discover Match — runs the exact same demographic-matching logic
+// abdm-webhook's real "discover" handler uses (shared via _shared/discoverMatch.ts),
+// so a demo can confirm a patient's care context is correctly discoverable without
+// waiting on a real PHR-app search round trip. Targets abdm-hip (not abdm-auth, unlike
+// _abdmCall above) since the action lives there alongside create_care_context.
+window.testDiscoverMatch = async function() {
+  const name   = document.getElementById('disco-name').value.trim();
+  const mobile = document.getElementById('disco-mobile').value.trim();
+  const dob    = document.getElementById('disco-dob').value || null;
+  const gender = document.getElementById('disco-gender').value || null;
+  const resultEl = document.getElementById('disco-result');
+  if (!name || !mobile) { resultEl.innerHTML = `<span style="color:#dc2626;font-size:13px">Name and mobile are required.</span>`; return; }
+
+  const btn = document.getElementById('disco-test-btn');
+  btn.disabled = true; btn.textContent = 'Testing…';
+  resultEl.innerHTML = `<span style="color:var(--text-muted);font-size:13px">Running match…</span>`;
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/abdm-hip`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ action: 'test_discover_match', name, mobile, dob, gender }),
+    });
+    const data = await res.json();
+    if (!res.ok) { resultEl.innerHTML = `<span style="color:#dc2626;font-size:13px">${_esc(data?.error ?? 'Match failed.')}</span>`; return; }
+
+    if (!data.matched) {
+      resultEl.innerHTML = `<div style="padding:12px 14px;background:#fdf6f6;border:1px solid #e8c8c8;border-radius:8px;font-size:13px;color:#a01a1a">
+        ❌ No match — no patient in this organisation has this exact name (first 3 letters) + mobile combination, together with a matching date of birth or gender.
+      </div>`;
+      return;
+    }
+
+    const matchLabel = data.matchedBy === 'HEALTH_ID' ? 'ABHA identifier (exact)' : 'Demographic match (MR — name + mobile + DOB/gender)';
+    const ccRows = (data.careContexts ?? []).map(cc => `
+      <div style="padding:8px 10px;background:#fff;border:1px solid var(--border);border-radius:6px;margin-top:6px">
+        <div style="font-weight:600;font-size:12.5px">${_esc(cc.display ?? cc.care_context_ref)}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${(cc.hi_types??[]).map(t=>_esc(t)).join(' · ') || 'No record types set'} ${cc.abha_address ? '· ABHA: '+_esc(cc.abha_address) : '· No ABHA on file'}</div>
+      </div>`).join('');
+
+    resultEl.innerHTML = `<div style="padding:12px 14px;background:#f0faf5;border:1px solid #b8ddc4;border-radius:8px;font-size:13px">
+      ✅ Matched <strong>${_esc(data.patient?.name ?? '')}</strong> via ${matchLabel}.
+      <div style="margin-top:8px;font-weight:600;font-size:12px;color:var(--green-deep)">${(data.careContexts??[]).length} care context${(data.careContexts??[]).length===1?'':'s'} would be returned to ABDM:</div>
+      ${ccRows || '<div style="font-size:12px;color:var(--text-muted);margin-top:4px">None on file yet.</div>'}
+    </div>`;
+  } catch (err) {
+    resultEl.innerHTML = `<span style="color:#dc2626;font-size:13px">${_esc(safeErrorMessage(err, 'Could not run the match.'))}</span>`;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Test Match';
+  }
+};
