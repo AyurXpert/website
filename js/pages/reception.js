@@ -703,6 +703,7 @@ async function _searchUhid(uhid) {
 async function _selectPatient(patient) {
   _patient = patient;
   _newFamilyMember = false;
+  _activeScanSessionId = null;  // Session 173: search-selected a patient — decouple from any open Reg. Queue entry
   document.getElementById('name').value = patient.name;
   document.getElementById('patient-picker').classList.remove('show');
 
@@ -998,6 +999,7 @@ function _showPicker(patients, phone) {
 function _startNewFamilyMember() {
   _newFamilyMember = true;
   _patient = null;
+  _activeScanSessionId = null;  // Session 173: switching patient — decouple from any open Reg. Queue entry
   document.getElementById('patient-picker').classList.remove('show');
   document.getElementById('patient-tag').classList.remove('show');
   document.getElementById('name').value = '';
@@ -1025,6 +1027,7 @@ function _clearTag() {
   _patient = null;
   _activePackage = null;
   _newFamilyMember = false;
+  _activeScanSessionId = null;  // Session 173: no longer registering whichever Reg. Queue entry (if any) was open
   document.getElementById('patient-tag').classList.remove('show');
   document.getElementById('pkg-card').classList.remove('show');
   document.getElementById('pkg-use-chk').checked = false;
@@ -1268,6 +1271,22 @@ async function handleSubmit() {
       }).select().single();
 
     if (vErr) throw vErr;
+
+    // Session 173: if this registration came from a tapped Reg. Queue entry, mark that
+    // scan session as done now that a real visit actually exists -- this is the ONLY
+    // point a Reg. Queue row is removed from the shared queue (see loadRegQueue()'s
+    // .is('registered_visit_id', null) filter). Best-effort: a failure here shouldn't
+    // block the visit that was just successfully created, just leaves that one scan
+    // session row visible a little longer than ideal (a receptionist tapping it again
+    // would just re-populate the same already-registered patient, harmless).
+    if (_activeScanSessionId) {
+      const { error: linkErr } = await supabase
+        .from('abdm_scan_sessions')
+        .update({ registered_visit_id: visit.id })
+        .eq('id', _activeScanSessionId);
+      if (linkErr) console.warn('[reception] could not link scan session to visit:', linkErr.message);
+      _activeScanSessionId = null;
+    }
 
     // Generate meeting URL for tele visits
     let meetingUrl = null;
@@ -3408,24 +3427,36 @@ let _regQueueSubscription = null;
 // viewer who ISN'T _dutyGated (see toggleRegistrationDuty() below for why).
 let _regDutySessionId = sessionStorage.getItem('ax_reg_duty_session_id');
 
+// Session 173 follow-up: real design gap Dr. Venkatesh caught live testing.
+// claimed_at/claimed_by used to be written the moment a row was tapped, AND was the
+// same flag used to hide it from the queue -- conflating "someone's looking at this"
+// with "this is actually done". An interrupted registration (browser closed, got
+// pulled away mid-form) permanently lost the patient from the queue with no way back
+// except a fresh scan + a brand new token. Fixed: tapping a row is now a pure read
+// (openRegQueueEntry, below) -- nothing written, nothing to lose. A row leaves the
+// queue only once a real visit is created from it (registered_visit_id, set in
+// _createVisit() on success) or a receptionist explicitly cancels it with a reason
+// (cancelRegQueueEntry) for the "called but never showed up" case. claimed_at/
+// claimed_by columns are kept (harmless, no longer written) rather than dropped --
+// removing a column outright is a bigger, less reversible schema change than this
+// session's actual ask needed.
+let _regQueueRowsById = new Map();  // sessionId -> row, refreshed each loadRegQueue()
+let _activeScanSessionId = null;    // which scan session (if any) the open form came from
+
 async function loadRegQueue() {
-  // Session 173: broadened from "assigned to me only" to "assigned to me OR nobody's
-  // claimed it yet" (assigned_profile_id IS NULL) — a scan can land unassigned if it
-  // arrived before anyone toggled on Registration duty; per Dr. Venkatesh's explicit
-  // call, that must still be visible to SOMEONE rather than silently invisible, so any
-  // receptionist viewing this tab can see and claim it regardless of their own duty
-  // state. Being on duty only affects which NEW scans get fair-assigned to you.
   const { data, error } = await supabase
     .from('abdm_scan_sessions')
     .select('id, token_number, patient_profile, created_at, assigned_profile_id')
     .eq('tenant_id', tenantId)
     .or(`assigned_profile_id.eq.${profile.id},assigned_profile_id.is.null`)
     .eq('status', 'received')
-    .is('claimed_at', null)
+    .is('registered_visit_id', null)
+    .is('cancelled_at', null)
     .order('token_number', { ascending: true });
   if (error) { console.warn('[reception] loadRegQueue:', error.message); return; }
 
   const rows = data || [];
+  _regQueueRowsById = new Map(rows.map(r => [r.id, r]));
   document.getElementById('regqueue-count').textContent = rows.length ? `(${rows.length})` : '';
   const list = document.getElementById('reg-queue-list');
   if (!rows.length) {
@@ -3439,45 +3470,62 @@ async function loadRegQueue() {
     const mobile = prof.mobile ?? prof.mobileNumber ?? prof.phoneNumber ?? '';
     const waitedFor = _waitTime(r.created_at);
     const unclaimedNote = r.assigned_profile_id == null ? ' · unassigned (no one was on duty when they scanned)' : '';
-    // Session 173: whole row is now clickable (not just the small button) — matches
-    // Dr. Venkatesh's actual described gesture ("taps on the token with name in the
-    // queue") and the 44px-min touch-target guidance a small edge button alone doesn't
-    // reliably meet. Safe to keep the button too: a click resolves to whichever
-    // [data-onclick] ancestor-or-self is nearest (domEvents.js's e.target.closest), so
-    // clicking the button itself still fires only once, not twice.
-    return `<div class="q-item" data-onclick="claimRegQueueEntry" data-onclick-a0="${r.id}" style="cursor:pointer">
+    // Whole row is clickable (not just a small button) — matches the actual described
+    // gesture ("taps on the token with name in the queue") and 44px touch-target
+    // guidance. Cancel is its own button, deliberately NOT inside the row's own click
+    // target area in spirit — but since domEvents.js resolves a click to the NEAREST
+    // [data-onclick] ancestor-or-self, tapping Cancel fires only cancelRegQueueEntry,
+    // never both.
+    return `<div class="q-item" data-onclick="openRegQueueEntry" data-onclick-a0="${r.id}" style="cursor:pointer">
       <div class="q-token waiting">${r.token_number ?? '—'}</div>
       <div class="q-info">
         <div class="q-name">${_esc(name)}</div>
         <div class="q-row2"><span style="color:var(--text-mid)">${_esc(mobile || 'Mobile not shared')}</span></div>
         <div class="q-row3">Shared via Scan &amp; Share · waiting ${waitedFor}${unclaimedNote}</div>
       </div>
-      <div class="q-right">
-        <button class="q-edit-btn" data-onclick="claimRegQueueEntry" data-onclick-a0="${r.id}"
+      <div class="q-right" style="display:flex;gap:6px">
+        <button class="q-edit-btn" data-onclick="openRegQueueEntry" data-onclick-a0="${r.id}"
                 style="width:auto;padding:0 10px;font-size:11px;background:var(--green-mid);color:#fff">Register →</button>
+        <button class="q-edit-btn" data-onclick="cancelRegQueueEntry" data-onclick-a0="${r.id}"
+                title="Patient didn't turn up when called"
+                style="width:auto;padding:0 8px;font-size:11px;background:#a01a1a;color:#fff">✕ Cancel</button>
       </div>
     </div>`;
   }).join('');
 }
 
-window.claimRegQueueEntry = async function(sessionId) {
-  const { data: updated, error } = await supabase
-    .from('abdm_scan_sessions')
-    .update({ claimed_at: new Date().toISOString(), claimed_by: profile.id })
-    .eq('id', sessionId)
-    .is('claimed_at', null) // race guard -- someone else (or a second click) may have already claimed it
-    .select('token_number, patient_profile')
-    .single();
-
-  if (error || !updated) {
-    _alert('error', 'This patient was already pulled up by someone else — refreshing your queue.');
+// Pure read — populates the form from an already-loaded row, writes nothing. Safe to
+// tap repeatedly, safe to interrupt; the row stays in everyone's queue until this
+// specific registration is actually completed (or explicitly cancelled).
+window.openRegQueueEntry = function(sessionId) {
+  const row = _regQueueRowsById.get(sessionId);
+  if (!row) {
+    _alert('error', 'This entry is no longer in the queue — it may have just been registered or cancelled elsewhere. Refreshing.');
     loadRegQueue();
     return;
   }
-
-  _onScanReceived(updated.patient_profile);
-  _alert('info', `Registration Token #${updated.token_number} pulled up — complete the form below.`);
+  _activeScanSessionId = sessionId;
+  _onScanReceived(row.patient_profile);
+  _alert('info', `Registration Token #${row.token_number ?? '—'} pulled up — complete the form below.`);
   document.querySelector('.panel')?.scrollIntoView({ behavior: 'smooth' });
+};
+
+// The "patient never turned up when called" case — explicit, reasoned removal from the
+// queue, distinct from just abandoning a half-filled form (which now does nothing to
+// the queue at all, by design).
+window.cancelRegQueueEntry = async function(sessionId) {
+  const reason = prompt('Reason for cancelling this registration token? (e.g. "Called 3x, patient no-show")');
+  if (reason == null) return;                 // Cancel button on the prompt itself
+  if (!reason.trim()) { _alert('error', 'A reason is required to cancel a registration token.'); return; }
+
+  const { error } = await supabase
+    .from('abdm_scan_sessions')
+    .update({ cancelled_at: new Date().toISOString(), cancelled_by: profile.id, cancel_reason: reason.trim() })
+    .eq('id', sessionId);
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not cancel this token.')); return; }
+
+  if (_activeScanSessionId === sessionId) _activeScanSessionId = null;
+  _alert('info', 'Registration token cancelled.');
   loadRegQueue();
 };
 
