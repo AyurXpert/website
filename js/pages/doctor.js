@@ -606,9 +606,13 @@ window.openPatientHistory = async function(patientId) {
           <div style="font-size:12px;color:#888">${_esc(patient?.phone || '—')}${patient?.abha_number ? ' · ABHA: ' + _esc(patient.abha_number) : ''}</div>
         </div>
       </div>
-      ${patient?.abha_number || patient?.abha_address
-        ? `<button data-onclick="_openAbdmForHistory" class="btn btn-primary" style="font-size:13px;padding:6px 14px">📋 ABDM Records</button>`
-        : ''}
+      <!-- Session 175 follow-up: was gated on ABHA presence -- meant the button was
+           invisible for exactly the patients Vipul's demo scenario cares about
+           (demographic-only registration, no ABHA yet). The tab has real content either
+           way now (Care Context Status shows regardless of ABHA); the M3 request panel
+           inside it degrades to its own "no ABHA" message on its own, same pattern as
+           every other entry point into this tab. -->
+      <button data-onclick="_openAbdmForHistory" class="btn btn-primary" style="font-size:13px;padding:6px 14px">📋 ABDM Records</button>
     </div>
     <div style="font-size:13px;font-weight:600;color:var(--green-deep);margin-bottom:12px">Past Consultations (${(visits||[]).length})</div>
     ${visitsHtml}`;
@@ -1929,12 +1933,33 @@ async function _loadCareContextStatus(patientId) {
     </div>`;
   }).join('');
 
+  // Real usage feedback (18 Aug 2026): a long-visit-history patient (11+ care contexts)
+  // made this list dominate the whole ABDM Records page. Collapsed by default (>2
+  // entries) with click-to-expand — a single entry or two is short enough to just show
+  // outright, no toggle needed for something that small.
+  const collapsible = data.length > 2;
+  const toggleBtn = collapsible
+    ? `<button data-onclick="toggleCareContextList" data-onclick-a0="${data.length}" style="background:none;border:none;color:var(--green-deep);font-size:11.5px;font-weight:600;cursor:pointer;padding:0;text-decoration:underline">▶ Show all ${data.length}</button>`
+    : '';
+
   el.innerHTML = `<div style="padding:12px 16px;background:#f0faf5;border:1px solid #b8ddc4;border-radius:8px">
     <div style="font-weight:600;font-size:13px;color:var(--green-deep)">🏥 Care Context Status (this hospital, as HIP)</div>
-    <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px">${data.length} care context${data.length===1?'':'s'} created for this patient — what ABDM would find if searched for.</div>
-    ${rows}
+    <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <span>${data.length} care context${data.length===1?'':'s'} created for this patient — what ABDM would find if searched for.</span>
+      ${toggleBtn}
+    </div>
+    <div id="abdm-cc-rows" style="${collapsible ? 'display:none' : ''}">${rows}</div>
   </div>`;
 }
+
+window.toggleCareContextList = function(count) {
+  const rowsEl = document.getElementById('abdm-cc-rows');
+  const btn    = document.querySelector('#abdm-cc-status button[data-onclick="toggleCareContextList"]');
+  if (!rowsEl || !btn) return;
+  const nowShown = rowsEl.style.display === 'none';
+  rowsEl.style.display = nowShown ? '' : 'none';
+  btn.textContent = nowShown ? `▼ Hide` : `▶ Show all ${count}`;
+};
 
 async function _loadAbdmTab() {
   if (!_activePatient) return;
