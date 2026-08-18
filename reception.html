@@ -1356,6 +1356,20 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div class="queue-body" id="lab-bills-list" style="display:none">
       <div class="q-empty"><div class="q-empty-icon">💰</div><div class="q-empty-text">Loading…</div></div>
     </div>
+    <!-- Session 173: lightweight Registration-duty toggle for any plain receptionist
+         (no NCISM registration_clerk/billing_clerk designation needed) -- mirrors
+         screening.html's toggleScreeningDuty() pattern exactly. Only shown for a viewer
+         who ISN'T already forced through duty-select.html's mandatory flow (_dutyGated);
+         those clerks manage their duty there instead, to avoid two separate duty-session
+         mechanisms fighting each other for the same person. -->
+    <div id="reg-duty-row" style="display:none;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;background:#f0faf5;border-bottom:1px solid var(--border);font-size:12px">
+      <span id="reg-duty-status" style="color:var(--green-deep);font-weight:600">Off duty — showing every unclaimed scan</span>
+      <button id="btn-reg-duty-toggle" type="button" data-onclick="toggleRegistrationDuty"
+              style="height:28px;padding:0 12px;font-size:11px;font-weight:600;border-radius:6px;
+                     border:1.5px solid var(--border);background:#fff;color:var(--green-deep);cursor:pointer;white-space:nowrap">
+        🟢 Go On Registration Duty
+      </button>
+    </div>
     <div class="queue-body" id="reg-queue-list" style="display:none">
       <div class="q-empty"><div class="q-empty-icon">📋</div><div class="q-empty-text">Loading…</div></div>
     </div>

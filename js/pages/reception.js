@@ -3402,6 +3402,11 @@ window.waiveLabPayment = async function(orderId) {
 // different queues (registration wait vs. consultation wait), matching
 // the real hospital model Dr. Venkatesh described.
 let _regQueueSubscription = null;
+// Session 173: lightweight Registration-duty toggle for a plain receptionist (no
+// registration_clerk/billing_clerk designation) -- mirrors screening.js's
+// _screeningDutySessionId/toggleScreeningDuty() exactly. Only relevant/shown for a
+// viewer who ISN'T _dutyGated (see toggleRegistrationDuty() below for why).
+let _regDutySessionId = sessionStorage.getItem('ax_reg_duty_session_id');
 
 async function loadRegQueue() {
   // Session 173: broadened from "assigned to me only" to "assigned to me OR nobody's
@@ -3434,7 +3439,13 @@ async function loadRegQueue() {
     const mobile = prof.mobile ?? prof.mobileNumber ?? prof.phoneNumber ?? '';
     const waitedFor = _waitTime(r.created_at);
     const unclaimedNote = r.assigned_profile_id == null ? ' · unassigned (no one was on duty when they scanned)' : '';
-    return `<div class="q-item">
+    // Session 173: whole row is now clickable (not just the small button) — matches
+    // Dr. Venkatesh's actual described gesture ("taps on the token with name in the
+    // queue") and the 44px-min touch-target guidance a small edge button alone doesn't
+    // reliably meet. Safe to keep the button too: a click resolves to whichever
+    // [data-onclick] ancestor-or-self is nearest (domEvents.js's e.target.closest), so
+    // clicking the button itself still fires only once, not twice.
+    return `<div class="q-item" data-onclick="claimRegQueueEntry" data-onclick-a0="${r.id}" style="cursor:pointer">
       <div class="q-token waiting">${r.token_number ?? '—'}</div>
       <div class="q-info">
         <div class="q-name">${_esc(name)}</div>
@@ -3494,7 +3505,55 @@ function _initRegistrationQueue() {
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'abdm_scan_sessions' }, () => loadRegQueue())
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'abdm_scan_sessions' }, () => loadRegQueue())
     .subscribe();
+
+  // Real gap found live 18 Aug 2026 (Session 173): the ONLY existing way to join
+  // 'registration' duty was duty-select.html's mandatory redirect, gated to
+  // designation IN (registration_clerk, billing_clerk) -- Sch XX/15's NCISM Reception
+  // & MRD combined designation. A plain hospital tenant's receptionists (like WASA's,
+  // confirmed live — every one had designation=null) never get that designation, so
+  // they had NO path at all to ever appear in staff_duty_sessions, meaning every scan
+  // stayed permanently unassigned/tokenless and fair-assignment could never be tested
+  // or used. This lightweight toggle (mirrors screening.js's toggleScreeningDuty())
+  // gives any plain receptionist a direct way in — hidden for a _dutyGated clerk, who
+  // manages duty via duty-select.html instead, so the two mechanisms never fight over
+  // the same person's staff_duty_sessions rows.
+  if (!_dutyGated) {
+    document.getElementById('reg-duty-row').style.display = 'flex';
+    _updateRegDutyUI();
+  }
 }
+
+function _updateRegDutyUI() {
+  const btn    = document.getElementById('btn-reg-duty-toggle');
+  const status = document.getElementById('reg-duty-status');
+  if (!btn || !status) return;
+  if (_regDutySessionId) {
+    btn.textContent = '🔴 End Registration Duty';
+    status.textContent = 'On duty — new scans fair-assigned to you';
+  } else {
+    btn.textContent = '🟢 Go On Registration Duty';
+    status.textContent = 'Off duty — showing every unclaimed scan';
+  }
+}
+
+window.toggleRegistrationDuty = async function() {
+  if (_regDutySessionId) {
+    await supabase.from('staff_duty_sessions')
+      .update({ ended_at: new Date().toISOString() })
+      .eq('id', _regDutySessionId);
+    _regDutySessionId = null;
+    sessionStorage.removeItem('ax_reg_duty_session_id');
+  } else {
+    const { data, error } = await supabase.from('staff_duty_sessions')
+      .insert({ tenant_id: tenantId, profile_id: profile.id, active_duty: ['registration'] })
+      .select('id').single();
+    if (error) { _alert('error', safeErrorMessage(error, 'Could not start your Registration duty session.')); return; }
+    _regDutySessionId = data.id;
+    sessionStorage.setItem('ax_reg_duty_session_id', data.id);
+  }
+  _updateRegDutyUI();
+  loadRegQueue();
+};
 
 // ── Book Appointment ───────────────────────────────
 async function bookAppointment() {
