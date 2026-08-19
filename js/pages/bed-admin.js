@@ -252,6 +252,12 @@ let _depts    = [];
 let _beds     = [];
 let _opds     = [];
 let _ugIntake = 0;
+// Session 179 Piece 2: bed_id -> the admitting department of whoever currently occupies it.
+// Wards are physically SHARED (see Piece 1) -- ipd.js's admission picker allows admitting a
+// patient into a bed "planned" for a different department (an overflow admission, allowed with
+// a warning). This map is what lets renderBeds() flag that on the Bed Matrix card, comparing
+// against the bed's own (planned) department_id.
+let _bedOccupantDept = {};
 
 // ── Populate NCISM select ─────────────────────────────────────────────────────
 function _populateNcismSelect() {
@@ -289,21 +295,30 @@ function populateDeptSelects() {
 
 // ── Load all data ─────────────────────────────────────────────────────────────
 async function loadAll() {
-  const [dRes, bRes, oRes, tRes] = await Promise.all([
+  const [dRes, bRes, oRes, tRes, admRes] = await Promise.all([
     supabase.from('departments').select('*').eq('tenant_id', tenantId).order('name'),
     supabase.from('beds').select('*').eq('tenant_id', tenantId).order('bed_number'),
     supabase.from('opds').select('id,name').eq('tenant_id', tenantId).eq('is_active', true).order('name'),
     supabase.from('tenants').select('ug_intake,type').eq('id', tenantId).single(),
+    // Session 179 Piece 2 -- who's actually admitted where right now, so renderBeds() can flag
+    // a bed whose current occupant's admitting department differs from the bed's own planned
+    // one (a real overflow admission, allowed by ipd.js's picker with a warning). Non-fatal if
+    // this fails (admRes.error checked below, not treated as a hard load failure) -- the Bed
+    // Matrix still works, it just can't show the cross-department flag for that load.
+    supabase.from('ipd_admissions').select('bed_id,department_id').eq('tenant_id', tenantId).in('status', ['admitted', 'clinically_discharged']),
   ]);
 
   if (dRes.error) { _alert('error', safeErrorMessage(dRes.error, 'Failed to load departments.')); return; }
   if (bRes.error) { _alert('error', safeErrorMessage(bRes.error, 'Failed to load beds.')); return; }
+  if (admRes.error) console.error('[bed-admin] admissions load failed (cross-dept flag unavailable):', admRes.error);
 
   _depts    = dRes.data || [];
   _beds     = bRes.data || [];
   _opds     = oRes.data || [];
   _ugIntake = tRes.data?.ug_intake || 0;
   const tenantType = tRes.data?.type;
+  _bedOccupantDept = {};
+  (admRes.data || []).forEach(a => { if (a.bed_id) _bedOccupantDept[a.bed_id] = a.department_id; });
 
   // Session 94 — pick the code convention this tenant's real departments actually use.
   // Session 95 — short-form is no longer teaching_hospital/college-exclusive
@@ -1633,7 +1648,18 @@ function renderBeds() {
     const st        = b.status || 'vacant';
     const typeLabel = BED_LABELS[b.bed_type] || b.bed_type.replace(/_/g,' ');
     const unitLbl = _unitLabel(b);
-    return `<div class="bed-card ${st}" data-onclick="openBedDrawer" data-onclick-a0="${_esc(b.id)}" title="${_esc(b.bed_number)}${unitLbl ? ' — ' + _esc(unitLbl) : ''} — ${deptMap[b.department_id] || ''} — ${st}">
+    // Session 179 Piece 2: wards are physically shared across departments (Piece 1) --
+    // ipd.js's admission picker allows admitting into a bed "planned" for a different
+    // department (overflow, allowed with a warning there). This flag is the standing visual
+    // record of that on the Bed Matrix -- only shown for a currently-occupied bed whose real
+    // admitting department differs from the bed's own planned department_id; never inferred
+    // for a vacant bed (nothing to compare against yet).
+    const occupantDept  = st === 'occupied' ? _bedOccupantDept[b.id] : null;
+    const isCrossDept   = occupantDept && occupantDept !== b.department_id;
+    const crossDeptFlag = isCrossDept
+      ? `<div class="bed-cross-dept" title="Planned for ${_esc(deptMap[b.department_id] || '—')}, currently occupied by a ${_esc(deptMap[occupantDept] || '—')} patient">🔶 ${_esc(deptMap[occupantDept] || '—')} patient</div>`
+      : '';
+    return `<div class="bed-card ${st}" data-onclick="openBedDrawer" data-onclick-a0="${_esc(b.id)}" title="${_esc(b.bed_number)}${unitLbl ? ' — ' + _esc(unitLbl) : ''} — ${deptMap[b.department_id] || ''} — ${st}${isCrossDept ? ' — cross-department occupancy' : ''}">
       ${b.is_pg_allocated ? '<div class="bed-pg-dot" title="PG-allocated"></div>' : ''}
       <div class="bed-num">${_esc(b.bed_number)}</div>
       <div class="bed-dept-name">${_esc(deptMap[b.department_id] || '—')}</div>
@@ -1641,6 +1667,7 @@ function renderBeds() {
       ${b.ward_name && b.unit_name !== b.ward_name ? `<div class="bed-ward">${_esc(b.ward_name)}</div>` : ''}
       <div class="bed-floor">${b.floor_number === 0 ? 'Ground Floor' : `Floor ${b.floor_number ?? 0}`}</div>
       <div class="bed-type-badge ${b.bed_type}">${typeLabel}</div>
+      ${crossDeptFlag}
       <div class="bed-card-status ${st}">${STATUS_LABELS[st] || st}</div>
     </div>`;
   }).join('');

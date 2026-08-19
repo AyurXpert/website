@@ -18,6 +18,9 @@
   --success-bg:#e8f5ee;--success-border:#b2d8bf;--success-text:#1a4a2e;
   --error-bg:#fdecea;--error-border:#f5c6c6;--error-text:#8b1a1a;
   --red:#c0392b;
+  --orange:#d35400; /* Session 179 Piece 2 — canonical semantic tag color (CLAUDE.md), used
+                        only for the cross-department "overflow" bed badge, always paired with
+                        a text label, never color alone */
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
@@ -31,7 +34,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
 /* ── Buttons ── */
 .btn{
-  height:40px;padding:0 18px;border-radius:var(--radius);
+  height:44px;padding:0 18px;border-radius:var(--radius);
   font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;
   cursor:pointer;border:none;transition:background .15s,color .15s;white-space:nowrap;
   display:inline-flex;align-items:center;gap:6px;
@@ -42,7 +45,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .btn-secondary:hover{background:var(--green-light)}
 .btn-danger{background:var(--white);color:var(--red);border:1.5px solid var(--error-border)}
 .btn-danger:hover{background:var(--error-bg)}
-.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn-sm{height:44px;padding:0 12px;font-size:12px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 
 /* ── Alert ── */
@@ -169,13 +172,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .field{margin-bottom:14px}
 .field label{display:block;font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
 .field input,.field select,.field textarea{
-  width:100%;height:40px;padding:0 12px;
+  width:100%;height:44px;padding:0 12px;
   border:1.5px solid var(--border);border-radius:var(--radius);
   font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-dark);
   background:var(--white);outline:none;transition:border-color .15s;
 }
 .field textarea{height:72px;padding:8px 12px;resize:none;line-height:1.5}
-.field select{
+.field select{height:44px;
   appearance:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a9485'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 10px center;
@@ -236,6 +239,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .bed-option.selected{border-color:var(--green-deep);background:var(--green-light);color:var(--green-deep)}
 .bed-option.pk{border-color:#a8c8f0;background:#e3f0ff;color:#1a4080}
 .bed-option.pk.selected{border-color:#1a4080;background:#1a4080;color:#fff}
+/* Session 179 Piece 2 — a bed allocated to a different department, in the same physically
+   shared ward. Border color is a secondary cue only; the "🔶 <dept>'s bed" text label on the
+   card itself (and the confirm() warning on pick) is what actually communicates the overflow,
+   never the color alone. */
+.bed-option.overflow{border-color:#f0c896;background:#fdf3e7}
+.bed-option.overflow.selected{border-color:var(--orange);background:var(--orange);color:#fff}
+.bed-option.overflow.selected span{color:#fff}
+.bed-picker-note{font-size:11px;color:var(--text-muted);padding:2px 2px 6px;font-style:italic;flex-basis:100%}
 .bed-picker-empty{font-size:12px;color:var(--text-muted);padding:4px 2px}
 
 /* ── Discharge type ── */
@@ -924,7 +935,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <label style="font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Special Instructions</label>
         <textarea id="diet-instructions" placeholder="Serve warm · Add honey · Less spicy · With Trikatu · Before meals…" style="width:100%;height:64px;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:'DM Sans',sans-serif;resize:none"></textarea>
       </div>
-      <button data-onclick="saveDietIndent" style="width:100%;height:40px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:13px;cursor:pointer">Send to Palha-Diet Kitchen ▶</button>
+      <button data-onclick="saveDietIndent" style="width:100%;height:44px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:13px;cursor:pointer">Send to Palha-Diet Kitchen ▶</button>
       <div style="text-align:center;margin-top:10px">
         <a href="palha-diet.html" target="_blank" style="font-size:12px;color:var(--green-mid)">Open Kitchen View →</a>
       </div>
@@ -960,7 +971,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <label style="font-size:11px;font-weight:700;color:#7a0000;text-transform:uppercase;letter-spacing:.4px">P — Plan</label>
           <textarea id="wrd-plan" placeholder="Treatment changes, investigations ordered, therapy, diet modifications…" style="width:100%;height:44px;border:1.5px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;font-family:'DM Sans',sans-serif;resize:none;margin-top:4px"></textarea>
         </div>
-        <button data-onclick="saveWrdNote" style="width:100%;height:38px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-weight:500;font-size:13px;cursor:pointer">Save Ward Round Note</button>
+        <button data-onclick="saveWrdNote" style="width:100%;height:44px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-weight:500;font-size:13px;cursor:pointer">Save Ward Round Note</button>
       </div>
       <!-- Previous notes -->
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:8px">Previous Notes</div>
@@ -976,7 +987,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <div style="font-weight:600;font-size:15px;color:var(--green-deep)">📋 IPD Care Plan</div>
         <div style="font-size:11px;color:var(--text-muted)">NABH AAC.3 CORE — Required for every IPD admission within 24 hours</div>
       </div>
-      <button data-onclick="closeCarePlanDrawer" title="Close" style="background:#f2f6f3;border:1.5px solid var(--border);width:32px;height:32px;border-radius:8px;font-size:20px;line-height:1;cursor:pointer;color:var(--text-dark);flex-shrink:0">&times;</button>
+      <button data-onclick="closeCarePlanDrawer" title="Close" style="background:#f2f6f3;border:1.5px solid var(--border);width:32px;height:44px;border-radius:8px;font-size:20px;line-height:1;cursor:pointer;color:var(--text-dark);flex-shrink:0">&times;</button>
     </div>
     <div id="cp-form-area" style="padding:18px 20px;flex:1"></div>
   </div>
@@ -1014,7 +1025,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <option value="lama">LAMA</option><option value="transferred">Transferred</option><option value="deceased">Deceased</option>
           </select></div>
       </div>
-      <button data-onclick="saveAndPrintDischarge" style="height:40px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Save &amp; Print Discharge Summary 🖨</button>
+      <button data-onclick="saveAndPrintDischarge" style="height:44px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Save &amp; Print Discharge Summary 🖨</button>
     </div>
   </div>
 </div>

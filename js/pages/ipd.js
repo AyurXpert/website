@@ -578,21 +578,89 @@ window.loadVacantBeds = function() {
     return;
   }
 
-  const vacant = _allBeds.filter(b => b.department_id === deptId && b.status === 'vacant');
+  // Session 179 Piece 2 real design fix: hospital wards are physically SHARED across
+  // departments (see bed-admin.js's Session 179 Piece 1 -- a department's "bed share" is a
+  // planning/NCISM ratio, not a physical partition). This picker used to only ever show a
+  // department its OWN tagged beds (`b.department_id === deptId`), silently hiding real vacant
+  // beds in the very same physical room just because Quick Setup happened to allocate them to
+  // a different department. Now shows every vacant bed in any (bed_type, ward_name) cell this
+  // department actually participates in -- confirmed via Piece 1's SAME cell-identity
+  // definition, so the two features agree on what "the same physical ward" means. Own beds
+  // sort first/primary; another department's beds in the same shared ward are still pickable
+  // (real overflow admission) but visually flagged and confirmed via pickBed()'s warning --
+  // never silently blocked, per Dr. Venkatesh's explicit "allow with a clear warning" call.
+  const ownCells = new Set(
+    _allBeds.filter(b => b.department_id === deptId).map(b => `${b.bed_type}|${b.ward_name || ''}`)
+  );
+  let vacant = _allBeds.filter(b => b.status === 'vacant' &&
+    (b.department_id === deptId || ownCells.has(`${b.bed_type}|${b.ward_name || ''}`)));
+
+  // TODO_LATER §54 real fix, done alongside Piece 2 since both touch this exact function:
+  // hard-block a clear gender mismatch -- male_general/female_general wards are physically
+  // gender-segregated; every other bed_type (twin_sharing/private/deluxe/dormitory/etc.) has
+  // no gender implication and is unaffected. A patient with gender 'other' or no gender on
+  // file is never blocked here -- there's no defensible hard rule for either case, left to
+  // staff judgement instead, matching the confirmed design (never rely on hiding alone without
+  // a visible reason -- the empty/note states below always say why a bed is missing).
+  // Real finding checking this live: patients.gender isn't stored consistently across the
+  // platform -- reception.html's own form writes 'male'/'female', but ABDM-verified patients
+  // (Scan & Share / ABHA enrollment) can arrive as single-letter 'M'/'F' instead. Normalizing
+  // both to 'male'/'female' here so neither source silently skips the check.
+  const genderRaw = (_selectedPatient?.gender || '').trim().toLowerCase();
+  const patGender = genderRaw === 'm' ? 'male' : genderRaw === 'f' ? 'female' : genderRaw;
+  let hiddenForGender = 0;
+  if (patGender === 'male' || patGender === 'female') {
+    const before = vacant.length;
+    vacant = vacant.filter(b => {
+      if (b.bed_type === 'male_general')   return patGender === 'male';
+      if (b.bed_type === 'female_general') return patGender === 'female';
+      return true;
+    });
+    hiddenForGender = before - vacant.length;
+  }
+  const genderNote = hiddenForGender
+    ? `${hiddenForGender} bed${hiddenForGender === 1 ? '' : 's'} hidden — gender-segregated ward`
+    : '';
+
   if (!vacant.length) {
-    picker.innerHTML = '<span class="bed-picker-empty">No vacant beds in this department</span>';
+    picker.innerHTML = `<span class="bed-picker-empty">No vacant beds in this department${genderNote ? ` (${genderNote})` : ''}</span>`;
     return;
   }
 
-  picker.innerHTML = vacant.map(b => {
-    const isPk = b.bed_type === 'pk_treatment';
-    return `<div class="bed-option${isPk ? ' pk' : ''}" data-id="${b.id}" data-onclick="pickBed" data-onclick-a0="@this" data-onclick-a1="${b.id}">
-      ${_esc(b.bed_number)}${b.ward_name ? '<br><span style="font-size:9px;font-weight:400">'+_esc(b.ward_name)+'</span>' : ''}
+  vacant = [...vacant].sort((a, b) =>
+    (a.department_id === deptId ? 0 : 1) - (b.department_id === deptId ? 0 : 1) ||
+    a.bed_number.localeCompare(b.bed_number, undefined, { numeric: true, sensitivity: 'base' }));
+
+  const deptNameById = Object.fromEntries(_depts.map(d => [d.id, d.name]));
+  const BED_TYPE_LABELS = {male_general:'Male General',female_general:'Female General',general:'General',twin_sharing:'Twin Sharing',semi_private:'Shared Private',private:'Private',deluxe:'Deluxe',dormitory:'Dormitory',icu:'ICU',day_care:'Day Care',pk_treatment:'PK Treatment',observation:'Observation'};
+
+  picker.innerHTML = (genderNote ? `<div class="bed-picker-note">${_esc(genderNote)}</div>` : '') +
+    vacant.map(b => {
+    const isPk       = b.bed_type === 'pk_treatment';
+    const isOverflow = b.department_id !== deptId;
+    const typeLabel  = BED_TYPE_LABELS[b.bed_type] || b.bed_type.replace(/_/g, ' ');
+    const ownerName  = isOverflow ? (deptNameById[b.department_id] || 'another department') : '';
+    return `<div class="bed-option${isPk ? ' pk' : ''}${isOverflow ? ' overflow' : ''}" data-id="${b.id}"
+      data-onclick="pickBed" data-onclick-a0="@this" data-onclick-a1="${b.id}" data-onclick-a2="${isOverflow ? '1' : '0'}" data-onclick-a3="${_esc(ownerName)}"
+      title="${_esc(b.bed_number)}${b.ward_name ? ' — ' + _esc(b.ward_name) : ''} — ${_esc(typeLabel)}${isOverflow ? ' — allocated to ' + _esc(ownerName) : ''}">
+      ${b.ward_name ? '<span style="font-size:9px;font-weight:400;display:block">'+_esc(b.ward_name)+'</span>' : ''}
+      ${_esc(b.bed_number)}
+      <span style="font-size:8.5px;font-weight:500;display:block;opacity:.8">${_esc(typeLabel)}</span>
+      ${isOverflow ? `<span style="font-size:8.5px;font-weight:700;display:block;color:var(--orange)">🔶 ${_esc(ownerName)}'s bed</span>` : ''}
     </div>`;
   }).join('');
 };
 
-window.pickBed = function(el, bedId) {
+window.pickBed = function(el, bedId, isOverflow, ownerName) {
+  // Session 179 Piece 2: overflow (a bed allocated to a different department, in the same
+  // physically shared ward) is allowed, never silently blocked -- but confirmed once, clearly,
+  // so it's a deliberate choice and not an accidental click. Bed Matrix separately shows the
+  // resulting cross-department occupancy as a standing visual flag (bed-admin.js's renderBeds()).
+  if (isOverflow === '1') {
+    const deptSelName = document.getElementById('adm-dept').selectedOptions?.[0]?.textContent || 'this department';
+    const ok = confirm(`This bed is allocated to ${ownerName}, not ${deptSelName}.\n\nWards are physically shared -- admitting here is allowed, and will show as a cross-department occupancy on the Bed Matrix. Continue?`);
+    if (!ok) return;
+  }
   document.querySelectorAll('.bed-option').forEach(o => o.classList.remove('selected'));
   el.classList.add('selected');
   document.getElementById('adm-bed-id').value = bedId;
