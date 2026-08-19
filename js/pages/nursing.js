@@ -122,8 +122,21 @@ const deptNameById = {};
 // standalone rows, every one of their nurses is rostered through "Medical/Surgical In-Patients"
 // instead. Queried fresh here (not hardcoded) so this keeps working if a tenant's rostering
 // pattern ever differs.
-const { data: rosterDeptRows } = await supabase.from('duty_roster').select('department_id').eq('tenant_id', tenantId);
-const rosterDeptIdSet = new Set((rosterDeptRows||[]).map(r => r.department_id));
+// Session 179 real bug fix (Dr. Venkatesh, live correction): this used to treat ANY duty_roster
+// presence as "already separately ward-staffed" -- which wrongly excluded Panchakarma from the
+// Medical In-Patients zone. Panchakarma's own duty_roster rows are ALL shift_type='general'
+// (confirmed live: 100% of them) -- that's this codebase's existing category for day-only
+// procedure-room/OPD-type duty (Abhyanga/Vamana/Virechana treatments, 1pm-5pm), never 24x7 ward
+// nursing (see js/config/ncism.js's NURSING_24X7_NAMES vs NURSING_GENERAL_DUTY_CODES split).
+// Panchakarma's real IPD-admitted ward patients (25 beds: Male/Female General, Twin Sharing,
+// Private, Deluxe, Dormitory) had NO round-the-clock roster coverage at all as a result -- a
+// real gap, not a display bug. Fixed by only counting a department as separately ward-rostered
+// if it has actual round-the-clock (morning/afternoon/night) duty_roster rows -- 'general'-only
+// presence no longer excludes it from zone-pooling. Panchakarma now correctly pools into
+// Medical In-Patients (60 real beds total: KAY+KAU+AGD+PK), matching the staffing formula's own
+// 60-bed count (IPD_MEDICAL_BED_CODES) exactly -- the two numbers can no longer disagree.
+const { data: rosterDeptRows } = await supabase.from('duty_roster').select('department_id,shift_type').eq('tenant_id', tenantId);
+const rosterDeptIdSet = new Set((rosterDeptRows||[]).filter(r => r.shift_type !== 'general').map(r => r.department_id));
 const { data: zoneDepts } = await supabase.from('departments')
   .select('id,name,category').eq('tenant_id', tenantId).in('category', ['IPD_MEDICAL','IPD_SURGICAL']);
 const zoneMemberIds = {}; // zoneDeptId -> [real bed-owning ward dept ids pooled under it]
@@ -260,7 +273,7 @@ async function _autoSelectFromDuty(data) {
   // be actively misleading -- there isn't one on THIS page for a posting like that.
   if (note) {
     note.style.display = '';
-    note.textContent = `📍 Your duty roster posts you to ${deptName} (${shiftLabel} shift) today. This page covers IPD ward nursing — if today's posting is OPD/Screening/Diagnostics/OT/Labour Room duty, use that module's own page instead.`;
+    note.textContent = `📍 Your duty roster posts you to ${deptName} (${shiftLabel} shift) today. This page covers IPD ward nursing — if today's posting is OPD/Screening/Diagnostics/OT/Labour Room/Panchakarma Treatment Room duty, use that module's own page instead.`;
   }
 }
 
