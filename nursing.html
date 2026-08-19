@@ -266,11 +266,27 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <option value="">— Select Ward / Department —</option>
     </select>
     <span style="font-size:12px;color:var(--text-muted)">Shift:</span>
-    <button class="shift-pill active" data-onclick="setShift" data-onclick-a0="@this" data-onclick-a1="morning">🌅 Morning (6–2)</button>
-    <button class="shift-pill" data-onclick="setShift" data-onclick-a0="@this" data-onclick-a1="evening">🌆 Evening (2–10)</button>
-    <button class="shift-pill" data-onclick="setShift" data-onclick-a0="@this" data-onclick-a1="night">🌙 Night (10–6)</button>
+    <!-- Session 179 real bug fix: these 3 buttons used to be hardcoded to the Equal-Thirds
+         pattern's times (6-2/2-10/10-6) and used 'evening' as the shift_type value -- but
+         the platform's real default (and every tenant's actual configured pattern) has been
+         Day-Weighted (6+6+12) since Session 166, whose real times are 8-2/2-8/8-8, and the
+         rest of the roster system (duty_roster.shift_type) has never used 'evening' at all,
+         only 'afternoon' (displayed as "Evening" under this pattern -- see ncism.js's
+         SHIFT_PATTERNS). nursing.js now renders these live from the tenant's actual
+         nursing_roster_settings.shift_pattern via shiftNames()/shiftTimes() -- this wrapper
+         is emptied and rebuilt at load, kept here only as a no-JS fallback. -->
+    <span id="shift-pills-wrap">
+      <button class="shift-pill active" data-onclick="setShift" data-onclick-a0="@this" data-onclick-a1="morning">🌅 Morning</button>
+      <button class="shift-pill" data-onclick="setShift" data-onclick-a0="@this" data-onclick-a1="afternoon">🌆 Evening</button>
+      <button class="shift-pill" data-onclick="setShift" data-onclick-a0="@this" data-onclick-a1="night">🌙 Night</button>
+    </span>
     <input type="date" id="nursing-date" style="height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif" data-onchange="loadWardPatients"/>
   </div>
+  <!-- Session 179: Dr. Venkatesh's explicit ask -- ward + shift should auto-select from the
+       logged-in nurse's real duty roster posting, not require manual picking every time.
+       This note confirms it happened (and that it's still just a starting point -- she can
+       still change either dropdown/pill manually, e.g. to help chart for a colleague). -->
+  <div id="auto-posting-note" class="no-print" style="display:none;padding:6px 16px;font-size:11.5px;color:#1a5a37;background:var(--green-light);border:1px solid #b2d8bf;border-radius:var(--radius);margin:-8px 0 16px"></div>
 
   <!-- Two-panel layout -->
   <div class="nursing-layout">

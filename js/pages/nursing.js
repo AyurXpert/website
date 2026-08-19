@@ -22,6 +22,8 @@ import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { checkRosterChanged } from '../modules/roster/scheduleChangeIndicator.js';
 import { fetchMyDuty, renderMyDutyHtml, renderTodayHtml } from '../modules/roster/myDutyWidget.js';
+import { shiftTimes, shiftNames } from '../config/ncism.js';
+import { IPD_MEDICAL_BED_CODES, IPD_SURGICAL_BED_CODES } from '../config/ncismStaffCompliance.js';
 
 requireAuth(['nurse','nurse_manager','super_admin','dept_admin','doctor']);
 initNavbar();
@@ -79,15 +81,6 @@ if (profile?.role === 'nurse') {
 // Session 168 follow-up (Dr. Venkatesh, same day, after seeing it live): only today's duty (or
 // "Day Off") stays permanently visible; the full This/Next period grid starts collapsed and
 // expands on click -- see toggleMyDuty() below and #my-duty-full/.show in nursing.html's CSS.
-if (profile?.role === 'nurse') {
-  fetchMyDuty(supabase, tenantId, userId).then(data => {
-    if (!data) return; // fetchMyDuty() already logged the specific error; nothing to render
-    document.getElementById('my-duty-today').innerHTML = renderTodayHtml(data);
-    document.getElementById('my-duty-body').innerHTML = renderMyDutyHtml(data);
-    document.getElementById('my-duty-card').style.display = '';
-  }).catch(err => console.error('[my-duty-card]', err));
-}
-
 window.toggleMyDuty = function(headerEl) {
   const full = document.getElementById('my-duty-full');
   const chevron = document.getElementById('my-duty-chevron');
@@ -96,15 +89,136 @@ window.toggleMyDuty = function(headerEl) {
   if (chevron) chevron.textContent = open ? '▴' : '▾';
 };
 
-// Load departments for ward selector
+// Session 179 real bug fix: this page used to list EVERY active org-wide department in the ward
+// selector (32 on SDM -- Administration/Pharmacy/etc alongside the nursing-roster's own pooled
+// STAFFING zone abstractions like "Medical In-Patients"/"Surgical In-Patients", which own ZERO
+// real beds themselves -- see IPD_MEDICAL_BED_CODES/IPD_SURGICAL_BED_CODES import above). None
+// of those are ever a place a nurse actually charts a real patient. The true charting wards are
+// exactly whichever departments own rows in `beds` -- querying that directly (rather than hand-
+// listing NCISM codes here) means this list stays correct automatically if a tenant's bed
+// layout ever changes, and can never drift from what admin.html/roster.html already treat as
+// the real wards.
+const { data: bedRows } = await supabase.from('beds').select('department_id').eq('tenant_id', tenantId);
+const wardDeptIds = [...new Set((bedRows||[]).map(b => b.department_id).filter(Boolean))];
 const { data: depts } = await supabase.from('departments')
-  .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true).order('name');
+  .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true)
+  .in('id', wardDeptIds.length ? wardDeptIds : ['00000000-0000-0000-0000-000000000000'])
+  .order('name');
 const wardSel = document.getElementById('ward-select');
+const wardCodeById = {};
 (depts||[]).forEach(d => {
+  wardCodeById[d.id] = d.ncism_code;
   const opt = document.createElement('option');
   opt.value = d.id; opt.textContent = d.name + (d.ncism_code ? ' ('+d.ncism_code+')' : '');
   wardSel.appendChild(opt);
 });
+
+// Session 179 real bug fix: the shift pills below were static HTML hard-coded to the OLD
+// equal_8x3 pattern's names/times (6am-2pm etc, internal value "evening") -- a tenant's actual
+// configured pattern (nursing-roster-template.html's Shift Pattern card) can be six_six_twelve
+// instead (8-2 / 2-8 / 8-8, Dr. Venkatesh's real reported times), and this page never looked it
+// up at all. Rendered dynamically from the exact same shiftNames()/shiftTimes() every other
+// roster page already uses, so this page can never disagree with the real published schedule.
+// Internal value "afternoon" (not the old "evening") matches the shift_type value duty_roster
+// and every other roster page already use.
+const { data: shiftSettings } = await supabase.from('nursing_roster_settings')
+  .select('shift_pattern').eq('tenant_id', tenantId).maybeSingle();
+const _shiftPattern = shiftSettings?.shift_pattern || 'six_six_twelve';
+const _shiftLabels = shiftNames(_shiftPattern);
+const _shiftTimesMap = shiftTimes(_shiftPattern);
+const _shiftIcons = { morning: '🌅', afternoon: '🌆', night: '🌙' };
+(function renderShiftPills() {
+  const wrap = document.getElementById('shift-pills-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = ['morning','afternoon','night'].map((s, i) => {
+    const label = _esc(_shiftLabels[s] || s);
+    const time = _esc(_shiftTimesMap[s] || '');
+    return `<button class="shift-pill${i===0?' active':''}" title="${time}" data-onclick="setShift" data-onclick-a0="@this" data-onclick-a1="${s}">${_shiftIcons[s]||''} ${label}</button>`;
+  }).join('');
+})();
+
+// Session 168: permanent "My Duty" card -- this cycle's + next cycle's duty postings for the
+// logged-in nurse, shown every time this page loads (not just when something recently changed,
+// unlike the banner above). Same `role === 'nurse'` scoping as that banner and for the same
+// reason -- nurse_manager/admin viewers aren't personally scheduled by the roster solver, so
+// there'd be nothing real to show them. Fire-and-forget, non-blocking.
+//
+// Session 168 follow-up (Dr. Venkatesh, same day, after seeing it live): only today's duty (or
+// "Day Off") stays permanently visible; the full This/Next period grid starts collapsed and
+// expands on click -- see toggleMyDuty() below and #my-duty-full/.show in nursing.html's CSS.
+//
+// Session 179: Dr. Venkatesh's explicit ask -- "as the nurse is posted through duty roster
+// these things [ward + shift] should be auto selected by the HMS as per the respective nurse
+// login." Reuses this SAME fetchMyDuty() call (no second duty_roster query) -- see
+// _autoSelectFromDuty() below for why a pooled zone posting ("Medical In-Patients") can only
+// ever auto-narrow the ward choice, never silently pick one of its several real wards for her.
+if (profile?.role === 'nurse') {
+  fetchMyDuty(supabase, tenantId, userId).then(async data => {
+    if (!data) return; // fetchMyDuty() already logged the specific error; nothing to render
+    document.getElementById('my-duty-today').innerHTML = renderTodayHtml(data);
+    document.getElementById('my-duty-body').innerHTML = renderMyDutyHtml(data);
+    document.getElementById('my-duty-card').style.display = '';
+    await _autoSelectFromDuty(data, wardCodeById);
+  }).catch(err => console.error('[my-duty-card]', err));
+}
+
+// Session 179: auto-selects ward + shift from the nurse's OWN today's duty_roster row(s) --
+// prefers her "home" posting over a relief/extra-duty one if she has both today (matches
+// Nursing IP 1's real SDM data: a home slot + a same-dept/shift relief slot on the same day).
+// Shift is always unambiguous and gets auto-selected outright. Ward is only auto-selected
+// outright when her posted department directly owns beds (wardCodeById has it) -- when it's a
+// pooled zone abstraction (Medical/Surgical In-Patients, ncism_code IPD_MEDICAL/IPD_SURGICAL,
+// confirmed against real SDM `beds` data to have zero rows of its own), there is no single
+// correct real ward to silently guess among its several member wards, so this narrows the
+// dropdown's context to just that zone's real wards (via IPD_MEDICAL_BED_CODES/
+// IPD_SURGICAL_BED_CODES) and asks her to pick, rather than risk charting to the wrong one.
+async function _autoSelectFromDuty(data, codeById) {
+  const todays = (data.currentRows||[]).filter(r => r.shift_date === data.periods.today);
+  if (!todays.length) return; // Day Off -- nothing to auto-select, leave the manual controls as-is
+  const primary = todays.find(r => !r.is_relief_assignment) || todays[0];
+  const note = document.getElementById('auto-posting-note');
+  const shiftLabel = _shiftLabels[primary.shift_type] || primary.shift_type;
+
+  // Shift: always unambiguous.
+  const shiftBtn = document.querySelector(`#shift-pills-wrap [data-onclick-a1="${primary.shift_type}"]`);
+  if (shiftBtn) window.setShift(shiftBtn, primary.shift_type);
+
+  const deptName = data.deptNames[primary.department_id] || '—';
+  if (Object.prototype.hasOwnProperty.call(codeById, primary.department_id)) {
+    // Her posted department directly owns beds -- select it outright.
+    wardSel.value = primary.department_id;
+    await window.loadWardPatients();
+    if (note) {
+      note.style.display = '';
+      note.textContent = `📍 Auto-selected from your duty roster: ${deptName} · ${shiftLabel} shift. You can change this manually if you're covering elsewhere today.`;
+    }
+    return;
+  }
+
+  // Pooled zone abstraction (or a department with no beds at all) -- look up its zone key to see
+  // if it's one of the two known IPD zones and narrow to that zone's real wards instead of
+  // guessing. Real SDM data check (Session 179): "Medical In-Patients"/"Surgical In-Patients"
+  // carry their zone identifier in `category` (IPD_MEDICAL/IPD_SURGICAL), not `ncism_code`
+  // (null for both) -- same ncism_code-falls-back-to-category convention _deptKey() already
+  // uses in ncismStaffCompliance.js, so checked both here rather than assuming ncism_code alone.
+  const { data: zoneDept } = await supabase.from('departments').select('ncism_code,category').eq('id', primary.department_id).maybeSingle();
+  const zoneCode = zoneDept?.ncism_code || zoneDept?.category;
+  const memberCodes = zoneCode === 'IPD_MEDICAL' ? IPD_MEDICAL_BED_CODES : zoneCode === 'IPD_SURGICAL' ? IPD_SURGICAL_BED_CODES : null;
+  if (note) {
+    note.style.display = '';
+    if (memberCodes) {
+      const memberNames = Object.entries(codeById).filter(([,c]) => memberCodes.includes(c))
+        .map(([id]) => [...wardSel.options].find(o => o.value === id)?.textContent).filter(Boolean);
+      note.textContent = `📍 Your duty roster posts you to ${deptName} (${shiftLabel} shift) — a staffing zone covering ${memberNames.join(', ')||'several wards'}. Select which ward you're covering today below.`;
+    } else {
+      // Neither a real ward nor one of the 2 IPD zones -- genuinely one of this HMS's other
+      // nursing-duty places (OPD/Screening/Diagnostics/Operation Theatre/Labour Room/Atyayika),
+      // each of which has its own dedicated page. Telling her to "pick a ward below" here would
+      // be actively misleading -- there isn't one on THIS page for a posting like that.
+      note.textContent = `📍 Your duty roster posts you to ${deptName} (${shiftLabel} shift) today. This page covers IPD ward nursing — if today's posting is OPD/Screening/Diagnostics/OT/Labour Room duty, use that module's own page instead.`;
+    }
+  }
+}
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 window.switchTab = function(tab, el) {
