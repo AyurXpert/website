@@ -280,6 +280,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <span>IPD Patients</span>
         <span id="pt-list-count" style="font-size:12px;opacity:.8">0</span>
       </div>
+      <!-- Session 178: the date picker used to trigger a reload that ignored the date
+           entirely -- now that loadWardPatients() actually filters by it, this note makes
+           clear when a past date's historical ward view is being shown, so it's never
+           mistaken for the live list. Hidden by default (today's view, the common case). -->
+      <div id="pt-list-historical-note" style="display:none;padding:6px 14px;font-size:10.5px;color:#7a5a10;background:var(--gold-light);border-bottom:1px solid var(--border)"></div>
       <div class="patient-list" id="patient-list">
         <div style="padding:20px;text-align:center;font-size:13px;color:var(--text-muted)">Select a ward to load patients</div>
       </div>
@@ -335,11 +340,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <div class="field-row c4 no-print" style="margin-bottom:12px">
             <div class="field">
               <label>BP Systolic</label>
-              <input id="v-bps" type="number" placeholder="120" data-oninput="checkVital" data-oninput-a0="bp" data-oninput-a1="@value"/>
+              <input id="v-bps" type="number" placeholder="120" data-oninput="checkBP"/>
             </div>
             <div class="field">
               <label>BP Diastolic</label>
-              <input id="v-bpd" type="number" placeholder="80"/>
+              <input id="v-bpd" type="number" placeholder="80" data-oninput="checkBP"/>
               <div class="vital-warning" id="w-bp"></div>
             </div>
             <div class="field">
@@ -767,6 +772,5 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 </div>
 
 <script type="module" src="js/pages/nursing.js"></script>
-</script>
 </body>
 </html>

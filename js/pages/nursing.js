@@ -127,21 +127,53 @@ window.setShift = function(el, shift) {
   document.querySelectorAll('.shift-pill').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   _shift = shift;
+  // Session 178 real bug fix: switching shifts used to do nothing but flip which value
+  // saveIo()/saveVitals()/saveNote() would tag onto their NEXT write -- whatever the
+  // currently-open tab was already showing (e.g. Morning's Intake-Output form) stayed on
+  // screen unchanged, so a nurse switching to Evening mid-tab could end up looking at
+  // (and potentially resaving) the wrong shift's data. Re-running the active tab's own
+  // loader now matches switchTab()'s existing pattern exactly.
+  if (_activeAdm) loadTabData(_activeTab);
 };
 
 // ── Load patients in ward ─────────────────────────────────────────────────────
 window.loadWardPatients = async function() {
   const deptId = document.getElementById('ward-select').value;
   if (!deptId) return;
+  // Session 178 real bug fix: the date picker next to the ward selector was wired to
+  // trigger this exact reload on change, but this function never actually read the date
+  // at all -- picking any date reran the identical "currently admitted" query. Now a
+  // past date shows a real historical view: who was actually on this ward that day
+  // (admitted by then, and not yet discharged as of then). Today keeps the original,
+  // unchanged "currently admitted" query exactly as before -- the common case is
+  // untouched, both in behaviour and in which columns get selected.
+  const selectedDate = document.getElementById('nursing-date').value || new Date().toISOString().slice(0,10);
+  const todayStr = new Date().toISOString().slice(0,10);
+  const isHistorical = selectedDate !== todayStr;
+
   // Session 114 -- a patient stays chartable/selectable through the
   // reconciliation window (clinically_discharged): they're still physically
   // on the ward until the nurse locks charges, per the confirmed policy
   // decision. beds(id,...) needed here (not just bed_number) so
   // lockChargesAndFreeBed() can free the actual bed row.
-  const { data } = await supabase.from('ipd_admissions')
-    .select('id,admission_date,diagnosis_primary,status,disposition,patients(id,name,age,gender,phone),beds(id,bed_number,ward_name)')
-    .eq('tenant_id', tenantId).eq('department_id', deptId).in('status',['admitted','clinically_discharged'])
-    .order('admission_date');
+  let query = supabase.from('ipd_admissions')
+    .select('id,admission_date,diagnosis_primary,status,disposition,discharged_at,patients(id,name,age,gender,phone),beds(id,bed_number,ward_name)')
+    .eq('tenant_id', tenantId).eq('department_id', deptId);
+  query = isHistorical
+    ? query.lte('admission_date', selectedDate).or(`discharged_at.is.null,discharged_at.gte.${selectedDate}`)
+    : query.in('status', ['admitted','clinically_discharged']);
+  const { data } = await query.order('admission_date');
+
+  const noteEl = document.getElementById('pt-list-historical-note');
+  if (noteEl) {
+    if (isHistorical) {
+      noteEl.textContent = `📅 Showing who was on this ward on ${_fmtDate(selectedDate)} — a historical view, not live. New entries are always recorded with today's real date/time regardless of this selection.`;
+      noteEl.style.display = '';
+    } else {
+      noteEl.style.display = 'none';
+    }
+  }
+
   _admissions = data || [];
   document.getElementById('pt-list-count').textContent = _admissions.length;
   const list = document.getElementById('patient-list');
@@ -186,9 +218,17 @@ const VITAL_LIMITS = {
   pulse:  { low:40, high:130, msg:'Pulse abnormal' },
   rr:     { low:8,  high:30,  msg:'Respiratory rate abnormal' },
   spo2:   { low:90, high:null,msg:'SpO₂ low — check oxygen' },
-  bp:     { low:80, high:180, msg:'BP abnormal' },
   sugar:  { low:60, high:400, msg:'Blood sugar critical' },
 };
+const BP_SYSTOLIC_LIMIT  = { low:80, high:180 };
+// Session 178 real bug fix: diastolic never had any live check at all -- only the
+// systolic field (v-bps) was wired to checkVital('bp', ...); the diastolic field
+// (v-bpd) had no data-oninput handler whatsoever, so an abnormal diastolic reading
+// (e.g. a hypertensive-crisis or dangerously-low value) went completely unflagged,
+// live and in the vitals-history table. checkBP() now evaluates both fields together
+// on either one changing, sharing the single w-bp warning div that already sits under
+// the BP row (was only ever fed by systolic before).
+const BP_DIASTOLIC_LIMIT = { low:50, high:120 };
 
 window.checkVital = function(name, val) {
   const v = parseFloat(val);
@@ -198,6 +238,19 @@ window.checkVital = function(name, val) {
   if ((lim.low !== null && v < lim.low) || (lim.high !== null && v > lim.high))
     el.textContent = '⚠ ' + lim.msg;
   else el.textContent = '';
+};
+
+window.checkBP = function() {
+  const el = document.getElementById('w-bp');
+  if (!el) return;
+  const sys = parseFloat(document.getElementById('v-bps').value);
+  const dia = parseFloat(document.getElementById('v-bpd').value);
+  const sysAbnormal = !isNaN(sys) && (sys < BP_SYSTOLIC_LIMIT.low || sys > BP_SYSTOLIC_LIMIT.high);
+  const diaAbnormal = !isNaN(dia) && (dia < BP_DIASTOLIC_LIMIT.low || dia > BP_DIASTOLIC_LIMIT.high);
+  if (sysAbnormal && diaAbnormal)      el.textContent = '⚠ BP abnormal (systolic & diastolic)';
+  else if (sysAbnormal)                el.textContent = '⚠ Systolic BP abnormal';
+  else if (diaAbnormal)                el.textContent = '⚠ Diastolic BP abnormal';
+  else                                  el.textContent = '';
 };
 
 window._updatePainDisplay = function(val) {
@@ -230,6 +283,14 @@ window.saveVitals = async function() {
   ['v-temp','v-pulse','v-rr','v-spo2','v-bps','v-bpd','v-sugar','v-weight','v-obs'].forEach(id => {
     const el = document.getElementById(id); if(el) el.value='';
   });
+  // Session 178 real bug fix: every other field above was reset after a save except this
+  // one -- the pain-score slider silently kept showing whatever value was last set,
+  // which could easily look like a fresh reading to the next entry. type="range" needs
+  // its min (0), not '', or the browser just leaves it wherever it was.
+  const painEl = document.getElementById('v-pain-score');
+  if (painEl) painEl.value = '0';
+  const painDisplay = document.getElementById('v-pain-display');
+  if (painDisplay) painDisplay.textContent = '';
   ['w-pulse','w-rr','w-spo2','w-bp','w-sugar'].forEach(id => {
     const el = document.getElementById(id); if(el) el.textContent='';
   });
@@ -249,7 +310,7 @@ async function loadVitals() {
     <td class="${v.pulse&&(v.pulse<40||v.pulse>130)?'alert-val':''}">${v.pulse||'—'}</td>
     <td class="${v.respiratory_rate&&(v.respiratory_rate<8||v.respiratory_rate>30)?'alert-val':''}">${v.respiratory_rate||'—'}</td>
     <td class="${v.spo2&&v.spo2<90?'alert-val':''}">${v.spo2||'—'}</td>
-    <td class="${v.bp_systolic&&(v.bp_systolic<80||v.bp_systolic>180)?'alert-val':''}">${v.bp_systolic&&v.bp_diastolic?v.bp_systolic+'/'+v.bp_diastolic:'—'}</td>
+    <td class="${(v.bp_systolic&&(v.bp_systolic<80||v.bp_systolic>180))||(v.bp_diastolic&&(v.bp_diastolic<50||v.bp_diastolic>120))?'alert-val':''}">${v.bp_systolic&&v.bp_diastolic?v.bp_systolic+'/'+v.bp_diastolic:'—'}</td>
     <td class="${v.blood_sugar&&(v.blood_sugar<60||v.blood_sugar>400)?'alert-val':''}">${v.blood_sugar||'—'}</td>
     <td style="font-size:11px">${v.observation||'—'}</td>
   </tr>`).join('');
@@ -378,9 +439,16 @@ window.calcIoTotals = function() {
 
 async function loadIo() {
   const today = new Date().toISOString().slice(0,10);
+  // Session 178 real bug fix: this never filtered by shift at all -- it just grabbed
+  // whichever of today's records (Morning/Evening/Night, one row each per saveIo()'s own
+  // onConflict key) happened to have the latest created_at, regardless of which shift
+  // pill was currently selected. Combined with setShift() previously never triggering a
+  // reload, a nurse could switch shifts and still be looking at (and about to resave) a
+  // completely different shift's fluid totals. Now scoped to the actual selected shift,
+  // matching the real per-shift record this page already saves.
   const { data } = await supabase.from('nursing_io')
-    .select('*').eq('admission_id', _activeAdm.id).eq('record_date', today)
-    .order('created_at', {ascending:false}).limit(1).maybeSingle();
+    .select('*').eq('admission_id', _activeAdm.id).eq('record_date', today).eq('shift', _shift)
+    .maybeSingle();
 
   document.getElementById('intake-rows').innerHTML = '';
   document.getElementById('output-rows').innerHTML = '';
@@ -733,7 +801,12 @@ window.saveRiskAssessment = async function(type) {
     };
   } else {
     const total = parseInt(document.getElementById('braden-score').textContent);
-    const risk  = total <= 9 ? 'high' : total <= 12 ? 'medium' : total <= 14 ? 'low' : 'low';
+    // Session 178 real bug fix: this used to fall through to 'low' for BOTH the 13-14
+    // range AND the >14 range, silently losing the "No Risk" distinction calcBraden()'s
+    // own UI clearly shows (High <=9 / Medium 10-12 / Low 13-14 / No Risk >=15). Needed
+    // a real 5th value on risk_assessments.risk_level's CHECK constraint first
+    // (sql/session178_nursing_html_fixes.sql) since 'none' wasn't previously allowed.
+    const risk  = total <= 9 ? 'high' : total <= 12 ? 'medium' : total <= 14 ? 'low' : 'none';
     payload = { ...payload,
       braden_sensory_perception: parseInt(document.getElementById('braden-sensory').value),
       braden_moisture: parseInt(document.getElementById('braden-moisture').value),
@@ -760,12 +833,17 @@ async function loadRiskHistory() {
     .order('assessment_datetime', { ascending: false }).limit(10);
   if (!data?.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px">No assessments recorded yet.</div>'; return; }
   const typeLabel = { morse_fall:'Morse Fall', braden:'Braden (Pressure Ulcer)', dvt:'DVT', nutritional:'Nutritional' };
-  const riskColor = { low:'#1a4a2e', medium:'#7a4a00', high:'#8b1a1a', very_high:'#8b1a1a' };
+  // Session 178: 'none' added alongside the fix to saveRiskAssessment() so a Braden score
+  // >=15 ("No Risk" on the live calculator) shows the same way here instead of the old
+  // silent fallback to 'low'. riskLabel replaces the old bare text-transform:capitalize on
+  // the raw enum value, which also rendered 'very_high' as the awkward "Very_high".
+  const riskColor = { none:'#1a4a2e', low:'#2d7a4f', medium:'#7a4a00', high:'#8b1a1a', very_high:'#8b1a1a' };
+  const riskLabel = { none:'No Risk', low:'Low', medium:'Medium', high:'High', very_high:'Very High' };
   el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead><tr style="background:#f5faf7"><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Assessment</th><th style="padding:6px 10px;text-align:center;border-bottom:1.5px solid var(--border)">Score</th><th style="padding:6px 10px;text-align:center;border-bottom:1.5px solid var(--border)">Risk</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Assessed By</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Date/Time</th></tr></thead>
     <tbody>${data.map(r => `<tr><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${typeLabel[r.assessment_type]||r.assessment_type}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;text-align:center;font-weight:600">${r.morse_total ?? r.braden_total ?? '—'}</td>
-      <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;text-align:center"><span style="font-size:11px;font-weight:600;color:${riskColor[r.risk_level]||'#333'};background:${riskColor[r.risk_level]||'#333'}15;padding:2px 8px;border-radius:10px;text-transform:capitalize">${r.risk_level||'—'}</span></td>
+      <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;text-align:center"><span style="font-size:11px;font-weight:600;color:${riskColor[r.risk_level]||'#333'};background:${riskColor[r.risk_level]||'#333'}15;padding:2px 8px;border-radius:10px">${riskLabel[r.risk_level] || r.risk_level || '—'}</span></td>
       <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${r.profiles?.full_name||'—'}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;color:var(--text-muted)">${new Date(r.assessment_datetime).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'})}</td></tr>`).join('')}
     </tbody></table>`;
