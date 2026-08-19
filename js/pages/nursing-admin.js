@@ -4,12 +4,13 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { isNCISMType, isNursingDutyDept, shiftsForDept } from '../config/ncism.js';
+import { isNCISMType, isNursingDutyDept, shiftsForDept, NURSING_GENERAL_DUTY_CODES, NURSING_GENERAL_DUTY_NAMES } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead, canDecideShiftChange } from '../modules/roster/nursingHeadship.js';
 import { computeRequiredPerShift, distributeAcrossShifts, buildRequiredMatrix } from '../modules/roster/requiredStaffing.js';
 import { checkCycleExpiry } from '../modules/roster/cycleExpiry.js';
 import { findUncoveredAbsences } from '../modules/roster/coverageGaps.js';
 import { _computeIpdBedTotals, _combinedIpdNursingSplit } from '../config/ncismStaffCompliance.js';
+import { NURSING_ELIGIBLE_DESIGNATIONS } from '../modules/roster/coverageCapacity.js';
 
 await requireAuth(['nurse_manager', 'super_admin', 'dept_admin']);
 initNavbar();
@@ -750,7 +751,154 @@ supabase.channel('coverage-gap-live')
   .on('postgres_changes', { event: '*', schema: 'public', table: 'duty_roster', filter: `tenant_id=eq.${tenantId}` }, _refreshCoverageGapBannerDebounced)
   .subscribe();
 
+// ── Today's Staffing Snapshot (Session 175) ──────────────────────────────────
+// Dr. Venkatesh's explicit ask: on login, a Nursing Superintendent should see at a
+// glance who's working where, who's off/on leave, who's free, and who's posted to a
+// lighter-duty zone today. Four buckets, computed fresh, never a cached/manual number:
+//   • Working  — has a real duty_roster row for today (grouped by department)
+//   • On leave — an approved staff_leaves row covering today
+//   • Off      — no duty_roster row today, not on leave, but the current rotating
+//                weekly-off formula (preview_nursing_week, re-run read-only for the
+//                current week) says today IS their scheduled off day. Deliberately does
+//                NOT use profiles.weekly_off_day for this -- that field is the OLDER
+//                fixed-weekday model and is documented stale against the rotating
+//                solver's real published schedule (Session 168's nursing.html bug was
+//                exactly this mismatch). Re-deriving from the same solver the real
+//                schedule was generated from is the only way to answer "off" honestly.
+//   • Free     — none of the above: a genuine unexplained gap (never posted, or an
+//                older Fixed-Team/Roll-Forward tenant with no rotating-off concept).
+// "Lighter-duty zone" = the 4 real day-only General Duty places (OPD, Diagnostics,
+// Panchakarma, Screening OPD) per Dr. Venkatesh's choice of a fixed category rather
+// than a live Required-vs-Assigned computation -- reuses the SAME categorisation
+// shiftsForDept()/isNursingDutyDept() already use, not a new hand-picked list.
+function _mondayOf(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1 - day);
+  d.setDate(d.getDate() + diff);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function _isLightDutyDept(dept) {
+  return NURSING_GENERAL_DUTY_CODES.has(dept?.ncism_code) || NURSING_GENERAL_DUTY_NAMES.has(dept?.name);
+}
+
+async function loadTodayStaffingSnapshot() {
+  const bodyEl = document.getElementById('today-snapshot-body');
+  const subEl  = document.getElementById('snapshot-sub');
+  const today  = _todayStr();
+
+  try {
+    const { data: staff } = await supabase.from('profiles')
+      .select('id, full_name, designation')
+      .eq('tenant_id', tenantId).eq('is_active', true)
+      .in('designation', NURSING_ELIGIBLE_DESIGNATIONS);
+    const staffList = staff || [];
+    const staffIds  = staffList.map(s => s.id);
+    if (!staffIds.length) {
+      subEl.textContent = 'No nursing staff on file yet.';
+      bodyEl.innerHTML = '';
+      return;
+    }
+
+    const { data: depts } = await supabase.from('departments')
+      .select('id, name, ncism_code').eq('tenant_id', tenantId).eq('is_active', true);
+    const lightDeptIds = new Set((depts || []).filter(_isLightDutyDept).map(d => d.id));
+
+    const [{ data: dutyRows }, { data: leaveRows }] = await Promise.all([
+      supabase.from('duty_roster')
+        .select('profile_id, department_id, shift_type, departments(name)')
+        .eq('tenant_id', tenantId).eq('shift_date', today).in('profile_id', staffIds),
+      supabase.from('staff_leaves')
+        .select('profile_id, reason, leave_type')
+        .eq('tenant_id', tenantId).eq('status', 'approved')
+        .lte('from_date', today).gte('to_date', today).in('profile_id', staffIds),
+    ]);
+
+    // Rotating weekly-off, re-derived read-only for the current week (see note above)
+    let offToday = new Set();
+    try {
+      const required = await buildRequiredMatrix(supabase, tenantId);
+      if (required.length) {
+        const { data: preview } = await supabase.rpc('preview_nursing_week', {
+          p_week_start: _mondayOf(today), p_required: required,
+        });
+        offToday = new Set(
+          (preview?.weekly_offs || [])
+            .filter(o => (o.off_dates || []).includes(today))
+            .map(o => o.profile_id)
+        );
+      }
+    } catch { /* best-effort -- an off-day miss just falls through to "Free", never blocks the rest */ }
+
+    const workingMap = new Map();
+    (dutyRows || []).forEach(r => {
+      if (!workingMap.has(r.profile_id)) workingMap.set(r.profile_id, []);
+      workingMap.get(r.profile_id).push({
+        deptId: r.department_id, deptName: r.departments?.name || '—', shift: r.shift_type,
+      });
+    });
+    const leaveMap = new Map((leaveRows || []).map(r => [r.profile_id, r]));
+
+    const working = [], onLeave = [], off = [], free = [], lightZone = [];
+    for (const s of staffList) {
+      const shifts = workingMap.get(s.id);
+      if (shifts?.length) {
+        working.push({ ...s, shifts });
+        const lightShifts = shifts.filter(sh => lightDeptIds.has(sh.deptId));
+        if (lightShifts.length) lightZone.push({ ...s, shifts: lightShifts });
+      } else if (leaveMap.has(s.id)) {
+        onLeave.push({ ...s, leave: leaveMap.get(s.id) });
+      } else if (offToday.has(s.id)) {
+        off.push(s);
+      } else {
+        free.push(s);
+      }
+    }
+
+    subEl.textContent = `${staffList.length} nursing staff · ${working.length} working · ${onLeave.length} on leave · ${off.length} off · ${free.length} free`;
+
+    const shiftLabel = { morning: 'Morning', afternoon: 'Afternoon', night: 'Night', general: 'General Duty' };
+    const nameTag = (s, extra = '') => `<div style="padding:6px 10px;background:#fff;border:1px solid var(--border);border-radius:6px;font-size:12.5px;margin-bottom:5px">
+      <strong>${_esc(s.full_name)}</strong>${extra}
+    </div>`;
+
+    const workingHtml = working.length
+      ? working.map(s => nameTag(s, ` <span style="color:var(--text-muted)">— ${s.shifts.map(sh => `${_esc(sh.deptName)} (${_esc(shiftLabel[sh.shift] || sh.shift)})`).join(', ')}</span>`)).join('')
+      : '<div style="font-size:12px;color:var(--text-muted)">Nobody rostered yet today.</div>';
+
+    const leaveHtml = onLeave.map(s => nameTag(s, s.leave.reason ? ` <span style="color:var(--text-muted)">— on leave: ${_esc(s.leave.reason)}</span>` : ' <span style="color:var(--text-muted)">— on leave</span>')).join('');
+    const offHtml = off.map(s => nameTag(s, ` <span style="color:var(--text-muted)">— scheduled weekly off</span>`)).join('');
+    const leaveOffHtml = (leaveHtml + offHtml) || '<div style="font-size:12px;color:var(--text-muted)">Nobody off or on leave today.</div>';
+
+    const freeHtml = free.length
+      ? free.map(s => nameTag(s)).join('')
+      : '<div style="font-size:12px;color:var(--text-muted)">No unexplained gaps — everyone is accounted for.</div>';
+
+    const lightHtml = lightZone.length
+      ? lightZone.map(s => nameTag(s, ` <span style="color:var(--text-muted)">— ${s.shifts.map(sh => _esc(sh.deptName)).join(', ')}</span>`)).join('')
+      : '<div style="font-size:12px;color:var(--text-muted)">Nobody posted to a day-only place today.</div>';
+
+    const panel = (title, sub, count, html) => `<div style="background:#f9f8f4;border:1px solid var(--border);border-radius:8px;padding:12px">
+      <div style="font-weight:600;font-size:12.5px;color:var(--green-deep);margin-bottom:2px">${title} (${count})</div>
+      <div style="font-size:10.5px;color:var(--text-muted);margin-bottom:8px">${sub}</div>
+      <div style="max-height:220px;overflow-y:auto">${html}</div>
+    </div>`;
+
+    bodyEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+      ${panel('📍 Working Today', 'Has a real shift assigned today', working.length, workingHtml)}
+      ${panel('🏖️ Off / On Leave', 'Approved leave or scheduled weekly off', onLeave.length + off.length, leaveOffHtml)}
+      ${panel('🆓 Free Today', 'Not working, not on leave, not their off day — an unexplained gap', free.length, freeHtml)}
+      ${panel('🌿 Lighter-Duty Zones', 'Posted to OPD / Diagnostics / Panchakarma / Screening OPD today', lightZone.length, lightHtml)}
+    </div>`;
+  } catch (err) {
+    subEl.textContent = 'Could not load.';
+    bodyEl.innerHTML = `<div style="font-size:12.5px;color:#c0392b">${_esc(safeErrorMessage(err, 'Could not load today\'s staffing snapshot.'))}</div>`;
+  }
+}
+
 await loadHeadship();
+await loadTodayStaffingSnapshot();
 await loadCoverageGapBanner();
 await loadShiftChangeRequests();
 await loadNursingLeaves();
