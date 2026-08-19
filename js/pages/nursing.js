@@ -24,6 +24,7 @@ import { checkRosterChanged } from '../modules/roster/scheduleChangeIndicator.js
 import { fetchMyDuty, renderMyDutyHtml, renderTodayHtml } from '../modules/roster/myDutyWidget.js';
 import { shiftTimes, shiftNames } from '../config/ncism.js';
 import { IPD_MEDICAL_BED_CODES, IPD_SURGICAL_BED_CODES } from '../config/ncismStaffCompliance.js';
+import { computeNurseBedSlice } from '../modules/roster/realBedSlicing.js';
 
 requireAuth(['nurse','nurse_manager','super_admin','dept_admin','doctor']);
 initNavbar();
@@ -40,6 +41,12 @@ let _admissions = [];
 let _activeAdm  = null;
 let _activeTab  = 'vitals';
 let _shift      = 'morning';
+// Session 179: the logged-in nurse's own real per-nurse bed-number slice (realBedSlicing.js),
+// set by _autoSelectFromDuty() when a "myslice" ward-select option is generated for her --
+// null for any other role/viewer, or a nurse with no real beds configured yet for her ward.
+let _mySliceDeptIds = null;
+let _mySliceNumbers = null;
+let _mySliceLabel   = '';
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.getElementById('nursing-date').value = new Date().toISOString().slice(0,10);
@@ -238,42 +245,79 @@ async function _autoSelectFromDuty(data) {
   const hasDirectOption = [...wardSel.options].some(o => o.value === primary.department_id);
   const hasZoneOption = [...wardSel.options].some(o => o.value === zoneOptValue);
 
-  // Session 179 follow-up (Dr. Venkatesh, live testing): "the dropdown is showing the zones,
-  // not the bed range assigned for that particular nurse" -- her duty_roster row's own
-  // bed_range_start/end (set by whoever built the roster template, nursing-roster-template.js)
-  // is a real assigned coverage range, but it's an even SPLIT of the department/zone's pooled
-  // bed total across its slots for staffing-ratio purposes (see that page's own
-  // "Beds are split evenly across THIS SHIFT's own slot count" note) -- not a live cross-check
-  // against any specific real bed's physical number. Shown here as the real range she was
-  // assigned, labelled honestly rather than implied to be a literal per-bed lookup.
-  const bedRange = (primary.bed_range_start && primary.bed_range_end)
-    ? ` · 🛏️ Beds ${primary.bed_range_start}–${primary.bed_range_end}` : '';
+  if (!hasDirectOption && !hasZoneOption) {
+    // Neither a real standalone ward nor one of the pooled IPD zones -- genuinely one of this
+    // HMS's other nursing-duty places (OPD/Screening/Diagnostics/Operation Theatre/Labour Room/
+    // Panchakarma Treatment Room), each with its own dedicated page. Telling her to "pick a
+    // ward below" here would be actively misleading -- there isn't one on THIS page for a
+    // posting like that.
+    if (note) {
+      note.style.display = '';
+      note.textContent = `📍 Your duty roster posts you to ${deptName} (${shiftLabel} shift) today. This page covers IPD ward nursing — if today's posting is OPD/Screening/Diagnostics/OT/Labour Room/Panchakarma Treatment Room duty, use that module's own page instead.`;
+    }
+    return;
+  }
 
+  const deptIdsForSlice = hasDirectOption ? [primary.department_id] : (zoneMemberIds[primary.department_id] || []);
+
+  // Session 179 (Dr. Venkatesh's explicit ask): a real per-nurse bed-number slice, tied to
+  // actual `beds.bed_number` values -- see realBedSlicing.js's own module comment for the full
+  // design reasoning (pure numeric slicing, no ward-type-awareness, generic across any tenant's
+  // configuration). Needs her real slot_index (now selected by fetchMyDuty()) and how many
+  // total slots exist for this exact department+shift+date -- queried fresh since fetchMyDuty()
+  // only returns HER OWN rows, not her colleagues' (a real, small, one-off query -- deliberately
+  // not folded into the shared module, which stays DB-shape-agnostic about slot counting).
+  let mySlice = null;
+  if (primary.slot_index != null && deptIdsForSlice.length) {
+    const { data: slotRows } = await supabase.from('duty_roster').select('slot_index')
+      .eq('tenant_id', tenantId).eq('department_id', primary.department_id)
+      .eq('shift_type', primary.shift_type).eq('shift_date', data.periods.today);
+    const totalSlots = Math.max(0, ...(slotRows||[]).map(r => r.slot_index || 0));
+    if (totalSlots > 0) {
+      mySlice = await computeNurseBedSlice(supabase, tenantId, deptIdsForSlice, primary.slot_index, totalSlots);
+    }
+  }
+
+  if (mySlice) {
+    // Real per-nurse option, inserted as the first real choice (right after the placeholder) --
+    // this is HER specific assignment, the most relevant option for her to land on by default.
+    const label = `🩺 ${deptName}${hasZoneOption ? ' zone' : ''} · Beds ${mySlice.rangeText}`;
+    let opt = wardSel.querySelector('option[value="myslice"]');
+    if (!opt) {
+      opt = document.createElement('option');
+      opt.value = 'myslice';
+      wardSel.insertBefore(opt, wardSel.options[1] || null);
+    }
+    opt.textContent = label;
+    _mySliceDeptIds = deptIdsForSlice;
+    _mySliceNumbers = new Set(mySlice.numbers);
+    _mySliceLabel = `Beds ${mySlice.rangeText}`;
+    wardSel.value = 'myslice';
+    await window.loadWardPatients();
+    if (note) {
+      note.style.display = '';
+      note.textContent = `📍 Auto-selected from your duty roster: ${deptName}${hasZoneOption ? ' zone' : ''} · 🛏️ Beds ${mySlice.rangeText} (of ${mySlice.zoneTotal} real beds in ${hasZoneOption ? 'this zone' : 'this ward'}) · ${shiftLabel} shift. Real bed numbers, not a staffing estimate. You can change this manually if you're covering elsewhere today.`;
+    }
+    return;
+  }
+
+  // Fallback -- no real beds configured yet for this ward/zone (e.g. Quick Setup never run),
+  // so there's nothing to slice. Same behaviour as before this feature existed: select the
+  // whole ward/zone option, and say so honestly rather than pretending a slice exists.
   if (hasDirectOption) {
     wardSel.value = primary.department_id;
     await window.loadWardPatients();
     if (note) {
       note.style.display = '';
-      note.textContent = `📍 Auto-selected from your duty roster: ${deptName}${bedRange} · ${shiftLabel} shift. You can change this manually if you're covering elsewhere today.`;
+      note.textContent = `📍 Auto-selected from your duty roster: ${deptName} · ${shiftLabel} shift. No real bed numbers are configured for this ward yet (Quick Setup), so this shows the whole ward. You can change this manually if you're covering elsewhere today.`;
     }
     return;
   }
-  if (hasZoneOption) {
-    wardSel.value = zoneOptValue;
-    await window.loadWardPatients();
-    if (note) {
-      note.style.display = '';
-      note.textContent = `📍 Auto-selected from your duty roster: ${deptName} zone${bedRange} · ${shiftLabel} shift. Your bed range is your assigned share of the zone's pooled total for staffing purposes, not one specific real ward's bed numbers — the patient list below shows everyone admitted across this whole zone, each tagged with their real ward. You can switch manually if you're covering elsewhere today.`;
-    }
-    return;
-  }
-  // Neither a real standalone ward nor one of the pooled IPD zones -- genuinely one of this
-  // HMS's other nursing-duty places (OPD/Screening/Diagnostics/Operation Theatre/Labour Room/
-  // Atyayika), each with its own dedicated page. Telling her to "pick a ward below" here would
-  // be actively misleading -- there isn't one on THIS page for a posting like that.
+  wardSel.value = zoneOptValue;
+  await window.loadWardPatients();
   if (note) {
     note.style.display = '';
-    note.textContent = `📍 Your duty roster posts you to ${deptName} (${shiftLabel} shift) today. This page covers IPD ward nursing — if today's posting is OPD/Screening/Diagnostics/OT/Labour Room/Panchakarma Treatment Room duty, use that module's own page instead.`;
+    note.textContent = `📍 Auto-selected from your duty roster: ${deptName} zone · ${shiftLabel} shift. No real bed numbers are configured for this zone yet (Quick Setup), so this shows everyone admitted across the whole zone. You can switch manually if you're covering elsewhere today.`;
   }
 }
 
@@ -349,16 +393,25 @@ window.loadWardPatients = async function() {
   // across the real member department ids instead of a single `.eq(...)`.
   const isZone = deptId.startsWith('zone:');
   const zoneMembers = isZone ? (zoneMemberIds[deptId.slice(5)] || []) : null;
+  // Session 179: her own real per-nurse bed-number slice (realBedSlicing.js), set by
+  // _autoSelectFromDuty(). Reuses the SAME department-set expansion as a zone selection below
+  // (her slice can span several real wards too), then narrows further to her specific numbers.
+  const isMySlice = deptId === 'myslice';
 
   const bedRangeNoteEl = document.getElementById('pt-list-bed-range-note');
   if (bedRangeNoteEl) {
-    const rangeDeptIds = isZone ? zoneMembers : [deptId];
-    const rangeText = await _realBedRangeText(rangeDeptIds);
-    if (rangeText) {
-      bedRangeNoteEl.textContent = `🛏️ Real bed ranges: ${rangeText}`;
+    if (isMySlice && _mySliceLabel) {
+      bedRangeNoteEl.textContent = `🩺 Your real assigned range: ${_mySliceLabel}`;
       bedRangeNoteEl.style.display = '';
     } else {
-      bedRangeNoteEl.style.display = 'none';
+      const rangeDeptIds = isZone ? zoneMembers : [deptId];
+      const rangeText = await _realBedRangeText(rangeDeptIds);
+      if (rangeText) {
+        bedRangeNoteEl.textContent = `🛏️ Real bed ranges: ${rangeText}`;
+        bedRangeNoteEl.style.display = '';
+      } else {
+        bedRangeNoteEl.style.display = 'none';
+      }
     }
   }
 
@@ -382,13 +435,29 @@ window.loadWardPatients = async function() {
   let query = supabase.from('ipd_admissions')
     .select('id,department_id,admission_date,diagnosis_primary,status,disposition,discharged_at,patients(id,name,age,gender,phone),beds(id,bed_number,ward_name)')
     .eq('tenant_id', tenantId);
-  query = isZone
-    ? query.in('department_id', zoneMembers.length ? zoneMembers : ['00000000-0000-0000-0000-000000000000'])
-    : query.eq('department_id', deptId);
+  if (isMySlice) {
+    query = query.in('department_id', (_mySliceDeptIds && _mySliceDeptIds.length) ? _mySliceDeptIds : ['00000000-0000-0000-0000-000000000000']);
+  } else {
+    query = isZone
+      ? query.in('department_id', zoneMembers.length ? zoneMembers : ['00000000-0000-0000-0000-000000000000'])
+      : query.eq('department_id', deptId);
+  }
   query = isHistorical
     ? query.lte('admission_date', selectedDate).or(`discharged_at.is.null,discharged_at.gte.${selectedDate}`)
     : query.in('status', ['admitted','clinically_discharged']);
-  const { data } = await query.order('admission_date');
+  let { data } = await query.order('admission_date');
+
+  // Session 179: narrow to her REAL assigned bed numbers specifically -- the department-level
+  // fetch above (same as a zone selection) is deliberately broad first so this filter has real
+  // bed_number values to check against, then this cuts it down to exactly her slice. A patient
+  // whose bed_number doesn't parse (shouldn't happen for a real Quick-Setup-created bed, but
+  // defensive) is excluded rather than guessed into her list.
+  if (isMySlice && _mySliceNumbers) {
+    data = (data || []).filter(a => {
+      const n = parseInt((a.beds?.bed_number || '').split('-').pop());
+      return !isNaN(n) && _mySliceNumbers.has(n);
+    });
+  }
 
   const noteEl = document.getElementById('pt-list-historical-note');
   if (noteEl) {
@@ -408,9 +477,10 @@ window.loadWardPatients = async function() {
     return;
   }
   list.innerHTML = _admissions.map(a => {
-    // Session 179: a zone view pools several real wards into one list -- each row needs to say
-    // which one this particular patient is actually in, or a nurse has no way to tell.
-    const wardTag = isZone ? ` · <strong>${_esc(deptNameById[a.department_id]||'—')}</strong>` : '';
+    // Session 179: a zone (or her own real slice, which can also span several real wards) view
+    // pools several real wards into one list -- each row needs to say which one this particular
+    // patient is actually in, or a nurse has no way to tell.
+    const wardTag = (isZone || isMySlice) ? ` · <strong>${_esc(deptNameById[a.department_id]||'—')}</strong>` : '';
     return `
     <div class="pt-list-item${_activeAdm?.id===a.id?' active':''}" data-onclick="selectPatient" data-onclick-a0="${a.id}">
       <div class="pt-li-name">${_esc(a.patients?.name)||'—'}${a.status==='clinically_discharged' ? ' <span style="font-size:9px;font-weight:700;color:#8a5000;background:#fff3e0;border-radius:6px;padding:1px 6px">DISCHARGE ORDERED</span>' : ''}</div>

@@ -96,7 +96,7 @@ export async function fetchMyDuty(supabase, tenantId, profileId) {
   const periods = computeDutyPeriods(cycle);
 
   const { data: rows, error: rosterErr } = await supabase.from('duty_roster')
-    .select('id,department_id,shift_date,shift_type,bed_range_start,bed_range_end,notes,is_relief_assignment,is_confirmed')
+    .select('id,department_id,shift_date,shift_type,slot_index,bed_range_start,bed_range_end,notes,is_relief_assignment,is_confirmed')
     .eq('tenant_id', tenantId).eq('profile_id', profileId)
     .gte('shift_date', periods.current.start).lte('shift_date', periods.next.end)
     .order('shift_date', { ascending: true });
