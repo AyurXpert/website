@@ -473,6 +473,44 @@ function _qs1LoadValues() {
   catch(_) { return {}; }
 }
 
+// Session 179: real global bed numbering, ward-type-first. Dr. Venkatesh's finding, working
+// through it live from bed-admin.html's own Physical Bed Inventory + Department Allocation
+// screens: a hospital's real physical wards (Male General Ward, Female General Ward, ...) are
+// SHARED rooms holding patients from several departments at once, with each department's "bed
+// share" being a planning/NCISM-compliance ratio, not a physical partition. The pre-existing
+// _deptReservedStart() already reserves one continuous global number range across departments
+// (that's why SDM's real beds are KAY-26..45 right after PK-01..25) -- but it reserves that
+// range DEPARTMENT-first (one dept's whole contiguous block spans several mixed ward types),
+// which is the wrong axis: Panchakarma's cards showed "PK-01..PK-25" as one contiguous block,
+// with no way to tell that e.g. PK-03 and a same-room KAY bed physically share Male General
+// Ward. Real fix: number WARD-TYPE-first instead (Male General Ward gets one contiguous global
+// range, sub-divided across whichever departments have a share of it), so a department's own
+// beds are correctly SCATTERED across the hospital-wide range, one sub-range per ward type it
+// participates in -- exactly Dr. Venkatesh's own worked example (Male General Ward beds 1-5 to
+// one department, 6-12 to another, ...).
+//
+// Returns every non-empty (bed-type, block) cell from Table 1, in the same row-major order the
+// user described building the numbering in ("1st row/1st column ward, then successive rows and
+// wards") -- type rows top-to-bottom (_qs1Types' own order), blocks left-to-right within each
+// row (_qs1Blocks' own order) -- with each cell's real global bed-number range. This is the
+// SINGLE source of truth for both the new "Bed #" preview column in Table 1 (informational,
+// before any beds exist) and the real bed_number assigned when beds are actually created
+// (quickSetupCreateRow) -- the two can never disagree since they read the exact same function.
+function _qs1CellSequence() {
+  const cells = [];
+  let running = 1;
+  _qs1Types.forEach(t => {
+    _qs1Blocks.forEach(b => {
+      const count = parseInt(document.getElementById(`qs1-${t.key}-${b.id}`)?.value || 0) || 0;
+      if (!count) return;
+      const blockLabel = document.getElementById(`qs1-blk-${b.id}`)?.value || '';
+      cells.push({ typeKey: t.key, blockId: b.id, blockLabel, count, start: running, end: running + count - 1 });
+      running += count;
+    });
+  });
+  return cells;
+}
+
 // Get {typeKey: totalCount} from Table 1 inputs
 function _qs1Pool() {
   const pool = {};
@@ -502,6 +540,21 @@ function _qsNcismTotal() {
 }
 
 window._qs1UpdateTotals = function() {
+  // Session 179: live "Bed #" preview per cell -- the exact same row-major sequence
+  // _qs1CellSequence() hands to the real bed-creation write path, shown here before any beds
+  // exist so Dr. Venkatesh can see the real physical numbering while still planning the
+  // inventory. Cleared to "—" for any cell whose bed count is currently 0.
+  _qs1Types.forEach(t => {
+    _qs1Blocks.forEach(b => {
+      const el = document.getElementById(`qs1-bedno-${t.key}-${b.id}`);
+      if (el) el.textContent = '—';
+    });
+  });
+  _qs1CellSequence().forEach(c => {
+    const el = document.getElementById(`qs1-bedno-${c.typeKey}-${c.blockId}`);
+    if (el) el.textContent = c.count === 1 ? `#${c.start}` : `#${c.start}–${c.end}`;
+  });
+
   _qs1Types.forEach(t => {
     // Row bed total
     let bedTotal = 0;
@@ -625,7 +678,7 @@ function renderQs1Table() {
 
   // Two-row header: row 1 = block name spanning Beds+Floor cols; row 2 = sub-labels
   const blkHeadersRow1 = _qs1Blocks.map(b => `
-    <th colspan="2" style="min-width:160px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.3)">
+    <th colspan="3" style="min-width:220px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.3)">
       <div style="display:flex;align-items:center;gap:4px;justify-content:center">
         <input class="qs1-hdr-input" id="qs1-blk-${b.id}" value="${b.label}" data-onblur="_qs1PersistMeta" placeholder="Building / Floor"/>
         ${_qs1Blocks.length > 1 ? `<button class="qs1-del-btn" style="color:rgba(255,255,255,0.7)" data-onclick="_qs1RemoveBlock" data-onclick-a0="${_esc(b.id)}" title="Remove block">✕</button>` : ''}
@@ -634,7 +687,8 @@ function renderQs1Table() {
 
   const blkSubRow = _qs1Blocks.map(() =>
     `<th style="text-align:center;font-size:10px;font-weight:500;padding:3px 6px;min-width:65px">Beds</th>
-     <th style="text-align:center;font-size:10px;font-weight:500;padding:3px 6px;min-width:60px;opacity:.85">Floor</th>`
+     <th style="text-align:center;font-size:10px;font-weight:500;padding:3px 6px;min-width:60px;opacity:.85">Floor</th>
+     <th style="text-align:center;font-size:10px;font-weight:500;padding:3px 6px;min-width:70px;opacity:.85">Bed #</th>`
   ).join('');
 
   const bodyRows = _qs1Types.map(t => {
@@ -654,7 +708,8 @@ function renderQs1Table() {
           data-onfocus="_qs1OnFocus" data-onfocus-a0="@this" data-onfocus-a1="${_esc(t.key)}" data-onfocus-a2="${_esc(b.id)}" data-onfocus-a3="floor"
           data-onblur="_qs1OnBlur" data-onblur-a0="@this" data-onblur-a1="floor"
           data-oninput="_qs1SaveAndUpdateTotals"/>
-      </td>`;
+      </td>
+      <td style="text-align:center;padding:5px 4px;font-size:10.5px;font-weight:600;color:var(--green-deep)" id="qs1-bedno-${t.key}-${b.id}">—</td>`;
     }).join('');
     const cap = QS1_CAPACITY[t.key] || '';
     return `<tr>
@@ -676,7 +731,8 @@ function renderQs1Table() {
   // Footer: beds total + blank floor cell per block
   const colTotals = _qs1Blocks.map(b =>
     `<td style="text-align:center;font-weight:700;color:var(--green-deep);padding:6px 8px" id="qs1-ctot-${b.id}">—</td>
-     <td style="padding:6px 4px;font-size:10px;color:#aaa;text-align:center">floor</td>`
+     <td style="padding:6px 4px;font-size:10px;color:#aaa;text-align:center">floor</td>
+     <td style="padding:6px 4px"></td>`
   ).join('');
 
   container.innerHTML = `
@@ -1215,7 +1271,23 @@ window.quickSetupCreateRow = async function(code, silent) {
   const typeOrder = (_qs1Types || []).map(t => t.key);
 
   if (!ward && _qs1Blocks && _qs1Blocks.length) {
-    // Per-block: each building block gets its own ward_name + floor
+    // Per-block: each building block gets its own ward_name + floor.
+    //
+    // Session 179 real design fix (Dr. Venkatesh, working through bed-admin.html's own
+    // screens live): bed numbers used to be assigned from _deptReservedStart()'s DEPARTMENT-
+    // first global range -- Panchakarma's whole allocation (mixing several real ward types)
+    // sat in one contiguous block (PK-01..PK-25), giving no way to tell that e.g. PK-03 and a
+    // same-room Kayachikitsa bed physically share Male General Ward. Real hospital wards are
+    // shared rooms -- a department's "bed share" is a planning/NCISM ratio, not a physical
+    // partition. Fixed by numbering WARD-TYPE-first instead: _qs1CellSequence() reserves one
+    // continuous global range per (bed-type, block) cell (the same one shown live in Table
+    // 1's new "Bed #" column); this department's own beds for a given cell simply continue
+    // from however many of THAT SAME cell's beds already exist (from any department, not just
+    // this one) -- so a department's cards now correctly show a SCATTERED set of real hospital-
+    // wide numbers, one sub-range per ward type it actually participates in, instead of one
+    // fake-contiguous block. No existingNums/nextNum collision tracking needed here anymore --
+    // each cell's own running count is the only thing that can ever collide, and it's shared.
+    const cellSeq     = _qs1CellSequence();
     const blockAlloc = _computeBlockAllocation(distribution);
     _qs1Blocks.forEach(b => {
       const bDist = blockAlloc[b.id] || {};
@@ -1227,15 +1299,18 @@ window.quickSetupCreateRow = async function(code, silent) {
         // Use the floor configured for this specific bed type in this block (Table 1)
         const flv = document.getElementById(`qs1-fl-${k}-${b.id}`)?.value;
         const typeFloor = (flv !== undefined && flv !== '') ? parseInt(flv) || 0 : floor;
+
+        const cell = cellSeq.find(c => c.typeKey === k && c.blockId === b.id);
+        const alreadyInCell = _beds.filter(bd => bd.bed_type === k && bd.ward_name === blockLabel).length;
+        let cellNum = cell ? cell.start + alreadyInCell : nextNum; // reservedStart fallback if Table 1 wasn't filled for this exact cell
         for (let i = 0; i < bDist[k]; i++) {
-          while (existingNums.has(nextNum)) nextNum++;
           rows.push({
             tenant_id: tenantId, department_id: deptId,
-            bed_number: `${prefix}-${String(nextNum).padStart(2, '0')}`,
+            bed_number: `${prefix}-${String(cellNum).padStart(2, '0')}`,
             floor_number: typeFloor, ward_name: blockLabel, bed_type: k,
             status: 'vacant', is_pg_allocated: false,
           });
-          existingNums.add(nextNum); nextNum++;
+          cellNum++;
         }
       }
     });
