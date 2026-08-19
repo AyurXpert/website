@@ -301,6 +301,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
            clear when a past date's historical ward view is being shown, so it's never
            mistaken for the live list. Hidden by default (today's view, the common case). -->
       <div id="pt-list-historical-note" style="display:none;padding:6px 14px;font-size:10.5px;color:#7a5a10;background:var(--gold-light);border-bottom:1px solid var(--border)"></div>
+      <!-- Session 179 follow-up: real per-bed-type ranges from the actual `beds` table for
+           whichever ward/zone is currently selected -- distinct from the auto-posting-note
+           above (which is only about what got auto-selected for a nurse's own login), this
+           shows for EVERY ward selection, manual or auto, any role. Replaces the old
+           duty_roster.bed_range_start/end staffing-ratio number (never tied to a real bed)
+           with the genuine ranges bed-admin.html's Piece 1-3 work actually created. -->
+      <div id="pt-list-bed-range-note" style="display:none;padding:6px 14px;font-size:10.5px;color:var(--text-mid);background:var(--green-light);border-bottom:1px solid var(--border)"></div>
       <div class="patient-list" id="patient-list">
         <div style="padding:20px;text-align:center;font-size:13px;color:var(--text-muted)">Select a ward to load patients</div>
       </div>

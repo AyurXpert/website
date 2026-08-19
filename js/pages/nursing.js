@@ -295,6 +295,38 @@ window.setShift = function(el, shift) {
 };
 
 // ── Load patients in ward ─────────────────────────────────────────────────────
+// Session 179 follow-up: Dr. Venkatesh, testing live: "the dropdown is not showing zone wise
+// bed range." The abstract duty_roster.bed_range_start/end note (added earlier this session)
+// was never tied to a real bed -- it's a staffing-ratio split of a zone's pooled bed COUNT, not
+// an actual bed lookup. Now that bed-admin.html's Piece 1-3 work created REAL physically
+// zone-pure bed ranges, this computes them straight from the `beds` table for whichever
+// department(s) the current ward/zone selection covers -- one min-max range per bed_type
+// (Medical Ward's real beds are scattered across 7 different type-ranges, not one contiguous
+// block, so there's no single number to show, same honest reasoning as _qs1CellSequence()'s
+// own per-cell ranges in bed-admin.js). Deliberately scoped to the SAME department set already
+// shown in the patient list (zone members only, e.g. excludes Panchakarma from "Medical
+// In-Patients" even though it physically shares Medical Ward) -- so this note can never disagree
+// with what's actually on screen below it.
+const BED_TYPE_LABELS_SHORT = {male_general:'Male General',female_general:'Female General',general:'General',twin_sharing:'Twin Sharing',semi_private:'Shared Private',private:'Private',deluxe:'Deluxe',dormitory:'Dormitory',icu:'ICU',day_care:'Day Care',pk_treatment:'PK Treatment',observation:'Observation'};
+const BED_TYPE_ORDER = Object.keys(BED_TYPE_LABELS_SHORT);
+async function _realBedRangeText(deptIds) {
+  if (!deptIds || !deptIds.length) return '';
+  const { data } = await supabase.from('beds').select('bed_type,bed_number')
+    .eq('tenant_id', tenantId).in('department_id', deptIds);
+  if (!data || !data.length) return '';
+  const byType = {};
+  data.forEach(b => {
+    const n = parseInt((b.bed_number || '').split('-').pop());
+    if (isNaN(n)) return;
+    if (!byType[b.bed_type]) byType[b.bed_type] = { min: n, max: n };
+    else { byType[b.bed_type].min = Math.min(byType[b.bed_type].min, n); byType[b.bed_type].max = Math.max(byType[b.bed_type].max, n); }
+  });
+  return BED_TYPE_ORDER.filter(t => byType[t]).map(t => {
+    const r = byType[t];
+    return `${BED_TYPE_LABELS_SHORT[t]}: ${r.min === r.max ? r.min : r.min + '–' + r.max}`;
+  }).join(' · ');
+}
+
 window.loadWardPatients = async function() {
   const deptId = document.getElementById('ward-select').value;
   if (!deptId) return;
@@ -304,6 +336,19 @@ window.loadWardPatients = async function() {
   // across the real member department ids instead of a single `.eq(...)`.
   const isZone = deptId.startsWith('zone:');
   const zoneMembers = isZone ? (zoneMemberIds[deptId.slice(5)] || []) : null;
+
+  const bedRangeNoteEl = document.getElementById('pt-list-bed-range-note');
+  if (bedRangeNoteEl) {
+    const rangeDeptIds = isZone ? zoneMembers : [deptId];
+    const rangeText = await _realBedRangeText(rangeDeptIds);
+    if (rangeText) {
+      bedRangeNoteEl.textContent = `🛏️ Real bed ranges: ${rangeText}`;
+      bedRangeNoteEl.style.display = '';
+    } else {
+      bedRangeNoteEl.style.display = 'none';
+    }
+  }
+
   // Session 178 real bug fix: the date picker next to the ward selector was wired to
   // trigger this exact reload on change, but this function never actually read the date
   // at all -- picking any date reran the identical "currently admitted" query. Now a
