@@ -105,9 +105,45 @@ const { data: depts } = await supabase.from('departments')
   .in('id', wardDeptIds.length ? wardDeptIds : ['00000000-0000-0000-0000-000000000000'])
   .order('name');
 const wardSel = document.getElementById('ward-select');
-const wardCodeById = {};
+const deptNameById = {};
+(depts||[]).forEach(d => { deptNameById[d.id] = d.name; });
+
+// Session 179 real design correction (Dr. Venkatesh, live testing): a nurse is never actually
+// posted to one specific real ward here -- her duty_roster row posts her to a POOLED zone
+// ("Medical In-Patients" = Kayachikitsa + Kaumarabhritya + Agada Tantra combined, per NCISM's
+// 1-nurse-per-N-beds ratio spanning all of them together), and she's responsible for admitted
+// patients across every real ward in that zone at once. Listing each real ward as its own
+// separate dropdown option (the previous fix) was still wrong -- picking just "Kayachikitsa"
+// would silently hide her patients admitted to Kaumarabhritya/Agada Tantra. Confirmed which
+// real wards are ACTUALLY pooled vs individually rostered by reading duty_roster itself (not
+// guessed): Panchakarma has its own dedicated 350 duty_roster rows tagged directly to its own
+// department id, its nurses are never rostered through a zone -- but Kayachikitsa/
+// Kaumarabhritya/Agada Tantra/Shalya Tantra/Shalakya Tantra/Prasuti & Stri Roga have ZERO
+// standalone rows, every one of their nurses is rostered through "Medical/Surgical In-Patients"
+// instead. Queried fresh here (not hardcoded) so this keeps working if a tenant's rostering
+// pattern ever differs.
+const { data: rosterDeptRows } = await supabase.from('duty_roster').select('department_id').eq('tenant_id', tenantId);
+const rosterDeptIdSet = new Set((rosterDeptRows||[]).map(r => r.department_id));
+const { data: zoneDepts } = await supabase.from('departments')
+  .select('id,name,category').eq('tenant_id', tenantId).in('category', ['IPD_MEDICAL','IPD_SURGICAL']);
+const zoneMemberIds = {}; // zoneDeptId -> [real bed-owning ward dept ids pooled under it]
+(zoneDepts||[]).forEach(z => {
+  const memberCodes = z.category === 'IPD_MEDICAL' ? IPD_MEDICAL_BED_CODES : IPD_SURGICAL_BED_CODES;
+  const members = (depts||[]).filter(d => memberCodes.includes(d.ncism_code) && !rosterDeptIdSet.has(d.id));
+  if (members.length) zoneMemberIds[z.id] = members.map(d => d.id);
+});
+(zoneDepts||[]).forEach(z => {
+  const members = zoneMemberIds[z.id];
+  if (!members || !members.length) return;
+  const memberNames = members.map(id => deptNameById[id]).filter(Boolean);
+  const opt = document.createElement('option');
+  opt.value = 'zone:' + z.id;
+  opt.textContent = `${z.name} (${memberNames.join(', ')})`;
+  wardSel.appendChild(opt);
+});
 (depts||[]).forEach(d => {
-  wardCodeById[d.id] = d.ncism_code;
+  const pooledIntoAZone = Object.values(zoneMemberIds).some(ids => ids.includes(d.id));
+  if (pooledIntoAZone) return; // already represented via its zone option above, not on its own
   const opt = document.createElement('option');
   opt.value = d.id; opt.textContent = d.name + (d.ncism_code ? ' ('+d.ncism_code+')' : '');
   wardSel.appendChild(opt);
@@ -150,42 +186,46 @@ const _shiftIcons = { morning: '🌅', afternoon: '🌆', night: '🌙' };
 // Session 179: Dr. Venkatesh's explicit ask -- "as the nurse is posted through duty roster
 // these things [ward + shift] should be auto selected by the HMS as per the respective nurse
 // login." Reuses this SAME fetchMyDuty() call (no second duty_roster query) -- see
-// _autoSelectFromDuty() below for why a pooled zone posting ("Medical In-Patients") can only
-// ever auto-narrow the ward choice, never silently pick one of its several real wards for her.
+// _autoSelectFromDuty() below for how a pooled zone posting ("Medical In-Patients") auto-selects
+// its own "zone:<id>" option, showing patients across all of that zone's real member wards.
 if (profile?.role === 'nurse') {
   fetchMyDuty(supabase, tenantId, userId).then(async data => {
     if (!data) return; // fetchMyDuty() already logged the specific error; nothing to render
     document.getElementById('my-duty-today').innerHTML = renderTodayHtml(data);
     document.getElementById('my-duty-body').innerHTML = renderMyDutyHtml(data);
     document.getElementById('my-duty-card').style.display = '';
-    await _autoSelectFromDuty(data, wardCodeById);
+    await _autoSelectFromDuty(data);
   }).catch(err => console.error('[my-duty-card]', err));
 }
 
 // Session 179: auto-selects ward + shift from the nurse's OWN today's duty_roster row(s) --
 // prefers her "home" posting over a relief/extra-duty one if she has both today (matches
 // Nursing IP 1's real SDM data: a home slot + a same-dept/shift relief slot on the same day).
-// Shift is always unambiguous and gets auto-selected outright. Ward is only auto-selected
-// outright when her posted department directly owns beds (wardCodeById has it) -- when it's a
-// pooled zone abstraction (Medical/Surgical In-Patients, ncism_code IPD_MEDICAL/IPD_SURGICAL,
-// confirmed against real SDM `beds` data to have zero rows of its own), there is no single
-// correct real ward to silently guess among its several member wards, so this narrows the
-// dropdown's context to just that zone's real wards (via IPD_MEDICAL_BED_CODES/
-// IPD_SURGICAL_BED_CODES) and asks her to pick, rather than risk charting to the wrong one.
-async function _autoSelectFromDuty(data, codeById) {
+// Shift is always unambiguous and gets auto-selected outright. Ward selection just picks
+// whichever real <option> the ward-select above already built for her posted department --
+// a standalone real ward (e.g. Panchakarma) selects directly; a pooled zone (Medical/Surgical
+// In-Patients) selects its "zone:<id>" option directly too, which loadWardPatients() expands
+// into all of that zone's real member wards' patients at once (see its own comment). No
+// separate ncism_code/category lookup needed here anymore -- the dropdown's own <option> set is
+// the single source of truth for what she can be posted to, built from the exact same real
+// duty_roster data this function reads.
+async function _autoSelectFromDuty(data) {
   const todays = (data.currentRows||[]).filter(r => r.shift_date === data.periods.today);
   if (!todays.length) return; // Day Off -- nothing to auto-select, leave the manual controls as-is
   const primary = todays.find(r => !r.is_relief_assignment) || todays[0];
   const note = document.getElementById('auto-posting-note');
   const shiftLabel = _shiftLabels[primary.shift_type] || primary.shift_type;
+  const deptName = data.deptNames[primary.department_id] || '—';
 
   // Shift: always unambiguous.
   const shiftBtn = document.querySelector(`#shift-pills-wrap [data-onclick-a1="${primary.shift_type}"]`);
   if (shiftBtn) window.setShift(shiftBtn, primary.shift_type);
 
-  const deptName = data.deptNames[primary.department_id] || '—';
-  if (Object.prototype.hasOwnProperty.call(codeById, primary.department_id)) {
-    // Her posted department directly owns beds -- select it outright.
+  const zoneOptValue = 'zone:' + primary.department_id;
+  const hasDirectOption = [...wardSel.options].some(o => o.value === primary.department_id);
+  const hasZoneOption = [...wardSel.options].some(o => o.value === zoneOptValue);
+
+  if (hasDirectOption) {
     wardSel.value = primary.department_id;
     await window.loadWardPatients();
     if (note) {
@@ -194,29 +234,22 @@ async function _autoSelectFromDuty(data, codeById) {
     }
     return;
   }
-
-  // Pooled zone abstraction (or a department with no beds at all) -- look up its zone key to see
-  // if it's one of the two known IPD zones and narrow to that zone's real wards instead of
-  // guessing. Real SDM data check (Session 179): "Medical In-Patients"/"Surgical In-Patients"
-  // carry their zone identifier in `category` (IPD_MEDICAL/IPD_SURGICAL), not `ncism_code`
-  // (null for both) -- same ncism_code-falls-back-to-category convention _deptKey() already
-  // uses in ncismStaffCompliance.js, so checked both here rather than assuming ncism_code alone.
-  const { data: zoneDept } = await supabase.from('departments').select('ncism_code,category').eq('id', primary.department_id).maybeSingle();
-  const zoneCode = zoneDept?.ncism_code || zoneDept?.category;
-  const memberCodes = zoneCode === 'IPD_MEDICAL' ? IPD_MEDICAL_BED_CODES : zoneCode === 'IPD_SURGICAL' ? IPD_SURGICAL_BED_CODES : null;
+  if (hasZoneOption) {
+    wardSel.value = zoneOptValue;
+    await window.loadWardPatients();
+    if (note) {
+      note.style.display = '';
+      note.textContent = `📍 Auto-selected from your duty roster: ${deptName} zone · ${shiftLabel} shift. Showing admitted patients across all of this zone's real wards. You can switch manually if you're covering elsewhere today.`;
+    }
+    return;
+  }
+  // Neither a real standalone ward nor one of the pooled IPD zones -- genuinely one of this
+  // HMS's other nursing-duty places (OPD/Screening/Diagnostics/Operation Theatre/Labour Room/
+  // Atyayika), each with its own dedicated page. Telling her to "pick a ward below" here would
+  // be actively misleading -- there isn't one on THIS page for a posting like that.
   if (note) {
     note.style.display = '';
-    if (memberCodes) {
-      const memberNames = Object.entries(codeById).filter(([,c]) => memberCodes.includes(c))
-        .map(([id]) => [...wardSel.options].find(o => o.value === id)?.textContent).filter(Boolean);
-      note.textContent = `📍 Your duty roster posts you to ${deptName} (${shiftLabel} shift) — a staffing zone covering ${memberNames.join(', ')||'several wards'}. Select which ward you're covering today below.`;
-    } else {
-      // Neither a real ward nor one of the 2 IPD zones -- genuinely one of this HMS's other
-      // nursing-duty places (OPD/Screening/Diagnostics/Operation Theatre/Labour Room/Atyayika),
-      // each of which has its own dedicated page. Telling her to "pick a ward below" here would
-      // be actively misleading -- there isn't one on THIS page for a posting like that.
-      note.textContent = `📍 Your duty roster posts you to ${deptName} (${shiftLabel} shift) today. This page covers IPD ward nursing — if today's posting is OPD/Screening/Diagnostics/OT/Labour Room duty, use that module's own page instead.`;
-    }
+    note.textContent = `📍 Your duty roster posts you to ${deptName} (${shiftLabel} shift) today. This page covers IPD ward nursing — if today's posting is OPD/Screening/Diagnostics/OT/Labour Room duty, use that module's own page instead.`;
   }
 }
 
@@ -254,6 +287,12 @@ window.setShift = function(el, shift) {
 window.loadWardPatients = async function() {
   const deptId = document.getElementById('ward-select').value;
   if (!deptId) return;
+  // Session 179: a "zone:<id>" selection (Medical/Surgical In-Patients) means the nurse is
+  // pooled-responsible for admitted patients across ALL of that zone's real member wards at
+  // once -- see the ward-select population code above for why. Expands into an `.in(...)`
+  // across the real member department ids instead of a single `.eq(...)`.
+  const isZone = deptId.startsWith('zone:');
+  const zoneMembers = isZone ? (zoneMemberIds[deptId.slice(5)] || []) : null;
   // Session 178 real bug fix: the date picker next to the ward selector was wired to
   // trigger this exact reload on change, but this function never actually read the date
   // at all -- picking any date reran the identical "currently admitted" query. Now a
@@ -269,10 +308,14 @@ window.loadWardPatients = async function() {
   // reconciliation window (clinically_discharged): they're still physically
   // on the ward until the nurse locks charges, per the confirmed policy
   // decision. beds(id,...) needed here (not just bed_number) so
-  // lockChargesAndFreeBed() can free the actual bed row.
+  // lockChargesAndFreeBed() can free the actual bed row. department_id kept in the select
+  // (Session 179) so a zone selection can show which specific real ward each patient is in.
   let query = supabase.from('ipd_admissions')
-    .select('id,admission_date,diagnosis_primary,status,disposition,discharged_at,patients(id,name,age,gender,phone),beds(id,bed_number,ward_name)')
-    .eq('tenant_id', tenantId).eq('department_id', deptId);
+    .select('id,department_id,admission_date,diagnosis_primary,status,disposition,discharged_at,patients(id,name,age,gender,phone),beds(id,bed_number,ward_name)')
+    .eq('tenant_id', tenantId);
+  query = isZone
+    ? query.in('department_id', zoneMembers.length ? zoneMembers : ['00000000-0000-0000-0000-000000000000'])
+    : query.eq('department_id', deptId);
   query = isHistorical
     ? query.lte('admission_date', selectedDate).or(`discharged_at.is.null,discharged_at.gte.${selectedDate}`)
     : query.in('status', ['admitted','clinically_discharged']);
@@ -295,14 +338,19 @@ window.loadWardPatients = async function() {
     list.innerHTML = '<div style="padding:20px;text-align:center;font-size:13px;color:var(--text-muted)">No admitted patients in this ward</div>';
     return;
   }
-  list.innerHTML = _admissions.map(a => `
+  list.innerHTML = _admissions.map(a => {
+    // Session 179: a zone view pools several real wards into one list -- each row needs to say
+    // which one this particular patient is actually in, or a nurse has no way to tell.
+    const wardTag = isZone ? ` · <strong>${_esc(deptNameById[a.department_id]||'—')}</strong>` : '';
+    return `
     <div class="pt-list-item${_activeAdm?.id===a.id?' active':''}" data-onclick="selectPatient" data-onclick-a0="${a.id}">
-      <div class="pt-li-name">${a.patients?.name||'—'}${a.status==='clinically_discharged' ? ' <span style="font-size:9px;font-weight:700;color:#8a5000;background:#fff3e0;border-radius:6px;padding:1px 6px">DISCHARGE ORDERED</span>' : ''}</div>
+      <div class="pt-li-name">${_esc(a.patients?.name)||'—'}${a.status==='clinically_discharged' ? ' <span style="font-size:9px;font-weight:700;color:#8a5000;background:#fff3e0;border-radius:6px;padding:1px 6px">DISCHARGE ORDERED</span>' : ''}</div>
       <div class="pt-li-meta">
-        Bed ${a.beds?.bed_number||'?'} · ${a.patients?.age||'?'}/${(a.patients?.gender||'').charAt(0).toUpperCase()||'?'} · Day ${_daysSince(a.admission_date)}
+        Bed ${_esc(a.beds?.bed_number)||'?'} · ${_esc(a.patients?.age)||'?'}/${_esc((a.patients?.gender||'').charAt(0).toUpperCase())||'?'} · Day ${_daysSince(a.admission_date)}${wardTag}
       </div>
-      <div style="font-size:10px;color:var(--text-muted);margin-top:2px;font-style:italic">${a.diagnosis_primary||'—'}</div>
-    </div>`).join('');
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px;font-style:italic">${_esc(a.diagnosis_primary)||'—'}</div>
+    </div>`;
+  }).join('');
 };
 
 window.selectPatient = function(id) {
