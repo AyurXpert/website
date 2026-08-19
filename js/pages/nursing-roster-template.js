@@ -6,8 +6,9 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNursingDutyDept, shiftsForDept, shiftsOverlap, shiftTimes, shiftNames } from '../config/ncism.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
-import { computeRequiredPerShift, distributeAcrossShifts, buildRequiredMatrix } from '../modules/roster/requiredStaffing.js';
+import { computeRequiredPerShift, distributeAcrossShifts, buildRequiredMatrix, BED_DEPT_ZONE } from '../modules/roster/requiredStaffing.js';
 import { checkCycleExpiry } from '../modules/roster/cycleExpiry.js';
+import { resolveIpdZoneMemberDeptIds, fetchZoneRealBedNumbers, sliceRange } from '../modules/roster/realBedSlicing.js';
 
 // Session 139 (Nursing Duty Roster Phase 3): template editor for the
 // "Template-Based Rolling Schedule" -- a repeating base pattern per
@@ -45,6 +46,13 @@ let _depts = [];
 let _selectedDept = null;
 let _selectedDeptShifts = ['morning', 'afternoon', 'night'];
 let _requiredPerShift = null; // bed-derived suggestion, Medical/Surgical In-Patients only
+// Session 179: real, sorted beds.bed_number values for the currently-selected department's IPD
+// zone (empty for every other department) -- fetched once per department load (loadTemplateForDept),
+// reused synchronously by every slot's bedStart/bedEnd suggestion so this page doesn't hit the
+// DB again per cell. Same real-bed-slicing realBedSlicing.js/nursing.html already use, so the
+// planning view here and the actual charting-time filter can never disagree about what a nurse's
+// range means.
+let _realBedNumbers = [];
 let _template = null;   // { id, cycle_length } or null
 let _slots = [];        // template slots, with .profiles.full_name joined
 let _pool = [];         // nursing staff assignable (tenant-wide)
@@ -139,8 +147,35 @@ async function loadDepartments() {
 // (flat UG-intake-tier headcount split into 3 coverage zones, Session 142).
 // Every other nursing-duty department returns null, meaning "1 per shift" is
 // this page's own default (see _addSlotRowsHtml/_buildFillGroups).
+// Session 179: real per-nurse bed-range suggestion for a template slot -- her POSITION within
+// the zone's real sorted bed count (e.g. "1-20"), never gapped, matching exactly what
+// nursing.html's own auto-select now shows a nurse for the equivalent live slot (see
+// realBedSlicing.js's own module comment for why position, not the literal bed_number, is
+// displayed). Falls back to the old abstract pooled-count split only if no real beds are
+// configured yet for this zone (Quick Setup never run) -- matches this page's existing "degrade
+// honestly, don't block" pattern for a missing _requiredPerShift elsewhere.
+function _bedRangeForSlot(slotIndex, suggestedTotal) {
+  if (_realBedNumbers.length) {
+    const { start, end } = sliceRange(_realBedNumbers.length, slotIndex, suggestedTotal);
+    if (end > start) return { bedStart: start + 1, bedEnd: end };
+  }
+  const bedCount = _requiredPerShift?.bedCount || 0;
+  const blockSize = Math.ceil(bedCount / suggestedTotal);
+  return { bedStart: (slotIndex - 1) * blockSize + 1, bedEnd: Math.min(slotIndex * blockSize, bedCount) };
+}
+
 async function _loadRequiredPerShift(deptName) {
   _requiredPerShift = await computeRequiredPerShift(supabase, tenantId, deptName);
+  // Session 179: real bed numbers for this same department's IPD zone, if it has one -- fetched
+  // once here (not per slot) so every bedStart/bedEnd suggestion below reads the same cached
+  // array. Empty for every non-IPD-zone department (BED_DEPT_ZONE only covers the 2 zones), and
+  // deliberately left as an honest empty array rather than falling back to the old abstract
+  // pooled-count split if Quick Setup hasn't created real beds yet -- see the addRow() call
+  // sites' own fallback for how that's surfaced to the admin instead of silently guessing.
+  const zoneKey = BED_DEPT_ZONE[deptName];
+  _realBedNumbers = zoneKey
+    ? await fetchZoneRealBedNumbers(supabase, tenantId, await resolveIpdZoneMemberDeptIds(supabase, tenantId, zoneKey))
+    : [];
 }
 
 // Real bug found on SDM (Dr. Venkatesh): Fill All only ever looked at the
@@ -491,14 +526,11 @@ function _addSlotRowsHtml(day, shift, cellSlots, isGeneral) {
           ? addRow(slotIndex, null, null, zone, `+ Add nurse (covers: ${zone}) — required`)
           : addRow(slotIndex, null, null, null, '+ Add nurse — required');
       } else if (mode === 'bed') {
-        // Beds are split evenly across THIS SHIFT's own slot count -- not a
-        // fixed 10-per-slot block, since that only made sense back when
-        // every slot in every shift shared one department-wide total (the
-        // now-fixed x3 bug). 6 total nurses for 60 beds, 2 per shift, means
-        // each of those 2 covers 30 beds during their shift, not 10.
-        const blockSize = Math.ceil(_requiredPerShift.bedCount / suggestedTotal);
-        const bedStart = (slotIndex - 1) * blockSize + 1;
-        const bedEnd = Math.min(slotIndex * blockSize, _requiredPerShift.bedCount);
+        // Session 179: real per-nurse bed-range suggestion (_bedRangeForSlot) -- her position
+        // within the zone's real sorted bed count, matching what nursing.html's own auto-select
+        // shows for the equivalent live slot. Falls back to the old abstract pooled-count split
+        // only if no real beds are configured yet for this zone.
+        const { bedStart, bedEnd } = _bedRangeForSlot(slotIndex, suggestedTotal);
         html += addRow(slotIndex, bedStart, bedEnd, null, `+ Add nurse (${bedStart}–${bedEnd}) — required`);
       } else {
         html += addRow(slotIndex, null, null, null, '+ Add nurse — required');
@@ -639,9 +671,7 @@ function _buildFillGroups() {
     for (let slotIndex = 1; slotIndex <= suggestedTotal; slotIndex++) {
       let bedStart = null, bedEnd = null;
       if (_requiredPerShift?.mode === 'bed') {
-        const blockSize = Math.ceil(_requiredPerShift.bedCount / suggestedTotal);
-        bedStart = (slotIndex - 1) * blockSize + 1;
-        bedEnd = Math.min(slotIndex * blockSize, _requiredPerShift.bedCount);
+        ({ bedStart, bedEnd } = _bedRangeForSlot(slotIndex, suggestedTotal));
       }
       const days = [];
       for (let day = 0; day < _cycleLength; day++) {

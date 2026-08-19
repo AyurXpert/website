@@ -17,6 +17,7 @@
 // This module is the SINGLE source of truth for "what does slot N of M actually cover" --
 // nursing-roster-template.js (planning) and nursing.html (real-time charting) both call it, so
 // the two can never disagree about what a nurse's assigned range means.
+import { IPD_MEDICAL_BED_CODES, IPD_SURGICAL_BED_CODES } from '../../config/ncismStaffCompliance.js';
 
 // Pure, DB-free -- splits `n` items evenly across `totalSlots`, front-loading the remainder
 // onto earlier slots (same convention distributeAcrossShifts() in requiredStaffing.js already
@@ -48,6 +49,22 @@ export function compressToRangeText(sortedNums) {
     if (i < sortedNums.length) { rangeStart = cur; prev = cur; }
   }
   return parts.join(', ');
+}
+
+// Resolves a Medical/Surgical IPD zone key ('IPD_MEDICAL'/'IPD_SURGICAL', see
+// requiredStaffing.js's BED_DEPT_ZONE) to the real, bed-owning department ids that make up its
+// pool -- the exact same IPD_MEDICAL_BED_CODES/IPD_SURGICAL_BED_CODES grouping
+// _computeIpdBedTotals() already uses for the zone's staffing COUNT, so the department set this
+// resolves to can never disagree with how many beds the zone is sized against. Departments that
+// don't actually own any real beds yet (Quick Setup never run) are harmless to include here --
+// fetchZoneRealBedNumbers() just returns nothing extra for them.
+export async function resolveIpdZoneMemberDeptIds(supabase, tenantId, zoneKey) {
+  const codes = zoneKey === 'IPD_MEDICAL' ? IPD_MEDICAL_BED_CODES : zoneKey === 'IPD_SURGICAL' ? IPD_SURGICAL_BED_CODES : null;
+  if (!codes) return [];
+  const { data, error } = await supabase.from('departments').select('id,ncism_code')
+    .eq('tenant_id', tenantId).eq('is_active', true).in('ncism_code', codes);
+  if (error) { console.error('[realBedSlicing] zone member resolve failed:', error); return []; }
+  return (data || []).map(d => d.id);
 }
 
 // Real, sorted bed NUMBER values (not full bed rows) for every bed belonging to the given

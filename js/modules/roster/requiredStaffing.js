@@ -21,7 +21,9 @@ import { OPD_POOLED_NURSE_COUNT, OPD_COVERAGE_GROUPS, OT_NURSE_COUNT, ATYAYIKA_N
 // ratio (_combinedIpdNursingSplit, ncismStaffCompliance.js) rather than two independent
 // 1-per-10-bed pools -- reused here (not reimplemented) so this page's suggested nurse count
 // can never drift from the compliance ladder's Required number.
-const BED_DEPT_ZONE = { 'Medical In-Patients': 'IPD_MEDICAL', 'Surgical In-Patients': 'IPD_SURGICAL' };
+// Exported (Session 179) so realBedSlicing.js's callers (nursing-roster-template.js) can
+// resolve the same department-name -> zone-key mapping without a second hand-copied map.
+export const BED_DEPT_ZONE = { 'Medical In-Patients': 'IPD_MEDICAL', 'Surgical In-Patients': 'IPD_SURGICAL' };
 
 function _ugTier(ugRaw) {
   return [60, 100, 150, 200].includes(ugRaw) ? ugRaw : (ugRaw >= 150 ? 150 : ugRaw >= 100 ? 100 : ugRaw > 0 ? 60 : 0);
