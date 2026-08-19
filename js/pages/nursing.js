@@ -296,7 +296,7 @@ async function _autoSelectFromDuty(data) {
     await window.loadWardPatients();
     if (note) {
       note.style.display = '';
-      note.textContent = `📍 Auto-selected from your duty roster: ${deptName}${hasZoneOption ? ' zone' : ''} · 🛏️ Beds ${mySlice.rangeText} (of ${mySlice.zoneTotal} real beds in ${hasZoneOption ? 'this zone' : 'this ward'}) · ${shiftLabel} shift. Real bed numbers, not a staffing estimate. You can change this manually if you're covering elsewhere today.`;
+      note.textContent = `📍 Auto-selected from your duty roster: ${deptName}${hasZoneOption ? ' zone' : ''} · 🛏️ Beds ${mySlice.rangeText} (of ${mySlice.zoneTotal} real beds in ${hasZoneOption ? 'this zone' : 'this ward'}) · ${shiftLabel} shift. A real, filterable share of this ward's actual admitted patients — not a staffing estimate. You can change this manually if you're covering elsewhere today.`;
     }
     return;
   }

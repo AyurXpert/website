@@ -69,11 +69,28 @@ export async function fetchZoneRealBedNumbers(supabase, tenantId, deptIds) {
 // The one function every caller should use -- guarantees "her slice" means the exact same
 // thing everywhere it's computed. Returns null if there's nothing to slice (no real beds
 // configured yet for this department set, or slotIndex/totalSlots don't resolve to anything).
+//
+// Session 179 follow-up (Dr. Venkatesh, live correction): the real bed_number VALUES (rangeText,
+// e.g. "1-12, 21-28") are honest but not what real wards actually communicate at handover --
+// "beds 1-20 / 21-40 / 41-60" is the clean, memorable shape staff actually use, matching his own
+// worked example (Male General + Female General Ward's combined 20 beds go to one nurse as one
+// round block). The fix keeps the exact same slicing (still 100% real-bed-based for who actually
+// shows up in the list -- `numbers` is unchanged) but displays her POSITION within the zone's
+// sorted bed count (1st, 2nd, 3rd bed...) instead of the real, possibly-gapped bed number. A
+// position range can never have gaps -- it's a contiguous index range by construction, unlike
+// real bed numbers which skip whenever they cross into a different zone's territory. `numbers`
+// (the real bed_number values, used for the actual patient-list filter) is untouched.
 export async function computeNurseBedSlice(supabase, tenantId, deptIds, slotIndex, totalSlots) {
   const allNums = await fetchZoneRealBedNumbers(supabase, tenantId, deptIds);
   if (!allNums.length) return null;
   const { start, end } = sliceRange(allNums.length, slotIndex, totalSlots);
   const mySlice = allNums.slice(start, end);
   if (!mySlice.length) return null;
-  return { numbers: mySlice, rangeText: compressToRangeText(mySlice), zoneTotal: allNums.length };
+  const positionRangeText = (start + 1) === end ? `${end}` : `${start + 1}–${end}`;
+  return {
+    numbers: mySlice,
+    rangeText: positionRangeText,        // clean position range, e.g. "1–20" -- what's shown
+    realNumberRangeText: compressToRangeText(mySlice), // real (gapped) bed numbers -- kept for anyone who wants the literal bed_number detail
+    zoneTotal: allNums.length,
+  };
 }
