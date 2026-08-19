@@ -4,6 +4,11 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { UG_BED_RATIOS as SF_RATIOS, NCISM_OPDS as SF_OPDS, NCISM_DEPTS as SF_DEPTS } from '../config/ncism.js';
+// Session 179 Piece 3: reused (not reinvented) for the new zone-restricted-block feature below
+// -- Dr. Venkatesh's own real-hospital insight (2 general wards per gender, split Medical/
+// Surgical) needs exactly this same Medical={KAY,PK,KAU,AGD}/Surgical={SHAL,SHAK,PST} grouping
+// ncismStaffCompliance.js already uses for bed-count summing purposes.
+import { IPD_MEDICAL_BED_CODES, IPD_SURGICAL_BED_CODES } from '../config/ncismStaffCompliance.js';
 
 wireDelegatedEvents();
 
@@ -426,7 +431,7 @@ const QS1_DEFAULT_TYPES = [
 ];
 
 let _qs1Types  = null; // [{key, label}]
-let _qs1Blocks = null; // [{id, label}]
+let _qs1Blocks = null; // [{id, label, zone}] -- zone: 'any'|'medical'|'surgical' (Session 179 Piece 3, optional/defaults to 'any')
 let _qsActiveCols = []; // type keys active in current Table 2
 let _blkRemOffset = 0;  // rotates per dept so remainder beds don't always go to the same block
 
@@ -464,11 +469,27 @@ function _qs1PersistMeta() {
   _qs1Blocks.forEach(b => {
     const el = document.getElementById(`qs1-blk-${b.id}`);
     if (el) b.label = el.value || b.label;
+    // Session 179 Piece 3: zone-select is a separate control from the label input, read here
+    // too so a single _qs1PersistMeta() call (already wired to every other Table 1 field's
+    // blur/change) keeps everything in sync in one place.
+    const zEl = document.getElementById(`qs1-zone-${b.id}`);
+    if (zEl) b.zone = zEl.value;
   });
   localStorage.setItem(_qs1Key('types'),  JSON.stringify(_qs1Types));
   localStorage.setItem(_qs1Key('blocks'), JSON.stringify(_qs1Blocks));
 }
 window._qs1PersistMeta = _qs1PersistMeta;
+
+// Session 179 Piece 3: saving the new zone tag also re-populates Table 2 if it's already open --
+// a zone change can change which blocks a department's beds are even allowed to draw from, so
+// the previewed per-block split needs to reflect that immediately, not just on next page load.
+window._qs1ZoneChanged = function() {
+  _qs1PersistMeta();
+  const pool = _qs1Pool();
+  if (Object.keys(pool).length > 0 && document.querySelector('#qs2-table-container tr[data-code]')) {
+    renderQs2Table(pool);
+  }
+};
 
 function _qs1SaveValues() {
   const data = {};
@@ -644,7 +665,7 @@ window._qs1SaveInventory = function() {
 
 window._qs1AddBlock = function() {
   _qs1PersistMeta(); _qs1SaveValues();
-  _qs1Blocks.push({ id:'blk' + Date.now(), label:'New Block' });
+  _qs1Blocks.push({ id:'blk' + Date.now(), label:'New Block', zone:'any' });
   renderQs1Table();
 };
 
@@ -692,12 +713,25 @@ function renderQs1Table() {
   const saved = _qs1LoadValues();
 
   // Two-row header: row 1 = block name spanning Beds+Floor cols; row 2 = sub-labels
+  // Session 179 Piece 3: Dr. Venkatesh's own real-hospital insight -- a shared ward like "Male
+  // General Ward" spans multiple NCISM zones (Medical IPD, Surgical IPD) at once, which has no
+  // clean regulatory ratio of its own. Real hospitals resolve this by running 2 SEPARATE
+  // general wards per gender, one Medical (Panchakarma/Kayachikitsa/Kaumarabhritya/Agada
+  // Tantra) and one Surgical (Shalya Tantra/Shalakya Tantra/Prasuti & Stri Roga) -- each then
+  // maps cleanly to one zone's own regulated ratio, no invented cross-zone number needed. This
+  // "block" (already just a free-text physical-location label, e.g. "Block A") is the natural
+  // place to carry that -- a block can now optionally be restricted to one zone, and
+  // _computeBlockAllocation() (below) honors it when auto-splitting a department's beds.
+  const ZONE_LABELS = { any: 'Any department', medical: 'Medical (Panchakarma/Kayachikitsa/Kaumarabhritya/Agada Tantra)', surgical: 'Surgical (Shalya/Shalakya/Prasuti & Stri Roga)' };
   const blkHeadersRow1 = _qs1Blocks.map(b => `
     <th colspan="3" style="min-width:220px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.3)">
       <div style="display:flex;align-items:center;gap:4px;justify-content:center">
         <input class="qs1-hdr-input" id="qs1-blk-${b.id}" value="${b.label}" data-onblur="_qs1PersistMeta" placeholder="Building / Floor"/>
         ${_qs1Blocks.length > 1 ? `<button class="qs1-del-btn" style="color:rgba(255,255,255,0.7)" data-onclick="_qs1RemoveBlock" data-onclick-a0="${_esc(b.id)}" title="Remove block">✕</button>` : ''}
       </div>
+      <select id="qs1-zone-${b.id}" class="qs1-zone-select" data-onchange="_qs1ZoneChanged" title="Restrict which departments this block's beds can be auto-allocated to -- e.g. a dedicated Medical or Surgical general ward">
+        ${Object.entries(ZONE_LABELS).map(([k, lbl]) => `<option value="${k}"${(b.zone || 'any') === k ? ' selected' : ''}>${_esc(lbl)}</option>`).join('')}
+      </select>
     </th>`).join('');
 
   const blkSubRow = _qs1Blocks.map(() =>
@@ -902,19 +936,43 @@ function _qs1UniqueFloors() {
   return [...floors].sort((a, b) => a - b);
 }
 
+// Session 179 Piece 3: a block can now optionally be restricted to Medical or Surgical
+// departments (see blkHeadersRow1's own comment for the real-hospital reasoning). Returns
+// which zone a department belongs to for this purpose, reusing the exact same grouping
+// ncismStaffCompliance.js already uses for bed-count summing -- never a second, hand-copied list.
+function _deptZone(ncismCode) {
+  if (IPD_MEDICAL_BED_CODES.includes(ncismCode))  return 'medical';
+  if (IPD_SURGICAL_BED_CODES.includes(ncismCode)) return 'surgical';
+  return null; // a department with no zone membership (e.g. Panchakarma's own separate NCISM
+               // line still counts as 'medical' via IPD_MEDICAL_BED_CODES above, matching
+               // Dr. Venkatesh's own description of it being physically co-located there) is
+               // never zone-restricted -- can draw from any block, including a zoned one.
+}
+
 // Proportionally split a bed-type distribution across building blocks from Table 1
 // Block-first approach: allocate beds to blocks by pool size ratio, then distribute types within each block
-function _computeBlockAllocation(distribution) {
+//
+// Session 179 Piece 3: `ncismCode` (new param, optional -- every existing caller keeps working
+// unchanged if omitted) narrows the eligible block set to ones NOT restricted to the OTHER
+// zone. A block tagged 'any' (the default) or matching this department's own zone is eligible;
+// a block tagged for the opposite zone is excluded entirely, same as if it didn't exist for
+// this department's purposes -- this is what makes a "Surgical Ward" block genuinely
+// unreachable by a Medical department's auto-allocation, not just unlikely.
+function _computeBlockAllocation(distribution, ncismCode) {
   const blockAlloc = {};
   _qs1Blocks.forEach(b => { blockAlloc[b.id] = {}; });
 
   const totalNeeded = Object.values(distribution).reduce((s, v) => s + v, 0);
   if (!totalNeeded) return blockAlloc;
 
+  const deptZone = ncismCode ? _deptZone(ncismCode) : null;
+  const eligibleBlocks = _qs1Blocks.filter(b => !b.zone || b.zone === 'any' || !deptZone || b.zone === deptZone);
+  if (!eligibleBlocks.length) return blockAlloc; // every block is restricted to the other zone -- nothing to allocate
+
   // Step 1: measure total pool size per block
   const blockPoolSize = {};
   let grandPool = 0;
-  _qs1Blocks.forEach(b => {
+  eligibleBlocks.forEach(b => {
     let sz = 0;
     _qs1Types.forEach(t => { sz += parseInt(document.getElementById(`qs1-${t.key}-${b.id}`)?.value) || 0; });
     blockPoolSize[b.id] = sz;
@@ -926,7 +984,7 @@ function _computeBlockAllocation(distribution) {
   const blockTarget = {};
   let blkAssigned = 0;
   const blkFracs = {};
-  _qs1Blocks.forEach(b => {
+  eligibleBlocks.forEach(b => {
     const exact = (blockPoolSize[b.id] / grandPool) * totalNeeded;
     blockTarget[b.id] = Math.floor(exact);
     blkAssigned += Math.floor(exact);
@@ -934,18 +992,18 @@ function _computeBlockAllocation(distribution) {
   });
   let blkRem = totalNeeded - blkAssigned;
   // Tie-breaker rotates per call so remainders alternate across depts (prevents F1 always winning)
-  const blkSorted = [..._qs1Blocks].sort((a, b) => {
+  const blkSorted = [...eligibleBlocks].sort((a, b) => {
     const diff = blkFracs[b.id] - blkFracs[a.id];
     if (Math.abs(diff) > 1e-9) return diff;
-    const ai = _qs1Blocks.findIndex(x => x.id === a.id);
-    const bi = _qs1Blocks.findIndex(x => x.id === b.id);
-    return ((ai + _blkRemOffset) % _qs1Blocks.length) - ((bi + _blkRemOffset) % _qs1Blocks.length);
+    const ai = eligibleBlocks.findIndex(x => x.id === a.id);
+    const bi = eligibleBlocks.findIndex(x => x.id === b.id);
+    return ((ai + _blkRemOffset) % eligibleBlocks.length) - ((bi + _blkRemOffset) % eligibleBlocks.length);
   });
-  _blkRemOffset = (_blkRemOffset + 1) % Math.max(_qs1Blocks.length, 1);
+  _blkRemOffset = (_blkRemOffset + 1) % Math.max(eligibleBlocks.length, 1);
   for (let i = 0; i < blkRem; i++) blockTarget[blkSorted[i % blkSorted.length].id]++;
 
   // Step 3: within each block, distribute its target across types proportional to that block's pool
-  _qs1Blocks.forEach(b => {
+  eligibleBlocks.forEach(b => {
     const target = blockTarget[b.id];
     if (!target) return;
     const typeKeys = Object.keys(distribution);
@@ -1303,7 +1361,7 @@ window.quickSetupCreateRow = async function(code, silent) {
     // fake-contiguous block. No existingNums/nextNum collision tracking needed here anymore --
     // each cell's own running count is the only thing that can ever collide, and it's shared.
     const cellSeq     = _qs1CellSequence();
-    const blockAlloc = _computeBlockAllocation(distribution);
+    const blockAlloc = _computeBlockAllocation(distribution, code);
     _qs1Blocks.forEach(b => {
       const bDist = blockAlloc[b.id] || {};
       if (!Object.values(bDist).some(v => v > 0)) return;
@@ -1346,6 +1404,19 @@ window.quickSetupCreateRow = async function(code, silent) {
         existingNums.add(nextNum); nextNum++;
       }
     }
+  }
+
+  // Session 179 Piece 3: a zone-restricted block can leave a department with less eligible
+  // pool than it needs (e.g. a misconfigured "Surgical Ward" block with no beds left for a
+  // Medical department) -- _computeBlockAllocation() would just silently distribute whatever
+  // pool IS eligible rather than erroring, so `rows.length` can end up short of `needed`
+  // without the earlier totalEntered/needed check (which only validates the TYPE-level total,
+  // not whether the block split can actually satisfy it) ever catching it. Surfaced here
+  // instead of silently under-creating beds.
+  if (!ward && rows.length < needed) {
+    if (!silent) _alert('error',
+      `${prefix}: only ${rows.length} of ${needed} beds could be placed -- one or more bed types don't have enough eligible pool in this department's allowed blocks (check block zone restrictions in Table 1). No beds were created; adjust the block zones or Table 2's split and try again.`);
+    return { error: true };
   }
 
   const btn = document.getElementById(`qs-btn-${code}`);
