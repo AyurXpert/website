@@ -225,12 +225,23 @@ async function _autoSelectFromDuty(data) {
   const hasDirectOption = [...wardSel.options].some(o => o.value === primary.department_id);
   const hasZoneOption = [...wardSel.options].some(o => o.value === zoneOptValue);
 
+  // Session 179 follow-up (Dr. Venkatesh, live testing): "the dropdown is showing the zones,
+  // not the bed range assigned for that particular nurse" -- her duty_roster row's own
+  // bed_range_start/end (set by whoever built the roster template, nursing-roster-template.js)
+  // is a real assigned coverage range, but it's an even SPLIT of the department/zone's pooled
+  // bed total across its slots for staffing-ratio purposes (see that page's own
+  // "Beds are split evenly across THIS SHIFT's own slot count" note) -- not a live cross-check
+  // against any specific real bed's physical number. Shown here as the real range she was
+  // assigned, labelled honestly rather than implied to be a literal per-bed lookup.
+  const bedRange = (primary.bed_range_start && primary.bed_range_end)
+    ? ` · 🛏️ Beds ${primary.bed_range_start}–${primary.bed_range_end}` : '';
+
   if (hasDirectOption) {
     wardSel.value = primary.department_id;
     await window.loadWardPatients();
     if (note) {
       note.style.display = '';
-      note.textContent = `📍 Auto-selected from your duty roster: ${deptName} · ${shiftLabel} shift. You can change this manually if you're covering elsewhere today.`;
+      note.textContent = `📍 Auto-selected from your duty roster: ${deptName}${bedRange} · ${shiftLabel} shift. You can change this manually if you're covering elsewhere today.`;
     }
     return;
   }
@@ -239,7 +250,7 @@ async function _autoSelectFromDuty(data) {
     await window.loadWardPatients();
     if (note) {
       note.style.display = '';
-      note.textContent = `📍 Auto-selected from your duty roster: ${deptName} zone · ${shiftLabel} shift. Showing admitted patients across all of this zone's real wards. You can switch manually if you're covering elsewhere today.`;
+      note.textContent = `📍 Auto-selected from your duty roster: ${deptName} zone${bedRange} · ${shiftLabel} shift. Your bed range is your assigned share of the zone's pooled total for staffing purposes, not one specific real ward's bed numbers — the patient list below shows everyone admitted across this whole zone, each tagged with their real ward. You can switch manually if you're covering elsewhere today.`;
     }
     return;
   }
