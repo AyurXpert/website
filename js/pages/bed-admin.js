@@ -1258,6 +1258,8 @@ function renderQuickSetup() {
   _qs1Init();
 
   wrap.innerHTML = `
+    <div id="qs0-real-mapping-container"></div>
+
     <div class="qs-step-header"><span class="qs-step-num">1</span>
       Physical Bed Inventory
       <span class="qs-step-desc">Enter total beds you have by type across each building block / floor</span>
@@ -1293,11 +1295,74 @@ function renderQuickSetup() {
       ✏️ Bed numbers are auto-assigned within each department's NCISM reserved range, grouped by bed type in the order shown.
     </div>`;
 
+  renderQs1RealMapping();
   renderQs1Table();
 
   // If saved inventory exists, auto-populate Table 2 immediately
   const pool = _qs1Pool();
   if (Object.keys(pool).length > 0) renderQs2Table(pool);
+}
+
+// Session 179 follow-up (Dr. Venkatesh, live): Table 1's draft boxes are browser-localStorage-
+// only and can never be relied on to reflect reality -- confirmed live when a second origin
+// (local dev server vs. the live site) showed a completely empty draft despite 100 real beds
+// existing. Rather than repurpose the draft/create boxes to show real counts (real risk: Table 2
+// would then read a "draft" that already equals reality, and clicking through to create beds
+// could add a duplicate set on top of what exists), this renders a separate, fully READ-ONLY
+// table computed straight from _beds -- same bed-type x block shape as Table 1 for easy visual
+// comparison, but with zero inputs and zero connection to bed creation.
+function renderQs1RealMapping() {
+  const container = document.getElementById('qs0-real-mapping-container');
+  if (!container) return;
+
+  if (!_beds.length) {
+    container.innerHTML = `<div style="padding:14px 16px;background:var(--cream);border:1px solid var(--border);border-radius:8px;margin-bottom:14px;font-size:12px;color:var(--text-muted)">
+      📋 No real beds exist yet for this hospital — once you create beds (via Table 1 below), they'll show here as your actual current mapping.
+    </div>`;
+    return;
+  }
+
+  // Real blocks = distinct ward_name values actually present in the database (NOT Table 1's
+  // possibly-unrelated draft block labels) -- this is what makes it a true, origin-independent
+  // mapping rather than another copy of the draft's own local state.
+  const blockCounts = {}; // label -> { [typeKey]: count }
+  _beds.forEach(bd => {
+    const label = bd.ward_name || '(No ward name)';
+    (blockCounts[label] ||= {});
+    blockCounts[label][bd.bed_type] = (blockCounts[label][bd.bed_type] || 0) + 1;
+  });
+  const labels = Object.keys(blockCounts).sort();
+
+  // Only show bed-type rows that actually have at least one real bed somewhere, keeping this
+  // compact rather than repeating Table 1's full 12-row template with mostly empty rows.
+  const typesPresent = _qs1Types.filter(t => labels.some(l => blockCounts[l][t.key] > 0));
+
+  const headerCells = labels.map(l => `<th style="text-align:center;padding:5px 8px;min-width:70px">${_esc(l)}</th>`).join('');
+  const bodyRows = typesPresent.map(t => {
+    const cells = labels.map(l => {
+      const n = blockCounts[l][t.key] || 0;
+      return `<td style="text-align:center;padding:5px 8px;font-weight:${n ? 600 : 400};color:${n ? 'var(--green-deep)' : '#ccc'}">${n || '—'}</td>`;
+    }).join('');
+    const rowTotal = labels.reduce((s, l) => s + (blockCounts[l][t.key] || 0), 0);
+    return `<tr><td style="padding:5px 8px;font-weight:500">${_esc(t.label)}</td>${cells}<td style="text-align:center;padding:5px 8px;font-weight:700;color:var(--blue)">${rowTotal}</td></tr>`;
+  }).join('');
+  const colTotals = labels.map(l => {
+    const n = Object.values(blockCounts[l]).reduce((s, v) => s + v, 0);
+    return `<td style="text-align:center;padding:5px 8px;font-weight:700;color:var(--blue)">${n}</td>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="qs-step-header"><span class="qs-step-num" style="background:var(--blue)">👁</span>
+      Current Real Bed Mapping <span style="font-size:10px;font-weight:400;color:var(--blue);background:rgba(26,64,128,0.1);padding:2px 7px;border-radius:10px;margin-left:6px">read-only · live from database</span>
+      <span class="qs-step-desc">Your hospital's actual bed inventory right now, by type and building block — not editable here, not connected to bed creation.</span>
+    </div>
+    <div style="overflow-x:auto;margin-bottom:16px">
+      <table class="qs-table" style="font-size:12px">
+        <thead><tr style="background:var(--blue)"><th style="text-align:left;padding:5px 8px">Bed Type</th>${headerCells}<th style="text-align:center;padding:5px 8px">Total</th></tr></thead>
+        <tbody>${bodyRows}</tbody>
+        <tfoot><tr style="background:rgba(26,64,128,0.08)"><td style="padding:5px 8px;font-weight:600">Total →</td>${colTotals}<td style="text-align:center;padding:5px 8px;font-weight:700;color:var(--blue)">${_beds.length}</td></tr></tfoot>
+      </table>
+    </div>`;
 }
 
 window.quickSetupCreateRow = async function(code, silent) {
