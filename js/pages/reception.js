@@ -1702,12 +1702,42 @@ function _showAbhaProfile(prof, abhaNumber, tToken) {
   const addr   = prof?.preferredAbhaAddress ?? prof?.phrAddress?.[0] ?? prof?.abhaAddress ?? prof?.healthId ?? '—';
   const mobile = prof?.mobile ?? prof?.mobileNumber ?? prof?.phoneNumber ?? prof?.ABHAProfile?.mobile ?? '';
 
+  // Session 181 correction (Vipul Singh): postal address/PIN code — never
+  // extracted anywhere before, though ABDM's /profile/account response (the
+  // raw object every verify flow already receives, unstripped) carries them.
+  // Field names per ABDM's documented v3 profile schema; console-logged when
+  // absent so a live mismatch is easy to spot and correct rather than silently
+  // showing nothing with no clue why.
+  const postal = prof?.address ?? prof?.Address ?? '';
+  const pin    = prof?.pinCode ?? prof?.pincode ?? prof?.pin_code ?? '';
+  const district = prof?.districtName ?? prof?.district ?? '';
+  const state    = prof?.stateName ?? prof?.state ?? '';
+  const postalFull = [postal, district, state].filter(Boolean).join(', ');
+
   document.getElementById('abha-prof-name').textContent    = name    || '—';
   document.getElementById('abha-prof-number').textContent  = abhaNumber;
   document.getElementById('abha-prof-dob').textContent     = dob;
   document.getElementById('abha-prof-gender').textContent  = gender;
   document.getElementById('abha-prof-mobile').textContent  = mobile ? `+91 ${mobile}` : '—';
   document.getElementById('abha-prof-address').textContent = addr;
+
+  const postalWrap  = document.getElementById('abha-prof-postal-wrap');
+  const pincodeWrap = document.getElementById('abha-prof-pincode-wrap');
+  if (postalFull) {
+    document.getElementById('abha-prof-postal').textContent = postalFull;
+    postalWrap.style.display = '';
+  } else {
+    postalWrap.style.display = 'none';
+  }
+  if (pin) {
+    document.getElementById('abha-prof-pincode').textContent = pin;
+    pincodeWrap.style.display = '';
+  } else {
+    pincodeWrap.style.display = 'none';
+  }
+  if (!postalFull && !pin) {
+    console.log('[ABDM] No address/pinCode in profile response — raw keys:', Object.keys(prof || {}));
+  }
 
   // Photo
   const rawPhoto = prof?.profilePhoto ?? prof?.photo ?? '';

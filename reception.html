@@ -1139,6 +1139,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
               <span class="abha-profile-label">ABHA Address</span>
               <span class="abha-profile-value" id="abha-prof-address">—</span>
             </div>
+            <!-- Session 181 correction (Vipul Singh): postal address/PIN code from
+                 ABDM's profile response were never displayed anywhere — added here. -->
+            <div class="abha-profile-item abha-profile-addr" id="abha-prof-postal-wrap" style="display:none">
+              <span class="abha-profile-label">Address</span>
+              <span class="abha-profile-value" id="abha-prof-postal">—</span>
+            </div>
+            <div class="abha-profile-item" id="abha-prof-pincode-wrap" style="display:none">
+              <span class="abha-profile-label">PIN Code</span>
+              <span class="abha-profile-value" id="abha-prof-pincode">—</span>
+            </div>
           </div>
           <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
             <button class="btn-otp btn-otp-send" id="btn-view-abha-card" type="button"
