@@ -570,8 +570,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 }
 /* Session 181 correction: default browser radio buttons rendered too large next
    to the 13px label text — sized down to a medium tick, brand-tinted. Used by
-   the Verify by ABHA Number / ABHA Address "Send OTP via" choice. */
-.otp-method-radio{width:15px;height:15px;accent-color:var(--green-deep);flex-shrink:0;margin:0}
+   the Verify by ABHA Number / ABHA Address "Send OTP via" choice.
+   Must be scoped as ".field input.otp-method-radio" (class+element, not just
+   a bare class) to out-specificity ".field input,.field select" above, which
+   otherwise wins and applies width:100%/height:44px/appearance:none to these
+   radios too — stretching them into giant blank boxes with the native radio
+   dot stripped out entirely (appearance:none, no replacement drawn), so a
+   click produced zero visible checked/unchecked state. */
+.field input.otp-method-radio{
+  appearance:auto;-webkit-appearance:radio;-moz-appearance:radio;
+  width:16px;height:16px;padding:0;margin:0;
+  border:none;background:none;
+  accent-color:var(--green-deep);
+  flex-shrink:0;cursor:pointer
+}
+.field input.otp-method-radio:focus{
+  border:none;background:none;box-shadow:0 0 0 2px rgba(26,74,46,.35);border-radius:50%
+}
 .consent-sub{font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.5}
 .consent-declare{font-size:12px;color:var(--text-dark);margin-bottom:10px;font-style:italic}
 .consent-items{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
@@ -913,7 +928,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
                    which number the OTP goes to, instead of a hardcoded default. -->
               <div class="field" style="margin-bottom:8px">
                 <label>Send OTP via</label>
-                <div style="display:flex;gap:16px;margin-top:4px">
+                <div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:4px">
                   <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;cursor:pointer">
                     <input class="otp-method-radio" type="radio" name="verify-abha-otp-method" value="aadhaar" checked/> Aadhaar-linked mobile
                   </label>
@@ -1001,7 +1016,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
                    Verify by ABHA Number above. -->
               <div class="field" style="margin-bottom:8px">
                 <label>Send OTP via</label>
-                <div style="display:flex;gap:16px;margin-top:4px">
+                <div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:4px">
                   <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;cursor:pointer">
                     <input class="otp-method-radio" type="radio" name="verify-addr-otp-method" value="aadhaar" checked/> Aadhaar-linked mobile
                   </label>
