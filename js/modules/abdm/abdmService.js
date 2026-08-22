@@ -137,7 +137,10 @@ export async function getAbhaQrCode(tToken) {
 
 // ── Verification: ABHA Number login ───────────────────────────
 
-export async function requestABHALoginOtp(abhaNumber) {
+// authMethod: 'aadhaar' (OTP → Aadhaar-linked mobile) | 'mobile' (OTP → ABHA's
+// registered communication mobile). Session 181 correction (Vipul Singh, live
+// ABDM demo) — staff picks per-verification, was hardcoded to 'aadhaar' before.
+export async function requestABHALoginOtp(abhaNumber, authMethod = 'aadhaar') {
   const { publicKey } = await callABDM('get_cert');
   const digits = String(abhaNumber).replace(/\D/g, '');
   // ABDM expects hyphenated format: XX-XXXX-XXXX-XXXX
@@ -145,14 +148,16 @@ export async function requestABHALoginOtp(abhaNumber) {
     ? digits.replace(/^(\d{2})(\d{4})(\d{4})(\d{4})$/, '$1-$2-$3-$4')
     : digits;
   const encAbhaNumber = await encryptWithABDMCert(formatted, publicKey);
-  return callABDM('abha_login_otp', { encAbhaNumber });
+  return callABDM('abha_login_otp', { encAbhaNumber, authMethod });
 }
 
-// Returns profile + tToken (V3 endpoint /profile/login/verify)
-export async function verifyABHALogin(txnId, otp) {
+// Returns profile + tToken (V3 endpoint /profile/login/verify).
+// authMethod must match whatever was passed to requestABHALoginOtp — the scope
+// sent to ABDM's verify call has to agree with the scope used to request the OTP.
+export async function verifyABHALogin(txnId, otp, authMethod = 'aadhaar') {
   const { publicKey } = await callABDM('get_cert');
   const encOtp = await encryptWithABDMCert(otp, publicKey);
-  return callABDM('abha_login_verify', { txnId, encOtp });
+  return callABDM('abha_login_verify', { txnId, encOtp, authMethod });
 }
 
 // ── Verification: Aadhaar Number login ────────────────────────
@@ -195,18 +200,24 @@ export async function searchAbhaAddress(abhaAddress) {
   return callABDM('abha_addr_search', { abhaAddress });
 }
 
-// Step 2: Send OTP for ABHA address login — encrypts abhaAddress as loginId
-export async function initAbhaAddressLogin(abhaAddress) {
+// Step 2: Send OTP for ABHA address login — encrypts abhaAddress as loginId.
+// authMethod: 'aadhaar' | 'mobile' — same choice/reasoning as requestABHALoginOtp
+// above (Session 181 correction). Default kept as 'aadhaar' for consistency with
+// Verify-by-ABHA-Number's default, though this flow's own prior hardcoded
+// default was 'mobile' — verify live which scope ABDM's PHR login endpoint
+// actually accepts for 'aadhaar-verify' before relying on it.
+export async function initAbhaAddressLogin(abhaAddress, authMethod = 'aadhaar') {
   const { publicKey } = await callABDM('get_cert');
   const encAbhaAddress = await encryptWithABDMCert(abhaAddress, publicKey);
-  return callABDM('abha_addr_init', { encAbhaAddress });
+  return callABDM('abha_addr_init', { encAbhaAddress, authMethod });
 }
 
-// Step 3: Verify OTP → returns profile + accessToken
-export async function verifyAbhaAddressOtp(txnId, otp) {
+// Step 3: Verify OTP → returns profile + accessToken.
+// authMethod must match whatever was passed to initAbhaAddressLogin.
+export async function verifyAbhaAddressOtp(txnId, otp, authMethod = 'aadhaar') {
   const { publicKey } = await callABDM('get_cert');
   const encOtp = await encryptWithABDMCert(otp, publicKey);
-  return callABDM('abha_addr_verify', { txnId, encOtp });
+  return callABDM('abha_addr_verify', { txnId, encOtp, authMethod });
 }
 
 // Download PHR Card (ABHA Address login)

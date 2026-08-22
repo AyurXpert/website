@@ -905,11 +905,24 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
                 <input id="verify-abha-input" type="text" inputmode="numeric"
                        placeholder="91-XXXX-XXXX-XXXX or 14 digits" maxlength="17"/>
               </div>
+              <!-- Session 181 correction (Vipul Singh, live ABDM demo): let staff choose
+                   which number the OTP goes to, instead of a hardcoded default. -->
+              <div class="field" style="margin-bottom:8px">
+                <label>Send OTP via</label>
+                <div style="display:flex;gap:16px;margin-top:4px">
+                  <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;cursor:pointer">
+                    <input type="radio" name="verify-abha-otp-method" value="aadhaar" checked/> Aadhaar-linked mobile
+                  </label>
+                  <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;cursor:pointer">
+                    <input type="radio" name="verify-abha-otp-method" value="mobile"/> Communication mobile
+                  </label>
+                </div>
+              </div>
               <button class="btn-otp btn-otp-send" id="btn-verify-send-otp" type="button">Send OTP</button>
             </div>
             <div id="verify-step-2" style="display:none;margin-top:10px">
               <div class="field" style="margin-bottom:8px">
-                <label>OTP received on ABDM-linked mobile</label>
+                <label id="verify-otp-label">OTP received on ABDM-linked mobile</label>
                 <input id="verify-otp" type="tel" inputmode="numeric"
                        placeholder="Enter OTP" maxlength="6" autocomplete="one-time-code"/>
               </div>
@@ -980,11 +993,24 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
                 <input id="verify-addr-input" type="text"
                        placeholder="yourname@abdm" autocomplete="off" style="width:100%"/>
               </div>
+              <!-- Session 181 correction (Vipul Singh, live ABDM demo): same choice as
+                   Verify by ABHA Number above. -->
+              <div class="field" style="margin-bottom:8px">
+                <label>Send OTP via</label>
+                <div style="display:flex;gap:16px;margin-top:4px">
+                  <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;cursor:pointer">
+                    <input type="radio" name="verify-addr-otp-method" value="aadhaar" checked/> Aadhaar-linked mobile
+                  </label>
+                  <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400;cursor:pointer">
+                    <input type="radio" name="verify-addr-otp-method" value="mobile"/> Communication mobile
+                  </label>
+                </div>
+              </div>
               <button class="btn-otp btn-otp-send" id="btn-addr-search" type="button">Search &amp; Send OTP</button>
             </div>
             <div id="addr-step-2" style="display:none;margin-top:10px">
               <div class="field" style="margin-bottom:8px">
-                <label>OTP sent to registered mobile</label>
+                <label id="addr-otp-label">OTP sent to registered mobile</label>
                 <input id="addr-otp" type="tel" inputmode="numeric"
                        placeholder="Enter OTP" maxlength="6" autocomplete="one-time-code"/>
               </div>

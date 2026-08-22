@@ -2475,6 +2475,10 @@ function _setEnrollMsg(type, msg) {
 
 // ── ABHA Verify (existing ABHA holder) ────────────
 let _verifyTxnId = null;
+// Session 181 correction: which OTP delivery target ('aadhaar'|'mobile') the
+// staff chose for the in-progress Verify-by-ABHA-Number attempt — set on Send
+// OTP, read again on Verify OTP so both calls agree on the ABDM scope used.
+let _verifyAbhaAuthMethod = 'aadhaar';
 
 const btnVerifyAbha = document.getElementById('btn-verify-abha');
 const verifyPanel   = document.getElementById('abha-verify-panel');
@@ -2685,15 +2689,23 @@ document.getElementById('btn-verify-send-otp').addEventListener('click', async (
   // an OTP round-trip against an already-existing ABHA. Session 171's blanket gate
   // was wrong; moved to Verify-by-Aadhaar only (see that handler below).
 
+  // Session 181 correction: staff picks Aadhaar OTP vs Mobile OTP — this choice
+  // is remembered in _verifyAbhaAuthMethod and must be reused unchanged for the
+  // matching verify-OTP call below (ABDM's verify scope has to agree with the
+  // scope the OTP was originally requested under).
+  _verifyAbhaAuthMethod = document.querySelector('input[name="verify-abha-otp-method"]:checked')?.value || 'aadhaar';
+
   const btn = document.getElementById('btn-verify-send-otp');
   btn.disabled = true; btn.textContent = 'Sending…';
-  _setVerifyMsg('info', 'Sending OTP to ABDM-linked mobile…');
+  _setVerifyMsg('info', _verifyAbhaAuthMethod === 'mobile' ? 'Sending OTP to communication mobile…' : 'Sending OTP to Aadhaar-linked mobile…');
 
   try {
-    const res    = await requestABHALoginOtp(digits);
+    const res    = await requestABHALoginOtp(digits, _verifyAbhaAuthMethod);
     _verifyTxnId = res.txnId;
+    document.getElementById('verify-otp-label').textContent =
+      _verifyAbhaAuthMethod === 'mobile' ? 'OTP received on communication mobile' : 'OTP received on Aadhaar-linked mobile';
     document.getElementById('verify-step-2').style.display = '';
-    _setVerifyMsg('info', `✓ OTP sent. ${res.message || 'Check ABDM-linked mobile.'}`);
+    _setVerifyMsg('info', `✓ OTP sent. ${res.message || (_verifyAbhaAuthMethod === 'mobile' ? 'Check communication mobile.' : 'Check Aadhaar-linked mobile.')}`);
     _verifyResendLim.arm();
   } catch (err) {
     _setVerifyMsg('error', safeErrorMessage(err, 'Failed to send OTP. Please try again.'));
@@ -2720,7 +2732,7 @@ document.getElementById('btn-verify-confirm-otp').addEventListener('click', asyn
   _setVerifyMsg('info', 'Verifying OTP with ABDM…');
 
   try {
-    const prof = await verifyABHALogin(_verifyTxnId, otp);
+    const prof = await verifyABHALogin(_verifyTxnId, otp, _verifyAbhaAuthMethod);
     const abha = prof?.ABHANumber ?? prof?.abhaNumber ?? prof?.healthIdNumber;
     const name = [prof?.firstName, prof?.middleName, prof?.lastName].filter(Boolean).join(' ') || prof?.name;
 
@@ -2946,6 +2958,9 @@ document.getElementById('btn-mob-verify-otp').addEventListener('click', async ()
 // ── Verify: ABHA Address flow (PHR login) ─────────
 let _addrTxnId    = null;
 let _addrAccToken = null;
+// Session 181 correction: same per-attempt OTP-target tracking as
+// _verifyAbhaAuthMethod above, for the ABHA Address flow.
+let _addrAuthMethod = 'aadhaar';
 document.getElementById('btn-addr-search').addEventListener('click', async () => {
   const addr = document.getElementById('verify-addr-input').value.trim();
   if (!addr.includes('@')) return _setVerifyMsg('error', 'Enter a valid ABHA address (e.g. name@abdm).');
@@ -2954,6 +2969,8 @@ document.getElementById('btn-addr-search').addEventListener('click', async () =>
   // to verify by ABHA Address — same reasoning as Verify-by-ABHA-Number above, no
   // Aadhaar digits involved. Session 171's blanket gate was wrong here too.
 
+  _addrAuthMethod = document.querySelector('input[name="verify-addr-otp-method"]:checked')?.value || 'aadhaar';
+
   const btn = document.getElementById('btn-addr-search');
   btn.disabled = true; btn.textContent = 'Searching…';
   _setVerifyMsg('info', 'Searching ABHA address…');
@@ -2961,12 +2978,14 @@ document.getElementById('btn-addr-search').addEventListener('click', async () =>
     const searchRes = await searchAbhaAddress(addr);
     if (!searchRes.abhaAddress && !searchRes.status) throw new Error('ABHA address not found in ABDM records.');
     // Search only confirms address exists — send OTP using the ABHA address itself as loginId
-    const initRes = await initAbhaAddressLogin(addr);
+    const initRes = await initAbhaAddressLogin(addr, _addrAuthMethod);
     _addrTxnId = initRes.txnId ?? initRes.transactionId;
     if (!_addrTxnId) throw new Error('Could not send OTP. Please try again.');
+    document.getElementById('addr-otp-label').textContent =
+      _addrAuthMethod === 'mobile' ? 'OTP sent to communication mobile' : 'OTP sent to Aadhaar-linked mobile';
     document.getElementById('addr-step-1').style.display = 'none';
     document.getElementById('addr-step-2').style.display = '';
-    _setVerifyMsg('info', `✓ OTP sent to registered mobile for ${addr}.`);
+    _setVerifyMsg('info', `✓ OTP sent for ${addr}.`);
     _addrResendLim.arm();
   } catch (err) { _setVerifyMsg('error', safeErrorMessage(err)); }
   btn.disabled = false; btn.textContent = 'Search & Send OTP';
@@ -2984,7 +3003,7 @@ document.getElementById('btn-addr-verify-otp').addEventListener('click', async (
   btn.disabled = true; btn.textContent = 'Verifying…';
   _setVerifyMsg('info', 'Verifying with ABDM…');
   try {
-    const res  = await verifyAbhaAddressOtp(_addrTxnId, otp);
+    const res  = await verifyAbhaAddressOtp(_addrTxnId, otp, _addrAuthMethod);
     const prof = res.patient ?? res.profile ?? res;
     _addrAccToken = res.accessToken ?? null;
     const abha = prof?.healthIdNumber ?? prof?.ABHANumber ?? prof?.abhaNumber;
