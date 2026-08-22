@@ -1756,8 +1756,12 @@ function _showAbhaProfile(prof, abhaNumber, tToken) {
 
   // Show / hide action buttons based on tToken availability
   if (tToken) _lastTToken = tToken;
-  document.getElementById('btn-view-abha-card').style.display = _lastTToken ? '' : 'none';
   document.getElementById('btn-update-mobile-open').style.display = _lastTToken ? '' : 'none';
+
+  // Session 181 correction 5 (Vipul Singh): ABHA card now loads automatically
+  // right alongside the profile — no separate "View ABHA Card" click first.
+  if (_lastTToken) _autoLoadAbhaCardInline(_lastTToken);
+  else document.getElementById('abha-card-inline-wrap').style.display = 'none';
 
   // Auto-fill demographics from ABHA profile
   if (prof?.gender) {
@@ -1787,30 +1791,33 @@ function _calcAgeFromDob(isoDate) {
   if (age >= 0) document.getElementById('f-age').value = age;
 }
 
-// ── View ABHA Card (preview first, download from inside the preview) ─────
-let _abhaCardData = null; // { mimeType, base64 } for the card currently shown in the view modal
+// ── ABHA Card — auto-loads inline in the profile panel (Session 181 correction 5) ──
+// Was a separate "View ABHA Card" button opening a modal, requiring an extra
+// click before Download ever became available. Now fetches automatically the
+// moment a tToken is available (see _showAbhaProfile above) and renders right
+// there in the same panel, with Download/Cancel directly beneath the image.
+let _abhaCardData = null; // { mimeType, base64 } for the card currently shown inline
 
-document.getElementById('btn-view-abha-card').addEventListener('click', async () => {
-  if (!_lastTToken) return;
-  const btn        = document.getElementById('btn-view-abha-card');
-  const overlay    = document.getElementById('abha-card-view-overlay');
-  const body       = document.getElementById('abha-card-view-body');
-  const msg        = document.getElementById('abha-card-view-msg');
-  const downloadBtn = document.getElementById('btn-abha-card-view-download');
+async function _autoLoadAbhaCardInline(tToken) {
+  const wrap        = document.getElementById('abha-card-inline-wrap');
+  const body        = document.getElementById('abha-card-inline-body');
+  const msg         = document.getElementById('abha-card-inline-msg');
+  const downloadBtn = document.getElementById('btn-abha-card-inline-download');
+  if (!tToken) { wrap.style.display = 'none'; return; }
 
   _abhaCardData = null;
   downloadBtn.disabled = true;
-  body.innerHTML = '<span style="font-size:13px;color:var(--text-mid)">Loading card…</span>';
+  body.innerHTML = '<span style="font-size:12px;color:var(--text-mid)">Loading ABHA card…</span>';
   msg.textContent = '';
   msg.className = 'enroll-msg';
-  overlay.style.display = '';
+  wrap.style.display = '';
 
-  btn.disabled = true; btn.textContent = 'Loading…';
   try {
-    const res = await downloadAbhaCard(_lastTToken);
+    const res = await downloadAbhaCard(tToken);
     _abhaCardData = res;
     body.innerHTML = '';
     const img = document.createElement('img');
+    img.className = 'abha-card-inline-img';
     img.src = `data:${res.mimeType};base64,${res.base64}`;
     img.alt = 'ABHA Card';
     body.appendChild(img);
@@ -1820,20 +1827,18 @@ document.getElementById('btn-view-abha-card').addEventListener('click', async ()
     msg.textContent = safeErrorMessage(err, 'Failed to load ABHA card. Please try again.');
     msg.className = 'enroll-msg error show';
   }
-  btn.disabled = false; btn.textContent = '👁 View ABHA Card';
-});
+}
 
-document.getElementById('btn-abha-card-view-download').addEventListener('click', () => {
+document.getElementById('btn-abha-card-inline-download').addEventListener('click', () => {
   if (!_abhaCardData) return;
   const a = document.createElement('a');
   a.href = `data:${_abhaCardData.mimeType};base64,${_abhaCardData.base64}`;
   a.download = `ABHA_Card_${document.getElementById('abha').value.replace(/-/g, '')}.png`;
   a.click();
-  document.getElementById('abha-card-view-overlay').style.display = 'none';
 });
 
-document.getElementById('btn-abha-card-view-cancel').addEventListener('click', () => {
-  document.getElementById('abha-card-view-overlay').style.display = 'none';
+document.getElementById('btn-abha-card-inline-cancel').addEventListener('click', () => {
+  document.getElementById('abha-card-inline-wrap').style.display = 'none';
   _abhaCardData = null;
 });
 

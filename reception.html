@@ -231,12 +231,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   background:#fff;border-radius:16px;max-width:380px;width:100%;
   padding:28px 24px;box-shadow:0 8px 40px rgba(0,0,0,.3);text-align:center
 }
-/* View ABHA Card modal */
-.abha-card-view-modal{
-  background:#fff;border-radius:16px;max-width:460px;width:100%;
-  padding:26px 24px;box-shadow:0 8px 40px rgba(0,0,0,.3)
-}
-.abha-card-view-modal img{max-width:100%;border-radius:10px;border:1px solid var(--border);box-shadow:0 2px 10px rgba(0,0,0,.12)}
+/* ABHA Card — now shown inline in the profile panel (Session 181 correction 5),
+   not a separate modal. */
+.abha-card-inline-img{max-width:220px;width:100%;border-radius:10px;border:1px solid var(--border);box-shadow:0 2px 10px rgba(0,0,0,.12)}
 .abha-profile-title{font-size:11px;font-weight:600;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px}
 .abha-profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}
 .abha-profile-item{display:flex;flex-direction:column;gap:2px}
@@ -1151,14 +1148,25 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             </div>
           </div>
           <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-            <button class="btn-otp btn-otp-send" id="btn-view-abha-card" type="button"
-                    style="font-size:12px;height:44px;padding:0 14px">
-              👁 View ABHA Card
-            </button>
             <button class="btn-otp btn-otp-resend" id="btn-update-mobile-open" type="button"
                     style="font-size:12px;height:44px;padding:0 12px;display:none">
               📱 Update Mobile
             </button>
+          </div>
+          <!-- Session 181 correction 5 (Vipul Singh): ABHA card now loads automatically
+               alongside the profile, inline in this same panel — no separate "View ABHA
+               Card" click needed before Download/Cancel are available. Replaces the old
+               abha-card-view-overlay modal entirely. -->
+          <div id="abha-card-inline-wrap" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--success-border)">
+            <div id="abha-card-inline-body" style="display:flex;align-items:center;justify-content:center;min-height:60px">
+              <span style="font-size:12px;color:var(--text-mid)">Loading ABHA card…</span>
+            </div>
+            <div id="abha-card-inline-msg" class="enroll-msg"></div>
+            <div style="display:flex;gap:10px;justify-content:center;margin-top:10px">
+              <button class="btn-consent-cancel" id="btn-abha-card-inline-cancel" type="button" style="height:40px;padding:0 18px">Cancel</button>
+              <button class="btn-otp btn-otp-verify" id="btn-abha-card-inline-download" type="button"
+                      style="height:40px;padding:0 18px" disabled>⬇ Download ABHA Card</button>
+            </div>
           </div>
           <!-- Update Mobile panel (ABDM 8.1) — visible only when tToken available -->
           <div id="update-mobile-panel" style="display:none;margin-top:10px;padding:10px;background:#f0f4ff;border:1px solid #b0c4f0;border-radius:8px">
@@ -1617,24 +1625,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <button class="btn-consent-cancel" id="btn-abha-exists-continue" type="button">Continue with Existing</button>
       <button class="btn-otp btn-otp-verify" id="btn-abha-exists-newaddr" type="button"
               style="height:44px;padding:0 22px">Create New ABHA</button>
-    </div>
-  </div>
-</div>
-
-<!-- View ABHA Card modal -->
-<div class="modal-overlay" id="abha-card-view-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="abha-card-view-title">
-  <div class="abha-card-view-modal">
-    <div id="abha-card-view-title" style="font-family:'Cormorant Garamond',serif;font-size:21px;font-weight:600;color:var(--green-deep);margin-bottom:14px;text-align:center">
-      ABHA Card
-    </div>
-    <div id="abha-card-view-body" style="min-height:180px;display:flex;align-items:center;justify-content:center">
-      <span style="font-size:13px;color:var(--text-mid)">Loading card…</span>
-    </div>
-    <div id="abha-card-view-msg" class="enroll-msg"></div>
-    <div style="display:flex;gap:10px;justify-content:center;margin-top:18px">
-      <button class="btn-consent-cancel" id="btn-abha-card-view-cancel" type="button">Cancel</button>
-      <button class="btn-otp btn-otp-verify" id="btn-abha-card-view-download" type="button"
-              style="height:44px;padding:0 22px" disabled>⬇ Download ABHA Card</button>
     </div>
   </div>
 </div>
