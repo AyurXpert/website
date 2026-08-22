@@ -201,6 +201,44 @@ window.loadQueue = async function() {
   _queue = data || [];
   _renderQueue();
   _updateStats();
+  loadScanBypassLog();
+};
+
+// Session 181 correction 5: today's ABHA-Scan-&-Share-registered patients who
+// bypassed Screening entirely (their visit was created directly in a specialty
+// department, not this one) — a passive awareness list, not a queue. Tenant-wide
+// (not scoped to _screeningOpdId, deliberately — that's exactly the department
+// these visits did NOT go through).
+async function loadScanBypassLog() {
+  const row = document.getElementById('scan-bypass-row');
+  if (!row) return;
+  const { data, error } = await supabase
+    .from('visits')
+    .select('id, token_number, created_at, opds(name), patients(name)')
+    .eq('tenant_id', tenantId)
+    .eq('routed_via_scan_qr', true)
+    .gte('created_at', today + 'T00:00:00')
+    .lte('created_at', today + 'T23:59:59')
+    .order('created_at', { ascending: false });
+  if (error) { console.warn('[screening] loadScanBypassLog:', error.message); return; }
+
+  const rows = data || [];
+  document.getElementById('scan-bypass-count').textContent = rows.length;
+  row.style.display = rows.length ? '' : 'none';
+  document.getElementById('scan-bypass-list').innerHTML = rows.map(v => `
+    <div style="padding:6px 0;border-top:1px solid #d8ecdd;font-size:12px">
+      <strong>${_esc(v.patients?.name || 'Unknown')}</strong> — Token #${v.token_number ?? '—'}
+      · ${_esc(v.opds?.name || 'Unknown department')}
+      · ABHA Scanned and registered
+    </div>`).join('');
+}
+
+window.toggleScanBypassList = function() {
+  const list = document.getElementById('scan-bypass-list');
+  const icon = document.getElementById('scan-bypass-toggle-icon');
+  const open = list.style.display !== 'none';
+  list.style.display = open ? 'none' : '';
+  icon.textContent   = open ? '▾' : '▴';
 };
 
 function _renderQueue() {

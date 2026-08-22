@@ -116,6 +116,12 @@ let _prevDoctorName = null;  // regenerates this itself so it stays correct afte
 let _kaumarOpdId    = null;
 const _doctorMap = {};
 const _opdMap    = {}; // opd_id → name, for the combined cross-OPD queue's per-OPD token label
+let _opdListFull    = []; // {id,name,ncism_code}[] — Session 181: backs the Scan & Share department dropdown
+// Session 181 correction 5: which department a Reg. Queue entry's QR was scanned
+// for (set in openRegQueueEntry, read by _applyOpdRule to lock OPD there instead
+// of the usual Screening-OPD default, cleared everywhere _activeScanSessionId is).
+let _scanDeptOpdId   = null;
+let _scanDeptOpdName = null;
 
 // ── Verhoeff checksum validation for Aadhaar ─────
 function _verhoeff(num) {
@@ -381,6 +387,7 @@ async function loadOPDs() {
   const sel = document.getElementById('opd');
   _screeningOpdId = null;
   _kaumarOpdId    = null;
+  _opdListFull    = data || [];
 
   (data || []).forEach(o => {
     _opdMap[o.id] = o.name;
@@ -403,6 +410,27 @@ async function loadOPDs() {
   });
 
   _applyOpdRule();
+  _populateScanDeptSelect();
+}
+
+// Session 181 correction 5: Scan & Share's department dropdown — every OPD that
+// has an ncism_code gets a QR (that's the tag encoded into the QR's counter-id
+// and matched back by abdm-webhook; an OPD without one can't be distinguished by
+// a scan and is left out here, still reachable via the plain "Not department-
+// specific" option). Screening OPD is deliberately included too — a department QR
+// is meant to bypass it, but nothing stops a tenant from also wanting one there.
+function _populateScanDeptSelect() {
+  const sel = document.getElementById('scan-dept-select');
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— Not department-specific —</option>';
+  _opdListFull.filter(o => o.ncism_code).forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o.id;
+    opt.textContent = o.name;
+    sel.appendChild(opt);
+  });
+  if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
 }
 
 // ── Load doctors (OPD-filtered) ───────────────────
@@ -504,7 +532,20 @@ function _applyOpdRule() {
 
   sel.disabled = true;
 
-  if (cat === 'followup' && _prevOpdId) {
+  // Session 181 correction 5: a Reg. Queue entry pulled from a department-tagged
+  // Scan & Share QR overrides everything else here, including the usual "new
+  // patient -> Screening OPD" default — the patient already told us which
+  // department they want, at the QR itself, before ever reaching the desk.
+  if (_scanDeptOpdId) {
+    sel.value       = _scanDeptOpdId;
+    docSel.disabled = false;
+    loadDoctors(_scanDeptOpdId);
+    loadFees(_scanDeptOpdId);
+    if (hint) {
+      hint.textContent = `🔍 Routed via ABHA Scan & Share to ${_scanDeptOpdName || 'this department'} — Screening OPD bypassed`;
+      hint.style.cssText = 'display:block;color:var(--green-mid);font-size:11px;margin-top:4px;font-weight:500';
+    }
+  } else if (cat === 'followup' && _prevOpdId) {
     // Returning patient follow-up — lock to previous specialty OPD + doctor
     sel.value       = _prevOpdId;
     docSel.disabled = true;
@@ -706,6 +747,7 @@ async function _selectPatient(patient) {
   _patient = patient;
   _newFamilyMember = false;
   _activeScanSessionId = null;  // Session 173: search-selected a patient — decouple from any open Reg. Queue entry
+  _scanDeptOpdId = _scanDeptOpdName = null;  // Session 181: no longer that scan session's department lock either
   document.getElementById('name').value = patient.name;
   document.getElementById('patient-picker').classList.remove('show');
 
@@ -1002,6 +1044,7 @@ function _startNewFamilyMember() {
   _newFamilyMember = true;
   _patient = null;
   _activeScanSessionId = null;  // Session 173: switching patient — decouple from any open Reg. Queue entry
+  _scanDeptOpdId = _scanDeptOpdName = null;  // Session 181: no longer that scan session's department lock either
   document.getElementById('patient-picker').classList.remove('show');
   document.getElementById('patient-tag').classList.remove('show');
   document.getElementById('name').value = '';
@@ -1030,6 +1073,7 @@ function _clearTag() {
   _activePackage = null;
   _newFamilyMember = false;
   _activeScanSessionId = null;  // Session 173: no longer registering whichever Reg. Queue entry (if any) was open
+  _scanDeptOpdId = _scanDeptOpdName = null;  // Session 181: no longer that scan session's department lock either
   document.getElementById('patient-tag').classList.remove('show');
   document.getElementById('pkg-card').classList.remove('show');
   document.getElementById('pkg-use-chk').checked = false;
@@ -1270,6 +1314,12 @@ async function handleSubmit() {
         // fresh one for this visit specifically (see _pendingAbhaAddress). NULL for a
         // visit with no ABHA involved at all.
         abha_address:         _pendingAbhaAddress || null,
+        // Session 181 correction 5: this visit's OPD was determined by a department-
+        // tagged Scan & Share QR, not the usual Screening-OPD default — true only if
+        // the OPD field still matches the locked department (a receptionist could in
+        // principle have manually changed it before submitting; that's a deliberate
+        // override, not a scan-routed visit any more).
+        routed_via_scan_qr:   !!(_scanDeptOpdId && opdId === _scanDeptOpdId),
       }).select().single();
 
     if (vErr) throw vErr;
@@ -1288,6 +1338,7 @@ async function handleSubmit() {
         .eq('id', _activeScanSessionId);
       if (linkErr) console.warn('[reception] could not link scan session to visit:', linkErr.message);
       _activeScanSessionId = null;
+      _scanDeptOpdId = _scanDeptOpdName = null;  // Session 181: registration complete, drop the lock
     }
 
     // Generate meeting URL for tele visits
@@ -3140,8 +3191,9 @@ btnScanAbha.addEventListener('click', async () => {
     scanPanel.style.display = '';
     btnScanAbha.textContent = '✕ Close';
     btnScanAbha.classList.add('open');
+    _populateScanDeptSelect();
     const counterId = (document.getElementById('scan-counter-id').value || 'OPD1').trim().toUpperCase();
-    await _startScanSession(counterId);
+    await _startScanSession(counterId, document.getElementById('scan-dept-select').value);
   }
 });
 
@@ -3149,16 +3201,36 @@ document.getElementById('btn-scan-refresh').addEventListener('click', async () =
   if (_scanSubscription) { supabase.removeChannel(_scanSubscription); _scanSubscription = null; }
   const counterId = (document.getElementById('scan-counter-id').value || 'OPD1').trim().toUpperCase();
   document.getElementById('scan-counter-id').value = counterId;
-  await _startScanSession(counterId);
+  await _startScanSession(counterId, document.getElementById('scan-dept-select').value);
 });
 
-async function _startScanSession(counterId) {
+// Session 181 correction 5: changing the department regenerates the QR immediately
+// (no separate "apply" step) — staff pick a department, the matching QR is right
+// there ready to download/print.
+document.getElementById('scan-dept-select').addEventListener('change', async () => {
+  if (_scanSubscription) { supabase.removeChannel(_scanSubscription); _scanSubscription = null; }
+  const counterId = (document.getElementById('scan-counter-id').value || 'OPD1').trim().toUpperCase();
+  await _startScanSession(counterId, document.getElementById('scan-dept-select').value);
+});
+
+// Session 181 correction 5: department-tagged counter-id — the registered NHPR
+// counter-id itself never changes, the OPD's ncism_code is appended as
+// "<counterId>~<ncism_code>" and parsed back out by abdm-webhook's patient/share
+// handler (opdTag) to resolve a real opd_id. UNCONFIRMED against a live scan as
+// of this session — verify one department's QR round-trips correctly before
+// relying on this for real patients (see abdm-webhook's own comment on this).
+let _scanDeptTagName = ''; // for the Download/Print filename + printed label
+async function _startScanSession(counterId, opdId) {
   const { data: tenant } = await supabase
     .from('tenants').select('hfr_id')
     .eq('id', tenantId).single();
   const hipId     = tenant?.hfr_id || 'IN2910002132';
   // Use NHPR counter ID (e.g. OPD1, IPD1) — must match counterid in NHPR-generated QR
-  const requestId = counterId || 'OPD1';
+  const baseCounterId = counterId || 'OPD1';
+  const opdRow = opdId ? _opdListFull.find(o => o.id === opdId) : null;
+  const deptTag = opdRow?.ncism_code ? opdRow.ncism_code.toUpperCase() : '';
+  _scanDeptTagName = opdRow?.name || '';
+  const requestId = deptTag ? `${baseCounterId}~${deptTag}` : baseCounterId;
   _scanRequestId = requestId;
 
   // QR URL per ABDM PHR v3 — /phr/v3/share-profile with hyphenated params
@@ -3194,6 +3266,51 @@ async function _startScanSession(counterId) {
   document.getElementById('scan-status-text').textContent =
     'Display this QR in the waiting area — patients scan it on their own and get a token. Check the 📋 Reg. Queue tab to see and register them as they arrive.';
 }
+
+// Session 181 correction 5: Download/Print the currently-shown QR, one department
+// at a time — meant to be posted physically near that department's waiting area.
+// qrcodejs (window.QRCode) renders a <canvas> in modern browsers, falling back to
+// an <img> in older ones — handle both rather than assume canvas.
+function _getScanQrDataUrl() {
+  const container = document.getElementById('scan-qr-canvas');
+  const canvas = container?.querySelector('canvas');
+  if (canvas) return canvas.toDataURL('image/png');
+  const img = container?.querySelector('img');
+  return img?.src || null;
+}
+
+document.getElementById('btn-scan-qr-download').addEventListener('click', () => {
+  const dataUrl = _getScanQrDataUrl();
+  if (!dataUrl) return _alert('error', 'QR not ready yet — try again in a moment.');
+  const label = _scanDeptTagName ? _scanDeptTagName.replace(/[^a-z0-9]+/gi, '_') : 'Reception';
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = `ABHA_ScanShare_QR_${label}.png`;
+  a.click();
+});
+
+document.getElementById('btn-scan-qr-print').addEventListener('click', () => {
+  const dataUrl = _getScanQrDataUrl();
+  if (!dataUrl) return _alert('error', 'QR not ready yet — try again in a moment.');
+  const deptLabel = _scanDeptTagName || 'Reception Counter';
+  const w = window.open('', '_blank', 'width=420,height=560');
+  if (!w) return _alert('error', 'Pop-up blocked — allow pop-ups to print the QR.');
+  w.document.write(`<!doctype html><html><head><title>ABHA Scan &amp; Share QR — ${_esc(deptLabel)}</title>
+    <style>
+      body{font-family:'DM Sans',Arial,sans-serif;text-align:center;padding:32px 16px;color:#1a4a2e}
+      h1{font-family:Georgia,serif;font-size:22px;margin:0 0 6px}
+      h2{font-size:16px;color:#4a3580;margin:0 0 20px;font-weight:600}
+      img{width:260px;height:260px;border:1px solid #ccc;border-radius:8px}
+      p{font-size:13px;color:#555;margin-top:18px;max-width:320px;margin-left:auto;margin-right:auto}
+    </style></head><body>
+    <h1>Scan &amp; Share your ABHA</h1>
+    <h2>${_esc(deptLabel)}</h2>
+    <img src="${dataUrl}" alt="QR"/>
+    <p>Open the ABHA / PHR app on your phone, tap Scan &amp; Share, and scan this code to get your token for ${_esc(deptLabel)}.</p>
+    </body></html>`);
+  w.document.close();
+  w.onload = () => w.print();
+});
 
 function _onScanReceived(profile) {
   if (!profile) return;
@@ -3513,7 +3630,7 @@ let _activeScanSessionId = null;    // which scan session (if any) the open form
 async function loadRegQueue() {
   const { data, error } = await supabase
     .from('abdm_scan_sessions')
-    .select('id, token_number, patient_profile, created_at, assigned_profile_id')
+    .select('id, token_number, patient_profile, created_at, assigned_profile_id, opd_id')
     .eq('tenant_id', tenantId)
     .or(`assigned_profile_id.eq.${profile.id},assigned_profile_id.is.null`)
     .eq('status', 'received')
@@ -3535,8 +3652,15 @@ async function loadRegQueue() {
     const prof = r.patient_profile || {};
     const name = [prof.firstName, prof.middleName, prof.lastName].filter(Boolean).join(' ') || prof.name || '—';
     const mobile = prof.mobile ?? prof.mobileNumber ?? prof.phoneNumber ?? '';
+    const abhaAddr = prof.abhaAddress ?? prof.healthId ?? prof.phrAddress?.[0] ?? '';
     const waitedFor = _waitTime(r.created_at);
     const unclaimedNote = r.assigned_profile_id == null ? ' · unassigned (no one was on duty when they scanned)' : '';
+    // Session 181 correction 5: which department's QR was scanned (blank for the
+    // plain reception-desk QR, unchanged) — shown so a receptionist can see at a
+    // glance where the patient wants to go before even opening the entry.
+    const deptName = r.opd_id ? (_opdMap[r.opd_id] || '—') : null;
+    const deptLine = deptName ? `<div class="q-row2" style="color:var(--green-deep);font-weight:600">→ ${_esc(deptName)}</div>` : '';
+    const abhaLine = abhaAddr ? `<div class="q-row2"><span style="color:var(--text-mid)">${_esc(abhaAddr)}</span></div>` : '';
     // Whole row is clickable (not just a small button) — matches the actual described
     // gesture ("taps on the token with name in the queue") and 44px touch-target
     // guidance. Cancel is its own button, deliberately NOT inside the row's own click
@@ -3547,6 +3671,8 @@ async function loadRegQueue() {
       <div class="q-token waiting">${r.token_number ?? '—'}</div>
       <div class="q-info">
         <div class="q-name">${_esc(name)}</div>
+        ${deptLine}
+        ${abhaLine}
         <div class="q-row2"><span style="color:var(--text-mid)">${_esc(mobile || 'Mobile not shared')}</span></div>
         <div class="q-row3">Shared via Scan &amp; Share · waiting ${waitedFor}${unclaimedNote}</div>
       </div>
@@ -3572,8 +3698,14 @@ window.openRegQueueEntry = function(sessionId) {
     return;
   }
   _activeScanSessionId = sessionId;
+  // Session 181 correction 5: this scan was for a specific department's QR — lock
+  // the OPD field to it (see _applyOpdRule()'s new top-priority branch) instead of
+  // the usual "new patient -> Screening OPD" default.
+  _scanDeptOpdId   = row.opd_id || null;
+  _scanDeptOpdName = row.opd_id ? (_opdMap[row.opd_id] || null) : null;
   _onScanReceived(row.patient_profile);
-  _alert('info', `Registration Token #${row.token_number ?? '—'} pulled up — complete the form below.`);
+  _applyOpdRule();
+  _alert('info', `Registration Token #${row.token_number ?? '—'} pulled up${_scanDeptOpdName ? ' for ' + _scanDeptOpdName : ''} — complete the form below.`);
   document.querySelector('.panel')?.scrollIntoView({ behavior: 'smooth' });
 };
 
@@ -3591,7 +3723,7 @@ window.cancelRegQueueEntry = async function(sessionId) {
     .eq('id', sessionId);
   if (error) { _alert('error', safeErrorMessage(error, 'Could not cancel this token.')); return; }
 
-  if (_activeScanSessionId === sessionId) _activeScanSessionId = null;
+  if (_activeScanSessionId === sessionId) { _activeScanSessionId = null; _scanDeptOpdId = _scanDeptOpdName = null; }
   _alert('info', 'Registration token cancelled.');
   loadRegQueue();
 };

@@ -206,6 +206,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         🟢 Start Triaging (fair queue)
       </button>
     </div>
+    <!-- Session 181 correction 5: passive awareness log — a patient who registered
+         directly via a department-tagged ABHA Scan & Share QR bypasses Screening
+         entirely (their visit's own opd_id is the specialty department, not this
+         one), so they never appear in the queue above. This is purely informational
+         for the triage desk, not a queue — no action taken from here. -->
+    <div id="scan-bypass-row" style="display:none;padding:8px 12px;background:#f0f8f3;border-bottom:1px solid #bcdfc9;font-size:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" data-onclick="toggleScanBypassList">
+        <span style="color:var(--green-deep,#1a4a2e);font-weight:600">🔍 <span id="scan-bypass-count">0</span> registered directly via ABHA Scan &amp; Share today</span>
+        <span id="scan-bypass-toggle-icon">▾</span>
+      </div>
+      <div id="scan-bypass-list" style="display:none;margin-top:8px"></div>
+    </div>
     <div class="queue-list" id="queue-list">
       <div class="queue-empty">Loading queue…</div>
     </div>

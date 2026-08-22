@@ -1041,14 +1041,27 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <!-- Scan & Share panel (clinic QR → patient scans → profile auto-fills) -->
         <div class="abha-scan-panel" id="abha-scan-panel" style="display:none">
           <div class="abha-scan-title">⬛ Scan &amp; Share — Patient QR</div>
-          <!-- Counter ID: must match the ID generated in NHPR portal (Software Linkage → Manage QR Code) -->
-          <div style="display:flex;align-items:flex-end;gap:8px;margin-bottom:10px">
+          <!-- Counter ID: must match the ID generated in NHPR portal (Software Linkage → Manage QR Code).
+               Session 181 correction 5: Department is a separate, purely app-side dropdown next to
+               it — the registered Counter ID itself never changes, department gets layered onto the
+               QR's counter-id value client-side (see _startScanSession() in reception.js). Selecting
+               a department shows THAT department's own QR, downloadable/printable for posting near
+               its waiting area. -->
+          <div style="display:flex;align-items:flex-end;gap:8px;margin-bottom:10px;flex-wrap:wrap">
             <div>
               <div style="font-size:10px;color:#4a3580;font-weight:600;margin-bottom:3px;letter-spacing:.4px">COUNTER ID (from NHPR portal)</div>
               <input id="scan-counter-id" type="text" placeholder="OPD1" value="OPD1"
                      style="width:90px;height:30px;border:1.5px solid #bbb0e0;border-radius:6px;
                             padding:0 8px;font-size:13px;font-weight:600;text-transform:uppercase;
                             color:#4a3580;letter-spacing:.5px"/>
+            </div>
+            <div>
+              <div style="font-size:10px;color:#4a3580;font-weight:600;margin-bottom:3px;letter-spacing:.4px">DEPARTMENT (OPD)</div>
+              <select id="scan-dept-select"
+                      style="width:170px;height:30px;border:1.5px solid #bbb0e0;border-radius:6px;
+                             padding:0 6px;font-size:12px;font-weight:600;color:#4a3580">
+                <option value="">— Not department-specific —</option>
+              </select>
             </div>
             <button id="btn-scan-refresh" type="button" class="btn-otp btn-otp-send"
                     style="height:44px;font-size:11px;padding:0 12px">
@@ -1057,6 +1070,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           </div>
           <div class="scan-qr-box">
             <div id="scan-qr-canvas" style="line-height:0"></div>
+          </div>
+          <div style="display:flex;gap:6px;margin:8px 0;flex-wrap:wrap">
+            <button id="btn-scan-qr-download" type="button" class="btn-otp btn-otp-resend"
+                    style="height:32px;font-size:11px;padding:0 10px">⬇ Download QR</button>
+            <button id="btn-scan-qr-print" type="button" class="btn-otp btn-otp-resend"
+                    style="height:32px;font-size:11px;padding:0 10px">🖨 Print QR</button>
           </div>
           <div class="scan-hint">Ask patient to scan with PHR Sandbox app (sandbox) or ABHA app (production)</div>
           <div class="scan-status waiting" id="scan-status">
