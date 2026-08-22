@@ -278,14 +278,16 @@ function _setPendingAbhaAddress(val) {
 // ── Consent Modal ─────────────────────────────────
 let _consentPendingOtp = false; // resolved once consent agreed
 
-// Session 171 correction 4: consent is mandatory both for enrolling a brand-new
-// ABHA (Aadhaar OTP) and for verifying an already-existing one (ABHA Number /
-// ABHA Address). Same checkboxes/gating either way, but the enroll copy ("sharing
-// my Aadhaar Number...for the purpose of creating an ABHA account", "Name of
-// Aadhaar Number Provider") is inaccurate for verify — no Aadhaar digits are
-// entered in that flow and the account already exists. Both wordings are
-// pre-written in the HTML (two labelled item-1/cc7-label/sub-text blocks each);
-// this just toggles which is visible — no dynamic HTML injection.
+// Session 171 correction 4 originally gated consent on EVERY OTP-based ABHA
+// access (enroll + Verify-by-ABHA-Number + Verify-by-ABHA-Address). Session 181
+// correction (Vipul Singh, live ABDM demo) narrowed this: consent is only
+// required where real Aadhaar digits are shared with UIDAI — the +Enroll flow
+// and Verify-by-Aadhaar. Verify-by-ABHA-Number/Address no longer call this at
+// all. The mode='verify' branch below is consequently unused for now (no live
+// caller passes it) — left in place rather than deleted in case a future flow
+// needs "verify without Aadhaar" consent copy again; both wordings stay
+// pre-written in the HTML (two labelled item-1/cc7-label/sub-text blocks each),
+// toggled by mode, no dynamic HTML injection.
 function _showConsentModal(mode = 'enroll') {
   return new Promise((resolve, reject) => {
     const overlay  = document.getElementById('consent-overlay');
@@ -2678,10 +2680,10 @@ document.getElementById('btn-verify-send-otp').addEventListener('click', async (
   const digits = raw.replace(/\D/g, '');
   if (digits.length !== 14) return _setVerifyMsg('error', 'Please enter a valid 14-digit ABHA number.');
 
-  // ABDM demo feedback (Session 171): consent is mandatory before ANY OTP-based
-  // ABHA access, not just new-account enrollment — same gate as +Enroll, verify-
-  // specific copy (no Aadhaar-sharing/creation language).
-  try { await _showConsentModal('verify'); } catch { return; }
+  // Session 181 correction (Vipul Singh, live ABDM demo): consent is NOT required
+  // to verify by ABHA Number — no Aadhaar digits are shared with UIDAI here, only
+  // an OTP round-trip against an already-existing ABHA. Session 171's blanket gate
+  // was wrong; moved to Verify-by-Aadhaar only (see that handler below).
 
   const btn = document.getElementById('btn-verify-send-otp');
   btn.disabled = true; btn.textContent = 'Sending…';
@@ -2770,6 +2772,18 @@ document.getElementById('btn-aad-send-otp').addEventListener('click', async () =
   const aadhaar = document.getElementById('verify-aadhaar-input').value.trim();
   if (!/^\d{12}$/.test(aadhaar))  return _setVerifyMsg('error', 'Aadhaar must be 12 digits.');
   if (!_verhoeff(aadhaar))        return _setVerifyMsg('error', 'Invalid Aadhaar number (checksum failed).');
+
+  // Session 181 correction (Vipul Singh, live ABDM demo): consent belongs HERE,
+  // not on Verify-by-ABHA-Number/Address (moved off those, see above) — this is
+  // the one verify flow that actually transmits real Aadhaar digits to UIDAI for
+  // OTP authentication, same legal basis as the +Enroll flow. Reuses default
+  // 'enroll' mode's consent text as-is (Aadhaar-sharing/UIDAI-authorization
+  // wording + "Name of Aadhaar Number Provider" field) rather than the unused
+  // 'verify' mode variant — the real enrollABHA() Aadhaar-OTP call this mirrors
+  // already silently covers both "create new" and "found existing" outcomes
+  // under this exact same consent, so no new wording variant is needed.
+  try { await _showConsentModal(); } catch { return; }
+
   const btn = document.getElementById('btn-aad-send-otp');
   btn.disabled = true; btn.textContent = 'Sending…';
   _setVerifyMsg('info', 'Sending OTP to Aadhaar-linked mobile…');
@@ -2936,10 +2950,9 @@ document.getElementById('btn-addr-search').addEventListener('click', async () =>
   const addr = document.getElementById('verify-addr-input').value.trim();
   if (!addr.includes('@')) return _setVerifyMsg('error', 'Enter a valid ABHA address (e.g. name@abdm).');
 
-  // ABDM demo feedback (Session 171): consent is mandatory before ANY OTP-based
-  // ABHA access, not just new-account enrollment — same gate as +Enroll, verify-
-  // specific copy (no Aadhaar-sharing/creation language).
-  try { await _showConsentModal('verify'); } catch { return; }
+  // Session 181 correction (Vipul Singh, live ABDM demo): consent is NOT required
+  // to verify by ABHA Address — same reasoning as Verify-by-ABHA-Number above, no
+  // Aadhaar digits involved. Session 171's blanket gate was wrong here too.
 
   const btn = document.getElementById('btn-addr-search');
   btn.disabled = true; btn.textContent = 'Searching…';
