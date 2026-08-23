@@ -487,8 +487,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .regq-body{padding:0}
 .regq-scroll{overflow-x:auto}
 .regq-head,.regq-row{
-  display:grid;
-  grid-template-columns:56px 92px 1.3fr 1.6fr 110px 1.1fr 148px;
+  display:grid;width:100%;
+  grid-template-columns:56px 92px 1.3fr 1.6fr 110px 1.1fr minmax(148px,1fr);
   gap:10px;align-items:center;min-width:780px
 }
 .regq-head{
