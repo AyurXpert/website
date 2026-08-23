@@ -3646,41 +3646,47 @@ async function loadRegQueue() {
   const rows = data || [];
   _regQueueRowsById = new Map(rows.map(r => [r.id, r]));
   document.getElementById('regqueue-count').textContent = rows.length ? `(${rows.length})` : '';
-  const list = document.getElementById('reg-queue-list');
+  const list = document.getElementById('reg-queue-rows');
   if (!rows.length) {
     list.innerHTML = `<div class="q-empty"><div class="q-empty-icon">📋</div><div class="q-empty-text">No patients waiting to be registered right now.</div></div>`;
     return;
   }
 
+  // Session 181: converted from stacked cards to a column-header styled list
+  // (Dr. Venkatesh's explicit request) — Token / Waiting Since / Name / ABHA
+  // Address & Number / Phone / Department / Action. Department-only, deliberately
+  // no "Doctor" column here despite the header row's original ask including it —
+  // a doctor genuinely isn't assigned yet at this pre-registration stage (chosen
+  // during the registration form itself, after this row is opened).
   list.innerHTML = rows.map(r => {
     const prof = r.patient_profile || {};
     const name = [prof.firstName, prof.middleName, prof.lastName].filter(Boolean).join(' ') || prof.name || '—';
     const mobile = prof.mobile ?? prof.mobileNumber ?? prof.phoneNumber ?? '';
     const abhaAddr = prof.abhaAddress ?? prof.healthId ?? prof.phrAddress?.[0] ?? '';
+    const abhaNum  = prof.healthIdNumber ?? prof.ABHANumber ?? prof.abhaNumber ?? '';
     const waitedFor = _waitTime(r.created_at);
-    const unclaimedNote = r.assigned_profile_id == null ? ' · unassigned (no one was on duty when they scanned)' : '';
-    // Session 181 correction 5: which department's QR was scanned (blank for the
-    // plain reception-desk QR, unchanged) — shown so a receptionist can see at a
-    // glance where the patient wants to go before even opening the entry.
-    const deptName = r.opd_id ? (_opdMap[r.opd_id] || '—') : null;
-    const deptLine = deptName ? `<div class="q-row2" style="color:var(--green-deep);font-weight:600">→ ${_esc(deptName)}</div>` : '';
-    const abhaLine = abhaAddr ? `<div class="q-row2"><span style="color:var(--text-mid)">${_esc(abhaAddr)}</span></div>` : '';
+    const unclaimedNote = r.assigned_profile_id == null ? ' (unassigned)' : '';
+    // Session 181 correction 5: which department's QR was scanned — blank for the
+    // plain reception-desk QR.
+    const deptName = r.opd_id ? (_opdMap[r.opd_id] || '—') : '—';
+    const abhaCell = [abhaAddr, abhaNum ? _fmtAbha(abhaNum) : ''].filter(Boolean).join(' · ') || '—';
     // Whole row is clickable (not just a small button) — matches the actual described
     // gesture ("taps on the token with name in the queue") and 44px touch-target
     // guidance. Cancel is its own button, deliberately NOT inside the row's own click
     // target area in spirit — but since domEvents.js resolves a click to the NEAREST
     // [data-onclick] ancestor-or-self, tapping Cancel fires only cancelRegQueueEntry,
     // never both.
-    return `<div class="q-item" data-onclick="openRegQueueEntry" data-onclick-a0="${r.id}" style="cursor:pointer">
-      <div class="q-token waiting">${r.token_number ?? '—'}</div>
-      <div class="q-info">
-        <div class="q-name">${_esc(name)}</div>
-        ${deptLine}
-        ${abhaLine}
-        <div class="q-row2"><span style="color:var(--text-mid)">${_esc(mobile || 'Mobile not shared')}</span></div>
-        <div class="q-row3">Shared via Scan &amp; Share · waiting ${waitedFor}${unclaimedNote}</div>
+    return `<div class="regq-row" data-onclick="openRegQueueEntry" data-onclick-a0="${r.id}">
+      <div class="regq-token">${r.token_number ?? '—'}</div>
+      <div class="regq-cell">${waitedFor}${unclaimedNote}</div>
+      <div>
+        <div class="regq-cell-name">${_esc(name)}</div>
+        <div class="regq-cell-sub">Scan &amp; Share</div>
       </div>
-      <div class="q-right" style="display:flex;gap:6px">
+      <div class="regq-cell">${_esc(abhaCell)}</div>
+      <div class="regq-cell">${_esc(mobile || '—')}</div>
+      <div class="regq-cell-dept">${_esc(deptName)}</div>
+      <div class="regq-actions">
         <button class="q-edit-btn" data-onclick="openRegQueueEntry" data-onclick-a0="${r.id}"
                 style="width:auto;padding:0 10px;font-size:11px;background:var(--green-mid);color:#fff">Register →</button>
         <button class="q-edit-btn" data-onclick="cancelRegQueueEntry" data-onclick-a0="${r.id}"

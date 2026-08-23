@@ -481,6 +481,38 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 }
 .q-edit-btn:hover{background:var(--green-light);color:var(--green-deep);border-color:var(--green-mid)}
 
+/* ── Reg Queue: column-header styled list (Session 181) ───────
+   Not a literal <table> — a CSS-grid list, so it degrades to horizontal
+   scroll on a narrow screen instead of squeezing columns unreadable. */
+.regq-body{padding:0}
+.regq-scroll{overflow-x:auto}
+.regq-head,.regq-row{
+  display:grid;
+  grid-template-columns:56px 92px 1.3fr 1.6fr 110px 1.1fr 148px;
+  gap:10px;align-items:center;min-width:780px
+}
+.regq-head{
+  padding:8px 14px;font-size:10px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.4px;color:var(--text-muted);border-bottom:2px solid var(--green-light);
+  position:sticky;top:0;background:var(--cream);z-index:1
+}
+.regq-row{
+  padding:10px 14px;border-bottom:1px solid var(--green-light);
+  cursor:pointer;transition:background .15s
+}
+.regq-row:last-child{border-bottom:none}
+.regq-row:hover{background:var(--green-light)}
+.regq-token{
+  font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;
+  color:var(--green-deep);background:var(--green-light);border-radius:8px;
+  height:36px;display:flex;align-items:center;justify-content:center
+}
+.regq-cell-name{font-size:14px;font-weight:500;color:var(--text-dark)}
+.regq-cell-sub{font-size:11px;color:var(--text-muted);margin-top:1px}
+.regq-cell{font-size:12px;color:var(--text-mid)}
+.regq-cell-dept{font-size:12px;color:var(--green-deep);font-weight:600}
+.regq-actions{display:flex;gap:6px;flex-wrap:wrap}
+
 /* ── Stale Visits Banner ─────────────────────────── */
 #stale-banner{
   display:none;margin:0 0 10px;padding:10px 14px;
@@ -1455,8 +1487,27 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         🟢 Go On Registration Duty
       </button>
     </div>
-    <div class="queue-body" id="reg-queue-list" style="display:none">
-      <div class="q-empty"><div class="q-empty-icon">📋</div><div class="q-empty-text">Loading…</div></div>
+    <!-- Session 181: Reg Queue converted from stacked cards to a column-header styled
+         list (Dr. Venkatesh's explicit request) — Reg Queue only, the other 3 tabs
+         (Queue/Appointments/Lab Bills) keep the original card style since they carry
+         fewer fields. Not a literal <table> (regq-scroll's overflow-x:auto + a
+         min-width on the grid handles narrow screens by scrolling rather than
+         squeezing unreadable columns). -->
+    <div class="queue-body regq-body" id="reg-queue-list" style="display:none">
+      <div class="regq-scroll">
+        <div class="regq-head">
+          <div>Token</div>
+          <div>Waiting Since</div>
+          <div>Name</div>
+          <div>ABHA Address &amp; Number</div>
+          <div>Phone</div>
+          <div>Department</div>
+          <div>Action</div>
+        </div>
+        <div id="reg-queue-rows">
+          <div class="q-empty"><div class="q-empty-icon">📋</div><div class="q-empty-text">Loading…</div></div>
+        </div>
+      </div>
     </div>
     <div class="refresh-foot">
       <div class="live-dot"></div>
