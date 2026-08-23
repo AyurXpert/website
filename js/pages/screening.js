@@ -209,17 +209,27 @@ window.loadQueue = async function() {
 // department, not this one) — a passive awareness list, not a queue. Tenant-wide
 // (not scoped to _screeningOpdId, deliberately — that's exactly the department
 // these visits did NOT go through).
+//
+// Real gap found live (Dr. Venkatesh, 23 Aug 2026): Screening OPD is itself one of
+// the selectable department QRs (for a patient who doesn't know which specialty to
+// visit) — a patient scanning THAT QR correctly lands straight in Screening's own
+// queue above, same as intended, not a bypass at all. routed_via_scan_qr is true
+// for them too though (their opd_id just happens to be Screening), so without this
+// exclusion they'd wrongly double-appear here as well. Excluded by opd_id, not by
+// re-deriving "is this Screening" some other way, so it can never disagree with
+// what the main queue query above is already scoped to.
 async function loadScanBypassLog() {
   const row = document.getElementById('scan-bypass-row');
   if (!row) return;
-  const { data, error } = await supabase
+  let query = supabase
     .from('visits')
     .select('id, token_number, created_at, opds(name), patients(name)')
     .eq('tenant_id', tenantId)
     .eq('routed_via_scan_qr', true)
     .gte('created_at', today + 'T00:00:00')
-    .lte('created_at', today + 'T23:59:59')
-    .order('created_at', { ascending: false });
+    .lte('created_at', today + 'T23:59:59');
+  if (_screeningOpdId) query = query.neq('opd_id', _screeningOpdId);
+  const { data, error } = await query.order('created_at', { ascending: false });
   if (error) { console.warn('[screening] loadScanBypassLog:', error.message); return; }
 
   const rows = data || [];
