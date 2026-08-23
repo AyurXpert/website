@@ -1041,12 +1041,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <!-- Scan & Share panel (clinic QR → patient scans → profile auto-fills) -->
         <div class="abha-scan-panel" id="abha-scan-panel" style="display:none">
           <div class="abha-scan-title">⬛ Scan &amp; Share — Patient QR</div>
-          <!-- Counter ID: must match the ID generated in NHPR portal (Software Linkage → Manage QR Code).
-               Session 181 correction 5: Department is a separate, purely app-side dropdown next to
-               it — the registered Counter ID itself never changes, department gets layered onto the
-               QR's counter-id value client-side (see _startScanSession() in reception.js). Selecting
-               a department shows THAT department's own QR, downloadable/printable for posting near
-               its waiting area. -->
+          <!-- Counter ID: the plain reception-desk QR's context value (no department chosen).
+               Session 181 correction 5, REVISED 23 Aug 2026: a first attempt appended department
+               as "<counterId>~<code>" — rejected client-side by the PHR app before ever reaching
+               our webhook. The real ABDM M2 spec doc (§7.1/7.3.1) confirms this context value is
+               plain facility-defined free text, no NHPR pre-registration required — so a selected
+               department's QR now uses its own ncism_code as the WHOLE context, replacing this
+               Counter ID rather than appending to it (see _startScanSession() in reception.js).
+               Selecting a department shows THAT department's own QR, downloadable/printable for
+               posting near its waiting area. -->
           <div style="display:flex;align-items:flex-end;gap:8px;margin-bottom:10px;flex-wrap:wrap">
             <div>
               <div style="font-size:10px;color:#4a3580;font-weight:600;margin-bottom:3px;letter-spacing:.4px">COUNTER ID (from NHPR portal)</div>

@@ -3213,12 +3213,16 @@ document.getElementById('scan-dept-select').addEventListener('change', async () 
   await _startScanSession(counterId, document.getElementById('scan-dept-select').value);
 });
 
-// Session 181 correction 5: department-tagged counter-id — the registered NHPR
-// counter-id itself never changes, the OPD's ncism_code is appended as
-// "<counterId>~<ncism_code>" and parsed back out by abdm-webhook's patient/share
-// handler (opdTag) to resolve a real opd_id. UNCONFIRMED against a live scan as
-// of this session — verify one department's QR round-trips correctly before
-// relying on this for real patients (see abdm-webhook's own comment on this).
+// Session 181 correction 5, REVISED 23 Aug 2026 after a real live-test failure:
+// the first attempt appended the department as "<counterId>~<ncism_code>" — the
+// PHR app rejected it client-side ("The provide data is not proper") before it
+// ever reached our webhook. The real ABDM M2 spec doc (§7.1/7.3.1) confirms the
+// counter/context value is plain facility-defined free text with no NHPR
+// pre-registration requirement — so a department's QR now uses ITS ncism_code as
+// the WHOLE context value (e.g. "AGD"), replacing the base Counter ID entirely
+// rather than appending to it. The plain reception-desk QR (no department chosen)
+// is unaffected. Still needs a live re-test to confirm the PHR app accepts a bare
+// alphanumeric context this time.
 let _scanDeptTagName = ''; // for the Download/Print filename + printed label
 async function _startScanSession(counterId, opdId) {
   const { data: tenant } = await supabase
@@ -3230,7 +3234,7 @@ async function _startScanSession(counterId, opdId) {
   const opdRow = opdId ? _opdListFull.find(o => o.id === opdId) : null;
   const deptTag = opdRow?.ncism_code ? opdRow.ncism_code.toUpperCase() : '';
   _scanDeptTagName = opdRow?.name || '';
-  const requestId = deptTag ? `${baseCounterId}~${deptTag}` : baseCounterId;
+  const requestId = deptTag || baseCounterId;
   _scanRequestId = requestId;
 
   // QR URL per ABDM PHR v3 — /phr/v3/share-profile with hyphenated params
