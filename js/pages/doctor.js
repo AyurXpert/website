@@ -2558,6 +2558,11 @@ window.saveImmunization = async function() {
     batch_number:         document.getElementById('imm-batch').value.trim() || null,
     age_at_vaccination:   ageStr,
     next_due_date:        document.getElementById('imm-next-due').value || null,
+    // 24 Aug 2026 (Session 182): dose_number existed as a DB column and was even read by
+    // abdm-fhir's ImmunizationRecord builder, but this form never actually captured it —
+    // always saved NULL. Free-text, not a number picker, since real values include non-
+    // numeric ones ("Booster") alongside plain sequence numbers.
+    dose_number:          document.getElementById('imm-dose-number').value.trim() || null,
   });
   if (error) { _toast(safeErrorMessage(error, 'Could not record vaccination.'), 'error'); return; }
 
@@ -2566,6 +2571,7 @@ window.saveImmunization = async function() {
   document.getElementById('imm-vaccine').value    = '';
   document.getElementById('imm-batch').value      = '';
   document.getElementById('imm-next-due').value   = '';
+  document.getElementById('imm-dose-number').value= '';
   document.getElementById('imm-custom-name').value= '';
   document.getElementById('imm-custom-row').style.display = 'none';
   await _loadImmunizations(_activePatient.id);

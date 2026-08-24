@@ -2450,6 +2450,17 @@ body.medcert-print #mc-print{display:block!important}
                     <input id="imm-next-due" type="date" style="height:36px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:12px;font-family:'DM Sans',sans-serif;width:100%"/>
                   </div>
                 </div>
+                <!-- 24 Aug 2026 (Session 182): dose number was never actually captured anywhere —
+                     the DB column existed and abdm-fhir even read it, but no form field ever wrote
+                     to it. Kept as its own row (not squeezed into the col3 grid above, which is
+                     fixed to exactly 3 columns) since it's a genuinely separate addition, not a
+                     4th slot in that original layout. -->
+                <div class="field-row" style="margin-bottom:8px">
+                  <div class="field">
+                    <label>Dose Number (in series)</label>
+                    <input id="imm-dose-number" type="text" placeholder="e.g. 1, 2, Booster — optional" style="height:36px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:12px;font-family:'DM Sans',sans-serif;width:100%"/>
+                  </div>
+                </div>
                 <button data-onclick="saveImmunization" style="height:44px;padding:0 16px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;cursor:pointer">Save Vaccination Record</button>
               </div>
               <!-- History -->
