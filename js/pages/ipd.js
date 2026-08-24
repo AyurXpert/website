@@ -713,9 +713,18 @@ window.saveAdmission = async function() {
     mlc_intimation_at:   document.getElementById('adm-mlc-time').value ? new Date(document.getElementById('adm-mlc-time').value).toISOString() : null,
   } : { is_mlc: false };
 
+  // 24 Aug 2026 (Session 182): visit_id was read from the URL (?visit_id=, passed by
+  // doctor.html's "Open IPD Admission" link) only to pre-select the patient, then
+  // discarded -- never actually saved on the admission row, even though the column
+  // exists. Found while building abdm-fhir's Discharge Summary "Investigations" section,
+  // which needs this exact link to pull the admission's own lab/imaging reports -- it was
+  // silently a no-op for every real admission since ipd_admissions.visit_id was always
+  // NULL. Also useful generally as the one real link between an OPD visit and the IPD
+  // admission it led to.
   const { error: admErr } = await supabase.from('ipd_admissions').insert({
     tenant_id:           tenantId,
     patient_id:          _selectedPatient.id,
+    visit_id:            _qp.get('visit_id') || null,
     bed_id:              bedId,
     department_id:       deptId,
     admitting_doctor_id: doctorId,
