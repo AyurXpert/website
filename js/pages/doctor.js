@@ -1295,6 +1295,13 @@ function addRxRow(data = {}) {
       <label>Anupana (Vehicle)</label>
       <input type="text" class="rx-anupana" placeholder="Warm water, Milk…" value="${_esc(data.anupana||'')}"/>
     </div>
+    <div class="rx-col">
+      <!-- 24 Aug 2026 (Session 182): prescription_items.timing existed as a DB column and
+           was even part of buildMedicationRequest's dosageInstruction.additionalInstruction
+           mapping candidates, but no form field ever wrote to it -- always NULL. -->
+      <label>Timing</label>
+      <input type="text" class="rx-timing" placeholder="Before food, After food…" value="${_esc(data.timing||'')}"/>
+    </div>
     <button class="btn-rm-rx" data-onclick="_removeRxRowFromAttr" data-onclick-a0="${id}">×</button>
   `;
 
@@ -1480,7 +1487,8 @@ function _getRxData() {
     dose:    row.querySelector('.rx-dose')?.value?.trim()    || '',
     freq:    row.querySelector('.rx-freq')?.value            || '',
     dur:     row.querySelector('.rx-dur')?.value?.trim()     || '',
-    anupana: row.querySelector('.rx-anupana')?.value?.trim() || ''
+    anupana: row.querySelector('.rx-anupana')?.value?.trim() || '',
+    timing:  row.querySelector('.rx-timing')?.value?.trim()  || ''
   })).filter(r => r.name);
 }
 
@@ -1714,6 +1722,7 @@ async function completeConsultation() {
             frequency: r.freq,
             duration: r.dur,
             anupana: r.anupana,
+            timing: r.timing || null,
             quantity: 1
           }))
         );
@@ -3259,6 +3268,7 @@ document.getElementById('btn-print-rx').addEventListener('click', () => {
     ${rx.map((r,i) => `<div style="padding:6px 0;border-bottom:1px dashed #d4e6da;font-size:12px">
       <strong>${i+1}. ${r.name}</strong> — ${r.dose} ${r.freq} × ${r.dur}
       ${r.anupana ? `<span style="color:#8a9e90"> (with ${r.anupana})</span>` : ''}
+      ${r.timing ? `<span style="color:#8a9e90"> — ${r.timing}</span>` : ''}
     </div>`).join('')}
     ${document.getElementById('rx-instructions').value ? `<p style="font-size:11px;color:#4a6352;margin-top:8px">${document.getElementById('rx-instructions').value}</p>` : ''}
     ${document.getElementById('adv-pathya').value ? `<div style="margin-top:12px;font-size:11px"><strong>Pathya:</strong> ${document.getElementById('adv-pathya').value}</div>` : ''}
