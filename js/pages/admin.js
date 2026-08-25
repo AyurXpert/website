@@ -6945,6 +6945,7 @@ window.loadOrgProfile = function() {
   document.getElementById('orgp-save-btn').style.display = iAmSuperAdmin ? '' : 'none';
   document.getElementById('orgp-readonly-note').style.display = iAmSuperAdmin ? 'none' : '';
   document.getElementById('orgp-status').textContent = '';
+  window.updateOrgPreview();
 };
 
 window.previewOrgLogo = function(input) {
@@ -6961,8 +6962,44 @@ window.previewOrgLogo = function(input) {
     preview.src = e.target.result;
     preview.style.display = '';
     document.getElementById('orgp-logo-placeholder').style.display = 'none';
+    window.updateOrgPreview();
   };
   reader.readAsDataURL(file);
+};
+
+// Mirrors the form's current state (saved or still-unsaved) into the "how this
+// appears on your documents" preview strip -- same layout the ABDM PDF/print
+// letterhead actually uses, so this is a real preview, not a decorative mockup.
+// Called on load, on every keystroke (data-oninput), and whenever a new logo
+// file is chosen.
+window.updateOrgPreview = function() {
+  document.getElementById('orgp-preview-name').textContent = tenant?.name || 'Your Hospital Name';
+
+  const tagline = document.getElementById('orgp-tagline').value.trim();
+  const taglineEl = document.getElementById('orgp-preview-tagline');
+  taglineEl.textContent = tagline;
+  taglineEl.style.display = tagline ? '' : 'none';
+
+  const address = document.getElementById('orgp-address').value.trim();
+  const addressEl = document.getElementById('orgp-preview-address');
+  addressEl.textContent = address;
+  addressEl.style.display = address ? '' : 'none';
+
+  const phone = document.getElementById('orgp-phone').value.trim();
+  const gstin = document.getElementById('orgp-gstin').value.trim();
+  const contactParts = [phone ? `Ph: ${phone}` : null, gstin ? `GSTIN: ${gstin}` : null].filter(Boolean);
+  const contactEl = document.getElementById('orgp-preview-contact');
+  contactEl.textContent = contactParts.join('   ·   ');
+  contactEl.style.display = contactParts.length ? '' : 'none';
+
+  const mainLogo = document.getElementById('orgp-logo-preview');
+  const previewLogoEl = document.getElementById('orgp-preview-logo');
+  if (mainLogo.style.display !== 'none' && mainLogo.src) {
+    previewLogoEl.src = mainLogo.src;
+    previewLogoEl.style.display = '';
+  } else {
+    previewLogoEl.style.display = 'none';
+  }
 };
 
 window.saveOrgProfile = async function() {
