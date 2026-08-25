@@ -85,10 +85,15 @@ function render(visit, doctorName, doctorQual, doctorReg, notes, items) {
 
     <!-- Clinic header -->
     <div class="rx-header">
-      <div>
-        <div class="clinic-name">${_esc(tenant.name || 'AyurXpert Clinic')}</div>
-        <div class="clinic-type">${_esc(_tenantTypeLabel(tenant.type))}</div>
-        <div class="clinic-address">${_esc([tenant.address, tenant.city, tenant.state].filter(Boolean).join(', '))}</div>
+      <div class="clinic-header-row">
+        ${tenant.logo_url ? `<img class="clinic-logo" src="${_esc(tenant.logo_url)}" alt=""/>` : ''}
+        <div>
+          <div class="clinic-name">${_esc(tenant.name || 'AyurXpert Clinic')}</div>
+          ${tenant.tagline ? `<div class="clinic-tagline">${_esc(tenant.tagline)}</div>` : ''}
+          <div class="clinic-type">${_esc(_tenantTypeLabel(tenant.type))}</div>
+          <div class="clinic-address">${_esc([tenant.full_address || tenant.address, tenant.city, tenant.state].filter(Boolean).join(', '))}</div>
+          ${tenant.gstin ? `<div class="clinic-gstin">GSTIN: ${_esc(tenant.gstin)}</div>` : ''}
+        </div>
       </div>
       <div class="doctor-block">
         <div class="doctor-name">${_esc(doctorName)}</div>

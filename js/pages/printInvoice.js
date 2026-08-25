@@ -21,6 +21,31 @@ document.getElementById('invoiceDate').innerText = new Date().toLocaleDateString
   day: '2-digit', month: 'short', year: 'numeric'
 })
 
+// Session 183 — organisation letterhead (logo/tagline/address/GSTIN), previously
+// only the tenant name was shown here. Each field degrades gracefully (stays
+// hidden) when a tenant hasn't set it.
+if (tenant.tagline) {
+  const el = document.getElementById('clinicTagline')
+  el.textContent = tenant.tagline
+  el.style.display = ''
+}
+const addr = tenant.full_address || tenant.address
+if (addr) {
+  const el = document.getElementById('clinicAddress')
+  el.textContent = addr
+  el.style.display = ''
+}
+if (tenant.gstin) {
+  const el = document.getElementById('clinicGstin')
+  el.textContent = `GSTIN: ${tenant.gstin}`
+  el.style.display = ''
+}
+if (tenant.logo_url) {
+  const img = document.getElementById('clinic-logo')
+  img.src = tenant.logo_url
+  img.style.display = ''
+}
+
 async function loadInvoice() {
 
   // ── BILL MODE (from pharmacyPOS, ipd.js discharge billing, and now OPD

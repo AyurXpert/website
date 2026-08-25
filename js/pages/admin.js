@@ -124,6 +124,7 @@ function _showSection(target, sub) {
   if (target==='modules')        window.loadModules();
   if (target==='accounts')           window.loadAccounts();
   if (target==='abdm-bridge')        { window.loadAbdmCallbacks(); window.loadFacilityRegistration(); }
+  if (target==='org-profile')        window.loadOrgProfile();
   if (target==='compliance-reports') {
     const today = new Date().toISOString().slice(0,7);
     document.getElementById('sdf-month').value    = today;
@@ -6911,6 +6912,126 @@ window.saveFacilityRegistration = async function() {
 
   statusHtml += `<span style="color:#16a34a;font-weight:600">✅ Registered — Facility ID ${_esc(hfrId)} is now live on AyurXpert's ABDM Bridge as "${_esc(hipName)}". ABDM calls for this organisation will now identify as this facility.</span>`;
   if (statusEl) statusEl.innerHTML = statusHtml;
+};
+
+// Session 183 — "Organisation Profile" panel. register.html has a one-time logo/
+// tagline/address/GSTIN upload at signup; nothing ever let an already-registered
+// tenant edit or add these afterward (real gap, confirmed live — a tenant that
+// registered before the logo feature existed, or just skipped it, had no
+// self-service way to ever add one). Same visible-to-both/write-gated-to-
+// super_admin pattern as the ABDM Bridge panel above.
+window.loadOrgProfile = function() {
+  const iAmSuperAdmin = role === 'super_admin';
+  document.getElementById('orgp-tagline').value = tenant?.tagline || '';
+  document.getElementById('orgp-address').value = tenant?.full_address || tenant?.address || '';
+  document.getElementById('orgp-phone').value   = tenant?.phone || '';
+  document.getElementById('orgp-gstin').value   = tenant?.gstin || '';
+
+  const preview = document.getElementById('orgp-logo-preview');
+  const placeholder = document.getElementById('orgp-logo-placeholder');
+  if (tenant?.logo_url) {
+    preview.src = tenant.logo_url;
+    preview.style.display = '';
+    placeholder.style.display = 'none';
+  } else {
+    preview.style.display = 'none';
+    placeholder.style.display = '';
+  }
+
+  ['orgp-tagline','orgp-address','orgp-phone','orgp-gstin'].forEach(id => {
+    document.getElementById(id).disabled = !iAmSuperAdmin;
+  });
+  document.getElementById('orgp-logo-btn').style.display = iAmSuperAdmin ? '' : 'none';
+  document.getElementById('orgp-save-btn').style.display = iAmSuperAdmin ? '' : 'none';
+  document.getElementById('orgp-readonly-note').style.display = iAmSuperAdmin ? 'none' : '';
+  document.getElementById('orgp-status').textContent = '';
+};
+
+window.previewOrgLogo = function(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if (file.size > 2 * 1024 * 1024) {
+    _toast('Logo must be under 2 MB. Please choose a smaller image.', 'error');
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById('orgp-logo-preview');
+    preview.src = e.target.result;
+    preview.style.display = '';
+    document.getElementById('orgp-logo-placeholder').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+};
+
+window.saveOrgProfile = async function() {
+  if (role !== 'super_admin') { alert('Only a Super Admin can update this.'); return; }
+  const btn      = document.getElementById('orgp-save-btn');
+  const statusEl = document.getElementById('orgp-status');
+  btn.disabled = true;
+  statusEl.textContent = 'Saving…';
+
+  // A fresh timestamped path every save, never overwriting the previous logo's own
+  // path — tenant-logos' only Storage policy is INSERT-only (confirmed live,
+  // Session 183), so re-using the same path via upsert:true would need an UPDATE
+  // policy this bucket has never had and would silently fail under RLS. The old
+  // file is deleted best-effort afterward instead (a real DELETE policy now exists,
+  // added this session) — a failure there is non-fatal, just an orphaned image.
+  let newLogoUrl = null;
+  const logoFile = document.getElementById('orgp-logo-file').files[0];
+  const previousLogoUrl = tenant?.logo_url || null;
+  if (logoFile) {
+    const ext  = (logoFile.name.split('.').pop() || 'png').toLowerCase();
+    const path = `${tenantId}/logo-${Date.now()}.${ext}`;
+    const { error: uploadErr } = await supabase.storage.from('tenant-logos').upload(path, logoFile, { upsert: false });
+    if (uploadErr) {
+      btn.disabled = false;
+      statusEl.innerHTML = `<span style="color:#dc2626">Logo upload failed: ${_esc(safeErrorMessage(uploadErr))}</span>`;
+      return;
+    }
+    const { data: urlData } = supabase.storage.from('tenant-logos').getPublicUrl(path);
+    newLogoUrl = urlData.publicUrl;
+  }
+
+  const tagline = document.getElementById('orgp-tagline').value.trim();
+  const address = document.getElementById('orgp-address').value.trim();
+  const phone   = document.getElementById('orgp-phone').value.trim();
+  const gstin   = document.getElementById('orgp-gstin').value.trim();
+
+  const { error } = await supabase.rpc('update_tenant_org_profile', {
+    p_tagline: tagline || null, p_full_address: address || null,
+    p_phone: phone || null, p_gstin: gstin || null, p_logo_url: newLogoUrl,
+  });
+  btn.disabled = false;
+  if (error) {
+    statusEl.innerHTML = `<span style="color:#dc2626">${_esc(safeErrorMessage(error, 'Could not save.'))}</span>`;
+    return;
+  }
+
+  if (tenant) {
+    tenant.tagline = tagline || null;
+    tenant.full_address = address || null;
+    tenant.phone = phone || null;
+    tenant.gstin = gstin || null;
+    if (newLogoUrl) tenant.logo_url = newLogoUrl;
+    try { sessionStorage.setItem(SESSION_KEYS.TENANT, JSON.stringify(tenant)); } catch {}
+  }
+  document.getElementById('orgp-logo-file').value = '';
+  statusEl.innerHTML = `<span style="color:#16a34a;font-weight:600">✅ Saved.</span>`;
+
+  // Best-effort cleanup of the old logo file — never blocks the save above, which
+  // already succeeded and is what actually matters.
+  if (newLogoUrl && previousLogoUrl) {
+    try {
+      const marker = '/tenant-logos/';
+      const idx = previousLogoUrl.indexOf(marker);
+      if (idx !== -1) {
+        const oldPath = decodeURIComponent(previousLogoUrl.slice(idx + marker.length));
+        await supabase.storage.from('tenant-logos').remove([oldPath]);
+      }
+    } catch (e) { console.warn('[org-profile] old logo cleanup failed (non-fatal):', e?.message); }
+  }
 };
 
 window.checkBridgeUrl = async function() {

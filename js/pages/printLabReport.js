@@ -172,10 +172,16 @@ async function loadReport() {
     <!-- NABL Header -->
     <div class="rpt-header">
       <div class="rpt-org">
-        <div class="rpt-org-name">${_esc(tenant.name || 'AyurXpert Laboratory')}</div>
-        <div class="rpt-org-sub">
-          Department of Clinical Pathology &amp; Laboratory Medicine<br/>
-          NABL Accredited Medical Testing Laboratory — ISO 15189
+        ${tenant.logo_url ? `<img class="rpt-logo" src="${_esc(tenant.logo_url)}" alt=""/>` : ''}
+        <div>
+          <div class="rpt-org-name">${_esc(tenant.name || 'AyurXpert Laboratory')}</div>
+          ${tenant.tagline ? `<div class="rpt-org-tagline">${_esc(tenant.tagline)}</div>` : ''}
+          <div class="rpt-org-sub">
+            Department of Clinical Pathology &amp; Laboratory Medicine<br/>
+            NABL Accredited Medical Testing Laboratory — ISO 15189
+          </div>
+          ${(tenant.full_address || tenant.address) ? `<div class="rpt-org-address">${_esc(tenant.full_address || tenant.address)}</div>` : ''}
+          ${tenant.gstin ? `<div class="rpt-org-gstin">GSTIN: ${_esc(tenant.gstin)}</div>` : ''}
         </div>
       </div>
       <div class="nabl-block">

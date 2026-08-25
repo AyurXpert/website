@@ -12,12 +12,15 @@
 <div id="invoice" class="max-w-2xl mx-auto border p-6">
 
   <!-- HEADER -->
-  <div class="flex justify-between items-center mb-4">
+  <div class="flex justify-between items-start mb-4">
     <div>
       <h1 id="clinicName" class="text-xl font-bold">AyurXpert HMS</h1>
-      <p class="text-sm text-gray-600">Invoice</p>
+      <p id="clinicTagline" class="text-xs text-gray-500 italic" style="display:none"></p>
+      <p id="clinicAddress" class="text-xs text-gray-500" style="display:none"></p>
+      <p id="clinicGstin" class="text-xs text-gray-500" style="display:none"></p>
+      <p class="text-sm text-gray-600 mt-1">Invoice</p>
     </div>
-    <img src="assets/logo.jpeg" class="h-12" id="clinic-logo" />
+    <img class="h-12" id="clinic-logo" style="display:none;object-fit:contain" />
   </div>
 
   <hr class="my-4">
