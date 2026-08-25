@@ -2197,6 +2197,40 @@ function _parseFhirForDisplay(bundle, hiType) {
     sections.push(`<div class="fhir-row"><span class="fhir-lbl">Reports</span><ul class="fhir-list">${items}</ul></div>`);
   }
 
+  // Invoice (billing) — Session 183: real gap found live — an Invoice-type record
+  // (no Condition/MedicationRequest/DiagnosticReport content by design) fell through
+  // every branch above and rendered nothing but a repeated raw KB size. lineItem[]
+  // references a separate ChargeItem resource for its description/qty (Session 182's
+  // mandatory-chargeItem fix) — fall back to Invoice.note (Registration/Consultation
+  // ₹ lines, always present) when lineItem is empty, e.g. a genuinely ₹0 bill.
+  const invoices = get('Invoice');
+  if (invoices.length) {
+    const chargeItems = get('ChargeItem');
+    const ciById = new Map(chargeItems.map(ci => [ci.id, ci]));
+    const inv = invoices[0];
+    const li = Array.isArray(inv?.lineItem) ? inv.lineItem : [];
+    let itemsHtml = '';
+    if (li.length) {
+      itemsHtml = '<ul class="fhir-list">' + li.map(l => {
+        const pc = l?.priceComponent?.[0];
+        let name = pc?.code?.text;
+        if (!name) {
+          const ref = l?.chargeItem?.reference || '';
+          const ci = ciById.get(ref.split('/').pop());
+          name = ci?.code?.text || `Item ${l.sequence ?? ''}`;
+        }
+        const amt = pc?.amount?.value ?? l?.net?.value;
+        const qty = l?.factor;
+        return `<li>${_esc(name)}${qty ? ' × ' + _esc(String(qty)) : ''}${amt != null ? ' — <b>₹' + _esc(String(amt)) + '</b>' : ''}</li>`;
+      }).join('') + '</ul>';
+    } else if (inv?.note?.length) {
+      itemsHtml = '<ul class="fhir-list">' + inv.note.map(n => `<li>${_esc(n?.text || '')}</li>`).join('') + '</ul>';
+    }
+    const total = inv?.totalGross?.value != null ? `₹${inv.totalGross.value}` : '';
+    const statusBadge = inv?.status ? ` <span class="fhir-badge" style="background:#eef7ee;color:var(--green-deep)">${_esc(inv.status)}</span>` : '';
+    sections.push(`<div class="fhir-row"><span class="fhir-lbl">Invoice</span>${itemsHtml}${total ? `<div style="margin-top:4px;font-weight:600">Total: ${_esc(total)}${statusBadge}</div>` : ''}</div>`);
+  }
+
   // Allergies
   const allergies = get('AllergyIntolerance');
   if (allergies.length) {
