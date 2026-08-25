@@ -7018,6 +7018,12 @@ window.saveOrgProfile = async function() {
     try { sessionStorage.setItem(SESSION_KEYS.TENANT, JSON.stringify(tenant)); } catch {}
   }
   document.getElementById('orgp-logo-file').value = '';
+  // Real bug found live (Session 183): the save itself worked, but nothing ever
+  // re-rendered the visible logo preview/placeholder afterward -- loadOrgProfile()
+  // re-reads every field (including the preview image) from the tenant object just
+  // updated above, so it stays visually in sync with what was actually saved. Must
+  // run BEFORE the success message below, since it also clears orgp-status.
+  window.loadOrgProfile();
   statusEl.innerHTML = `<span style="color:#16a34a;font-weight:600">✅ Saved.</span>`;
 
   // Best-effort cleanup of the old logo file — never blocks the save above, which
