@@ -318,6 +318,7 @@ function renderRxList() {
         <div class="rx-item-price">₹${lineTotal}</div>
         <div style="display:flex;flex-direction:column;gap:3px;padding-left:4px">
           <button data-onclick="printMedLabel" data-onclick-a0="${i}" title="Print Label (NABH MOM.6)" style="font-size:9px;padding:2px 6px;background:#e8f5ee;color:#1a4a2e;border:1px solid #b8ddc6;border-radius:4px;cursor:pointer;font-family:inherit">🏷 Label</button>
+          <button data-onclick="removeCartItem" data-onclick-a0="${i}" title="Remove from this bill" style="font-size:9px;padding:2px 6px;background:#fde8e8;color:#c0392b;border:1px solid #e0b0b0;border-radius:4px;cursor:pointer;font-family:inherit">✕ Remove</button>
         </div>
       </div>`;
   }).join('');
@@ -327,6 +328,19 @@ function renderRxList() {
 
 window.updateQty = function(i, val) {
   _cartItems[Number(i)].qty = Math.max(0, parseInt(val) || 0);
+  renderRxList();
+};
+
+// Real gap found live: a medicine added to this bill (manually or from the
+// prescription) had no way to be removed at all — setting quantity to 0 excludes
+// it from the payable total (dispense() already filters qty>0) but leaves it
+// stuck visibly in the list, which isn't an intuitive "remove". This actually
+// deletes the row.
+window.removeCartItem = function(i) {
+  const item = _cartItems[Number(i)];
+  if (!item) return;
+  if (!confirm(`Remove "${item.name}" from this bill?`)) return;
+  _cartItems.splice(Number(i), 1);
   renderRxList();
 };
 
