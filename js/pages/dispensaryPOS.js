@@ -276,7 +276,7 @@ window.openRx = async function(rxId) {
     payMethods.style.pointerEvents = '';
     payMethods.title = '';
   }
-  document.getElementById('discount').value = '0';
+  document.getElementById('discount-pct').value = '0';
 
   document.getElementById('welcome').style.display  = 'none';
   document.getElementById('d-active').style.display = 'flex';
@@ -345,12 +345,25 @@ window.removeCartItem = function(i) {
 };
 
 // ── Totals ────────────────────────────────────────
+// Discount is entered as a % (was a raw ₹ amount, per Dr. Venkatesh's explicit
+// ask) -- the ₹ figure everywhere downstream (dispense(), the printed invoice) is
+// now always derived from it, never typed directly. Clamped 0-100 defensively
+// since it's a plain number input with no hard browser-enforced max.
+function _discountPct() {
+  const raw = parseFloat(document.getElementById('discount-pct').value) || 0;
+  return Math.min(100, Math.max(0, raw));
+}
+function _discountAmount(subtotal) {
+  return subtotal * _discountPct() / 100;
+}
+
 window.recalcTotal = function() {
   const subtotal = _cartItems.reduce((s, c) => s + c.qty * c.price, 0);
-  const discount = parseFloat(document.getElementById('discount').value) || 0;
+  const discount = _discountAmount(subtotal);
   const total    = Math.max(0, subtotal - discount);
-  document.getElementById('subtotal').textContent    = `₹${subtotal.toFixed(2)}`;
-  document.getElementById('total-payable').textContent = `₹${total.toFixed(2)}`;
+  document.getElementById('subtotal').textContent       = `₹${subtotal.toFixed(2)}`;
+  document.getElementById('discount-amount').textContent = `− ₹${discount.toFixed(2)}`;
+  document.getElementById('total-payable').textContent  = `₹${total.toFixed(2)}`;
 };
 
 // ── Payment method ────────────────────────────────
@@ -425,8 +438,8 @@ async function dispense() {
   }
 
   const payMethod = document.querySelector('.pay-btn.active')?.dataset.method || 'Cash';
-  const discount  = parseFloat(document.getElementById('discount').value) || 0;
   const subtotal  = payable.reduce((s, c) => s + c.qty * c.price, 0);
+  const discount  = _discountAmount(subtotal);
   const total     = Math.max(0, subtotal - discount);
 
   const btn = document.getElementById('btn-dispense');
@@ -507,7 +520,7 @@ async function dispense() {
     }
 
     // 7. Print invoice
-    _printInvoice(bill.id, payable, subtotal, discount, total, payMethod);
+    _printInvoice(bill.id, payable, subtotal, discount, total, payMethod, _discountPct());
 
     _toast(`${_esc(_activeRx.patient?.name)} — dispensed, bill generated`, 'info');
     _closeRx();
@@ -586,7 +599,7 @@ async function _abdmCareContextInvoice(billId, patientId, visitId, abhaNumber) {
 }
 
 // ── Print invoice ─────────────────────────────────
-function _printInvoice(billId, items, subtotal, discount, total, payMethod) {
+function _printInvoice(billId, items, subtotal, discount, total, payMethod, discountPct) {
   const tenant = _tenant;
   const date   = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
   const time   = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
@@ -627,7 +640,7 @@ function _printInvoice(billId, items, subtotal, discount, total, payMethod) {
     </table>
     <div style="text-align:right;font-size:11px">
       <div>Subtotal: ₹${subtotal.toFixed(2)}</div>
-      ${discount > 0 ? `<div>Discount: ₹${discount.toFixed(2)}</div>` : ''}
+      ${discount > 0 ? `<div>Discount: ${discountPct ? discountPct.toFixed(1) + '% — ' : ''}₹${discount.toFixed(2)}</div>` : ''}
       <div style="font-size:13px;font-weight:600;color:#1a4a2e;border-top:1px solid #1a4a2e;margin-top:4px;padding-top:4px">Total: ₹${total.toFixed(2)}</div>
     </div>
     <div style="margin-top:16px;font-size:10px;color:#8a9e90;text-align:center">Dispensed by: ${_esc(profile.full_name)} · AyurXpert HMS</div>
@@ -644,7 +657,7 @@ function _closeRx() {
   _cartItems  = [];
   document.getElementById('d-active').style.display = 'none';
   document.getElementById('welcome').style.display  = '';
-  document.getElementById('discount').value = '0';
+  document.getElementById('discount-pct').value = '0';
   loadQueue();
 }
 
