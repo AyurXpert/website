@@ -1187,7 +1187,22 @@ async function handleSubmit() {
             .select('id, name, age, gender, date_of_birth, blood_group, abha_number, abha_address')
             .eq('tenant_id', tenantId)
             .or(`abha_number.eq.${abha},abha_number.eq.${abhaHyph}`)
-            .limit(1);
+            .limit(5);
+          // Real, serious bug found live (Session 183): this used .limit(1) and
+          // silently took whatever row Postgres happened to return first when MORE
+          // THAN ONE local patient record shares the same abha_number (abha_number
+          // has no uniqueness constraint at all -- confirmed live, 3 real WASA1631
+          // records turned out to share/cross-contaminate one real ABHA number).
+          // Confirmed live: a Venkatesha scan-and-register visit got silently
+          // attributed to an unrelated "vamsi" record sharing his ABHA number --
+          // same failure class as Session 170's phone-picker bug, just on a
+          // different lookup path that never got the same protection. Now hard-
+          // blocks and reuses the exact same picker UI instead of guessing.
+          if ((byAbha?.length ?? 0) > 1) {
+            _loading(btn, false);
+            _showPicker(byAbha, phone);
+            return _alert('error', `${byAbha.length} existing patient records share this ABHA number — please select the correct one from the list above (or "New family member with same number") before registering.`);
+          }
           found = byAbha?.[0] ?? null;
         }
         if (!found && phone) {
