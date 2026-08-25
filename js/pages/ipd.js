@@ -1097,6 +1097,13 @@ window.confirmGenerateBill = async function() {
 
   await logAudit('ipd_bill_generated', 'bills', bill.id, { admission_id: admId, final_amount: finalAmount }, _ctx);
 
+  // Session 183: separate Invoice care context for this discharge bill (own
+  // BILL-<id> ref — doesn't collide with the admission's DischargeSummary-tagged
+  // IPD-<id> context)
+  if (adm.patients?.abha_number) {
+    _abdmCareContextInvoice(bill.id, adm.patients.id, admId, adm.patients.abha_number);
+  }
+
   btn.disabled = false; btn.textContent = 'Generate Bill';
   closeGenerateBillDrawer();
   _alert('success', `IPD bill generated — ₹${finalAmount.toLocaleString('en-IN')}.`);
@@ -1112,13 +1119,19 @@ async function _abdmCareContextDischarge(adm, admId) {
     const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
     const ccRef   = `IPD-${admId}`;
     const dateStr = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+    // Plain hyphen, not an em-dash — Session 183 found ABDM's real careContexts[].display
+    // field rejects an em-dash ("ABDM-9999: Invalid display"), discovered while wiring
+    // Invoice care contexts. This means DischargeSummary linking here has likely been
+    // silently failing (the failure lands inside the catch below, never surfaced) on
+    // every IPD discharge until now.
+    const display = `IPD Discharge - ${dateStr}`;
     const pt      = adm.patients;
     await fetch(ABDM_HIP_FN, {
       method: 'POST', headers,
       body: JSON.stringify({
         action: 'create_care_context', patient_id: pt.id,
         ipd_id: admId, care_context_ref: ccRef,
-        display: `IPD Discharge — ${dateStr}`, hi_types: ['DischargeSummary'],
+        display, hi_types: ['DischargeSummary'],
         abha_number: pt.abha_number,
       }),
     });
@@ -1127,10 +1140,51 @@ async function _abdmCareContextDischarge(adm, admId) {
       body: JSON.stringify({
         action: 'generate_link_token', patient_id: pt.id,
         abha_number: pt.abha_number, ipd_id: admId,
-        care_contexts: [{ referenceNumber: ccRef, display: `IPD Discharge — ${dateStr}`, hiType: 'DischargeSummary' }],
+        care_contexts: [{ referenceNumber: ccRef, display, hiType: 'DischargeSummary' }],
       }),
     });
   } catch (e) { console.warn('[ABDM] discharge care context failed:', e.message); }
+}
+
+// Session 183: Invoice care context (fire-and-forget). Own ref (BILL-<id>) —
+// deliberately not the admission's IPD-<id> ref, since abdm-hip's push loop only
+// ever builds hi_types[0] per care context row; reusing that ref would silently
+// bury Invoice behind DischargeSummary. Being a genuinely NEW ref (unlike merging
+// into an already-linked context), it needs its own generate_link_token call too,
+// or it sits linked=false forever and abdm-hip's push loop (.eq('linked', true))
+// never sees it — the common case reuses a cached 6-month token, so this is a
+// cheap direct link/carecontext call, not a fresh demographic-auth round trip.
+async function _abdmCareContextInvoice(billId, patientId, admId, abhaNumber) {
+  if (!billId || !abhaNumber) return;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+    const ABDM_HIP_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-hip';
+    const h = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
+    const dateStr = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+    const ccRef   = `BILL-${billId}`;
+    // Plain hyphen, not an em-dash — Session 183 found ABDM's real careContexts[].display
+    // field rejects it ("ABDM-9999: Invalid display") — see the same bug in
+    // _abdmCareContextDischarge just above, which has apparently been hitting this
+    // same failure silently.
+    const display = `Invoice - ${dateStr}`;
+    await fetch(ABDM_HIP_FN, {
+      method: 'POST', headers: h,
+      body: JSON.stringify({
+        action: 'create_care_context', patient_id: patientId,
+        ipd_id: admId ?? null, bill_id: billId,
+        care_context_ref: ccRef, display, hi_types: ['Invoice'], abha_number: abhaNumber,
+      }),
+    });
+    await fetch(ABDM_HIP_FN, {
+      method: 'POST', headers: h,
+      body: JSON.stringify({
+        action: 'generate_link_token', patient_id: patientId, abha_number: abhaNumber,
+        ipd_id: admId ?? null,
+        care_contexts: [{ referenceNumber: ccRef, display, hiType: 'Invoice' }],
+      }),
+    });
+  } catch (e) { console.warn('[ABDM] invoice care context failed:', e.message); }
 }
 
 // ── Notes drawer ──────────────────────────────────────────────────────────────

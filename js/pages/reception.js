@@ -1428,6 +1428,9 @@ async function handleSubmit() {
     } else if (patient.phone) {
       _abdmSmsNotifyNoAbha(patient.id, patient.phone, patient.name, visit.id).catch(() => {});
     }
+    // Session 183: separate Invoice care context, own ref (BILL-<id>), so it doesn't
+    // collide with this visit's OPConsultation/Prescription-tagged VISIT-<id> context.
+    _abdmCareContextInvoice(bill.id, patient.id, visit.id, _abhaForCC).catch(() => {});
 
     _alert('success', `Token #${nextToken} — ${patient.name} added to queue${payMsg}.`);
     _resetForm();
@@ -3169,6 +3172,46 @@ async function _abdmSmsNotifyNoAbha(patientId, phone, patientName, visitId) {
       body: JSON.stringify({ action: 'sms_notify', phone }),
     });
   } catch (e) { console.warn('ABDM SMS notify (reception):', e?.message); }
+}
+
+// Session 183: Invoice care context (fire-and-forget). Its own care_context_ref
+// (BILL-<id>) — deliberately NOT the visit's VISIT-<id> ref, since abdm-hip's push
+// loop only ever builds hi_types[0] per care context row; reusing the visit's ref
+// would silently bury Invoice behind whatever clinical type was tagged first. Being
+// a genuinely NEW ref (unlike Prescription, which merges into the already-linked
+// VISIT-<id> row), it needs its own generate_link_token call too, or it sits
+// linked=false forever and abdm-hip's push loop (.eq('linked', true)) never sees
+// it — the common case reuses a cached 6-month token, so this is a cheap direct
+// link/carecontext call, not a fresh demographic-auth round trip.
+async function _abdmCareContextInvoice(billId, patientId, visitId, abhaNumber) {
+  if (!billId || !abhaNumber) return;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+    const h = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
+    const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const ccRef   = `BILL-${billId}`;
+    // Plain hyphen, not an em-dash — Session 183 found ABDM's real careContexts[].display
+    // field rejects it ("ABDM-9999: Invalid display"); matches the em-dash-free pattern
+    // already confirmed working in _abdmLinkTokenAfterVerify above.
+    const display = `Invoice - ${dateStr}`;
+    await fetch(ABDM_HIP_FN, {
+      method: 'POST', headers: h,
+      body: JSON.stringify({
+        action: 'create_care_context', patient_id: patientId,
+        visit_id: visitId ?? null, bill_id: billId,
+        care_context_ref: ccRef, display, hi_types: ['Invoice'], abha_number: abhaNumber,
+      }),
+    });
+    await fetch(ABDM_HIP_FN, {
+      method: 'POST', headers: h,
+      body: JSON.stringify({
+        action: 'generate_link_token', patient_id: patientId, abha_number: abhaNumber,
+        visit_id: visitId ?? null,
+        care_contexts: [{ referenceNumber: ccRef, display, hiType: 'Invoice' }],
+      }),
+    });
+  } catch (e) { console.warn('[ABDM] invoice care context failed:', e?.message); }
 }
 
 // ── Helper: format ABHA number ────────────────────
