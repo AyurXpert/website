@@ -2483,6 +2483,18 @@ document.getElementById('btn-verify-mobile-otp').addEventListener('click', async
 
   try {
     await verifyCommMobileOtp(_enrollTxnId, mobileOtp);
+    // 27 Aug 2026 — real bug found live-reviewing this exact CRT_ABHA_109 flow with Dr.
+    // Venkatesh: ABDM's own verify_comm_mobile_otp response confirms the mobile is "now
+    // successfully linked" server-side, but that response doesn't carry a full updated
+    // ABHAProfile (just txnId/authResult/message/accounts) — and _pendingAbhaResponse
+    // still holds the profile snapshot from BEFORE this call, carrying whatever mobile
+    // (often the Aadhaar-linked one, or null) ABDM's first byAadhaar response returned.
+    // Without this, the profile card / ABHA card shown right after would silently show
+    // the wrong (or missing) mobile despite the real account already being correctly
+    // updated — patch the one field we already know is now correct (it's the exact
+    // number that just verified) before handing off to the shared profile-created path.
+    const prof = _pendingAbhaResponse?.ABHAProfile ?? _pendingAbhaResponse?.abhaProfile;
+    if (prof) { prof.mobile = _enrollMobile; prof.mobileNumber = _enrollMobile; prof.phoneNumber = _enrollMobile; }
     await _handleAbhaProfileCreated(_pendingAbhaResponse);
     _pendingAbhaResponse = null;
   } catch (err) {
