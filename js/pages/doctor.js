@@ -72,6 +72,206 @@ const _canReview  = ['doctor', 'super_admin', 'dept_admin'].includes(profile.rol
 let _activeDraftId    = null;  // consultation_notes.id of the draft being reviewed, if any
 let _activeDraftedBy  = null;  // that draft's original trainee author (profile.id) -- credited on finalize
 
+// ═══════════════════════════════════════════════════════════
+// Session 185 — Consultation autosave
+//
+// Real incident: a doctor's browser session went stale mid-consultation
+// (an unrelated RLS 401 on the final save), and everything typed had to be
+// re-entered from scratch after a fresh login. Every ~30s, if the form has
+// actually changed since the last autosave, silently upsert its current
+// state to `consultation_drafts` (a dedicated table -- never
+// consultation_notes itself, which every ABDM/billing/printing consumer
+// already assumes holds only real finalized-or-pending_review rows). The
+// next time this doctor opens the same visit, a resume banner offers to
+// restore it.
+//
+// Scope, deliberately: mirrors exactly what _collectConsultationFields()
+// already returns (history/exam/vitals/ashtasthana/dashavidha/assessment/
+// diagnosis/prescription/advice/disposition/referral/proforma -- the vast
+// majority of what a doctor actually types), reusing that one function so
+// autosave can never save a shape different from what a real Complete/
+// Submit-for-Review would. PK-planning (pk-*) and Admission (adm-*) tab
+// fields are a separate downstream flow with their own save path, not part
+// of _collectConsultationFields() today, so they're out of scope here too --
+// not an oversight, just matching the existing boundary.
+let _draftDirty       = false;
+let _draftSaving       = false;
+let _pendingDraftNotes = null;  // fetched draft's form_data, held while the resume banner is up
+
+document.getElementById('c-active').addEventListener('input',  () => { _draftDirty = true; });
+document.getElementById('c-active').addEventListener('change', () => { _draftDirty = true; });
+
+setInterval(async () => {
+  if (!_activeVisitId || !_draftDirty || _draftSaving) return;
+  _draftSaving = true;
+  try {
+    const { notes } = await _collectConsultationFields();
+    const { error } = await supabase.from('consultation_drafts').upsert({
+      tenant_id:  tenantId,
+      visit_id:   _activeVisitId,
+      doctor_id:  userId,
+      form_data:  notes,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'visit_id,doctor_id' });
+    if (!error) _draftDirty = false;
+    else console.warn('Autosave failed (non-fatal):', error.message);
+  } catch (err) {
+    console.warn('Autosave failed (non-fatal):', err?.message || err);
+  } finally {
+    _draftSaving = false;
+  }
+}, 30000);
+
+// Explicit id->key map (not derived from _collectConsultationFields() itself)
+// so a field added to one side without the other shows up as a visible diff
+// here, not a silent restore gap.
+const _DRAFT_FIELD_MAP = [
+  ['h-duration','duration'], ['h-severity','severity'], ['h-onset','onset'],
+  ['h-progression','progression'], ['h-aggravating','aggravating_factors'],
+  ['h-relieving','relieving_factors'], ['h-associated','associated_symptoms'],
+  ['h-history','history_notes'],
+  ['ph-dm','past_dm'], ['ph-htn','past_htn'], ['ph-thyroid','past_thyroid'],
+  ['ph-surgery','past_surgery'], ['ph-other','past_other'],
+  ['dh-current','current_medications'], ['dh-allergy','allergies'], ['dh-adr','adr'],
+  ['fh-notes','family_history'],
+  ['pers-diet','diet_type'], ['pers-sleep','sleep_pattern'], ['pers-exercise','exercise_level'],
+  ['pers-bowel','bowel_habits'], ['pers-appetite','appetite'], ['pers-addiction','addiction'],
+  ['pers-occupation','occupation'],
+  ['ay-prakriti','prakriti'], ['ay-agni','agni_history'], ['ay-koshta','koshta'], ['ay-nidra','nidra'],
+  ['ay-nidana','nidana'], ['ay-ahara','ahara'], ['ay-vihara','vihara'],
+  ['np-purvarupa','purvarupa'], ['np-rupa','rupa'], ['np-samprapti','samprapti'], ['np-upashaya','upashaya'],
+  ['v-bp-s','bp_systolic'], ['v-bp-d','bp_diastolic'], ['v-pulse','pulse_rate'],
+  ['v-temp','temperature'], ['v-weight','weight'], ['v-spo2','spo2'], ['v-rr','resp_rate'],
+  ['sys-cvs','sys_cvs'], ['sys-rs','sys_rs'], ['sys-cns','sys_cns'], ['sys-pa','sys_pa'],
+  ['sys-msk','sys_msk'], ['sys-skin','sys_skin'], ['exam-modern-notes','exam_modern_notes'],
+  ['a-nadi','nadi'], ['a-mala','mala'], ['a-mutra','mutra'], ['a-jihwa','jihwa'],
+  ['a-shabda','shabda'], ['a-sparsha','sparsha'], ['a-druk','druk'], ['a-akriti','akriti'],
+  ['d-vata','vata_state'], ['d-pitta','pitta_state'], ['d-kapha','kapha_state'],
+  ['d-agni','agni_state'], ['d-ama','ama_state'], ['exam-ayurveda-notes','exam_ayurveda_notes'],
+  ['dasha-vikriti','dasha_vikriti'], ['dasha-sara','dasha_sara'], ['dasha-samhanana','dasha_samhanana'],
+  ['dasha-pramana','dasha_pramana'], ['dasha-satmya','dasha_satmya'], ['dasha-satva','dasha_satva'],
+  ['dasha-vaya','dasha_vaya'], ['dasha-ahara','dasha_ahara_shakti'], ['dasha-vyayama','dasha_vyayama_shakti'],
+  ['as-provisional-modern','provisional_modern'], ['as-provisional-ayurveda','provisional_ayurveda'],
+  ['as-redflags','red_flags'], ['as-inv-lab','inv_lab'], ['as-inv-imaging','inv_imaging'],
+  ['as-inv-ayurveda','inv_ayurveda'], ['as-reasoning','clinical_reasoning'],
+  ['d-modern','modern_diagnosis'], ['d-ayurveda','ayurveda_diagnosis'],
+  ['d-namc-code','diagnosis_namc_code'], ['d-namc-label','diagnosis_namc_label'],
+  ['d-icd10-code','diagnosis_icd10_code'], ['d-icd10-label','diagnosis_icd10_label'],
+  ['d-certainty','diagnosis_certainty'], ['d-notes','clinical_notes'],
+  ['rx-instructions','rx_instructions'],
+  ['adv-pathya','pathya'], ['adv-apathya','apathya'], ['fu-date','followup_date'], ['fu-notes','followup_notes'],
+  ['disp-notes','disp_notes'],
+  ['ref-doctor','ref_doctor'], ['ref-hospital','ref_hospital'], ['ref-type','ref_type'],
+  ['ref-urgency','ref_urgency'], ['ref-reason','ref_reason'],
+];
+
+function _applyProformaFields(containerEl, data) {
+  if (!containerEl || !data) return;
+  Object.entries(data).forEach(([pfId, val]) => {
+    const checkboxes = containerEl.querySelectorAll(`input[type="checkbox"][data-pf-id="${pfId}"]`);
+    if (checkboxes.length) {
+      const vals = Array.isArray(val) ? val : [val];
+      checkboxes.forEach(cb => { cb.checked = vals.includes(cb.value); });
+      return;
+    }
+    const radios = containerEl.querySelectorAll(`input[type="radio"][data-pf-id="${pfId}"]`);
+    if (radios.length) {
+      radios.forEach(r => { r.checked = (r.value === val); });
+      return;
+    }
+    const el = containerEl.querySelector(`[data-pf-id="${pfId}"]`);
+    if (el) el.value = val;
+  });
+}
+
+function _applyDraftToForm(notes) {
+  _DRAFT_FIELD_MAP.forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if (el && notes[key] !== undefined && notes[key] !== null) el.value = notes[key];
+  });
+
+  // Disposition -- reuse onDispChange() for its own UI side effects (referral
+  // section visibility, Complete-button label, PK tab switch), exactly as a
+  // real user pick would trigger.
+  if (notes.disposition) {
+    const radio = document.querySelector(`input[name=disposition][value="${notes.disposition}"]`);
+    if (radio) { radio.checked = true; window.onDispChange(notes.disposition); }
+  }
+
+  (notes.differential_list || []).forEach(d => {
+    window.addDiff();
+    const li = document.querySelector('#diff-list .diff-item:last-child');
+    if (li) {
+      const [inp, sel] = [li.querySelector('input[type=text]'), li.querySelector('select')];
+      if (inp) inp.value = d.diagnosis  || '';
+      if (sel) sel.value = d.likelihood || '';
+    }
+  });
+
+  // addRxRow() already accepts a prefill object in this exact shape.
+  (notes.prescription_json || []).forEach(rx => addRxRow(rx));
+
+  const pf = notes.proforma_data;
+  if (pf) {
+    const { ophtha_exam, ent_exam, obsgyn_exam, ncism_code, ...pfFields } = pf;
+    _applyProformaFields(document.getElementById('pf-container'), pfFields);
+    const _applyPrefixed = (obj, prefix) => obj && Object.entries(obj).forEach(([k, v]) => {
+      const el = document.getElementById(`${prefix}-${k}`);
+      if (el) el.value = v;
+    });
+    _applyPrefixed(ophtha_exam, 'ey');
+    _applyPrefixed(ent_exam,    'nt');
+    _applyPrefixed(obsgyn_exam, 'og');
+  }
+}
+
+window._restoreConsultationDraft = function() {
+  if (_pendingDraftNotes) _applyDraftToForm(_pendingDraftNotes);
+  _pendingDraftNotes = null;
+  _draftDirty = false;  // just loaded, not user-edited yet
+  document.getElementById('draft-resume-banner').style.display = 'none';
+};
+
+window._discardConsultationDraft = async function() {
+  if (_activeVisitId) {
+    await supabase.from('consultation_drafts').delete()
+      .eq('visit_id', _activeVisitId).eq('doctor_id', userId);
+  }
+  _pendingDraftNotes = null;
+  document.getElementById('draft-resume-banner').style.display = 'none';
+};
+
+// Called from startConsultation() once the visit is loaded and its
+// proforma/specialty sections are rendered (a restore needs those DOM nodes
+// to already exist). Best-effort -- a failed lookup just means no resume
+// offer, never blocks opening the consultation.
+async function _checkForConsultationDraft(visitId) {
+  const banner = document.getElementById('draft-resume-banner');
+  banner.style.display = 'none';
+  _pendingDraftNotes = null;
+  try {
+    const { data } = await supabase.from('consultation_drafts')
+      .select('form_data, updated_at')
+      .eq('visit_id', visitId).eq('doctor_id', userId)
+      .maybeSingle();
+    if (data) {
+      _pendingDraftNotes = data.form_data;
+      document.getElementById('draft-resume-when').textContent =
+        new Date(data.updated_at).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+      banner.style.display = 'flex';
+    }
+  } catch (err) {
+    console.warn('Draft lookup failed (non-fatal):', err?.message || err);
+  }
+}
+
+async function _clearConsultationDraft(visitId) {
+  await supabase.from('consultation_drafts').delete()
+    .eq('visit_id', visitId).eq('doctor_id', userId);
+  _draftDirty = false;
+  _pendingDraftNotes = null;
+}
+
 // Resolves a department id to the set of opd ids that department's OPD serves,
 // via ncism_code -- departments and opds share the same code space (e.g. both
 // use 'KAY' for Kayachikitsa) rather than a direct FK, matching how
@@ -970,6 +1170,12 @@ window.startConsultation = async function(visitId) {
   const imgBtn = document.getElementById('order-img-btn');
   if (imgBtn) imgBtn.disabled = false;
   loadLabResults();
+
+  // Session 185 — offer to resume an autosaved draft, if one exists for this
+  // visit under this doctor's own login. Runs last: proforma/eye/ENT/obsgyn
+  // sections above are already rendered by now, so a Restore click has real
+  // DOM nodes to write into.
+  _checkForConsultationDraft(visitId);
 };
 
 // ── Tabs ──────────────────────────────────────────
@@ -1807,6 +2013,7 @@ async function completeConsultation() {
       : disposition === 'referral'  ? (refSaved ? 'Referral sent — target OPD alerted' : 'Referral noted')
       : 'sent to pharmacy';
     _toast(`${_activePatient?.name} — consultation complete, ${dispMsg}`, 'info');
+    await _clearConsultationDraft(_activeVisitId);  // Session 185 — real note saved, autosave copy no longer needed
     _closeConsult();
     loadQueue();
 
@@ -1852,6 +2059,7 @@ async function submitForReview() {
     if (error) throw error;
 
     _toast(`${_activePatient?.name} — submitted for Professor review.`, 'info');
+    await _clearConsultationDraft(_activeVisitId);  // Session 185 — draft saved for real, autosave copy no longer needed
     _closeConsult();
     loadQueue();
   } catch (err) {
@@ -3328,6 +3536,13 @@ function _closeConsult() {
   _activeDraftId    = null;
   _activeDraftedBy  = null;
   document.getElementById('draft-review-panel').style.display = 'none';
+  // Session 185 — reset local autosave UI state only; the actual DB draft row
+  // (if any) is left alone here so it can still be offered next time this
+  // visit is reopened. It's only ever deleted on a real Complete/Submit, or
+  // an explicit Discard click.
+  document.getElementById('draft-resume-banner').style.display = 'none';
+  _draftDirty = false;
+  _pendingDraftNotes = null;
   document.getElementById('btn-complete').textContent = _isTrainee ? '📝 Submit for Review' : '✓ Complete & Send to Pharmacy';
   document.getElementById('ref-banner').style.display = 'none';
   document.getElementById('tab-btn-proforma').style.display  = 'none';

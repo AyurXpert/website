@@ -591,7 +591,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 @media print{
   #navbar-root,.q-panel,.tabs,.action-bar,.toast,.btn-close-consult,
   .btn-add-rx,.btn-rm-rx,#tab-hist,#tab-exam,#tab-proforma,#tab-assess,#tab-diag,#tab-advice,#tab-disp,#tab-pk,#tab-adm,#tab-visha,
-  .ref-banner,.ref-panel,.anc-risk-banner{display:none!important}
+  .ref-banner,.ref-panel,.anc-risk-banner,.draft-resume-banner{display:none!important}
   body{overflow:auto;background:#fff}
   .page{display:block;height:auto;margin-top:0}
   .c-panel{display:block;overflow:visible}
@@ -708,6 +708,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 /* §18y — High-Risk Pregnancy banner */
 .anc-risk-banner{padding:10px 20px;background:#fff0f0;border-bottom:2px solid #c0392b;font-size:12.5px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:#7a1a1a}
 .anc-risk-banner strong{color:#c0392b}
+.draft-resume-banner{padding:10px 20px;background:var(--blue-light);border-bottom:2px solid var(--blue-border);font-size:12.5px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:var(--blue)}
+.draft-resume-banner strong{color:var(--blue)}
+.draft-resume-accept{margin-left:auto;font-size:11px;padding:4px 10px;background:var(--green-deep);color:#fff;border:none;border-radius:5px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:500}
+.draft-resume-discard{font-size:11px;padding:4px 10px;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:5px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:500}
 
 /* ── §18ae Immunization Record ──────────────────── */
 .imm-section{border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;background:#fff;margin-bottom:12px}
@@ -912,6 +916,15 @@ body.medcert-print #mc-print{display:block!important}
       <div id="draft-review-panel" style="display:none;background:#fff9ee;border:1.5px solid #e8c48a;border-radius:10px;padding:14px 16px;margin-bottom:16px">
         <div style="font-size:12px;font-weight:700;color:#7a4a00;margin-bottom:8px">📝 Trainee's Draft — <span id="draft-author">—</span> (for reference; complete your own exam below)</div>
         <div id="draft-summary" style="font-size:12px;color:#5a4020;line-height:1.7"></div>
+      </div>
+
+      <!-- Session 185 — autosave resume prompt. Shown when a not-yet-finalized
+           autosaved draft exists for this visit under this doctor's own login
+           (interrupted session, browser crash, forced re-login, etc). -->
+      <div id="draft-resume-banner" class="draft-resume-banner" style="display:none">
+        <span>💾 <strong>Unsaved work found</strong> for this consultation, last saved <span id="draft-resume-when">—</span></span>
+        <button class="draft-resume-discard" data-onclick="_discardConsultationDraft">Discard</button>
+        <button class="draft-resume-accept" data-onclick="_restoreConsultationDraft">Restore ✓</button>
       </div>
 
       <!-- Back to queue (mobile only) -->
