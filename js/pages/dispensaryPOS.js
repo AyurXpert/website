@@ -510,11 +510,19 @@ async function dispense() {
     }, _ctx);
 
     // 6. ABDM M2 — create care context for Prescription FHIR type (fire-and-forget)
-    if (_activeRx.patient?.abha_number) {
-      _abdmCareContextPrescription(_activeRx, _activeRxId);
-    }
+    // 27 Aug 2026 — same gate-removal reasoning as doctor.js's completeConsultation():
+    // this merges into the visit's EXISTING VISIT-<id> care context (already proven to
+    // exist with abha_address=null for a no-ABHA patient, via reception.html's
+    // Scenario 2 registration-time creation) -- no new ABDM registration needed, so
+    // there was never a real reason to gate this on abha_number. A no-ABHA patient's
+    // dispensing now correctly enriches the same care context reception already made.
+    _abdmCareContextPrescription(_activeRx, _activeRxId);
     // Session 183: separate Invoice care context for this dispensing bill (own
-    // BILL-<id> ref, doesn't collide with the visit's Prescription-tagged context)
+    // BILL-<id> ref, doesn't collide with the visit's Prescription-tagged context).
+    // Still gated on abha_number, unlike the Prescription merge above -- this is a
+    // genuinely NEW care_context_ref that needs its own generate_link_token call
+    // (see _abdmCareContextInvoice's own comment), and there's no ABHA to send that
+    // OTP to for a demographic-only patient. Not the same situation as Prescription.
     if (_activeRx.patient?.abha_number) {
       _abdmCareContextInvoice(bill.id, _activeRx.patient.id, _activeRx.visit?.id, _activeRx.patient.abha_number);
     }

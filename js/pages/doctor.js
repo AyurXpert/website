@@ -2018,9 +2018,20 @@ async function completeConsultation() {
     loadQueue();
 
     // ABDM M2 — fire-and-forget care context creation (does not block completion)
-    if (_activePatient?.abha_number) {
-      _abdmCreateCareContext(_activeVisitId, _activePatient, notes, disposition);
-    }
+    // 27 Aug 2026 — real bug found live testing Bharathi N (a demographic-only patient,
+    // no ABHA on file): this used to gate on _activePatient.abha_number, so a
+    // no-ABHA patient's consultation never re-touched their VISIT-<id> care context at
+    // all — meaning it could never pick up WellnessRecord (added server-side in
+    // create_care_context whenever consultation_notes has real vitals, which only
+    // exist AFTER this point) or any hi_types beyond whatever reception.html's
+    // registration-time _abdmSmsNotifyNoAbha() optimistically set. That directly
+    // contradicts the architecture reception.js/abdm-hip already support --
+    // create_care_context's own abha_address fallback chain (visit → patient →
+    // abha_number → null) already handles a fully-null abha_number correctly (proven
+    // live: Bharathi's own registration-time care context already exists with
+    // abha_address=null). Removed the gate -- always fire this now, matching
+    // reception.js's Scenario 2 (no ABHA) design intent.
+    _abdmCreateCareContext(_activeVisitId, _activePatient, notes, disposition);
 
   } catch (err) {
     console.error('completeConsultation caught:', err?.message, err?.details, err?.hint);
