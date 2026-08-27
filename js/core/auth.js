@@ -162,8 +162,18 @@ export async function registerStaff({
         phone,
         status:    'pending_approval',
         is_active: false,
-        ...(hprId        ? { hpr_id:         hprId        } : {}),
-        ...(stateRegId   ? { state_reg_id:   stateRegId   } : {}),
+        ...(hprId        ? { hpr_id:              hprId      } : {}),
+        // 27 Aug 2026 — real bug, present since the very first commit: this wrote to
+        // 'state_reg_id', a column that has never existed on `profiles` (the real
+        // column is `registration_number`, correctly used everywhere else in the
+        // codebase — doctor.js/hr.js/printPrescription.js). Any HPR-role signup
+        // (doctor/nurse/pharmacist/lab_tech/therapist) that filled in the State
+        // Registration No. field got a 400 from PostgREST on this insert — but by then
+        // auth.signUp() had already created the auth.users row, so the signup was left
+        // stuck: the profile never got created, and retrying with the same email then
+        // fails with "already registered" (Supabase Auth emails are unique, independent
+        // of whether a profile exists). Found live via a real nurse-signup report.
+        ...(stateRegId   ? { registration_number: stateRegId } : {}),
         ...(departmentId ? { department_id:  departmentId } : {}),
         ...(designation  ? { designation:    designation  } : {}),
         ...(secondaryRole ? { secondary_role: secondaryRole } : {}),
