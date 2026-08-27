@@ -11,9 +11,53 @@ import {
   SESSION_KEYS,
   DEFAULT_MODULES,
   MFA_MANDATORY_ROLES,
+  SUPABASE_URL,
 } from '../config/constants.js';
 import { logAudit } from './auditLogger.js';
 import { safeErrorMessage } from '../utils/errors.js';
+
+
+// 27 Aug 2026 — shared safety net for every signup flow below. Both
+// registerTenant() and registerStaff() call auth.signUp() BEFORE writing the
+// row(s) that make the account usable (tenants+profiles, or just profiles).
+// If any of those writes then fails — for any reason, not just the specific
+// state_reg_id bug this was built for (see memory
+// `auth_js_state_reg_id_signup_bug.md`) — the auth.users row is otherwise
+// permanently orphaned: no profile means no way to log in or be approved,
+// but the email is already taken, so retrying signup fails with "already
+// registered." Call this right before throwing on any post-signUp() write
+// failure, so the same email is immediately safe to retry with.
+//
+// signup-rollback (Edge Function) deletes ONLY the calling user's own
+// account, and only after re-verifying server-side that it truly has zero
+// profile rows — see that function's own comments for the full safety
+// reasoning. This helper is deliberately best-effort and swallows its own
+// errors: a rollback failure (network blip, function down) must never mask
+// or replace the real error the caller is already about to throw.
+// orphanedTenantId: pass the just-created tenants.id when a WRITE AFTER the
+// tenant row (i.e. the profile insert) is what failed — registerTenant()'s
+// tenant-insert failure itself has no tenant row to clean up yet, so it's
+// omitted there.
+async function _rollbackFailedSignup(orphanedTenantId = null) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/signup-rollback`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        ...(orphanedTenantId ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(orphanedTenantId ? { body: JSON.stringify({ orphanedTenantId }) } : {}),
+    });
+    // Local session now points at a deleted (or otherwise no-longer-usable)
+    // account either way — clear it so a retry starts clean instead of
+    // carrying a stale token.
+    if (res.ok) await supabase.auth.signOut();
+  } catch (err) {
+    console.warn('_rollbackFailedSignup failed (non-fatal):', err);
+  }
+}
 
 
 // ═══════════════════════════════════════════════════════════
@@ -64,7 +108,10 @@ export async function registerTenant({
       })
       .select()
       .single();
-    if (tenantError) throw new Error(safeErrorMessage(tenantError, 'Could not create organisation. Please try again.'));
+    if (tenantError) {
+      await _rollbackFailedSignup();
+      throw new Error(safeErrorMessage(tenantError, 'Could not create organisation. Please try again with the same email address.'));
+    }
 
     const { error: profileError } = await supabase
       .from('profiles')
@@ -77,7 +124,10 @@ export async function registerTenant({
         status:    'active',
         is_active: true,
       });
-    if (profileError) throw new Error(safeErrorMessage(profileError, 'Could not create profile. Please try again.'));
+    if (profileError) {
+      await _rollbackFailedSignup(tenant.id);
+      throw new Error(safeErrorMessage(profileError, 'Could not create profile. Please try again with the same email address.'));
+    }
 
     // Gives hospital/pk_center/clinic tenants a working department/OPD/bed structure
     // from their very first login instead of a completely empty bed-admin.html/
@@ -180,7 +230,13 @@ export async function registerStaff({
         ...(hasMonitoringAccess ? { has_monitoring_access: true } : {}),
         ...(scopeDepartmentId ? { scope_department_id: scopeDepartmentId } : {}),
       });
-    if (profileError) throw new Error(safeErrorMessage(profileError, 'Could not create profile. Please try again.'));
+    if (profileError) {
+      // registerStaff() has no tenant row of its own to clean up (it joins an
+      // existing tenant) — only the just-created auth account, via the shared
+      // _rollbackFailedSignup() helper (see its own comment above).
+      await _rollbackFailedSignup();
+      throw new Error(safeErrorMessage(profileError, 'Could not create profile. Please try again with the same email address.'));
+    }
 
     return {
       success: true,
