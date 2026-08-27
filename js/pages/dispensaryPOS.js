@@ -519,13 +519,17 @@ async function dispense() {
     _abdmCareContextPrescription(_activeRx, _activeRxId);
     // Session 183: separate Invoice care context for this dispensing bill (own
     // BILL-<id> ref, doesn't collide with the visit's Prescription-tagged context).
-    // Still gated on abha_number, unlike the Prescription merge above -- this is a
-    // genuinely NEW care_context_ref that needs its own generate_link_token call
-    // (see _abdmCareContextInvoice's own comment), and there's no ABHA to send that
-    // OTP to for a demographic-only patient. Not the same situation as Prescription.
-    if (_activeRx.patient?.abha_number) {
-      _abdmCareContextInvoice(bill.id, _activeRx.patient.id, _activeRx.visit?.id, _activeRx.patient.abha_number);
-    }
+    // 27 Aug 2026 -- was gated on abha_number, reasoning "it needs its own
+    // generate_link_token call or it sits linked=false forever" -- written before this
+    // session's own live proof that User-Initiated Linking (the real PHR-app "Pull
+    // Record" flow, discover-driven) links ANY of a patient's care contexts regardless
+    // of when they were created, no generate_link_token needed at all. A demographic-only
+    // patient's Invoice now gets created the same as their Prescription/OPConsultation
+    // contexts -- it just waits for the next discover/link cycle like a freshly-added
+    // context always would, exactly like the fix already made for those. Real gap found
+    // live: Bharathi N pulled all her records and Invoice was the one thing missing --
+    // this was why.
+    _abdmCareContextInvoice(bill.id, _activeRx.patient.id, _activeRx.visit?.id, _activeRx.patient.abha_number);
 
     // 7. Print invoice
     _printInvoice(bill.id, payable, subtotal, discount, total, payMethod, _discountPct());
@@ -569,14 +573,23 @@ async function _abdmCareContextPrescription(rx, rxId) {
 // Session 183: Invoice care context (fire-and-forget). Own ref (BILL-<id>) —
 // deliberately not the visit's VISIT-<id> ref, since abdm-hip's push loop only ever
 // builds hi_types[0] per care context row; reusing the visit's ref would silently
-// bury Invoice behind whichever clinical type was tagged first. Being a genuinely
-// NEW ref (unlike Prescription, which merges into the already-linked VISIT-<id>
-// row), it needs its own generate_link_token call too, or it sits linked=false
-// forever and abdm-hip's push loop (.eq('linked', true)) never sees it — the
-// common case reuses a cached 6-month token, so this is a cheap direct
-// link/carecontext call, not a fresh demographic-auth round trip.
+// bury Invoice behind whichever clinical type was tagged first.
+//
+// 27 Aug 2026 — was unconditionally gated on abhaNumber (both here and at the call
+// site), reasoning "it needs its own generate_link_token call, or it sits
+// linked=false forever." That reasoning predates this session's own live proof that
+// User-Initiated Linking (the real PHR-app "Pull Record"/discover flow) links ANY of
+// a patient's care contexts, whenever created — no generate_link_token needed at all
+// for that path. Real gap found live: Bharathi N (a demographic-only patient, no
+// abha_number ever recorded) pulled all her records and Invoice was the one thing
+// missing, because this whole function used to no-op silently for her. Now:
+// create_care_context always runs (same abha_address fallback chain already proven
+// safe for a null abha_number, matching the VISIT-<id> fix); generate_link_token
+// stays abha_number-gated below since THAT specific call still needs a real number to
+// send an OTP push to — a demographic-only patient's Invoice just waits for the next
+// discover/link cycle instead, exactly like a freshly-added VISIT context always would.
 async function _abdmCareContextInvoice(billId, patientId, visitId, abhaNumber) {
-  if (!billId || !abhaNumber) return;
+  if (!billId) return;
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
@@ -595,14 +608,16 @@ async function _abdmCareContextInvoice(billId, patientId, visitId, abhaNumber) {
         care_context_ref: ccRef, display, hi_types: ['Invoice'], abha_number: abhaNumber,
       }),
     });
-    await fetch(ABDM_HIP_FN, {
-      method: 'POST', headers: h,
-      body: JSON.stringify({
-        action: 'generate_link_token', patient_id: patientId, abha_number: abhaNumber,
-        visit_id: visitId ?? null,
-        care_contexts: [{ referenceNumber: ccRef, display, hiType: 'Invoice' }],
-      }),
-    });
+    if (abhaNumber) {
+      await fetch(ABDM_HIP_FN, {
+        method: 'POST', headers: h,
+        body: JSON.stringify({
+          action: 'generate_link_token', patient_id: patientId, abha_number: abhaNumber,
+          visit_id: visitId ?? null,
+          care_contexts: [{ referenceNumber: ccRef, display, hiType: 'Invoice' }],
+        }),
+      });
+    }
   } catch (e) { console.warn('[ABDM] invoice care context failed:', e.message); }
 }
 
