@@ -259,6 +259,14 @@ let _lastTToken      = null;
 let _lastEnrollTxnId = null;
 let _updMobTxnId     = null;
 let _demogMatchResult = null; // { pass, mobileMismatch } — set by _checkDemographicMatch
+// 27 Aug 2026 — { prof, fmt, existingTToken } | null. Set only when the Update Mobile
+// panel was auto-opened from the existing-ABHA enrollment mismatch flow (see
+// btn-verify-otp's isExisting branch); tells btn-upd-mob-verify's success handler to
+// show the profile card THEN, with the now-verified mobile patched in, instead of the
+// old behaviour of showing it immediately with stale data. Left null for the
+// standalone "Update Mobile" panel usage (opened via btn-update-mobile-open on an
+// already-displayed profile) — that path's behaviour is intentionally unchanged.
+let _pendingExistingAbha = null;
 
 // ABHA Address discovered/set for the patient currently being registered — held here
 // because for a brand-new (not-yet-saved) patient there's no patients.id to write to
@@ -1962,6 +1970,19 @@ document.getElementById('btn-upd-mob-verify').addEventListener('click', async ()
     await verifyUpdateMobileOtp(_lastTToken, _updMobTxnId, otp);
     document.getElementById('upd-mob-msg').textContent = '✓ Mobile updated successfully.';
     document.getElementById('upd-mob-msg').style.color = 'var(--green-deep)';
+    // 27 Aug 2026 — only set when this panel was auto-opened from the existing-ABHA
+    // enrollment mismatch flow (see its own comment). ABDM's verify-update-mobile
+    // response doesn't carry a fresh profile object (same gap as the CRT_ABHA_109 fix
+    // earlier this session), so patch the one field already known correct — it's the
+    // exact number that just verified — before finally showing the card.
+    if (_pendingExistingAbha) {
+      const { prof, fmt, existingTToken } = _pendingExistingAbha;
+      const updatedMobile = document.getElementById('upd-mob-input').value?.trim()
+        || _enrollMobile; // input is blank on the auto-sent path; falls back to the mobile that was actually OTP'd
+      prof.mobile = updatedMobile; prof.mobileNumber = updatedMobile; prof.phoneNumber = updatedMobile;
+      _showAbhaProfile(prof, fmt, existingTToken);
+      _pendingExistingAbha = null;
+    }
     setTimeout(() => {
       document.getElementById('update-mobile-panel').style.display = 'none';
       document.getElementById('upd-mob-msg').style.color = '';
@@ -2017,6 +2038,7 @@ btnEnroll.addEventListener('click', () => {
     document.getElementById('enroll-step-1').style.display = '';
     document.getElementById('enroll-step-2').style.display = 'none';
     _setEnrollMsg('', '');
+    _pendingExistingAbha = null; // defensive — never let a stale mismatch-flow carry into a fresh enrollment
   }
 });
 
@@ -2033,6 +2055,7 @@ function _switchToEnroll() {
   document.getElementById('enroll-step-1').style.display = '';
   document.getElementById('enroll-step-2').style.display = 'none';
   _setEnrollMsg('info', 'Enter your Aadhaar number to create ABHA.');
+  _pendingExistingAbha = null; // defensive — never let a stale mismatch-flow carry into a fresh enrollment
 }
 window._switchToEnroll = _switchToEnroll;
 
@@ -2388,8 +2411,16 @@ document.getElementById('btn-verify-otp').addEventListener('click', async () => 
         _maskAbha(fmt),
         mobileMismatch && existingTToken
           ? async () => {
-              // Show profile card
-              _showAbhaProfile(prof, fmt, existingTToken);
+              // 27 Aug 2026 — real correction from Dr. Venkatesh, same principle as the
+              // CRT_ABHA_109 stale-mobile fix earlier this session: the profile card used
+              // to be shown HERE, immediately, still carrying the OLD/mismatched mobile —
+              // the comm-mobile update OTP hadn't even been sent yet at this point, let
+              // alone verified. Now holds off showing the card at all; _pendingExistingAbha
+              // (below) tells btn-upd-mob-verify's own success handler to show it AFTER
+              // the mobile is actually confirmed updated, with the correct number patched
+              // in — mirrors exactly how the new-enrollment CRT_ABHA_109 path already works
+              // (profile only ever appears once created/updated, never mid-verification).
+              _pendingExistingAbha = { prof, fmt, existingTToken };
               // Close enroll panel
               enrollPanel.style.display = 'none';
               btnEnroll.textContent = '+ Enroll';
