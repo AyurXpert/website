@@ -370,7 +370,7 @@ async function loadAll() {
   renderDepts();
   renderBeds();
   checkNcismCompliance();
-  renderQuickSetup();
+  await renderQuickSetup();
 }
 
 // ── Quick Setup tab ───────────────────────────────────────────────────────────
@@ -439,8 +439,8 @@ function _qs1Key(s) { return `qs1-${tenantId}-${s}`; }
 
 const QS1_TYPES_VERSION = 'v2'; // bump when default types change to reset stale localStorage
 
-function _qs1Init() {
-  if (_qs1Types) return;
+async function _qs1Init() {
+  if (_qs1Types && _qs1Blocks) return;
   try {
     // Reset if saved version is older than current defaults
     const ver = localStorage.getItem(_qs1Key('ver'));
@@ -449,19 +449,41 @@ function _qs1Init() {
       localStorage.setItem(_qs1Key('ver'), QS1_TYPES_VERSION);
     }
     const t = localStorage.getItem(_qs1Key('types'));
-    _qs1Types  = t ? JSON.parse(t) : JSON.parse(JSON.stringify(QS1_DEFAULT_TYPES));
-    const b = localStorage.getItem(_qs1Key('blocks'));
-    _qs1Blocks = b ? JSON.parse(b) : [
-      { id:'blk0', label:'Main Building F1' },
-      { id:'blk1', label:'Main Building F2' },
-    ];
+    _qs1Types = t ? JSON.parse(t) : JSON.parse(JSON.stringify(QS1_DEFAULT_TYPES));
   } catch(_) {
-    _qs1Types  = JSON.parse(JSON.stringify(QS1_DEFAULT_TYPES));
-    _qs1Blocks = [{ id:'blk0', label:'Main Building F1' }, { id:'blk1', label:'Main Building F2' }];
+    _qs1Types = JSON.parse(JSON.stringify(QS1_DEFAULT_TYPES));
+  }
+
+  // Session 186: blocks are now real DB rows (building_blocks), not browser localStorage --
+  // closes a real drift bug found live on SDM where a block's identity had zero relationship
+  // to already-created beds after creation time (see sql/session186_building_blocks.sql --
+  // beds.ward_name/unit_name are now derived from block_id by a DB trigger, so this is the
+  // single place that config actually lives). Falls back to 2 in-memory-only starter blocks
+  // only if the fetch itself errors, so the page still renders something on a network hiccup.
+  try {
+    const { data, error } = await supabase.from('building_blocks')
+      .select('id,name,zone').eq('tenant_id', tenantId).order('created_at');
+    if (error) throw error;
+    if (data && data.length) {
+      _qs1Blocks = data.map(b => ({ id: b.id, label: b.name, zone: b.zone }));
+    } else {
+      _qs1Blocks = [
+        { id: crypto.randomUUID(), label: 'Main Building F1', zone: 'any' },
+        { id: crypto.randomUUID(), label: 'Main Building F2', zone: 'any' },
+      ];
+      await supabase.from('building_blocks').insert(
+        _qs1Blocks.map(b => ({ id: b.id, tenant_id: tenantId, name: b.label, zone: b.zone }))
+      );
+    }
+  } catch (_) {
+    _qs1Blocks = [
+      { id: crypto.randomUUID(), label:'Main Building F1', zone:'any' },
+      { id: crypto.randomUUID(), label:'Main Building F2', zone:'any' },
+    ];
   }
 }
 
-function _qs1PersistMeta() {
+async function _qs1PersistMeta() {
   _qs1Types.forEach(t => {
     const el = document.getElementById(`qs1-lbl-${t.key}`);
     if (el) t.label = el.value || t.label;
@@ -475,8 +497,27 @@ function _qs1PersistMeta() {
     const zEl = document.getElementById(`qs1-zone-${b.id}`);
     if (zEl) b.zone = zEl.value;
   });
-  localStorage.setItem(_qs1Key('types'),  JSON.stringify(_qs1Types));
-  localStorage.setItem(_qs1Key('blocks'), JSON.stringify(_qs1Blocks));
+  localStorage.setItem(_qs1Key('types'), JSON.stringify(_qs1Types));
+
+  // Session 186: blocks persist to building_blocks, not localStorage -- upsert current
+  // state, then delete any of this tenant's rows no longer present (removed via
+  // _qs1RemoveBlock). beds.block_id is ON DELETE SET NULL, so removing a block never
+  // destroys bed data -- affected beds just stop tracking a block going forward.
+  try {
+    if (_qs1Blocks.length) {
+      await supabase.from('building_blocks').upsert(
+        _qs1Blocks.map(b => ({ id: b.id, tenant_id: tenantId, name: b.label, zone: b.zone || 'any' }))
+      );
+    }
+    const { data: existing } = await supabase.from('building_blocks').select('id').eq('tenant_id', tenantId);
+    const keepIds = new Set(_qs1Blocks.map(b => b.id));
+    const removedIds = (existing || []).map(r => r.id).filter(id => !keepIds.has(id));
+    if (removedIds.length) {
+      await supabase.from('building_blocks').delete().in('id', removedIds);
+    }
+  } catch (e) {
+    console.error('Failed to persist building blocks', e);
+  }
 }
 window._qs1PersistMeta = _qs1PersistMeta;
 
@@ -665,7 +706,9 @@ window._qs1SaveInventory = function() {
 
 window._qs1AddBlock = function() {
   _qs1PersistMeta(); _qs1SaveValues();
-  _qs1Blocks.push({ id:'blk' + Date.now(), label:'New Block', zone:'any' });
+  // Session 186: real uuid, not a client-side string -- building_blocks.id is a genuine
+  // FK target now, so a new block needs an id that's valid to insert as-is.
+  _qs1Blocks.push({ id: crypto.randomUUID(), label:'New Block', zone:'any' });
   renderQs1Table();
 };
 
@@ -1243,7 +1286,7 @@ function renderQs2Table(pool) {
   }
 }
 
-function renderQuickSetup() {
+async function renderQuickSetup() {
   const wrap = document.getElementById('quick-setup-wrap');
   if (!wrap) return;
 
@@ -1255,7 +1298,7 @@ function renderQuickSetup() {
     return;
   }
 
-  _qs1Init();
+  await _qs1Init();
 
   wrap.innerHTML = `
     <div id="qs0-real-mapping-container"></div>
@@ -1445,7 +1488,7 @@ window.quickSetupCreateRow = async function(code, silent) {
           rows.push({
             tenant_id: tenantId, department_id: deptId,
             bed_number: `${prefix}-${String(cellNum).padStart(2, '0')}`,
-            floor_number: typeFloor, ward_name: blockLabel, bed_type: k,
+            floor_number: typeFloor, ward_name: blockLabel, block_id: b.id, bed_type: k,
             status: 'vacant', is_pg_allocated: false,
           });
           cellNum++;
