@@ -432,6 +432,11 @@ const QS1_DEFAULT_TYPES = [
 
 let _qs1Types  = null; // [{key, label}]
 let _qs1Blocks = null; // [{id, label, zone}] -- zone: 'any'|'medical'|'surgical' (Session 179 Piece 3, optional/defaults to 'any')
+// Session 187: per-cell bed counts, DB-backed (building_block_cells) -- {typeKey}|{blockId}
+// -> beds count, {typeKey}|{blockId}|fl -> floor. Same shape _qs1LoadValues() always
+// returned (was localStorage before), kept identical on purpose so every existing reader
+// of "saved[...]" needs zero changes -- only how this cache gets populated/persisted changed.
+let _qs1CellData = null;
 let _qsActiveCols = []; // type keys active in current Table 2
 let _blkRemOffset = 0;  // rotates per dept so remainder beds don't always go to the same block
 
@@ -480,6 +485,25 @@ async function _qs1Init() {
       { id: crypto.randomUUID(), label:'Main Building F1', zone:'any' },
       { id: crypto.randomUUID(), label:'Main Building F2', zone:'any' },
     ];
+  }
+
+  // Session 187: per-cell counts, also DB-backed now (building_block_cells) -- closes the
+  // regression the blocks-to-DB move above caused (found live on SDM): counts used to be
+  // localStorage, keyed by block id; once blocks got real server-generated ids, any
+  // existing localStorage count-data was orphaned (Table 1 rendered the right blocks, but
+  // every cell showed 0). Loaded once here into the same flat shape _qs1LoadValues()
+  // already returned, so every existing reader needs no changes.
+  try {
+    const { data: cells, error: cellErr } = await supabase.from('building_block_cells')
+      .select('block_id,bed_type,beds,floor_number').eq('tenant_id', tenantId);
+    if (cellErr) throw cellErr;
+    _qs1CellData = {};
+    (cells || []).forEach(c => {
+      if (c.beds) _qs1CellData[`${c.bed_type}|${c.block_id}`] = c.beds;
+      if (c.floor_number !== null) _qs1CellData[`${c.bed_type}|${c.block_id}|fl`] = c.floor_number;
+    });
+  } catch (_) {
+    _qs1CellData = {};
   }
 }
 
@@ -534,20 +558,42 @@ window._qs1ZoneChanged = function() {
 
 function _qs1SaveValues() {
   const data = {};
+  const rows = [];
   _qs1Types.forEach(t => {
     _qs1Blocks.forEach(b => {
       const v = parseInt(document.getElementById(`qs1-${t.key}-${b.id}`)?.value) || 0;
-      if (v) data[`${t.key}|${b.id}`] = v;
       const flEl = document.getElementById(`qs1-fl-${t.key}-${b.id}`);
-      if (flEl && flEl.value !== '') data[`${t.key}|${b.id}|fl`] = parseInt(flEl.value) || 0;
+      const fl = flEl && flEl.value !== '' ? parseInt(flEl.value) || 0 : null;
+      if (v) data[`${t.key}|${b.id}`] = v;
+      if (fl !== null) data[`${t.key}|${b.id}|fl`] = fl;
+      // Session 187: DB-backed now (building_block_cells) -- only rows with a real bed
+      // count are worth persisting; a 0-count cell is just "not entered yet".
+      if (v) rows.push({ tenant_id: tenantId, block_id: b.id, bed_type: t.key, beds: v, floor_number: fl });
     });
   });
-  localStorage.setItem(_qs1Key('data'), JSON.stringify(data));
+  _qs1CellData = data; // in-memory cache stays synchronous, same as before -- only backing store moved
+
+  // Fire-and-forget persist to the DB, mirroring _qs1PersistMeta()'s pattern: upsert every
+  // currently-nonzero cell, then delete this tenant's DB rows that dropped to 0 or no
+  // longer exist (a cell cleared back to blank, or its block removed).
+  (async () => {
+    try {
+      if (rows.length) await supabase.from('building_block_cells').upsert(rows, { onConflict: 'block_id,bed_type' });
+      const { data: existing } = await supabase.from('building_block_cells')
+        .select('id,block_id,bed_type').eq('tenant_id', tenantId);
+      const keep = new Set(rows.map(r => `${r.block_id}|${r.bed_type}`));
+      const staleIds = (existing || [])
+        .filter(r => !keep.has(`${r.block_id}|${r.bed_type}`))
+        .map(r => r.id);
+      if (staleIds.length) await supabase.from('building_block_cells').delete().in('id', staleIds);
+    } catch (e) {
+      console.error('Failed to persist building block cells', e);
+    }
+  })();
 }
 
 function _qs1LoadValues() {
-  try { return JSON.parse(localStorage.getItem(_qs1Key('data')) || '{}'); }
-  catch(_) { return {}; }
+  return _qs1CellData || {};
 }
 
 // Session 179: real global bed numbering, ward-type-first. Dr. Venkatesh's finding, working
