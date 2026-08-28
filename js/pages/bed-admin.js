@@ -578,7 +578,18 @@ function _qs1SaveValues() {
   // longer exist (a cell cleared back to blank, or its block removed).
   (async () => {
     try {
-      if (rows.length) await supabase.from('building_block_cells').upsert(rows, { onConflict: 'block_id,bed_type' });
+      // A block created via _qs1AddBlock() only exists in memory until the next
+      // _qs1PersistMeta() call (its label blur / zone change) -- if a cell in that new
+      // block gets saved first (e.g. typing straight into its floor field, which
+      // auto-saves on every keystroke), this upsert's block_id FK would reference a row
+      // that doesn't exist yet. Ensure every current block's row exists before any cell
+      // ever tries to reference it, regardless of which trigger fired this particular save.
+      if (rows.length) {
+        await supabase.from('building_blocks').upsert(
+          _qs1Blocks.map(b => ({ id: b.id, tenant_id: tenantId, name: b.label, zone: b.zone || 'any' }))
+        );
+        await supabase.from('building_block_cells').upsert(rows, { onConflict: 'block_id,bed_type' });
+      }
       const { data: existing } = await supabase.from('building_block_cells')
         .select('id,block_id,bed_type').eq('tenant_id', tenantId);
       const keep = new Set(rows.map(r => `${r.block_id}|${r.bed_type}`));
