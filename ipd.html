@@ -21,6 +21,9 @@
   --orange:#d35400; /* Session 179 Piece 2 — canonical semantic tag color (CLAUDE.md), used
                         only for the cross-department "overflow" bed badge, always paired with
                         a text label, never color alone */
+  --purple:#8b1a6b; /* canonical semantic tag color (CLAUDE.md) — cross-zone overflow bed badge
+                        (a last-resort bed from the OTHER Medical/Surgical zone), a stronger flag
+                        than same-zone --orange overflow; always paired with a text label */
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
@@ -246,6 +249,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .bed-option.overflow{border-color:#f0c896;background:#fdf3e7}
 .bed-option.overflow.selected{border-color:var(--orange);background:var(--orange);color:#fff}
 .bed-option.overflow.selected span{color:#fff}
+.bed-option.crosszone{border-color:#dcb3cf;background:#f8ecf5}
+.bed-option.crosszone.selected{border-color:var(--purple);background:var(--purple);color:#fff}
+.bed-option.crosszone.selected span{color:#fff}
 .bed-picker-note{font-size:11px;color:var(--text-muted);padding:2px 2px 6px;font-style:italic;flex-basis:100%}
 .bed-picker-empty{font-size:12px;color:var(--text-muted);padding:4px 2px}
 

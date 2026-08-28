@@ -622,8 +622,31 @@ window.loadVacantBeds = function() {
     ? `${hiddenForGender} bed${hiddenForGender === 1 ? '' : 's'} hidden — gender-segregated ward`
     : '';
 
+  // Zone-exhaustion fallback (real SDM finding, live with Dr. Venkatesh): the same-zone `vacant`
+  // list above already excludes anything not literally status='vacant' -- occupied, maintenance,
+  // reserved all fall out the same way, so "own zone exhausted" naturally covers maintenance too,
+  // no separate check needed. Only engages when the own-zone list above is TRULY empty (never as
+  // a general free-for-all) -- offers every OTHER vacant bed tenant-wide as a last-resort, more
+  // strongly flagged (🔷 purple, not 🔶 orange) than the existing same-zone overflow above, since
+  // this crosses a real physical zone boundary, not just a department line within one ward.
+  let crossZone = false;
   if (!vacant.length) {
-    picker.innerHTML = `<span class="bed-picker-empty">No vacant beds in this department${genderNote ? ` (${genderNote})` : ''}</span>`;
+    const ownWardNames = new Set(
+      _allBeds.filter(b => b.department_id === deptId).map(b => b.ward_name || '')
+    );
+    vacant = _allBeds.filter(b => b.status === 'vacant' && !ownWardNames.has(b.ward_name || ''));
+    if (patGender === 'male' || patGender === 'female') {
+      vacant = vacant.filter(b => {
+        if (b.bed_type === 'male_general')   return patGender === 'male';
+        if (b.bed_type === 'female_general') return patGender === 'female';
+        return true;
+      });
+    }
+    crossZone = true;
+  }
+
+  if (!vacant.length) {
+    picker.innerHTML = `<span class="bed-picker-empty">No vacant beds anywhere in this hospital${genderNote ? ` (${genderNote})` : ''}</span>`;
     return;
   }
 
@@ -634,29 +657,43 @@ window.loadVacantBeds = function() {
   const deptNameById = Object.fromEntries(_depts.map(d => [d.id, d.name]));
   const BED_TYPE_LABELS = {male_general:'Male General',female_general:'Female General',general:'General',twin_sharing:'Twin Sharing',semi_private:'Shared Private',private:'Private',deluxe:'Deluxe',dormitory:'Dormitory',icu:'ICU',day_care:'Day Care',pk_treatment:'PK Treatment',observation:'Observation'};
 
-  picker.innerHTML = (genderNote ? `<div class="bed-picker-note">${_esc(genderNote)}</div>` : '') +
+  const crossZoneNote = crossZone
+    ? `<div class="bed-picker-note">No vacant beds remain in this department's usual ward(s) — showing vacant beds from elsewhere in the hospital as last-resort overflow.</div>`
+    : '';
+
+  picker.innerHTML = crossZoneNote + (genderNote ? `<div class="bed-picker-note">${_esc(genderNote)}</div>` : '') +
     vacant.map(b => {
     const isPk       = b.bed_type === 'pk_treatment';
     const isOverflow = b.department_id !== deptId;
     const typeLabel  = BED_TYPE_LABELS[b.bed_type] || b.bed_type.replace(/_/g, ' ');
     const ownerName  = isOverflow ? (deptNameById[b.department_id] || 'another department') : '';
-    return `<div class="bed-option${isPk ? ' pk' : ''}${isOverflow ? ' overflow' : ''}" data-id="${b.id}"
-      data-onclick="pickBed" data-onclick-a0="@this" data-onclick-a1="${b.id}" data-onclick-a2="${isOverflow ? '1' : '0'}" data-onclick-a3="${_esc(ownerName)}"
-      title="${_esc(b.bed_number)}${b.ward_name ? ' — ' + _esc(b.ward_name) : ''} — ${_esc(typeLabel)}${isOverflow ? ' — allocated to ' + _esc(ownerName) : ''}">
+    const flagClass  = crossZone ? ' crosszone' : (isOverflow ? ' overflow' : '');
+    return `<div class="bed-option${isPk ? ' pk' : ''}${flagClass}" data-id="${b.id}"
+      data-onclick="pickBed" data-onclick-a0="@this" data-onclick-a1="${b.id}" data-onclick-a2="${isOverflow ? '1' : '0'}" data-onclick-a3="${_esc(ownerName)}" data-onclick-a4="${crossZone ? '1' : '0'}"
+      title="${_esc(b.bed_number)}${b.ward_name ? ' — ' + _esc(b.ward_name) : ''} — ${_esc(typeLabel)}${isOverflow ? ' — allocated to ' + _esc(ownerName) : ''}${crossZone ? ' — cross-zone overflow' : ''}">
       ${b.ward_name ? '<span style="font-size:9px;font-weight:400;display:block">'+_esc(b.ward_name)+'</span>' : ''}
       ${_esc(b.bed_number)}
       <span style="font-size:8.5px;font-weight:500;display:block;opacity:.8">${_esc(typeLabel)}</span>
-      ${isOverflow ? `<span style="font-size:8.5px;font-weight:700;display:block;color:var(--orange)">🔶 ${_esc(ownerName)}'s bed</span>` : ''}
+      ${crossZone ? `<span style="font-size:8.5px;font-weight:700;display:block;color:var(--purple)">🔷 ${_esc(ownerName)}'s bed — other zone</span>`
+        : isOverflow ? `<span style="font-size:8.5px;font-weight:700;display:block;color:var(--orange)">🔶 ${_esc(ownerName)}'s bed</span>` : ''}
     </div>`;
   }).join('');
 };
 
-window.pickBed = function(el, bedId, isOverflow, ownerName) {
+window.pickBed = function(el, bedId, isOverflow, ownerName, crossZone) {
   // Session 179 Piece 2: overflow (a bed allocated to a different department, in the same
   // physically shared ward) is allowed, never silently blocked -- but confirmed once, clearly,
   // so it's a deliberate choice and not an accidental click. Bed Matrix separately shows the
   // resulting cross-department occupancy as a standing visual flag (bed-admin.js's renderBeds()).
-  if (isOverflow === '1') {
+  //
+  // Zone-exhaustion fallback: a cross-zone pick (own zone had zero vacant beds) gets its own,
+  // stronger warning -- this isn't two departments quietly sharing one physical ward anymore,
+  // it's genuinely crossing the Medical/Surgical zone boundary because the home zone ran out.
+  if (crossZone === '1') {
+    const deptSelName = document.getElementById('adm-dept').selectedOptions?.[0]?.textContent || 'this department';
+    const ok = confirm(`No vacant beds remain in ${deptSelName}'s usual ward(s).\n\nThis bed belongs to ${ownerName} elsewhere in the hospital -- admitting here is allowed as a last-resort overflow, and will show as a cross-zone occupancy on the Bed Matrix. Continue?`);
+    if (!ok) return;
+  } else if (isOverflow === '1') {
     const deptSelName = document.getElementById('adm-dept').selectedOptions?.[0]?.textContent || 'this department';
     const ok = confirm(`This bed is allocated to ${ownerName}, not ${deptSelName}.\n\nWards are physically shared -- admitting here is allowed, and will show as a cross-department occupancy on the Bed Matrix. Continue?`);
     if (!ok) return;
