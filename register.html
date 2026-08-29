@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://abhasbx.abdm.gov.in https://phrsbx.abdm.gov.in https://healthid.abdm.gov.in https://api.pwnedpasswords.com https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <title>Register Your Organisation — AyurXpert</title>
 <link rel="icon" href="assets/icon.svg"/>
@@ -398,7 +398,7 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
 .opt{font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0;font-size:11px}
 .field input,.field select,.field textarea{width:100%;height:50px;padding:0 16px;border:1.5px solid var(--border);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:16px;color:var(--text-dark);background:var(--cream);outline:none;-webkit-appearance:none;appearance:none;transition:border-color .2s,box-shadow .2s,background .2s}
 .field textarea{height:84px;padding:12px 16px;resize:none;line-height:1.5}
-.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a9e90' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;cursor:pointer}
+.field select{height:44px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238a9e90' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;cursor:pointer}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--green-mid);background:var(--white);box-shadow:0 0 0 3px rgba(45,122,79,.1)}
 .row-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 
@@ -427,6 +427,9 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
 .pw-wrap input{padding-right:52px}
 .toggle-pw{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:flex-end;padding:0}
 .toggle-pw:hover{color:var(--green-mid)}
+.strength-bar{height:4px;border-radius:4px;background:#e5e7eb;margin-top:8px;overflow:hidden}
+.strength-fill{height:100%;border-radius:4px;width:0;transition:width .3s,background .3s}
+.pw-hint{font-size:12px;color:var(--text-muted);margin-top:6px;min-height:15px}
 
 /* ── ALERT ── */
 .alert{display:none;padding:12px 16px;border-radius:10px;font-size:14px;line-height:1.5;margin-bottom:20px;border:1px solid transparent}
@@ -940,9 +943,12 @@ body{font-family:'DM Sans',sans-serif;color:var(--text-dark);background:var(--wh
         <div class="field">
           <label>Password <button type="button" class="faq-btn" data-onclick="toggleFaq" data-onclick-a0="faq-pw">?</button></label>
           <div class="pw-wrap">
-            <input type="password" id="admin-password" placeholder="Minimum 8 characters" autocomplete="new-password"/>
+            <input type="password" id="admin-password" placeholder="Minimum 8 characters" autocomplete="new-password"
+                   data-oninput="checkStrength" data-oninput-a0="@value"/>
             <button class="toggle-pw" type="button" data-onclick="togglePw" data-onclick-a0="admin-password" data-onclick-a1="@this" aria-label="Show password">&#128065;</button>
           </div>
+          <div class="strength-bar"><div class="strength-fill" id="strength-fill"></div></div>
+          <div class="pw-hint" id="strength-label"></div>
           <div class="faq-box" id="faq-pw">
             <strong>Security:</strong> This account has full access to all patient data across your organisation.
           </div>

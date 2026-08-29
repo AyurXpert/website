@@ -2,6 +2,7 @@ import { registerStaff } from '../core/auth.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { isValidEmail, isValidPhone, validatePassword } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { scorePasswordStrength, checkPasswordPwned, isObviouslyWeak } from '../utils/passwordSecurity.js';
 
 wireDelegatedEvents();
 
@@ -169,6 +170,16 @@ window.togglePw = function(inputId, btn) {
   btn.innerHTML = isText ? '&#128065;' : '&#128584;';
 };
 
+window.checkStrength = function(pw) {
+  const fill  = document.getElementById('strength-fill');
+  const label = document.getElementById('strength-label');
+  if (!fill || !label) return;
+  const lvl = scorePasswordStrength(pw);
+  fill.style.width     = lvl.pct;
+  fill.style.background = lvl.color;
+  label.textContent    = lvl.label;
+};
+
 const HPR_ROLES  = ['doctor','nurse','pharmacist','lab_tech','therapist'];
 const DEPT_ROLES = ['doctor','nurse','therapist','lab_tech','student','diet_staff','mrd_staff'];
 let _depts = [];
@@ -233,9 +244,16 @@ window.handleSignup = async function() {
   const pwCheck = validatePassword(pw);
   if (!pwCheck.valid) return showError(pwCheck.message);
   if (pw !== confirm) return showError('Passwords do not match. Please re-enter.');
+  if (isObviouslyWeak(pw)) return showError('That password is too common or predictable. Please choose another.');
 
   const btn = document.getElementById('btn-submit');
   setLoading(btn, true);
+
+  const pwned = await checkPasswordPwned(pw);
+  if (pwned.pwned) {
+    setLoading(btn, false);
+    return showError(`This password has appeared in ${pwned.count.toLocaleString()} known data breaches. Please choose a different one.`);
+  }
 
   const result = await registerStaff({
     fullName:     name,

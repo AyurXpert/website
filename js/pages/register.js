@@ -3,6 +3,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { isValidEmail, isValidPhone, validatePassword } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { isNCISMType } from '../config/ncism.js';
+import { scorePasswordStrength, checkPasswordPwned, isObviouslyWeak } from '../utils/passwordSecurity.js';
 
 wireDelegatedEvents();
 
@@ -262,7 +263,7 @@ window.changeOrgType = function() {
 /* ─────────────────────────────────────────
    STEP NAVIGATION
 ───────────────────────────────────────── */
-window.nextStep = function(from) {
+window.nextStep = async function(from) {
   from = Number(from);
   clearAlert();
   if (from === 1) {
@@ -289,6 +290,15 @@ window.nextStep = function(from) {
     const pwCheck = validatePassword(pw);
     if (!pwCheck.valid) return showAlert(pwCheck.message);
     if (pw !== confirm) return showAlert('Passwords do not match. Please re-enter.');
+    if (isObviouslyWeak(pw)) return showAlert('That password is too common or predictable. Please choose another.');
+
+    const nextBtn = document.querySelector('[data-onclick="nextStep"][data-onclick-a0="2"]');
+    if (nextBtn) setLoading(nextBtn, true);
+    const pwned = await checkPasswordPwned(pw);
+    if (nextBtn) setLoading(nextBtn, false);
+    if (pwned.pwned) {
+      return showAlert(`This password has appeared in ${pwned.count.toLocaleString()} known data breaches. Please choose a different one.`);
+    }
     showStep(3);
   }
 };
@@ -387,6 +397,16 @@ window.togglePw = function(inputId, btn) {
   const isText = input.type === 'text';
   input.type = isText ? 'password' : 'text';
   btn.innerHTML = isText ? '&#128065;' : '&#128584;';
+};
+
+window.checkStrength = function(pw) {
+  const fill  = document.getElementById('strength-fill');
+  const label = document.getElementById('strength-label');
+  if (!fill || !label) return;
+  const lvl = scorePasswordStrength(pw);
+  fill.style.width     = lvl.pct;
+  fill.style.background = lvl.color;
+  label.textContent    = lvl.label;
 };
 
 window.previewLogo = function(input) {

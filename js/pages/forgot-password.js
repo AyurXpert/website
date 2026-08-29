@@ -1,5 +1,7 @@
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { validatePassword } from '../utils/validators.js';
+import { scorePasswordStrength, checkPasswordPwned, isObviouslyWeak } from '../utils/passwordSecurity.js';
 
 wireDelegatedEvents();
 
@@ -57,16 +59,31 @@ window.updatePassword = async function() {
 
   alertEl.className = 'alert'; alertEl.style.display = 'none'; alertEl.textContent = '';
 
-  if (pw.length < 8) {
-    showAlert(alertEl, 'error', 'Password must be at least 8 characters.');
+  const pwCheck = validatePassword(pw);
+  if (!pwCheck.valid) {
+    showAlert(alertEl, 'error', pwCheck.message);
     document.getElementById('new-password').focus(); return;
   }
   if (pw !== confirm) {
     showAlert(alertEl, 'error', 'Passwords do not match.');
     document.getElementById('confirm-password').focus(); return;
   }
+  if (isObviouslyWeak(pw)) {
+    showAlert(alertEl, 'error', 'That password is too common or predictable. Please choose another.');
+    document.getElementById('new-password').focus(); return;
+  }
 
-  btn.disabled = true; btn.textContent = 'Updating…';
+  btn.disabled = true; btn.textContent = 'Checking…';
+
+  const pwned = await checkPasswordPwned(pw);
+  if (pwned.pwned) {
+    btn.disabled = false; btn.textContent = 'Update Password';
+    showAlert(alertEl, 'error',
+      `This password has appeared in ${pwned.count.toLocaleString()} known data breaches. Please choose a different one.`);
+    document.getElementById('new-password').focus(); return;
+  }
+
+  btn.textContent = 'Updating…';
 
   const { error } = await supabase.auth.updateUser({ password: pw });
 
@@ -95,22 +112,10 @@ window.togglePw = function(inputId, btn) {
 window.checkStrength = function(pw) {
   const fill  = document.getElementById('strength-fill');
   const label = document.getElementById('strength-label');
-  let score = 0;
-  if (pw.length >= 8)  score++;
-  if (/[A-Z]/.test(pw)) score++;
-  if (/[0-9]/.test(pw)) score++;
-  if (/[^A-Za-z0-9]/.test(pw)) score++;
-  const levels = [
-    { w: '0%',   bg: 'transparent', text: '' },
-    { w: '25%',  bg: '#ef4444',     text: 'Weak' },
-    { w: '50%',  bg: '#f59e0b',     text: 'Fair' },
-    { w: '75%',  bg: '#3b82f6',     text: 'Good' },
-    { w: '100%', bg: '#22c55e',     text: 'Strong' },
-  ];
-  const lvl = levels[score];
-  fill.style.width      = lvl.w;
-  fill.style.background = lvl.bg;
-  label.textContent     = lvl.text;
+  const lvl = scorePasswordStrength(pw);
+  fill.style.width      = lvl.pct;
+  fill.style.background  = lvl.color;
+  label.textContent     = lvl.label;
 };
 
 // Enter key on email field

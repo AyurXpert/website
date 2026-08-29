@@ -4,7 +4,7 @@
 //   - Local assets (JS/CSS/images) → Cache first → network → cache update
 //   - External APIs (Supabase, Google Fonts, CDN) → Network only, no caching
 
-const CACHE      = 'ayurxpert-v11';
+const CACHE      = 'ayurxpert-v12';
 const OFFLINE    = './offline.html';
 
 // Security headers injected on every navigation response
@@ -13,7 +13,7 @@ const SEC_HEADERS = [
   ['X-Content-Type-Options',     'nosniff'],
   ['Referrer-Policy',            'strict-origin-when-cross-origin'],
   ['Cache-Control',              'no-store, no-cache, must-revalidate, private'],
-  ['Content-Security-Policy',    "frame-ancestors 'none'; default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.tailwindcss.com https://fonts.googleapis.com https://fonts.gstatic.com https://cloudflareinsights.com https://static.cloudflareinsights.com data: blob: 'unsafe-inline' 'unsafe-eval' ws://127.0.0.1:* http://127.0.0.1:* ws://localhost:* http://localhost:*; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cloudflareinsights.com https://static.cloudflareinsights.com ws://127.0.0.1:* http://127.0.0.1:* ws://localhost:* http://localhost:*; object-src 'none'; base-uri 'self';"],
+  ['Content-Security-Policy',    "frame-ancestors 'none'; default-src 'self' https://*.supabase.co https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.tailwindcss.com https://fonts.googleapis.com https://fonts.gstatic.com https://cloudflareinsights.com https://static.cloudflareinsights.com data: blob: 'unsafe-inline' 'unsafe-eval' ws://127.0.0.1:* http://127.0.0.1:* ws://localhost:* http://localhost:*; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://api.pwnedpasswords.com https://cloudflareinsights.com https://static.cloudflareinsights.com ws://127.0.0.1:* http://127.0.0.1:* ws://localhost:* http://localhost:*; object-src 'none'; base-uri 'self';"],
 ];
 
 function withSecHeaders(res) {
@@ -37,6 +37,7 @@ const PRECACHE = [
   './js/components/navbar.js',
   './js/utils/dateUtils.js',
   './js/utils/validators.js',
+  './js/utils/passwordSecurity.js',
 ];
 
 // ── External origins that should never be cached ────────────────────────────
