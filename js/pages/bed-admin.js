@@ -371,6 +371,7 @@ async function loadAll() {
   renderBeds();
   checkNcismCompliance();
   await renderQuickSetup();
+  renderUnplacedBedsBanner();
 }
 
 // ── Quick Setup tab ───────────────────────────────────────────────────────────
@@ -1771,6 +1772,62 @@ function checkNcismCompliance() {
     banner.classList.remove('show');
   }
 }
+
+// ── Post-upgrade unplaced-beds banner ────────────────────────────────────────
+// An approved NCISM capacity upgrade (Subscription tab → platform_approve_ncism_request)
+// appends the extra beds it needs straight into `beds` with no building-block link —
+// the HMS can't know which ward/floor the hospital will physically put them in. If this
+// tenant has already modelled a physical layout (some beds carry a block_id) yet other
+// beds don't, surface that so whoever manages beds knows to place the new ones in
+// ⚡ Quick Setup. Stays silent for a tenant that has never modelled a layout at all —
+// there every bed is block-less by definition and the Building & Floor Breakdown
+// already prompts them to start.
+function renderUnplacedBedsBanner() {
+  const el = document.getElementById('unplaced-beds-banner');
+  if (!el) return;
+
+  const unplaced = _beds.filter(b => !b.block_id);
+  const placed   = _beds.filter(b => b.block_id);
+  if (!placed.length || !unplaced.length) { el.classList.remove('show'); return; }
+
+  // Dismissible, but only until the unplaced count grows past what was dismissed —
+  // a later upgrade that adds more beds re-surfaces it.
+  const dismissKey = `bedadmin-unplaced-dismissed-${tenantId}`;
+  let dismissedAt = 0;
+  try { dismissedAt = parseInt(localStorage.getItem(dismissKey), 10) || 0; } catch (_) {}
+  if (unplaced.length <= dismissedAt) { el.classList.remove('show'); return; }
+
+  const byDept = {};
+  unplaced.forEach(b => {
+    const d = _depts.find(x => x.id === b.department_id);
+    const name = d?.name || 'Unassigned';
+    byDept[name] = (byDept[name] || 0) + 1;
+  });
+  const deptSummary = Object.entries(byDept)
+    .sort((a, b) => b[1] - a[1])
+    .map(([n, c]) => `${_esc(n)} (${c})`)
+    .join(', ');
+
+  el.innerHTML = `
+    <div class="ub-body">
+      <strong>${unplaced.length} bed${unplaced.length !== 1 ? 's' : ''} not yet placed in a building block.</strong>
+      These are usually added automatically when an NCISM capacity upgrade is approved — the
+      beds exist and count toward compliance, but haven't been assigned to a ward or floor.
+      ${deptSummary ? `Affected: ${deptSummary}. ` : ''}
+      <button type="button" class="ub-link" data-onclick="switchTab" data-onclick-a0="quick">Open ⚡ Quick Setup to place them &rarr;</button>
+    </div>
+    <button type="button" class="ub-dismiss" aria-label="Dismiss this notice"
+      title="Dismiss until more beds are added"
+      data-onclick="dismissUnplacedBanner" data-onclick-a0="${unplaced.length}">&times;</button>`;
+  el.classList.add('show');
+}
+
+window.dismissUnplacedBanner = function(count) {
+  try {
+    localStorage.setItem(`bedadmin-unplaced-dismissed-${tenantId}`, String(Number(count) || 0));
+  } catch (_) {}
+  document.getElementById('unplaced-beds-banner')?.classList.remove('show');
+};
 
 // ── Render departments ────────────────────────────────────────────────────────
 function renderDepts() {

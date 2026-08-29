@@ -21,6 +21,8 @@
   --orange:#d35400; /* Session 179 Piece 2 — canonical semantic tag color (CLAUDE.md), used
                         only for the cross-department occupancy flag, always paired with a
                         text label, never color alone */
+  --blue:#1a4080;--blue-light:#eef2fa; /* canonical informational semantic tag (CLAUDE.md) —
+                        used for the post-upgrade unplaced-beds notice, always with full text */
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
@@ -89,6 +91,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   padding:10px 14px;font-size:12px;color:#7a5a00;margin-bottom:16px;display:none;
 }
 .ncism-banner.show{display:block}
+
+/* ── Unplaced-beds (post-upgrade) banner ── */
+.unplaced-banner{
+  background:var(--blue-light);border:1.5px solid #b9c8e8;border-radius:var(--radius);
+  padding:10px 14px;font-size:12px;color:var(--blue);margin-bottom:16px;display:none;
+  gap:10px;align-items:flex-start;
+}
+.unplaced-banner.show{display:flex}
+.unplaced-banner .ub-body{flex:1;line-height:1.5}
+.unplaced-banner .ub-link{
+  color:var(--blue);font-weight:600;text-decoration:underline;cursor:pointer;
+  background:none;border:none;padding:0;font:inherit;font-size:12px;
+}
+.unplaced-banner .ub-dismiss{
+  color:var(--blue);background:none;border:none;cursor:pointer;font-size:16px;
+  line-height:1;padding:8px;margin:-8px;flex-shrink:0;
+}
 
 /* ── Department cards ── */
 .dept-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
@@ -691,6 +710,7 @@ input[type="checkbox"]{width:16px;height:16px;margin-right:6px;accent-color:var(
 
   <div class="alert" id="alert"></div>
   <div class="ncism-banner" id="ncism-banner"></div>
+  <div class="unplaced-banner" id="unplaced-beds-banner"></div>
 
   <!-- Stats -->
   <div class="stats-row">
