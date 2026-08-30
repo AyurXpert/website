@@ -5,7 +5,7 @@ import { supabase }   from '../core/db/supabaseClient.js';
 import { logAudit }   from '../core/auditLogger.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS } from '../config/ncism.js';
+import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS, ncismRequiredBeds } from '../config/ncism.js';
 import { SUPABASE_URL, SESSION_KEYS } from '../config/constants.js';
 import { DESIGS, DESIG_MAP, DESIG_CATS } from '../config/designations.js';
 import {
@@ -221,7 +221,7 @@ window.loadStats = async function() {
     allDepts.forEach(d => {
       const ratio = UG_BED_RATIOS[d.ncism_code];
       if (!ratio) return;
-      const required = Math.floor(ugIntake * ratio) + (d.is_pg_dept ? (d.pg_seats_sanctioned||0)*4 : 0);
+      const required = ncismRequiredBeds(ratio, ugIntake, { isPgDept: d.is_pg_dept, pgSeats: d.pg_seats_sanctioned || 0 }).total;
       const actual   = bedCountByDept[d.id] || 0;
       const occupied = occCountByDept[d.id] || 0;
       const occPct   = actual > 0 ? Math.round(occupied / actual * 100) : null;

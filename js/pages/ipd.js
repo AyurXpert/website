@@ -4,7 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
-import { isNCISMType } from '../config/ncism.js';
+import { isNCISMType, ncismRequiredBeds } from '../config/ncism.js';
 import { logAudit } from '../core/auditLogger.js';
 import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 
@@ -195,7 +195,7 @@ async function _renderBedComplianceAlert() {
   _depts.forEach(d => {
     const ratio = UG_BED_RATIOS[d.ncism_code];
     if (!ratio) return;
-    const required = Math.floor(ugIntake * ratio);
+    const required = ncismRequiredBeds(ratio, ugIntake).ug;
     const actual   = bedCountByDept[d.id] || 0;
     const occupied = occCountByDept[d.id] || 0;
     const occPct   = actual > 0 ? Math.round(occupied / actual * 100) : null;

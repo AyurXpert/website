@@ -3,7 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
-import { UG_BED_RATIOS as SF_RATIOS, NCISM_OPDS as SF_OPDS, NCISM_DEPTS as SF_DEPTS } from '../config/ncism.js';
+import { UG_BED_RATIOS as SF_RATIOS, NCISM_OPDS as SF_OPDS, NCISM_DEPTS as SF_DEPTS, ncismRequiredBeds } from '../config/ncism.js';
 // Session 179 Piece 3: reused (not reinvented) for the new zone-restricted-block feature below
 // -- Dr. Venkatesh's own real-hospital insight (2 general wards per gender, split Medical/
 // Surgical) needs exactly this same Medical={KAY,PK,KAU,AGD}/Surgical={SHAL,SHAK,PST} grouping
@@ -213,7 +213,7 @@ function _bedTagHtml(b) {
 function _deptReservedStart(ncismCode) {
   if (!ncismCode || !_ugIntake) return 1;
   const sorted = Object.entries(UG_BED_RATIOS)
-    .map(([code, ratio]) => ({ code, required: Math.floor(_ugIntake * ratio) }))
+    .map(([code, ratio]) => ({ code, required: ncismRequiredBeds(ratio, _ugIntake).ug }))
     .filter(d => d.required > 0)
     .sort((a, b) => b.required - a.required ||
       NCISM_BED_PRIORITY.indexOf(a.code) - NCISM_BED_PRIORITY.indexOf(b.code));
@@ -241,11 +241,11 @@ function _nextBedStart(deptBeds, prefix, ncismCode) {
 
   if (!nums.length) return reservedStart;
 
-  const required = Math.floor((UG_BED_RATIOS[ncismCode] || 0) * _ugIntake);
+  const required = ncismRequiredBeds(UG_BED_RATIOS[ncismCode], _ugIntake).ug;
   if (required > 0 && deptBeds.length >= required) {
     // Quota met — extra beds go after all NCISM reserved ranges
     const totalNcism = Object.values(UG_BED_RATIOS)
-      .reduce((s, r) => s + Math.floor(_ugIntake * r), 0);
+      .reduce((s, r) => s + ncismRequiredBeds(r, _ugIntake).ug, 0);
     const extraNums = nums.filter(n => n > totalNcism);
     return extraNums.length ? Math.max(...extraNums) + 1 : totalNcism + 1;
   }
@@ -351,8 +351,8 @@ async function loadAll() {
   // Breakdown, Beds tab) reads from this same array, so they all inherit the order for free
   // instead of each needing (and risking drifting from) its own independent sort.
   _depts.sort((a, b) => {
-    const ra = UG_BED_RATIOS[a.ncism_code] ? Math.floor(_ugIntake * UG_BED_RATIOS[a.ncism_code]) : -1;
-    const rb = UG_BED_RATIOS[b.ncism_code] ? Math.floor(_ugIntake * UG_BED_RATIOS[b.ncism_code]) : -1;
+    const ra = UG_BED_RATIOS[a.ncism_code] ? ncismRequiredBeds(UG_BED_RATIOS[a.ncism_code], _ugIntake).ug : -1;
+    const rb = UG_BED_RATIOS[b.ncism_code] ? ncismRequiredBeds(UG_BED_RATIOS[b.ncism_code], _ugIntake).ug : -1;
     if (ra !== rb) return rb - ra;
     const pa = NCISM_BED_PRIORITY.indexOf(a.ncism_code);
     const pb = NCISM_BED_PRIORITY.indexOf(b.ncism_code);
@@ -663,13 +663,16 @@ function _qs1GrandTotal() {
   return Object.values(_qs1Pool()).reduce((s, v) => s + v, 0);
 }
 
-// Total NCISM beds needed: UG (from ratios) + PG (pg_seats_sanctioned per PG dept)
+// Total NCISM beds needed: UG (round of ratio × intake) + PG (4 beds per sanctioned
+// seat) — via the shared ncismRequiredBeds() so this can't drift from what the
+// approval RPC seeds or what ncism-compliance.html reports.
 function _qsNcismTotal() {
   let total = 0;
   Object.entries(UG_BED_RATIOS).forEach(([code, ratio]) => {
-    total += Math.floor(_ugIntake * ratio);
     const dept = _depts.find(d => d.ncism_code === code);
-    if (dept?.is_pg_dept) total += (dept.pg_seats_sanctioned || 0);
+    total += ncismRequiredBeds(ratio, _ugIntake, {
+      isPgDept: !!dept?.is_pg_dept, pgSeats: dept?.pg_seats_sanctioned || 0,
+    }).total;
   });
   return total;
 }
@@ -1139,13 +1142,17 @@ function renderQs2Table(pool) {
   const activeCols = _qs1Types.filter(t => !pool || pool[t.key] > 0 || Object.keys(pool).length === 0);
   _qsActiveCols = activeCols.map(t => t.key);
 
-  // Build NCISM rows with UG + PG required
+  // Build NCISM rows with UG + PG required — via the shared ncismRequiredBeds() so
+  // this (the number that drives bed creation) matches the approval RPC's first-seed
+  // target and ncism-compliance.html exactly. UG = round(intake × ratio); PG = 4 beds
+  // per sanctioned seat.
   const ncismRows = Object.entries(UG_BED_RATIOS)
     .map(([code, ratio]) => {
       const dept  = _depts.find(d => d.ncism_code === code);
-      const ug    = Math.floor(_ugIntake * ratio);
-      const pg    = dept?.is_pg_dept ? (dept.pg_seats_sanctioned || 0) : 0;
-      return { code, dept, ug, pg, required: ug + pg,
+      const { ug, pg, total } = ncismRequiredBeds(ratio, _ugIntake, {
+        isPgDept: !!dept?.is_pg_dept, pgSeats: dept?.pg_seats_sanctioned || 0,
+      });
+      return { code, dept, ug, pg, required: total,
         prefix: DEPT_PREFIX[code] || '', reservedStart: _deptReservedStart(code) };
     })
     .filter(r => r.required > 0)
@@ -1524,8 +1531,10 @@ window.quickSetupCreateRow = async function(code, silent) {
     // from however many of THAT SAME cell's beds already exist (from any department, not just
     // this one) -- so a department's cards now correctly show a SCATTERED set of real hospital-
     // wide numbers, one sub-range per ward type it actually participates in, instead of one
-    // fake-contiguous block. No existingNums/nextNum collision tracking needed here anymore --
-    // each cell's own running count is the only thing that can ever collide, and it's shared.
+    // fake-contiguous block. Session 190: a per-number `existingNums` guard is still applied
+    // below -- a cell's global start can land on a number a starter bed set (approval RPC
+    // first-seed) already used, and those plain rows don't match any cell so the cell's own
+    // running count can't see them.
     const cellSeq     = _qs1CellSequence();
     const blockAlloc = _computeBlockAllocation(distribution, code);
     _qs1Blocks.forEach(b => {
@@ -1543,6 +1552,9 @@ window.quickSetupCreateRow = async function(code, silent) {
         const alreadyInCell = _beds.filter(bd => bd.bed_type === k && bd.ward_name === blockLabel).length;
         let cellNum = cell ? cell.start + alreadyInCell : nextNum; // reservedStart fallback if Table 1 wasn't filled for this exact cell
         for (let i = 0; i < bDist[k]; i++) {
+          // Session 190: never reuse a number an existing <prefix>-NN bed already holds.
+          while (existingNums.has(cellNum)) cellNum++;
+          existingNums.add(cellNum);
           rows.push({
             tenant_id: tenantId, department_id: deptId,
             bed_number: `${prefix}-${String(cellNum).padStart(2, '0')}`,
@@ -1773,52 +1785,75 @@ function checkNcismCompliance() {
   }
 }
 
-// ── Post-upgrade unplaced-beds banner ────────────────────────────────────────
-// An approved NCISM capacity upgrade (Subscription tab → platform_approve_ncism_request)
-// appends the extra beds it needs straight into `beds` with no building-block link —
-// the HMS can't know which ward/floor the hospital will physically put them in. If this
-// tenant has already modelled a physical layout (some beds carry a block_id) yet other
-// beds don't, surface that so whoever manages beds knows to place the new ones in
-// ⚡ Quick Setup. Stays silent for a tenant that has never modelled a layout at all —
-// there every bed is block-less by definition and the Building & Floor Breakdown
-// already prompts them to start.
+// ── Post-upgrade bed-setup banner ────────────────────────────────────────────
+// After an approved NCISM capacity upgrade (Subscription tab →
+// platform_approve_ncism_request) the RPC only raises the capacity numbers — it no
+// longer creates beds (Session 190). So the signal to surface is a SHORTFALL: a
+// bedded department now sits below its ncismRequiredBeds() total. Prompt the admin
+// to complete setup in ⚡ Quick Setup (which places + numbers the new beds against
+// the real building blocks). Secondary signal: beds that exist but were never put
+// in a building block (manual adds, or a first-seed starter set) while others were.
 function renderUnplacedBedsBanner() {
   const el = document.getElementById('unplaced-beds-banner');
   if (!el) return;
 
+  // Shortfall per bedded department (UG round + PG×4, via the shared helper).
+  let shortTotal = 0;
+  const shortByDept = {};
+  if (_ugIntake > 0) {
+    _depts.forEach(d => {
+      const ratio = UG_BED_RATIOS[d.ncism_code];
+      if (!ratio) return;
+      const req = ncismRequiredBeds(ratio, _ugIntake, {
+        isPgDept: !!d.is_pg_dept, pgSeats: d.pg_seats_sanctioned || 0,
+      }).total;
+      const have = _beds.filter(b => b.department_id === d.id).length;
+      if (have < req) { shortByDept[d.name] = req - have; shortTotal += req - have; }
+    });
+  }
+
   const unplaced = _beds.filter(b => !b.block_id);
   const placed   = _beds.filter(b => b.block_id);
-  if (!placed.length || !unplaced.length) { el.classList.remove('show'); return; }
+  const showUnplaced = placed.length > 0 && unplaced.length > 0;
 
-  // Dismissible, but only until the unplaced count grows past what was dismissed —
-  // a later upgrade that adds more beds re-surfaces it.
+  if (!shortTotal && !showUnplaced) { el.classList.remove('show'); return; }
+
+  // Dismissible, but re-surfaces whenever the actionable bed count grows (a later
+  // upgrade, more manual adds).
+  const actionable = shortTotal + (showUnplaced ? unplaced.length : 0);
   const dismissKey = `bedadmin-unplaced-dismissed-${tenantId}`;
   let dismissedAt = 0;
   try { dismissedAt = parseInt(localStorage.getItem(dismissKey), 10) || 0; } catch (_) {}
-  if (unplaced.length <= dismissedAt) { el.classList.remove('show'); return; }
+  if (actionable <= dismissedAt) { el.classList.remove('show'); return; }
 
-  const byDept = {};
-  unplaced.forEach(b => {
-    const d = _depts.find(x => x.id === b.department_id);
-    const name = d?.name || 'Unassigned';
-    byDept[name] = (byDept[name] || 0) + 1;
-  });
-  const deptSummary = Object.entries(byDept)
+  const fmtDepts = (obj) => Object.entries(obj)
     .sort((a, b) => b[1] - a[1])
     .map(([n, c]) => `${_esc(n)} (${c})`)
     .join(', ');
 
+  let body;
+  if (shortTotal) {
+    body = `<strong>${shortTotal} bed${shortTotal !== 1 ? 's' : ''} still to set up.</strong>
+      An NCISM capacity change raised the bed requirement — the new beds exist only as a
+      target until you add them. Short: ${fmtDepts(shortByDept)}.
+      <button type="button" class="ub-link" data-onclick="switchTab" data-onclick-a0="quick">Open ⚡ Quick Setup &rarr;</button>`;
+  } else {
+    const byDept = {};
+    unplaced.forEach(b => {
+      const d = _depts.find(x => x.id === b.department_id);
+      byDept[d?.name || 'Unassigned'] = (byDept[d?.name || 'Unassigned'] || 0) + 1;
+    });
+    body = `<strong>${unplaced.length} bed${unplaced.length !== 1 ? 's' : ''} not yet placed in a building block.</strong>
+      They exist and count toward compliance, but haven't been assigned to a ward or floor.
+      Affected: ${fmtDepts(byDept)}.
+      <button type="button" class="ub-link" data-onclick="switchTab" data-onclick-a0="quick">Open ⚡ Quick Setup to place them &rarr;</button>`;
+  }
+
   el.innerHTML = `
-    <div class="ub-body">
-      <strong>${unplaced.length} bed${unplaced.length !== 1 ? 's' : ''} not yet placed in a building block.</strong>
-      These are usually added automatically when an NCISM capacity upgrade is approved — the
-      beds exist and count toward compliance, but haven't been assigned to a ward or floor.
-      ${deptSummary ? `Affected: ${deptSummary}. ` : ''}
-      <button type="button" class="ub-link" data-onclick="switchTab" data-onclick-a0="quick">Open ⚡ Quick Setup to place them &rarr;</button>
-    </div>
+    <div class="ub-body">${body}</div>
     <button type="button" class="ub-dismiss" aria-label="Dismiss this notice"
-      title="Dismiss until more beds are added"
-      data-onclick="dismissUnplacedBanner" data-onclick-a0="${unplaced.length}">&times;</button>`;
+      title="Dismiss until more beds need setting up"
+      data-onclick="dismissUnplacedBanner" data-onclick-a0="${actionable}">&times;</button>`;
   el.classList.add('show');
 }
 
@@ -1856,10 +1891,11 @@ function renderDepts() {
 
     const violates   = d.is_pg_dept && pgRequired > 0 && (pgBeds < pgRequired || pct < 80);
 
-    // NCISM required beds (Table-8 ratio × UG intake)
+    // NCISM required beds (Table-8 ratio × UG intake) — UG only here (PG shown as a
+    // separate badge below); rounding via the shared ncismRequiredBeds() helper.
     const ratio         = UG_BED_RATIOS[d.ncism_code] || 0;
     const exactRequired = ratio > 0 && _ugIntake > 0 ? _ugIntake * ratio : 0;
-    const requiredBeds  = Math.floor(exactRequired);
+    const requiredBeds  = ncismRequiredBeds(ratio, _ugIntake).ug;
     const isRounded     = exactRequired > 0 && exactRequired !== requiredBeds;
     const gap           = requiredBeds > 0 ? Math.max(0, requiredBeds - deptBeds.length) : 0;
 
@@ -2107,7 +2143,7 @@ window.updateDeptInfo = function(prefix) {
   const deptBeds      = _beds.filter(b => b.department_id === deptId);
   const ratio         = UG_BED_RATIOS[dept?.ncism_code] || 0;
   const exactRequired = ratio > 0 && _ugIntake > 0 ? _ugIntake * ratio : 0;
-  const required      = Math.floor(exactRequired);
+  const required      = ncismRequiredBeds(ratio, _ugIntake).ug;
   const isRounded     = exactRequired > 0 && exactRequired !== required;
   const gap           = required > 0 ? Math.max(0, required - deptBeds.length) : 0;
 
@@ -2178,7 +2214,7 @@ window.openBedDrawer = function(id, preDeptId) {
     const dept          = _depts.find(d => d.id === bed.department_id);
     const ncismCode     = dept?.ncism_code;
     const reservedStart = _deptReservedStart(ncismCode);
-    const required      = Math.floor((UG_BED_RATIOS[ncismCode] || 0) * _ugIntake);
+    const required      = ncismRequiredBeds(UG_BED_RATIOS[ncismCode], _ugIntake).ug;
     const bedN          = parseInt(bed.bed_number.split('-').pop());
     const isReserved    = required > 0 && !isNaN(bedN) &&
                           bedN >= reservedStart && bedN < reservedStart + required;
@@ -2226,7 +2262,7 @@ function renderBedSelectGrid(dept, deptBeds, prefix, required) {
   );
 
   const reservedStart = _deptReservedStart(dept.ncism_code);
-  const totalNcism    = Object.values(UG_BED_RATIOS).reduce((s, r) => s + Math.floor(_ugIntake * r), 0);
+  const totalNcism    = Object.values(UG_BED_RATIOS).reduce((s, r) => s + ncismRequiredBeds(r, _ugIntake).ug, 0);
 
   // NCISM depts: reserved range + a few extra slots
   // Non-NCISM depts: start from global extra pool (totalNcism+1); show existing + 5 available slots
@@ -2695,7 +2731,7 @@ function renderBulkSelectGrid(dept, deptBeds, prefix, required) {
   );
 
   const reservedStart = _deptReservedStart(dept.ncism_code);
-  const totalNcism    = Object.values(UG_BED_RATIOS).reduce((s, r) => s + Math.floor(_ugIntake * r), 0);
+  const totalNcism    = Object.values(UG_BED_RATIOS).reduce((s, r) => s + ncismRequiredBeds(r, _ugIntake).ug, 0);
 
   // Non-NCISM depts (required=0): show existing beds + 5 available slots from global extra pool
   const existingInRange = [...existingNums].filter(n => n >= reservedStart).length;

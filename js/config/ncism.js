@@ -136,6 +136,22 @@ export const ATYAYIKA_NURSE_COUNT = { 60: 1, 100: 1, 150: 1, 200: 1 };
 
 export const UG_BED_RATIOS = { KAY: .20, PK: .25, SHAL: .20, SHAK: .10, KAU: .10, AGD: .05, PST: .10 };
 
+// Session 190 — the ONE place a department's NCISM IPD bed requirement is computed.
+// Must stay byte-for-byte equivalent to platform_approve_ncism_request()'s first-seed
+// bed target (sql/session190_ncism_upgrade_capacity_only.sql):
+//   round(ug_intake * ratio) + (is_pg_dept ? pg_seats * 4 : 0)
+// UG uses round (not floor) so a department's share tracks the intake — the ratios
+// sum to exactly 1.00, so floor systematically leaves the hospital short. PG is
+// 4 beds per sanctioned seat (Sch. XX / the "adds 4 IPD beds per seat" capacity-card
+// text / ncism-compliance.js all already agree; only bed-admin's Quick Setup was ×1).
+// Callers pass the ratio they already hold (bed-admin swaps SF/LF UG_BED_RATIOS by
+// tenant type, so the ratio can't be looked up here).
+export function ncismRequiredBeds(ratio, ugIntake, { isPgDept = false, pgSeats = 0 } = {}) {
+  const ug = Math.round((ugIntake || 0) * (ratio || 0));
+  const pg = isPgDept ? (pgSeats || 0) * 4 : 0;
+  return { ug, pg, total: ug + pg };
+}
+
 export const WARD_NAMES = {
   KAY: 'General Ward', PK: 'Panchakarma Ward', SHAL: 'Surgical Ward', SHAK: 'ENT Ward',
   KAU: 'Paediatric Ward', AGD: 'General Ward', PST: 'Maternity Ward',

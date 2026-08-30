@@ -3,7 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { isNCISMType, SCHEDULE_IV } from '../config/ncism.js';
+import { isNCISMType, SCHEDULE_IV, ncismRequiredBeds } from '../config/ncism.js';
 import {
   SCHEDULE_I_CODES, FACULTY_CONCURRENT_POSTS, buildDeptTree, _dedupById,
   deptRequirement, _computeIpdBedTotals, _renderComplianceSummaryBanner,
@@ -300,10 +300,12 @@ async function loadAll() {
     const deptOpdShare = totalActualOpd > 0 ? Math.round(actualOpd / totalActualOpd * 100) : 0;
     const bedInfo      = bedsByDept[dept.id] || { total:0, pg:0, occupied:0, vacant:0 };
 
-    // NCISM Table-8 UG beds + PG beds (4 per sanctioned seat)
-    const ugRequiredBeds = Math.floor(_cfg.ugIntake * (UG_BED_RATIOS[dept.ncism_code] || 0));
-    const pgRequiredBeds = dept.is_pg_dept ? (dept.pg_seats_sanctioned || 0) * 4 : 0;
-    const requiredBeds   = ugRequiredBeds + pgRequiredBeds;
+    // NCISM Table-8 UG beds + PG beds (4 per sanctioned seat) — via the shared
+    // ncismRequiredBeds() so this monitor can't drift from what bed-admin's Quick
+    // Setup builds or the approval RPC's first-seed target.
+    const { ug: ugRequiredBeds, pg: pgRequiredBeds, total: requiredBeds } = ncismRequiredBeds(
+      UG_BED_RATIOS[dept.ncism_code], _cfg.ugIntake,
+      { isPgDept: dept.is_pg_dept, pgSeats: dept.pg_seats_sanctioned || 0 });
 
     // NCISM Table-9 bed day occupancy (60% non-PG, 80% PG)
     const occThreshold = dept.is_pg_dept ? 80 : 60;
