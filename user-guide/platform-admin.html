@@ -85,7 +85,7 @@
 <header class="top-banner">
   <div>
     <h1>Platform Admin — Subscription &amp; Billing Guide</h1>
-    <div class="banner-sub">AyurXpert Platform · Covers subscription.html + ABDM multi-tenant architecture · <span id="last-updated-inline">Last updated: 8 Aug 2026, Session 158</span></div>
+    <div class="banner-sub">AyurXpert Platform · Covers subscription.html + ABDM multi-tenant architecture · <span id="last-updated-inline">Last updated: 31 Aug 2026, Session 191</span></div>
   </div>
   <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
 </header>
@@ -189,13 +189,13 @@
 
     <ol class="steps">
       <li><span class="step-num">1</span><div class="step-body"><strong>Review the request</strong> — organisation name, current vs. requested UG intake, requested PG department additions, and the computed fee (including its GST breakdown, frozen at the rate that applied when the tenant submitted).</div></li>
-      <li><span class="step-num">2</span><div class="step-body"><strong>✓ Approve</strong> — confirms, then immediately runs <code>platform_approve_ncism_request()</code>: seeds OPDs/departments/beds on a tenant's very first activation, or adds only the positive bed/seat delta on a later upgrade (never removes existing beds).</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>✓ Approve</strong> — confirms, then immediately runs <code>platform_approve_ncism_request()</code>. On a tenant's <strong>very first activation</strong> this seeds the OPDs, departments, PG seat counts and a starting set of IPD beds. On a <strong>later upgrade</strong> it only raises the capacity numbers — UG intake, per-department PG seats, OPD daily target, PG student strength — and <strong>creates no beds</strong> (since Session 190). The tenant's own admin then sets up the extra beds in bed-admin.html → Quick Setup, and the NCISM compliance view shows them below their required bed count until they do. Downsizing is never applied — a request for a lower intake/seat count only raises numbers, never lowers them.</div></li>
       <li><span class="step-num">3</span><div class="step-body"><strong>✗ Reject</strong> — prompts for an optional reason, marks the request rejected. No data changes on the tenant.</div></li>
     </ol>
 
     <div class="box box-warn">
       <strong>Approval is immediate and irreversible via the UI</strong>
-      There is no "undo approve" button. If a request was approved by mistake, the tenant's OPDs/departments/beds must be corrected manually (or via a fresh SQL fix) — there's no automated rollback path.
+      There is no "undo approve" button. If a first-activation request was approved by mistake, the seeded OPDs/departments/beds must be corrected manually (or via a fresh SQL fix). An upgrade approved by mistake only changed the capacity numbers — reverse it by lowering <code>tenants.ug_intake</code> / <code>opd_daily_target</code> / <code>pg_student_strength</code> and the affected departments' <code>pg_seats_sanctioned</code> directly; no beds will have been created.
     </div>
 
     <hr />
@@ -447,6 +447,6 @@ USING (tenant_id = (
   </main>
 </div>
 
-<footer>AyurXpert Technologies™ — Internal reference document. Last updated Session 158, 8 Aug 2026.</footer>
+<footer>AyurXpert Technologies™ — Internal reference document. Last updated Session 191, 31 Aug 2026.</footer>
 </body>
 </html>
