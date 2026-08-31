@@ -1401,10 +1401,26 @@ async function renderQuickSetup() {
     </div>
     <div style="font-size:11px;color:var(--text-muted);margin-top:10px">
       ✏️ Bed numbers are auto-assigned within each department's NCISM reserved range, grouped by bed type in the order shown.
+    </div>
+
+    <div style="margin-top:22px;padding:14px 16px;border:1.5px solid var(--border);border-radius:8px;background:var(--white)">
+      <div style="font-weight:600;color:var(--green-deep);font-size:13px">↻ Renumber beds</div>
+      <div style="font-size:12px;color:var(--text-mid);margin-top:4px;line-height:1.5">
+        Relabel every bed into one clean, gap-free sequence — Panchakarma first, then Kayachikitsa, and so on.
+        Only the bed number changes; wards, floors, bed types and occupancy stay exactly as they are.
+        <span id="qs-renum-blockwarn" style="display:none;color:var(--orange)">
+          &nbsp;⚠️ Numbers will no longer line up with the ward-type layout.</span>
+      </div>
+      <button class="btn btn-secondary btn-sm" data-onclick="renumberContinuous" style="margin-top:10px">↻ Renumber to Continuous Sequence</button>
     </div>`;
 
   renderQs1RealMapping();
   renderQs1Table();
+
+  // Warn that a continuous renumber will break ward-type-aligned numbering, but only
+  // when this tenant actually models physical blocks and has block-linked beds.
+  const blockWarn = document.getElementById('qs-renum-blockwarn');
+  if (blockWarn && _beds.some(b => b.block_id)) blockWarn.style.display = 'inline';
 
   // If saved inventory exists, auto-populate Table 2 immediately
   const pool = _qs1Pool();
@@ -1660,6 +1676,32 @@ window.quickSetupCreateAll = async function() {
     _alert('error', `${totalAdded} beds created, ${errors} dept(s) had errors.`);
   else
     _alert('success', `${totalAdded} bed${totalAdded !== 1 ? 's' : ''} created successfully.`);
+};
+
+// Session 191: relabel every bed into one clean 1..N sequence (departments in fixed
+// NCISM blocks). Manual only -- never automatic. Server-side renumber_beds_continuous()
+// does the work (two-phase, bed_number only); see sql/session191_renumber_beds_continuous.sql.
+window.renumberContinuous = async function() {
+  const n = _beds.length;
+  if (!n) { _alert('info', 'No beds to renumber yet.'); return; }
+  if (!confirm(
+    `Renumber all ${n} bed${n !== 1 ? 's' : ''} into one continuous 1–${n} sequence?\n\n`
+    + `Bed labels that staff have learned will change. Wards, floors, bed types and `
+    + `current admissions are NOT affected. This cannot be auto-undone.`
+  )) return;
+
+  const btn = document.querySelector('[data-onclick="renumberContinuous"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Renumbering…'; }
+
+  const { data, error } = await supabase.rpc('renumber_beds_continuous', { p_tenant_id: tenantId });
+
+  if (btn) { btn.disabled = false; btn.textContent = '↻ Renumber to Continuous Sequence'; }
+  if (error) { _alert('error', safeErrorMessage(error, 'Renumber failed. Please try again.')); return; }
+
+  const by = data?.by_department || {};
+  const summary = Object.entries(by).map(([c, x]) => `${c} ${x}`).join(' · ');
+  _alert('success', `Renumbered ${data?.renumbered ?? n} beds into a continuous sequence${summary ? ' — ' + summary : ''}.`);
+  await loadAll();
 };
 
 // Refresh dept-info-panel in whichever bed/bulk drawer is currently open
