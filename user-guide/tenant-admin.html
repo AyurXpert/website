@@ -86,7 +86,7 @@
 <header class="top-banner">
   <div>
     <h1>Tenant Administration — Master Control Guide</h1>
-    <div class="banner-sub">AyurXpert HMS · Covers admin.html · Last updated: 8 Aug 2026, Session 158</div>
+    <div class="banner-sub">AyurXpert HMS · Covers admin.html · Last updated: 31 Aug 2026, Session 191</div>
   </div>
   <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
 </header>
@@ -214,16 +214,23 @@
 
     <ol class="steps">
       <li><span class="step-num">1</span><div class="step-body"><strong>Select a UG Intake Tier</strong> — cards show each available intake size (e.g. 60/100/150/200 students/year) with its fee and, once a GST rate is configured, a small "incl. GST ₹X" line. The tenant's current tier is marked "Current".</div></li>
-      <li><span class="step-num">2</span><div class="step-body"><strong>Select PG Department seats (optional)</strong> — tick a department checkbox and enter the number of PG students. Clinical departments each add 4 IPD beds per seat automatically on approval; non-clinical departments add no beds.</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>Select PG Department seats (optional)</strong> — tick a department checkbox and enter the number of PG students. Each PG seat in a clinical department raises that department's required IPD beds by 4 (non-clinical departments add no beds). On a first-ever activation those beds are created for you; on a later upgrade you add them yourself in Quick Setup (see the note below).</div></li>
       <li><span class="step-num">3</span><div class="step-body"><strong>Review the total request fee</strong> — a live-updating total at the bottom shows the base fee, the GST%, and the GST amount, adding up UG tier fee + (PG seats × per-seat fee).</div></li>
       <li><span class="step-num">4</span><div class="step-body"><strong>Submit Request</strong> — the request goes to the platform admin's NCISM Requests queue as <em>pending</em>. Nothing on the tenant's own OPDs/departments/beds changes yet.</div></li>
       <li><span class="step-num">5</span><div class="step-body"><strong>While pending</strong> — the card shows the submitted request's details instead of the selection UI, with a "✕ Cancel Request" option if the tenant changes their mind before it's reviewed.</div></li>
-      <li><span class="step-num">6</span><div class="step-body"><strong>On approval</strong> — the tenant's OPDs (first activation only), departments, PG seat counts, and beds update automatically; the card returns to the selection UI showing the new current tier/seats.</div></li>
+      <li><span class="step-num">6</span><div class="step-body"><strong>On approval</strong> — for a <strong>first-ever activation</strong>, the tenant's OPDs, departments and a starting set of IPD beds are all created automatically. For a later <strong>upgrade</strong>, only the capacity numbers change (UG intake, PG seat counts, OPD daily target) — <strong>no beds are created</strong>; you add the extra beds yourself in Dept &amp; Beds → ⚡ Quick Setup (see the note below). Either way the card returns to the selection UI showing the new current tier/seats.</div></li>
     </ol>
 
     <div class="box box-warn">
       <strong>Upgrades never remove existing capacity</strong>
-      If a later request reduces the UG intake or PG seats compared to the current setup, approval will only ever add the positive difference in beds — it will not delete existing beds or reduce sanctioned seats below what's already been approved historically. Downsizing capacity is not currently supported through this flow.
+      If a later request reduces the UG intake or PG seats compared to the current setup, approval will not delete existing beds or reduce sanctioned seats below what's already been approved historically. Downsizing capacity is not currently supported through this flow.
+    </div>
+
+    <div class="box box-tip">
+      <strong>After an upgrade: set up the new beds in Quick Setup</strong>
+      An intake or PG upgrade raises the bed requirement but does not create beds — the HMS can't know which physical ward or floor you'll put them in. Open <strong>Dept &amp; Beds (bed-admin.html) → ⚡ Quick Setup</strong>: a banner shows how many beds each department is short, Table 1 is where you enter the new beds by type and building block, and <strong>Create All Beds</strong> places and numbers them. The NCISM compliance view will show the tenant below its required bed count until this is done.
+      <br><br>
+      <strong>↻ Renumber to Continuous Sequence</strong> — a button in Quick Setup (below the allocation table) that relabels <em>every</em> bed into one clean gap-free 1…N sequence, departments in fixed blocks (Panchakarma first, then Kayachikitsa, and so on). Only the bed number changes — wards, floors, bed types and current admissions are untouched. Optional: use it if you want a tidy audit roster where the highest number equals the bed count; skip it if your bed numbers are meant to reflect physical ward location. It is manual and one-click — run it after adding beds, before staff memorise the new numbers.
     </div>
 
     <hr />
@@ -273,7 +280,7 @@
 
     <div class="scenario">
       <h4>B. We need to increase our UG intake from 60 to 100 students</h4>
-      <p>Go to Subscription → NCISM Capacity Plan, select the 100 tier card, adjust any PG seats if needed, review the total fee, and Submit Request. Wait for platform admin approval — your current capacity stays unchanged until then.</p>
+      <p>Go to Subscription → NCISM Capacity Plan, select the 100 tier card, adjust any PG seats if needed, review the total fee, and Submit Request. Wait for platform admin approval — your current capacity stays unchanged until then. <strong>After approval</strong>, open Dept &amp; Beds → ⚡ Quick Setup to add the extra IPD beds the higher intake requires — the approval raises the requirement but does not create beds. Optionally use the ↻ Renumber to Continuous Sequence button there afterwards for a clean 1…N roster.</p>
     </div>
 
     <div class="scenario">
@@ -298,6 +305,6 @@
   </main>
 </div>
 
-<footer>AyurXpert Technologies™ — Internal reference document. Last updated Session 158, 8 Aug 2026.</footer>
+<footer>AyurXpert Technologies™ — Internal reference document. Last updated Session 191, 31 Aug 2026.</footer>
 </body>
 </html>
