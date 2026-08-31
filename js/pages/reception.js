@@ -669,6 +669,12 @@ function _ageFromDob(dob) {
 // ── Patient search (phone / name / UHID) ──────────
 let _phoneTimer = null;
 let _newFamilyMember = false;
+// Session 193: set true only when the receptionist has explicitly confirmed, via the
+// same-name picker below, that a new patient sharing an existing patient's name (but
+// with a different phone number) is genuinely a different person. Guards the recurring
+// duplicate-patient class (Sessions 170, 184, 185, 192 — the last being the NHA-demo
+// Bharathi N duplicate that stranded her new ABDM care contexts off `discover`).
+let _confirmNewDespiteName = false;
 
 function _showPhoneHint(msg, kind) {
   const el = document.getElementById('phone-hint');
@@ -697,6 +703,7 @@ document.getElementById('phone').addEventListener('input', function() {
 
 async function _searchPhone(phone) {
   _newFamilyMember = false;
+  _confirmNewDespiteName = false;
   const { data } = await supabase
     .from('patients')
     .select('id, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
@@ -718,6 +725,7 @@ async function _searchPhone(phone) {
 
 async function _searchName(query) {
   _newFamilyMember = false;
+  _confirmNewDespiteName = false;
   const { data } = await supabase
     .from('patients')
     .select('id, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
@@ -737,6 +745,7 @@ async function _searchName(query) {
 
 async function _searchUhid(uhid) {
   _newFamilyMember = false;
+  _confirmNewDespiteName = false;
   const suffix = uhid.replace(/-/g,'').slice(-6).toLowerCase();
   const { data } = await supabase
     .rpc('search_patient_by_uhid', { p_tenant_id: tenantId, p_uhid_suffix: suffix });
@@ -754,6 +763,7 @@ async function _searchUhid(uhid) {
 async function _selectPatient(patient) {
   _patient = patient;
   _newFamilyMember = false;
+  _confirmNewDespiteName = false;
   _activeScanSessionId = null;  // Session 173: search-selected a patient — decouple from any open Reg. Queue entry
   _scanDeptOpdId = _scanDeptOpdName = null;  // Session 181: no longer that scan session's department lock either
   document.getElementById('name').value = patient.name;
@@ -1019,7 +1029,7 @@ async function _checkAbhaAddressMismatch() {
   }
 }
 
-function _showPicker(patients, phone) {
+function _showPicker(patients, phone, opts = {}) {
   _clearTag();
   const picker = document.getElementById('patient-picker');
   picker.innerHTML = patients.map(p => `
@@ -1027,13 +1037,13 @@ function _showPicker(patients, phone) {
       <div class="picker-avatar">${_esc(p.name.charAt(0).toUpperCase())}</div>
       <div>
         <div class="picker-name">${_esc(p.name)}</div>
-        <div class="picker-sub">UHID: ${_uhid(p.id)}</div>
+        <div class="picker-sub">UHID: ${_uhid(p.id)}${p.phone && opts.showPhone ? ' · ☎ ' + _esc(String(p.phone)) : ''}</div>
       </div>
     </div>
   `).join('') + `
     <div class="picker-new" id="picker-new-btn">
       <span style="font-size:16px">➕</span>
-      <span class="picker-new-label">New family member with same number</span>
+      <span class="picker-new-label">${_esc(opts.newLabel || 'New family member with same number')}</span>
     </div>
   `;
   picker.classList.add('show');
@@ -1045,7 +1055,7 @@ function _showPicker(patients, phone) {
     });
   });
 
-  document.getElementById('picker-new-btn').addEventListener('click', _startNewFamilyMember);
+  document.getElementById('picker-new-btn').addEventListener('click', opts.onNew || _startNewFamilyMember);
 }
 
 function _startNewFamilyMember() {
@@ -1080,6 +1090,7 @@ function _clearTag() {
   _patient = null;
   _activePackage = null;
   _newFamilyMember = false;
+  _confirmNewDespiteName = false;
   _activeScanSessionId = null;  // Session 173: no longer registering whichever Reg. Queue entry (if any) was open
   _scanDeptOpdId = _scanDeptOpdName = null;  // Session 181: no longer that scan session's department lock either
   document.getElementById('patient-tag').classList.remove('show');
@@ -1226,6 +1237,48 @@ async function handleSubmit() {
             found = (!incoming || !stored || stored === incoming) ? candidate : null;
           }
         }
+
+        // Session 193 — same-name / different-phone duplicate guard.
+        // Recurring class: a returning patient is registered with a mistyped or second
+        // phone number, no phone/ABHA match is found, and a brand-new patient record is
+        // silently created — splitting their history and (for ABDM patients) stranding
+        // new care contexts on a record `discover` can never reach (the NHA-demo
+        // Bharathi N failure, Session 192). Session 170 only hard-blocked the
+        // same-phone multi-match bypass; this covers the different-phone/same-name case.
+        // Skipped once the receptionist has explicitly confirmed it's a different person.
+        if (!found && !_confirmNewDespiteName) {
+          const _norm = s => s.trim().toLowerCase().replace(/\s+/g, ' ');
+          const prefix = name.slice(0, 3);   // index-friendly prefilter; exact match applied below
+          const { data: sameName } = await supabase
+            .from('patients')
+            .select('id, name, age, gender, date_of_birth, blood_group, abha_number, abha_address, phone')
+            .eq('tenant_id', tenantId)
+            .ilike('name', `${prefix}%`)
+            .neq('phone', phone)
+            .limit(8);
+          const nameMatches = (sameName ?? []).filter(p => _norm(p.name) === _norm(name));
+          if (nameMatches.length) {
+            _loading(btn, false);
+            _showPicker(nameMatches, phone, {
+              showPhone: true,
+              newLabel: `Not the same person — register a new patient named "${name}"`,
+              onNew: () => {
+                _confirmNewDespiteName = true;
+                document.getElementById('patient-picker').classList.remove('show');
+                // _showPicker() ran _clearTag(), which wipes the demographic fields —
+                // restore what the receptionist already typed before re-submitting.
+                if (demographics.age)           document.getElementById('f-age').value    = demographics.age;
+                if (demographics.gender)        document.getElementById('f-gender').value  = demographics.gender;
+                if (demographics.date_of_birth) document.getElementById('f-dob').value     = demographics.date_of_birth;
+                if (demographics.blood_group)   document.getElementById('f-blood').value   = demographics.blood_group;
+                if (abha)                       document.getElementById('abha').value      = abha;
+                handleSubmit();
+              },
+            });
+            return _alert('error', `A patient named "${name}" already exists at this organisation with a different phone number. If this is the same person, pick their record above (then correct the number if needed). Otherwise choose "register a new patient" to confirm they're someone different.`);
+          }
+        }
+
         patient = found ?? await createPatient(name, phone, tenantId, abha, demographics, _pendingAbhaAddress);
       }
 

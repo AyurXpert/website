@@ -7209,16 +7209,23 @@ window.testDiscoverMatch = async function() {
     }
 
     const matchLabel = data.matchedBy === 'HEALTH_ID' ? 'ABHA identifier (exact)' : 'Demographic match (MR — name + mobile + DOB/gender)';
-    const ccRows = (data.careContexts ?? []).map(cc => `
-      <div style="padding:8px 10px;background:#fff;border:1px solid var(--border);border-radius:6px;margin-top:6px">
-        <div style="font-weight:600;font-size:12.5px">${_esc(cc.display ?? cc.care_context_ref)}</div>
+    const allCCs = data.careContexts ?? [];
+    // Session 193: discover returns ONLY unlinked care contexts — mirror that here so
+    // the demo tool matches production exactly.
+    const ccRow = cc => `
+      <div style="padding:8px 10px;background:#fff;border:1px solid var(--border);border-radius:6px;margin-top:6px${cc.linked ? ';opacity:.6' : ''}">
+        <div style="font-weight:600;font-size:12.5px">${_esc(cc.display ?? cc.care_context_ref)}${cc.linked ? ' <span style="font-weight:500;font-size:10.5px;color:var(--text-muted)">· already linked, not offered again</span>' : ''}</div>
         <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${(cc.hi_types??[]).map(t=>_esc(t)).join(' · ') || 'No record types set'} ${cc.abha_address ? '· ABHA: '+_esc(cc.abha_address) : '· No ABHA on file'}</div>
-      </div>`).join('');
+      </div>`;
+    const unlinkedRows = allCCs.filter(cc => !cc.linked).map(ccRow).join('');
+    const linkedRows   = allCCs.filter(cc => cc.linked).map(ccRow).join('');
+    const discoverable = data.discoverableCount ?? allCCs.filter(cc => !cc.linked).length;
 
     resultEl.innerHTML = `<div style="padding:12px 14px;background:#f0faf5;border:1px solid #b8ddc4;border-radius:8px;font-size:13px">
       ✅ Matched <strong>${_esc(data.patient?.name ?? '')}</strong> via ${matchLabel}.
-      <div style="margin-top:8px;font-weight:600;font-size:12px;color:var(--green-deep)">${(data.careContexts??[]).length} care context${(data.careContexts??[]).length===1?'':'s'} would be returned to ABDM:</div>
-      ${ccRows || '<div style="font-size:12px;color:var(--text-muted);margin-top:4px">None on file yet.</div>'}
+      <div style="margin-top:8px;font-weight:600;font-size:12px;color:var(--green-deep)">${discoverable} care context${discoverable===1?'':'s'} would be returned to ABDM as discoverable:</div>
+      ${unlinkedRows || '<div style="font-size:12px;color:var(--text-muted);margin-top:4px">None — every care context on file is already linked, so discover returns "no records found" (correct: linked records show under the PHR app\'s Linked Facilities).</div>'}
+      ${linkedRows ? `<div style="margin-top:10px;font-size:11.5px;color:var(--text-muted)">Already linked (not returned by discover):</div>${linkedRows}` : ''}
     </div>`;
   } catch (err) {
     resultEl.innerHTML = `<span style="color:#dc2626;font-size:13px">${_esc(safeErrorMessage(err, 'Could not run the match.'))}</span>`;
