@@ -117,6 +117,41 @@ export async function fetchMyDuty(supabase, tenantId, profileId) {
 
 function _esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
+// Session 192 follow-up (Dr. Venkatesh, live): on a day a nurse holds BOTH her home slot
+// AND an extra-duty covering slot in the same department + shift (Session 190's widening /
+// relief), My Duty Schedule showed two near-identical rows -- she couldn't see at a glance
+// that she's responsible for Beds 1–20 AND Beds 41–60 that shift. Merge them into ONE line
+// per (date, shift, department): all her bed ranges joined ("Beds 1–20 + Beds 41–60"), the
+// covering note kept, the 🔁 Extra duty badge shown if any part is relief. A cover in a
+// DIFFERENT department (cross-department pairing) or a different shift stays its own line.
+const _SHIFT_RANK = { morning: 0, general: 0, afternoon: 1, evening: 1, night: 2 };
+function _groupRows(rows) {
+  const groups = new Map();
+  for (const r of rows) {
+    const key = `${r.shift_date}|${r.shift_type}|${r.department_id}`;
+    (groups.get(key) || groups.set(key, []).get(key)).push(r);
+  }
+  return [...groups.values()].map(g => {
+    const ranges = [...new Set(
+      g.filter(r => r.bed_range_start && r.bed_range_end)
+       .map(r => `Beds ${r.bed_range_start}–${r.bed_range_end}`)
+    )];
+    const notes = [...new Set(g.map(r => r.notes).filter(Boolean))].join(' · ');
+    return {
+      shift_date: g[0].shift_date,
+      shift_type: g[0].shift_type,
+      department_id: g[0].department_id,
+      bedLabel: ranges.join(' + '),
+      notes,
+      is_relief_assignment: g.some(r => r.is_relief_assignment),
+      is_confirmed: g.every(r => r.is_confirmed),
+    };
+  }).sort((a, b) =>
+    a.shift_date.localeCompare(b.shift_date) ||
+    (_SHIFT_RANK[a.shift_type] ?? 9) - (_SHIFT_RANK[b.shift_type] ?? 9)
+  );
+}
+
 // Session 168 follow-up (3rd round): Dr. Venkatesh's feedback -- every row in the expanded
 // grid looked identical regardless of whether that day had already passed, so a nurse scanning
 // the list had no visual anchor for "where am I right now" beyond reading every date by hand.
@@ -126,11 +161,11 @@ function _esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '
 // which rows get fetched or how they're grouped.
 function _rowsHtml(rows, deptNames, shiftLabels, shiftTimesMap, todayStr) {
   if (!rows.length) return '';
-  return '<table class="my-duty-table"><tbody>' + rows.map(r => {
+  return '<table class="my-duty-table"><tbody>' + _groupRows(rows).map(r => {
     const dept = _esc(deptNames[r.department_id] || '—');
     const shiftLabel = _esc(shiftLabels[r.shift_type] || r.shift_type);
     const shiftTime = _esc(shiftTimesMap[r.shift_type] || '');
-    const beds = (r.bed_range_start && r.bed_range_end) ? ` · Beds ${r.bed_range_start}–${r.bed_range_end}` : '';
+    const beds = r.bedLabel ? ` · ${_esc(r.bedLabel)}` : '';
     const note = r.notes ? ` · ${_esc(r.notes)}` : '';
     const relief = r.is_relief_assignment ? ' <span class="my-duty-badge">🔁 Extra duty</span>' : '';
     const confirmed = r.is_confirmed ? '' : ' <span class="my-duty-pending">Pending confirm</span>';
@@ -183,11 +218,11 @@ export function renderTodayHtml(data) {
     </div>${offLine}`;
   }
 
-  return todaysRows.map(r => {
+  return _groupRows(todaysRows).map(r => {
     const dept = _esc(deptNames[r.department_id] || '—');
     const shiftLabel = _esc(shiftLabels[r.shift_type] || r.shift_type);
     const shiftTime = _esc(shiftTimesMap[r.shift_type] || '');
-    const beds = (r.bed_range_start && r.bed_range_end) ? ` · Beds ${r.bed_range_start}–${r.bed_range_end}` : '';
+    const beds = r.bedLabel ? ` · ${_esc(r.bedLabel)}` : '';
     const note = r.notes ? ` · ${_esc(r.notes)}` : '';
     const relief = r.is_relief_assignment ? ' <span class="my-duty-badge">🔁 Extra duty</span>' : '';
     return `<div class="my-duty-today-row">
