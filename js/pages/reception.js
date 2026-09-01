@@ -2072,6 +2072,12 @@ let _enrollMobile      = null;
 let _pendingAbhaResponse = null; // stores byAadhaar response when needsMobileOtp=true
 let _existingAbhaAadhaar  = null; // saved when ABDM-1008 (already enrolled)
 let _existingAadhaarTxnId = null;
+// { prof, fmt, tToken } | null — set when an already-existing ABHA is resolved
+// (isExisting branch, or the Aadhaar-login "view existing profile" round trip) so
+// that if the receptionist then picks "Create New ABHA Address", btn-set-abha-addr
+// can render the ABHA Profile card + ABHA Card showing the NEW address. Real
+// correction from Dr. Venkatesh: this path used to end with only a toast.
+let _newAddrExistingProfile = null;
 
 const btnEnroll  = document.getElementById('btn-enroll-abha');
 const enrollPanel = document.getElementById('abha-enroll-panel');
@@ -2092,6 +2098,7 @@ btnEnroll.addEventListener('click', () => {
     document.getElementById('enroll-step-2').style.display = 'none';
     _setEnrollMsg('', '');
     _pendingExistingAbha = null; // defensive — never let a stale mismatch-flow carry into a fresh enrollment
+    _newAddrExistingProfile = null;
   }
 });
 
@@ -2109,6 +2116,7 @@ function _switchToEnroll() {
   document.getElementById('enroll-step-2').style.display = 'none';
   _setEnrollMsg('info', 'Enter your Aadhaar number to create ABHA.');
   _pendingExistingAbha = null; // defensive — never let a stale mismatch-flow carry into a fresh enrollment
+  _newAddrExistingProfile = null;
 }
 window._switchToEnroll = _switchToEnroll;
 
@@ -2308,6 +2316,7 @@ document.getElementById('btn-existing-verify-otp').addEventListener('click', asy
       if (n) document.getElementById('name').value = n;
     }
     _showAbhaProfile(prof, fmt, prof.tToken ?? null);
+    _newAddrExistingProfile = { prof, fmt, tToken: prof.tToken ?? null };
     _setEnrollMsg('success', `ABHA ${fmt} loaded successfully.`);
     await _linkAbha(prof, fmt, null, true);
     setTimeout(() => {
@@ -2458,7 +2467,11 @@ document.getElementById('btn-verify-otp').addEventListener('click', async () => 
       const profMobileClean    = (prof?.mobile ?? prof?.mobileNumber ?? '').replace(/\D/g, '').slice(-10);
       const enteredMobileClean = (_enrollMobile ?? '').replace(/\D/g, '').slice(-10);
       const mobileMismatch     = enteredMobileClean && profMobileClean && enteredMobileClean !== profMobileClean;
-      const existingTToken     = res.tToken ?? null;
+      const existingTToken     = res.tToken ?? res.tokens?.token ?? null;
+      // Remember this resolved profile so the "Create New ABHA Address" branch of
+      // the modal below can show the full ABHA Profile + ABHA Card with the new
+      // address once it's set (see btn-set-abha-addr).
+      _newAddrExistingProfile  = { prof, fmt, tToken: existingTToken };
 
       _showAbhaExistsModal(
         _maskAbha(fmt),
@@ -2635,11 +2648,11 @@ document.getElementById('btn-set-abha-addr').addEventListener('click', async () 
     document.getElementById('abha-prof-address').textContent = savedAddr;
     _setEnrollMsg('success', `✓ ABHA Address set: ${savedAddr}`);
     // Also surface it on the persistent note under the main ABHA Number field —
-    // the enroll panel (and this message) auto-closes in 2s, and the "existing
-    // account → new address" path never populates the ABHA Profile card (no full
-    // demographic profile was fetched for it), so without this the confirmation
-    // was easy to miss entirely and the address was never visible anywhere on
-    // the registration form itself. Real bug found live, Session 170.
+    // the enroll panel (and this message) auto-closes in 2s. When the ABHA Profile
+    // card IS rendered (see _newAddrExistingProfile below) this is belt-and-braces;
+    // when it isn't (no profile was resolved for this account) it's the only place
+    // the new address is visible on the registration form. Real bug found live,
+    // Session 170.
     const abhaNum = document.getElementById('abha').value.trim();
     _setAbhaNote('verified', `✓ ABHA ${abhaNum ? abhaNum + ' — ' : ''}Address: ${savedAddr}`);
     // Also a proper toast — the small note line above was easy to miss while
@@ -2654,6 +2667,23 @@ document.getElementById('btn-set-abha-addr').addEventListener('click', async () 
     _setPendingAbhaAddress(savedAddr);
     if (_patient?.id) {
       await supabase.from('patients').update({ abha_address: savedAddr }).eq('id', _patient.id);
+    }
+    // When this address was minted for an ALREADY-EXISTING ABHA (the modal's
+    // "Create New ABHA Address" branch), we already hold that account's full
+    // profile + tToken — render the ABHA Profile card and ABHA Card showing the
+    // NEW address, same as every other resolved-ABHA path. Real correction from
+    // Dr. Venkatesh: previously this branch ended with only a toast/note.
+    if (_newAddrExistingProfile) {
+      const { prof: exProf, fmt: exFmt, tToken: exTok } = _newAddrExistingProfile;
+      const merged = {
+        ...exProf,
+        preferredAbhaAddress: savedAddr,
+        abhaAddress: savedAddr,
+        phrAddress: [savedAddr],
+        healthId: savedAddr,
+      };
+      _showAbhaProfile(merged, exFmt || document.getElementById('abha').value.trim(), exTok);
+      _newAddrExistingProfile = null;
     }
     setTimeout(() => {
       enrollPanel.style.display = 'none';
