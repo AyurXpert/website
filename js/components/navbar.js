@@ -261,7 +261,7 @@ function _isAdminHtml() {
 function _injectAdminSidebarOverlay(tenant, profile, role) {
   const currentPage = window.location.pathname.split('/').pop() || '';
 
-  // Icon rail CSS — always visible at 52px, expands to 256px on hover
+  // Icon rail CSS — always visible at 52px, expands to 248px on hover
   const s = document.createElement('style');
   s.textContent = `
   #axsb-rail{
@@ -273,7 +273,7 @@ function _injectAdminSidebarOverlay(tenant, profile, role) {
     transition:width .22s cubic-bezier(.4,0,.2,1),box-shadow .22s;
     font-family:'DM Sans',sans-serif;
   }
-  #axsb-rail:hover{width:256px;box-shadow:4px 0 24px rgba(0,0,0,.14)}
+  #axsb-rail:hover{width:248px;box-shadow:4px 0 24px rgba(0,0,0,.14)}
   .axsb-head{padding:14px 0;border-bottom:1px solid #e5e7eb;flex-shrink:0;overflow:hidden}
   .axsb-org{
     padding:0 14px;font-size:13px;font-weight:700;color:#1a2e22;

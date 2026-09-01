@@ -33,7 +33,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
 /* ── Buttons ── */
 .btn{
-  height:40px;padding:0 18px;border-radius:var(--radius);
+  height:44px;padding:0 18px;border-radius:var(--radius);
   font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;
   cursor:pointer;border:none;transition:background .15s,color .15s;white-space:nowrap;
   display:inline-flex;align-items:center;gap:6px;
@@ -42,7 +42,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .btn-primary:hover{background:#1f5c37}
 .btn-secondary{background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)}
 .btn-secondary:hover{background:var(--green-light)}
-.btn-sm{height:32px;padding:0 12px;font-size:12px}
+.btn-sm{height:44px;padding:0 12px;font-size:12px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 
 /* ── Alert ── */
@@ -166,13 +166,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .field{margin-bottom:14px}
 .field label{display:block;font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px}
 .field input,.field select,.field textarea{
-  width:100%;height:40px;padding:0 12px;
+  width:100%;height:44px;padding:0 12px;
   border:1.5px solid var(--border);border-radius:var(--radius);
   font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text-dark);
   background:var(--white);outline:none;transition:border-color .15s;
 }
 .field textarea{height:80px;padding:8px 12px;resize:none;line-height:1.5}
-.field select{
+.field select{height:44px;
   appearance:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a9485'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 10px center;
@@ -544,7 +544,7 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
           <input id="ka-next-due" type="date" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
-        <button data-onclick="saveKitAudit" style="height:36px;padding:0 20px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Save Audit</button>
+        <button data-onclick="saveKitAudit" style="height:44px;padding:0 20px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Save Audit</button>
         <span id="ka-saved" style="display:none;color:var(--green-mid);font-size:13px;font-weight:600">✓ Saved</span>
       </div>
       <div id="ka-recent" style="margin-top:12px;font-size:12px;color:var(--text-muted)">Loading recent audits…</div>
