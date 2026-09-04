@@ -1961,11 +1961,20 @@ async function _autoLoadAbhaCardInline(token, kind = 'tToken') {
     const res = kind === 'accessToken' ? await downloadPhrCard(token) : await downloadAbhaCard(token);
     _abhaCardData = res;
     body.innerHTML = '';
+    const dataUri = `data:${res.mimeType};base64,${res.base64}`;
     const img = document.createElement('img');
     img.className = 'abha-card-inline-img';
-    img.src = `data:${res.mimeType};base64,${res.base64}`;
+    img.src = dataUri;
     img.alt = 'ABHA Card';
+    img.title = 'Click to enlarge';
+    img.addEventListener('click', () => _openAbhaCardLightbox(dataUri));
     body.appendChild(img);
+    // 4 Sep 2026: real cards pack dense small text/QR — 380px inline still
+    // isn't enough to read comfortably, so this hint points at the lightbox.
+    const hint = document.createElement('div');
+    hint.className = 'abha-card-inline-hint';
+    hint.textContent = '🔍 Click card to enlarge';
+    body.appendChild(hint);
     downloadBtn.disabled = false;
   } catch (err) {
     body.innerHTML = '';
@@ -1973,6 +1982,24 @@ async function _autoLoadAbhaCardInline(token, kind = 'tToken') {
     msg.className = 'enroll-msg error show';
   }
 }
+
+// ── ABHA Card lightbox — click-to-enlarge (4 Sep 2026) ──────────────────
+function _openAbhaCardLightbox(dataUri) {
+  document.getElementById('abha-card-lightbox-img').src = dataUri;
+  document.getElementById('abha-card-lightbox-overlay').style.display = '';
+}
+function _closeAbhaCardLightbox() {
+  document.getElementById('abha-card-lightbox-overlay').style.display = 'none';
+}
+document.getElementById('btn-abha-card-lightbox-close').addEventListener('click', _closeAbhaCardLightbox);
+document.getElementById('abha-card-lightbox-overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'abha-card-lightbox-overlay') _closeAbhaCardLightbox(); // click outside the image
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('abha-card-lightbox-overlay').style.display !== 'none') {
+    _closeAbhaCardLightbox();
+  }
+});
 
 document.getElementById('btn-abha-card-inline-download').addEventListener('click', () => {
   if (!_abhaCardData) return;

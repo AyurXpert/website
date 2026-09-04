@@ -260,7 +260,20 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
    unused white space around it inside the profile card's ~384px content
    width (460px left column − form-body's 24px×2 − abha-profile-card's 14px×2).
    Bumped to use nearly all of that instead. */
-.abha-card-inline-img{max-width:380px;width:100%;border-radius:10px;border:1px solid var(--border);box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.abha-card-inline-img{max-width:380px;width:100%;border-radius:10px;border:1px solid var(--border);box-shadow:0 2px 10px rgba(0,0,0,.12);cursor:zoom-in;transition:box-shadow .15s}
+.abha-card-inline-img:hover{box-shadow:0 4px 18px rgba(0,0,0,.22)}
+.abha-card-inline-hint{font-size:11px;color:var(--text-muted);text-align:center;margin-top:6px}
+/* 4 Sep 2026: 380px still isn't enough for the card's dense small text/QR —
+   click-to-enlarge lightbox reuses the existing .modal-overlay pattern
+   (consent/ABHA-exists modals) rather than inventing a new overlay style. */
+.abha-card-lightbox{position:relative;max-width:min(720px,94vw);width:100%}
+.abha-card-lightbox-img{width:100%;display:block;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.4)}
+.abha-card-lightbox-close{
+  position:absolute;top:-44px;right:0;width:36px;height:36px;border-radius:50%;
+  border:none;background:#fff;color:var(--text-dark);font-size:20px;line-height:1;
+  cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.3);
+}
+.abha-card-lightbox-close:hover{background:#f5f5f5}
 .abha-profile-title{font-size:11px;font-weight:600;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px}
 .abha-profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}
 .abha-profile-item{display:flex;flex-direction:column;gap:2px}
@@ -1269,7 +1282,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
                Card" click needed before Download/Cancel are available. Replaces the old
                abha-card-view-overlay modal entirely. -->
           <div id="abha-card-inline-wrap" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--success-border)">
-            <div id="abha-card-inline-body" style="display:flex;align-items:center;justify-content:center;min-height:60px">
+            <div id="abha-card-inline-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60px">
               <span style="font-size:12px;color:var(--text-mid)">Loading ABHA card…</span>
             </div>
             <div id="abha-card-inline-msg" class="enroll-msg"></div>
@@ -1756,6 +1769,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <button class="btn-otp btn-otp-verify" id="btn-abha-exists-newaddr" type="button"
               style="height:44px;padding:0 22px">Create New ABHA</button>
     </div>
+  </div>
+</div>
+
+<!-- ABHA Card lightbox — click-to-enlarge, shared by every enroll/verify/
+     existing-ABHA call site (_autoLoadAbhaCardInline is the one function
+     that renders the card everywhere). 4 Sep 2026. -->
+<div class="modal-overlay" id="abha-card-lightbox-overlay" style="display:none" role="dialog" aria-modal="true" aria-label="ABHA Card enlarged">
+  <div class="abha-card-lightbox">
+    <button type="button" id="btn-abha-card-lightbox-close" class="abha-card-lightbox-close" aria-label="Close">&times;</button>
+    <img id="abha-card-lightbox-img" class="abha-card-lightbox-img" alt="ABHA Card (enlarged)"/>
   </div>
 </div>
 
