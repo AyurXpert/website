@@ -252,8 +252,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   padding:28px 24px;box-shadow:0 8px 40px rgba(0,0,0,.3);text-align:center
 }
 /* ABHA Card — now shown inline in the profile panel (Session 181 correction 5),
-   not a separate modal. */
-.abha-card-inline-img{max-width:220px;width:100%;border-radius:10px;border:1px solid var(--border);box-shadow:0 2px 10px rgba(0,0,0,.12)}
+   not a separate modal. This is the one place the card renders anywhere in the
+   app (_autoLoadAbhaCardInline is shared by every enroll/verify/existing-ABHA
+   call site), so this single rule covers all of them. 4 Sep 2026: was capped
+   at max-width:220px — real ABHA cards pack a lot of dense small text (name,
+   number, QR, address block), and 220px left it unreadable with a lot of
+   unused white space around it inside the profile card's ~384px content
+   width (460px left column − form-body's 24px×2 − abha-profile-card's 14px×2).
+   Bumped to use nearly all of that instead. */
+.abha-card-inline-img{max-width:380px;width:100%;border-radius:10px;border:1px solid var(--border);box-shadow:0 2px 10px rgba(0,0,0,.12)}
 .abha-profile-title{font-size:11px;font-weight:600;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px}
 .abha-profile-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px}
 .abha-profile-item{display:flex;flex-direction:column;gap:2px}
