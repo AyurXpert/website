@@ -186,6 +186,26 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   font-size:12px;padding:0 12px;height:36px;margin-left:8px;cursor:pointer;
   border-radius:var(--radius);font-family:'DM Sans',sans-serif;
 }
+/* 4 Sep 2026: .btn-otp-resend is reused as a plain neutral secondary-button
+   style by several non-resend actions too (Change Mobile, Back, Download/
+   Print QR) — restyling that shared class would wrongly affect those. This
+   modifier applies only to the actual Resend-OTP buttons (added alongside
+   .btn-otp-resend in markup), which were nearly invisible — no background,
+   muted gray, 12px — next to the bold new 6-box OTP entry above them, and
+   the live countdown ("⏱ Resend in Ns") is the main way staff know whether
+   they can ask ABDM to resend, so it needs real visual weight. Reuses this
+   file's existing amber hint-box palette (#fdf8ef/#e8c97a/#7a5200 — already
+   used for the no-ABHA hints) rather than inventing a new color. */
+.btn-otp-resend.otp-resend-prominent{
+  background:#fdf8ef;border:1.5px solid #e8c97a;color:#7a5200;
+  font-size:13px;font-weight:600;padding:0 14px;height:40px;
+}
+.btn-otp-resend.otp-resend-prominent:not(:disabled):hover{background:#f5ecd8;border-color:#d4ac4a}
+.btn-otp-resend.otp-resend-prominent:disabled{
+  /* Override .btn-otp:disabled's opacity:.6 — the countdown text needs to
+     stay fully legible while it's ticking, not fade out. */
+  opacity:1;background:#fdf8ef;border-color:#e8c97a;color:#7a5200;cursor:not-allowed;
+}
 .enroll-msg{
   margin-top:8px;font-size:12px;line-height:1.5;
   padding:7px 10px;border-radius:6px;display:none;
@@ -876,7 +896,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn-otp btn-otp-verify" id="btn-verify-otp" type="button">Verify OTP</button>
-              <button class="btn-otp btn-otp-resend" id="btn-resend-otp" type="button">Resend OTP</button>
+              <button class="btn-otp btn-otp-resend otp-resend-prominent" id="btn-resend-otp" type="button">↻ Resend OTP</button>
             </div>
           </div>
 
@@ -981,7 +1001,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
                 </div>
               </div>
               <button class="btn-otp btn-otp-verify" id="btn-verify-confirm-otp" type="button">Verify ABHA</button>
-              <button class="btn-otp btn-otp-resend" id="btn-verify-resend" type="button">Resend OTP</button>
+              <button class="btn-otp btn-otp-resend otp-resend-prominent" id="btn-verify-resend" type="button">↻ Resend OTP</button>
             </div>
           </div>
 
@@ -1009,7 +1029,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
                 </div>
               </div>
               <button class="btn-otp btn-otp-verify" id="btn-aad-verify-otp" type="button">Verify Aadhaar</button>
-              <button class="btn-otp btn-otp-resend" id="btn-aad-resend" type="button">Resend OTP</button>
+              <button class="btn-otp btn-otp-resend otp-resend-prominent" id="btn-aad-resend" type="button">↻ Resend OTP</button>
               <div id="aad-no-abha-hint" style="display:none;margin-top:8px;padding:8px 10px;background:#fdf8ef;border:1px solid #e8c97a;border-radius:6px;font-size:12px;color:#7a5200">
                 No ABHA registered for this Aadhaar. <button type="button" data-onclick="_switchToEnroll" style="background:none;border:none;color:var(--green-deep);font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline;padding:0">Create new ABHA →</button>
               </div>
@@ -1047,7 +1067,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
                 </div>
               </div>
               <button class="btn-otp btn-otp-verify" id="btn-mob-verify-otp" type="button">Verify &amp; Get Profile</button>
-              <button class="btn-otp btn-otp-resend" id="btn-mob-resend" type="button">Resend OTP</button>
+              <button class="btn-otp btn-otp-resend otp-resend-prominent" id="btn-mob-resend" type="button">↻ Resend OTP</button>
             </div>
           </div>
 
@@ -1087,7 +1107,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
                 </div>
               </div>
               <button class="btn-otp btn-otp-verify" id="btn-addr-verify-otp" type="button">Verify &amp; Get Profile</button>
-              <button class="btn-otp btn-otp-resend" id="btn-addr-resend" type="button">Resend OTP</button>
+              <button class="btn-otp btn-otp-resend otp-resend-prominent" id="btn-addr-resend" type="button">↻ Resend OTP</button>
             </div>
           </div>
 
@@ -1181,7 +1201,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
               </div>
             </div>
             <button class="btn-otp btn-otp-verify" id="btn-find-verify-otp" type="button">Fetch ABHA Details</button>
-            <button class="btn-otp btn-otp-resend" id="btn-find-resend" type="button">Resend OTP</button>
+            <button class="btn-otp btn-otp-resend otp-resend-prominent" id="btn-find-resend" type="button">↻ Resend OTP</button>
           </div>
           <div class="enroll-msg" id="find-msg"></div>
         </div>

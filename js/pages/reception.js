@@ -2143,19 +2143,22 @@ function _makeResendLimiter(btnId) {
     clearInterval(timerId);
     btn.disabled = true;
     let secs = 60;
-    btn.textContent = `Resend in ${secs}s`;
+    // 4 Sep 2026: ⏱ prefix + the .btn-otp-resend restyle (amber fill, no more
+    // opacity fade while disabled) make the live countdown much easier to
+    // spot next to the OTP boxes — was plain gray text easy to miss.
+    btn.textContent = `⏱ Resend in ${secs}s`;
     timerId = setInterval(() => {
       secs--;
-      if (secs > 0) { btn.textContent = `Resend in ${secs}s`; return; }
+      if (secs > 0) { btn.textContent = `⏱ Resend in ${secs}s`; return; }
       clearInterval(timerId); timerId = null;
       btn.disabled = count >= 2;
-      btn.textContent = count >= 2 ? 'Max attempts — wait 30 min' : 'Resend OTP';
+      btn.textContent = count >= 2 ? '⏱ Max attempts — wait 30 min' : '↻ Resend OTP';
     }, 1000);
   }
   return {
     arm()      { _startCountdown(); },
     onResend() { count++; },
-    reset()    { clearInterval(timerId); timerId = null; count = 0; btn.disabled = false; btn.textContent = 'Resend OTP'; },
+    reset()    { clearInterval(timerId); timerId = null; count = 0; btn.disabled = false; btn.textContent = '↻ Resend OTP'; },
   };
 }
 const _verifyResendLim = _makeResendLimiter('btn-verify-resend');
@@ -2163,6 +2166,10 @@ const _aadResendLim    = _makeResendLimiter('btn-aad-resend');
 const _mobResendLim    = _makeResendLimiter('btn-mob-resend');
 const _addrResendLim   = _makeResendLimiter('btn-addr-resend');
 const _enrollResendLim = _makeResendLimiter('btn-resend-otp');
+// 4 Sep 2026: Find ABHA's Resend button had no real cooldown behind it (unlike
+// its 4 siblings above) — was a plain "go back and re-enter mobile" click with
+// no rate limiting at all. Wired to the same 60s/max-2 limiter for consistency.
+const _findResendLim   = _makeResendLimiter('btn-find-resend');
 
 // ── 6-box OTP helpers ──────────────────────────────
 function _setupOtpBoxes(containerId) {
@@ -2745,7 +2752,7 @@ function _closeAllAbhaPanels() {
   document.getElementById('abha-find-panel').style.display = 'none';
   document.getElementById('btn-find-abha').textContent = '🔍 Patient has ABHA but no card? Fetch by mobile →';
   document.getElementById('btn-find-abha').classList.remove('open');
-  _verifyResendLim.reset(); _aadResendLim.reset(); _mobResendLim.reset(); _addrResendLim.reset(); _enrollResendLim.reset();
+  _verifyResendLim.reset(); _aadResendLim.reset(); _mobResendLim.reset(); _addrResendLim.reset(); _enrollResendLim.reset(); _findResendLim.reset();
   _closeScanPanel();
 }
 
@@ -2821,6 +2828,7 @@ document.getElementById('btn-find-search').addEventListener('click', async () =>
     document.getElementById('find-step-3').style.display = '';
     document.querySelector('#find-otp-boxes .otp-box')?.focus();
     _setFindMsg('info', '✓ OTP sent. Enter the OTP the patient received.');
+    _findResendLim.arm();
   } catch (err) {
     _setFindMsg('error', safeErrorMessage(err, 'Could not send OTP.'));
     document.getElementById('find-no-abha-hint').style.display = '';
@@ -2846,6 +2854,7 @@ document.getElementById('btn-find-change-mobile').addEventListener('click', () =
 
 // "Resend OTP" in OTP step → back to step 1 to re-enter mobile
 document.getElementById('btn-find-resend').addEventListener('click', () => {
+  _findResendLim.onResend();
   document.getElementById('find-step-3').style.display = 'none';
   document.getElementById('find-step-1').style.display = '';
   document.getElementById('find-mobile-input').value = '';
