@@ -11,7 +11,7 @@ import { renderPromoBanner } from '../components/promoBanner.js';
 import {
   requestABHAOtp, enrollABHA,
   checkAndGenerateMobileOTP, verifyCommMobileOtp, finalizeAbhaEnrollment,
-  getAbhaSuggestions, setAbhaAddress, downloadAbhaCard,
+  getAbhaSuggestions, setAbhaAddress, downloadAbhaCard, downloadPhrCard,
   requestABHALoginOtp, verifyABHALogin,
   requestAadhaarLoginOtp, verifyAadhaarLogin,
   sendMobileLoginOtp, verifyMobileLoginOtp,
@@ -256,6 +256,12 @@ async function _linkAbha(prof, fmt, visitId = null, skipGate = false) {
 
 // ── Last tToken (for ABHA card download) + txnId (for suggestions / address) ─────────
 let _lastTToken      = null;
+// 4 Sep 2026 — Verify-by-ABHA-Address is the one verify flow that authenticates via
+// PHR login (not the account/profile login every other flow uses) and so returns a
+// distinct `accessToken`, not a `tToken` — ABDM's card-download endpoint for it is
+// also different (downloadPhrCard, not downloadAbhaCard). Kept as its own variable
+// rather than overloading _lastTToken so the two auth types can never be confused.
+let _lastAccessToken = null;
 let _lastEnrollTxnId = null;
 let _updMobTxnId     = null;
 let _demogMatchResult = null; // { pass, mobileMismatch } — set by _checkDemographicMatch
@@ -1773,6 +1779,7 @@ function _resetForm() {
     document.getElementById(id).value = '');
   _clearAbhaNote();
   _lastTToken = null;
+  _lastAccessToken = null;
   _setPendingAbhaAddress(null); // don't leak a set-but-unsaved ABHA address into the next patient
   document.getElementById('abha-addr-row').style.display = 'none';
   document.getElementById('demog-warn').classList.remove('show');
@@ -1823,7 +1830,7 @@ function _clearAbhaNote() {
   document.getElementById('abha-profile-card').classList.remove('show');
 }
 
-function _showAbhaProfile(prof, abhaNumber, tToken) {
+function _showAbhaProfile(prof, abhaNumber, tToken, accessToken = null) {
   const name   = [prof?.firstName, prof?.middleName, prof?.lastName].filter(Boolean).join(' ') || prof?.name || '';
   const _dobCombined = (prof?.dayOfBirth && prof?.monthOfBirth && prof?.yearOfBirth)
     ? `${prof.dayOfBirth}-${prof.monthOfBirth}-${prof.yearOfBirth}` : null;
@@ -1886,11 +1893,16 @@ function _showAbhaProfile(prof, abhaNumber, tToken) {
 
   // Show / hide action buttons based on tToken availability
   if (tToken) _lastTToken = tToken;
+  if (accessToken) _lastAccessToken = accessToken;
   document.getElementById('btn-update-mobile-open').style.display = _lastTToken ? '' : 'none';
 
   // Session 181 correction 5 (Vipul Singh): ABHA card now loads automatically
   // right alongside the profile — no separate "View ABHA Card" click first.
-  if (_lastTToken) _autoLoadAbhaCardInline(_lastTToken);
+  // 4 Sep 2026: Verify-by-ABHA-Address never had a tToken (only accessToken, see
+  // above), so this branch always fell to "hide the card" for that flow alone —
+  // now tries the PHR-login card endpoint too before giving up.
+  if (_lastTToken) _autoLoadAbhaCardInline(_lastTToken, 'tToken');
+  else if (_lastAccessToken) _autoLoadAbhaCardInline(_lastAccessToken, 'accessToken');
   else document.getElementById('abha-card-inline-wrap').style.display = 'none';
 
   // Auto-fill demographics from ABHA profile
@@ -1928,12 +1940,12 @@ function _calcAgeFromDob(isoDate) {
 // there in the same panel, with Download/Cancel directly beneath the image.
 let _abhaCardData = null; // { mimeType, base64 } for the card currently shown inline
 
-async function _autoLoadAbhaCardInline(tToken) {
+async function _autoLoadAbhaCardInline(token, kind = 'tToken') {
   const wrap        = document.getElementById('abha-card-inline-wrap');
   const body        = document.getElementById('abha-card-inline-body');
   const msg         = document.getElementById('abha-card-inline-msg');
   const downloadBtn = document.getElementById('btn-abha-card-inline-download');
-  if (!tToken) { wrap.style.display = 'none'; return; }
+  if (!token) { wrap.style.display = 'none'; return; }
 
   _abhaCardData = null;
   downloadBtn.disabled = true;
@@ -1943,7 +1955,10 @@ async function _autoLoadAbhaCardInline(tToken) {
   wrap.style.display = '';
 
   try {
-    const res = await downloadAbhaCard(tToken);
+    // 4 Sep 2026: Verify-by-ABHA-Address authenticates via PHR login, which
+    // ABDM fronts with a different endpoint/token (accessToken) than every
+    // other verify flow's account-login tToken — see kind='accessToken' caller.
+    const res = kind === 'accessToken' ? await downloadPhrCard(token) : await downloadAbhaCard(token);
     _abhaCardData = res;
     body.innerHTML = '';
     const img = document.createElement('img');
@@ -3243,7 +3258,9 @@ document.getElementById('btn-addr-verify-otp').addEventListener('click', async (
       const n = [prof?.firstName, prof?.middleName, prof?.lastName].filter(Boolean).join(' ') || prof?.name;
       if (n) document.getElementById('name').value = n;
     }
-    _showAbhaProfile(prof, fmt || '—', null);
+    // 4 Sep 2026: pass the accessToken through as the 4th arg so the ABHA Card
+    // auto-loads for this flow too (was permanently skipped — see _showAbhaProfile).
+    _showAbhaProfile(prof, fmt || '—', null, _addrAccToken);
     _setVerifyMsg('success', 'ABHA Address verified successfully.');
     if (fmt) await _linkAbha(prof, fmt, _currentVisitId);
     setTimeout(() => { verifyPanel.style.display='none'; btnVerifyAbha.textContent='Verify'; btnVerifyAbha.classList.remove('open'); }, 2000);
