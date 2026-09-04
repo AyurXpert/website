@@ -971,8 +971,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <div id="verify-step-2" style="display:none;margin-top:10px">
               <div class="field" style="margin-bottom:8px">
                 <label id="verify-otp-label">OTP received on ABDM-linked mobile</label>
-                <input id="verify-otp" type="tel" inputmode="numeric"
-                       placeholder="Enter OTP" maxlength="6" autocomplete="one-time-code"/>
+                <div class="otp-boxes" id="verify-otp-boxes">
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric" autocomplete="one-time-code"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                </div>
               </div>
               <button class="btn-otp btn-otp-verify" id="btn-verify-confirm-otp" type="button">Verify ABHA</button>
               <button class="btn-otp btn-otp-resend" id="btn-verify-resend" type="button">Resend OTP</button>
@@ -993,8 +999,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <div id="aad-step-2" style="display:none;margin-top:10px">
               <div class="field" style="margin-bottom:8px">
                 <label>OTP received on Aadhaar-linked mobile</label>
-                <input id="aad-otp" type="tel" inputmode="numeric"
-                       placeholder="Enter OTP" maxlength="6" autocomplete="one-time-code"/>
+                <div class="otp-boxes" id="aad-otp-boxes">
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric" autocomplete="one-time-code"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                </div>
               </div>
               <button class="btn-otp btn-otp-verify" id="btn-aad-verify-otp" type="button">Verify Aadhaar</button>
               <button class="btn-otp btn-otp-resend" id="btn-aad-resend" type="button">Resend OTP</button>
@@ -1025,8 +1037,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <div id="mob-step-3" style="display:none;margin-top:10px">
               <div class="field" style="margin-bottom:8px">
                 <label>OTP sent to your registered mobile</label>
-                <input id="mob-otp" type="tel" inputmode="numeric"
-                       placeholder="Enter OTP" maxlength="6" autocomplete="one-time-code"/>
+                <div class="otp-boxes" id="mob-otp-boxes">
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric" autocomplete="one-time-code"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                </div>
               </div>
               <button class="btn-otp btn-otp-verify" id="btn-mob-verify-otp" type="button">Verify &amp; Get Profile</button>
               <button class="btn-otp btn-otp-resend" id="btn-mob-resend" type="button">Resend OTP</button>
@@ -1059,8 +1077,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <div id="addr-step-2" style="display:none;margin-top:10px">
               <div class="field" style="margin-bottom:8px">
                 <label id="addr-otp-label">OTP sent to registered mobile</label>
-                <input id="addr-otp" type="tel" inputmode="numeric"
-                       placeholder="Enter OTP" maxlength="6" autocomplete="one-time-code"/>
+                <div class="otp-boxes" id="addr-otp-boxes">
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric" autocomplete="one-time-code"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                  <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                </div>
               </div>
               <button class="btn-otp btn-otp-verify" id="btn-addr-verify-otp" type="button">Verify &amp; Get Profile</button>
               <button class="btn-otp btn-otp-resend" id="btn-addr-resend" type="button">Resend OTP</button>
@@ -1147,8 +1171,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <div id="find-step-3" style="display:none;margin-top:10px">
             <div class="field" style="margin-bottom:8px">
               <label id="find-otp-label">OTP sent to ABHA-linked mobile</label>
-              <input id="find-otp" type="tel" inputmode="numeric"
-                     placeholder="Enter OTP" maxlength="6" autocomplete="one-time-code"/>
+              <div class="otp-boxes" id="find-otp-boxes">
+                <input class="otp-box" type="tel" maxlength="1" inputmode="numeric" autocomplete="one-time-code"/>
+                <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+                <input class="otp-box" type="tel" maxlength="1" inputmode="numeric"/>
+              </div>
             </div>
             <button class="btn-otp btn-otp-verify" id="btn-find-verify-otp" type="button">Fetch ABHA Details</button>
             <button class="btn-otp btn-otp-resend" id="btn-find-resend" type="button">Resend OTP</button>

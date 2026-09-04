@@ -2195,6 +2195,13 @@ _setupOtpBoxes('enroll-otp-boxes');
 _setupOtpBoxes('enroll-mob-otp-boxes');
 _setupOtpBoxes('enroll-existing-otp-boxes');
 _setupOtpBoxes('upd-mob-otp-boxes');
+// 4 Sep 2026 — Verify Existing ABHA's 4 methods + the standalone Find ABHA
+// panel converted from a single 6-digit text input to the same 6-box style.
+_setupOtpBoxes('verify-otp-boxes');
+_setupOtpBoxes('aad-otp-boxes');
+_setupOtpBoxes('mob-otp-boxes');
+_setupOtpBoxes('addr-otp-boxes');
+_setupOtpBoxes('find-otp-boxes');
 
 // ── Aadhaar show/hide toggle ──────────────────────
 document.getElementById('btn-toggle-aadhaar').addEventListener('click', () => {
@@ -2750,7 +2757,7 @@ btnVerifyAbha.addEventListener('click', () => {
     btnVerifyAbha.textContent = '✕ Cancel';
     btnVerifyAbha.classList.add('open');
     document.getElementById('verify-abha-input').value = '';
-    document.getElementById('verify-otp').value = '';
+    _clearOtpBoxes('verify-otp-boxes');
     document.getElementById('verify-step-1').style.display = '';
     document.getElementById('verify-step-2').style.display = 'none';
     _setVerifyMsg('', '');
@@ -2808,10 +2815,11 @@ document.getElementById('btn-find-search').addEventListener('click', async () =>
   try {
     const res = await sendMobileLoginOtp(mobile);
     _findMobileTxnId = res.txnId;
-    document.getElementById('find-otp').value = '';
+    _clearOtpBoxes('find-otp-boxes');
     document.getElementById('find-otp-label').textContent = res.message || 'OTP sent to ABHA-linked mobile';
     document.getElementById('find-step-1').style.display = 'none';
     document.getElementById('find-step-3').style.display = '';
+    document.querySelector('#find-otp-boxes .otp-box')?.focus();
     _setFindMsg('info', '✓ OTP sent. Enter the OTP the patient received.');
   } catch (err) {
     _setFindMsg('error', safeErrorMessage(err, 'Could not send OTP.'));
@@ -2848,7 +2856,7 @@ document.getElementById('btn-find-resend').addEventListener('click', () => {
 
 // Step 2: Verify OTP → /login/verify returns accounts[] + T-token
 document.getElementById('btn-find-verify-otp').addEventListener('click', async () => {
-  const otp = document.getElementById('find-otp').value.trim();
+  const otp = _getOtpValue('find-otp-boxes');
   if (!otp || !_findMobileTxnId)
     return _setFindMsg('error', !otp ? 'Enter OTP.' : 'Session expired. Enter mobile again.');
   const btn = document.getElementById('btn-find-verify-otp');
@@ -2950,6 +2958,8 @@ document.getElementById('btn-verify-send-otp').addEventListener('click', async (
     document.getElementById('verify-otp-label').textContent =
       _verifyAbhaAuthMethod === 'mobile' ? 'OTP received on communication mobile' : 'OTP received on Aadhaar-linked mobile';
     document.getElementById('verify-step-2').style.display = '';
+    _clearOtpBoxes('verify-otp-boxes');
+    document.querySelector('#verify-otp-boxes .otp-box')?.focus();
     _setVerifyMsg('info', `✓ OTP sent. ${res.message || (_verifyAbhaAuthMethod === 'mobile' ? 'Check communication mobile.' : 'Check Aadhaar-linked mobile.')}`);
     _verifyResendLim.arm();
   } catch (err) {
@@ -2968,7 +2978,7 @@ document.getElementById('btn-verify-resend').addEventListener('click', () => {
 });
 
 document.getElementById('btn-verify-confirm-otp').addEventListener('click', async () => {
-  const otp = document.getElementById('verify-otp').value.trim();
+  const otp = _getOtpValue('verify-otp-boxes');
   if (!otp)          return _setVerifyMsg('error', 'Please enter the OTP.');
   if (!_verifyTxnId) return _setVerifyMsg('error', 'Session expired — please send OTP again.');
 
@@ -3051,6 +3061,8 @@ document.getElementById('btn-aad-send-otp').addEventListener('click', async () =
     document.getElementById('aad-step-1').style.display = 'none';
     document.getElementById('aad-step-2').style.display = '';
     document.getElementById('aad-no-abha-hint').style.display = 'none';
+    _clearOtpBoxes('aad-otp-boxes');
+    document.querySelector('#aad-otp-boxes .otp-box')?.focus();
     _setVerifyMsg('info', `✓ OTP sent. ${res.message || 'Check Aadhaar-linked mobile.'}`);
     _aadResendLim.arm();
   } catch (err) { _setVerifyMsg('error', safeErrorMessage(err)); }
@@ -3063,7 +3075,7 @@ document.getElementById('btn-aad-resend').addEventListener('click', () => {
   _setVerifyMsg('', ''); _aadTxnId = null;
 });
 document.getElementById('btn-aad-verify-otp').addEventListener('click', async () => {
-  const otp = document.getElementById('aad-otp').value.trim();
+  const otp = _getOtpValue('aad-otp-boxes');
   if (!otp || !_aadTxnId) return _setVerifyMsg('error', !otp ? 'Enter OTP.' : 'Session expired.');
   const btn = document.getElementById('btn-aad-verify-otp');
   btn.disabled = true; btn.textContent = 'Verifying…';
@@ -3112,6 +3124,8 @@ document.getElementById('btn-mob-search').addEventListener('click', async () => 
     _mobOtpTxn = res.txnId;
     document.getElementById('mob-step-1').style.display = 'none';
     document.getElementById('mob-step-3').style.display = '';
+    _clearOtpBoxes('mob-otp-boxes');
+    document.querySelector('#mob-otp-boxes .otp-box')?.focus();
     _setVerifyMsg('info', res.message || '✓ OTP sent to your registered mobile.');
     _mobResendLim.arm();
   } catch (err) {
@@ -3171,7 +3185,7 @@ document.getElementById('btn-mob-resend').addEventListener('click', () => {
 });
 
 document.getElementById('btn-mob-verify-otp').addEventListener('click', async () => {
-  const otp = document.getElementById('mob-otp').value.trim();
+  const otp = _getOtpValue('mob-otp-boxes');
   if (!otp || !_mobOtpTxn) return _setVerifyMsg('error', !otp ? 'Enter OTP.' : 'Session expired.');
   const btn = document.getElementById('btn-mob-verify-otp');
   btn.disabled = true; btn.textContent = 'Verifying…';
@@ -3230,6 +3244,8 @@ document.getElementById('btn-addr-search').addEventListener('click', async () =>
       _addrAuthMethod === 'mobile' ? 'OTP sent to communication mobile' : 'OTP sent to Aadhaar-linked mobile';
     document.getElementById('addr-step-1').style.display = 'none';
     document.getElementById('addr-step-2').style.display = '';
+    _clearOtpBoxes('addr-otp-boxes');
+    document.querySelector('#addr-otp-boxes .otp-box')?.focus();
     _setVerifyMsg('info', `✓ OTP sent for ${addr}.`);
     _addrResendLim.arm();
   } catch (err) { _setVerifyMsg('error', safeErrorMessage(err)); }
@@ -3242,7 +3258,7 @@ document.getElementById('btn-addr-resend').addEventListener('click', () => {
   _setVerifyMsg('', ''); _addrTxnId = null;
 });
 document.getElementById('btn-addr-verify-otp').addEventListener('click', async () => {
-  const otp = document.getElementById('addr-otp').value.trim();
+  const otp = _getOtpValue('addr-otp-boxes');
   if (!otp || !_addrTxnId) return _setVerifyMsg('error', !otp ? 'Enter OTP.' : 'Session expired.');
   const btn = document.getElementById('btn-addr-verify-otp');
   btn.disabled = true; btn.textContent = 'Verifying…';
