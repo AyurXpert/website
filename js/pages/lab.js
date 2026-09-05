@@ -536,25 +536,47 @@ window.saveResults = async function(status) {
 // never touches display on an already-existing row, so it only ever bit a
 // standalone LAB-<id> context's first creation); fixed here too for consistency.
 // Also now passes abha_address alongside abha_number, matching the same fix.
+//
+// Standalone case also gained its own generate_link_token push (previously
+// missing entirely, for every patient regardless of ABHA type) — LAB-<id> is a
+// genuinely NEW ref, same as dispensaryPOS.js's/ipd.js's BILL-<id> Invoice
+// contexts, so it needs its own push or it sits linked=false forever, only ever
+// reachable via a patient's own discover/pull. The visit-linked case doesn't
+// need this: it merges into VISIT-<id>, a ref reception.js's own registration-
+// time push already covers, and a content pull always reads whatever's
+// currently in our DB at fetch time regardless of when a hi_type was merged in
+// — re-pushing an already-linked ref would be redundant (and ABDM's sandbox has
+// been observed declining a repeat push of an already-linked ref as a no-op).
 async function _abdmCareContextLabReport(order) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
     const ABDM_HIP_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-hip';
+    const h       = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
     const pt      = order.patients;
     const visitId = order.visit_id;
     const ccRef   = visitId ? `VISIT-${visitId}` : `LAB-${order.id}`;
     const dateStr = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+    const display = visitId ? `OPD Visit - ${dateStr}` : `Lab Report - ${dateStr}`;
     await fetch(ABDM_HIP_FN, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      method: 'POST', headers: h,
       body: JSON.stringify({
         action: 'create_care_context', patient_id: pt.id,
         visit_id: visitId ?? null, care_context_ref: ccRef,
-        display: visitId ? `OPD Visit - ${dateStr}` : `Lab Report - ${dateStr}`,
-        hi_types: ['DiagnosticReport'], abha_number: pt.abha_number, abha_address: pt.abha_address,
+        display, hi_types: ['DiagnosticReport'],
+        abha_number: pt.abha_number, abha_address: pt.abha_address,
       }),
     });
+    if (!visitId && (pt.abha_number || pt.abha_address)) {
+      await fetch(ABDM_HIP_FN, {
+        method: 'POST', headers: h,
+        body: JSON.stringify({
+          action: 'generate_link_token', patient_id: pt.id,
+          abha_number: pt.abha_number, abha_address: pt.abha_address,
+          care_contexts: [{ referenceNumber: ccRef, display, hiType: 'DiagnosticReport' }],
+        }),
+      });
+    }
   } catch (e) { console.warn('[ABDM] lab care context failed:', e.message); }
 }
 
