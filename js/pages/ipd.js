@@ -104,7 +104,7 @@ window.loadAll = async function loadAll() {
       .select(`
         id, tenant_id, admission_date, admitted_at, discharged_at, charges_locked_at,
         status, disposition, diagnosis_primary, diet_type, notes,
-        patients(id, name, phone, abha_number, age, gender),
+        patients(id, name, phone, abha_number, abha_address, age, gender),
         beds(id, bed_number, ward_name, bed_type, department_id),
         departments(id, name, ncism_code),
         profiles!admitting_doctor_id(id, full_name)
@@ -939,8 +939,12 @@ window.saveDischarge = async function() {
   if (bedId) await supabase.from('beds').update({ status: 'vacant' }).eq('id', bedId);
 
   // ABDM M2 — create care context for DischargeSummary FHIR type (fire-and-forget)
+  // 5 Sep 2026 (Session 197) — widened to also fire when only abha_address is on
+  // file (a demographic-only patient linked earlier via User-Initiated Linking),
+  // matching reception.js's/dispensaryPOS.js's fix — see memory
+  // session197_hip_initiated_linking_resolved.md.
   const adm = _admissions.find(a => a.id === admId);
-  if (adm?.patients?.abha_number) {
+  if (adm?.patients?.abha_number || adm?.patients?.abha_address) {
     _abdmCareContextDischarge(adm, admId).catch(() => {});
   }
 
@@ -1137,8 +1141,14 @@ window.confirmGenerateBill = async function() {
   // Session 183: separate Invoice care context for this discharge bill (own
   // BILL-<id> ref — doesn't collide with the admission's DischargeSummary-tagged
   // IPD-<id> context)
-  if (adm.patients?.abha_number) {
-    _abdmCareContextInvoice(bill.id, adm.patients.id, admId, adm.patients.abha_number);
+  // 5 Sep 2026 (Session 197) — widened to also fire on abha_address alone, and to
+  // still create the care context even with neither identifier yet (matching
+  // dispensaryPOS.js's already-shipped fix) -- see _abdmCareContextInvoice below.
+  if (adm.patients?.id) {
+    _abdmCareContextInvoice(bill.id, adm.patients.id, admId, {
+      abhaNumber:  adm.patients.abha_number,
+      abhaAddress: adm.patients.abha_address,
+    });
   }
 
   btn.disabled = false; btn.textContent = 'Generate Bill';
@@ -1169,14 +1179,14 @@ async function _abdmCareContextDischarge(adm, admId) {
         action: 'create_care_context', patient_id: pt.id,
         ipd_id: admId, care_context_ref: ccRef,
         display, hi_types: ['DischargeSummary'],
-        abha_number: pt.abha_number,
+        abha_number: pt.abha_number, abha_address: pt.abha_address,
       }),
     });
     await fetch(ABDM_HIP_FN, {
       method: 'POST', headers,
       body: JSON.stringify({
         action: 'generate_link_token', patient_id: pt.id,
-        abha_number: pt.abha_number, ipd_id: admId,
+        abha_number: pt.abha_number, abha_address: pt.abha_address, ipd_id: admId,
         care_contexts: [{ referenceNumber: ccRef, display, hiType: 'DischargeSummary' }],
       }),
     });
@@ -1191,8 +1201,19 @@ async function _abdmCareContextDischarge(adm, admId) {
 // or it sits linked=false forever and abdm-hip's push loop (.eq('linked', true))
 // never sees it — the common case reuses a cached 6-month token, so this is a
 // cheap direct link/carecontext call, not a fresh demographic-auth round trip.
-async function _abdmCareContextInvoice(billId, patientId, admId, abhaNumber) {
-  if (!billId || !abhaNumber) return;
+//
+// 5 Sep 2026 (Session 197) — this used to hard-require abhaNumber to do
+// ANYTHING at all (not even create_care_context), the same gap dispensaryPOS.js
+// already had fixed on 27 Aug: a demographic-only patient's IPD invoice never
+// got created at all. Now takes { abhaNumber, abhaAddress } distinctly (same as
+// reception.js's _abdmLinkTokenAfterVerify — sending an address string into
+// abdm-hip's number-typed field would silently break Number()/abhaNumToAddr()
+// parsing there) and always creates the care context; generate_link_token only
+// needs EITHER identifier now, not specifically a number — live-proven against
+// real ABDM sandbox the same session (memory
+// session197_hip_initiated_linking_resolved.md).
+async function _abdmCareContextInvoice(billId, patientId, admId, { abhaNumber, abhaAddress } = {}) {
+  if (!billId) return;
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
@@ -1210,17 +1231,21 @@ async function _abdmCareContextInvoice(billId, patientId, admId, abhaNumber) {
       body: JSON.stringify({
         action: 'create_care_context', patient_id: patientId,
         ipd_id: admId ?? null, bill_id: billId,
-        care_context_ref: ccRef, display, hi_types: ['Invoice'], abha_number: abhaNumber,
+        care_context_ref: ccRef, display, hi_types: ['Invoice'],
+        abha_number: abhaNumber, abha_address: abhaAddress,
       }),
     });
-    await fetch(ABDM_HIP_FN, {
-      method: 'POST', headers: h,
-      body: JSON.stringify({
-        action: 'generate_link_token', patient_id: patientId, abha_number: abhaNumber,
-        ipd_id: admId ?? null,
-        care_contexts: [{ referenceNumber: ccRef, display, hiType: 'Invoice' }],
-      }),
-    });
+    if (abhaNumber || abhaAddress) {
+      await fetch(ABDM_HIP_FN, {
+        method: 'POST', headers: h,
+        body: JSON.stringify({
+          action: 'generate_link_token', patient_id: patientId,
+          abha_number: abhaNumber, abha_address: abhaAddress,
+          ipd_id: admId ?? null,
+          care_contexts: [{ referenceNumber: ccRef, display, hiType: 'Invoice' }],
+        }),
+      });
+    }
   } catch (e) { console.warn('[ABDM] invoice care context failed:', e.message); }
 }
 

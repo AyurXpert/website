@@ -77,7 +77,7 @@ async function loadQueue() {
     .select(`
       id, created_at, status,
       visit:visits(id, token_number, chief_complaint, doctor_id, bills(payer_type)),
-      patient:patients(id, name, phone, abha_number),
+      patient:patients(id, name, phone, abha_number, abha_address),
       items:prescription_items(id, medicine_name, medicine_id, dosage, frequency, duration)
     `)
     .eq('tenant_id', tenantId)
@@ -190,7 +190,7 @@ window.openRx = async function(rxId) {
       id, created_at, status,
       visit:visits(id, token_number, chief_complaint, doctor_id,
         notes:consultation_notes(modern_diagnosis, ayurveda_diagnosis)),
-      patient:patients(id, name, phone, abha_number),
+      patient:patients(id, name, phone, abha_number, abha_address),
       items:prescription_items(id, medicine_name, medicine_id, dosage, frequency, duration, anupana, quantity)
     `)
     .eq('id', rxId)
@@ -519,17 +519,17 @@ async function dispense() {
     _abdmCareContextPrescription(_activeRx, _activeRxId);
     // Session 183: separate Invoice care context for this dispensing bill (own
     // BILL-<id> ref, doesn't collide with the visit's Prescription-tagged context).
-    // 27 Aug 2026 -- was gated on abha_number, reasoning "it needs its own
-    // generate_link_token call or it sits linked=false forever" -- written before this
-    // session's own live proof that User-Initiated Linking (the real PHR-app "Pull
-    // Record" flow, discover-driven) links ANY of a patient's care contexts regardless
-    // of when they were created, no generate_link_token needed at all. A demographic-only
-    // patient's Invoice now gets created the same as their Prescription/OPConsultation
-    // contexts -- it just waits for the next discover/link cycle like a freshly-added
-    // context always would, exactly like the fix already made for those. Real gap found
-    // live: Bharathi N pulled all her records and Invoice was the one thing missing --
-    // this was why.
-    _abdmCareContextInvoice(bill.id, _activeRx.patient.id, _activeRx.visit?.id, _activeRx.patient.abha_number);
+    // 5 Sep 2026 (Session 197) — now passes { abhaNumber, abhaAddress } distinctly,
+    // matching reception.js's fix: generate_link_token no longer needs a real ABHA
+    // number (live-proven against real ABDM sandbox the same session, see
+    // memory session197_hip_initiated_linking_resolved.md), so a demographic-only
+    // patient whose abha_address was backfilled by a prior link-confirm now gets
+    // this Invoice proactively pushed too, not just left to wait for the next
+    // discover/link cycle.
+    _abdmCareContextInvoice(bill.id, _activeRx.patient.id, _activeRx.visit?.id, {
+      abhaNumber:  _activeRx.patient.abha_number,
+      abhaAddress: _activeRx.patient.abha_address,
+    });
 
     // 7. Print invoice
     _printInvoice(bill.id, payable, subtotal, discount, total, payMethod, _discountPct());
@@ -582,13 +582,16 @@ async function _abdmCareContextPrescription(rx, rxId) {
 // a patient's care contexts, whenever created — no generate_link_token needed at all
 // for that path. Real gap found live: Bharathi N (a demographic-only patient, no
 // abha_number ever recorded) pulled all her records and Invoice was the one thing
-// missing, because this whole function used to no-op silently for her. Now:
-// create_care_context always runs (same abha_address fallback chain already proven
-// safe for a null abha_number, matching the VISIT-<id> fix); generate_link_token
-// stays abha_number-gated below since THAT specific call still needs a real number to
-// send an OTP push to — a demographic-only patient's Invoice just waits for the next
-// discover/link cycle instead, exactly like a freshly-added VISIT context always would.
-async function _abdmCareContextInvoice(billId, patientId, visitId, abhaNumber) {
+// missing, because this whole function used to no-op silently for her.
+//
+// 5 Sep 2026 (Session 197) — the note above about generate_link_token needing a real
+// abha_number was ALSO wrong, since fixed and live-proven the same session (a real
+// ABDM sandbox link token, zero abhaNumber, actually pushed a care context to a real
+// PHR app + SMS — see memory session197_hip_initiated_linking_resolved.md). Takes
+// { abhaNumber, abhaAddress } distinctly now, same as reception.js's
+// _abdmLinkTokenAfterVerify — sending an address string into abdm-hip's
+// number-typed field would silently break Number()/abhaNumToAddr() parsing there.
+async function _abdmCareContextInvoice(billId, patientId, visitId, { abhaNumber, abhaAddress } = {}) {
   if (!billId) return;
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -605,14 +608,16 @@ async function _abdmCareContextInvoice(billId, patientId, visitId, abhaNumber) {
       body: JSON.stringify({
         action: 'create_care_context', patient_id: patientId,
         visit_id: visitId ?? null, bill_id: billId,
-        care_context_ref: ccRef, display, hi_types: ['Invoice'], abha_number: abhaNumber,
+        care_context_ref: ccRef, display, hi_types: ['Invoice'],
+        abha_number: abhaNumber, abha_address: abhaAddress,
       }),
     });
-    if (abhaNumber) {
+    if (abhaNumber || abhaAddress) {
       await fetch(ABDM_HIP_FN, {
         method: 'POST', headers: h,
         body: JSON.stringify({
-          action: 'generate_link_token', patient_id: patientId, abha_number: abhaNumber,
+          action: 'generate_link_token', patient_id: patientId,
+          abha_number: abhaNumber, abha_address: abhaAddress,
           visit_id: visitId ?? null,
           care_contexts: [{ referenceNumber: ccRef, display, hiType: 'Invoice' }],
         }),

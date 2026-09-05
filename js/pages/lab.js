@@ -161,7 +161,7 @@ async function loadOrders() {
   const date = getViewDate();
   const { data, error } = await supabase
     .from('lab_orders')
-    .select(`*, visits(patients(id,name,age,gender,phone,abha_number)), profiles!ordered_by(full_name), lab_order_items(id,test_name,test_category,panel_label,result_value,is_abnormal,is_critical)`)
+    .select(`*, visits(patients(id,name,age,gender,phone,abha_number,abha_address)), profiles!ordered_by(full_name), lab_order_items(id,test_name,test_category,panel_label,result_value,is_abnormal,is_critical)`)
     .eq('tenant_id', tenantId)
     .eq('order_date', date)
     // Session 127 -- a trainee doctor's draft order (review_status='pending_review')
@@ -511,7 +511,13 @@ window.saveResults = async function(status) {
   }
 
   // ABDM M2 — create care context for DiagnosticReport FHIR type (fire-and-forget)
-  if (status === 'completed' && _activeOrder.patients?.abha_number) {
+  // 5 Sep 2026 (Session 197) — dropped the abha_number gate entirely, matching the
+  // pattern already established for Prescription/Invoice contexts (doctor.js/
+  // dispensaryPOS.js): create_care_context's own abha_address fallback chain
+  // (visit -> patient -> derived-from-number -> null) already handles a fully-
+  // absent ABHA identifier correctly server-side, so there was never a real reason
+  // to gate the call itself on having a number specifically.
+  if (status === 'completed') {
     _abdmCareContextLabReport(_activeOrder).catch(() => {});
   }
 
@@ -523,6 +529,13 @@ window.saveResults = async function(status) {
 // ── ABDM M2 — Care context: DiagnosticReport (fire-and-forget) ───────
 // Merges DiagnosticReport into existing VISIT-{id} care context if order is
 // linked to a visit. Standalone lab orders (no visit_id) get their own LAB-{id} CC.
+// 5 Sep 2026 (Session 197) — real bug found in review: display used an em-dash
+// ("—"), the exact same ABDM-9999 "Invalid display" bug Session 183 already found
+// and fixed in dispensaryPOS.js/ipd.js — plain hyphen only. For the common
+// visit-linked case this was likely masked (create_care_context's UPDATE branch
+// never touches display on an already-existing row, so it only ever bit a
+// standalone LAB-<id> context's first creation); fixed here too for consistency.
+// Also now passes abha_address alongside abha_number, matching the same fix.
 async function _abdmCareContextLabReport(order) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -538,8 +551,8 @@ async function _abdmCareContextLabReport(order) {
       body: JSON.stringify({
         action: 'create_care_context', patient_id: pt.id,
         visit_id: visitId ?? null, care_context_ref: ccRef,
-        display: visitId ? `OPD Visit — ${dateStr}` : `Lab Report — ${dateStr}`,
-        hi_types: ['DiagnosticReport'], abha_number: pt.abha_number,
+        display: visitId ? `OPD Visit - ${dateStr}` : `Lab Report - ${dateStr}`,
+        hi_types: ['DiagnosticReport'], abha_number: pt.abha_number, abha_address: pt.abha_address,
       }),
     });
   } catch (e) { console.warn('[ABDM] lab care context failed:', e.message); }
