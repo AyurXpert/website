@@ -251,7 +251,7 @@ async function _linkAbha(prof, fmt, visitId = null, skipGate = false) {
   }
   if (Object.keys(upd).length > 0)
     await supabase.from('patients').update(upd).eq('id', _patient.id);
-  if (visitId) _abdmLinkTokenAfterVerify(_patient.id, fmt, visitId).catch(() => {});
+  if (visitId) _abdmLinkTokenAfterVerify(_patient.id, { abhaNumber: fmt }, visitId).catch(() => {});
 }
 
 // ── Last tToken (for ABHA card download) + txnId (for suggestions / address) ─────────
@@ -1736,8 +1736,16 @@ async function handleSubmit() {
 
     // ABDM M2: care context — Scenario 1 (has ABHA) or Scenario 2 (no ABHA → SMS)
     const _abhaForCC = abha || patient.abha_number || null;
-    if (_abhaForCC) {
-      _abdmLinkTokenAfterVerify(patient.id, _abhaForCC, visit.id).catch(() => {});
+    // 5 Sep 2026 (Session 196/197) — HIP-Initiated Linking gap: a demographic-only
+    // patient never has _abhaForCC (an ABHA NUMBER), but may already have
+    // patient.abha_address on file from abdm-webhook's link-confirm backfill (once
+    // they've completed User-Initiated Linking once). Previously this fell straight
+    // to the SMS-notify-only branch forever, even after that address was known —
+    // the whole point of Vipul's (NHA) demo test #2 is that a SECOND care context
+    // for the same patient should push proactively, no re-pull needed.
+    const _abhaAddrForCC = patient.abha_address || null;
+    if (_abhaForCC || _abhaAddrForCC) {
+      _abdmLinkTokenAfterVerify(patient.id, { abhaNumber: _abhaForCC, abhaAddress: _abhaAddrForCC }, visit.id).catch(() => {});
     } else if (patient.phone) {
       _abdmSmsNotifyNoAbha(patient.id, patient.phone, patient.name, visit.id).catch(() => {});
     }
@@ -3561,9 +3569,17 @@ document.getElementById('btn-addr-verify-otp').addEventListener('click', async (
 const ABDM_HIP_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-hip';
 const _abdmLinkedVisits = new Set(); // dedup — one notification per visit
 
-// Scenario 1: patient has ABHA — HIP initiated linking
-async function _abdmLinkTokenAfterVerify(patientId, abhaNumber, visitId) {
+// Scenario 1: patient has ABHA — HIP initiated linking.
+// 5 Sep 2026 (Session 196/197): takes { abhaNumber, abhaAddress } instead of one
+// ambiguous string -- a demographic-only patient (linked earlier via User-
+// Initiated Linking, abdm-webhook's link-confirm now backfills their address
+// onto patients.abha_address) has an address but never a number. Sending an
+// address string into a field abdm-hip treats as a number would silently break
+// abhaNumToAddr()/Number() parsing there, so the two are kept distinct all the
+// way through instead of being conflated into one "abha" value like before.
+async function _abdmLinkTokenAfterVerify(patientId, { abhaNumber, abhaAddress } = {}, visitId) {
   if (!visitId || _abdmLinkedVisits.has(visitId)) return;
+  if (!abhaNumber && !abhaAddress) return;
   _abdmLinkedVisits.add(visitId);
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -3576,13 +3592,15 @@ async function _abdmLinkTokenAfterVerify(patientId, abhaNumber, visitId) {
       body: JSON.stringify({
         action: 'create_care_context', patient_id: patientId, visit_id: visitId,
         care_context_ref: careContextRef, display: `OPD Visit - ${dateStr}`,
-        hi_types: ['OPConsultation', 'Prescription', 'DiagnosticReport'], abha_number: abhaNumber,
+        hi_types: ['OPConsultation', 'Prescription', 'DiagnosticReport'],
+        abha_number: abhaNumber, abha_address: abhaAddress,
       }),
     });
     const ltRes = await fetch(ABDM_HIP_FN, {
       method: 'POST', headers: h,
       body: JSON.stringify({
-        action: 'generate_link_token', patient_id: patientId, abha_number: abhaNumber,
+        action: 'generate_link_token', patient_id: patientId,
+        abha_number: abhaNumber, abha_address: abhaAddress,
         visit_id: visitId,
         care_contexts: [{ referenceNumber: careContextRef, display: `OPD Visit - ${dateStr}`, hiType: 'OPConsultation' }],
       }),
