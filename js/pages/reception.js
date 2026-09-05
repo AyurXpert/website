@@ -1913,8 +1913,14 @@ function _showAbhaProfile(prof, abhaNumber, tToken, accessToken = null) {
   const rawDob = prof?.dob ?? prof?.dateOfBirth;
   if (rawDob) {
     const parts = String(rawDob).split('-');
-    // Convert DD-MM-YYYY → YYYY-MM-DD for date input
-    const iso = parts[0].length === 4 ? rawDob : `${parts[2]}-${parts[1]}-${parts[0]}`;
+    const pad2 = (s) => String(s).padStart(2, '0');
+    // Convert DD-MM-YYYY → YYYY-MM-DD for date input (Session 195 sandbox find:
+    // the PHR-login/ABHA-Address profile response sends unpadded D-M-YYYY, e.g.
+    // "3-6-1975" — <input type="date"> silently rejects that as invalid and
+    // leaves the field empty, so every part must be zero-padded to 2 digits).
+    const iso = parts[0].length === 4
+      ? `${parts[0]}-${pad2(parts[1])}-${pad2(parts[2])}`
+      : `${parts[2]}-${pad2(parts[1])}-${pad2(parts[0])}`;
     document.getElementById('f-dob').value = iso;
     _calcAgeFromDob(iso);
   }
