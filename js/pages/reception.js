@@ -725,8 +725,8 @@ async function _searchPhone(phone) {
     return;
   }
   _hidePhoneHint();
-  if (data.length === 1) await _selectPatient(data[0]);
-  else _showPicker(data, phone);
+  if (data.length === 1) await _resolvePatient(data[0]);
+  else _showPicker(data, phone, { showCombos: true });
 }
 
 async function _searchName(query) {
@@ -745,8 +745,8 @@ async function _searchName(query) {
     return;
   }
   _hidePhoneHint();
-  if (data.length === 1) await _selectPatient(data[0]);
-  else _showPicker(data, query);
+  if (data.length === 1) await _resolvePatient(data[0]);
+  else _showPicker(data, query, { showCombos: true });
 }
 
 async function _searchUhid(uhid) {
@@ -762,11 +762,11 @@ async function _searchUhid(uhid) {
     return;
   }
   _hidePhoneHint();
-  if (data.length === 1) await _selectPatient(data[0]);
-  else _showPicker(data, uhid);
+  if (data.length === 1) await _resolvePatient(data[0]);
+  else _showPicker(data, uhid, { showCombos: true });
 }
 
-async function _selectPatient(patient) {
+async function _selectPatient(patient, chosenCombo) {
   _patient = patient;
   _newFamilyMember = false;
   _confirmNewDespiteName = false;
@@ -846,7 +846,63 @@ async function _selectPatient(patient) {
     _prevOpdName    = null;
     _prevDoctorName = null;
 
-    if (count === 0) {
+    if (chosenCombo) {
+      // Session 196 — receptionist explicitly confirmed this exact (ABHA
+      // Address, Specialty OPD, Doctor) thread with the patient from the
+      // phone-search combo picker (_loadPatientCombos + _resolvePatient/
+      // _renderPatientCombos) instead of the silent "single most-recent
+      // visit wins" guess below.
+      // Reuses the same downstream lock mechanism (_applyOpdRule's Follow-up
+      // branch) as an ordinary auto-routed returning patient — just fed an
+      // explicit choice. substitute_id/substitute_name (already validated
+      // against staff_leaves + that specific OPD's opd_doctors by
+      // _loadPatientCombos) take over from the on-leave doctor when present.
+      _prevOpdId      = chosenCombo.opd_id;
+      // On leave + no accepted same-OPD substitute → leave no doctor
+      // pre-assigned at all (Dr. Venkatesh's explicit call) rather than
+      // silently locking to a doctor who won't actually be there today.
+      _prevDoctorId   = chosenCombo.on_leave ? (chosenCombo.substitute_id || null) : chosenCombo.doctor_id;
+      _prevOpdAddress = chosenCombo.abha_address;
+      _prevOpdName    = chosenCombo.opd_name;
+      _prevDoctorName = chosenCombo.substitute_name
+        ? `${chosenCombo.substitute_name} (covering for ${chosenCombo.doctor_name}, on leave)`
+        : (chosenCombo.on_leave ? `${chosenCombo.doctor_name} (on leave — no substitute)` : chosenCombo.doctor_name);
+      catSel.value = 'followup';
+      await loadDoctors(chosenCombo.opd_id);
+      await loadFees(chosenCombo.opd_id);
+      _applyOpdRule(); // locks OPD + doctor to the chosen combo's values
+      // Real bug caught in testing: _loadAbhaAddressPicker() (called earlier,
+      // line ~830) already defaulted the "ABHA Address for this visit"
+      // dropdown to patient.abha_address — the patient's current/preferred
+      // address, which is NOT necessarily the one this specific combo was
+      // actually seen under. Re-point it at the confirmed combo's address so
+      // the visit files under the thread the receptionist just verified with
+      // the patient, not silently under whatever happens to be current. Stays
+      // fully editable afterward — this only changes the default, same as
+      // _loadAbhaAddressPicker's own default always has been.
+      if (chosenCombo.abha_address) {
+        const addrSel = document.getElementById('abha-addr-select');
+        if (addrSel && [...addrSel.options].some(o => o.value === chosenCombo.abha_address)) {
+          addrSel.value = chosenCombo.abha_address;
+          _setPendingAbhaAddress(chosenCombo.abha_address);
+        }
+      }
+      if (hint) {
+        hint.textContent = `↩ Follow-up · ${_prevOpdName}${_prevDoctorName ? ' · ' + _prevDoctorName : ''}`;
+        hint.style.cssText = 'display:block;color:var(--green-mid);font-size:11px;margin-top:4px;font-weight:500';
+      }
+    } else if (chosenCombo === null) {
+      // "🆕 Different issue this time" was explicitly picked from the combo
+      // list — a genuinely new complaint, confirmed with the patient. Force
+      // Screening regardless of visit history (unlike the count-based
+      // fallback below, this never silently guesses a specialty).
+      catSel.value = 'opd';
+      _applyOpdRule();
+      if (hint) {
+        hint.textContent = '🔵 New complaint — routed to Screening OPD';
+        hint.style.cssText = 'display:block;color:#1a6080;font-size:11px;margin-top:4px;font-weight:500';
+      }
+    } else if (count === 0) {
       // New patient → Screening OPD (locked)
       catSel.value = 'opd';
       _applyOpdRule();
@@ -901,7 +957,11 @@ async function _selectPatient(patient) {
   // Runs after _prevOpdAddress is actually known (set just above) — catches the
   // case where the ABHA Address dropdown's own DEFAULT selection is already a
   // mismatch, not just a later manual change (see _checkAbhaAddressMismatch).
-  await _checkAbhaAddressMismatch();
+  // Skipped when chosenCombo was explicitly provided (truthy or null) —
+  // the whole point of this safety net is catching a SILENT mismatch; once
+  // the receptionist has explicitly confirmed a combo (or "different issue")
+  // with the patient, there's no ambiguity left for it to catch.
+  if (chosenCombo === undefined) await _checkAbhaAddressMismatch();
 
   // Check for active package
   _activePackage = null;
@@ -1055,13 +1115,184 @@ function _showPicker(patients, phone, opts = {}) {
   picker.classList.add('show');
 
   picker.querySelectorAll('.picker-item').forEach(item => {
-    item.addEventListener('click', () => {
+    item.addEventListener('click', async () => {
       const p = patients.find(x => x.id === item.dataset.id);
-      if (p) _selectPatient(p);
+      if (!p) return;
+      // Session 196: only the primary phone/name/UHID search pickers show
+      // specialty history — the ABHA-number-collision and same-name-dup
+      // guards (both mid-submit, after OPD/doctor/complaint are already
+      // filled in) reuse this same picker purely to disambiguate WHICH
+      // patient record this is, not to re-route a specialty — showing a
+      // combo list there would be confusing, so they don't opt in.
+      if (!opts.showCombos) { _selectPatient(p); return; }
+      const existing = item.nextElementSibling;
+      if (existing && existing.classList.contains('picker-combos')) {
+        existing.remove(); // second click on the same person collapses it
+        return;
+      }
+      picker.querySelectorAll('.picker-combos').forEach(el => el.remove());
+      const combos = await _loadPatientCombos(p);
+      if (combos.length === 0) { _selectPatient(p); return; }
+      _renderPatientCombos(item, p, combos);
     });
   });
 
   document.getElementById('picker-new-btn').addEventListener('click', opts.onNew || _startNewFamilyMember);
+}
+
+// ── Multi-specialty history combo picker (Session 196) ──────────────────
+// A returning patient may have been seen under several different specialty
+// OPDs, each possibly under a different ABHA Address and doctor. Rather
+// than silently guessing from the single most-recent visit (still the
+// fallback when this returns zero combos — see _selectPatient's own
+// count-based routing), surface every distinct combo so the receptionist
+// can confirm the right one with the patient before registering. Also folds
+// in live doctor-leave/substitute awareness: staff_leaves is the sole
+// source of truth for "on leave today" — deliberately NOT
+// opd_doctors.is_active_today, which is a separate, manually-toggled flag
+// that can drift out of sync with real approved leave (Dr. Venkatesh's
+// explicit call) — and a substitute is only offered once their
+// covering_status is 'accepted' AND they're already assigned to that
+// specific OPD's opd_doctors, so a general HR-covering arrangement never
+// gets suggested as a substitute for a specialty they aren't qualified for.
+async function _loadPatientCombos(patient) {
+  let qry = supabase
+    .from('visits')
+    .select('abha_address, opd_id, doctor_id, created_at, opds(name), profiles!doctor_id(full_name)')
+    .eq('patient_id', patient.id)
+    .eq('tenant_id', tenantId)
+    .not('opd_id', 'is', null)
+    .order('created_at', { ascending: false });
+  if (_screeningOpdId) qry = qry.neq('opd_id', _screeningOpdId);
+  const { data: visits } = await qry;
+
+  const seen = new Set();
+  const combos = [];
+  (visits || []).forEach(v => {
+    const key = `${v.abha_address || ''}|${v.opd_id}|${v.doctor_id || ''}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    combos.push({
+      abha_address: v.abha_address || null,
+      opd_id: v.opd_id,
+      opd_name: v.opds?.name || 'OPD',
+      doctor_id: v.doctor_id || null,
+      doctor_name: v.profiles?.full_name || null,
+      on_leave: false,
+      substitute_id: null,
+      substitute_name: null,
+    });
+  });
+  if (combos.length === 0) return combos;
+
+  const doctorIds = [...new Set(combos.map(c => c.doctor_id).filter(Boolean))];
+  if (doctorIds.length) {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: leaves } = await supabase
+      .from('staff_leaves')
+      .select('profile_id, covering_profile_id, covering_status, covering:profiles!covering_profile_id(full_name)')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'approved')
+      .lte('from_date', today)
+      .gte('to_date', today)
+      .in('profile_id', doctorIds);
+
+    const leaveByDoctor = {};
+    (leaves || []).forEach(l => { leaveByDoctor[l.profile_id] = l; });
+
+    for (const c of combos) {
+      const leave = c.doctor_id && leaveByDoctor[c.doctor_id];
+      if (!leave) continue;
+      c.on_leave = true;
+      if (leave.covering_status === 'accepted' && leave.covering_profile_id) {
+        const { data: sameOpd } = await supabase
+          .from('opd_doctors')
+          .select('id')
+          .eq('opd_id', c.opd_id)
+          .eq('doctor_id', leave.covering_profile_id)
+          .maybeSingle();
+        if (sameOpd) {
+          c.substitute_id = leave.covering_profile_id;
+          c.substitute_name = leave.covering?.full_name || null;
+        }
+      }
+      // No valid same-OPD substitute → substitute_id/substitute_name stay
+      // null; _selectPatient() reads on_leave to leave no doctor
+      // pre-assigned in that case, rather than silently locking to a
+      // doctor who's actually on leave (decision confirmed with Dr.
+      // Venkatesh: the combo itself stays selectable either way).
+    }
+  }
+  return combos;
+}
+
+// Renders the nested combo list under one already-picked patient in the
+// phone-search picker. Clicking a specific combo continues that exact
+// thread — bypasses Screening OPD via _selectPatient()'s existing
+// Follow-up-lock mechanism, just fed an explicit choice instead of always
+// the single most-recent visit. Clicking "Different issue" forces the
+// existing re-triage-to-Screening branch regardless of history, since
+// that's a genuinely new complaint. Shared by both places a combo list can
+// appear: nested under a specific person in the multi-family picker
+// (_showPicker), or standing in for #patient-picker entirely when the
+// phone/name/UHID search already resolved to exactly one person
+// (_resolvePatient) — same row markup and click-wiring either way.
+function _comboRowsHtml(combos) {
+  return combos.map((c, i) => {
+    const addrLine = c.abha_address ? `${_esc(c.abha_address)} — ` : '';
+    let doctorLine;
+    if (c.on_leave && c.substitute_name) {
+      doctorLine = `<span class="combo-leave">Dr. ${_esc(c.doctor_name || 'Unknown')} on leave</span> — Dr. ${_esc(c.substitute_name)} covering today`;
+    } else if (c.on_leave) {
+      doctorLine = `<span class="combo-leave">Dr. ${_esc(c.doctor_name || 'Unknown')} on leave today</span> — no substitute available for this OPD`;
+    } else {
+      doctorLine = c.doctor_name ? `Dr. ${_esc(c.doctor_name)}` : 'No doctor on record';
+    }
+    return `
+      <div class="combo-item" data-idx="${i}">
+        <div class="combo-main">${addrLine}${_esc(c.opd_name)}</div>
+        <div class="combo-sub">${doctorLine}</div>
+      </div>
+    `;
+  }).join('') + `
+    <div class="combo-new-issue">
+      <span style="font-size:15px">🆕</span>
+      <span>Different issue this time</span>
+    </div>
+  `;
+}
+
+function _wireComboRows(container, patient, combos) {
+  container.querySelectorAll('.combo-item').forEach(row => {
+    row.addEventListener('click', () => _selectPatient(patient, combos[Number(row.dataset.idx)]));
+  });
+  const newIssueEl = container.querySelector('.combo-new-issue');
+  if (newIssueEl) newIssueEl.addEventListener('click', () => _selectPatient(patient, null));
+}
+
+function _renderPatientCombos(afterEl, patient, combos) {
+  const wrap = document.createElement('div');
+  wrap.className = 'picker-combos';
+  wrap.innerHTML = _comboRowsHtml(combos);
+  afterEl.insertAdjacentElement('afterend', wrap);
+  _wireComboRows(wrap, patient, combos);
+}
+
+// Entry point for the "phone/name/UHID search already resolved to exactly
+// one person" case (the far more common one than a shared-number household)
+// — used by _searchPhone/_searchName/_searchUhid instead of calling
+// _selectPatient() directly, so a sole match's own specialty history still
+// gets the same combo check a multi-family match already gets via
+// _showPicker. Falls straight through to the unchanged default routing
+// when this person has no non-Screening visit history at all.
+async function _resolvePatient(patient) {
+  const combos = await _loadPatientCombos(patient);
+  if (combos.length === 0) { await _selectPatient(patient); return; }
+  _clearTag(); // matches _showPicker's own reset before showing anything in #patient-picker
+  const picker = document.getElementById('patient-picker');
+  picker.innerHTML = `<div class="combo-picker-header">${_esc(patient.name)} — which visit is this?</div>` + _comboRowsHtml(combos);
+  picker.classList.add('show');
+  _wireComboRows(picker, patient, combos);
 }
 
 function _startNewFamilyMember() {
