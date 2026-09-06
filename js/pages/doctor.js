@@ -4221,7 +4221,13 @@ async function _billLabOrder(labSelected, labOrderId) {
 // deliberate choice on that one test, separate from the bundle.
 let _labSelected = new Map();
 
-function openLabOrderModal() {
+// 6 Sep 2026 (Session 198) — real bug found live-testing: declared as a bare `function`,
+// unreachable from the "🧪 Order via Lab Module" button's data-onclick="openLabOrderModal"
+// delegated handler (which looks up window.openLabOrderModal) — the button has silently done
+// nothing for every doctor, ever, since this Assessment-tab entry point was built. This is the
+// only lab-ordering entry point in doctor.html. Every sibling handler here (closeLabOrderModal,
+// submitLabOrder, selectPanel, etc.) is correctly assigned to window — this one was missed.
+window.openLabOrderModal = function openLabOrderModal() {
   if (!_activePatient) { alert('Select a patient first.'); return; }
   _labSelected = new Map();
   // Build panels
@@ -4243,7 +4249,7 @@ function openLabOrderModal() {
     </div>`).join('');
   updateLabCount();
   document.getElementById('lab-order-overlay').style.display = 'flex';
-}
+};
 
 window.selectPanel = function(tests, label) {
   tests.forEach(t => _labSelected.set(t, label));
