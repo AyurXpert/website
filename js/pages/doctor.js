@@ -2882,7 +2882,53 @@ window.saveImmunization = async function() {
   document.getElementById('imm-custom-name').value= '';
   document.getElementById('imm-custom-row').style.display = 'none';
   await _loadImmunizations(_activePatient.id);
+  _abdmCareContextImmunization(_activePatient);
 };
+
+// 6 Sep 2026 (Session 198 follow-up #4) — real gap found: abdm-fhir's buildImmunization()
+// has worked correctly since Session 87, and this form has saved real immunizations rows
+// all along, but NOTHING ever declared 'ImmunizationRecord' to ABDM — no create_care_context/
+// generate_link_token call existed anywhere for it, in this file or any other. Confirmed via
+// a full grep across js/ for hi_types/hiType: OPConsultation/Prescription/DiagnosticReport/
+// DischargeSummary/Invoice/WellnessRecord all have a real push site; ImmunizationRecord and
+// HealthDocumentRecord had none. This one HI type could never have appeared in a patient's
+// PHR app via the HIP-initiated mechanism, for any patient, ever — a real demo-blocking gap,
+// not just a missed edge case. Patient-scoped ref (IMM-<patientId>), not visit-scoped —
+// buildImmunization() itself reads ALL of a patient's immunizations, not one visit's, so a
+// standing per-patient ref matches its own scope, same reasoning as WellnessRecord being
+// visit-scoped because buildWellness() is.
+async function _abdmCareContextImmunization(patient) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+    const h = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
+    const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const ccRef   = `IMM-${patient.id}`;
+    const display = `Immunization Record - ${dateStr}`;
+
+    const ccRes = await fetch(ABDM_HIP_FN, {
+      method: 'POST', headers: h,
+      body: JSON.stringify({
+        action: 'create_care_context', patient_id: patient.id,
+        care_context_ref: ccRef, display, hi_types: ['ImmunizationRecord'],
+        abha_number: patient.abha_number, abha_address: patient.abha_address,
+      }),
+    });
+    const ccData = await ccRes.json().catch(() => ({}));
+    const realHiTypes = ccData?.hi_types?.length ? ccData.hi_types : ['ImmunizationRecord'];
+
+    if (patient.abha_number || patient.abha_address) {
+      await fetch(ABDM_HIP_FN, {
+        method: 'POST', headers: h,
+        body: JSON.stringify({
+          action: 'generate_link_token', patient_id: patient.id,
+          abha_number: patient.abha_number, abha_address: patient.abha_address,
+          care_contexts: realHiTypes.map(t => ({ referenceNumber: ccRef, display, hiType: t })),
+        }),
+      });
+    }
+  } catch (e) { console.warn('[ABDM] immunization care context failed:', e?.message); }
+}
 
 // ── §18ad — Growth Monitoring ────────────────────
 // [P3, P15, P50, P85, P97] at each age in months
@@ -4606,7 +4652,50 @@ window.uploadClinicalMedia = async function() {
   document.getElementById('media-caption').value = '';
   fileInput.value = '';
   loadMediaList();
+  // Only images actually appear in the built bundle (abdm-fhir's buildHealthDocument()
+  // deliberately skips video rows — see its own comment) — no point declaring the hiType
+  // for a video-only upload, which would only ever surface a placeholder.
+  if (!isVideo && consent && _activePatient) _abdmCareContextHealthDocument(_activePatient);
 };
+
+// 6 Sep 2026 (Session 198 follow-up #4) — same real gap as ImmunizationRecord above:
+// buildHealthDocument() has worked correctly since Session 182 (real clinical_media images,
+// gated on consent_obtained), but nothing ever declared 'HealthDocumentRecord' to ABDM — no
+// push site existed anywhere. Patient-scoped ref (HDOC-<patientId>), matching
+// buildHealthDocument()'s own patient-wide scope (all consented images, not one visit's) and
+// NRCES's own definition of this record type as historical/patient-level, not per-visit.
+async function _abdmCareContextHealthDocument(patient) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+    const h = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
+    const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const ccRef   = `HDOC-${patient.id}`;
+    const display = `Health Document - ${dateStr}`;
+
+    const ccRes = await fetch(ABDM_HIP_FN, {
+      method: 'POST', headers: h,
+      body: JSON.stringify({
+        action: 'create_care_context', patient_id: patient.id,
+        care_context_ref: ccRef, display, hi_types: ['HealthDocumentRecord'],
+        abha_number: patient.abha_number, abha_address: patient.abha_address,
+      }),
+    });
+    const ccData = await ccRes.json().catch(() => ({}));
+    const realHiTypes = ccData?.hi_types?.length ? ccData.hi_types : ['HealthDocumentRecord'];
+
+    if (patient.abha_number || patient.abha_address) {
+      await fetch(ABDM_HIP_FN, {
+        method: 'POST', headers: h,
+        body: JSON.stringify({
+          action: 'generate_link_token', patient_id: patient.id,
+          abha_number: patient.abha_number, abha_address: patient.abha_address,
+          care_contexts: realHiTypes.map(t => ({ referenceNumber: ccRef, display, hiType: t })),
+        }),
+      });
+    }
+  } catch (e) { console.warn('[ABDM] health document care context failed:', e?.message); }
+}
 
 // ── §21t Swarnaprashan Register (KAU OPD) ────────────────────────────────────
 window.saveSwarnaprashan = async function() {
