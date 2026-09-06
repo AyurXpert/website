@@ -566,7 +566,7 @@ async function _abdmCareContextLabReport(order) {
     const ccRef   = visitId ? `VISIT-${visitId}` : `LAB-${order.id}`;
     const dateStr = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
     const display = visitId ? `OPD Visit - ${dateStr}` : `Lab Report - ${dateStr}`;
-    await fetch(ABDM_HIP_FN, {
+    const ccRes = await fetch(ABDM_HIP_FN, {
       method: 'POST', headers: h,
       body: JSON.stringify({
         action: 'create_care_context', patient_id: pt.id,
@@ -575,13 +575,19 @@ async function _abdmCareContextLabReport(order) {
         abha_number: pt.abha_number, abha_address: pt.abha_address,
       }),
     });
+    // 6 Sep 2026 (Session 198 follow-up #2) — same read-back fix as doctor.js/
+    // dispensaryPOS.js: the visit-linked branch reuses VISIT-<id>, which can also pick
+    // up a server-side WellnessRecord merge (abdm-hip's vitals check) that a hardcoded
+    // ['DiagnosticReport'] declaration would silently never tell ABDM about.
+    const ccData = await ccRes.json().catch(() => ({}));
+    const realHiTypes = ccData?.hi_types?.length ? ccData.hi_types : ['DiagnosticReport'];
     if (pt.abha_number || pt.abha_address) {
       await fetch(ABDM_HIP_FN, {
         method: 'POST', headers: h,
         body: JSON.stringify({
           action: 'generate_link_token', patient_id: pt.id,
           abha_number: pt.abha_number, abha_address: pt.abha_address,
-          care_contexts: [{ referenceNumber: ccRef, display, hiType: 'DiagnosticReport' }],
+          care_contexts: realHiTypes.map(t => ({ referenceNumber: ccRef, display, hiType: t })),
         }),
       });
     }

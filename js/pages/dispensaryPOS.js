@@ -574,7 +574,7 @@ async function _abdmCareContextPrescription(rx, rxId) {
     const dateStr = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
     const display = visitId ? `OPD Visit - ${dateStr}` : `Prescription - ${dateStr}`;
     const abhaNum  = rx.patient.abha_number, abhaAddr = rx.patient.abha_address;
-    await fetch(ABDM_HIP_FN, {
+    const ccRes = await fetch(ABDM_HIP_FN, {
       method: 'POST', headers: h,
       body: JSON.stringify({
         action: 'create_care_context', patient_id: rx.patient.id,
@@ -582,13 +582,20 @@ async function _abdmCareContextPrescription(rx, rxId) {
         display, hi_types: ['Prescription'], abha_number: abhaNum, abha_address: abhaAddr,
       }),
     });
+    // 6 Sep 2026 (Session 198 follow-up #2) — same read-back fix as doctor.js: reusing
+    // the visit's VISIT-<id> ref here means this call can ALSO trigger abdm-hip's own
+    // vitals-based WellnessRecord merge server-side, which a hardcoded ['Prescription']
+    // declaration below would silently never tell ABDM about. Read the authoritative
+    // merged list back instead of assuming.
+    const ccData = await ccRes.json().catch(() => ({}));
+    const realHiTypes = ccData?.hi_types?.length ? ccData.hi_types : ['Prescription'];
     if (abhaNum || abhaAddr) {
       await fetch(ABDM_HIP_FN, {
         method: 'POST', headers: h,
         body: JSON.stringify({
           action: 'generate_link_token', patient_id: rx.patient.id,
           abha_number: abhaNum, abha_address: abhaAddr,
-          care_contexts: [{ referenceNumber: ccRef, display, hiType: 'Prescription' }],
+          care_contexts: realHiTypes.map(t => ({ referenceNumber: ccRef, display, hiType: t })),
         }),
       });
     }
@@ -628,7 +635,7 @@ async function _abdmCareContextInvoice(billId, patientId, visitId, { abhaNumber,
     // Plain hyphen, not an em-dash — Session 183 found ABDM's real careContexts[].display
     // field rejects it ("ABDM-9999: Invalid display").
     const display = `Invoice - ${dateStr}`;
-    await fetch(ABDM_HIP_FN, {
+    const ccRes = await fetch(ABDM_HIP_FN, {
       method: 'POST', headers: h,
       body: JSON.stringify({
         action: 'create_care_context', patient_id: patientId,
@@ -637,6 +644,11 @@ async function _abdmCareContextInvoice(billId, patientId, visitId, { abhaNumber,
         abha_number: abhaNumber, abha_address: abhaAddress,
       }),
     });
+    // 6 Sep 2026 (Session 198 follow-up #2) — same read-back fix as _abdmCareContextPrescription
+    // above: visit_id is passed through even for this BILL-<id> ref, so abdm-hip's own
+    // vitals check can merge WellnessRecord into it too — read the real list back.
+    const ccData = await ccRes.json().catch(() => ({}));
+    const realHiTypes = ccData?.hi_types?.length ? ccData.hi_types : ['Invoice'];
     if (abhaNumber || abhaAddress) {
       await fetch(ABDM_HIP_FN, {
         method: 'POST', headers: h,
@@ -644,7 +656,7 @@ async function _abdmCareContextInvoice(billId, patientId, visitId, { abhaNumber,
           action: 'generate_link_token', patient_id: patientId,
           abha_number: abhaNumber, abha_address: abhaAddress,
           visit_id: visitId ?? null,
-          care_contexts: [{ referenceNumber: ccRef, display, hiType: 'Invoice' }],
+          care_contexts: realHiTypes.map(t => ({ referenceNumber: ccRef, display, hiType: t })),
         }),
       });
     }

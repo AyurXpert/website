@@ -2116,7 +2116,7 @@ async function _abdmCreateCareContext(visitId, patient, notes, disposition, hasR
     const careContextRef = `VISIT-${visitId}`;
     const display        = `OPD Consultation - ${dateStr}`;
 
-    await fetch(ABDM_HIP_FN, {
+    const ccRes = await fetch(ABDM_HIP_FN, {
       method: 'POST', headers: h,
       body: JSON.stringify({
         action:           'create_care_context',
@@ -2124,14 +2124,27 @@ async function _abdmCreateCareContext(visitId, patient, notes, disposition, hasR
         visit_id:         visitId,
         care_context_ref: careContextRef,
         display,
-        hi_types:         [hiType],
+        hi_types:         hasRx ? [hiType, 'Prescription'] : [hiType],
         abha_number:      patient.abha_number,
       }),
     });
 
+    // 6 Sep 2026 (Session 198 follow-up #2) — real bug found live: this used to
+    // recompute the hiTypes to declare from scratch (hasRx ? [hiType,'Prescription']
+    // : [hiType]), independently of what create_care_context's own handler actually
+    // merged server-side — which silently includes WellnessRecord whenever the visit
+    // has real vitals recorded (abdm-hip's own vitals check), something this client
+    // code has no way to know about on its own. Confirmed live: a visit with real BP/
+    // pulse/temp/weight had WellnessRecord correctly merged into care_contexts.hi_types
+    // in our own DB, but ABDM was never told, because this recomputed list never
+    // included it. Now reads the one authoritative list back from the response instead
+    // of guessing — falls back to the old local computation only if the response
+    // didn't carry hi_types (e.g. a network hiccup on the first call).
+    const ccData = await ccRes.json().catch(() => ({}));
+    const realHiTypes = (ccData?.hi_types?.length ? ccData.hi_types : (hasRx ? [hiType, 'Prescription'] : [hiType]));
+
     const abhaNum = patient.abha_number, abhaAddr = patient.abha_address;
     if (abhaNum || abhaAddr) {
-      const realHiTypes = hasRx ? [hiType, 'Prescription'] : [hiType];
       await fetch(ABDM_HIP_FN, {
         method: 'POST', headers: h,
         body: JSON.stringify({
