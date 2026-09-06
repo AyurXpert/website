@@ -1751,7 +1751,7 @@ async function handleSubmit() {
     }
     // Session 183: separate Invoice care context, own ref (BILL-<id>), so it doesn't
     // collide with this visit's OPConsultation/Prescription-tagged VISIT-<id> context.
-    _abdmCareContextInvoice(bill.id, patient.id, visit.id, _abhaForCC).catch(() => {});
+    _abdmCareContextInvoice(bill.id, patient.id, visit.id, { abhaNumber: _abhaForCC, abhaAddress: _abhaAddrForCC }).catch(() => {});
 
     _alert('success', `Token #${nextToken} — ${patient.name} added to queue${payMsg}.`);
     _resetForm();
@@ -3657,7 +3657,17 @@ async function _abdmSmsNotifyNoAbha(patientId, phone, patientName, visitId) {
 // number to send an OTP push to — a demographic-only patient's Invoice just waits for
 // the next discover/link cycle instead, exactly like every other context type already
 // fixed this same way (doctor.js/dispensaryPOS.js).
-async function _abdmCareContextInvoice(billId, patientId, visitId, abhaNumber) {
+// 6 Sep 2026 (Session 198) — real bug found live testing the auto-sync mechanism on a
+// SECOND (demographic-only, no abha_number) patient: this is reception.js's OWN separate
+// copy of the Invoice care-context function, and it never received the Session 197 fix
+// already applied to dispensaryPOS.js's/ipd.js's sibling copies (which accept EITHER
+// abha_number or abha_address). Still gated on a bare abhaNumber param, so for an
+// address-only patient the generate_link_token call for BILL-<id> silently never fired
+// at all — create_care_context ran fine (the local DB row exists), but the ref sat
+// linked=false forever, exactly the "only reachable via a later discover/pull" gap
+// Session 197 fixed everywhere else. Its own call site already computes
+// _abhaAddrForCC but was never passing it through.
+async function _abdmCareContextInvoice(billId, patientId, visitId, { abhaNumber, abhaAddress } = {}) {
   if (!billId) return;
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -3674,14 +3684,16 @@ async function _abdmCareContextInvoice(billId, patientId, visitId, abhaNumber) {
       body: JSON.stringify({
         action: 'create_care_context', patient_id: patientId,
         visit_id: visitId ?? null, bill_id: billId,
-        care_context_ref: ccRef, display, hi_types: ['Invoice'], abha_number: abhaNumber,
+        care_context_ref: ccRef, display, hi_types: ['Invoice'],
+        abha_number: abhaNumber, abha_address: abhaAddress,
       }),
     });
-    if (abhaNumber) {
+    if (abhaNumber || abhaAddress) {
       await fetch(ABDM_HIP_FN, {
         method: 'POST', headers: h,
         body: JSON.stringify({
-          action: 'generate_link_token', patient_id: patientId, abha_number: abhaNumber,
+          action: 'generate_link_token', patient_id: patientId,
+          abha_number: abhaNumber, abha_address: abhaAddress,
           visit_id: visitId ?? null,
           care_contexts: [{ referenceNumber: ccRef, display, hiType: 'Invoice' }],
         }),
