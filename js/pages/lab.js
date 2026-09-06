@@ -541,12 +541,20 @@ window.saveResults = async function(status) {
 // missing entirely, for every patient regardless of ABHA type) — LAB-<id> is a
 // genuinely NEW ref, same as dispensaryPOS.js's/ipd.js's BILL-<id> Invoice
 // contexts, so it needs its own push or it sits linked=false forever, only ever
-// reachable via a patient's own discover/pull. The visit-linked case doesn't
-// need this: it merges into VISIT-<id>, a ref reception.js's own registration-
-// time push already covers, and a content pull always reads whatever's
-// currently in our DB at fetch time regardless of when a hi_type was merged in
-// — re-pushing an already-linked ref would be redundant (and ABDM's sandbox has
-// been observed declining a repeat push of an already-linked ref as a no-op).
+// reachable via a patient's own discover/pull.
+//
+// 6 Sep 2026 (Session 198) — real bug found live: the visit-linked case turned out
+// to need this too, for a different reason than "already linked". ABDM's
+// on_carecontext payload declares hiType per entry, and reception.js's registration
+// -time push for VISIT-<id> only ever declares hiType:'OPConsultation' — ABDM's
+// Gateway was never told this ref would also carry DiagnosticReport, even though our
+// own local care_contexts.hi_types row merges it in fine. Confirmed live: a
+// single-hiType ref (Invoice) auto-fetched into the PHR app within ~16 minutes with
+// zero manual action; this exact VISIT-<id> ref (3 real hi_types locally, only
+// OPConsultation ever declared to ABDM) never auto-fetched at all, even after ~2
+// hours. Re-declaring here — same "reused" cached-token path reception.js's own
+// repeat calls already use safely — is what actually gets DiagnosticReport announced
+// to ABDM for the first time.
 async function _abdmCareContextLabReport(order) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -567,7 +575,7 @@ async function _abdmCareContextLabReport(order) {
         abha_number: pt.abha_number, abha_address: pt.abha_address,
       }),
     });
-    if (!visitId && (pt.abha_number || pt.abha_address)) {
+    if (pt.abha_number || pt.abha_address) {
       await fetch(ABDM_HIP_FN, {
         method: 'POST', headers: h,
         body: JSON.stringify({

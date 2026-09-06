@@ -547,26 +547,51 @@ async function dispense() {
 }
 
 // ── ABDM M2 — Care context: Prescription (fire-and-forget) ───────
-// Merges Prescription into existing VISIT-{id} care context (no new link token —
-// reception already sent one notification when patient's ABHA was verified).
+// Merges Prescription into existing VISIT-{id} care context.
+//
+// 6 Sep 2026 (Session 198) — real bug found live: the old comment's assumption
+// ("no new link token — reception already sent one notification") was wrong.
+// ABDM's on_carecontext payload declares hiType per entry, and reception.js's
+// registration-time push for VISIT-<id> only ever declares hiType:'OPConsultation'
+// — ABDM's Gateway was never told this ref would also carry Prescription, even
+// though our own local care_contexts.hi_types row merges it in fine. Confirmed
+// live: a single-hiType ref (Invoice) auto-fetched into the PHR app within ~16
+// minutes with zero manual action; a VISIT-<id> ref with 3 real hi_types locally
+// but only OPConsultation ever declared to ABDM never auto-fetched at all, even
+// after ~2 hours. Now re-declares here too (same fix applied in doctor.js's
+// completeConsultation() and lab.js's DiagnosticReport handler). Also fixed the
+// same masked em-dash-in-display bug (Session 183/197's "ABDM-9999: Invalid
+// display") — harmless before since display was never sent to ABDM directly by
+// create_care_context, but generate_link_token forwards it verbatim.
 async function _abdmCareContextPrescription(rx, rxId) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
     const ABDM_HIP_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-hip';
+    const h = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
     const visitId = rx.visit?.id;
     const ccRef   = visitId ? `VISIT-${visitId}` : `DISP-${rxId ?? crypto.randomUUID()}`;
     const dateStr = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+    const display = visitId ? `OPD Visit - ${dateStr}` : `Prescription - ${dateStr}`;
+    const abhaNum  = rx.patient.abha_number, abhaAddr = rx.patient.abha_address;
     await fetch(ABDM_HIP_FN, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      method: 'POST', headers: h,
       body: JSON.stringify({
         action: 'create_care_context', patient_id: rx.patient.id,
         visit_id: visitId ?? null, care_context_ref: ccRef,
-        display: visitId ? `OPD Visit — ${dateStr}` : `Prescription — ${dateStr}`,
-        hi_types: ['Prescription'], abha_number: rx.patient.abha_number,
+        display, hi_types: ['Prescription'], abha_number: abhaNum, abha_address: abhaAddr,
       }),
     });
+    if (abhaNum || abhaAddr) {
+      await fetch(ABDM_HIP_FN, {
+        method: 'POST', headers: h,
+        body: JSON.stringify({
+          action: 'generate_link_token', patient_id: rx.patient.id,
+          abha_number: abhaNum, abha_address: abhaAddr,
+          care_contexts: [{ referenceNumber: ccRef, display, hiType: 'Prescription' }],
+        }),
+      });
+    }
   } catch (e) { console.warn('[ABDM] prescription care context failed:', e.message); }
 }
 

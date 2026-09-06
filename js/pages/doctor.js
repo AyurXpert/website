@@ -2031,7 +2031,7 @@ async function completeConsultation() {
     // live: Bharathi's own registration-time care context already exists with
     // abha_address=null). Removed the gate -- always fire this now, matching
     // reception.js's Scenario 2 (no ABHA) design intent.
-    _abdmCreateCareContext(_activeVisitId, _activePatient, notes, disposition);
+    _abdmCreateCareContext(_activeVisitId, _activePatient, notes, disposition, rx.length > 0);
 
   } catch (err) {
     console.error('completeConsultation caught:', err?.message, err?.details, err?.hint);
@@ -2082,23 +2082,42 @@ async function submitForReview() {
 }
 
 // ── ABDM M2 — Care Context creation after consultation ───────────
-// Only upserts the DB record (merges hi_types). Link token is sent
-// by reception.html at ABHA verification time — one notification per visit.
+// 6 Sep 2026 (Session 198) — real root-cause bug found live testing HIP-initiated
+// auto-sync: this used to ONLY upsert the local DB record (merge hi_types) and never
+// call generate_link_token again, on the assumption that reception.js's ONE
+// registration-time notification covered the whole visit going forward. It doesn't.
+// ABDM's on_carecontext payload declares hiType per entry (see abdm-hip's
+// generate_link_token — each element of `care_contexts` becomes its own ABDM
+// "patient" entry with its own hiType), and reception.js's registration-time call
+// only ever declares hiType:'OPConsultation' for this ref — ABDM's Gateway was NEVER
+// told this ref would also carry Prescription (or DiagnosticReport, see lab.js),
+// even though our own local care_contexts.hi_types row grows to include them.
+// Confirmed live: the Invoice care context (BILL-<id>, single hiType, correctly and
+// consistently declared) auto-fetched into the patient's PHR app within ~16 minutes,
+// zero manual action — but this VISIT-<id> ref (3 real hi_types locally, only 1 ever
+// declared to ABDM) never got its auto-fetch triggered at all, even after ~2 hours.
+// Fix: re-declare to ABDM whenever genuinely new content becomes real — here, at
+// consultation finalize, the consultation itself (or DischargeSummary on admission)
+// and Prescription if one was actually written this visit. (Also fixed a masked
+// instance of Session 183's em-dash-in-display bug below — harmless before since
+// `display` was never sent to ABDM directly by the create_care_context branch, but
+// generate_link_token forwards it verbatim to ABDM's real endpoint, which rejects
+// an em-dash with "ABDM-9999: Invalid display".)
 const ABDM_HIP_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-hip';
 
-async function _abdmCreateCareContext(visitId, patient, notes, disposition) {
+async function _abdmCreateCareContext(visitId, patient, notes, disposition, hasRx) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) return;
+    const h = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
 
     const hiType = disposition === 'admission' ? 'DischargeSummary' : 'OPConsultation';
     const dateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     const careContextRef = `VISIT-${visitId}`;
-    const display        = `OPD Consultation — ${dateStr}`;
+    const display        = `OPD Consultation - ${dateStr}`;
 
     await fetch(ABDM_HIP_FN, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      method: 'POST', headers: h,
       body: JSON.stringify({
         action:           'create_care_context',
         patient_id:       patient.id,
@@ -2109,6 +2128,19 @@ async function _abdmCreateCareContext(visitId, patient, notes, disposition) {
         abha_number:      patient.abha_number,
       }),
     });
+
+    const abhaNum = patient.abha_number, abhaAddr = patient.abha_address;
+    if (abhaNum || abhaAddr) {
+      const realHiTypes = hasRx ? [hiType, 'Prescription'] : [hiType];
+      await fetch(ABDM_HIP_FN, {
+        method: 'POST', headers: h,
+        body: JSON.stringify({
+          action: 'generate_link_token', patient_id: patient.id,
+          abha_number: abhaNum, abha_address: abhaAddr,
+          care_contexts: realHiTypes.map(t => ({ referenceNumber: careContextRef, display, hiType: t })),
+        }),
+      });
+    }
   } catch (e) {
     console.warn('ABDM care context fire-and-forget failed (non-critical):', e?.message);
   }
