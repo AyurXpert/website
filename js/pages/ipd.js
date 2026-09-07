@@ -939,12 +939,16 @@ window.saveDischarge = async function() {
   if (bedId) await supabase.from('beds').update({ status: 'vacant' }).eq('id', bedId);
 
   // ABDM M2 — create care context for DischargeSummary FHIR type (fire-and-forget)
-  // 5 Sep 2026 (Session 197) — widened to also fire when only abha_address is on
-  // file (a demographic-only patient linked earlier via User-Initiated Linking),
-  // matching reception.js's/dispensaryPOS.js's fix — see memory
-  // session197_hip_initiated_linking_resolved.md.
+  // 7 Sep 2026 (Session 199) — this used to require abha_number/abha_address before
+  // even attempting create_care_context, the same stale gate Session 197 already
+  // removed from _abdmCareContextInvoice's call site just below (create_care_context
+  // itself needs no ABHA — only generate_link_token genuinely does, and it's given
+  // whatever identifier the patient has, possibly neither). A demographic-only
+  // patient's DischargeSummary care context was silently never created — found live
+  // testing a fresh demographic-only IPD discharge (Uma K R). Now matches Invoice's
+  // pattern: create unconditionally, guarded only on having a patient id.
   const adm = _admissions.find(a => a.id === admId);
-  if (adm?.patients?.abha_number || adm?.patients?.abha_address) {
+  if (adm?.patients?.id) {
     _abdmCareContextDischarge(adm, admId).catch(() => {});
   }
 

@@ -432,8 +432,11 @@ window.loadWardPatients = async function() {
   // decision. beds(id,...) needed here (not just bed_number) so
   // lockChargesAndFreeBed() can free the actual bed row. department_id kept in the select
   // (Session 179) so a zone selection can show which specific real ward each patient is in.
+  // abha_number/abha_address added (Session 199) so lockChargesAndFreeBed() can
+  // create the DischargeSummary ABDM care context without a second round-trip —
+  // see that function for why it needs them.
   let query = supabase.from('ipd_admissions')
-    .select('id,department_id,admission_date,diagnosis_primary,status,disposition,discharged_at,patients(id,name,age,gender,phone),beds(id,bed_number,ward_name)')
+    .select('id,department_id,admission_date,diagnosis_primary,status,disposition,discharged_at,patients(id,name,age,gender,phone,abha_number,abha_address),beds(id,bed_number,ward_name)')
     .eq('tenant_id', tenantId);
   if (isMySlice) {
     query = query.in('department_id', (_mySliceDeptIds && _mySliceDeptIds.length) ? _mySliceDeptIds : ['00000000-0000-0000-0000-000000000000']);
@@ -1042,6 +1045,22 @@ window.lockChargesAndFreeBed = async function() {
 
   if (bedId) await supabase.from('beds').update({ status: 'vacant' }).eq('id', bedId);
 
+  // ABDM M2 — create care context for DischargeSummary FHIR type (fire-and-forget).
+  // 7 Sep 2026 (Session 199) — this is the real completion point for a NORMAL
+  // "Discharged" admission (ipd.js's saveDischarge() only orders the discharge —
+  // status -> clinically_discharged — and never declared DischargeSummary at all;
+  // the ABDM call only ever existed on the rare LAMA/Transferred/Deceased fast
+  // path in ipd.js, which skips this reconciliation screen entirely). Found live
+  // testing a fresh IPD discharge (Uma K R) that never produced a DischargeSummary
+  // record. Mirrors ipd.js's _abdmCareContextDischarge exactly — this codebase's
+  // convention is a page-local copy per push site, not a shared module (same as
+  // Invoice/Prescription/WellnessRecord elsewhere) — guarded only on a patient id,
+  // not ABHA presence (create_care_context itself needs no ABHA, only
+  // generate_link_token does, and it's given whatever identifier exists).
+  if (_activeAdm?.patients?.id) {
+    _abdmCareContextDischarge(_activeAdm, admId).catch(() => {});
+  }
+
   await logAudit('ipd_charges_locked', 'ipd_admissions', admId, { by: profile?.full_name }, _ctx);
   _alert('success', 'Charges locked and bed freed. Billing clerk can now generate the final bill.');
   loadWardPatients();
@@ -1049,6 +1068,42 @@ window.lockChargesAndFreeBed = async function() {
   document.getElementById('no-patient-msg').style.display  = '';
   _activeAdm = null;
 };
+
+// ── ABDM M2 — Care context: DischargeSummary (fire-and-forget) ───────
+// Deliberate page-local copy of ipd.js's _abdmCareContextDischarge (Session 199) —
+// matches this codebase's existing convention of one copy per push call site
+// rather than a shared module (see Invoice/Prescription/WellnessRecord elsewhere).
+async function _abdmCareContextDischarge(adm, admId) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return;
+    const ABDM_HIP_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-hip';
+    const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
+    const ccRef   = `IPD-${admId}`;
+    const dateStr = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+    // Plain hyphen, not an em-dash — ABDM rejects an em-dash in careContexts[].display
+    // ("ABDM-9999: Invalid display") — see ipd.js's own copy of this function.
+    const display = `IPD Discharge - ${dateStr}`;
+    const pt      = adm.patients;
+    await fetch(ABDM_HIP_FN, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        action: 'create_care_context', patient_id: pt.id,
+        ipd_id: admId, care_context_ref: ccRef,
+        display, hi_types: ['DischargeSummary'],
+        abha_number: pt.abha_number, abha_address: pt.abha_address,
+      }),
+    });
+    await fetch(ABDM_HIP_FN, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        action: 'generate_link_token', patient_id: pt.id,
+        abha_number: pt.abha_number, abha_address: pt.abha_address, ipd_id: admId,
+        care_contexts: [{ referenceNumber: ccRef, display, hiType: 'DischargeSummary' }],
+      }),
+    });
+  } catch (e) { console.warn('[ABDM] discharge care context failed:', e.message); }
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function _fmtDate(d) { if(!d)return'—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
