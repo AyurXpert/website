@@ -2255,22 +2255,13 @@ async function _loadAbdmTab() {
 
   document.getElementById('abdm-abha-addr').value = abhaAddr;
 
-  // Set default dates only if not already set.
-  // 7 Sep 2026 — format from LOCAL date parts, never `.toISOString().slice(0,10)`: a
-  // Date built at local midnight (e.g. `new Date(y, m, d+1)`) shifts BACK a calendar day
-  // when serialised to UTC in any positive-offset timezone (IST +5:30), which silently
-  // undid the "tomorrow" default below.
-  const today   = new Date();
-  const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  // "To" defaults to TOMORROW, not today. ABDM's Consent Manager treats the request's To
-  // date as date-only (midnight) when the patient grants, so a To of "today" silently
-  // excludes every record timestamped later on the same day — the patient's PHR app then
-  // shows "no facility available to share within the given request duration" and Grant is
-  // blocked, even with matching care contexts linked. Confirmed live (Uma K R): a
-  // consultation registered at 11:04 IST was invisible to a same-day consent request.
-  const toStr    = ymd(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1));
-  const fromStr  = ymd(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
-  const eraseStr = ymd(new Date(today.getFullYear(), today.getMonth() + 3, today.getDate()));
+  // Set default dates only if not already set
+  const today    = new Date();
+  const toStr    = today.toISOString().slice(0, 10);
+  const fromDate = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+  const fromStr  = fromDate.toISOString().slice(0, 10);
+  const eraseDate = new Date(today.getFullYear(), today.getMonth() + 3, today.getDate());
+  const eraseStr  = eraseDate.toISOString().slice(0, 10);
   if (!document.getElementById('abdm-date-from').value) document.getElementById('abdm-date-from').value = fromStr;
   if (!document.getElementById('abdm-date-to').value)   document.getElementById('abdm-date-to').value   = toStr;
   if (!document.getElementById('abdm-erase-at').value)  document.getElementById('abdm-erase-at').value  = eraseStr;
