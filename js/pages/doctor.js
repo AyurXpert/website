@@ -2257,7 +2257,14 @@ async function _loadAbdmTab() {
 
   // Set default dates only if not already set
   const today    = new Date();
-  const toStr    = today.toISOString().slice(0, 10);
+  // 7 Sep 2026 — "To" defaults to TOMORROW, not today. ABDM's Consent Manager treats the
+  // request's To date as date-only (midnight) when the patient grants, so a To of "today"
+  // silently excludes every record timestamped later on the same day — the patient's PHR
+  // app then shows "no facility available to share within the given request duration" and
+  // Grant is blocked, even with matching care contexts linked. Confirmed live (Uma K R):
+  // a consultation registered at 11:04 IST was invisible to a same-day consent request.
+  const toDateDefault = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+  const toStr    = toDateDefault.toISOString().slice(0, 10);
   const fromDate = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
   const fromStr  = fromDate.toISOString().slice(0, 10);
   const eraseDate = new Date(today.getFullYear(), today.getMonth() + 3, today.getDate());
