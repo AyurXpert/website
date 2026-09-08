@@ -2334,10 +2334,19 @@ function _renderConsentList(consents) {
   };
 
   listEl.innerHTML = consents.map(c => {
-    const col   = statusColor[c.status] || '#888';
+    // Client-side data-retention guard: a still-'granted' consent whose "erase after"
+    // date has passed is treated as expired even before ABDM's EXPIRED callback lands
+    // — hide the record actions and show a retention note. (Server-side purge of
+    // hiu_received_records still relies on ABDM's callback / a scheduled job.)
+    const erasePassed = c.status === 'granted' && c.data_erase_at && new Date(c.data_erase_at) < new Date();
+    const effStatus   = erasePassed ? 'expired' : c.status;
+
+    const col   = statusColor[effStatus] || '#888';
     const date  = new Date(c.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
     const types = (c.hi_types || []).join(', ') || '—';
-    const note  = complianceNote[c.status] || null;
+    const note  = erasePassed
+      ? '⏱ This consent has reached its data-retention (erase) date. Health records are no longer available for viewing.'
+      : (complianceNote[c.status] || null);
     const eraseDate = c.data_erase_at
       ? new Date(c.data_erase_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
       : null;
@@ -2348,14 +2357,14 @@ function _renderConsentList(consents) {
           <div style="font-size:13px;font-weight:600;color:var(--green-deep);word-break:break-all">${_esc(c.abha_address)}</div>
           <div style="font-size:12px;color:#666;margin-top:3px">${date} · Purpose: ${_esc(c.purpose || 'CAREMGT')}</div>
           <div style="font-size:12px;color:#666;margin-top:2px;word-break:break-all">Types: ${_esc(types)}</div>
-          ${eraseDate && c.status === 'granted' ? `<div style="font-size:11px;color:#888;margin-top:2px">Records erase after: ${eraseDate}</div>` : ''}
+          ${eraseDate && effStatus === 'granted' ? `<div style="font-size:11px;color:#888;margin-top:2px">Records erase after: ${eraseDate}</div>` : ''}
         </div>
-        <span style="white-space:nowrap;font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:${col}18;color:${col};border:1px solid ${col}44">${_esc((c.status || '').toUpperCase())}</span>
+        <span style="white-space:nowrap;font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:${col}18;color:${col};border:1px solid ${col}44">${_esc((effStatus || '').toUpperCase())}</span>
       </div>
       ${note
         ? `<div style="margin-top:10px;padding:8px 10px;background:${col}10;border-left:3px solid ${col};border-radius:0 4px 4px 0;font-size:12px;color:${col};font-weight:500">${_esc(note)}</div>`
         : ''}
-      ${c.status === 'granted'
+      ${effStatus === 'granted'
         ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
              <button class="btn" style="font-size:12px;padding:4px 12px" data-onclick="_loadReceivedRecords" data-onclick-a0="${_esc(c.id)}" data-onclick-a1="${_esc(c.status)}">📋 View Records</button>
              <button class="btn" style="font-size:12px;padding:4px 12px" data-onclick="_retriggerConsentFetch" data-onclick-a0="${_esc(c.id)}" title="Ask ABDM to re-send the health data — use if a granted consent hasn't delivered records yet">↻ Re-fetch data</button>
