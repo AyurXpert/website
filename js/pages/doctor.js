@@ -2349,6 +2349,22 @@ async function _submitConsentRequest() {
   const abhaAddress = (document.getElementById('abdm-abha-addr')?.value || '').trim();
   if (!abhaAddress) { statusEl.innerHTML = '<span style="color:#c0392b">Patient ABHA address is required.</span>'; return; }
 
+  // The ABHA field is editable, but the request is filed against _activePatient.id (fixed, below).
+  // Sending a consent for an ABHA that belongs to someone else would pull that person's records
+  // into THIS patient's chart. Block a mismatch unless the clinician explicitly overrides.
+  const ptAbha = (_activePatient?.abha_address || '').trim();
+  if (ptAbha && abhaAddress.toLowerCase() !== ptAbha.toLowerCase()) {
+    const ok = confirm(
+      `The ABHA address entered (${abhaAddress}) does not match this patient's ABHA on file (${ptAbha}).\n\n` +
+      `Any records pulled by this consent will be filed under ${_activePatient?.name || 'this patient'}'s chart. ` +
+      `Send anyway?`
+    );
+    if (!ok) {
+      statusEl.innerHTML = '<span style="color:#c0392b">Cancelled — the ABHA address does not match this patient.</span>';
+      return;
+    }
+  }
+
   const hiTypes = [...document.querySelectorAll('#abdm-hi-types .chip.on')].map(c => c.dataset.value);
   if (!hiTypes.length) { statusEl.innerHTML = '<span style="color:#c0392b">Select at least one health information type.</span>'; return; }
 
