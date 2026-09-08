@@ -827,6 +827,25 @@ window._openAbdmForHistory = function() {
   document.getElementById('c-history').style.display = 'none';
   document.getElementById('welcome').style.display   = 'none';
   document.getElementById('c-active').style.display  = '';
+
+  // Populate the patient identity strip — opened from history, there's no active
+  // visit, so _openVisit()'s header code never runs. Fill it from _historyPatient
+  // (id/name/phone/abha_number/abha_address). No visit → hide the token badge.
+  document.getElementById('pt-token').style.display   = 'none';
+  document.getElementById('pt-name').textContent      = _historyPatient.name || '—';
+  document.getElementById('pt-complaint').textContent = 'Viewing ABDM records';
+  document.getElementById('pt-uhid').textContent      = _uhid(_historyPatient.id);
+  document.getElementById('pt-phone').textContent     = _historyPatient.phone || '—';
+  const abhaWrap = document.getElementById('pt-abha-wrap');
+  const abhaVal  = _historyPatient.abha_number || _historyPatient.abha_address || '';
+  if (abhaVal) {
+    document.getElementById('pt-abha').textContent = abhaVal;
+    abhaWrap.style.display = '';
+  } else {
+    abhaWrap.style.display = 'none';
+  }
+  document.getElementById('pt-prakriti').style.display = 'none';
+
   _switchTab('abdm');
 };
 
@@ -1008,7 +1027,9 @@ window.startConsultation = async function(visitId) {
   if (noRxNotice) noRxNotice.style.display = allowsRx ? 'none' : '';
   document.getElementById('btn-swasthya-card').style.display = allowsRx ? 'none' : '';
 
-  document.getElementById('pt-token').textContent    = visit.token_number;
+  const ptTokenEl = document.getElementById('pt-token');
+  ptTokenEl.style.display = '';                       // may have been hidden by _openAbdmForHistory
+  ptTokenEl.textContent   = visit.token_number;
   document.getElementById('pt-name').textContent     = _activePatient?.name || '—';
   document.getElementById('pt-complaint').textContent = visit.chief_complaint || '—';
   document.getElementById('pt-uhid').textContent     = _uhid(_activePatient?.id);
