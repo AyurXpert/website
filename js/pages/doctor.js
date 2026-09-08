@@ -2356,7 +2356,10 @@ function _renderConsentList(consents) {
         ? `<div style="margin-top:10px;padding:8px 10px;background:${col}10;border-left:3px solid ${col};border-radius:0 4px 4px 0;font-size:12px;color:${col};font-weight:500">${_esc(note)}</div>`
         : ''}
       ${c.status === 'granted'
-        ? `<button class="btn" style="font-size:12px;padding:4px 12px;margin-top:10px" data-onclick="_loadReceivedRecords" data-onclick-a0="${_esc(c.id)}" data-onclick-a1="${_esc(c.status)}">📋 View Records</button>
+        ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+             <button class="btn" style="font-size:12px;padding:4px 12px" data-onclick="_loadReceivedRecords" data-onclick-a0="${_esc(c.id)}" data-onclick-a1="${_esc(c.status)}">📋 View Records</button>
+             <button class="btn" style="font-size:12px;padding:4px 12px" data-onclick="_retriggerConsentFetch" data-onclick-a0="${_esc(c.id)}" title="Ask ABDM to re-send the health data — use if a granted consent hasn't delivered records yet">↻ Re-fetch data</button>
+           </div>
            <div id="recbox-${_esc(c.id)}" style="display:none;margin-top:10px"></div>`
         : ''}
     </div>`;
@@ -2733,6 +2736,38 @@ async function _loadReceivedRecords(consentId, consentStatus) {
   box.innerHTML = summaryHtml + timelineHtml;
 }
 window._loadReceivedRecords = _loadReceivedRecords;
+
+// Re-trigger the HIU health-data fetch for a granted consent. ABDM's sandbox
+// sometimes ACKs a data request ("REQUESTED") but never dispatches the push;
+// calling hiu_request_data again nudges it (records then arrive in ~30s).
+async function _retriggerConsentFetch(consentId) {
+  const box = document.getElementById('recbox-' + consentId);
+  const btn = document.querySelector(`[data-onclick="_retriggerConsentFetch"][data-onclick-a0="${consentId}"]`);
+  const origText = btn ? btn.textContent : '↻ Re-fetch data';
+  if (btn) { btn.disabled = true; btn.textContent = 'Requesting…'; }
+  if (box) { box.style.display = ''; box.dataset.open = '1'; }
+  const setMsg = (msg, color) => { if (box) box.innerHTML = `<div style="font-size:12px;color:${color};padding:6px 0">${_esc(msg)}</div>`; };
+  setMsg('Asking ABDM to re-send the health data…', '#666');
+  try {
+    const token = await _abdmGetToken();
+    const res = await fetch(ABDM_AUTH_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ action: 'hiu_request_data', dbId: consentId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
+    setMsg('✓ Re-fetch requested — records usually arrive within ~30 seconds. Checking…', '#1a7a3a');
+    if (box) box.dataset.open = '0';   // so _loadReceivedRecords opens it fresh
+    setTimeout(() => _loadReceivedRecords(consentId, 'granted'), 9000);
+  } catch (e) {
+    setMsg('Re-fetch failed: ' + e.message, '#c0392b');
+    if (box) box.dataset.open = '0';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
+  }
+}
+window._retriggerConsentFetch = _retriggerConsentFetch;
 window._loadAbdmTab = _loadAbdmTab;
 
 // ── §18r / §18t — Netra + ENT Examination ────────
