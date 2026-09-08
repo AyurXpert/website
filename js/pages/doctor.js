@@ -9,6 +9,7 @@ import { isNCISMType } from '../config/ncism.js';
 import { addOpdBillItem } from '../modules/billing/opdBillItems.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
+import { openTimePicker, formatTime12 } from '../components/timePicker.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -2265,6 +2266,13 @@ async function _loadAbdmTab() {
   if (!document.getElementById('abdm-date-from').value) document.getElementById('abdm-date-from').value = fromStr;
   if (!document.getElementById('abdm-date-to').value)   document.getElementById('abdm-date-to').value   = toStr;
   if (!document.getElementById('abdm-erase-at').value)  document.getElementById('abdm-erase-at').value  = eraseStr;
+  // Erase time (matches the PHR app's "Consent valid upto → Date | Time" pair)
+  const eraseTimeInput = document.getElementById('abdm-erase-time');
+  if (eraseTimeInput && !eraseTimeInput.dataset.touched) {
+    eraseTimeInput.value = eraseTimeInput.value || '23:59';
+    const lbl = document.getElementById('abdm-erase-time-label');
+    if (lbl) lbl.textContent = formatTime12(eraseTimeInput.value);
+  }
 
   // Load consent request list
   const listEl = document.getElementById('abdm-consent-list');
@@ -2347,6 +2355,7 @@ async function _submitConsentRequest() {
   const dateFrom  = document.getElementById('abdm-date-from').value;
   const dateTo    = document.getElementById('abdm-date-to').value;
   const eraseAt   = document.getElementById('abdm-erase-at').value;
+  const eraseTime = (document.getElementById('abdm-erase-time')?.value || '23:59');
   const purpose   = document.getElementById('abdm-purpose').value;
 
   if (!dateFrom || !dateTo || !eraseAt) { statusEl.innerHTML = '<span style="color:#c0392b">All date fields are required.</span>'; return; }
@@ -2370,7 +2379,7 @@ async function _submitConsentRequest() {
         hiTypes,
         dateFrom:      dateFrom + 'T00:00:00.000Z',
         dateTo:        dateTo   + 'T23:59:59.000Z',
-        dataEraseAt:   eraseAt  + 'T23:59:59.000Z',
+        dataEraseAt:   eraseAt  + 'T' + eraseTime + ':00.000Z',
         requesterName: _ctx.userName || null,
       }),
     });
@@ -2387,6 +2396,20 @@ async function _submitConsentRequest() {
   }
 }
 window._submitConsentRequest = _submitConsentRequest;
+
+// Erase-time picker (Material clock dialog, matches the ABDM PHR app's "Consent valid upto" Time field)
+function _openEraseTimePicker() {
+  const hidden = document.getElementById('abdm-erase-time');
+  const label  = document.getElementById('abdm-erase-time-label');
+  openTimePicker({
+    value: hidden?.value || '23:59',
+    onConfirm: (v) => {
+      if (hidden) { hidden.value = v; hidden.dataset.touched = '1'; }
+      if (label)  label.textContent = formatTime12(v);
+    },
+  });
+}
+window._openEraseTimePicker = _openEraseTimePicker;
 
 // ── ABDM: Parse FHIR R4 Bundle into a readable card ──────────────
 function _parseFhirForDisplay(bundle, hiType) {
