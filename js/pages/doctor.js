@@ -408,6 +408,20 @@ if (_canReview) document.getElementById('q-tab-review').style.display = '';
 window.switchQueueTab = function(tab) {
   _queueTab = tab;
   document.getElementById('q-search').value = '';
+
+  // If the main area is showing a NO-VISIT view (ABDM records or patient history,
+  // opened from the ABDM tracker or a past-patient search), switching the queue tab
+  // returns it to the neutral welcome state — otherwise the ABDM Records page stays
+  // stuck on screen after you move to OPD/Tele/IPD. A real open consultation
+  // (_activeVisitId set) is never touched.
+  if (!_activeVisitId) {
+    const ca = document.getElementById('c-active');
+    const ch = document.getElementById('c-history');
+    const wl = document.getElementById('welcome');
+    if (ca) ca.style.display = 'none';
+    if (ch) ch.style.display = 'none';
+    if (wl) wl.style.display = '';
+  }
   const opd    = document.getElementById('q-tab-opd');
   const tele   = document.getElementById('q-tab-tele');
   const ipd    = document.getElementById('q-tab-ipd');
