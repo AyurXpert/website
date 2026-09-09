@@ -412,7 +412,10 @@ window.switchQueueTab = function(tab) {
   const tele   = document.getElementById('q-tab-tele');
   const ipd    = document.getElementById('q-tab-ipd');
   const review = document.getElementById('q-tab-review');
-  [opd, tele, ipd, review].forEach(b => { b.style.background = 'none'; b.style.color = 'var(--text-muted)'; b.style.borderBottom = '2px solid transparent'; b.style.fontWeight = '500'; });
+  const abdm   = document.getElementById('q-tab-abdm');
+  [opd, tele, ipd, review, abdm].forEach(b => { if (!b) return; b.style.background = 'none'; b.style.color = 'var(--text-muted)'; b.style.borderBottom = '2px solid transparent'; b.style.fontWeight = '500'; });
+  // Leaving the ABDM tab stops its auto-refresh poll.
+  if (tab !== 'abdm' && _abdmReqTimer) { clearInterval(_abdmReqTimer); _abdmReqTimer = null; }
   if (tab === 'opd') {
     opd.style.background = 'var(--green-light)'; opd.style.color = 'var(--green-deep)'; opd.style.borderBottom = '2px solid var(--green-mid)'; opd.style.fontWeight = '600';
     loadQueue();
@@ -422,11 +425,149 @@ window.switchQueueTab = function(tab) {
   } else if (tab === 'review') {
     review.style.background = '#fff4e5'; review.style.color = '#7a4a00'; review.style.borderBottom = '2px solid #e8c48a'; review.style.fontWeight = '600';
     loadPendingReviews();
+  } else if (tab === 'abdm') {
+    abdm.style.background = '#e6f0e6'; abdm.style.color = '#1a6a34'; abdm.style.borderBottom = '2px solid #4a9a5e'; abdm.style.fontWeight = '600';
+    _loadAbdmRequests();
+    if (_abdmReqTimer) clearInterval(_abdmReqTimer);
+    _abdmReqTimer = setInterval(() => { if (_queueTab === 'abdm') _loadAbdmRequests(_abdmReqFilter, true); }, 45000);
   } else {
     ipd.style.background = '#fce7f3'; ipd.style.color = '#be185d'; ipd.style.borderBottom = '2px solid #db2777'; ipd.style.fontWeight = '600';
     loadIPDPatients();
   }
 };
+
+// ── 🔗 ABDM tab — cross-patient tracker of consent requests THIS doctor raised ──
+// Scoped server-side to doctor_id (see abdm-auth's hiu_list_consents). A patient-safety
+// / DPDPA need-to-know boundary: a doctor tracks their own outstanding consents here;
+// they never browse another clinician's patients' ABDM activity. A granted row jumps
+// straight to that patient's ABDM Records with the consent's records pre-expanded.
+let _abdmReqTimer  = null;
+let _abdmReqFilter = 'all';
+let _abdmReqCache  = [];
+
+async function _loadAbdmRequests(filter = _abdmReqFilter, silent = false) {
+  _abdmReqFilter = filter;
+  const list = document.getElementById('q-list');
+  if (!silent) list.innerHTML = '<div class="q-empty"><div class="q-empty-icon">⏳</div>Loading…</div>';
+
+  try {
+    const token = await _abdmGetToken();
+    const res = await fetch(ABDM_AUTH_FN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ action: 'hiu_list_consents', scope: 'mine' }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load');
+    _abdmReqCache = data.consents || [];
+  } catch (e) {
+    if (_queueTab !== 'abdm') return;
+    list.innerHTML = `<div class="q-empty" style="color:#e74c3c;font-size:12px">Error: ${_esc(e.message)}</div>`;
+    return;
+  }
+  if (_queueTab !== 'abdm') return;
+
+  const norm = (c) => (c.status === 'granted' && (c.granted_erase_at || c.data_erase_at) && new Date(c.granted_erase_at || c.data_erase_at) < new Date()) ? 'expired' : c.status;
+  const buckets = { pending: 'requested', granted: 'granted', denied: 'denied', closed: ['revoked', 'expired'] };
+  const rows = _abdmReqCache.filter(c => {
+    const s = norm(c);
+    if (filter === 'all') return true;
+    if (filter === 'pending') return s === 'requested';
+    if (filter === 'granted') return s === 'granted';
+    if (filter === 'denied')  return s === 'denied';
+    if (filter === 'closed')  return s === 'revoked' || s === 'expired';
+    return true;
+  });
+
+  const pendingN = _abdmReqCache.filter(c => norm(c) === 'requested').length;
+  document.getElementById('q-abdm-count').textContent = pendingN;
+
+  const chip = (k, label) => `<button data-onclick="_abdmReqFilterSet" data-onclick-a0="${k}" style="font-size:10.5px;padding:3px 9px;border-radius:11px;border:1px solid ${filter === k ? '#4a9a5e' : '#ddd'};background:${filter === k ? '#e6f0e6' : '#fff'};color:${filter === k ? '#1a6a34' : '#666'};font-weight:${filter === k ? 600 : 500};cursor:pointer;font-family:inherit">${label}</button>`;
+  const filterBar = `<div style="display:flex;gap:5px;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--border);background:#fafcfa">
+    ${chip('all', 'All')}${chip('pending', 'Pending')}${chip('granted', 'Granted')}${chip('denied', 'Denied')}${chip('closed', 'Revoked / Expired')}
+    <button data-onclick="_loadAbdmRequests" style="margin-left:auto;font-size:10.5px;padding:3px 9px;border-radius:11px;border:1px solid #ddd;background:#fff;color:#666;cursor:pointer;font-family:inherit" title="Refresh now">↻</button>
+  </div>`;
+
+  const stColor = { requested: '#c9902a', granted: '#1a7a3a', denied: '#c0392b', revoked: '#7f8c8d', expired: '#7f8c8d', failed: '#c0392b' };
+  const stLabel = { requested: 'PENDING', granted: 'GRANTED', denied: 'DENIED', revoked: 'REVOKED', expired: 'EXPIRED', failed: 'FAILED' };
+  const HI_SHORT = { OPConsultation: 'OPD', Prescription: 'Rx', DiagnosticReport: 'Lab', DischargeSummary: 'DС', ImmunizationRecord: 'Imm', WellnessRecord: 'Well', HealthDocumentRecord: 'Doc', Invoice: 'Bill' };
+
+  const cards = rows.map(c => {
+    const s = norm(c);
+    const col = stColor[s] || '#888';
+    const d = new Date(c.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const types = (c.requested_hi_types || c.hi_types || []).map(t => HI_SHORT[t] || t).join(' · ');
+    return `<div class="q-card" style="cursor:pointer" data-onclick="_openAbdmRequestRow" data-onclick-a0="${_esc(c.id)}" data-onclick-a1="${_esc(s)}" data-onclick-a2="${_esc(c.patient_id || '')}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px;color:var(--green-deep)">${_esc(c.patient_name || 'Patient')}</div>
+          <div style="font-size:11px;color:#888;word-break:break-all;margin-top:1px">${_esc(c.abha_address || '—')}</div>
+          <div style="font-size:10.5px;color:#999;margin-top:2px">${d} · ${_esc((c.purpose || 'CAREMGT'))}</div>
+          <div style="font-size:10px;color:#aaa;margin-top:2px">${_esc(types)}</div>
+        </div>
+        <span style="white-space:nowrap;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:9px;background:${col}18;color:${col};border:1px solid ${col}44">${_esc(stLabel[s] || s.toUpperCase())}</span>
+      </div>
+      ${s === 'granted' ? '<div style="font-size:10px;color:#4a9a5e;margin-top:4px">→ tap to view records</div>' : ''}
+    </div>`;
+  }).join('') || `<div class="q-empty"><div class="q-empty-icon">🔗</div>${filter === 'all' ? 'You haven’t raised any consent requests yet.' : 'No ' + filter + ' requests.'}</div>`;
+
+  list.innerHTML = filterBar + cards;
+}
+window._loadAbdmRequests = _loadAbdmRequests;
+
+function _abdmReqFilterSet(k) { _loadAbdmRequests(k); }
+window._abdmReqFilterSet = _abdmReqFilterSet;
+
+async function _openAbdmRequestRow(consentId, status, patientId) {
+  if (status !== 'granted') {
+    // Pending / denied / revoked / expired — expand an inline detail under the card,
+    // non-destructively (no main-area navigation).
+    const c = _abdmReqCache.find(x => x.id === consentId);
+    if (!c) return;
+    const card = document.querySelector(`[data-onclick="_openAbdmRequestRow"][data-onclick-a0="${consentId}"]`);
+    if (!card) return;
+    const existing = card.querySelector('.abdm-req-detail');
+    if (existing) { existing.remove(); return; }
+    const range = (a, b) => a || b ? `${_fmtD(a) || '—'} to ${_fmtD(b) || '—'}` : '—';
+    const noteByStatus = {
+      requested: 'Waiting for the patient to respond on their ABHA app — refreshes automatically.',
+      denied:    'The patient declined this request. No records were shared.',
+      revoked:   'The patient revoked this consent. Received records were deleted per ABDM compliance.',
+      expired:   'This consent reached its data-retention date. Records are no longer available.',
+    };
+    const det = document.createElement('div');
+    det.className = 'abdm-req-detail';
+    det.style.cssText = 'margin-top:8px;padding:8px 10px;background:#f7f7f5;border-radius:6px;font-size:11px;color:#555;line-height:1.5';
+    det.innerHTML = `<div><b>Requested types:</b> ${_esc((c.requested_hi_types || c.hi_types || []).join(', ') || '—')}</div>
+      <div><b>Records range:</b> ${_esc(range(c.requested_date_from, c.requested_date_to))}</div>
+      <div style="margin-top:5px;color:#777">${_esc(noteByStatus[status] || '')}</div>`;
+    card.appendChild(det);
+    return;
+  }
+
+  // Granted → load the patient and open their ABDM Records with this consent expanded.
+  const { data: patient, error } = await supabase.from('patients')
+    .select('id, name, phone, abha_number, abha_address')
+    .eq('id', patientId).single();
+  if (error || !patient) { alert('Could not load this patient record.'); return; }
+  _historyPatient = patient;
+  window._openAbdmForHistory();
+
+  // The consent list renders async inside _loadAbdmTab — poll for this consent's
+  // record box, then expand it.
+  let tries = 0;
+  const iv = setInterval(() => {
+    const box = document.getElementById('recbox-' + consentId);
+    if (box) {
+      clearInterval(iv);
+      if (box.dataset.open !== '1') _loadReceivedRecords(consentId, 'granted');
+      box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else if (++tries > 30) {
+      clearInterval(iv);
+    }
+  }, 200);
+}
+window._openAbdmRequestRow = _openAbdmRequestRow;
 
 async function loadQueue() {
   const list  = document.getElementById('q-list');
