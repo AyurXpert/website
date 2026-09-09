@@ -2450,20 +2450,41 @@ async function _loadAbdmTab() {
 
   const noAbhaEl = document.getElementById('abdm-no-abha');
   const mainEl   = document.getElementById('abdm-main');
-  if (!abhaAddr) {
-    noAbhaEl.style.display = '';
-    mainEl.style.display   = 'none';
-    return;
-  }
+  const abhaNoteEl = document.getElementById('abdm-abha-note');
+  const abhaNoteName = document.getElementById('abdm-abha-note-name');
+
+  // 10 Sep 2026 — the consent-request form is now available for EVERY patient, whether
+  // or not an ABHA is on file. Rationale (Dr. Venkatesh): a patient may have registered
+  // here demographic-only, had many follow-ups, and separately holds an ABHA + records
+  // at another hospital — the doctor should be able to pull those in with the ABHA the
+  // patient provides, without a trip back to Reception. M3 consent is routed on the
+  // ABHA ADDRESS alone (no name/DOB/gender is ever sent), so a demographic-only
+  // registration — or one whose details don't match the ABHA card — does not block it;
+  // the patient authenticates as themselves in their PHR app when they grant.
   noAbhaEl.style.display = 'none';
   mainEl.style.display   = '';
-
-  document.getElementById('abdm-abha-addr').value = abhaAddr;
+  const abhaField = document.getElementById('abdm-abha-addr');
+  if (abhaAddr) {
+    abhaField.value = abhaAddr;
+    abhaField.dataset.forPatient = _activePatient.id;
+    if (abhaNoteEl) abhaNoteEl.style.display = 'none';
+  } else {
+    // Empty, editable field. Clear it only when this is a DIFFERENT patient than the
+    // field was last populated for — so a re-render (e.g. after the consent list
+    // refreshes) doesn't wipe an ABHA the doctor is mid-way through typing.
+    if (abhaField.dataset.forPatient !== _activePatient.id) abhaField.value = '';
+    abhaField.dataset.forPatient = _activePatient.id;
+    if (abhaNoteEl) abhaNoteEl.style.display = '';
+    if (abhaNoteName) abhaNoteName.textContent = _activePatient.name || 'this patient';
+  }
 
   // Set default dates only if not already set
   const today    = new Date();
   const toStr    = today.toISOString().slice(0, 10);
-  const fromDate = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+  // 10 Sep 2026 — widened default look-back 1yr → 3yr: "pull my records from another
+  // hospital" commonly reaches further back than a single year (and the doctor can
+  // still narrow or widen it).
+  const fromDate = new Date(today.getFullYear() - 3, today.getMonth(), today.getDate());
   const fromStr  = fromDate.toISOString().slice(0, 10);
   const eraseDate = new Date(today.getFullYear(), today.getMonth() + 3, today.getDate());
   const eraseStr  = eraseDate.toISOString().slice(0, 10);
@@ -2638,10 +2659,17 @@ async function _submitConsentRequest() {
 
   const abhaAddress = (document.getElementById('abdm-abha-addr')?.value || '').trim();
   if (!abhaAddress) { statusEl.innerHTML = '<span style="color:#c0392b">Patient ABHA address is required.</span>'; return; }
+  if (!abhaAddress.includes('@')) {
+    statusEl.innerHTML = '<span style="color:#c0392b">Enter the full ABHA address including its @ suffix, e.g. <code>name@sbx</code>.</span>';
+    return;
+  }
 
   // The ABHA field is editable, but the request is filed against _activePatient.id (fixed, below).
   // Sending a consent for an ABHA that belongs to someone else would pull that person's records
-  // into THIS patient's chart. Block a mismatch unless the clinician explicitly overrides.
+  // into THIS patient's chart. When the patient HAS an ABHA on file, block a mismatch unless the
+  // clinician explicitly overrides. When they don't (demographic-only registration, doctor is
+  // entering the ABHA the patient provided), there's nothing to check against — the inline note
+  // by the field already states the records will be filed under this patient's chart.
   const ptAbha = (_activePatient?.abha_address || '').trim();
   if (ptAbha && abhaAddress.toLowerCase() !== ptAbha.toLowerCase()) {
     const ok = confirm(
