@@ -443,7 +443,7 @@ window.switchQueueTab = function(tab) {
     abdm.style.background = '#e6f0e6'; abdm.style.color = '#1a6a34'; abdm.style.borderBottom = '2px solid #4a9a5e'; abdm.style.fontWeight = '600';
     _loadAbdmRequests();
     if (_abdmReqTimer) clearInterval(_abdmReqTimer);
-    _abdmReqTimer = setInterval(() => { if (_queueTab === 'abdm') _loadAbdmRequests(_abdmReqFilter, true); }, 45000);
+    _abdmReqTimer = setInterval(() => { if (_queueTab === 'abdm') _loadAbdmRequests(_abdmReqFilter, true); }, 90000);
   } else {
     ipd.style.background = '#fce7f3'; ipd.style.color = '#be185d'; ipd.style.borderBottom = '2px solid #db2777'; ipd.style.fontWeight = '600';
     loadIPDPatients();
@@ -464,19 +464,35 @@ async function _loadAbdmRequests(filter = _abdmReqFilter, silent = false) {
   const list = document.getElementById('q-list');
   if (!silent) list.innerHTML = '<div class="q-empty"><div class="q-empty-icon">⏳</div>Loading…</div>';
 
+  const stopAuto = () => { if (_abdmReqTimer) { clearInterval(_abdmReqTimer); _abdmReqTimer = null; } };
+
   try {
     const token = await _abdmGetToken();
+    if (!token) {
+      stopAuto();
+      if (_queueTab === 'abdm') list.innerHTML = '<div class="q-empty" style="color:#e67e22;font-size:12px">Your session has expired. Please refresh the page to sign back in.</div>';
+      return;
+    }
     const res = await fetch(ABDM_AUTH_FN, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ action: 'hiu_list_consents', scope: 'mine' }),
     });
+    // 401 = the session token was rejected — no point retrying every 90s.
+    if (res.status === 401) {
+      stopAuto();
+      if (_queueTab === 'abdm') list.innerHTML = '<div class="q-empty" style="color:#e67e22;font-size:12px">Your session has expired. Please refresh the page to sign back in.</div>';
+      return;
+    }
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to load');
     _abdmReqCache = data.consents || [];
   } catch (e) {
+    // A background auto-refresh that hiccups (network blip) just skips this tick and
+    // keeps the current list; only a user-initiated load surfaces the error.
+    if (silent) return;
     if (_queueTab !== 'abdm') return;
-    list.innerHTML = `<div class="q-empty" style="color:#e74c3c;font-size:12px">Error: ${_esc(e.message)}</div>`;
+    list.innerHTML = `<div class="q-empty" style="color:#e74c3c;font-size:12px">Couldn't load requests: ${_esc(e.message)}. <button data-onclick="_loadAbdmRequests" style="background:none;border:none;color:var(--green-deep);text-decoration:underline;cursor:pointer;font-size:12px;font-family:inherit">retry</button></div>`;
     return;
   }
   if (_queueTab !== 'abdm') return;
@@ -2342,7 +2358,17 @@ async function _abdmCreateCareContext(visitId, patient, notes, disposition, hasR
 const ABDM_AUTH_FN = 'https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/abdm-auth';
 
 async function _abdmGetToken() {
-  const { data: { session } } = await supabase.auth.getSession();
+  let { data: { session } } = await supabase.auth.getSession();
+  // Proactively refresh when the access token is expired or within 60s of it —
+  // otherwise a background/idle tab (or the ABDM tab's auto-refresh poll) can send an
+  // already-expired token and get a 401 from the edge function.
+  const expMs = session?.expires_at ? session.expires_at * 1000 : 0;
+  if (session && (!expMs || expMs < Date.now() + 60000)) {
+    try {
+      const { data } = await supabase.auth.refreshSession();
+      if (data?.session) session = data.session;
+    } catch { /* fall through with whatever we have */ }
+  }
   return session?.access_token || null;
 }
 
