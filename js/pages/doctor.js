@@ -568,14 +568,16 @@ async function _openAbdmRequestRow(consentId, status, patientId) {
   window._openAbdmForHistory();
 
   // The consent list renders async inside _loadAbdmTab — poll for this consent's
-  // record box, then expand it.
+  // accordion card, expand it, then expand its record box.
   let tries = 0;
   const iv = setInterval(() => {
-    const box = document.getElementById('recbox-' + consentId);
-    if (box) {
+    const bodyEl = document.getElementById('consbody-' + consentId);
+    if (bodyEl) {
       clearInterval(iv);
-      if (box.dataset.open !== '1') _loadReceivedRecords(consentId, 'granted');
-      box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (bodyEl.style.display === 'none') window._toggleConsentCard(consentId);
+      const box = document.getElementById('recbox-' + consentId);
+      if (box && box.dataset.open !== '1') _loadReceivedRecords(consentId, 'granted');
+      bodyEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } else if (++tries > 30) {
       clearInterval(iv);
     }
@@ -2498,12 +2500,21 @@ function _renderConsentList(consents) {
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
   });
 
-  listEl.innerHTML = consents.map(c => {
-    // Client-side data-retention guard: a still-'granted' consent whose "erase after"
-    // date has passed is treated as expired even before ABDM's EXPIRED callback lands.
+  // 9 Sep 2026 — accordion. A patient can accumulate many consents (Venkatesha had 29);
+  // showing every one fully expanded buried the page. Now: the MOST RECENT still-active
+  // granted consent renders expanded with its records auto-loaded; every other consent
+  // (older granted, pending, denied, revoked/expired) is a collapsed header that drops
+  // down on click to show its Requested/Granted detail (and records, if granted).
+  const _normStatus = (c) => {
+    const e = c.granted_erase_at || c.data_erase_at;
+    return (c.status === 'granted' && e && new Date(e) < new Date()) ? 'expired' : c.status;
+  };
+  const firstGrantedIdx = consents.findIndex(c => _normStatus(c) === 'granted');
+
+  listEl.innerHTML = consents.map((c, idx) => {
     const grantedErase = c.granted_erase_at || c.data_erase_at;
-    const erasePassed = c.status === 'granted' && grantedErase && new Date(grantedErase) < new Date();
-    const effStatus   = erasePassed ? 'expired' : c.status;
+    const effStatus    = _normStatus(c);
+    const erasePassed  = effStatus === 'expired' && c.status === 'granted';
 
     const col   = statusColor[effStatus] || '#888';
     const date  = new Date(c.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
@@ -2512,8 +2523,6 @@ function _renderConsentList(consents) {
       : (complianceNote[c.status] || null);
 
     // Requested vs Granted (mirrors the ABHA PHR app's consent detail — Screenshot 441).
-    // requested_* comes from hiu_consent_requests (never overwritten); granted_* from the
-    // abdm_consents artefact the webhook wrote on GRANTED (patient may narrow the set).
     const reqHi     = sortHi(c.requested_hi_types || c.hi_types || []);
     const grantHi   = c.granted_hi_types ? sortHi(c.granted_hi_types) : null;
     const grantSet  = new Set(grantHi || []);
@@ -2540,29 +2549,62 @@ function _renderConsentList(consents) {
         ${ccRefs.length ? `<div class="cons-cc">Limited to ${ccRefs.length} care context${ccRefs.length > 1 ? 's' : ''}: ${_esc(ccRefs.join(', '))}</div>` : ''}
       </div>` : '';
 
-    return `<div style="border:1px solid ${note ? col + '44' : '#ddd'};border-radius:8px;padding:12px 14px;margin-bottom:10px;background:${note ? '#fafafa' : '#fff'}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;color:var(--green-deep);word-break:break-all">${_esc(c.abha_address)}</div>
-          <div style="font-size:12px;color:#666;margin-top:3px">Requested ${date} · Purpose: ${_esc(c.purpose || 'CAREMGT')}</div>
-        </div>
-        <span style="white-space:nowrap;font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:${col}18;color:${col};border:1px solid ${col}44">${_esc((effStatus || '').toUpperCase())}</span>
-      </div>
-      ${requestedBlock}
-      ${grantedBlock}
-      ${note
-        ? `<div style="margin-top:10px;padding:8px 10px;background:${col}10;border-left:3px solid ${col};border-radius:0 4px 4px 0;font-size:12px;color:${col};font-weight:500">${_esc(note)}</div>`
-        : ''}
+    const open = idx === firstGrantedIdx;
+    const typeSummary = grantHi
+      ? `${grantHi.length} of ${reqHi.length} type${reqHi.length === 1 ? '' : 's'} granted`
+      : `${reqHi.length} type${reqHi.length === 1 ? '' : 's'} requested`;
+
+    const body = `${requestedBlock}${grantedBlock}
+      ${note ? `<div style="margin-top:10px;padding:8px 10px;background:${col}10;border-left:3px solid ${col};border-radius:0 4px 4px 0;font-size:12px;color:${col};font-weight:500">${_esc(note)}</div>` : ''}
       ${effStatus === 'granted'
         ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
-             <button class="btn" style="font-size:12px;padding:4px 12px" data-onclick="_loadReceivedRecords" data-onclick-a0="${_esc(c.id)}" data-onclick-a1="${_esc(c.status)}">📋 View Records</button>
+             <button class="btn" style="font-size:12px;padding:4px 12px" data-onclick="_loadReceivedRecords" data-onclick-a0="${_esc(c.id)}" data-onclick-a1="granted">📋 View Records</button>
              <button class="btn" style="font-size:12px;padding:4px 12px" data-onclick="_retriggerConsentFetch" data-onclick-a0="${_esc(c.id)}" title="Ask ABDM to re-send the health data — use if a granted consent hasn't delivered records yet">↻ Re-fetch data</button>
            </div>
            <div id="recbox-${_esc(c.id)}" style="display:none;margin-top:10px"></div>`
-        : ''}
+        : ''}`;
+
+    return `<div class="cons-card" style="border:1px solid ${note ? col + '44' : '#ddd'};border-radius:8px;margin-bottom:8px;background:#fff;overflow:hidden">
+      <div data-onclick="_toggleConsentCard" data-onclick-a0="${_esc(c.id)}" style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;background:${open ? '#f4faf5' : '#fafafa'}">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+            <span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;background:${col}18;color:${col};border:1px solid ${col}44">${_esc((effStatus || '').toUpperCase())}</span>
+            <span style="font-size:12px;color:#444;font-weight:600">Requested ${date}</span>
+            <span style="font-size:11px;color:#999">${_esc(c.purpose || 'CAREMGT')}</span>
+          </div>
+          <div style="font-size:10.5px;color:#999;margin-top:2px;word-break:break-all">${_esc(c.abha_address)} · ${typeSummary}</div>
+        </div>
+        <span id="conschev-${_esc(c.id)}" style="color:#aaa;font-size:14px;flex-shrink:0;transition:transform .15s;transform:rotate(${open ? 90 : 0}deg)">▸</span>
+      </div>
+      <div class="cons-body" id="consbody-${_esc(c.id)}" style="display:${open ? 'block' : 'none'};padding:2px 12px 12px">${body}</div>
     </div>`;
   }).join('');
+
+  // Auto-load the records for the one expanded (most recent granted) consent.
+  if (firstGrantedIdx >= 0) {
+    const cid = consents[firstGrantedIdx].id;
+    setTimeout(() => {
+      const box = document.getElementById('recbox-' + cid);
+      if (box && box.dataset.open !== '1') _loadReceivedRecords(cid, 'granted');
+    }, 200);
+  }
 }
+
+// Accordion toggle for a consent card. Expanding a granted card also loads its records
+// (once) so it's one click, not two.
+window._toggleConsentCard = function(cid) {
+  const body = document.getElementById('consbody-' + cid);
+  const chev = document.getElementById('conschev-' + cid);
+  if (!body) return;
+  const opening = body.style.display === 'none';
+  body.style.display = opening ? 'block' : 'none';
+  if (chev) chev.style.transform = `rotate(${opening ? 90 : 0}deg)`;
+  if (opening) {
+    const box = body.querySelector('[id^="recbox-"]');
+    const hasRecordsBtn = body.querySelector('[data-onclick="_loadReceivedRecords"]');
+    if (box && hasRecordsBtn && box.dataset.open !== '1') _loadReceivedRecords(cid, 'granted');
+  }
+};
 
 async function _submitConsentRequest() {
   const btn      = document.getElementById('btn-abdm-consent');
