@@ -2333,34 +2333,68 @@ function _renderConsentList(consents) {
     denied:  '✗ Patient denied this consent request. No health records were shared.',
   };
 
+  // ABDM's 8 HI types in a stable display order + friendly labels.
+  const HI_ORDER = ['OPConsultation','Prescription','DiagnosticReport','DischargeSummary','ImmunizationRecord','WellnessRecord','HealthDocumentRecord','Invoice'];
+  const HI_LABEL = { OPConsultation:'OPD Consultation', Prescription:'Prescription', DiagnosticReport:'Diagnostic Report',
+    DischargeSummary:'Discharge Summary', ImmunizationRecord:'Immunization', WellnessRecord:'Wellness Record',
+    HealthDocumentRecord:'Health Document', Invoice:'Invoice' };
+  const sortHi = (arr) => [...(arr || [])].sort((a, b) => {
+    const ia = HI_ORDER.indexOf(a), ib = HI_ORDER.indexOf(b);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+
   listEl.innerHTML = consents.map(c => {
     // Client-side data-retention guard: a still-'granted' consent whose "erase after"
-    // date has passed is treated as expired even before ABDM's EXPIRED callback lands
-    // — hide the record actions and show a retention note. (Server-side purge of
-    // hiu_received_records still relies on ABDM's callback / a scheduled job.)
-    const erasePassed = c.status === 'granted' && c.data_erase_at && new Date(c.data_erase_at) < new Date();
+    // date has passed is treated as expired even before ABDM's EXPIRED callback lands.
+    const grantedErase = c.granted_erase_at || c.data_erase_at;
+    const erasePassed = c.status === 'granted' && grantedErase && new Date(grantedErase) < new Date();
     const effStatus   = erasePassed ? 'expired' : c.status;
 
     const col   = statusColor[effStatus] || '#888';
     const date  = new Date(c.created_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
-    const types = (c.hi_types || []).join(', ') || '—';
     const note  = erasePassed
       ? '⏱ This consent has reached its data-retention (erase) date. Health records are no longer available for viewing.'
       : (complianceNote[c.status] || null);
-    const eraseDate = c.data_erase_at
-      ? new Date(c.data_erase_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })
-      : null;
+
+    // Requested vs Granted (mirrors the ABHA PHR app's consent detail — Screenshot 441).
+    // requested_* comes from hiu_consent_requests (never overwritten); granted_* from the
+    // abdm_consents artefact the webhook wrote on GRANTED (patient may narrow the set).
+    const reqHi     = sortHi(c.requested_hi_types || c.hi_types || []);
+    const grantHi   = c.granted_hi_types ? sortHi(c.granted_hi_types) : null;
+    const grantSet  = new Set(grantHi || []);
+    const chip = (t, on) => `<span class="hi-chip ${on ? 'on' : 'off'}">${_esc(HI_LABEL[t] || t)}</span>`;
+
+    const range = (from, to) => (from || to)
+      ? `${_fmtD(from) || '—'} &nbsp;to&nbsp; ${_fmtD(to) || '—'}`
+      : '';
+    const reqRange   = range(c.requested_date_from, c.requested_date_to);
+    const grantRange = range(c.granted_date_from, c.granted_date_to);
+    const ccRefs     = Array.isArray(c.granted_care_context_refs) ? c.granted_care_context_refs.filter(Boolean) : [];
+
+    const requestedBlock = `<div class="cons-block">
+        <div class="cons-block-hd">Requested by ${_esc(tenant?.name || 'this facility')}</div>
+        <div>${reqHi.map(t => chip(t, true)).join('')}</div>
+        ${reqRange ? `<div class="cons-daterange">Records from: ${reqRange}</div>` : ''}
+      </div>`;
+
+    const grantedBlock = grantHi ? `<div class="cons-block granted">
+        <div class="cons-block-hd">Granted by Patient</div>
+        <div>${reqHi.map(t => chip(t, grantSet.has(t))).join('')}${grantHi.filter(t => !reqHi.includes(t)).map(t => chip(t, true)).join('')}</div>
+        ${grantRange ? `<div class="cons-daterange">Records from: ${grantRange}</div>` : ''}
+        ${grantedErase ? `<div class="cons-daterange">Records auto-erase after: <b>${_fmtD(grantedErase)}</b></div>` : ''}
+        ${ccRefs.length ? `<div class="cons-cc">Limited to ${ccRefs.length} care context${ccRefs.length > 1 ? 's' : ''}: ${_esc(ccRefs.join(', '))}</div>` : ''}
+      </div>` : '';
 
     return `<div style="border:1px solid ${note ? col + '44' : '#ddd'};border-radius:8px;padding:12px 14px;margin-bottom:10px;background:${note ? '#fafafa' : '#fff'}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:600;color:var(--green-deep);word-break:break-all">${_esc(c.abha_address)}</div>
-          <div style="font-size:12px;color:#666;margin-top:3px">${date} · Purpose: ${_esc(c.purpose || 'CAREMGT')}</div>
-          <div style="font-size:12px;color:#666;margin-top:2px;word-break:break-all">Types: ${_esc(types)}</div>
-          ${eraseDate && effStatus === 'granted' ? `<div style="font-size:11px;color:#888;margin-top:2px">Records erase after: ${eraseDate}</div>` : ''}
+          <div style="font-size:12px;color:#666;margin-top:3px">Requested ${date} · Purpose: ${_esc(c.purpose || 'CAREMGT')}</div>
         </div>
         <span style="white-space:nowrap;font-size:11px;font-weight:700;padding:3px 10px;border-radius:12px;background:${col}18;color:${col};border:1px solid ${col}44">${_esc((effStatus || '').toUpperCase())}</span>
       </div>
+      ${requestedBlock}
+      ${grantedBlock}
       ${note
         ? `<div style="margin-top:10px;padding:8px 10px;background:${col}10;border-left:3px solid ${col};border-radius:0 4px 4px 0;font-size:12px;color:${col};font-weight:500">${_esc(note)}</div>`
         : ''}
@@ -2461,7 +2495,157 @@ function _openEraseTimePicker() {
 window._openEraseTimePicker = _openEraseTimePicker;
 
 // ── ABDM: Parse FHIR R4 Bundle into a readable card ──────────────
+// 9 Sep 2026 — the received-record view rendered each record as a collapsed one-liner
+// and its detail (this function's old body) only extracted ~9 resource types. NHA's demo
+// feedback: it should read section-by-section like the ABHA PHR app. This new
+// _parseFhirForDisplay walks Composition.section[] (Chief Complaint, Allergies, Medical
+// History, Investigation Advice, Medications, Procedures, Follow-up, Vitals, …), resolves
+// each section's entries, and surfaces the attached PDF as a "View" button. Bundles with
+// no Composition sections fall back to _parseFhirLegacy (the old body, kept below).
+function _fmtD(x) {
+  if (!x) return '';
+  const d = new Date(x);
+  return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+function _fhirResolve(byRef, ref) {
+  if (!ref) return null;
+  return byRef[ref] || byRef[String(ref).split('/').slice(-2).join('/')] || byRef[String(ref).split('/').pop()] || null;
+}
+function _stripXhtml(div) {
+  return String(div || '')
+    .replace(/<\/(p|div|li|tr|h[1-6])>/gi, '\n').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(td|th)>/gi, ' | ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n').trim();
+}
+function _fhirResourceLine(r) {
+  if (!r) return '';
+  const t = r.resourceType;
+  const cc = (x) => x?.text || x?.coding?.[0]?.display || '';
+  if (t === 'Condition') {
+    const st = r.clinicalStatus?.coding?.[0]?.code;
+    return `${_esc(cc(r.code) || 'Condition')}${st ? ` <span class="fhir-badge" style="background:#fde8e8;color:#c0392b">${_esc(st)}</span>` : ''}`;
+  }
+  if (t === 'Observation') {
+    const n = cc(r.code) || 'Observation';
+    if (Array.isArray(r.component) && r.component.length) {
+      const parts = r.component.map(c => `${cc(c.code)}: ${c.valueQuantity?.value ?? ''}${c.valueQuantity?.unit ? ' ' + c.valueQuantity.unit : ''}`.trim());
+      return `${_esc(n)} — ${_esc(parts.join(', '))}`;
+    }
+    const v = r.valueQuantity ? `${r.valueQuantity.value} ${r.valueQuantity.unit || ''}`.trim()
+      : r.valueString || cc(r.valueCodeableConcept) || (r.dataAbsentReason ? 'not recorded' : '');
+    return `${_esc(n)}${v ? `: <b>${_esc(v)}</b>` : ''}`;
+  }
+  if (t === 'MedicationRequest' || t === 'MedicationStatement') {
+    const mc = r.medicationCodeableConcept || r.medication?.concept;
+    const dose = r.dosageInstruction?.[0]?.text;
+    return `${_esc(cc(mc) || 'Medicine')}${dose ? ` <span class="fhir-dose">— ${_esc(dose)}</span>` : ''}`;
+  }
+  if (t === 'AllergyIntolerance') {
+    const rx = r.reaction?.[0]?.manifestation?.[0]?.text;
+    return `<span style="color:#c0392b">${_esc(cc(r.code) || 'Allergy')}${rx ? ` — ${_esc(rx)}` : ''}</span>`;
+  }
+  if (t === 'Procedure') {
+    const d = _fmtD(r.performedDateTime);
+    return `${_esc(cc(r.code) || 'Procedure')}${d ? ` <span class="fhir-dose">(${_esc(d)})</span>` : ''}${r.note?.[0]?.text ? ` — ${_esc(r.note[0].text)}` : ''}`;
+  }
+  if (t === 'ServiceRequest') {
+    return `${_esc(cc(r.code) || 'Investigation advised')}${r.priority ? ` <span class="fhir-badge" style="background:#eef;color:#33c">${_esc(r.priority)}</span>` : ''}${r.note?.[0]?.text ? ` — ${_esc(r.note[0].text)}` : ''}`;
+  }
+  if (t === 'Appointment') {
+    const d = _fmtD(r.start);
+    return `Follow-up${d ? ` on ${_esc(d)}` : ''}${r.description ? ` — ${_esc(r.description)}` : ''}`;
+  }
+  if (t === 'FamilyMemberHistory') {
+    const conds = (r.condition || []).map(c => cc(c.code)).filter(Boolean).join(', ');
+    return `${_esc(r.relationship?.text || 'Family')}${conds ? `: ${_esc(conds)}` : ''}`;
+  }
+  if (t === 'Immunization') {
+    const d = _fmtD(r.occurrenceDateTime);
+    const dn = r.protocolApplied?.[0]?.doseNumberPositiveInt ?? r.protocolApplied?.[0]?.doseNumberString;
+    return `${_esc(cc(r.vaccineCode) || 'Vaccine')}${dn ? ` (dose ${_esc(String(dn))})` : ''}${d ? ` — ${_esc(d)}` : ''}`;
+  }
+  if (t === 'ImmunizationRecommendation') {
+    const recs = (r.recommendation || []).map(x => `${cc(x.vaccineCode?.[0])} due ${_fmtD(x.dateCriterion?.[0]?.value)}`).filter(s => s && !s.startsWith(' due')).join('; ');
+    return _esc(recs || 'Immunization recommendation');
+  }
+  if (t === 'DiagnosticReport') return `${_esc(cc(r.code) || 'Report')}${r.conclusion ? `: ${_esc(r.conclusion)}` : ''}`;
+  if (t === 'DocumentReference') return `${_esc(cc(r.type) || r.description || 'Attached document')}`;
+  if (t === 'Binary') return 'Attached document (PDF)';
+  if (t === 'CarePlan') return _esc(r.title || r.description || 'Care plan');
+  if (t === 'Invoice') {
+    const items = (r.lineItem || []).map(l => {
+      const nm = l.priceComponent?.[0]?.code?.text || l.chargeItemCodeableConcept?.text || `Item ${l.sequence ?? ''}`;
+      const amt = l.priceComponent?.[0]?.amount?.value ?? l.net?.value;
+      return `${nm}${amt != null ? ` — ₹${amt}` : ''}`;
+    });
+    const total = r.totalGross?.value != null ? ` · Total ₹${r.totalGross.value}` : '';
+    return _esc((items.join('; ') || 'Invoice') + total);
+  }
+  return _esc(cc(r.code) || t);
+}
+
 function _parseFhirForDisplay(bundle, hiType) {
+  if (!bundle?.entry?.length) return null;
+  const byRef = {};
+  bundle.entry.forEach(e => { const r = e?.resource; if (r?.resourceType && r?.id) { byRef[`${r.resourceType}/${r.id}`] = r; byRef[r.id] = r; } });
+  const comp = bundle.entry.find(e => e?.resource?.resourceType === 'Composition')?.resource;
+
+  const secHtml = [];
+  if (comp?.section?.length) {
+    for (const s of comp.section) {
+      const title = s.title || s.code?.text || s.code?.coding?.[0]?.display || 'Section';
+      const entries = (s.entry || []).map(en => _fhirResolve(byRef, en.reference)).filter(Boolean);
+      // The Document Reference / attached-PDF section is surfaced as the "View PDF" button below.
+      if (entries.length && entries.every(r => r.resourceType === 'DocumentReference' || r.resourceType === 'Binary')) continue;
+      if (entries.length) {
+        const typeLabel = [...new Set(entries.map(r => r.resourceType))].join(', ');
+        secHtml.push(`<div class="fhir-sec"><div class="fhir-sec-hd"><span>${_esc(title)}</span><span class="fhir-sec-type">${_esc(typeLabel)}</span></div><div class="fhir-sec-bd"><ul>${entries.map(r => `<li>${_fhirResourceLine(r)}</li>`).join('')}</ul></div></div>`);
+      } else if (s.text?.div) {
+        const txt = _stripXhtml(s.text.div);
+        if (txt && txt !== '—') secHtml.push(`<div class="fhir-sec"><div class="fhir-sec-hd"><span>${_esc(title)}</span></div><div class="fhir-sec-bd"><div class="fhir-narr">${_esc(txt)}</div></div></div>`);
+      } else if (s.emptyReason) {
+        secHtml.push(`<div class="fhir-sec"><div class="fhir-sec-hd"><span>${_esc(title)}</span></div><div class="fhir-sec-bd"><div class="fhir-empty">${_esc(s.emptyReason.coding?.[0]?.display || s.emptyReason.text || 'None recorded')}</div></div></div>`);
+      }
+    }
+  }
+
+  // Attached PDF — DocumentReference.content[].attachment or a Binary with contentType pdf
+  let pdfB64 = null;
+  for (const e of bundle.entry) {
+    const r = e?.resource;
+    const att = r?.resourceType === 'DocumentReference' ? r.content?.find(c => /pdf/i.test(c?.attachment?.contentType || ''))?.attachment
+      : (r?.resourceType === 'Binary' && /pdf/i.test(r.contentType || '')) ? { data: r.data } : null;
+    if (att?.data) { pdfB64 = att.data; break; }
+  }
+
+  if (!secHtml.length && !pdfB64) return _parseFhirLegacy(bundle, hiType);
+
+  let pdfHtml = '';
+  if (pdfB64) {
+    const key = 'p' + Math.random().toString(36).slice(2);
+    (window._abdmPdfCache = window._abdmPdfCache || {})[key] = pdfB64;
+    pdfHtml = `<button class="fhir-pdf-btn" data-onclick="_viewAbdmPdf" data-onclick-a0="${key}">📄 View attached document (PDF)</button>`;
+  }
+  const legacy = !secHtml.length ? (_parseFhirLegacy(bundle, hiType) || '') : '';
+  return `<div class="fhir-detail" style="gap:8px">${secHtml.join('')}${legacy}${pdfHtml}</div>`;
+}
+
+function _viewAbdmPdf(key) {
+  const b64 = (window._abdmPdfCache || {})[key];
+  if (!b64) return;
+  try {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) { alert('Could not open the attached document.'); }
+}
+window._viewAbdmPdf = _viewAbdmPdf;
+
+function _parseFhirLegacy(bundle, hiType) {
   if (!bundle?.entry?.length) return null;
   const get = (rt) => bundle.entry.filter(e => e?.resource?.resourceType === rt).map(e => e.resource);
   const sections = [];
@@ -2728,9 +2912,9 @@ async function _loadReceivedRecords(consentId, consentStatus) {
             <div style="font-size:11px;color:#777;margin-top:2px">${_esc(type)}${r.care_context_ref ? ' &nbsp;·&nbsp; Ref: ' + _esc(r.care_context_ref) : ''}</div>
             ${r.raw_summary && !fhirHtml ? `<div style="font-size:11px;color:#555;margin-top:3px;font-style:italic">${_esc(r.raw_summary)}</div>` : ''}
           </div>
-          <span id="${detId}-arrow" style="color:#999;font-size:18px;flex-shrink:0;transition:transform 0.2s">›</span>
+          <span id="${detId}-arrow" style="color:#999;font-size:18px;flex-shrink:0;transition:transform 0.2s;transform:rotate(90deg)">›</span>
         </div>
-        <div id="${detId}" style="display:none;border-top:1px solid #e0f0d8;padding:10px 14px 14px">
+        <div id="${detId}" style="display:block;border-top:1px solid #e0f0d8;padding:10px 14px 14px">
           ${fhirHtml || `<div style="font-size:12px;color:#aaa;padding:4px 0">${_esc(r.raw_summary || 'No structured data available')}</div>`}
         </div>
       </div>`;

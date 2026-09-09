@@ -228,6 +228,25 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .fhir-list{margin:0;padding-left:18px;flex:1}
 .fhir-list li{margin-bottom:2px}
 .fhir-dose{color:#888;font-style:italic}
+/* Section-by-section record view (PHR-parity) */
+.fhir-sec{border:1px solid #e0efe0;border-radius:6px;overflow:hidden;background:#fff}
+.fhir-sec-hd{font-size:11.5px;font-weight:700;color:var(--green-deep);background:#f1f8f1;padding:6px 10px;border-bottom:1px solid #e0efe0;display:flex;justify-content:space-between;gap:8px}
+.fhir-sec-hd .fhir-sec-type{font-weight:500;color:#8a9a8a;font-size:10.5px}
+.fhir-sec-bd{padding:8px 10px;font-size:12px;line-height:1.55}
+.fhir-sec-bd ul{margin:0;padding-left:16px}
+.fhir-sec-bd li{margin-bottom:3px}
+.fhir-narr{color:#444;white-space:pre-wrap}
+.fhir-empty{color:#999;font-style:italic}
+.fhir-pdf-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:6px 12px;margin-top:4px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:inherit}
+/* Consent card — Requested vs Granted */
+.cons-block{margin-top:10px}
+.cons-block-hd{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#777;margin-bottom:4px}
+.cons-block.granted .cons-block-hd{color:var(--green-deep)}
+.hi-chip{display:inline-block;font-size:11px;padding:2px 9px;border-radius:11px;margin:2px 3px;background:#eef2f7;color:#3a4a5a;border:1px solid #d6dee8}
+.hi-chip.on{background:#e6f5ea;color:#1a6a34;border-color:#b6e0c2;font-weight:600}
+.hi-chip.off{background:#f5f5f5;color:#aaa;border-color:#e2e2e2;text-decoration:line-through}
+.cons-daterange{font-size:11.5px;color:#666;margin-top:4px}
+.cons-cc{font-size:11px;color:#777;margin-top:4px;word-break:break-all}
 .cs-lbl{font-weight:700;color:#555;min-width:100px;flex-shrink:0;display:inline-block}
 .cs-lbl.dx{color:#1a4a2e}.cs-lbl.rx{color:var(--blue)}.cs-lbl.al{color:#c0392b}
 .cs-chip{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;margin:2px 3px;background:#e8f5e9;color:#1a4a2e;border:1px solid #c8e6c9}
