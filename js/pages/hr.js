@@ -859,7 +859,7 @@ async function loadCredentials() {
   const el = document.getElementById('cred-list');
   const alertEl = document.getElementById('cred-expiry-alerts');
   const { data } = await supabase.from('staff_credentials')
-    .select('*,profiles!profile_id(full_name,role)')
+    .select('*,profiles!profile_id(full_name,role,hpr_id)')
     .eq('tenant_id', tenantId)
     .order('created_at',{ascending:false});
   if (!data?.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:32px;font-size:13px">No credentials recorded yet. Click + Add / Update to get started.</div>'; alertEl.innerHTML=''; return; }
@@ -872,6 +872,7 @@ async function loadCredentials() {
       <th style="padding:8px 12px;text-align:left;border-bottom:1.5px solid var(--border)">Role</th>
       <th style="padding:8px 12px;text-align:left;border-bottom:1.5px solid var(--border)">Qualification</th>
       <th style="padding:8px 12px;text-align:left;border-bottom:1.5px solid var(--border)">Reg. No.</th>
+      <th style="padding:8px 12px;text-align:left;border-bottom:1.5px solid var(--border)">HPR ID</th>
       <th style="padding:8px 12px;text-align:left;border-bottom:1.5px solid var(--border)">Reg. Body</th>
       <th style="padding:8px 12px;text-align:left;border-bottom:1.5px solid var(--border)">Expiry</th>
       <th style="padding:8px 12px;text-align:center;border-bottom:1.5px solid var(--border)">Privileges</th>
@@ -887,6 +888,7 @@ async function loadCredentials() {
         <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2;color:var(--text-muted)">${_esc(c.profiles?.role||'—')}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2">${_esc(c.degree||c.qualification||'—')}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2">${_esc(c.registration_number||'—')}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2;font-variant-numeric:tabular-nums">${c.profiles?.hpr_id ? _esc(String(c.profiles.hpr_id).replace(/^(\d{2})(\d{4})(\d{4})(\d{4})$/,'$1-$2-$3-$4')) : '—'}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2">${_esc(c.registration_body||'—')}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2;${expClass}">${_esc(c.registration_expiry||'—')}</td>
         <td style="padding:8px 12px;border-bottom:1px solid #f0f4f2;text-align:center">${privs.length ? privs.map(p=>`<span style="font-size:9px;background:#e8f5ee;color:#1a4a2e;border:1px solid #b8ddc6;border-radius:8px;padding:1px 5px;margin:1px;display:inline-block">${p}</span>`).join('') : '—'}</td>
@@ -896,6 +898,16 @@ async function loadCredentials() {
     }).join('')}</tbody></table></div>`;
 }
 
+// HPR ID lives on profiles, not staff_credentials — load/track it per selected
+// staff member, not per credential row.
+async function _loadHprForProfile(pid) {
+  const el = document.getElementById('cred-hpr-id');
+  if (!el) return;
+  if (!pid) { el.value = ''; return; }
+  const { data } = await supabase.from('profiles').select('hpr_id').eq('id', pid).single();
+  el.value = data?.hpr_id || '';
+}
+
 window.openCredModal = async function(credId) {
   _credEditId = credId || null;
   document.getElementById('cred-modal').style.display = 'flex';
@@ -903,10 +915,13 @@ window.openCredModal = async function(credId) {
   const { data: staff } = await supabase.from('profiles').select('id,full_name,role').eq('tenant_id',tenantId).eq('is_active',true).in('role',['doctor','nurse','therapist','lab_tech']);
   const sel = document.getElementById('cred-profile-sel');
   sel.innerHTML = '<option value="">— Select staff member —</option>' + (staff||[]).map(s=>`<option value="${s.id}">${_esc(s.full_name)} (${_esc(s.role)})</option>`).join('');
+  sel.onchange = () => _loadHprForProfile(sel.value);
+  document.getElementById('cred-hpr-id').value = '';
   if (credId) {
     const { data: c } = await supabase.from('staff_credentials').select('*').eq('id',credId).single();
     if (c) {
       sel.value = c.profile_id || '';
+      _loadHprForProfile(c.profile_id);
       ['degree','registration_number','registration_body','registration_expiry','specialization','experience_years','privileges_text'].forEach(f => { const el = document.getElementById('cred-'+f.replace(/_/g,'-')); if(el) el.value = c[f]||''; });
       document.getElementById('cred-can-admit').checked   = c.can_admit_patients||false;
       document.getElementById('cred-can-rx').checked      = c.can_prescribe||false;
@@ -921,6 +936,8 @@ window.closeCredModal = function() { document.getElementById('cred-modal').style
 window.saveCred = async function() {
   const profileId = document.getElementById('cred-profile-sel').value;
   if (!profileId) { _toast('Select a staff member','error'); return; }
+  const hprDigits = (document.getElementById('cred-hpr-id').value || '').replace(/\D/g,'');
+  if (hprDigits && hprDigits.length !== 14) { _toast('HPR ID must be exactly 14 digits','error'); return; }
   const payload = {
     tenant_id: tenantId, profile_id: profileId,
     degree:               document.getElementById('cred-degree').value.trim()||null,
@@ -947,6 +964,10 @@ window.saveCred = async function() {
     ({ error } = await supabase.from('staff_credentials').upsert(payload,{onConflict:'profile_id'}));
   }
   if (error) { _toast(safeErrorMessage(error), 'error'); return; }
+  // HPR ID → profiles, via RPC (profiles' UPDATE RLS blocks a dept_admin from
+  // touching another user's row directly; the RPC re-checks same-tenant + admin).
+  const { error: hprErr } = await supabase.rpc('set_staff_hpr_id', { p_staff_id: profileId, p_hpr_id: hprDigits || null });
+  if (hprErr) { _toast('Credentials saved, but HPR ID failed: ' + safeErrorMessage(hprErr), 'error'); closeCredModal(); loadCredentials(); return; }
   _toast('Credentials saved','success');
   closeCredModal();
   loadCredentials();
