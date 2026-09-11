@@ -177,16 +177,39 @@ window.openStaffModal = function(id) {
 
 window.closeStaffModal = function() { document.getElementById('staff-modal').classList.remove('show'); };
 
+// Session 204: both actions below now go through set-staff-status (an Edge Function)
+// instead of a raw profiles.update() — the raw update only ever flipped the app-level
+// status flag; it never actually revoked the person's Supabase Auth session, so a
+// blocked/inactive staff member's existing access+refresh token kept working
+// indefinitely for direct API access, bypassing the website entirely. The Edge
+// Function updates the same columns AND bans/unbans the account at the Auth level
+// (auth.admin.updateUserById ban_duration) atomically, so the two can't drift apart.
+async function _callSetStaffStatus(targetUserId, newStatus) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return { error: 'Not signed in.' };
+  const res = await fetch('https://xvlvifiebafvgzlixdee.supabase.co/functions/v1/set-staff-status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+    body: JSON.stringify({ targetUserId, newStatus }),
+  });
+  const result = await res.json();
+  if (!res.ok) return { error: result.error || 'Status change failed.' };
+  return { success: true };
+}
+
 async function _applyStatusChange() {
   const sel = document.getElementById('sm-status-change');
   const newStatus = sel?.value;
   if (!newStatus) { _toast('Select a status to apply', 'error'); return; }
   const labels = { suspended:'Suspend', on_leave:'Mark On Leave', inactive:'Mark Inactive', blocked:'Block' };
   if (!confirm(`${labels[newStatus] || 'Change status of'} ${_viewingStaff.full_name}?`)) return;
-  const { error } = await supabase.from('profiles').update({
-    status: newStatus, is_active: false,
-  }).eq('id', _viewingStaff.id);
-  if (error) { _toast(safeErrorMessage(error, 'Error. Please try again.'), 'error'); return; }
+  const { error } = await _callSetStaffStatus(_viewingStaff.id, newStatus);
+  // error here is already a safe, human-readable string straight from the Edge
+  // Function (not a raw Postgres/Auth error object) — display it directly rather
+  // than through safeErrorMessage(), which would only recognise it as one of its
+  // two specifically-allowlisted object shapes and otherwise discard it for the
+  // generic fallback.
+  if (error) { _toast(error, 'error'); return; }
   closeStaffModal();
   await loadStaff();
   _toast(`${_viewingStaff.full_name} — status set to ${newStatus.replace(/_/g,' ')}`, 'success');
@@ -195,9 +218,8 @@ async function _applyStatusChange() {
 window.toggleSuspend = async function() {
   if (!_viewingStaff) return;
   if (!confirm(`Reactivate ${_viewingStaff.full_name}?`)) return;
-  const { error } = await supabase.from('profiles').update({ status: 'active', is_active: true })
-    .eq('id', _viewingStaff.id);
-  if (error) { _toast(safeErrorMessage(error, 'Error. Please try again.'), 'error'); return; }
+  const { error } = await _callSetStaffStatus(_viewingStaff.id, 'active');
+  if (error) { _toast(error, 'error'); return; }
   closeStaffModal();
   await loadStaff();
   _toast(_viewingStaff.full_name + ' reactivated', 'success');
