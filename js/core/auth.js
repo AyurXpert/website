@@ -301,21 +301,27 @@ export async function login({ email, password }) {
       'Profile not found. Please contact your administrator.'
     );
 
-    if (profile.status === 'pending_approval') {
+    // Session 204 — allowlist, not a blocklist: only 'active' may proceed. The
+    // previous version explicitly listed 4 statuses to block (pending_approval/
+    // approved/rejected/suspended), but profiles.status has 8 real values —
+    // on_leave/inactive/blocked (exactly what hr.js's "Mark On Leave"/"Mark
+    // Inactive"/"Block" actions set) were silently missing, so login() let them
+    // straight through. requireAuth() on the very next page load did still catch
+    // them (it already used a correct allowlist), but as a confusing flash-then-
+    // bounce instead of a clear message here. Fail-closed for any future status
+    // value too, not just the ones anticipated today.
+    if (profile.status !== 'active') {
       await supabase.auth.signOut({ scope: 'global' });
-      throw new Error('Your account is pending approval. Please wait for your administrator to activate it.');
-    }
-    if (profile.status === 'approved') {
-      await supabase.auth.signOut({ scope: 'global' });
-      throw new Error('Your account is approved but department access has not been assigned yet. Please wait.');
-    }
-    if (profile.status === 'rejected') {
-      await supabase.auth.signOut({ scope: 'global' });
-      throw new Error('Your account request was not approved. Please contact your administrator.');
-    }
-    if (profile.status === 'suspended') {
-      await supabase.auth.signOut({ scope: 'global' });
-      throw new Error('Your account has been suspended. Please contact your administrator.');
+      const statusMessages = {
+        pending_approval: 'Your account is pending approval. Please wait for your administrator to activate it.',
+        approved:         'Your account is approved but department access has not been assigned yet. Please wait.',
+        rejected:         'Your account request was not approved. Please contact your administrator.',
+        suspended:        'Your account has been suspended. Please contact your administrator.',
+        on_leave:         'Your account is currently marked on leave. Please contact your administrator.',
+        inactive:         'Your account has been marked inactive. Please contact your administrator.',
+        blocked:          'Your account has been blocked. Please contact your administrator.',
+      };
+      throw new Error(statusMessages[profile.status] || 'Your account is not active. Please contact your administrator.');
     }
 
     // MFA gate: if this user has a verified TOTP factor, the session is only at
@@ -696,6 +702,28 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
     sessionStorage.setItem(SESSION_KEYS.ROLE,      profile.role);
     sessionStorage.setItem(SESSION_KEYS.SECONDARY_ROLE, profile.secondary_role || '');
     sessionStorage.setItem(SESSION_KEYS.MONITORING_ACCESS, profile.has_monitoring_access ? '1' : '');
+  } else {
+    // Session 204 — real, currently-live gap found this session: the cached profile
+    // (role/tenant/etc.) only refreshing on a fresh login is an accepted, lower-
+    // urgency characteristic elsewhere in this codebase, but whether this account is
+    // still ALLOWED to be here at all was never re-verified once a cache existed —
+    // an admin blocking/deactivating someone already logged in had zero effect until
+    // that session naturally ended (tab close / cache clear), since this entire block
+    // was skipped whenever cachedProfile was already present. One lightweight
+    // status-only query per page load closes that, without touching the existing
+    // once-per-login caching behaviour for everything else.
+    const { data: statusRow } = await supabase
+      .from('profiles')
+      .select('status')
+      .eq('id', session.user.id)
+      .single();
+
+    if (!statusRow || statusRow.status !== 'active') {
+      sessionStorage.clear();
+      await supabase.auth.signOut({ scope: 'global' });
+      window.location.replace('login.html');
+      return;
+    }
   }
 
   if (allowedRoles.length > 0) {
