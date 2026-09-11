@@ -241,7 +241,17 @@ async function loadProfileTab() {
 
   if (data.photo_path) {
     const { data: signed } = await supabase.storage.from('staff-documents').createSignedUrl(data.photo_path, 3600);
-    if (signed?.signedUrl) document.getElementById('profile-photo-preview').innerHTML = `<img src="${signed.signedUrl}" alt="Profile photo"/>`;
+    if (signed?.signedUrl) {
+      // Property assignment (not innerHTML) — the signed URL is Supabase-generated, but
+      // building the <img> via the DOM API rather than a template string sidesteps any
+      // HTML-injection surface entirely, regardless of what the URL ever contains.
+      const preview = document.getElementById('profile-photo-preview');
+      preview.replaceChildren();
+      const img = document.createElement('img');
+      img.src = signed.signedUrl;
+      img.alt = 'Profile photo';
+      preview.appendChild(img);
+    }
   }
 
   await loadDocuments();
