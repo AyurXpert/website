@@ -365,7 +365,7 @@ async function loadMyLeaves() {
   if (error) { box.textContent = 'Could not load your leave requests.'; return; }
   if (!data.length) { box.innerHTML = '<div style="font-size:13px;color:var(--text-muted)">No leave requests yet.</div>'; return; }
 
-  const typeLabels = { casual: 'Casual Leave', sick: 'Sick Leave', earned: 'Earned Leave', other: 'Other' };
+  const typeLabels = { casual: 'Casual Leave', medical: 'Medical Leave', earned: 'Earned Leave', maternity: 'Maternity Leave', paternity: 'Paternity Leave', duty: 'On-Duty Leave', other: 'Other' };
   box.innerHTML = data.map(l => `
     <div class="leave-row">
       <div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
