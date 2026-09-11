@@ -348,11 +348,21 @@ window.deleteDocument = async function (id, path) {
 // ── Apply for Leave ─────────────────────────────────────────────────────────
 async function loadLeaveTab() {
   const tenantId = getCurrentTenantId();
+  const myRole = getCurrentRole();
+  // Session 204 fix — was listing every staff member in the org regardless of role,
+  // letting a nurse name a doctor as her cover (or vice versa), which makes no sense
+  // for actually covering someone's duties. Scoped to same-role colleagues only —
+  // matches how covering is handled everywhere else in this codebase (shift-change
+  // requests, roster relief matching, etc. are all same-role/same-designation-group).
   const { data: colleagues } = await supabase.from('profiles')
-    .select('id, full_name').eq('tenant_id', tenantId).eq('is_active', true).neq('id', _uid).order('full_name');
+    .select('id, full_name').eq('tenant_id', tenantId).eq('is_active', true)
+    .eq('role', myRole).neq('id', _uid).order('full_name');
   const sel = document.getElementById('lv-covering');
   sel.innerHTML = '<option value="">— None —</option>' +
     (colleagues || []).map(c => `<option value="${_esc(c.id)}">${_esc(c.full_name)}</option>`).join('');
+  if (!colleagues?.length) {
+    sel.innerHTML += '<option value="" disabled>No other staff with your role found</option>';
+  }
 
   await loadMyLeaves();
 }
