@@ -280,7 +280,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <button class="shift-pill" data-onclick="setShift" data-onclick-a0="@this" data-onclick-a1="afternoon">🌆 Evening</button>
       <button class="shift-pill" data-onclick="setShift" data-onclick-a0="@this" data-onclick-a1="night">🌙 Night</button>
     </span>
-    <input type="date" id="nursing-date" style="height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif" data-onchange="loadWardPatients"/>
+    <span style="font-size:12px;color:var(--text-muted)">📅 View as of:</span>
+    <input type="date" id="nursing-date" title="View who was on this ward as of a past date (new entries are still timestamped with today's real date/time)" style="height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif" data-onchange="loadWardPatients"/>
   </div>
   <!-- Session 179: Dr. Venkatesh's explicit ask -- ward + shift should auto-select from the
        logged-in nurse's real duty roster posting, not require manual picking every time.
