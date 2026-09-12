@@ -41,7 +41,16 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
       label: 'OPD', icon: '🩺',
       items: [
         { href:'reception.html',     label:'Reception',     roles:FRONT_DESK,                    types:null, module:'opd'        },
-        { href:'doctor.html',        label:'Doctor Queue',  roles:CLINICAL,                      types:null, module:'opd'        },
+        // Session 205 real bug fix, live-confirmed on SDM: CLINICAL includes 'nurse', but
+        // doctor.js's own requireAuth() only ever allowed
+        // ['doctor','trainee_doctor','super_admin','dept_admin'] -- a nurse clicking this got
+        // silently bounced back to nursing.html. doctor.html is a 9-tab clinical consultation
+        // workspace (Rx/NAMASTE coding/lab+imaging orders/MHA flags) with no identified nurse
+        // use case -- nurses already have their own nursing.html for bedside charting.
+        // Narrowed to match the destination exactly -- also fixes the opposite gap this
+        // surfaced: CLINICAL never included 'trainee_doctor' at all, so a PG Scholar/Intern
+        // (allowed on the destination) had no discoverable nav link to it either.
+        { href:'doctor.html',        label:'Doctor Queue',  roles:ADMIN_ROLES.concat(['doctor','trainee_doctor']),types:null, module:'opd' },
         { href:'dept-admin.html',    label:'My Department', roles:[],                            types:null, module:'opd', deptScoped:true },
         { href:'screening.html',     label:'Screening OPD', roles:CLINICAL,                      types:HOSP, module:'opd'        },
         { href:'opd-admin.html',     label:'OPD Setup',     roles:ADMIN_ROLES,                   types:null, module:'opd'        },
