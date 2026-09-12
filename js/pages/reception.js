@@ -1,4 +1,5 @@
-import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth.js';
+import { requireAuth, getCurrentProfile, getCurrentTenantId, getCurrentTenant } from '../core/auth.js';
+import { shiftTimes } from '../config/ncism.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { createPatient } from '../modules/patient/patientService.js';
@@ -38,7 +39,87 @@ wireDelegatedEvents();
 
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
+const tenant   = getCurrentTenant();
 const _ctx     = { tenantId, userId: profile.id, userName: profile.full_name };
+
+// ── Nurse Reception-coverage gate (Session 205) ────────────────────────────────
+// Dr. Venkatesh's explicit design, confirmed live in conversation: a plain hospital/
+// teaching_hospital/college tenant has a dedicated receptionist for Registration/Billing
+// during general duty hours — a nurse using this page is a rare exception, not the norm, so
+// it's OFF by default and only turned on by a real admin grant (see below). A clinic/
+// pk_center/dispensary tenant never has dedicated front-desk staff to begin with, so Reception
+// stays always-on for nurse there exactly as before this session — this whole block is skipped.
+//
+// Two independent ways a nurse becomes eligible, checked live on every load (nothing cached):
+//   1. A same-day admin grant (reception_coverage_grants, via grant_reception_coverage_duty() —
+//      super_admin / Medical Director / Principal / Medical Superintendent / the resolved
+//      Nursing Head picks ONE specific nurse for a rare daytime exception).
+//   2. Genuine night duty, right now — no receptionist is ever on site at night, so this is a
+//      structural, routine gap needing no per-instance approval: does she have a real
+//      duty_roster night-shift row for tonight, AND is the clock actually within the tenant's
+//      configured night-shift window (js/config/ncism.js's shiftTimes())?
+//
+// Real bug avoided here, found while building this: `new Date().toISOString().slice(0,10)`
+// (the "today" idiom used dozens of times elsewhere in this codebase) silently gives
+// YESTERDAY's calendar date for any local time between midnight and the UTC offset (e.g.
+// 00:00–05:30 for India Standard Time) — exactly the night-duty window this feature is FOR.
+// toLocaleDateString('en-CA') (YYYY-MM-DD, but computed from local time, not UTC) is used
+// throughout this block instead. This is a real, separate, platform-wide pattern worth a
+// dedicated look later — not fixed everywhere here, out of scope for this feature.
+const HOSP_STAFFED_RECEPTION_TYPES = ['hospital', 'teaching_hospital', 'college'];
+
+function _localDateStr(d) { return d.toLocaleDateString('en-CA'); } // YYYY-MM-DD, local calendar day
+
+function _nightWindowInfo(rangeStr, now = new Date()) {
+  const [startStr, endStr] = (rangeStr || '').split('–'); // en-dash — matches SHIFT_PATTERNS' own format
+  if (!startStr || !endStr) return { withinWindow: false, shiftDate: null };
+  const toMinutes = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const startMin = toMinutes(startStr), endMin = toMinutes(endStr);
+  if (nowMin >= startMin) return { withinWindow: true, shiftDate: _localDateStr(now) };
+  if (nowMin < endMin) {
+    const y = new Date(now); y.setDate(y.getDate() - 1);
+    return { withinWindow: true, shiftDate: _localDateStr(y) };
+  }
+  return { withinWindow: false, shiftDate: null };
+}
+
+async function _nurseReceptionEligible() {
+  if (profile.role !== 'nurse') return true; // every other allowed role is unaffected
+  if (!HOSP_STAFFED_RECEPTION_TYPES.includes(tenant?.type)) return true; // clinic/pk_center/dispensary — always on
+
+  const today = _localDateStr(new Date());
+  const { data: grant } = await supabase.from('reception_coverage_grants')
+    .select('id').eq('tenant_id', tenantId).eq('nurse_id', profile.id)
+    .eq('grant_date', today).is('ended_at', null).maybeSingle();
+  if (grant) return true;
+
+  const { data: shiftSettings } = await supabase.from('nursing_roster_settings')
+    .select('shift_pattern').eq('tenant_id', tenantId).maybeSingle();
+  const nightRange = shiftTimes(shiftSettings?.shift_pattern || 'six_six_twelve').night;
+  const { withinWindow, shiftDate } = _nightWindowInfo(nightRange);
+  if (!withinWindow) return false;
+
+  const { data: nightRow } = await supabase.from('duty_roster')
+    .select('id').eq('tenant_id', tenantId).eq('profile_id', profile.id)
+    .eq('shift_date', shiftDate).eq('shift_type', 'night').limit(1).maybeSingle();
+  return !!nightRow;
+}
+
+if (!(await _nurseReceptionEligible())) {
+  document.body.innerHTML = `
+    <div style="max-width:520px;margin:80px auto;padding:32px;text-align:center;font-family:'DM Sans',sans-serif">
+      <div style="font-size:44px;margin-bottom:14px">🔒</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:#1a4a2e;margin-bottom:10px">Reception access not active</div>
+      <div style="font-size:14px;color:#6b7280;line-height:1.7;margin-bottom:24px">
+        Reception/Registration/Billing is normally handled by front-desk staff during general duty hours here.
+        You can use this page only if you're currently posted on night duty, or your Medical Superintendent /
+        Principal / Nursing Superintendent has assigned you Reception coverage duty for today.
+      </div>
+      <a href="nursing.html" style="display:inline-block;height:44px;line-height:44px;padding:0 20px;background:#1a4a2e;color:#fff;border-radius:8px;text-decoration:none;font-size:14px;font-weight:500">← Back to Nursing</a>
+    </div>`;
+  throw new Error('Reception coverage duty not active for this nurse right now.');
+}
 
 // ── Duty selector gate (Session 111) ───────────────
 // Only shared-pool clerk designations (Registration Clerk / Billing Clerk, per NCISM

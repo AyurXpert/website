@@ -127,6 +127,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div class="cc-body" id="headship-body">Loading…</div>
   </div>
 
+  <!-- Session 205: rare-exception Reception coverage duty for hospital/teaching_hospital/college
+       tenants only (clinic/pk_center/dispensary never show this -- Reception stays always-on for
+       nurse there, no dedicated front-desk staff to begin with). Hidden by default; JS reveals it
+       once the tenant type is confirmed. -->
+  <div class="cc" id="reception-coverage-card" style="display:none">
+    <div class="cc-hd">
+      <div><div class="cc-title">🖥️ Reception Coverage Duty</div><div class="cc-sub">Rare-exception only -- Registration/Billing is normally handled by dedicated front-desk staff during general duty hours. Night duty nurses always have this automatically, no grant needed.</div></div>
+    </div>
+    <div class="cc-body" id="reception-coverage-body">Loading…</div>
+  </div>
+
   <div class="cc">
     <div class="cc-hd">
       <div><div class="cc-title">🗓️ Duty Roster</div><div class="cc-sub">Assign and manage nursing (and other) staff shifts across all wards</div></div>

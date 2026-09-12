@@ -897,6 +897,113 @@ async function loadTodayStaffingSnapshot() {
   }
 }
 
+// ── Reception Coverage Duty (Session 205) ────────────────────────────────────
+// Dr. Venkatesh's explicit design: a hospital/teaching_hospital/college tenant has a dedicated
+// receptionist for Registration/Billing during general duty hours -- a nurse covering Reception
+// is a rare exception, granted here to exactly ONE specific available nurse by super_admin/MD/
+// Principal/MS/the resolved Nursing Head (canActAsNursingHead() -- the SAME authority set as
+// Nursing Head delegation, not the narrower Shift-Change-only gate). Auto-expires at end of the
+// calendar day (grant_date = today, checked fresh on every read by reception.js's own gate -- no
+// cron/cleanup needed here). Night duty is a SEPARATE, always-on mechanism (no receptionist is
+// ever on site at night, so it's a structural gap, not a rare exception) -- this card/table plays
+// no part in that branch at all, see reception.js's own _nurseReceptionEligible().
+// clinic/pk_center/dispensary tenants never show this card -- Reception stays always-on for
+// `nurse` there, matching reception.js's own HOSP_STAFFED_RECEPTION_TYPES list exactly.
+const HOSP_STAFFED_RECEPTION_TYPES = ['hospital', 'teaching_hospital', 'college'];
+
+async function loadReceptionCoverage() {
+  const card = document.getElementById('reception-coverage-card');
+  const el   = document.getElementById('reception-coverage-body');
+  if (!card || !el) return;
+
+  const { data: tRow } = await supabase.from('tenants').select('type').eq('id', tenantId).single();
+  if (!HOSP_STAFFED_RECEPTION_TYPES.includes(tRow?.type)) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  try {
+    const headship = await resolveNursingHeadship(supabase, tenantId);
+    const canGrant = canActAsNursingHead(headship, profile.id, role, profile.designation);
+    // Local calendar date, not new Date().toISOString().slice(0,10) -- that idiom silently gives
+    // YESTERDAY's date for any local time between midnight and the UTC offset (e.g. 00:00-05:30
+    // for India Standard Time), which would make "today's" grants list wrong for exactly the
+    // early-morning window this whole feature exists for. See reception.js's own note.
+    const today = new Date().toLocaleDateString('en-CA');
+
+    const [{ data: activeGrants }, dayNursesResult] = await Promise.all([
+      supabase.from('reception_coverage_grants')
+        .select('id,nurse_id,created_at,nurse:profiles!reception_coverage_grants_nurse_id_fkey(full_name),granter:profiles!reception_coverage_grants_granted_by_fkey(full_name)')
+        .eq('tenant_id', tenantId).eq('grant_date', today).is('ended_at', null)
+        .order('created_at', { ascending: false }),
+      // Session 205 real bug fix, found live: duty_roster has 3 FKs to profiles
+      // (profile_id/created_by/attendance_marked_by) -- a bare `profiles!inner(...)` embed is
+      // ambiguous and Supabase returns an error object (not a thrown exception), which silently
+      // resolved to an empty array here since only `.data` was read, not `.error` -- the picker
+      // rendered with zero nurses despite 20 real day-duty nurses existing. Explicit FK hint
+      // fixes it (same bug class as Session 139's roster.js HTTP-300 fix).
+      canGrant
+        ? supabase.from('duty_roster')
+            .select('profile_id,profiles!duty_roster_profile_id_fkey(id,full_name)')
+            .eq('tenant_id', tenantId).eq('shift_date', today).neq('shift_type', 'night')
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const activeHtml = (activeGrants || []).length
+      ? activeGrants.map(g => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#fff8e1;border:1px solid #e0c060;border-radius:8px;margin-bottom:6px">
+          <div style="font-size:12.5px">
+            <strong>${_esc(g.nurse?.full_name || '—')}</strong> is covering Reception today
+            <div style="font-size:10.5px;color:var(--text-muted)">Assigned by ${_esc(g.granter?.full_name || '—')} · ${new Date(g.created_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</div>
+          </div>
+          ${canGrant ? `<button class="btn btn-secondary btn-sm" data-onclick="endReceptionCoverage" data-onclick-a0="${g.id}">End Duty</button>` : ''}
+        </div>`).join('')
+      : '<div style="font-size:12.5px;color:var(--text-muted);margin-bottom:8px">No nurse is currently covering Reception today. Night duty nurses always have automatic access -- this list is only for daytime rare-exception grants.</div>';
+
+    if (!canGrant) {
+      el.innerHTML = activeHtml;
+      return;
+    }
+
+    // De-duplicate nurses appearing in more than one shift row today.
+    const seen = new Set();
+    const dayNurses = (dayNursesResult.data || [])
+      .filter(r => r.profiles?.id && !seen.has(r.profiles.id) && seen.add(r.profiles.id))
+      .sort((a, b) => (a.profiles.full_name || '').localeCompare(b.profiles.full_name || ''));
+    const alreadyGrantedIds = new Set((activeGrants || []).map(g => g.nurse_id));
+    const pickerOptions = dayNurses
+      .filter(r => !alreadyGrantedIds.has(r.profiles.id))
+      .map(r => `<option value="${r.profiles.id}">${_esc(r.profiles.full_name)}</option>`).join('');
+
+    el.innerHTML = `
+      ${activeHtml}
+      <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
+        <select id="reception-coverage-nurse-select" style="height:38px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;min-width:220px">
+          <option value="">— Pick an available general-duty nurse —</option>
+          ${pickerOptions}
+        </select>
+        <button class="btn btn-primary btn-sm" data-onclick="grantReceptionCoverage">Assign Reception Duty (Today)</button>
+      </div>
+      <div style="font-size:10.5px;color:var(--text-muted);margin-top:6px">Dropdown lists today's general/day-duty-posted nurses (per the duty roster) who aren't already covering -- confirm she's genuinely free before assigning.</div>`;
+  } catch (err) {
+    el.innerHTML = `<div style="font-size:12.5px;color:#c0392b">${_esc(safeErrorMessage(err, 'Could not load Reception coverage duty.'))}</div>`;
+  }
+}
+
+window.grantReceptionCoverage = async function() {
+  const sel = document.getElementById('reception-coverage-nurse-select');
+  const nurseId = sel?.value;
+  if (!nurseId) { alert('Pick a nurse first.'); return; }
+  const { error } = await supabase.rpc('grant_reception_coverage_duty', { p_nurse_id: nurseId });
+  if (error) { alert(safeErrorMessage(error, 'Could not assign Reception coverage duty.')); return; }
+  await loadReceptionCoverage();
+};
+
+window.endReceptionCoverage = async function(grantId) {
+  if (!confirm('End this nurse\'s Reception coverage duty now?')) return;
+  const { error } = await supabase.rpc('end_reception_coverage_duty', { p_grant_id: grantId });
+  if (error) { alert(safeErrorMessage(error, 'Could not end Reception coverage duty.')); return; }
+  await loadReceptionCoverage();
+};
+
 await loadHeadship();
 await loadTodayStaffingSnapshot();
 await loadCoverageGapBanner();
@@ -905,4 +1012,5 @@ await loadNursingLeaves();
 await loadComplianceSnapshot();
 await loadRotationSection();
 await loadSupervisionZones();
+await loadReceptionCoverage();
 await loadCycleExpiryBanner();
