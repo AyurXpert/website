@@ -47,7 +47,12 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'opd-admin.html',     label:'OPD Setup',     roles:ADMIN_ROLES,                   types:null, module:'opd'        },
         { href:'dept-hub.html',      label:'Departments',   roles:CLINICAL.concat(ADMIN_ROLES),  types:HOSP, module:'opd'        },
         { href:'teaching-opd.html',  label:'Teaching OPD',  roles:CLINICAL.concat(ADMIN_ROLES),  types:NCISM,module:'ncism'      },
-        { href:'tele-schedule.html', label:'Tele Schedule', roles:CLINICAL.concat(ADMIN_ROLES),  types:null, module:'teleconsult'},
+        // Session 205 real bug fix, live-confirmed on SDM: this granted 'nurse' (via CLINICAL)
+        // a visible nav link, but tele-schedule.js's own requireAuth() only ever allowed
+        // ['doctor','super_admin','dept_admin'] -- a nurse clicking it got silently bounced
+        // straight back to nursing.html (her ROLE_HOME), no message, no explanation. Narrowed
+        // to match the destination's real gate exactly.
+        { href:'tele-schedule.html', label:'Tele Schedule', roles:ADMIN_ROLES.concat(['doctor']),types:null, module:'teleconsult'},
         { href:'prophylaxis.html',   label:'Prophylaxis',  roles:CLINICAL.concat(ADMIN_ROLES),  types:null, module:'opd'        },
       ]
     },
@@ -66,7 +71,14 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'kriyakalpa.html',    label:'Kriya Kalpa',     roles:CLINICAL.concat(['therapist']),          types:HOSP, module:'ipd'        },
         { href:'therapist.html',     label:'Therapy Sessions',roles:CLINICAL.concat(['therapist']),          types:PK,   module:'panchakarma'},
         { href:'palha-diet.html',    label:'Palha Diet',      roles:CLINICAL.concat(ADMIN_ROLES),            types:PK,   module:'panchakarma'},
-        { href:'yoga.html',          label:'Yoga Sessions',   roles:CLINICAL.concat(['therapist']),          types:HOSP, module:'panchakarma'},
+        // Session 205 real bug fix, live-confirmed on SDM: CLINICAL includes 'nurse', but
+        // yoga.js's own requireAuth() only ever allowed
+        // ['super_admin','dept_admin','therapist','doctor','receptionist'] -- nurse was never
+        // one of them, so a nurse clicking this got silently bounced back to nursing.html.
+        // Narrowed to doctor+therapist (matching the destination minus receptionist, which this
+        // item doesn't currently offer to anyone -- a separate, non-dead-end gap, left for a
+        // later discussion rather than folded into this fix).
+        { href:'yoga.html',          label:'Yoga Sessions',   roles:ADMIN_ROLES.concat(['doctor','therapist']),types:HOSP, module:'panchakarma'},
         // Session 167: roster.js's own requireAuth() already grants plain `nurse` read-only
         // access (Session 137), but this nav item stayed admin-only -- confirmed live by Dr.
         // Venkatesh that a real nurse login had no discoverable way to reach a page she was
@@ -98,7 +110,12 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
     {
       label: 'Admin', icon: '⚙',
       items: [
-        { href:'admin.html',             label:'Dashboard',        roles:ALL_ROLES,                                            types:null  },
+        // Session 205 real bug fix, live-confirmed on SDM: ALL_ROLES showed this to every role
+        // (doctor/receptionist/pharmacist/nurse/lab_tech/accountant/therapist included), but
+        // admin.js's own requireAuth() only ever allowed ['super_admin','dept_admin'] -- every
+        // other role clicking it got silently bounced straight back to their own ROLE_HOME, no
+        // message, no explanation. Narrowed to ADMIN_ROLES to match the destination exactly.
+        { href:'admin.html',             label:'Dashboard',        roles:ADMIN_ROLES,                                          types:null  },
         { href:'finance.html',           label:'Finance',          roles:['super_admin','dept_admin','accountant','receptionist'], types:null, module:'finance'  },
         { href:'insurance-claims.html',  label:'Insurance Claims', roles:['super_admin','dept_admin','accountant'],             types:null, module:'finance'  },
         { href:'hr.html',                label:'HR',               roles:['super_admin','dept_admin'],                         types:null, module:'hr'       },
