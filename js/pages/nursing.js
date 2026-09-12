@@ -115,6 +115,26 @@ const wardSel = document.getElementById('ward-select');
 const deptNameById = {};
 (depts||[]).forEach(d => { deptNameById[d.id] = d.name; });
 
+// Session 205 follow-up: Shift Handover's "Incoming Nurse" was a free-text input with zero
+// link to profiles -- now a real staff picker of active nurses in this tenant. Options are
+// keyed by name (nursing_handovers.incoming_nurse stays a plain text column, matching
+// outgoing_nurse and every other free-text field this table already has -- deliberately not a
+// new FK/id column for this). Scoped to role='nurse' only (not nurse_manager/doctor/etc.),
+// matching account-settings.js's covering-colleague same-role convention.
+const { data: nurseRows } = await supabase.from('profiles')
+  .select('full_name').eq('tenant_id', tenantId).eq('role', 'nurse').eq('is_active', true)
+  .order('full_name');
+(function renderIncomingNursePicker() {
+  const sel = document.getElementById('ho-in-nurse');
+  if (!sel) return;
+  (nurseRows||[]).forEach(n => {
+    if (!n.full_name) return;
+    const opt = document.createElement('option');
+    opt.value = n.full_name; opt.textContent = n.full_name;
+    sel.appendChild(opt);
+  });
+})();
+
 // Session 179 real design correction (Dr. Venkatesh, live testing): a nurse is never actually
 // posted to one specific real ward here -- her duty_roster row posts her to a POOLED zone
 // ("Medical In-Patients" = Kayachikitsa + Kaumarabhritya + Agada Tantra combined, per NCISM's
@@ -541,7 +561,12 @@ function _clearEntryForms() {
   const noteTime = document.getElementById('note-time'); if (noteTime) noteTime.value = '';
   const noteText = document.getElementById('note-text'); if (noteText) noteText.value = '';
 
-  const hoOut = document.getElementById('ho-out-nurse'); if (hoOut) hoOut.value = '';
+  // Session 205 follow-up: prefill Outgoing Nurse from the logged-in profile rather than
+  // leaving it blank -- still a plain text field (Dr. Venkatesh's explicit call: prefill only,
+  // Incoming Nurse stays free text), but at least the common case no longer requires a nurse
+  // to type her own name from scratch every time, and a blank/edited value is now a visible
+  // signal that someone other than the logged-in user is charting this handover.
+  const hoOut = document.getElementById('ho-out-nurse'); if (hoOut) hoOut.value = profile?.full_name || '';
   const hoIn  = document.getElementById('ho-in-nurse');  if (hoIn) hoIn.value = '';
   const hoCond = document.getElementById('ho-condition'); if (hoCond) hoCond.value = 'stable';
   ['ho-vitals','ho-situation','ho-background','ho-events','ho-pending-meds','ho-instructions'].forEach(id => {
@@ -921,8 +946,10 @@ window.saveHandover = async function() {
   // every SBAR field and both nurse names stayed exactly as typed, so a nurse re-clicking Save
   // (or switching to a different patient without noticing) could silently duplicate or
   // misattribute the whole handover. Matches the reset pattern saveVitals()/saveNote()/
-  // saveWardProcedure() already use for their own fields.
-  document.getElementById('ho-out-nurse').value = '';
+  // saveWardProcedure() already use for their own fields. Outgoing Nurse resets back to the
+  // logged-in profile's name (not blank) -- same prefill _clearEntryForms() applies on a
+  // patient switch, so the next handover doesn't need it retyped either.
+  document.getElementById('ho-out-nurse').value = profile?.full_name || '';
   document.getElementById('ho-in-nurse').value = '';
   document.getElementById('ho-condition').value = 'stable';
   ['ho-vitals','ho-situation','ho-background','ho-events','ho-pending-meds','ho-instructions'].forEach(id => {

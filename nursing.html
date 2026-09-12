@@ -512,7 +512,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             </div>
             <div class="field">
               <label>Incoming Nurse *</label>
-              <input id="ho-in-nurse" type="text" placeholder="Incoming nurse's name"/>
+              <!-- Session 205 follow-up: was a free-text input (no link to profiles at all,
+                   typo-prone, zero traceability on a NABH AAC.8 handover record) -- now a real
+                   staff picker, populated in nursing.js from active nurse profiles in this
+                   tenant. Options are keyed by the nurse's name (nursing_handovers.incoming_nurse
+                   stays a plain text column, matching outgoing_nurse and every other free-text
+                   field this table already has -- no schema change needed for this). -->
+              <select id="ho-in-nurse"><option value="">— Select incoming nurse —</option></select>
             </div>
           </div>
 
