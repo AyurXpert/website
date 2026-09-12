@@ -504,9 +504,57 @@ window.selectPatient = function(id) {
   document.getElementById('rp-pt-meta').textContent =
     `Age ${_activeAdm.patients?.age||'?'} · ${(_activeAdm.patients?.gender||'').charAt(0).toUpperCase()||'?'} · ${_activeAdm.diagnosis_primary||'—'} · Admitted ${_fmtDate(_activeAdm.admission_date)}`;
   document.getElementById('rp-bed-badge').textContent = 'Bed ' + (_activeAdm.beds?.bed_number||'—');
+  // Session 205 real bug fix, live-confirmed on SDM: switching patients used to leave every
+  // "new entry" input box exactly as typed -- only the ACTIVE tab's read-side history/list
+  // reloaded (loadTabData below), never the write-side fields sitting above it. A nurse typing
+  // an unsaved note/handover/procedure/vitals reading for Patient A, then clicking Patient B in
+  // the left panel, would still see A's text sitting in the box -- and clicking Save now attaches
+  // it to B's chart instead, silently. Confirmed live: typed a note for Ramachandra/KAY-07,
+  // switched to Ramachandra/KAY-06 without saving, the box still showed KAY-07's text; saving
+  // then created a KAY-06 note. Clearing every tab's entry fields here (not just the active one)
+  // means switching tabs later can never resurrect a stale value either.
+  _clearEntryForms();
   loadWardPatients(); // refresh active state
   loadTabData(_activeTab);
 };
+
+// Session 205: resets every tab's "new entry" input fields (never their read-side history/list --
+// that's loadTabData()'s job) to a blank starting state. Called on every patient switch (see
+// selectPatient() above) so no tab can carry a previous patient's half-typed text into whatever
+// gets saved next. Vitals' own post-save reset list (saveVitals()) is intentionally mirrored here
+// rather than factored out, since the two call sites clear for different reasons (post-save vs.
+// pre-switch) and keeping them as plain literal lists is easier to verify at a glance than a
+// shared helper would be.
+function _clearEntryForms() {
+  ['v-temp','v-pulse','v-rr','v-spo2','v-bps','v-bpd','v-sugar','v-weight','v-obs'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const painEl = document.getElementById('v-pain-score');
+  if (painEl) painEl.value = '0';
+  const painDisplay = document.getElementById('v-pain-display');
+  if (painDisplay) painDisplay.textContent = '';
+  ['w-pulse','w-rr','w-spo2','w-bp','w-sugar','w-temp'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.textContent = '';
+  });
+
+  const noteType = document.getElementById('note-type'); if (noteType) noteType.value = 'general';
+  const noteTime = document.getElementById('note-time'); if (noteTime) noteTime.value = '';
+  const noteText = document.getElementById('note-text'); if (noteText) noteText.value = '';
+
+  const hoOut = document.getElementById('ho-out-nurse'); if (hoOut) hoOut.value = '';
+  const hoIn  = document.getElementById('ho-in-nurse');  if (hoIn) hoIn.value = '';
+  const hoCond = document.getElementById('ho-condition'); if (hoCond) hoCond.value = 'stable';
+  ['ho-vitals','ho-situation','ho-background','ho-events','ho-pending-meds','ho-instructions'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+
+  const wpProc = document.getElementById('wp-procedure'); if (wpProc) wpProc.value = '';
+  const wpNotes = document.getElementById('wp-notes'); if (wpNotes) wpNotes.value = '';
+  const wpDesig = document.getElementById('wp-designation'); if (wpDesig) wpDesig.value = 'nurse';
+  const wpOutcome = document.getElementById('wp-outcome'); if (wpOutcome) wpOutcome.value = 'successful';
+
+  const riskInterventions = document.getElementById('risk-interventions'); if (riskInterventions) riskInterventions.value = '';
+}
 
 function loadTabData(tab) {
   if (tab === 'vitals')    loadVitals();
@@ -643,11 +691,23 @@ async function loadMar() {
     const timeCols = times.map(t => {
       const rec = (given||[]).find(g => g.mar_id === m.id && g.scheduled_time === t);
       const status = rec?.status || 'due';
+      // Session 205 real bug fix, live-confirmed on SDM: this excluded t==='SOS'/'STAT' from
+      // ever getting a Give button -- but that IS the only "scheduled_time" value an SOS/STAT
+      // medicine's single column ever has (FREQ_TIMES above), so the exclusion didn't skip a
+      // real time slot, it just permanently blocked ever charting these medicines as given at
+      // all. Confirmed live: added a real SOS medicine, its column showed "Due" forever with no
+      // way to mark it. markGiven() already handles 'SOS'/'STAT' as a normal scheduled_time
+      // value correctly (matches how the column header itself renders); no other change needed.
       return `<td><span class="mar-status ms-${status}">${{given:'Given',held:'Held',refused:'Refused',due:'Due'}[status]||status}</span>
-        ${status==='due' && t!=='SOS'&&t!=='STAT' ? `<br><button data-onclick="markGiven" data-onclick-a0="${m.id}" data-onclick-a1="${t}" style="font-size:10px;padding:2px 6px;border-radius:4px;background:#1a4a2e;color:#fff;border:none;cursor:pointer;margin-top:3px">✓ Give</button>` : ''}</td>`;
+        ${status==='due' ? `<br><button data-onclick="markGiven" data-onclick-a0="${m.id}" data-onclick-a1="${t}" style="font-size:10px;padding:2px 6px;border-radius:4px;background:#1a4a2e;color:#fff;border:none;cursor:pointer;margin-top:3px">✓ Give</button>` : ''}</td>`;
     }).join('');
+    // Session 205 real bug fix, live-confirmed on SDM: medicine_name/dose/instructions are
+    // free-text fields typed in the "Add Medicine" modal, rendered here via raw innerHTML with
+    // no escaping -- unlike this file's own established _esc() convention (used for patient
+    // names/diagnosis elsewhere). Confirmed live: an <img onerror=...> in a medicine name field
+    // would render as a real element, only blocked from executing by this page's own CSP.
     return `<tr>
-      <td><div style="font-weight:600">${m.medicine_name}</div><div style="font-size:10px;color:var(--text-muted)">${m.dose} · ${m.route} · ${m.frequency?.replace(/_/g,' ')}</div>${m.instructions?`<div style="font-size:10px;color:var(--text-mid)">${m.instructions}</div>`:''}</td>
+      <td><div style="font-weight:600">${_esc(m.medicine_name)}</div><div style="font-size:10px;color:var(--text-muted)">${_esc(m.dose)} · ${_esc(m.route)} · ${_esc(m.frequency?.replace(/_/g,' '))}</div>${m.instructions?`<div style="font-size:10px;color:var(--text-mid)">${_esc(m.instructions)}</div>`:''}</td>
       ${timeCols}
     </tr>`;
   }).join('');
@@ -817,13 +877,18 @@ async function loadNotes() {
     .select('*, profiles!recorded_by(full_name)')
     .eq('admission_id', _activeAdm.id).order('created_at', {ascending:false}).limit(30);
   const NOTE_TYPES = { general:'General', procedure:'Procedure', medication:'Medication', patient_education:'Pt Education', family_communication:'Family', incident:'⚠ Incident', doctor_call:'Doctor Call' };
+  // Session 205 real bug fix, live-confirmed on SDM: note_text is completely free-form nursing
+  // documentation, rendered here via raw innerHTML with no escaping at all -- confirmed live
+  // with a real <img onerror=...> payload that rendered as a genuine element (only blocked from
+  // executing by this page's own CSP, not by any escaping). profiles.full_name/note_time
+  // escaped too as defense-in-depth even though they're less directly attacker-controlled.
   document.getElementById('notes-list').innerHTML = (data||[]).length ? (data||[]).map(n => `
     <div style="padding:10px 14px;background:var(--white);border:1.5px solid var(--border);border-radius:8px;margin-bottom:8px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
-        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:var(--cream);border:1px solid var(--border);color:var(--text-mid)">${NOTE_TYPES[n.note_type]||n.note_type}</span>
-        <span style="font-size:11px;color:var(--text-muted)">${n.note_time||''} · ${n.shift} shift · ${n.profiles?.full_name||'Nurse'}</span>
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:var(--cream);border:1px solid var(--border);color:var(--text-mid)">${_esc(NOTE_TYPES[n.note_type]||n.note_type)}</span>
+        <span style="font-size:11px;color:var(--text-muted)">${_esc(n.note_time||'')} · ${_esc(n.shift)} shift · ${_esc(n.profiles?.full_name||'Nurse')}</span>
       </div>
-      <div style="font-size:13px;color:var(--text-dark)">${n.note_text}</div>
+      <div style="font-size:13px;color:var(--text-dark)">${_esc(n.note_text)}</div>
     </div>`) .join('') : '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px">No notes yet</div>';
 }
 
@@ -852,6 +917,17 @@ window.saveHandover = async function() {
   });
   if (error) { _alert('error', safeErrorMessage(error, 'Could not save handover.')); return; }
   _alert('success', 'Handover saved.');
+  // Session 205 real bug fix: this used to clear nothing at all after a successful save --
+  // every SBAR field and both nurse names stayed exactly as typed, so a nurse re-clicking Save
+  // (or switching to a different patient without noticing) could silently duplicate or
+  // misattribute the whole handover. Matches the reset pattern saveVitals()/saveNote()/
+  // saveWardProcedure() already use for their own fields.
+  document.getElementById('ho-out-nurse').value = '';
+  document.getElementById('ho-in-nurse').value = '';
+  document.getElementById('ho-condition').value = 'stable';
+  ['ho-vitals','ho-situation','ho-background','ho-events','ho-pending-meds','ho-instructions'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
   loadHandovers();
 };
 
@@ -859,15 +935,18 @@ async function loadHandovers() {
   const { data } = await supabase.from('nursing_handovers')
     .select('*').eq('admission_id', _activeAdm.id).order('handover_at', {ascending:false}).limit(10);
   const COND = { stable:'Stable', improving:'Improving', deteriorating:'⚠ Deteriorating', critical:'🔴 Critical' };
+  // Session 205 real bug fix, live-confirmed alongside Notes/MAR: outgoing_nurse/incoming_nurse
+  // are genuine free-text inputs (not dropdowns), and vitals_summary/key_events/instructions are
+  // free-text textareas -- none of it was escaped before landing in innerHTML.
   document.getElementById('handover-list').innerHTML = (data||[]).length ? (data||[]).map(h=>`
     <div style="padding:12px 14px;background:var(--white);border:1.5px solid ${h.condition==='critical'?'#f5c6c6':h.condition==='deteriorating'?'#e8c060':'var(--border)'};border-radius:8px;margin-bottom:8px;font-size:12px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <div style="font-weight:600">${h.outgoing_nurse||'—'} → ${h.incoming_nurse||'—'} <span style="font-weight:400;color:var(--text-muted)">(${h.shift} shift)</span></div>
-        <span style="font-size:11px;font-weight:700;color:${h.condition==='critical'?'var(--red)':h.condition==='deteriorating'?'var(--gold)':'var(--green-mid)'}">${COND[h.condition]||h.condition}</span>
+        <div style="font-weight:600">${_esc(h.outgoing_nurse)||'—'} → ${_esc(h.incoming_nurse)||'—'} <span style="font-weight:400;color:var(--text-muted)">(${_esc(h.shift)} shift)</span></div>
+        <span style="font-size:11px;font-weight:700;color:${h.condition==='critical'?'var(--red)':h.condition==='deteriorating'?'var(--gold)':'var(--green-mid)'}">${_esc(COND[h.condition]||h.condition)}</span>
       </div>
-      ${h.vitals_summary?`<div style="color:var(--text-mid)">Vitals: ${h.vitals_summary}</div>`:''}
-      ${h.key_events?`<div style="margin-top:4px">Events: ${h.key_events}</div>`:''}
-      ${h.instructions?`<div style="margin-top:4px;color:#1a4080">Next shift: ${h.instructions}</div>`:''}
+      ${h.vitals_summary?`<div style="color:var(--text-mid)">Vitals: ${_esc(h.vitals_summary)}</div>`:''}
+      ${h.key_events?`<div style="margin-top:4px">Events: ${_esc(h.key_events)}</div>`:''}
+      ${h.instructions?`<div style="margin-top:4px;color:#1a4080">Next shift: ${_esc(h.instructions)}</div>`:''}
     </div>`).join('') : '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px">No handovers recorded</div>';
 }
 
@@ -913,13 +992,15 @@ window.loadWardProcedures = async function() {
     .eq('ipd_admission_id', _activeAdm.id)
     .order('procedure_date', { ascending: false });
   if (error || !data?.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px">No procedures logged yet.</div>'; return; }
+  // Session 205 real bug fix: procedure_name/notes are free text typed into the Log Ward
+  // Procedure form, unescaped here before this same session's fix.
   el.innerHTML = data.map(p => `
     <div style="padding:10px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;background:#fafff7">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <strong style="font-size:13px">${p.procedure_name}</strong>
-        <span style="font-size:11px;color:var(--text-muted)">${p.procedure_date} ${p.procedure_time ? p.procedure_time.slice(0,5) : ''}</span>
+        <strong style="font-size:13px">${_esc(p.procedure_name)}</strong>
+        <span style="font-size:11px;color:var(--text-muted)">${_esc(p.procedure_date)} ${_esc(p.procedure_time ? p.procedure_time.slice(0,5) : '')}</span>
       </div>
-      <div style="font-size:11px;color:var(--text-mid);margin-top:3px">${p.done_by_designation?.replace('_',' ')} · ${p.outcome?.replace('_',' ')} ${p.notes ? '· '+p.notes : ''}</div>
+      <div style="font-size:11px;color:var(--text-mid);margin-top:3px">${_esc(p.done_by_designation?.replace('_',' '))} · ${_esc(p.outcome?.replace('_',' '))} ${p.notes ? '· '+_esc(p.notes) : ''}</div>
     </div>`).join('');
 };
 
@@ -1200,7 +1281,7 @@ async function loadRiskHistory() {
     <tbody>${data.map(r => `<tr><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${typeLabel[r.assessment_type]||r.assessment_type}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;text-align:center;font-weight:600">${r.morse_total ?? r.braden_total ?? '—'}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;text-align:center"><span style="font-size:11px;font-weight:600;color:${riskColor[r.risk_level]||'#333'};background:${riskColor[r.risk_level]||'#333'}15;padding:2px 8px;border-radius:10px">${riskLabel[r.risk_level] || r.risk_level || '—'}</span></td>
-      <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${r.profiles?.full_name||'—'}</td>
+      <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${_esc(r.profiles?.full_name)||'—'}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;color:var(--text-muted)">${new Date(r.assessment_datetime).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'})}</td></tr>`).join('')}
     </tbody></table>`;
 }
