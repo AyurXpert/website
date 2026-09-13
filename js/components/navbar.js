@@ -73,7 +73,13 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
       label: 'IPD', icon: '🏥',
       items: [
         { href:'ipd.html',           label:'Admissions',      roles:CLINICAL.concat(['receptionist']),        types:HOSP, module:'ipd'        },
-        { href:'nursing.html',       label:'Nursing',         roles:CLINICAL.concat(['nurse','therapist']),   types:HOSP, module:'nursing'    },
+        // Session 205 (cont.) real bug found continuing the IPD-group review: 'therapist' was
+        // granted here but nursing.js's requireAuth() never allowed it (['nurse','nurse_manager',
+        // 'super_admin','dept_admin','doctor'] -- no therapist-specific code anywhere in the
+        // file either) -- a therapist clicking this got silently bounced. Dropped. Also added
+        // 'nurse_manager' -- CLAUDE.md's own documented design ("Also allowed into roster.html
+        // and nursing.html") already grants it on the destination; nav just never caught up.
+        { href:'nursing.html',       label:'Nursing',         roles:CLINICAL.concat(['nurse_manager']),       types:HOSP, module:'nursing'    },
         { href:'icu-flowsheet.html', label:'ICU Flowsheet',   roles:CLINICAL.concat(['nurse']),               types:HOSP, module:'ipd'        },
         { href:'blood-bank.html',    label:'Blood Bank',      roles:CLINICAL.concat(['nurse']),               types:HOSP, module:'ipd'        },
         { href:'bed-admin.html',     label:'Bed Setup',       roles:ADMIN_ROLES,                             types:HOSP, module:'ipd'        },
@@ -83,15 +89,19 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'anc.html',           label:'ANC Register',    roles:CLINICAL.concat(['receptionist']),       types:HOSP, module:'ipd'        },
         { href:'kriyakalpa.html',    label:'Kriya Kalpa',     roles:CLINICAL.concat(['therapist']),          types:HOSP, module:'ipd'        },
         { href:'therapist.html',     label:'Therapy Sessions',roles:CLINICAL.concat(['therapist']),          types:PK,   module:'panchakarma'},
-        { href:'palha-diet.html',    label:'Palha Diet',      roles:CLINICAL.concat(ADMIN_ROLES),            types:PK,   module:'panchakarma'},
+        // Session 205 (cont.): palha-diet.js's requireAuth() already allows 'receptionist' and
+        // 'diet_staff' (diet_staff's own ROLE_HOME is this page) -- confirmed not accidental,
+        // dept-hub.js's own module entry for this page (copied verbatim from requireAuth() in
+        // Session 205 part 6) already grants both. Nav item never caught up.
+        { href:'palha-diet.html',    label:'Palha Diet',      roles:CLINICAL.concat(['receptionist','diet_staff']),types:PK,   module:'panchakarma'},
         // Session 205 real bug fix, live-confirmed on SDM: CLINICAL includes 'nurse', but
         // yoga.js's own requireAuth() only ever allowed
         // ['super_admin','dept_admin','therapist','doctor','receptionist'] -- nurse was never
         // one of them, so a nurse clicking this got silently bounced back to nursing.html.
-        // Narrowed to doctor+therapist (matching the destination minus receptionist, which this
-        // item doesn't currently offer to anyone -- a separate, non-dead-end gap, left for a
-        // later discussion rather than folded into this fix).
-        { href:'yoga.html',          label:'Yoga Sessions',   roles:ADMIN_ROLES.concat(['doctor','therapist']),types:HOSP, module:'panchakarma'},
+        // Narrowed to doctor+therapist (matching the destination minus receptionist at the time).
+        // Session 205 (cont.): the deferred receptionist gap above is now closed too -- same
+        // corroboration as palha-diet.html just above (dept-hub.js's own copy already grants it).
+        { href:'yoga.html',          label:'Yoga Sessions',   roles:ADMIN_ROLES.concat(['doctor','therapist','receptionist']),types:HOSP, module:'panchakarma'},
         // Session 167: roster.js's own requireAuth() already grants plain `nurse` read-only
         // access (Session 137), but this nav item stayed admin-only -- confirmed live by Dr.
         // Venkatesh that a real nurse login had no discoverable way to reach a page she was
@@ -99,11 +109,18 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         // match the access that already existed, not a new grant -- same pattern every other
         // item in this group already uses (nursing.html/icu-flowsheet.html/blood-bank.html
         // just above all already include 'nurse').
-        { href:'roster.html',        label:'Duty Roster',     roles:ADMIN_ROLES.concat(['nurse']),           types:HOSP, module:'hr'         },
+        // Session 205 (cont.): same mirror-image gap as nursing.html above -- roster.js's
+        // requireAuth() already allows 'nurse_manager' (Session 137), nav item never caught up.
+        { href:'roster.html',        label:'Duty Roster',     roles:ADMIN_ROLES.concat(['nurse','nurse_manager']),types:HOSP, module:'hr'         },
         { href:'facility-ops.html',  label:'Facility Ops',    roles:ADMIN_ROLES.concat(['nurse','receptionist']), types:HOSP, module:'hr'    },
         { href:'emergency.html',     label:'Emergency OPD',   roles:CLINICAL.concat(['receptionist']),       types:HOSP, module:'emergency'  },
-        { href:'labour-room.html',   label:'Labour Room',     roles:CLINICAL,                                types:HOSP, module:'ipd'        },
-        { href:'anushastra.html',    label:'Anushastra Karma',roles:CLINICAL,                                types:HOSP, module:'ipd'        },
+        // Session 205 (cont.): labour-room.js's requireAuth() already allows 'receptionist'
+        // (dept-hub.js's own module entry, copied verbatim from requireAuth() in Session 205
+        // part 6, already grants it too) -- nav item never caught up.
+        { href:'labour-room.html',   label:'Labour Room',     roles:CLINICAL.concat(['receptionist']),      types:HOSP, module:'ipd'        },
+        // Session 205 (cont.): same gap -- anushastra.js's requireAuth() already allows
+        // 'therapist' and 'receptionist' (dept-hub.js's copy confirms both), nav never caught up.
+        { href:'anushastra.html',    label:'Anushastra Karma',roles:CLINICAL.concat(['therapist','receptionist']),types:HOSP, module:'ipd'        },
       ]
     },
     {
