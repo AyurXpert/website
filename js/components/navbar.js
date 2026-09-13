@@ -55,7 +55,11 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'screening.html',     label:'Screening OPD', roles:CLINICAL,                      types:HOSP, module:'opd'        },
         { href:'opd-admin.html',     label:'OPD Setup',     roles:ADMIN_ROLES,                   types:null, module:'opd'        },
         { href:'dept-hub.html',      label:'Departments',   roles:CLINICAL.concat(ADMIN_ROLES),  types:HOSP, module:'opd'        },
-        { href:'teaching-opd.html',  label:'Teaching OPD',  roles:CLINICAL.concat(ADMIN_ROLES),  types:NCISM,module:'ncism'      },
+        // Session 205 (cont.) -- this is a PG/faculty academic register (NCISM Sec.18k/21l), not
+        // a clinical duty: nurse had full write access via CLINICAL (log Bedside Clinics under her
+        // own name as "faculty", enter PG faculty ratings) with zero real function there. Dr.
+        // Venkatesh confirmed: drop nurse entirely, doctor/admin only.
+        { href:'teaching-opd.html',  label:'Teaching OPD',  roles:ADMIN_ROLES.concat(['doctor']),types:NCISM,module:'ncism'      },
         // Session 205 real bug fix, live-confirmed on SDM: this granted 'nurse' (via CLINICAL)
         // a visible nav link, but tele-schedule.js's own requireAuth() only ever allowed
         // ['doctor','super_admin','dept_admin'] -- a nurse clicking it got silently bounced

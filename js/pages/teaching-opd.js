@@ -5,7 +5,10 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 
-await requireAuth(['doctor','super_admin','dept_admin','nurse']);
+// Session 205 (cont.): nurse access removed -- this is a PG/faculty academic register (NCISM
+// Sec.18k/21l); a nurse had full write access (log Bedside Clinics as "faculty", enter PG faculty
+// ratings) with no real function here. Confirmed with Dr. Venkatesh.
+await requireAuth(['doctor','super_admin','dept_admin']);
 initNavbar();
 wireDelegatedEvents();
 
