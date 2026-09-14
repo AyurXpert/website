@@ -4252,7 +4252,10 @@ async function loadAdmissionRequests() {
       <div class="q-info">
         <div class="q-name">${_esc(r.patients?.name || '—')} ${payerBadge}</div>
         <div class="q-row2"><span style="color:var(--text-mid)">${_esc(r.departments?.name || '—')} · ${_esc(roomLabel)} · ${r.expected_duration_days || '?'} day${r.expected_duration_days>1?'s':''}${r.duration_note ? ' ('+_esc(r.duration_note)+')' : ''}</span></div>
-        <div class="q-row2"><span style="color:var(--text-mid)">Advised by Dr. ${_esc(r.profiles?.full_name || '—')} · waiting ${waitedFor}</span></div>
+        <!-- Real bug found live-testing on SDM (14 Sep): full_name already includes "Dr"
+             for most doctor profiles here -- an added "Dr." prefix doubled up. Matches the
+             no-prefix convention ipd.js's own doctor display already uses. -->
+        <div class="q-row2"><span style="color:var(--text-mid)">Advised by ${_esc(r.profiles?.full_name || '—')} · waiting ${waitedFor}</span></div>
         <div class="q-row3">${_esc(r.clinical_indication || '')}</div>
         <div class="q-row3">Estimated total: <strong>₹${Number(r.estimated_total||0).toLocaleString('en-IN')}</strong> · Suggested advance: <strong>₹${Number(r.advance_amount_suggested||0).toLocaleString('en-IN')}</strong></div>
       </div>

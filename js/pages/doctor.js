@@ -1423,13 +1423,16 @@ async function _loadAdmDepts() {
 }
 
 async function _loadAdmProcedureOptions() {
+  // Real bug found live-testing on SDM (14 Sep): fee_structures' descriptive-text
+  // column is called `label`, not `description` -- this select was 400ing on every
+  // load, silently leaving the procedure dropdown empty.
   const { data } = await supabase.from('fee_structures')
-    .select('fee_type, description, amount, gst_percent, promo_price, promo_valid_until')
+    .select('fee_type, label, amount, gst_percent, promo_price, promo_valid_until')
     .eq('tenant_id', tenantId).eq('category', 'procedure').eq('is_active', true).order('fee_type');
   _admProcedures = data || [];
   const sel = document.getElementById('adm-proc-select');
   if (sel) sel.innerHTML = '<option value="">— Select a procedure —</option>' +
-    _admProcedures.map(p => `<option value="${_esc(p.fee_type)}">${_esc(p.description || p.fee_type)} — ₹${getEffectivePrice(p).toLocaleString('en-IN')}</option>`).join('');
+    _admProcedures.map(p => `<option value="${_esc(p.fee_type)}">${_esc(p.label || p.fee_type)} — ₹${getEffectivePrice(p).toLocaleString('en-IN')}</option>`).join('');
 }
 
 async function _loadTenantAdvancePct() {
@@ -1462,7 +1465,7 @@ window.addAdviceProcedure = function() {
   const unitPrice = getEffectivePrice(feeRow);
   _admItems.push({
     fee_type: feeType,
-    description: feeRow.description || feeType,
+    description: feeRow.label || feeType,
     sessions_count: sessions,
     unit_price: unitPrice,
     line_total: unitPrice * sessions,
