@@ -278,6 +278,28 @@ tr:hover td{background:rgba(232,245,238,.4)}
     </div>
   </div>
 
+  <!-- Session 205 (cont.): Admission Advance Policy -- editing tenants.ipd_advance_pct_self_pay/
+       ipd_advance_pct_insurance directly (not a fee_structures row, so it lives here as a fixed
+       card rather than inside the dynamic group-tabs system). Drives doctor.html's Admission
+       Advice cost estimate + suggested advance. Only shown for super_admin/dept_admin, matching
+       this page's own gate. See sql/session205_admission_advice.sql. -->
+  <div id="advance-policy-card" style="background:#fffdf0;border:1.5px solid #e8d08a;border-radius:10px;padding:14px 18px;margin-bottom:16px">
+    <div style="font-weight:700;font-size:14px;color:#7a4a00;margin-bottom:4px">💰 Admission Advance Policy</div>
+    <div style="font-size:12px;color:var(--text-mid);margin-bottom:10px">Percentage of a doctor's estimated admission cost that reception collects as an advance — see doctor.html's Admission Advice tab.</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+      <div class="field" style="max-width:180px">
+        <label>Self-Pay Advance %</label>
+        <input id="advpol-self-pay" type="number" min="0" max="100" step="1"/>
+      </div>
+      <div class="field" style="max-width:180px">
+        <label>Insurance-Holder Advance %</label>
+        <input id="advpol-insurance" type="number" min="0" max="100" step="1"/>
+      </div>
+      <button type="button" data-onclick="saveAdvancePolicy" style="height:38px;padding:0 16px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer">Save</button>
+      <span id="advpol-status" style="display:none;font-size:12px;font-weight:600;color:var(--green-deep)"></span>
+    </div>
+  </div>
+
   <!-- Add Service + Export buttons -->
   <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
     <div class="export-bar">

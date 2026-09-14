@@ -3226,52 +3226,91 @@ body.medcert-print #mc-print{display:block!important}
 
 
         <!-- ═══════════════════════════════════════════ -->
-        <!-- TAB 9: ADMISSION (tenant-gated)             -->
+        <!-- TAB 9: ADMISSION ADVICE (tenant-gated)      -->
+        <!-- Session 205 (cont.) -- this tab's fields were entirely dead UI before this   -->
+        <!-- (never saved anywhere). Real hospital process: the doctor ADVISES admission  -->
+        <!-- with a cost estimate; only reception/admin ever admits (create_ipd_admission -->
+        <!-- RPC). See sql/session205_admission_advice.sql + plan bright-popping-stallman.-->
         <!-- ═══════════════════════════════════════════ -->
         <div id="tab-adm" hidden>
           <div class="section">
             <button type="button" data-onclick="_switchTab" data-onclick-a0="disp" style="display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:var(--green-deep);font-size:13px;font-weight:500;cursor:pointer;padding:0 0 12px;font-family:'DM Sans',sans-serif">← Back to Disposition</button>
-            <div class="section-title">Admission Order <span class="section-sub">Hospital feature</span></div>
+            <div class="section-title">Admission Advice <span class="section-sub">You recommend — reception collects the advance and admits</span></div>
             <div class="field-row col2">
               <div class="field">
-                <label>Admission Type</label>
-                <select id="adm-type">
-                  <option value="">— Select —</option>
-                  <option>Planned / Elective</option>
-                  <option>Emergency</option>
-                  <option>Day Care Procedure</option>
-                </select>
+                <label>Target Department</label>
+                <select id="adm-dept"><option value="">— Select department —</option></select>
               </div>
               <div class="field">
-                <label>Tentative Duration</label>
-                <input id="adm-duration" type="text" placeholder="e.g. 5–7 days, 2 weeks"/>
+                <label>Room Type Preference</label>
+                <select id="adm-room-type" data-onchange="recomputeAdviceEstimate">
+                  <option value="general">General Ward</option>
+                  <option value="semi_private">Semi-Private</option>
+                  <option value="private">Private</option>
+                  <option value="icu">ICU / HDU</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Expected Duration (days)</label>
+                <input id="adm-duration-days" type="number" min="1" placeholder="e.g. 7" data-onchange="recomputeAdviceEstimate"/>
+              </div>
+              <div class="field">
+                <label>Duration Note (optional)</label>
+                <input id="adm-duration-note" type="text" placeholder="e.g. may extend if response is slow"/>
               </div>
             </div>
             <div class="field">
-              <label>Indication for Admission</label>
+              <label>Clinical Indication</label>
               <textarea id="adm-indication" placeholder="Clinical reason requiring in-patient care…" style="min-height:60px"></textarea>
             </div>
-            <div class="field">
-              <label>Ward Preference / Instructions</label>
-              <input id="adm-ward" type="text" placeholder="General / Private / ICU — specify if any"/>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Nursing Instructions</label>
+                <textarea id="adm-nursing" placeholder="Monitoring frequency, positioning, diet restrictions, IV line, oxygen…" style="min-height:50px"></textarea>
+              </div>
+              <div class="field">
+                <label>Diet Plan for Inpatient</label>
+                <input id="adm-diet" type="text" placeholder="e.g. Soft diet, Liquid diet, NPO, Diabetic diet"/>
+              </div>
             </div>
             <div class="field">
-              <label>Nursing Instructions</label>
-              <textarea id="adm-nursing" placeholder="Monitoring frequency, positioning, diet restrictions, IV line, oxygen…" style="min-height:60px"></textarea>
-            </div>
-            <div class="field">
-              <label>Diet Plan for Inpatient</label>
-              <input id="adm-diet" type="text" placeholder="e.g. Soft diet, Liquid diet, NPO, Diabetic diet"/>
+              <label>Expected Payer</label>
+              <select id="adm-payer" data-onchange="recomputeAdviceEstimate">
+                <option value="self_pay">Self-Pay</option>
+                <option value="insurance">Insurance</option>
+              </select>
             </div>
           </div>
 
+          <div class="section">
+            <div class="section-title">Planned Treatment <span class="section-sub">Drives the cost estimate below</span></div>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Procedure</label>
+                <select id="adm-proc-select"><option value="">— Select a procedure —</option></select>
+              </div>
+              <div class="field">
+                <label>Sessions</label>
+                <input id="adm-proc-sessions" type="number" min="1" value="1"/>
+              </div>
+            </div>
+            <button type="button" data-onclick="addAdviceProcedure" style="height:36px;padding:0 14px;background:var(--green-mid);color:#fff;border:none;border-radius:6px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer">+ Add Procedure</button>
+            <div id="adm-proc-list" style="margin-top:10px"></div>
+          </div>
+
           <div class="section" style="background:var(--green-light);border:1.5px solid var(--green-mid);border-radius:8px;padding:14px 16px">
-            <div style="font-size:12px;font-weight:600;color:var(--green-deep);margin-bottom:10px">Ready to assign a bed?</div>
-            <div style="font-size:12px;color:var(--text-mid);margin-bottom:12px">Complete the admission order above, then open the IPD module to pick a bed and formally admit the patient.</div>
-            <button type="button" data-onclick="openIPDAdmission"
+            <div style="font-size:12px;font-weight:600;color:var(--green-deep);margin-bottom:8px">Estimated Cost of Stay</div>
+            <div id="adm-estimate-body" style="font-size:12.5px;color:var(--text-mid)">Fill in department, room type and duration above to see an estimate.</div>
+          </div>
+
+          <div class="section">
+            <button type="button" data-onclick="saveAdmissionAdvice" id="btn-save-advice"
               style="height:44px;padding:0 20px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px">
-              &#8599; Open IPD Admission
+              &#128228; Send Admission Advice to Reception
             </button>
+            <div id="adm-save-status" style="display:none;margin-top:10px;font-size:12.5px;font-weight:600;color:var(--green-deep)"></div>
           </div>
           <div style="height:20px"></div>
         </div><!-- /tab-adm -->

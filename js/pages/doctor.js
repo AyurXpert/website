@@ -8,6 +8,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType } from '../config/ncism.js';
 import { addOpdBillItem } from '../modules/billing/opdBillItems.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
+import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { openTimePicker, formatTime12 } from '../components/timePicker.js';
 
@@ -336,6 +337,9 @@ function _gateFeatures() {
     if (_hasAdm) {
       document.getElementById('tab-btn-adm').classList.remove('gated');
       document.getElementById('tab-btn-adm').style.display = '';
+      _loadAdmDepts();
+      _loadAdmProcedureOptions();
+      _loadTenantAdvancePct();
     }
 
     // ABDM Records tab — visible for all tenant types
@@ -1397,11 +1401,198 @@ window.toggleBlock = function(id) {
   document.getElementById(id).classList.toggle('collapsed');
 };
 
-// ── Open IPD Admission in new tab ─────────────────
-window.openIPDAdmission = function() {
-  if (!_activePatient) return;
-  const url = `ipd.html?patient_id=${encodeURIComponent(_activePatient.id)}&name=${encodeURIComponent(_activePatient.name)}&visit_id=${encodeURIComponent(_activeVisitId||'')}`;
-  window.open(url, '_blank');
+// ── Admission Advice (Session 205 cont.) ──────────
+// Session 205 (cont.): replaces the old openIPDAdmission() -- that handed the doctor
+// straight into ipd.html's full Admit form, letting them complete an entire admission
+// unilaterally. Real hospital process: the doctor ADVISES admission with a cost
+// estimate; only reception/admin ever actually admits (create_ipd_admission RPC,
+// enforced server-side by RLS -- see sql/session205_admission_advice.sql). This block
+// builds that advice record + its cost estimate and saves it for reception to see.
+let _admDepts       = [];
+let _admProcedures  = [];   // fee_structures rows, category='procedure'
+let _admItems       = [];   // working list: {fee_type, description, sessions_count, unit_price, line_total}
+let _admTenantPct   = { self_pay: 25, insurance: 10 };
+
+async function _loadAdmDepts() {
+  const { data } = await supabase.from('departments')
+    .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true).order('name');
+  _admDepts = data || [];
+  const sel = document.getElementById('adm-dept');
+  if (sel) sel.innerHTML = '<option value="">— Select department —</option>' +
+    _admDepts.map(d => `<option value="${d.id}">${_esc(d.name)}</option>`).join('');
+}
+
+async function _loadAdmProcedureOptions() {
+  const { data } = await supabase.from('fee_structures')
+    .select('fee_type, description, amount, gst_percent, promo_price, promo_valid_until')
+    .eq('tenant_id', tenantId).eq('category', 'procedure').eq('is_active', true).order('fee_type');
+  _admProcedures = data || [];
+  const sel = document.getElementById('adm-proc-select');
+  if (sel) sel.innerHTML = '<option value="">— Select a procedure —</option>' +
+    _admProcedures.map(p => `<option value="${_esc(p.fee_type)}">${_esc(p.description || p.fee_type)} — ₹${getEffectivePrice(p).toLocaleString('en-IN')}</option>`).join('');
+}
+
+async function _loadTenantAdvancePct() {
+  const { data } = await supabase.from('tenants')
+    .select('ipd_advance_pct_self_pay, ipd_advance_pct_insurance').eq('id', tenantId).maybeSingle();
+  if (data) _admTenantPct = { self_pay: Number(data.ipd_advance_pct_self_pay) || 25, insurance: Number(data.ipd_advance_pct_insurance) || 10 };
+}
+
+function _renderAdmProcList() {
+  const el = document.getElementById('adm-proc-list');
+  if (!el) return;
+  el.innerHTML = _admItems.length
+    ? _admItems.map((it, i) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:5px;background:#fafff7">
+        <div>
+          <div style="font-size:12.5px;font-weight:600">${_esc(it.description)}</div>
+          <div style="font-size:10.5px;color:var(--text-muted)">${it.sessions_count} session${it.sessions_count>1?'s':''} × ₹${it.unit_price.toLocaleString('en-IN')} = ₹${it.line_total.toLocaleString('en-IN')}</div>
+        </div>
+        <button type="button" data-onclick="removeAdviceProcedure" data-onclick-a0="${i}" style="width:26px;height:26px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:11px">&#10005;</button>
+      </div>`).join('')
+    : '<div style="text-align:center;color:var(--text-muted);padding:10px;font-size:12px">No procedures planned yet.</div>';
+}
+
+window.addAdviceProcedure = function() {
+  const feeType = document.getElementById('adm-proc-select').value;
+  const sessions = parseInt(document.getElementById('adm-proc-sessions').value) || 1;
+  if (!feeType) return;
+  const feeRow = _admProcedures.find(p => p.fee_type === feeType);
+  if (!feeRow) return;
+  const unitPrice = getEffectivePrice(feeRow);
+  _admItems.push({
+    fee_type: feeType,
+    description: feeRow.description || feeType,
+    sessions_count: sessions,
+    unit_price: unitPrice,
+    line_total: unitPrice * sessions,
+  });
+  document.getElementById('adm-proc-select').value = '';
+  document.getElementById('adm-proc-sessions').value = '1';
+  _renderAdmProcList();
+  recomputeAdviceEstimate();
+};
+
+window.removeAdviceProcedure = function(idx) {
+  _admItems.splice(Number(idx), 1);
+  _renderAdmProcList();
+  recomputeAdviceEstimate();
+};
+
+let _admLastEstimate = null;   // { roomCost, treatmentCost, total, advancePct, advanceSuggested }
+let _admAdviceSaved  = false;  // did saveAdmissionAdvice() actually succeed this consultation?
+
+window.recomputeAdviceEstimate = async function() {
+  const el = document.getElementById('adm-estimate-body');
+  if (!el) return;
+  const roomType = document.getElementById('adm-room-type').value;
+  const days     = parseInt(document.getElementById('adm-duration-days').value) || 0;
+  const payer    = document.getElementById('adm-payer').value;
+
+  if (!days) {
+    el.textContent = 'Fill in department, room type and duration above to see an estimate.';
+    _admLastEstimate = null;
+    return;
+  }
+
+  const today = new Date();
+  const through = new Date(today.getTime() + days * 86400000);
+  const tariff = await computeRoomTariff({ supabase, tenantId, bed: { bed_type: roomType }, admissionDate: today, throughDate: through });
+
+  const treatmentCost = _admItems.reduce((s, it) => s + it.line_total, 0);
+
+  if (tariff.error) {
+    el.innerHTML = `<span style="color:#c0392b">⚠ ${_esc(tariff.error)}</span>` +
+      (treatmentCost ? `<br>Planned treatment: ₹${treatmentCost.toLocaleString('en-IN')} (room tariff still needed for a full estimate)` : '');
+    _admLastEstimate = null;
+    return;
+  }
+
+  const roomCost = tariff.total;
+  const total    = roomCost + treatmentCost;
+  const pct      = payer === 'insurance' ? _admTenantPct.insurance : _admTenantPct.self_pay;
+  const advance  = Math.round(total * pct / 100);
+
+  _admLastEstimate = { roomCost, treatmentCost, total, advancePct: pct, advanceSuggested: advance };
+
+  el.innerHTML = `
+    Room: ${tariff.days} day${tariff.days>1?'s':''} × ₹${tariff.dailyRate.toLocaleString('en-IN')} = <strong>₹${roomCost.toLocaleString('en-IN')}</strong><br>
+    Planned treatment: <strong>₹${treatmentCost.toLocaleString('en-IN')}</strong><br>
+    <span style="font-size:14px;font-weight:700;color:var(--green-deep)">Estimated Total: ₹${total.toLocaleString('en-IN')}</span><br>
+    Suggested advance (${pct}%, ${payer === 'insurance' ? 'insurance' : 'self-pay'}): <strong>₹${advance.toLocaleString('en-IN')}</strong>`;
+};
+
+function _resetAdmissionAdvice() {
+  _admItems = [];
+  _admLastEstimate = null;
+  _admAdviceSaved  = false;
+  _renderAdmProcList();
+  const el = document.getElementById('adm-estimate-body');
+  if (el) el.textContent = 'Fill in department, room type and duration above to see an estimate.';
+  const status = document.getElementById('adm-save-status');
+  if (status) status.style.display = 'none';
+}
+
+window.saveAdmissionAdvice = async function() {
+  if (!_activePatient || !_activeVisitId) { alert('Select a patient first.'); return; }
+  const deptId       = document.getElementById('adm-dept').value;
+  const indication   = document.getElementById('adm-indication').value.trim();
+  const days         = parseInt(document.getElementById('adm-duration-days').value) || 0;
+  const roomType     = document.getElementById('adm-room-type').value;
+  const payer        = document.getElementById('adm-payer').value;
+
+  if (!deptId)     { alert('Select a target department.'); return; }
+  if (!indication) { alert('Enter the clinical indication for admission.'); return; }
+  if (!days)       { alert('Enter the expected duration (days).'); return; }
+  await recomputeAdviceEstimate();
+  if (!_admLastEstimate) { alert('Fix the room-tariff issue shown above before sending this advice.'); return; }
+
+  const btn = document.getElementById('btn-save-advice');
+  btn.disabled = true; btn.textContent = 'Sending…';
+
+  const { data: advice, error } = await supabase.from('admission_advice').insert({
+    tenant_id: tenantId, patient_id: _activePatient.id, visit_id: _activeVisitId, doctor_id: userId,
+    department_id: deptId,
+    clinical_indication: indication,
+    expected_duration_days: days,
+    duration_note: document.getElementById('adm-duration-note').value.trim() || null,
+    room_type_preference: roomType,
+    nursing_care_notes: document.getElementById('adm-nursing').value.trim() || null,
+    diet_type: document.getElementById('adm-diet').value.trim() || null,
+    payer_type: payer,
+    estimated_room_cost: _admLastEstimate.roomCost,
+    estimated_treatment_cost: _admLastEstimate.treatmentCost,
+    estimated_total: _admLastEstimate.total,
+    advance_pct_applied: _admLastEstimate.advancePct,
+    advance_amount_suggested: _admLastEstimate.advanceSuggested,
+    created_by: userId,
+  }).select('id').single();
+
+  if (error) {
+    btn.disabled = false; btn.textContent = '📤 Send Admission Advice to Reception';
+    alert(safeErrorMessage(error, 'Could not save admission advice.')); return;
+  }
+
+  if (_admItems.length) {
+    const { error: itemsErr } = await supabase.from('admission_advice_items').insert(
+      _admItems.map(it => ({
+        tenant_id: tenantId, admission_advice_id: advice.id, fee_type: it.fee_type,
+        description: it.description, sessions_count: it.sessions_count,
+        unit_price_snapshot: it.unit_price, line_total: it.line_total,
+      }))
+    );
+    if (itemsErr) console.warn('[doctor] admission_advice_items insert:', itemsErr.message);
+  }
+
+  await logAudit('admission_advice_created', 'admission_advice', advice.id, {
+    patient_name: _activePatient?.name, department_id: deptId, estimated_total: _admLastEstimate.total,
+  }, _ctx);
+
+  _admAdviceSaved = true;
+  btn.disabled = false; btn.textContent = '📤 Send Admission Advice to Reception';
+  const status = document.getElementById('adm-save-status');
+  status.style.display = '';
+  status.textContent = `✓ Sent — ${_activePatient?.name} will now appear in Reception's Admission Requests queue.`;
 };
 
 // ── Disposition change ────────────────────────────
@@ -2204,7 +2395,10 @@ async function completeConsultation() {
     }
 
     const dispMsg = disposition === 'pk' ? 'Panchakarma plan saved'
-      : disposition === 'admission' ? 'Admission order created'
+      // Session 205 (cont.): honest reflection of whether the advice was actually
+      // sent -- previously said "Admission order created" unconditionally even
+      // though the Admission tab's fields were never saved anywhere at all.
+      : disposition === 'admission' ? (_admAdviceSaved ? 'Admission advice sent to reception' : 'Admission advice not sent — open the Admission tab and send it')
       : disposition === 'referral'  ? (refSaved ? 'Referral sent — target OPD alerted' : 'Referral noted')
       : 'sent to pharmacy';
     _toast(`${_activePatient?.name} — consultation complete, ${dispMsg}`, 'info');
@@ -4248,7 +4442,7 @@ function _clearForm() {
     'd-icd10-search','d-icd10-code','d-icd10-label','d-icd','d-notes',
     'rx-instructions','adv-pathya','adv-apathya','fu-date','fu-notes',
     'disp-notes','pk-oils','pk-notes','pk-start','pk-duration',
-    'adm-ward','adm-nursing','adm-diet','adm-duration','adm-indication',
+    'adm-indication','adm-nursing','adm-diet','adm-duration-days','adm-duration-note',
     'ref-doctor','ref-hospital','ref-reason',
     'pedi-age-yr','pedi-age-mo','pedi-adult-dose','mc-diagnosis','mc-remarks',
     'gr-yr','gr-mo','gr-ht','gr-hc','gr-wt-display'
@@ -4267,12 +4461,16 @@ function _clearForm() {
     'a-nadi','a-mala','a-mutra','a-jihwa','a-shabda','a-sparsha','a-druk','a-akriti',
     'd-vata','d-pitta','d-kapha','d-agni','d-ama',
     'dasha-sara','dasha-samhanana','dasha-pramana','dasha-satmya','dasha-satva','dasha-vaya','dasha-ahara','dasha-vyayama',
-    'd-certainty','adm-type','fu-quick','ref-type','ref-urgency','ref-target-opd'
+    'd-certainty','adm-room-type','adm-payer','fu-quick','ref-type','ref-urgency','ref-target-opd'
   ];
   selects.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  // adm-dept intentionally left alone here -- _loadAdmDepts() repopulates it fresh
+  // (its own default option) each time the Admission tab actually loads, same
+  // pattern as _populateDoctorSelect() on ipd.js.
+  _resetAdmissionAdvice();
 
   document.getElementById('rx-rows').innerHTML = '';
   document.getElementById('diff-list').innerHTML = '';

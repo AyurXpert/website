@@ -4098,9 +4098,9 @@ function _setMode(mode) {
   }
 }
 
-// ── Queue / Appointments / Lab Bills / Reg. Queue tabs ──
-const _allTabs   = ['tab-queue', 'tab-appts', 'tab-labbills', 'tab-regqueue'];
-const _allPanels = ['queue-list', 'appt-list', 'lab-bills-list', 'reg-queue-list'];
+// ── Queue / Appointments / Lab Bills / Reg. Queue / Admission Requests tabs ──
+const _allTabs   = ['tab-queue', 'tab-appts', 'tab-labbills', 'tab-regqueue', 'tab-admreq'];
+const _allPanels = ['queue-list', 'appt-list', 'lab-bills-list', 'reg-queue-list', 'admission-requests-list'];
 function _activateTab(tabId, panelId) {
   _allTabs.forEach(id => document.getElementById(id).classList.toggle('active', id === tabId));
   _allPanels.forEach(id => document.getElementById(id).style.display = (id === panelId) ? '' : 'none');
@@ -4119,6 +4119,10 @@ document.getElementById('tab-labbills').addEventListener('click', () => {
 document.getElementById('tab-regqueue').addEventListener('click', () => {
   _activateTab('tab-regqueue', 'reg-queue-list');
   loadRegQueue();
+});
+document.getElementById('tab-admreq').addEventListener('click', () => {
+  _activateTab('tab-admreq', 'admission-requests-list');
+  loadAdmissionRequests();
 });
 
 // ── Pending Lab/Investigation Bills (Session 126) ──
@@ -4210,6 +4214,78 @@ window.waiveLabPayment = async function(orderId) {
   _alert('success', 'Payment waived — lab can proceed.');
   loadPendingLabBills();
 };
+
+// ── Admission Requests (Session 205 cont.) ──────────────────────────
+// Real hospital process: a doctor advises admission (doctor.html's Admission Advice
+// tab) with a cost estimate; reception sees it here, collects the advance, and
+// admits (ipd.html?advice_id=..., create_ipd_admission RPC -- see
+// sql/session205_admission_advice.sql). Never a second admit form on this page --
+// this tab is purely a queue + handoff, same "open in new tab, prefilled" pattern
+// doctor.js's old openIPDAdmission() already used.
+let _admReqSubscription = null;
+
+async function loadAdmissionRequests() {
+  const { data, error } = await supabase
+    .from('admission_advice')
+    .select('id, clinical_indication, expected_duration_days, duration_note, room_type_preference, payer_type, estimated_total, advance_amount_suggested, created_at, patients(name, phone), profiles!doctor_id(full_name), departments(name)')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+  if (error) { console.warn('[reception] loadAdmissionRequests:', error.message); return; }
+
+  const rows = data || [];
+  document.getElementById('admreq-count').textContent = rows.length ? `(${rows.length})` : '';
+  const list = document.getElementById('admission-requests-list');
+  if (!rows.length) {
+    list.innerHTML = `<div class="q-empty"><div class="q-empty-icon">🛏️</div><div class="q-empty-text">No pending admission advice right now.</div></div>`;
+    return;
+  }
+
+  const ROOM_LABELS = { general:'General Ward', semi_private:'Semi-Private', private:'Private', icu:'ICU / HDU' };
+  list.innerHTML = rows.map(r => {
+    const waitedFor = _waitTime(r.created_at);
+    const roomLabel = ROOM_LABELS[r.room_type_preference] || r.room_type_preference || '—';
+    const payerBadge = r.payer_type === 'insurance'
+      ? `<span class="badge" style="background:#e3f0ff;color:#1a4080">INSURANCE</span>` : '';
+    return `<div class="q-item">
+      <div class="q-token waiting">🛏️</div>
+      <div class="q-info">
+        <div class="q-name">${_esc(r.patients?.name || '—')} ${payerBadge}</div>
+        <div class="q-row2"><span style="color:var(--text-mid)">${_esc(r.departments?.name || '—')} · ${_esc(roomLabel)} · ${r.expected_duration_days || '?'} day${r.expected_duration_days>1?'s':''}${r.duration_note ? ' ('+_esc(r.duration_note)+')' : ''}</span></div>
+        <div class="q-row2"><span style="color:var(--text-mid)">Advised by Dr. ${_esc(r.profiles?.full_name || '—')} · waiting ${waitedFor}</span></div>
+        <div class="q-row3">${_esc(r.clinical_indication || '')}</div>
+        <div class="q-row3">Estimated total: <strong>₹${Number(r.estimated_total||0).toLocaleString('en-IN')}</strong> · Suggested advance: <strong>₹${Number(r.advance_amount_suggested||0).toLocaleString('en-IN')}</strong></div>
+      </div>
+      <div class="q-right" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <button class="q-edit-btn" data-onclick="openAdmissionFromAdvice" data-onclick-a0="${r.id}" style="width:auto;padding:0 10px;font-size:11px;background:var(--green-mid);color:#fff">🛏️ Collect Advance &amp; Admit →</button>
+        <button class="q-edit-btn" data-onclick="declineAdmissionAdvice" data-onclick-a0="${r.id}" style="width:auto;padding:0 8px;font-size:11px;background:#a01a1a;color:#fff">✕ Decline</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.openAdmissionFromAdvice = function(adviceId) {
+  window.open(`ipd.html?advice_id=${encodeURIComponent(adviceId)}`, '_blank');
+};
+
+window.declineAdmissionAdvice = async function(adviceId) {
+  if (!confirm('Decline this admission advice? The patient/attendant decided not to proceed — this removes it from the queue.')) return;
+  const { error } = await supabase.from('admission_advice').update({ status: 'declined' }).eq('id', adviceId);
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not decline this advice.')); return; }
+  _alert('success', 'Admission advice declined.');
+  loadAdmissionRequests();
+};
+
+function _initAdmissionRequests() {
+  document.getElementById('tab-admreq').style.display = '';
+  loadAdmissionRequests();
+  _admReqSubscription = supabase
+    .channel(`admreq-${profile.id}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'admission_advice' }, () => loadAdmissionRequests())
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'admission_advice' }, () => loadAdmissionRequests())
+    .subscribe();
+}
+setInterval(() => { if (_admReqSubscription) loadAdmissionRequests(); }, 30_000);
 
 // ── Registration Queue (queue redesign piece 2, 17 Aug 2026) ──────
 // Only meaningful for a registration_clerk/billing_clerk currently on
@@ -4584,6 +4660,7 @@ await loadTodaysAppointments();
 await loadPendingLabBills();
 await _checkStaleVisits();
 _initRegistrationQueue();
+_initAdmissionRequests();
 renderPromoBanner('promo-banner', { supabase, tenantId });
 setInterval(loadQueue, 30_000);
 setInterval(loadTodaysAppointments, 30_000);

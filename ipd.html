@@ -374,6 +374,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           </div>
         </div>
 
+        <!-- Session 205 (cont.): shown only when arriving via ipd.html?advice_id=... from
+             reception's Admission Requests tab (a doctor's advice, converted here) --
+             see sql/session205_admission_advice.sql + plan bright-popping-stallman. -->
+        <div id="adm-advice-banner" style="display:none;background:var(--green-light);border:1.5px solid var(--green-mid);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12.5px;color:var(--text-mid)"></div>
+
         <div class="field">
           <label>Department <span class="req">*</span></label>
           <select id="adm-dept" data-onchange="loadVacantBeds">
@@ -422,6 +427,29 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <div class="field">
           <label>Notes</label>
           <textarea id="adm-notes" placeholder="Special instructions, referring doctor…"></textarea>
+        </div>
+
+        <!-- Session 205 (cont.): reception always collects an advance before admitting --
+             both the advice-flow and the direct-walk-in flow (never optional; matches
+             Dr. Venkatesh's described process). Required by create_ipd_admission() RPC
+             server-side too, not just this UI. -->
+        <div style="background:#fffdf0;border:1.5px solid #e8d08a;border-radius:8px;padding:12px 14px;margin-top:4px">
+          <div style="font-weight:600;font-size:13px;color:#7a4a00;margin-bottom:8px">💰 Advance Payment <span style="font-size:10px;font-weight:400;color:var(--text-muted)">(required to admit)</span></div>
+          <div class="field-row">
+            <div class="field">
+              <label>Advance Collected <span class="req">*</span></label>
+              <input id="adm-advance-amount" type="number" min="0" step="0.01" placeholder="₹"/>
+            </div>
+            <div class="field">
+              <label>Payment Mode <span class="req">*</span></label>
+              <select id="adm-advance-mode">
+                <option value="">— Select —</option>
+                <option value="cash">Cash</option>
+                <option value="upi">UPI</option>
+                <option value="card">Card</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <!-- NABH — Admission Consent -->
@@ -483,6 +511,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div class="drawer-footer">
       <button class="btn btn-secondary" id="btn-admit-back" data-onclick="goStep" data-onclick-a0="1" style="display:none">← Back</button>
       <button class="btn btn-secondary" data-onclick="closeAdmitDrawer">Cancel</button>
+      <span id="admit-role-note" style="display:none;font-size:11.5px;color:var(--text-muted);align-self:center">Only reception or admin can complete an admission.</span>
       <button class="btn btn-primary" id="btn-admit-save" data-onclick="saveAdmission" style="display:none">Admit Patient</button>
     </div>
   </div>

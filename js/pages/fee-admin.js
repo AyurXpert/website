@@ -1524,6 +1524,34 @@ window.saveBedMultipliers = async function() {
   renderTable();
 };
 
+// ── Admission Advance Policy (Session 205 cont.) ──
+// tenants.ipd_advance_pct_self_pay/ipd_advance_pct_insurance -- a plain policy knob,
+// not a fee_structures row, so it's a fixed card rather than living inside the
+// dynamic group-tabs system. Drives doctor.html's Admission Advice cost estimate.
+async function loadAdvancePolicy() {
+  const { data, error } = await supabase.from('tenants')
+    .select('ipd_advance_pct_self_pay, ipd_advance_pct_insurance').eq('id', tenantId).maybeSingle();
+  if (error || !data) return;
+  document.getElementById('advpol-self-pay').value = data.ipd_advance_pct_self_pay ?? 25;
+  document.getElementById('advpol-insurance').value = data.ipd_advance_pct_insurance ?? 10;
+}
+
+window.saveAdvancePolicy = async function() {
+  const selfPay    = Number(document.getElementById('advpol-self-pay').value);
+  const insurance  = Number(document.getElementById('advpol-insurance').value);
+  if (!(selfPay >= 0 && selfPay <= 100) || !(insurance >= 0 && insurance <= 100)) {
+    toast('Enter a percentage between 0 and 100 for both fields.', 'error'); return;
+  }
+  const { error } = await supabase.from('tenants').update({
+    ipd_advance_pct_self_pay: selfPay, ipd_advance_pct_insurance: insurance,
+  }).eq('id', tenantId);
+  if (error) { toast(safeErrorMessage(error, 'Could not save the advance policy.'), 'error'); return; }
+  toast('Admission advance policy updated.', 'success');
+  const status = document.getElementById('advpol-status');
+  status.style.display = ''; status.textContent = '✓ Saved';
+  setTimeout(() => { status.style.display = 'none'; }, 3000);
+};
+
 // ── Boot ──────────────────────────────────────────
 window.toast = toast;
 populateGroupSelect();
@@ -1536,4 +1564,5 @@ try { await supabase.rpc('apply_silent_pending_migrations'); } catch (e) { /* no
 await loadOPDs();
 await loadDepartments();
 await loadBedMultipliers();
+await loadAdvancePolicy();
 await loadFees();

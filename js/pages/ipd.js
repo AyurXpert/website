@@ -63,6 +63,10 @@ const DISCHARGE_ROLES = ['doctor','nurse','super_admin','dept_admin'];
 // own ALLOWED list (billing-clerk designation is a receptionist role) --
 // not doctor/nurse, whose job ends once charges are locked.
 const BILLING_ROLES = ['receptionist','cashier','accountant','finance_manager','super_admin','dept_admin'];
+// Session 205 (cont.) -- who may actually CREATE an admission. Real hospital process:
+// a doctor advises admission (doctor.html), reception collects the advance and admits
+// -- never a doctor/nurse directly. Matches _ipd_admissions_insert_ok() server-side.
+const ADMIT_ROLES = ['receptionist','super_admin','dept_admin'];
 
 let _admissions  = [];
 let _depts       = [];
@@ -103,7 +107,7 @@ window.loadAll = async function loadAll() {
       .from('ipd_admissions')
       .select(`
         id, tenant_id, admission_date, admitted_at, discharged_at, charges_locked_at,
-        status, disposition, diagnosis_primary, diet_type, notes,
+        status, disposition, diagnosis_primary, diet_type, notes, advance_amount_collected,
         patients(id, name, phone, abha_number, abha_address, age, gender),
         beds(id, bed_number, ward_name, bed_type, department_id),
         departments(id, name, ncism_code),
@@ -420,6 +424,12 @@ window.openAdmitDrawer = function() {
   document.getElementById('mlc-fields').style.display = 'none';
   document.getElementById('adm-date').value    = new Date().toISOString().slice(0,10);
   document.getElementById('bed-picker').innerHTML = '<span class="bed-picker-empty">Select a department first</span>';
+  // Session 205 (cont.) -- advance payment + advice-reference reset. _currentAdvice
+  // is only ever set again by the ?advice_id= boot block, AFTER this function returns.
+  _currentAdvice = null;
+  document.getElementById('adm-advance-amount').value = '';
+  document.getElementById('adm-advance-mode').value   = '';
+  document.getElementById('adm-advice-banner').style.display = 'none';
   _populateDoctorSelect(); // reset to "select department first" state
   goStep(1);
   document.getElementById('admit-overlay').classList.add('open');
@@ -439,7 +449,14 @@ window.goStep = function(n) {
   });
 
   document.getElementById('btn-admit-back').style.display  = n === 2 ? '' : 'none';
-  document.getElementById('btn-admit-save').style.display  = n === 2 ? '' : 'none';
+  // Session 205 (cont.): the drawer itself stays open to doctor/nurse for viewing
+  // context (bed availability, etc.), but the actual save action is now reception/
+  // admin only -- matches the RLS INSERT gate (_ipd_admissions_insert_ok()) and the
+  // create_ipd_admission() RPC's own server-side check. A clear note, not a silent
+  // disable.
+  const canAdmit = n === 2 && ADMIT_ROLES.includes(myRole);
+  document.getElementById('btn-admit-save').style.display  = canAdmit ? '' : 'none';
+  document.getElementById('admit-role-note').style.display = (n === 2 && !canAdmit) ? '' : 'none';
 
   if (n === 2 && _selectedPatient) {
     document.getElementById('spt2-name').textContent = _selectedPatient.name;
@@ -709,8 +726,15 @@ window.toggleMlcFields = function(show) {
   if (el) el.style.display = show ? 'grid' : 'none';
 };
 
+// Session 205 (cont.): rewritten to call the create_ipd_admission() RPC instead of
+// raw multi-step inserts -- the open-admission guard, bed-occupied update, visit
+// completion, consent-record insert, and (new) advice-conversion all now happen
+// atomically server-side, with a real role check (receptionist/super_admin/
+// dept_admin only) as defense-in-depth alongside the RLS INSERT policy. See
+// sql/session205_admission_advice.sql.
 window.saveAdmission = async function() {
   if (!_selectedPatient) { _alert('error','Select a patient first.'); return; }
+  if (!ADMIT_ROLES.includes(myRole)) { _alert('error','Only reception or admin can complete an admission.'); return; }
   const deptId    = document.getElementById('adm-dept').value;
   const bedId     = document.getElementById('adm-bed-id').value;
   const doctorId  = document.getElementById('adm-doctor').value;
@@ -719,100 +743,53 @@ window.saveAdmission = async function() {
   const diet      = document.getElementById('adm-diet').value;
   const notes     = document.getElementById('adm-notes').value.trim();
   const isMlc     = document.getElementById('adm-is-mlc').checked;
+  const advanceAmount = document.getElementById('adm-advance-amount').value;
+  const advanceMode   = document.getElementById('adm-advance-mode').value;
 
   if (!deptId)   { _alert('error','Select a department.'); return; }
   if (!bedId)    { _alert('error','Select a bed.'); return; }
   if (!doctorId) { _alert('error','Select an admitting doctor.'); return; }
   if (!admDate)  { _alert('error','Enter admission date.'); return; }
-
-  // Guard against admitting the same patient into a second bed while an earlier
-  // admission is still open (not yet fully discharged) -- queried fresh against
-  // the DB rather than the in-memory list, since that can be stale by save time.
-  const { data: openAdms } = await supabase.from('ipd_admissions')
-    .select('id, beds(bed_number)')
-    .eq('tenant_id', tenantId).eq('patient_id', _selectedPatient.id)
-    .neq('status', 'discharged');
-  if (openAdms && openAdms.length) {
-    const bedLabel = openAdms[0].beds?.bed_number || 'a bed';
-    _alert('error', `${_selectedPatient.name} already has an open IPD admission (${bedLabel}). Discharge that admission before creating a new one.`);
-    return;
-  }
+  if (advanceAmount === '' || Number(advanceAmount) < 0) { _alert('error','Enter the advance amount collected.'); return; }
+  if (!advanceMode) { _alert('error','Select the advance payment mode.'); return; }
 
   const btn = document.getElementById('btn-admit-save');
   btn.disabled = true; btn.textContent = 'Admitting…';
 
-  const mlcData = isMlc ? {
-    is_mlc:              true,
-    mlc_number:          document.getElementById('adm-mlc-no').value.trim() || null,
-    mlc_police_station:  document.getElementById('adm-mlc-ps').value.trim() || null,
-    mlc_nature:          document.getElementById('adm-mlc-nature').value.trim() || null,
-    mlc_police_intimation: document.getElementById('adm-mlc-police').value,
-    mlc_intimation_at:   document.getElementById('adm-mlc-time').value ? new Date(document.getElementById('adm-mlc-time').value).toISOString() : null,
-  } : { is_mlc: false };
-
-  // 24 Aug 2026 (Session 182): visit_id was read from the URL (?visit_id=, passed by
-  // doctor.html's "Open IPD Admission" link) only to pre-select the patient, then
-  // discarded -- never actually saved on the admission row, even though the column
-  // exists. Found while building abdm-fhir's Discharge Summary "Investigations" section,
-  // which needs this exact link to pull the admission's own lab/imaging reports -- it was
-  // silently a no-op for every real admission since ipd_admissions.visit_id was always
-  // NULL. Also useful generally as the one real link between an OPD visit and the IPD
-  // admission it led to.
-  const { error: admErr } = await supabase.from('ipd_admissions').insert({
-    tenant_id:           tenantId,
-    patient_id:          _selectedPatient.id,
-    visit_id:            _qp.get('visit_id') || null,
-    bed_id:              bedId,
-    department_id:       deptId,
-    admitting_doctor_id: doctorId,
-    admission_date:      admDate,
-    admitted_at:         new Date().toISOString(),
-    status:              'admitted',
-    diagnosis_primary:   diagnosis || null,
-    diet_type:           diet || null,
-    notes:               notes || null,
-    ...mlcData,
+  const { data: newAdmissionId, error: admErr } = await supabase.rpc('create_ipd_admission', {
+    p_patient_id:            _selectedPatient.id,
+    p_department_id:         deptId,
+    p_bed_id:                bedId,
+    p_admitting_doctor_id:   doctorId,
+    p_admission_date:        admDate,
+    p_advance_amount:        Number(advanceAmount),
+    p_advance_payment_mode:  advanceMode,
+    p_diagnosis_primary:     diagnosis || null,
+    p_diet_type:             diet || null,
+    p_notes:                 notes || null,
+    // 24 Aug 2026 (Session 182): visit_id was read from the URL (?visit_id=, passed
+    // by doctor.html's old "Open IPD Admission" link) only to pre-select the
+    // patient, then discarded -- never actually saved on the admission row, even
+    // though the column exists. Also useful generally as the one real link between
+    // an OPD visit and the IPD admission it led to.
+    p_visit_id:              _qp.get('visit_id') || null,
+    p_advice_id:             _currentAdvice?.id || null,
+    p_is_mlc:                isMlc,
+    p_mlc_number:            isMlc ? (document.getElementById('adm-mlc-no').value.trim() || null) : null,
+    p_mlc_police_station:    isMlc ? (document.getElementById('adm-mlc-ps').value.trim() || null) : null,
+    p_mlc_nature:            isMlc ? (document.getElementById('adm-mlc-nature').value.trim() || null) : null,
+    p_mlc_police_intimation: isMlc ? document.getElementById('adm-mlc-police').value : null,
+    p_mlc_intimation_at:     isMlc && document.getElementById('adm-mlc-time').value ? new Date(document.getElementById('adm-mlc-time').value).toISOString() : null,
+    p_consent_by:            document.getElementById('adm-consent-by').value.trim() || null,
+    p_consent_relationship:  document.getElementById('adm-consent-rel').value,
+    p_consent_risks:         document.getElementById('adm-consent-risks').checked,
+    p_consent_alternatives:  document.getElementById('adm-consent-alts').checked,
+    p_consent_questions:     document.getElementById('adm-consent-questions').checked,
   });
-
-  // Being admitted resolves any OPD visit this patient still has open at Reception's
-  // queue level -- otherwise it lingers forever and trips reception.html's "stale visit
-  // from a previous day" end-of-day banner even though the patient has since moved to
-  // IPD. Closes every still-open visit for this patient, not just the one that
-  // triggered this admission (if any) -- once admitted, none of them are still "waiting".
-  if (!admErr) {
-    await supabase.from('visits')
-      .update({ status: 'completed' })
-      .eq('tenant_id', tenantId).eq('patient_id', _selectedPatient.id)
-      .in('status', ['waiting', 'in_progress']);
-  }
 
   if (admErr) {
     btn.disabled = false; btn.textContent = 'Admit Patient';
-    _alert('error', 'Admission failed: ' + admErr.message); return;
-  }
-
-  // Mark bed occupied
-  await supabase.from('beds').update({ status: 'occupied' }).eq('id', bedId);
-
-  // NABH — Save admission consent record
-  const consentBy = document.getElementById('adm-consent-by').value.trim();
-  if (consentBy) {
-    const { data: newAdm } = await supabase.from('ipd_admissions')
-      .select('id').eq('patient_id', _selectedPatient.id).order('admitted_at', { ascending: false }).limit(1).single();
-    if (newAdm?.id) {
-      await supabase.from('consent_records').insert({
-        tenant_id:              tenantId,
-        patient_id:             _selectedPatient.id,
-        ipd_admission_id:       newAdm.id,
-        consent_type:           'general_treatment',
-        consent_given:          true,
-        consent_by:             consentBy,
-        relationship:           document.getElementById('adm-consent-rel').value,
-        risks_explained:        document.getElementById('adm-consent-risks').checked,
-        alternatives_explained: document.getElementById('adm-consent-alts').checked,
-        questions_answered:     document.getElementById('adm-consent-questions').checked,
-      });
-    }
+    _alert('error', safeErrorMessage(admErr, 'Admission failed.')); return;
   }
 
   btn.disabled = false; btn.textContent = 'Admit Patient';
@@ -1101,11 +1078,17 @@ window.confirmGenerateBill = async function() {
   // which this bill surfaces in automatically once payer_type != self_pay.
   const insuranceClaimStatus = payerType === 'self_pay' ? 'not_applicable' : 'pre_auth_pending';
 
+  // Session 205 (cont.): credit the advance collected at admission against this bill --
+  // patient_due (GENERATED STORED, sql/session205_bills_advance_credit.sql) is
+  // final_amount - insurance_approved_amount - advance_credited, so this is the only
+  // field this insert needs to set for the advance to actually reduce what's shown as
+  // owed. Insurance settlement (insurance-claims.html) reduces it further, unchanged.
   const { data: bill, error: billErr } = await supabase.from('bills').insert({
     tenant_id: tenantId, patient_id: adm.patients?.id,
     bill_type: 'ipd', total_amount: finalAmount, final_amount: finalAmount,
     payer_type: payerType, insurance_claim_status: insuranceClaimStatus,
     status: 'pending', payment_mode: null,
+    advance_credited: Number(adm.advance_amount_collected) || 0,
   }).select('id').single();
 
   if (billErr) {
@@ -1546,6 +1529,39 @@ if (_qPatientId) {
   if (_qPt) {
     openAdmitDrawer();
     selectPatient(_qPt, _qp.get('visit_id') || null);
+  }
+}
+
+// Session 205 (cont.) -- arriving from reception's Admission Requests tab
+// (ipd.html?advice_id=...). Pre-fills patient/department/diagnosis/diet/notes from
+// the doctor's advice and shows its cost estimate as reference; the actual bed and
+// admitting doctor are still picked fresh here (a real bed may not match the
+// preference by the time reception acts). See sql/session205_admission_advice.sql.
+let _currentAdvice = null;
+const _qAdviceId = _qp.get('advice_id');
+if (_qAdviceId) {
+  const { data: advice } = await supabase
+    .from('admission_advice')
+    .select('id, patient_id, department_id, clinical_indication, diet_type, nursing_care_notes, room_type_preference, payer_type, estimated_total, advance_amount_suggested, status, patients(id,name,phone,gender,age,abha_number)')
+    .eq('id', _qAdviceId).eq('tenant_id', tenantId).maybeSingle();
+  if (advice && advice.status === 'pending' && advice.patients) {
+    openAdmitDrawer();  // resets _currentAdvice to null first -- set it AFTER, not before
+    _currentAdvice = advice;
+    selectPatient(advice.patients, null);
+    document.getElementById('adm-dept').value = advice.department_id || '';
+    loadVacantBeds();
+    document.getElementById('adm-diagnosis').value = advice.clinical_indication || '';
+    if (advice.diet_type) document.getElementById('adm-diet').value = advice.diet_type;
+    document.getElementById('adm-notes').value = advice.nursing_care_notes || '';
+    document.getElementById('adm-advance-amount').value = advice.advance_amount_suggested || '';
+    const banner = document.getElementById('adm-advice-banner');
+    banner.style.display = '';
+    banner.innerHTML = `<strong>From doctor's admission advice</strong> — ` +
+      `${advice.payer_type === 'insurance' ? 'Insurance' : 'Self-pay'} · ` +
+      `Estimated total: ₹${Number(advice.estimated_total||0).toLocaleString('en-IN')} · ` +
+      `Suggested advance: ₹${Number(advice.advance_amount_suggested||0).toLocaleString('en-IN')}`;
+  } else if (advice) {
+    alert(`This admission advice has already been ${advice.status} — it cannot be used again.`);
   }
 }
 

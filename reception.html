@@ -1563,6 +1563,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <button class="q-tab" id="tab-appts" type="button">📅 Appointments <span id="appt-count"></span></button>
       <button class="q-tab" id="tab-labbills" type="button">💰 Lab Bills <span id="labbills-count"></span></button>
       <button class="q-tab" id="tab-regqueue" type="button" style="display:none">📋 Reg. Queue <span id="regqueue-count"></span></button>
+      <!-- Session 205 (cont.) -- Admission Advice -> Reception-Executed Admission redesign.
+           Real hospital process: a doctor advises admission (doctor.html's new Admission
+           Advice tab), reception sees it here, collects the advance, and admits
+           (ipd.html?advice_id=..., create_ipd_admission RPC). See plan bright-popping-stallman. -->
+      <button class="q-tab" id="tab-admreq" type="button">🛏️ Admission Requests <span id="admreq-count"></span></button>
     </div>
     <div class="queue-body" id="queue-list">
       <div class="q-empty"><div class="q-empty-icon">⏳</div><div class="q-empty-text">Loading…</div></div>
@@ -1572,6 +1577,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     </div>
     <div class="queue-body" id="lab-bills-list" style="display:none">
       <div class="q-empty"><div class="q-empty-icon">💰</div><div class="q-empty-text">Loading…</div></div>
+    </div>
+    <div class="queue-body" id="admission-requests-list" style="display:none">
+      <div class="q-empty"><div class="q-empty-icon">🛏️</div><div class="q-empty-text">Loading…</div></div>
     </div>
     <!-- Session 173: lightweight Registration-duty toggle for any plain receptionist
          (no NCISM registration_clerk/billing_clerk designation needed) -- mirrors
