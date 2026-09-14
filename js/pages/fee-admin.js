@@ -1542,9 +1542,15 @@ window.saveAdvancePolicy = async function() {
   if (!(selfPay >= 0 && selfPay <= 100) || !(insurance >= 0 && insurance <= 100)) {
     toast('Enter a percentage between 0 and 100 for both fields.', 'error'); return;
   }
-  const { error } = await supabase.from('tenants').update({
-    ipd_advance_pct_self_pay: selfPay, ipd_advance_pct_insurance: insurance,
-  }).eq('id', tenantId);
+  // Real bug found live-testing on SDM (14 Sep, ofcsuptd@sdm.com/dept_admin): tenants' only
+  // UPDATE RLS policy is role='super_admin' ONLY -- a direct .update() from a dept_admin
+  // silently affected 0 rows with no error (this page's own requireAuth() allows dept_admin,
+  // but the table's RLS didn't). Same class of gap Session 137 hit for
+  // update_nursing_head_delegate() -- fixed the same way, via a SECURITY DEFINER RPC with its
+  // own explicit role check rather than loosening tenants' blanket RLS.
+  const { error } = await supabase.rpc('set_ipd_advance_policy', {
+    p_self_pay: selfPay, p_insurance: insurance,
+  });
   if (error) { toast(safeErrorMessage(error, 'Could not save the advance policy.'), 'error'); return; }
   toast('Admission advance policy updated.', 'success');
   const status = document.getElementById('advpol-status');
