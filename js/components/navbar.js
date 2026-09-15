@@ -636,7 +636,19 @@ function _injectStyles() {
   }
 
   /* Watermark */
-  #ax-watermark{position:fixed;bottom:14px;right:14px;z-index:990;font-family:'DM Sans',sans-serif;font-size:11px;color:rgba(0,0,0,.28);cursor:pointer;background:rgba(255,255,255,.82);padding:5px 11px;border-radius:20px;backdrop-filter:blur(6px);border:1px solid rgba(0,0,0,.06);transition:color .2s,background .2s;user-select:none;line-height:1.4}
+  /* Session 206: z-index dropped 990 -> 50 -- found live on therapist.html, a real bug:
+     the watermark sat ABOVE every page's drawer/modal footer (this codebase's drawer
+     pattern pins Cancel/Save buttons bottom-right of a full-height right-side panel --
+     the exact corner the watermark also occupies), silently blocking clicks on the
+     Schedule button. Spot-checked z-index values across 8 pages (reception/doctor/
+     nursing/ipd/admin/bed-admin/hr/therapist.html): drawers/modals range from 100 up
+     into the thousands depending on the page, but NONE go below 100, and nothing
+     legitimately needs to render *above* a modal/drawer's own action buttons -- 50
+     stays safely below all of them while still sitting above ordinary unstacked page
+     content (typically z-index:auto/0, or small internal-stacking values like 1/40
+     seen on sticky headers, which don't occupy this corner anyway).
+  */
+  #ax-watermark{position:fixed;bottom:14px;right:14px;z-index:50;font-family:'DM Sans',sans-serif;font-size:11px;color:rgba(0,0,0,.28);cursor:pointer;background:rgba(255,255,255,.82);padding:5px 11px;border-radius:20px;backdrop-filter:blur(6px);border:1px solid rgba(0,0,0,.06);transition:color .2s,background .2s;user-select:none;line-height:1.4}
   #ax-watermark:hover{color:#1a4a2e;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.1)}
   #ax-watermark strong{font-weight:600;color:#2d7a4f}
 
