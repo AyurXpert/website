@@ -345,15 +345,11 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
       </div>
 
       <div class="field">
-        <label>Therapy Room Number <span style="font-size:11px;color:var(--text-muted)">(NCISM §47(xiii) — rooms numbered, not named)</span></label>
+        <label>Treatment Room <span style="font-size:11px;color:var(--text-muted)">(NCISM §47(xiii) — rooms numbered, not named)</span></label>
         <select id="sched-room">
           <option value="">— Not assigned —</option>
-          <option value="1">Room 1</option><option value="2">Room 2</option>
-          <option value="3">Room 3</option><option value="4">Room 4</option>
-          <option value="5">Room 5</option><option value="6">Room 6</option>
-          <option value="7">Room 7</option><option value="8">Room 8</option>
-          <option value="9">Room 9</option><option value="10">Room 10</option>
         </select>
+        <div class="field-note" id="sched-room-note" style="display:none;color:#7a5a00">No treatment rooms configured yet — set them up in the 🛏 Treatment Rooms panel above.</div>
       </div>
 
       <div class="field">
@@ -548,6 +544,139 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
         <span id="ka-saved" style="display:none;color:var(--green-mid);font-size:13px;font-weight:600">✓ Saved</span>
       </div>
       <div id="ka-recent" style="margin-top:12px;font-size:12px;color:var(--text-muted)">Loading recent audits…</div>
+    </div>
+  </details>
+
+  <!-- Session 206 — Treatment Room master data + NCISM Swedana compliance -->
+  <details id="rooms-details" style="margin-bottom:14px">
+    <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep);padding:10px 14px;background:var(--white);border:1.5px solid var(--border);border-radius:8px;list-style:none">🛏 Treatment Rooms &nbsp;<span id="rooms-summary-count" style="font-weight:400;color:var(--text-muted);font-size:12px"></span></summary>
+    <div style="background:var(--white);border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:14px 16px">
+      <div id="rooms-compliance-banner" style="display:none;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px"></div>
+
+      <div id="rooms-list" style="margin-bottom:14px">Loading rooms…</div>
+
+      <div id="rooms-admin-form" style="display:none;border-top:1px solid var(--border);padding-top:12px">
+        <div class="section-label" style="margin-top:0">Add Treatment Room</div>
+        <div style="display:grid;grid-template-columns:1.2fr 1.4fr .8fr .9fr;gap:10px;margin-bottom:10px">
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Room Name</label>
+            <input id="room-name" type="text" placeholder="e.g. Room 1" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
+            <div class="field-note" style="color:var(--text-muted)">NCISM Reg 47(a)(xiii): label rooms by number, not by procedure — every room must handle every Panchakarma procedure.</div></div>
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Type</label>
+            <input id="room-type" list="room-type-suggestions" type="text" value="General Therapy Room" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
+            <datalist id="room-type-suggestions">
+              <option value="General Therapy Room"></option>
+              <option value="Kaumara Panchakarma"></option>
+            </datalist></div>
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Capacity</label>
+            <input id="room-capacity" type="number" min="1" value="1" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Gender <span style="font-size:11px;color:var(--text-muted)">(NCISM Sch III — split evenly)</span></label>
+            <select id="room-gender" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit">
+              <option value="male">Male</option><option value="female">Female</option><option value="any">Not yet assigned</option>
+            </select></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.5fr .8fr;gap:10px;margin-bottom:10px">
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Building <span style="font-size:11px;color:var(--text-muted)">(optional — same blocks as Dept & Beds)</span></label>
+            <select id="room-block" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit">
+              <option value="">— Not mapped —</option>
+            </select></div>
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Floor</label>
+            <input id="room-floor" type="number" placeholder="e.g. 1" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+        </div>
+        <button data-onclick="saveRoom" style="height:40px;padding:0 18px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">+ Add Room</button>
+        <span id="room-saved" style="display:none;margin-left:10px;color:var(--green-mid);font-size:13px;font-weight:600">✓ Saved</span>
+      </div>
+    </div>
+  </details>
+
+  <!-- Session 206 piece 2 — Preparation Room Log (NCISM Reg 47(a)(viii)-(ix)) -->
+  <details id="prep-details" style="margin-bottom:14px">
+    <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep);padding:10px 14px;background:var(--white);border:1.5px solid var(--border);border-radius:8px;list-style:none">🧪 Preparation Room Log &nbsp;<span style="font-weight:400;color:var(--text-muted);font-size:12px">NCISM Reg 47(a)(viii)–(ix)</span></summary>
+    <div style="background:var(--white);border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:14px 16px">
+
+      <div class="section-label" style="margin-top:0">Log a Preparation</div>
+      <div style="display:grid;grid-template-columns:1.4fr .7fr .6fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Item</label>
+          <input id="prep-item" list="prep-item-suggestions" type="text" placeholder="e.g. Dhanwantharam Thailam" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
+          <datalist id="prep-item-suggestions"></datalist></div>
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Quantity</label>
+          <input id="prep-quantity" type="number" min="0" step="0.01" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Unit</label>
+          <select id="prep-unit" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit">
+            <option value="ml">ml</option><option value="L">L</option><option value="g">g</option><option value="kg">kg</option><option value="batch">batch</option>
+          </select></div>
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Prepared By</label>
+          <select id="prep-by" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"></select></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Issue To Room <span style="font-size:11px;color:var(--text-muted)">(optional)</span></label>
+          <select id="prep-room" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"><option value="">— Not assigned yet —</option></select></div>
+        <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">For Session <span style="font-size:11px;color:var(--text-muted)">(optional — today's sessions)</span></label>
+          <select id="prep-session" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"><option value="">— Not linked to a session —</option></select></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px">
+        <label class="check-label" style="display:flex;align-items:center;gap:6px;font-size:13px">
+          <input type="checkbox" id="prep-waste"/> Biomedical waste from this prep logged (Reg 47(a)(viii)/(xi))
+        </label>
+      </div>
+      <input id="prep-notes" type="text" placeholder="Notes (optional)" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit;margin-bottom:10px"/>
+
+      <button data-onclick="savePrepLog" style="height:40px;padding:0 18px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">+ Log Preparation</button>
+      <span id="prep-saved" style="display:none;margin-left:10px;color:var(--green-mid);font-size:13px;font-weight:600">✓ Saved</span>
+
+      <div class="section-label">Today's Preparations</div>
+      <div id="prep-list">Loading…</div>
+    </div>
+  </details>
+
+  <!-- Session 206 piece 3 — Therapist Duty Roster. Deliberately separate from roster.html/
+       duty_roster -- PK runs daytime-only with per-tenant configurable shift start times,
+       not nursing's 24x7 rotating/named-shift model. -->
+  <details id="pkroster-details" style="margin-bottom:14px">
+    <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep);padding:10px 14px;background:var(--white);border:1.5px solid var(--border);border-radius:8px;list-style:none">🗓️ Therapist Duty Roster</summary>
+    <div style="background:var(--white);border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:14px 16px">
+
+      <div id="pkroster-settings-form" style="display:none;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:14px">
+        <div class="section-label" style="margin-top:0">Shift Times <span style="font-size:11px;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(each 8 hours — set your organisation's actual start times)</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end">
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 1 Start</label>
+            <input id="pkroster-shift1" type="time" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 2 Start</label>
+            <input id="pkroster-shift2" type="time" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+          <button data-onclick="savePkRosterSettings" style="height:36px;padding:0 16px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Save</button>
+        </div>
+        <span id="pkroster-settings-saved" style="display:none;margin-top:8px;color:var(--green-mid);font-size:13px;font-weight:600">✓ Saved</span>
+      </div>
+
+      <details id="pkroster-weeklyoff-details" style="display:none;margin-bottom:14px">
+        <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep)">📆 Weekly Off</summary>
+        <div id="pkroster-weeklyoff-list" style="margin-top:10px"></div>
+      </details>
+
+      <div id="pkroster-generate-form" style="display:none;border:1.5px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px;background:var(--cream)">
+        <div class="section-label" style="margin-top:0">⚡ Generate Week</div>
+        <div style="display:grid;grid-template-columns:1.2fr .8fr .8fr auto;gap:10px;align-items:end;margin-bottom:10px">
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Week starting (Monday)</label>
+            <input id="pkgen-week-start" type="date" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 1 needs</label>
+            <input id="pkgen-shift1-count" type="number" min="1" value="1" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 2 needs</label>
+            <input id="pkgen-shift2-count" type="number" min="1" value="1" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+          <button data-onclick="previewPkWeek" style="height:36px;padding:0 16px;background:var(--white);border:1.5px solid var(--green-deep);color:var(--green-deep);border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Preview</button>
+        </div>
+        <div id="pkgen-preview" style="margin-top:10px"></div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <button data-onclick="shiftPkRosterDate" data-onclick-a0="-1" style="height:32px;width:32px;border:1.5px solid var(--border);border-radius:7px;background:var(--white);cursor:pointer;font-size:16px">&#8249;</button>
+        <div id="pkroster-date-display" style="font-weight:600;font-size:14px;color:var(--green-deep)">—</div>
+        <button data-onclick="shiftPkRosterDate" data-onclick-a0="1" style="height:32px;width:32px;border:1.5px solid var(--border);border-radius:7px;background:var(--white);cursor:pointer;font-size:16px">&#8250;</button>
+        <input id="pkroster-date-picker" type="date" data-onchange="onPkRosterDatePick" style="height:32px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:13px;font-family:inherit"/>
+        <span data-onclick="goToPkRosterToday" style="cursor:pointer;color:var(--green-mid);font-size:12px;font-weight:600;text-decoration:underline">Today</span>
+        <div style="flex:1"></div>
+        <div id="pkroster-day-count" style="font-size:12px;color:var(--text-muted)"></div>
+      </div>
+
+      <div id="pkroster-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">Loading…</div>
     </div>
   </details>
 

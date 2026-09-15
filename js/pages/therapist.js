@@ -4,6 +4,8 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
+import { isNCISMType, ncismUgTier, PK_THERAPY_ROOM_COUNT } from '../config/ncism.js';
+import { NCISM_XX_ROWS } from '../config/ncismStaffCompliance.js';
 
 /*
   SQL to run once in Supabase:
@@ -40,22 +42,36 @@ let _admissions  = [];
 let _therapists  = [];
 let _depts       = [];
 let _opdPatients = [];
+let _rooms       = [];
+let _buildingBlocks = [];
+let _ugTier      = 0;   // Session 206: 0 = not an NCISM tenant / no ug_intake set
+let _prepStaff   = [];
+let _formulary   = [];
+let _prepLogs    = [];
+let _pkRosterSettings = null;
+let _pkRosterDuty     = [];
+let _pkRosterDate     = new Date().toISOString().slice(0,10);
 let _viewDate    = new Date().toISOString().slice(0,10);
+// Session 206 piece 2: prep-room work happens in real time, not by the schedule-date
+// navigator above — deliberately a fixed "today", same idiom already used platform-wide
+// (flagged elsewhere as a standing platform-wide gap around midnight IST, not fixed here).
+const _prepToday = new Date().toISOString().slice(0,10);
 
 // ── Load ──────────────────────────────────────────────────────────────────────
 async function loadAll() {
   _updateDateDisplay();
 
-  const [sessRes, admRes, thRes, deptRes] = await Promise.all([
+  const [sessRes, admRes, thRes, deptRes, tenantRes, roomRes, blocksRes, prepStaffRes, formularyRes, prepLogRes, pkSettingsRes, pkDutyRes] = await Promise.all([
     supabase
       .from('pk_therapy_sessions')
       .select(`
         id, therapy_phase, therapy_name, scheduled_date, scheduled_time,
         actual_start, actual_end, status, therapist_notes, doctor_clearance,
-        therapy_room_number, samsarjana_stage,
+        therapy_room_number, samsarjana_stage, room_id,
         patients(id, name, phone, age, gender),
         profiles!therapist_id(id, full_name, gender),
-        departments(id, name)
+        departments(id, name),
+        pk_treatment_rooms(id, room_name)
       `)
       .eq('tenant_id', tenantId)
       .eq('scheduled_date', _viewDate)
@@ -67,7 +83,7 @@ async function loadAll() {
       .eq('status', 'admitted'),
     supabase
       .from('profiles')
-      .select('id,full_name,gender')
+      .select('id,full_name,gender,weekly_off_day')
       .eq('tenant_id', tenantId)
       .eq('role','therapist')
       .eq('is_active', true)
@@ -78,6 +94,64 @@ async function loadAll() {
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .order('name'),
+    supabase
+      .from('tenants')
+      .select('type,ug_intake')
+      .eq('id', tenantId)
+      .single(),
+    supabase
+      .from('pk_treatment_rooms')
+      .select('id,room_name,room_type,capacity,gender_restriction,status,block_id,floor_number,building_blocks(id,name)')
+      .eq('tenant_id', tenantId)
+      .order('room_name'),
+    // Session 206 (cont.) — same building_blocks table bed-admin.html already uses for
+    // physical ward/wing placement, reused here (not merged into beds -- a treatment room
+    // is booked in short session slots across a day, a bed is occupied for a multi-day
+    // admission stay; conflating the two would collide beds.status's real meaning).
+    supabase
+      .from('building_blocks')
+      .select('id,name,zone')
+      .eq('tenant_id', tenantId)
+      .order('name'),
+    // Session 206 piece 2 — matches pk_preparation_logs' own write-allowed role set exactly,
+    // so "Prepared By" can never offer someone who'd then fail to save.
+    supabase
+      .from('profiles')
+      .select('id,full_name,role')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .in('role', ['super_admin','dept_admin','doctor','therapist','nurse'])
+      .order('full_name'),
+    supabase
+      .from('hospital_formulary')
+      .select('id,medicine_name')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('medicine_name'),
+    supabase
+      .from('pk_preparation_logs')
+      .select(`
+        id, prepared_date, item_name, quantity, unit, prepared_at, issued_at, waste_logged, notes,
+        profiles!prepared_by(id, full_name),
+        pk_treatment_rooms(id, room_name),
+        pk_therapy_sessions(id, therapy_name, patients(name))
+      `)
+      .eq('tenant_id', tenantId)
+      .eq('prepared_date', _prepToday)
+      .order('prepared_at', { ascending: false }),
+    // Session 206 piece 3
+    supabase
+      .from('pk_roster_settings')
+      .select('shift1_start,shift2_start,shift_duration_hours')
+      .eq('tenant_id', tenantId)
+      .maybeSingle(),
+    supabase
+      .from('pk_therapist_duty')
+      // pk_therapist_duty has 2 FKs to profiles (profile_id, created_by) -- an unqualified
+      // profiles(...) embed is ambiguous and PostgREST rejects it; needs the FK hint.
+      .select('id,profile_id,shift_slot,profiles!profile_id(id,full_name,gender)')
+      .eq('tenant_id', tenantId)
+      .eq('duty_date', _pkRosterDate),
   ]);
 
   if (sessRes.error) {
@@ -90,6 +164,19 @@ async function loadAll() {
   _admissions = admRes.data  || [];
   _therapists = thRes.data   || [];
   _depts      = deptRes.data || [];
+  _rooms      = roomRes.data || [];
+  _buildingBlocks = blocksRes.data || [];
+  _ugTier     = isNCISMType(tenantRes.data?.type) ? ncismUgTier(tenantRes.data?.ug_intake) : 0;
+  _prepStaff  = prepStaffRes.data  || [];
+  _formulary  = formularyRes.data  || [];
+  _prepLogs   = prepLogRes.data    || [];
+  _pkRosterSettings = pkSettingsRes.data || null;
+  _pkRosterDuty     = pkDutyRes.data     || [];
+  // Real bug caught live this session: an ambiguous-FK embed silently returned no data
+  // instead of erroring visibly (data was null, not an exception) -- log it so a future
+  // regression here is loud instead of just quietly showing "0 on duty".
+  if (pkDutyRes.error) console.error('pk_therapist_duty load failed:', pkDutyRes.error);
+  if (pkSettingsRes.error) console.error('pk_roster_settings load failed:', pkSettingsRes.error);
 
   // If logged in as therapist, only show own sessions
   if (role === 'therapist') {
@@ -100,7 +187,527 @@ async function loadAll() {
   _populateSchedSelects();
   renderStats();
   applyFilters();
+  _renderRoomsPanel();
+  _renderPrepPanel();
+  _renderPkRosterPanel();
 }
+
+// ── Treatment Rooms (Session 206) ───────────────────────────────────────────────
+const ROOM_ADMIN_ROLES = ['super_admin', 'dept_admin'];
+
+function _renderRoomsPanel() {
+  const isAdmin = ROOM_ADMIN_ROLES.includes(role);
+  document.getElementById('rooms-admin-form').style.display = isAdmin ? '' : 'none';
+
+  const active = _rooms.filter(r => r.status === 'active');
+  document.getElementById('rooms-summary-count').textContent =
+    _rooms.length ? `${active.length} active / ${_rooms.length} total` : '';
+
+  // Compliance banner — Session 206 correction: NCISM's real model is ONE combined,
+  // general-purpose "therapy room" pool (Droni + Swedana facility + monitoring kit all
+  // travel together per bay, Sch XXV), gender-split evenly per Schedule III — not a
+  // per-procedure-type room count. See js/config/ncism.js's PK_THERAPY_ROOM_COUNT comment
+  // for the full citation. Rooms explicitly typed "Any" don't count toward either gender's
+  // half until the admin assigns them — that's deliberate, not a bug, so the banner can't
+  // be gamed by leaving rooms unassigned.
+  const banner = document.getElementById('rooms-compliance-banner');
+  if (_ugTier) {
+    const required = PK_THERAPY_ROOM_COUNT[_ugTier] || 0;
+    const half = required / 2;
+    const maleCount = active.filter(r => r.gender_restriction === 'male').length;
+    const femaleCount = active.filter(r => r.gender_restriction === 'female').length;
+    const anyCount = active.filter(r => r.gender_restriction === 'any').length;
+    const kaumara = active.some(r => r.room_type?.toLowerCase().includes('kaumara'));
+    const met = maleCount >= half && femaleCount >= half;
+
+    banner.style.display = '';
+    banner.style.background = met ? '#eaf7ef' : '#fdf3e3';
+    banner.style.border = `1.5px solid ${met ? '#bfe3cc' : '#f0dca0'}`;
+    banner.style.color = met ? '#1a4a2e' : '#7a5a00';
+    banner.innerHTML = `${met ? '✅' : '⚠️'} NCISM Sch III/XXV — needs <strong>${half} male + ${half} female</strong> therapy rooms for your ${_ugTier} UG intake (${required} total, gender-split per Sch III). Configured: <strong>${maleCount} male, ${femaleCount} female</strong>${anyCount ? `, ${anyCount} unassigned (set Male/Female to count)` : ''}.<br/>${kaumara ? '✅' : '⚠️'} At least 1 room designated for Kaumara Panchakarma (Reg 47(a)(xiii)).`;
+  } else {
+    banner.style.display = 'none';
+  }
+
+  // Building selector — same block list bed-admin.html manages, populated fresh each render
+  // so a block added there shows up here without a page reload.
+  const blockSel = document.getElementById('room-block');
+  const blockVal = blockSel.value;
+  blockSel.innerHTML = '<option value="">— Not mapped —</option>' +
+    _buildingBlocks.map(b => `<option value="${b.id}">${_esc(b.name)}</option>`).join('');
+  if (blockVal && _buildingBlocks.some(b => b.id === blockVal)) blockSel.value = blockVal;
+
+  const list = document.getElementById('rooms-list');
+  if (!_rooms.length) {
+    list.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No treatment rooms configured yet.</div>';
+    return;
+  }
+  list.innerHTML = `<table class="sessions-table"><thead><tr>
+      <th>Room</th><th>Type</th><th>Capacity</th><th>Gender</th><th>Building</th><th>Status</th>${isAdmin ? '<th></th>' : ''}
+    </tr></thead><tbody>${_rooms.map(r => `
+      <tr>
+        <td>${_esc(r.room_name)}</td>
+        <td>${_esc(r.room_type || '—')}</td>
+        <td>${r.capacity}</td>
+        <td>${r.gender_restriction === 'any' ? 'Any' : r.gender_restriction === 'male' ? 'Male only' : 'Female only'}</td>
+        <td>${r.building_blocks?.name ? _esc(r.building_blocks.name) + (r.floor_number != null ? ` · Fl ${r.floor_number}` : '') : '—'}</td>
+        <td>${r.status === 'active' ? '🟢 Active' : r.status === 'maintenance' ? '🟡 Maintenance' : '⚪ Inactive'}</td>
+        ${isAdmin ? `<td><button data-onclick="cycleRoomStatus" data-onclick-a0="${r.id}" style="height:30px;padding:0 10px;background:var(--white);border:1.5px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit">Change status</button></td>` : ''}
+      </tr>`).join('')}</tbody></table>`;
+}
+
+window.saveRoom = async function() {
+  const name = document.getElementById('room-name').value.trim();
+  const type = document.getElementById('room-type').value.trim();
+  const capacity = parseInt(document.getElementById('room-capacity').value, 10) || 1;
+  const gender = document.getElementById('room-gender').value;
+  const blockId = document.getElementById('room-block').value || null;
+  const floorRaw = document.getElementById('room-floor').value;
+  const floor = floorRaw !== '' ? parseInt(floorRaw, 10) : null;
+
+  if (!name) { _alert('error', 'Enter a room name.'); return; }
+
+  const { error } = await supabase.from('pk_treatment_rooms').insert({
+    tenant_id: tenantId,
+    room_name: name,
+    room_type: type || 'General Therapy Room',
+    capacity,
+    gender_restriction: gender,
+    block_id: blockId,
+    floor_number: floor,
+  });
+
+  if (error) {
+    _alert('error', safeErrorMessage(error, error.code === '23505' ? 'A room with this name already exists.' : 'Failed to save room.'));
+    return;
+  }
+
+  document.getElementById('room-name').value = '';
+  document.getElementById('room-type').value = 'General Therapy Room';
+  document.getElementById('room-capacity').value = '1';
+  document.getElementById('room-gender').value = 'any';
+  const saved = document.getElementById('room-saved');
+  saved.style.display = '';
+  setTimeout(() => { saved.style.display = 'none'; }, 2000);
+  await loadAll();
+};
+
+window.cycleRoomStatus = async function(id) {
+  const room = _rooms.find(r => r.id === id);
+  if (!room) return;
+  const next = { active: 'maintenance', maintenance: 'inactive', inactive: 'active' }[room.status] || 'active';
+  const { error } = await supabase.from('pk_treatment_rooms').update({ status: next }).eq('id', id);
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to update room status.')); return; }
+  await loadAll();
+};
+
+// ── Preparation Room Log (Session 206 piece 2, NCISM Reg 47(a)(viii)–(ix)) ─────────────
+function _renderPrepPanel() {
+  // Item datalist — real formulary names, doesn't force the field (bespoke per-patient
+  // prep is real and common; item_name stays free text either way).
+  const dl = document.getElementById('prep-item-suggestions');
+  dl.innerHTML = _formulary.map(f => `<option value="${_esc(f.medicine_name)}"></option>`).join('');
+
+  // Prepared By — defaults to the logged-in profile if they're in the eligible list.
+  const byEl = document.getElementById('prep-by');
+  const byVal = byEl.value;
+  byEl.innerHTML = _prepStaff.map(p => `<option value="${p.id}">${_esc(p.full_name)}</option>`).join('');
+  byEl.value = byVal || myProfile?.id || '';
+
+  // Issue-to-room — active rooms only, same pool the schedule drawer uses.
+  const roomEl = document.getElementById('prep-room');
+  roomEl.innerHTML = '<option value="">— Not assigned yet —</option>' +
+    _rooms.filter(r => r.status === 'active').map(r => `<option value="${r.id}">${_esc(r.room_name)}</option>`).join('');
+
+  // Session link — today's scheduled sessions (the date-navigator's _sessions, which is
+  // real "today" only when the navigator itself is on today — an honest limitation, not
+  // worth a second query just for this optional convenience field).
+  const sessEl = document.getElementById('prep-session');
+  sessEl.innerHTML = '<option value="">— Not linked to a session —</option>' +
+    _sessions.map(s => `<option value="${s.id}">${_esc(s.patients?.name || 'Patient')} — ${_esc(s.therapy_name)}${s.scheduled_time ? ' @ ' + s.scheduled_time.slice(0,5) : ''}</option>`).join('');
+
+  const list = document.getElementById('prep-list');
+  if (!_prepLogs.length) {
+    list.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No preparations logged today.</div>';
+    return;
+  }
+  list.innerHTML = `<table class="sessions-table"><thead><tr>
+      <th>Time</th><th>Item</th><th>Qty</th><th>Prepared By</th><th>For</th><th>Waste</th><th>Status</th><th></th>
+    </tr></thead><tbody>${_prepLogs.map(p => {
+      const timeStr = new Date(p.prepared_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      const forWhat = p.pk_therapy_sessions
+        ? `${_esc(p.pk_therapy_sessions.patients?.name || 'Patient')} — ${_esc(p.pk_therapy_sessions.therapy_name || '')}`
+        : (p.pk_treatment_rooms ? _esc(p.pk_treatment_rooms.room_name) : '—');
+      return `<tr>
+        <td>${timeStr}</td>
+        <td>${_esc(p.item_name)}</td>
+        <td>${p.quantity ?? '—'} ${p.quantity ? _esc(p.unit) : ''}</td>
+        <td>${_esc(p.profiles?.full_name || '—')}</td>
+        <td>${forWhat}</td>
+        <td>${p.waste_logged ? '✅' : '—'}</td>
+        <td>${p.issued_at ? '📦 Issued' : '🧪 Prepared'}</td>
+        <td>${p.issued_at ? '' : `<button data-onclick="markPrepIssued" data-onclick-a0="${p.id}" style="height:30px;padding:0 10px;background:var(--white);border:1.5px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit">Mark Issued</button>`}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+window.savePrepLog = async function() {
+  const item = document.getElementById('prep-item').value.trim();
+  const quantity = document.getElementById('prep-quantity').value;
+  const unit = document.getElementById('prep-unit').value;
+  const preparedBy = document.getElementById('prep-by').value;
+  const roomId = document.getElementById('prep-room').value || null;
+  const sessionId = document.getElementById('prep-session').value || null;
+  const wasteLogged = document.getElementById('prep-waste').checked;
+  const notes = document.getElementById('prep-notes').value.trim();
+
+  if (!item) { _alert('error', 'Enter what was prepared.'); return; }
+  if (!preparedBy) { _alert('error', 'Select who prepared it.'); return; }
+
+  const formularyMatch = _formulary.find(f => f.medicine_name === item);
+
+  const { error } = await supabase.from('pk_preparation_logs').insert({
+    tenant_id: tenantId,
+    prepared_date: _prepToday,
+    item_name: item,
+    formulary_id: formularyMatch?.id || null,
+    quantity: quantity ? Number(quantity) : null,
+    unit,
+    prepared_by: preparedBy,
+    room_id: roomId,
+    session_id: sessionId,
+    waste_logged: wasteLogged,
+    notes: notes || null,
+  });
+
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to save preparation log.')); return; }
+
+  document.getElementById('prep-item').value = '';
+  document.getElementById('prep-quantity').value = '';
+  document.getElementById('prep-waste').checked = false;
+  document.getElementById('prep-notes').value = '';
+  const saved = document.getElementById('prep-saved');
+  saved.style.display = '';
+  setTimeout(() => { saved.style.display = 'none'; }, 2000);
+  await loadAll();
+};
+
+window.markPrepIssued = async function(id) {
+  const { error } = await supabase.from('pk_preparation_logs').update({ issued_at: new Date().toISOString() }).eq('id', id);
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to mark issued.')); return; }
+  await loadAll();
+};
+
+// ── Therapist Duty Roster (Session 206 piece 3) ─────────────────────────────────
+// Deliberately separate from roster.html/duty_roster -- see therapist.html's comment.
+function _isPkRosterAdmin() {
+  return role === 'super_admin' || role === 'dept_admin'
+    || myProfile?.secondary_role === 'dept_admin' || myProfile?.designation === 'pk_incharge';
+}
+
+function _pkShiftLabel(n) {
+  const start = n === 1 ? (_pkRosterSettings?.shift1_start || '09:00') : (_pkRosterSettings?.shift2_start || '14:00');
+  const dur = _pkRosterSettings?.shift_duration_hours || 8;
+  const [h, m] = start.split(':').map(Number);
+  const endH = (h + dur) % 24;
+  const fmt = (hh, mm) => `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  return `Shift ${n} (${fmt(h,m)}–${fmt(endH,m)})`;
+}
+
+function _renderPkRosterPanel() {
+  const isAdmin = _isPkRosterAdmin();
+  document.getElementById('pkroster-settings-form').style.display = isAdmin ? '' : 'none';
+  document.getElementById('pkroster-weeklyoff-details').style.display = isAdmin ? '' : 'none';
+  document.getElementById('pkroster-generate-form').style.display = isAdmin ? '' : 'none';
+  document.getElementById('pkroster-shift1').value = _pkRosterSettings?.shift1_start?.slice(0,5) || '09:00';
+  document.getElementById('pkroster-shift2').value = _pkRosterSettings?.shift2_start?.slice(0,5) || '14:00';
+  if (isAdmin) _renderWeeklyOffList();
+
+  const d = new Date(_pkRosterDate + 'T00:00:00');
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('pkroster-date-display').textContent =
+    (_pkRosterDate === today ? 'Today · ' : '') + d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  document.getElementById('pkroster-date-picker').value = _pkRosterDate;
+  document.getElementById('pkroster-day-count').textContent = `${_pkRosterDuty.length} therapist(s) on duty`;
+
+  const grid = document.getElementById('pkroster-grid');
+  grid.innerHTML = [1, 2].map(slot => {
+    const entries = _pkRosterDuty.filter(r => r.shift_slot === slot);
+    const rows = entries.map(r => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--cream);border-radius:7px;margin-bottom:6px;font-size:13px">
+        <span>${_esc(r.profiles?.full_name || 'Unknown')}${r.profiles?.gender ? ` (${r.profiles.gender})` : ''}</span>
+        ${isAdmin ? `<button data-onclick="removePkDuty" data-onclick-a0="${r.id}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:15px;padding:0 4px">✕</button>` : ''}
+      </div>`).join('') || '<div style="color:var(--text-muted);font-size:13px;padding:6px 0">No one assigned yet.</div>';
+
+    // Exclude only therapists already assigned to THIS shift (a double-assignment the DB's
+    // unique constraint would reject anyway) -- someone on Shift 1 can still be offered for
+    // Shift 2 too, that's a legitimate (if unusual) real-world case, not blocked here.
+    const availableTherapists = _therapists.filter(t => !entries.some(r => r.profile_id === t.id));
+    const options = availableTherapists.map(t => `<option value="${t.id}">${_esc(t.full_name)}</option>`).join('');
+    const assignRow = isAdmin ? `
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <select id="pkroster-assign-${slot}" style="flex:1;height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12px;font-family:inherit">
+          <option value="">— Assign therapist —</option>${options}
+        </select>
+        <button data-onclick="assignPkDuty" data-onclick-a0="${slot}" style="height:34px;padding:0 12px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit">Add</button>
+      </div>` : '';
+
+    return `<div>
+      <div style="font-weight:600;font-size:13px;color:var(--green-deep);margin-bottom:8px">${_pkShiftLabel(slot)}</div>
+      ${rows}${assignRow}
+    </div>`;
+  }).join('');
+}
+
+window.savePkRosterSettings = async function() {
+  const shift1 = document.getElementById('pkroster-shift1').value;
+  const shift2 = document.getElementById('pkroster-shift2').value;
+  if (!shift1 || !shift2) { _alert('error', 'Set both shift start times.'); return; }
+
+  const { error } = await supabase.from('pk_roster_settings').upsert({
+    tenant_id: tenantId,
+    shift1_start: shift1,
+    shift2_start: shift2,
+    updated_by: myProfile?.id || null,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'tenant_id' });
+
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to save shift times.')); return; }
+  const saved = document.getElementById('pkroster-settings-saved');
+  saved.style.display = '';
+  setTimeout(() => { saved.style.display = 'none'; }, 2000);
+  await loadAll();
+};
+
+window.assignPkDuty = async function(slot) {
+  const sel = document.getElementById(`pkroster-assign-${slot}`);
+  const profileId = sel.value;
+  if (!profileId) { _alert('error', 'Select a therapist.'); return; }
+
+  const { error } = await supabase.from('pk_therapist_duty').insert({
+    tenant_id: tenantId,
+    profile_id: profileId,
+    duty_date: _pkRosterDate,
+    shift_slot: Number(slot),
+    created_by: myProfile?.id || null,
+  });
+
+  if (error) {
+    _alert('error', safeErrorMessage(error, error.code === '23505' ? 'This therapist is already assigned to this shift.' : 'Failed to assign duty.'));
+    return;
+  }
+  await loadAll();
+};
+
+window.removePkDuty = async function(id) {
+  const { error } = await supabase.from('pk_therapist_duty').delete().eq('id', id);
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to remove duty assignment.')); return; }
+  await loadAll();
+};
+
+window.shiftPkRosterDate = function(n) {
+  const d = new Date(_pkRosterDate);
+  d.setDate(d.getDate() + Number(n));
+  _pkRosterDate = d.toISOString().slice(0,10);
+  loadAll();
+};
+window.goToPkRosterToday = function() {
+  _pkRosterDate = new Date().toISOString().slice(0,10);
+  loadAll();
+};
+window.onPkRosterDatePick = function() {
+  _pkRosterDate = document.getElementById('pkroster-date-picker').value;
+  loadAll();
+};
+
+// ── Weekly Off (Session 206 cont.) ──────────────────────────────────────────────
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function _renderWeeklyOffList() {
+  const list = document.getElementById('pkroster-weeklyoff-list');
+  if (!_therapists.length) { list.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No therapists registered yet.</div>'; return; }
+  list.innerHTML = _therapists.map(t => `
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="flex:1;font-size:13px">${_esc(t.full_name)}</span>
+      <select id="pkoff-${t.id}" style="height:32px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12px;font-family:inherit">
+        <option value="">— None set —</option>
+        ${WEEKDAY_NAMES.map((n, i) => `<option value="${i}"${t.weekly_off_day === i ? ' selected' : ''}>${n}</option>`).join('')}
+      </select>
+      <button data-onclick="savePkWeeklyOff" data-onclick-a0="${t.id}" style="height:32px;padding:0 12px;background:var(--white);border:1.5px solid var(--border);border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit">Save</button>
+    </div>`).join('');
+}
+
+window.savePkWeeklyOff = async function(profileId) {
+  const val = document.getElementById(`pkoff-${profileId}`).value;
+  const { error } = await supabase.rpc('set_pk_weekly_off', {
+    p_profile_id: profileId,
+    p_weekly_off_day: val === '' ? null : Number(val),
+  });
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to save weekly off.')); return; }
+  _alert('success', 'Weekly off saved.');
+  await loadAll();
+};
+
+// ── Generate Week (Session 206 cont.) ───────────────────────────────────────────
+// Deliberately client-side, matching this file's own established pattern (pieces 1-3 are
+// all plain Supabase calls, no PL/pgSQL business logic) rather than a server-side solver
+// RPC like nursing's preview_nursing_week()/commit_nursing_week() -- PK's data volume
+// (a handful of therapists, 7 days, 2 shifts) doesn't need heavier DB-side computation,
+// and keeping the algorithm in one inspectable place is simpler to get right and verify.
+let _pkGenPlan = null;
+let _pkGenPlanKey = null; // weekStart|shift1Count|shift2Count the current _pkGenPlan was built from -- Publish refuses to run on a stale plan from different inputs, same safeguard nursing's Generate Roster uses.
+
+// Real bug caught live testing on SDM (IST, UTC+5:30): `new Date(dateStr + 'T00:00:00')`
+// parses as LOCAL midnight, but `.toISOString()` always serializes in UTC -- for any
+// positive UTC offset that mismatch silently rolls the date back by one calendar day
+// (confirmed: _mondayOf('2026-09-21'), a real Monday, returned '2026-09-20' instead).
+// Fixed by staying in UTC calendar space end to end -- `new Date(dateStr)` (no time
+// suffix) parses date-only strings as UTC midnight per spec, matching this file's own
+// existing shiftDate()/goToday()/onPkRosterDatePick() convention -- then every getter/
+// setter here uses the UTC variant so no local-timezone conversion is ever in the path.
+function _mondayOf(dateStr) {
+  const d = new Date(dateStr);
+  const day = d.getUTCDay(); // 0=Sun..6=Sat
+  const diff = day === 0 ? -6 : 1 - day; // shift back to Monday
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d.toISOString().slice(0,10);
+}
+
+function _weekDatesFrom(monday) {
+  const out = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setUTCDate(d.getUTCDate() + i);
+    out.push(d.toISOString().slice(0,10));
+  }
+  return out;
+}
+
+// Pure function, no DB/DOM access -- takes real fetched data as parameters so it's easy to
+// reason about and re-verify independently of the UI around it.
+function _computePkWeekPlan(therapists, weekStart, shift1Count, shift2Count, leaveByProfile) {
+  const dates = _weekDatesFrom(weekStart);
+  const loadCount = {};
+  therapists.forEach(t => { loadCount[t.id] = 0; });
+
+  const onLeave = (id, dateStr) => (leaveByProfile[id] || []).some(r => r.from_date <= dateStr && r.to_date >= dateStr);
+  const sortByLoad = (arr) => [...arr].sort((a, b) => (loadCount[a.id] - loadCount[b.id]) || a.full_name.localeCompare(b.full_name));
+
+  return dates.map(dateStr => {
+    const dow = new Date(dateStr + 'T00:00:00').getDay();
+    const offToday = therapists.filter(t => t.weekly_off_day === dow || onLeave(t.id, dateStr));
+    const eligible = therapists.filter(t => t.weekly_off_day !== dow && !onLeave(t.id, dateStr));
+
+    const shift1 = sortByLoad(eligible).slice(0, shift1Count);
+    shift1.forEach(t => { loadCount[t.id]++; });
+
+    const usedToday = new Set(shift1.map(t => t.id));
+    const shift2 = sortByLoad(eligible.filter(t => !usedToday.has(t.id))).slice(0, shift2Count);
+    shift2.forEach(t => { loadCount[t.id]++; });
+
+    return {
+      date: dateStr, dow,
+      shift1, shift1Gap: Math.max(0, shift1Count - shift1.length),
+      shift2, shift2Gap: Math.max(0, shift2Count - shift2.length),
+      off: offToday,
+    };
+  });
+}
+
+window.previewPkWeek = async function() {
+  const rawDate = document.getElementById('pkgen-week-start').value;
+  if (!rawDate) { _alert('error', 'Pick a week start date.'); return; }
+  const weekStart = _mondayOf(rawDate);
+  document.getElementById('pkgen-week-start').value = weekStart;
+
+  const shift1Count = parseInt(document.getElementById('pkgen-shift1-count').value, 10) || 0;
+  const shift2Count = parseInt(document.getElementById('pkgen-shift2-count').value, 10) || 0;
+  if (shift1Count < 1 && shift2Count < 1) { _alert('error', 'Enter at least one shift headcount.'); return; }
+
+  const dates = _weekDatesFrom(weekStart);
+  const { data: leaveRows, error } = await supabase.from('staff_leaves')
+    .select('profile_id,from_date,to_date')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'approved')
+    .lte('from_date', dates[6])
+    .gte('to_date', dates[0]);
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to check approved leave.')); return; }
+
+  const leaveByProfile = {};
+  (leaveRows || []).forEach(r => { (leaveByProfile[r.profile_id] ||= []).push(r); });
+
+  _pkGenPlan = _computePkWeekPlan(_therapists, weekStart, shift1Count, shift2Count, leaveByProfile);
+  _pkGenPlanKey = `${weekStart}|${shift1Count}|${shift2Count}`;
+  _renderPkGenPreview(weekStart, shift1Count, shift2Count);
+};
+
+function _renderPkGenPreview(weekStart, shift1Count, shift2Count) {
+  const el = document.getElementById('pkgen-preview');
+  if (!_pkGenPlan) { el.innerHTML = ''; return; }
+
+  const totalGap = _pkGenPlan.reduce((s, d) => s + d.shift1Gap + d.shift2Gap, 0);
+  const totalFilled = _pkGenPlan.reduce((s, d) => s + d.shift1.length + d.shift2.length, 0);
+  const totalNeeded = _pkGenPlan.length * (shift1Count + shift2Count);
+
+  el.innerHTML = `
+    <div style="margin-bottom:10px;font-size:13px">
+      ${totalGap === 0 ? '✅' : '⚠️'} <strong>${totalFilled}/${totalNeeded}</strong> slots filled for the week starting ${new Date(weekStart+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}${totalGap ? ` — <strong>${totalGap} gap(s)</strong>` : ''}.
+    </div>
+    <div style="overflow-x:auto">
+    <table class="sessions-table"><thead><tr>
+      <th>Day</th><th>Shift 1</th><th>Shift 2</th><th>Off / Unavailable</th>
+    </tr></thead><tbody>${_pkGenPlan.map(d => `
+      <tr>
+        <td>${new Date(d.date+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'})}</td>
+        <td>${d.shift1.map(t => _esc(t.full_name)).join(', ') || '—'}${d.shift1Gap ? ` <span style="color:var(--red)">(short ${d.shift1Gap})</span>` : ''}</td>
+        <td>${d.shift2.map(t => _esc(t.full_name)).join(', ') || '—'}${d.shift2Gap ? ` <span style="color:var(--red)">(short ${d.shift2Gap})</span>` : ''}</td>
+        <td style="color:var(--text-muted);font-size:12px">${d.off.map(t => _esc(t.full_name)).join(', ') || '—'}</td>
+      </tr>`).join('')}</tbody></table>
+    </div>
+    <button data-onclick="publishPkWeek" style="margin-top:10px;height:40px;padding:0 18px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Publish This Week</button>
+    <span id="pkgen-published" style="display:none;margin-left:10px;color:var(--green-mid);font-size:13px;font-weight:600">✓ Published</span>
+  `;
+}
+
+window.publishPkWeek = async function() {
+  const rawDate = document.getElementById('pkgen-week-start').value;
+  const weekStart = _mondayOf(rawDate);
+  const shift1Count = parseInt(document.getElementById('pkgen-shift1-count').value, 10) || 0;
+  const shift2Count = parseInt(document.getElementById('pkgen-shift2-count').value, 10) || 0;
+  const currentKey = `${weekStart}|${shift1Count}|${shift2Count}`;
+
+  // Same guard nursing's Generate Roster uses -- a stale preview from different inputs
+  // (week changed, headcounts edited) can never be silently committed.
+  if (!_pkGenPlan || currentKey !== _pkGenPlanKey) {
+    _alert('error', 'Preview this exact week/headcount combination again before publishing.');
+    return;
+  }
+
+  const dates = _weekDatesFrom(weekStart);
+  const { error: delError } = await supabase.from('pk_therapist_duty')
+    .delete()
+    .eq('tenant_id', tenantId)
+    .gte('duty_date', dates[0])
+    .lte('duty_date', dates[6]);
+  if (delError) { _alert('error', safeErrorMessage(delError, 'Failed to clear the target week.')); return; }
+
+  const rows = [];
+  _pkGenPlan.forEach(d => {
+    d.shift1.forEach(t => rows.push({ tenant_id: tenantId, profile_id: t.id, duty_date: d.date, shift_slot: 1, created_by: myProfile?.id || null }));
+    d.shift2.forEach(t => rows.push({ tenant_id: tenantId, profile_id: t.id, duty_date: d.date, shift_slot: 2, created_by: myProfile?.id || null }));
+  });
+
+  if (rows.length) {
+    const { error: insError } = await supabase.from('pk_therapist_duty').insert(rows);
+    if (insError) { _alert('error', safeErrorMessage(insError, 'Failed to publish the week.')); return; }
+  }
+
+  const published = document.getElementById('pkgen-published');
+  if (published) { published.style.display = ''; setTimeout(() => { published.style.display = 'none'; }, 2500); }
+  _pkGenPlan = null;
+  _pkGenPlanKey = null;
+  await loadAll();
+};
 
 // ── Date nav ──────────────────────────────────────────────────────────────────
 window.shiftDate = function(n) {
@@ -198,6 +805,22 @@ function _populateSchedSelects() {
 
   // Therapists
   _populateTherapistSelect();
+
+  // Rooms (Session 206)
+  _populateRoomSelect();
+}
+
+function _populateRoomSelect() {
+  const sr = document.getElementById('sched-room');
+  const note = document.getElementById('sched-room-note');
+  sr.innerHTML = '<option value="">— Not assigned —</option>';
+  const active = _rooms.filter(r => r.status === 'active');
+  active.forEach(r => {
+    const o = document.createElement('option');
+    o.value = r.id; o.textContent = `${r.room_name}${r.room_type ? ' — ' + r.room_type : ''}`;
+    sr.appendChild(o);
+  });
+  note.style.display = active.length ? 'none' : '';
 }
 
 function _populateTherapistSelect() {
@@ -230,8 +853,19 @@ function _populateTherapistSelect() {
     note.style.color = 'var(--gold)';
   } else {
     const m = males.length, f = females.length;
-    note.textContent = `${_therapists.length} therapist(s) available — ${m}M / ${f}F (NCISM needs 2M+2F per dept)`;
-    note.style.color = (m >= 2 && f >= 2) ? 'var(--green-mid)' : 'var(--gold)';
+    // Session 206: was hardcoded "2M+2F" regardless of intake tier — didn't match any real
+    // tier (Sch XX/33's own 60-intake row is 3M+3F). Now pulls the real per-tier figure from
+    // the same NCISM_XX_ROWS the HR compliance ladder uses, so this note can't drift from it.
+    if (_ugTier) {
+      const row = NCISM_XX_ROWS.find(r => r[4] === 'Sch XX/33');
+      const total = row ? (row[3][_ugTier] || 0) : 0;
+      const half = Math.ceil(total / 2);
+      note.textContent = `${_therapists.length} therapist(s) available — ${m}M / ${f}F (NCISM Sch XX/33 needs ${half}M+${half}F for your ${_ugTier} UG intake)`;
+      note.style.color = (m >= half && f >= half) ? 'var(--green-mid)' : 'var(--gold)';
+    } else {
+      note.textContent = `${_therapists.length} therapist(s) available — ${m}M / ${f}F`;
+      note.style.color = 'var(--text-mid)';
+    }
   }
 }
 
@@ -266,7 +900,10 @@ function renderTable(rows) {
     const canSkip   = s.status === 'scheduled';
 
     const ptMeta = [pt.gender, pt.age ? pt.age+'y' : ''].filter(Boolean).join(' · ');
-    const roomLabel = s.therapy_room_number ? `<div class="pt-meta">Room ${s.therapy_room_number}</div>` : '';
+    // Session 206: prefer the real room resource; therapy_room_number is legacy free text
+    // (0 rows platform-wide used it, kept only as a fallback for any pre-migration row).
+    const roomName = s.pk_treatment_rooms?.room_name || s.therapy_room_number;
+    const roomLabel = roomName ? `<div class="pt-meta">${_esc(roomName)}</div>` : '';
 
     // Fitness badge (NCISM §47(vii))
     const isPurva = s.therapy_phase === 'purvakarma';
@@ -444,10 +1081,25 @@ window.saveSession = async function() {
     if (!patientId) { _alert('error','Select a patient.'); return; }
   }
 
+  const roomId = document.getElementById('sched-room').value || null;
+
+  // Session 206: best-effort client-side heads-up before hitting the real DB-enforced
+  // conflict guard (pk_sessions_room_slot_uniq) — that unique index is the actual
+  // enforcement, this is just so the user isn't surprised by a raw constraint error.
+  if (roomId && time) {
+    const { data: clash } = await supabase.from('pk_therapy_sessions')
+      .select('id, patients(name)')
+      .eq('room_id', roomId).eq('scheduled_date', date).eq('scheduled_time', time)
+      .neq('status', 'skipped').maybeSingle();
+    if (clash) {
+      const room = _rooms.find(r => r.id === roomId);
+      const ok = confirm(`⚠ ${room?.room_name || 'This room'} already has a session booked at ${time} for ${clash.patients?.name || 'another patient'}.\n\nPick a different room or time — continuing may fail.`);
+      if (!ok) return;
+    }
+  }
+
   const btn = document.getElementById('btn-sched-save');
   btn.disabled = true; btn.textContent = 'Saving…';
-
-  const room = document.getElementById('sched-room').value;
 
   const { error } = await supabase.from('pk_therapy_sessions').insert({
     tenant_id:           tenantId,
@@ -460,12 +1112,17 @@ window.saveSession = async function() {
     scheduled_date:      date,
     scheduled_time:      time || null,
     doctor_clearance:    clearance,
-    therapy_room_number: room || null,
+    room_id:             roomId,
     status:              'scheduled',
   });
 
   btn.disabled = false; btn.textContent = 'Schedule';
-  if (error) { _alert('error',safeErrorMessage(error, 'Save failed.')); return; }
+  if (error) {
+    _alert('error', safeErrorMessage(error, error.code === '23505'
+      ? 'That room is already booked for this exact date and time — pick another room or slot.'
+      : 'Save failed.'));
+    return;
+  }
   closeSchedDrawer();
   _alert('success','Session scheduled.');
   await loadAll();

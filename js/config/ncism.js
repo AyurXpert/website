@@ -134,6 +134,26 @@ export const OT_NURSE_COUNT = { 60: 1, 100: 2, 150: 3, 200: 4 };
 // compliance ladder's Required number.
 export const ATYAYIKA_NURSE_COUNT = { 60: 1, 100: 1, 150: 1, 200: 1 };
 
+// Session 206: cross-checked against the REAL base regulation (not just the 15.01.2026
+// amendment letter) -- "Minimum Essential Standards, Assessment and Rating for UG Ayurveda
+// Colleges and Attached Teaching Hospitals Regulations, 2024", ncismindia.org. This
+// corrects piece 1's first pass, which treated Swedana as its own room category --
+// Regulation 47(a)(xiii) explicitly says NOT to do that:
+//   "Specifying and labelling therapy room as virechanakaksha, vamanakaksha, snehanakaksha,
+//   swedanakaksha and the like [restricts] the administration of multiple procedures...
+//   Ideally the therapy rooms are to be labelled with numbers."
+// Schedule XXV's "Droni" (the treatment table itself) and "Swedana facility (sarvanga and
+// sthanika)" rows carry the IDENTICAL number at every tier (60/100/150/200), confirming
+// they describe the SAME general-purpose bay, not two things to add together. Schedule III
+// (constructed area) independently confirms the total is gender-split evenly: "Therapy
+// rooms -- male" and "Therapy rooms -- female" are each 3/4/6/8 (at 30 sqm each) for
+// 60/100/150/200 -- i.e. half the combined total per gender, not an admin's free choice.
+// One named exception exists in the regulation text itself: "At least one therapy room
+// shall be equipped for Kaumara Panchakarma" (Reg 47(a)(xiii)) -- tracked via room_type,
+// not a hard per-tier count. No other procedure-typed room category has any regulatory
+// basis -- do not reintroduce Abhyanga/Vasti/Nasya/Shirodhara as room types.
+export const PK_THERAPY_ROOM_COUNT = { 60: 6, 100: 8, 150: 12, 200: 16 };
+
 export const UG_BED_RATIOS = { KAY: .20, PK: .25, SHAL: .20, SHAK: .10, KAU: .10, AGD: .05, PST: .10 };
 
 // Session 190 — the ONE place a department's NCISM IPD bed requirement is computed.
@@ -150,6 +170,16 @@ export function ncismRequiredBeds(ratio, ugIntake, { isPgDept = false, pgSeats =
   const ug = Math.round((ugIntake || 0) * (ratio || 0));
   const pg = isPgDept ? (pgSeats || 0) * 4 : 0;
   return { ug, pg, total: ug + pg };
+}
+
+// Session 206: snaps a tenant's real ug_intake to the nearest of the 4 tiers every *_COUNT
+// table on this page is keyed by (60/100/150/200) -- extracted from nursing-admin.js's own
+// inline copy of this exact ternary so new consumers (therapist.js, the treatment-room
+// compliance banner) don't hand-copy it a third time. Returns 0 for a falsy/zero intake.
+export function ncismUgTier(ugRaw) {
+  if ([60, 100, 150, 200].includes(ugRaw)) return ugRaw;
+  if (!ugRaw || ugRaw <= 0) return 0;
+  return ugRaw >= 150 ? 150 : ugRaw >= 100 ? 100 : 60;
 }
 
 export const WARD_NAMES = {
