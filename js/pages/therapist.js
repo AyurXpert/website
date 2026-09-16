@@ -539,13 +539,18 @@ function _pkShiftLabel(n) {
 
 function _renderPkRosterPanel() {
   const isAdmin = _isPkRosterAdmin();
+  // Session 207 (cont.) -- a third tier: the real Panchakarma HOD and Medical
+  // Superintendent already have Rooms access (_isRoomAdmin()) but deliberately not
+  // roster-edit rights (that stays pk_incharge's job, per Dr. Venkatesh's explicit
+  // design call). They get read-only oversight of the FULL roster instead of nothing --
+  // same "supervise without controlling" pattern as Nursing's Coverage Capacity card.
+  const isViewer = !isAdmin && _isRoomAdmin();
 
-  // Session 207: a plain therapist (not pk_incharge/admin) gets a stripped-down read-only
-  // "my shifts this week" card instead of the full roster -- same fork nursing.html already
-  // made (My Duty Schedule widget vs. the Nursing Head's full editor).
-  document.getElementById('pkroster-details').style.display = isAdmin ? '' : 'none';
-  document.getElementById('pk-my-shifts-card').style.display = (!isAdmin && role === 'therapist') ? '' : 'none';
-  if (!isAdmin) {
+  // A plain therapist (neither admin nor viewer) gets a stripped-down read-only "my
+  // shifts this week" card instead -- same fork nursing.html made for its own roster.
+  document.getElementById('pkroster-details').style.display = (isAdmin || isViewer) ? '' : 'none';
+  document.getElementById('pk-my-shifts-card').style.display = (!isAdmin && !isViewer && role === 'therapist') ? '' : 'none';
+  if (!isAdmin && !isViewer) {
     if (role === 'therapist') _renderMyPkShiftsWeek();
     return;
   }
