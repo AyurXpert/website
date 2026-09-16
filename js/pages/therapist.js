@@ -253,8 +253,8 @@ function _renderRoomsPanel() {
         <td>${r.building_blocks?.name ? _esc(r.building_blocks.name) + (r.floor_number != null ? ` · Fl ${r.floor_number}` : '') : '—'}</td>
         <td>${r.status === 'active' ? '🟢 Active' : r.status === 'maintenance' ? '🟡 Maintenance' : '⚪ Inactive'}</td>
         ${isAdmin ? `<td style="white-space:nowrap;display:flex;gap:6px">
-          <button data-onclick="editRoom" data-onclick-a0="${r.id}" style="height:30px;padding:0 10px;background:var(--white);border:1.5px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit">Edit</button>
-          <button data-onclick="cycleRoomStatus" data-onclick-a0="${r.id}" style="height:30px;padding:0 10px;background:var(--white);border:1.5px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit">Change status</button>
+          <button data-onclick="editRoom" data-onclick-a0="${r.id}" style="height:30px;padding:0 10px;background:var(--blue-light);border:1.5px solid var(--blue);color:var(--blue);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">✏️ Edit</button>
+          <button data-onclick="cycleRoomStatus" data-onclick-a0="${r.id}" style="height:30px;padding:0 10px;background:var(--gold-light);border:1.5px solid var(--gold);color:#8a6414;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🔄 Status</button>
         </td>` : ''}
       </tr>`).join('')}</tbody></table>`;
 }
