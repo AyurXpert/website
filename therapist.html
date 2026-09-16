@@ -649,6 +649,14 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
     </div>
   </details>
 
+  <!-- Session 207 — stripped-down read-only view for a plain therapist (not pk_incharge/
+       admin), same pattern as nursing.html's own "My Duty Schedule" widget: everyone can
+       see their own upcoming shifts, only the section head can edit anyone's. -->
+  <div id="pk-my-shifts-card" style="display:none;margin-bottom:14px;background:var(--white);border:1.5px solid var(--border);border-radius:8px;padding:14px 16px">
+    <div style="font-weight:600;font-size:13px;color:var(--green-deep);margin-bottom:8px">🗓️ My Shifts This Week</div>
+    <div id="pk-my-shifts-list" style="font-size:13px"></div>
+  </div>
+
   <!-- Session 206 piece 3 — Therapist Duty Roster. Deliberately separate from roster.html/
        duty_roster -- PK runs daytime-only with per-tenant configurable shift start times,
        not nursing's 24x7 rotating/named-shift model. -->

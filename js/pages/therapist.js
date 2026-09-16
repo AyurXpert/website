@@ -50,6 +50,7 @@ let _formulary   = [];
 let _prepLogs    = [];
 let _pkRosterSettings = null;
 let _pkRosterDuty     = [];
+let _myPkShiftsWeek   = [];
 let _pkRosterDate     = new Date().toISOString().slice(0,10);
 let _viewDate    = new Date().toISOString().slice(0,10);
 // Session 206 piece 2: prep-room work happens in real time, not by the schedule-date
@@ -57,11 +58,29 @@ let _viewDate    = new Date().toISOString().slice(0,10);
 // (flagged elsewhere as a standing platform-wide gap around midnight IST, not fixed here).
 const _prepToday = new Date().toISOString().slice(0,10);
 
+// Session 207: Monday-start "this week" bounds for a plain therapist's read-only shifts
+// card. Uses toLocaleDateString('en-CA') for "today" rather than the toISOString().slice
+// idiom used elsewhere in this file -- that idiom silently rolls back to yesterday's date
+// for any local time before the UTC offset catches up (00:00-05:30 IST), a known
+// platform-wide gap only fixed in new code so far (Session 205), so fixed here too.
+function _thisWeekBounds() {
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  const d = new Date(todayStr + 'T00:00:00');
+  const day = d.getDay(); // 0=Sun..6=Sat
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const fmt = x => x.toLocaleDateString('en-CA');
+  return { start: fmt(monday), end: fmt(sunday) };
+}
+
 // ── Load ──────────────────────────────────────────────────────────────────────
 async function loadAll() {
   _updateDateDisplay();
 
-  const [sessRes, admRes, thRes, deptRes, tenantRes, roomRes, blocksRes, prepStaffRes, formularyRes, prepLogRes, pkSettingsRes, pkDutyRes] = await Promise.all([
+  const _week = _thisWeekBounds();
+  const [sessRes, admRes, thRes, deptRes, tenantRes, roomRes, blocksRes, prepStaffRes, formularyRes, prepLogRes, pkSettingsRes, pkDutyRes, myShiftsRes] = await Promise.all([
     supabase
       .from('pk_therapy_sessions')
       .select(`
@@ -152,6 +171,17 @@ async function loadAll() {
       .select('id,profile_id,shift_slot,profiles!profile_id(id,full_name,gender)')
       .eq('tenant_id', tenantId)
       .eq('duty_date', _pkRosterDate),
+    // Session 207 -- backs the plain-therapist "My Shifts This Week" read-only card;
+    // scoped to the logged-in profile only, cheap regardless of role (a super_admin/HOD
+    // simply gets an empty result, harmless).
+    supabase
+      .from('pk_therapist_duty')
+      .select('id,duty_date,shift_slot')
+      .eq('tenant_id', tenantId)
+      .eq('profile_id', myProfile?.id || '')
+      .gte('duty_date', _week.start)
+      .lte('duty_date', _week.end)
+      .order('duty_date'),
   ]);
 
   if (sessRes.error) {
@@ -167,6 +197,7 @@ async function loadAll() {
   _rooms      = roomRes.data || [];
   _buildingBlocks = blocksRes.data || [];
   _ugTier     = isNCISMType(tenantRes.data?.type) ? ncismUgTier(tenantRes.data?.ug_intake) : 0;
+  _myPkShiftsWeek = myShiftsRes.data || [];
   _prepStaff  = prepStaffRes.data  || [];
   _formulary  = formularyRes.data  || [];
   _prepLogs   = prepLogRes.data    || [];
@@ -235,11 +266,27 @@ window.clearPkIncharge = async function() {
 };
 
 // ── Treatment Rooms (Session 206) ───────────────────────────────────────────────
-const ROOM_ADMIN_ROLES = ['super_admin', 'dept_admin'];
+// Session 207: deliberately NOT pk_incharge -- that designation's own regulatory duty is
+// therapist rostering (Sch XX/33), not physical-infrastructure/capacity decisions, kept
+// separate on purpose (see set_pk_incharge()'s comment header, sql/session207_*). Mirrors
+// _pk_room_admin_ok() server-side exactly -- super_admin, the real Panchakarma-department
+// HOD (profiles.scope_department_id, dept-admin.html's own model -- NOT the generic
+// 'dept_admin' role, which any org-wide Medical Director/Principal also holds regardless
+// of department), or Medical Director/Principal/Medical Superintendent by designation.
+const ROOM_ADMIN_DESIGS = ['medical_director', 'principal', 'medical_superintendent'];
+
+function _isRoomAdmin() {
+  if (role === 'super_admin') return true;
+  if (ROOM_ADMIN_DESIGS.includes(myProfile?.designation)) return true;
+  const pkDept = _depts.find(d => d.name === 'Panchakarma');
+  return !!(pkDept && myProfile?.scope_department_id === pkDept.id);
+}
 
 function _renderRoomsPanel() {
-  const isAdmin = ROOM_ADMIN_ROLES.includes(role);
-  document.getElementById('rooms-admin-form').style.display = isAdmin ? '' : 'none';
+  const isAdmin = _isRoomAdmin();
+  document.getElementById('rooms-details').style.display = isAdmin ? '' : 'none';
+  if (!isAdmin) return;
+  document.getElementById('rooms-admin-form').style.display = '';
 
   const active = _rooms.filter(r => r.status === 'active');
   document.getElementById('rooms-summary-count').textContent =
@@ -492,6 +539,17 @@ function _pkShiftLabel(n) {
 
 function _renderPkRosterPanel() {
   const isAdmin = _isPkRosterAdmin();
+
+  // Session 207: a plain therapist (not pk_incharge/admin) gets a stripped-down read-only
+  // "my shifts this week" card instead of the full roster -- same fork nursing.html already
+  // made (My Duty Schedule widget vs. the Nursing Head's full editor).
+  document.getElementById('pkroster-details').style.display = isAdmin ? '' : 'none';
+  document.getElementById('pk-my-shifts-card').style.display = (!isAdmin && role === 'therapist') ? '' : 'none';
+  if (!isAdmin) {
+    if (role === 'therapist') _renderMyPkShiftsWeek();
+    return;
+  }
+
   document.getElementById('pkroster-settings-form').style.display = isAdmin ? '' : 'none';
   document.getElementById('pkroster-weeklyoff-details').style.display = isAdmin ? '' : 'none';
   document.getElementById('pkroster-generate-form').style.display = isAdmin ? '' : 'none';
@@ -531,6 +589,23 @@ function _renderPkRosterPanel() {
     return `<div>
       <div style="font-weight:600;font-size:13px;color:var(--green-deep);margin-bottom:8px">${_pkShiftLabel(slot)}</div>
       ${rows}${assignRow}
+    </div>`;
+  }).join('');
+}
+
+// Session 207 -- read-only "my shifts this week" for a plain therapist. Deliberately no
+// date-picker/other-people's-names -- that's the full roster grid above, admin-only.
+function _renderMyPkShiftsWeek() {
+  const list = document.getElementById('pk-my-shifts-list');
+  if (!_myPkShiftsWeek.length) {
+    list.innerHTML = '<div style="color:var(--text-muted)">No shifts assigned this week yet.</div>';
+    return;
+  }
+  list.innerHTML = _myPkShiftsWeek.map(r => {
+    const d = new Date(r.duty_date + 'T00:00:00');
+    const dayLabel = d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+    return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span>${_esc(dayLabel)}</span><span>${_esc(_pkShiftLabel(r.shift_slot))}</span>
     </div>`;
   }).join('');
 }
