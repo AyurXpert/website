@@ -2048,6 +2048,9 @@ window.savePkCarePlan = async function() {
     const { data: advice, error: adviceErr } = await supabase.from('admission_advice').insert({
       tenant_id: tenantId, patient_id: _activePatient.id, visit_id: _activeVisitId, doctor_id: userId,
       department_id: pkDept?.id || null,
+      // Session 210: lets create_ipd_admission() find its way back to this plan and
+      // activate it (+ generate real sessions) the moment the admission actually happens.
+      pk_care_plan_id: plan.id,
       clinical_indication: `Panchakarma Care Plan: ${protocolNames}`,
       expected_duration_days: roomEst?.days || _pkPlanSpanDays().days || null,
       room_type_preference: roomTypePreference,

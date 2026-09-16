@@ -369,6 +369,49 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
 </div>
 
 <!-- ══════════════════════════════════════════════════════
+     ASSIGN ROOM & THERAPIST DRAWER (Session 210)
+     For a session generated from a Panchakarma Care Plan -- date/phase/therapy
+     already set by the plan, deliberately not auto-booked (see sql/session210_*
+     for why); staff picks the real room/therapist/time here, one day at a time,
+     same safety checks Schedule Session already has.
+     ══════════════════════════════════════════════════════ -->
+<div class="drawer-overlay" id="assign-overlay">
+  <div class="drawer">
+    <div class="drawer-header">
+      <span class="drawer-title">Assign Room & Therapist</span>
+      <button class="drawer-close" data-onclick="closeAssignDrawer">&#x2715;</button>
+    </div>
+    <div class="drawer-body">
+      <div class="field-note" id="assign-session-summary" style="margin-bottom:12px"></div>
+
+      <div class="field">
+        <label>Therapist <span class="req">*</span></label>
+        <select id="assign-therapist">
+          <option value="">— Select therapist —</option>
+        </select>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Time</label>
+          <input id="assign-time" type="time"/>
+        </div>
+        <div class="field">
+          <label>Treatment Room</label>
+          <select id="assign-room">
+            <option value="">— Not assigned —</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" data-onclick="closeAssignDrawer">Cancel</button>
+      <button class="btn btn-primary" id="btn-assign-save" data-onclick="saveAssignment">Assign</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
      COMPLETE SESSION DRAWER
      ══════════════════════════════════════════════════════ -->
 <div class="drawer-overlay" id="complete-overlay">

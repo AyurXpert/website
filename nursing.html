@@ -258,6 +258,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <button class="module-tab" data-onclick="switchTab" data-onclick-a0="ward-proc" data-onclick-a1="@this">🩹 Ward Procedures</button>
     <button class="module-tab" data-onclick="switchTab" data-onclick-a0="risk" data-onclick-a1="@this">⚠️ Risk Assessment</button>
     <button class="module-tab" data-onclick="switchTab" data-onclick-a0="discharge" data-onclick-a1="@this">🚪 Discharge Reconciliation</button>
+    <button class="module-tab" data-onclick="switchTab" data-onclick-a0="pk" data-onclick-a1="@this">🌸 Panchakarma Care Plan</button>
   </div>
 
   <!-- Ward + Shift selector -->
@@ -746,6 +747,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
               <button class="btn btn-primary" id="btn-lock-charges" data-onclick="lockChargesAndFreeBed">🔒 Lock Charges &amp; Free Bed</button>
             </div>
           </div>
+        </div>
+
+        <!-- TAB: Panchakarma Care Plan (Session 210) — read-only oversight, same
+             authority split as Treatment Rooms/Roster: nursing sees what the plan
+             says and whether each day happened, the therapist is who administers
+             and marks it done via therapist.html. Only ever populated for an
+             Admission-setting plan (Day Care/OPD plans have no bed, so that
+             patient never appears in this ward-based page at all). -->
+        <div id="tab-pk" class="rp-body" hidden>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:14px">Multi-day Panchakarma protocol for this admission — administered and marked done by the assigned therapist (therapist.html); this view is oversight only.</div>
+          <div id="pk-careplan-content"></div>
         </div>
 
       </div>

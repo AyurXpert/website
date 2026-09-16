@@ -1151,6 +1151,7 @@ function renderTable(rows) {
       </td>
       <td>
         <div class="row-actions">
+          ${(!s.room_id || !therapist.id) && s.status !== 'skipped' ? `<button class="icon-btn" data-onclick="openAssignDrawer" data-onclick-a0="${s.id}" title="Assign Room & Therapist" style="color:#1a4080">🏠</button>` : ''}
           ${canStart ? `<button class="icon-btn start" data-onclick="quickStart" data-onclick-a0="${s.id}" title="Mark In Progress">&#9654;</button>` : ''}
           ${canComplete ? `<button class="icon-btn complete" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@false" title="Complete">&#10003;</button>` : ''}
           ${canSkip ? `<button class="icon-btn skip" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@true" title="Skip">&#10007;</button>` : ''}
@@ -1325,6 +1326,136 @@ window.saveSession = async function() {
   }
   closeSchedDrawer();
   _alert('success','Session scheduled.');
+  await loadAll();
+};
+
+// ── Assign Room & Therapist (Session 210) ──────────────────────────────────────
+// For a session generated from a Panchakarma Care Plan -- date/phase/therapy are
+// already set by the plan (deliberately not auto-booked, see sql/session210_*).
+// Reuses the exact same safety checks saveSession() already has (NABH gender-match,
+// PK consent validity, Raktamokshana aseptic-unit confirm, room-clash pre-check),
+// just for an UPDATE against an existing session instead of a fresh INSERT.
+let _assignSessionId = null;
+
+window.openAssignDrawer = function(sessionId) {
+  const s = _sessions.find(x => x.id === sessionId);
+  if (!s) return;
+  _assignSessionId = sessionId;
+  const pt = s.patients || {};
+  document.getElementById('assign-session-summary').textContent =
+    `${pt.name || 'Patient'} — ${s.therapy_name} (${_phaseLabel(s.therapy_phase)}) · ${s.scheduled_date}`;
+  _populateAssignRoomSelect();
+  _populateAssignTherapistSelect();
+  document.getElementById('assign-therapist').value = s.profiles?.id || '';
+  document.getElementById('assign-room').value       = s.room_id || '';
+  document.getElementById('assign-time').value       = s.scheduled_time ? s.scheduled_time.slice(0,5) : '';
+  document.getElementById('assign-overlay').classList.add('open');
+};
+window.closeAssignDrawer = function() {
+  document.getElementById('assign-overlay').classList.remove('open');
+};
+
+function _populateAssignRoomSelect() {
+  const sr = document.getElementById('assign-room');
+  sr.innerHTML = '<option value="">— Not assigned —</option>';
+  _rooms.filter(r => r.status === 'active').forEach(r => {
+    const o = document.createElement('option');
+    o.value = r.id; o.textContent = `${r.room_name}${r.room_type ? ' — ' + r.room_type : ''}`;
+    sr.appendChild(o);
+  });
+}
+
+function _populateAssignTherapistSelect() {
+  const st = document.getElementById('assign-therapist');
+  st.innerHTML = '<option value="">— Select therapist —</option>';
+  const males   = _therapists.filter(t => t.gender === 'M');
+  const females = _therapists.filter(t => t.gender === 'F');
+  const unknown = _therapists.filter(t => !t.gender);
+  [{ group: 'Male Therapists', list: males }, { group: 'Female Therapists', list: females }, { group: 'Therapists', list: unknown }]
+    .forEach(({ group, list }) => {
+      if (!list.length) return;
+      const og = document.createElement('optgroup'); og.label = group;
+      list.forEach(t => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.full_name; og.appendChild(o); });
+      st.appendChild(og);
+    });
+}
+
+window.saveAssignment = async function() {
+  const s = _sessions.find(x => x.id === _assignSessionId);
+  if (!s) return;
+  const therapistId = document.getElementById('assign-therapist').value;
+  const roomId       = document.getElementById('assign-room').value || null;
+  const time         = document.getElementById('assign-time').value || null;
+  if (!therapistId) { _alert('error', 'Select a therapist.'); return; }
+
+  // Same NABH PRE.2 gender-match check saveSession() has.
+  const patientGender = s.patients?.gender;
+  const therapistData = _therapists.find(t => t.id === therapistId);
+  if (patientGender === 'F' && therapistData?.gender === 'M') {
+    const override = confirm('⚠ NABH PRE.2 ATWC CORE — Gender Mismatch\n\nFemale patients must be treated by female therapists.\n\nThis patient is female and the selected therapist is male.\n\nContinue only with documented medical justification?');
+    if (!override) return;
+  }
+
+  // Same NABH PRE.3 PK consent 6-month validity check.
+  if (s.patients?.id) {
+    const { data: consentData } = await supabase.from('consent_records')
+      .select('id,consent_datetime,valid_until')
+      .eq('patient_id', s.patients.id).eq('tenant_id', tenantId)
+      .eq('consent_type', 'panchakarma')
+      .order('consent_datetime', { ascending: false }).limit(1).maybeSingle();
+    if (!consentData) {
+      const ok = confirm('⚠ NABH PRE.3 ATWC CORE — No PK Consent on Record\n\nNo Panchakarma consent found for this patient. Consent is mandatory before first session.\n\nProceed anyway? (You must record consent separately.)');
+      if (!ok) return;
+    } else {
+      const expiry = consentData.valid_until ? new Date(consentData.valid_until) : new Date(new Date(consentData.consent_datetime).getTime() + 180*86400000);
+      if (expiry < new Date()) {
+        const renew = confirm(`⚠ NABH — PK Consent Expired\n\nConsent given on ${new Date(consentData.consent_datetime).toLocaleDateString('en-IN')} has expired.\n\nFresh consent is required. Proceed anyway?`);
+        if (!renew) return;
+      }
+    }
+  }
+
+  // Same NCISM §47(a)(xv) Raktamokshana aseptic-unit confirm.
+  const therapyLower = (s.therapy_name || '').toLowerCase();
+  if (therapyLower.includes('raktamokshana') || therapyLower.includes('leech')) {
+    const proceed = confirm(
+      '⚠ NCISM §47(a)(xv) — Aseptic Conditions Required\n\n' +
+      'Raktamokshana (leech therapy) must be conducted in the Anushastra Karma unit under aseptic conditions.\n\n' +
+      'Confirm this session is scheduled in the designated Anushastra Karma / aseptic procedure room?'
+    );
+    if (!proceed) return;
+  }
+
+  // Same room-clash pre-check saveSession() has (real enforcement is still the DB
+  // unique index -- this is just so the user isn't surprised by a raw constraint error).
+  if (roomId && time) {
+    const { data: clash } = await supabase.from('pk_therapy_sessions')
+      .select('id, patients(name)')
+      .eq('room_id', roomId).eq('scheduled_date', s.scheduled_date).eq('scheduled_time', time)
+      .neq('id', _assignSessionId).neq('status', 'skipped').maybeSingle();
+    if (clash) {
+      const room = _rooms.find(r => r.id === roomId);
+      const ok = confirm(`⚠ ${room?.room_name || 'This room'} already has a session booked at ${time} for ${clash.patients?.name || 'another patient'}.\n\nPick a different room or time — continuing may fail.`);
+      if (!ok) return;
+    }
+  }
+
+  const btn = document.getElementById('btn-assign-save');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  const { error } = await supabase.from('pk_therapy_sessions').update({
+    therapist_id: therapistId, room_id: roomId, scheduled_time: time,
+  }).eq('id', _assignSessionId);
+
+  btn.disabled = false; btn.textContent = 'Assign';
+  if (error) {
+    _alert('error', safeErrorMessage(error, error.code === '23505'
+      ? 'That room is already booked for this exact date and time — pick another room or slot.'
+      : 'Save failed.'));
+    return;
+  }
+  closeAssignDrawer();
+  _alert('success', 'Room & therapist assigned.');
   await loadAll();
 };
 
@@ -1589,7 +1720,7 @@ window.saveTherapyRx = async function() {
 };
 
 // Close on overlay click
-['sched-overlay','complete-overlay','rx-overlay'].forEach(id => {
+['sched-overlay','complete-overlay','rx-overlay','assign-overlay'].forEach(id => {
   document.getElementById(id).addEventListener('click', e => {
     if (e.target.id === id) document.getElementById(id).classList.remove('open');
   });

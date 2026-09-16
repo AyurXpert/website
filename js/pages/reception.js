@@ -4358,27 +4358,17 @@ window.activatePkCarePlan = async function(planId, btnEl) {
   if (amount <= 0) { _alert('error', 'Enter the advance amount actually collected.'); return; }
   if (!confirm(`Collect ₹${amount.toLocaleString('en-IN')} (${mode}) as advance and activate this Panchakarma Care Plan?`)) return;
 
-  const { data: plan, error: planErr } = await supabase
-    .from('pk_care_plans').select('patient_id, visit_id, estimated_total').eq('id', planId).single();
-  if (planErr) { _alert('error', safeErrorMessage(planErr, 'Could not load this care plan.')); return; }
+  // Session 210: one atomic RPC (bill + plan update + real session generation) --
+  // replaces the previous 2-step client sequence, which could leave an orphaned bill
+  // if the plan update failed after the bill insert succeeded. Same "one RPC for a
+  // money-touching, cross-table action" pattern create_ipd_admission() already uses.
+  const { error } = await supabase.rpc('activate_pk_care_plan', {
+    p_plan_id: planId, p_advance_amount: amount, p_payment_mode: mode,
+  });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not activate this care plan.')); return; }
 
-  const { data: bill, error: billErr } = await supabase.from('bills').insert({
-    tenant_id: tenantId, patient_id: plan.patient_id, visit_id: plan.visit_id,
-    bill_type: 'OPD', payer_type: 'self_pay',
-    final_amount: plan.estimated_total, advance_credited: amount,
-    status: 'partial', payment_mode: mode,
-  }).select('id').single();
-  if (billErr) { _alert('error', safeErrorMessage(billErr, 'Could not create the advance bill.')); return; }
-
-  const { error: updErr } = await supabase.from('pk_care_plans').update({
-    status: 'active', bill_id: bill.id,
-    advance_amount_collected: amount, advance_payment_mode: mode,
-    advance_collected_by: profile.id, advance_collected_at: new Date().toISOString(),
-  }).eq('id', planId);
-  if (updErr) { _alert('error', safeErrorMessage(updErr, 'Bill created, but could not activate the plan.')); return; }
-
-  await logAudit('pk_care_plan_activated', 'pk_care_plans', planId, { amount, mode, bill_id: bill.id }, _ctx);
-  _alert('success', `Advance collected — Panchakarma Care Plan is now active.`);
+  await logAudit('pk_care_plan_activated', 'pk_care_plans', planId, { amount, mode }, _ctx);
+  _alert('success', `Advance collected — Panchakarma Care Plan is now active, sessions generated.`);
   loadPkCarePlanRequests();
 };
 

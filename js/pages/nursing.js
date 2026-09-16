@@ -588,6 +588,7 @@ function loadTabData(tab) {
   if (tab === 'notes')     loadNotes();
   if (tab === 'handover')  loadHandovers();
   if (tab === 'discharge') loadDischargeReconciliation();
+  if (tab === 'pk')        loadPkCarePlan();
 }
 
 // ── Vitals Chart ──────────────────────────────────────────────────────────────
@@ -1312,3 +1313,92 @@ async function loadRiskHistory() {
       <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;color:var(--text-muted)">${new Date(r.assessment_datetime).toLocaleString('en-IN',{dateStyle:'short',timeStyle:'short'})}</td></tr>`).join('')}
     </tbody></table>`;
 }
+
+// ── Panchakarma Care Plan (Session 210) — read-only oversight ─────────────────
+// Deliberately NOT the generic Ward Procedures tab, and NOT a copy of MAR's grid
+// either (MAR turned out to be single-day-only, regenerated fresh from `frequency`
+// every render, not a stored per-day schedule -- confirmed by reading loadMar()).
+// This page never lets a nurse mark a day done/skipped -- that's the assigned
+// therapist's action on therapist.html (quickStart/complete/skip), same authority
+// split as Treatment Rooms/Roster elsewhere in this module: nursing sees, doesn't
+// administer. Only ever populated for an Admission-setting plan -- Day Care/OPD
+// plans have no bed, so that patient never reaches this ward-based page at all.
+const PK_PHASE_LABEL = { purvakarma: 'Purvakarma', pradhanakarma: 'Pradhanakarma', paschatkarma: 'Paschatkarma' };
+const PK_PHASE_COLOR = { purvakarma: '#7a5a00', pradhanakarma: '#1a4080', paschatkarma: '#1a4a2e' };
+const PK_SESSION_STATUS_LABEL = { scheduled: 'Scheduled', in_progress: 'In Progress', completed: '✓ Done', skipped: 'Skipped' };
+const PK_SESSION_STATUS_COLOR = { scheduled: '#555', in_progress: '#1a4080', completed: '#1a6b3a', skipped: '#8b1a1a' };
+
+async function loadPkCarePlan() {
+  const el = document.getElementById('pk-careplan-content');
+  if (!el || !_activeAdm) return;
+
+  const { data: plans, error } = await supabase
+    .from('pk_care_plans')
+    .select(`
+      id, status, created_at,
+      pk_care_plan_protocols(
+        id, protocol_label,
+        pk_care_plan_days(id, phase, activity_label, planned_date, sequence_order, pk_therapy_sessions(status))
+      )
+    `)
+    .eq('tenant_id', tenantId)
+    .eq('ipd_admission_id', _activeAdm.id)
+    .order('created_at', { ascending: false });
+
+  if (error) { el.innerHTML = `<div style="color:#c0392b;font-size:12px">Could not load care plan: ${_esc(error.message)}</div>`; return; }
+  if (!plans?.length) {
+    el.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:24px;font-size:13px">No Panchakarma Care Plan for this admission.</div>`;
+    return;
+  }
+
+  const today = new Date().toLocaleDateString('en-CA');
+
+  el.innerHTML = plans.map(p => {
+    const rows = (p.pk_care_plan_protocols || [])
+      .flatMap(pr => (pr.pk_care_plan_days || []).map(d => ({ ...d, protocol_label: pr.protocol_label })))
+      .sort((a, b) => (a.planned_date || '').localeCompare(b.planned_date || '') || a.sequence_order - b.sequence_order);
+
+    return `<div style="border:1.5px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:700;font-size:13px;color:var(--green-deep)">Plan — ${_esc(p.status)}</div>
+        <div style="font-size:11px;color:var(--text-muted)">Created ${_fmtDate((p.created_at || '').slice(0, 10))}</div>
+      </div>
+      <div style="overflow-x:auto">
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <thead><tr style="background:#f5faf7">
+          <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Date</th>
+          <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Protocol</th>
+          <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Phase</th>
+          <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Activity</th>
+          <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Status</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(d => {
+            const sessStatus = d.pk_therapy_sessions?.status || 'scheduled';
+            const isToday = d.planned_date === today;
+            return `<tr style="border-bottom:1px solid #f0f4f2;${isToday ? 'background:#fff8e1' : ''}">
+              <td style="padding:5px 8px">${_esc(d.planned_date || '—')}${isToday ? ' <strong>(Today)</strong>' : ''}</td>
+              <td style="padding:5px 8px">${_esc(d.protocol_label)}</td>
+              <td style="padding:5px 8px"><span style="font-size:10px;font-weight:600;color:${PK_PHASE_COLOR[d.phase] || '#333'};background:${PK_PHASE_COLOR[d.phase] || '#333'}15;padding:2px 7px;border-radius:8px">${PK_PHASE_LABEL[d.phase] || d.phase}</span></td>
+              <td style="padding:5px 8px">${_esc(d.activity_label)}</td>
+              <td style="padding:5px 8px"><span style="font-size:11px;font-weight:600;color:${PK_SESSION_STATUS_COLOR[sessStatus] || '#333'}">${PK_SESSION_STATUS_LABEL[sessStatus] || sessStatus}</span></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// nursing.js's first-ever realtime channel (confirmed by full-file review, Session 209
+// research) — a plan-generated session's status changes on therapist.html, and this
+// oversight tab should reflect that without a manual refresh. Deliberately page-level
+// (not re-subscribed per patient switch) — the callback just re-renders if the nurse
+// happens to be looking at the PK tab right now, same "any event -> reload if relevant"
+// convention reception.js's queues already use.
+supabase.channel('nursing-pk-sessions')
+  .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pk_therapy_sessions' }, () => {
+    if (_activeTab === 'pk' && _activeAdm) loadPkCarePlan();
+  })
+  .subscribe();
