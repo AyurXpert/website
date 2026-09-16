@@ -252,11 +252,45 @@ function _renderRoomsPanel() {
         <td>${r.gender_restriction === 'any' ? 'Any' : r.gender_restriction === 'male' ? 'Male only' : 'Female only'}</td>
         <td>${r.building_blocks?.name ? _esc(r.building_blocks.name) + (r.floor_number != null ? ` · Fl ${r.floor_number}` : '') : '—'}</td>
         <td>${r.status === 'active' ? '🟢 Active' : r.status === 'maintenance' ? '🟡 Maintenance' : '⚪ Inactive'}</td>
-        ${isAdmin ? `<td><button data-onclick="cycleRoomStatus" data-onclick-a0="${r.id}" style="height:30px;padding:0 10px;background:var(--white);border:1.5px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit">Change status</button></td>` : ''}
+        ${isAdmin ? `<td style="white-space:nowrap;display:flex;gap:6px">
+          <button data-onclick="editRoom" data-onclick-a0="${r.id}" style="height:30px;padding:0 10px;background:var(--white);border:1.5px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit">Edit</button>
+          <button data-onclick="cycleRoomStatus" data-onclick-a0="${r.id}" style="height:30px;padding:0 10px;background:var(--white);border:1.5px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;font-family:inherit">Change status</button>
+        </td>` : ''}
       </tr>`).join('')}</tbody></table>`;
 }
 
+window.editRoom = function(id) {
+  const room = _rooms.find(r => r.id === id);
+  if (!room) return;
+  document.getElementById('rooms-details').open = true;
+  document.getElementById('room-edit-id').value = room.id;
+  document.getElementById('room-name').value = room.room_name;
+  document.getElementById('room-type').value = room.room_type || 'General Therapy Room';
+  document.getElementById('room-capacity').value = room.capacity || 1;
+  document.getElementById('room-gender').value = room.gender_restriction || 'any';
+  document.getElementById('room-block').value = room.block_id || '';
+  document.getElementById('room-floor').value = room.floor_number ?? '';
+  document.getElementById('room-form-title').textContent = `Edit Treatment Room — ${room.room_name}`;
+  document.getElementById('room-save-btn').textContent = 'Save Changes';
+  document.getElementById('room-cancel-btn').style.display = '';
+  document.getElementById('rooms-admin-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+window.cancelEditRoom = function() {
+  document.getElementById('room-edit-id').value = '';
+  document.getElementById('room-name').value = '';
+  document.getElementById('room-type').value = 'General Therapy Room';
+  document.getElementById('room-capacity').value = '1';
+  document.getElementById('room-gender').value = 'any';
+  document.getElementById('room-block').value = '';
+  document.getElementById('room-floor').value = '';
+  document.getElementById('room-form-title').textContent = 'Add Treatment Room';
+  document.getElementById('room-save-btn').textContent = '+ Add Room';
+  document.getElementById('room-cancel-btn').style.display = 'none';
+};
+
 window.saveRoom = async function() {
+  const editId = document.getElementById('room-edit-id').value;
   const name = document.getElementById('room-name').value.trim();
   const type = document.getElementById('room-type').value.trim();
   const capacity = parseInt(document.getElementById('room-capacity').value, 10) || 1;
@@ -267,25 +301,25 @@ window.saveRoom = async function() {
 
   if (!name) { _alert('error', 'Enter a room name.'); return; }
 
-  const { error } = await supabase.from('pk_treatment_rooms').insert({
-    tenant_id: tenantId,
+  const payload = {
     room_name: name,
     room_type: type || 'General Therapy Room',
     capacity,
     gender_restriction: gender,
     block_id: blockId,
     floor_number: floor,
-  });
+  };
+
+  const { error } = editId
+    ? await supabase.from('pk_treatment_rooms').update(payload).eq('id', editId)
+    : await supabase.from('pk_treatment_rooms').insert({ ...payload, tenant_id: tenantId });
 
   if (error) {
     _alert('error', safeErrorMessage(error, error.code === '23505' ? 'A room with this name already exists.' : 'Failed to save room.'));
     return;
   }
 
-  document.getElementById('room-name').value = '';
-  document.getElementById('room-type').value = 'General Therapy Room';
-  document.getElementById('room-capacity').value = '1';
-  document.getElementById('room-gender').value = 'any';
+  window.cancelEditRoom();
   const saved = document.getElementById('room-saved');
   saved.style.display = '';
   setTimeout(() => { saved.style.display = 'none'; }, 2000);

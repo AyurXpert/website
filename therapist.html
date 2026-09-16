@@ -556,7 +556,8 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
       <div id="rooms-list" style="margin-bottom:14px">Loading rooms…</div>
 
       <div id="rooms-admin-form" style="display:none;border-top:1px solid var(--border);padding-top:12px">
-        <div class="section-label" style="margin-top:0">Add Treatment Room</div>
+        <input id="room-edit-id" type="hidden" value=""/>
+        <div class="section-label" id="room-form-title" style="margin-top:0">Add Treatment Room</div>
         <div style="display:grid;grid-template-columns:1.2fr 1.4fr .8fr .9fr;gap:10px;margin-bottom:10px">
           <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Room Name</label>
             <input id="room-name" type="text" placeholder="e.g. Room 1" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
@@ -582,7 +583,8 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
           <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Floor</label>
             <input id="room-floor" type="number" placeholder="e.g. 1" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
         </div>
-        <button data-onclick="saveRoom" style="height:40px;padding:0 18px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">+ Add Room</button>
+        <button id="room-save-btn" data-onclick="saveRoom" style="height:40px;padding:0 18px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">+ Add Room</button>
+        <button id="room-cancel-btn" data-onclick="cancelEditRoom" style="display:none;height:40px;padding:0 18px;background:var(--white);border:1.5px solid var(--border);border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit;margin-left:8px">Cancel</button>
         <span id="room-saved" style="display:none;margin-left:10px;color:var(--green-mid);font-size:13px;font-weight:600">✓ Saved</span>
       </div>
     </div>
