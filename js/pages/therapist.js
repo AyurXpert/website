@@ -770,15 +770,54 @@ function _computePkWeekPlan(therapists, weekStart, shift1Count, shift2Count, lea
   });
 }
 
+// Session 207 (cont.) -- gender-separated generation: two fully independent rotations
+// (one per gender pool), each fair-by-load only within its own pool. Replaces the old
+// single-pool version, which picked whoever was least-loaded regardless of gender and
+// could silently produce an all-one-gender shift -- a real coverage gap for Panchakarma,
+// where patient-therapist same-gender pairing is standard practice (the same reason
+// Treatment Rooms are gender-split per Sch III). Therapists with no gender set (or
+// 'other') are excluded from generation entirely -- same "don't count until assigned"
+// principle Rooms' compliance banner already uses for gender_restriction='any'.
+function _computePkWeekPlanGendered(therapists, weekStart, counts, leaveByProfile) {
+  const dates = _weekDatesFrom(weekStart);
+  const male   = therapists.filter(t => t.gender === 'M');
+  const female = therapists.filter(t => t.gender === 'F');
+
+  const malePlan   = _computePkWeekPlan(male,   weekStart, counts.shift1Male,   counts.shift2Male,   leaveByProfile);
+  const femalePlan = _computePkWeekPlan(female, weekStart, counts.shift1Female, counts.shift2Female, leaveByProfile);
+
+  return dates.map((dateStr, i) => {
+    const m = malePlan[i], f = femalePlan[i];
+    return {
+      date: dateStr, dow: m.dow,
+      shift1Male: m.shift1, shift1MaleGap: m.shift1Gap,
+      shift1Female: f.shift1, shift1FemaleGap: f.shift1Gap,
+      shift2Male: m.shift2, shift2MaleGap: m.shift2Gap,
+      shift2Female: f.shift2, shift2FemaleGap: f.shift2Gap,
+      off: [...m.off, ...f.off],
+    };
+  });
+}
+
+function _pkGenCounts() {
+  return {
+    shift1Male:   parseInt(document.getElementById('pkgen-shift1-male').value, 10)   || 0,
+    shift1Female: parseInt(document.getElementById('pkgen-shift1-female').value, 10) || 0,
+    shift2Male:   parseInt(document.getElementById('pkgen-shift2-male').value, 10)   || 0,
+    shift2Female: parseInt(document.getElementById('pkgen-shift2-female').value, 10) || 0,
+  };
+}
+
 window.previewPkWeek = async function() {
   const rawDate = document.getElementById('pkgen-week-start').value;
   if (!rawDate) { _alert('error', 'Pick a week start date.'); return; }
   const weekStart = _mondayOf(rawDate);
   document.getElementById('pkgen-week-start').value = weekStart;
 
-  const shift1Count = parseInt(document.getElementById('pkgen-shift1-count').value, 10) || 0;
-  const shift2Count = parseInt(document.getElementById('pkgen-shift2-count').value, 10) || 0;
-  if (shift1Count < 1 && shift2Count < 1) { _alert('error', 'Enter at least one shift headcount.'); return; }
+  const counts = _pkGenCounts();
+  if (!Object.values(counts).some(n => n > 0)) { _alert('error', 'Enter at least one shift headcount.'); return; }
+
+  const noGenderCount = _therapists.filter(t => t.gender !== 'M' && t.gender !== 'F').length;
 
   const dates = _weekDatesFrom(weekStart);
   const { data: leaveRows, error } = await supabase.from('staff_leaves')
@@ -792,31 +831,35 @@ window.previewPkWeek = async function() {
   const leaveByProfile = {};
   (leaveRows || []).forEach(r => { (leaveByProfile[r.profile_id] ||= []).push(r); });
 
-  _pkGenPlan = _computePkWeekPlan(_therapists, weekStart, shift1Count, shift2Count, leaveByProfile);
-  _pkGenPlanKey = `${weekStart}|${shift1Count}|${shift2Count}`;
-  _renderPkGenPreview(weekStart, shift1Count, shift2Count);
+  _pkGenPlan = _computePkWeekPlanGendered(_therapists, weekStart, counts, leaveByProfile);
+  _pkGenPlanKey = `${weekStart}|${counts.shift1Male}|${counts.shift1Female}|${counts.shift2Male}|${counts.shift2Female}`;
+  _renderPkGenPreview(weekStart, counts, noGenderCount);
 };
 
-function _renderPkGenPreview(weekStart, shift1Count, shift2Count) {
+function _renderPkGenPreview(weekStart, counts, noGenderCount) {
   const el = document.getElementById('pkgen-preview');
   if (!_pkGenPlan) { el.innerHTML = ''; return; }
 
-  const totalGap = _pkGenPlan.reduce((s, d) => s + d.shift1Gap + d.shift2Gap, 0);
-  const totalFilled = _pkGenPlan.reduce((s, d) => s + d.shift1.length + d.shift2.length, 0);
-  const totalNeeded = _pkGenPlan.length * (shift1Count + shift2Count);
+  const totalGap = _pkGenPlan.reduce((s, d) => s + d.shift1MaleGap + d.shift1FemaleGap + d.shift2MaleGap + d.shift2FemaleGap, 0);
+  const totalFilled = _pkGenPlan.reduce((s, d) => s + d.shift1Male.length + d.shift1Female.length + d.shift2Male.length + d.shift2Female.length, 0);
+  const totalNeeded = _pkGenPlan.length * (counts.shift1Male + counts.shift1Female + counts.shift2Male + counts.shift2Female);
+  const cell = (list, gap) => (list.map(t => _esc(t.full_name)).join(', ') || '—') + (gap ? ` <span style="color:var(--red)">(short ${gap})</span>` : '');
 
   el.innerHTML = `
     <div style="margin-bottom:10px;font-size:13px">
       ${totalGap === 0 ? '✅' : '⚠️'} <strong>${totalFilled}/${totalNeeded}</strong> slots filled for the week starting ${new Date(weekStart+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}${totalGap ? ` — <strong>${totalGap} gap(s)</strong>` : ''}.
+      ${noGenderCount ? `<br/><span style="color:var(--text-muted)">${noGenderCount} therapist(s) have no gender on file and were excluded from this generation — set it via their Account Settings first.</span>` : ''}
     </div>
     <div style="overflow-x:auto">
     <table class="sessions-table"><thead><tr>
-      <th>Day</th><th>Shift 1</th><th>Shift 2</th><th>Off / Unavailable</th>
+      <th>Day</th><th>Shift 1 — Male</th><th>Shift 1 — Female</th><th>Shift 2 — Male</th><th>Shift 2 — Female</th><th>Off / Unavailable</th>
     </tr></thead><tbody>${_pkGenPlan.map(d => `
       <tr>
         <td>${new Date(d.date+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'})}</td>
-        <td>${d.shift1.map(t => _esc(t.full_name)).join(', ') || '—'}${d.shift1Gap ? ` <span style="color:var(--red)">(short ${d.shift1Gap})</span>` : ''}</td>
-        <td>${d.shift2.map(t => _esc(t.full_name)).join(', ') || '—'}${d.shift2Gap ? ` <span style="color:var(--red)">(short ${d.shift2Gap})</span>` : ''}</td>
+        <td>${cell(d.shift1Male, d.shift1MaleGap)}</td>
+        <td>${cell(d.shift1Female, d.shift1FemaleGap)}</td>
+        <td>${cell(d.shift2Male, d.shift2MaleGap)}</td>
+        <td>${cell(d.shift2Female, d.shift2FemaleGap)}</td>
         <td style="color:var(--text-muted);font-size:12px">${d.off.map(t => _esc(t.full_name)).join(', ') || '—'}</td>
       </tr>`).join('')}</tbody></table>
     </div>
@@ -828,9 +871,8 @@ function _renderPkGenPreview(weekStart, shift1Count, shift2Count) {
 window.publishPkWeek = async function() {
   const rawDate = document.getElementById('pkgen-week-start').value;
   const weekStart = _mondayOf(rawDate);
-  const shift1Count = parseInt(document.getElementById('pkgen-shift1-count').value, 10) || 0;
-  const shift2Count = parseInt(document.getElementById('pkgen-shift2-count').value, 10) || 0;
-  const currentKey = `${weekStart}|${shift1Count}|${shift2Count}`;
+  const counts = _pkGenCounts();
+  const currentKey = `${weekStart}|${counts.shift1Male}|${counts.shift1Female}|${counts.shift2Male}|${counts.shift2Female}`;
 
   // Same guard nursing's Generate Roster uses -- a stale preview from different inputs
   // (week changed, headcounts edited) can never be silently committed.
@@ -849,8 +891,10 @@ window.publishPkWeek = async function() {
 
   const rows = [];
   _pkGenPlan.forEach(d => {
-    d.shift1.forEach(t => rows.push({ tenant_id: tenantId, profile_id: t.id, duty_date: d.date, shift_slot: 1, created_by: myProfile?.id || null }));
-    d.shift2.forEach(t => rows.push({ tenant_id: tenantId, profile_id: t.id, duty_date: d.date, shift_slot: 2, created_by: myProfile?.id || null }));
+    d.shift1Male.forEach(t => rows.push({ tenant_id: tenantId, profile_id: t.id, duty_date: d.date, shift_slot: 1, created_by: myProfile?.id || null }));
+    d.shift1Female.forEach(t => rows.push({ tenant_id: tenantId, profile_id: t.id, duty_date: d.date, shift_slot: 1, created_by: myProfile?.id || null }));
+    d.shift2Male.forEach(t => rows.push({ tenant_id: tenantId, profile_id: t.id, duty_date: d.date, shift_slot: 2, created_by: myProfile?.id || null }));
+    d.shift2Female.forEach(t => rows.push({ tenant_id: tenantId, profile_id: t.id, duty_date: d.date, shift_slot: 2, created_by: myProfile?.id || null }));
   });
 
   if (rows.length) {
