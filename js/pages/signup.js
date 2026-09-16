@@ -223,6 +223,7 @@ window.handleSignup = async function() {
   const code     = document.getElementById('tenant-code').value.trim();
   const role     = _positionInviteValid ? _prefillRole : document.getElementById('staff-role').value;
   const name     = document.getElementById('staff-name').value.trim();
+  const gender   = document.getElementById('staff-gender').value;
   const email    = document.getElementById('staff-email').value.trim();
   const phone    = document.getElementById('staff-phone').value.trim();
   const pw       = document.getElementById('staff-password').value;
@@ -237,6 +238,7 @@ window.handleSignup = async function() {
   if (!_positionInviteValid && DEPT_ROLES.includes(role) && _depts.length && !deptId)
                       return showError('Please select your department.');
   if (!name)          return showError('Please enter your full name.');
+  if (!gender)        return showError('Please select your gender.');
   if (!email)         return showError('Please enter your email address.');
   if (!isValidEmail(email)) return showError('Please enter a valid email address.');
   if (!phone)         return showError('Please enter your phone number.');
@@ -257,6 +259,7 @@ window.handleSignup = async function() {
 
   const result = await registerStaff({
     fullName:     name,
+    gender,
     email,
     password:     pw,
     phone,

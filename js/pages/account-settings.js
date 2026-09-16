@@ -224,7 +224,7 @@ function _fmtDateDisplay(d) {
 
 async function loadProfileTab() {
   const { data, error } = await supabase.from('profiles')
-    .select('id, full_name, role, designation, phone, date_of_birth, address, emergency_contact_name, emergency_contact_phone, blood_group, date_of_joining, photo_path')
+    .select('id, full_name, role, designation, phone, gender, date_of_birth, address, emergency_contact_name, emergency_contact_phone, blood_group, date_of_joining, photo_path')
     .eq('id', _uid).single();
   if (error) { _toast(safeErrorMessage(error, 'Could not load your profile.')); return; }
   _myProfile = data;
@@ -232,6 +232,7 @@ async function loadProfileTab() {
   document.getElementById('pf-full-name').value = data.full_name || '';
   document.getElementById('pf-role').value = data.designation || data.role || '';
   document.getElementById('pf-phone').value = data.phone || '';
+  document.getElementById('pf-gender').value = data.gender || '';
   document.getElementById('pf-dob').value = _fmtDateInput(data.date_of_birth);
   document.getElementById('pf-blood-group').value = data.blood_group || '';
   document.getElementById('pf-address').value = data.address || '';
@@ -260,6 +261,7 @@ async function loadProfileTab() {
 window.saveProfile = async function () {
   const updates = {
     phone: document.getElementById('pf-phone').value.trim() || null,
+    gender: document.getElementById('pf-gender').value || null,
     date_of_birth: document.getElementById('pf-dob').value || null,
     blood_group: document.getElementById('pf-blood-group').value || null,
     address: document.getElementById('pf-address').value.trim() || null,

@@ -198,6 +198,17 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
       </div>
 
       <div class="field">
+        <label>Gender</label>
+        <select id="staff-gender">
+          <option value="">— Select —</option>
+          <option value="M">Male</option>
+          <option value="F">Female</option>
+          <option value="other">Other</option>
+        </select>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:5px">Used for NCISM gender-segregated staffing/roster requirements (e.g. Panchakarma therapy rooms).</div>
+      </div>
+
+      <div class="field">
         <label>Email Address</label>
         <input type="email" id="staff-email" placeholder="you@hospital.com" inputmode="email" autocomplete="email"/>
       </div>
