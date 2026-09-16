@@ -83,7 +83,7 @@ async function loadAll() {
       .eq('status', 'admitted'),
     supabase
       .from('profiles')
-      .select('id,full_name,gender,weekly_off_day')
+      .select('id,full_name,gender,weekly_off_day,department_id,designation')
       .eq('tenant_id', tenantId)
       .eq('role','therapist')
       .eq('is_active', true)
@@ -190,7 +190,49 @@ async function loadAll() {
   _renderRoomsPanel();
   _renderPrepPanel();
   _renderPkRosterPanel();
+  _renderPkInchargePanel();
 }
+
+// ── Panchakarma In-charge selection (Session 207) ───────────────────────────────
+const PK_INCHARGE_ADMIN_DESIGS = ['medical_director', 'principal', 'medical_superintendent'];
+
+function _renderPkInchargePanel() {
+  const details = document.getElementById('pk-incharge-details');
+  const isAdmin = role === 'super_admin' || PK_INCHARGE_ADMIN_DESIGS.includes(myProfile?.designation);
+  details.style.display = isAdmin ? '' : 'none';
+  if (!isAdmin) return;
+
+  const pkDept = _depts.find(d => d.name === 'Panchakarma');
+  const pkTherapists = pkDept ? _therapists.filter(t => t.department_id === pkDept.id) : [];
+  const current = pkTherapists.find(t => t.designation === 'pk_incharge');
+
+  document.getElementById('pk-incharge-current').innerHTML = current
+    ? `Currently: <strong>${_esc(current.full_name)}</strong>`
+    : `<span style="color:var(--text-muted)">Not yet set.</span>`;
+
+  const sel = document.getElementById('pk-incharge-select');
+  const prevVal = sel.value;
+  sel.innerHTML = '<option value="">— Select —</option>' +
+    pkTherapists.map(t => `<option value="${t.id}">${_esc(t.full_name)}${t.id === current?.id ? ' (current)' : ''}</option>`).join('');
+  if (prevVal && pkTherapists.some(t => t.id === prevVal)) sel.value = prevVal;
+}
+
+window.savePkIncharge = async function() {
+  const id = document.getElementById('pk-incharge-select').value;
+  if (!id) { _alert('error', 'Choose a therapist first.'); return; }
+  const { error } = await supabase.rpc('set_pk_incharge', { p_profile_id: id });
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to set Panchakarma In-charge.')); return; }
+  const saved = document.getElementById('pk-incharge-saved');
+  saved.style.display = '';
+  setTimeout(() => { saved.style.display = 'none'; }, 2000);
+  await loadAll();
+};
+
+window.clearPkIncharge = async function() {
+  const { error } = await supabase.rpc('set_pk_incharge', { p_profile_id: null });
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to clear Panchakarma In-charge.')); return; }
+  await loadAll();
+};
 
 // ── Treatment Rooms (Session 206) ───────────────────────────────────────────────
 const ROOM_ADMIN_ROLES = ['super_admin', 'dept_admin'];

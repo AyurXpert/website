@@ -590,6 +590,25 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
     </div>
   </details>
 
+  <!-- Session 207 — Panchakarma In-charge selection (MD/Principal/MS/super_admin only) -->
+  <details id="pk-incharge-details" style="margin-bottom:14px;display:none">
+    <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep);padding:10px 14px;background:var(--white);border:1.5px solid var(--border);border-radius:8px;list-style:none">👑 Panchakarma In-charge &nbsp;<span style="font-weight:400;color:var(--text-muted);font-size:12px">Sch XX/33 — heads the therapy section</span></summary>
+    <div style="background:var(--white);border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:14px 16px">
+      <div id="pk-incharge-current" style="margin-bottom:12px;font-size:13px"></div>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Choose therapist</label>
+          <select id="pk-incharge-select" style="width:220px;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit">
+            <option value="">— Select —</option>
+          </select>
+        </div>
+        <button data-onclick="savePkIncharge" style="height:36px;padding:0 16px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Set as In-charge</button>
+        <button data-onclick="clearPkIncharge" style="height:36px;padding:0 16px;background:var(--white);border:1.5px solid var(--border);border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Clear</button>
+        <span id="pk-incharge-saved" style="display:none;color:var(--green-mid);font-size:13px;font-weight:600">✓ Saved</span>
+      </div>
+    </div>
+  </details>
+
   <!-- Session 206 piece 2 — Preparation Room Log (NCISM Reg 47(a)(viii)-(ix)) -->
   <details id="prep-details" style="margin-bottom:14px">
     <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep);padding:10px 14px;background:var(--white);border:1.5px solid var(--border);border-radius:8px;list-style:none">🧪 Preparation Room Log &nbsp;<span style="font-weight:400;color:var(--text-muted);font-size:12px">NCISM Reg 47(a)(viii)–(ix)</span></summary>
