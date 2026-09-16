@@ -222,6 +222,21 @@ function _fmtDateDisplay(d) {
   return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// DOB → age auto-calculator, same formula reception.js already uses for patient DOB.
+function _ageFromDob(dob) {
+  if (!dob) return null;
+  const today = new Date(), birth = new Date(dob);
+  let age = today.getFullYear() - birth.getFullYear();
+  if (today.getMonth() < birth.getMonth() ||
+     (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+function _renderAgeHint() {
+  const age = _ageFromDob(document.getElementById('pf-dob').value);
+  document.getElementById('pf-age-hint').textContent = (age !== null && age >= 0) ? `Age: ${age} years` : '';
+}
+document.getElementById('pf-dob').addEventListener('change', _renderAgeHint);
+
 async function loadProfileTab() {
   const { data, error } = await supabase.from('profiles')
     .select('id, full_name, role, designation, phone, gender, date_of_birth, address, emergency_contact_name, emergency_contact_phone, blood_group, date_of_joining, photo_path')
@@ -234,6 +249,7 @@ async function loadProfileTab() {
   document.getElementById('pf-phone').value = data.phone || '';
   document.getElementById('pf-gender').value = data.gender || '';
   document.getElementById('pf-dob').value = _fmtDateInput(data.date_of_birth);
+  _renderAgeHint();
   document.getElementById('pf-blood-group').value = data.blood_group || '';
   document.getElementById('pf-address').value = data.address || '';
   document.getElementById('pf-ec-name').value = data.emergency_contact_name || '';

@@ -8,6 +8,21 @@ wireDelegatedEvents();
 
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
+// DOB → age auto-calculator (optional field, live hint under the input) -- same formula
+// reception.js already uses for patient DOB, reused here for staff.
+function _ageFromDob(dob) {
+  if (!dob) return null;
+  const today = new Date(), birth = new Date(dob);
+  let age = today.getFullYear() - birth.getFullYear();
+  if (today.getMonth() < birth.getMonth() ||
+     (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+window.onSignupDobChange = function(dob) {
+  const age = _ageFromDob(dob);
+  document.getElementById('staff-age-hint').textContent = (age !== null && age >= 0) ? `Age: ${age} years` : '';
+};
+
 // Pre-fill from URL params
 // Supports: ?t=CODE (legacy), ?org=CODE&role=ROLE&token=UUID (recruitment join link),
 // ?pinv=UUID (NCISM position invite — pre-scoped department + designation, see below)
@@ -224,6 +239,7 @@ window.handleSignup = async function() {
   const role     = _positionInviteValid ? _prefillRole : document.getElementById('staff-role').value;
   const name     = document.getElementById('staff-name').value.trim();
   const gender   = document.getElementById('staff-gender').value;
+  const dob      = document.getElementById('staff-dob').value || null;
   const email    = document.getElementById('staff-email').value.trim();
   const phone    = document.getElementById('staff-phone').value.trim();
   const pw       = document.getElementById('staff-password').value;
@@ -260,6 +276,7 @@ window.handleSignup = async function() {
   const result = await registerStaff({
     fullName:     name,
     gender,
+    dateOfBirth:  dob,
     email,
     password:     pw,
     phone,

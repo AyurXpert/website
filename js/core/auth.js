@@ -157,7 +157,7 @@ export async function registerTenant({
 // ═══════════════════════════════════════════════════════════
 
 export async function registerStaff({
-  fullName, email, password, phone, gender = null,
+  fullName, email, password, phone, gender = null, dateOfBirth = null,
   role, tenantCode, hprId = null, stateRegId = null, departmentId = null, designation = null, secondaryRole = null,
   hasMonitoringAccess = false, scopeDepartmentId = null
 }) {
@@ -213,6 +213,7 @@ export async function registerStaff({
         status:    'pending_approval',
         is_active: false,
         ...(gender       ? { gender:              gender     } : {}),
+        ...(dateOfBirth  ? { date_of_birth:        dateOfBirth } : {}),
         ...(hprId        ? { hpr_id:              hprId      } : {}),
         // 27 Aug 2026 — real bug, present since the very first commit: this wrote to
         // 'state_reg_id', a column that has never existed on `profiles` (the real
