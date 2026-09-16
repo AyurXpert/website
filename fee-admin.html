@@ -308,7 +308,10 @@ tr:hover td{background:rgba(232,245,238,.4)}
       <button class="btn-export all" data-onclick="exportCsv" data-onclick-a0="all">⬇ Export All (CSV)</button>
       <button class="btn-export all" data-onclick="exportPdf" data-onclick-a0="all">⬇ Export All (PDF)</button>
     </div>
-    <button class="btn-add" id="btn-add-top" data-onclick="openModal">+ Add Service</button>
+    <div style="display:flex;gap:10px">
+      <button class="btn-add" style="background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)" data-onclick="loadAyushCatalog" title="Adds every NCISM/Ministry of Ayush benchmark-rate procedure not already in your fee list, inactive by default — toggle individual procedures on as you offer them">📥 Load NCISM Procedure Catalog</button>
+      <button class="btn-add" id="btn-add-top" data-onclick="openModal">+ Add Service</button>
+    </div>
   </div>
 
   <!-- ── Group tabs (Session 109) — dynamic two-level nav: Administration/OPD/IPD/
@@ -425,6 +428,7 @@ tr:hover td{background:rgba(232,245,238,.4)}
         <div class="field">
           <label>Amount (₹) <span class="req">*</span></label>
           <input id="m-amount" type="number" min="0" step="0.01" placeholder="0.00" data-oninput="updateTierPreview"/>
+          <div id="m-ncism-note" style="display:none;font-size:11.5px;color:var(--text-muted);margin-top:5px;line-height:1.5"></div>
         </div>
       </div>
 

@@ -66,6 +66,14 @@ if (role === 'super_admin') {
   document.getElementById('bypass-banner').style.display = 'flex';
 }
 
+// ── NCISM/Ayush benchmark-rate catalog (Session 207) ──────────────────────
+// Full citation shown wherever a catalog-derived fee's benchmark rate is displayed --
+// the source document is a rate CARD, not something this platform enforces, so the
+// note is purely informational: the tenant's own `amount` stays the real, fully
+// editable billed price. ayush_procedure_catalog.benchmark_rate_2026 is the single
+// source of truth for the number itself -- never duplicated onto fee_structures.
+const NCISM_BENCHMARK_CITATION = 'Ministry of Ayush, "Revision of Benchmark Rates for Insurance Coverage of Ayush Treatments", 13 Apr 2026 (Order No. T.12020/02/2017-DCC(AYUSH))';
+
 // ── Category helpers ──────────────────────────────
 const CAT_LABELS = { opd:'OPD', ipd:'IPD', lab:'Lab', procedure:'Procedure', radiology:'Radiology', custom:'Custom' };
 const CAT_TYPES = {
@@ -401,7 +409,7 @@ async function loadDepartments() {
 async function loadFees() {
   const { data, error } = await supabase
     .from('fee_structures')
-    .select('*, opds(name), creator:created_by(full_name)')
+    .select('*, opds(name), creator:created_by(full_name), ayush_catalog:ayush_procedure_catalog(benchmark_rate_2026)')
     .eq('tenant_id', tenantId)
     .order('category')
     .order('label');
@@ -578,6 +586,9 @@ function renderTable() {
       : `₹${parseFloat(f.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
         + (_hasActivePromo(f)
             ? `<div class="fee-notes" style="color:#8a5a00">🎁 ₹${parseFloat(f.promo_price).toLocaleString('en-IN')} until ${new Date(f.promo_valid_until).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}</div>`
+            : '')
+        + (f.ayush_code && f.ayush_catalog?.benchmark_rate_2026 != null
+            ? `<div class="fee-notes" title="${_esc(NCISM_BENCHMARK_CITATION)}">NCISM Benchmark: ₹${parseFloat(f.ayush_catalog.benchmark_rate_2026).toLocaleString('en-IN')} (${_esc(f.ayush_code)})</div>`
             : '');
     const status   = f.approval_status || 'pending';
     const statusLabel = { pending:'Pending', dept_approved:'Dept. Approved', active:'Active', rejected:'Rejected' }[status] || status;
@@ -818,6 +829,7 @@ window.openModal = function() {
   document.getElementById('m-tiered').checked = false;
   document.getElementById('m-approval-note').style.display = 'block';
   document.getElementById('m-approval-text').textContent = APPROVAL_TEXT[role] || '';
+  document.getElementById('m-ncism-note').style.display = 'none';
 
   _prefillFromActiveGroup();
   onCategoryChange();
@@ -852,6 +864,14 @@ window.openEdit = function(id) {
   const inp = document.getElementById('m-type-input');
   if (sel.style.display !== 'none') sel.value = f.fee_type || '';
   if (inp.style.display !== 'none') inp.value = f.fee_type || '';
+
+  const ncismNote = document.getElementById('m-ncism-note');
+  if (f.ayush_code && f.ayush_catalog?.benchmark_rate_2026 != null) {
+    ncismNote.textContent = `NCISM Benchmark Rate: ₹${parseFloat(f.ayush_catalog.benchmark_rate_2026).toLocaleString('en-IN')} (code ${f.ayush_code}) — ${NCISM_BENCHMARK_CITATION}. Your price above is fully editable and independent of this reference.`;
+    ncismNote.style.display = '';
+  } else {
+    ncismNote.style.display = 'none';
+  }
 
   document.getElementById('m-approval-note').style.display = 'none';
   document.getElementById('btn-save-text').textContent = 'Save Changes';
@@ -1321,6 +1341,96 @@ window.runQuickSetup = async function() {
   toast(`${selected.length} service${selected.length > 1 ? 's' : ''} added successfully.`, 'success');
   closeQuickSetup();
   loadFees();
+};
+
+// ── NCISM/Ayush procedure catalog import (Session 207) ──────────────────
+// Deliberately no per-item picker like Quick Setup above -- 490 checkboxes would be
+// unusable. Loads every catalog procedure the tenant doesn't already have (matched by
+// ayush_code, so re-clicking is always safe/idempotent) as an inactive, pending fee at
+// the government benchmark rate; the tenant then activates individual ones exactly the
+// same way as any other fee (dept approval chain, or super_admin Bypass & Activate).
+// Confirmed with Dr. Venkatesh: on-demand per tenant, not a platform-wide backfill --
+// each org decides when (or whether) to load it.
+//
+// Department resolution mirrors this file's own established SERVICE_GROUPS/GROUP_CONFIG
+// convention exactly (see the comment above SERVICE_GROUPS): Panchakarma/Shalya/Shalakya/
+// Prasuti & Stri Roga are real `departments` rows (department_id), but Physiotherapy has
+// NO department row ever, and Swasthavritta & Yoga's overlap with a real department row
+// is inconsistent across tenant types -- both use the free-text service_group tag
+// instead, same as every other fee already does for those two groups.
+const CATALOG_CATEGORY_TO_NCISM = {
+  'Panchakarma':                 'PK',
+  'Anu-Shastra Karma':           'SHAL', // minor Shalya procedures -- Agnikarma/Raktamokshana/cupping etc., anushastra.html's own scope
+  'Shalya':                      'SHAL',
+  'Shalakya':                    'SHAK',
+  'Prasuti Tantra & Stree Roga': 'PST',
+};
+const CATALOG_CATEGORY_TO_SERVICE_GROUP = {
+  'Yoga':          'swasthavritta_yoga',
+  'Physiotherapy': 'physiotherapy',
+};
+
+window.loadAyushCatalog = async function() {
+  const btn = document.querySelector('[data-onclick="loadAyushCatalog"]');
+  const label = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+
+  const { data: catalog, error: catErr } = await supabase
+    .from('ayush_procedure_catalog')
+    .select('code, category, name, benchmark_rate_2026');
+  if (catErr) {
+    toast(safeErrorMessage(catErr, 'Could not load the NCISM catalog.'), 'error');
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+    return;
+  }
+
+  const { data: existingRows } = await supabase
+    .from('fee_structures')
+    .select('ayush_code')
+    .eq('tenant_id', tenantId)
+    .not('ayush_code', 'is', null);
+  const existingCodes = new Set((existingRows || []).map(f => f.ayush_code));
+  const toImport = (catalog || []).filter(c => !existingCodes.has(c.code));
+
+  if (!toImport.length) {
+    toast('Every catalog procedure is already in your fee list.', 'error');
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+    return;
+  }
+
+  // Same department-by-ncism_code resolution as Quick Setup above. Naturopathy/Unani/
+  // Siddha have no department OR service_group fit at all in this Ayurveda-scoped
+  // platform and are deliberately left as neither, landing in fee-admin's existing
+  // "General" fallback tab rather than being silently dropped.
+  const deptByCode = Object.fromEntries(_allDepts.map(d => [d.ncism_code, d.id]));
+
+  const rows = toImport.map(c => ({
+    tenant_id:       tenantId,
+    label:           c.name,
+    category:        'procedure',
+    fee_type:        c.code,
+    amount:          c.benchmark_rate_2026,
+    ayush_code:      c.code,
+    department_id:   deptByCode[CATALOG_CATEGORY_TO_NCISM[c.category]] || null,
+    service_group:   CATALOG_CATEGORY_TO_SERVICE_GROUP[c.category] || null,
+    pricing_mode:    'flat',
+    approval_status: 'pending',
+    is_active:       false,
+    created_by:      userId,
+  }));
+
+  // Chunked so a single request payload/timeout limit is never a concern with ~490 rows.
+  const CHUNK = 100;
+  let inserted = 0;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const { error } = await supabase.from('fee_structures').insert(rows.slice(i, i + CHUNK));
+    if (error) { toast(safeErrorMessage(error, 'Could not add the procedure catalog.'), 'error'); break; }
+    inserted += Math.min(CHUNK, rows.length - i);
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = label; }
+  toast(`Added ${inserted} procedure${inserted === 1 ? '' : 's'} from the NCISM catalog — all inactive by default. Activate the ones your organisation offers.`, 'success');
+  await loadFees();
 };
 
 // ── Toast ─────────────────────────────────────────
