@@ -333,6 +333,8 @@ function _gateFeatures() {
     if (_hasPK) {
       document.getElementById('tab-btn-pk').classList.remove('gated');
       document.getElementById('tab-btn-pk').style.display = '';
+      _loadPkTemplates();
+      _loadPkFeeIndex();
     }
     if (_hasAdm) {
       document.getElementById('tab-btn-adm').classList.remove('gated');
@@ -1176,6 +1178,16 @@ function subscribeRealtime() {
 
 // ── Start consultation ────────────────────────────
 window.startConsultation = async function(visitId) {
+  // Real bug found live-testing the PK Care Plan wizard (Session 209): clicking a
+  // different queue card directly -- without first closing the previous consultation
+  // via the (✕) button -- never reset any tab's form state, so a chip left selected
+  // (or an admission-advice line item, or a PK protocol) silently carried over onto
+  // the next patient. Same bug class Session 205 already found+fixed on nursing.html
+  // (_clearEntryForms(), called on every patient switch there). _clearForm() already
+  // resets every tab's fields including PK/Admission Advice state -- just wasn't being
+  // called on this entry point, only on explicit close.
+  _clearForm();
+
   _activeVisitId = visitId;
 
   // Session 127 -- reset review-draft linkage on every fresh open; openReviewDraft()
@@ -1598,6 +1610,481 @@ window.saveAdmissionAdvice = async function() {
   status.textContent = `✓ Sent — ${_activePatient?.name} will now appear in Reception's Admission Requests queue.`;
 };
 
+// ── Panchakarma Care Plan (Session 208, Phase 1) ──
+// Replaces the old dead "Panchakarma" tab (3 chip groups + Start/Duration/Oils/Notes
+// fields whose values were never read anywhere -- Complete Consultation just showed a
+// hardcoded 'Panchakarma plan saved' toast with nothing behind it). Real workflow
+// (Dr. Venkatesh): pick one or more protocols -> each protocol's own SOP auto-generates
+// a day-by-day calendar (flexible blocks like Snehapana can be extended/reduced, which
+// shifts every later day in that protocol) -> medicines + 3 audience-scoped instructions
+// -> Admission/Day Care/OPD setting + estimate -> save. Reception hand-off/advance
+// collection and the realtime fan-out to nursing/therapist/prep are a later phase --
+// this ends at a saved, finalized pk_care_plans row. See sql/session208_pk_sop_templates.sql
+// + sql/session208_pk_care_plans.sql.
+let _pkTemplates     = [];   // pk_sop_templates rows
+let _pkTemplateDays  = {};   // template_id -> pk_sop_template_days rows
+let _pkAyushOptions  = [];   // ayush_procedure_catalog rows (Panchakarma + Anu-Shastra Karma)
+let _pkFeeIndex      = {};   // ayush_code -> fee_structures row (tenant's active pricing)
+let _pkProtocols     = [];   // working list: {template_id, procedure_key, protocol_label, is_reviewed, start_date, blocks:[...], medicines:[...]}
+let _pkStep          = 1;
+let _pkLastEstimate  = null;
+let _pkPlanSaved     = false;
+
+async function _loadPkTemplates() {
+  const { data: templates } = await supabase.from('pk_sop_templates').select('*').order('phase_group').order('display_name');
+  _pkTemplates = templates || [];
+  const { data: days } = await supabase.from('pk_sop_template_days').select('*').order('sequence_order');
+  _pkTemplateDays = {};
+  (days || []).forEach(d => { (_pkTemplateDays[d.template_id] = _pkTemplateDays[d.template_id] || []).push(d); });
+
+  // Ambiguous-day billing-code picker options (Step 3) -- e.g. Basti has 9 real
+  // site-specific codes and no generic one, so the doctor resolves it per plan.
+  const { data: ayush } = await supabase.from('ayush_procedure_catalog')
+    .select('code,name,category').in('category', ['Panchakarma', 'Anu-Shastra Karma']).order('code');
+  _pkAyushOptions = ayush || [];
+
+  _renderPkChips();
+}
+
+async function _loadPkFeeIndex() {
+  const { data } = await supabase.from('fee_structures')
+    .select('ayush_code,label,amount,gst_percent,promo_price,promo_valid_until')
+    .eq('tenant_id', tenantId).eq('is_active', true).not('ayush_code', 'is', null);
+  _pkFeeIndex = {};
+  (data || []).forEach(r => { _pkFeeIndex[r.ayush_code] = r; });
+}
+
+function _renderPkChips() {
+  const mainEl  = document.getElementById('pk-chips-main');
+  const otherEl = document.getElementById('pk-chips-other');
+  if (!mainEl || !otherEl) return;
+  const chipHtml = t => `<span class="chip${_pkProtocols.some(p => p.procedure_key === t.procedure_key) ? ' on' : ''}" data-onclick="_pkToggleProtocol" data-onclick-a0="${_esc(t.procedure_key)}" data-onclick-a1="@this">${_esc(t.display_name)}${!t.is_reviewed ? ' ⚠' : ''}</span>`;
+  mainEl.innerHTML  = _pkTemplates.filter(t => t.phase_group === 'main_karma').map(chipHtml).join('');
+  otherEl.innerHTML = _pkTemplates.filter(t => t.phase_group === 'other_therapy').map(chipHtml).join('');
+}
+
+window._pkToggleProtocol = function(procedureKey, chipEl) {
+  const idx = _pkProtocols.findIndex(p => p.procedure_key === procedureKey);
+  if (idx >= 0) {
+    _pkProtocols.splice(idx, 1);
+    chipEl.classList.remove('on');
+    return;
+  }
+  const tpl = _pkTemplates.find(t => t.procedure_key === procedureKey);
+  if (!tpl) return;
+  const days = (_pkTemplateDays[tpl.id] || []).slice().sort((a, b) => a.sequence_order - b.sequence_order);
+  _pkProtocols.push({
+    template_id: tpl.id,
+    procedure_key: tpl.procedure_key,
+    protocol_label: tpl.display_name,
+    is_reviewed: tpl.is_reviewed,
+    start_date: new Date().toLocaleDateString('en-CA'),
+    // Cloned into an editable per-patient copy -- editing this plan never touches
+    // the template, same "clone don't link" pattern nursing-roster-template.html uses.
+    blocks: days.map(d => ({
+      phase: d.phase, activity_label: d.activity_label, is_flexible: d.is_flexible,
+      min_days: d.min_days, max_days: d.max_days, length: (d.day_end - d.day_start + 1),
+      ayush_code: d.ayush_code,
+    })),
+    medicines: [],
+  });
+  chipEl.classList.add('on');
+};
+
+// Flat one-row-per-calendar-day expansion of a protocol's blocks, recomputed fresh
+// every time (never stored mid-edit) -- this is what makes extending/reducing a
+// flexible block automatically shift every later day, with zero separate "shift
+// downstream days" logic needed.
+function _pkExpandDays(p) {
+  const rows = [];
+  const base = new Date(p.start_date + 'T00:00:00');
+  let dayNum = 1;
+  p.blocks.forEach(b => {
+    for (let i = 0; i < b.length; i++) {
+      const d = new Date(base); d.setDate(d.getDate() + (dayNum - 1));
+      rows.push({
+        day_number: dayNum, phase: b.phase, activity_label: b.activity_label,
+        is_flexible: b.is_flexible, planned_date: d.toLocaleDateString('en-CA'),
+        ayush_code: b.ayush_code || null, sequence_order: dayNum,
+      });
+      dayNum++;
+    }
+  });
+  return rows;
+}
+
+function _pkBlockDayRange(p, bi) {
+  let offset = 1;
+  for (let i = 0; i < bi; i++) offset += p.blocks[i].length;
+  const b = p.blocks[bi];
+  const startNum = offset, endNum = offset + b.length - 1;
+  const base = new Date(p.start_date + 'T00:00:00');
+  const d1 = new Date(base); d1.setDate(d1.getDate() + (startNum - 1));
+  const d2 = new Date(base); d2.setDate(d2.getDate() + (endNum - 1));
+  const fmt = d => d.toLocaleDateString('en-CA');
+  return {
+    label: startNum === endNum ? `Day ${startNum}` : `Day ${startNum}-${endNum}`,
+    dateLabel: startNum === endNum ? fmt(d1) : `${fmt(d1)} to ${fmt(d2)}`,
+  };
+}
+
+const _PK_PHASE_LABEL = { purvakarma: 'Purvakarma', pradhanakarma: 'Pradhanakarma', paschatkarma: 'Paschatkarma' };
+
+function _renderPkCalendar() {
+  const el = document.getElementById('pk-calendar-body');
+  if (!el) return;
+  el.innerHTML = _pkProtocols.map((p, pi) => `
+    <div class="section" style="border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+        <div style="font-weight:700;font-size:14px;color:var(--green-deep)">${_esc(p.protocol_label)} <span style="font-size:11px;color:var(--text-muted)">(${_pkExpandDays(p).length} days)</span></div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <label style="font-size:11px;color:var(--text-mid)">Start</label>
+          <input type="date" value="${_esc(p.start_date)}" data-onchange="_pkSetProtocolStart" data-onchange-a0="${pi}" data-onchange-a1="@this" style="height:32px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12.5px"/>
+        </div>
+      </div>
+      ${!p.is_reviewed ? `<div style="background:#fff8e1;border:1px solid #e6c200;border-radius:6px;padding:6px 10px;font-size:11px;color:#6b4c00;margin-bottom:8px">⚠ Draft SOP — pending clinical review. Day-counts/phases below are a generic starting point, not yet confirmed.</div>` : ''}
+      <div style="overflow-x:auto">
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <thead><tr style="background:var(--green-light);color:var(--green-deep)">
+          <th style="padding:5px 8px;text-align:left">Day</th><th style="padding:5px 8px;text-align:left">Date</th>
+          <th style="padding:5px 8px;text-align:left">Phase</th><th style="padding:5px 8px;text-align:left">Activity</th><th style="padding:5px 8px;text-align:left">Length</th>
+        </tr></thead>
+        <tbody>
+          ${p.blocks.map((b, bi) => { const r = _pkBlockDayRange(p, bi); return `
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:5px 8px">${r.label}</td>
+            <td style="padding:5px 8px">${r.dateLabel}</td>
+            <td style="padding:5px 8px"><span class="phase-badge phase-${b.phase}">${_PK_PHASE_LABEL[b.phase] || b.phase}</span></td>
+            <td style="padding:5px 8px">${_esc(b.activity_label)}</td>
+            <td style="padding:5px 8px">
+              ${b.is_flexible
+                ? `<button type="button" data-onclick="_pkAdjustBlockLength" data-onclick-a0="${pi}" data-onclick-a1="${bi}" data-onclick-a2="-1" style="width:22px;height:22px;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:pointer">−</button>
+                   <span style="display:inline-block;width:28px;text-align:center;font-weight:600">${b.length}d</span>
+                   <button type="button" data-onclick="_pkAdjustBlockLength" data-onclick-a0="${pi}" data-onclick-a1="${bi}" data-onclick-a2="1" style="width:22px;height:22px;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:pointer">+</button>
+                   <span style="font-size:10px;color:var(--text-muted)"> (${b.min_days}-${b.max_days})</span>`
+                : `${b.length}d`}
+            </td>
+          </tr>`; }).join('')}
+        </tbody>
+      </table>
+      </div>
+    </div>`).join('') || '<div style="text-align:center;color:var(--text-muted);padding:20px">No protocols selected — go back to Step 1.</div>';
+}
+
+window._pkAdjustBlockLength = function(pi, bi, delta) {
+  const p = _pkProtocols[Number(pi)]; if (!p) return;
+  const b = p.blocks[Number(bi)]; if (!b || !b.is_flexible) return;
+  const next = b.length + Number(delta);
+  if (next < b.min_days || next > b.max_days) return;
+  b.length = next;
+  _renderPkCalendar();
+};
+
+window._pkSetProtocolStart = function(pi, inputEl) {
+  const p = _pkProtocols[Number(pi)]; if (!p) return;
+  p.start_date = inputEl.value || p.start_date;
+  _renderPkCalendar();
+};
+
+function _renderPkMedicines() {
+  const el = document.getElementById('pk-medicines-body');
+  if (!el) return;
+  const codeOpts = '<option value="">— none —</option>' + _pkAyushOptions.map(o => `<option value="${_esc(o.code)}">${_esc(o.code)} — ${_esc(o.name)}</option>`).join('');
+  el.innerHTML = _pkProtocols.map((p, pi) => `
+    <div class="section" style="border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:12px">
+      <div style="font-weight:700;font-size:14px;color:var(--green-deep);margin-bottom:8px">${_esc(p.protocol_label)}</div>
+      ${p.blocks.filter(b => !b.ayush_code).map(b => {
+        const bi = p.blocks.indexOf(b);
+        return `<div class="field" style="margin-bottom:6px">
+          <label style="font-size:11px">Billing code for "${_esc(b.activity_label)}" (optional)</label>
+          <select data-onchange="_pkSetBlockAyush" data-onchange-a0="${pi}" data-onchange-a1="${bi}" data-onchange-a2="@this">${codeOpts}</select>
+        </div>`;
+      }).join('')}
+      <div class="field">
+        <label>Medicines / Materials</label>
+        <div style="display:flex;gap:6px;margin-bottom:6px">
+          <input id="pk-med-name-${pi}" type="text" placeholder="e.g. Dhanwantharam Taila" style="flex:1"/>
+          <button type="button" data-onclick="_pkAddMedicine" data-onclick-a0="${pi}" style="height:36px;padding:0 12px;background:var(--green-mid);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">+ Add</button>
+        </div>
+        ${p.medicines.map((m, mi) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;background:#fafff7">
+            <span style="font-size:12.5px">${_esc(m.medicine_name)}</span>
+            <button type="button" data-onclick="_pkRemoveMedicine" data-onclick-a0="${pi}" data-onclick-a1="${mi}" style="width:24px;height:24px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:10px">&#10005;</button>
+          </div>`).join('')}
+      </div>
+    </div>`).join('') || '<div style="text-align:center;color:var(--text-muted);padding:20px">No protocols selected — go back to Step 1.</div>';
+}
+
+window._pkSetBlockAyush = function(pi, bi, selectEl) {
+  const b = _pkProtocols[Number(pi)]?.blocks[Number(bi)];
+  if (b) b.ayush_code = selectEl.value || null;
+  _pkRenderStep3Estimate();
+};
+
+window._pkAddMedicine = function(pi) {
+  const inp = document.getElementById('pk-med-name-' + pi);
+  const name = inp?.value.trim();
+  if (!name) return;
+  _pkProtocols[Number(pi)]?.medicines.push({ medicine_name: name, dosage_instructions: null });
+  inp.value = '';
+  _renderPkMedicines();
+};
+
+window._pkRemoveMedicine = function(pi, mi) {
+  _pkProtocols[Number(pi)]?.medicines.splice(Number(mi), 1);
+  _renderPkMedicines();
+};
+
+// Sums scheduled days grouped by ayush_code, priced off the tenant's own fee_structures
+// via the same getEffectivePrice() helper every other page uses. A day with no billing
+// code resolved yet is reported but excluded from the total, never silently dropped.
+function _pkComputeEstimate() {
+  const byCode = {};
+  let unpriced = 0;
+  _pkProtocols.forEach(p => {
+    _pkExpandDays(p).forEach(r => {
+      if (r.ayush_code) byCode[r.ayush_code] = (byCode[r.ayush_code] || 0) + 1;
+      else unpriced++;
+    });
+  });
+  const lines = Object.keys(byCode).map(code => {
+    const days = byCode[code];
+    const feeRow = _pkFeeIndex[code];
+    if (!feeRow) return { code, days, priced: false, unitPrice: 0, lineTotal: 0, label: code };
+    const unitPrice = getEffectivePrice(feeRow);
+    return { code, days, priced: true, unitPrice, lineTotal: unitPrice * days, label: feeRow.label || code };
+  });
+  const total = lines.reduce((s, l) => s + l.lineTotal, 0);
+  return { lines, total, unpriced };
+}
+
+function _pkRenderStep3Estimate() {
+  const el = document.getElementById('pk-estimate-step3');
+  if (!el) return;
+  const est = _pkComputeEstimate();
+  _pkLastEstimate = est;
+  if (!est.lines.length && !est.unpriced) { el.textContent = 'Select at least one protocol to see an estimate.'; return; }
+  el.innerHTML = (est.lines.length ? est.lines.map(l => `${_esc(l.label)}: ${l.days} day${l.days > 1 ? 's' : ''} × ${l.priced ? '₹' + l.unitPrice.toLocaleString('en-IN') : '—'} = <strong>${l.priced ? '₹' + l.lineTotal.toLocaleString('en-IN') : 'not priced'}</strong>`).join('<br>') : 'No billing codes resolved yet.')
+    + `<br><span style="font-size:14px;font-weight:700;color:var(--green-deep)">Estimated Total: ₹${est.total.toLocaleString('en-IN')}</span>`
+    + (est.unpriced ? `<br><span style="color:#c0392b">⚠ ${est.unpriced} day(s) have no billing code assigned — excluded from this total.</span>` : '');
+}
+
+// Plan-wide calendar span (earliest to latest scheduled day across every selected
+// protocol) -- this is what a room/ward charge is billed against for Admission/Day
+// Care, distinct from the sum of each protocol's own day-count (protocols can run
+// sequentially or overlap, so the room is occupied across the whole span either way).
+function _pkPlanSpanDays() {
+  let min = null, max = null;
+  _pkProtocols.forEach(p => {
+    _pkExpandDays(p).forEach(r => {
+      if (!min || r.planned_date < min) min = r.planned_date;
+      if (!max || r.planned_date > max) max = r.planned_date;
+    });
+  });
+  if (!min || !max) return { days: 0, start: null, through: null };
+  const start = new Date(min + 'T00:00:00');
+  const through = new Date(max + 'T00:00:00');
+  return { days: Math.round((through - start) / 86400000) + 1, start, through };
+}
+
+let _pkLastRoomEstimate = null;
+// Monotonic token guarding against out-of-order async resolution -- computeRoomTariff()
+// is a network round trip; if the doctor changes setting/room-type again before an
+// earlier call resolves, only the LATEST call is allowed to write to the DOM, so a slow
+// stale response can never overwrite a newer one.
+let _pkRecomputeToken = 0;
+
+// Cost model confirmed by Dr. Venkatesh: Admission depends on the room selected (full
+// room tariff over the plan's span); Day Care is a fixed General Ward charge over the
+// same span; OPD-based has no room component at all -- just the treatment total.
+window._pkRecomputeStep4 = async function() {
+  const el = document.getElementById('pk-estimate-step4');
+  if (!el) return;
+  const myToken = ++_pkRecomputeToken;
+  const setting = document.querySelector('input[name="pk-setting"]:checked')?.value || 'day_care';
+  document.getElementById('pk-room-type-field').style.display = setting === 'admission' ? '' : 'none';
+
+  const est = _pkComputeEstimate();
+  let roomLine = '';
+  let roomCost = 0;
+  let roomEst = null;
+
+  if (setting === 'admission' || setting === 'day_care') {
+    const span = _pkPlanSpanDays();
+    const bedType = setting === 'admission' ? (document.getElementById('pk-room-type').value || 'general') : 'general';
+    if (span.days > 0) {
+      const tariff = await computeRoomTariff({ supabase, tenantId, bed: { bed_type: bedType }, admissionDate: span.start, throughDate: span.through });
+      if (myToken !== _pkRecomputeToken) return; // a newer call already won -- discard this stale result
+      if (tariff.error) {
+        roomLine = `<br><span style="color:#c0392b">⚠ ${_esc(tariff.error)}</span>`;
+      } else {
+        roomCost = tariff.total;
+        roomEst = { bedType, days: tariff.days, dailyRate: tariff.dailyRate, roomCost };
+        roomLine = `<br>${setting === 'day_care' ? 'General Ward' : _esc(bedType)}: ${tariff.days} day${tariff.days > 1 ? 's' : ''} × ₹${tariff.dailyRate.toLocaleString('en-IN')} = <strong>₹${roomCost.toLocaleString('en-IN')}</strong>`;
+      }
+    }
+  }
+  if (myToken !== _pkRecomputeToken) return; // guard the sync (opd) path too, for symmetry
+
+  // Only the winning call ever writes to the shared cache savePkCarePlan() reads --
+  // this is what actually closes the race, not just the rendered HTML.
+  _pkLastEstimate = est;
+  _pkLastRoomEstimate = roomEst;
+
+  const total = est.total + roomCost;
+  const pct = _admTenantPct.self_pay;
+  const advance = Math.round(total * pct / 100);
+  el.innerHTML = `Treatment: <strong>₹${est.total.toLocaleString('en-IN')}</strong>${roomLine}`
+    + `<br><span style="font-size:14px;font-weight:700;color:var(--green-deep)">Estimated Total: ₹${total.toLocaleString('en-IN')}</span><br>Suggested advance (${pct}%, preview): <strong>₹${advance.toLocaleString('en-IN')}</strong>`
+    + (est.unpriced ? `<br><span style="color:#c0392b">⚠ ${est.unpriced} day(s) have no billing code assigned — excluded from this total.</span>` : '');
+};
+
+window._pkGoToStep = function(n) {
+  n = Number(n);
+  if (n >= 2 && !_pkProtocols.length) { alert('Select at least one Panchakarma protocol first.'); return; }
+  _pkStep = n;
+  [1, 2, 3, 4].forEach(i => { const stepEl = document.getElementById('pk-step-' + i); if (stepEl) stepEl.hidden = i !== n; });
+  const labels = { 1: 'Select protocol(s)', 2: 'Calendar', 3: 'Medicines & Instructions', 4: 'Setting & Save' };
+  const ind = document.getElementById('pk-step-indicator');
+  if (ind) ind.textContent = `Step ${n} of 4 — ${labels[n]}`;
+  if (n === 2) _renderPkCalendar();
+  if (n === 3) { _renderPkMedicines(); _pkRenderStep3Estimate(); }
+  if (n === 4) _pkRecomputeStep4();
+};
+
+function _resetPkCarePlan() {
+  _pkProtocols = [];
+  _pkStep = 1;
+  _pkPlanSaved = false;
+  [1, 2, 3, 4].forEach(i => { const stepEl = document.getElementById('pk-step-' + i); if (stepEl) stepEl.hidden = i !== 1; });
+  const ind = document.getElementById('pk-step-indicator');
+  if (ind) ind.textContent = 'Step 1 of 4 — Select protocol(s)';
+  _renderPkChips();
+  ['pk-instr-patient', 'pk-instr-therapist', 'pk-instr-nurse'].forEach(id => { const elx = document.getElementById(id); if (elx) elx.value = ''; });
+  const status = document.getElementById('pk-save-status');
+  if (status) status.style.display = 'none';
+}
+
+window.savePkCarePlan = async function() {
+  if (!_activePatient) { alert('Select a patient first.'); return; }
+  if (!_pkProtocols.length) { alert('Select at least one Panchakarma protocol.'); return; }
+  const settingEl = document.querySelector('input[name="pk-setting"]:checked');
+  const setting = settingEl ? settingEl.value : 'day_care';
+
+  const btn = document.getElementById('btn-save-pk-plan');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  // Recomputed fresh (not from cached state) so a save can never disagree with what
+  // was actually last shown on screen.
+  await window._pkRecomputeStep4();
+  const est = _pkComputeEstimate();
+  const roomEst = _pkLastRoomEstimate;
+  const roomCost = roomEst?.roomCost || 0;
+  const total = est.total + roomCost;
+  const pct = _admTenantPct.self_pay;
+  const advanceSuggested = Math.round(total * pct / 100);
+  const roomTypePreference = setting === 'admission' ? (document.getElementById('pk-room-type').value || 'general') : (setting === 'day_care' ? 'general' : null);
+
+  const { data: plan, error } = await supabase.from('pk_care_plans').insert({
+    tenant_id: tenantId, patient_id: _activePatient.id, visit_id: _activeVisitId, doctor_id: userId,
+    status: 'finalized', setting,
+    instructions_patient: document.getElementById('pk-instr-patient').value.trim() || null,
+    instructions_therapist: document.getElementById('pk-instr-therapist').value.trim() || null,
+    instructions_nurse: document.getElementById('pk-instr-nurse').value.trim() || null,
+    room_type_preference: roomTypePreference,
+    estimated_room_cost: roomCost,
+    estimated_treatment_cost: est.total,
+    estimated_total: total,
+    advance_pct_applied: pct,
+    advance_amount_suggested: advanceSuggested,
+    finalized_at: new Date().toISOString(),
+  }).select('id').single();
+
+  if (error) {
+    btn.disabled = false; btn.textContent = '🌸 Save Care Plan';
+    alert(safeErrorMessage(error, 'Could not save the Panchakarma care plan.')); return;
+  }
+
+  for (let pi = 0; pi < _pkProtocols.length; pi++) {
+    const p = _pkProtocols[pi];
+    const { data: proto, error: protoErr } = await supabase.from('pk_care_plan_protocols').insert({
+      care_plan_id: plan.id, template_id: p.template_id, protocol_label: p.protocol_label,
+      start_date: p.start_date, status: 'pending', sequence_order: pi + 1,
+    }).select('id').single();
+    if (protoErr) { console.warn('[doctor] pk_care_plan_protocols insert:', protoErr.message); continue; }
+
+    const dayRows = _pkExpandDays(p).map(r => ({
+      protocol_instance_id: proto.id, day_number: r.day_number, phase: r.phase,
+      activity_label: r.activity_label, is_flexible: r.is_flexible, planned_date: r.planned_date,
+      ayush_code: r.ayush_code, status: 'pending', sequence_order: r.sequence_order,
+    }));
+    const { error: daysErr } = await supabase.from('pk_care_plan_days').insert(dayRows);
+    if (daysErr) console.warn('[doctor] pk_care_plan_days insert:', daysErr.message);
+
+    if (p.medicines.length) {
+      const { error: medErr } = await supabase.from('pk_care_plan_medicines').insert(
+        p.medicines.map((m, mi) => ({
+          protocol_instance_id: proto.id, medicine_name: m.medicine_name,
+          dosage_instructions: m.dosage_instructions, sequence_order: mi + 1,
+        }))
+      );
+      if (medErr) console.warn('[doctor] pk_care_plan_medicines insert:', medErr.message);
+    }
+  }
+
+  await logAudit('pk_care_plan_created', 'pk_care_plans', plan.id, {
+    patient_name: _activePatient?.name, protocols: _pkProtocols.map(p => p.protocol_label), estimated_total: total,
+  }, _ctx);
+
+  // Admission-setting plans reuse the proven admission_advice -> create_ipd_admission()
+  // flow as-is, so reception.html's existing Admission Requests queue picks this up with
+  // zero changes there (it already reads admission_advice by tenant+status, not by which
+  // code path created the row). Day Care/OPD have no bed involved -- they get their own
+  // lighter reception.html queue instead (sourced from pk_care_plans directly).
+  let handoffMsg = `will appear in Reception's Panchakarma Care Plan queue`;
+  if (setting === 'admission') {
+    const pkDept = _admDepts.find(d => d.name === 'Panchakarma') || null;
+    const protocolNames = _pkProtocols.map(p => p.protocol_label).join(', ');
+    const { data: advice, error: adviceErr } = await supabase.from('admission_advice').insert({
+      tenant_id: tenantId, patient_id: _activePatient.id, visit_id: _activeVisitId, doctor_id: userId,
+      department_id: pkDept?.id || null,
+      clinical_indication: `Panchakarma Care Plan: ${protocolNames}`,
+      expected_duration_days: roomEst?.days || _pkPlanSpanDays().days || null,
+      room_type_preference: roomTypePreference,
+      nursing_care_notes: document.getElementById('pk-instr-nurse').value.trim() || null,
+      payer_type: 'self_pay',
+      estimated_room_cost: roomCost,
+      estimated_treatment_cost: est.total,
+      estimated_total: total,
+      advance_pct_applied: pct,
+      advance_amount_suggested: advanceSuggested,
+      created_by: userId,
+    }).select('id').single();
+
+    if (adviceErr) {
+      console.warn('[doctor] admission_advice insert (from PK plan):', adviceErr.message);
+      handoffMsg = `could not be sent to Reception automatically (${safeErrorMessage(adviceErr, 'error')}) — please use the Admission Advice tab instead`;
+    } else {
+      const items = est.lines.filter(l => l.priced).map(l => ({
+        tenant_id: tenantId, admission_advice_id: advice.id, fee_type: l.code,
+        description: l.label, sessions_count: l.days, unit_price_snapshot: l.unitPrice, line_total: l.lineTotal,
+      }));
+      if (items.length) {
+        const { error: itemsErr } = await supabase.from('admission_advice_items').insert(items);
+        if (itemsErr) console.warn('[doctor] admission_advice_items insert (from PK plan):', itemsErr.message);
+      }
+      await supabase.from('pk_care_plans').update({ admission_advice_id: advice.id }).eq('id', plan.id);
+      handoffMsg = `sent to Reception's Admission Requests queue`;
+    }
+  }
+
+  _pkPlanSaved = true;
+  btn.disabled = false; btn.textContent = '🌸 Save Care Plan';
+  const status = document.getElementById('pk-save-status');
+  status.style.display = '';
+  status.textContent = `✓ Saved — ${_activePatient?.name}'s Panchakarma care plan (${_pkProtocols.length} protocol${_pkProtocols.length > 1 ? 's' : ''}) is finalized and ${handoffMsg}.`;
+};
+
 // ── Disposition change ────────────────────────────
 window.onDispChange = function(val) {
   document.querySelectorAll('.disp-opt').forEach(el => el.classList.remove('selected'));
@@ -1826,7 +2313,7 @@ window.setFollowup = function(days) {
 };
 
 // ── Pathya / Apathya chips ────────────────────────
-['pathya-chips', 'apathya-chips', 'pk-purva-chips', 'pk-main-chips', 'pk-other-chips'].forEach(containerId => {
+['pathya-chips', 'apathya-chips'].forEach(containerId => {
   const container = document.getElementById(containerId);
   if (!container) return;
   const ta = container.closest('.section')?.querySelector('textarea');
@@ -2397,7 +2884,10 @@ async function completeConsultation() {
       }
     }
 
-    const dispMsg = disposition === 'pk' ? 'Panchakarma plan saved'
+    // Session 208: same honesty fix as Session 205's Admission Advice below -- this
+    // used to say "Panchakarma plan saved" unconditionally even though the tab's
+    // fields were never saved anywhere at all.
+    const dispMsg = disposition === 'pk' ? (_pkPlanSaved ? 'Panchakarma care plan saved' : 'Panchakarma care plan not saved — open the Panchakarma tab and save it')
       // Session 205 (cont.): honest reflection of whether the advice was actually
       // sent -- previously said "Admission order created" unconditionally even
       // though the Admission tab's fields were never saved anywhere at all.
@@ -4444,7 +4934,7 @@ function _clearForm() {
     'd-modern','d-ayurveda','d-namc-search','d-namc-code','d-namc-label','d-icd11-code',
     'd-icd10-search','d-icd10-code','d-icd10-label','d-icd','d-notes',
     'rx-instructions','adv-pathya','adv-apathya','fu-date','fu-notes',
-    'disp-notes','pk-oils','pk-notes','pk-start','pk-duration',
+    'disp-notes',
     'adm-indication','adm-nursing','adm-diet','adm-duration-days','adm-duration-note',
     'ref-doctor','ref-hospital','ref-reason',
     'pedi-age-yr','pedi-age-mo','pedi-adult-dose','mc-diagnosis','mc-remarks',
@@ -4474,6 +4964,7 @@ function _clearForm() {
   // (its own default option) each time the Admission tab actually loads, same
   // pattern as _populateDoctorSelect() on ipd.js.
   _resetAdmissionAdvice();
+  _resetPkCarePlan();
 
   document.getElementById('rx-rows').innerHTML = '';
   document.getElementById('diff-list').innerHTML = '';

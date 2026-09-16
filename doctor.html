@@ -570,6 +570,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 }
 .chip:hover,.chip.on{border-color:var(--green-mid);background:var(--green-light);color:var(--green-deep)}
 
+/* ── Panchakarma Care Plan phase badge (Session 208) — same 3 phases/colors as
+   therapist.html's pk_therapy_sessions.therapy_phase badge, doctor.html's own tokens */
+.phase-badge{display:inline-block;padding:2px 7px;border-radius:8px;font-size:10px;font-weight:600}
+.phase-purvakarma{background:var(--gold-light);color:#7a5a00;border:1px solid var(--gold)}
+.phase-pradhanakarma{background:var(--blue-light);color:var(--blue);border:1px solid var(--blue-border)}
+.phase-paschatkarma{background:var(--success-bg);color:var(--green-deep);border:1px solid var(--success-border)}
+
 /* ── Disposition (outcome) ───────────────────────── */
 .disposition-options{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
 .disp-opt{
@@ -3172,55 +3179,105 @@ body.medcert-print #mc-print{display:block!important}
         <div id="tab-pk" hidden>
           <div class="section">
             <button type="button" data-onclick="_switchTab" data-onclick-a0="disp" style="display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:var(--green-deep);font-size:13px;font-weight:500;cursor:pointer;padding:0 0 12px;font-family:'DM Sans',sans-serif">← Back to Disposition</button>
-            <div class="section-title">Panchakarma Treatment Plan <span class="section-sub">Tenant feature</span></div>
-            <div class="field">
-              <label>Purvakarma (Preparatory procedures)</label>
-              <div class="pathya-chips" id="pk-purva-chips">
-                <span class="chip" data-val="Abhyanga (Oil massage)">Abhyanga</span>
-                <span class="chip" data-val="Swedana (Sudation)">Swedana</span>
-                <span class="chip" data-val="Snehapana (Internal oleation)">Snehapana</span>
-                <span class="chip" data-val="Shirodhara">Shirodhara</span>
-              </div>
-            </div>
-            <div class="field">
-              <label>Panchakarma Procedures</label>
-              <div class="pathya-chips" id="pk-main-chips">
-                <span class="chip" data-val="Vamana (Emesis)">Vamana</span>
-                <span class="chip" data-val="Virechana (Purgation)">Virechana</span>
-                <span class="chip" data-val="Basti (Enema)">Basti</span>
-                <span class="chip" data-val="Nasya (Nasal admin.)">Nasya</span>
-                <span class="chip" data-val="Raktamokshana (Bloodletting)">Raktamokshana</span>
-              </div>
-            </div>
-            <div class="field">
-              <label>Other Therapies</label>
-              <div class="pathya-chips" id="pk-other-chips">
-                <span class="chip" data-val="Pizhichil (Oil bath)">Pizhichil</span>
-                <span class="chip" data-val="Kizhi (Poultice)">Kizhi</span>
-                <span class="chip" data-val="Njavara Kizhi">Njavara Kizhi</span>
-                <span class="chip" data-val="Netra Tarpana (Eye care)">Netra Tarpana</span>
-                <span class="chip" data-val="Karna Poorana (Ear oil)">Karna Poorana</span>
-              </div>
-            </div>
-            <div class="field-row col2" style="margin-top:8px">
-              <div class="field">
-                <label>Start Date</label>
-                <input id="pk-start" type="date"/>
-              </div>
-              <div class="field">
-                <label>Duration (days)</label>
-                <input id="pk-duration" type="number" placeholder="7" min="1" max="60"/>
-              </div>
-            </div>
-            <div class="field">
-              <label>Oils / Materials</label>
-              <input id="pk-oils" type="text" placeholder="e.g. Dhanwantharam Taila, Ksheerabala, Mahanarayan…"/>
-            </div>
-            <div class="field">
-              <label>Panchakarma Notes / Instructions</label>
-              <textarea id="pk-notes" placeholder="Specific instructions for Panchakarma team, diet during treatment, rest requirements…" style="min-height:72px"></textarea>
-            </div>
+            <div class="section-title">Panchakarma Care Plan <span class="section-sub" id="pk-step-indicator">Step 1 of 4 — Select protocol(s)</span></div>
           </div>
+
+          <!-- STEP 1 — Select protocol(s). Multiple protocols per plan are supported --
+               each one's own SOP auto-generates its own day-by-day calendar in Step 2. -->
+          <div id="pk-step-1">
+            <div class="section">
+              <div class="field">
+                <label>Panchakarma Procedures</label>
+                <div class="pathya-chips" id="pk-chips-main"></div>
+              </div>
+              <div class="field">
+                <label>Other Therapies</label>
+                <div class="pathya-chips" id="pk-chips-other"></div>
+              </div>
+              <div id="pk-step1-hint" style="font-size:11.5px;color:var(--text-muted);margin-top:4px">Pick one or more — each selected protocol gets its own auto-generated SOP calendar in the next step.</div>
+            </div>
+            <div class="section">
+              <button type="button" data-onclick="_pkGoToStep" data-onclick-a0="2" style="height:40px;padding:0 18px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer">Next: Calendar →</button>
+            </div>
+          </div><!-- /pk-step-1 -->
+
+          <!-- STEP 2 — SOP-driven calendar per selected protocol, editable dates and
+               flexible-block extend/reduce (e.g. Snehapana's length is a day-by-day
+               clinical judgment call, not fixed). -->
+          <div id="pk-step-2" hidden>
+            <div id="pk-calendar-body"></div>
+            <div class="section">
+              <button type="button" data-onclick="_pkGoToStep" data-onclick-a0="1" style="height:40px;padding:0 18px;background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-right:8px">← Back</button>
+              <button type="button" data-onclick="_pkGoToStep" data-onclick-a0="3" style="height:40px;padding:0 18px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer">Next: Medicines & Instructions →</button>
+            </div>
+          </div><!-- /pk-step-2 -->
+
+          <!-- STEP 3 — Medicines per protocol, billing-code resolution for ambiguous
+               days (e.g. Basti has 9 real site-specific codes and no generic one),
+               plan-level instructions for 3 audiences, live running cost estimate. -->
+          <div id="pk-step-3" hidden>
+            <div id="pk-medicines-body"></div>
+            <div class="section">
+              <div class="field">
+                <label>Instructions for Patient</label>
+                <textarea id="pk-instr-patient" placeholder="Diet during treatment, rest requirements, what to expect…" style="min-height:60px"></textarea>
+              </div>
+              <div class="field">
+                <label>Instructions for Therapist</label>
+                <textarea id="pk-instr-therapist" placeholder="Technique notes, materials, precautions…" style="min-height:60px"></textarea>
+              </div>
+              <div class="field">
+                <label>Instructions for Nurse</label>
+                <textarea id="pk-instr-nurse" placeholder="Monitoring, vitals, ward-side care…" style="min-height:60px"></textarea>
+              </div>
+            </div>
+            <div class="section" style="background:var(--green-light);border:1.5px solid var(--green-mid);border-radius:8px;padding:14px 16px">
+              <div style="font-size:12px;font-weight:600;color:var(--green-deep);margin-bottom:8px">Estimated Cost</div>
+              <div id="pk-estimate-step3" style="font-size:12.5px;color:var(--text-mid)">—</div>
+            </div>
+            <div class="section">
+              <button type="button" data-onclick="_pkGoToStep" data-onclick-a0="2" style="height:40px;padding:0 18px;background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-right:8px">← Back</button>
+              <button type="button" data-onclick="_pkGoToStep" data-onclick-a0="4" style="height:40px;padding:0 18px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer">Next: Setting & Save →</button>
+            </div>
+          </div><!-- /pk-step-3 -->
+
+          <!-- STEP 4 — Setting + final estimate + save. Reception hand-off / advance
+               collection / realtime fan-out to nursing/therapist/prep is a later phase --
+               this step ends at a saved, finalized plan. -->
+          <div id="pk-step-4" hidden>
+            <div class="section">
+              <div class="field">
+                <label>Care Setting</label>
+                <div style="display:flex;gap:16px;margin-top:4px">
+                  <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer"><input type="radio" name="pk-setting" value="admission" data-onchange="_pkRecomputeStep4"/> Admission</label>
+                  <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer"><input type="radio" name="pk-setting" value="day_care" data-onchange="_pkRecomputeStep4" checked/> Day Care</label>
+                  <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer"><input type="radio" name="pk-setting" value="opd" data-onchange="_pkRecomputeStep4"/> OPD-based</label>
+                </div>
+              </div>
+              <!-- Cost model (Dr. Venkatesh): Admission charges depend on the room selected;
+                   Day Care is a fixed General Ward charge + treatment; OPD-based has no room
+                   component at all. Only Admission needs a room-type choice from the doctor. -->
+              <div class="field" id="pk-room-type-field" style="display:none">
+                <label>Room Type Preference</label>
+                <select id="pk-room-type" data-onchange="_pkRecomputeStep4">
+                  <option value="general">General Ward</option>
+                  <option value="semi_private">Semi-Private</option>
+                  <option value="private">Private</option>
+                  <option value="icu">ICU / HDU</option>
+                </select>
+              </div>
+            </div>
+            <div class="section" style="background:var(--green-light);border:1.5px solid var(--green-mid);border-radius:8px;padding:14px 16px">
+              <div style="font-size:12px;font-weight:600;color:var(--green-deep);margin-bottom:8px">Estimated Total & Suggested Advance</div>
+              <div id="pk-estimate-step4" style="font-size:12.5px;color:var(--text-mid)">—</div>
+            </div>
+            <div class="section">
+              <button type="button" data-onclick="_pkGoToStep" data-onclick-a0="3" style="height:40px;padding:0 18px;background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-right:8px">← Back</button>
+              <button type="button" data-onclick="savePkCarePlan" id="btn-save-pk-plan" style="height:44px;padding:0 20px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px">🌸 Save Care Plan</button>
+              <div id="pk-save-status" style="display:none;margin-top:10px;font-size:12.5px;font-weight:600;color:var(--green-deep)"></div>
+            </div>
+          </div><!-- /pk-step-4 -->
+
           <div style="height:20px"></div>
         </div><!-- /tab-pk -->
 

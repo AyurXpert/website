@@ -4099,8 +4099,8 @@ function _setMode(mode) {
 }
 
 // ── Queue / Appointments / Lab Bills / Reg. Queue / Admission Requests tabs ──
-const _allTabs   = ['tab-queue', 'tab-appts', 'tab-labbills', 'tab-regqueue', 'tab-admreq'];
-const _allPanels = ['queue-list', 'appt-list', 'lab-bills-list', 'reg-queue-list', 'admission-requests-list'];
+const _allTabs   = ['tab-queue', 'tab-appts', 'tab-labbills', 'tab-regqueue', 'tab-admreq', 'tab-pkplans'];
+const _allPanels = ['queue-list', 'appt-list', 'lab-bills-list', 'reg-queue-list', 'admission-requests-list', 'pk-plans-list'];
 function _activateTab(tabId, panelId) {
   _allTabs.forEach(id => document.getElementById(id).classList.toggle('active', id === tabId));
   _allPanels.forEach(id => document.getElementById(id).style.display = (id === panelId) ? '' : 'none');
@@ -4123,6 +4123,10 @@ document.getElementById('tab-regqueue').addEventListener('click', () => {
 document.getElementById('tab-admreq').addEventListener('click', () => {
   _activateTab('tab-admreq', 'admission-requests-list');
   loadAdmissionRequests();
+});
+document.getElementById('tab-pkplans').addEventListener('click', () => {
+  _activateTab('tab-pkplans', 'pk-plans-list');
+  loadPkCarePlanRequests();
 });
 
 // ── Pending Lab/Investigation Bills (Session 126) ──
@@ -4289,6 +4293,104 @@ function _initAdmissionRequests() {
     .subscribe();
 }
 setInterval(() => { if (_admReqSubscription) loadAdmissionRequests(); }, 30_000);
+
+// ── Panchakarma Care Plan requests -- Day Care/OPD only (Session 209) ──────
+// Admission-setting PK plans reuse admission_advice/create_ipd_admission() as-is (see
+// loadAdmissionRequests() above -- doctor.js's PK wizard just becomes another producer
+// of admission_advice rows, no changes needed there). Day Care/OPD plans never touch a
+// real bed, so they get this lighter queue instead: reception confirms the advance
+// actually collected, which creates a `bills` row (reusing bills.advance_credited, the
+// exact same column Session 205 built for IPD admissions' advance) and flips the plan
+// to 'active'.
+let _pkPlansSubscription = null;
+
+async function loadPkCarePlanRequests() {
+  const { data, error } = await supabase
+    .from('pk_care_plans')
+    .select('id, setting, estimated_total, advance_amount_suggested, created_at, patients(name, phone), profiles!doctor_id(full_name), pk_care_plan_protocols(protocol_label)')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'finalized')
+    .in('setting', ['day_care', 'opd'])
+    .order('created_at', { ascending: true });
+  if (error) { console.warn('[reception] loadPkCarePlanRequests:', error.message); return; }
+
+  const rows = data || [];
+  document.getElementById('pkplans-count').textContent = rows.length ? `(${rows.length})` : '';
+  const list = document.getElementById('pk-plans-list');
+  if (!rows.length) {
+    list.innerHTML = `<div class="q-empty"><div class="q-empty-icon">🌸</div><div class="q-empty-text">No pending Panchakarma Care Plans right now.</div></div>`;
+    return;
+  }
+
+  const SETTING_LABELS = { day_care: 'Day Care', opd: 'OPD-based' };
+  list.innerHTML = rows.map(r => {
+    const waitedFor = _waitTime(r.created_at);
+    const protocolNames = (r.pk_care_plan_protocols || []).map(p => p.protocol_label).join(', ') || '—';
+    const suggested = Number(r.advance_amount_suggested || 0);
+    return `<div class="q-item">
+      <div class="q-token waiting">🌸</div>
+      <div class="q-info">
+        <div class="q-name">${_esc(r.patients?.name || '—')}</div>
+        <div class="q-row2"><span style="color:var(--text-mid)">${_esc(SETTING_LABELS[r.setting] || r.setting)} · ${_esc(protocolNames)}</span></div>
+        <div class="q-row2"><span style="color:var(--text-mid)">Advised by ${_esc(r.profiles?.full_name || '—')} · waiting ${waitedFor}</span></div>
+        <div class="q-row3">Estimated total: <strong>₹${Number(r.estimated_total || 0).toLocaleString('en-IN')}</strong> · Suggested advance: <strong>₹${suggested.toLocaleString('en-IN')}</strong></div>
+        <div class="q-row3" style="display:flex;gap:6px;align-items:center;margin-top:4px">
+          <input type="number" class="pk-advance-amount" value="${suggested}" min="0" style="width:100px;height:30px;border:1px solid var(--border);border-radius:6px;padding:0 8px;font-size:12px"/>
+          <select class="pk-advance-mode" style="height:30px;border:1px solid var(--border);border-radius:6px;font-size:12px">
+            <option value="cash">Cash</option>
+            <option value="card">Card</option>
+            <option value="upi">UPI</option>
+            <option value="online">Online</option>
+          </select>
+        </div>
+      </div>
+      <div class="q-right" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <button class="q-edit-btn" data-onclick="activatePkCarePlan" data-onclick-a0="${r.id}" data-onclick-a1="@this" style="width:auto;padding:0 10px;font-size:11px;background:var(--green-mid);color:#fff">💰 Collect Advance &amp; Activate</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.activatePkCarePlan = async function(planId, btnEl) {
+  const row = btnEl.closest('.q-item');
+  const amount = parseFloat(row.querySelector('.pk-advance-amount').value) || 0;
+  const mode = row.querySelector('.pk-advance-mode').value;
+  if (amount <= 0) { _alert('error', 'Enter the advance amount actually collected.'); return; }
+  if (!confirm(`Collect ₹${amount.toLocaleString('en-IN')} (${mode}) as advance and activate this Panchakarma Care Plan?`)) return;
+
+  const { data: plan, error: planErr } = await supabase
+    .from('pk_care_plans').select('patient_id, visit_id, estimated_total').eq('id', planId).single();
+  if (planErr) { _alert('error', safeErrorMessage(planErr, 'Could not load this care plan.')); return; }
+
+  const { data: bill, error: billErr } = await supabase.from('bills').insert({
+    tenant_id: tenantId, patient_id: plan.patient_id, visit_id: plan.visit_id,
+    bill_type: 'OPD', payer_type: 'self_pay',
+    final_amount: plan.estimated_total, advance_credited: amount,
+    status: 'partial', payment_mode: mode,
+  }).select('id').single();
+  if (billErr) { _alert('error', safeErrorMessage(billErr, 'Could not create the advance bill.')); return; }
+
+  const { error: updErr } = await supabase.from('pk_care_plans').update({
+    status: 'active', bill_id: bill.id,
+    advance_amount_collected: amount, advance_payment_mode: mode,
+    advance_collected_by: profile.id, advance_collected_at: new Date().toISOString(),
+  }).eq('id', planId);
+  if (updErr) { _alert('error', safeErrorMessage(updErr, 'Bill created, but could not activate the plan.')); return; }
+
+  await logAudit('pk_care_plan_activated', 'pk_care_plans', planId, { amount, mode, bill_id: bill.id }, _ctx);
+  _alert('success', `Advance collected — Panchakarma Care Plan is now active.`);
+  loadPkCarePlanRequests();
+};
+
+function _initPkPlanRequests() {
+  loadPkCarePlanRequests();
+  _pkPlansSubscription = supabase
+    .channel(`pkplans-${profile.id}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pk_care_plans' }, () => loadPkCarePlanRequests())
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pk_care_plans' }, () => loadPkCarePlanRequests())
+    .subscribe();
+}
+setInterval(() => { if (_pkPlansSubscription) loadPkCarePlanRequests(); }, 30_000);
 
 // ── Registration Queue (queue redesign piece 2, 17 Aug 2026) ──────
 // Only meaningful for a registration_clerk/billing_clerk currently on
@@ -4664,6 +4766,7 @@ await loadPendingLabBills();
 await _checkStaleVisits();
 _initRegistrationQueue();
 _initAdmissionRequests();
+_initPkPlanRequests();
 renderPromoBanner('promo-banner', { supabase, tenantId });
 setInterval(loadQueue, 30_000);
 setInterval(loadTodaysAppointments, 30_000);

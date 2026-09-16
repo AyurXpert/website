@@ -1568,6 +1568,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
            Advice tab), reception sees it here, collects the advance, and admits
            (ipd.html?advice_id=..., create_ipd_admission RPC). See plan bright-popping-stallman. -->
       <button class="q-tab" id="tab-admreq" type="button">🛏️ Admission Requests <span id="admreq-count"></span></button>
+      <!-- Session 209 -- Panchakarma Care Plan Day Care/OPD hand-off (Admission-setting
+           plans reuse the Admission Requests queue above unchanged). See
+           sql/session209_pk_care_plan_activation.sql. -->
+      <button class="q-tab" id="tab-pkplans" type="button">🌸 PK Care Plans <span id="pkplans-count"></span></button>
     </div>
     <div class="queue-body" id="queue-list">
       <div class="q-empty"><div class="q-empty-icon">⏳</div><div class="q-empty-text">Loading…</div></div>
@@ -1580,6 +1584,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     </div>
     <div class="queue-body" id="admission-requests-list" style="display:none">
       <div class="q-empty"><div class="q-empty-icon">🛏️</div><div class="q-empty-text">Loading…</div></div>
+    </div>
+    <div class="queue-body" id="pk-plans-list" style="display:none">
+      <div class="q-empty"><div class="q-empty-icon">🌸</div><div class="q-empty-text">Loading…</div></div>
     </div>
     <!-- Session 173: lightweight Registration-duty toggle for any plain receptionist
          (no NCISM registration_clerk/billing_clerk designation needed) -- mirrors
