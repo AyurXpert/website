@@ -539,6 +539,7 @@ function _pkShiftLabel(n) {
 
 function _renderPkRosterPanel() {
   const isAdmin = _isPkRosterAdmin();
+  console.error('PKROSTER_DEBUG', { isAdmin, role, designation: myProfile?.designation, scope: myProfile?.scope_department_id, deptsLen: _depts.length, pkDept: _depts.find(d=>d.name==='Panchakarma') });
   // Session 207 (cont.) -- a third tier: the real Panchakarma HOD and Medical
   // Superintendent already have Rooms access (_isRoomAdmin()) but deliberately not
   // roster-edit rights (that stays pk_incharge's job, per Dr. Venkatesh's explicit
