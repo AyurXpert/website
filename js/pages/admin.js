@@ -5,7 +5,7 @@ import { supabase }   from '../core/db/supabaseClient.js';
 import { logAudit }   from '../core/auditLogger.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS, ncismRequiredBeds } from '../config/ncism.js';
+import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS, ncismRequiredBeds, PK_THERAPY_ROOM_COUNT } from '../config/ncism.js';
 import { SUPABASE_URL, SESSION_KEYS } from '../config/constants.js';
 import { DESIGS, DESIG_MAP, DESIG_CATS } from '../config/designations.js';
 import {
@@ -5682,7 +5682,7 @@ async function _renderNcismChecklist(ugIntake, orgType) {
 
   const [
     opdRes, deptRes, bedRes, staffRes,
-    opdDoctorRes, feeRes, rosterRes, rawStaffDesigRes
+    opdDoctorRes, feeRes, rosterRes, rawStaffDesigRes, pkRoomRes
   ] = await Promise.all([
     supabase.from('opds').select('id,name,ncism_code,is_active').eq('tenant_id',tenantId),
     supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_pg_dept,pg_seats_sanctioned,is_active').eq('tenant_id',tenantId),
@@ -5695,6 +5695,9 @@ async function _renderNcismChecklist(ugIntake, orgType) {
     // scoped), separate from the plain role-count `staffRes` above which the existing
     // role-level checklist items below still use unchanged.
     supabase.from('profiles').select('id,full_name,designation,department_id').eq('tenant_id',tenantId).eq('is_active',true),
+    // Session 207 -- Panchakarma treatment rooms (NCISM Sch III/XXV mandatory, gender-split),
+    // same table/gender model therapist.js's own Rooms compliance banner already uses.
+    supabase.from('pk_treatment_rooms').select('id,gender_restriction,status').eq('tenant_id',tenantId).then(r => r.error ? {data:[]} : r),
   ]);
 
   const opds       = opdRes.data    || [];
@@ -5704,6 +5707,7 @@ async function _renderNcismChecklist(ugIntake, orgType) {
   const opdDoctors = opdDoctorRes.data || [];
   const fees       = feeRes.data    || [];
   const roster     = rosterRes.data || [];
+  const pkRoomsActive = (pkRoomRes.data || []).filter(r => r.status === 'active');
 
   // Session 136 -- shared summary banner, same canonical computation the NCISM Requirements/
   // Staffing Plan tabs use, so this checklist's staffing figure can't disagree with theirs.
@@ -5768,6 +5772,25 @@ const totalOrgStaff = await _count('profiles',[['tenant_id',tenantId],['is_activ
           totalBeds >= minBeds, totalBeds >= Math.floor(minBeds * 0.8),
           totalBeds < minBeds ? 'Add Beds' : 'View',
           totalBeds < minBeds ? 'bed-admin.html?tab=quick' : 'bed-admin.html?tab=beds'),
+        (() => {
+          // Session 207 -- Panchakarma treatment rooms are mandatory NCISM infrastructure
+          // (Sch III/XXV), and must be gender-split EVENLY (not just a total count) -- same
+          // required/half math + "any"-gender rooms don't count toward either half rule as
+          // therapist.js's own Rooms compliance banner (Session 206), so the two can't disagree.
+          const pkRequired = PK_THERAPY_ROOM_COUNT[ugTier] || 0;
+          const pkHalf     = pkRequired / 2;
+          const pkMale     = pkRoomsActive.filter(r => r.gender_restriction === 'male').length;
+          const pkFemale   = pkRoomsActive.filter(r => r.gender_restriction === 'female').length;
+          const pkAny      = pkRoomsActive.filter(r => r.gender_restriction === 'any').length;
+          const pkMet      = pkMale >= pkHalf && pkFemale >= pkHalf;
+          const pkWarn     = (pkMale + pkFemale + pkAny) >= pkRequired * 0.8;
+          return item('🌸', `Panchakarma treatment rooms — gender-split (min ${pkHalf}+${pkHalf})`,
+            pkMet
+              ? `${pkMale} male + ${pkFemale} female of ${pkRequired} required (Sch III/XXV)`
+              : `${pkMale} male, ${pkFemale} female configured${pkAny ? `, ${pkAny} unassigned` : ''} — need ${pkHalf} each for ${intake} intake (${pkRequired} total, Sch III/XXV)`,
+            pkMet, pkWarn,
+            'Manage Rooms', 'therapist.html');
+        })(),
         item('💊','Fee structures configured',
           fees.length ? 'At least one active fee structure found' : 'No active fee structures — patients cannot be billed',
           fees.length > 0, false,
