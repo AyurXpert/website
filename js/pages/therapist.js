@@ -50,7 +50,7 @@ let _formulary   = [];
 let _prepLogs    = [];
 let _pkRosterSettings = null;
 let _pkRosterDuty     = [];
-let _pkPrepRoomDuty   = null; // Session 212 -- {id, profile_id, profiles:{id,full_name}} or null, at most one row/day
+let _pkPrepRoomDuty   = []; // Session 212, list since Session 218 -- [{id, profile_id, profiles:{id,full_name}}, ...], any length/day now
 let _pkCycle          = 'weekly'; // Session 215 -- pk_roster_settings.cycle, weekly/fortnightly/monthly
 let _pkCyclePending   = null; // Session 215 -- the latest pending pk_roster_cycle approval request, if any
 let _pkShiftPending   = null; // Session 216 -- the latest pending pk_shift_times approval request, if any
@@ -190,13 +190,15 @@ async function loadAll() {
       .select('id,profile_id,shift_slot,profiles!profile_id(id,full_name,gender)')
       .eq('tenant_id', tenantId)
       .eq('duty_date', _pkRosterDate),
-    // Session 212 -- Prep Room In-charge, one row max per day (unique(tenant_id,duty_date)).
+    // Session 212 -- Prep Room In-charge. Session 218: several people/day now allowed
+    // (unique(tenant_id,duty_date,profile_id), was unique(tenant_id,duty_date)) since the
+    // headcount is adjustable -- no longer .maybeSingle(), a plain list like Shift 1/2.
     supabase
       .from('pk_prep_room_duty')
       .select('id,profile_id,profiles!profile_id(id,full_name)')
       .eq('tenant_id', tenantId)
       .eq('duty_date', _pkRosterDate)
-      .maybeSingle(),
+      .order('created_at'),
     // Session 212 (cont.) -- who's on approved leave covering _pkRosterDate, so the manual
     // Prep Room In-charge dropdown can warn (not block, per Dr. Venkatesh -- manual assignment
     // stays an admin override tool same as Shift 1/2's) about weekly-off/leave, the way the
@@ -255,7 +257,7 @@ async function loadAll() {
   _pkCyclePending   = pkCyclePendingRes.data?.[0] || null;
   _pkShiftPending   = pkShiftPendingRes.data?.[0] || null;
   _pkRosterDuty     = pkDutyRes.data     || [];
-  _pkPrepRoomDuty   = pkPrepRes.data     || null;
+  _pkPrepRoomDuty   = pkPrepRes.data     || [];
   _pkPrepLeaveIds   = new Set((pkPrepLeaveRes.data || []).map(r => r.profile_id));
   // Real bug caught live this session: an ambiguous-FK embed silently returned no data
   // instead of erroring visibly (data was null, not an exception) -- log it so a future
@@ -764,15 +766,20 @@ function _renderPkRosterPanel() {
   _renderPkPrepRoomCard(isAdmin);
 }
 
-// Session 212 -- Prep Room In-charge: a single day-long post (unique(tenant_id,duty_date)),
-// not a list like the two shift cards above, so it's rendered as one row + an Assign control
-// that upserts (replaces whoever's currently posted) rather than an "add to a list" flow.
+// Session 212 -- Prep Room In-charge. Session 218: headcount is now adjustable via Generate
+// Week's own Prep Room input, so several people/day are now valid
+// (unique(tenant_id,duty_date,profile_id), was unique(tenant_id,duty_date)) -- this card is a
+// list + Add row now, matching the Shift 1/2 cards above, not a single-slot display.
 function _renderPkPrepRoomCard(isAdmin) {
   const current = document.getElementById('pkroster-prep-current');
-  const row = _pkPrepRoomDuty;
-  current.innerHTML = row
-    ? `<span>${_esc(row.profiles?.full_name || 'Unknown')}</span>${isAdmin ? `<button data-onclick="removePkPrepRoom" data-onclick-a0="${row.id}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:15px;padding:0 4px">✕</button>` : ''}`
-    : `<span style="color:var(--text-muted)">— Not assigned —</span>`;
+  const rows = _pkPrepRoomDuty;
+  current.innerHTML = rows.length
+    ? rows.map(row => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--cream);border-radius:7px;margin-bottom:6px;font-size:13px">
+        <span>${_esc(row.profiles?.full_name || 'Unknown')}</span>
+        ${isAdmin ? `<button data-onclick="removePkPrepRoom" data-onclick-a0="${row.id}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:15px;padding:0 4px">✕</button>` : ''}
+      </div>`).join('')
+    : '<div style="color:var(--text-muted);font-size:13px;padding:6px 0">No one assigned yet.</div>';
 
   const assignRowEl = document.getElementById('pkroster-prep-assign-row');
   assignRowEl.style.display = isAdmin ? 'flex' : 'none';
@@ -782,13 +789,18 @@ function _renderPkPrepRoomCard(isAdmin) {
   // (prep-room work isn't patient-facing). Session 213: _pkTherapists, not the platform-wide
   // _therapists (was wrongly offering Physiotherapist/Kriyakalpa/Yoga Demonstrator here, since
   // this posting has no gender filter to accidentally exclude them like Shift 1/2's does).
+  // Excludes whoever's already assigned today (same exclusion Shift 1/2's own dropdowns use) --
+  // a real double-assignment would be caught by the DB constraint anyway, this just keeps the
+  // dropdown from offering it in the first place.
   // Session 212 (cont.): unlike Shift 1/2's manual dropdowns (deliberately left plain, per Dr.
   // Venkatesh), each option here is labelled with a weekly-off/leave warning when it applies --
   // manual assignment still allows it (this is an override tool, same as Shift 1/2), it's just
   // no longer a silent choice the way it was before this label existed.
+  const assignedIds = new Set(rows.map(r => r.profile_id));
+  const available = _pkTherapists.filter(t => !assignedIds.has(t.id));
   const sel = document.getElementById('pkroster-prep-select');
   sel.innerHTML = '<option value="">— Assign therapist —</option>' +
-    _pkTherapists.map(t => {
+    available.map(t => {
       const reason = _pkPrepWarningReason(t);
       return `<option value="${t.id}">${_esc(t.full_name)}${reason ? ` — ⚠️ ${reason}` : ''}</option>`;
     }).join('');
@@ -818,16 +830,20 @@ window.assignPkPrepRoom = async function() {
     return;
   }
 
-  // Upsert, not insert -- replaces whoever's currently posted that day rather than requiring
-  // a separate Remove-then-Add round trip, matching the unique(tenant_id,duty_date) shape.
-  const { error } = await supabase.from('pk_prep_room_duty').upsert({
+  // Session 218 -- plain insert, not upsert: several people/day are now valid
+  // (unique(tenant_id,duty_date,profile_id)), matching Shift 1/2's assignPkDuty() pattern
+  // exactly instead of the old single-slot "replace whoever's there" upsert.
+  const { error } = await supabase.from('pk_prep_room_duty').insert({
     tenant_id: tenantId,
     profile_id: profileId,
     duty_date: _pkRosterDate,
     created_by: myProfile?.id || null,
-  }, { onConflict: 'tenant_id,duty_date' });
+  });
 
-  if (error) { _alert('error', safeErrorMessage(error, 'Failed to assign Prep Room In-charge.')); return; }
+  if (error) {
+    _alert('error', safeErrorMessage(error, error.code === '23505' ? 'This therapist is already assigned to Prep Room today.' : 'Failed to assign Prep Room In-charge.'));
+    return;
+  }
   await loadAll();
 };
 
@@ -1039,7 +1055,7 @@ function _mergePkPreviews(byWeek) {
 function _applyPkCycleLabels() {
   const meta = PK_CYCLE_META[_pkCycle] || PK_CYCLE_META.weekly;
   const label = document.getElementById('pkgen-cycle-label');
-  if (label) label.textContent = `(Shift 1/2 gender-separated per Sch III/XXV; Prep Room In-charge auto-included, 1/day, any therapist — generating ${PK_CYCLE_WEEKS[_pkCycle]} week(s), this tenant's approved cycle is ${meta.periodLower})`;
+  if (label) label.textContent = `(Shift 1/2 gender-separated per Sch III/XXV; Prep Room In-charge headcount set separately below, any therapist — generating ${PK_CYCLE_WEEKS[_pkCycle]} week(s), this tenant's approved cycle is ${meta.periodLower})`;
 }
 
 let _pkGenDays = null;      // last merged preview 'days' -- kept only for re-rendering, not re-published (Publish re-runs the RPCs, see above)
@@ -1051,6 +1067,10 @@ function _pkGenCounts() {
     shift1_female: parseInt(document.getElementById('pkgen-shift1-female').value, 10) || 0,
     shift2_male:   parseInt(document.getElementById('pkgen-shift2-male').value, 10)   || 0,
     shift2_female: parseInt(document.getElementById('pkgen-shift2-female').value, 10) || 0,
+    // Session 218 -- Prep Room In-charge is now an adjustable headcount (default 1, same
+    // behavior as before for anyone who never touches it), not a hardcoded "always exactly
+    // 1/day" rule -- real workload can need more people as UG intake tier scales up.
+    prep_count:    parseInt(document.getElementById('pkgen-prep-count')?.value, 10) ?? 1,
   };
 }
 
@@ -1060,13 +1080,16 @@ function _pkGenCounts() {
 // reports this as honest per-day "(gap)" cells, but that only surfaces AFTER clicking Preview,
 // buried in a table. This computes the same arithmetic client-side and shows it live as the
 // admin types, so the mismatch is obvious before running anything.
+// Session 218: incorporates the now-adjustable prep_count into the same arithmetic (it used to
+// be an implicit fixed +1 folded into "spare"; now it's requested via its own input like the
+// shift boxes, so it's counted the same way they are).
 window.updatePkHeadcountHint = function() {
   const hint = document.getElementById('pkgen-headcount-hint');
   if (!hint) return;
   const counts = _pkGenCounts();
   const maleNeeded = counts.shift1_male + counts.shift2_male;
   const femaleNeeded = counts.shift1_female + counts.shift2_female;
-  const totalNeeded = maleNeeded + femaleNeeded;
+  const totalNeeded = maleNeeded + femaleNeeded + counts.prep_count;
   if (totalNeeded <= 0) { hint.textContent = ''; return; }
 
   const malePool = _pkTherapists.filter(t => t.gender === 'M').length;
@@ -1075,13 +1098,16 @@ window.updatePkHeadcountHint = function() {
   const spare = totalPool - totalNeeded;
 
   if (maleNeeded > malePool || femaleNeeded > femalePool) {
-    hint.innerHTML = `⚠️ <strong>Not enough therapists even before Prep Room or weekly-off</strong>: this asks for ${maleNeeded}M/${femaleNeeded}F every day but only ${malePool}M/${femalePool}F exist in Panchakarma. Every day will show Shift gaps.`;
+    hint.innerHTML = `⚠️ <strong>Not enough therapists for Shift 1+2 alone</strong>: this asks for ${maleNeeded}M/${femaleNeeded}F every day but only ${malePool}M/${femalePool}F exist in Panchakarma. Every day will show Shift gaps.`;
     hint.style.color = 'var(--red)';
-  } else if (spare < 1) {
-    hint.innerHTML = `⚠️ Requesting all ${totalNeeded} of your ${totalPool} Panchakarma therapists for Shift 1+2 every day — <strong>nobody will be left for Prep Room In-charge</strong>, and any day with a weekly off or approved leave will fall short on Shift 1/2 too.`;
+  } else if (spare < 0) {
+    hint.innerHTML = `⚠️ Requesting ${maleNeeded + femaleNeeded} for Shift 1+2 plus ${counts.prep_count} for Prep Room = ${totalNeeded}, but only ${totalPool} Panchakarma therapists exist — <strong>${-spare} short every day</strong> even before weekly-off/leave.`;
+    hint.style.color = 'var(--red)';
+  } else if (spare === 0) {
+    hint.innerHTML = `Requesting all ${totalPool} of your ${totalPool} Panchakarma therapists (Shift 1+2 + Prep Room combined) — <strong>zero spare</strong>, so any day with a weekly off or approved leave will fall short.`;
     hint.style.color = 'var(--gold)';
   } else {
-    hint.innerHTML = `${totalNeeded} of ${totalPool} therapists requested per day — ${spare} spare for Prep Room In-charge${spare > 1 ? ' and weekly-off/leave coverage' : ''}.`;
+    hint.innerHTML = `${totalNeeded} of ${totalPool} therapists requested per day (incl. ${counts.prep_count} for Prep Room) — ${spare} spare for weekly-off/leave coverage.`;
     hint.style.color = 'var(--text-muted)';
   }
 };
@@ -1093,7 +1119,7 @@ window.previewPkWeek = async function() {
   document.getElementById('pkgen-week-start').value = weekStart;
 
   const counts = _pkGenCounts();
-  if (!Object.values(counts).some(n => n > 0)) { _alert('error', 'Enter at least one shift headcount.'); return; }
+  if (!Object.values(counts).some(n => n > 0)) { _alert('error', 'Enter at least one shift or Prep Room headcount.'); return; }
 
   const weekCount = PK_CYCLE_WEEKS[_pkCycle] || 1;
   const mondays = _pkPeriodMondays(weekStart, weekCount);
@@ -1113,7 +1139,11 @@ window.previewPkWeek = async function() {
 
   const merged = _mergePkPreviews(byWeek);
   _pkGenDays = merged.days;
-  _pkGenMondaysKey = JSON.stringify(mondays);
+  // Session 218 -- real pre-existing gap found while touching this: the stale-preview guard
+  // only ever compared the Monday list, never the headcounts, so changing a count (e.g.
+  // prep_count) after previewing -- without re-previewing -- would silently publish the NEW
+  // numbers under the OLD, already-reviewed preview. Now keys on both.
+  _pkGenMondaysKey = JSON.stringify({ mondays, counts });
   _renderPkGenPreview(weekStart, mondays, merged);
 };
 
@@ -1122,13 +1152,12 @@ function _renderPkGenPreview(weekStart, mondays, result) {
   if (!_pkGenDays) { el.innerHTML = ''; return; }
 
   const meta = PK_CYCLE_META[_pkCycle] || PK_CYCLE_META.weekly;
-  const cell = (list, gap) => (list.map(t => _esc(t.full_name)).join(', ') || '—') + (gap ? ` <span style="color:var(--red)">(short ${gap})</span>` : '');
-  const prepCell = (p) => p ? _esc(p.full_name) : '<span style="color:var(--red)">(gap)</span>';
+  const cell = (list, gap) => ((list || []).map(t => _esc(t.full_name)).join(', ') || '—') + (gap ? ` <span style="color:var(--red)">(short ${gap})</span>` : '');
   const periodEnd = new Date(mondays[mondays.length - 1]); periodEnd.setUTCDate(periodEnd.getUTCDate() + 6);
 
   el.innerHTML = `
     <div style="margin-bottom:10px;font-size:13px">
-      ${result.gap_count === 0 ? '✅' : '⚠️'} <strong>${result.filled_count}/${result.needed_count}</strong> slots filled for the ${meta.periodLower} starting ${new Date(weekStart+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})} through ${periodEnd.toLocaleDateString('en-IN',{day:'numeric',month:'short'})}${result.gap_count ? ` — <strong>${result.gap_count} gap(s)</strong>` : ''}. Includes 1 Prep Room In-charge/day (Reg 47(a)(viii)-(ix)).
+      ${result.gap_count === 0 ? '✅' : '⚠️'} <strong>${result.filled_count}/${result.needed_count}</strong> slots filled for the ${meta.periodLower} starting ${new Date(weekStart+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})} through ${periodEnd.toLocaleDateString('en-IN',{day:'numeric',month:'short'})}${result.gap_count ? ` — <strong>${result.gap_count} gap(s)</strong>` : ''}.
       ${result.no_gender_count ? `<br/><span style="color:var(--text-muted)">${result.no_gender_count} therapist(s) have no gender on file and were excluded from the Shift 1/2 rotation (still eligible for Prep Room In-charge) — set it via their Account Settings first.</span>` : ''}
     </div>
     <div style="overflow-x:auto">
@@ -1141,7 +1170,7 @@ function _renderPkGenPreview(weekStart, mondays, result) {
         <td>${cell(d.shift1_female, d.shift1_female_gap)}</td>
         <td>${cell(d.shift2_male, d.shift2_male_gap)}</td>
         <td>${cell(d.shift2_female, d.shift2_female_gap)}</td>
-        <td>${prepCell(d.prep_incharge)}</td>
+        <td>${cell(d.prep_incharge, d.prep_incharge_gap)}</td>
         <td style="color:var(--text-muted);font-size:12px">${d.off.map(t => _esc(t.full_name)).join(', ') || '—'}</td>
       </tr>`).join('')}</tbody></table>
     </div>
@@ -1159,10 +1188,10 @@ window.publishPkWeek = async function() {
   const mondays = _pkPeriodMondays(weekStart, weekCount);
   const meta = PK_CYCLE_META[_pkCycle] || PK_CYCLE_META.weekly;
 
-  // Same guard nursing's Generate Roster uses -- a stale preview from a different week/cycle
-  // combination (week changed, headcounts edited, cycle re-approved) can never be silently
-  // published; the exact set of Mondays previewed must match what's about to be committed.
-  if (_pkGenMondaysKey !== JSON.stringify(mondays)) {
+  // Same guard nursing's Generate Roster uses -- a stale preview from a different week/cycle/
+  // headcount combination can never be silently published; both the exact Mondays AND the exact
+  // counts previewed must match what's about to be committed.
+  if (_pkGenMondaysKey !== JSON.stringify({ mondays, counts })) {
     _alert('error', `Preview this exact ${meta.periodLower} again before publishing.`);
     return;
   }

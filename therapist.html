@@ -772,12 +772,12 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
       </details>
 
       <div id="pkroster-generate-form" style="display:none;border:1.5px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px;background:var(--cream)">
-        <div class="section-label" style="margin-top:0">⚡ Generate Week <span id="pkgen-cycle-label" style="font-size:11px;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(Shift 1/2 gender-separated per Sch III/XXV; Prep Room In-charge auto-included, 1/day, any therapist)</span></div>
+        <div class="section-label" style="margin-top:0">⚡ Generate Week <span id="pkgen-cycle-label" style="font-size:11px;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(Shift 1/2 gender-separated per Sch III/XXV; Prep Room In-charge headcount set separately below, any therapist)</span></div>
         <div style="margin-bottom:10px">
           <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Week starting (Monday)</label>
           <input id="pkgen-week-start" type="date" style="width:220px;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;margin-bottom:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;margin-bottom:10px">
           <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 1 — Male</label>
             <input id="pkgen-shift1-male" type="number" min="0" value="1" data-oninput="updatePkHeadcountHint" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
           <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 1 — Female</label>
@@ -786,6 +786,13 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
             <input id="pkgen-shift2-male" type="number" min="0" value="1" data-oninput="updatePkHeadcountHint" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
           <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 2 — Female</label>
             <input id="pkgen-shift2-female" type="number" min="0" value="1" data-oninput="updatePkHeadcountHint" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+          <!-- Session 218 -- Prep Room In-charge is now its own adjustable headcount (default 1,
+               same as before for anyone who never touches it) rather than a hardcoded "always
+               exactly 1/day" rule -- real prep-room workload can genuinely need more people as
+               UG intake tier scales up. Shown as its own box, same as the 4 shift boxes, so
+               it's obvious this slot is budgeted separately from what you tune for workload. -->
+          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Prep Room</label>
+            <input id="pkgen-prep-count" type="number" min="0" value="1" data-oninput="updatePkHeadcountHint" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
           <button id="pkgen-preview-btn" data-onclick="previewPkWeek" style="height:36px;padding:0 16px;background:var(--white);border:1.5px solid var(--green-deep);color:var(--green-deep);border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Preview</button>
         </div>
         <!-- Session 217 -- live headcount-vs-pool hint, updated as the 4 inputs change, so a
@@ -813,7 +820,10 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
            Shift 1/2 grid above since it isn't a timed shift. -->
       <div id="pkroster-prep-card" style="margin-top:14px;padding:12px 14px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px">
         <div style="font-weight:600;font-size:13px;color:var(--green-deep);margin-bottom:8px">🧪 Prep Room In-charge <span style="font-weight:400;color:var(--text-muted);font-size:11px">(day-long post, any therapist — Reg 47(a)(viii)-(ix))</span></div>
-        <div id="pkroster-prep-current" style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--white);border-radius:7px;margin-bottom:8px;font-size:13px">Loading…</div>
+        <!-- Session 218 -- plain block container now (was itself display:flex for the old
+             single-slot display); each assigned-person row below carries its own flex layout,
+             matching Shift 1/2's list pattern so several people/day render stacked, not side by side. -->
+        <div id="pkroster-prep-current" style="margin-bottom:8px">Loading…</div>
         <div id="pkroster-prep-assign-row" style="display:flex;gap:6px">
           <select id="pkroster-prep-select" style="flex:1;height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12px;font-family:inherit">
             <option value="">— Assign therapist —</option>
