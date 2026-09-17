@@ -1148,9 +1148,16 @@ function _populateTherapistSelect() {
   const note = document.getElementById('therapist-note');
   st.innerHTML = '<option value="">— Select therapist —</option>';
 
-  const males   = _therapists.filter(t => t.gender === 'M');
-  const females = _therapists.filter(t => t.gender === 'F');
-  const unknown = _therapists.filter(t => !t.gender);
+  // Session 213 (cont.) -- _pkTherapists (department='Panchakarma'), not the platform-wide
+  // _therapists. A real Panchakarma therapy session should only ever be conducted by a
+  // Panchakarma-department therapist -- this was previously offering all 14 role='therapist'
+  // profiles platform-wide (including Physiotherapist/Kriyakalpa/Yoga Demonstrator), and the
+  // Sch XX/33 compliance note below was only "correct" by the same accident the Duty Roster's
+  // was (those 4 have no gender set, so they never actually skewed the M/F count -- but they
+  // were still selectable to actually conduct a PK procedure, which is the real bug).
+  const males   = _pkTherapists.filter(t => t.gender === 'M');
+  const females = _pkTherapists.filter(t => t.gender === 'F');
+  const unknown = _pkTherapists.filter(t => !t.gender);
 
   [
     { group: 'Male Therapists', list: males },
@@ -1168,8 +1175,8 @@ function _populateTherapistSelect() {
     st.appendChild(og);
   });
 
-  if (!_therapists.length) {
-    note.textContent = 'No therapists registered yet. Add staff with role "therapist" via the signup flow.';
+  if (!_pkTherapists.length) {
+    note.textContent = 'No Panchakarma-department therapists registered yet. Add staff with role "therapist" under the Panchakarma department via the signup flow.';
     note.style.color = 'var(--gold)';
   } else {
     const m = males.length, f = females.length;
@@ -1180,10 +1187,10 @@ function _populateTherapistSelect() {
       const row = NCISM_XX_ROWS.find(r => r[4] === 'Sch XX/33');
       const total = row ? (row[3][_ugTier] || 0) : 0;
       const half = Math.ceil(total / 2);
-      note.textContent = `${_therapists.length} therapist(s) available — ${m}M / ${f}F (NCISM Sch XX/33 needs ${half}M+${half}F for your ${_ugTier} UG intake)`;
+      note.textContent = `${_pkTherapists.length} therapist(s) available — ${m}M / ${f}F (NCISM Sch XX/33 needs ${half}M+${half}F for your ${_ugTier} UG intake)`;
       note.style.color = (m >= half && f >= half) ? 'var(--green-mid)' : 'var(--gold)';
     } else {
-      note.textContent = `${_therapists.length} therapist(s) available — ${m}M / ${f}F`;
+      note.textContent = `${_pkTherapists.length} therapist(s) available — ${m}M / ${f}F`;
       note.style.color = 'var(--text-mid)';
     }
   }
@@ -1488,9 +1495,12 @@ function _populateAssignRoomSelect() {
 function _populateAssignTherapistSelect() {
   const st = document.getElementById('assign-therapist');
   st.innerHTML = '<option value="">— Select therapist —</option>';
-  const males   = _therapists.filter(t => t.gender === 'M');
-  const females = _therapists.filter(t => t.gender === 'F');
-  const unknown = _therapists.filter(t => !t.gender);
+  // Session 213 (cont.) -- _pkTherapists (department='Panchakarma'), same reasoning as
+  // _populateTherapistSelect() above: assigning a room+therapist to a real PK session should
+  // only ever offer real Panchakarma-department therapists.
+  const males   = _pkTherapists.filter(t => t.gender === 'M');
+  const females = _pkTherapists.filter(t => t.gender === 'F');
+  const unknown = _pkTherapists.filter(t => !t.gender);
   [{ group: 'Male Therapists', list: males }, { group: 'Female Therapists', list: females }, { group: 'Therapists', list: unknown }]
     .forEach(({ group, list }) => {
       if (!list.length) return;
