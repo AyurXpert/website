@@ -763,7 +763,7 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
       </details>
 
       <div id="pkroster-generate-form" style="display:none;border:1.5px solid var(--border);border-radius:8px;padding:14px;margin-bottom:16px;background:var(--cream)">
-        <div class="section-label" style="margin-top:0">⚡ Generate Week <span style="font-size:11px;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(gender-separated — each gender rotates fairly within its own pool, per Sch III/XXV)</span></div>
+        <div class="section-label" style="margin-top:0">⚡ Generate Week <span style="font-size:11px;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(Shift 1/2 gender-separated per Sch III/XXV; Prep Room In-charge auto-included, 1/day, any therapist)</span></div>
         <div style="margin-bottom:10px">
           <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Week starting (Monday)</label>
           <input id="pkgen-week-start" type="date" style="width:220px;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/>
@@ -793,6 +793,20 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
       </div>
 
       <div id="pkroster-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">Loading…</div>
+
+      <!-- Session 212 -- Prep Room In-charge (NCISM Reg 47(a)(viii)-(ix)): one posting per day,
+           any active therapist regardless of gender, deliberately shown separately from the
+           Shift 1/2 grid above since it isn't a timed shift. -->
+      <div id="pkroster-prep-card" style="margin-top:14px;padding:12px 14px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px">
+        <div style="font-weight:600;font-size:13px;color:var(--green-deep);margin-bottom:8px">🧪 Prep Room In-charge <span style="font-weight:400;color:var(--text-muted);font-size:11px">(day-long post, any therapist — Reg 47(a)(viii)-(ix))</span></div>
+        <div id="pkroster-prep-current" style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--white);border-radius:7px;margin-bottom:8px;font-size:13px">Loading…</div>
+        <div id="pkroster-prep-assign-row" style="display:flex;gap:6px">
+          <select id="pkroster-prep-select" style="flex:1;height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12px;font-family:inherit">
+            <option value="">— Assign therapist —</option>
+          </select>
+          <button data-onclick="assignPkPrepRoom" style="height:34px;padding:0 12px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit">Add</button>
+        </div>
+      </div>
     </div>
   </details>
 

@@ -50,6 +50,7 @@ let _formulary   = [];
 let _prepLogs    = [];
 let _pkRosterSettings = null;
 let _pkRosterDuty     = [];
+let _pkPrepRoomDuty   = null; // Session 212 -- {id, profile_id, profiles:{id,full_name}} or null, at most one row/day
 let _myPkShiftsWeek   = [];
 let _pkRosterDate     = new Date().toISOString().slice(0,10);
 let _viewDate    = new Date().toISOString().slice(0,10);
@@ -80,7 +81,7 @@ async function loadAll() {
   _updateDateDisplay();
 
   const _week = _thisWeekBounds();
-  const [sessRes, admRes, thRes, deptRes, tenantRes, roomRes, blocksRes, prepStaffRes, formularyRes, prepLogRes, pkSettingsRes, pkDutyRes, myShiftsRes] = await Promise.all([
+  const [sessRes, admRes, thRes, deptRes, tenantRes, roomRes, blocksRes, prepStaffRes, formularyRes, prepLogRes, pkSettingsRes, pkDutyRes, pkPrepRes, myShiftsRes] = await Promise.all([
     supabase
       .from('pk_therapy_sessions')
       .select(`
@@ -171,6 +172,13 @@ async function loadAll() {
       .select('id,profile_id,shift_slot,profiles!profile_id(id,full_name,gender)')
       .eq('tenant_id', tenantId)
       .eq('duty_date', _pkRosterDate),
+    // Session 212 -- Prep Room In-charge, one row max per day (unique(tenant_id,duty_date)).
+    supabase
+      .from('pk_prep_room_duty')
+      .select('id,profile_id,profiles!profile_id(id,full_name)')
+      .eq('tenant_id', tenantId)
+      .eq('duty_date', _pkRosterDate)
+      .maybeSingle(),
     // Session 207 -- backs the plain-therapist "My Shifts This Week" read-only card;
     // scoped to the logged-in profile only, cheap regardless of role (a super_admin/HOD
     // simply gets an empty result, harmless).
@@ -203,11 +211,13 @@ async function loadAll() {
   _prepLogs   = prepLogRes.data    || [];
   _pkRosterSettings = pkSettingsRes.data || null;
   _pkRosterDuty     = pkDutyRes.data     || [];
+  _pkPrepRoomDuty   = pkPrepRes.data     || null;
   // Real bug caught live this session: an ambiguous-FK embed silently returned no data
   // instead of erroring visibly (data was null, not an exception) -- log it so a future
   // regression here is loud instead of just quietly showing "0 on duty".
   if (pkDutyRes.error) console.error('pk_therapist_duty load failed:', pkDutyRes.error);
   if (pkSettingsRes.error) console.error('pk_roster_settings load failed:', pkSettingsRes.error);
+  if (pkPrepRes.error) console.error('pk_prep_room_duty load failed:', pkPrepRes.error);
 
   // If logged in as therapist, only show own sessions
   if (role === 'therapist') {
@@ -703,7 +713,54 @@ function _renderPkRosterPanel() {
       ${rows}${assignRow}
     </div>`;
   }).join('');
+
+  _renderPkPrepRoomCard(isAdmin);
 }
+
+// Session 212 -- Prep Room In-charge: a single day-long post (unique(tenant_id,duty_date)),
+// not a list like the two shift cards above, so it's rendered as one row + an Assign control
+// that upserts (replaces whoever's currently posted) rather than an "add to a list" flow.
+function _renderPkPrepRoomCard(isAdmin) {
+  const current = document.getElementById('pkroster-prep-current');
+  const row = _pkPrepRoomDuty;
+  current.innerHTML = row
+    ? `<span>${_esc(row.profiles?.full_name || 'Unknown')}</span>${isAdmin ? `<button data-onclick="removePkPrepRoom" data-onclick-a0="${row.id}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:15px;padding:0 4px">✕</button>` : ''}`
+    : `<span style="color:var(--text-muted)">— Not assigned —</span>`;
+
+  const assignRowEl = document.getElementById('pkroster-prep-assign-row');
+  assignRowEl.style.display = isAdmin ? 'flex' : 'none';
+  if (!isAdmin) return;
+
+  // Any active therapist is eligible -- no gender filter, unlike Shift 1/2 (prep-room work
+  // isn't patient-facing) -- so this list is _therapists unfiltered, matching the RPC's pool.
+  const sel = document.getElementById('pkroster-prep-select');
+  sel.innerHTML = '<option value="">— Assign therapist —</option>' +
+    _therapists.map(t => `<option value="${t.id}">${_esc(t.full_name)}</option>`).join('');
+}
+
+window.assignPkPrepRoom = async function() {
+  const sel = document.getElementById('pkroster-prep-select');
+  const profileId = sel.value;
+  if (!profileId) { _alert('error', 'Select a therapist.'); return; }
+
+  // Upsert, not insert -- replaces whoever's currently posted that day rather than requiring
+  // a separate Remove-then-Add round trip, matching the unique(tenant_id,duty_date) shape.
+  const { error } = await supabase.from('pk_prep_room_duty').upsert({
+    tenant_id: tenantId,
+    profile_id: profileId,
+    duty_date: _pkRosterDate,
+    created_by: myProfile?.id || null,
+  }, { onConflict: 'tenant_id,duty_date' });
+
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to assign Prep Room In-charge.')); return; }
+  await loadAll();
+};
+
+window.removePkPrepRoom = async function(id) {
+  const { error } = await supabase.from('pk_prep_room_duty').delete().eq('id', id);
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to remove Prep Room In-charge.')); return; }
+  await loadAll();
+};
 
 // Session 207 -- read-only "my shifts this week" for a plain therapist. Deliberately no
 // date-picker/other-people's-names -- that's the full roster grid above, admin-only.
@@ -874,15 +931,16 @@ function _renderPkGenPreview(weekStart, counts, result) {
   if (!_pkGenDays) { el.innerHTML = ''; return; }
 
   const cell = (list, gap) => (list.map(t => _esc(t.full_name)).join(', ') || '—') + (gap ? ` <span style="color:var(--red)">(short ${gap})</span>` : '');
+  const prepCell = (p) => p ? _esc(p.full_name) : '<span style="color:var(--red)">(gap)</span>';
 
   el.innerHTML = `
     <div style="margin-bottom:10px;font-size:13px">
-      ${result.gap_count === 0 ? '✅' : '⚠️'} <strong>${result.filled_count}/${result.needed_count}</strong> slots filled for the week starting ${new Date(weekStart+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}${result.gap_count ? ` — <strong>${result.gap_count} gap(s)</strong>` : ''}.
-      ${result.no_gender_count ? `<br/><span style="color:var(--text-muted)">${result.no_gender_count} therapist(s) have no gender on file and were excluded from this generation — set it via their Account Settings first.</span>` : ''}
+      ${result.gap_count === 0 ? '✅' : '⚠️'} <strong>${result.filled_count}/${result.needed_count}</strong> slots filled for the week starting ${new Date(weekStart+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}${result.gap_count ? ` — <strong>${result.gap_count} gap(s)</strong>` : ''}. Includes 1 Prep Room In-charge/day (Reg 47(a)(viii)-(ix)).
+      ${result.no_gender_count ? `<br/><span style="color:var(--text-muted)">${result.no_gender_count} therapist(s) have no gender on file and were excluded from the Shift 1/2 rotation (still eligible for Prep Room In-charge) — set it via their Account Settings first.</span>` : ''}
     </div>
     <div style="overflow-x:auto">
     <table class="sessions-table"><thead><tr>
-      <th>Day</th><th>Shift 1 — Male</th><th>Shift 1 — Female</th><th>Shift 2 — Male</th><th>Shift 2 — Female</th><th>Off / Unavailable</th>
+      <th>Day</th><th>Shift 1 — Male</th><th>Shift 1 — Female</th><th>Shift 2 — Male</th><th>Shift 2 — Female</th><th>Prep Room In-charge</th><th>Off / Unavailable</th>
     </tr></thead><tbody>${_pkGenDays.map(d => `
       <tr>
         <td>${new Date(d.date+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'})}</td>
@@ -890,6 +948,7 @@ function _renderPkGenPreview(weekStart, counts, result) {
         <td>${cell(d.shift1_female, d.shift1_female_gap)}</td>
         <td>${cell(d.shift2_male, d.shift2_male_gap)}</td>
         <td>${cell(d.shift2_female, d.shift2_female_gap)}</td>
+        <td>${prepCell(d.prep_incharge)}</td>
         <td style="color:var(--text-muted);font-size:12px">${d.off.map(t => _esc(t.full_name)).join(', ') || '—'}</td>
       </tr>`).join('')}</tbody></table>
     </div>
