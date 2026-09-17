@@ -811,23 +811,29 @@ window.savePkWeeklyOff = async function(profileId) {
   await loadAll();
 };
 
-// ── Generate Week (Session 206 cont.) ───────────────────────────────────────────
-// Deliberately client-side, matching this file's own established pattern (pieces 1-3 are
-// all plain Supabase calls, no PL/pgSQL business logic) rather than a server-side solver
-// RPC like nursing's preview_nursing_week()/commit_nursing_week() -- PK's data volume
-// (a handful of therapists, 7 days, 2 shifts) doesn't need heavier DB-side computation,
-// and keeping the algorithm in one inspectable place is simpler to get right and verify.
-let _pkGenPlan = null;
-let _pkGenPlanKey = null; // weekStart|shift1Count|shift2Count the current _pkGenPlan was built from -- Publish refuses to run on a stale plan from different inputs, same safeguard nursing's Generate Roster uses.
+// ── Generate Week (Session 206 cont., moved server-side Session 211) ───────────────────
+// Session 211: the solver itself now runs in Postgres (preview_pk_week()/commit_pk_week()),
+// matching the *technique* nursing's preview_nursing_week()/commit_nursing_week() use (dry-run
+// preview -> commit re-derives the identical plan from the same inputs, never a client-cached
+// payload) -- confirmed against nursing's real live function definitions first. Deliberately
+// NOT the same table (duty_roster) or the same algorithm -- see sql/session211_preview_commit_
+// pk_week.sql's header for why: duty_roster.shift_type is a closed 5-value enum with no
+// per-tenant custom shift times, and Panchakarma already has 41 real duty_roster rows for
+// NURSING staff (it's one of nursing's own 9 duty-scheduling departments) -- sharing that table
+// for PK THERAPIST duty would collide two different staff pools in the same key space. Also no
+// stale-plan-key guard needed anymore (unlike the old client-side version): since commit_pk_week
+// always re-derives its plan by calling preview_pk_week() itself with the same inputs, "publish
+// a stale plan" is structurally impossible now, not just detected.
 
-// Real bug caught live testing on SDM (IST, UTC+5:30): `new Date(dateStr + 'T00:00:00')`
-// parses as LOCAL midnight, but `.toISOString()` always serializes in UTC -- for any
-// positive UTC offset that mismatch silently rolls the date back by one calendar day
-// (confirmed: _mondayOf('2026-09-21'), a real Monday, returned '2026-09-20' instead).
-// Fixed by staying in UTC calendar space end to end -- `new Date(dateStr)` (no time
-// suffix) parses date-only strings as UTC midnight per spec, matching this file's own
-// existing shiftDate()/goToday()/onPkRosterDatePick() convention -- then every getter/
-// setter here uses the UTC variant so no local-timezone conversion is ever in the path.
+// Real bug caught live testing on SDM (IST, UTC+5:30) while this was still client-side:
+// `new Date(dateStr + 'T00:00:00')` parses as LOCAL midnight, but `.toISOString()` always
+// serializes in UTC -- for any positive UTC offset that mismatch silently rolls the date back
+// by one calendar day (confirmed: _mondayOf('2026-09-21'), a real Monday, returned '2026-09-20'
+// instead). Fixed by staying in UTC calendar space end to end -- `new Date(dateStr)` (no time
+// suffix) parses date-only strings as UTC midnight per spec, matching this file's own existing
+// shiftDate()/goToday()/onPkRosterDatePick() convention. Still needed client-side to normalize
+// whatever date the admin picks to the Monday the RPC requires (the RPC rejects non-Mondays
+// outright rather than silently correcting them).
 function _mondayOf(dateStr) {
   const d = new Date(dateStr);
   const day = d.getUTCDay(); // 0=Sun..6=Sat
@@ -836,82 +842,14 @@ function _mondayOf(dateStr) {
   return d.toISOString().slice(0,10);
 }
 
-function _weekDatesFrom(monday) {
-  const out = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(monday);
-    d.setUTCDate(d.getUTCDate() + i);
-    out.push(d.toISOString().slice(0,10));
-  }
-  return out;
-}
-
-// Pure function, no DB/DOM access -- takes real fetched data as parameters so it's easy to
-// reason about and re-verify independently of the UI around it.
-function _computePkWeekPlan(therapists, weekStart, shift1Count, shift2Count, leaveByProfile) {
-  const dates = _weekDatesFrom(weekStart);
-  const loadCount = {};
-  therapists.forEach(t => { loadCount[t.id] = 0; });
-
-  const onLeave = (id, dateStr) => (leaveByProfile[id] || []).some(r => r.from_date <= dateStr && r.to_date >= dateStr);
-  const sortByLoad = (arr) => [...arr].sort((a, b) => (loadCount[a.id] - loadCount[b.id]) || a.full_name.localeCompare(b.full_name));
-
-  return dates.map(dateStr => {
-    const dow = new Date(dateStr + 'T00:00:00').getDay();
-    const offToday = therapists.filter(t => t.weekly_off_day === dow || onLeave(t.id, dateStr));
-    const eligible = therapists.filter(t => t.weekly_off_day !== dow && !onLeave(t.id, dateStr));
-
-    const shift1 = sortByLoad(eligible).slice(0, shift1Count);
-    shift1.forEach(t => { loadCount[t.id]++; });
-
-    const usedToday = new Set(shift1.map(t => t.id));
-    const shift2 = sortByLoad(eligible.filter(t => !usedToday.has(t.id))).slice(0, shift2Count);
-    shift2.forEach(t => { loadCount[t.id]++; });
-
-    return {
-      date: dateStr, dow,
-      shift1, shift1Gap: Math.max(0, shift1Count - shift1.length),
-      shift2, shift2Gap: Math.max(0, shift2Count - shift2.length),
-      off: offToday,
-    };
-  });
-}
-
-// Session 207 (cont.) -- gender-separated generation: two fully independent rotations
-// (one per gender pool), each fair-by-load only within its own pool. Replaces the old
-// single-pool version, which picked whoever was least-loaded regardless of gender and
-// could silently produce an all-one-gender shift -- a real coverage gap for Panchakarma,
-// where patient-therapist same-gender pairing is standard practice (the same reason
-// Treatment Rooms are gender-split per Sch III). Therapists with no gender set (or
-// 'other') are excluded from generation entirely -- same "don't count until assigned"
-// principle Rooms' compliance banner already uses for gender_restriction='any'.
-function _computePkWeekPlanGendered(therapists, weekStart, counts, leaveByProfile) {
-  const dates = _weekDatesFrom(weekStart);
-  const male   = therapists.filter(t => t.gender === 'M');
-  const female = therapists.filter(t => t.gender === 'F');
-
-  const malePlan   = _computePkWeekPlan(male,   weekStart, counts.shift1Male,   counts.shift2Male,   leaveByProfile);
-  const femalePlan = _computePkWeekPlan(female, weekStart, counts.shift1Female, counts.shift2Female, leaveByProfile);
-
-  return dates.map((dateStr, i) => {
-    const m = malePlan[i], f = femalePlan[i];
-    return {
-      date: dateStr, dow: m.dow,
-      shift1Male: m.shift1, shift1MaleGap: m.shift1Gap,
-      shift1Female: f.shift1, shift1FemaleGap: f.shift1Gap,
-      shift2Male: m.shift2, shift2MaleGap: m.shift2Gap,
-      shift2Female: f.shift2, shift2FemaleGap: f.shift2Gap,
-      off: [...m.off, ...f.off],
-    };
-  });
-}
+let _pkGenDays = null; // last preview_pk_week() 'days' result -- kept only for re-rendering, not re-published (Publish re-runs the RPC, see above).
 
 function _pkGenCounts() {
   return {
-    shift1Male:   parseInt(document.getElementById('pkgen-shift1-male').value, 10)   || 0,
-    shift1Female: parseInt(document.getElementById('pkgen-shift1-female').value, 10) || 0,
-    shift2Male:   parseInt(document.getElementById('pkgen-shift2-male').value, 10)   || 0,
-    shift2Female: parseInt(document.getElementById('pkgen-shift2-female').value, 10) || 0,
+    shift1_male:   parseInt(document.getElementById('pkgen-shift1-male').value, 10)   || 0,
+    shift1_female: parseInt(document.getElementById('pkgen-shift1-female').value, 10) || 0,
+    shift2_male:   parseInt(document.getElementById('pkgen-shift2-male').value, 10)   || 0,
+    shift2_female: parseInt(document.getElementById('pkgen-shift2-female').value, 10) || 0,
   };
 }
 
@@ -924,49 +862,34 @@ window.previewPkWeek = async function() {
   const counts = _pkGenCounts();
   if (!Object.values(counts).some(n => n > 0)) { _alert('error', 'Enter at least one shift headcount.'); return; }
 
-  const noGenderCount = _therapists.filter(t => t.gender !== 'M' && t.gender !== 'F').length;
+  const { data, error } = await supabase.rpc('preview_pk_week', { p_week_start: weekStart, p_counts: counts });
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to generate the week preview.')); return; }
 
-  const dates = _weekDatesFrom(weekStart);
-  const { data: leaveRows, error } = await supabase.from('staff_leaves')
-    .select('profile_id,from_date,to_date')
-    .eq('tenant_id', tenantId)
-    .eq('status', 'approved')
-    .lte('from_date', dates[6])
-    .gte('to_date', dates[0]);
-  if (error) { _alert('error', safeErrorMessage(error, 'Failed to check approved leave.')); return; }
-
-  const leaveByProfile = {};
-  (leaveRows || []).forEach(r => { (leaveByProfile[r.profile_id] ||= []).push(r); });
-
-  _pkGenPlan = _computePkWeekPlanGendered(_therapists, weekStart, counts, leaveByProfile);
-  _pkGenPlanKey = `${weekStart}|${counts.shift1Male}|${counts.shift1Female}|${counts.shift2Male}|${counts.shift2Female}`;
-  _renderPkGenPreview(weekStart, counts, noGenderCount);
+  _pkGenDays = data.days;
+  _renderPkGenPreview(weekStart, counts, data);
 };
 
-function _renderPkGenPreview(weekStart, counts, noGenderCount) {
+function _renderPkGenPreview(weekStart, counts, result) {
   const el = document.getElementById('pkgen-preview');
-  if (!_pkGenPlan) { el.innerHTML = ''; return; }
+  if (!_pkGenDays) { el.innerHTML = ''; return; }
 
-  const totalGap = _pkGenPlan.reduce((s, d) => s + d.shift1MaleGap + d.shift1FemaleGap + d.shift2MaleGap + d.shift2FemaleGap, 0);
-  const totalFilled = _pkGenPlan.reduce((s, d) => s + d.shift1Male.length + d.shift1Female.length + d.shift2Male.length + d.shift2Female.length, 0);
-  const totalNeeded = _pkGenPlan.length * (counts.shift1Male + counts.shift1Female + counts.shift2Male + counts.shift2Female);
   const cell = (list, gap) => (list.map(t => _esc(t.full_name)).join(', ') || '—') + (gap ? ` <span style="color:var(--red)">(short ${gap})</span>` : '');
 
   el.innerHTML = `
     <div style="margin-bottom:10px;font-size:13px">
-      ${totalGap === 0 ? '✅' : '⚠️'} <strong>${totalFilled}/${totalNeeded}</strong> slots filled for the week starting ${new Date(weekStart+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}${totalGap ? ` — <strong>${totalGap} gap(s)</strong>` : ''}.
-      ${noGenderCount ? `<br/><span style="color:var(--text-muted)">${noGenderCount} therapist(s) have no gender on file and were excluded from this generation — set it via their Account Settings first.</span>` : ''}
+      ${result.gap_count === 0 ? '✅' : '⚠️'} <strong>${result.filled_count}/${result.needed_count}</strong> slots filled for the week starting ${new Date(weekStart+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}${result.gap_count ? ` — <strong>${result.gap_count} gap(s)</strong>` : ''}.
+      ${result.no_gender_count ? `<br/><span style="color:var(--text-muted)">${result.no_gender_count} therapist(s) have no gender on file and were excluded from this generation — set it via their Account Settings first.</span>` : ''}
     </div>
     <div style="overflow-x:auto">
     <table class="sessions-table"><thead><tr>
       <th>Day</th><th>Shift 1 — Male</th><th>Shift 1 — Female</th><th>Shift 2 — Male</th><th>Shift 2 — Female</th><th>Off / Unavailable</th>
-    </tr></thead><tbody>${_pkGenPlan.map(d => `
+    </tr></thead><tbody>${_pkGenDays.map(d => `
       <tr>
         <td>${new Date(d.date+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'})}</td>
-        <td>${cell(d.shift1Male, d.shift1MaleGap)}</td>
-        <td>${cell(d.shift1Female, d.shift1FemaleGap)}</td>
-        <td>${cell(d.shift2Male, d.shift2MaleGap)}</td>
-        <td>${cell(d.shift2Female, d.shift2FemaleGap)}</td>
+        <td>${cell(d.shift1_male, d.shift1_male_gap)}</td>
+        <td>${cell(d.shift1_female, d.shift1_female_gap)}</td>
+        <td>${cell(d.shift2_male, d.shift2_male_gap)}</td>
+        <td>${cell(d.shift2_female, d.shift2_female_gap)}</td>
         <td style="color:var(--text-muted);font-size:12px">${d.off.map(t => _esc(t.full_name)).join(', ') || '—'}</td>
       </tr>`).join('')}</tbody></table>
     </div>
@@ -976,43 +899,17 @@ function _renderPkGenPreview(weekStart, counts, noGenderCount) {
 }
 
 window.publishPkWeek = async function() {
+  if (!_pkGenDays) { _alert('error', 'Preview the week before publishing.'); return; }
   const rawDate = document.getElementById('pkgen-week-start').value;
   const weekStart = _mondayOf(rawDate);
   const counts = _pkGenCounts();
-  const currentKey = `${weekStart}|${counts.shift1Male}|${counts.shift1Female}|${counts.shift2Male}|${counts.shift2Female}`;
 
-  // Same guard nursing's Generate Roster uses -- a stale preview from different inputs
-  // (week changed, headcounts edited) can never be silently committed.
-  if (!_pkGenPlan || currentKey !== _pkGenPlanKey) {
-    _alert('error', 'Preview this exact week/headcount combination again before publishing.');
-    return;
-  }
-
-  const dates = _weekDatesFrom(weekStart);
-  const { error: delError } = await supabase.from('pk_therapist_duty')
-    .delete()
-    .eq('tenant_id', tenantId)
-    .gte('duty_date', dates[0])
-    .lte('duty_date', dates[6]);
-  if (delError) { _alert('error', safeErrorMessage(delError, 'Failed to clear the target week.')); return; }
-
-  const rows = [];
-  _pkGenPlan.forEach(d => {
-    d.shift1Male.forEach(t => rows.push({ tenant_id: tenantId, profile_id: t.id, duty_date: d.date, shift_slot: 1, created_by: myProfile?.id || null }));
-    d.shift1Female.forEach(t => rows.push({ tenant_id: tenantId, profile_id: t.id, duty_date: d.date, shift_slot: 1, created_by: myProfile?.id || null }));
-    d.shift2Male.forEach(t => rows.push({ tenant_id: tenantId, profile_id: t.id, duty_date: d.date, shift_slot: 2, created_by: myProfile?.id || null }));
-    d.shift2Female.forEach(t => rows.push({ tenant_id: tenantId, profile_id: t.id, duty_date: d.date, shift_slot: 2, created_by: myProfile?.id || null }));
-  });
-
-  if (rows.length) {
-    const { error: insError } = await supabase.from('pk_therapist_duty').insert(rows);
-    if (insError) { _alert('error', safeErrorMessage(insError, 'Failed to publish the week.')); return; }
-  }
+  const { error } = await supabase.rpc('commit_pk_week', { p_week_start: weekStart, p_counts: counts });
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to publish the week.')); return; }
 
   const published = document.getElementById('pkgen-published');
   if (published) { published.style.display = ''; setTimeout(() => { published.style.display = 'none'; }, 2500); }
-  _pkGenPlan = null;
-  _pkGenPlanKey = null;
+  _pkGenDays = null;
   await loadAll();
 };
 
