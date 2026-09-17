@@ -51,6 +51,7 @@ let _prepLogs    = [];
 let _pkRosterSettings = null;
 let _pkRosterDuty     = [];
 let _pkPrepRoomDuty   = null; // Session 212 -- {id, profile_id, profiles:{id,full_name}} or null, at most one row/day
+let _pkTherapists    = []; // Session 213 -- _therapists filtered to department='Panchakarma' only; the real pool for Shift 1/2 + Prep Room In-charge
 let _pkPrepLeaveIds   = new Set(); // Session 212 -- profile ids on approved leave covering _pkRosterDate, for the manual assign warning only
 let _myPkShiftsWeek   = [];
 let _pkRosterDate     = new Date().toISOString().slice(0,10);
@@ -215,6 +216,17 @@ async function loadAll() {
   _admissions = admRes.data  || [];
   _therapists = thRes.data   || [];
   _depts      = deptRes.data || [];
+  // Session 213 -- the Duty Roster (Shift 1/2 + Prep Room In-charge) is scoped to the real
+  // Panchakarma department, not the platform-wide role='therapist' pool _therapists itself is
+  // (that broader pool still backs Schedule Session/Assign Room & Therapist elsewhere on this
+  // page). Real gap found live: SDM has 14 role='therapist' profiles but only 10 are actually
+  // in Panchakarma (5M+5F, matching Sch XX/33) -- the other 4 (Physiotherapist, 2x Kriyakalpa,
+  // Yoga Demonstrator) belong to different departments and were only ever excluded from Shift
+  // 1/2 by the accident of having no gender set, with no protection at all for Prep Room
+  // In-charge (built gender-open on purpose). Matches _renderPkInchargePanel()'s pre-existing
+  // pkDept lookup by name -- Panchakarma's name is fixed NCISM seed data, not admin-editable.
+  const _pkDept = _depts.find(d => d.name === 'Panchakarma');
+  _pkTherapists = _pkDept ? _therapists.filter(t => t.department_id === _pkDept.id) : [];
   _rooms      = roomRes.data || [];
   _buildingBlocks = blocksRes.data || [];
   _ugTier     = isNCISMType(tenantRes.data?.type) ? ncismUgTier(tenantRes.data?.ug_intake) : 0;
@@ -257,9 +269,9 @@ function _renderPkInchargePanel() {
   details.style.display = isAdmin ? '' : 'none';
   if (!isAdmin) return;
 
-  const pkDept = _depts.find(d => d.name === 'Panchakarma');
-  const pkTherapists = pkDept ? _therapists.filter(t => t.department_id === pkDept.id) : [];
-  const current = pkTherapists.find(t => t.designation === 'pk_incharge');
+  // Session 213: reuses the shared _pkTherapists pool (department='Panchakarma') computed
+  // once in loadAll() -- was its own local pkDept/filter here before, now one source of truth.
+  const current = _pkTherapists.find(t => t.designation === 'pk_incharge');
 
   document.getElementById('pk-incharge-current').innerHTML = current
     ? `Currently: <strong>${_esc(current.full_name)}</strong>`
@@ -268,7 +280,7 @@ function _renderPkInchargePanel() {
   const sel = document.getElementById('pk-incharge-select');
   const prevVal = sel.value;
   sel.innerHTML = '<option value="">— Select —</option>' +
-    pkTherapists.map(t => `<option value="${t.id}">${_esc(t.full_name)}${t.id === current?.id ? ' (current)' : ''}</option>`).join('');
+    _pkTherapists.map(t => `<option value="${t.id}">${_esc(t.full_name)}${t.id === current?.id ? ' (current)' : ''}</option>`).join('');
   if (prevVal && pkTherapists.some(t => t.id === prevVal)) sel.value = prevVal;
 }
 
@@ -712,7 +724,8 @@ function _renderPkRosterPanel() {
     // Exclude only therapists already assigned to THIS shift (a double-assignment the DB's
     // unique constraint would reject anyway) -- someone on Shift 1 can still be offered for
     // Shift 2 too, that's a legitimate (if unusual) real-world case, not blocked here.
-    const availableTherapists = _therapists.filter(t => !entries.some(r => r.profile_id === t.id));
+    // Session 213: _pkTherapists (department='Panchakarma'), not the platform-wide _therapists.
+    const availableTherapists = _pkTherapists.filter(t => !entries.some(r => r.profile_id === t.id));
     const options = availableTherapists.map(t => `<option value="${t.id}">${_esc(t.full_name)}</option>`).join('');
     const assignRow = isAdmin ? `
       <div style="display:flex;gap:6px;margin-top:8px">
@@ -745,15 +758,17 @@ function _renderPkPrepRoomCard(isAdmin) {
   assignRowEl.style.display = isAdmin ? 'flex' : 'none';
   if (!isAdmin) return;
 
-  // Any active therapist is eligible -- no gender filter, unlike Shift 1/2 (prep-room work
-  // isn't patient-facing) -- so this list is _therapists unfiltered, matching the RPC's pool.
+  // Any active PANCHAKARMA therapist is eligible -- no gender filter, unlike Shift 1/2
+  // (prep-room work isn't patient-facing). Session 213: _pkTherapists, not the platform-wide
+  // _therapists (was wrongly offering Physiotherapist/Kriyakalpa/Yoga Demonstrator here, since
+  // this posting has no gender filter to accidentally exclude them like Shift 1/2's does).
   // Session 212 (cont.): unlike Shift 1/2's manual dropdowns (deliberately left plain, per Dr.
   // Venkatesh), each option here is labelled with a weekly-off/leave warning when it applies --
   // manual assignment still allows it (this is an override tool, same as Shift 1/2), it's just
   // no longer a silent choice the way it was before this label existed.
   const sel = document.getElementById('pkroster-prep-select');
   sel.innerHTML = '<option value="">— Assign therapist —</option>' +
-    _therapists.map(t => {
+    _pkTherapists.map(t => {
       const reason = _pkPrepWarningReason(t);
       return `<option value="${t.id}">${_esc(t.full_name)}${reason ? ` — ⚠️ ${reason}` : ''}</option>`;
     }).join('');
@@ -777,7 +792,7 @@ window.assignPkPrepRoom = async function() {
   const profileId = sel.value;
   if (!profileId) { _alert('error', 'Select a therapist.'); return; }
 
-  const therapist = _therapists.find(t => t.id === profileId);
+  const therapist = _pkTherapists.find(t => t.id === profileId);
   const reason = therapist ? _pkPrepWarningReason(therapist) : null;
   if (reason && !confirm(`${therapist.full_name} is ${reason}. Assign as Prep Room In-charge anyway?`)) {
     return;
@@ -885,8 +900,10 @@ const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', '
 
 function _renderWeeklyOffList() {
   const list = document.getElementById('pkroster-weeklyoff-list');
-  if (!_therapists.length) { list.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No therapists registered yet.</div>'; return; }
-  list.innerHTML = _therapists.map(t => `
+  // Session 213: _pkTherapists (department='Panchakarma') -- weekly-off here only matters for
+  // who's actually eligible for the roster this feeds (Shift 1/2 + Prep Room In-charge).
+  if (!_pkTherapists.length) { list.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No Panchakarma-department therapists registered yet.</div>'; return; }
+  list.innerHTML = _pkTherapists.map(t => `
     <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)">
       <span style="flex:1;font-size:13px">${_esc(t.full_name)}</span>
       <select id="pkoff-${t.id}" style="height:32px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12px;font-family:inherit">
