@@ -267,8 +267,7 @@ window.loadStats = async function() {
   // §21x — NABH status (always shown for hospital/college types)
   window.loadNabhStatus && window.loadNabhStatus();
 
-  const _sb=document.getElementById('badge-pending');
-  if(_sb){if(pending>0){_sb.textContent=pending;_sb.style.display='';}else{_sb.style.display='none';}}
+  _refreshHrSidebarBadge();
 };
 
 // ────────────────────────────────────────────────
@@ -496,6 +495,24 @@ async function _computePendingApprovalsCount(){
   return data.filter(r=>_canDecideApproval(r.requester?.designation)).length;
 }
 
+// Session 219 — real gap found live: a genuine pending_approvals request (e.g. pk_shift_times)
+// had NO visible indicator anywhere outside the HR sub-nav's own "⚖️ Approvals" tab badge --
+// an admin had to already be inside Human Resources, on that exact sub-tab, to ever notice one
+// existed. The icon-rail sidebar's "Human Resources" item already had a real badge slot
+// (badge-pending) but it was wired only to pending STAFF LOGIN approvals (profiles.status=
+// 'pending_approval'), a different thing entirely. This combines both into that one sidebar
+// badge, so "N things need your attention under HR" is visible from anywhere in admin.html, not
+// just after already navigating in. The dashboard's own "Pending Approvals — staff awaiting"
+// stat card is left with its original, narrower meaning (staff logins only) -- this only changes
+// the sidebar nav badge.
+async function _refreshHrSidebarBadge(){
+  const [pendingLogins, approvalsCount] = await Promise.all([
+    _count('profiles',[['tenant_id',tenantId],['status','pending_approval']]),
+    _computePendingApprovalsCount(),
+  ]);
+  _setBadge('badge-pending', pendingLogins + approvalsCount);
+}
+
 window.loadPendingDecisions = async function(){
   const wrap = document.getElementById('pending-decisions-body');
   const { data, error } = await supabase.from('pending_approvals')
@@ -599,9 +616,10 @@ window.loadStaffAccess = async function() {
     _count('profiles',[['tenant_id',tenantId],['status','inactive']]),
   ]);
 
-  // Sidebar badge + HR sub-nav "Login Access" tab badge
-  _setBadge('badge-pending', pending);
+  // HR sub-nav "Login Access" tab badge (staff logins only) + the combined sidebar badge
+  // (Session 219 -- staff logins + pending_approvals decisions together).
   _setBadge('hr-tab-access-badge', pending);
+  _refreshHrSidebarBadge();
 
   // Summary cards
   const acGrid=document.getElementById('access-stats');
@@ -1528,12 +1546,15 @@ supabase.channel('departments-badge-live')
   })
   .subscribe();
 
-// Same live-badge pattern for the ⚖️ Approvals tab's pending-count badge.
+// Same live-badge pattern for the ⚖️ Approvals tab's pending-count badge. Session 219: also
+// refreshes the combined sidebar badge, so a brand-new request (e.g. a therapist duty-roster
+// cycle/shift-times change) alerts the sidebar the moment it's submitted, not just the sub-tab.
 let _approvalsBadgeDebounce = null;
 function _refreshApprovalsBadgeDebounced(){
   clearTimeout(_approvalsBadgeDebounce);
   _approvalsBadgeDebounce = setTimeout(async () => {
     _setBadge('hr-tab-decisions-badge', await _computePendingApprovalsCount());
+    _refreshHrSidebarBadge();
   }, 600);
 }
 supabase.channel('approvals-badge-live')

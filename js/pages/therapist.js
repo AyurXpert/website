@@ -51,6 +51,7 @@ let _prepLogs    = [];
 let _pkRosterSettings = null;
 let _pkRosterDuty     = [];
 let _pkPrepRoomDuty   = []; // Session 212, list since Session 218 -- [{id, profile_id, profiles:{id,full_name}}, ...], any length/day now
+let _pkEditingDutyId  = null; // Session 220 -- which pk_therapist_duty row (Shift 1/2 grid), if any, currently shows an inline reassign <select> instead of its plain name
 let _pkCycle          = 'weekly'; // Session 215 -- pk_roster_settings.cycle, weekly/fortnightly/monthly
 let _pkCyclePending   = null; // Session 215 -- the latest pending pk_roster_cycle approval request, if any
 let _pkShiftPending   = null; // Session 216 -- the latest pending pk_shift_times approval request, if any
@@ -737,11 +738,27 @@ function _renderPkRosterPanel() {
   const grid = document.getElementById('pkroster-grid');
   grid.innerHTML = [1, 2].map(slot => {
     const entries = _pkRosterDuty.filter(r => r.shift_slot === slot);
-    const rows = entries.map(r => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--cream);border-radius:7px;margin-bottom:6px;font-size:13px">
-        <span>${_esc(r.profiles?.full_name || 'Unknown')}${r.profiles?.gender ? ` (${r.profiles.gender})` : ''}</span>
+    // Session 220 -- click-a-name-to-swap, matching nursing roster.html's "click a slot to
+    // reassign" convenience (a lighter version: PK has only a person per slot, no bed range/
+    // notes/confirmed fields, so no full modal is needed). Clicking a name turns that one row
+    // into an inline <select> pre-selected to them; picking someone else immediately swaps the
+    // assignment (a plain UPDATE on this row's profile_id, not a remove+add round trip).
+    const rows = entries.map(r => {
+      if (isAdmin && _pkEditingDutyId === r.id) {
+        // Always include the person currently in this slot (so "no change" is a real option)
+        // plus whoever else isn't already assigned to this exact shift today.
+        const choices = _pkTherapists.filter(t => t.id === r.profile_id || !entries.some(e => e.profile_id === t.id));
+        const opts = choices.map(t => `<option value="${t.id}"${t.id === r.profile_id ? ' selected' : ''}>${_esc(t.full_name)}</option>`).join('');
+        return `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+          <select data-onchange="swapPkDuty" data-onchange-a0="${r.id}" data-onchange-a1="@this" style="flex:1;height:34px;border:1.5px solid var(--green-deep);border-radius:7px;padding:0 8px;font-size:12px;font-family:inherit">${opts}</select>
+          <button data-onclick="cancelEditPkDuty" title="Cancel" style="border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:0 4px">✕</button>
+        </div>`;
+      }
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--cream);border-radius:7px;margin-bottom:6px;font-size:13px">
+        <span${isAdmin ? ` data-onclick="startEditPkDuty" data-onclick-a0="${r.id}" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px"` : ''}>${_esc(r.profiles?.full_name || 'Unknown')}${r.profiles?.gender ? ` (${r.profiles.gender})` : ''}</span>
         ${isAdmin ? `<button data-onclick="removePkDuty" data-onclick-a0="${r.id}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:15px;padding:0 4px">✕</button>` : ''}
-      </div>`).join('') || '<div style="color:var(--text-muted);font-size:13px;padding:6px 0">No one assigned yet.</div>';
+      </div>`;
+    }).join('') || '<div style="color:var(--text-muted);font-size:13px;padding:6px 0">No one assigned yet.</div>';
 
     // Exclude only therapists already assigned to THIS shift (a double-assignment the DB's
     // unique constraint would reject anyway) -- someone on Shift 1 can still be offered for
@@ -933,6 +950,31 @@ window.assignPkDuty = async function(slot) {
 window.removePkDuty = async function(id) {
   const { error } = await supabase.from('pk_therapist_duty').delete().eq('id', id);
   if (error) { _alert('error', safeErrorMessage(error, 'Failed to remove duty assignment.')); return; }
+  await loadAll();
+};
+
+// Session 220 -- click-a-name-to-swap. A lightweight re-render (_renderPkRosterPanel() reads
+// only already-fetched module state, no network round trip) toggles which row shows its inline
+// reassign <select> -- only a real swap (swapPkDuty, on the select's own onchange) touches the DB.
+window.startEditPkDuty = function(id) {
+  _pkEditingDutyId = id;
+  _renderPkRosterPanel();
+};
+window.cancelEditPkDuty = function() {
+  _pkEditingDutyId = null;
+  _renderPkRosterPanel();
+};
+window.swapPkDuty = async function(id, sel) {
+  const newProfileId = sel.value;
+  _pkEditingDutyId = null;
+  const row = _pkRosterDuty.find(r => r.id === id);
+  if (!newProfileId || !row || row.profile_id === newProfileId) { _renderPkRosterPanel(); return; }
+
+  const { error } = await supabase.from('pk_therapist_duty').update({ profile_id: newProfileId }).eq('id', id);
+  if (error) {
+    _alert('error', safeErrorMessage(error, error.code === '23505' ? 'That therapist is already assigned to this shift.' : 'Failed to reassign.'));
+    return;
+  }
   await loadAll();
 };
 
