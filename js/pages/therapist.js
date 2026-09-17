@@ -51,6 +51,8 @@ let _prepLogs    = [];
 let _pkRosterSettings = null;
 let _pkRosterDuty     = [];
 let _pkPrepRoomDuty   = null; // Session 212 -- {id, profile_id, profiles:{id,full_name}} or null, at most one row/day
+let _pkCycle          = 'weekly'; // Session 215 -- pk_roster_settings.cycle, weekly/fortnightly/monthly
+let _pkCyclePending   = null; // Session 215 -- the latest pending pk_roster_cycle approval request, if any
 let _pkTherapists    = []; // Session 213 -- _therapists filtered to department='Panchakarma' only; the real pool for Shift 1/2 + Prep Room In-charge
 let _pkPrepLeaveIds   = new Set(); // Session 212 -- profile ids on approved leave covering _pkRosterDate, for the manual assign warning only
 let _myPkShiftsWeek   = [];
@@ -83,7 +85,7 @@ async function loadAll() {
   _updateDateDisplay();
 
   const _week = _thisWeekBounds();
-  const [sessRes, admRes, thRes, deptRes, tenantRes, roomRes, blocksRes, prepStaffRes, formularyRes, prepLogRes, pkSettingsRes, pkDutyRes, pkPrepRes, pkPrepLeaveRes, myShiftsRes] = await Promise.all([
+  const [sessRes, admRes, thRes, deptRes, tenantRes, roomRes, blocksRes, prepStaffRes, formularyRes, prepLogRes, pkSettingsRes, pkCyclePendingRes, pkDutyRes, pkPrepRes, pkPrepLeaveRes, myShiftsRes] = await Promise.all([
     supabase
       .from('pk_therapy_sessions')
       .select(`
@@ -161,12 +163,19 @@ async function loadAll() {
       .eq('tenant_id', tenantId)
       .eq('prepared_date', _prepToday)
       .order('prepared_at', { ascending: false }),
-    // Session 206 piece 3
+    // Session 206 piece 3. Session 215: +cycle (weekly/fortnightly/monthly).
     supabase
       .from('pk_roster_settings')
-      .select('shift1_start,shift2_start,shift_duration_hours')
+      .select('shift1_start,shift2_start,shift_duration_hours,cycle')
       .eq('tenant_id', tenantId)
       .maybeSingle(),
+    // Session 215 -- any pending pk_roster_cycle request, so the Roster Cycle card can show
+    // "awaiting approval" instead of letting a second request be submitted on top of it.
+    supabase
+      .from('pending_approvals')
+      .select('id,payload,requested_at,requester:profiles!requested_by(full_name)')
+      .eq('tenant_id', tenantId).eq('action_type', 'pk_roster_cycle').eq('status', 'pending')
+      .order('requested_at', { ascending: false }).limit(1),
     supabase
       .from('pk_therapist_duty')
       // pk_therapist_duty has 2 FKs to profiles (profile_id, created_by) -- an unqualified
@@ -235,6 +244,8 @@ async function loadAll() {
   _formulary  = formularyRes.data  || [];
   _prepLogs   = prepLogRes.data    || [];
   _pkRosterSettings = pkSettingsRes.data || null;
+  _pkCycle          = _pkRosterSettings?.cycle || 'weekly';
+  _pkCyclePending   = pkCyclePendingRes.data?.[0] || null;
   _pkRosterDuty     = pkDutyRes.data     || [];
   _pkPrepRoomDuty   = pkPrepRes.data     || null;
   _pkPrepLeaveIds   = new Set((pkPrepLeaveRes.data || []).map(r => r.profile_id));
@@ -704,6 +715,8 @@ function _renderPkRosterPanel() {
   document.getElementById('pkroster-shift1').value = _pkRosterSettings?.shift1_start?.slice(0,5) || '09:00';
   document.getElementById('pkroster-shift2').value = _pkRosterSettings?.shift2_start?.slice(0,5) || '14:00';
   if (isAdmin) _renderWeeklyOffList();
+  _renderPkCycleCard(isAdmin);
+  _applyPkCycleLabels();
 
   const d = new Date(_pkRosterDate + 'T00:00:00');
   const today = new Date().toISOString().slice(0,10);
@@ -956,7 +969,54 @@ function _mondayOf(dateStr) {
   return d.toISOString().slice(0,10);
 }
 
-let _pkGenDays = null; // last preview_pk_week() 'days' result -- kept only for re-rendering, not re-published (Publish re-runs the RPC, see above).
+// Session 215 -- cycle-adaptive generation, same technique as nursingRosterGenerate.js's
+// Session 167 rework: preview_pk_week()/commit_pk_week() themselves stay untouched (single-week
+// only, proven correct); this just calls them once per Monday in the tenant's approved cycle
+// (weekly/fortnightly/monthly, pk_roster_settings.cycle) and merges the results client-side.
+// "Monthly" = 4 Monday-start weeks, matching nursing's own convention, not a calendar month.
+// Deliberately NOT reusing nursing's _getMonday()/_dateStr() (those are local-time, internally
+// consistent within nursingRosterGenerate.js's own domain) -- this file's own _mondayOf() is
+// UTC-consistent instead (Session 206's real local/UTC-mixing bug fix), so period math here
+// stays in that same UTC domain rather than mixing two conventions in one file.
+const PK_CYCLE_WEEKS = { weekly: 1, fortnightly: 2, monthly: 4 };
+const PK_CYCLE_META = {
+  weekly:      { label: 'Weekly (7 days)',           periodLower: 'week',           btnPublish: 'Publish This Week' },
+  fortnightly: { label: 'Fortnightly (14 days)',      periodLower: 'fortnight',      btnPublish: 'Publish This Fortnight' },
+  monthly:     { label: 'Monthly (4-week month)',     periodLower: '4-week month',   btnPublish: 'Publish This Month' },
+};
+
+function _pkPeriodMondays(weekStart, weekCount) {
+  return Array.from({ length: weekCount }, (_, i) => {
+    const d = new Date(weekStart);
+    d.setUTCDate(d.getUTCDate() + i * 7);
+    return d.toISOString().slice(0, 10);
+  });
+}
+
+// Combines N single-week preview_pk_week() results into one renderable shape -- 'days' concat
+// straight across weeks (each already carries its own real date), counts sum, no_gender_count
+// takes the max (it's the same tenant-wide figure every week, not something that accumulates).
+function _mergePkPreviews(byWeek) {
+  const days = [];
+  let filled = 0, needed = 0, gaps = 0, noGender = 0;
+  byWeek.forEach(({ result }) => {
+    (result.days || []).forEach(d => days.push(d));
+    filled += result.filled_count || 0;
+    needed += result.needed_count || 0;
+    gaps += result.gap_count || 0;
+    noGender = Math.max(noGender, result.no_gender_count || 0);
+  });
+  return { days, filled_count: filled, needed_count: needed, gap_count: gaps, no_gender_count: noGender };
+}
+
+function _applyPkCycleLabels() {
+  const meta = PK_CYCLE_META[_pkCycle] || PK_CYCLE_META.weekly;
+  const label = document.getElementById('pkgen-cycle-label');
+  if (label) label.textContent = `(Shift 1/2 gender-separated per Sch III/XXV; Prep Room In-charge auto-included, 1/day, any therapist — generating ${PK_CYCLE_WEEKS[_pkCycle]} week(s), this tenant's approved cycle is ${meta.periodLower})`;
+}
+
+let _pkGenDays = null;      // last merged preview 'days' -- kept only for re-rendering, not re-published (Publish re-runs the RPCs, see above)
+let _pkGenMondaysKey = null; // JSON of the exact Mondays the current _pkGenDays was built from -- Publish refuses a stale/changed period, same discipline nursing's page uses
 
 function _pkGenCounts() {
   return {
@@ -976,23 +1036,40 @@ window.previewPkWeek = async function() {
   const counts = _pkGenCounts();
   if (!Object.values(counts).some(n => n > 0)) { _alert('error', 'Enter at least one shift headcount.'); return; }
 
-  const { data, error } = await supabase.rpc('preview_pk_week', { p_week_start: weekStart, p_counts: counts });
-  if (error) { _alert('error', safeErrorMessage(error, 'Failed to generate the week preview.')); return; }
+  const weekCount = PK_CYCLE_WEEKS[_pkCycle] || 1;
+  const mondays = _pkPeriodMondays(weekStart, weekCount);
+  const btn = document.getElementById('pkgen-preview-btn');
+  if (btn) btn.disabled = true;
+  const byWeek = [];
+  try {
+    for (const monday of mondays) {
+      if (btn && mondays.length > 1) btn.textContent = `Generating week starting ${monday}…`;
+      const { data, error } = await supabase.rpc('preview_pk_week', { p_week_start: monday, p_counts: counts });
+      if (error) { _alert('error', safeErrorMessage(error, `Failed to generate the preview for the week starting ${monday}.`)); return; }
+      byWeek.push({ monday, result: data });
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Preview'; }
+  }
 
-  _pkGenDays = data.days;
-  _renderPkGenPreview(weekStart, counts, data);
+  const merged = _mergePkPreviews(byWeek);
+  _pkGenDays = merged.days;
+  _pkGenMondaysKey = JSON.stringify(mondays);
+  _renderPkGenPreview(weekStart, mondays, merged);
 };
 
-function _renderPkGenPreview(weekStart, counts, result) {
+function _renderPkGenPreview(weekStart, mondays, result) {
   const el = document.getElementById('pkgen-preview');
   if (!_pkGenDays) { el.innerHTML = ''; return; }
 
+  const meta = PK_CYCLE_META[_pkCycle] || PK_CYCLE_META.weekly;
   const cell = (list, gap) => (list.map(t => _esc(t.full_name)).join(', ') || '—') + (gap ? ` <span style="color:var(--red)">(short ${gap})</span>` : '');
   const prepCell = (p) => p ? _esc(p.full_name) : '<span style="color:var(--red)">(gap)</span>';
+  const periodEnd = new Date(mondays[mondays.length - 1]); periodEnd.setUTCDate(periodEnd.getUTCDate() + 6);
 
   el.innerHTML = `
     <div style="margin-bottom:10px;font-size:13px">
-      ${result.gap_count === 0 ? '✅' : '⚠️'} <strong>${result.filled_count}/${result.needed_count}</strong> slots filled for the week starting ${new Date(weekStart+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}${result.gap_count ? ` — <strong>${result.gap_count} gap(s)</strong>` : ''}. Includes 1 Prep Room In-charge/day (Reg 47(a)(viii)-(ix)).
+      ${result.gap_count === 0 ? '✅' : '⚠️'} <strong>${result.filled_count}/${result.needed_count}</strong> slots filled for the ${meta.periodLower} starting ${new Date(weekStart+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})} through ${periodEnd.toLocaleDateString('en-IN',{day:'numeric',month:'short'})}${result.gap_count ? ` — <strong>${result.gap_count} gap(s)</strong>` : ''}. Includes 1 Prep Room In-charge/day (Reg 47(a)(viii)-(ix)).
       ${result.no_gender_count ? `<br/><span style="color:var(--text-muted)">${result.no_gender_count} therapist(s) have no gender on file and were excluded from the Shift 1/2 rotation (still eligible for Prep Room In-charge) — set it via their Account Settings first.</span>` : ''}
     </div>
     <div style="overflow-x:auto">
@@ -1009,23 +1086,87 @@ function _renderPkGenPreview(weekStart, counts, result) {
         <td style="color:var(--text-muted);font-size:12px">${d.off.map(t => _esc(t.full_name)).join(', ') || '—'}</td>
       </tr>`).join('')}</tbody></table>
     </div>
-    <button data-onclick="publishPkWeek" style="margin-top:10px;height:40px;padding:0 18px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Publish This Week</button>
+    <button data-onclick="publishPkWeek" style="margin-top:10px;height:40px;padding:0 18px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">${_esc(meta.btnPublish)}</button>
     <span id="pkgen-published" style="display:none;margin-left:10px;color:var(--green-mid);font-size:13px;font-weight:600">✓ Published</span>
   `;
 }
 
 window.publishPkWeek = async function() {
-  if (!_pkGenDays) { _alert('error', 'Preview the week before publishing.'); return; }
+  if (!_pkGenDays) { _alert('error', `Preview this ${(PK_CYCLE_META[_pkCycle] || PK_CYCLE_META.weekly).periodLower} before publishing.`); return; }
   const rawDate = document.getElementById('pkgen-week-start').value;
   const weekStart = _mondayOf(rawDate);
   const counts = _pkGenCounts();
+  const weekCount = PK_CYCLE_WEEKS[_pkCycle] || 1;
+  const mondays = _pkPeriodMondays(weekStart, weekCount);
+  const meta = PK_CYCLE_META[_pkCycle] || PK_CYCLE_META.weekly;
 
-  const { error } = await supabase.rpc('commit_pk_week', { p_week_start: weekStart, p_counts: counts });
-  if (error) { _alert('error', safeErrorMessage(error, 'Failed to publish the week.')); return; }
+  // Same guard nursing's Generate Roster uses -- a stale preview from a different week/cycle
+  // combination (week changed, headcounts edited, cycle re-approved) can never be silently
+  // published; the exact set of Mondays previewed must match what's about to be committed.
+  if (_pkGenMondaysKey !== JSON.stringify(mondays)) {
+    _alert('error', `Preview this exact ${meta.periodLower} again before publishing.`);
+    return;
+  }
+
+  const publishBtn = document.querySelector('#pkgen-preview button[data-onclick="publishPkWeek"]');
+  if (publishBtn) publishBtn.disabled = true;
+  let totalCreated = 0;
+  for (let i = 0; i < mondays.length; i++) {
+    const monday = mondays[i];
+    if (publishBtn && mondays.length > 1) publishBtn.textContent = `Publishing week ${i+1} of ${mondays.length}…`;
+    const { data, error } = await supabase.rpc('commit_pk_week', { p_week_start: monday, p_counts: counts });
+    if (error) {
+      _alert('error', safeErrorMessage(error, `Failed to publish the week starting ${monday}.`)
+        + (i > 0 ? ` ${i} week(s) before it published successfully — only the remaining week(s) need re-running.` : ''));
+      if (publishBtn) { publishBtn.disabled = false; publishBtn.textContent = meta.btnPublish; }
+      return;
+    }
+    totalCreated += (data?.created || 0);
+  }
 
   const published = document.getElementById('pkgen-published');
   if (published) { published.style.display = ''; setTimeout(() => { published.style.display = 'none'; }, 2500); }
   _pkGenDays = null;
+  _pkGenMondaysKey = null;
+  await loadAll();
+};
+
+// ── Roster Cycle (Session 215) ──────────────────────────────────────────────────
+// Same maker-checker flow as nursing's own Roster Cycle card, per explicit design call: PK's
+// roster is already single-role-controlled (pk_incharge/dept admin/super_admin, no separate
+// approver), but parity with nursing's real governance model was the ask, not a simplified
+// self-service picker. request_pk_roster_cycle() re-derives "is this caller really allowed to
+// request" server-side (_pk_roster_admin_ok()) -- isAdmin below is only a display hint.
+function _renderPkCycleCard(isAdmin) {
+  const body = document.getElementById('pkroster-cycle-body');
+  if (!body) return;
+
+  let html = `<div style="margin-bottom:10px"><span style="font-size:12.5px;color:var(--text-muted)">Current cycle:</span> `
+    + `<span style="background:var(--green-light);color:var(--green-deep);font-weight:600;padding:2px 10px;border-radius:10px;font-size:12.5px">${_esc((PK_CYCLE_META[_pkCycle] || PK_CYCLE_META.weekly).label)}</span></div>`;
+
+  if (_pkCyclePending) {
+    const reqCycle = _pkCyclePending.payload?.cycle;
+    html += `<div style="font-size:12.5px;color:var(--text-mid)">⏳ Change to <strong>${_esc((PK_CYCLE_META[reqCycle] || {}).label || reqCycle)}</strong> requested by ${_esc(_pkCyclePending.requester?.full_name || '—')} on ${_esc((_pkCyclePending.requested_at || '').slice(0,10))} — awaiting Medical Superintendent / Deputy MS approval.</div>`;
+  } else if (isAdmin) {
+    html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+      + '<select id="pkroster-cycle-select" style="height:32px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12.5px;font-family:inherit">'
+      + Object.entries(PK_CYCLE_META).map(([v, m]) => `<option value="${v}"${v === _pkCycle ? ' selected' : ''}>${_esc(m.label)}</option>`).join('')
+      + '</select>'
+      + '<button data-onclick="requestPkRosterCycleChange" style="height:32px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:12.5px;cursor:pointer;font-family:inherit">Request Change</button>'
+      + '</div>';
+  } else {
+    html += '<div style="font-size:12.5px;color:var(--text-muted)">Only the Panchakarma In-charge, dept admin, or super_admin can request a cycle change.</div>';
+  }
+
+  body.innerHTML = html;
+}
+
+window.requestPkRosterCycleChange = async function() {
+  const sel = document.getElementById('pkroster-cycle-select');
+  const cycle = sel?.value;
+  if (!cycle) return;
+  const { error } = await supabase.rpc('request_pk_roster_cycle', { p_cycle: cycle });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not submit the roster-cycle change request.')); return; }
   await loadAll();
 };
 

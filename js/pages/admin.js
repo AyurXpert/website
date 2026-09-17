@@ -428,9 +428,14 @@ const APPROVAL_ACTION_LABELS = {
   // roster-cycle length -- decidable by the Medical Superintendent/Deputy MS
   // (or super_admin).
   nursing_roster_cycle:    'Nursing duty-roster cycle length',
+  // Session 215: PK In-charge's proposed roster-cycle length -- same
+  // decider tier as nursing_roster_cycle above (decide_approval() groups
+  // 'pk_incharge' into the same requester-designation branch).
+  pk_roster_cycle:         'Panchakarma therapist duty-roster cycle length',
 };
 
 const NURSING_CYCLE_LABELS = { weekly: 'Weekly (7 days)', fortnightly: 'Fortnightly (14 days)', monthly: 'Monthly (30 days)' };
+const PK_CYCLE_LABELS = { weekly: 'Weekly (7 days)', fortnightly: 'Fortnightly (14 days)', monthly: 'Monthly (4-week month)' };
 
 function _approvalSummary(row){
   const p = row.payload || {};
@@ -445,6 +450,7 @@ function _approvalSummary(row){
       return `${n} intern(s), starting ${_esc(p.rotation_start || '—')}`;
     }
     case 'nursing_roster_cycle': return `Change to ${_esc(NURSING_CYCLE_LABELS[p.cycle] || p.cycle || '—')}`;
+    case 'pk_roster_cycle':      return `Change to ${_esc(PK_CYCLE_LABELS[p.cycle] || p.cycle || '—')}`;
     default: return '—';
   }
 }
@@ -461,9 +467,11 @@ function _canDecideApproval(requesterDesig){
   // designation-only check (no extra role/secondary_role gate), mirrors
   // decide_approval()'s server-side branch and Session 128's simpler
   // deputy_medical_superintendent-deciding-intern_roster precedent.
+  // Session 215: pk_incharge's own roster-cycle request joins the same tier --
+  // decide_approval() groups it into the identical IN-list server-side.
   const iAmMsTier = ['medical_superintendent','deputy_medical_superintendent'].includes(profile?.designation);
   if (requesterDesig === 'medical_superintendent') return iAmSuperAdmin || iAmDirectorTier;
-  if (['nursing_superintendent','deputy_nursing_superintendent'].includes(requesterDesig)) return iAmSuperAdmin || iAmMsTier;
+  if (['nursing_superintendent','deputy_nursing_superintendent','pk_incharge'].includes(requesterDesig)) return iAmSuperAdmin || iAmMsTier;
   return iAmSuperAdmin;
 }
 
