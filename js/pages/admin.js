@@ -428,14 +428,23 @@ const APPROVAL_ACTION_LABELS = {
   // roster-cycle length -- decidable by the Medical Superintendent/Deputy MS
   // (or super_admin).
   nursing_roster_cycle:    'Nursing duty-roster cycle length',
+  // Session 216: real gap found live -- request_nursing_shift_pattern() has existed since
+  // Session 166 and inserts into pending_approvals correctly, but had no label/summary
+  // registration here (would render as a blank "—") and decide_approval() had no branch to
+  // actually apply it on approval (fixed same session, see sql/session216_*). Zero real
+  // requests of this type existed in the database before this fix -- nobody had hit it yet.
+  nursing_shift_pattern:   'Nursing 24x7 shift pattern',
   // Session 215: PK In-charge's proposed roster-cycle length -- same
   // decider tier as nursing_roster_cycle above (decide_approval() groups
   // 'pk_incharge' into the same requester-designation branch).
   pk_roster_cycle:         'Panchakarma therapist duty-roster cycle length',
+  // Session 216: same maker-checker parity extended to PK's Shift Times.
+  pk_shift_times:          'Panchakarma therapist shift start times',
 };
 
 const NURSING_CYCLE_LABELS = { weekly: 'Weekly (7 days)', fortnightly: 'Fortnightly (14 days)', monthly: 'Monthly (30 days)' };
 const PK_CYCLE_LABELS = { weekly: 'Weekly (7 days)', fortnightly: 'Fortnightly (14 days)', monthly: 'Monthly (4-week month)' };
+const SHIFT_PATTERN_LABELS = { equal_8x3: 'Equal Thirds (8+8+8)', six_six_twelve: 'Day-Weighted (6+6+12)' };
 
 function _approvalSummary(row){
   const p = row.payload || {};
@@ -450,7 +459,9 @@ function _approvalSummary(row){
       return `${n} intern(s), starting ${_esc(p.rotation_start || '—')}`;
     }
     case 'nursing_roster_cycle': return `Change to ${_esc(NURSING_CYCLE_LABELS[p.cycle] || p.cycle || '—')}`;
+    case 'nursing_shift_pattern': return `Change to ${_esc(SHIFT_PATTERN_LABELS[p.pattern] || p.pattern || '—')}`;
     case 'pk_roster_cycle':      return `Change to ${_esc(PK_CYCLE_LABELS[p.cycle] || p.cycle || '—')}`;
+    case 'pk_shift_times':       return `Shift 1: ${_esc(p.shift1_start || '—')} · Shift 2: ${_esc(p.shift2_start || '—')}`;
     default: return '—';
   }
 }

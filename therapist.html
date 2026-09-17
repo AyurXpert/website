@@ -751,17 +751,12 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
     <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep);padding:10px 14px;background:var(--white);border:1.5px solid var(--border);border-radius:8px;list-style:none">🗓️ Therapist Duty Roster</summary>
     <div style="background:var(--white);border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:14px 16px">
 
-      <div id="pkroster-settings-form" style="display:none;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:14px">
-        <div class="section-label" style="margin-top:0">Shift Times <span style="font-size:11px;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(each 8 hours — set your organisation's actual start times)</span></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end">
-          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 1 Start</label>
-            <input id="pkroster-shift1" type="time" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
-          <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 2 Start</label>
-            <input id="pkroster-shift2" type="time" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
-          <button data-onclick="savePkRosterSettings" style="height:36px;padding:0 16px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Save</button>
-        </div>
-        <span id="pkroster-settings-saved" style="display:none;margin-top:8px;color:var(--green-mid);font-size:13px;font-weight:600">✓ Saved</span>
-      </div>
+      <!-- Session 216 -- Shift Times, same maker-checker flow as Roster Cycle below (request ->
+           Medical Superintendent/Deputy MS/super_admin approves via pending_approvals). -->
+      <details id="pkroster-settings-details" style="margin-bottom:14px">
+        <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep)">⏰ Shift Times <span style="font-size:11px;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(each 8 hours)</span></summary>
+        <div id="pkroster-settings-body" style="margin-top:10px"></div>
+      </details>
 
       <details id="pkroster-weeklyoff-details" style="display:none;margin-bottom:14px">
         <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep)">📆 Weekly Off</summary>

@@ -53,6 +53,7 @@ let _pkRosterDuty     = [];
 let _pkPrepRoomDuty   = null; // Session 212 -- {id, profile_id, profiles:{id,full_name}} or null, at most one row/day
 let _pkCycle          = 'weekly'; // Session 215 -- pk_roster_settings.cycle, weekly/fortnightly/monthly
 let _pkCyclePending   = null; // Session 215 -- the latest pending pk_roster_cycle approval request, if any
+let _pkShiftPending   = null; // Session 216 -- the latest pending pk_shift_times approval request, if any
 let _pkTherapists    = []; // Session 213 -- _therapists filtered to department='Panchakarma' only; the real pool for Shift 1/2 + Prep Room In-charge
 let _pkPrepLeaveIds   = new Set(); // Session 212 -- profile ids on approved leave covering _pkRosterDate, for the manual assign warning only
 let _myPkShiftsWeek   = [];
@@ -85,7 +86,7 @@ async function loadAll() {
   _updateDateDisplay();
 
   const _week = _thisWeekBounds();
-  const [sessRes, admRes, thRes, deptRes, tenantRes, roomRes, blocksRes, prepStaffRes, formularyRes, prepLogRes, pkSettingsRes, pkCyclePendingRes, pkDutyRes, pkPrepRes, pkPrepLeaveRes, myShiftsRes] = await Promise.all([
+  const [sessRes, admRes, thRes, deptRes, tenantRes, roomRes, blocksRes, prepStaffRes, formularyRes, prepLogRes, pkSettingsRes, pkCyclePendingRes, pkShiftPendingRes, pkDutyRes, pkPrepRes, pkPrepLeaveRes, myShiftsRes] = await Promise.all([
     supabase
       .from('pk_therapy_sessions')
       .select(`
@@ -176,6 +177,12 @@ async function loadAll() {
       .select('id,payload,requested_at,requester:profiles!requested_by(full_name)')
       .eq('tenant_id', tenantId).eq('action_type', 'pk_roster_cycle').eq('status', 'pending')
       .order('requested_at', { ascending: false }).limit(1),
+    // Session 216 -- same, for a pending pk_shift_times request.
+    supabase
+      .from('pending_approvals')
+      .select('id,payload,requested_at,requester:profiles!requested_by(full_name)')
+      .eq('tenant_id', tenantId).eq('action_type', 'pk_shift_times').eq('status', 'pending')
+      .order('requested_at', { ascending: false }).limit(1),
     supabase
       .from('pk_therapist_duty')
       // pk_therapist_duty has 2 FKs to profiles (profile_id, created_by) -- an unqualified
@@ -246,6 +253,7 @@ async function loadAll() {
   _pkRosterSettings = pkSettingsRes.data || null;
   _pkCycle          = _pkRosterSettings?.cycle || 'weekly';
   _pkCyclePending   = pkCyclePendingRes.data?.[0] || null;
+  _pkShiftPending   = pkShiftPendingRes.data?.[0] || null;
   _pkRosterDuty     = pkDutyRes.data     || [];
   _pkPrepRoomDuty   = pkPrepRes.data     || null;
   _pkPrepLeaveIds   = new Set((pkPrepLeaveRes.data || []).map(r => r.profile_id));
@@ -709,12 +717,10 @@ function _renderPkRosterPanel() {
     return;
   }
 
-  document.getElementById('pkroster-settings-form').style.display = isAdmin ? '' : 'none';
   document.getElementById('pkroster-weeklyoff-details').style.display = isAdmin ? '' : 'none';
   document.getElementById('pkroster-generate-form').style.display = isAdmin ? '' : 'none';
-  document.getElementById('pkroster-shift1').value = _pkRosterSettings?.shift1_start?.slice(0,5) || '09:00';
-  document.getElementById('pkroster-shift2').value = _pkRosterSettings?.shift2_start?.slice(0,5) || '14:00';
   if (isAdmin) _renderWeeklyOffList();
+  _renderPkShiftTimesCard(isAdmin);
   _renderPkCycleCard(isAdmin);
   _applyPkCycleLabels();
 
@@ -847,23 +853,43 @@ function _renderMyPkShiftsWeek() {
   }).join('');
 }
 
-window.savePkRosterSettings = async function() {
-  const shift1 = document.getElementById('pkroster-shift1').value;
-  const shift2 = document.getElementById('pkroster-shift2').value;
+// Session 216 -- Shift Times, same maker-checker flow as Roster Cycle (request_pk_shift_times()
+// -> pending_approvals -> decide_approval(), decided by Medical Superintendent/Deputy MS/
+// super_admin). Was a direct self-service upsert before this session; converted for parity with
+// nursing's own governance model, per explicit design call.
+function _renderPkShiftTimesCard(isAdmin) {
+  const body = document.getElementById('pkroster-settings-body');
+  if (!body) return;
+
+  const current = `${_pkShiftLabel(1)} · ${_pkShiftLabel(2)}`;
+  let html = `<div style="margin-bottom:10px"><span style="font-size:12.5px;color:var(--text-muted)">Current shift times:</span> `
+    + `<span style="background:var(--green-light);color:var(--green-deep);font-weight:600;padding:2px 10px;border-radius:10px;font-size:12.5px">${_esc(current)}</span></div>`;
+
+  if (_pkShiftPending) {
+    const p = _pkShiftPending.payload || {};
+    html += `<div style="font-size:12.5px;color:var(--text-mid)">⏳ Change to <strong>Shift 1 ${_esc((p.shift1_start||'').slice(0,5))} / Shift 2 ${_esc((p.shift2_start||'').slice(0,5))}</strong> requested by ${_esc(_pkShiftPending.requester?.full_name || '—')} on ${_esc((_pkShiftPending.requested_at || '').slice(0,10))} — awaiting Medical Superintendent / Deputy MS approval.</div>`;
+  } else if (isAdmin) {
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end">'
+      + '<div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 1 Start</label>'
+      + `<input id="pkroster-shift1" type="time" value="${_esc(_pkRosterSettings?.shift1_start?.slice(0,5) || '09:00')}" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>`
+      + '<div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 2 Start</label>'
+      + `<input id="pkroster-shift2" type="time" value="${_esc(_pkRosterSettings?.shift2_start?.slice(0,5) || '14:00')}" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>`
+      + '<button data-onclick="requestPkShiftTimesChange" style="height:36px;padding:0 16px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Request Change</button>'
+      + '</div>';
+  } else {
+    html += '<div style="font-size:12.5px;color:var(--text-muted)">Only the Panchakarma In-charge, dept admin, or super_admin can request a shift-times change.</div>';
+  }
+
+  body.innerHTML = html;
+}
+
+window.requestPkShiftTimesChange = async function() {
+  const shift1 = document.getElementById('pkroster-shift1')?.value;
+  const shift2 = document.getElementById('pkroster-shift2')?.value;
   if (!shift1 || !shift2) { _alert('error', 'Set both shift start times.'); return; }
 
-  const { error } = await supabase.from('pk_roster_settings').upsert({
-    tenant_id: tenantId,
-    shift1_start: shift1,
-    shift2_start: shift2,
-    updated_by: myProfile?.id || null,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'tenant_id' });
-
-  if (error) { _alert('error', safeErrorMessage(error, 'Failed to save shift times.')); return; }
-  const saved = document.getElementById('pkroster-settings-saved');
-  saved.style.display = '';
-  setTimeout(() => { saved.style.display = 'none'; }, 2000);
+  const { error } = await supabase.rpc('request_pk_shift_times', { p_shift1_start: shift1, p_shift2_start: shift2 });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not submit the shift-times change request.')); return; }
   await loadAll();
 };
 
