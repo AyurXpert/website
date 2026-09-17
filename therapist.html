@@ -259,7 +259,7 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
       <div id="ipd-patient-field">
         <div class="field">
           <label>IPD Patient <span class="req">*</span></label>
-          <select id="sched-admission">
+          <select id="sched-admission" data-onchange="onSchedAssignInputsChange">
             <option value="">— Select admitted patient —</option>
           </select>
         </div>
@@ -268,7 +268,7 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
       <div id="opd-patient-field" style="display:none">
         <div class="field">
           <label>OPD Patient <span class="req">*</span></label>
-          <select id="sched-opd-patient">
+          <select id="sched-opd-patient" data-onchange="onSchedAssignInputsChange">
             <option value="">— Select patient —</option>
           </select>
         </div>
@@ -327,16 +327,22 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
 
       <div class="field">
         <label>Therapist <span class="req">*</span></label>
-        <select id="sched-therapist">
+        <!-- Session 214 -- auto-assigned by default (continuity of care first, then on-duty +
+             gender-matched + least-loaded that day); the real <select> only becomes visible
+             when there's a genuine gap (no eligible on-duty therapist) that needs a human
+             pick. sched-therapist itself always holds the value saveSession() reads, whether
+             auto-picked or manually chosen. -->
+        <select id="sched-therapist" style="display:none">
           <option value="">— Select therapist —</option>
         </select>
+        <div id="sched-therapist-auto" style="height:36px;display:flex;align-items:center;padding:0 10px;border:1.5px solid var(--border);border-radius:7px;background:var(--cream);font-size:13px;color:var(--text-mid)">— Select patient first —</div>
         <div class="field-note" id="therapist-note"></div>
       </div>
 
       <div class="field-row">
         <div class="field">
           <label>Date <span class="req">*</span></label>
-          <input id="sched-date" type="date"/>
+          <input id="sched-date" type="date" data-onchange="onSchedAssignInputsChange"/>
         </div>
         <div class="field">
           <label>Time</label>

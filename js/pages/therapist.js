@@ -1310,6 +1310,9 @@ window.openSchedDrawer = function(prefillAdmId) {
       catch {}
     }
   }
+  // Session 214 -- setting .selected above doesn't fire a change event, so re-run explicitly;
+  // onSourceChange() (called above) already ran it once with no patient selected yet.
+  _autoAssignSchedTherapist();
   document.getElementById('sched-overlay').classList.add('open');
 };
 window.closeSchedDrawer = function() {
@@ -1320,7 +1323,130 @@ window.onSourceChange = function() {
   const src = document.getElementById('sched-source').value;
   document.getElementById('ipd-patient-field').style.display = src === 'ipd' ? '' : 'none';
   document.getElementById('opd-patient-field').style.display = src === 'opd' ? '' : 'none';
+  _autoAssignSchedTherapist();
 };
+
+// Session 214 -- shared patient-context resolver for the Schedule Session drawer. Used by both
+// saveSession() (previously re-derived this 3 separate times inline: the NABH gender check, the
+// PK-consent check, and the final insert prep) and the new auto-assign engine below.
+async function _resolveSchedPatientContext() {
+  const source = document.getElementById('sched-source').value;
+  if (source === 'ipd') {
+    const raw = document.getElementById('sched-admission').value;
+    if (!raw) return { patientId: null, admId: null, gender: null };
+    try {
+      const obj = JSON.parse(raw);
+      const adm = _admissions.find(a => a.id === obj.admId);
+      return { patientId: obj.patientId || null, admId: obj.admId || null, gender: adm?.patients?.gender || null };
+    } catch {
+      return { patientId: null, admId: null, gender: null };
+    }
+  }
+  const patientId = document.getElementById('sched-opd-patient').value;
+  if (!patientId) return { patientId: null, admId: null, gender: null };
+  const { data: pt } = await supabase.from('patients').select('gender').eq('id', patientId).single();
+  return { patientId, admId: null, gender: pt?.gender || null };
+}
+
+// Session 214 -- automates the Schedule Session Therapist field. Priority order, checked with
+// Dr. Venkatesh before building: (1) continuity of care -- if this patient's stay (IPD:
+// ipd_admission_id, OPD: patient_id since there's no admission concept) already has a prior PK
+// session, reuse that SAME therapist for every subsequent session, PROVIDED they're actually on
+// duty this date (can't force someone not at work); (2) otherwise, on-duty + gender-matched +
+// least-loaded that day (mirrors the Duty Roster's own fairness logic); (3) a genuine gap --
+// nobody eligible via (1) or (2) -- reveals a real <select> so a human decides, scoped to
+// whoever IS on duty if anyone is, else the full Panchakarma pool as a last resort. No manual
+// picker in the non-gap case, per explicit design call -- this isn't a suggestion with an
+// override link, it's the actual assignment unless the roster genuinely can't produce one.
+let _schedAutoAssignToken = 0; // monotonic guard against a slower stale request resolving after a newer one (same pattern as PK Care Plan's Session 208 request-token guard)
+
+async function _autoAssignSchedTherapist() {
+  const token = ++_schedAutoAssignToken;
+  const sel  = document.getElementById('sched-therapist');
+  const auto = document.getElementById('sched-therapist-auto');
+  const note = document.getElementById('therapist-note');
+  const date = document.getElementById('sched-date').value;
+
+  const showAuto = (text, color) => {
+    sel.style.display = 'none'; auto.style.display = 'flex';
+    auto.textContent = text;
+    note.textContent = ''; note.style.color = color || 'var(--text-mid)';
+  };
+  const showPicker = (pool, selectedId, noteText) => {
+    sel.style.display = ''; auto.style.display = 'none';
+    sel.innerHTML = '<option value="">— Select therapist —</option>' +
+      pool.map(t => `<option value="${t.id}"${t.id === selectedId ? ' selected' : ''}>${_esc(t.full_name)}${t.gender ? ' (' + t.gender + ')' : ''}</option>`).join('');
+    note.textContent = noteText; note.style.color = 'var(--gold)';
+  };
+
+  if (!date) { sel.value = ''; showAuto('— Select date first —'); return; }
+
+  const ctx = await _resolveSchedPatientContext();
+  if (token !== _schedAutoAssignToken) return; // a newer call has since started -- discard this one
+  if (!ctx.patientId) { sel.value = ''; showAuto('— Select patient first —'); return; }
+
+  const { data: dutyRows } = await supabase
+    .from('pk_therapist_duty')
+    .select('profile_id, profiles!profile_id(id,full_name,gender)')
+    .eq('tenant_id', tenantId)
+    .eq('duty_date', date);
+  if (token !== _schedAutoAssignToken) return;
+
+  const onDutyMap = new Map();
+  (dutyRows || []).forEach(r => { if (r.profiles) onDutyMap.set(r.profiles.id, r.profiles); });
+  const onDuty = [...onDutyMap.values()];
+
+  let priorQuery = supabase.from('pk_therapy_sessions')
+    .select('therapist_id')
+    .eq('tenant_id', tenantId)
+    .neq('status', 'skipped')
+    .order('scheduled_date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1);
+  priorQuery = ctx.admId ? priorQuery.eq('ipd_admission_id', ctx.admId) : priorQuery.eq('patient_id', ctx.patientId);
+  const { data: priorRows } = await priorQuery;
+  if (token !== _schedAutoAssignToken) return;
+  const continuityId = priorRows?.[0]?.therapist_id || null;
+  const continuityOnDuty = continuityId ? onDuty.find(t => t.id === continuityId) : null;
+
+  if (continuityOnDuty) {
+    sel.innerHTML = `<option value="${continuityOnDuty.id}" selected>${_esc(continuityOnDuty.full_name)}</option>`;
+    sel.value = continuityOnDuty.id;
+    showAuto(`✓ ${continuityOnDuty.full_name} (continuing this patient's care)`, 'var(--green-mid)');
+    return;
+  }
+
+  const genderMatched = ctx.gender ? onDuty.filter(t => t.gender === ctx.gender) : onDuty;
+  if (genderMatched.length) {
+    const { data: loadRows } = await supabase
+      .from('pk_therapy_sessions')
+      .select('therapist_id')
+      .eq('tenant_id', tenantId)
+      .eq('scheduled_date', date)
+      .neq('status', 'skipped')
+      .in('therapist_id', genderMatched.map(t => t.id));
+    if (token !== _schedAutoAssignToken) return;
+    const loadCount = {};
+    genderMatched.forEach(t => { loadCount[t.id] = 0; });
+    (loadRows || []).forEach(r => { loadCount[r.therapist_id] = (loadCount[r.therapist_id] || 0) + 1; });
+    const picked = [...genderMatched].sort((a, b) => (loadCount[a.id] - loadCount[b.id]) || a.full_name.localeCompare(b.full_name))[0];
+    sel.innerHTML = `<option value="${picked.id}" selected>${_esc(picked.full_name)}</option>`;
+    sel.value = picked.id;
+    const continuityNote = continuityId ? ' — the previous therapist for this patient isn\'t on duty today' : '';
+    showAuto(`✓ ${picked.full_name} (on duty today, least-loaded${continuityNote})`, 'var(--green-mid)');
+    return;
+  }
+
+  // Genuine gap: no continuity match, and no gender-matched on-duty therapist. Offer whoever
+  // IS on duty (wrong gender -- saveSession()'s own NABH confirm still gates this) if anyone
+  // is, else fall back to the full Panchakarma pool as a last resort.
+  if (onDuty.length) {
+    showPicker(onDuty, null, `⚠️ No ${ctx.gender === 'F' ? 'female' : ctx.gender === 'M' ? 'male' : 'matching'} therapist on duty this date — choose manually.`);
+  } else {
+    showPicker(_pkTherapists, null, `⚠️ Nobody is rostered in the Duty Roster for this date — showing all Panchakarma therapists.`);
+  }
+}
+window.onSchedAssignInputsChange = function() { _autoAssignSchedTherapist(); };
 
 window.saveSession = async function() {
   const source    = document.getElementById('sched-source').value;
@@ -1337,47 +1463,31 @@ window.saveSession = async function() {
   if (!deptId)    { _alert('error','Select a department.'); return; }
   if (!date)      { _alert('error','Enter a date.'); return; }
 
+  const ctx = await _resolveSchedPatientContext();
+  if (!ctx.patientId) { _alert('error', source === 'ipd' ? 'Select an IPD patient.' : 'Select a patient.'); return; }
+
   // NABH PRE.2 ATWC CORE — Female therapist for female patients
-  let patientGender = null;
-  if (source === 'ipd') {
-    const raw = document.getElementById('sched-admission').value;
-    if (raw) {
-      try { const obj = JSON.parse(raw); const adm = _admissions.find(a=>a.id===obj.admId); patientGender = adm?.patients?.gender; } catch {}
-    }
-  } else {
-    const patientId = document.getElementById('sched-opd-patient').value;
-    if (patientId) {
-      const { data: pt } = await supabase.from('patients').select('gender').eq('id',patientId).single();
-      patientGender = pt?.gender;
-    }
-  }
-  const therapistData = _therapists.find(t => t.id === therapist);
-  if (patientGender === 'F' && therapistData?.gender === 'M') {
+  const therapistData = _pkTherapists.find(t => t.id === therapist);
+  if (ctx.gender === 'F' && therapistData?.gender === 'M') {
     const override = confirm('⚠ NABH PRE.2 ATWC CORE — Gender Mismatch\n\nFemale patients must be treated by female therapists.\n\nThis patient is female and the selected therapist is male.\n\nContinue only with documented medical justification?');
     if (!override) return;
   }
 
   // NABH PRE.3 ATWC CORE — PK Consent 6-month validity check
-  if (source === 'ipd' || source === 'opd') {
-    const ptId = source === 'ipd'
-      ? (() => { try { return JSON.parse(document.getElementById('sched-admission').value).patientId; } catch { return null; } })()
-      : document.getElementById('sched-opd-patient').value;
-    if (ptId) {
-      const sixMonthsAgo = new Date(Date.now() - 180*86400000).toISOString();
-      const { data: consentData } = await supabase.from('consent_records')
-        .select('id,consent_datetime,valid_until')
-        .eq('patient_id', ptId).eq('tenant_id', tenantId)
-        .eq('consent_type','panchakarma')
-        .order('consent_datetime',{ascending:false}).limit(1).maybeSingle();
-      if (!consentData) {
-        const ok = confirm('⚠ NABH PRE.3 ATWC CORE — No PK Consent on Record\n\nNo Panchakarma consent found for this patient. Consent is mandatory before first session.\n\nProceed anyway? (You must record consent separately.)');
-        if (!ok) return;
-      } else {
-        const expiry = consentData.valid_until ? new Date(consentData.valid_until) : new Date(new Date(consentData.consent_datetime).getTime() + 180*86400000);
-        if (expiry < new Date()) {
-          const renew = confirm(`⚠ NABH — PK Consent Expired\n\nConsent given on ${new Date(consentData.consent_datetime).toLocaleDateString('en-IN')} has expired.\n\nFresh consent is required. Proceed anyway?`);
-          if (!renew) return;
-        }
+  {
+    const { data: consentData } = await supabase.from('consent_records')
+      .select('id,consent_datetime,valid_until')
+      .eq('patient_id', ctx.patientId).eq('tenant_id', tenantId)
+      .eq('consent_type','panchakarma')
+      .order('consent_datetime',{ascending:false}).limit(1).maybeSingle();
+    if (!consentData) {
+      const ok = confirm('⚠ NABH PRE.3 ATWC CORE — No PK Consent on Record\n\nNo Panchakarma consent found for this patient. Consent is mandatory before first session.\n\nProceed anyway? (You must record consent separately.)');
+      if (!ok) return;
+    } else {
+      const expiry = consentData.valid_until ? new Date(consentData.valid_until) : new Date(new Date(consentData.consent_datetime).getTime() + 180*86400000);
+      if (expiry < new Date()) {
+        const renew = confirm(`⚠ NABH — PK Consent Expired\n\nConsent given on ${new Date(consentData.consent_datetime).toLocaleDateString('en-IN')} has expired.\n\nFresh consent is required. Proceed anyway?`);
+        if (!renew) return;
       }
     }
   }
@@ -1393,22 +1503,8 @@ window.saveSession = async function() {
     if (!proceed) return;
   }
 
-  let patientId  = null;
-  let admId      = null;
-
-  if (source === 'ipd') {
-    const raw = document.getElementById('sched-admission').value;
-    if (!raw) { _alert('error','Select an IPD patient.'); return; }
-    try {
-      const obj = JSON.parse(raw);
-      patientId = obj.patientId;
-      admId     = obj.admId;
-    } catch { _alert('error','Invalid patient selection.'); return; }
-  } else {
-    patientId = document.getElementById('sched-opd-patient').value;
-    if (!patientId) { _alert('error','Select a patient.'); return; }
-  }
-
+  const patientId = ctx.patientId;
+  const admId     = ctx.admId;
   const roomId = document.getElementById('sched-room').value || null;
 
   // Session 206: best-effort client-side heads-up before hitting the real DB-enforced
