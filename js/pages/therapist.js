@@ -326,6 +326,16 @@ function _renderRoomsPanel() {
     _buildingBlocks.map(b => `<option value="${b.id}">${_esc(b.name)}</option>`).join('');
   if (blockVal && _buildingBlocks.some(b => b.id === blockVal)) blockSel.value = blockVal;
 
+  // Session 211 — same block list, same "don't clobber what the admin already picked" pattern,
+  // for the Bulk Add Rooms form's own building selector.
+  const bulkBlockSel = document.getElementById('bulk-room-block');
+  if (bulkBlockSel) {
+    const bulkBlockVal = bulkBlockSel.value;
+    bulkBlockSel.innerHTML = '<option value="">— Not mapped —</option>' +
+      _buildingBlocks.map(b => `<option value="${b.id}">${_esc(b.name)}</option>`).join('');
+    if (bulkBlockVal && _buildingBlocks.some(b => b.id === bulkBlockVal)) bulkBlockSel.value = bulkBlockVal;
+  }
+
   const list = document.getElementById('rooms-list');
   if (!_rooms.length) {
     list.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No treatment rooms configured yet.</div>';
@@ -421,6 +431,103 @@ window.cycleRoomStatus = async function(id) {
   const next = { active: 'maintenance', maintenance: 'inactive', inactive: 'active' }[room.status] || 'active';
   const { error } = await supabase.from('pk_treatment_rooms').update({ status: next }).eq('id', id);
   if (error) { _alert('error', safeErrorMessage(error, 'Failed to update room status.')); return; }
+  await loadAll();
+};
+
+// ── Bulk Add Rooms (Session 211) ────────────────────────────────────────────────
+// Same room master data/RLS as the single Add form above -- just a batched insert with
+// auto-numbered names + a gender split, for a tenant setting up Sch III/XXV capacity from
+// scratch rather than clicking "+ Add Room" 6-16 times one at a time.
+window.toggleBulkRooms = function() {
+  const el = document.getElementById('rooms-bulk-form');
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+};
+
+window.onBulkRoomPrefixInput = function(el) {
+  const preview = document.getElementById('bulk-room-prefix-preview');
+  if (preview) preview.textContent = el.value.trim() || 'Room';
+};
+
+window.applySuggestedBulkCounts = function() {
+  if (!_ugTier) {
+    _alert('info', 'NCISM UG intake isn\'t configured for this tenant — enter counts manually.');
+    return;
+  }
+  const required = PK_THERAPY_ROOM_COUNT[_ugTier] || 0;
+  const half = required / 2;
+  const active = _rooms.filter(r => r.status === 'active');
+  const maleCount = active.filter(r => r.gender_restriction === 'male').length;
+  const femaleCount = active.filter(r => r.gender_restriction === 'female').length;
+  document.getElementById('bulk-room-male').value = Math.max(0, half - maleCount);
+  document.getElementById('bulk-room-female').value = Math.max(0, half - femaleCount);
+  const kaumara = active.some(r => r.room_type?.toLowerCase().includes('kaumara'));
+  document.getElementById('bulk-room-kaumara').checked = !kaumara;
+};
+
+// Continues numbering from the highest existing "<prefix> N" room name (any status, so a
+// deactivated/renamed room's old number is never reissued) rather than always starting at 1 —
+// avoids the unique(tenant_id, room_name) constraint colliding with rooms already on file.
+function _bulkRoomNextNumber(prefix) {
+  const escaped = prefix.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp('^' + escaped + '\\s*(\\d+)$', 'i');
+  let max = 0;
+  _rooms.forEach(r => {
+    const m = re.exec((r.room_name || '').trim());
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  });
+  return max + 1;
+}
+
+window.createBulkRooms = async function() {
+  const maleN = parseInt(document.getElementById('bulk-room-male').value, 10) || 0;
+  const femaleN = parseInt(document.getElementById('bulk-room-female').value, 10) || 0;
+  const anyN = parseInt(document.getElementById('bulk-room-any').value, 10) || 0;
+  const total = maleN + femaleN + anyN;
+  if (total <= 0) { _alert('error', 'Enter at least one room to create.'); return; }
+  if (total > 30) { _alert('error', 'Create at most 30 rooms at a time — split into batches.'); return; }
+
+  const prefix = document.getElementById('bulk-room-prefix').value.trim() || 'Room';
+  const capacity = parseInt(document.getElementById('bulk-room-capacity').value, 10) || 1;
+  const blockId = document.getElementById('bulk-room-block').value || null;
+  const floorRaw = document.getElementById('bulk-room-floor').value;
+  const floor = floorRaw !== '' ? parseInt(floorRaw, 10) : null;
+  const kaumara = document.getElementById('bulk-room-kaumara').checked;
+
+  const startNum = _bulkRoomNextNumber(prefix);
+  const genders = [
+    ...Array(maleN).fill('male'),
+    ...Array(femaleN).fill('female'),
+    ...Array(anyN).fill('any'),
+  ];
+
+  const rows = genders.map((gender, i) => ({
+    tenant_id: tenantId,
+    room_name: `${prefix} ${startNum + i}`,
+    room_type: (kaumara && i === 0) ? 'Kaumara Panchakarma' : 'General Therapy Room',
+    capacity,
+    gender_restriction: gender,
+    block_id: blockId,
+    floor_number: floor,
+  }));
+
+  const btn = document.getElementById('bulk-room-create-btn');
+  btn.disabled = true;
+  const { error } = await supabase.from('pk_treatment_rooms').insert(rows);
+  btn.disabled = false;
+  if (error) {
+    _alert('error', safeErrorMessage(error, error.code === '23505'
+      ? `A room named "${prefix} ${startNum}" or similar already exists — try a different prefix.`
+      : 'Failed to create rooms.'));
+    return;
+  }
+
+  document.getElementById('bulk-room-male').value = '0';
+  document.getElementById('bulk-room-female').value = '0';
+  document.getElementById('bulk-room-any').value = '0';
+  document.getElementById('bulk-room-kaumara').checked = false;
+  const saved = document.getElementById('bulk-room-saved');
+  saved.style.display = '';
+  setTimeout(() => { saved.style.display = 'none'; }, 2500);
   await loadAll();
 };
 
