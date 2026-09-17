@@ -723,6 +723,7 @@ function _renderPkRosterPanel() {
   _renderPkShiftTimesCard(isAdmin);
   _renderPkCycleCard(isAdmin);
   _applyPkCycleLabels();
+  if (isAdmin) window.updatePkHeadcountHint();
 
   const d = new Date(_pkRosterDate + 'T00:00:00');
   const today = new Date().toISOString().slice(0,10);
@@ -1052,6 +1053,38 @@ function _pkGenCounts() {
     shift2_female: parseInt(document.getElementById('pkgen-shift2-female').value, 10) || 0,
   };
 }
+
+// Session 217 -- real gap found live: requesting Shift 1+2 headcounts that consume the entire
+// Panchakarma pool (e.g. 3M+3F/2M+2F against a real 5M+5F department) mathematically guarantees
+// Prep Room In-charge gaps every single day -- there's nobody left over -- and the RPC correctly
+// reports this as honest per-day "(gap)" cells, but that only surfaces AFTER clicking Preview,
+// buried in a table. This computes the same arithmetic client-side and shows it live as the
+// admin types, so the mismatch is obvious before running anything.
+window.updatePkHeadcountHint = function() {
+  const hint = document.getElementById('pkgen-headcount-hint');
+  if (!hint) return;
+  const counts = _pkGenCounts();
+  const maleNeeded = counts.shift1_male + counts.shift2_male;
+  const femaleNeeded = counts.shift1_female + counts.shift2_female;
+  const totalNeeded = maleNeeded + femaleNeeded;
+  if (totalNeeded <= 0) { hint.textContent = ''; return; }
+
+  const malePool = _pkTherapists.filter(t => t.gender === 'M').length;
+  const femalePool = _pkTherapists.filter(t => t.gender === 'F').length;
+  const totalPool = _pkTherapists.length;
+  const spare = totalPool - totalNeeded;
+
+  if (maleNeeded > malePool || femaleNeeded > femalePool) {
+    hint.innerHTML = `⚠️ <strong>Not enough therapists even before Prep Room or weekly-off</strong>: this asks for ${maleNeeded}M/${femaleNeeded}F every day but only ${malePool}M/${femalePool}F exist in Panchakarma. Every day will show Shift gaps.`;
+    hint.style.color = 'var(--red)';
+  } else if (spare < 1) {
+    hint.innerHTML = `⚠️ Requesting all ${totalNeeded} of your ${totalPool} Panchakarma therapists for Shift 1+2 every day — <strong>nobody will be left for Prep Room In-charge</strong>, and any day with a weekly off or approved leave will fall short on Shift 1/2 too.`;
+    hint.style.color = 'var(--gold)';
+  } else {
+    hint.innerHTML = `${totalNeeded} of ${totalPool} therapists requested per day — ${spare} spare for Prep Room In-charge${spare > 1 ? ' and weekly-off/leave coverage' : ''}.`;
+    hint.style.color = 'var(--text-muted)';
+  }
+};
 
 window.previewPkWeek = async function() {
   const rawDate = document.getElementById('pkgen-week-start').value;

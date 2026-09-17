@@ -779,15 +779,20 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;margin-bottom:10px">
           <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 1 — Male</label>
-            <input id="pkgen-shift1-male" type="number" min="0" value="1" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+            <input id="pkgen-shift1-male" type="number" min="0" value="1" data-oninput="updatePkHeadcountHint" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
           <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 1 — Female</label>
-            <input id="pkgen-shift1-female" type="number" min="0" value="1" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+            <input id="pkgen-shift1-female" type="number" min="0" value="1" data-oninput="updatePkHeadcountHint" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
           <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 2 — Male</label>
-            <input id="pkgen-shift2-male" type="number" min="0" value="1" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+            <input id="pkgen-shift2-male" type="number" min="0" value="1" data-oninput="updatePkHeadcountHint" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
           <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">Shift 2 — Female</label>
-            <input id="pkgen-shift2-female" type="number" min="0" value="1" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+            <input id="pkgen-shift2-female" type="number" min="0" value="1" data-oninput="updatePkHeadcountHint" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
           <button id="pkgen-preview-btn" data-onclick="previewPkWeek" style="height:36px;padding:0 16px;background:var(--white);border:1.5px solid var(--green-deep);color:var(--green-deep);border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">Preview</button>
         </div>
+        <!-- Session 217 -- live headcount-vs-pool hint, updated as the 4 inputs change, so a
+             request that leaves nobody for Prep Room In-charge (or exceeds the real gendered
+             pool outright) is obvious BEFORE clicking Preview, not just as "(gap)" cells buried
+             in the results table after the fact. -->
+        <div id="pkgen-headcount-hint" style="font-size:12px;margin-bottom:8px"></div>
         <div id="pkgen-preview" style="margin-top:10px"></div>
       </div>
 
