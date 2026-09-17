@@ -51,6 +51,7 @@ let _prepLogs    = [];
 let _pkRosterSettings = null;
 let _pkRosterDuty     = [];
 let _pkPrepRoomDuty   = null; // Session 212 -- {id, profile_id, profiles:{id,full_name}} or null, at most one row/day
+let _pkPrepLeaveIds   = new Set(); // Session 212 -- profile ids on approved leave covering _pkRosterDate, for the manual assign warning only
 let _myPkShiftsWeek   = [];
 let _pkRosterDate     = new Date().toISOString().slice(0,10);
 let _viewDate    = new Date().toISOString().slice(0,10);
@@ -81,7 +82,7 @@ async function loadAll() {
   _updateDateDisplay();
 
   const _week = _thisWeekBounds();
-  const [sessRes, admRes, thRes, deptRes, tenantRes, roomRes, blocksRes, prepStaffRes, formularyRes, prepLogRes, pkSettingsRes, pkDutyRes, pkPrepRes, myShiftsRes] = await Promise.all([
+  const [sessRes, admRes, thRes, deptRes, tenantRes, roomRes, blocksRes, prepStaffRes, formularyRes, prepLogRes, pkSettingsRes, pkDutyRes, pkPrepRes, pkPrepLeaveRes, myShiftsRes] = await Promise.all([
     supabase
       .from('pk_therapy_sessions')
       .select(`
@@ -179,6 +180,18 @@ async function loadAll() {
       .eq('tenant_id', tenantId)
       .eq('duty_date', _pkRosterDate)
       .maybeSingle(),
+    // Session 212 (cont.) -- who's on approved leave covering _pkRosterDate, so the manual
+    // Prep Room In-charge dropdown can warn (not block, per Dr. Venkatesh -- manual assignment
+    // stays an admin override tool same as Shift 1/2's) about weekly-off/leave, the way the
+    // week generator already excludes them outright. Shift 1/2's own manual dropdowns
+    // deliberately keep no such warning -- this is Prep Room In-charge only, by request.
+    supabase
+      .from('staff_leaves')
+      .select('profile_id')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'approved')
+      .lte('from_date', _pkRosterDate)
+      .gte('to_date', _pkRosterDate),
     // Session 207 -- backs the plain-therapist "My Shifts This Week" read-only card;
     // scoped to the logged-in profile only, cheap regardless of role (a super_admin/HOD
     // simply gets an empty result, harmless).
@@ -212,6 +225,7 @@ async function loadAll() {
   _pkRosterSettings = pkSettingsRes.data || null;
   _pkRosterDuty     = pkDutyRes.data     || [];
   _pkPrepRoomDuty   = pkPrepRes.data     || null;
+  _pkPrepLeaveIds   = new Set((pkPrepLeaveRes.data || []).map(r => r.profile_id));
   // Real bug caught live this session: an ambiguous-FK embed silently returned no data
   // instead of erroring visibly (data was null, not an exception) -- log it so a future
   // regression here is loud instead of just quietly showing "0 on duty".
@@ -733,15 +747,41 @@ function _renderPkPrepRoomCard(isAdmin) {
 
   // Any active therapist is eligible -- no gender filter, unlike Shift 1/2 (prep-room work
   // isn't patient-facing) -- so this list is _therapists unfiltered, matching the RPC's pool.
+  // Session 212 (cont.): unlike Shift 1/2's manual dropdowns (deliberately left plain, per Dr.
+  // Venkatesh), each option here is labelled with a weekly-off/leave warning when it applies --
+  // manual assignment still allows it (this is an override tool, same as Shift 1/2), it's just
+  // no longer a silent choice the way it was before this label existed.
   const sel = document.getElementById('pkroster-prep-select');
   sel.innerHTML = '<option value="">— Assign therapist —</option>' +
-    _therapists.map(t => `<option value="${t.id}">${_esc(t.full_name)}</option>`).join('');
+    _therapists.map(t => {
+      const reason = _pkPrepWarningReason(t);
+      return `<option value="${t.id}">${_esc(t.full_name)}${reason ? ` — ⚠️ ${reason}` : ''}</option>`;
+    }).join('');
+}
+
+// dow via getUTCDay() on a bare date string (no 'T00:00:00' suffix) -- same UTC-safe convention
+// _mondayOf() already established in this file, so this never disagrees with the generator's
+// own extract(dow from date) (also timezone-agnostic on a plain date).
+function _pkPrepWarningReason(t) {
+  const dow = new Date(_pkRosterDate).getUTCDay();
+  const off = t.weekly_off_day === dow;
+  const onLeave = _pkPrepLeaveIds.has(t.id);
+  if (off && onLeave) return 'weekly off + on approved leave today';
+  if (off) return 'weekly off today';
+  if (onLeave) return 'on approved leave today';
+  return null;
 }
 
 window.assignPkPrepRoom = async function() {
   const sel = document.getElementById('pkroster-prep-select');
   const profileId = sel.value;
   if (!profileId) { _alert('error', 'Select a therapist.'); return; }
+
+  const therapist = _therapists.find(t => t.id === profileId);
+  const reason = therapist ? _pkPrepWarningReason(therapist) : null;
+  if (reason && !confirm(`${therapist.full_name} is ${reason}. Assign as Prep Room In-charge anyway?`)) {
+    return;
+  }
 
   // Upsert, not insert -- replaces whoever's currently posted that day rather than requiring
   // a separate Remove-then-Add round trip, matching the unique(tenant_id,duty_date) shape.
