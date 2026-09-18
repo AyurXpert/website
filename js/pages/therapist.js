@@ -458,7 +458,9 @@ window.saveRoom = async function() {
   const editId = document.getElementById('room-edit-id').value;
   const name = document.getElementById('room-name').value.trim();
   const type = document.getElementById('room-type').value.trim();
-  const capacity = parseInt(document.getElementById('room-capacity').value, 10) || 1;
+  // Session 236 -- always 1, hardcoded rather than read from the (now disabled, display-only)
+  // input: a treatment room is never a multi-patient concept like a bed/ward.
+  const capacity = 1;
   const gender = document.getElementById('room-gender').value;
   const blockId = document.getElementById('room-block').value || null;
   const floorRaw = document.getElementById('room-floor').value;
@@ -553,7 +555,9 @@ window.createBulkRooms = async function() {
   if (total > 30) { _alert('error', 'Create at most 30 rooms at a time — split into batches.'); return; }
 
   const prefix = document.getElementById('bulk-room-prefix').value.trim() || 'Room';
-  const capacity = parseInt(document.getElementById('bulk-room-capacity').value, 10) || 1;
+  // Session 236 -- always 1 (field removed from the form entirely): a treatment room is
+  // never a multi-patient concept like a bed/ward.
+  const capacity = 1;
   const blockId = document.getElementById('bulk-room-block').value || null;
   const floorRaw = document.getElementById('bulk-room-floor').value;
   const floor = floorRaw !== '' ? parseInt(floorRaw, 10) : null;
