@@ -1994,6 +1994,7 @@ window.openAssignDrawer = function(sessionId) {
   document.getElementById('assign-therapist').value = s.profiles?.id || '';
   document.getElementById('assign-room').value       = s.room_id || '';
   document.getElementById('assign-time').value       = s.scheduled_time ? s.scheduled_time.slice(0,5) : '';
+  document.getElementById('assign-duration').value   = s.planned_duration_minutes || '';
   document.getElementById('assign-overlay').classList.add('open');
 };
 window.closeAssignDrawer = function() {
@@ -2091,8 +2092,11 @@ window.saveAssignment = async function() {
   const btn = document.getElementById('btn-assign-save');
   btn.disabled = true; btn.textContent = 'Saving…';
 
+  const durationVal = document.getElementById('assign-duration').value;
+
   const { error } = await supabase.from('pk_therapy_sessions').update({
     therapist_id: therapistId, room_id: roomId, scheduled_time: time,
+    planned_duration_minutes: durationVal ? Number(durationVal) : null,
   }).eq('id', _assignSessionId);
 
   btn.disabled = false; btn.textContent = 'Assign';
