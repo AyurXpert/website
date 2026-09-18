@@ -99,7 +99,8 @@ async function loadAll() {
         profiles!therapist_id(id, full_name, gender),
         ordering_doctor:profiles!ordering_doctor_id(id, full_name),
         departments(id, name),
-        pk_treatment_rooms(id, room_name)
+        pk_treatment_rooms(id, room_name),
+        pk_therapy_session_therapists(profiles(id, full_name, gender))
       `)
       .eq('tenant_id', tenantId)
       .eq('scheduled_date', _viewDate)
@@ -1516,7 +1517,9 @@ async function _renderRoomOccupancyGrid() {
   const placed = _sessions.filter(s => s.room_id && s.scheduled_time && s.status !== 'skipped');
   // For the "is anyone actually free to staff this" check below, ANY timed session counts
   // toward a therapist being busy, room-assigned or not (a therapist can't be in two places).
-  const timed = _sessions.filter(s => s.scheduled_time && s.status !== 'skipped' && s.profiles?.id);
+  // Session 229 -- counts every assigned therapist on a multi-therapist session, not just the
+  // primary, since all of them are genuinely occupied for its duration.
+  const timed = _sessions.filter(s => s.scheduled_time && s.status !== 'skipped' && _sessionAllTherapists(s).length);
 
   // Session 228 -- real gap found live: this grid showed a room as freely schedulable purely
   // by room occupancy, with no check that an on-duty therapist of the right gender was even
@@ -1558,7 +1561,7 @@ async function _renderRoomOccupancyGrid() {
         // designated gender, and not already busy with a DIFFERENT session (any room) at
         // this exact slot.
         const activeShifts = activeShiftsAt(slotStart, slotEnd);
-        const busyIds = new Set(timed.filter(overlaps).map(s => s.profiles.id));
+        const busyIds = new Set(timed.filter(overlaps).flatMap(s => _sessionAllTherapists(s).map(t => t.id)));
         const eligible = dutyByShift.filter(r2 => activeShifts.includes(r2.shift_slot)).map(r2 => r2.profiles).filter(p =>
           (r.gender_restriction === 'any' || !r.gender_restriction || (p.gender === 'M' ? 'male' : 'female') === r.gender_restriction)
           && !busyIds.has(p.id));
@@ -1741,6 +1744,17 @@ window.applyFilters = function() {
   renderTable(rows);
 };
 
+// Session 229 -- some procedures genuinely need 2-4 therapists at once (e.g. Pizhichil,
+// Njavara Kizhi). pk_therapy_session_therapists holds the ADDITIONAL ones only -- the primary
+// (s.profiles) stays the single source of truth everywhere it was already used (auto-assign
+// continuity-of-care, fairness load-balancing, the gold "isMine" highlight), so this helper is
+// only needed where "every therapist on this session" genuinely matters (busy-checks, gender
+// validation, display).
+function _sessionAllTherapists(s) {
+  const extra = (s.pk_therapy_session_therapists || []).map(r => r.profiles).filter(Boolean);
+  return s.profiles?.id ? [s.profiles, ...extra] : extra;
+}
+
 function renderTable(rows) {
   const tbody = document.getElementById('sessions-tbody');
   if (!rows.length) {
@@ -1833,6 +1847,7 @@ function renderTable(rows) {
       <td>
         <div>${_esc(therapist.full_name||'—')}</div>
         ${therapist.gender ? `<div class="pt-meta">${therapist.gender === 'M' ? 'Male' : 'Female'}</div>` : ''}
+        ${(s.pk_therapy_session_therapists || []).map(r => r.profiles).filter(Boolean).map(t => `<div class="pt-meta">+ ${_esc(t.full_name)}</div>`).join('')}
       </td>
       <td>${_esc(dept.name||'—')}</td>
       <td>${instructionsFull ? `<span title="${_esc(instructionsFull)}">${_esc(instructionsShort)}</span>` : '—'}</td>
@@ -1896,6 +1911,8 @@ window.openSchedDrawer = function(prefillAdmId) {
   document.getElementById('sched-duration').value  = '';
   document.getElementById('sched-doctor').value    = '';
   document.getElementById('sched-instructions').value = '';
+  _schedExtraTherapistIds = [];
+  document.getElementById('sched-extra-therapists').innerHTML = '';
   onSourceChange();
   if (prefillAdmId) {
     const opts = document.getElementById('sched-admission').options;
@@ -1977,11 +1994,23 @@ async function _autoAssignSchedTherapist() {
 
   const ctx = await _resolveSchedPatientContext();
   if (token !== _schedAutoAssignToken) return; // a newer call has since started -- discard this one
-  if (!ctx.patientId) { sel.value = ''; showAuto('— Select patient first —'); return; }
+  if (!ctx.patientId) {
+    sel.value = ''; showAuto('— Select patient first —');
+    _schedExtraTherapistIds = [];
+    _renderExtraTherapistRows('sched-extra-therapists', _schedExtraTherapistIds, 'onSchedExtraTherapistChange', 'removeSchedExtraTherapist', '', null);
+    return;
+  }
   // Session 226 -- re-filters the room dropdown to this patient's gender-designated rooms
   // every time the patient selection changes (was populated once, patient-agnostic, at drawer
   // open -- letting a cross-gender room stay selectable the whole time).
   _populateRoomSelect(ctx.gender);
+  // Session 229 -- same re-filter for the multi-therapist extras panel; drops any selection
+  // that's no longer gender-eligible if the patient changed.
+  _schedExtraTherapistIds = _schedExtraTherapistIds.filter(id => {
+    const t = _pkTherapists.find(x => x.id === id);
+    return t && (!ctx.gender || !t.gender || t.gender === ctx.gender);
+  });
+  _renderExtraTherapistRows('sched-extra-therapists', _schedExtraTherapistIds, 'onSchedExtraTherapistChange', 'removeSchedExtraTherapist', document.getElementById('sched-therapist').value, ctx.gender);
 
   const { data: dutyRows } = await supabase
     .from('pk_therapist_duty')
@@ -2059,6 +2088,24 @@ async function _autoAssignSchedTherapist() {
 }
 window.onSchedAssignInputsChange = function() { _autoAssignSchedTherapist(); };
 
+// Session 229 -- multi-therapist add/remove/change for the "+ Schedule Session" form.
+window.addSchedExtraTherapist = async function() {
+  if (_schedExtraTherapistIds.length >= 3) { _alert('error', 'Up to 3 additional therapists (4 total) — that should cover any real procedure.'); return; }
+  const ctx = await _resolveSchedPatientContext();
+  _schedExtraTherapistIds.push('');
+  _renderExtraTherapistRows('sched-extra-therapists', _schedExtraTherapistIds, 'onSchedExtraTherapistChange', 'removeSchedExtraTherapist', document.getElementById('sched-therapist').value, ctx.gender);
+};
+window.removeSchedExtraTherapist = async function(idx) {
+  _schedExtraTherapistIds.splice(Number(idx), 1);
+  const ctx = await _resolveSchedPatientContext();
+  _renderExtraTherapistRows('sched-extra-therapists', _schedExtraTherapistIds, 'onSchedExtraTherapistChange', 'removeSchedExtraTherapist', document.getElementById('sched-therapist').value, ctx.gender);
+};
+window.onSchedExtraTherapistChange = async function(idx, value) {
+  _schedExtraTherapistIds[Number(idx)] = value;
+  const ctx = await _resolveSchedPatientContext();
+  _renderExtraTherapistRows('sched-extra-therapists', _schedExtraTherapistIds, 'onSchedExtraTherapistChange', 'removeSchedExtraTherapist', document.getElementById('sched-therapist').value, ctx.gender);
+};
+
 window.saveSession = async function() {
   const source    = document.getElementById('sched-source').value;
   const phase     = document.getElementById('sched-phase').value;
@@ -2086,6 +2133,15 @@ window.saveSession = async function() {
   if (ctx.gender && therapistData?.gender && ctx.gender !== therapistData.gender) {
     _alert('error', 'NABH PRE.2 — cross-gender therapist assignment is not permitted. Assign a therapist of the same gender as the patient.');
     return;
+  }
+  // Session 229 -- same hard block for every additional therapist, not just the primary.
+  const extraTherapistIds = [...new Set(_schedExtraTherapistIds.filter(Boolean))];
+  for (const id of extraTherapistIds) {
+    const t = _pkTherapists.find(x => x.id === id);
+    if (ctx.gender && t?.gender && ctx.gender !== t.gender) {
+      _alert('error', `NABH PRE.2 — ${t.full_name} is a different gender than the patient. Cross-gender therapist assignment is not permitted.`);
+      return;
+    }
   }
 
   // Session 226 -- NCISM Sch III/XXV gender-separated treatment rooms: same hard block for
@@ -2153,7 +2209,7 @@ window.saveSession = async function() {
   const doctorVal   = document.getElementById('sched-doctor').value;
   const instrVal    = document.getElementById('sched-instructions').value.trim();
 
-  const { error } = await supabase.from('pk_therapy_sessions').insert({
+  const { data: inserted, error } = await supabase.from('pk_therapy_sessions').insert({
     tenant_id:           tenantId,
     patient_id:          patientId,
     ipd_admission_id:    admId || null,
@@ -2169,7 +2225,16 @@ window.saveSession = async function() {
     planned_duration_minutes: durationVal ? Number(durationVal) : null,
     ordering_doctor_id:  doctorVal || null,
     special_instructions: instrVal || null,
-  });
+  }).select('id').single();
+
+  if (!error && inserted && extraTherapistIds.length) {
+    // Session 229 -- best-effort: the main session is already saved at this point (its own
+    // insert above is the real safety-checked write), this is just recording who else is
+    // helping. A failure here surfaces as a warning, not a rollback of the whole schedule.
+    const { error: extraErr } = await supabase.from('pk_therapy_session_therapists')
+      .insert(extraTherapistIds.map(id => ({ session_id: inserted.id, therapist_id: id })));
+    if (extraErr) _alert('error', safeErrorMessage(extraErr, 'Session scheduled, but the additional therapists could not be saved.'));
+  }
 
   btn.disabled = false; btn.textContent = 'Schedule';
   if (error) {
@@ -2195,6 +2260,30 @@ let _assignSessionId = null;
 // drawer, requested as a quicker path for adjusting either after the fact). Same
 // click-to-edit convention as _pkEditingDutyId's Shift 1/2 grid above.
 let _editSessionCell = null; // { id, field: 'time' | 'duration' }
+
+// Session 229 -- multi-therapist sessions. Both forms track their own selected-extras array
+// (ids, possibly with blank '' slots mid-pick) independently.
+let _schedExtraTherapistIds = [];
+let _assignExtraTherapistIds = [];
+
+function _extraTherapistOptions(patientGender, excludeIds) {
+  return _pkTherapists.filter(t => (!patientGender || !t.gender || t.gender === patientGender) && !excludeIds.includes(t.id));
+}
+
+function _renderExtraTherapistRows(containerId, ids, onChangeFn, onRemoveFn, primaryId, patientGender) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = ids.map((id, idx) => {
+    const exclude = [primaryId, ...ids.filter((_, i) => i !== idx)].filter(Boolean);
+    const opts = _extraTherapistOptions(patientGender, exclude)
+      .map(t => `<option value="${t.id}"${t.id === id ? ' selected' : ''}>${_esc(t.full_name)}</option>`).join('');
+    return `<div style="display:flex;gap:6px;margin-bottom:6px">
+      <select data-onchange="${onChangeFn}" data-onchange-a0="${idx}" data-onchange-a1="@value" style="flex:1;height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:12px;font-family:inherit">
+        <option value="">— Select therapist —</option>${opts}
+      </select>
+      <button data-onclick="${onRemoveFn}" data-onclick-a0="${idx}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:15px;padding:0 4px">✕</button>
+    </div>`;
+  }).join('');
+}
 
 window.openAssignDrawer = async function(sessionId) {
   const s = _sessions.find(x => x.id === sessionId);
@@ -2223,10 +2312,31 @@ window.openAssignDrawer = async function(sessionId) {
   document.getElementById('assign-room').value       = s.room_id || '';
   document.getElementById('assign-time').value       = s.scheduled_time ? s.scheduled_time.slice(0,5) : '';
   document.getElementById('assign-duration').value   = s.planned_duration_minutes || '';
+  // Session 229 -- multi-therapist: pre-fill from whatever's already saved for this session.
+  _assignExtraTherapistIds = (s.pk_therapy_session_therapists || []).map(r => r.profiles?.id).filter(Boolean);
+  _renderExtraTherapistRows('assign-extra-therapists', _assignExtraTherapistIds, 'onAssignExtraTherapistChange', 'removeAssignExtraTherapist', s.profiles?.id || '', pt.gender);
   document.getElementById('assign-overlay').classList.add('open');
 };
 window.closeAssignDrawer = function() {
   document.getElementById('assign-overlay').classList.remove('open');
+};
+
+// Session 229 -- multi-therapist add/remove/change for the Assign Room & Therapist drawer.
+function _currentAssignSessionGender() {
+  return _sessions.find(x => x.id === _assignSessionId)?.patients?.gender || null;
+}
+window.addAssignExtraTherapist = function() {
+  if (_assignExtraTherapistIds.length >= 3) { _alert('error', 'Up to 3 additional therapists (4 total) — that should cover any real procedure.'); return; }
+  _assignExtraTherapistIds.push('');
+  _renderExtraTherapistRows('assign-extra-therapists', _assignExtraTherapistIds, 'onAssignExtraTherapistChange', 'removeAssignExtraTherapist', document.getElementById('assign-therapist').value, _currentAssignSessionGender());
+};
+window.removeAssignExtraTherapist = function(idx) {
+  _assignExtraTherapistIds.splice(Number(idx), 1);
+  _renderExtraTherapistRows('assign-extra-therapists', _assignExtraTherapistIds, 'onAssignExtraTherapistChange', 'removeAssignExtraTherapist', document.getElementById('assign-therapist').value, _currentAssignSessionGender());
+};
+window.onAssignExtraTherapistChange = function(idx, value) {
+  _assignExtraTherapistIds[Number(idx)] = value;
+  _renderExtraTherapistRows('assign-extra-therapists', _assignExtraTherapistIds, 'onAssignExtraTherapistChange', 'removeAssignExtraTherapist', document.getElementById('assign-therapist').value, _currentAssignSessionGender());
 };
 
 function _populateAssignRoomSelect(patientGender) {
@@ -2286,6 +2396,15 @@ window.saveAssignment = async function() {
   if (patientGender && therapistData?.gender && patientGender !== therapistData.gender) {
     _alert('error', 'NABH PRE.2 — cross-gender therapist assignment is not permitted. Assign a therapist of the same gender as the patient.');
     return;
+  }
+  // Session 229 -- same hard block for every additional therapist, not just the primary.
+  const extraTherapistIds = [...new Set(_assignExtraTherapistIds.filter(Boolean))];
+  for (const id of extraTherapistIds) {
+    const t = _pkTherapists.find(x => x.id === id);
+    if (patientGender && t?.gender && patientGender !== t.gender) {
+      _alert('error', `NABH PRE.2 — ${t.full_name} is a different gender than the patient. Cross-gender therapist assignment is not permitted.`);
+      return;
+    }
   }
 
   // Same NCISM Sch III/XXV gender-separated-room hard block saveSession() has.
@@ -2348,6 +2467,18 @@ window.saveAssignment = async function() {
     therapist_id: therapistId, room_id: roomId, scheduled_time: time,
     planned_duration_minutes: durationVal ? Number(durationVal) : null,
   }).eq('id', _assignSessionId);
+
+  // Session 229 -- resyncs the additional-therapist list: delete-then-reinsert is simplest and
+  // correct here (at most 3 rows, no risk of losing anything else -- this table only ever
+  // holds this exact session's additional therapists).
+  if (!error) {
+    await supabase.from('pk_therapy_session_therapists').delete().eq('session_id', _assignSessionId);
+    if (extraTherapistIds.length) {
+      const { error: extraErr } = await supabase.from('pk_therapy_session_therapists')
+        .insert(extraTherapistIds.map(id => ({ session_id: _assignSessionId, therapist_id: id })));
+      if (extraErr) _alert('error', safeErrorMessage(extraErr, 'Assigned, but the additional therapists could not be saved.'));
+    }
+  }
 
   btn.disabled = false; btn.textContent = 'Assign';
   if (error) {

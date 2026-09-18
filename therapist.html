@@ -346,6 +346,17 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
         <div class="field-note" id="therapist-note"></div>
       </div>
 
+      <!-- Session 229 -- some procedures genuinely need 2-4 therapists working simultaneously
+           (e.g. Pizhichil, Njavara Kizhi) -- capability built ahead of real per-therapy SOP
+           data on exactly how many, so this stays a manual add for now (every therapy defaults
+           to needing just the one primary therapist above; nothing changes for a session that
+           doesn't use this). -->
+      <div class="field">
+        <div id="sched-extra-therapists"></div>
+        <span data-onclick="addSchedExtraTherapist" style="cursor:pointer;color:var(--green-mid);font-size:12px;font-weight:600;text-decoration:underline">+ Add another therapist</span>
+        <div class="field-note">Only if this procedure genuinely needs more than one therapist at once (up to 3 more).</div>
+      </div>
+
       <div class="field-row">
         <div class="field">
           <label>Date <span class="req">*</span></label>
@@ -424,6 +435,13 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
         <select id="assign-therapist">
           <option value="">— Select therapist —</option>
         </select>
+      </div>
+
+      <!-- Session 229 -- same multi-therapist capability as "+ Schedule Session". -->
+      <div class="field">
+        <div id="assign-extra-therapists"></div>
+        <span data-onclick="addAssignExtraTherapist" style="cursor:pointer;color:var(--green-mid);font-size:12px;font-weight:600;text-decoration:underline">+ Add another therapist</span>
+        <div class="field-note">Only if this procedure genuinely needs more than one therapist at once (up to 3 more).</div>
       </div>
 
       <div class="field-row">
