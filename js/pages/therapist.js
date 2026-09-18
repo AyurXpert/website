@@ -93,7 +93,7 @@ async function loadAll() {
       .select(`
         id, therapy_phase, therapy_name, scheduled_date, scheduled_time,
         actual_start, actual_end, status, therapist_notes, doctor_clearance,
-        therapy_room_number, samsarjana_stage, room_id,
+        therapy_room_number, samsarjana_stage, room_id, ipd_admission_id,
         planned_duration_minutes, special_instructions,
         patients(id, name, phone, age, gender),
         profiles!therapist_id(id, full_name, gender),
@@ -2290,6 +2290,25 @@ function _renderExtraTherapistRows(containerId, ids, onChangeFn, onRemoveFn, pri
   }).join('');
 }
 
+// Session 228 -- real gap found live: this dropdown never checked whether a therapist was
+// actually on duty on the session's own date at all (a room/gender match alone isn't enough
+// to actually staff it) -- someone rostered for a different shift/day could be manually
+// assigned here with zero warning. Fetched fresh per the date currently in the drawer
+// (deliberately NOT the Duty Roster panel's independently-browsable _pkRosterDate, which can
+// be a different day entirely). Warns rather than hard-blocks, same as the Prep Room manual
+// dropdown's weekly-off/leave labels -- this stays a real override tool for a genuine
+// call-someone-in case, unlike the Session 226 gender rule.
+async function _refreshAssignTherapistDuty(date, patientGender, currentTherapistId) {
+  const { data: dutyRows } = await supabase
+    .from('pk_therapist_duty')
+    .select('profile_id')
+    .eq('tenant_id', tenantId)
+    .eq('duty_date', date);
+  const onDutyIds = new Set((dutyRows || []).map(r => r.profile_id));
+  _populateAssignTherapistSelect(patientGender, onDutyIds, date);
+  document.getElementById('assign-therapist').value = currentTherapistId || '';
+}
+
 window.openAssignDrawer = async function(sessionId) {
   const s = _sessions.find(x => x.id === sessionId);
   if (!s) return;
@@ -2297,23 +2316,8 @@ window.openAssignDrawer = async function(sessionId) {
   const pt = s.patients || {};
   document.getElementById('assign-session-summary').textContent =
     `${pt.name || 'Patient'} — ${s.therapy_name} (${_phaseLabel(s.therapy_phase)}) · ${s.scheduled_date}`;
-  // Session 228 -- real gap found live: this dropdown never checked whether a therapist was
-  // actually on duty on the session's own date at all (a room/gender match alone isn't enough
-  // to actually staff it) -- someone rostered for a different shift/day could be manually
-  // assigned here with zero warning. Fetched fresh per this session's own scheduled_date
-  // (deliberately NOT the Duty Roster panel's independently-browsable _pkRosterDate, which can
-  // be a different day entirely). Warns rather than hard-blocks, same as the Prep Room manual
-  // dropdown's weekly-off/leave labels -- this stays a real override tool for a genuine
-  // call-someone-in case, unlike the Session 226 gender rule.
-  const { data: dutyRows } = await supabase
-    .from('pk_therapist_duty')
-    .select('profile_id')
-    .eq('tenant_id', tenantId)
-    .eq('duty_date', s.scheduled_date);
-  const onDutyIds = new Set((dutyRows || []).map(r => r.profile_id));
   _populateAssignRoomSelect(pt.gender);
-  _populateAssignTherapistSelect(pt.gender, onDutyIds, s.scheduled_date);
-  document.getElementById('assign-therapist').value = s.profiles?.id || '';
+  await _refreshAssignTherapistDuty(s.scheduled_date, pt.gender, s.profiles?.id);
   document.getElementById('assign-room').value       = s.room_id || '';
   document.getElementById('assign-time').value       = s.scheduled_time ? s.scheduled_time.slice(0,5) : '';
   document.getElementById('assign-duration').value   = s.planned_duration_minutes || '';
@@ -2392,6 +2396,11 @@ window.saveAssignment = async function() {
   const therapistId = document.getElementById('assign-therapist').value;
   const roomId       = document.getElementById('assign-room').value || null;
   const time         = document.getElementById('assign-time').value || null;
+  // Session 230 -- Date is deliberately NOT editable here (briefly was, corrected same
+  // session): a session's day is clinically deliberate, not the Pk Incharge's call to move on
+  // their own. See Skip's reschedule-on-skip path for the one real case a therapist genuinely
+  // needs to move a date -- when treatment didn't happen at all.
+  const date         = s.scheduled_date;
   if (!therapistId) { _alert('error', 'Select a therapist.'); return; }
 
   // Session 226 -- same hard block saveSession() has: cross-gender therapist assignment is
@@ -2454,7 +2463,7 @@ window.saveAssignment = async function() {
   if (roomId && time) {
     const { data: clash } = await supabase.from('pk_therapy_sessions')
       .select('id, patients(name)')
-      .eq('room_id', roomId).eq('scheduled_date', s.scheduled_date).eq('scheduled_time', time)
+      .eq('room_id', roomId).eq('scheduled_date', date).eq('scheduled_time', time)
       .neq('id', _assignSessionId).neq('status', 'skipped').maybeSingle();
     if (clash) {
       const room = _rooms.find(r => r.id === roomId);
@@ -2534,6 +2543,7 @@ window.openCompleteDrawer = function(id, isSkip, viewOnly) {
   document.getElementById('comp-notes').value         = s.therapist_notes || '';
   document.getElementById('comp-clearance').checked   = s.doctor_clearance || false;
   document.getElementById('comp-skip-reason').value   = '';
+  document.getElementById('comp-reschedule-date').value = '';
 
   // Samsarjana Krama — only for Paschatkarma
   const isPaschatkarma = s.therapy_phase === 'paschatkarma';
@@ -2614,6 +2624,42 @@ window.saveCompletion = async function() {
   btn.textContent = isSkip ? 'Mark Skipped' : 'Mark Completed';
 
   if (error) { _alert('error', safeErrorMessage(error, 'Could not update session.')); return; }
+
+  // Session 230 -- rescheduling on Skip is the one real case a therapist genuinely needs to
+  // move a session's date (treatment didn't happen at all) -- deliberately NOT a general date-
+  // edit anywhere else (see Assign Room & Therapist drawer's own comment). Creates a fresh
+  // session on the new date rather than mutating the skipped one, so the skip stays a real,
+  // permanent record -- carries over the same patient/therapy/room/therapist(s) as a starting
+  // point, doctor_clearance reset to false (a new instance of the procedure needs its own
+  // fitness confirmation, same as any newly created session).
+  const rescheduleDate = isSkip ? document.getElementById('comp-reschedule-date').value : '';
+  if (rescheduleDate && session) {
+    const { data: newSession, error: reErr } = await supabase.from('pk_therapy_sessions').insert({
+      tenant_id:            tenantId,
+      patient_id:           session.patients?.id || null,
+      ipd_admission_id:     session.ipd_admission_id || null,
+      therapist_id:         session.profiles?.id || null,
+      department_id:        session.departments?.id || null,
+      therapy_phase:        session.therapy_phase,
+      therapy_name:         session.therapy_name,
+      scheduled_date:       rescheduleDate,
+      room_id:              session.room_id || null,
+      status:               'scheduled',
+      doctor_clearance:     false,
+      planned_duration_minutes: session.planned_duration_minutes || null,
+      ordering_doctor_id:   session.ordering_doctor?.id || null,
+      special_instructions: session.special_instructions || null,
+    }).select('id').single();
+    if (reErr) {
+      _alert('error', safeErrorMessage(reErr, 'Session skipped, but the reschedule could not be created — reschedule it manually.'));
+    } else if (newSession) {
+      const extras = (session.pk_therapy_session_therapists || []).map(r => r.profiles?.id).filter(Boolean);
+      if (extras.length) {
+        await supabase.from('pk_therapy_session_therapists').insert(extras.map(id => ({ session_id: newSession.id, therapist_id: id })));
+      }
+    }
+  }
+
   closeCompleteDrawer();
 
   // NCISM §47(vii) — Post-PK review alert when last Paschatkarma session completes
@@ -2658,7 +2704,9 @@ window.saveCompletion = async function() {
     }
   }
 
-  _alert('success', isSkip ? 'Session skipped.' : 'Session completed.');
+  _alert('success', isSkip
+    ? (rescheduleDate ? `Session skipped and rescheduled to ${rescheduleDate}.` : 'Session skipped.')
+    : 'Session completed.');
   await loadAll();
 };
 

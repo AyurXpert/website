@@ -444,6 +444,13 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
         <div class="field-note">Only if this procedure genuinely needs more than one therapist at once (up to 3 more).</div>
       </div>
 
+      <!-- Session 230 -- Date briefly made editable here, then corrected same session: a
+           session's day is clinically deliberate (a Panchakarma course's sequence, e.g.
+           Virechana on a specific day) -- not the Pk Incharge's call to move on their own.
+           Date changes only happen two ways: the doctor reschedules directly (their own
+           login, same tools), or the therapist marks a session Skipped when treatment
+           genuinely didn't happen and reschedules it from there (see openCompleteDrawer's
+           Skip path) -- not from this drawer. -->
       <div class="field-row">
         <div class="field">
           <label>Time</label>
@@ -537,6 +544,16 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
         <div class="field">
           <label>Reason for Skipping</label>
           <input id="comp-skip-reason" type="text" placeholder="Patient refused, unwell, doctor order…"/>
+        </div>
+        <!-- Session 230 -- Dr. Venkatesh's explicit call: a session's date is not the Pk
+             Incharge's to move on a whim (the "Assign Room & Therapist" drawer deliberately
+             does NOT expose it) -- the one real case a therapist genuinely needs to move it is
+             right here, when treatment didn't happen at all. Optional -- skipping alone is
+             still a complete, valid action without rescheduling anything. -->
+        <div class="field">
+          <label>Reschedule To (optional)</label>
+          <input id="comp-reschedule-date" type="date"/>
+          <div class="field-note">Creates a new session for this same patient/therapy on the date above — the skipped one stays on record as skipped.</div>
         </div>
       </div>
     </div>
