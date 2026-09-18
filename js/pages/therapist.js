@@ -282,6 +282,7 @@ async function loadAll() {
   _populateSchedSelects();
   renderStats();
   applyFilters();
+  _renderRoomOccupancyGrid();
   _renderRoomsPanel();
   _renderPrepPanel();
   _renderPkRosterPanel();
@@ -1468,6 +1469,82 @@ function renderStats() {
     <span class="ncism47-meta">${pct===100 ? 'All sessions fitness-cleared ✓' : `${active.length - cleared} session(s) without PK fitness clearance`}</span>
   `;
 }
+
+// Session 227 -- Room Occupancy grid. Window spans both configured shifts (falls back to the
+// same 09:00/14:00/8h defaults _pkShiftLabel() uses if settings haven't loaded yet), in 30-min
+// columns -- fine granularity without an unreadable number of columns for a typical 8-9hr span.
+function _pkShiftWindow() {
+  const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const s1 = _pkRosterSettings?.shift1_start || '09:00';
+  const s2 = _pkRosterSettings?.shift2_start || '14:00';
+  const dur = (_pkRosterSettings?.shift_duration_hours || 8) * 60;
+  const starts = [toMin(s1), toMin(s2)];
+  return { startMin: Math.min(...starts), endMin: Math.max(starts[0] + dur, starts[1] + dur) };
+}
+const _fmtMin = (min) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+function _renderRoomOccupancyGrid() {
+  const wrap = document.getElementById('pkroom-occupancy-details');
+  const isAdmin = _isPkRosterAdmin() || _isRoomAdmin();
+  // Session 223's same widened-visibility population -- a plain therapist's _sessions is
+  // already narrowed to "mine", which would make every other room falsely look empty here.
+  wrap.style.display = isAdmin ? '' : 'none';
+  if (!isAdmin) return;
+
+  const grid = document.getElementById('pkroom-occupancy-grid');
+  const activeRooms = _rooms.filter(r => r.status === 'active');
+  if (!activeRooms.length) { grid.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No active treatment rooms configured.</div>'; return; }
+
+  const { startMin, endMin } = _pkShiftWindow();
+  const slotLen = 30;
+  const slots = [];
+  for (let m = startMin; m < endMin; m += slotLen) slots.push(m);
+
+  // Sessions actually placed in a room+time today, with their real span (defaults to one
+  // slot's worth when no planned_duration_minutes is set -- can't know the true span otherwise).
+  const placed = _sessions.filter(s => s.room_id && s.scheduled_time && s.status !== 'skipped');
+  const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+
+  const genderOrder = { female: 0, male: 1, any: 2 };
+  const sortedRooms = [...activeRooms].sort((a, b) =>
+    (genderOrder[a.gender_restriction] ?? 2) - (genderOrder[b.gender_restriction] ?? 2) || a.room_name.localeCompare(b.room_name));
+
+  const header = `<tr><th style="min-width:110px">Room</th>${slots.map(m => `<th style="min-width:64px;font-size:10.5px">${_fmtMin(m)}</th>`).join('')}</tr>`;
+
+  const rows = sortedRooms.map(r => {
+    const roomSessions = placed.filter(s => s.room_id === r.id);
+    const genderLabel = r.gender_restriction === 'female' ? 'Female' : r.gender_restriction === 'male' ? 'Male' : 'Any';
+    const cells = slots.map(slotStart => {
+      const slotEnd = slotStart + slotLen;
+      const hit = roomSessions.find(s => {
+        const start = toMin(s.scheduled_time.slice(0, 5));
+        const end = start + (s.planned_duration_minutes || slotLen);
+        return start < slotEnd && end > slotStart;
+      });
+      if (!hit) {
+        return `<td data-onclick="quickScheduleAt" data-onclick-a0="${_fmtMin(slotStart)}" style="cursor:pointer;background:var(--success-bg);text-align:center;color:var(--success-text);font-size:16px" title="Click to schedule a session in ${_esc(r.room_name)} at ${_fmtMin(slotStart)}">+</td>`;
+      }
+      const isFirstSlot = toMin(hit.scheduled_time.slice(0, 5)) >= slotStart && toMin(hit.scheduled_time.slice(0, 5)) < slotEnd;
+      const name = _esc(hit.patients?.name || 'Patient');
+      return `<td style="background:var(--gold-light);font-size:10.5px;padding:4px 6px;${isFirstSlot ? '' : 'opacity:.55'}">${isFirstSlot ? name : '···'}</td>`;
+    }).join('');
+    return `<tr><td style="font-weight:600;font-size:12.5px">${_esc(r.room_name)}<div class="pt-meta">${genderLabel}${r.room_type ? ' · ' + _esc(r.room_type) : ''}</div></td>${cells}</tr>`;
+  }).join('');
+
+  grid.innerHTML = `<table class="sessions-table"><thead>${header}</thead><tbody>${rows}</tbody></table>
+    <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">🟩 Click an open slot to schedule a session there. Occupied slots show the patient's name (a session with no set duration is shown occupying one 30-min slot only).</div>`;
+}
+
+// Session 227 -- clicking an open Room Occupancy slot jumps straight into "+ Schedule Session"
+// with the date/time pre-filled. Deliberately does NOT also pre-fill the room: which rooms are
+// even offered depends on the patient's gender (Session 226), not known until a patient is
+// picked, so pre-locking a room here could silently end up wrong-gender or get wiped the moment
+// _autoAssignSchedTherapist() re-filters the room dropdown after patient selection.
+window.quickScheduleAt = function(timeStr) {
+  openSchedDrawer();
+  document.getElementById('sched-date').value = _viewDate;
+  document.getElementById('sched-time').value = timeStr;
+};
 
 // ── Populate filters + sched selects ─────────────────────────────────────────
 function _populateFilterSelects() {

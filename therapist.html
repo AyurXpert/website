@@ -920,6 +920,21 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
     </select>
   </div>
 
+  <!-- Session 227 -- requested live: the flat session list gives no sense of which of the 8
+       treatment rooms are actually free at a given time, so rooms can sit idle even on a busy
+       day. Complementary read-only grid (same pattern as View Full Week above complementing
+       the single-day Duty Roster) -- doesn't replace the operational table below, which keeps
+       its inline editing/actions. Scoped to the same _viewDate as the table below, computed
+       entirely from already-loaded _sessions/_rooms (no extra query). Admin/room-admin only --
+       a plain therapist's _sessions is already narrowed to "mine", which would make most of
+       the grid falsely look empty. -->
+  <details id="pkroom-occupancy-details" style="margin-bottom:14px;display:none">
+    <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep);padding:10px 14px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px;list-style:none">🏠 Room Occupancy <span style="font-size:11px;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(who's using which room, and when it's free — click an empty slot to schedule)</span></summary>
+    <div style="background:var(--white);border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:14px 16px">
+      <div id="pkroom-occupancy-grid" style="overflow-x:auto">Loading…</div>
+    </div>
+  </details>
+
   <!-- Table -->
   <table class="sessions-table" id="sessions-table">
     <thead>
