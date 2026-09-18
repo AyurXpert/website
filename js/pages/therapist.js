@@ -1839,22 +1839,31 @@ function renderTable(rows) {
     // via "+ Schedule Session" at creation or the Assign Room & Therapist drawer afterward).
     // Same click-to-edit convention as _pkEditingDutyId's grid above: click the value, it
     // becomes a real input pre-filled with the current value, commits on change.
-    const timeCell = (_editSessionCell?.id === s.id && _editSessionCell.field === 'time')
+    // Session 239 -- same restriction as the 🏠 Assign drawer: Time/Duration are logistics
+    // fields owned by the Pk Incharge, not any therapist. A non-admin now sees plain read-only
+    // text here (no click-to-edit affordance) instead of the underlined value.
+    const _canEditSlot = _isPkRosterAdmin();
+    const timeCell = _canEditSlot && _editSessionCell?.id === s.id && _editSessionCell.field === 'time'
       ? `<input type="time" value="${s.scheduled_time ? s.scheduled_time.slice(0,5) : ''}"
            data-onchange="saveSessionCell" data-onchange-a0="${s.id}" data-onchange-a1="time" data-onchange-a2="@value"
            data-onblur="cancelEditSessionCell"
            style="height:30px;border:1.5px solid var(--green-deep);border-radius:6px;padding:0 6px;font-size:12px;width:95px;font-family:inherit"/>`
-      : `<div class="time-cell" data-onclick="startEditSessionCell" data-onclick-a0="${s.id}" data-onclick-a1="time"
-           style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px" title="Click to edit">${timeStr}</div>
-         ${s.actual_start ? `<div class="time-end">Started ${s.actual_start.slice(11,16)}</div>` : ''}`;
+      : _canEditSlot
+        ? `<div class="time-cell" data-onclick="startEditSessionCell" data-onclick-a0="${s.id}" data-onclick-a1="time"
+             style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px" title="Click to edit">${timeStr}</div>
+           ${s.actual_start ? `<div class="time-end">Started ${s.actual_start.slice(11,16)}</div>` : ''}`
+        : `<div class="time-cell">${timeStr}</div>
+           ${s.actual_start ? `<div class="time-end">Started ${s.actual_start.slice(11,16)}</div>` : ''}`;
 
-    const durationCell = (_editSessionCell?.id === s.id && _editSessionCell.field === 'duration')
+    const durationCell = _canEditSlot && _editSessionCell?.id === s.id && _editSessionCell.field === 'duration'
       ? `<input type="number" min="0" value="${s.planned_duration_minutes || ''}" placeholder="min"
            data-onchange="saveSessionCell" data-onchange-a0="${s.id}" data-onchange-a1="duration" data-onchange-a2="@value"
            data-onblur="cancelEditSessionCell"
            style="height:30px;border:1.5px solid var(--green-deep);border-radius:6px;padding:0 6px;font-size:12px;width:65px;font-family:inherit"/>`
-      : `<span data-onclick="startEditSessionCell" data-onclick-a0="${s.id}" data-onclick-a1="duration"
-           style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px" title="Click to edit">${durationLabel}</span>`;
+      : _canEditSlot
+        ? `<span data-onclick="startEditSessionCell" data-onclick-a0="${s.id}" data-onclick-a1="duration"
+             style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px" title="Click to edit">${durationLabel}</span>`
+        : `<span>${durationLabel}</span>`;
 
     return `<tr${isMine ? ' style="background:var(--gold-light)"' : ''}>
       <td>
@@ -1892,8 +1901,13 @@ function renderTable(rows) {
                meant there was no way back into this drawer at all once a session was fully
                assigned -- exactly where "+ Add another therapist" lives, so a real,
                already-staffed session could never gain a 2nd/3rd/4th therapist through the UI.
-               Always shown now (bar a skipped session); label reflects which case it is. -->
-          ${s.status !== 'skipped' ? `<button class="icon-btn" data-onclick="openAssignDrawer" data-onclick-a0="${s.id}" title="${(!s.room_id || !therapist.id) ? 'Assign Room & Therapist' : 'Edit Room / Therapists'}" style="color:#1a4080">🏠</button>` : ''}
+               Always shown now (bar a skipped session); label reflects which case it is.
+               Session 239 -- Room/Therapist/Time/Duration are logistics decisions that belong
+               to the Pk Incharge (or dept admin/super_admin), not any therapist working the
+               floor -- a regular therapist could otherwise reassign a colleague's room or
+               bump another therapist off a session. Restricted to _isPkRosterAdmin() here,
+               same check the Duty Roster/Rooms admin panels already gate on. -->
+          ${s.status !== 'skipped' && _isPkRosterAdmin() ? `<button class="icon-btn" data-onclick="openAssignDrawer" data-onclick-a0="${s.id}" title="${(!s.room_id || !therapist.id) ? 'Assign Room & Therapist' : 'Edit Room / Therapists'}" style="color:#1a4080">🏠</button>` : ''}
           ${canStart ? `<button class="icon-btn start" data-onclick="quickStart" data-onclick-a0="${s.id}" title="Mark In Progress">&#9654;</button>` : ''}
           ${canComplete ? `<button class="icon-btn complete" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@false" title="Complete">&#10003;</button>` : ''}
           ${canSkip ? `<button class="icon-btn skip" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@true" title="Skip">&#10007;</button>` : ''}
@@ -1912,6 +1926,7 @@ function renderTable(rows) {
 
 // Session 225 -- inline Time/Duration editing (see renderTable()'s timeCell/durationCell).
 window.startEditSessionCell = function(sessionId, field) {
+  if (!_isPkRosterAdmin()) return; // Session 239 -- Time/Duration are Pk Incharge-only, see renderTable()
   _editSessionCell = { id: sessionId, field };
   applyFilters();
 };
@@ -1920,6 +1935,7 @@ window.cancelEditSessionCell = function() {
   applyFilters();
 };
 window.saveSessionCell = async function(sessionId, field, value) {
+  if (!_isPkRosterAdmin()) return; // Session 239 -- same guard as startEditSessionCell()
   const patch = field === 'time'
     ? { scheduled_time: value || null }
     : { planned_duration_minutes: value ? Number(value) : null };
@@ -2346,6 +2362,9 @@ async function _refreshAssignTherapistDuty(date, patientGender, currentTherapist
 }
 
 window.openAssignDrawer = async function(sessionId) {
+  // Session 239 -- the UI never renders this button for a non-admin, but guard the entry
+  // point itself too (matches the existing convention at _renderPkRosterPanel()'s save path).
+  if (!_isPkRosterAdmin()) return;
   const s = _sessions.find(x => x.id === sessionId);
   if (!s) return;
   _assignSessionId = sessionId;
@@ -2440,6 +2459,7 @@ function _populateAssignTherapistSelect(patientGender, onDutyIds, scheduledDate)
 }
 
 window.saveAssignment = async function() {
+  if (!_isPkRosterAdmin()) return; // Session 239 -- same guard as openAssignDrawer()
   const s = _sessions.find(x => x.id === _assignSessionId);
   if (!s) return;
   const therapistId = document.getElementById('assign-therapist').value;
