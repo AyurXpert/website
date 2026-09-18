@@ -831,6 +831,23 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
           <button data-onclick="assignPkPrepRoom" style="height:34px;padding:0 12px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit">Add</button>
         </div>
       </div>
+
+      <!-- Session 221 -- the day-view above only ever showed one day at a time; this is the
+           actual PUBLISHED roster for a full week at a glance (read-only -- click a day above
+           to edit it), separate from the Generate Week form's own hypothetical Preview table
+           above (that shows what WOULD be published, not what's already real). -->
+      <details id="pkroster-weekview-details" style="margin-top:14px">
+        <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep);padding:10px 14px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px;list-style:none">📅 View Full Week <span style="font-size:11px;color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:400">(the actual published roster, not a preview)</span></summary>
+        <div style="background:var(--white);border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:14px 16px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+            <button data-onclick="shiftPkWeekView" data-onclick-a0="-1" style="height:32px;width:32px;border:1.5px solid var(--border);border-radius:7px;background:var(--white);cursor:pointer;font-size:16px">&#8249;</button>
+            <div id="pkweekview-label" style="font-weight:600;font-size:14px;color:var(--green-deep)">—</div>
+            <button data-onclick="shiftPkWeekView" data-onclick-a0="1" style="height:32px;width:32px;border:1.5px solid var(--border);border-radius:7px;background:var(--white);cursor:pointer;font-size:16px">&#8250;</button>
+            <span data-onclick="goToPkWeekViewThisWeek" style="cursor:pointer;color:var(--green-mid);font-size:12px;font-weight:600;text-decoration:underline">This Week</span>
+          </div>
+          <div id="pkweekview-table">Loading…</div>
+        </div>
+      </details>
     </div>
   </details>
 

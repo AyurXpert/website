@@ -781,6 +781,94 @@ function _renderPkRosterPanel() {
   }).join('');
 
   _renderPkPrepRoomCard(isAdmin);
+  _loadPkWeekView();
+}
+
+// Session 221 -- "View Full Week": the day-view above only ever showed one day (Shift 1/2 +
+// Prep Room cards); this is a read-only week-at-a-glance table of the ACTUAL published roster
+// (pk_therapist_duty + pk_prep_room_duty), navigated independently of the single-day picker
+// above it (browsing a week here doesn't change which day the edit cards show). Deliberately
+// separate state from _pkRosterDate/_pkGenDays -- this isn't the hypothetical Generate Week
+// Preview (that shows what WOULD be published), it's what's actually live right now.
+let _pkWeekViewMonday = null;
+
+function _weekDatesUTC(monday) {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setUTCDate(d.getUTCDate() + i);
+    return d.toISOString().slice(0, 10);
+  });
+}
+
+window.shiftPkWeekView = function(n) {
+  const d = new Date(_pkWeekViewMonday);
+  d.setUTCDate(d.getUTCDate() + Number(n) * 7);
+  _pkWeekViewMonday = d.toISOString().slice(0, 10);
+  _loadPkWeekView();
+};
+window.goToPkWeekViewThisWeek = function() {
+  _pkWeekViewMonday = _mondayOf(new Date().toISOString().slice(0, 10));
+  _loadPkWeekView();
+};
+
+async function _loadPkWeekView() {
+  if (!_isPkRosterAdmin() && !_isRoomAdmin()) return; // matches _renderPkRosterPanel()'s own admin/viewer gate
+  if (!_pkWeekViewMonday) _pkWeekViewMonday = _mondayOf(new Date().toISOString().slice(0, 10));
+  const monday = _pkWeekViewMonday;
+  const dates = _weekDatesUTC(monday);
+  const sunday = dates[6];
+
+  const label = document.getElementById('pkweekview-label');
+  if (label) {
+    label.textContent = `${new Date(monday+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})} – ${new Date(sunday+'T00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}`;
+  }
+
+  const [dutyRes, prepRes] = await Promise.all([
+    supabase.from('pk_therapist_duty')
+      .select('duty_date,shift_slot,profiles!profile_id(id,full_name,gender)')
+      .eq('tenant_id', tenantId)
+      .gte('duty_date', monday).lte('duty_date', sunday),
+    supabase.from('pk_prep_room_duty')
+      .select('duty_date,profiles!profile_id(id,full_name)')
+      .eq('tenant_id', tenantId)
+      .gte('duty_date', monday).lte('duty_date', sunday),
+  ]);
+  if (dutyRes.error) console.error('pk week view duty load failed:', dutyRes.error);
+  if (prepRes.error) console.error('pk week view prep load failed:', prepRes.error);
+  const dutyRows = dutyRes.data || [];
+  const prepRows = prepRes.data || [];
+
+  const names = (list) => list.map(x => _esc(x.profiles?.full_name || 'Unknown')).join(', ') || '—';
+  const today = new Date().toISOString().slice(0, 10);
+
+  const rowsHtml = dates.map(dateStr => {
+    const dow = new Date(dateStr).getUTCDay(); // 0=Sun..6=Sat, matches profiles.weekly_off_day
+    const dayDuty = dutyRows.filter(r => r.duty_date === dateStr);
+    const s1m = dayDuty.filter(r => r.shift_slot === 1 && r.profiles?.gender === 'M');
+    const s1f = dayDuty.filter(r => r.shift_slot === 1 && r.profiles?.gender === 'F');
+    const s2m = dayDuty.filter(r => r.shift_slot === 2 && r.profiles?.gender === 'M');
+    const s2f = dayDuty.filter(r => r.shift_slot === 2 && r.profiles?.gender === 'F');
+    const dayPrep = prepRows.filter(r => r.duty_date === dateStr);
+    const off = _pkTherapists.filter(t => t.weekly_off_day === dow);
+    const isToday = dateStr === today;
+    return `<tr${isToday ? ' style="background:var(--green-light)"' : ''}>
+      <td>${isToday ? '<strong>Today</strong> · ' : ''}${new Date(dateStr+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'})}</td>
+      <td>${names(s1m)}</td>
+      <td>${names(s1f)}</td>
+      <td>${names(s2m)}</td>
+      <td>${names(s2f)}</td>
+      <td>${names(dayPrep)}</td>
+      <td style="color:var(--text-muted);font-size:12px">${off.map(t => _esc(t.full_name)).join(', ') || '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const table = document.getElementById('pkweekview-table');
+  if (table) {
+    table.innerHTML = `<div style="overflow-x:auto"><table class="sessions-table"><thead><tr>
+      <th>Day</th><th>Shift 1 — Male</th><th>Shift 1 — Female</th><th>Shift 2 — Male</th><th>Shift 2 — Female</th><th>Prep Room In-charge</th><th>Weekly Off</th>
+    </tr></thead><tbody>${rowsHtml}</tbody></table></div>
+    <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">This is the actual published roster — click a day in the section above to edit it. "Weekly Off" reflects each therapist's fixed weekly-off day only, not approved leave.</div>`;
+  }
 }
 
 // Session 212 -- Prep Room In-charge. Session 218: headcount is now adjustable via Generate
