@@ -748,8 +748,8 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
        duty_roster -- PK runs daytime-only with per-tenant configurable shift start times,
        not nursing's 24x7 rotating/named-shift model. -->
   <details id="pkroster-details" style="margin-bottom:14px">
-    <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep);padding:10px 14px;background:var(--white);border:1.5px solid var(--border);border-radius:8px;list-style:none">🗓️ Therapist Duty Roster</summary>
-    <div style="background:var(--white);border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:14px 16px">
+    <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--green-deep);padding:10px 14px;background:var(--white);border:1.5px solid var(--border);border-radius:8px;list-style:none;box-shadow:0 1px 3px rgba(26,74,46,.06)">🗓️ Therapist Duty Roster</summary>
+    <div style="background:var(--white);border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:14px 16px;box-shadow:0 2px 6px rgba(26,74,46,.05)">
 
       <!-- Session 216 -- Shift Times, same maker-checker flow as Roster Cycle below (request ->
            Medical Superintendent/Deputy MS/super_admin approves via pending_approvals). -->
@@ -818,13 +818,15 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
       <!-- Session 222 -- the day view above only ever shows who's working; a user reported it
            gives no way to see who's on weekly off / approved leave today without cross-checking
            the Weekly Off list. Reuses _pkPrepWarningReason()'s exact off/leave logic (already
-           computed for this exact date, just never surfaced outside the Prep Room dropdown). -->
-      <div id="pkroster-off-today" style="margin-top:10px;font-size:12px;color:var(--text-muted)"></div>
+           computed for this exact date, just never surfaced outside the Prep Room dropdown).
+           Styled as a real highlighted banner (JS toggles the gold/green variant + icon
+           depending on whether anyone's actually off) rather than a plain muted line. -->
+      <div id="pkroster-off-today" style="margin-top:10px;padding:10px 14px;border-radius:8px;font-size:12.5px;font-weight:500;display:flex;align-items:center;gap:8px;transition:background .15s"></div>
 
       <!-- Session 212 -- Prep Room In-charge (NCISM Reg 47(a)(viii)-(ix)): one posting per day,
            any active therapist regardless of gender, deliberately shown separately from the
            Shift 1/2 grid above since it isn't a timed shift. -->
-      <div id="pkroster-prep-card" style="margin-top:14px;padding:12px 14px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px">
+      <div id="pkroster-prep-card" style="margin-top:14px;padding:12px 14px;background:var(--cream);border:1.5px solid var(--border);border-left:3px solid var(--blue);border-radius:0 8px 8px 0">
         <div style="font-weight:600;font-size:13px;color:var(--green-deep);margin-bottom:8px">🧪 Prep Room In-charge <span style="font-weight:400;color:var(--text-muted);font-size:11px">(day-long post, any therapist — Reg 47(a)(viii)-(ix))</span></div>
         <!-- Session 218 -- plain block container now (was itself display:flex for the old
              single-slot display); each assigned-person row below carries its own flex layout,

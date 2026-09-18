@@ -754,7 +754,8 @@ function _renderPkRosterPanel() {
           <button data-onclick="cancelEditPkDuty" title="Cancel" style="border:none;background:none;color:var(--text-muted);cursor:pointer;font-size:14px;padding:0 4px">✕</button>
         </div>`;
       }
-      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--cream);border-radius:7px;margin-bottom:6px;font-size:13px">
+      const accent = slot === 1 ? 'var(--gold)' : 'var(--green-mid)';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--cream);border-left:3px solid ${accent};border-radius:0 7px 7px 0;margin-bottom:6px;font-size:13px">
         <span${isAdmin ? ` data-onclick="startEditPkDuty" data-onclick-a0="${r.id}" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px"` : ''}>${_esc(r.profiles?.full_name || 'Unknown')}${r.profiles?.gender ? ` (${r.profiles.gender})` : ''}</span>
         ${isAdmin ? `<button data-onclick="removePkDuty" data-onclick-a0="${r.id}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:15px;padding:0 4px">✕</button>` : ''}
       </div>`;
@@ -774,8 +775,11 @@ function _renderPkRosterPanel() {
         <button data-onclick="assignPkDuty" data-onclick-a0="${slot}" style="height:34px;padding:0 12px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit">Add</button>
       </div>` : '';
 
-    return `<div>
-      <div style="font-weight:600;font-size:13px;color:var(--green-deep);margin-bottom:8px">${_pkShiftLabel(slot)}</div>
+    const dot = slot === 1 ? 'var(--gold)' : 'var(--green-mid)';
+    return `<div style="background:var(--white);border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;box-shadow:0 1px 3px rgba(26,74,46,.06)">
+      <div style="display:flex;align-items:center;gap:7px;font-weight:600;font-size:13px;color:var(--green-deep);margin-bottom:8px">
+        <span style="width:8px;height:8px;border-radius:50%;background:${dot};display:inline-block"></span>${_pkShiftLabel(slot)}
+      </div>
       ${rows}${assignRow}
     </div>`;
   }).join('');
@@ -789,9 +793,17 @@ function _renderPkRosterPanel() {
     const offList = _pkTherapists
       .map(t => ({ t, reason: _pkPrepWarningReason(t) }))
       .filter(x => x.reason);
-    offToday.innerHTML = offList.length
-      ? `🌴 Off today: ${offList.map(x => `${_esc(x.t.full_name)} (${x.reason.replace(' today', '')})`).join(', ')}`
-      : '🌴 No one on weekly off or approved leave today.';
+    if (offList.length) {
+      offToday.style.background = 'var(--gold-light)';
+      offToday.style.border = '1.5px solid var(--gold)';
+      offToday.style.color = 'var(--text-dark)';
+      offToday.innerHTML = `<span style="font-size:15px">🌴</span> <strong>Off today:</strong> ${offList.map(x => `${_esc(x.t.full_name)} <span style="color:var(--text-muted);font-weight:400">(${x.reason.replace(' today', '')})</span>`).join(', ')}`;
+    } else {
+      offToday.style.background = 'var(--green-light)';
+      offToday.style.border = '1.5px solid var(--border)';
+      offToday.style.color = 'var(--text-mid)';
+      offToday.innerHTML = `<span style="font-size:15px">✅</span> Full team today — no one on weekly off or approved leave.`;
+    }
   }
 
   _renderPkPrepRoomCard(isAdmin);
