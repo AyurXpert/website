@@ -1474,16 +1474,26 @@ function renderStats() {
 // same 09:00/14:00/8h defaults _pkShiftLabel() uses if settings haven't loaded yet), in 30-min
 // columns -- fine granularity without an unreadable number of columns for a typical 8-9hr span.
 function _pkShiftWindow() {
+  const { byShift } = _pkShiftWindows();
+  return { startMin: Math.min(byShift[1].start, byShift[2].start), endMin: Math.max(byShift[1].end, byShift[2].end) };
+}
+// Session 228 -- per-shift windows, not just the combined min/max above: a slot at 06:00 is
+// only actually staffed by whoever's on duty for the SHIFT that covers 06:00, not by anyone
+// rostered anywhere that day regardless of shift (the bug this replaced -- a Shift 2 person
+// starting at 07:00 was being counted as "available" for a 06:00 slot).
+function _pkShiftWindows() {
   const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
   const s1 = _pkRosterSettings?.shift1_start || '09:00';
   const s2 = _pkRosterSettings?.shift2_start || '14:00';
   const dur = (_pkRosterSettings?.shift_duration_hours || 8) * 60;
-  const starts = [toMin(s1), toMin(s2)];
-  return { startMin: Math.min(...starts), endMin: Math.max(starts[0] + dur, starts[1] + dur) };
+  return { byShift: { 1: { start: toMin(s1), end: toMin(s1) + dur }, 2: { start: toMin(s2), end: toMin(s2) + dur } } };
 }
 const _fmtMin = (min) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
-function _renderRoomOccupancyGrid() {
+let _roomOccupancyToken = 0; // guards against a slower stale render landing after a newer one (date navigated away mid-fetch)
+
+async function _renderRoomOccupancyGrid() {
+  const token = ++_roomOccupancyToken;
   const wrap = document.getElementById('pkroom-occupancy-details');
   const isAdmin = _isPkRosterAdmin() || _isRoomAdmin();
   // Session 223's same widened-visibility population -- a plain therapist's _sessions is
@@ -1500,10 +1510,31 @@ function _renderRoomOccupancyGrid() {
   const slots = [];
   for (let m = startMin; m < endMin; m += slotLen) slots.push(m);
 
+  const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
   // Sessions actually placed in a room+time today, with their real span (defaults to one
   // slot's worth when no planned_duration_minutes is set -- can't know the true span otherwise).
   const placed = _sessions.filter(s => s.room_id && s.scheduled_time && s.status !== 'skipped');
-  const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  // For the "is anyone actually free to staff this" check below, ANY timed session counts
+  // toward a therapist being busy, room-assigned or not (a therapist can't be in two places).
+  const timed = _sessions.filter(s => s.scheduled_time && s.status !== 'skipped' && s.profiles?.id);
+
+  // Session 228 -- real gap found live: this grid showed a room as freely schedulable purely
+  // by room occupancy, with no check that an on-duty therapist of the right gender was even
+  // available to staff it (surfaced when only 3M+3F were actually rostered for the morning
+  // shift, not enough to staff all 4+4 rooms at once). Fetched fresh for _viewDate specifically
+  // -- NOT the Duty Roster panel's own independently-browsable _pkRosterDate, which can be a
+  // different day than the one this grid is showing.
+  const { data: dutyRows } = await supabase
+    .from('pk_therapist_duty')
+    .select('shift_slot, profiles!profile_id(id,gender)')
+    .eq('tenant_id', tenantId)
+    .eq('duty_date', _viewDate);
+  if (token !== _roomOccupancyToken) return; // a newer render has since started -- discard this one
+  const dutyByShift = (dutyRows || []).filter(r => r.profiles);
+  const { byShift } = _pkShiftWindows();
+  // Which shift(s) actually cover a given slot -- both, if the tenant's 2 shifts overlap.
+  const activeShiftsAt = (slotStart, slotEnd) =>
+    [1, 2].filter(n => byShift[n].start < slotEnd && byShift[n].end > slotStart);
 
   const genderOrder = { female: 0, male: 1, any: 2 };
   const sortedRooms = [...activeRooms].sort((a, b) =>
@@ -1516,12 +1547,24 @@ function _renderRoomOccupancyGrid() {
     const genderLabel = r.gender_restriction === 'female' ? 'Female' : r.gender_restriction === 'male' ? 'Male' : 'Any';
     const cells = slots.map(slotStart => {
       const slotEnd = slotStart + slotLen;
-      const hit = roomSessions.find(s => {
+      const overlaps = (s) => {
         const start = toMin(s.scheduled_time.slice(0, 5));
         const end = start + (s.planned_duration_minutes || slotLen);
         return start < slotEnd && end > slotStart;
-      });
+      };
+      const hit = roomSessions.find(overlaps);
       if (!hit) {
+        // Who's on duty for whichever shift(s) actually cover this slot, of this room's
+        // designated gender, and not already busy with a DIFFERENT session (any room) at
+        // this exact slot.
+        const activeShifts = activeShiftsAt(slotStart, slotEnd);
+        const busyIds = new Set(timed.filter(overlaps).map(s => s.profiles.id));
+        const eligible = dutyByShift.filter(r2 => activeShifts.includes(r2.shift_slot)).map(r2 => r2.profiles).filter(p =>
+          (r.gender_restriction === 'any' || !r.gender_restriction || (p.gender === 'M' ? 'male' : 'female') === r.gender_restriction)
+          && !busyIds.has(p.id));
+        if (!eligible.length) {
+          return `<td style="background:#eee;text-align:center;color:var(--text-muted);font-size:11px" title="No on-duty ${genderLabel.toLowerCase()} therapist is free for ${_esc(r.room_name)} at ${_fmtMin(slotStart)} -- everyone rostered is either off today or already in another session">🚫</td>`;
+        }
         return `<td data-onclick="quickScheduleAt" data-onclick-a0="${_fmtMin(slotStart)}" style="cursor:pointer;background:var(--success-bg);text-align:center;color:var(--success-text);font-size:16px" title="Click to schedule a session in ${_esc(r.room_name)} at ${_fmtMin(slotStart)}">+</td>`;
       }
       const isFirstSlot = toMin(hit.scheduled_time.slice(0, 5)) >= slotStart && toMin(hit.scheduled_time.slice(0, 5)) < slotEnd;
@@ -1532,7 +1575,7 @@ function _renderRoomOccupancyGrid() {
   }).join('');
 
   grid.innerHTML = `<table class="sessions-table"><thead>${header}</thead><tbody>${rows}</tbody></table>
-    <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">🟩 Click an open slot to schedule a session there. Occupied slots show the patient's name (a session with no set duration is shown occupying one 30-min slot only).</div>`;
+    <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">🟩 Click an open slot to schedule a session there. 🚫 = physically free but no on-duty, unbusy therapist of the right gender exists for that slot. Occupied slots show the patient's name (a session with no set duration is shown occupying one 30-min slot only).</div>`;
 }
 
 // Session 227 -- clicking an open Room Occupancy slot jumps straight into "+ Schedule Session"
@@ -2153,15 +2196,29 @@ let _assignSessionId = null;
 // click-to-edit convention as _pkEditingDutyId's Shift 1/2 grid above.
 let _editSessionCell = null; // { id, field: 'time' | 'duration' }
 
-window.openAssignDrawer = function(sessionId) {
+window.openAssignDrawer = async function(sessionId) {
   const s = _sessions.find(x => x.id === sessionId);
   if (!s) return;
   _assignSessionId = sessionId;
   const pt = s.patients || {};
   document.getElementById('assign-session-summary').textContent =
     `${pt.name || 'Patient'} — ${s.therapy_name} (${_phaseLabel(s.therapy_phase)}) · ${s.scheduled_date}`;
+  // Session 228 -- real gap found live: this dropdown never checked whether a therapist was
+  // actually on duty on the session's own date at all (a room/gender match alone isn't enough
+  // to actually staff it) -- someone rostered for a different shift/day could be manually
+  // assigned here with zero warning. Fetched fresh per this session's own scheduled_date
+  // (deliberately NOT the Duty Roster panel's independently-browsable _pkRosterDate, which can
+  // be a different day entirely). Warns rather than hard-blocks, same as the Prep Room manual
+  // dropdown's weekly-off/leave labels -- this stays a real override tool for a genuine
+  // call-someone-in case, unlike the Session 226 gender rule.
+  const { data: dutyRows } = await supabase
+    .from('pk_therapist_duty')
+    .select('profile_id')
+    .eq('tenant_id', tenantId)
+    .eq('duty_date', s.scheduled_date);
+  const onDutyIds = new Set((dutyRows || []).map(r => r.profile_id));
   _populateAssignRoomSelect(pt.gender);
-  _populateAssignTherapistSelect(pt.gender);
+  _populateAssignTherapistSelect(pt.gender, onDutyIds, s.scheduled_date);
   document.getElementById('assign-therapist').value = s.profiles?.id || '';
   document.getElementById('assign-room').value       = s.room_id || '';
   document.getElementById('assign-time').value       = s.scheduled_time ? s.scheduled_time.slice(0,5) : '';
@@ -2182,7 +2239,7 @@ function _populateAssignRoomSelect(patientGender) {
   });
 }
 
-function _populateAssignTherapistSelect(patientGender) {
+function _populateAssignTherapistSelect(patientGender, onDutyIds, scheduledDate) {
   const st = document.getElementById('assign-therapist');
   st.innerHTML = '<option value="">— Select therapist —</option>';
   // Session 213 (cont.) -- _pkTherapists (department='Panchakarma'), same reasoning as
@@ -2199,7 +2256,17 @@ function _populateAssignTherapistSelect(patientGender) {
     .forEach(({ group, list }) => {
       if (!list.length) return;
       const og = document.createElement('optgroup'); og.label = group;
-      list.forEach(t => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.full_name; og.appendChild(o); });
+      list.forEach(t => {
+        const o = document.createElement('option');
+        o.value = t.id;
+        // Session 228 -- warns (doesn't block) when this therapist isn't rostered on duty for
+        // this exact session's date, matching the Prep Room dropdown's own weekly-off/leave
+        // warning pattern -- manual assignment stays a real override tool.
+        o.textContent = onDutyIds && !onDutyIds.has(t.id)
+          ? `${t.full_name} — ⚠️ not on duty ${scheduledDate}`
+          : t.full_name;
+        og.appendChild(o);
+      });
       st.appendChild(og);
     });
 }
