@@ -494,7 +494,7 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
 
       <div class="detail-card" id="comp-detail-card"></div>
 
-      <div class="field-row">
+      <div class="field-row" id="comp-times-row">
         <div class="field">
           <label>Actual Start Time</label>
           <input id="comp-start" type="time"/>
@@ -510,7 +510,11 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
         <textarea id="comp-notes" placeholder="Patient response, observations, any adverse events…" style="height:100px"></textarea>
       </div>
 
-      <div class="field">
+      <!-- Session 232 -- Notes-only mode (a session still Scheduled/In Progress genuinely
+           needs a way to jot a note without forcing Complete/Skip) hides this -- fitness
+           clearance is a Complete/Skip-time decision, not something a mid-treatment note edit
+           should touch. -->
+      <div class="field" id="comp-clearance-field">
         <label class="check-label">
           <input type="checkbox" id="comp-clearance"/>
           PK Fitness Clearance confirmed (NCISM §47(vii))

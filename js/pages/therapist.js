@@ -1869,7 +1869,12 @@ function renderTable(rows) {
           ${canStart ? `<button class="icon-btn start" data-onclick="quickStart" data-onclick-a0="${s.id}" title="Mark In Progress">&#9654;</button>` : ''}
           ${canComplete ? `<button class="icon-btn complete" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@false" title="Complete">&#10003;</button>` : ''}
           ${canSkip ? `<button class="icon-btn skip" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@true" title="Skip">&#10007;</button>` : ''}
-          <button class="icon-btn" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@false" data-onclick-a2="@true" title="Notes">&#128203;</button>
+          <!-- Session 232 -- was always view-only regardless of status, with no way to ever
+               actually add a note to a still-active session through this button; notesOnly
+               (3rd arg) now only means "read-only" for an already-finalized session, and
+               "editable notes-only" for one still in progress. Highlighted + tooltip preview
+               when a note already exists, matching the Instructions column's own pattern. -->
+          <button class="icon-btn" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@false" data-onclick-a2="@true" title="${s.therapist_notes ? _esc('View/Edit Notes: ' + s.therapist_notes.slice(0,80)) : 'Add Notes'}" style="${s.therapist_notes ? 'color:var(--green-mid)' : ''}">&#128203;</button>
           <button class="icon-btn" data-onclick="openRxDrawer" data-onclick-a0="${s.id}" title="Prescribe Therapy Materials" style="color:#1a4a2e">💊</button>
         </div>
       </td>
@@ -2532,11 +2537,17 @@ window.quickStart = async function(id) {
 };
 
 // ── Complete drawer ───────────────────────────────────────────────────────────
-window.openCompleteDrawer = function(id, isSkip, viewOnly) {
+// Session 232 -- 3rd arg renamed viewOnly -> notesOnly: it no longer means "always read-only"
+// (that was the real bug -- a still-Scheduled/In-Progress session had literally no way to ever
+// record a note without forcing Complete/Skip). Now it means "just the note, not a status
+// change" -- editable for an active session, and read-only only once a session is genuinely
+// finalized (completed/skipped), where rewriting history isn't the point of this button.
+window.openCompleteDrawer = function(id, isSkip, notesOnly) {
   const s  = _sessions.find(x => x.id === id);
   if (!s) return;
   const pt        = s.patients || {};
   const therapist = s.profiles || {};
+  const isFinalized = s.status === 'completed' || s.status === 'skipped';
 
   document.getElementById('comp-session-id').value   = id;
   document.getElementById('comp-start').value         = s.actual_start ? s.actual_start.slice(11,16) : '';
@@ -2546,34 +2557,50 @@ window.openCompleteDrawer = function(id, isSkip, viewOnly) {
   document.getElementById('comp-skip-reason').value   = '';
   document.getElementById('comp-reschedule-date').value = '';
 
-  // Samsarjana Krama — only for Paschatkarma
+  // Samsarjana Krama — only for Paschatkarma, and only in the real Complete/Skip flow.
   const isPaschatkarma = s.therapy_phase === 'paschatkarma';
   const samSec = document.getElementById('samsarjana-section');
-  samSec.style.display = (isPaschatkarma && !isSkip) ? '' : 'none';
+  samSec.style.display = (isPaschatkarma && !isSkip && !notesOnly) ? '' : 'none';
   if (isPaschatkarma) {
     document.getElementById('comp-samsarjana-stage').value = s.samsarjana_stage || '';
     document.getElementById('comp-samsarjana-tolerating').checked = false;
   }
-  document.getElementById('skip-reason-field').style.display = isSkip ? '' : 'none';
+  document.getElementById('skip-reason-field').style.display = (isSkip && !notesOnly) ? '' : 'none';
 
   const titleEl = document.getElementById('complete-title');
   const saveBtn = document.getElementById('btn-complete-save');
+  const timesRow = document.getElementById('comp-times-row');
+  const clearanceField = document.getElementById('comp-clearance-field');
 
-  if (viewOnly || s.status === 'completed' || s.status === 'skipped') {
+  if (notesOnly && isFinalized) {
+    // Historic record -- read-only, unchanged from before this session's fix.
     titleEl.textContent = 'Session Notes';
     saveBtn.style.display = 'none';
+    timesRow.style.display = '';
+    clearanceField.style.display = '';
     document.getElementById('comp-start').disabled = true;
     document.getElementById('comp-end').disabled   = true;
     document.getElementById('comp-notes').disabled = true;
+  } else if (notesOnly) {
+    // Real fix: a still-active session can now actually have a note recorded against it,
+    // without being forced through Complete/Skip just to say something.
+    titleEl.textContent = 'Session Notes';
+    saveBtn.textContent = 'Save Notes';
+    saveBtn.style.display = '';
+    timesRow.style.display = 'none';
+    clearanceField.style.display = 'none';
+    document.getElementById('comp-notes').disabled = false;
   } else {
     titleEl.textContent = isSkip ? 'Skip Session' : 'Complete Session';
     saveBtn.textContent  = isSkip ? 'Mark Skipped' : 'Mark Completed';
     saveBtn.style.display = '';
+    timesRow.style.display = '';
+    clearanceField.style.display = '';
     document.getElementById('comp-start').disabled = false;
     document.getElementById('comp-end').disabled   = false;
     document.getElementById('comp-notes').disabled = false;
   }
-  saveBtn.dataset.skip = isSkip ? '1' : '0';
+  saveBtn.dataset.mode = notesOnly ? 'notes' : (isSkip ? 'skip' : 'complete');
 
   document.getElementById('comp-detail-card').innerHTML = `
     <div class="detail-row"><span>Patient</span><strong>${_esc(pt.name||'—')}</strong></div>
@@ -2591,7 +2618,25 @@ window.closeCompleteDrawer = function() {
 
 window.saveCompletion = async function() {
   const id      = document.getElementById('comp-session-id').value;
-  const isSkip  = document.getElementById('btn-complete-save').dataset.skip === '1';
+  const mode    = document.getElementById('btn-complete-save').dataset.mode; // 'notes' | 'skip' | 'complete'
+
+  // Session 232 -- notes-only save: just the note, no status change at all. The real fix this
+  // session -- a still-active session previously had no way to record a note without being
+  // forced through Complete/Skip.
+  if (mode === 'notes') {
+    const notesOnlyVal = document.getElementById('comp-notes').value.trim();
+    const btn = document.getElementById('btn-complete-save');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    const { error } = await supabase.from('pk_therapy_sessions').update({ therapist_notes: notesOnlyVal || null }).eq('id', id);
+    btn.disabled = false; btn.textContent = 'Save Notes';
+    if (error) { _alert('error', safeErrorMessage(error, 'Could not save note.')); return; }
+    closeCompleteDrawer();
+    _alert('success', 'Note saved.');
+    await loadAll();
+    return;
+  }
+
+  const isSkip  = mode === 'skip';
   const start   = document.getElementById('comp-start').value;
   const end     = document.getElementById('comp-end').value;
   const notes   = document.getElementById('comp-notes').value.trim();
