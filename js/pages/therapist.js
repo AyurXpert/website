@@ -780,6 +780,20 @@ function _renderPkRosterPanel() {
     </div>`;
   }).join('');
 
+  // Session 222 -- real gap reported live: this view showed who's working but nothing about
+  // who's off, forcing a cross-check against the separate Weekly Off list. Reuses
+  // _pkPrepWarningReason()'s exact weekly-off/approved-leave logic for _pkRosterDate (already
+  // loaded for the Prep Room dropdown's warning labels), just surfaced here too.
+  const offToday = document.getElementById('pkroster-off-today');
+  if (offToday) {
+    const offList = _pkTherapists
+      .map(t => ({ t, reason: _pkPrepWarningReason(t) }))
+      .filter(x => x.reason);
+    offToday.innerHTML = offList.length
+      ? `🌴 Off today: ${offList.map(x => `${_esc(x.t.full_name)} (${x.reason.replace(' today', '')})`).join(', ')}`
+      : '🌴 No one on weekly off or approved leave today.';
+  }
+
   _renderPkPrepRoomCard(isAdmin);
   _loadPkWeekView();
 }

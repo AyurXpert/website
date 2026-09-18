@@ -815,6 +815,12 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
 
       <div id="pkroster-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">Loading…</div>
 
+      <!-- Session 222 -- the day view above only ever shows who's working; a user reported it
+           gives no way to see who's on weekly off / approved leave today without cross-checking
+           the Weekly Off list. Reuses _pkPrepWarningReason()'s exact off/leave logic (already
+           computed for this exact date, just never surfaced outside the Prep Room dropdown). -->
+      <div id="pkroster-off-today" style="margin-top:10px;font-size:12px;color:var(--text-muted)"></div>
+
       <!-- Session 212 -- Prep Room In-charge (NCISM Reg 47(a)(viii)-(ix)): one posting per day,
            any active therapist regardless of gender, deliberately shown separately from the
            Shift 1/2 grid above since it isn't a timed shift. -->
