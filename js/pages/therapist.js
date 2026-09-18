@@ -1527,17 +1527,31 @@ function _populateSchedSelects() {
     _prepStaff.filter(p => p.role === 'doctor').map(p => `<option value="${p.id}">${_esc(p.full_name)}</option>`).join('');
 }
 
-function _populateRoomSelect() {
+// Session 226 -- NCISM Sch III/XXV gender-separated treatment rooms: pk_treatment_rooms.
+// gender_restriction was already tracked (Rooms admin panel/compliance banner) but never once
+// checked when actually booking a patient into a room -- a real, previously-unknown gap found
+// live when a test patient landed in a cross-gender room. 'any'/null rooms always match.
+function _roomMatchesGender(room, patientGender) {
+  if (!patientGender || !room.gender_restriction || room.gender_restriction === 'any') return true;
+  return (patientGender === 'M' && room.gender_restriction === 'male')
+      || (patientGender === 'F' && room.gender_restriction === 'female');
+}
+
+function _populateRoomSelect(patientGender) {
   const sr = document.getElementById('sched-room');
   const note = document.getElementById('sched-room-note');
   sr.innerHTML = '<option value="">— Not assigned —</option>';
-  const active = _rooms.filter(r => r.status === 'active');
+  const allActive = _rooms.filter(r => r.status === 'active');
+  const active = allActive.filter(r => _roomMatchesGender(r, patientGender));
   active.forEach(r => {
     const o = document.createElement('option');
     o.value = r.id; o.textContent = `${r.room_name}${r.room_type ? ' — ' + r.room_type : ''}`;
     sr.appendChild(o);
   });
   note.style.display = active.length ? 'none' : '';
+  note.textContent = allActive.length
+    ? `No ${patientGender === 'M' ? 'male' : 'female'}-designated treatment room available — assign this patient once one is set up.`
+    : 'No treatment rooms configured yet — set them up in the 🛏 Treatment Rooms panel above.';
 }
 
 function _populateTherapistSelect() {
@@ -1844,6 +1858,10 @@ async function _autoAssignSchedTherapist() {
   const ctx = await _resolveSchedPatientContext();
   if (token !== _schedAutoAssignToken) return; // a newer call has since started -- discard this one
   if (!ctx.patientId) { sel.value = ''; showAuto('— Select patient first —'); return; }
+  // Session 226 -- re-filters the room dropdown to this patient's gender-designated rooms
+  // every time the patient selection changes (was populated once, patient-agnostic, at drawer
+  // open -- letting a cross-gender room stay selectable the whole time).
+  _populateRoomSelect(ctx.gender);
 
   const { data: dutyRows } = await supabase
     .from('pk_therapist_duty')
@@ -1867,7 +1885,12 @@ async function _autoAssignSchedTherapist() {
   const { data: priorRows } = await priorQuery;
   if (token !== _schedAutoAssignToken) return;
   const continuityId = priorRows?.[0]?.therapist_id || null;
-  const continuityOnDuty = continuityId ? onDuty.find(t => t.id === continuityId) : null;
+  // Session 226 -- continuity-of-care never overrides the gender hard-block; a prior therapist
+  // of the wrong gender for this patient (only possible from data predating this fix) falls
+  // through to the normal gender-matched pool below instead of being silently reused.
+  const continuityOnDuty = continuityId
+    ? onDuty.find(t => t.id === continuityId && (!ctx.gender || !t.gender || t.gender === ctx.gender))
+    : null;
 
   if (continuityOnDuty) {
     sel.innerHTML = `<option value="${continuityOnDuty.id}" selected>${_esc(continuityOnDuty.full_name)}</option>`;
@@ -1897,13 +1920,21 @@ async function _autoAssignSchedTherapist() {
     return;
   }
 
-  // Genuine gap: no continuity match, and no gender-matched on-duty therapist. Offer whoever
-  // IS on duty (wrong gender -- saveSession()'s own NABH confirm still gates this) if anyone
-  // is, else fall back to the full Panchakarma pool as a last resort.
-  if (onDuty.length) {
-    showPicker(onDuty, null, `⚠️ No ${ctx.gender === 'F' ? 'female' : ctx.gender === 'M' ? 'male' : 'matching'} therapist on duty this date — choose manually.`);
+  // Genuine gap: no continuity match, and no gender-matched on-duty therapist. Session 226 --
+  // cross-gender is hard-blocked with no override, so the fallback pools here are gender-
+  // filtered too (was previously offering wrong-gender on-duty therapists, relying on
+  // saveSession()'s now-removed confirm() to catch it at save time).
+  const onDutyEligible = ctx.gender ? onDuty.filter(t => !t.gender || t.gender === ctx.gender) : onDuty;
+  const poolEligible = ctx.gender ? _pkTherapists.filter(t => !t.gender || t.gender === ctx.gender) : _pkTherapists;
+  const genderWord = ctx.gender === 'F' ? 'female' : ctx.gender === 'M' ? 'male' : 'matching';
+
+  if (onDutyEligible.length) {
+    showPicker(onDutyEligible, null, `⚠️ No same-gender therapist among today's least-loaded pick — choose manually from who's on duty.`);
+  } else if (poolEligible.length) {
+    showPicker(poolEligible, null, `⚠️ No ${genderWord} therapist on duty this date — showing all ${genderWord} Panchakarma therapists (none rostered today).`);
   } else {
-    showPicker(_pkTherapists, null, `⚠️ Nobody is rostered in the Duty Roster for this date — showing all Panchakarma therapists.`);
+    sel.value = ''; // saveSession()'s own "Select a therapist" check catches this if submitted anyway
+    showAuto(`🚫 No ${genderWord} Panchakarma therapist exists at all — this session cannot be scheduled until one is added.`, 'var(--red)');
   }
 }
 window.onSchedAssignInputsChange = function() { _autoAssignSchedTherapist(); };
@@ -1926,11 +1957,24 @@ window.saveSession = async function() {
   const ctx = await _resolveSchedPatientContext();
   if (!ctx.patientId) { _alert('error', source === 'ipd' ? 'Select an IPD patient.' : 'Select a patient.'); return; }
 
-  // NABH PRE.2 ATWC CORE — Female therapist for female patients
+  // NABH PRE.2 ATWC CORE — cross-gender therapist assignment is hard-blocked, not just
+  // warned (Session 226 -- was previously a dismissible confirm(), and one-directional
+  // besides, only ever catching female-patient+male-therapist. A real male-patient+
+  // female-therapist mismatch slipped through live testing because of both gaps at once.
+  // No override -- Dr. Venkatesh's explicit call).
   const therapistData = _pkTherapists.find(t => t.id === therapist);
-  if (ctx.gender === 'F' && therapistData?.gender === 'M') {
-    const override = confirm('⚠ NABH PRE.2 ATWC CORE — Gender Mismatch\n\nFemale patients must be treated by female therapists.\n\nThis patient is female and the selected therapist is male.\n\nContinue only with documented medical justification?');
-    if (!override) return;
+  if (ctx.gender && therapistData?.gender && ctx.gender !== therapistData.gender) {
+    _alert('error', 'NABH PRE.2 — cross-gender therapist assignment is not permitted. Assign a therapist of the same gender as the patient.');
+    return;
+  }
+
+  // Session 226 -- NCISM Sch III/XXV gender-separated treatment rooms: same hard block for
+  // a room whose gender_restriction doesn't match the patient.
+  const roomIdCheck = document.getElementById('sched-room').value || null;
+  const roomDataCheck = roomIdCheck ? _rooms.find(r => r.id === roomIdCheck) : null;
+  if (roomDataCheck && !_roomMatchesGender(roomDataCheck, ctx.gender)) {
+    _alert('error', `${roomDataCheck.room_name} is a ${roomDataCheck.gender_restriction}-only treatment room — pick a room designated for this patient's gender.`);
+    return;
   }
 
   // NABH PRE.3 ATWC CORE — PK Consent 6-month validity check
@@ -2039,8 +2083,8 @@ window.openAssignDrawer = function(sessionId) {
   const pt = s.patients || {};
   document.getElementById('assign-session-summary').textContent =
     `${pt.name || 'Patient'} — ${s.therapy_name} (${_phaseLabel(s.therapy_phase)}) · ${s.scheduled_date}`;
-  _populateAssignRoomSelect();
-  _populateAssignTherapistSelect();
+  _populateAssignRoomSelect(pt.gender);
+  _populateAssignTherapistSelect(pt.gender);
   document.getElementById('assign-therapist').value = s.profiles?.id || '';
   document.getElementById('assign-room').value       = s.room_id || '';
   document.getElementById('assign-time').value       = s.scheduled_time ? s.scheduled_time.slice(0,5) : '';
@@ -2051,25 +2095,29 @@ window.closeAssignDrawer = function() {
   document.getElementById('assign-overlay').classList.remove('open');
 };
 
-function _populateAssignRoomSelect() {
+function _populateAssignRoomSelect(patientGender) {
   const sr = document.getElementById('assign-room');
   sr.innerHTML = '<option value="">— Not assigned —</option>';
-  _rooms.filter(r => r.status === 'active').forEach(r => {
+  _rooms.filter(r => r.status === 'active' && _roomMatchesGender(r, patientGender)).forEach(r => {
     const o = document.createElement('option');
     o.value = r.id; o.textContent = `${r.room_name}${r.room_type ? ' — ' + r.room_type : ''}`;
     sr.appendChild(o);
   });
 }
 
-function _populateAssignTherapistSelect() {
+function _populateAssignTherapistSelect(patientGender) {
   const st = document.getElementById('assign-therapist');
   st.innerHTML = '<option value="">— Select therapist —</option>';
   // Session 213 (cont.) -- _pkTherapists (department='Panchakarma'), same reasoning as
   // _populateTherapistSelect() above: assigning a room+therapist to a real PK session should
   // only ever offer real Panchakarma-department therapists.
-  const males   = _pkTherapists.filter(t => t.gender === 'M');
-  const females = _pkTherapists.filter(t => t.gender === 'F');
-  const unknown = _pkTherapists.filter(t => !t.gender);
+  // Session 226 -- cross-gender therapists are now hard-excluded from this dropdown entirely
+  // (not just warned at save time) when the patient's gender is known; unknown-gender
+  // therapists are still offered since a mismatch genuinely can't be determined for them.
+  const pool = _pkTherapists.filter(t => !patientGender || !t.gender || t.gender === patientGender);
+  const males   = pool.filter(t => t.gender === 'M');
+  const females = pool.filter(t => t.gender === 'F');
+  const unknown = pool.filter(t => !t.gender);
   [{ group: 'Male Therapists', list: males }, { group: 'Female Therapists', list: females }, { group: 'Therapists', list: unknown }]
     .forEach(({ group, list }) => {
       if (!list.length) return;
@@ -2087,12 +2135,20 @@ window.saveAssignment = async function() {
   const time         = document.getElementById('assign-time').value || null;
   if (!therapistId) { _alert('error', 'Select a therapist.'); return; }
 
-  // Same NABH PRE.2 gender-match check saveSession() has.
+  // Session 226 -- same hard block saveSession() has: cross-gender therapist assignment is
+  // never permitted, no override, checked in both directions.
   const patientGender = s.patients?.gender;
-  const therapistData = _therapists.find(t => t.id === therapistId);
-  if (patientGender === 'F' && therapistData?.gender === 'M') {
-    const override = confirm('⚠ NABH PRE.2 ATWC CORE — Gender Mismatch\n\nFemale patients must be treated by female therapists.\n\nThis patient is female and the selected therapist is male.\n\nContinue only with documented medical justification?');
-    if (!override) return;
+  const therapistData = _pkTherapists.find(t => t.id === therapistId);
+  if (patientGender && therapistData?.gender && patientGender !== therapistData.gender) {
+    _alert('error', 'NABH PRE.2 — cross-gender therapist assignment is not permitted. Assign a therapist of the same gender as the patient.');
+    return;
+  }
+
+  // Same NCISM Sch III/XXV gender-separated-room hard block saveSession() has.
+  const roomDataCheck = roomId ? _rooms.find(r => r.id === roomId) : null;
+  if (roomDataCheck && !_roomMatchesGender(roomDataCheck, patientGender)) {
+    _alert('error', `${roomDataCheck.room_name} is a ${roomDataCheck.gender_restriction}-only treatment room — pick a room designated for this patient's gender.`);
+    return;
   }
 
   // Same NABH PRE.3 PK consent 6-month validity check.
