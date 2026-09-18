@@ -1660,6 +1660,30 @@ function _roomMatchesGender(room, patientGender) {
       || (patientGender === 'F' && room.gender_restriction === 'female');
 }
 
+// Session 235 -- real gap found live: only one patient can ever be treated in a room at a time
+// (Dr. Venkatesh's explicit confirmation), but the old pre-check only ever caught an EXACT
+// matching start time -- two sessions genuinely overlapping at different start times (e.g.
+// 06:00-06:25 and 06:10-06:25 in the same room) slipped through both this heads-up AND the old
+// DB unique index. Now mirrors the real DB-level fix (pk_sessions_room_overlap_excl, a true
+// time-range exclusion constraint) -- defaults an unset duration to 30 min, same as the DB
+// column's own generated time_range default.
+async function _checkRoomOverlap(roomId, date, time, durationMinutes, excludeSessionId) {
+  const { data: rows } = await supabase.from('pk_therapy_sessions')
+    .select('id, scheduled_time, planned_duration_minutes, patients(name)')
+    .eq('room_id', roomId).eq('scheduled_date', date).neq('status', 'skipped')
+    .not('scheduled_time', 'is', null);
+  const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const newStart = toMin(time);
+  const newEnd = newStart + (durationMinutes || 30);
+  for (const r of rows || []) {
+    if (excludeSessionId && r.id === excludeSessionId) continue;
+    const start = toMin(r.scheduled_time.slice(0, 5));
+    const end = start + (r.planned_duration_minutes || 30);
+    if (newStart < end && newEnd > start) return r;
+  }
+  return null;
+}
+
 function _populateRoomSelect(patientGender) {
   const sr = document.getElementById('sched-room');
   const note = document.getElementById('sched-room-note');
@@ -1898,8 +1922,10 @@ window.saveSessionCell = async function(sessionId, field, value) {
   _editSessionCell = null;
   const { error } = await supabase.from('pk_therapy_sessions').update(patch).eq('id', sessionId);
   if (error) {
-    _alert('error', safeErrorMessage(error, error.code === '23505'
-      ? 'That time conflicts with another session in the same room — pick another time.'
+    // Session 235 -- the room-overlap guard is now a real exclusion constraint (23P01), not
+    // just an exact-time unique violation (23505) -- both mean the same thing to the user.
+    _alert('error', safeErrorMessage(error, (error.code === '23505' || error.code === '23P01')
+      ? 'That time overlaps another session already booked in the same room — pick another time.'
       : 'Save failed.'));
     await loadAll();
     return;
@@ -2197,28 +2223,26 @@ window.saveSession = async function() {
   const patientId = ctx.patientId;
   const admId     = ctx.admId;
   const roomId = document.getElementById('sched-room').value || null;
+  const durationVal = document.getElementById('sched-duration').value;
+  const doctorVal   = document.getElementById('sched-doctor').value;
+  const instrVal    = document.getElementById('sched-instructions').value.trim();
 
-  // Session 206: best-effort client-side heads-up before hitting the real DB-enforced
-  // conflict guard (pk_sessions_room_slot_uniq) — that unique index is the actual
-  // enforcement, this is just so the user isn't surprised by a raw constraint error.
+  // Session 206/235 -- best-effort client-side heads-up before hitting the real DB-enforced
+  // conflict guard (pk_sessions_room_overlap_excl, a true time-range exclusion constraint as
+  // of Session 235 -- was previously an exact-start-time-only unique index that missed a
+  // genuine overlap at a different start time entirely). This pre-check now mirrors that same
+  // real overlap logic, not just an exact-time match.
   if (roomId && time) {
-    const { data: clash } = await supabase.from('pk_therapy_sessions')
-      .select('id, patients(name)')
-      .eq('room_id', roomId).eq('scheduled_date', date).eq('scheduled_time', time)
-      .neq('status', 'skipped').maybeSingle();
+    const clash = await _checkRoomOverlap(roomId, date, time, durationVal ? Number(durationVal) : null, null);
     if (clash) {
       const room = _rooms.find(r => r.id === roomId);
-      const ok = confirm(`⚠ ${room?.room_name || 'This room'} already has a session booked at ${time} for ${clash.patients?.name || 'another patient'}.\n\nPick a different room or time — continuing may fail.`);
+      const ok = confirm(`⚠ ${room?.room_name || 'This room'} already has an overlapping session booked for ${clash.patients?.name || 'another patient'}.\n\nPick a different room or time — continuing may fail.`);
       if (!ok) return;
     }
   }
 
   const btn = document.getElementById('btn-sched-save');
   btn.disabled = true; btn.textContent = 'Saving…';
-
-  const durationVal = document.getElementById('sched-duration').value;
-  const doctorVal   = document.getElementById('sched-doctor').value;
-  const instrVal    = document.getElementById('sched-instructions').value.trim();
 
   const { data: inserted, error } = await supabase.from('pk_therapy_sessions').insert({
     tenant_id:           tenantId,
@@ -2249,8 +2273,10 @@ window.saveSession = async function() {
 
   btn.disabled = false; btn.textContent = 'Schedule';
   if (error) {
-    _alert('error', safeErrorMessage(error, error.code === '23505'
-      ? 'That room is already booked for this exact date and time — pick another room or slot.'
+    // Session 235 -- 23P01 is the real overlap-safe exclusion constraint now, 23505 was the
+    // old exact-start-time-only unique index it replaced -- same user-facing meaning either way.
+    _alert('error', safeErrorMessage(error, (error.code === '23505' || error.code === '23P01')
+      ? 'That room already has an overlapping session booked — pick another room or time.'
       : 'Save failed.'));
     return;
   }
@@ -2485,25 +2511,21 @@ window.saveAssignment = async function() {
     if (!proceed) return;
   }
 
-  // Same room-clash pre-check saveSession() has (real enforcement is still the DB
-  // unique index -- this is just so the user isn't surprised by a raw constraint error).
+  const durationVal = document.getElementById('assign-duration').value;
+  const instructionsVal = document.getElementById('assign-instructions').value.trim();
+
+  // Same real-overlap room-clash pre-check saveSession() has (Session 235).
   if (roomId && time) {
-    const { data: clash } = await supabase.from('pk_therapy_sessions')
-      .select('id, patients(name)')
-      .eq('room_id', roomId).eq('scheduled_date', date).eq('scheduled_time', time)
-      .neq('id', _assignSessionId).neq('status', 'skipped').maybeSingle();
+    const clash = await _checkRoomOverlap(roomId, date, time, durationVal ? Number(durationVal) : null, _assignSessionId);
     if (clash) {
       const room = _rooms.find(r => r.id === roomId);
-      const ok = confirm(`⚠ ${room?.room_name || 'This room'} already has a session booked at ${time} for ${clash.patients?.name || 'another patient'}.\n\nPick a different room or time — continuing may fail.`);
+      const ok = confirm(`⚠ ${room?.room_name || 'This room'} already has an overlapping session booked for ${clash.patients?.name || 'another patient'}.\n\nPick a different room or time — continuing may fail.`);
       if (!ok) return;
     }
   }
 
   const btn = document.getElementById('btn-assign-save');
   btn.disabled = true; btn.textContent = 'Saving…';
-
-  const durationVal = document.getElementById('assign-duration').value;
-  const instructionsVal = document.getElementById('assign-instructions').value.trim();
 
   const { error } = await supabase.from('pk_therapy_sessions').update({
     therapist_id: therapistId, room_id: roomId, scheduled_time: time,
@@ -2527,8 +2549,9 @@ window.saveAssignment = async function() {
 
   btn.disabled = false; btn.textContent = 'Assign';
   if (error) {
-    _alert('error', safeErrorMessage(error, error.code === '23505'
-      ? 'That room is already booked for this exact date and time — pick another room or slot.'
+    // Session 235 -- same 23P01/23505 note as saveSession() above.
+    _alert('error', safeErrorMessage(error, (error.code === '23505' || error.code === '23P01')
+      ? 'That room already has an overlapping session booked — pick another room or time.'
       : 'Save failed.'));
     return;
   }
