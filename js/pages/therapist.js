@@ -2350,26 +2350,26 @@ window.openAssignDrawer = async function(sessionId) {
   if (!s) return;
   _assignSessionId = sessionId;
   const pt = s.patients || {};
-  document.getElementById('assign-session-summary').textContent =
-    `${pt.name || 'Patient'} — ${s.therapy_name} (${_phaseLabel(s.therapy_phase)}) · ${s.scheduled_date}`;
 
-  // Session 233 (cont.) -- Therapy Name/Phase/Department/Doctor, editable here now too.
-  document.getElementById('assign-therapy').value = s.therapy_name || '';
-  document.getElementById('assign-phase').value   = s.therapy_phase || 'purvakarma';
-  const deptSel = document.getElementById('assign-dept');
-  deptSel.innerHTML = _depts.map(d => `<option value="${d.id}">${_esc(d.name)}</option>`).join('');
-  deptSel.value = s.departments?.id || '';
-  const docSel = document.getElementById('assign-doctor');
-  docSel.innerHTML = '<option value="">— Not specified —</option>' +
-    _prepStaff.filter(p => p.role === 'doctor').map(p => `<option value="${p.id}">${_esc(p.full_name)}</option>`).join('');
-  docSel.value = s.ordering_doctor?.id || '';
+  // Session 237 -- Therapy Name/Phase/Department/Doctor/Special Instructions are read-only
+  // clinical info here (corrected same session -- these were briefly editable, see the
+  // drawer's own comment). Time/Room/Therapist(s)/Duration below remain the real editable
+  // logistics fields.
+  document.getElementById('assign-session-summary').innerHTML = `
+    <div class="detail-row"><span>Patient</span><strong>${_esc(pt.name || '—')}</strong></div>
+    <div class="detail-row"><span>Therapy</span><strong>${_esc(s.therapy_name || '—')}</strong></div>
+    <div class="detail-row"><span>Phase</span><strong>${_phaseLabel(s.therapy_phase)}</strong></div>
+    <div class="detail-row"><span>Department</span><strong>${_esc(s.departments?.name || '—')}</strong></div>
+    <div class="detail-row"><span>Doctor</span><strong>${_esc(s.ordering_doctor?.full_name || '—')}</strong></div>
+    <div class="detail-row"><span>Date</span><strong>${s.scheduled_date}</strong></div>
+    ${s.special_instructions ? `<div class="detail-row"><span>Instructions</span><strong>${_esc(s.special_instructions)}</strong></div>` : ''}
+  `;
 
   _populateAssignRoomSelect(pt.gender);
   await _refreshAssignTherapistDuty(s.scheduled_date, pt.gender, s.profiles?.id);
   document.getElementById('assign-room').value       = s.room_id || '';
   document.getElementById('assign-time').value       = s.scheduled_time ? s.scheduled_time.slice(0,5) : '';
   document.getElementById('assign-duration').value   = s.planned_duration_minutes || '';
-  document.getElementById('assign-instructions').value = s.special_instructions || '';
   // Session 229 -- multi-therapist: pre-fill from whatever's already saved for this session.
   _assignExtraTherapistIds = (s.pk_therapy_session_therapists || []).map(r => r.profiles?.id).filter(Boolean);
   _renderExtraTherapistRows('assign-extra-therapists', _assignExtraTherapistIds, 'onAssignExtraTherapistChange', 'removeAssignExtraTherapist', s.profiles?.id || '', pt.gender);
@@ -2445,13 +2445,11 @@ window.saveAssignment = async function() {
   const therapistId = document.getElementById('assign-therapist').value;
   const roomId       = document.getElementById('assign-room').value || null;
   const time         = document.getElementById('assign-time').value || null;
-  // Session 233 (cont.) -- same gap as Duration/Instructions had: Therapy Name/Phase/
-  // Department/Doctor could only ever be set at creation, never corrected afterward.
-  const therapyName  = document.getElementById('assign-therapy').value.trim();
-  const phase        = document.getElementById('assign-phase').value;
-  const deptId       = document.getElementById('assign-dept').value || null;
-  const doctorVal    = document.getElementById('assign-doctor').value || null;
-  if (!therapyName) { _alert('error', 'Enter therapy name.'); return; }
+  // Session 237 -- Therapy Name/Phase/Department/Doctor/Special Instructions are deliberately
+  // NOT editable here (briefly were, Sessions 233-234, corrected same session): these are
+  // clinical decisions, not the Pk Incharge/therapist's call to change -- same principle as
+  // Date below. Read straight from the session record, unchanged.
+  const therapyName  = s.therapy_name;
   // Session 230 -- Date is deliberately NOT editable here (briefly was, corrected same
   // session): a session's day is clinically deliberate, not the Pk Incharge's call to move on
   // their own. See Skip's reschedule-on-skip path for the one real case a therapist genuinely
@@ -2516,7 +2514,6 @@ window.saveAssignment = async function() {
   }
 
   const durationVal = document.getElementById('assign-duration').value;
-  const instructionsVal = document.getElementById('assign-instructions').value.trim();
 
   // Same real-overlap room-clash pre-check saveSession() has (Session 235).
   if (roomId && time) {
@@ -2531,12 +2528,11 @@ window.saveAssignment = async function() {
   const btn = document.getElementById('btn-assign-save');
   btn.disabled = true; btn.textContent = 'Saving…';
 
+  // Session 237 -- only the real logistics fields are ever written here now: Therapy Name/
+  // Phase/Department/Doctor/Special Instructions are read-only, never touched by this drawer.
   const { error } = await supabase.from('pk_therapy_sessions').update({
     therapist_id: therapistId, room_id: roomId, scheduled_time: time,
     planned_duration_minutes: durationVal ? Number(durationVal) : null,
-    special_instructions: instructionsVal || null,
-    therapy_name: therapyName, therapy_phase: phase, department_id: deptId,
-    ordering_doctor_id: doctorVal,
   }).eq('id', _assignSessionId);
 
   // Session 229 -- resyncs the additional-therapist list: delete-then-reinsert is simplest and
