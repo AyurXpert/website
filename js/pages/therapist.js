@@ -701,6 +701,16 @@ window.markPrepIssued = async function(id) {
 // ── Therapist Duty Roster (Session 206 piece 3) ─────────────────────────────────
 // Deliberately separate from roster.html/duty_roster -- see therapist.html's comment.
 function _isPkRosterAdmin() {
+  // Session 240 -- Dr. Venkatesh: Medical Director/Principal/Medical Superintendent stay
+  // view-only here even when their role or secondary_role would otherwise qualify as
+  // dept_admin-tier. This is the ORIGINAL Session 207 intent (see _renderPkRosterPanel()'s
+  // comment below) -- it just wasn't actually enforced: the real "Dr Ms" account on SDM has
+  // secondary_role='dept_admin' AND designation='medical_superintendent', so the old
+  // OR-composed check below wrongly granted her roster-edit rights anyway. Confirmed live
+  // the same gap applied to the Assign Room & Therapist drawer (Session 239). super_admin is
+  // exempt -- a genuine platform/org owner who also happens to hold one of these titles
+  // keeps full access, same break-glass principle as every other role check in this file.
+  if (role !== 'super_admin' && ROOM_ADMIN_DESIGS.includes(myProfile?.designation)) return false;
   return role === 'super_admin' || role === 'dept_admin'
     || myProfile?.secondary_role === 'dept_admin' || myProfile?.designation === 'pk_incharge';
 }
