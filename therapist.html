@@ -472,6 +472,15 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
         <label>Planned Duration (minutes)</label>
         <input id="assign-duration" type="number" min="0" placeholder="e.g. 45"/>
       </div>
+
+      <!-- Session 233 -- same gap as Duration had: special_instructions could only ever be set
+           at creation time ("+ Schedule Session"), which a Care-Plan-generated session never
+           goes through at all -- it only ever gets whatever instructions_therapist the Care
+           Plan carried (possibly generic, possibly none). No way to add/update it afterward. -->
+      <div class="field">
+        <label>Special Instructions to Therapist</label>
+        <textarea id="assign-instructions" rows="2" placeholder="e.g. gentle pressure only, patient has lower back sensitivity…" style="width:100%;border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
+      </div>
     </div>
     <div class="drawer-footer">
       <button class="btn btn-secondary" data-onclick="closeAssignDrawer">Cancel</button>

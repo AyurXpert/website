@@ -2327,6 +2327,7 @@ window.openAssignDrawer = async function(sessionId) {
   document.getElementById('assign-room').value       = s.room_id || '';
   document.getElementById('assign-time').value       = s.scheduled_time ? s.scheduled_time.slice(0,5) : '';
   document.getElementById('assign-duration').value   = s.planned_duration_minutes || '';
+  document.getElementById('assign-instructions').value = s.special_instructions || '';
   // Session 229 -- multi-therapist: pre-fill from whatever's already saved for this session.
   _assignExtraTherapistIds = (s.pk_therapy_session_therapists || []).map(r => r.profiles?.id).filter(Boolean);
   _renderExtraTherapistRows('assign-extra-therapists', _assignExtraTherapistIds, 'onAssignExtraTherapistChange', 'removeAssignExtraTherapist', s.profiles?.id || '', pt.gender);
@@ -2482,10 +2483,12 @@ window.saveAssignment = async function() {
   btn.disabled = true; btn.textContent = 'Saving…';
 
   const durationVal = document.getElementById('assign-duration').value;
+  const instructionsVal = document.getElementById('assign-instructions').value.trim();
 
   const { error } = await supabase.from('pk_therapy_sessions').update({
     therapist_id: therapistId, room_id: roomId, scheduled_time: time,
     planned_duration_minutes: durationVal ? Number(durationVal) : null,
+    special_instructions: instructionsVal || null,
   }).eq('id', _assignSessionId);
 
   // Session 229 -- resyncs the additional-therapist list: delete-then-reinsert is simplest and
