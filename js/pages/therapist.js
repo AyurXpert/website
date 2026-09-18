@@ -94,7 +94,7 @@ async function loadAll() {
         id, therapy_phase, therapy_name, scheduled_date, scheduled_time,
         actual_start, actual_end, status, therapist_notes, doctor_clearance,
         therapy_room_number, samsarjana_stage, room_id, ipd_admission_id,
-        planned_duration_minutes, special_instructions,
+        planned_duration_minutes, special_instructions, skip_reason,
         patients(id, name, phone, age, gender),
         profiles!therapist_id(id, full_name, gender),
         ordering_doctor:profiles!ordering_doctor_id(id, full_name),
@@ -1856,6 +1856,7 @@ function renderTable(rows) {
         <span class="status-badge status-${s.status}">
           ${_statusLabel(s.status)}
         </span>
+        ${s.status === 'skipped' && s.skip_reason ? `<div class="pt-meta" title="${_esc(s.skip_reason)}">${_esc(s.skip_reason)}</div>` : ''}
       </td>
       <td>
         <div class="row-actions">
@@ -2596,6 +2597,10 @@ window.saveCompletion = async function() {
   const notes   = document.getElementById('comp-notes').value.trim();
   const clear   = document.getElementById('comp-clearance').checked;
   const today   = _viewDate;
+  // Session 231 -- real bug found live: this field has existed since the drawer was built but
+  // was never actually persisted anywhere (pk_therapy_sessions had no column for it) -- every
+  // skip reason ever entered was silently discarded.
+  const skipReason = document.getElementById('comp-skip-reason').value.trim();
 
   const session = _sessions.find(s => s.id === id);
   const isPaschatkarma = session?.therapy_phase === 'paschatkarma';
@@ -2605,6 +2610,7 @@ window.saveCompletion = async function() {
     therapist_notes:  notes || null,
     doctor_clearance: clear,
   };
+  if (isSkip) patch.skip_reason = skipReason || null;
   if (!isSkip) {
     if (start) patch.actual_start = `${today}T${start}:00`;
     if (end)   patch.actual_end   = `${today}T${end}:00`;
