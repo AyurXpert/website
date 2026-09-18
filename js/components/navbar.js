@@ -528,8 +528,21 @@ function _tenantTypeLabel(type) {
 function _injectStyles() {
   const s = document.createElement('style');
   s.textContent = `
+  /* Session 238 -- real bug found live on therapist.html, same root cause the Session 206
+     watermark fix (below) already worked around for its own corner of the screen: this navbar
+     is position:fixed with an explicit z-index, so it establishes its OWN stacking context --
+     every drawer/modal/overlay platform-wide (confirmed by that same Session 206 audit: they
+     range from z-index:100 up into the thousands depending on the page, but NONE go below 100)
+     needs to render above it, yet this navbar sat at z-index:1000, right in the middle of that
+     range -- covering any modal's own header/title whenever they overlapped near the top of
+     the viewport. One shared file, so the fix applies everywhere navbar.js is used, not just
+     the pages that happened to get caught and patched individually (therapist.html,
+     bed-admin.html, formulary-admin.html). 90 sits below every modal (>=100) while staying
+     above ordinary unstacked page content and the watermark's own 50 -- the navbar's internal
+     dropdown/mobile-menu stacking (all z-index:200 or unspecified, scoped to this element's own
+     stacking context) is unaffected by lowering the context's own base value. */
   #ax-navbar {
-    position:fixed;top:0;left:0;right:0;z-index:1000;
+    position:fixed;top:0;left:0;right:0;z-index:90;
     background:#1a4a2e;
     box-shadow:0 2px 12px rgba(0,0,0,.2);
     font-family:'DM Sans',sans-serif;
