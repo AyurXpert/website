@@ -1859,7 +1859,12 @@ function renderTable(rows) {
       </td>
       <td>
         <div class="row-actions">
-          ${(!s.room_id || !therapist.id) && s.status !== 'skipped' ? `<button class="icon-btn" data-onclick="openAssignDrawer" data-onclick-a0="${s.id}" title="Assign Room & Therapist" style="color:#1a4080">🏠</button>` : ''}
+          <!-- Session 229 -- was only shown while room/therapist were still missing, which
+               meant there was no way back into this drawer at all once a session was fully
+               assigned -- exactly where "+ Add another therapist" lives, so a real,
+               already-staffed session could never gain a 2nd/3rd/4th therapist through the UI.
+               Always shown now (bar a skipped session); label reflects which case it is. -->
+          ${s.status !== 'skipped' ? `<button class="icon-btn" data-onclick="openAssignDrawer" data-onclick-a0="${s.id}" title="${(!s.room_id || !therapist.id) ? 'Assign Room & Therapist' : 'Edit Room / Therapists'}" style="color:#1a4080">🏠</button>` : ''}
           ${canStart ? `<button class="icon-btn start" data-onclick="quickStart" data-onclick-a0="${s.id}" title="Mark In Progress">&#9654;</button>` : ''}
           ${canComplete ? `<button class="icon-btn complete" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@false" title="Complete">&#10003;</button>` : ''}
           ${canSkip ? `<button class="icon-btn skip" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@true" title="Skip">&#10007;</button>` : ''}
