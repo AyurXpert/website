@@ -102,6 +102,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .sessions-table tr:hover td{background:#f5faf7}
 .pt-name{font-weight:600;color:var(--text-dark)}
 .pt-meta{font-size:11px;color:var(--text-muted);margin-top:2px}
+.pt-gender-badge{display:inline-block;font-size:11.5px;font-weight:600;color:var(--green-deep);background:var(--green-light);padding:2px 8px;border-radius:10px;margin-top:4px}
 .time-cell{font-size:14px;font-weight:600;color:var(--text-dark);white-space:nowrap}
 .time-end{font-size:11px;color:var(--text-muted);margin-top:2px}
 .therapy-name{font-weight:600;color:var(--text-dark)}
@@ -195,8 +196,14 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
 @media(max-width:700px){
   .stats-row{grid-template-columns:1fr 1fr}
   .drawer{width:100vw}
-  .sessions-table th:nth-child(4),.sessions-table td:nth-child(4){display:none}
-  .sessions-table th:nth-child(6),.sessions-table td:nth-child(6){display:none}
+  /* Session 223 -- scoped to #sessions-table specifically (not the shared .sessions-table
+     class) since the View Full Week table now also reuses that class with a different column
+     layout; hiding by class here would have misapplied to its columns too. */
+  #sessions-table th:nth-child(4),#sessions-table td:nth-child(4){display:none} /* Duration */
+  #sessions-table th:nth-child(5),#sessions-table td:nth-child(5){display:none} /* Doctor */
+  #sessions-table th:nth-child(6),#sessions-table td:nth-child(6){display:none} /* Therapist */
+  #sessions-table th:nth-child(8),#sessions-table td:nth-child(8){display:none} /* Instructions */
+  #sessions-table th:nth-child(9),#sessions-table td:nth-child(9){display:none} /* Fitness §47 */
 }
 
 /* ── NCISM §47 Fitness badges ── */
@@ -356,6 +363,28 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
           <option value="">— Not assigned —</option>
         </select>
         <div class="field-note" id="sched-room-note" style="display:none;color:#7a5a00">No treatment rooms configured yet — set them up in the 🛏 Treatment Rooms panel above.</div>
+      </div>
+
+      <!-- Session 223 -- Duration/Doctor/Instructions requested to appear as real Session
+           Schedule columns; a manually-scheduled session had no such fields to source them
+           from before, so they're collected here too (all optional -- this stays an override
+           tool like the rest of this form, not a new hard requirement). -->
+      <div class="field-row">
+        <div class="field">
+          <label>Planned Duration (minutes)</label>
+          <input id="sched-duration" type="number" min="0" placeholder="e.g. 45"/>
+        </div>
+        <div class="field">
+          <label>Doctor</label>
+          <select id="sched-doctor">
+            <option value="">— Not specified —</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Special Instructions to Therapist</label>
+        <textarea id="sched-instructions" rows="2" placeholder="e.g. gentle pressure only, patient has lower back sensitivity…" style="width:100%;border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
       </div>
 
       <div class="field">
@@ -889,15 +918,18 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
         <th>Time</th>
         <th>Patient</th>
         <th>Therapy</th>
+        <th>Duration</th>
+        <th>Doctor</th>
         <th>Therapist</th>
         <th>Dept</th>
+        <th>Instructions</th>
         <th>Fitness §47</th>
         <th>Status</th>
         <th style="width:100px"></th>
       </tr>
     </thead>
     <tbody id="sessions-tbody">
-      <tr><td colspan="7" class="table-empty">Loading…</td></tr>
+      <tr><td colspan="11" class="table-empty">Loading…</td></tr>
     </tbody>
   </table>
 

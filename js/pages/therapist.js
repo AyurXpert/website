@@ -94,8 +94,10 @@ async function loadAll() {
         id, therapy_phase, therapy_name, scheduled_date, scheduled_time,
         actual_start, actual_end, status, therapist_notes, doctor_clearance,
         therapy_room_number, samsarjana_stage, room_id,
+        planned_duration_minutes, special_instructions,
         patients(id, name, phone, age, gender),
         profiles!therapist_id(id, full_name, gender),
+        ordering_doctor:profiles!ordering_doctor_id(id, full_name),
         departments(id, name),
         pk_treatment_rooms(id, room_name)
       `)
@@ -267,8 +269,12 @@ async function loadAll() {
   if (pkSettingsRes.error) console.error('pk_roster_settings load failed:', pkSettingsRes.error);
   if (pkPrepRes.error) console.error('pk_prep_room_duty load failed:', pkPrepRes.error);
 
-  // If logged in as therapist, only show own sessions
-  if (role === 'therapist') {
+  // Session 223 -- a plain therapist only ever sees their own sessions, but the Pk Incharge
+  // and any room/roster admin (same population the Duty Roster already gives full oversight
+  // to via _isPkRosterAdmin()/_isRoomAdmin()) need the whole department's schedule to actually
+  // do their job -- a real gap found live: the Pk Incharge account only ever saw sessions
+  // assigned to themself, identical to any other plain therapist.
+  if (role === 'therapist' && !_isPkRosterAdmin() && !_isRoomAdmin()) {
     _sessions = _sessions.filter(s => s.profiles?.id === myProfile?.id);
   }
 
@@ -1513,6 +1519,12 @@ function _populateSchedSelects() {
 
   // Rooms (Session 206)
   _populateRoomSelect();
+
+  // Session 223 -- reuses the already-loaded _prepStaff list (role in super_admin/dept_admin/
+  // doctor/therapist/nurse, Session 206), filtered to doctors only -- no new query needed.
+  const sdoc = document.getElementById('sched-doctor');
+  sdoc.innerHTML = '<option value="">— Not specified —</option>' +
+    _prepStaff.filter(p => p.role === 'doctor').map(p => `<option value="${p.id}">${_esc(p.full_name)}</option>`).join('');
 }
 
 function _populateRoomSelect() {
@@ -1598,7 +1610,7 @@ window.applyFilters = function() {
 function renderTable(rows) {
   const tbody = document.getElementById('sessions-tbody');
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="table-empty">No sessions for this date.<br>Use "+ Schedule Session" to add one.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="table-empty">No sessions for this date.<br>Use "+ Schedule Session" to add one.</td></tr>`;
     return;
   }
 
@@ -1606,12 +1618,24 @@ function renderTable(rows) {
     const pt        = s.patients || {};
     const therapist = s.profiles || {};
     const dept      = s.departments || {};
+    const doctor    = s.ordering_doctor || {};
     const timeStr   = s.scheduled_time ? s.scheduled_time.slice(0,5) : '—';
     const canStart  = s.status === 'scheduled';
     const canComplete = s.status === 'scheduled' || s.status === 'in_progress';
     const canSkip   = s.status === 'scheduled';
 
-    const ptMeta = [pt.gender, pt.age ? pt.age+'y' : ''].filter(Boolean).join(' · ');
+    // Session 223 -- was an 11px muted subtext, easy to miss (reported live). Kept inline
+    // under the name (not its own column, per Dr. Venkatesh's correction) but as a real
+    // badge now so it's actually legible at a glance.
+    const genderLabel = pt.gender === 'M' ? 'Male' : pt.gender === 'F' ? 'Female' : null;
+    const ptMeta = [genderLabel, pt.age ? pt.age + 'y' : null].filter(Boolean).join(' · ');
+    // Session 223 -- highlights this row when it's assigned to the logged-in therapist, so
+    // the Pk Incharge/admin's now-widened full-department view still makes their own
+    // sessions easy to spot at a glance (same purpose as the Week View's "today" highlight).
+    const isMine = role === 'therapist' && therapist.id && therapist.id === myProfile?.id;
+    const durationLabel = s.planned_duration_minutes ? `${s.planned_duration_minutes} min` : '—';
+    const instructionsFull = s.special_instructions || '';
+    const instructionsShort = instructionsFull.length > 45 ? instructionsFull.slice(0, 45) + '…' : instructionsFull;
     // Session 206: prefer the real room resource; therapy_room_number is legacy free text
     // (0 rows platform-wide used it, kept only as a fallback for any pre-migration row).
     const roomName = s.pk_treatment_rooms?.room_name || s.therapy_room_number;
@@ -1635,14 +1659,14 @@ function renderTable(rows) {
       ? `<div class="pt-meta" style="color:#7a5a00">🍚 ${_samLabel(s.samsarjana_stage)}</div>`
       : '';
 
-    return `<tr>
+    return `<tr${isMine ? ' style="background:var(--gold-light)"' : ''}>
       <td>
         <div class="time-cell">${timeStr}</div>
         ${s.actual_start ? `<div class="time-end">Started ${s.actual_start.slice(11,16)}</div>` : ''}
       </td>
       <td>
         <div class="pt-name">${_esc(pt.name||'—')}</div>
-        ${ptMeta ? `<div class="pt-meta">${ptMeta}</div>` : ''}
+        ${ptMeta ? `<div class="pt-gender-badge">${_esc(ptMeta)}</div>` : ''}
       </td>
       <td>
         <div class="therapy-name">${_esc(s.therapy_name||'—')}</div>
@@ -1650,11 +1674,14 @@ function renderTable(rows) {
         ${roomLabel}
         ${samLabel}
       </td>
+      <td>${durationLabel}</td>
+      <td>${_esc(doctor.full_name || '—')}</td>
       <td>
         <div>${_esc(therapist.full_name||'—')}</div>
         ${therapist.gender ? `<div class="pt-meta">${therapist.gender === 'M' ? 'Male' : 'Female'}</div>` : ''}
       </td>
       <td>${_esc(dept.name||'—')}</td>
+      <td>${instructionsFull ? `<span title="${_esc(instructionsFull)}">${_esc(instructionsShort)}</span>` : '—'}</td>
       <td>${fitnessBadge}</td>
       <td>
         <span class="status-badge status-${s.status}">
@@ -1687,6 +1714,9 @@ window.openSchedDrawer = function(prefillAdmId) {
   document.getElementById('sched-time').value      = '';
   document.getElementById('sched-dept').value      = '';
   document.getElementById('sched-admission').value = '';
+  document.getElementById('sched-duration').value  = '';
+  document.getElementById('sched-doctor').value    = '';
+  document.getElementById('sched-instructions').value = '';
   onSourceChange();
   if (prefillAdmId) {
     const opts = document.getElementById('sched-admission').options;
@@ -1910,6 +1940,10 @@ window.saveSession = async function() {
   const btn = document.getElementById('btn-sched-save');
   btn.disabled = true; btn.textContent = 'Saving…';
 
+  const durationVal = document.getElementById('sched-duration').value;
+  const doctorVal   = document.getElementById('sched-doctor').value;
+  const instrVal    = document.getElementById('sched-instructions').value.trim();
+
   const { error } = await supabase.from('pk_therapy_sessions').insert({
     tenant_id:           tenantId,
     patient_id:          patientId,
@@ -1923,6 +1957,9 @@ window.saveSession = async function() {
     doctor_clearance:    clearance,
     room_id:             roomId,
     status:              'scheduled',
+    planned_duration_minutes: durationVal ? Number(durationVal) : null,
+    ordering_doctor_id:  doctorVal || null,
+    special_instructions: instrVal || null,
   });
 
   btn.disabled = false; btn.textContent = 'Schedule';
