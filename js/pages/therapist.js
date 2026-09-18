@@ -1659,10 +1659,30 @@ function renderTable(rows) {
       ? `<div class="pt-meta" style="color:#7a5a00">🍚 ${_samLabel(s.samsarjana_stage)}</div>`
       : '';
 
+    // Session 225 -- inline Time/Duration editing directly on the table (was only reachable
+    // via "+ Schedule Session" at creation or the Assign Room & Therapist drawer afterward).
+    // Same click-to-edit convention as _pkEditingDutyId's grid above: click the value, it
+    // becomes a real input pre-filled with the current value, commits on change.
+    const timeCell = (_editSessionCell?.id === s.id && _editSessionCell.field === 'time')
+      ? `<input type="time" value="${s.scheduled_time ? s.scheduled_time.slice(0,5) : ''}"
+           data-onchange="saveSessionCell" data-onchange-a0="${s.id}" data-onchange-a1="time" data-onchange-a2="@value"
+           data-onblur="cancelEditSessionCell"
+           style="height:30px;border:1.5px solid var(--green-deep);border-radius:6px;padding:0 6px;font-size:12px;width:95px;font-family:inherit"/>`
+      : `<div class="time-cell" data-onclick="startEditSessionCell" data-onclick-a0="${s.id}" data-onclick-a1="time"
+           style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px" title="Click to edit">${timeStr}</div>
+         ${s.actual_start ? `<div class="time-end">Started ${s.actual_start.slice(11,16)}</div>` : ''}`;
+
+    const durationCell = (_editSessionCell?.id === s.id && _editSessionCell.field === 'duration')
+      ? `<input type="number" min="0" value="${s.planned_duration_minutes || ''}" placeholder="min"
+           data-onchange="saveSessionCell" data-onchange-a0="${s.id}" data-onchange-a1="duration" data-onchange-a2="@value"
+           data-onblur="cancelEditSessionCell"
+           style="height:30px;border:1.5px solid var(--green-deep);border-radius:6px;padding:0 6px;font-size:12px;width:65px;font-family:inherit"/>`
+      : `<span data-onclick="startEditSessionCell" data-onclick-a0="${s.id}" data-onclick-a1="duration"
+           style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px" title="Click to edit">${durationLabel}</span>`;
+
     return `<tr${isMine ? ' style="background:var(--gold-light)"' : ''}>
       <td>
-        <div class="time-cell">${timeStr}</div>
-        ${s.actual_start ? `<div class="time-end">Started ${s.actual_start.slice(11,16)}</div>` : ''}
+        ${timeCell}
       </td>
       <td>
         <div class="pt-name">${_esc(pt.name||'—')}</div>
@@ -1674,7 +1694,7 @@ function renderTable(rows) {
         ${roomLabel}
         ${samLabel}
       </td>
-      <td>${durationLabel}</td>
+      <td>${durationCell}</td>
       <td>${_esc(doctor.full_name || '—')}</td>
       <td>
         <div>${_esc(therapist.full_name||'—')}</div>
@@ -1701,6 +1721,31 @@ function renderTable(rows) {
     </tr>`;
   }).join('');
 }
+
+// Session 225 -- inline Time/Duration editing (see renderTable()'s timeCell/durationCell).
+window.startEditSessionCell = function(sessionId, field) {
+  _editSessionCell = { id: sessionId, field };
+  applyFilters();
+};
+window.cancelEditSessionCell = function() {
+  _editSessionCell = null;
+  applyFilters();
+};
+window.saveSessionCell = async function(sessionId, field, value) {
+  const patch = field === 'time'
+    ? { scheduled_time: value || null }
+    : { planned_duration_minutes: value ? Number(value) : null };
+  _editSessionCell = null;
+  const { error } = await supabase.from('pk_therapy_sessions').update(patch).eq('id', sessionId);
+  if (error) {
+    _alert('error', safeErrorMessage(error, error.code === '23505'
+      ? 'That time conflicts with another session in the same room — pick another time.'
+      : 'Save failed.'));
+    await loadAll();
+    return;
+  }
+  await loadAll();
+};
 
 // ── Schedule drawer ───────────────────────────────────────────────────────────
 window.openSchedDrawer = function(prefillAdmId) {
@@ -1981,6 +2026,11 @@ window.saveSession = async function() {
 // PK consent validity, Raktamokshana aseptic-unit confirm, room-clash pre-check),
 // just for an UPDATE against an existing session instead of a fresh INSERT.
 let _assignSessionId = null;
+// Session 225 -- inline Time/Duration editing directly on the Session Schedule table (was
+// only editable via the "+ Schedule Session" create form or the "Assign Room & Therapist"
+// drawer, requested as a quicker path for adjusting either after the fact). Same
+// click-to-edit convention as _pkEditingDutyId's Shift 1/2 grid above.
+let _editSessionCell = null; // { id, field: 'time' | 'duration' }
 
 window.openAssignDrawer = function(sessionId) {
   const s = _sessions.find(x => x.id === sessionId);
