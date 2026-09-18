@@ -430,6 +430,40 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
     <div class="drawer-body">
       <div class="field-note" id="assign-session-summary" style="margin-bottom:12px"></div>
 
+      <!-- Session 233 (cont.) -- same gap as Duration/Instructions had: Therapy Name, Phase,
+           Department and Doctor could only ever be set at creation ("+ Schedule Session"),
+           which a Care-Plan-generated session never goes through at all. Editable here too now,
+           for consistency -- these were copied from the Care Plan at generation time and can
+           genuinely need correcting/refining afterward, same reasoning already applied to
+           Duration/Instructions. -->
+      <div class="field-row">
+        <div class="field">
+          <label>Therapy Name</label>
+          <input id="assign-therapy" type="text" list="therapy-list"/>
+        </div>
+        <div class="field">
+          <label>Phase</label>
+          <select id="assign-phase">
+            <option value="purvakarma">Purvakarma (Preparatory)</option>
+            <option value="pradhanakarma">Pradhanakarma (Main Treatment)</option>
+            <option value="paschatkarma">Paschatkarma (Post-Treatment)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Department</label>
+          <select id="assign-dept"></select>
+        </div>
+        <div class="field">
+          <label>Doctor</label>
+          <select id="assign-doctor">
+            <option value="">— Not specified —</option>
+          </select>
+        </div>
+      </div>
+
       <div class="field">
         <label>Therapist <span class="req">*</span></label>
         <select id="assign-therapist">

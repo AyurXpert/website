@@ -2322,6 +2322,18 @@ window.openAssignDrawer = async function(sessionId) {
   const pt = s.patients || {};
   document.getElementById('assign-session-summary').textContent =
     `${pt.name || 'Patient'} — ${s.therapy_name} (${_phaseLabel(s.therapy_phase)}) · ${s.scheduled_date}`;
+
+  // Session 233 (cont.) -- Therapy Name/Phase/Department/Doctor, editable here now too.
+  document.getElementById('assign-therapy').value = s.therapy_name || '';
+  document.getElementById('assign-phase').value   = s.therapy_phase || 'purvakarma';
+  const deptSel = document.getElementById('assign-dept');
+  deptSel.innerHTML = _depts.map(d => `<option value="${d.id}">${_esc(d.name)}</option>`).join('');
+  deptSel.value = s.departments?.id || '';
+  const docSel = document.getElementById('assign-doctor');
+  docSel.innerHTML = '<option value="">— Not specified —</option>' +
+    _prepStaff.filter(p => p.role === 'doctor').map(p => `<option value="${p.id}">${_esc(p.full_name)}</option>`).join('');
+  docSel.value = s.ordering_doctor?.id || '';
+
   _populateAssignRoomSelect(pt.gender);
   await _refreshAssignTherapistDuty(s.scheduled_date, pt.gender, s.profiles?.id);
   document.getElementById('assign-room').value       = s.room_id || '';
@@ -2403,6 +2415,13 @@ window.saveAssignment = async function() {
   const therapistId = document.getElementById('assign-therapist').value;
   const roomId       = document.getElementById('assign-room').value || null;
   const time         = document.getElementById('assign-time').value || null;
+  // Session 233 (cont.) -- same gap as Duration/Instructions had: Therapy Name/Phase/
+  // Department/Doctor could only ever be set at creation, never corrected afterward.
+  const therapyName  = document.getElementById('assign-therapy').value.trim();
+  const phase        = document.getElementById('assign-phase').value;
+  const deptId       = document.getElementById('assign-dept').value || null;
+  const doctorVal    = document.getElementById('assign-doctor').value || null;
+  if (!therapyName) { _alert('error', 'Enter therapy name.'); return; }
   // Session 230 -- Date is deliberately NOT editable here (briefly was, corrected same
   // session): a session's day is clinically deliberate, not the Pk Incharge's call to move on
   // their own. See Skip's reschedule-on-skip path for the one real case a therapist genuinely
@@ -2454,8 +2473,9 @@ window.saveAssignment = async function() {
     }
   }
 
-  // Same NCISM §47(a)(xv) Raktamokshana aseptic-unit confirm.
-  const therapyLower = (s.therapy_name || '').toLowerCase();
+  // Same NCISM §47(a)(xv) Raktamokshana aseptic-unit confirm -- reads the CURRENT (possibly
+  // just-edited) therapy name, not the session's original one.
+  const therapyLower = therapyName.toLowerCase();
   if (therapyLower.includes('raktamokshana') || therapyLower.includes('leech')) {
     const proceed = confirm(
       '⚠ NCISM §47(a)(xv) — Aseptic Conditions Required\n\n' +
@@ -2489,6 +2509,8 @@ window.saveAssignment = async function() {
     therapist_id: therapistId, room_id: roomId, scheduled_time: time,
     planned_duration_minutes: durationVal ? Number(durationVal) : null,
     special_instructions: instructionsVal || null,
+    therapy_name: therapyName, therapy_phase: phase, department_id: deptId,
+    ordering_doctor_id: doctorVal,
   }).eq('id', _assignSessionId);
 
   // Session 229 -- resyncs the additional-therapist list: delete-then-reinsert is simplest and
