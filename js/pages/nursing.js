@@ -1464,12 +1464,38 @@ function _renderSnehaDoseCell(sneha, isDoctorLike) {
         data-onchange="_pkConfirmSnehaDose" data-onchange-a0="${sneha.id}" data-onchange-a1="@this" title="Doctor: confirm/edit this day's dose"/>`
     : '';
   const atiyoga = sneha.atiyoga_signs?.length ? `<span style="color:#c0392b;font-weight:700;margin-left:4px" title="Atiyoga (over-oleation) signs recorded">⚠ Atiyoga</span>` : '';
+  // Session 256 -- surfaced only once Samyak Snigdha signs are actually on record (a
+  // real clinical basis for the decision, not a button available on every random day)
+  // and only for the doctor -- stopping the course cancels real future sessions and
+  // reschedules everything after, a genuinely consequential action.
+  const stopBtn = isDoctorLike && sneha.administered_dose_ml && sneha.samyak_snigdha_signs?.length
+    ? `<button type="button" class="icon-btn" data-onclick="stopSnehapanaHere" data-onclick-a0="${sneha.care_plan_day_id}"
+        style="font-size:10px;padding:2px 6px;margin-top:2px;margin-left:4px;color:#c0392b" title="Samyak Snigdha reached -- stop Snehapana after this day">
+        🛑 Stop Here
+      </button>`
+    : '';
   return `<div style="font-size:11px">${given}${doctorEdit}${atiyoga}<br>
     <button type="button" class="icon-btn" data-onclick="openSnehaSignsModal" data-onclick-a0="${sneha.id}"
       style="font-size:10px;padding:2px 6px;margin-top:2px" title="Record Jeeryamana/Jeerna/Samyak Snigdha signs">
       📋 Signs${signsCount ? ` (${signsCount})` : ''}
-    </button></div>`;
+    </button>${stopBtn}</div>`;
 }
+
+window.stopSnehapanaHere = async function(carePlanDayId) {
+  if (!confirm(
+    'Stop Snehapana after this day?\n\n' +
+    'Any remaining planned Snehapana days will be cancelled, and every later activity ' +
+    '(Abhyanga+Sweda, the main procedure, Samsarjana Krama) will move earlier to start ' +
+    'right after this day. Any room/therapist already assigned to those later sessions ' +
+    'will be cleared and need reassigning for the new dates.'
+  )) return;
+
+  const { data, error } = await supabase.rpc('stop_snehapana_early', { p_last_care_plan_day_id: carePlanDayId });
+  if (error) { alert(safeErrorMessage(error, 'Could not stop Snehapana early.')); return; }
+  await logAudit('pk_snehapana_stopped_early', 'pk_care_plan_days', carePlanDayId, { cancelled_days: data }, _ctx);
+  alert(data > 0 ? `Snehapana stopped -- ${data} remaining day(s) cancelled, later activities rescheduled.` : 'Already the last planned day -- nothing to change.');
+  await loadPkCarePlan();
+};
 
 // ── Snehapana Signs modal ──────────────────────────────────────────────────────────
 window.openSnehaSignsModal = function(doseId) {
