@@ -1701,12 +1701,15 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
     start_date: new Date().toLocaleDateString('en-CA'),
     // Cloned into an editable per-patient copy -- editing this plan never touches
     // the template, same "clone don't link" pattern nursing-roster-template.html uses.
+    // Session 254 -- medicines live per-activity (block), not one flat list for the
+    // whole course: Dr. Venkatesh confirmed the doctor needs to name, e.g., a
+    // different medicine for Deepana-Pachana vs. the Snehapana oil vs. the Virechana
+    // purgative itself, all within one protocol.
     blocks: days.map(d => ({
       phase: d.phase, activity_label: d.activity_label, is_flexible: d.is_flexible,
       min_days: d.min_days, max_days: d.max_days, length: (d.day_end - d.day_start + 1),
-      ayush_code: d.ayush_code,
+      ayush_code: d.ayush_code, medicines: [],
     })),
-    medicines: [],
   });
   chipEl.classList.add('on');
 };
@@ -1806,6 +1809,13 @@ window._pkSetProtocolStart = function(pi, inputEl) {
   _renderPkCalendar();
 };
 
+// Session 254 -- one Medicines section PER ACTIVITY (block), not one flat list for the
+// whole protocol: Dr. Venkatesh confirmed the doctor needs to name a different medicine
+// for Deepana-Pachana vs. the Snehapana oil vs. the Virechana/Vamana administration
+// medicine, each with its own multi-medicine list, all within one protocol. Phase 1 of a
+// 2-phase build he explicitly confirmed -- Phase 2 (doctor updating the actual dose
+// day-by-day, since real Snehapana dosing escalates on live sneha siddhi assessment) is
+// deliberately deferred to a later session.
 function _renderPkMedicines() {
   const el = document.getElementById('pk-medicines-body');
   if (!el) return;
@@ -1813,25 +1823,26 @@ function _renderPkMedicines() {
   el.innerHTML = _pkProtocols.map((p, pi) => `
     <div class="section" style="border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:12px">
       <div style="font-weight:700;font-size:14px;color:var(--green-deep);margin-bottom:8px">${_esc(p.protocol_label)}</div>
-      ${p.blocks.filter(b => !b.ayush_code).map(b => {
-        const bi = p.blocks.indexOf(b);
-        return `<div class="field" style="margin-bottom:6px">
-          <label style="font-size:11px">Billing code for "${_esc(b.activity_label)}" (optional)</label>
-          <select data-onchange="_pkSetBlockAyush" data-onchange-a0="${pi}" data-onchange-a1="${bi}" data-onchange-a2="@this">${codeOpts}</select>
-        </div>`;
-      }).join('')}
-      <div class="field">
-        <label>Medicines / Materials</label>
-        <div style="display:flex;gap:6px;margin-bottom:6px">
-          <input id="pk-med-name-${pi}" type="text" placeholder="e.g. Dhanwantharam Taila" style="flex:1"/>
-          <button type="button" data-onclick="_pkAddMedicine" data-onclick-a0="${pi}" style="height:36px;padding:0 12px;background:var(--green-mid);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">+ Add</button>
-        </div>
-        ${p.medicines.map((m, mi) => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;background:#fafff7">
-            <span style="font-size:12.5px">${_esc(m.medicine_name)}</span>
-            <button type="button" data-onclick="_pkRemoveMedicine" data-onclick-a0="${pi}" data-onclick-a1="${mi}" style="width:24px;height:24px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:10px">&#10005;</button>
-          </div>`).join('')}
-      </div>
+      ${p.blocks.map((b, bi) => `
+        <div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fafff7">
+          <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">${_esc(b.activity_label)}</div>
+          ${!b.ayush_code ? `<div class="field" style="margin-bottom:6px">
+            <label style="font-size:11px">Billing code for "${_esc(b.activity_label)}" (optional)</label>
+            <select data-onchange="_pkSetBlockAyush" data-onchange-a0="${pi}" data-onchange-a1="${bi}" data-onchange-a2="@this">${codeOpts}</select>
+          </div>` : ''}
+          <div class="field">
+            <label style="font-size:11px">Medicines / Materials for this activity</label>
+            <div style="display:flex;gap:6px;margin-bottom:6px">
+              <input id="pk-med-name-${pi}-${bi}" type="text" placeholder="e.g. Panchatiktaka Ghrita" style="flex:1"/>
+              <button type="button" data-onclick="_pkAddMedicine" data-onclick-a0="${pi}" data-onclick-a1="${bi}" style="height:36px;padding:0 12px;background:var(--green-mid);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">+ Add</button>
+            </div>
+            ${(b.medicines || []).map((m, mi) => `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;background:#fff">
+                <span style="font-size:12.5px">${_esc(m.medicine_name)}</span>
+                <button type="button" data-onclick="_pkRemoveMedicine" data-onclick-a0="${pi}" data-onclick-a1="${bi}" data-onclick-a2="${mi}" style="width:24px;height:24px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:10px">&#10005;</button>
+              </div>`).join('')}
+          </div>
+        </div>`).join('')}
     </div>`).join('') || '<div style="text-align:center;color:var(--text-muted);padding:20px">No protocols selected — go back to Step 1.</div>';
 }
 
@@ -1841,17 +1852,21 @@ window._pkSetBlockAyush = function(pi, bi, selectEl) {
   _pkRenderStep3Estimate();
 };
 
-window._pkAddMedicine = function(pi) {
-  const inp = document.getElementById('pk-med-name-' + pi);
+window._pkAddMedicine = function(pi, bi) {
+  const inp = document.getElementById(`pk-med-name-${pi}-${bi}`);
   const name = inp?.value.trim();
   if (!name) return;
-  _pkProtocols[Number(pi)]?.medicines.push({ medicine_name: name, dosage_instructions: null });
+  const b = _pkProtocols[Number(pi)]?.blocks[Number(bi)];
+  if (!b) return;
+  (b.medicines = b.medicines || []).push({ medicine_name: name, dosage_instructions: null });
   inp.value = '';
   _renderPkMedicines();
 };
 
-window._pkRemoveMedicine = function(pi, mi) {
-  _pkProtocols[Number(pi)]?.medicines.splice(Number(mi), 1);
+window._pkRemoveMedicine = function(pi, bi, mi) {
+  const b = _pkProtocols[Number(pi)]?.blocks[Number(bi)];
+  if (!b) return;
+  b.medicines.splice(Number(mi), 1);
   _renderPkMedicines();
 };
 
@@ -2041,13 +2056,20 @@ window.savePkCarePlan = async function() {
     const { error: daysErr } = await supabase.from('pk_care_plan_days').insert(dayRows);
     if (daysErr) console.warn('[doctor] pk_care_plan_days insert:', daysErr.message);
 
-    if (p.medicines.length) {
-      const { error: medErr } = await supabase.from('pk_care_plan_medicines').insert(
-        p.medicines.map((m, mi) => ({
-          protocol_instance_id: proto.id, medicine_name: m.medicine_name,
-          dosage_instructions: m.dosage_instructions, sequence_order: mi + 1,
-        }))
-      );
+    // Session 254 -- each medicine carries which activity it belongs to (Deepana-Pachana
+    // vs. Snehapana vs. the protocol's administration step, etc.), not just the protocol
+    // as a whole.
+    const medRows = [];
+    p.blocks.forEach(b => {
+      (b.medicines || []).forEach((m, mi) => {
+        medRows.push({
+          protocol_instance_id: proto.id, activity_label: b.activity_label, ayush_code: b.ayush_code || null,
+          medicine_name: m.medicine_name, dosage_instructions: m.dosage_instructions, sequence_order: mi + 1,
+        });
+      });
+    });
+    if (medRows.length) {
+      const { error: medErr } = await supabase.from('pk_care_plan_medicines').insert(medRows);
       if (medErr) console.warn('[doctor] pk_care_plan_medicines insert:', medErr.message);
     }
   }
