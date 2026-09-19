@@ -699,6 +699,84 @@ window.markPrepIssued = async function(id) {
   await loadAll();
 };
 
+// ── Load SOP Checklist (Session 248) ────────────────────────────────────────────
+// Resolves the selected session back to the real prescribed protocol -- session ->
+// pk_care_plan_days (whichever day generated this session) -> pk_care_plan_protocols ->
+// pk_sop_templates -> sop_content_templates (via linked_pk_template_id) ->
+// sop_content_template_materials -- and offers those as a reviewable, uncheck-if-not-
+// needed-today checklist rather than bulk-inserting blind (pk_preparation_logs has no
+// DELETE policy at all, only UPDATE for corrections -- a bad blind bulk-insert would be
+// stuck as noise in a compliance log, not something a therapist can just remove).
+// Sessions not generated from a real care plan (or whose protocol has no linked SOP
+// content yet) simply have nothing to load -- an honest gap, not a silent guess via
+// text-matching therapy_name.
+window.loadSopPrepChecklist = async function() {
+  const sessionId = document.getElementById('prep-session').value;
+  if (!sessionId) { _alert('error', 'Select a session first — the checklist loads from that session\'s prescribed protocol.'); return; }
+
+  const { data: dayRow } = await supabase.from('pk_care_plan_days')
+    .select('protocol_instance_id').eq('session_id', sessionId).maybeSingle();
+  if (!dayRow) { _alert('error', 'This session isn\'t linked to a Panchakarma Care Plan protocol — nothing to load.'); return; }
+
+  const { data: protoRow } = await supabase.from('pk_care_plan_protocols')
+    .select('template_id').eq('id', dayRow.protocol_instance_id).maybeSingle();
+  if (!protoRow) { _alert('error', 'Could not resolve this session\'s protocol.'); return; }
+
+  const { data: contentTpl } = await supabase.from('sop_content_templates')
+    .select('id,display_name').eq('linked_pk_template_id', protoRow.template_id).maybeSingle();
+  if (!contentTpl) { _alert('error', 'No SOP checklist available yet for this protocol.'); return; }
+
+  const { data: materials } = await supabase.from('sop_content_template_materials')
+    .select('item_name,quantity,unit').eq('template_id', contentTpl.id).order('sequence_order');
+  if (!materials || !materials.length) { _alert('error', `${contentTpl.display_name}'s SOP has no listed materials yet.`); return; }
+
+  document.getElementById('sop-checklist-title').textContent = `📋 ${contentTpl.display_name} — SOP materials (uncheck anything not needed today)`;
+  document.getElementById('sop-checklist-items').innerHTML = materials.map((m, i) => `
+    <div style="display:grid;grid-template-columns:auto 1.6fr .6fr .5fr;gap:8px;align-items:center;padding:4px 0">
+      <input type="checkbox" class="sop-cl-check" checked data-i="${i}"/>
+      <span style="font-size:13px">${_esc(m.item_name)}</span>
+      <input type="number" min="0" step="0.01" class="sop-cl-qty" data-i="${i}" value="${m.quantity ?? ''}" style="height:30px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit"/>
+      <select class="sop-cl-unit" data-i="${i}" style="height:30px;border:1.5px solid var(--border);border-radius:6px;padding:0 6px;font-size:12px;font-family:inherit">
+        ${['ml','L','g','kg','batch'].map(u => `<option value="${u}"${(m.unit || 'batch') === u ? ' selected' : ''}>${u}</option>`).join('')}
+      </select>
+    </div>`).join('');
+  document.getElementById('sop-checklist-panel').style.display = '';
+};
+
+window.hideSopPrepChecklist = function() {
+  document.getElementById('sop-checklist-panel').style.display = 'none';
+};
+
+window.logSopPrepChecklist = async function() {
+  const preparedBy = document.getElementById('prep-by').value;
+  if (!preparedBy) { _alert('error', 'Select who prepared it.'); return; }
+  const roomId = document.getElementById('prep-room').value || null;
+  const sessionId = document.getElementById('prep-session').value || null;
+
+  const rows = [...document.querySelectorAll('.sop-cl-check:checked')].map(cb => {
+    const i = cb.dataset.i;
+    const itemName = document.querySelectorAll('#sop-checklist-items > div')[i]?.querySelector('span')?.textContent;
+    const qty = document.querySelector(`.sop-cl-qty[data-i="${i}"]`)?.value;
+    const unit = document.querySelector(`.sop-cl-unit[data-i="${i}"]`)?.value || 'batch';
+    return {
+      tenant_id: tenantId, prepared_date: _prepToday, item_name: itemName,
+      quantity: qty ? Number(qty) : null, unit, prepared_by: preparedBy,
+      room_id: roomId, session_id: sessionId, waste_logged: false,
+      notes: 'Loaded from SOP checklist',
+    };
+  });
+  if (!rows.length) { _alert('error', 'Nothing checked — check at least one item first.'); return; }
+
+  const { error } = await supabase.from('pk_preparation_logs').insert(rows);
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to log the checklist items.')); return; }
+
+  window.hideSopPrepChecklist();
+  const saved = document.getElementById('prep-saved');
+  saved.style.display = '';
+  setTimeout(() => { saved.style.display = 'none'; }, 2000);
+  await loadAll();
+};
+
 // ── Therapist Duty Roster (Session 206 piece 3) ─────────────────────────────────
 // Deliberately separate from roster.html/duty_roster -- see therapist.html's comment.
 function _isPkRosterAdmin() {

@@ -1624,6 +1624,7 @@ window.saveAdmissionAdvice = async function() {
 // + sql/session208_pk_care_plans.sql.
 let _pkTemplates     = [];   // pk_sop_templates rows
 let _pkTemplateDays  = {};   // template_id -> pk_sop_template_days rows
+let _pkContentHints  = {};   // pk_sop_templates.id -> {duration, staff} from the linked sop_content_templates row (Session 248)
 let _pkAyushOptions  = [];   // ayush_procedure_catalog rows (Panchakarma + Anu-Shastra Karma)
 let _pkFeeIndex      = {};   // ayush_code -> fee_structures row (tenant's active pricing)
 let _pkProtocols     = [];   // working list: {template_id, procedure_key, protocol_label, is_reviewed, start_date, blocks:[...], medicines:[...]}
@@ -1644,6 +1645,16 @@ async function _loadPkTemplates() {
     .select('code,name,category').in('category', ['Panchakarma', 'Anu-Shastra Karma']).order('code');
   _pkAyushOptions = ayush || [];
 
+  // Session 248 -- duration/manpower hint on each chip, sourced from the document-content
+  // layer (sop_content_templates), not pk_sop_templates itself (that table was deliberately
+  // left untouched, see PANCHAKARMA_SOP_EXPANSION_CHECKLIST.md §0b). Not every protocol has
+  // a linked content row yet (or a stated figure within one) -- missing hints are just omitted.
+  const { data: hints } = await supabase.from('sop_content_templates')
+    .select('linked_pk_template_id,typical_duration_minutes,man_power_staff')
+    .not('linked_pk_template_id', 'is', null);
+  _pkContentHints = {};
+  (hints || []).forEach(h => { _pkContentHints[h.linked_pk_template_id] = h; });
+
   _renderPkChips();
 }
 
@@ -1659,7 +1670,15 @@ function _renderPkChips() {
   const mainEl  = document.getElementById('pk-chips-main');
   const otherEl = document.getElementById('pk-chips-other');
   if (!mainEl || !otherEl) return;
-  const chipHtml = t => `<span class="chip${_pkProtocols.some(p => p.procedure_key === t.procedure_key) ? ' on' : ''}" data-onclick="_pkToggleProtocol" data-onclick-a0="${_esc(t.procedure_key)}" data-onclick-a1="@this">${_esc(t.display_name)}${!t.is_reviewed ? ' ⚠' : ''}</span>`;
+  const chipHtml = t => {
+    const hint = _pkContentHints[t.id];
+    const hintParts = [];
+    if (hint?.typical_duration_minutes) hintParts.push(hint.typical_duration_minutes >= 60
+      ? `${Math.round(hint.typical_duration_minutes / 60 * 10) / 10}h` : `${hint.typical_duration_minutes}m`);
+    if (hint?.man_power_staff) hintParts.push(`${hint.man_power_staff}👤`);
+    const hintHtml = hintParts.length ? `<span class="chip-hint"> · ${hintParts.join(' · ')}</span>` : '';
+    return `<span class="chip${_pkProtocols.some(p => p.procedure_key === t.procedure_key) ? ' on' : ''}" data-onclick="_pkToggleProtocol" data-onclick-a0="${_esc(t.procedure_key)}" data-onclick-a1="@this">${_esc(t.display_name)}${!t.is_reviewed ? ' ⚠' : ''}${hintHtml}</span>`;
+  };
   mainEl.innerHTML  = _pkTemplates.filter(t => t.phase_group === 'main_karma').map(chipHtml).join('');
   otherEl.innerHTML = _pkTemplates.filter(t => t.phase_group === 'other_therapy').map(chipHtml).join('');
 }

@@ -819,6 +819,18 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
         <div><label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px">For Session <span style="font-size:11px;color:var(--text-muted)">(optional — today's sessions)</span></label>
           <select id="prep-session" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"><option value="">— Not linked to a session —</option></select></div>
       </div>
+
+      <!-- Session 248 — pre-fills from the session's care-plan protocol's SOP materials list, instead of typing every item from memory -->
+      <div style="margin-bottom:10px">
+        <button data-onclick="loadSopPrepChecklist" style="height:32px;padding:0 12px;background:var(--white);border:1.5px solid var(--green-mid);color:var(--green-deep);border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📋 Load SOP Checklist</button>
+      </div>
+      <div id="sop-checklist-panel" style="display:none;margin-bottom:14px;padding:12px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px">
+        <div id="sop-checklist-title" style="font-weight:600;font-size:12px;color:var(--green-deep);margin-bottom:8px"></div>
+        <div id="sop-checklist-items"></div>
+        <button data-onclick="logSopPrepChecklist" style="margin-top:8px;height:34px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">+ Log Checked Items</button>
+        <button data-onclick="hideSopPrepChecklist" style="margin-top:8px;margin-left:6px;height:34px;padding:0 14px;background:var(--white);border:1.5px solid var(--border);border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit">Cancel</button>
+      </div>
+
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px">
         <label class="check-label" style="display:flex;align-items:center;gap:6px;font-size:13px">
           <input type="checkbox" id="prep-waste"/> Biomedical waste from this prep logged (Reg 47(a)(viii)/(xi))

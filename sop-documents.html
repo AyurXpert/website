@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SOP Documents — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"/>
+<style>
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf3e2;--red:#c0392b;--red-light:#fdecea;--blue:#1a4080;--blue-light:#e8edf7;
+  --cream:#faf8f3;--white:#fff;--border:#d8e4dd;--radius:8px;
+  --text-dark:#1a2e22;--text-mid:#3d5a47;--text-muted:#7a9485;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+#navbar-placeholder{position:sticky;top:0;z-index:100}
+.page-wrap{max-width:1100px;margin:0 auto;padding:28px 20px 80px}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green-deep)}
+.page-subtitle{font-size:13px;color:var(--text-muted);margin-top:3px;margin-bottom:20px}
+.note{font-size:11.5px;color:var(--text-mid);background:var(--green-light);border:1px solid var(--border);border-radius:6px;padding:8px 12px;margin-bottom:16px}
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:18px}
+.card-title{font-size:13px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+.field{margin-bottom:14px}
+.field label{font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+.field input,.field textarea,.field select{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit}
+.field input,.field select{height:40px}
+.field textarea{min-height:80px;resize:vertical;line-height:1.5}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.btn{height:40px;padding:0 16px;border-radius:var(--radius);font-size:13px;font-weight:600;cursor:pointer;border:none;font-family:inherit}
+.btn-primary{background:var(--green-deep);color:#fff}
+.btn-secondary{background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep)}
+.btn-danger{background:#fff;color:var(--red);border:1.5px solid var(--red)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.proto-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f4f2;gap:10px}
+.proto-row:last-child{border-bottom:none}
+.proto-name{font-size:13.5px;font-weight:500;cursor:pointer}
+.proto-name:hover{color:var(--green-mid);text-decoration:underline}
+.status-tag{font-size:10.5px;padding:3px 9px;border-radius:9px;font-weight:600;white-space:nowrap}
+.status-none{background:#f0f0f0;color:var(--text-muted)}
+.status-draft{background:var(--gold-light);color:#7a5a00}
+.status-pending_review{background:var(--blue-light);color:var(--blue)}
+.status-finalized{background:var(--green-light);color:var(--green-mid)}
+.empty{color:var(--text-muted);font-size:13px;padding:16px 0}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--green-deep);color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:all .25s;z-index:2000}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{background:var(--red)}
+
+/* ── Letterhead / print view (Session 249) — same element IDs as printInvoice.js so the
+     tenant-branding population logic can be reused verbatim.
+     #print-doc lives OUTSIDE .page-wrap in the markup on purpose — @media print hides
+     everything else via display:none (which removes it from layout entirely), not
+     visibility:hidden (which keeps hidden elements' full height reserved in the flow and
+     was the real cause of extra blank pages when this was first tried: the hidden
+     protocol list + detail card were still tall enough to push out empty trailing pages
+     even though nothing on them was visible). ── */
+#print-doc{display:none;max-width:760px;margin:0 auto;padding:0}
+#letterhead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;padding-bottom:16px;border-bottom:3px solid var(--green-deep)}
+#clinicName{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:700;color:var(--green-deep);letter-spacing:.2px}
+#clinicTagline{font-size:11px;color:var(--text-muted);font-style:italic;margin-top:2px;display:none}
+#clinicAddress,#clinicGstin{font-size:11px;color:var(--text-muted);margin-top:1px;display:none}
+#clinic-logo{height:52px;object-fit:contain;display:none}
+#print-doc-eyebrow{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--gold);margin-bottom:4px}
+#print-doc-title{font-family:'Cormorant Garamond',serif;font-size:25px;font-weight:700;color:var(--text-dark);margin-bottom:6px}
+#print-doc-meta{font-size:11.5px;color:var(--text-muted);margin-bottom:24px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.print-section{margin-bottom:18px;break-inside:avoid}
+.print-section-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--green-mid);margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid var(--green-light)}
+.print-section-body{font-size:13px;line-height:1.7;white-space:pre-wrap;color:var(--text-dark)}
+#print-doc-footer{margin-top:32px;padding-top:12px;border-top:1px solid var(--border);font-size:10px;color:var(--text-muted);display:flex;justify-content:space-between}
+@media print{
+  @page{margin:16mm 14mm}
+  /* navbar.js injects its icon-rail sidebar, watermark, and overlay divs as their own
+     direct children of <body> (not inside #navbar-placeholder) -- confirmed live testing
+     that an allowlist of specific IDs missed all of them and they rendered on top of the
+     print document. Hiding every direct body child except #print-doc is robust against
+     that (and against anything navbar.js adds in the future) without needing to enumerate
+     each one by ID. */
+  body > *:not(#print-doc){display:none!important}
+  body{background:#fff}
+  #print-doc{display:block!important}
+}
+</style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+
+<div class="page-wrap">
+  <div class="page-title">SOP Documents</div>
+  <div class="page-subtitle">Draft your own version of each protocol's SOP from the platform default, get it reviewed by your Medical Director/Principal/Medical Superintendent, then print it under your letterhead for NABH documentation.</div>
+  <div class="note">This page produces the document. Once finalized, print it and register it via <a href="sop-library.html" style="color:var(--green-deep);font-weight:600">SOP Library</a> the same way as any other SOP document.</div>
+
+  <div class="card">
+    <div class="card-title">Department</div>
+    <div class="field" style="margin-bottom:0">
+      <select id="dept-select" data-onchange="onDeptChange"></select>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Protocols</div>
+    <div id="proto-list">Loading…</div>
+  </div>
+
+  <div id="detail-card" class="card" style="display:none"></div>
+</div>
+
+<div id="print-doc">
+  <div id="letterhead">
+    <div>
+      <div id="clinicName"></div>
+      <div id="clinicTagline"></div>
+      <div id="clinicAddress"></div>
+      <div id="clinicGstin"></div>
+    </div>
+    <img id="clinic-logo"/>
+  </div>
+  <div id="print-doc-eyebrow">Standard Operating Procedure</div>
+  <div id="print-doc-title"></div>
+  <div id="print-doc-meta"></div>
+  <div id="print-doc-body"></div>
+  <div id="print-doc-footer">
+    <span>AyurXpert HMS — Internal Document</span>
+    <span id="print-doc-footer-date"></span>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script type="module" src="js/pages/sop-documents.js"></script>
+</body>
+</html>

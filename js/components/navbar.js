@@ -169,6 +169,13 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'bmw.html',               label:'BMW Waste',        roles:ADMIN_ROLES.concat(['nurse']),                        types:HOSP, module:'quality'  },
         { href:'sterilisation.html',     label:'CSSD / Steril.',   roles:ADMIN_ROLES.concat(['nurse']),                        types:HOSP, module:'quality'  },
         { href:'sop-library.html',       label:'SOP Library',      roles:ADMIN_ROLES,                                          types:null, module:'quality'  },
+        // Session 249 -- pk_incharge/medical_director/principal/medical_superintendent are
+        // designations, not roles (same class of gating gap as intern-roster.html above),
+        // so this needs both a roles check (super_admin/dept_admin, who can always author or
+        // finalize any department's document per _sop_doc_author_ok()/_sop_doc_finalize_ok())
+        // and a designations check (the department-specific authors and the tenant-wide
+        // finalizers) -- navbar.js ORs the two, so either one alone is enough to see the link.
+        { href:'sop-documents.html',     label:'SOP Documents',    roles:['super_admin','dept_admin'],                         types:null, module:'quality', designations:['pk_incharge','medical_director','principal','medical_superintendent'] },
         { href:'hai-surveillance.html',  label:'HAI Surveillance', roles:ADMIN_ROLES.concat(['nurse','doctor']),                types:HOSP, module:'quality'  },
         { href:'fms.html',               label:'Facility Mgmt',        roles:ADMIN_ROLES,                   types:null, module:'quality'  },
         { href:'nabh-self-assessment.html',label:'NABH Self-Assessment',roles:ADMIN_ROLES,                 types:null, module:'quality'  },
