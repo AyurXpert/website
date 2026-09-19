@@ -618,7 +618,10 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
       <div class="page-title">Panchakarma Therapy Sessions</div>
       <div class="page-subtitle">Schedule, track, and complete therapy sessions</div>
     </div>
-    <button class="btn btn-primary" data-onclick="openSchedDrawer">+ Schedule Session</button>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-secondary" data-onclick="rerunAutoAssign" title="Re-run auto-assignment for every active Care Plan — safe to click anytime, only fills in sessions that are still unassigned once a further week's duty roster gets published">🔄 Auto-Assign Pending</button>
+      <button class="btn btn-primary" data-onclick="openSchedDrawer">+ Schedule Session</button>
+    </div>
   </div>
 
   <div id="promo-banner"></div>

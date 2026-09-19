@@ -2547,6 +2547,22 @@ function _populateAssignTherapistSelect(patientGender, onDutyIds, scheduledDate)
     });
 }
 
+// ── Auto-Assign Pending (Session 250) ───────────────────────────────────────────
+// auto_assign_pk_course_sessions() already runs automatically at Care Plan activation, but
+// it can only assign what's knowable at that moment -- a therapist can't be assigned to a
+// day nobody has been rostered for yet, and duty rosters publish a cycle (commonly a week)
+// at a time, not for a whole multi-week PK course upfront. This button re-runs the same
+// idempotent engine (only ever touches still-unassigned sessions) across every active Care
+// Plan, so once a further week's roster is published, the Incharge has one place to catch
+// today's newly-fillable gaps up, rather than hunting for them session by session.
+window.rerunAutoAssign = async function() {
+  if (!_isPkRosterAdmin()) return;
+  const { data, error } = await supabase.rpc('auto_assign_all_active_pk_plans');
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not run auto-assignment.')); return; }
+  _alert('success', data > 0 ? `Auto-assigned ${data} session(s).` : 'Nothing new to assign right now.');
+  await loadAll();
+};
+
 window.saveAssignment = async function() {
   if (!_isPkRosterAdmin()) return; // Session 239 -- same guard as openAssignDrawer()
   const s = _sessions.find(x => x.id === _assignSessionId);
