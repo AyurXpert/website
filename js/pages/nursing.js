@@ -27,7 +27,13 @@ import { IPD_MEDICAL_BED_CODES, IPD_SURGICAL_BED_CODES } from '../config/ncismSt
 import { computeNurseBedSlice } from '../modules/roster/realBedSlicing.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 
-requireAuth(['nurse','nurse_manager','super_admin','dept_admin','doctor']);
+// Session 255: trainee_doctor (posted PG/intern) added -- Dr. Venkatesh confirmed
+// posted interns/PGs need real IPD case-sheet access, not just Snehapana sign-recording
+// specifically. Scoping their view to their actual posting (matching doctor.js's
+// trainee_postings/scope_department_id pattern) is a real, separate follow-up -- not
+// attempted here, so a trainee_doctor currently sees this page exactly as a doctor
+// would (unscoped), same honest-gap discipline as everywhere else in this arc.
+requireAuth(['nurse','nurse_manager','super_admin','dept_admin','doctor','trainee_doctor']);
 initNavbar();
 wireDelegatedEvents();
 
@@ -347,7 +353,13 @@ window.switchTab = function(tab, el) {
   document.querySelectorAll('.module-tab').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   _activeTab = tab;
-  ['vitals','mar','io','notes','handover','ward-proc','risk','discharge'].forEach(t => {
+  // Real pre-existing bug found live testing Session 255's own additions to this same
+  // tab: 'pk' (Panchakarma Care Plan, built Session 210) was never in this list, so
+  // #tab-pk's `hidden` attribute was NEVER cleared by any code path -- the tab has been
+  // completely invisible in a real browser this whole time, even though loadTabData()
+  // below correctly calls loadPkCarePlan() and populates its content (confirmed: the
+  // data was always there, just permanently hidden behind the unhandled pane).
+  ['vitals','mar','io','notes','handover','ward-proc','risk','discharge','pk'].forEach(t => {
     const el = document.getElementById('tab-'+t);
     if (el) el.hidden = t !== tab;
   });
@@ -1315,19 +1327,54 @@ async function loadRiskHistory() {
     </tbody></table>`;
 }
 
-// ── Panchakarma Care Plan (Session 210) — read-only oversight ─────────────────
+// ── Panchakarma Care Plan (Session 210) — oversight + Snehapana dosing (Session 255) ─
 // Deliberately NOT the generic Ward Procedures tab, and NOT a copy of MAR's grid
 // either (MAR turned out to be single-day-only, regenerated fresh from `frequency`
 // every render, not a stored per-day schedule -- confirmed by reading loadMar()).
-// This page never lets a nurse mark a day done/skipped -- that's the assigned
-// therapist's action on therapist.html (quickStart/complete/skip), same authority
-// split as Treatment Rooms/Roster elsewhere in this module: nursing sees, doesn't
-// administer. Only ever populated for an Admission-setting plan -- Day Care/OPD
-// plans have no bed, so that patient never reaches this ward-based page at all.
+// The general "nursing sees, doesn't administer" boundary from Session 210 still holds
+// for ordinary sessions (start/complete/skip stays the therapist's action on
+// therapist.html) -- but Session 255 deliberately reverses it specifically for
+// Snehapana's Jeeryamana/Jeerna/Samyak-Snigdha/Ayoga/Atiyoga signs, confirmed live with
+// Dr. Venkatesh: those are ward-observed (nurse/PG/intern/doctor, whoever is present
+// when the signs appear through the day), not something a therapist administering one
+// morning dose would ever see. Dose ADMINISTRATION itself stays on therapist.html
+// (matches Session 251's worklist model); this page is sign-recording + the doctor's
+// next-day dose confirmation only. Only ever populated for an Admission-setting plan --
+// Day Care/OPD plans have no bed, so that patient never reaches this ward-based page.
 const PK_PHASE_LABEL = { purvakarma: 'Purvakarma', pradhanakarma: 'Pradhanakarma', paschatkarma: 'Paschatkarma' };
 const PK_PHASE_COLOR = { purvakarma: '#7a5a00', pradhanakarma: '#1a4080', paschatkarma: '#1a4a2e' };
 const PK_SESSION_STATUS_LABEL = { scheduled: 'Scheduled', in_progress: 'In Progress', completed: '✓ Done', skipped: 'Skipped' };
 const PK_SESSION_STATUS_COLOR = { scheduled: '#555', in_progress: '#1a4080', completed: '#1a6b3a', skipped: '#8b1a1a' };
+
+// Fixed vocabularies confirmed live by Dr. Venkatesh (Charaka Samhita / Ashtanga
+// Hrudaya) -- kept as {value,label} pairs so the stored text[] values stay stable
+// snake_case even if display wording is later refined.
+const PK_JEERYAMANA_SIGNS = [
+  ['bhrama', 'Bhrama (dizziness/giddiness)'], ['praseka', 'Praseka (salivation)'],
+  ['hrillasa', 'Hrillasa (mild nausea)'], ['daha', 'Daha (burning sensation)'],
+  ['gaurava', 'Gaurava (heaviness)'], ['pipasa', 'Pipasa (intense thirst)'],
+];
+const PK_JEERNA_SIGNS = [
+  ['suddha_udgara', 'Suddha Udgara (clean belching)'], ['utsaha', 'Utsaha (energy return)'],
+  ['laghuta', 'Laghuta (lightness)'], ['kshudha_trishna_anuvritti', 'Kshudha & Trishna Anuvritti (hunger/thirst return)'],
+  ['vatanulomana', 'Vatanulomana (normal flatus passage)'],
+];
+const PK_SAMYAK_SNIGDHA_SIGNS = [
+  ['vatanulomana', 'Vatanulomana (proper downward flatus/bowel)'], ['deepthi_agni', 'Deepthi Agni (increased appetite/digestive fire)'],
+  ['pureesha_snigdhatva', 'Pureesha Snigdhatva & Ashatathva (oily, soft, well-formed stools)'],
+  ['gatralaghavata', 'Gatralaghavata (lightness throughout body)'], ['twak_snigdhatva', 'Twak Snigdhatva & Prasada (soft, glowing skin)'],
+  ['sneha_udvega', 'Sneha Udvega (aversion to more ghee/oil)'], ['angashitila', 'Angashitila (relaxation of joints/muscles)'],
+];
+const PK_ATIYOGA_SIGNS = [
+  ['nausea_vomiting', 'Nausea / vomiting'], ['excessive_salivation', 'Excessive salivation'],
+  ['severe_lethargy', 'Severe lethargy'], ['diarrhoea_mucous', 'Diarrhoea / mucous stools'],
+];
+const PK_AYOGA_SIGNS = [
+  ['hard_dry_stools', 'Hard, dry stools'], ['bloating_flatulence', 'Bloating and flatulence'],
+  ['skin_dryness', 'Skin dryness'], ['weak_agni', 'Weak digestive fire'],
+];
+
+let _pkSnehaDoses = []; // flat list of pk_snehapana_doses rows for the currently-loaded plan(s)
 
 async function loadPkCarePlan() {
   const el = document.getElementById('pk-careplan-content');
@@ -1338,8 +1385,8 @@ async function loadPkCarePlan() {
     .select(`
       id, status, created_at,
       pk_care_plan_protocols(
-        id, protocol_label,
-        pk_care_plan_days(id, phase, activity_label, planned_date, sequence_order, pk_therapy_sessions(status))
+        id, protocol_label, koshtha, snehapana_start_dose_ml, snehapana_increment_ml,
+        pk_care_plan_days(id, phase, activity_label, planned_date, sequence_order, ayush_code, pk_therapy_sessions(status), pk_snehapana_doses(*))
       )
     `)
     .eq('tenant_id', tenantId)
@@ -1352,7 +1399,13 @@ async function loadPkCarePlan() {
     return;
   }
 
-  const today = new Date().toLocaleDateString('en-CA');
+  const today = todayLocalStr();
+  // Matches confirm_snehapana_dose()'s real server-side _pk_snehapana_dose_confirm_ok()
+  // exactly -- deliberately excludes trainee_doctor (PG/intern can record signs, same
+  // as everyone else with page access, but next-day dose confirmation stays the
+  // doctor's own call, per Dr. Venkatesh's explicit "confirmed by doctor").
+  const canConfirmDose = profile?.role === 'doctor' || ['super_admin', 'dept_admin'].includes(profile?.role) || profile?.secondary_role === 'dept_admin';
+  _pkSnehaDoses = [];
 
   el.innerHTML = plans.map(p => {
     const rows = (p.pk_care_plan_protocols || [])
@@ -1372,17 +1425,25 @@ async function loadPkCarePlan() {
           <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Phase</th>
           <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Activity</th>
           <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Status</th>
+          <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Snehapana Dose</th>
         </tr></thead>
         <tbody>
           ${rows.map(d => {
             const sessStatus = d.pk_therapy_sessions?.status || 'scheduled';
             const isToday = d.planned_date === today;
+            // pk_snehapana_doses has a UNIQUE constraint on care_plan_day_id, so
+            // PostgREST embeds it as a single object, not an array -- confirmed live
+            // testing therapist.js's identical embed (a plain .[0] index silently
+            // returned undefined every time).
+            const sneha = d.ayush_code === 'PCK54' ? (d.pk_snehapana_doses || null) : null;
+            if (sneha) _pkSnehaDoses.push(sneha);
             return `<tr style="border-bottom:1px solid #f0f4f2;${isToday ? 'background:#fff8e1' : ''}">
               <td style="padding:5px 8px">${_esc(d.planned_date || '—')}${isToday ? ' <strong>(Today)</strong>' : ''}</td>
               <td style="padding:5px 8px">${_esc(d.protocol_label)}</td>
               <td style="padding:5px 8px"><span style="font-size:10px;font-weight:600;color:${PK_PHASE_COLOR[d.phase] || '#333'};background:${PK_PHASE_COLOR[d.phase] || '#333'}15;padding:2px 7px;border-radius:8px">${PK_PHASE_LABEL[d.phase] || d.phase}</span></td>
               <td style="padding:5px 8px">${_esc(d.activity_label)}</td>
               <td style="padding:5px 8px"><span style="font-size:11px;font-weight:600;color:${PK_SESSION_STATUS_COLOR[sessStatus] || '#333'}">${PK_SESSION_STATUS_LABEL[sessStatus] || sessStatus}</span></td>
+              <td style="padding:5px 8px">${sneha ? _renderSnehaDoseCell(sneha, canConfirmDose) : '—'}</td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -1392,14 +1453,96 @@ async function loadPkCarePlan() {
   }).join('');
 }
 
+function _renderSnehaDoseCell(sneha, isDoctorLike) {
+  const given = sneha.administered_dose_ml
+    ? `Given: <strong>${_esc(sneha.administered_dose_ml)}ml</strong>${sneha.administered_at ? ' @ ' + _esc(sneha.administered_at.slice(11, 16)) : ''}`
+    : (sneha.planned_dose_ml ? `Planned: <strong>${_esc(sneha.planned_dose_ml)}ml</strong>` : '<span style="color:var(--text-muted)">awaiting prior day</span>');
+  const signsCount = ['jeeryamana_signs', 'jeerna_signs', 'samyak_snigdha_signs', 'atiyoga_signs', 'ayoga_signs']
+    .reduce((n, k) => n + (sneha[k]?.length || 0), 0);
+  const doctorEdit = isDoctorLike && !sneha.administered_dose_ml && sneha.planned_dose_ml
+    ? `<input type="number" min="1" value="${_esc(sneha.planned_dose_ml)}" style="width:60px;height:24px;font-size:11px;margin-left:4px"
+        data-onchange="_pkConfirmSnehaDose" data-onchange-a0="${sneha.id}" data-onchange-a1="@this" title="Doctor: confirm/edit this day's dose"/>`
+    : '';
+  const atiyoga = sneha.atiyoga_signs?.length ? `<span style="color:#c0392b;font-weight:700;margin-left:4px" title="Atiyoga (over-oleation) signs recorded">⚠ Atiyoga</span>` : '';
+  return `<div style="font-size:11px">${given}${doctorEdit}${atiyoga}<br>
+    <button type="button" class="icon-btn" data-onclick="openSnehaSignsModal" data-onclick-a0="${sneha.id}"
+      style="font-size:10px;padding:2px 6px;margin-top:2px" title="Record Jeeryamana/Jeerna/Samyak Snigdha signs">
+      📋 Signs${signsCount ? ` (${signsCount})` : ''}
+    </button></div>`;
+}
+
+// ── Snehapana Signs modal ──────────────────────────────────────────────────────────
+window.openSnehaSignsModal = function(doseId) {
+  const d = _pkSnehaDoses.find(x => x.id === doseId);
+  if (!d) return;
+  document.getElementById('sneha-dose-id').value = doseId;
+  const fill = (containerId, vocab, selected) => {
+    document.getElementById(containerId).innerHTML = vocab.map(([val, label]) => `
+      <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;margin-bottom:3px;cursor:pointer">
+        <input type="checkbox" value="${val}" ${selected?.includes(val) ? 'checked' : ''}/> ${_esc(label)}
+      </label>`).join('');
+  };
+  fill('sneha-jeeryamana-list', PK_JEERYAMANA_SIGNS, d.jeeryamana_signs);
+  fill('sneha-jeerna-list', PK_JEERNA_SIGNS, d.jeerna_signs);
+  fill('sneha-samyak-list', PK_SAMYAK_SNIGDHA_SIGNS, d.samyak_snigdha_signs);
+  fill('sneha-atiyoga-list', PK_ATIYOGA_SIGNS, d.atiyoga_signs);
+  fill('sneha-ayoga-list', PK_AYOGA_SIGNS, d.ayoga_signs);
+  document.getElementById('sneha-notes').value = d.notes || '';
+  document.getElementById('sneha-jeerna-observed').textContent = d.jeerna_observed_at
+    ? `Jeerna first recorded ${_fmtDate(d.jeerna_observed_at.slice(0, 10))} ${d.jeerna_observed_at.slice(11, 16)}` : '';
+  document.getElementById('sneha-signs-modal-overlay').style.display = 'flex';
+};
+window.closeSnehaSignsModal = function() { document.getElementById('sneha-signs-modal-overlay').style.display = 'none'; };
+window._closeSnehaSignsIfBackdrop = function(isTarget) { if (isTarget) closeSnehaSignsModal(); };
+
+function _checkedValues(containerId) {
+  return Array.from(document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)).map(el => el.value);
+}
+
+window.saveSnehaSigns = async function() {
+  const doseId = document.getElementById('sneha-dose-id').value;
+  if (!doseId) return;
+  const jeerna = _checkedValues('sneha-jeerna-list');
+  const { error } = await supabase.rpc('record_snehapana_signs', {
+    p_dose_id: doseId,
+    p_jeeryamana: _checkedValues('sneha-jeeryamana-list'),
+    p_jeerna: jeerna,
+    // Recording any Jeerna sign IS the observation -- stamp the time now, same instant
+    // as the whoever's-present nurse/PG/intern/doctor is actually looking at the patient.
+    p_jeerna_time: jeerna.length > 0,
+    p_samyak_snigdha: _checkedValues('sneha-samyak-list'),
+    p_atiyoga: _checkedValues('sneha-atiyoga-list'),
+    p_ayoga: _checkedValues('sneha-ayoga-list'),
+    p_notes: document.getElementById('sneha-notes').value.trim() || null,
+  });
+  if (error) { alert(safeErrorMessage(error, 'Could not save Snehapana signs.')); return; }
+  closeSnehaSignsModal();
+  await loadPkCarePlan();
+};
+
+// Doctor-only inline dose confirm/edit (input rendered only for isDoctorLike, but the
+// real gate is server-side via confirm_snehapana_dose()'s _pk_snehapana_dose_confirm_ok()).
+window._pkConfirmSnehaDose = async function(doseId, inputEl) {
+  const v = Number(inputEl.value);
+  if (!(v > 0)) return;
+  const { error } = await supabase.rpc('confirm_snehapana_dose', { p_dose_id: doseId, p_dose_ml: v });
+  if (error) { alert(safeErrorMessage(error, 'Could not confirm dose.')); return; }
+  await loadPkCarePlan();
+};
+
 // nursing.js's first-ever realtime channel (confirmed by full-file review, Session 209
 // research) — a plan-generated session's status changes on therapist.html, and this
 // oversight tab should reflect that without a manual refresh. Deliberately page-level
 // (not re-subscribed per patient switch) — the callback just re-renders if the nurse
 // happens to be looking at the PK tab right now, same "any event -> reload if relevant"
-// convention reception.js's queues already use.
+// convention reception.js's queues already use. Session 255: also watches
+// pk_snehapana_doses, since a therapist's dose-administration on therapist.html should
+// update this page's "Given" figure live too.
 supabase.channel('nursing-pk-sessions')
   .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pk_therapy_sessions' }, () => {
+    if (_activeTab === 'pk' && _activeAdm) loadPkCarePlan();
+  })
+  .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pk_snehapana_doses' }, () => {
     if (_activeTab === 'pk' && _activeAdm) loadPkCarePlan();
   })
   .subscribe();

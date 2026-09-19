@@ -2715,7 +2715,11 @@ window.quickStart = async function(id) {
 // record a note without forcing Complete/Skip). Now it means "just the note, not a status
 // change" -- editable for an active session, and read-only only once a session is genuinely
 // finalized (completed/skipped), where rewriting history isn't the point of this button.
-window.openCompleteDrawer = function(id, isSkip, notesOnly) {
+// Session 255 -- module-scoped so saveCompletion() can read which pk_snehapana_doses
+// row (if any) this drawer is currently open against, without re-querying at save time.
+let _snehaDoseForDrawer = null;
+
+window.openCompleteDrawer = async function(id, isSkip, notesOnly) {
   const s  = _sessions.find(x => x.id === id);
   if (!s) return;
   const pt        = s.patients || {};
@@ -2738,6 +2742,32 @@ window.openCompleteDrawer = function(id, isSkip, notesOnly) {
     document.getElementById('comp-samsarjana-stage').value = s.samsarjana_stage || '';
     document.getElementById('comp-samsarjana-tolerating').checked = false;
   }
+
+  // Session 255 -- Snehapana dose given: the worklist-model activity (Session 251) has
+  // no room/duration meaning the way a normal session does, but the actual ml
+  // administered is exactly what auto_assign's next-day suggestion (and the doctor's
+  // confirm/edit on nursing.html) needs. Looked up on demand (not in the main heavy
+  // session-list query) since it only matters for this one activity type.
+  const isSnehapana = s.therapy_name === 'Snehapana (graded internal oleation)';
+  const snehaSec = document.getElementById('sneha-dose-section');
+  _snehaDoseForDrawer = null;
+  if (isSnehapana && !isSkip && !notesOnly) {
+    const { data: dayRow } = await supabase.from('pk_care_plan_days')
+      .select('id, pk_snehapana_doses(*)').eq('session_id', id).maybeSingle();
+    // pk_snehapana_doses has a UNIQUE constraint on care_plan_day_id, so PostgREST
+    // embeds it as a single object here, not an array -- confirmed live (a plain
+    // .[0] index silently returned undefined every time, a real bug caught testing
+    // this exact flow).
+    _snehaDoseForDrawer = dayRow?.pk_snehapana_doses || null;
+    snehaSec.style.display = '';
+    const doseInput = document.getElementById('comp-sneha-dose');
+    doseInput.value = _snehaDoseForDrawer?.administered_dose_ml || _snehaDoseForDrawer?.planned_dose_ml || '';
+    document.getElementById('comp-sneha-planned').textContent = _snehaDoseForDrawer?.planned_dose_ml
+      ? `Planned: ${_snehaDoseForDrawer.planned_dose_ml}ml` : (_snehaDoseForDrawer ? 'No planned dose yet — enter what was given.' : '');
+  } else {
+    snehaSec.style.display = 'none';
+  }
+
   document.getElementById('skip-reason-field').style.display = (isSkip && !notesOnly) ? '' : 'none';
 
   const titleEl = document.getElementById('complete-title');
@@ -2848,6 +2878,19 @@ window.saveCompletion = async function() {
   btn.textContent = isSkip ? 'Mark Skipped' : 'Mark Completed';
 
   if (error) { _alert('error', safeErrorMessage(error, 'Could not update session.')); return; }
+
+  // Session 255 -- record the actual Snehapana dose administered. Best-effort/non-fatal:
+  // the session is already marked completed above; a failure here shouldn't undo that,
+  // just surface a warning so the therapist knows to fix it on nursing.html/re-open.
+  if (!isSkip && _snehaDoseForDrawer) {
+    const doseVal = Number(document.getElementById('comp-sneha-dose').value);
+    if (doseVal > 0) {
+      const { error: doseErr } = await supabase.rpc('record_snehapana_administration', {
+        p_dose_id: _snehaDoseForDrawer.id, p_dose_ml: doseVal,
+      });
+      if (doseErr) _alert('error', safeErrorMessage(doseErr, 'Session marked complete, but the Snehapana dose could not be recorded.'));
+    }
+  }
 
   // Session 230 -- rescheduling on Skip is the one real case a therapist genuinely needs to
   // move a session's date (treatment didn't happen at all) -- deliberately NOT a general date-

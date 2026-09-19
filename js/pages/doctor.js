@@ -1710,8 +1710,32 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
       min_days: d.min_days, max_days: d.max_days, length: (d.day_end - d.day_start + 1),
       ayush_code: d.ayush_code, medicines: [],
     })),
+    // Session 255 -- Koshtha + Snehapana dosing, only meaningful for a protocol whose
+    // days actually include Snehapana (PCK54). koshtha starts unset (doctor must
+    // actively assess it, not a silent default); snehapana_increment_ml defaults to
+    // the classical 30ml/day step Dr. Venkatesh described, editable.
+    koshtha: null,
+    snehapana_start_dose_ml: null,
+    snehapana_increment_ml: 30,
   });
   chipEl.classList.add('on');
+};
+
+const _PK_KOSHTHA_DEFAULT_DOSE = { mridu: 25, madhyama: 45, krura: 55 };
+
+window._pkSetKoshtha = function(pi, koshtha) {
+  const p = _pkProtocols[Number(pi)]; if (!p) return;
+  p.koshtha = koshtha || null;
+  if (koshtha && !p.snehapana_start_dose_ml) {
+    p.snehapana_start_dose_ml = _PK_KOSHTHA_DEFAULT_DOSE[koshtha] || null;
+  }
+  _renderPkCalendar();
+};
+
+window._pkSetSnehaField = function(pi, field, inputEl) {
+  const p = _pkProtocols[Number(pi)]; if (!p) return;
+  const v = Number(inputEl.value);
+  p[field] = v > 0 ? v : null;
 };
 
 // Flat one-row-per-calendar-day expansion of a protocol's blocks, recomputed fresh
@@ -1791,6 +1815,32 @@ function _renderPkCalendar() {
         </tbody>
       </table>
       </div>
+      ${p.blocks.some(b => b.ayush_code === 'PCK54') ? `
+      <div style="border:1px solid var(--gold);border-radius:6px;padding:10px 12px;margin-top:10px;background:#fffaf0">
+        <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">🌿 Snehapana Dosing</div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+          <div class="field" style="min-width:160px">
+            <label style="font-size:11px">Koshtha (bowel type)</label>
+            <select data-onchange="_pkSetKoshtha" data-onchange-a0="${pi}" data-onchange-a1="@this">
+              <option value="">— Assess —</option>
+              <option value="mridu"${p.koshtha === 'mridu' ? ' selected' : ''}>Mridu (soft)</option>
+              <option value="madhyama"${p.koshtha === 'madhyama' ? ' selected' : ''}>Madhyama (medium)</option>
+              <option value="krura"${p.koshtha === 'krura' ? ' selected' : ''}>Krura (hard/constipated)</option>
+            </select>
+          </div>
+          <div class="field" style="width:130px">
+            <label style="font-size:11px">Start dose (Hrasiyasi Matra, ml)</label>
+            <input type="number" min="1" value="${p.snehapana_start_dose_ml || ''}" placeholder="e.g. 30"
+              data-onchange="_pkSetSnehaField" data-onchange-a0="${pi}" data-onchange-a1="snehapana_start_dose_ml" data-onchange-a2="@this"/>
+          </div>
+          <div class="field" style="width:130px">
+            <label style="font-size:11px">Daily increment (ml)</label>
+            <input type="number" min="1" value="${p.snehapana_increment_ml || ''}" placeholder="e.g. 30"
+              data-onchange="_pkSetSnehaField" data-onchange-a0="${pi}" data-onchange-a1="snehapana_increment_ml" data-onchange-a2="@this"/>
+          </div>
+        </div>
+        <div style="font-size:10.5px;color:var(--text-muted);margin-top:6px">Each day's actual dose is decided fresh (recorded by the therapist, signs by ward staff, escalation reviewed by you) — this just sets the starting point and daily step.</div>
+      </div>` : ''}
     </div>`).join('') || '<div style="text-align:center;color:var(--text-muted);padding:20px">No protocols selected — go back to Step 1.</div>';
 }
 
@@ -2045,6 +2095,11 @@ window.savePkCarePlan = async function() {
     const { data: proto, error: protoErr } = await supabase.from('pk_care_plan_protocols').insert({
       care_plan_id: plan.id, template_id: p.template_id, protocol_label: p.protocol_label,
       start_date: p.start_date, status: 'pending', sequence_order: pi + 1,
+      // Session 255 -- Koshtha + Snehapana dosing, only meaningful when this protocol
+      // actually has a Snehapana block (null otherwise, matches the wizard's own gate).
+      koshtha: p.koshtha || null,
+      snehapana_start_dose_ml: p.snehapana_start_dose_ml || null,
+      snehapana_increment_ml: p.snehapana_increment_ml || 30,
     }).select('id').single();
     if (protoErr) { console.warn('[doctor] pk_care_plan_protocols insert:', protoErr.message); continue; }
 
