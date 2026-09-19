@@ -1705,10 +1705,14 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
     // whole course: Dr. Venkatesh confirmed the doctor needs to name, e.g., a
     // different medicine for Deepana-Pachana vs. the Snehapana oil vs. the Virechana
     // purgative itself, all within one protocol.
+    // Session 257 -- mode defaults to 'hospital' for every block; only the prep/post-
+    // care blocks (Deepana-Pachana, Samsarjana Krama -- see _PK_TOGGLEABLE_ACTIVITIES)
+    // ever render a toggle to change it. Confirmed live by Dr. Venkatesh: never for
+    // Abhyanga+Sweda or the main procedure itself -- those always happen in hospital.
     blocks: days.map(d => ({
       phase: d.phase, activity_label: d.activity_label, is_flexible: d.is_flexible,
       min_days: d.min_days, max_days: d.max_days, length: (d.day_end - d.day_start + 1),
-      ayush_code: d.ayush_code, medicines: [],
+      ayush_code: d.ayush_code, medicines: [], mode: 'hospital',
     })),
     // Session 255 -- Koshtha + Snehapana dosing, only meaningful for a protocol whose
     // days actually include Snehapana (PCK54). koshtha starts unset (doctor must
@@ -1738,6 +1742,24 @@ window._pkSetSnehaField = function(pi, field, inputEl) {
   p[field] = v > 0 ? v : null;
 };
 
+// Session 257 -- Skip / Advise at home, scoped to exactly these two prep/post-care
+// activities (confirmed live). Never for Abhyanga+Sweda or the main procedure --
+// their own blocks simply never render the toggle at all (see _renderPkCalendar()).
+const _PK_TOGGLEABLE_ACTIVITIES = ['Deepana-Pachana', 'Samsarjana Krama (graded diet)'];
+
+window._pkSetBlockMode = function(pi, bi, mode) {
+  const p = _pkProtocols[Number(pi)]; if (!p) return;
+  const b = p.blocks[Number(bi)]; if (!b) return;
+  if (mode === 'skip') {
+    if (b.mode !== 'skip') b._skipLength = b.length; // remember to restore later
+    b.length = 0;
+  } else if (b.mode === 'skip') {
+    b.length = b._skipLength || b.min_days || 1;
+  }
+  b.mode = mode;
+  _renderPkCalendar();
+};
+
 // Flat one-row-per-calendar-day expansion of a protocol's blocks, recomputed fresh
 // every time (never stored mid-edit) -- this is what makes extending/reducing a
 // flexible block automatically shift every later day, with zero separate "shift
@@ -1753,6 +1775,10 @@ function _pkExpandDays(p) {
         day_number: dayNum, phase: b.phase, activity_label: b.activity_label,
         is_flexible: b.is_flexible, planned_date: d.toLocaleDateString('en-CA'),
         ayush_code: b.ayush_code || null, sequence_order: dayNum,
+        // Session 257 -- a skipped block already contributes zero rows here (the loop
+        // just doesn't run for length=0), so only 'home' vs. 'hospital' ever needs
+        // carrying through to the actual saved day rows.
+        location_mode: b.mode === 'home' ? 'home' : 'hospital',
       });
       dayNum++;
     }
@@ -1797,19 +1823,29 @@ function _renderPkCalendar() {
           <th style="padding:5px 8px;text-align:left">Phase</th><th style="padding:5px 8px;text-align:left">Activity</th><th style="padding:5px 8px;text-align:left">Length</th>
         </tr></thead>
         <tbody>
-          ${p.blocks.map((b, bi) => { const r = _pkBlockDayRange(p, bi); return `
-          <tr style="border-bottom:1px solid var(--border)">
+          ${p.blocks.map((b, bi) => {
+            const toggleable = _PK_TOGGLEABLE_ACTIVITIES.includes(b.activity_label);
+            const r = b.length > 0 ? _pkBlockDayRange(p, bi) : { label: '—', dateLabel: 'Skipped' };
+            const modeBtn = (val, label, color) => `<button type="button" data-onclick="_pkSetBlockMode" data-onclick-a0="${pi}" data-onclick-a1="${bi}" data-onclick-a2="${val}"
+              style="font-size:9px;padding:2px 5px;border-radius:4px;border:1px solid var(--border);cursor:pointer;background:${b.mode === val ? color : '#fff'};color:${b.mode === val ? '#fff' : '#333'}">${label}</button>`;
+            return `
+          <tr style="border-bottom:1px solid var(--border)${b.mode === 'skip' ? ';opacity:0.55' : ''}">
             <td style="padding:5px 8px">${r.label}</td>
             <td style="padding:5px 8px">${r.dateLabel}</td>
             <td style="padding:5px 8px"><span class="phase-badge phase-${b.phase}">${_PK_PHASE_LABEL[b.phase] || b.phase}</span></td>
-            <td style="padding:5px 8px">${_esc(b.activity_label)}</td>
+            <td style="padding:5px 8px">${_esc(b.activity_label)}${b.mode === 'home' ? ' <span style="font-size:10px;color:var(--green-mid)">🏠 Advised at home</span>' : ''}</td>
             <td style="padding:5px 8px">
-              ${b.is_flexible
+              ${toggleable ? `<div style="display:flex;gap:3px;margin-bottom:4px">
+                ${modeBtn('hospital', 'Hospital', 'var(--green-mid)')}
+                ${modeBtn('home', 'Home', 'var(--gold)')}
+                ${modeBtn('skip', 'Skip', 'var(--red)')}
+              </div>` : ''}
+              ${b.mode === 'skip' ? '' : (b.is_flexible
                 ? `<button type="button" data-onclick="_pkAdjustBlockLength" data-onclick-a0="${pi}" data-onclick-a1="${bi}" data-onclick-a2="-1" style="width:22px;height:22px;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:pointer">−</button>
                    <span style="display:inline-block;width:28px;text-align:center;font-weight:600">${b.length}d</span>
                    <button type="button" data-onclick="_pkAdjustBlockLength" data-onclick-a0="${pi}" data-onclick-a1="${bi}" data-onclick-a2="1" style="width:22px;height:22px;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:pointer">+</button>
                    <span style="font-size:10px;color:var(--text-muted)"> (${b.min_days}-${b.max_days})</span>`
-                : `${b.length}d`}
+                : `${b.length}d`)}
             </td>
           </tr>`; }).join('')}
         </tbody>
@@ -1873,9 +1909,13 @@ function _renderPkMedicines() {
   el.innerHTML = _pkProtocols.map((p, pi) => `
     <div class="section" style="border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:12px">
       <div style="font-weight:700;font-size:14px;color:var(--green-deep);margin-bottom:8px">${_esc(p.protocol_label)}</div>
-      ${p.blocks.map((b, bi) => `
+      ${p.blocks.map((b, bi) => {
+        // Session 257 -- a skipped block isn't happening at all, so no medicines/
+        // billing-code UI for it (the doctor already switched it off in Step 2).
+        if (b.mode === 'skip') return '';
+        return `
         <div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fafff7">
-          <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">${_esc(b.activity_label)}</div>
+          <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">${_esc(b.activity_label)}${b.mode === 'home' ? ' <span style="font-size:10px;color:var(--gold)">🏠 at home</span>' : ''}</div>
           ${!b.ayush_code ? `<div class="field" style="margin-bottom:6px">
             <label style="font-size:11px">Billing code for "${_esc(b.activity_label)}" (optional)</label>
             <select data-onchange="_pkSetBlockAyush" data-onchange-a0="${pi}" data-onchange-a1="${bi}" data-onchange-a2="@this">${codeOpts}</select>
@@ -1892,7 +1932,8 @@ function _renderPkMedicines() {
                 <button type="button" data-onclick="_pkRemoveMedicine" data-onclick-a0="${pi}" data-onclick-a1="${bi}" data-onclick-a2="${mi}" style="width:24px;height:24px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:10px">&#10005;</button>
               </div>`).join('')}
           </div>
-        </div>`).join('')}
+        </div>`;
+      }).join('')}
     </div>`).join('') || '<div style="text-align:center;color:var(--text-muted);padding:20px">No protocols selected — go back to Step 1.</div>';
 }
 
@@ -2107,15 +2148,20 @@ window.savePkCarePlan = async function() {
       protocol_instance_id: proto.id, day_number: r.day_number, phase: r.phase,
       activity_label: r.activity_label, is_flexible: r.is_flexible, planned_date: r.planned_date,
       ayush_code: r.ayush_code, status: 'pending', sequence_order: r.sequence_order,
+      // Session 257 -- a block in skip mode already contributes zero rows here (its
+      // length is 0), so only 'home' vs. 'hospital' ever needs saving.
+      location_mode: r.location_mode,
     }));
     const { error: daysErr } = await supabase.from('pk_care_plan_days').insert(dayRows);
     if (daysErr) console.warn('[doctor] pk_care_plan_days insert:', daysErr.message);
 
     // Session 254 -- each medicine carries which activity it belongs to (Deepana-Pachana
     // vs. Snehapana vs. the protocol's administration step, etc.), not just the protocol
-    // as a whole.
+    // as a whole. Session 257 -- a skipped block's medicines (if any were entered before
+    // switching to skip) are deliberately dropped -- the activity isn't happening.
     const medRows = [];
     p.blocks.forEach(b => {
+      if (b.mode === 'skip') return;
       (b.medicines || []).forEach((m, mi) => {
         medRows.push({
           protocol_instance_id: proto.id, activity_label: b.activity_label, ayush_code: b.ayush_code || null,

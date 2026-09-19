@@ -1386,7 +1386,7 @@ async function loadPkCarePlan() {
       id, status, created_at,
       pk_care_plan_protocols(
         id, protocol_label, koshtha, snehapana_start_dose_ml, snehapana_increment_ml,
-        pk_care_plan_days(id, phase, activity_label, planned_date, sequence_order, ayush_code, pk_therapy_sessions(status), pk_snehapana_doses(*))
+        pk_care_plan_days(id, phase, activity_label, planned_date, sequence_order, ayush_code, location_mode, pk_therapy_sessions(status), pk_snehapana_doses(*))
       )
     `)
     .eq('tenant_id', tenantId)
@@ -1442,7 +1442,9 @@ async function loadPkCarePlan() {
               <td style="padding:5px 8px">${_esc(d.protocol_label)}</td>
               <td style="padding:5px 8px"><span style="font-size:10px;font-weight:600;color:${PK_PHASE_COLOR[d.phase] || '#333'};background:${PK_PHASE_COLOR[d.phase] || '#333'}15;padding:2px 7px;border-radius:8px">${PK_PHASE_LABEL[d.phase] || d.phase}</span></td>
               <td style="padding:5px 8px">${_esc(d.activity_label)}</td>
-              <td style="padding:5px 8px"><span style="font-size:11px;font-weight:600;color:${PK_SESSION_STATUS_COLOR[sessStatus] || '#333'}">${PK_SESSION_STATUS_LABEL[sessStatus] || sessStatus}</span></td>
+              <td style="padding:5px 8px">${d.location_mode === 'home'
+                ? `<span style="font-size:11px;font-weight:600;color:var(--gold)">🏠 Advised at home</span>`
+                : `<span style="font-size:11px;font-weight:600;color:${PK_SESSION_STATUS_COLOR[sessStatus] || '#333'}">${PK_SESSION_STATUS_LABEL[sessStatus] || sessStatus}</span>`}</td>
               <td style="padding:5px 8px">${sneha ? _renderSnehaDoseCell(sneha, canConfirmDose) : '—'}</td>
             </tr>`;
           }).join('')}
