@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
 initNavbar();
@@ -19,8 +20,8 @@ let _lineCount   = 0;
 let _activeBarcodeLineEl = null;
 let _barcodeStream = null;
 let _barcodeDetector = null;
-const TODAY      = new Date().toISOString().split('T')[0];
-const IN_90      = new Date(Date.now() + 90*86400000).toISOString().split('T')[0];
+const TODAY      = todayLocalStr();
+const IN_90      = localDateStr(new Date(Date.now() + 90*86400000));
 let _barcodeScanning = false;
 let _ocrImageBase64 = null;
 let _ocrImageType   = null;
@@ -87,8 +88,8 @@ window.onSupplierChange = function(val) {
   nameHid.value = s.name;
 
   // GMP evaluation
-  const now = new Date().toISOString().split('T')[0];
-  const in90 = new Date(Date.now()+90*86400000).toISOString().split('T')[0];
+  const now = todayLocalStr();
+  const in90 = localDateStr(new Date(Date.now()+90*86400000));
   let statusCls, statusText, blocked = false;
 
   if (!s.is_gmp_certified) {
@@ -303,7 +304,7 @@ document.getElementById('btn-save-grn').addEventListener('click', async () => {
     document.getElementById('supplier-name-manual').style.display = 'none';
     document.getElementById('gmp-status-card').style.display = 'none';
     document.getElementById('gmp-override-row').style.display = 'none';
-    document.getElementById('invoice-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('invoice-date').value = todayLocalStr();
     _lineCount = 0; updateSummary();
   } catch (err) {
     _alert('error', safeErrorMessage(err, 'Save failed. Please try again.'));
@@ -528,6 +529,6 @@ function _alert(type, msg) {
 }
 
 // ── Boot ──────────────────────────────────────────
-document.getElementById('invoice-date').value = new Date().toISOString().split('T')[0];
+document.getElementById('invoice-date').value = todayLocalStr();
 await Promise.all([loadMedicines(), loadSuppliers()]);
 addLine();

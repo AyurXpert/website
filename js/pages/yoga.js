@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','therapist','doctor','receptionist']);
 initNavbar();
@@ -20,7 +21,7 @@ let _attCounts   = {};   // sessionId -> attendee count
 let _activeSess  = null; // session id open in attendance modal
 let _attendees   = [];   // rows for the active session
 let _searchTimer = null;
-const todayStr = new Date().toISOString().slice(0,10);
+const todayStr = todayLocalStr();
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 document.querySelectorAll('.module-tab').forEach(btn => {

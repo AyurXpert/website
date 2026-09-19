@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 wireDelegatedEvents();
 
@@ -42,7 +43,7 @@ async function _resolveEmergencyDept() {
 }
 
 // Default date = today
-const todayStr = new Date().toISOString().split('T')[0];
+const todayStr = todayLocalStr();
 document.getElementById('filter-date').value = todayStr;
 document.getElementById('rmo-date').value = todayStr;
 
@@ -155,7 +156,7 @@ window.renderCases = function() {
 };
 
 async function loadRMOBanner() {
-  const todayDate = new Date().toISOString().split('T')[0];
+  const todayDate = todayLocalStr();
   const h = new Date().getHours();
   const shift = h < 14 ? 'Morning' : h < 20 ? 'Evening' : 'Night';
   const { data } = await supabase.from('emergency_duty_log')
@@ -325,7 +326,7 @@ window.loadDutyLog = async function() {
   const { data, error } = await supabase.from('emergency_duty_log')
     .select('*,profiles!rmo_id(full_name)')
     .eq('tenant_id',tenantId)
-    .gte('duty_date', sevenDaysAgo.toISOString().split('T')[0])
+    .gte('duty_date', localDateStr(sevenDaysAgo))
     .order('duty_date',{ascending:false}).order('shift');
   const wrap = document.getElementById('duty-log-body');
   if (error) {
@@ -387,7 +388,7 @@ window.loadMLC = async function() {
   const period = document.getElementById('mlc-month-filter').value;
   let start = null;
   const now = new Date();
-  if (period==='today') start = now.toISOString().split('T')[0] + 'T00:00:00';
+  if (period==='today') start = localDateStr(now) + 'T00:00:00';
   else if (period==='week') { const d = new Date(now); d.setDate(d.getDate()-7); start = d.toISOString(); }
   else if (period==='month') { const d = new Date(now.getFullYear(),now.getMonth(),1); start = d.toISOString(); }
 
@@ -430,7 +431,7 @@ window.exportMLC = function() {
 };
 
 // ─── BLS Log (§23x — COP.2 ATWC CORE) ──────────────────
-const todayFull = new Date().toISOString().slice(0,10);
+const todayFull = todayLocalStr();
 document.getElementById('bls-date-filter').value = todayFull;
 document.getElementById('bls-f-date').value      = todayFull;
 

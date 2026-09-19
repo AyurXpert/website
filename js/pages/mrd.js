@@ -5,6 +5,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { logAudit } from '../core/auditLogger.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 const ALLOWED = ['super_admin','dept_admin','mrd_staff'];
 await requireAuth(ALLOWED);
@@ -579,11 +580,11 @@ window.exportAuditCSV = function() {
 function _periodDates(period) {
   const today = new Date();
   let from;
-  if (period === 'month')   from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0,10);
+  if (period === 'month')   from = localDateStr(new Date(today.getFullYear(), today.getMonth(), 1));
   else if (period === 'quarter') {
     const q = Math.floor(today.getMonth()/3);
-    from = new Date(today.getFullYear(), q*3, 1).toISOString().slice(0,10);
-  } else if (period === 'year') from = new Date(today.getFullYear(), 0, 1).toISOString().slice(0,10);
+    from = localDateStr(new Date(today.getFullYear(), q*3, 1));
+  } else if (period === 'year') from = localDateStr(new Date(today.getFullYear(), 0, 1));
   else from = '2020-01-01';
   return { from };
 }
@@ -602,7 +603,7 @@ function _csvDownload(rows, name) {
   const keys = Object.keys(rows[0]);
   const csv = [keys.join(','), ...rows.map(r => keys.map(k=>`"${String(r[k]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
   const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download = `${name}_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  a.download = `${name}_${todayLocalStr()}.csv`; a.click();
 }
 
 // ── Boot ─────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','receptionist','nurse']);
 initNavbar();
@@ -17,7 +18,7 @@ const tenantId = getCurrentTenantId();
 document.getElementById('ph-org-name').textContent = tenant?.name || 'AyurXpert HMS';
 
 let _rows = [];    // current register data
-const today = new Date().toISOString().slice(0,10);
+const today = todayLocalStr();
 
 // ── Init ──────────────────────────────────────────────
 async function init() {
@@ -57,7 +58,7 @@ window.applyPreset = function(preset) {
     const day = now.getDay(); // 0 = Sunday
     const diff = day === 0 ? 6 : day - 1;
     const mon = new Date(now); mon.setDate(now.getDate() - diff);
-    from = mon.toISOString().slice(0,10);
+    from = localDateStr(mon);
   } else if (preset === 'month') {
     from = today.slice(0,7) + '-01';
   }

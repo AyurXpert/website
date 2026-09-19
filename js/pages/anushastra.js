@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','therapist','receptionist'], 'index.html');
 initNavbar();
@@ -11,12 +12,12 @@ wireDelegatedEvents();
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
 const now      = new Date();
-const todayStr = now.toISOString().split('T')[0];
+const todayStr = localDateStr(now);
 
 // Init defaults
 document.getElementById('f-date').value = todayStr;
 document.getElementById('f-time').value = now.toTimeString().slice(0,5);
-document.getElementById('reg-from').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+document.getElementById('reg-from').value = localDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
 document.getElementById('reg-to').value   = todayStr;
 
 // Date change triggers register reload

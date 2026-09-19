@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','receptionist'], 'index.html');
 initNavbar();
@@ -15,7 +16,7 @@ window._closeIfSelf = function(isSelf, fnName) {
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
 const now      = new Date();
-const todayStr = now.toISOString().split('T')[0];
+const todayStr = localDateStr(now);
 
 // NCISM §48 mandatory cell members
 const CELL_MEMBERS = [
@@ -60,7 +61,7 @@ yearSel.value = now.getFullYear();
 // Defaults
 document.getElementById('m-date').value = todayStr;
 const nextBi = new Date(now); nextBi.setMonth(nextBi.getMonth() + 2);
-document.getElementById('m-next').value = nextBi.toISOString().split('T')[0];
+document.getElementById('m-next').value = localDateStr(nextBi);
 
 // ─── Load meetings ────────────────────────────────────────
 let _allMeetings = [];
@@ -281,7 +282,7 @@ function resetModal() {
   document.getElementById('decisions-wrap').innerHTML =
     '<div class="dec-row"><input placeholder="e.g. Withdraw Arsenic-containing preparation Lot X from dispensary immediately"/><button class="dec-rm" data-onclick="removeDec" data-onclick-a0="@this">×</button></div>';
   const nextBi = new Date(now); nextBi.setMonth(nextBi.getMonth()+2);
-  document.getElementById('m-next').value = nextBi.toISOString().split('T')[0];
+  document.getElementById('m-next').value = localDateStr(nextBi);
 }
 
 // ─── Export ───────────────────────────────────────────────
@@ -323,7 +324,7 @@ function _daysFrom(d) {
 }
 function _addDays(date, n) {
   const d = new Date(date); d.setDate(d.getDate()+n);
-  return d.toISOString().split('T')[0];
+  return localDateStr(d);
 }
 function showModalAlert(msg, type) {
   const el=document.getElementById('modal-alert');

@@ -3,6 +3,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin']);
 initNavbar();
@@ -13,7 +14,7 @@ window._print = () => window.print();
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
 
-document.getElementById('sel-date').value = new Date().toISOString().split('T')[0];
+document.getElementById('sel-date').value = todayLocalStr();
 document.getElementById('sel-assessor').value = profile.full_name||'';
 
 // ── Standards Database ────────────────────────────────────────

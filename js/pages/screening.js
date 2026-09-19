@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['doctor','nurse','super_admin','dept_admin']);
 initNavbar();
@@ -19,7 +20,7 @@ let _triage         = 'Routine';
 let _screeningDutySessionId = sessionStorage.getItem('ax_screening_duty_session_id'); // queue redesign piece 3
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-const today = new Date().toISOString().slice(0,10);
+const today = todayLocalStr();
 
 // Deferred to the bottom of the file, invoked there instead of running inline
 // here. Real bug found live (Session 170): this block ends by calling

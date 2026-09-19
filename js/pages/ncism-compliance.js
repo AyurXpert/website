@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, SCHEDULE_IV, ncismRequiredBeds } from '../config/ncism.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import {
   SCHEDULE_I_CODES, FACULTY_CONCURRENT_POSTS, buildDeptTree, _dedupById,
   deptRequirement, _computeIpdBedTotals, _renderComplianceSummaryBanner,
@@ -20,7 +21,7 @@ window._print = () => window.print();
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let _period      = 'monthly';
-let _refDate     = new Date().toISOString().slice(0,10);
+let _refDate     = todayLocalStr();
 let _cfg         = { ugIntake: 60, students: 0, opdTarget: 120, workdays: 6 };
 let _showNonPg   = false;
 let _tenantType  = '';
@@ -78,15 +79,15 @@ function _dateRange() {
   if (_period === 'daily') {
     from = to = _refDate;
   } else if (_period === 'weekly') {
-    from = mon.toISOString().slice(0,10);
-    to   = new Date(mon.getTime() + 6*86400000).toISOString().slice(0,10);
+    from = localDateStr(mon);
+    to   = localDateStr(new Date(mon.getTime() + 6*86400000));
   } else if (_period === 'monthly') {
     from = _refDate.slice(0,8) + '01';
-    to   = new Date(ref.getFullYear(), ref.getMonth()+1, 0).toISOString().slice(0,10);
+    to   = localDateStr(new Date(ref.getFullYear(), ref.getMonth()+1, 0));
   } else {
     const q = Math.floor(ref.getMonth() / 3);
-    from = new Date(ref.getFullYear(), q*3, 1).toISOString().slice(0,10);
-    to   = new Date(ref.getFullYear(), q*3+3, 0).toISOString().slice(0,10);
+    from = localDateStr(new Date(ref.getFullYear(), q*3, 1));
+    to   = localDateStr(new Date(ref.getFullYear(), q*3+3, 0));
   }
   return { from, to };
 }
@@ -171,7 +172,7 @@ async function loadAll() {
   if (naMsg) naMsg.style.display = 'none';
   if (metrics) metrics.style.display = '';
 
-  _refDate = document.getElementById('cfg-date').value || new Date().toISOString().slice(0,10);
+  _refDate = document.getElementById('cfg-date').value || todayLocalStr();
   const { from, to } = _dateRange();
   const wdays = _workingDays(from, to);
 

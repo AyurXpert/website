@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','receptionist'], 'index.html');
 initNavbar();
@@ -16,7 +17,7 @@ const profile  = getCurrentProfile();
 const tenant   = getCurrentTenant();
 const tenantId = getCurrentTenantId();
 const now      = new Date();
-const todayStr = now.toISOString().split('T')[0];
+const todayStr = localDateStr(now);
 
 // NCISM IQAC composition §12.1
 const MEMBERS = [
@@ -65,7 +66,7 @@ yearSel.value = now.getFullYear();
 // Defaults
 document.getElementById('m-date').value = todayStr;
 const nextQ = new Date(now); nextQ.setMonth(nextQ.getMonth() + 3);
-document.getElementById('m-next').value = nextQ.toISOString().split('T')[0];
+document.getElementById('m-next').value = localDateStr(nextQ);
 
 // ─── Live QI pull ─────────────────────────────────────────
 async function loadLiveQI() {
@@ -382,7 +383,7 @@ function resetModal() {
     <td><button class="action-rm" data-onclick="removeActionRow" data-onclick-a0="@this">×</button></td>
   </tr>`;
   const nextQ = new Date(now); nextQ.setMonth(nextQ.getMonth()+3);
-  document.getElementById('m-next').value = nextQ.toISOString().split('T')[0];
+  document.getElementById('m-next').value = localDateStr(nextQ);
 }
 
 // ─── Modal ────────────────────────────────────────────────

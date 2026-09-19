@@ -11,6 +11,7 @@ import { checkCycleExpiry } from '../modules/roster/cycleExpiry.js';
 import { findUncoveredAbsences } from '../modules/roster/coverageGaps.js';
 import { _computeIpdBedTotals, _combinedIpdNursingSplit } from '../config/ncismStaffCompliance.js';
 import { NURSING_ELIGIBLE_DESIGNATIONS } from '../modules/roster/coverageCapacity.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['nurse_manager', 'super_admin', 'dept_admin']);
 initNavbar();
@@ -268,7 +269,7 @@ async function loadComplianceSnapshot() {
   }
 
   // Live on-duty-today count, any tenant type -- who's actually covering the floor right now.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalStr();
   const nursingIds = new Set((allStaff || []).filter(s => NURSING_DESIGNATIONS.includes(s.designation)).map(s => s.id));
   const { data: rosterToday } = await supabase
     .from('duty_roster')
@@ -712,14 +713,6 @@ async function loadCycleExpiryBanner() {
     + `<div style="margin-top:8px"><a href="nursing-roster-template.html" style="color:inherit;font-weight:600;text-decoration:underline">Go to Roster Template →</a></div>`;
 }
 
-// Local Y-M-D, not UTC -- same fix as roster.js/nursing-roster-template.js's
-// own _dateStr()/_localDateStr() (Session 149 found .toISOString() silently
-// rolls back a day for India's UTC+5:30).
-function _todayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 // ── Coverage Gap Banner (Session 159) ───────────────────────────────
 // mark_duty_attendance() auto-tries relief-pool coverage the instant a
 // shift is marked Absent (roster.html's On-Ground Duty Monitor) -- this is
@@ -731,7 +724,7 @@ async function loadCoverageGapBanner() {
   const el = document.getElementById('coverage-gap-banner');
   const nursingDeptIds = (await _loadNursingDutyDepts()).map(d => d.id);
 
-  const gaps = await findUncoveredAbsences(supabase, tenantId, nursingDeptIds, _todayStr());
+  const gaps = await findUncoveredAbsences(supabase, tenantId, nursingDeptIds, todayLocalStr());
   if (!gaps.length) { el.style.display = 'none'; return; }
 
   el.className = 'expiry-banner danger';
@@ -776,7 +769,7 @@ function _mondayOf(dateStr) {
   const day = d.getDay();
   const diff = (day === 0 ? -6 : 1 - day);
   d.setDate(d.getDate() + diff);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return localDateStr(d);
 }
 
 function _isLightDutyDept(dept) {
@@ -786,7 +779,7 @@ function _isLightDutyDept(dept) {
 async function loadTodayStaffingSnapshot() {
   const bodyEl = document.getElementById('today-snapshot-body');
   const subEl  = document.getElementById('snapshot-sub');
-  const today  = _todayStr();
+  const today  = todayLocalStr();
 
   try {
     const { data: staff } = await supabase.from('profiles')
@@ -926,8 +919,9 @@ async function loadReceptionCoverage() {
     // Local calendar date, not new Date().toISOString().slice(0,10) -- that idiom silently gives
     // YESTERDAY's date for any local time between midnight and the UTC offset (e.g. 00:00-05:30
     // for India Standard Time), which would make "today's" grants list wrong for exactly the
-    // early-morning window this whole feature exists for. See reception.js's own note.
-    const today = new Date().toLocaleDateString('en-CA');
+    // early-morning window this whole feature exists for. Now the platform-wide fix in
+    // js/utils/dateUtils.js -- see reception.js's own note.
+    const today = todayLocalStr();
 
     const [{ data: activeGrants }, dayNursesResult] = await Promise.all([
       supabase.from('reception_coverage_grants')

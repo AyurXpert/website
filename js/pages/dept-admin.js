@@ -14,6 +14,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, UG_BED_RATIOS } from '../config/ncism.js';
 import { ROLE_HOME } from '../config/constants.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 // Session 137: widened from doctor-only to any active staff member -- access
 // is gated purely by scope_department_id below, not by primary role. This lets
@@ -43,7 +44,7 @@ function _toast(msg, isErr){
   el.textContent = msg; el.className = 'toast show' + (isErr?' err':'');
   setTimeout(()=>el.classList.remove('show'), 3500);
 }
-function _dateStr(d){ return d.toISOString().slice(0,10); }
+function _dateStr(d){ return localDateStr(d); }
 function _weekDates(){
   const out = []; const today = new Date();
   for (let i=0;i<7;i++){ const d = new Date(today); d.setDate(today.getDate()+i); out.push(d); }
@@ -56,7 +57,7 @@ let _deptOpds = [];
 let _rosterByKey = {}; // `${date}|${shiftType}` -> row
 
 async function loadAll(){
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
   const todayStart = today + 'T00:00:00.000Z';
   const tomorrowStart = new Date(new Date(today+'T00:00:00Z').getTime()+86400000).toISOString();
   const weekDates = _weekDates();
@@ -149,7 +150,7 @@ async function renderTraineePostings(){
   const wrap = document.getElementById('trainee-postings-wrap');
   if (!_trainees.length) { wrap.innerHTML = '<div class="empty-sm">No PGs/interns are currently scoped to your department.</div>'; return; }
 
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
   const { data: current } = await supabase.from('trainee_postings')
     .select('id,profile_id,area,posting_start_date,posting_end_date')
     .eq('tenant_id',tenantId).eq('department_id',deptId)
@@ -179,7 +180,7 @@ window.openAssignPosting = function(profileId){
     ? (prompt(`Assign ${t.full_name} to OPD or IPD? Type "opd" or "ipd".`, 'opd') || '').toLowerCase().trim()
     : 'ipd'; // interns only get direct HOD assignment for IPD -- their OPD/Lab/Screening/Pharmacy rotation comes from the Deputy MS roster
   if (!['opd','ipd'].includes(area)) return;
-  const start = prompt('Posting start date (YYYY-MM-DD):', new Date().toISOString().slice(0,10));
+  const start = prompt('Posting start date (YYYY-MM-DD):', todayLocalStr());
   if (!start) return;
   const end = prompt('Posting end date (YYYY-MM-DD):', '');
   if (!end) return;

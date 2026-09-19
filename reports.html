@@ -191,6 +191,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId, getCurrentRole } from './js/core/auth.js';
 import { initNavbar } from './js/components/navbar.js';
 import { supabase } from './js/core/db/supabaseClient.js';
+import { localDateStr } from './js/utils/dateUtils.js';
 
 await requireAuth(['lab_tech', 'accountant', 'cashier', 'finance_manager', 'dept_admin', 'super_admin'], 'login.html', { monitoringSafe: true });
 initNavbar();
@@ -241,8 +242,8 @@ tabBar.addEventListener('click', e => {
 // ── Date defaults (last 30 days) ────────────────────
 const today = new Date();
 const from30 = new Date(today); from30.setDate(today.getDate() - 29);
-const toISO   = today.toISOString().split('T')[0];
-const fromISO = from30.toISOString().split('T')[0];
+const toISO   = localDateStr(today);
+const fromISO = localDateStr(from30);
 document.getElementById('date-from').value = fromISO;
 document.getElementById('date-to').value   = toISO;
 

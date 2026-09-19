@@ -3,6 +3,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { isValidEmail, isValidPhone, validatePassword } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { scorePasswordStrength, checkPasswordPwned, isObviouslyWeak } from '../utils/passwordSecurity.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 wireDelegatedEvents();
 
@@ -301,7 +302,7 @@ window.handleSignup = async function() {
   if (_joinToken) {
     try {
       await supabase.from('job_applications')
-        .update({ status: 'joined', join_date: new Date().toISOString().slice(0,10) })
+        .update({ status: 'joined', join_date: todayLocalStr() })
         .eq('join_token', _joinToken);
     } catch (_) { /* non-critical — silent fail */ }
   }

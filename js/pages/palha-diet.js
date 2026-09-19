@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist','diet_staff']);
 initNavbar();
@@ -15,7 +16,7 @@ let _filter  = 'active';
 
 // ── Load ─────────────────────────────────────────
 async function loadIndents() {
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
   const { data } = await supabase
     .from('palha_diet_indents')
     .select(`

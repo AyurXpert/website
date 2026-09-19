@@ -4,6 +4,7 @@ import { initNavbar } from '../components/navbar.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 // Session 205 (cont.): nurse access removed -- this is a PG/faculty academic register (NCISM
 // Sec.18k/21l); a nurse had full write access (log Bedside Clinics as "faculty", enter PG faculty
@@ -23,10 +24,10 @@ window._closeIfSelf = function(isSelf, fnName) {
 
 let _cases  = [];
 let _allCases = [];
-let _date   = new Date().toISOString().slice(0,10);
+let _date   = todayLocalStr();
 let _rating = 0;
 
-function _today() { return new Date().toISOString().slice(0,10); }
+function _today() { return todayLocalStr(); }
 
 // ── Date navigation ───────────────────────────────────────────────────────────
 function setDisplayDate() {
@@ -37,7 +38,7 @@ function setDisplayDate() {
   document.getElementById('date-picker').value = _date;
   document.getElementById('card-title-date').textContent = _date === today ? 'Today\'s Cases' : 'Cases for ' + _fmtDate(_date);
 }
-window.changeDate = function(n) { const d = new Date(_date+'T00:00:00'); d.setDate(d.getDate()+Number(n)); _date = d.toISOString().slice(0,10); setDisplayDate(); renderTable(); };
+window.changeDate = function(n) { const d = new Date(_date+'T00:00:00'); d.setDate(d.getDate()+Number(n)); _date = localDateStr(d); setDisplayDate(); renderTable(); };
 window.setDate   = function(v) { _date = v; setDisplayDate(); renderTable(); };
 window.setToday  = function()  { _date = _today(); setDisplayDate(); renderTable(); };
 

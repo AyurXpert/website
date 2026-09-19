@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -181,7 +182,7 @@ window.exportCSV = function() {
   const csv  = [['Code','Title','Category','Version','Effective','Review Date','Approved By','Status'], ...rows].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a    = document.createElement('a');
   a.href     = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download = `sop_library_${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `sop_library_${todayLocalStr()}.csv`;
   a.click();
 };
 

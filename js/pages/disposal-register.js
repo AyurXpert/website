@@ -3,6 +3,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr } from '../utils/dateUtils.js';
 
 await requireAuth(['pharmacist','super_admin','dept_admin','accountant'], 'login.html');
 initNavbar();
@@ -18,7 +19,7 @@ const now   = new Date();
 const y     = now.getFullYear();
 const m     = String(now.getMonth()+1).padStart(2,'0');
 document.getElementById('f-from').value = `${y}-${m}-01`;
-document.getElementById('f-to').value   = now.toISOString().split('T')[0];
+document.getElementById('f-to').value   = localDateStr(now);
 
 const METHOD_LABEL = {
   return_supplier:   'Return to Supplier',
@@ -87,7 +88,7 @@ function renderTable() {
 
 window.resetFilters = function() {
   document.getElementById('f-from').value   = `${y}-${m}-01`;
-  document.getElementById('f-to').value     = now.toISOString().split('T')[0];
+  document.getElementById('f-to').value     = localDateStr(now);
   document.getElementById('f-name').value   = '';
   document.getElementById('f-method').value = '';
   loadRecords();

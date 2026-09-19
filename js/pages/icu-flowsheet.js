@@ -3,6 +3,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -16,7 +17,7 @@ let _admissions = [];
 let _currentAdm = null;
 
 // Set today's date
-document.getElementById('sel-date').value = new Date().toISOString().split('T')[0];
+document.getElementById('sel-date').value = todayLocalStr();
 
 // Load admitted patients
 async function loadAdmissions() {

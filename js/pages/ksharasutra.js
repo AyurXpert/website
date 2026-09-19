@@ -4,6 +4,7 @@ import { initNavbar } from '../components/navbar.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -206,7 +207,7 @@ window.openLogModal = function(sessionId) {
   document.getElementById('log-modal-sub').textContent   = `Sitting #${nextSitting}`;
   document.getElementById('log-sitting-no').value  = nextSitting;
   document.getElementById('log-date').value         = _today();
-  document.getElementById('log-next-date').value    = nextWeek.toISOString().slice(0,10);
+  document.getElementById('log-next-date').value    = localDateStr(nextWeek);
   document.getElementById('log-thread-len').value   = '';
   document.getElementById('log-findings').value     = '';
   document.getElementById('log-overlay').style.display = 'flex';
@@ -270,7 +271,7 @@ window.markCompleted = async function(sessionId) {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function _today() { return new Date().toISOString().slice(0,10); }
+function _today() { return todayLocalStr(); }
 function _nextDate(c) { const last = c.changes[c.changes.length - 1]; return last?.next_date || null; }
 function _fmtDate(d) { if (!d) return '—'; return new Date(d + 'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
 function _daysAgo(d) { return Math.floor((new Date(_today()) - new Date(d)) / 86400000); }

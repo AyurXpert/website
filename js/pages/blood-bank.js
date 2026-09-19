@@ -4,6 +4,7 @@ import { initNavbar } from '../components/navbar.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -24,7 +25,7 @@ window.showTab = (tab, btn) => {
 };
 
 async function loadKPIs() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayLocalStr();
   const monthStart = today.slice(0,7)+'-01';
 
   const [inv, pending, issued, reactions] = await Promise.all([
@@ -174,7 +175,7 @@ window.saveRequest = async () => {
 
 window.openBagModal = () => {
   ['b-bag','b-vol','b-donor-name','b-donor-id','b-notes'].forEach(id=>document.getElementById(id).value='');
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayLocalStr();
   document.getElementById('b-collected').value = today;
   document.getElementById('bag-modal').classList.add('show');
 };

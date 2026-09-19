@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['doctor','nurse','super_admin','dept_admin','receptionist']);
 initNavbar();
@@ -152,7 +153,7 @@ function updateStats() {
 window.openVisitModal = function() {
   if (!_patient) return;
   document.getElementById('modal-pt-label').textContent = _patient.name + ' — Visit ' + (_ancVisits.length + 1);
-  document.getElementById('v-date').value  = new Date().toISOString().slice(0, 10);
+  document.getElementById('v-date').value  = todayLocalStr();
   document.getElementById('v-visit-no').value = _ancVisits.length + 1;
   document.getElementById('risk-alert').classList.remove('show');
   document.getElementById('visit-overlay').style.display = 'flex';
@@ -295,7 +296,7 @@ window.loadGarbhaSessions = async function() {
     </div>`).join('');
 };
 
-window.openGarbhaModal = function() { document.getElementById('garbha-modal').style.display = 'flex'; document.getElementById('gs-date').value = new Date().toISOString().slice(0,10); };
+window.openGarbhaModal = function() { document.getElementById('garbha-modal').style.display = 'flex'; document.getElementById('gs-date').value = todayLocalStr(); };
 window.closeGarbhaModal = function() { document.getElementById('garbha-modal').style.display = 'none'; };
 window.saveGarbhaSession = async function() {
   const type = document.getElementById('gs-type').value;

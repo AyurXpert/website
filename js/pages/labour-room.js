@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist'], 'index.html');
 initNavbar();
@@ -15,7 +16,7 @@ const tenantId = getCurrentTenantId();
 const now = new Date();
 const monthStr = now.toISOString().slice(0,7);
 document.getElementById('filter-month').value = monthStr;
-document.getElementById('nd-date').value = now.toISOString().split('T')[0];
+document.getElementById('nd-date').value = localDateStr(now);
 document.getElementById('nd-time').value = now.toTimeString().slice(0,5);
 
 // Tab switching
@@ -42,8 +43,8 @@ async function loadStats() {
   const [y, m] = mStr.split('-').map(Number);
   const start = new Date(y, m-1, 1).toISOString();
   const end   = new Date(y, m, 0, 23, 59, 59).toISOString();
-  const todayS = now.toISOString().split('T')[0] + 'T00:00:00';
-  const todayE = now.toISOString().split('T')[0] + 'T23:59:59';
+  const todayS = localDateStr(now) + 'T00:00:00';
+  const todayE = localDateStr(now) + 'T23:59:59';
 
   const [mRes, tRes] = await Promise.all([
     supabase.from('deliveries').select('id,mode,sex,birth_weight_g,baby_outcome').eq('tenant_id',tenantId).gte('delivery_date',start).lte('delivery_date',end),
@@ -66,8 +67,8 @@ async function loadStats() {
 async function loadRegister() {
   const mStr = document.getElementById('filter-month').value || monthStr;
   const [y, m] = mStr.split('-').map(Number);
-  const start = new Date(y, m-1, 1).toISOString().split('T')[0];
-  const end   = new Date(y, m, 0).toISOString().split('T')[0];
+  const start = localDateStr(new Date(y, m-1, 1));
+  const end   = localDateStr(new Date(y, m, 0));
   document.getElementById('register-title').textContent = 'Deliveries — ' + new Date(y, m-1, 1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
 
   const { data, error } = await supabase.from('deliveries')
@@ -367,8 +368,8 @@ let _newbornData = [];
 async function loadNewborn() {
   const mStr = document.getElementById('filter-month').value || monthStr;
   const [y, m] = mStr.split('-').map(Number);
-  const start = new Date(y, m-1, 1).toISOString().split('T')[0];
-  const end   = new Date(y, m, 0).toISOString().split('T')[0];
+  const start = localDateStr(new Date(y, m-1, 1));
+  const end   = localDateStr(new Date(y, m, 0));
   const { data, error } = await supabase.from('deliveries')
     .select('*,patients(name,phone)').eq('tenant_id',tenantId)
     .gte('delivery_date',start).lte('delivery_date',end)

@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['dept_admin','super_admin']);
 initNavbar();
@@ -1506,7 +1507,7 @@ window.exportCsv = function(scope) {
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = `Fee_Structure_${(scope === 'all' ? 'All' : _currentScopeLabel()).replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.download = `Fee_Structure_${(scope === 'all' ? 'All' : _currentScopeLabel()).replace(/\s+/g, '_')}_${todayLocalStr()}.csv`;
   document.body.appendChild(a);
   a.click();
   a.remove();

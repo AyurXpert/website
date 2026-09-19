@@ -8,6 +8,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS, ncismRequiredBeds, PK_THERAPY_ROOM_COUNT } from '../config/ncism.js';
 import { SUPABASE_URL, SESSION_KEYS } from '../config/constants.js';
 import { DESIGS, DESIG_MAP, DESIG_CATS } from '../config/designations.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import {
   NCISM_XX_ROWS, ORG_TREE_DEF, OPD_CHILD_NCISM_CODES,
   _deptKey, buildDeptTree, _dedupById, _scheduleIFacultyTotal, deptRequirement,
@@ -27,7 +28,7 @@ const role     = getCurrentRole();
 if (!profile) { window.location.href = 'login.html'; }
 document.title = 'Master Control — ' + (tenant?.name || 'AyurXpert');
 
-const todayStr   = new Date().toISOString().split('T')[0];
+const todayStr   = todayLocalStr();
 const todayStart = todayStr + 'T00:00:00';
 const todayEnd   = todayStr + 'T23:59:59';
 
@@ -2493,7 +2494,7 @@ async function _renderDeptStaff() {
   const openDeptKeys = new Set([...wrap.querySelectorAll('.ncism-zs.z-open')].map(el=>el.dataset.zoneKey).filter(Boolean));
   wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
 
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
   const [{ data:tRow },{ data:depts },{ data:allStaff },{ data:rosterRows },{ data:opds },{ data:bedsRows }] = await Promise.all([
     supabase.from('tenants').select('ug_intake').eq('id',tenantId).single(),
     supabase.from('departments').select('id,name,ncism_code,category,parent_department_id,is_active,is_pg_dept,pg_seats_sanctioned,acting_hod_profile_id').eq('tenant_id',tenantId).eq('is_active',true),
@@ -3271,8 +3272,8 @@ window.openDeptDetail = async function(deptId){
   document.getElementById('dd-subtitle').textContent = '';
   document.getElementById('dd-live-badge').style.display = 'none';
   document.getElementById('dd-range-body').innerHTML = '';
-  const todayStr = new Date().toISOString().slice(0,10);
-  const weekAgoStr = new Date(Date.now()-6*86400000).toISOString().slice(0,10);
+  const todayStr = todayLocalStr();
+  const weekAgoStr = localDateStr(new Date(Date.now()-6*86400000));
   document.getElementById('dd-range-from').value = weekAgoStr;
   document.getElementById('dd-range-to').value = todayStr;
   body.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
@@ -3331,7 +3332,7 @@ function _ddSubscribeRealtime(deptId, opdIds, isEmergencyDept){
 // to open a visits subscription, without a second department fetch.
 async function _renderDeptSnapshot(deptId){
   const body = document.getElementById('dd-body');
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
   const todayStart = today + 'T00:00:00.000Z';
   const tomorrowStart = new Date(new Date(today+'T00:00:00Z').getTime() + 86400000).toISOString();
 
@@ -6464,7 +6465,7 @@ window.openSellPkg = async function(pkgId) {
   document.getElementById('sell-pt-search').value = '';
   document.getElementById('sell-pt-tag').style.display = 'none';
   document.getElementById('sell-pt-results').style.display = 'none';
-  document.getElementById('sell-start').value = new Date().toISOString().slice(0,10);
+  document.getElementById('sell-start').value = todayLocalStr();
   document.getElementById('sell-notes').value = '';
   document.getElementById('sell-alert').className = 'alert';
   // Populate package dropdown
@@ -6521,7 +6522,7 @@ window.confirmSellPkg = async function() {
   const { error } = await supabase.from('patient_packages').insert({
     tenant_id: tenantId, patient_id: _sellPatientId, package_id: pkgId,
     sessions_total: sessions, sessions_used: 0,
-    start_date: startDate, end_date: endDate.toISOString().slice(0,10),
+    start_date: startDate, end_date: localDateStr(endDate),
     status: 'active',
     amount_paid: parseFloat(document.getElementById('sell-amount').value)||0,
     payment_mode: document.getElementById('sell-mode').value,

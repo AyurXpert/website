@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { logAudit } from '../core/auditLogger.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 wireDelegatedEvents();
 
@@ -448,7 +449,7 @@ function updateKPIs() {
 
 // ── Expense modal ─────────────────────────────────────
 window.openExpenseModal = function() {
-  document.getElementById('ex-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('ex-date').value = todayLocalStr();
   document.getElementById('ex-amount').value = '';
   document.getElementById('ex-category').value = '';
   document.getElementById('ex-vendor').value = '';
@@ -511,11 +512,11 @@ function _csvDownload(rows, name) {
   const keys = Object.keys(rows[0]);
   const csv = [keys.join(','), ...rows.map(r => keys.map(k => `"${String(r[k]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
   const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download = `${name}_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  a.download = `${name}_${todayLocalStr()}.csv`; a.click();
 }
 
 // ── Helpers ───────────────────────────────────────────
-function _fmt(d) { return d instanceof Date ? d.toISOString().slice(0,10) : d; }
+function _fmt(d) { return d instanceof Date ? localDateStr(d) : d; }
 function _fmtD(s) {
   if (!s) return '—';
   return new Date(s+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});

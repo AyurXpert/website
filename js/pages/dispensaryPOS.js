@@ -5,6 +5,7 @@ import { logAudit } from '../core/auditLogger.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['pharmacist', 'super_admin', 'dept_admin']);
 initNavbar();
@@ -144,7 +145,7 @@ window.loadDispensingRegister = async function() {
   const panel = document.getElementById('register-panel');
   qList.innerHTML = '';
   panel.style.display = '';
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
   document.getElementById('reg-date').value = today;
   await loadRegisterTable();
 };
@@ -858,7 +859,7 @@ window.saveNDPSEntry = async function() {
   const { error } = await supabase.from('ndps_register').insert({
     tenant_id: tenantId, medicine_id: inv.medicine_id, medicine_name: inv.medicine?.name,
     transaction_type: type, quantity: qty, unit: 'units', balance: newBalance,
-    notes: notes || null, created_by: userId, transaction_date: new Date().toISOString().slice(0,10),
+    notes: notes || null, created_by: userId, transaction_date: todayLocalStr(),
   });
   if (error) { _toast(safeErrorMessage(error, 'Could not save NDPS entry.'),'error'); return; }
   _toast('NDPS entry saved','success');

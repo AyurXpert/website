@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
 initNavbar();
@@ -15,8 +16,8 @@ let _adjType = 'add';
 let _tags   = [];
 let _namcLabels = {};
 let _imgUploading = false;
-const TODAY = new Date().toISOString().split('T')[0];
-const IN_90_DAYS = new Date(Date.now() + 90*86400000).toISOString().split('T')[0];
+const TODAY = todayLocalStr();
+const IN_90_DAYS = localDateStr(new Date(Date.now() + 90*86400000));
 
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
@@ -604,7 +605,7 @@ function openAdjust(invId, name) {
   document.getElementById('adj-reason').value                  = '';
   document.getElementById('disposal-fields').style.display     = 'none';
   document.getElementById('adj-disposal-method').value         = '';
-  document.getElementById('adj-disposal-date').value           = new Date().toISOString().split('T')[0];
+  document.getElementById('adj-disposal-date').value           = todayLocalStr();
   document.getElementById('adj-witnessed-by').value            = '';
   document.getElementById('adj-disposal-remarks').value        = '';
   _adjType = 'add';
@@ -713,7 +714,7 @@ async function markPracticalUse(invId, name, currentStock, expiryDate, batchNumb
     disposal_method: 'student_practical',
     disposed_by:     profile?.id || null,
     witnessed_by:    witness.trim(),
-    disposal_date:   new Date().toISOString().split('T')[0],
+    disposal_date:   todayLocalStr(),
     remarks:         'Student-prepared batch consumed in pharmacy practical session (NCISM §6(3))',
   });
   if (drErr) { _alert('error', 'Failed to log disposal: ' + drErr.message); return; }
@@ -948,7 +949,7 @@ async function _parseImportFile(file) {
     const action = existing ? 'update' : 'new';
     if (action === 'new') countNew++; else countUpdate++;
 
-    const TODAY_ISO = new Date().toISOString().slice(0, 10);
+    const TODAY_ISO = todayLocalStr();
     const parsedInward = _parseDate(iInward >= 0 ? cols[iInward] : '');
     const autoReorder  = (reorderRaw === 0 && maxRaw > 0) ? Math.floor(maxRaw / 2) : reorderRaw;
 

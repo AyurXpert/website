@@ -3,6 +3,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist']);
 initNavbar();
@@ -12,7 +13,7 @@ window._print = () => window.print();
 
 const tenant   = getCurrentTenant();
 const tenantId = getCurrentTenantId();
-const today    = new Date().toISOString().slice(0,10);
+const today    = todayLocalStr();
 
 document.getElementById('ph-org').textContent = tenant?.name || 'AyurXpert HMS';
 
@@ -54,7 +55,7 @@ window.applyPreset = function(preset) {
   if (preset === 'week') {
     const day = now.getDay(); const diff = day === 0 ? 6 : day - 1;
     const mon = new Date(now); mon.setDate(now.getDate()-diff);
-    from = mon.toISOString().slice(0,10);
+    from = localDateStr(mon);
   } else if (preset === 'month') {
     from = today.slice(0,7) + '-01';
   }
@@ -112,7 +113,7 @@ window.loadRegister = async function() {
 
 function _ipdNo(row) {
   const d = new Date(row.admission_date || row.admitted_at || row.id);
-  const datePart = d.toISOString().slice(0,10).replace(/-/g,'');
+  const datePart = localDateStr(d).replace(/-/g,'');
   return `IPD-${datePart}-${row.id.slice(0,4).toUpperCase()}`;
 }
 

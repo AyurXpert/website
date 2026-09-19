@@ -7,6 +7,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { isNCISMType, ncismRequiredBeds } from '../config/ncism.js';
 import { logAudit } from '../core/auditLogger.js';
 import { computeRoomTariff } from '../modules/billing/roomTariff.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 /*
   SQL to run in Supabase (one time) before using this page:
@@ -148,7 +149,7 @@ function renderStats() {
   // (now stamped at MRD's final release, which can trail actual departure).
   const admitted   = _admissions.filter(a => ['admitted','clinically_discharged'].includes(a.status)).length;
   const vacant     = _allBeds.filter(b => b.status === 'vacant').length;
-  const today      = new Date().toISOString().slice(0, 10);
+  const today      = todayLocalStr();
   const todayDis   = _admissions.filter(a =>
     a.charges_locked_at && a.charges_locked_at.slice(0,10) === today
   ).length;
@@ -422,7 +423,7 @@ window.openAdmitDrawer = function() {
   document.getElementById('adm-bed-id').value  = '';
   document.getElementById('adm-is-mlc').checked = false;
   document.getElementById('mlc-fields').style.display = 'none';
-  document.getElementById('adm-date').value    = new Date().toISOString().slice(0,10);
+  document.getElementById('adm-date').value    = todayLocalStr();
   document.getElementById('bed-picker').innerHTML = '<span class="bed-picker-empty">Select a department first</span>';
   // Session 205 (cont.) -- advance payment + advice-reference reset. _currentAdvice
   // is only ever set again by the ?advice_id= boot block, AFTER this function returns.
@@ -814,7 +815,7 @@ window.openDischargeDrawer = function(admId) {
   document.getElementById('dis-adm-id').value    = admId;
   document.getElementById('dis-bed-id').value    = adm.beds?.id || '';
   document.getElementById('dis-patient-id').value = adm.patients?.id || '';
-  document.getElementById('dis-date').value      = new Date().toISOString().slice(0,10);
+  document.getElementById('dis-date').value      = todayLocalStr();
   document.getElementById('dis-summary').value   = '';
   document.getElementById('dis-condition').value = '';
   document.getElementById('dis-transfer-to').value = '';
@@ -1385,7 +1386,7 @@ window.openOtDrawer = async function(admId) {
 
   // Reset form
   ['ot-proc-name','ot-time','ot-preop-notes','ot-postop-notes'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('ot-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('ot-date').value = todayLocalStr();
   document.getElementById('ot-anaesthesia').value = '';
   document.getElementById('ot-status').value = 'planned';
   document.getElementById('ot-safety-checklist').checked = false;
@@ -1735,7 +1736,7 @@ window.openDietDrawer = function(admId) {
   document.getElementById('diet-qty').value         = '';
   document.getElementById('diet-instructions').value= '';
   document.getElementById('diet-time').value        = '';
-  document.getElementById('diet-date').value        = new Date().toISOString().slice(0,10);
+  document.getElementById('diet-date').value        = todayLocalStr();
   document.getElementById('diet-type').value        = 'kashaya';
   document.getElementById('diet-name-hint').textContent = DIET_HINTS.kashaya;
   document.getElementById('diet-overlay').classList.add('open');
@@ -1829,7 +1830,7 @@ window.saveWrdNote = async function() {
     tenant_id:    tenantId,
     admission_id: _wrdAdmId,
     doctor_id:    myProfile?.id,
-    note_date:    new Date().toISOString().slice(0,10),
+    note_date:    todayLocalStr(),
     subjective:   subj||null, objective: obj||null,
     assessment:   asmt||null, plan:      plan||null,
   });
@@ -1970,7 +1971,7 @@ window.saveCarePlanReview = async function(cpId) {
     tenant_id:       tenantId,
     care_plan_id:    cpId,
     reviewed_by:     myProfile?.id,
-    review_date:     new Date().toISOString().slice(0,10),
+    review_date:     todayLocalStr(),
     patient_progress: progress||null,
     plan_changes:    changes||null,
   });

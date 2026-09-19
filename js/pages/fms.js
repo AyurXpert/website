@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -15,7 +16,7 @@ window._closeIfSelf = function(isSelf, fnName) {
   if (isSelf) { const fn = window[fnName]; if (typeof fn === 'function') fn(); }
 };
 
-const todayStr = new Date().toISOString().slice(0,10);
+const todayStr = todayLocalStr();
 const monthStr = new Date().toISOString().slice(0,7);
 document.getElementById('util-month').value  = monthStr;
 document.getElementById('maint-month').value = monthStr;
@@ -92,8 +93,8 @@ async function loadExtinguishers() {
 window.loadUtilities = async function() {
   const m = document.getElementById('util-month').value;
   const [y, mo] = m.split('-').map(Number);
-  const start = new Date(y, mo-1, 1).toISOString().slice(0,10);
-  const end   = new Date(y, mo, 0).toISOString().slice(0,10);
+  const start = localDateStr(new Date(y, mo-1, 1));
+  const end   = localDateStr(new Date(y, mo, 0));
   const { data } = await supabase.from('utility_maintenance_log')
     .select('*').eq('tenant_id', tenantId)
     .gte('log_date', start).lte('log_date', end)
@@ -105,8 +106,8 @@ window.loadUtilities = async function() {
 window.loadMaintenance = async function() {
   const m = document.getElementById('maint-month').value;
   const [y, mo] = m.split('-').map(Number);
-  const start = new Date(y, mo-1, 1).toISOString().slice(0,10);
-  const end   = new Date(y, mo, 0).toISOString().slice(0,10);
+  const start = localDateStr(new Date(y, mo-1, 1));
+  const end   = localDateStr(new Date(y, mo, 0));
   const { data } = await supabase.from('equipment_maintenance_log')
     .select('*, equipment_register(name,asset_code)').eq('tenant_id', tenantId)
     .gte('performed_date', start).lte('performed_date', end)
@@ -376,7 +377,7 @@ window.exportEqCSV = function() {
   const csv = [['Code','Name','Category','Make','Serial','Department','Next PPM','Next Calibration','AMC Vendor','AMC Expiry','Status'], ...rows]
     .map(r => r.map(c=>`"${c}"`).join(',')).join('\n');
   const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download=`equipment_register_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  a.download=`equipment_register_${todayLocalStr()}.csv`; a.click();
 };
 
 // ── Drill CRUD ───────────────────────────────────────────
@@ -502,7 +503,7 @@ window.exportUtilCSV = function() {
   const csv = [['Date','Utility','Description','Performed By','Result','Compliant','Issues','Next Due'], ...rows]
     .map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
   const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download=`utility_log_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  a.download=`utility_log_${todayLocalStr()}.csv`; a.click();
 };
 
 // ── Maintenance CRUD ─────────────────────────────────────
@@ -544,7 +545,7 @@ window.exportMaintCSV = function() {
   const csv = [['Date','Equipment','Type','Performed By','Description','Downtime hrs','Status'], ...rows]
     .map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
   const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download=`maintenance_log_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  a.download=`maintenance_log_${todayLocalStr()}.csv`; a.click();
 };
 
 // ── Toast ─────────────────────────────────────────────────

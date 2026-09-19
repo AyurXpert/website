@@ -3,6 +3,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','accountant']);
 initNavbar();
@@ -70,7 +71,7 @@ function updateStats() {
 window.openModal = function() {
   _editId = null;
   document.getElementById('modal-title').textContent = 'Record DPC Meeting';
-  document.getElementById('m-date').value  = new Date().toISOString().slice(0,10);
+  document.getElementById('m-date').value  = todayLocalStr();
   document.getElementById('m-type').value  = 'quarterly';
   document.getElementById('m-status').value= 'completed';
   document.getElementById('m-chair').value = '';

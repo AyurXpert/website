@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
 initNavbar();
@@ -11,7 +12,7 @@ wireDelegatedEvents();
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 const tenantId = getCurrentTenantId();
-const TODAY    = new Date().toISOString().split('T')[0];
+const TODAY    = todayLocalStr();
 document.getElementById('po-date-line').textContent =
   `Purchase Order · Generated ${new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' })}`;
 

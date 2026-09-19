@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist'], 'index.html');
 initNavbar();
@@ -11,7 +12,7 @@ wireDelegatedEvents();
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
 const now      = new Date();
-const todayStr = now.toISOString().split('T')[0];
+const todayStr = localDateStr(now);
 
 // Defaults
 document.getElementById('d-date').value          = todayStr;
@@ -48,7 +49,7 @@ window.loadAll = async function() {
 };
 
 async function loadStats() {
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  const monthStart = localDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
   const { data } = await supabase.from('bmw_daily_log').select('yellow_kg,red_kg,white_count,blue_kg')
     .eq('tenant_id',tenantId).gte('log_date',monthStart).lte('log_date',todayStr);
   if (!data) return;
@@ -289,8 +290,8 @@ window.loadMonthlySummary = async function() {
   const m = document.getElementById('summary-month').value;
   if (!m) return;
   const [y, mo] = m.split('-').map(Number);
-  const start = new Date(y, mo-1, 1).toISOString().split('T')[0];
-  const end   = new Date(y, mo, 0).toISOString().split('T')[0];
+  const start = localDateStr(new Date(y, mo-1, 1));
+  const end   = localDateStr(new Date(y, mo, 0));
   const label = new Date(y, mo-1, 1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
   const body  = document.getElementById('summary-body');
   body.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Generating…</div></div>';

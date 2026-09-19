@@ -5,13 +5,14 @@ import { ENV } from '../config/env.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 const ALLOWED = ['super_admin','dept_admin','lab_tech','doctor','nurse'];
 await requireAuth(ALLOWED);
 const supabase = createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY);
 const sess     = getCurrentProfile() || {};
 const tenantId = getCurrentTenantId();
-const today    = new Date().toISOString().slice(0,10);
+const today    = todayLocalStr();
 
 initNavbar();
 wireDelegatedEvents();
@@ -45,7 +46,7 @@ window.switchTab = function(id) {
 // INIT
 // ══════════════════════════════════════════════════════
 async function init() {
-  const now = new Date().toISOString().slice(0,10);
+  const now = todayLocalStr();
   document.getElementById('s-from').value   = now;
   document.getElementById('s-to').value     = now;
   document.getElementById('qc-month').value = now.slice(0,7);
@@ -606,7 +607,7 @@ function populateInstrumentSelects() {
 window.renderEquipment = function() {
   const filter = document.getElementById('eq-filter').value;
   const today30 = new Date(); today30.setDate(today30.getDate() + 30);
-  const today30Str = today30.toISOString().slice(0,10);
+  const today30Str = localDateStr(today30);
 
   let list = _instruments.filter(i => {
     if (!filter) return true;
@@ -657,13 +658,13 @@ function _calibStatus(i) {
   if (!i.calibration_due_date)       return { cls:'b-active', label:'Active (no cal date)' };
   const today30 = new Date(); today30.setDate(today30.getDate() + 30);
   if (i.calibration_due_date < today)  return { cls:'b-overdue', label:'⚠ Calibration Overdue' };
-  if (i.calibration_due_date <= today30.toISOString().slice(0,10)) return { cls:'b-due-soon', label:'Due in 30 Days' };
+  if (i.calibration_due_date <= localDateStr(today30)) return { cls:'b-due-soon', label:'Due in 30 Days' };
   return { cls:'b-active', label:'Calibrated ✓' };
 }
 
 function updateEquipKPIs() {
   const today30 = new Date(); today30.setDate(today30.getDate()+30);
-  const today30Str = today30.toISOString().slice(0,10);
+  const today30Str = localDateStr(today30);
   document.getElementById('ek-total').textContent   = _instruments.length;
   document.getElementById('ek-active').textContent  = _instruments.filter(i => i.status==='active').length;
   document.getElementById('ek-overdue').textContent = _instruments.filter(i => i.calibration_due_date && i.calibration_due_date < today && i.status !== 'decommissioned').length;
@@ -715,7 +716,7 @@ window.autoCalcNextCal = function() {
   const interval = parseInt(document.getElementById('em-cal-interval').value) || 365;
   if (lastCal) {
     const next = new Date(lastCal); next.setDate(next.getDate() + interval);
-    document.getElementById('em-next-cal').value = next.toISOString().slice(0,10);
+    document.getElementById('em-next-cal').value = localDateStr(next);
   }
 };
 
@@ -761,7 +762,7 @@ window.openCalModal = function(instrId, instrName) {
   if (inst) {
     const interval = inst.calibration_interval_days || 365;
     const next = new Date(today); next.setDate(next.getDate() + interval);
-    document.getElementById('cal-next').value = next.toISOString().slice(0,10);
+    document.getElementById('cal-next').value = localDateStr(next);
     // Show calibration history
     const hist = (inst.calibration_log || []).slice().reverse().slice(0,5);
     document.getElementById('cal-history').innerHTML = hist.length
@@ -848,7 +849,7 @@ function _fmtDT(s) {
 }
 function _lastDayOfMonth(yearMonth) {
   const [y,m] = yearMonth.split('-').map(Number);
-  return new Date(y, m, 0).toISOString().slice(0,10);
+  return localDateStr(new Date(y, m, 0));
 }
 function _toast(msg, type='success') {
   const t = document.getElementById('toast');

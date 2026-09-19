@@ -6,6 +6,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { isNCISMType, ncismUgTier, PK_THERAPY_ROOM_COUNT } from '../config/ncism.js';
 import { NCISM_XX_ROWS } from '../config/ncismStaffCompliance.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 /*
   SQL to run once in Supabase:
@@ -58,12 +59,12 @@ let _pkShiftPending   = null; // Session 216 -- the latest pending pk_shift_time
 let _pkTherapists    = []; // Session 213 -- _therapists filtered to department='Panchakarma' only; the real pool for Shift 1/2 + Prep Room In-charge
 let _pkPrepLeaveIds   = new Set(); // Session 212 -- profile ids on approved leave covering _pkRosterDate, for the manual assign warning only
 let _myPkShiftsWeek   = [];
-let _pkRosterDate     = new Date().toISOString().slice(0,10);
-let _viewDate    = new Date().toISOString().slice(0,10);
+let _pkRosterDate     = todayLocalStr();
+let _viewDate    = todayLocalStr();
 // Session 206 piece 2: prep-room work happens in real time, not by the schedule-date
 // navigator above — deliberately a fixed "today", same idiom already used platform-wide
 // (flagged elsewhere as a standing platform-wide gap around midnight IST, not fixed here).
-const _prepToday = new Date().toISOString().slice(0,10);
+const _prepToday = todayLocalStr();
 
 // Session 207: Monday-start "this week" bounds for a plain therapist's read-only shifts
 // card. Uses toLocaleDateString('en-CA') for "today" rather than the toISOString().slice
@@ -751,7 +752,7 @@ function _renderPkRosterPanel() {
   if (isAdmin) window.updatePkHeadcountHint();
 
   const d = new Date(_pkRosterDate + 'T00:00:00');
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
   document.getElementById('pkroster-date-display').textContent =
     (_pkRosterDate === today ? 'Today · ' : '') + d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   document.getElementById('pkroster-date-picker').value = _pkRosterDate;
@@ -844,24 +845,24 @@ function _weekDatesUTC(monday) {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday);
     d.setUTCDate(d.getUTCDate() + i);
-    return d.toISOString().slice(0, 10);
+    return localDateStr(d);
   });
 }
 
 window.shiftPkWeekView = function(n) {
   const d = new Date(_pkWeekViewMonday);
   d.setUTCDate(d.getUTCDate() + Number(n) * 7);
-  _pkWeekViewMonday = d.toISOString().slice(0, 10);
+  _pkWeekViewMonday = localDateStr(d);
   _loadPkWeekView();
 };
 window.goToPkWeekViewThisWeek = function() {
-  _pkWeekViewMonday = _mondayOf(new Date().toISOString().slice(0, 10));
+  _pkWeekViewMonday = _mondayOf(todayLocalStr());
   _loadPkWeekView();
 };
 
 async function _loadPkWeekView() {
   if (!_isPkRosterAdmin() && !_isRoomAdmin()) return; // matches _renderPkRosterPanel()'s own admin/viewer gate
-  if (!_pkWeekViewMonday) _pkWeekViewMonday = _mondayOf(new Date().toISOString().slice(0, 10));
+  if (!_pkWeekViewMonday) _pkWeekViewMonday = _mondayOf(todayLocalStr());
   const monday = _pkWeekViewMonday;
   const dates = _weekDatesUTC(monday);
   const sunday = dates[6];
@@ -887,7 +888,7 @@ async function _loadPkWeekView() {
   const prepRows = prepRes.data || [];
 
   const names = (list) => list.map(x => _esc(x.profiles?.full_name || 'Unknown')).join(', ') || '—';
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalStr();
 
   const rowsHtml = dates.map(dateStr => {
     const dow = new Date(dateStr).getUTCDay(); // 0=Sun..6=Sat, matches profiles.weekly_off_day
@@ -1117,11 +1118,11 @@ window.swapPkDuty = async function(id, sel) {
 window.shiftPkRosterDate = function(n) {
   const d = new Date(_pkRosterDate);
   d.setDate(d.getDate() + Number(n));
-  _pkRosterDate = d.toISOString().slice(0,10);
+  _pkRosterDate = localDateStr(d);
   loadAll();
 };
 window.goToPkRosterToday = function() {
-  _pkRosterDate = new Date().toISOString().slice(0,10);
+  _pkRosterDate = todayLocalStr();
   loadAll();
 };
 window.onPkRosterDatePick = function() {
@@ -1187,7 +1188,7 @@ function _mondayOf(dateStr) {
   const day = d.getUTCDay(); // 0=Sun..6=Sat
   const diff = day === 0 ? -6 : 1 - day; // shift back to Monday
   d.setUTCDate(d.getUTCDate() + diff);
-  return d.toISOString().slice(0,10);
+  return localDateStr(d);
 }
 
 // Session 215 -- cycle-adaptive generation, same technique as nursingRosterGenerate.js's
@@ -1210,7 +1211,7 @@ function _pkPeriodMondays(weekStart, weekCount) {
   return Array.from({ length: weekCount }, (_, i) => {
     const d = new Date(weekStart);
     d.setUTCDate(d.getUTCDate() + i * 7);
-    return d.toISOString().slice(0, 10);
+    return localDateStr(d);
   });
 }
 
@@ -1440,12 +1441,12 @@ window.requestPkRosterCycleChange = async function() {
 window.shiftDate = function(n) {
   const d = new Date(_viewDate);
   d.setDate(d.getDate() + Number(n));
-  _viewDate = d.toISOString().slice(0,10);
+  _viewDate = localDateStr(d);
   document.getElementById('date-picker').value = _viewDate;
   loadAll();
 };
 window.goToday = function() {
-  _viewDate = new Date().toISOString().slice(0,10);
+  _viewDate = todayLocalStr();
   document.getElementById('date-picker').value = _viewDate;
   loadAll();
 };
@@ -1455,7 +1456,7 @@ window.onDatePick = function() {
 };
 function _updateDateDisplay() {
   const d = new Date(_viewDate + 'T00:00:00');
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
   const label = _viewDate === today ? 'Today · ' : '';
   document.getElementById('date-display').textContent =
     label + d.toLocaleDateString('en-IN', { weekday:'short', day:'2-digit', month:'long', year:'numeric' });
@@ -2946,9 +2947,9 @@ document.getElementById('date-picker').value = _viewDate;
 
 // §21aa — Emergency Kit Audit
 const today = new Date();
-document.getElementById('ka-date').value     = today.toISOString().slice(0,10);
+document.getElementById('ka-date').value     = localDateStr(today);
 const nextMo = new Date(today); nextMo.setMonth(nextMo.getMonth()+1);
-document.getElementById('ka-next-due').value = nextMo.toISOString().slice(0,10);
+document.getElementById('ka-next-due').value = localDateStr(nextMo);
 (async function checkKitAuditOverdue() {
   const { data } = await supabase.from('emergency_kit_audits')
     .select('audit_date').eq('tenant_id',tenantId).eq('location','pk_section')

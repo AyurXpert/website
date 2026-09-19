@@ -4,6 +4,7 @@ import { initNavbar } from '../components/navbar.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['doctor','nurse','super_admin','dept_admin','therapist']);
 initNavbar();
@@ -163,7 +164,7 @@ function updateStats() {
 // ── Schedule modal ────────────────────────────────────────────────────────────
 window.openModal = function() {
   if (!_patient) return;
-  document.getElementById('m-date').value  = new Date().toISOString().slice(0,10);
+  document.getElementById('m-date').value  = todayLocalStr();
   renderProcChips();
   document.getElementById('sess-overlay').style.display = 'flex';
 };
@@ -212,7 +213,7 @@ window.saveSession = async function() {
 // ── Complete session ──────────────────────────────────────────────────────────
 window.openCompleteModal = function(id) {
   _completeId = id;
-  document.getElementById('c-date').value  = new Date().toISOString().slice(0,10);
+  document.getElementById('c-date').value  = todayLocalStr();
   document.getElementById('c-obs').value   = '';
   document.getElementById('c-med').value   = '';
   document.getElementById('c-qty').value   = '';

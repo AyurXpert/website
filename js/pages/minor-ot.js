@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -17,7 +18,7 @@ const tenantId = getCurrentTenantId();
 const profile  = getCurrentProfile();
 const userId   = profile?.id;
 
-let _viewDate  = new Date().toISOString().slice(0,10);
+let _viewDate  = todayLocalStr();
 let _allData   = [];
 let _viewRec   = null;
 let _foundPatient = null;
@@ -28,12 +29,12 @@ function renderDateNav() {
   document.getElementById('date-display').textContent =
     d.toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
   document.getElementById('date-picker').value = _viewDate;
-  const isToday = _viewDate === new Date().toISOString().slice(0,10);
+  const isToday = _viewDate === todayLocalStr();
   document.getElementById('today-chip').style.display = isToday ? '' : 'none';
 }
-window.shiftDate = d => { const dt = new Date(_viewDate); dt.setDate(dt.getDate()+Number(d)); _viewDate = dt.toISOString().slice(0,10); renderDateNav(); loadData(); };
+window.shiftDate = d => { const dt = new Date(_viewDate); dt.setDate(dt.getDate()+Number(d)); _viewDate = localDateStr(dt); renderDateNav(); loadData(); };
 window.onDatePick = () => { _viewDate = document.getElementById('date-picker').value; renderDateNav(); loadData(); };
-window.goToday = () => { _viewDate = new Date().toISOString().slice(0,10); renderDateNav(); loadData(); };
+window.goToday = () => { _viewDate = todayLocalStr(); renderDateNav(); loadData(); };
 
 // ── Load ──────────────────────────────────────────────────────────────────────
 async function loadData() {
@@ -55,8 +56,8 @@ async function loadData() {
 }
 
 async function loadStats() {
-  const today = new Date().toISOString().slice(0,10);
-  const m1 = new Date(); m1.setDate(1); const monthStart = m1.toISOString().slice(0,10);
+  const today = todayLocalStr();
+  const m1 = new Date(); m1.setDate(1); const monthStart = localDateStr(m1);
   const [todayRes, monthRes] = await Promise.all([
     supabase.from('minor_ot_procedures').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).eq('procedure_date',today),
     supabase.from('minor_ot_procedures').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('procedure_date',monthStart),
@@ -109,7 +110,7 @@ window.openNewModal = function() {
   document.getElementById('n-date').value    = _viewDate;
   document.getElementById('n-duration').value = '';
   const fu = new Date(_viewDate); fu.setDate(fu.getDate()+7);
-  document.getElementById('n-followup').value = fu.toISOString().slice(0,10);
+  document.getElementById('n-followup').value = localDateStr(fu);
   document.getElementById('n-pt-result').classList.remove('show');
   document.getElementById('new-overlay').style.display = 'flex';
 };

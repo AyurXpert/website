@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -17,7 +18,7 @@ const tenantId = getCurrentTenantId();
 const profile  = getCurrentProfile();
 const userId   = profile?.id;
 
-let _viewDate    = new Date().toISOString().slice(0,10);
+let _viewDate    = todayLocalStr();
 let _allCases    = [];
 let _activeFilter= 'all';
 let _activeId    = null;
@@ -50,12 +51,12 @@ function renderDateNav() {
   document.getElementById('date-display').textContent =
     d.toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
   document.getElementById('date-picker').value = _viewDate;
-  const isToday = _viewDate === new Date().toISOString().slice(0,10);
+  const isToday = _viewDate === todayLocalStr();
   document.getElementById('today-chip').style.display = isToday ? '' : 'none';
 }
-window.shiftDate  = d => { const dt=new Date(_viewDate); dt.setDate(dt.getDate()+Number(d)); _viewDate=dt.toISOString().slice(0,10); renderDateNav(); loadCases(); };
+window.shiftDate  = d => { const dt=new Date(_viewDate); dt.setDate(dt.getDate()+Number(d)); _viewDate=localDateStr(dt); renderDateNav(); loadCases(); };
 window.onDatePick = () => { _viewDate=document.getElementById('date-picker').value; renderDateNav(); loadCases(); };
-window.goToday    = () => { _viewDate=new Date().toISOString().slice(0,10); renderDateNav(); loadCases(); };
+window.goToday    = () => { _viewDate=todayLocalStr(); renderDateNav(); loadCases(); };
 
 // ── Load cases ────────────────────────────────────────────────────────────────
 async function loadCases() {
@@ -77,8 +78,8 @@ async function loadCases() {
 }
 
 async function loadStats() {
-  const today = new Date().toISOString().slice(0,10);
-  const m1 = new Date(); m1.setDate(1); const monthStart = m1.toISOString().slice(0,10);
+  const today = todayLocalStr();
+  const m1 = new Date(); m1.setDate(1); const monthStart = localDateStr(m1);
   const [sc,ip,dn,mo,em] = await Promise.all([
     supabase.from('ot_cases').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).eq('scheduled_date',today).eq('status','scheduled'),
     supabase.from('ot_cases').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).eq('status','in_progress'),
@@ -445,7 +446,7 @@ window.loadLogbook = async function() {
   if (!month) return;
   const [yr, mo] = month.split('-');
   const from = `${yr}-${mo}-01`;
-  const to   = new Date(yr, mo, 0).toISOString().slice(0,10);
+  const to   = localDateStr(new Date(yr, mo, 0));
   const { data } = await supabase
     .from('ot_cases')
     .select(`serial_no,scheduled_date,scheduled_time,procedure_name,case_type,anaesthesia_type,

@@ -9,6 +9,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import {
   requestABHAOtp, enrollABHA,
   checkAndGenerateMobileOTP, verifyCommMobileOtp, finalizeAbhaEnrollment,
@@ -60,15 +61,13 @@ const _ctx     = { tenantId, userId: profile.id, userName: profile.full_name };
 //      configured night-shift window (js/config/ncism.js's shiftTimes())?
 //
 // Real bug avoided here, found while building this: `new Date().toISOString().slice(0,10)`
-// (the "today" idiom used dozens of times elsewhere in this codebase) silently gives
+// (the "today" idiom used dozens of times elsewhere in this codebase) silently gave
 // YESTERDAY's calendar date for any local time between midnight and the UTC offset (e.g.
 // 00:00–05:30 for India Standard Time) — exactly the night-duty window this feature is FOR.
-// toLocaleDateString('en-CA') (YYYY-MM-DD, but computed from local time, not UTC) is used
-// throughout this block instead. This is a real, separate, platform-wide pattern worth a
-// dedicated look later — not fixed everywhere here, out of scope for this feature.
+// js/utils/dateUtils.js's localDateStr()/todayLocalStr() (YYYY-MM-DD, computed from local
+// time, not UTC) are used throughout this block instead — since fixed platform-wide, see
+// that module's header comment.
 const HOSP_STAFFED_RECEPTION_TYPES = ['hospital', 'teaching_hospital', 'college'];
-
-function _localDateStr(d) { return d.toLocaleDateString('en-CA'); } // YYYY-MM-DD, local calendar day
 
 function _nightWindowInfo(rangeStr, now = new Date()) {
   const [startStr, endStr] = (rangeStr || '').split('–'); // en-dash — matches SHIFT_PATTERNS' own format
@@ -76,10 +75,10 @@ function _nightWindowInfo(rangeStr, now = new Date()) {
   const toMinutes = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const startMin = toMinutes(startStr), endMin = toMinutes(endStr);
-  if (nowMin >= startMin) return { withinWindow: true, shiftDate: _localDateStr(now) };
+  if (nowMin >= startMin) return { withinWindow: true, shiftDate: localDateStr(now) };
   if (nowMin < endMin) {
     const y = new Date(now); y.setDate(y.getDate() - 1);
-    return { withinWindow: true, shiftDate: _localDateStr(y) };
+    return { withinWindow: true, shiftDate: localDateStr(y) };
   }
   return { withinWindow: false, shiftDate: null };
 }
@@ -88,7 +87,7 @@ async function _nurseReceptionEligible() {
   if (profile.role !== 'nurse') return true; // every other allowed role is unaffected
   if (!HOSP_STAFFED_RECEPTION_TYPES.includes(tenant?.type)) return true; // clinic/pk_center/dispensary — always on
 
-  const today = _localDateStr(new Date());
+  const today = todayLocalStr();
   const { data: grant } = await supabase.from('reception_coverage_grants')
     .select('id').eq('tenant_id', tenantId).eq('nurse_id', profile.id)
     .eq('grant_date', today).is('ended_at', null).maybeSingle();
@@ -1048,7 +1047,7 @@ async function _selectPatient(patient, chosenCombo) {
   _activePackage = null;
   document.getElementById('pkg-card').classList.remove('show');
   document.getElementById('pkg-use-chk').checked = false;
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
   const { data: pkgs } = await supabase
     .from('patient_packages')
     .select('*, packages(name,package_type,sessions_total)')
@@ -1268,7 +1267,7 @@ async function _loadPatientCombos(patient) {
 
   const doctorIds = [...new Set(combos.map(c => c.doctor_id).filter(Boolean))];
   if (doctorIds.length) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayLocalStr();
     const { data: leaves } = await supabase
       .from('staff_leaves')
       .select('profile_id, covering_profile_id, covering_status, covering:profiles!covering_profile_id(full_name)')
@@ -4094,7 +4093,7 @@ function _setMode(mode) {
   const btn = document.getElementById('btn-submit');
   btn.querySelector('.btn-text').textContent = isAppt ? '📅 Book Appointment' : 'Register & Create Visit';
   if (isAppt && !document.getElementById('appt-date').value) {
-    document.getElementById('appt-date').value = new Date().toISOString().slice(0,10);
+    document.getElementById('appt-date').value = todayLocalStr();
   }
 }
 
@@ -4673,7 +4672,7 @@ function _fmt12(t) {
 
 // ── Today's Appointments ───────────────────────────
 async function loadTodaysAppointments() {
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
   const { data, error } = await supabase
     .from('appointments')
     .select('id, appointment_time, status, chief_complaint, patients(name), profiles!doctor_id(full_name), opds(name)')

@@ -9,6 +9,7 @@ import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/n
 import { computeRequiredPerShift, distributeAcrossShifts, buildRequiredMatrix, BED_DEPT_ZONE } from '../modules/roster/requiredStaffing.js';
 import { checkCycleExpiry } from '../modules/roster/cycleExpiry.js';
 import { resolveIpdZoneMemberDeptIds, fetchZoneRealBedNumbers, sliceRange } from '../modules/roster/realBedSlicing.js';
+import { localDateStr } from '../utils/dateUtils.js';
 
 // Session 139 (Nursing Duty Roster Phase 3): template editor for the
 // "Template-Based Rolling Schedule" -- a repeating base pattern per
@@ -61,15 +62,6 @@ let _busyElsewhere = new Set(); // profile_ids already posted to an overlapping 
 let _expiry = []; // per-department { deptId, lastDate, status }, from checkCycleExpiry() -- also drives the suggested start date below
 let _tenantCycleKey = 'weekly'; // nursing_roster_settings.cycle, refreshed by loadRosterCycle() -- used for the bulk action's "To" date
 
-// Local Y-M-D, not UTC -- avoids the roster.js bug (fixed Session 149) where
-// .toISOString() on a local date silently rolls back a day for any positive-
-// UTC-offset timezone (e.g. India, UTC+5:30).
-function _localDateStr(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
 
 // Real question from Dr. Venkatesh testing SDM: the start-date field was
 // defaulting to today even though a cycle was already generated through
@@ -82,9 +74,9 @@ function _suggestedStartDate(deptId) {
   if (rec?.lastDate) {
     const d = new Date(rec.lastDate);
     d.setDate(d.getDate() + 1);
-    return _localDateStr(d);
+    return localDateStr(d);
   }
-  return _localDateStr(new Date());
+  return localDateStr(new Date());
 }
 
 // Bulk action shares one start date across every department -- default to
@@ -94,11 +86,11 @@ function _suggestedStartDate(deptId) {
 // same "honest gap" convention used everywhere else in this feature).
 function _suggestedBulkStartDate() {
   const dated = _expiry.filter(r => r.lastDate);
-  if (!dated.length) return _localDateStr(new Date());
+  if (!dated.length) return localDateStr(new Date());
   const latest = dated.reduce((max, r) => (new Date(r.lastDate) > new Date(max.lastDate) ? r : max));
   const d = new Date(latest.lastDate);
   d.setDate(d.getDate() + 1);
-  return _localDateStr(d);
+  return localDateStr(d);
 }
 
 // It's a fixed-length cycle (weekly/fortnightly/monthly, set via the Roster
@@ -112,7 +104,7 @@ function _updateCycleEndDisplay(fromInputId, toSpanId, days) {
   if (!fromVal) { toEl.textContent = '—'; return; }
   const d = new Date(fromVal);
   d.setDate(d.getDate() + (days - 1));
-  toEl.textContent = _localDateStr(d);
+  toEl.textContent = localDateStr(d);
 }
 
 async function loadDepartments() {

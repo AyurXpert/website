@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist'], 'index.html');
 initNavbar();
@@ -15,7 +16,7 @@ window._closeIfSelf = function(isSelf, fnName) {
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
 const now      = new Date();
-const todayStr = now.toISOString().split('T')[0];
+const todayStr = localDateStr(now);
 
 // Defaults
 document.getElementById('c-date').value          = todayStr;
@@ -31,7 +32,7 @@ window.updateExpiry = function() {
   const pack = document.getElementById('c-pack').value;
   const days = EXPIRY_DAYS[pack] || 30;
   const exp  = new Date(now); exp.setDate(exp.getDate() + days);
-  document.getElementById('c-expiry').value = exp.toISOString().split('T')[0];
+  document.getElementById('c-expiry').value = localDateStr(exp);
 };
 updateExpiry(); // set initial
 
@@ -75,15 +76,15 @@ async function loadDepts() {
 
 // ─── Stats ────────────────────────────────────────────────
 async function loadStats() {
-  const weekStart = (() => { const d=new Date(now); d.setDate(d.getDate()-d.getDay()); return d.toISOString().split('T')[0]; })();
+  const weekStart = (() => { const d=new Date(now); d.setDate(d.getDate()-d.getDay()); return localDateStr(d); })();
   const thirtyAgo = new Date(now); thirtyAgo.setDate(thirtyAgo.getDate()-30);
   const sevenAgo  = new Date(now); sevenAgo.setDate(sevenAgo.getDate()-7);
 
   const [todayRes, weekRes, failRes, expiryRes, equipRes] = await Promise.all([
     supabase.from('sterilisation_cycles').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).eq('cycle_date',todayStr),
     supabase.from('sterilisation_cycles').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('cycle_date',weekStart),
-    supabase.from('sterilisation_cycles').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).eq('biological_indicator','fail').gte('cycle_date',thirtyAgo.toISOString().split('T')[0]),
-    supabase.from('sterilisation_cycles').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('sterility_expiry_date',todayStr).lte('sterility_expiry_date',sevenAgo.toISOString().split('T')[0]),
+    supabase.from('sterilisation_cycles').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).eq('biological_indicator','fail').gte('cycle_date',localDateStr(thirtyAgo)),
+    supabase.from('sterilisation_cycles').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('sterility_expiry_date',todayStr).lte('sterility_expiry_date',localDateStr(sevenAgo)),
     supabase.from('sterilisation_equipment').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).eq('is_active',true),
   ]);
 
@@ -309,7 +310,7 @@ async function loadBITable() {
     .eq('tenant_id',tenantId)
     .neq('biological_indicator','not_done')
     .not('biological_indicator','is',null)
-    .gte('cycle_date', ninetyAgo.toISOString().split('T')[0])
+    .gte('cycle_date', localDateStr(ninetyAgo))
     .order('cycle_date',{ascending:false}).order('created_at',{ascending:false});
 
   if (error) {

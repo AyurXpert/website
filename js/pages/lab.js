@@ -4,6 +4,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenant } from '../core/auth.j
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 // Session 113 -- receptionist added so front-desk staff can check whether a patient's
 // report is ready when they call in (Dr. Venkatesh's ask). Deliberately read-only and
@@ -145,11 +146,11 @@ const TEST_REF = {
 function getViewDate() {
   const d = new Date();
   d.setDate(d.getDate() + _dateOffset);
-  return d.toISOString().slice(0,10);
+  return localDateStr(d);
 }
 function updateDateLabel() {
   const d = new Date(getViewDate()+'T00:00:00');
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
   const label = _dateOffset === 0 ? 'Today — ' : '';
   document.getElementById('date-label').textContent = label + d.toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short'});
 }
@@ -778,7 +779,7 @@ function renderImgDetail() {
   // Performed by section
   html += `<div class="sec-title">Study Performance</div>
   <div class="field-row c3">
-    <div class="field"><label>Performed Date</label><input id="ip-date" type="date" value="${o.performed_date||new Date().toISOString().slice(0,10)}" ${isDone?'readonly style="background:#f5f5f5"':''}></div>
+    <div class="field"><label>Performed Date</label><input id="ip-date" type="date" value="${o.performed_date||todayLocalStr()}" ${isDone?'readonly style="background:#f5f5f5"':''}></div>
     <div class="field"><label>Operator / Radiographer</label><input id="ip-operator" type="text" value="${_esc(o.operator_name||'')}" placeholder="Radiographer / Technician" ${isDone?'readonly style="background:#f5f5f5"':''}></div>
     <div class="field"><label>Radiologist / Sonologist</label><input id="ip-radiologist" type="text" value="${_esc(o.radiologist_name||'')}" placeholder="Reporting doctor" ${isDone?'readonly style="background:#f5f5f5"':''}></div>
   </div>`;
@@ -1019,7 +1020,7 @@ window.loadAerbLog = async function loadAerbLog() {
 window.printAerbLog = function() { window.print(); };
 
 window.openAerbEntry = function() {
-  document.getElementById('ae-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('ae-date').value = todayLocalStr();
   ['ae-pt-name','ae-age','ae-uhid','ae-study','ae-view','ae-ordered','ae-operator','ae-kvp','ae-mas','ae-indication'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value='';
   });

@@ -11,6 +11,7 @@ import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { openTimePicker, formatTime12 } from '../components/timePicker.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -299,7 +300,7 @@ async function _opdIdsForDept(departmentId) {
 // or a trainee never assigned/posted at all).
 async function _scopedOpdIds() {
   if (_isTrainee) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayLocalStr();
     const { data: posting } = await supabase.from('trainee_postings')
       .select('department_id, area')
       .eq('tenant_id', tenantId).eq('profile_id', userId)
@@ -2312,7 +2313,7 @@ window.setFollowup = function(days) {
   if (!days) return;
   const d = new Date();
   d.setDate(d.getDate() + parseInt(days));
-  document.getElementById('fu-date').value = d.toISOString().split('T')[0];
+  document.getElementById('fu-date').value = localDateStr(d);
 };
 
 // ── Pathya / Apathya chips ────────────────────────
@@ -3170,14 +3171,14 @@ async function _loadAbdmTab() {
 
   // Set default dates only if not already set
   const today    = new Date();
-  const toStr    = today.toISOString().slice(0, 10);
+  const toStr    = localDateStr(today);
   // 10 Sep 2026 — widened default look-back 1yr → 3yr: "pull my records from another
   // hospital" commonly reaches further back than a single year (and the doctor can
   // still narrow or widen it).
   const fromDate = new Date(today.getFullYear() - 3, today.getMonth(), today.getDate());
-  const fromStr  = fromDate.toISOString().slice(0, 10);
+  const fromStr  = localDateStr(fromDate);
   const eraseDate = new Date(today.getFullYear(), today.getMonth() + 3, today.getDate());
-  const eraseStr  = eraseDate.toISOString().slice(0, 10);
+  const eraseStr  = localDateStr(eraseDate);
   if (!document.getElementById('abdm-date-from').value) document.getElementById('abdm-date-from').value = fromStr;
   if (!document.getElementById('abdm-date-to').value)   document.getElementById('abdm-date-to').value   = toStr;
   if (!document.getElementById('abdm-erase-at').value)  document.getElementById('abdm-erase-at').value  = eraseStr;
@@ -3944,7 +3945,7 @@ window._calcObsGynDates = function() {
   }
   const lmp  = new Date(lmpVal + 'T00:00');
   const edd  = new Date(lmp); edd.setDate(edd.getDate() + 280);
-  document.getElementById('og-edd').value = edd.toISOString().slice(0,10);
+  document.getElementById('og-edd').value = localDateStr(edd);
   const today    = new Date();
   const diffDays = Math.floor((today - lmp) / (1000 * 60 * 60 * 24));
   if (diffDays < 0) { document.getElementById('og-poa').value = 'Pre-conception'; return; }
@@ -4059,7 +4060,7 @@ window._toggleImmForm = function() {
   const open = form.style.display === 'none';
   form.style.display = open ? '' : 'none';
   btn.textContent    = open ? '▲ Close' : '+ Record Vaccine';
-  if (open) document.getElementById('imm-date').value = new Date().toISOString().slice(0,10);
+  if (open) document.getElementById('imm-date').value = todayLocalStr();
 };
 
 window._onImmVaccineChange = function() {
@@ -4314,7 +4315,7 @@ window.saveGrowthRecord = async function() {
     patient_id:              _activePatient.id,
     visit_id:                _activeVisitId,
     recorded_by:             userId,
-    recorded_at:             new Date().toISOString().slice(0,10),
+    recorded_at:             todayLocalStr(),
     age_months:              ageMos,
     weight_kg:               wt,
     height_cm:               ht,
@@ -4485,12 +4486,12 @@ window.applyPrakritiResult = async function() {
     scores: { V, P, K },
     result,
     assessed_by: profile.full_name,
-    assessed_at: new Date().toISOString().slice(0,10),
+    assessed_at: todayLocalStr(),
   };
 
   const { error } = await supabase.from('patients').update({
     prakriti_data:         prakritiData,
-    prakriti_assessed_at:  new Date().toISOString().slice(0,10),
+    prakriti_assessed_at:  todayLocalStr(),
   }).eq('id', _activePatient.id);
 
   if (error) { _toast(safeErrorMessage(error, 'Could not save Prakriti data.'), 'error'); return; }
@@ -4536,7 +4537,7 @@ window.openMcModal = function() {
   if (!_activePatient) return;
   const diag = document.getElementById('d-modern').value || document.getElementById('d-ayurveda').value || '';
   document.getElementById('mc-diagnosis').value = diag;
-  document.getElementById('mc-rest-from').value = new Date().toISOString().slice(0,10);
+  document.getElementById('mc-rest-from').value = todayLocalStr();
   document.getElementById('mc-rest-to').value   = '';
   document.getElementById('mc-remarks').value   = '';
   document.getElementById('mc-overlay').style.display = 'flex';
@@ -5137,7 +5138,7 @@ window.escalateToEmergency = async function() {
     }
 
     // Next token for Emergency OPD today
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayLocalStr();
     const { count } = await supabase
       .from('visits').select('*', { count:'exact', head:true })
       .eq('opd_id', emergOpd.id).eq('tenant_id', tenantId)
@@ -5234,7 +5235,7 @@ async function _loadOpdAttendanceBanner() {
   const target = t.opd_daily_target || ((t.ug_intake || 0) * 2);
   if (!target) return;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalStr();
   const { count } = await supabase.from('visits').select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
     .gte('created_at', today + 'T00:00:00')
@@ -5259,8 +5260,8 @@ function openAdrModal() {
   if (!_activePatient) { alert('Select a patient first.'); return; }
   document.getElementById('adr-patient-name').value  = _activePatient.name || '';
   document.getElementById('adr-doctor-name').value   = _ctx.userName || '';
-  document.getElementById('adr-report-date').value   = new Date().toISOString().slice(0,10);
-  document.getElementById('adr-reaction-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('adr-report-date').value   = todayLocalStr();
+  document.getElementById('adr-reaction-date').value = todayLocalStr();
   document.getElementById('adr-description').value   = '';
   document.getElementById('adr-severity').value      = '';
   document.getElementById('adr-outcome').value       = '';
@@ -5371,7 +5372,7 @@ window.submitImgOrder = async function() {
     patient_id:          _activePatient.id,
     visit_id:            _activeVisitId,
     ordered_by:          userId,
-    order_date:          new Date().toISOString().slice(0,10),
+    order_date:          todayLocalStr(),
     order_time:          new Date().toTimeString().slice(0,8),
     modality:            mod,
     study_name:          study,
@@ -5753,7 +5754,7 @@ async function saveMhaFlag() {
 function openMhaConsent() {
   if (!_activePatient) { alert('Select a patient first.'); return; }
   document.getElementById('mha-c-patient').value = _activePatient.name || '';
-  document.getElementById('mha-c-date').value    = new Date().toISOString().slice(0,10);
+  document.getElementById('mha-c-date').value    = todayLocalStr();
   document.getElementById('mha-consent-overlay').style.display = 'flex';
 }
 function closeMhaConsent() {
@@ -5939,7 +5940,7 @@ window.saveSwarnaprashan = async function() {
   const { error } = await supabase.from('swarnaprashan_records').insert({
     tenant_id:         tenantId,
     patient_id:        _activePatient.id,
-    administration_date: new Date().toISOString().slice(0,10),
+    administration_date: todayLocalStr(),
     child_age_months:  parseInt(document.getElementById('sp-age-months').value)||null,
     dose_type:         dose,
     batch_number:      document.getElementById('sp-batch').value.trim()||null,

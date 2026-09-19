@@ -4,6 +4,7 @@ import { initNavbar } from '../components/navbar.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 const ALLOWED = ['super_admin','dept_admin'];
 await requireAuth(ALLOWED);
@@ -12,7 +13,7 @@ wireDelegatedEvents();
 
 const profile   = getCurrentProfile();
 const tenantId  = getCurrentTenantId();
-const today     = new Date().toISOString().slice(0,10);
+const today     = todayLocalStr();
 const thisMonth = today.slice(0,7);
 
 initNavbar();
@@ -105,14 +106,14 @@ window.loadGrievances = async function() {
 window.updateGrievanceStatus = async function(id, status) {
   if (!status) return;
   const updates = { status };
-  if (status === 'resolved') updates.resolved_date = new Date().toISOString().slice(0,10);
+  if (status === 'resolved') updates.resolved_date = todayLocalStr();
   await supabase.from('patient_grievances').update(updates).eq('id',id).eq('tenant_id',tenantId);
   loadGrievances();
 };
 
 window.openGrievanceModal = function() {
   document.getElementById('griev-modal').style.display = 'flex';
-  document.getElementById('griev-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('griev-date').value = todayLocalStr();
   document.getElementById('griev-pt-name').value = '';
   document.getElementById('griev-desc').value = '';
 };
@@ -531,7 +532,7 @@ function _csvDownload(rows, name) {
   const keys = Object.keys(rows[0]);
   const csv = [keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
   const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download=`${name}_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  a.download=`${name}_${todayLocalStr()}.csv`; a.click();
 }
 
 // ── Init ──────────────────────────────────────────────────

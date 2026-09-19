@@ -1,3 +1,5 @@
+import { todayLocalStr } from '../../utils/dateUtils.js';
+
 // Session 167: "Your schedule changed" indicator for plain nurse logins. Dr. Venkatesh's
 // explicit ask -- lightweight, purely additive, no gate on publish. duty_roster.created_at
 // (default now()) already gets refreshed on every real publish (commit_nursing_week() always
@@ -18,8 +20,7 @@ export async function checkRosterChanged(supabase, tenantId, profileId) {
   // anywhere, indistinguishable from "nothing changed". Both errors are now surfaced.
   if (profErr) { console.error('[checkRosterChanged] profiles read failed:', profErr); return { changed: false, count: 0 }; }
   const lastSeen = prof?.roster_last_seen_at || '1970-01-01T00:00:00Z';
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const todayStr = todayLocalStr();
 
   // Scoped to shift_date >= today deliberately -- a row's created_at can be recent even for a
   // shift that already happened (e.g. she hasn't logged in for 2 weeks), and there's nothing

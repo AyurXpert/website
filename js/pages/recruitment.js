@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 const ALLOWED = ['super_admin','dept_admin'];
 await requireAuth(ALLOWED);
@@ -13,7 +14,7 @@ wireDelegatedEvents();
 const profile   = getCurrentProfile();
 const tenant    = getCurrentTenant() || {};
 const tenantId  = getCurrentTenantId();
-const today     = new Date().toISOString().slice(0,10);
+const today     = todayLocalStr();
 
 initNavbar();
 
@@ -518,7 +519,7 @@ function _csvDownload(rows,name) {
   const keys=Object.keys(rows[0]);
   const csv=[keys.join(','),...rows.map(r=>keys.map(k=>`"${String(r[k]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download=`${name}_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+  a.download=`${name}_${todayLocalStr()}.csv`;a.click();
 }
 
 window._toast = _toast;

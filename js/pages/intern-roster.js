@@ -13,6 +13,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { computeInternRotationPlan, computeStopCounts } from '../modules/roster/internRotation.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['doctor']);
 initNavbar();
@@ -148,7 +149,7 @@ async function loadHistory() {
 }
 
 // ── Boot ──
-document.getElementById('rp-start-date').value = new Date().toISOString().slice(0, 10);
+document.getElementById('rp-start-date').value = todayLocalStr();
 await _loadInterns();
 await _loadDeptMap();
 await loadHistory();

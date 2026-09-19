@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','nurse','receptionist']);
 initNavbar();
@@ -12,7 +13,7 @@ window._closeModalIfSelf = function(isSelf, id) { if (isSelf) closeModal(id); };
 
 const tenantId  = getCurrentTenantId();
 const myProfile = getCurrentProfile();
-const todayStr  = new Date().toISOString().slice(0,10);
+const todayStr  = todayLocalStr();
 
 let _hkRows = [], _ldRows = [], _visRows = [], _incRows = [];
 

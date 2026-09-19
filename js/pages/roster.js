@@ -8,6 +8,7 @@ import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/n
 import { buildRequiredMatrix } from '../modules/roster/requiredStaffing.js';
 import { computeCoverageCapacity, renderCoverageCapacityHtml, subscribeCoverageCapacity } from '../modules/roster/coverageCapacity.js';
 import { markRosterSeen } from '../modules/roster/scheduleChangeIndicator.js';
+import { localDateStr } from '../utils/dateUtils.js';
 
 // Session 137: widened from admin-only to also let plain nursing staff/ayahs
 // (role 'nurse', covers both designations) view the roster -- read-only,
@@ -102,18 +103,6 @@ function _getMonday(d) {
   m.setHours(0,0,0,0);
   return m;
 }
-// Local Y-M-D, not UTC -- d.toISOString() converts to UTC first, which
-// silently rolls back to the previous calendar day for any positive-offset
-// timezone (e.g. India, UTC+5:30) whenever d is a local-midnight Date (as
-// every date this function is called with always is, via _weekDates()) --
-// found live 1 Aug 2026 testing SDM: the whole Weekly Schedule/Weekly Off
-// week was rendering one day earlier than the real week.
-function _dateStr(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
 function _fmtDate(d) {
   return new Date(d).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
 }
@@ -121,13 +110,13 @@ function _fmtDay(d) {
   return new Date(d).toLocaleDateString('en-IN',{weekday:'short'});
 }
 function _isToday(d) {
-  return _dateStr(new Date(d)) === _dateStr(new Date());
+  return localDateStr(new Date(d)) === localDateStr(new Date());
 }
 function _weekDates() {
   return Array.from({length:7}, (_,i) => {
     const d = new Date(_weekStart);
     d.setDate(d.getDate() + i);
-    return _dateStr(d);
+    return localDateStr(d);
   });
 }
 
@@ -538,7 +527,7 @@ document.getElementById('btn-today').addEventListener('click', () => {
   _weekStart = _getMonday(new Date()); updateWeekLabel(); loadRoster();
 });
 document.getElementById('filter-dept').addEventListener('change', loadRoster);
-document.getElementById('btn-add-shift').addEventListener('click', () => openModal(null, _dateStr(new Date()), 'morning', null, 1));
+document.getElementById('btn-add-shift').addEventListener('click', () => openModal(null, localDateStr(new Date()), 'morning', null, 1));
 
 // Bulk-confirm every currently-visible unconfirmed shift (respects the week
 // range + department filter already applied to _roster by loadRoster()) --
@@ -984,8 +973,8 @@ async function loadWeeklyOff() {
   // fairly" has a real number behind it, not just "trust the algorithm".
   // Trailing 30 days ending today, same window _find_relief_nurse() itself
   // uses for fair-rotation selection.
-  const today = _dateStr(new Date());
-  const since = _dateStr(new Date(Date.now() - 30 * 86400000));
+  const today = localDateStr(new Date());
+  const since = localDateStr(new Date(Date.now() - 30 * 86400000));
   const ids = _nursingStaffOff.map(n => n.id);
   _reliefLoad = {};
   if (ids.length) {
@@ -1133,7 +1122,7 @@ document.getElementById('btn-auto-assign-weekly-off')?.addEventListener('click',
 // nurse/ayah -- same privacy-tier convention as the Leave & Weekly Off tab.
 let _monitorDeptIds = [];
 let _canSeeMonitorTab = false;
-let _monitorDate = _dateStr(new Date());
+let _monitorDate = localDateStr(new Date());
 let _monitorShifts = [];
 
 async function loadMonitorScope() {
@@ -1244,13 +1233,13 @@ window.markAttendance = async function(dutyRosterId, status) {
 };
 
 document.getElementById('btn-monitor-prev').addEventListener('click', () => {
-  const d = new Date(_monitorDate); d.setDate(d.getDate() - 1); _monitorDate = _dateStr(d); loadMonitorShifts();
+  const d = new Date(_monitorDate); d.setDate(d.getDate() - 1); _monitorDate = localDateStr(d); loadMonitorShifts();
 });
 document.getElementById('btn-monitor-next').addEventListener('click', () => {
-  const d = new Date(_monitorDate); d.setDate(d.getDate() + 1); _monitorDate = _dateStr(d); loadMonitorShifts();
+  const d = new Date(_monitorDate); d.setDate(d.getDate() + 1); _monitorDate = localDateStr(d); loadMonitorShifts();
 });
 document.getElementById('btn-monitor-today').addEventListener('click', () => {
-  _monitorDate = _dateStr(new Date()); loadMonitorShifts();
+  _monitorDate = localDateStr(new Date()); loadMonitorShifts();
 });
 
 // ── Alert ──────────────────────────────────────────

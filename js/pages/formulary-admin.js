@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin']);
 initNavbar();
@@ -211,7 +212,7 @@ window.exportCsv = function() {
   const blob = new Blob([lines.join('\n')], { type:'text/csv' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a'); a.href = url;
-  a.download = `hospital-formulary-${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `hospital-formulary-${todayLocalStr()}.csv`;
   a.click(); URL.revokeObjectURL(url);
 };
 

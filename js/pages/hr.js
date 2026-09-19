@@ -5,6 +5,7 @@ import { ENV } from '../config/env.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 const ALLOWED = ['super_admin','dept_admin'];
 await requireAuth(ALLOWED);
@@ -25,7 +26,7 @@ let _calYear, _calMonth;
 let _rejectingLeaveId = null;
 let _viewingStaff = null;
 let _healthProfileId = null;
-const today = new Date().toISOString().slice(0,10);
+const today = todayLocalStr();
 
 // ── Tab switch ─────────────────────────────────────────
 window.switchTab = function(id) {
@@ -447,7 +448,7 @@ function renderCalendar() {
   approvedLeaves.forEach(l => {
     const s = new Date(l.from_date), e = new Date(l.to_date);
     for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
-      const k = d.toISOString().slice(0,10);
+      const k = localDateStr(d);
       if (!leaveMap[k]) leaveMap[k] = [];
       leaveMap[k].push(l.profiles?.full_name?.split(' ')[0] || '?');
     }
@@ -738,7 +739,7 @@ window.openHealthModal = function(profileId, name) {
   document.getElementById('hm-restrictions-field').style.display = 'none';
   // Default next check-up = 1 year from today
   const next = new Date(); next.setFullYear(next.getFullYear() + 1);
-  document.getElementById('hm-next-date').value = next.toISOString().slice(0,10);
+  document.getElementById('hm-next-date').value = localDateStr(next);
   document.getElementById('health-modal').classList.add('show');
 };
 
@@ -869,7 +870,7 @@ function _csvDownload(rows, name) {
   const keys = Object.keys(rows[0]);
   const csv = [keys.join(','), ...rows.map(r => keys.map(k=>`"${String(r[k]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
   const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download = `${name}_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  a.download = `${name}_${todayLocalStr()}.csv`; a.click();
 }
 
 await init();

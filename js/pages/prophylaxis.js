@@ -4,6 +4,7 @@ import { initNavbar }  from '../components/navbar.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 const ALLOWED = ['super_admin','dept_admin','doctor','receptionist','nurse'];
 await requireAuth(ALLOWED);
@@ -216,7 +217,7 @@ function _buildDots(e) {
   const today = new Date(); today.setHours(0,0,0,0);
   let dots = '';
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const ds = d.toISOString().slice(0,10);
+    const ds = localDateStr(d);
     const isFuture = d > today;
     const cls = isFuture ? 'future' : (logMap[ds] ? 'attended' : 'absent');
     const title = isFuture ? ds : (logMap[ds] ? `${ds} ✓` : `${ds} ✗`);
@@ -243,7 +244,7 @@ function updateStats() {
 
 // ── Mark today ────────────────────────────────────────
 window.markToday = async function(enrolId) {
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
   const enrol = _enrolments.find(e => e.id === enrolId);
   if (!enrol) return;
   const log = [...(enrol.compliance_log || [])];
@@ -331,7 +332,7 @@ window.enrolPatient = async function(patientId, patientName) {
 
   const { error } = await supabase.from('prophylaxis_enrollments').insert({
     tenant_id: tenantId, program_id: progId, patient_id: patientId,
-    enrolled_by: profile.id, enrolled_at: new Date().toISOString().slice(0,10),
+    enrolled_by: profile.id, enrolled_at: todayLocalStr(),
     compliance_log: [], status: 'enrolled',
   });
   if (error) { _toast(safeErrorMessage(error, 'Could not enrol patient.'), 'error'); return; }
@@ -354,7 +355,7 @@ window.exportEnrolCSV = function() {
   });
   const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-  a.download = `prophylaxis_${_activeProg?.name?.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.download = `prophylaxis_${_activeProg?.name?.replace(/\s+/g,'_')}_${todayLocalStr()}.csv`;
   a.click();
 };
 

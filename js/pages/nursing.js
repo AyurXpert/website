@@ -25,6 +25,7 @@ import { fetchMyDuty, renderMyDutyHtml, renderTodayHtml } from '../modules/roste
 import { shiftTimes, shiftNames } from '../config/ncism.js';
 import { IPD_MEDICAL_BED_CODES, IPD_SURGICAL_BED_CODES } from '../config/ncismStaffCompliance.js';
 import { computeNurseBedSlice } from '../modules/roster/realBedSlicing.js';
+import { todayLocalStr } from '../utils/dateUtils.js';
 
 requireAuth(['nurse','nurse_manager','super_admin','dept_admin','doctor']);
 initNavbar();
@@ -49,7 +50,7 @@ let _mySliceNumbers = null;
 let _mySliceLabel   = '';
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-document.getElementById('nursing-date').value = new Date().toISOString().slice(0,10);
+document.getElementById('nursing-date').value = todayLocalStr();
 document.getElementById('io-date-label').textContent = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
 renderPromoBanner('promo-banner', { supabase, tenantId });
 
@@ -351,7 +352,7 @@ window.switchTab = function(tab, el) {
     if (el) el.hidden = t !== tab;
   });
   if (tab === 'ward-proc') {
-    document.getElementById('wp-date').value = new Date().toISOString().slice(0,10);
+    document.getElementById('wp-date').value = todayLocalStr();
     loadWardProcedures();
   }
   if (tab === 'risk') loadRiskHistory();
@@ -442,8 +443,8 @@ window.loadWardPatients = async function() {
   // (admitted by then, and not yet discharged as of then). Today keeps the original,
   // unchanged "currently admitted" query exactly as before -- the common case is
   // untouched, both in behaviour and in which columns get selected.
-  const selectedDate = document.getElementById('nursing-date').value || new Date().toISOString().slice(0,10);
-  const todayStr = new Date().toISOString().slice(0,10);
+  const selectedDate = document.getElementById('nursing-date').value || todayLocalStr();
+  const todayStr = todayLocalStr();
   const isHistorical = selectedDate !== todayStr;
 
   // Session 114 -- a patient stays chartable/selectable through the
@@ -696,7 +697,7 @@ async function loadVitals() {
 
 // ── MAR ───────────────────────────────────────────────────────────────────────
 async function loadMar() {
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
   const { data: meds } = await supabase.from('nursing_mar')
     .select('*').eq('admission_id', _activeAdm.id).eq('is_active', true).order('created_at');
   const { data: given } = await supabase.from('nursing_mar_given')
@@ -761,7 +762,7 @@ window.markGiven = async function(marId, time) {
 };
 
 window.openAddMar = function() {
-  document.getElementById('mar-start').value = new Date().toISOString().slice(0,10);
+  document.getElementById('mar-start').value = todayLocalStr();
   document.getElementById('mar-modal-overlay').style.display = 'flex';
 };
 window.closeAddMar = function() { document.getElementById('mar-modal-overlay').style.display = 'none'; };
@@ -828,7 +829,7 @@ window.calcIoTotals = function() {
 };
 
 async function loadIo() {
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
   // Session 178 real bug fix: this never filtered by shift at all -- it just grabbed
   // whichever of today's records (Morning/Evening/Night, one row each per saveIo()'s own
   // onConflict key) happened to have the latest created_at, regardless of which shift
@@ -858,7 +859,7 @@ window.saveIo = async function() {
 
   const intake = gatherRows('intake'), output = gatherRows('output');
   const tin = intake.reduce((s,r)=>s+r.volume,0), tout = output.reduce((s,r)=>s+r.volume,0);
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
 
   await supabase.from('nursing_io').upsert({
     tenant_id:      tenantId,
@@ -990,7 +991,7 @@ window.saveWardProcedure = async function() {
     tenant_id:         tenantId,
     ipd_admission_id:  _activeAdm.id,
     patient_id:        _activeAdm.patients?.id || null,
-    procedure_date:    document.getElementById('wp-date').value || new Date().toISOString().slice(0,10),
+    procedure_date:    document.getElementById('wp-date').value || todayLocalStr(),
     procedure_time:    document.getElementById('wp-time').value || null,
     procedure_name:    proc,
     done_by_designation: document.getElementById('wp-designation').value,

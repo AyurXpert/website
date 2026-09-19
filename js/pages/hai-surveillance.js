@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','nurse','doctor'], 'index.html');
 initNavbar();
@@ -19,8 +20,8 @@ const profile  = getCurrentProfile();
 const todayStr = new Date().toISOString().slice(0,7);
 document.getElementById('dev-month').value = todayStr;
 document.getElementById('hai-month').value = todayStr;
-document.getElementById('d-ins-date').value = new Date().toISOString().slice(0,10);
-document.getElementById('h-date').value    = new Date().toISOString().slice(0,10);
+document.getElementById('d-ins-date').value = todayLocalStr();
+document.getElementById('h-date').value    = todayLocalStr();
 
 let _devices = [], _haiEvents = [];
 
@@ -79,8 +80,8 @@ window.switchTab = function(t) {
 async function loadDevices() {
   const m = document.getElementById('dev-month').value;
   const [y, mo] = m.split('-').map(Number);
-  const start = new Date(y, mo-1, 1).toISOString().slice(0,10);
-  const end   = new Date(y, mo, 0).toISOString().slice(0,10);
+  const start = localDateStr(new Date(y, mo-1, 1));
+  const end   = localDateStr(new Date(y, mo, 0));
   const { data } = await supabase.from('patient_devices')
     .select('*,patients(name,phone)').eq('tenant_id', tenantId)
     .gte('insertion_date', start).lte('insertion_date', end)
@@ -93,8 +94,8 @@ window.loadDevices = loadDevices;
 async function loadHAI() {
   const m = document.getElementById('hai-month').value;
   const [y, mo] = m.split('-').map(Number);
-  const start = new Date(y, mo-1, 1).toISOString().slice(0,10);
-  const end   = new Date(y, mo, 0).toISOString().slice(0,10);
+  const start = localDateStr(new Date(y, mo-1, 1));
+  const end   = localDateStr(new Date(y, mo, 0));
   const { data } = await supabase.from('hai_events')
     .select('*,patients(name,phone)').eq('tenant_id', tenantId)
     .gte('detected_date', start).lte('detected_date', end)
@@ -224,7 +225,7 @@ window.openDevModal = function() {
   document.getElementById('d-patient-results').classList.remove('show');
   document.getElementById('d-patient-selected').classList.remove('show');
   document.getElementById('d-type').value = 'urinary_catheter';
-  document.getElementById('d-ins-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('d-ins-date').value = todayLocalStr();
   document.getElementById('d-rem-date').value = '';
   document.getElementById('d-site').value = '';
   document.getElementById('d-notes').value = '';
@@ -250,7 +251,7 @@ window.saveDevice = async function() {
 };
 
 window.markRemoved = async function(id) {
-  const today = new Date().toISOString().slice(0,10);
+  const today = todayLocalStr();
   const { error } = await supabase.from('patient_devices').update({ removal_date: today }).eq('id', id);
   if (error) { toast(safeErrorMessage(error, 'Could not update device.'), 'error'); return; }
   toast('Marked as removed', 'success'); loadDevices();
@@ -264,7 +265,7 @@ window.openHAIModal = function() {
   document.getElementById('h-patient-results').classList.remove('show');
   document.getElementById('h-patient-selected').classList.remove('show');
   document.getElementById('h-type').value      = 'CAUTI';
-  document.getElementById('h-date').value      = new Date().toISOString().slice(0,10);
+  document.getElementById('h-date').value      = todayLocalStr();
   document.getElementById('h-culture').checked = false;
   document.getElementById('h-organism').value  = '';
   document.getElementById('h-antibiogram').value = '';
@@ -311,7 +312,7 @@ window.exportHAICSV = function() {
   const rows = _haiEvents.map(e => [e.detected_date, e.hai_type, e.patients?.name||'', e.organism||'', e.notified_ipc_team?'Yes':'No', e.outcome||'']);
   const csv  = [['Date','HAI Type','Patient','Organism','IPC Notified','Outcome'], ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
   const a    = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download = `hai_events_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  a.download = `hai_events_${todayLocalStr()}.csv`; a.click();
 };
 
 function toast(msg, type) {

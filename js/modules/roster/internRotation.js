@@ -13,6 +13,8 @@
 // against the tenant's real departments table, keeping this module testable
 // in isolation and reusable regardless of how departments are named per tenant.
 
+import { localDateStr } from '../../utils/dateUtils.js';
+
 // Same ratios as js/config/ncism.js's UG_BED_RATIOS (kept as a literal copy
 // here rather than importing, since that file is HTML-facing config and this
 // module intentionally has zero DOM/Supabase dependencies).
@@ -86,8 +88,8 @@ export function computeInternRotationPlan(interns, startDate) {
       return {
         profile_id: intern.id,
         area_code: areaCode,
-        start_date: stopStart.toISOString().slice(0, 10),
-        end_date: stopEnd.toISOString().slice(0, 10),
+        start_date: localDateStr(stopStart),
+        end_date: localDateStr(stopEnd),
       };
     });
     return { intern, postings };

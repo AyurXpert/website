@@ -3,6 +3,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin','pharmacist','doctor']);
 initNavbar();
@@ -20,7 +21,7 @@ document.getElementById('f-month').value = now.toISOString().slice(0,7);
 document.getElementById('f-status').value = 'active';
 
 async function loadKPIs() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayLocalStr();
   const exp30 = new Date(); exp30.setDate(exp30.getDate()+30);
   const monthStart = now.toISOString().slice(0,7)+'-01';
 
@@ -28,7 +29,7 @@ async function loadKPIs() {
     supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('status','active'),
     supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('qc_done',false),
     supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('qc_result','pass'),
-    supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('status','active').lte('expiry_date',exp30.toISOString().split('T')[0]).gte('expiry_date',today),
+    supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('status','active').lte('expiry_date',localDateStr(exp30)).gte('expiry_date',today),
     supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).gte('preparation_date',monthStart),
   ]);
 
@@ -88,7 +89,7 @@ window.openNew = () => {
   document.getElementById('p-storage').value='cool dry place';
   document.getElementById('p-qc').value='no';
   document.getElementById('p-qcresult').value='';
-  document.getElementById('p-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('p-date').value = todayLocalStr();
   document.getElementById('p-expiry').value='';
   document.getElementById('p-qcdate').value='';
   document.getElementById('p-qty').value='';
@@ -209,7 +210,7 @@ window.exportCSV = async () => {
   const csv = [header,...rows].map(r=>r.join(',')).join('\n');
   const a = document.createElement('a');
   a.href='data:text/csv,'+encodeURIComponent(csv);
-  a.download='aushadha_nirman_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.download='aushadha_nirman_'+todayLocalStr()+'.csv';
   a.click();
 };
 

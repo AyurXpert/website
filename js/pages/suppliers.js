@@ -3,6 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 
 await requireAuth(['pharmacist','super_admin','dept_admin','accountant'], 'login.html');
 initNavbar();
@@ -10,8 +11,8 @@ wireDelegatedEvents();
 
 const tenantId  = getCurrentTenantId();
 const tenant    = getCurrentTenant();
-const TODAY     = new Date().toISOString().split('T')[0];
-const IN_90     = new Date(Date.now() + 90*86400000).toISOString().split('T')[0];
+const TODAY     = todayLocalStr();
+const IN_90     = localDateStr(new Date(Date.now() + 90*86400000));
 
 let _suppliers = [];
 
