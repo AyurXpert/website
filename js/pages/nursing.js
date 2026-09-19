@@ -1504,10 +1504,18 @@ window.openSnehaSignsModal = function(doseId) {
   const d = _pkSnehaDoses.find(x => x.id === doseId);
   if (!d) return;
   document.getElementById('sneha-dose-id').value = doseId;
+  // Real bug found live (Dr. Venkatesh's screenshot): these checkboxes sit inside a
+  // .field-classed container for the label styling above them, but nursing.html's own
+  // ".field input,.field select,.field textarea{width:100%;height:44px;...}" rule
+  // catches them too -- every checkbox rendered as a full-width 44px box. Inline style
+  // on the input itself (higher specificity than the class selector) overrides it
+  // back to a normal-sized checkbox rather than restructuring the modal's markup.
   const fill = (containerId, vocab, selected) => {
     document.getElementById(containerId).innerHTML = vocab.map(([val, label]) => `
-      <label style="display:flex;align-items:center;gap:5px;font-size:11.5px;margin-bottom:3px;cursor:pointer">
-        <input type="checkbox" value="${val}" ${selected?.includes(val) ? 'checked' : ''}/> ${_esc(label)}
+      <label style="display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:5px;cursor:pointer">
+        <input type="checkbox" value="${val}" ${selected?.includes(val) ? 'checked' : ''}
+          style="width:16px;height:16px;min-width:16px;flex-shrink:0;accent-color:var(--green-mid);border-radius:3px;padding:0;background:none"/>
+        <span>${_esc(label)}</span>
       </label>`).join('');
   };
   fill('sneha-jeeryamana-list', PK_JEERYAMANA_SIGNS, d.jeeryamana_signs);

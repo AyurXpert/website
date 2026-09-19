@@ -95,6 +95,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .field input:focus,.field select:focus{outline:none;border-color:var(--green-mid)}
 .vital-warning{color:var(--red);font-size:10px;font-weight:700;margin-top:2px}
 
+/* Session 257 -- Snehapana Signs modal. Real bug found live (screenshot): these
+   checkboxes were rendered inside a .field-classed div for the label styling, but
+   .field input above forces width:100%;height:44px on ANY input inside it, blowing
+   every checkbox up to a full-width 44px box. Dedicated cards + a 2-column grid here,
+   with the checkbox sizing fixed inline in nursing.js's fill() (higher specificity
+   than the .field rule, since restructuring out of .field isn't needed once the
+   real override is in place). */
+.sneha-sign-card{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;background:#fafff7}
+.sneha-sign-card-title{font-size:11.5px;font-weight:700;margin-bottom:6px}
+.sneha-sign-card-title span{font-weight:400;color:var(--text-muted)}
+.sneha-sign-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px}
+@media (max-width:480px){.sneha-sign-grid{grid-template-columns:1fr}}
+
 /* Vitals chart */
 .vitals-table{width:100%;border-collapse:collapse;font-size:12px}
 .vitals-table th{background:var(--cream);color:var(--text-muted);font-weight:600;font-size:11px;padding:6px 8px;text-align:center;border:1px solid var(--border)}
@@ -822,28 +835,28 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     </div>
     <div class="modal-body" style="max-height:70vh;overflow-y:auto">
       <input type="hidden" id="sneha-dose-id"/>
-      <div class="field">
-        <label style="font-size:11.5px;font-weight:700;color:var(--green-deep)">Jeeryamana Lakshana (during digestion — transient, expected)</label>
-        <div id="sneha-jeeryamana-list"></div>
+      <div class="sneha-sign-card">
+        <div class="sneha-sign-card-title" style="color:var(--green-deep)">Jeeryamana Lakshana <span>(during digestion — transient, expected)</span></div>
+        <div id="sneha-jeeryamana-list" class="sneha-sign-grid"></div>
       </div>
-      <div class="field" style="margin-top:10px">
-        <label style="font-size:11.5px;font-weight:700;color:var(--green-deep)">Jeerna Lakshana (today's dose fully digested — safe to proceed)</label>
-        <div id="sneha-jeerna-list"></div>
-        <div id="sneha-jeerna-observed" style="font-size:10.5px;color:var(--text-muted);margin-top:2px"></div>
+      <div class="sneha-sign-card">
+        <div class="sneha-sign-card-title" style="color:var(--green-deep)">Jeerna Lakshana <span>(today's dose fully digested — safe to proceed)</span></div>
+        <div id="sneha-jeerna-list" class="sneha-sign-grid"></div>
+        <div id="sneha-jeerna-observed" style="font-size:10.5px;color:var(--text-muted);margin-top:4px"></div>
       </div>
-      <div class="field" style="margin-top:10px">
-        <label style="font-size:11.5px;font-weight:700;color:var(--green-deep)">Samyak Snigdha Lakshana (whole-course oleation complete)</label>
-        <div id="sneha-samyak-list"></div>
+      <div class="sneha-sign-card">
+        <div class="sneha-sign-card-title" style="color:var(--green-deep)">Samyak Snigdha Lakshana <span>(whole-course oleation complete)</span></div>
+        <div id="sneha-samyak-list" class="sneha-sign-grid"></div>
       </div>
-      <div class="field" style="margin-top:10px">
-        <label style="font-size:11.5px;font-weight:700;color:#c0392b">⚠ Atiyoga (over-oleation — safety warning)</label>
-        <div id="sneha-atiyoga-list"></div>
+      <div class="sneha-sign-card" style="border-color:#e6b3ab;background:#fff6f5">
+        <div class="sneha-sign-card-title" style="color:#c0392b">⚠ Atiyoga <span>(over-oleation — safety warning)</span></div>
+        <div id="sneha-atiyoga-list" class="sneha-sign-grid"></div>
       </div>
-      <div class="field" style="margin-top:10px">
-        <label style="font-size:11.5px;font-weight:700;color:#b8860b">Ayoga (under-oleation — needs more)</label>
-        <div id="sneha-ayoga-list"></div>
+      <div class="sneha-sign-card" style="border-color:#e6d199;background:#fffaf0">
+        <div class="sneha-sign-card-title" style="color:#8a6300">Ayoga <span>(under-oleation — needs more)</span></div>
+        <div id="sneha-ayoga-list" class="sneha-sign-grid"></div>
       </div>
-      <div class="field" style="margin-top:10px">
+      <div class="field" style="margin-top:4px">
         <label>Notes</label>
         <textarea id="sneha-notes" rows="2" placeholder="Any other observation…"></textarea>
       </div>
