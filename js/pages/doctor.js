@@ -2275,24 +2275,32 @@ function _pkRenderDatePicker(pi) {
   const firstDow = new Date(y, mo, 1).getDay();
   const myColor = _PK_CAL_COLORS[pi % _PK_CAL_COLORS.length];
 
+  // Session 269 follow-up -- Dr. Venkatesh: this picker's cells only showed a bare
+  // day number + a small colored dot for another protocol's occupancy, unlike the
+  // Full Calendar view's actual activity-name text -- made it look "empty" next to
+  // that richer view. Now shows the real activity label(s) per day here too, for
+  // both this protocol's own span and any other protocol's, not just a dot.
+  const shortLabel = a => _esc(a.split('—')[1]?.trim() || a);
   const cells = [];
   for (let i = 0; i < firstDow; i++) cells.push('<td></td>');
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${y}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const allEntries = byDate[dateStr] || [];
-    const mine = allEntries.some(e => e.pi === pi);           // does THIS protocol's own span cover this day
+    const mineEntries = allEntries.filter(e => e.pi === pi);  // this protocol's own activity(ies) that day
     const others = allEntries.filter(e => e.pi !== pi);       // any OTHER protocol's occupancy
+    const mine = mineEntries.length > 0;
     const isStart = dateStr === p.start_date;
-    const otherColors = [...new Set(others.map(e => e.color))];
     const titleParts = [];
-    if (mine) titleParts.push(`${_esc(p.protocol_label)}${isStart ? ' (start)' : ''}`);
-    if (others.length) titleParts.push(others.map(e => e.protocolLabel).join(', ') + ' already planned this day');
-    cells.push(`<td style="padding:2px;border:1px solid var(--border)">
+    if (mine) titleParts.push(`${_esc(p.protocol_label)}${isStart ? ' (start)' : ''}: ${mineEntries.map(e => e.activity).join(', ')}`);
+    if (others.length) titleParts.push(others.map(e => `${e.protocolLabel}: ${e.activity}`).join(' · '));
+    cells.push(`<td style="padding:2px;border:1px solid var(--border);vertical-align:top">
       <button type="button" data-onclick="_pkPickStartDate" data-onclick-a0="${pi}" data-onclick-a1="${dateStr}"
         title="${_esc(titleParts.join(' · '))}"
-        style="width:100%;height:34px;border:${isStart ? '2px solid ' + myColor : '1px solid transparent'};border-radius:4px;cursor:pointer;font-size:11px;font-weight:${isStart ? '700' : '400'};background:${isStart ? myColor : (mine ? `color-mix(in srgb, ${myColor} 25%, white)` : '#fff')};color:${isStart ? '#fff' : '#333'};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px">
-        <span>${d}${isStart ? ' ★' : ''}</span>
-        ${otherColors.length ? `<span style="display:flex;gap:1px">${otherColors.map(c => `<span style="width:5px;height:5px;border-radius:50%;background:${c}"></span>`).join('')}</span>` : ''}
+        style="width:100%;min-height:48px;border:${isStart ? '2px solid ' + myColor : '1px solid transparent'};border-radius:4px;cursor:pointer;padding:2px;background:${isStart ? myColor : (mine ? `color-mix(in srgb, ${myColor} 25%, white)` : '#fff')};color:${isStart ? '#fff' : '#333'};display:flex;flex-direction:column;align-items:stretch;gap:1px;text-align:left">
+        <span style="font-size:11px;font-weight:${isStart ? '700' : '400'};text-align:center">${d}${isStart ? ' ★' : ''}</span>
+        ${mine ? `<span style="font-size:8px;background:${myColor};color:#fff;border-radius:2px;padding:0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${mineEntries.map(e => shortLabel(e.activity)).join(', ')}</span>` : ''}
+        ${others.slice(0, 2).map(e => `<span style="font-size:8px;background:${e.color};color:#fff;border-radius:2px;padding:0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${shortLabel(e.activity)}</span>`).join('')}
+        ${others.length > 2 ? `<span style="font-size:8px;color:var(--text-muted)">+${others.length - 2} more</span>` : ''}
       </button>
     </td>`);
   }
