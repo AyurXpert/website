@@ -1566,6 +1566,63 @@ if (_qAdviceId) {
   }
 }
 
+// ── Session 262 — Samsarjana Krama home-care chart, for a patient advised to do
+// their post-Virechana graded diet at home (location_mode='home', Session 257)
+// rather than the hospital kitchen handling it via palha_diet_indents (Session
+// 261). A dish NAME means nothing to a family without dietetics training -- this
+// pulls the day-by-day schedule AND the recipe for whichever stages actually fall
+// on a home day, straight from the same classical reference table the kitchen
+// queue already uses, so the two can never disagree.
+async function _fetchSamsarjanaHomeChart(admId) {
+  const { data: plans } = await supabase
+    .from('pk_care_plans')
+    .select(`
+      id,
+      pk_care_plan_protocols(
+        id,
+        pk_care_plan_days(id, day_number, planned_date, activity_label, location_mode),
+        pk_virechana_assessment(confirmed_shuddhi_level)
+      )
+    `)
+    .eq('ipd_admission_id', admId);
+
+  for (const plan of (plans || [])) {
+    for (const pr of (plan.pk_care_plan_protocols || [])) {
+      // pk_virechana_assessment has no unique constraint on protocol_instance_id
+      // alone (only on care_plan_day_id), so PostgREST embeds it as an array here,
+      // unlike the care_plan_day-scoped embeds elsewhere in this codebase that hit
+      // the opposite (array-vs-object) gotcha.
+      const grade = pr.pk_virechana_assessment?.[0]?.confirmed_shuddhi_level;
+      if (!grade || !['pravara', 'madhyama', 'avara'].includes(grade)) continue;
+
+      const allDays = (pr.pk_care_plan_days || [])
+        .filter(d => d.activity_label === 'Samsarjana Krama (graded diet)')
+        .sort((a, b) => a.day_number - b.day_number)
+        .map((d, i) => ({ ...d, day_offset: i + 1 }));
+      const homeDays = allDays.filter(d => d.location_mode === 'home');
+      if (!homeDays.length) continue;
+
+      const { data: stages } = await supabase
+        .from('samsarjana_krama_stages')
+        .select('day_offset, meal_slot, stage_key, stage_label, preparation_name, preparation_method, requires_kitchen_indent')
+        .eq('grade', grade);
+
+      const stageAt = (offset, slot) => (stages || []).find(s => s.day_offset === offset && s.meal_slot === slot && s.requires_kitchen_indent);
+      const chartDays = homeDays.map(d => ({
+        day_offset: d.day_offset, planned_date: d.planned_date,
+        morning: stageAt(d.day_offset, 'morning') || null,
+        evening: stageAt(d.day_offset, 'evening') || null,
+      }));
+
+      const recipes = new Map();
+      chartDays.forEach(d => { [d.morning, d.evening].forEach(s => { if (s) recipes.set(s.stage_key, s); }); });
+
+      return { grade, days: chartDays, recipes: [...recipes.values()] };
+    }
+  }
+  return null;
+}
+
 // ── §15d — Print Discharge Summary ───────────────────────────────────────────
 window.printDischargeSummary = async function(admId) {
   const adm  = _admissions.find(a => a.id === admId);
@@ -1597,12 +1654,13 @@ window.saveAndPrintDischarge = async function() {
     discharge_condition:          document.getElementById('ds-modal-condition').value||null,
   }).eq('id', admId);
   document.getElementById('ds-fields-modal').style.display = 'none';
-  _printDischargeSummaryNow(admId);
+  const homeChart = await _fetchSamsarjanaHomeChart(admId);
+  _printDischargeSummaryNow(admId, homeChart);
 };
 
 window.closeDsModal = function() { document.getElementById('ds-fields-modal').style.display = 'none'; };
 
-function _printDischargeSummaryNow(admId) {
+function _printDischargeSummaryNow(admId, homeChart) {
   const adm  = _admissions.find(a => a.id === admId);
   if (!adm) return;
   const pt   = adm.patients || {};
@@ -1676,6 +1734,27 @@ function _printDischargeSummaryNow(admId) {
   <div style="border:1px solid #c8ddd0;border-top:none;padding:8px 14px">
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#4a6352;margin-bottom:3px">Pathya (Do's) &amp; Apathya (Don'ts)</div>
     <div style="font-size:12px;white-space:pre-wrap">${_esc(adm.discharge_pathya_apathya)}</div>
+  </div>` : ''}
+  ${homeChart ? `
+  <div style="border:1px solid #c8ddd0;border-top:none;padding:8px 14px">
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#4a6352;margin-bottom:3px">🏠 Samsarjana Krama — Home Diet Chart (${_esc(homeChart.grade.charAt(0).toUpperCase() + homeChart.grade.slice(1))} Shuddhi)</div>
+    <div style="font-size:11px;color:#4a6352;margin-bottom:6px">Your Panchakarma course includes a graded return-to-normal diet. The days below are to be prepared and served at home — please follow the schedule and recipes exactly, in order.</div>
+    <table style="width:100%;font-size:11px;border-collapse:collapse;margin-bottom:8px">
+      <thead><tr style="background:#f5fbf8">
+        <th style="text-align:left;padding:3px 6px;border-bottom:1px solid #c8ddd0">Day</th>
+        <th style="text-align:left;padding:3px 6px;border-bottom:1px solid #c8ddd0">Date</th>
+        <th style="text-align:left;padding:3px 6px;border-bottom:1px solid #c8ddd0">Morning</th>
+        <th style="text-align:left;padding:3px 6px;border-bottom:1px solid #c8ddd0">Evening</th>
+      </tr></thead>
+      <tbody>${homeChart.days.map(d => `<tr>
+        <td style="padding:3px 6px;border-bottom:1px solid #eef3ee">${d.day_offset}</td>
+        <td style="padding:3px 6px;border-bottom:1px solid #eef3ee">${d.planned_date ? new Date(d.planned_date+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '—'}</td>
+        <td style="padding:3px 6px;border-bottom:1px solid #eef3ee">${d.morning ? _esc(d.morning.preparation_name) : '—'}</td>
+        <td style="padding:3px 6px;border-bottom:1px solid #eef3ee">${d.evening ? _esc(d.evening.preparation_name) : '—'}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#4a6352;margin-bottom:3px">How to Prepare</div>
+    ${homeChart.recipes.map(r => `<div style="font-size:11px;margin-bottom:5px"><strong>${_esc(r.preparation_name)}</strong> (${_esc(r.stage_label)})<br>${_esc(r.preparation_method || '')}</div>`).join('')}
   </div>` : ''}
   <div style="border:1px solid #c8ddd0;border-top:none;padding:10px 16px;min-height:60px">
     <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#4a6352;margin-bottom:6px">Clinical Notes / Discharge Advice</div>

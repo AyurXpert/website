@@ -306,8 +306,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 /* ── §15d Discharge Summary print ── */
 #ds-print{display:none}
 @media print{
-  #navbar-placeholder,.page-header,.stats-row,.section-hdr,.admissions-table,
-  .drawer-overlay,.filters-bar{display:none!important}
+  /* Real bug found live (Dr. Venkatesh, checked an actual printed PDF, not just the
+     assumed HTML): #ipd-bed-alert (the internal NCISM department occupancy/compliance
+     banner) was never in this hide list, so it printed above the discharge summary --
+     internal hospital compliance data handed straight to the patient. Also hiding
+     #ax-navbar and #ax-watermark directly by id, since navbar.js injects both outside
+     any of the classed containers already covered here (confirmed by reading that
+     file) -- the same class of gap, just not yet demonstrated with a real printout. */
+  #navbar-placeholder,#ax-navbar,#ax-watermark,.page-header,.stats-row,#ipd-bed-alert,
+  .section-hdr,.admissions-table,.drawer-overlay,.filter-bar{display:none!important}
   body.ds-print #ds-print{display:block!important}
   body.ds-print .page-wrap{padding:0}
 }
