@@ -687,6 +687,96 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
   </div>
 </div>
 
+<!-- Session 273 -- Niruha Basti Chaturvidha Shuddhi assessment. Real-time entry
+     (same reasoning as Vamana) -- one assessment per Niruha day, no course-level
+     confirm step (unlike Virechana/Vamana, Basti's Paschat Karma is plain
+     observation, not a graded diet regimen this would drive). -->
+<div class="drawer-overlay" id="niruha-assessment-overlay">
+  <div class="drawer" style="width:460px">
+    <div class="drawer-header">
+      <span class="drawer-title">💧 Niruha Vega Assessment</span>
+      <button class="drawer-close" data-onclick="closeNiruhaAssessmentModal">&#x2715;</button>
+    </div>
+    <div class="drawer-body">
+      <input type="hidden" id="niruha-session-id"/>
+      <input type="hidden" id="niruha-assessment-id"/>
+
+      <div class="detail-card" id="niruha-detail-card"></div>
+
+      <div id="niruha-atiyoga-alert" style="display:none;background:#fdecea;border:2px solid var(--red);border-radius:8px;padding:10px 12px;margin:10px 0;font-weight:700;color:var(--red);font-size:12.5px">
+        🛑 ATIYOGA sign recorded — a danger sign has been checked (e.g. Hrid-graha/chest distress, Guda-Nirgama, Parikartika). Alert the doctor immediately.
+      </div>
+
+      <div id="niruha-start-section">
+        <div class="field-row">
+          <div class="field">
+            <label>Input Volume Administered (ml)</label>
+            <input type="number" min="0" id="niruha-input-ml" placeholder="e.g. 525"/>
+            <div class="field-note" id="niruha-formula-hint" style="margin-top:2px"></div>
+          </div>
+          <div class="field">
+            <label>Time Administered</label>
+            <input type="time" id="niruha-time-administered"/>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:4px" data-onclick="startNiruhaFromDrawer">Start Assessment</button>
+      </div>
+
+      <div id="niruha-live-section" style="display:none">
+        <div class="samsarjana-section" id="niruha-summary-card">
+          <div class="samsarjana-title">Running Summary</div>
+          <div id="niruha-summary-body" style="font-size:12.5px"></div>
+        </div>
+
+        <div id="niruha-evacuation-log" style="margin:10px 0"></div>
+
+        <div class="samsarjana-section">
+          <div class="samsarjana-title">+ Add Evacuation</div>
+          <div class="field-row">
+            <div class="field">
+              <label>Time</label>
+              <input type="time" id="niruha-add-time"/>
+            </div>
+            <div class="field">
+              <label>Output Vol. (ml)</label>
+              <input type="number" min="0" id="niruha-add-qty" placeholder="e.g. 400"/>
+            </div>
+          </div>
+          <div class="field">
+            <label>Antyaki (what came out)</label>
+            <select id="niruha-add-antyaki">
+              <option value="basti_fluid">Basti Fluid/Medicine (expected first)</option>
+              <option value="vit">Vit — dark toxic fecal matter</option>
+              <option value="dosha">Dosha — Pitta/Kapha mucus</option>
+              <option value="vata_clear">Vata — clear flatus/gas (expected last)</option>
+            </select>
+          </div>
+          <label class="check-label"><input type="checkbox" id="niruha-add-minor"/> Minor purge (not the major evacuation)</label>
+          <div class="field-note">Classical order: Basti Fluid → Vit → Dosha (Pitta/Kapha) → clear Vata. Expected: 1 major evacuation + 1–2 minor purges.</div>
+          <button class="btn btn-primary" style="width:100%;margin-top:6px" data-onclick="addNiruhaEvacuation">+ Add Evacuation</button>
+        </div>
+
+        <div class="samsarjana-section">
+          <div class="samsarjana-title">Signs</div>
+          <div style="font-size:11.5px;font-weight:700;margin-bottom:4px">Samyak Yoga (proper signs)</div>
+          <div id="niruha-samyak-list"></div>
+          <div style="font-size:11.5px;font-weight:700;margin:8px 0 4px">Ayoga (deficient)</div>
+          <div id="niruha-ayoga-list"></div>
+          <div style="font-size:11.5px;font-weight:700;margin:8px 0 4px">Atiyoga (danger signs)</div>
+          <div id="niruha-atiyoga-list"></div>
+          <div class="field" style="margin-top:6px">
+            <textarea id="niruha-signs-notes" placeholder="Notes" style="height:60px"></textarea>
+          </div>
+          <button class="btn btn-secondary" style="width:100%;margin-top:6px" data-onclick="saveNiruhaSigns">Save Signs</button>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" data-onclick="closeNiruhaAssessmentModal">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- Therapy Prescription Drawer -->
 <div class="drawer-overlay" id="rx-overlay">
   <div class="drawer" style="width:440px">

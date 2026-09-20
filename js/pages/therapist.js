@@ -2013,6 +2013,9 @@ function renderTable(rows) {
                as the Notes button above -- the assessment genuinely needs to be logged AS
                bouts happen, not just at Complete time. -->
           ${s.therapy_name === 'Vamana administration' && s.status !== 'skipped' ? `<button class="icon-btn" data-onclick="openVamanaVegaModal" data-onclick-a0="${s.id}" title="Vamana Vega Assessment" style="color:var(--red)">🌀</button>` : ''}
+          <!-- Session 273 -- Niruha's Chaturvidha Shuddhi assessment, same real-time
+               reasoning as Vamana (a witnessed same-session event, not a whole-day sheet). -->
+          ${s.therapy_name === 'Basti Administration — Niruha (Decoction, empty stomach before breakfast)' && s.status !== 'skipped' ? `<button class="icon-btn" data-onclick="openNiruhaAssessmentModal" data-onclick-a0="${s.id}" title="Niruha Vega Assessment" style="color:var(--blue)">💧</button>` : ''}
         </div>
       </td>
     </tr>`;
@@ -3210,6 +3213,212 @@ window.confirmVamanaShuddhiFromDrawer = async function() {
   if (error) { _alert('error', safeErrorMessage(error, 'Could not confirm the Shuddhi level.')); return; }
   _alert('success', 'Shuddhi grade confirmed.');
   await _reloadVamanaDrawer();
+};
+
+// ── Niruha Basti Vega Assessment (Session 273) ──────────────────────────────────
+// Same shape as Vamana's drawer (real-time entry, one per witnessed session) but no
+// Pravara/Madhyama/Avara tier and no course-level confirm step -- Dr. Venkatesh's
+// research frames Basti's real status flag around Samyak Yoga/Ayoga/Atiyoga directly
+// (Laingiki Shuddhi), and Basti's Paschat Karma is plain observation, not a graded
+// diet regimen a confirm step would need to drive.
+const PK_NIRUHA_SAMYAK_YOGA_SIGNS = [
+  ['deha_laghuta', 'Deha Laghuta (physical lightness of the whole body)'],
+  ['kukshi_shula_nivritti', 'Kukshi Shula Nivritti (relief from abdominal colic/lower back pain)'],
+  ['vata_vit_mutra_anuvritti', 'Anuvritti of Vata-Vit-Mutra (natural, timely, easy clearance)'],
+  ['agni_vriddhi', 'Agni Vriddhi (rapid improvement in digestive fire/appetite)'],
+];
+const PK_NIRUHA_AYOGA_SIGNS = [
+  ['shula', 'Shula (pain in lower abdomen, groin, or bladder area)'],
+  ['kandu', 'Kandu (persistent itching/irritation around anal/rectal canal)'],
+  ['apravritti', 'A-pravritti (complete retention/non-elimination of stool, flatus, or the Basti fluid)'],
+  ['gaurava', 'Gaurava (continued heaviness in lower abdomen/pelvis)'],
+];
+const PK_NIRUHA_ATIYOGA_SIGNS = [
+  ['klama_angamarda', 'Klama & Angamarda (extreme fatigue, exhaustion, generalized body aches)'],
+  ['parikartika', 'Parikartika (acute sharp cutting/laceration pain in the rectum)'],
+  ['hrid_graha', 'Hrid-graha (tightness/distress around chest and cardiac region)'],
+  ['guda_nirgama', 'Guda-Nirgama (rectal prolapse or extreme burning inflammation in anal canal)'],
+];
+const PK_NIRUHA_ANTYAKI_LABEL = { basti_fluid: 'Basti Fluid/Medicine', vit: 'Vit (toxic fecal matter)', dosha: 'Dosha (Pitta/Kapha mucus)', vata_clear: 'Vata (clear flatus/gas)' };
+const PK_NIRUHA_MANIKI_LABEL = { deficient: 'Deficient (retained)', balanced: 'Balanced', excessive: 'Excessive' };
+const PK_NIRUHA_MANIKI_COLOR = { deficient: 'var(--gold)', balanced: 'var(--green-deep)', excessive: 'var(--orange)' };
+const PK_NIRUHA_STATUS_LABEL = { samyak_yoga: 'Samyak Yoga (Proper)', ayoga: 'Ayoga (Deficient)', atiyoga: 'Atiyoga (Excessive — ALERT)' };
+const PK_NIRUHA_STATUS_COLOR = { samyak_yoga: 'var(--green-deep)', ayoga: 'var(--gold)', atiyoga: 'var(--red)' };
+
+window.openNiruhaAssessmentModal = async function(sessionId) {
+  const s = _sessions.find(x => x.id === sessionId);
+  if (!s) return;
+  document.getElementById('niruha-session-id').value = sessionId;
+  document.getElementById('niruha-detail-card').innerHTML = `
+    <div class="detail-row"><span>Patient</span><strong>${_esc(s.patients?.name || '—')}</strong></div>
+    <div class="detail-row"><span>Scheduled</span><strong>${s.scheduled_time ? s.scheduled_time.slice(0,5) : '—'}</strong></div>
+  `;
+  document.getElementById('niruha-time-administered').value = _nowHHMM();
+  document.getElementById('niruha-add-time').value = _nowHHMM();
+
+  const dayId = await _niruhaDayIdForSession(sessionId);
+  const { data: a, error } = await supabase.from('pk_basti_niruha_assessment')
+    .select('*, pk_basti_niruha_evacuations(*)')
+    .eq('care_plan_day_id', dayId)
+    .maybeSingle();
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not load the Niruha assessment record.')); return; }
+  if (!a) { _alert('error', 'No Niruha assessment record found for this session — the Care Plan may not have generated it.'); return; }
+
+  document.getElementById('niruha-assessment-id').value = a.id;
+
+  // Pre-fill input volume from the doctor's Niruha formula (Session 271) -- editable,
+  // this is only a starting suggestion, the actual amount administered may differ.
+  if (!a.input_volume_ml) {
+    const { data: day } = await supabase.from('pk_care_plan_days').select('protocol_instance_id').eq('id', dayId).maybeSingle();
+    if (day?.protocol_instance_id) {
+      const { data: meds } = await supabase.from('pk_care_plan_medicines')
+        .select('basti_component, quantity_value, quantity_unit')
+        .eq('protocol_instance_id', day.protocol_instance_id)
+        .in('basti_component', ['madhu', 'sneha', 'kwatha', 'avapa']);
+      const totalMl = (meds || []).filter(m => m.quantity_unit === 'ml').reduce((sum, m) => sum + (m.quantity_value || 0), 0);
+      if (totalMl > 0) {
+        document.getElementById('niruha-input-ml').value = totalMl;
+        document.getElementById('niruha-formula-hint').textContent = `Suggested from the planned Niruha formula (${totalMl}ml) — edit if the actual amount administered differed.`;
+      }
+    }
+  }
+
+  _renderNiruhaDrawer(a);
+  document.getElementById('niruha-assessment-overlay').classList.add('open');
+};
+
+async function _niruhaDayIdForSession(sessionId) {
+  const { data } = await supabase.from('pk_care_plan_days').select('id').eq('session_id', sessionId).maybeSingle();
+  return data?.id || null;
+}
+
+function _renderNiruhaDrawer(a) {
+  const started = !!a.time_administered;
+  document.getElementById('niruha-start-section').style.display = started ? 'none' : '';
+  document.getElementById('niruha-live-section').style.display = started ? '' : 'none';
+
+  const atiyogaAlert = document.getElementById('niruha-atiyoga-alert');
+  atiyogaAlert.style.display = a.calculated_status === 'atiyoga' ? '' : 'none';
+
+  const statusHtml = a.calculated_status
+    ? `<span style="font-weight:700;color:${PK_NIRUHA_STATUS_COLOR[a.calculated_status]}">${_esc(PK_NIRUHA_STATUS_LABEL[a.calculated_status])}</span>`
+    : `<span style="color:var(--text-muted)">no signs recorded yet</span>`;
+  const manikiHtml = a.maniki_status
+    ? `<span style="font-weight:700;color:${PK_NIRUHA_MANIKI_COLOR[a.maniki_status]}">${_esc(PK_NIRUHA_MANIKI_LABEL[a.maniki_status])}</span>`
+    : `<span style="color:var(--text-muted)">pending</span>`;
+  const seqHtml = a.antyaki_sequence_valid == null
+    ? `<span style="color:var(--text-muted)">pending</span>`
+    : a.antyaki_sequence_valid
+      ? `<span style="color:var(--green-deep);font-weight:700">✓ Correct classical order</span>`
+      : `<span style="color:var(--red);font-weight:700">⚠ Out of expected order</span>`;
+
+  document.getElementById('niruha-summary-body').innerHTML = `
+    Administered @ ${_esc(_toIST(a.time_administered))} · Input: <strong>${a.input_volume_ml ?? '—'}ml</strong><br>
+    Evacuations: <strong>${a.total_evacuations}</strong> (${a.major_evacuation_count} major, ${a.minor_purge_count} minor) · Output: <strong>${a.total_output_ml}ml</strong><br>
+    Maniki Shuddhi (volume balance): ${manikiHtml}<br>
+    Antyaki: <strong>${_esc(PK_NIRUHA_ANTYAKI_LABEL[a.antyaki_status] || '—')}</strong> · Sequence: ${seqHtml}<br>
+    Laingiki status: ${statusHtml}
+  `;
+
+  const evacs = (a.pk_basti_niruha_evacuations || []).slice().sort((x, y) => x.evacuation_number - y.evacuation_number);
+  document.getElementById('niruha-evacuation-log').innerHTML = evacs.length
+    ? `<table style="width:100%;font-size:11px;border-collapse:collapse">
+        <thead><tr>
+          <th style="text-align:left;padding:3px 4px">#</th><th style="text-align:left;padding:3px 4px">Time</th>
+          <th style="text-align:left;padding:3px 4px">Vol</th><th style="text-align:left;padding:3px 4px">Antyaki</th>
+        </tr></thead>
+        <tbody>${evacs.map(v => `<tr>
+          <td style="padding:3px 4px">${v.evacuation_number}${v.is_minor_purge ? ' <span title="Minor purge">(minor)</span>' : ''}</td>
+          <td style="padding:3px 4px">${_esc(_toIST(v.occurred_at))}</td>
+          <td style="padding:3px 4px">${v.output_volume_ml != null ? _esc(String(v.output_volume_ml)) + 'ml' : '—'}</td>
+          <td style="padding:3px 4px">${_esc(PK_NIRUHA_ANTYAKI_LABEL[v.antyaki_substance] || v.antyaki_substance)}</td>
+        </tr>`).join('')}</tbody>
+      </table>`
+    : `<div style="font-size:11px;color:var(--text-muted)">No evacuations recorded yet.</div>`;
+
+  const fill = (containerId, vocab, selected) => {
+    document.getElementById(containerId).innerHTML = vocab.map(([val, label]) => `
+      <label style="display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:5px;cursor:pointer">
+        <input type="checkbox" value="${val}" ${selected?.includes(val) ? 'checked' : ''}
+          style="width:16px;height:16px;min-width:16px;flex-shrink:0;accent-color:var(--green-mid);border-radius:3px;padding:0;background:none"/>
+        <span>${_esc(label)}</span>
+      </label>`).join('');
+  };
+  fill('niruha-samyak-list', PK_NIRUHA_SAMYAK_YOGA_SIGNS, a.samyak_yoga_signs);
+  fill('niruha-ayoga-list', PK_NIRUHA_AYOGA_SIGNS, a.ayoga_signs);
+  fill('niruha-atiyoga-list', PK_NIRUHA_ATIYOGA_SIGNS, a.atiyoga_signs);
+  document.getElementById('niruha-signs-notes').value = a.notes || '';
+}
+
+window.closeNiruhaAssessmentModal = function() {
+  document.getElementById('niruha-assessment-overlay').classList.remove('open');
+};
+
+async function _reloadNiruhaDrawer() {
+  const assessmentId = document.getElementById('niruha-assessment-id').value;
+  if (!assessmentId) return;
+  const { data: a, error } = await supabase.from('pk_basti_niruha_assessment').select('*, pk_basti_niruha_evacuations(*)').eq('id', assessmentId).maybeSingle();
+  if (error || !a) return;
+  _renderNiruhaDrawer(a);
+  await loadAll();
+}
+
+window.startNiruhaFromDrawer = async function() {
+  const sessionId = document.getElementById('niruha-session-id').value;
+  const assessmentId = document.getElementById('niruha-assessment-id').value;
+  const inputMl = document.getElementById('niruha-input-ml').value;
+  const time = document.getElementById('niruha-time-administered').value;
+  const s = _sessions.find(x => x.id === sessionId);
+  const dateStr = s?.scheduled_date || todayLocalStr();
+  const { error } = await supabase.rpc('start_basti_niruha_assessment', {
+    p_assessment_id: assessmentId, p_input_volume_ml: inputMl ? Number(inputMl) : null,
+    p_time_administered: time ? _istISO(dateStr, time) : null,
+  });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not start the Niruha assessment.')); return; }
+  await _reloadNiruhaDrawer();
+};
+
+window.addNiruhaEvacuation = async function() {
+  const assessmentId = document.getElementById('niruha-assessment-id').value;
+  const sessionId = document.getElementById('niruha-session-id').value;
+  const s = _sessions.find(x => x.id === sessionId);
+  const dateStr = s?.scheduled_date || todayLocalStr();
+  const time = document.getElementById('niruha-add-time').value;
+  if (!time) { _alert('error', 'Enter the time this evacuation happened.'); return; }
+  const qty = document.getElementById('niruha-add-qty').value;
+  const antyaki = document.getElementById('niruha-add-antyaki').value;
+  const isMinor = document.getElementById('niruha-add-minor').checked;
+
+  const { error } = await supabase.rpc('record_basti_niruha_evacuation', {
+    p_assessment_id: assessmentId,
+    p_occurred_at: _istISO(dateStr, time),
+    p_output_volume_ml: qty ? Number(qty) : null,
+    p_antyaki_substance: antyaki,
+    p_is_minor_purge: isMinor,
+  });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not record the evacuation.')); return; }
+
+  document.getElementById('niruha-add-time').value = _nowHHMM();
+  document.getElementById('niruha-add-qty').value = '';
+  document.getElementById('niruha-add-antyaki').value = 'basti_fluid';
+  document.getElementById('niruha-add-minor').checked = false;
+
+  await _reloadNiruhaDrawer();
+};
+
+window.saveNiruhaSigns = async function() {
+  const assessmentId = document.getElementById('niruha-assessment-id').value;
+  if (!assessmentId) return;
+  const { error } = await supabase.rpc('record_basti_niruha_signs', {
+    p_assessment_id: assessmentId,
+    p_samyak_yoga: _checkedValues('niruha-samyak-list'),
+    p_ayoga: _checkedValues('niruha-ayoga-list'),
+    p_atiyoga: _checkedValues('niruha-atiyoga-list'),
+    p_notes: document.getElementById('niruha-signs-notes').value.trim() || null,
+  });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not save Niruha signs.')); return; }
+  _alert('success', 'Signs saved.');
+  await _reloadNiruhaDrawer();
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
