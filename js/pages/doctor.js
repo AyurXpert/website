@@ -1632,6 +1632,7 @@ let _pkTemplateDays  = {};   // template_id -> pk_sop_template_days rows
 let _pkContentHints  = {};   // pk_sop_templates.id -> {duration, staff} from the linked sop_content_templates row (Session 248)
 let _pkAyushOptions  = [];   // ayush_procedure_catalog rows (Panchakarma + Anu-Shastra Karma)
 let _pkFeeIndex      = {};   // ayush_code -> fee_structures row (tenant's active pricing)
+let _pkNiruhaFormulations = []; // pk_niruha_formulations rows (Session 271)
 let _pkProtocols     = [];   // working list: {template_id, procedure_key, protocol_label, is_reviewed, start_date, blocks:[...], medicines:[...]}
 let _pkStep          = 1;
 let _pkLastEstimate  = null;
@@ -1659,6 +1660,12 @@ async function _loadPkTemplates() {
     .not('linked_pk_template_id', 'is', null);
   _pkContentHints = {};
   (hints || []).forEach(h => { _pkContentHints[h.linked_pk_template_id] = h; });
+
+  // Session 271 -- Niruha Basti compound-formulation library (Madhu/Lavana/Sneha/
+  // Kalka/Kwatha, classically mixed in that order); doctor picks one as a starting
+  // template, every field stays freely editable per patient afterward.
+  const { data: niruhaForms } = await supabase.from('pk_niruha_formulations').select('*').order('display_name');
+  _pkNiruhaFormulations = niruhaForms || [];
 
   _renderPkChips();
 }
@@ -1801,8 +1808,15 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
         return [
           { phase: d.phase, activity_label: _PK_BASTI_ANUVASANA_LABEL, is_flexible: false,
             min_days: 0, max_days: 0, length: 0, ayush_code: null, medicines: [], mode: 'hospital', bastiDayType: 'anuvasana' },
+          // Session 271 -- Niruha is a 5-part compound formulation (Madhu/Lavana/
+          // Sneha/Kalka/Kwatha), not a flat medicines list -- b.medicines stays
+          // unused for this block; b.niruhaFormula holds the structured recipe
+          // instead (one formula for the whole course, every field editable).
           { phase: d.phase, activity_label: _PK_BASTI_NIRUHA_LABEL, is_flexible: false,
-            min_days: 0, max_days: 0, length: 0, ayush_code: null, medicines: [], mode: 'hospital', bastiDayType: 'niruha' },
+            min_days: 0, max_days: 0, length: 0, ayush_code: null, medicines: [], mode: 'hospital', bastiDayType: 'niruha',
+            niruhaFormula: { formulation_key: '', madhu_name: 'Honey', madhu_ml: null, lavana_name: 'Saindhava Lavana (Rock Salt)', lavana_g: null,
+              sneha_name: '', sneha_ml: null, kalka_ingredients: '', kalka_g: null, kwatha_ingredients: '', kwatha_ml: null,
+              avapa_name: '', avapa_ml: null } },
         ];
       }
       return [{
@@ -2389,11 +2403,83 @@ function _pkRenderDatePicker(pi) {
 // 2-phase build he explicitly confirmed -- Phase 2 (doctor updating the actual dose
 // day-by-day, since real Snehapana dosing escalates on live sneha siddhi assessment) is
 // deliberately deferred to a later session.
+// Session 271 -- Niruha Basti's 5-part compound formulation card. One formula per
+// whole course (Dr. Venkatesh confirmed), starting from a picked classical template,
+// every field freely editable afterward -- the library row is a starting point, not
+// a lock.
+function _pkRenderNiruhaFormulaCard(p, pi, b, bi) {
+  const f = b.niruhaFormula;
+  const formOpts = '<option value="">— Custom / build manually —</option>' + _pkNiruhaFormulations.map(x =>
+    `<option value="${x.id}" ${f.formulation_key === x.formulation_key ? 'selected' : ''}>${_esc(x.display_name)}</option>`).join('');
+  const totalMl = (f.madhu_ml || 0) + (f.sneha_ml || 0) + (f.kwatha_ml || 0) + (f.avapa_ml || 0);
+  const row = (num, label, nameField, qtyField, unit, placeholder) => `
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:6px">
+      <div class="field" style="flex:1;margin:0">
+        <label style="font-size:10.5px">${num}. ${label}</label>
+        <input type="text" value="${_esc(f[nameField] || '')}" placeholder="${_esc(placeholder)}"
+          data-onchange="_pkSetNiruhaField" data-onchange-a0="${pi}" data-onchange-a1="${bi}" data-onchange-a2="${nameField}" data-onchange-a3="@this"/>
+      </div>
+      <div class="field" style="width:90px;margin:0">
+        <label style="font-size:10.5px">Qty (${unit})</label>
+        <input type="number" min="0" value="${f[qtyField] ?? ''}"
+          data-onchange="_pkSetNiruhaField" data-onchange-a0="${pi}" data-onchange-a1="${bi}" data-onchange-a2="${qtyField}" data-onchange-a3="@this"/>
+      </div>
+    </div>`;
+  return `
+        <div style="border:1px solid var(--blue);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#f5f8ff">
+          <div style="font-weight:600;font-size:12.5px;color:var(--blue);margin-bottom:6px">${_esc(b.activity_label)}</div>
+          <div class="field" style="margin-bottom:8px">
+            <label style="font-size:11px">Load Standard Formulation</label>
+            <select data-onchange="_pkLoadNiruhaFormulation" data-onchange-a0="${pi}" data-onchange-a1="${bi}" data-onchange-a2="@this">${formOpts}</select>
+          </div>
+          <div style="font-size:10px;color:var(--text-muted);margin-bottom:8px">Classical mixing order (Mardan Krama): Madhu + Lavana triturated first → Sneha streamed in → Kalka blended in → warm Kwatha added last, stirred until no oil separates. Warm to body temperature (~37°C) via water bath before administration — never direct heat.</div>
+          ${row(1, 'Madhu (Honey)', 'madhu_name', 'madhu_ml', 'ml', 'Honey')}
+          ${row(2, 'Lavana (Salt)', 'lavana_name', 'lavana_g', 'g', 'Saindhava Lavana')}
+          ${row(3, 'Sneha (Oil/Ghee)', 'sneha_name', 'sneha_ml', 'ml', 'e.g. Eranda Taila')}
+          ${row(4, 'Kalka (Herbal Paste)', 'kalka_ingredients', 'kalka_g', 'g', 'e.g. Shatahva, Madhuka')}
+          ${row(5, 'Kwatha (Decoction)', 'kwatha_ingredients', 'kwatha_ml', 'ml', 'e.g. Dashamula Kwatha')}
+          ${row('+', 'Avapa (optional add-on)', 'avapa_name', 'avapa_ml', 'ml', 'e.g. Gomutra')}
+          <div style="font-size:11.5px;font-weight:700;color:var(--green-deep);margin-top:4px">Total liquid volume: ~${totalMl}ml <span style="font-weight:400;color:var(--text-muted)">(classical range 450–600ml)</span></div>
+        </div>`;
+}
+
+window._pkLoadNiruhaFormulation = function(pi, bi, selectEl) {
+  const b = _pkProtocols[Number(pi)]?.blocks[Number(bi)]; if (!b) return;
+  const formId = selectEl.value;
+  if (!formId) { b.niruhaFormula.formulation_key = ''; _renderPkMedicines(); return; }
+  const f = _pkNiruhaFormulations.find(x => x.id === formId); if (!f) return;
+  b.niruhaFormula = {
+    formulation_key: f.formulation_key,
+    madhu_name: f.madhu_name_default, madhu_ml: f.madhu_default_ml,
+    lavana_name: f.lavana_name_default, lavana_g: f.lavana_default_g,
+    sneha_name: f.sneha_name_default || '', sneha_ml: f.sneha_default_ml,
+    kalka_ingredients: f.kalka_ingredients_default || '', kalka_g: f.kalka_default_g,
+    kwatha_ingredients: f.kwatha_ingredients_default || '', kwatha_ml: f.kwatha_default_ml,
+    avapa_name: f.avapa_name_default || '', avapa_ml: f.avapa_default_ml,
+  };
+  _renderPkMedicines();
+};
+
+window._pkSetNiruhaField = function(pi, bi, field, inputEl) {
+  const b = _pkProtocols[Number(pi)]?.blocks[Number(bi)]; if (!b?.niruhaFormula) return;
+  const isNumeric = field.endsWith('_ml') || field.endsWith('_g');
+  b.niruhaFormula[field] = isNumeric ? (inputEl.value ? Number(inputEl.value) : null) : inputEl.value;
+  _renderPkMedicines();
+};
+
 function _renderPkMedicines() {
   const el = document.getElementById('pk-medicines-body');
   if (!el) return;
   const codeOpts = '<option value="">— none —</option>' + _pkAyushOptions.map(o => `<option value="${_esc(o.code)}">${_esc(o.code)} — ${_esc(o.name)}</option>`).join('');
-  el.innerHTML = _pkProtocols.map((p, pi) => `
+  // Session 271 -- common Anuvasana oils/ghees, autocomplete suggestions on the
+  // existing free-text medicine-name input (not a hard-coded dropdown -- any name
+  // can still be typed).
+  const snehaDatalist = `<datalist id="pk-sneha-datalist">
+    ${['Tila Taila (Sesame Oil)', 'Eranda Taila (Castor Oil)', 'Murchita Eranda Taila', 'Sahacharadi Taila',
+       'Dhanwantaram Taila', 'Ksheerabala Taila', 'Mahanarayana Taila', 'Go Ghrita (Cow Ghee)',
+       'Guggulu Tiktaka Ghrita', 'Panchatiktaka Ghrita'].map(n => `<option value="${_esc(n)}">`).join('')}
+  </datalist>`;
+  el.innerHTML = snehaDatalist + _pkProtocols.map((p, pi) => `
     <div class="section" style="border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:12px">
       <div style="font-weight:700;font-size:14px;color:var(--green-deep);margin-bottom:8px">${_esc(p.protocol_label)}</div>
       ${p.blocks.map((b, bi) => {
@@ -2402,6 +2488,12 @@ function _renderPkMedicines() {
         // Session 266 -- a Basti Anuvasana/Niruha block with length 0 means no pack
         // type has been chosen yet in Step 2 -- nothing to attach medicines to yet.
         if (b.mode === 'skip' || (b.bastiDayType && b.length === 0)) return '';
+        // Session 271 -- Niruha is a 5-part compound formulation (Madhu/Lavana/
+        // Sneha/Kalka/Kwatha), never a flat medicines list -- structured form
+        // instead of the generic "type a name, click Add" UI every other activity
+        // gets.
+        if (b.bastiDayType === 'niruha') return _pkRenderNiruhaFormulaCard(p, pi, b, bi);
+
         return `
         <div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fafff7">
           <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">${_esc(b.activity_label)}${b.mode === 'home' ? ' <span style="font-size:10px;color:var(--gold)">🏠 at home</span>' : ''}</div>
@@ -2412,9 +2504,11 @@ function _renderPkMedicines() {
           <div class="field">
             <label style="font-size:11px">Medicines / Materials for this activity</label>
             <div style="display:flex;gap:6px;margin-bottom:6px">
-              <input id="pk-med-name-${pi}-${bi}" type="text" placeholder="e.g. Panchatiktaka Ghrita" style="flex:1"/>
+              <input id="pk-med-name-${pi}-${bi}" type="text" placeholder="e.g. Panchatiktaka Ghrita" style="flex:1"
+                ${b.bastiDayType === 'anuvasana' ? `list="pk-sneha-datalist"` : ''}/>
               <button type="button" data-onclick="_pkAddMedicine" data-onclick-a0="${pi}" data-onclick-a1="${bi}" style="height:36px;padding:0 12px;background:var(--green-mid);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">+ Add</button>
             </div>
+            ${b.bastiDayType === 'anuvasana' ? `<div style="font-size:10px;color:var(--text-muted);margin:-3px 0 6px">Start typing for common oils/ghees, or enter any name.</div>` : ''}
             ${(b.medicines || []).map((m, mi) => `
               <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;background:#fff">
                 <span style="font-size:12.5px">${_esc(m.medicine_name)}</span>
@@ -2682,12 +2776,29 @@ function _pkReconstructProtocol(pr, allDays, allMeds) {
 
   tplDays.forEach(td => {
     if (p.procedure_key === 'basti' && td.activity_label === 'Basti administration (daily)') {
-      const mk = (label, type) => ({
-        phase: td.phase, activity_label: label, is_flexible: false, min_days: 0, max_days: 0,
-        length: 0, ayush_code: null, mode: 'hospital', bastiDayType: type,
-        medicines: meds.filter(m => m.activity_label === label).map(m => ({ medicine_name: m.medicine_name, dosage_instructions: m.dosage_instructions })),
-      });
-      p.blocks.push(mk(_PK_BASTI_ANUVASANA_LABEL, 'anuvasana'), mk(_PK_BASTI_NIRUHA_LABEL, 'niruha'));
+      const anuvasanaBlock = {
+        phase: td.phase, activity_label: _PK_BASTI_ANUVASANA_LABEL, is_flexible: false, min_days: 0, max_days: 0,
+        length: 0, ayush_code: null, mode: 'hospital', bastiDayType: 'anuvasana',
+        medicines: meds.filter(m => m.activity_label === _PK_BASTI_ANUVASANA_LABEL).map(m => ({ medicine_name: m.medicine_name, dosage_instructions: m.dosage_instructions })),
+      };
+      // Session 271 -- reconstruct the structured Niruha formula from its saved
+      // basti_component-tagged rows, not the generic medicines array.
+      const niruhaMeds = meds.filter(m => m.activity_label === _PK_BASTI_NIRUHA_LABEL);
+      const byComponent = c => niruhaMeds.find(m => m.basti_component === c);
+      const niruhaBlock = {
+        phase: td.phase, activity_label: _PK_BASTI_NIRUHA_LABEL, is_flexible: false, min_days: 0, max_days: 0,
+        length: 0, ayush_code: null, mode: 'hospital', bastiDayType: 'niruha', medicines: [],
+        niruhaFormula: {
+          formulation_key: '',
+          madhu_name: byComponent('madhu')?.medicine_name || 'Honey', madhu_ml: byComponent('madhu')?.quantity_value ?? null,
+          lavana_name: byComponent('lavana')?.medicine_name || 'Saindhava Lavana (Rock Salt)', lavana_g: byComponent('lavana')?.quantity_value ?? null,
+          sneha_name: byComponent('sneha')?.medicine_name || '', sneha_ml: byComponent('sneha')?.quantity_value ?? null,
+          kalka_ingredients: byComponent('kalka')?.medicine_name || '', kalka_g: byComponent('kalka')?.quantity_value ?? null,
+          kwatha_ingredients: byComponent('kwatha')?.medicine_name || '', kwatha_ml: byComponent('kwatha')?.quantity_value ?? null,
+          avapa_name: byComponent('avapa')?.medicine_name || '', avapa_ml: byComponent('avapa')?.quantity_value ?? null,
+        },
+      };
+      p.blocks.push(anuvasanaBlock, niruhaBlock);
       return;
     }
     const matching = days.filter(d => d.activity_label === td.activity_label);
@@ -2818,6 +2929,27 @@ window.savePkCarePlan = async function() {
     const medRows = [];
     p.blocks.forEach(b => {
       if (b.mode === 'skip') return;
+      // Session 271 -- Niruha's 5-part compound formula saves as up to 6 structured
+      // rows (one per component, Mardan Krama order) instead of the generic flat
+      // medicines list -- b.medicines stays empty for this block.
+      if (b.bastiDayType === 'niruha' && b.niruhaFormula) {
+        const f = b.niruhaFormula;
+        const comp = (component, name, qty, unit, seq) => {
+          if (!name && qty == null) return; // nothing entered for this component -- skip
+          medRows.push({
+            protocol_instance_id: proto.id, activity_label: b.activity_label, ayush_code: b.ayush_code || null,
+            medicine_name: name || null, dosage_instructions: null, sequence_order: seq,
+            basti_component: component, quantity_value: qty ?? null, quantity_unit: unit,
+          });
+        };
+        comp('madhu', f.madhu_name, f.madhu_ml, 'ml', 1);
+        comp('lavana', f.lavana_name, f.lavana_g, 'g', 2);
+        comp('sneha', f.sneha_name, f.sneha_ml, 'ml', 3);
+        comp('kalka', f.kalka_ingredients, f.kalka_g, 'g', 4);
+        comp('kwatha', f.kwatha_ingredients, f.kwatha_ml, 'ml', 5);
+        comp('avapa', f.avapa_name, f.avapa_ml, 'ml', 6);
+        return;
+      }
       (b.medicines || []).forEach((m, mi) => {
         medRows.push({
           protocol_instance_id: proto.id, activity_label: b.activity_label, ayush_code: b.ayush_code || null,
