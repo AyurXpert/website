@@ -1974,6 +1974,54 @@ function _pkBlockDayRange(p, bi) {
 
 const _PK_PHASE_LABEL = { purvakarma: 'Purvakarma', pradhanakarma: 'Pradhanakarma', paschatkarma: 'Paschatkarma' };
 
+// Session 270 -- Dr. Venkatesh: the day-as-column grid Basti already has (built
+// Session 266) should be available for every protocol, not just Basti. Basti keeps
+// its own bespoke renderer above (2 fixed activity types, Anu/Niru short labels,
+// pack-type/schedule-mode heading, real interleaving) since it already works and
+// touching it risks regressing something proven -- this is the generic version for
+// everything else, driven purely by whatever activity labels _pkExpandDays(p)
+// actually produces, in the order they first appear (matches the protocol's own
+// block sequence, since _pkExpandDays already walks blocks in that order).
+function _pkRenderGenericDayGrid(p) {
+  const rows = _pkExpandDays(p);
+  if (!rows.length) return '';
+
+  const activityOrder = [];
+  const byDayActivity = {}; // day_number -> Set(activity_label)
+  rows.forEach(r => {
+    if (!activityOrder.includes(r.activity_label)) activityOrder.push(r.activity_label);
+    (byDayActivity[r.day_number] = byDayActivity[r.day_number] || new Set()).add(r.activity_label);
+  });
+  if (activityOrder.length < 2) return ''; // one activity for the whole course -- the day-range table above already says it plainly, a 1-row grid adds nothing
+
+  const dayNumbers = [...new Set(rows.map(r => r.day_number))].sort((a, b) => a - b);
+  const dateByDay = {};
+  rows.forEach(r => { dateByDay[r.day_number] = r.planned_date; });
+
+  const rowLabel = (label, title) => `<td title="${_esc(title || label)}" style="padding:5px 9px;font-weight:600;color:var(--text-mid);white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;position:sticky;left:0;background:#fafff7;border-right:1.5px solid var(--border)">${_esc(label)}</td>`;
+  const dayCell = (n) => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border);white-space:nowrap;font-size:11px"><strong>Day ${n}</strong><br><span style="color:var(--text-muted);font-size:10px">${_esc(dateByDay[n])}</span></td>`;
+
+  const activityRows = activityOrder.map((label, ai) => {
+    const color = _PK_CAL_COLORS[ai % _PK_CAL_COLORS.length];
+    const cells = dayNumbers.map(n => {
+      const present = byDayActivity[n]?.has(label);
+      return `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border)">${present ? `<span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:${color};color:#fff;font-size:11px;font-weight:700;line-height:18px">✓</span>` : ''}</td>`;
+    }).join('');
+    return `<tr>${rowLabel(label)}${cells}</tr>`;
+  }).join('');
+
+  return `
+      <div style="border:1px solid var(--green-mid);border-radius:6px;padding:10px 12px;margin-top:10px;background:#fafff7;overflow-x:auto">
+        <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">📅 Day-by-Day Schedule</div>
+        <table style="border-collapse:collapse">
+          <tbody>
+            <tr>${rowLabel('Day / Date')}${dayNumbers.map(dayCell).join('')}</tr>
+            ${activityRows}
+          </tbody>
+        </table>
+      </div>`;
+}
+
 function _renderPkCalendar() {
   const el = document.getElementById('pk-calendar-body');
   if (!el) return;
@@ -2103,6 +2151,7 @@ function _renderPkCalendar() {
         </table>
       </div>`;
       })() : ''}
+      ${p.procedure_key !== 'basti' ? _pkRenderGenericDayGrid(p) : ''}
       ${p.blocks.some(b => b.ayush_code === 'PCK54') ? `
       <div style="border:1px solid var(--gold);border-radius:6px;padding:10px 12px;margin-top:10px;background:#fffaf0">
         <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">🌿 Snehapana Dosing</div>
