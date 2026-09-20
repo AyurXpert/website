@@ -3207,6 +3207,9 @@ body.medcert-print #mc-print{display:block!important}
               </div>
               <div class="field">
                 <label>Other Therapies</label>
+                <input type="text" id="pk-other-search" placeholder="🔍 Search Other Therapies…" autocomplete="off"
+                  data-oninput="_pkFilterOtherTherapies" data-oninput-a0="@this"
+                  style="width:100%;max-width:340px;height:34px;border:1.5px solid var(--border);border-radius:20px;padding:0 14px;font-size:12.5px;margin-bottom:8px"/>
                 <div class="pathya-chips" id="pk-chips-other"></div>
               </div>
               <div id="pk-step1-hint" style="font-size:11.5px;color:var(--text-muted);margin-top:4px">Pick one or more — each selected protocol gets its own auto-generated SOP calendar in the next step.</div>

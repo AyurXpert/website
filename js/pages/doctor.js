@@ -1678,22 +1678,54 @@ async function _loadPkFeeIndex() {
   (data || []).forEach(r => { _pkFeeIndex[r.ayush_code] = r; });
 }
 
+// Session 278 -- classical Pancha Karma teaching order (Dr. Venkatesh), not alphabetical.
+const _PK_MAIN_KARMA_ORDER = ['vamana', 'virechana', 'basti', 'nasya', 'raktamokshana'];
+// Live filter term for the 79-item Other Therapies list -- set by _pkFilterOtherTherapies(),
+// read fresh on every render, never persisted (resets with the rest of the wizard).
+let _pkOtherSearchTerm = '';
+
 function _renderPkChips() {
   const mainEl  = document.getElementById('pk-chips-main');
   const otherEl = document.getElementById('pk-chips-other');
   if (!mainEl || !otherEl) return;
-  const chipHtml = t => {
+  const chipHtml = (t, idx) => {
     const hint = _pkContentHints[t.id];
     const hintParts = [];
     if (hint?.typical_duration_minutes) hintParts.push(hint.typical_duration_minutes >= 60
       ? `${Math.round(hint.typical_duration_minutes / 60 * 10) / 10}h` : `${hint.typical_duration_minutes}m`);
     if (hint?.man_power_staff) hintParts.push(`${hint.man_power_staff}👤`);
     const hintHtml = hintParts.length ? `<span class="chip-hint"> · ${hintParts.join(' · ')}</span>` : '';
-    return `<span class="chip${_pkProtocols.some(p => p.procedure_key === t.procedure_key) ? ' on' : ''}" data-onclick="_pkToggleProtocol" data-onclick-a0="${_esc(t.procedure_key)}" data-onclick-a1="@this">${_esc(t.display_name)}${!t.is_reviewed ? ' ⚠' : ''}${hintHtml}</span>`;
+    const isOn = _pkProtocols.some(p => p.procedure_key === t.procedure_key);
+    // Session 278 -- "using 2 colors alternatively makes it look good": alternating
+    // unselected-state border/tint between the two brand tokens, by visible position (not
+    // DB order, so it stays a clean zebra pattern even after the search box narrows the
+    // list). The existing .chip.on CSS (solid green highlight) is left completely alone --
+    // no inline style at all when selected, so it can't fight with that class rule.
+    const altColor = idx % 2 === 0 ? 'var(--green-mid)' : 'var(--gold)';
+    const styleAttr = isOn ? '' : ` style="border-color:${altColor};background:color-mix(in srgb, ${altColor} 8%, #fff);color:${altColor}"`;
+    return `<span class="chip${isOn ? ' on' : ''}"${styleAttr} data-onclick="_pkToggleProtocol" data-onclick-a0="${_esc(t.procedure_key)}" data-onclick-a1="@this">${_esc(t.display_name)}${!t.is_reviewed ? ' ⚠' : ''}${hintHtml}</span>`;
   };
-  mainEl.innerHTML  = _pkTemplates.filter(t => t.phase_group === 'main_karma').map(chipHtml).join('');
-  otherEl.innerHTML = _pkTemplates.filter(t => t.phase_group === 'other_therapy').map(chipHtml).join('');
+
+  const mainSorted = _pkTemplates.filter(t => t.phase_group === 'main_karma')
+    .sort((a, b) => _PK_MAIN_KARMA_ORDER.indexOf(a.procedure_key) - _PK_MAIN_KARMA_ORDER.indexOf(b.procedure_key));
+  mainEl.innerHTML = mainSorted.map(chipHtml).join('');
+
+  // Session 278 -- Dr. Venkatesh explicitly rejected sub-grouping the 79-item Other
+  // Therapies list ("group other therapies is not a good idea") -- stays one flat list,
+  // just filterable by the search box above it (data-oninput, starts filtering from the
+  // very first keystroke).
+  const otherAll = _pkTemplates.filter(t => t.phase_group === 'other_therapy');
+  const term = _pkOtherSearchTerm.trim().toLowerCase();
+  const otherFiltered = term ? otherAll.filter(t => t.display_name.toLowerCase().includes(term)) : otherAll;
+  otherEl.innerHTML = otherFiltered.length
+    ? otherFiltered.map(chipHtml).join('')
+    : `<div style="font-size:12px;color:var(--text-muted);padding:6px 2px">No therapies match "${_esc(_pkOtherSearchTerm)}".</div>`;
 }
+
+window._pkFilterOtherTherapies = function(inputEl) {
+  _pkOtherSearchTerm = inputEl.value || '';
+  _renderPkChips();
+};
 
 // Session 266 -- Basti Pack Type: doctor picks one of 3 classical multi-day package
 // configurations (Charaka's Karma/Kala/Yoga Basti), the day-by-day Anuvasana(Oil)/
@@ -2757,6 +2789,11 @@ function _resetPkCarePlan() {
   // per-protocol data -- reset it too so a stale picker doesn't carry over patients.
   _pkDatePickerOpenFor = null;
   _pkDatePickerMonth = {};
+  // Session 278 -- a stale search filter from a previous patient's wizard session
+  // shouldn't silently narrow what the next patient's doctor sees as "available".
+  _pkOtherSearchTerm = '';
+  const searchEl = document.getElementById('pk-other-search');
+  if (searchEl) searchEl.value = '';
   [1, 2, 3, 4].forEach(i => { const stepEl = document.getElementById('pk-step-' + i); if (stepEl) stepEl.hidden = i !== 1; });
   const ind = document.getElementById('pk-step-indicator');
   if (ind) ind.textContent = 'Step 1 of 4 — Select protocol(s)';
