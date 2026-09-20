@@ -3186,6 +3186,20 @@ body.medcert-print #mc-print{display:block!important}
           <!-- STEP 1 — Select protocol(s). Multiple protocols per plan are supported --
                each one's own SOP auto-generates its own day-by-day calendar in Step 2. -->
           <div id="pk-step-1">
+            <!-- Session 268 -- an existing not-yet-activated Care Plan for this patient
+                 (drafted this visit or an earlier one) can be resumed/added to, instead
+                 of only ever starting a brand new plan. Hidden unless one is found. -->
+            <div class="section" id="pk-existing-draft-banner" style="display:none;background:#fffaf0;border:1.5px solid var(--gold);border-radius:8px;padding:12px 14px">
+              <div style="font-weight:600;font-size:13px;color:var(--green-deep);margin-bottom:4px">📋 Existing draft Care Plan found</div>
+              <div id="pk-existing-draft-text" style="font-size:12px;color:var(--text-mid);margin-bottom:8px"></div>
+              <div style="display:flex;gap:8px">
+                <button type="button" data-onclick="_pkLoadExistingDraft" style="height:34px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer">Continue Editing This Plan</button>
+                <button type="button" data-onclick="_pkStartFreshInstead" style="height:34px;padding:0 14px;background:#fff;border:1.5px solid var(--border);border-radius:6px;font-size:12.5px;font-weight:600;cursor:pointer">Start a New Plan Instead</button>
+              </div>
+            </div>
+            <div class="section" id="pk-editing-banner" style="display:none;background:#eefaf0;border:1.5px solid var(--green-mid);border-radius:8px;padding:10px 14px;font-size:12.5px;color:var(--green-deep)">
+              ✏️ Editing an existing draft — pick more chips below to add protocols, or adjust ones already loaded. Saving will update this plan, not create a new one.
+            </div>
             <div class="section">
               <div class="field">
                 <label>Panchakarma Procedures</label>
@@ -3206,12 +3220,31 @@ body.medcert-print #mc-print{display:block!important}
                flexible-block extend/reduce (e.g. Snehapana's length is a day-by-day
                clinical judgment call, not fixed). -->
           <div id="pk-step-2" hidden>
+            <!-- Session 268 -- lets the doctor visually check what falls on which real
+                 calendar date (day-of-week, any overlap between two protocols' days)
+                 while planning, instead of only reading the day-number table. -->
+            <div class="section" style="padding-bottom:0">
+              <button type="button" data-onclick="_pkOpenCalendarView" style="height:36px;padding:0 14px;background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer">📅 View Full Calendar</button>
+            </div>
             <div id="pk-calendar-body"></div>
             <div class="section">
               <button type="button" data-onclick="_pkGoToStep" data-onclick-a0="1" style="height:40px;padding:0 18px;background:#fff;color:var(--green-deep);border:1.5px solid var(--green-deep);border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-right:8px">← Back</button>
               <button type="button" data-onclick="_pkGoToStep" data-onclick-a0="3" style="height:40px;padding:0 18px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer">Next: Medicines & Instructions →</button>
             </div>
           </div><!-- /pk-step-2 -->
+
+          <!-- Session 268 -- Full Calendar view: month-grid preview of every selected
+               protocol's planned days combined, so the doctor can check real dates/
+               days-of-week and spot any cross-protocol overlap before saving. -->
+          <div class="mha-overlay" id="pk-cal-overlay" style="display:none;z-index:700" data-onclick="_closeIfSelf" data-onclick-a0="@isTarget" data-onclick-a1="_pkCloseCalendarView">
+            <div class="mha-modal" style="width:760px">
+              <div class="mha-modal-hdr" style="background:var(--green-deep)">
+                <span>📅 Panchakarma Calendar</span>
+                <button type="button" data-onclick="_pkCloseCalendarView" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
+              </div>
+              <div class="mha-modal-body" id="pk-cal-body"></div>
+            </div>
+          </div>
 
           <!-- STEP 3 — Medicines per protocol, billing-code resolution for ambiguous
                days (e.g. Basti has 9 real site-specific codes and no generic one),

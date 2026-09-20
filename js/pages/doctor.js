@@ -1211,6 +1211,11 @@ window.startConsultation = async function(visitId) {
   _activePatient   = visit?.patients;
   _activeNcismCode = visit?.opds?.ncism_code || null;
 
+  // Session 268 -- an existing not-yet-activated Care Plan for this patient (drafted
+  // by any doctor, any visit) can be resumed/added to; fired without blocking the
+  // rest of the consultation load.
+  if (_hasPK && _activePatient?.id) _pkCheckExistingDraft(_activePatient.id);
+
   // NCISM — Swasthya Rakshana OPD: advisory + Swasthya Card button
   const allowsRx = visit?.opds?.allows_prescription ?? true;
   const noRxNotice = document.getElementById('no-rx-notice');
@@ -1760,6 +1765,10 @@ function _pkBastiRotation(packType) {
 window._pkToggleProtocol = function(procedureKey, chipEl) {
   const idx = _pkProtocols.findIndex(p => p.procedure_key === procedureKey);
   if (idx >= 0) {
+    // Session 268 -- a protocol loaded from an existing saved plan (db_id set) can't be
+    // removed via the chip -- that's a bigger "delete this protocol" decision, out of
+    // scope for now (see _pkLoadExistingDraft()'s comment). Chips only add new ones here.
+    if (_pkProtocols[idx].db_id) { alert('This protocol is already part of the saved plan and can\'t be removed here.'); return; }
     _pkProtocols.splice(idx, 1);
     chipEl.classList.remove('on');
     return;
@@ -1815,6 +1824,10 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
     // Session 267 -- 'standard' (classical 1/day rotation) or 'compressed' (same-day
     // Niruha+Anuvasana, offered for all 3 pack types); defaults to 'standard'.
     basti_schedule_mode: 'standard',
+    // Session 268 -- null means "not yet saved anywhere"; set to the real
+    // pk_care_plan_protocols.id once this protocol has been persisted (either by a
+    // normal save, or because it was reconstructed from an existing draft plan).
+    db_id: null,
   });
   chipEl.classList.add('on');
 };
@@ -2109,6 +2122,83 @@ window._pkSetProtocolStart = function(pi, inputEl) {
   _renderPkCalendar();
 };
 
+// ── Full Calendar view (Session 268) ────────────────────────────────────────────
+// Month-grid preview across EVERY selected protocol combined, so the doctor can check
+// real dates/days-of-week and spot any cross-protocol overlap while planning --
+// distinct from Step 2's per-protocol day-number table above it.
+const _PK_CAL_COLORS = ['var(--green-mid)', 'var(--gold)', 'var(--blue)', 'var(--purple)', 'var(--orange)'];
+const _PK_CAL_DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+window._pkOpenCalendarView = function() {
+  if (!_pkProtocols.length) { alert('Select at least one protocol first.'); return; }
+
+  // date -> [{ protocolLabel, activity, color }]
+  const byDate = {};
+  _pkProtocols.forEach((p, pi) => {
+    const color = _PK_CAL_COLORS[pi % _PK_CAL_COLORS.length];
+    _pkExpandDays(p).forEach(r => {
+      (byDate[r.planned_date] = byDate[r.planned_date] || []).push({ protocolLabel: p.protocol_label, activity: r.activity_label, color });
+    });
+  });
+  const dates = Object.keys(byDate).sort();
+  if (!dates.length) {
+    document.getElementById('pk-cal-body').innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">No days planned yet — choose a Start date (and, for Basti, a Pack Type) first.</div>';
+    document.getElementById('pk-cal-overlay').style.display = 'flex';
+    return;
+  }
+
+  const overlapDays = dates.filter(d => new Set(byDate[d].map(e => e.protocolLabel)).size > 1).length;
+
+  // One month-grid per calendar month the plan spans.
+  const first = new Date(dates[0] + 'T00:00:00'), last = new Date(dates[dates.length - 1] + 'T00:00:00');
+  const months = [];
+  const cursor = new Date(first.getFullYear(), first.getMonth(), 1);
+  while (cursor <= last) { months.push(new Date(cursor)); cursor.setMonth(cursor.getMonth() + 1); }
+
+  const legend = _pkProtocols.map((p, pi) => `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;margin-right:12px">
+      <span style="width:10px;height:10px;border-radius:2px;background:${_PK_CAL_COLORS[pi % _PK_CAL_COLORS.length]};display:inline-block"></span>${_esc(p.protocol_label)}
+    </span>`).join('');
+
+  const monthHtml = months.map(m => {
+    const y = m.getFullYear(), mo = m.getMonth();
+    const daysInMonth = new Date(y, mo + 1, 0).getDate();
+    const firstDow = new Date(y, mo, 1).getDay();
+    const cells = [];
+    for (let i = 0; i < firstDow; i++) cells.push('<td></td>');
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${y}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const entries = byDate[dateStr];
+      const hasOverlap = entries && new Set(entries.map(e => e.protocolLabel)).size > 1;
+      cells.push(`<td style="vertical-align:top;padding:3px;border:1px solid var(--border);${hasOverlap ? 'background:#fff3e0' : ''}">
+        <div style="font-size:10.5px;font-weight:600;color:${entries ? 'var(--green-deep)' : 'var(--text-muted)'}">${d}</div>
+        ${(entries || []).map(e => `<div title="${_esc(e.protocolLabel)}: ${_esc(e.activity)}" style="font-size:8.5px;color:#fff;background:${e.color};border-radius:2px;padding:1px 3px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:72px">${_esc(e.activity.split('—')[1]?.trim() || e.activity)}</div>`).join('')}
+        ${hasOverlap ? '<div style="font-size:8px;color:#c0392b;font-weight:700;margin-top:1px">⚠ overlap</div>' : ''}
+      </td>`);
+    }
+    // pad trailing cells to a full week
+    while (cells.length % 7 !== 0) cells.push('<td></td>');
+    const rows = [];
+    for (let i = 0; i < cells.length; i += 7) rows.push(`<tr>${cells.slice(i, i + 7).join('')}</tr>`);
+    return `
+      <div style="font-weight:700;font-size:13px;color:var(--green-deep);margin:14px 0 6px">${m.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</div>
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+        <thead><tr>${_PK_CAL_DOW.map(d => `<th style="font-size:10px;color:var(--text-mid);padding:3px;border:1px solid var(--border);background:var(--green-light)">${d}</th>`).join('')}</tr></thead>
+        <tbody>${rows.join('')}</tbody>
+      </table>`;
+  }).join('');
+
+  document.getElementById('pk-cal-body').innerHTML = `
+    <div style="margin-bottom:8px">${legend}</div>
+    ${overlapDays ? `<div style="background:#fff3e0;border:1px solid var(--orange);border-radius:6px;padding:8px 10px;font-size:11.5px;color:#7a4a00;margin-bottom:6px">⚠ ${overlapDays} day${overlapDays > 1 ? 's have' : ' has'} more than one protocol scheduled — check these are clinically compatible together.</div>` : ''}
+    ${monthHtml}
+  `;
+  document.getElementById('pk-cal-overlay').style.display = 'flex';
+};
+
+window._pkCloseCalendarView = function() {
+  document.getElementById('pk-cal-overlay').style.display = 'none';
+};
+
 // Session 254 -- one Medicines section PER ACTIVITY (block), not one flat list for the
 // whole protocol: Dr. Venkatesh confirmed the doctor needs to name a different medicine
 // for Deepana-Pachana vs. the Snehapana oil vs. the Virechana/Vamana administration
@@ -2298,6 +2388,12 @@ function _resetPkCarePlan() {
   _pkProtocols = [];
   _pkStep = 1;
   _pkPlanSaved = false;
+  // Session 268 -- which existing pk_care_plans row (if any) this wizard session is
+  // editing/adding to, instead of creating a brand new one. Reset on every patient
+  // switch; _pkCheckExistingDraft() (called separately, async, from startConsultation)
+  // re-detects a draft for the newly active patient and shows the banner again if one exists.
+  _pkEditingPlanId = null;
+  _pkExistingDraftId = null;
   [1, 2, 3, 4].forEach(i => { const stepEl = document.getElementById('pk-step-' + i); if (stepEl) stepEl.hidden = i !== 1; });
   const ind = document.getElementById('pk-step-indicator');
   if (ind) ind.textContent = 'Step 1 of 4 — Select protocol(s)';
@@ -2305,6 +2401,124 @@ function _resetPkCarePlan() {
   ['pk-instr-patient', 'pk-instr-therapist', 'pk-instr-nurse'].forEach(id => { const elx = document.getElementById(id); if (elx) elx.value = ''; });
   const status = document.getElementById('pk-save-status');
   if (status) status.style.display = 'none';
+  const draftBanner = document.getElementById('pk-existing-draft-banner');
+  if (draftBanner) draftBanner.style.display = 'none';
+  const editBanner = document.getElementById('pk-editing-banner');
+  if (editBanner) editBanner.style.display = 'none';
+  const saveBtn = document.getElementById('btn-save-pk-plan');
+  if (saveBtn) saveBtn.textContent = '🌸 Save Care Plan';
+}
+
+// ── Session 268 -- Add protocol(s) to / edit an existing draft Care Plan ────────────
+// Scope (deliberate): only ever offered for a plan still status='finalized' -- i.e.
+// the doctor saved it but reception hasn't activated it yet (no bill, no
+// pk_therapy_sessions generated, nothing scheduled). Once a plan is 'active', editing
+// it here would mean reconciling against real sessions/assignments/a collected
+// advance -- a genuinely harder, separate problem, deliberately out of scope for now.
+let _pkEditingPlanId    = null; // set once the doctor chooses "Continue Editing"
+let _pkExistingDraftId  = null; // the plan pk_check found, before the doctor decides
+
+async function _pkCheckExistingDraft(patientId) {
+  const { data } = await supabase.from('pk_care_plans')
+    .select('id, created_at, pk_care_plan_protocols(protocol_label)')
+    .eq('tenant_id', tenantId).eq('patient_id', patientId).eq('status', 'finalized')
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  const banner = document.getElementById('pk-existing-draft-banner');
+  if (!banner) return;
+  if (!data) { _pkExistingDraftId = null; banner.style.display = 'none'; return; }
+  _pkExistingDraftId = data.id;
+  const names = (data.pk_care_plan_protocols || []).map(p => p.protocol_label).join(', ') || 'no protocols yet';
+  document.getElementById('pk-existing-draft-text').textContent =
+    `Created ${new Date(data.created_at).toLocaleDateString('en-IN')} — ${names}. Not yet activated by Reception.`;
+  banner.style.display = '';
+}
+
+window._pkStartFreshInstead = function() {
+  _pkExistingDraftId = null;
+  document.getElementById('pk-existing-draft-banner').style.display = 'none';
+};
+
+window._pkLoadExistingDraft = async function() {
+  const planId = _pkExistingDraftId;
+  if (!planId) return;
+
+  const { data: planRow } = await supabase.from('pk_care_plans').select('*').eq('id', planId).single();
+  const { data: protocols } = await supabase.from('pk_care_plan_protocols').select('*').eq('care_plan_id', planId).order('sequence_order');
+  if (!planRow || !protocols) { alert('Could not load the existing plan.'); return; }
+
+  const protocolIds = protocols.map(p => p.id);
+  const [{ data: allDays }, { data: allMeds }] = protocolIds.length ? await Promise.all([
+    supabase.from('pk_care_plan_days').select('*').in('protocol_instance_id', protocolIds),
+    supabase.from('pk_care_plan_medicines').select('*').in('protocol_instance_id', protocolIds),
+  ]) : [{ data: [] }, { data: [] }];
+
+  _pkProtocols = protocols.map(pr => _pkReconstructProtocol(pr, allDays || [], allMeds || []));
+  _pkEditingPlanId = planId;
+
+  document.getElementById('pk-existing-draft-banner').style.display = 'none';
+  document.getElementById('pk-editing-banner').style.display = '';
+  document.getElementById('btn-save-pk-plan').textContent = '🌸 Update Care Plan';
+  document.getElementById('pk-instr-patient').value   = planRow.instructions_patient || '';
+  document.getElementById('pk-instr-therapist').value = planRow.instructions_therapist || '';
+  document.getElementById('pk-instr-nurse').value      = planRow.instructions_nurse || '';
+  const settingEl = document.querySelector(`input[name="pk-setting"][value="${planRow.setting}"]`);
+  if (settingEl) settingEl.checked = true;
+  if (planRow.room_type_preference) { const rt = document.getElementById('pk-room-type'); if (rt) rt.value = planRow.room_type_preference; }
+
+  _renderPkChips();
+};
+
+// Rebuilds one _pkProtocols entry from its saved DB rows, using the original SOP
+// template as the "shape" reference -- a template day with zero matching saved rows
+// means that block was skipped (never re-derivable from the days table alone, since a
+// skipped block contributes no rows at all).
+function _pkReconstructProtocol(pr, allDays, allMeds) {
+  const tpl = _pkTemplates.find(t => t.id === pr.template_id);
+  const tplDays = (_pkTemplateDays[pr.template_id] || []).slice().sort((a, b) => a.sequence_order - b.sequence_order);
+  const days = allDays.filter(d => d.protocol_instance_id === pr.id);
+  const meds = allMeds.filter(m => m.protocol_instance_id === pr.id);
+
+  const p = {
+    db_id: pr.id,
+    template_id: pr.template_id,
+    procedure_key: tpl?.procedure_key || pr.protocol_label,
+    protocol_label: pr.protocol_label,
+    is_reviewed: tpl?.is_reviewed ?? true,
+    start_date: days.length ? days.reduce((min, d) => d.planned_date < min ? d.planned_date : min, days[0].planned_date) : pr.start_date,
+    blocks: [],
+    koshtha: pr.koshtha,
+    snehapana_start_dose_ml: pr.snehapana_start_dose_ml,
+    snehapana_increment_ml: pr.snehapana_increment_ml || 30,
+    basti_pack_type: pr.basti_pack_type,
+    basti_schedule_mode: pr.basti_schedule_mode || 'standard',
+  };
+
+  tplDays.forEach(td => {
+    if (p.procedure_key === 'basti' && td.activity_label === 'Basti administration (daily)') {
+      const mk = (label, type) => ({
+        phase: td.phase, activity_label: label, is_flexible: false, min_days: 0, max_days: 0,
+        length: 0, ayush_code: null, mode: 'hospital', bastiDayType: type,
+        medicines: meds.filter(m => m.activity_label === label).map(m => ({ medicine_name: m.medicine_name, dosage_instructions: m.dosage_instructions })),
+      });
+      p.blocks.push(mk(_PK_BASTI_ANUVASANA_LABEL, 'anuvasana'), mk(_PK_BASTI_NIRUHA_LABEL, 'niruha'));
+      return;
+    }
+    const matching = days.filter(d => d.activity_label === td.activity_label);
+    const skipped = matching.length === 0;
+    const defaultLen = td.day_end - td.day_start + 1;
+    p.blocks.push({
+      phase: td.phase, activity_label: td.activity_label, is_flexible: td.is_flexible,
+      min_days: td.min_days, max_days: td.max_days,
+      length: skipped ? 0 : matching.length,
+      ayush_code: (matching[0]?.ayush_code) || td.ayush_code,
+      mode: skipped ? 'skip' : (matching.every(d => d.location_mode === 'home') ? 'home' : 'hospital'),
+      _skipLength: skipped ? (td.min_days || defaultLen) : undefined,
+      medicines: meds.filter(m => m.activity_label === td.activity_label).map(m => ({ medicine_name: m.medicine_name, dosage_instructions: m.dosage_instructions })),
+    });
+  });
+
+  if (p.procedure_key === 'basti' && p.basti_pack_type) _pkRecomputeBastiBlockLengths(p);
+  return p;
 }
 
 window.savePkCarePlan = async function() {
@@ -2331,8 +2545,12 @@ window.savePkCarePlan = async function() {
   const advanceSuggested = Math.round(total * pct / 100);
   const roomTypePreference = setting === 'admission' ? (document.getElementById('pk-room-type').value || 'general') : (setting === 'day_care' ? 'general' : null);
 
-  const { data: plan, error } = await supabase.from('pk_care_plans').insert({
-    tenant_id: tenantId, patient_id: _activePatient.id, visit_id: _activeVisitId, doctor_id: userId,
+  // Session 268 -- editing an existing draft updates that row instead of creating a
+  // new one; scope is deliberately limited to status='finalized' plans (see
+  // _pkLoadExistingDraft()'s comment) so this never touches an already-billed/
+  // already-scheduled plan.
+  const isEditing = !!_pkEditingPlanId;
+  const planFields = {
     status: 'finalized', setting,
     instructions_patient: document.getElementById('pk-instr-patient').value.trim() || null,
     instructions_therapist: document.getElementById('pk-instr-therapist').value.trim() || null,
@@ -2344,18 +2562,30 @@ window.savePkCarePlan = async function() {
     advance_pct_applied: pct,
     advance_amount_suggested: advanceSuggested,
     finalized_at: new Date().toISOString(),
-  }).select('id').single();
+  };
+
+  let plan, error, existingAdmissionAdviceId = null;
+  if (isEditing) {
+    const { data: existing } = await supabase.from('pk_care_plans').select('admission_advice_id').eq('id', _pkEditingPlanId).single();
+    existingAdmissionAdviceId = existing?.admission_advice_id || null;
+    ({ data: plan, error } = await supabase.from('pk_care_plans').update(planFields).eq('id', _pkEditingPlanId).select('id').single());
+  } else {
+    ({ data: plan, error } = await supabase.from('pk_care_plans').insert({
+      tenant_id: tenantId, patient_id: _activePatient.id, visit_id: _activeVisitId, doctor_id: userId,
+      ...planFields,
+    }).select('id').single());
+  }
 
   if (error) {
-    btn.disabled = false; btn.textContent = '🌸 Save Care Plan';
+    btn.disabled = false; btn.textContent = isEditing ? '🌸 Update Care Plan' : '🌸 Save Care Plan';
     alert(safeErrorMessage(error, 'Could not save the Panchakarma care plan.')); return;
   }
 
   for (let pi = 0; pi < _pkProtocols.length; pi++) {
     const p = _pkProtocols[pi];
-    const { data: proto, error: protoErr } = await supabase.from('pk_care_plan_protocols').insert({
-      care_plan_id: plan.id, template_id: p.template_id, protocol_label: p.protocol_label,
-      start_date: p.start_date, status: 'pending', sequence_order: pi + 1,
+    const protoFields = {
+      template_id: p.template_id, protocol_label: p.protocol_label,
+      start_date: p.start_date, sequence_order: pi + 1,
       // Session 255 -- Koshtha + Snehapana dosing, only meaningful when this protocol
       // actually has a Snehapana block (null otherwise, matches the wizard's own gate).
       koshtha: p.koshtha || null,
@@ -2365,8 +2595,23 @@ window.savePkCarePlan = async function() {
       // Anuvasana/Niruha calendar below was generated from; null for every other protocol.
       basti_pack_type: p.basti_pack_type || null,
       basti_schedule_mode: p.basti_pack_type ? (p.basti_schedule_mode || 'standard') : null,
-    }).select('id').single();
-    if (protoErr) { console.warn('[doctor] pk_care_plan_protocols insert:', protoErr.message); continue; }
+    };
+
+    let proto, protoErr;
+    if (p.db_id) {
+      // Already-saved protocol being re-edited -- update its own row, then replace its
+      // days/medicines wholesale (delete+reinsert is simplest and safe here since a
+      // status='finalized' plan has no pk_therapy_sessions/bill referencing them yet).
+      ({ data: proto, error: protoErr } = await supabase.from('pk_care_plan_protocols').update(protoFields).eq('id', p.db_id).select('id').single());
+      if (!protoErr) {
+        await supabase.from('pk_care_plan_days').delete().eq('protocol_instance_id', p.db_id);
+        await supabase.from('pk_care_plan_medicines').delete().eq('protocol_instance_id', p.db_id);
+      }
+    } else {
+      ({ data: proto, error: protoErr } = await supabase.from('pk_care_plan_protocols').insert({ care_plan_id: plan.id, status: 'pending', ...protoFields }).select('id').single());
+      if (!protoErr) p.db_id = proto.id;
+    }
+    if (protoErr) { console.warn('[doctor] pk_care_plan_protocols save:', protoErr.message); continue; }
 
     const dayRows = _pkExpandDays(p).map(r => ({
       protocol_instance_id: proto.id, day_number: r.day_number, phase: r.phase,
@@ -2399,7 +2644,7 @@ window.savePkCarePlan = async function() {
     }
   }
 
-  await logAudit('pk_care_plan_created', 'pk_care_plans', plan.id, {
+  await logAudit(isEditing ? 'pk_care_plan_updated' : 'pk_care_plan_created', 'pk_care_plans', plan.id, {
     patient_name: _activePatient?.name, protocols: _pkProtocols.map(p => p.protocol_label), estimated_total: total,
   }, _ctx);
 
@@ -2412,27 +2657,40 @@ window.savePkCarePlan = async function() {
   if (setting === 'admission') {
     const pkDept = _admDepts.find(d => d.name === 'Panchakarma') || null;
     const protocolNames = _pkProtocols.map(p => p.protocol_label).join(', ');
-    const { data: advice, error: adviceErr } = await supabase.from('admission_advice').insert({
-      tenant_id: tenantId, patient_id: _activePatient.id, visit_id: _activeVisitId, doctor_id: userId,
+    const adviceFields = {
       department_id: pkDept?.id || null,
-      // Session 210: lets create_ipd_admission() find its way back to this plan and
-      // activate it (+ generate real sessions) the moment the admission actually happens.
-      pk_care_plan_id: plan.id,
       clinical_indication: `Panchakarma Care Plan: ${protocolNames}`,
       expected_duration_days: roomEst?.days || _pkPlanSpanDays().days || null,
       room_type_preference: roomTypePreference,
       nursing_care_notes: document.getElementById('pk-instr-nurse').value.trim() || null,
-      payer_type: 'self_pay',
       estimated_room_cost: roomCost,
       estimated_treatment_cost: est.total,
       estimated_total: total,
       advance_pct_applied: pct,
       advance_amount_suggested: advanceSuggested,
-      created_by: userId,
-    }).select('id').single();
+    };
+
+    // Session 268 -- editing a plan that already has an admission_advice row (from its
+    // first save) updates that same row instead of creating a second, duplicate
+    // Reception queue entry.
+    let advice, adviceErr;
+    if (existingAdmissionAdviceId) {
+      ({ data: advice, error: adviceErr } = await supabase.from('admission_advice').update(adviceFields).eq('id', existingAdmissionAdviceId).select('id').single());
+      if (!adviceErr) await supabase.from('admission_advice_items').delete().eq('admission_advice_id', existingAdmissionAdviceId);
+    } else {
+      ({ data: advice, error: adviceErr } = await supabase.from('admission_advice').insert({
+        tenant_id: tenantId, patient_id: _activePatient.id, visit_id: _activeVisitId, doctor_id: userId,
+        // Session 210: lets create_ipd_admission() find its way back to this plan and
+        // activate it (+ generate real sessions) the moment the admission actually happens.
+        pk_care_plan_id: plan.id,
+        payer_type: 'self_pay',
+        created_by: userId,
+        ...adviceFields,
+      }).select('id').single());
+    }
 
     if (adviceErr) {
-      console.warn('[doctor] admission_advice insert (from PK plan):', adviceErr.message);
+      console.warn('[doctor] admission_advice save (from PK plan):', adviceErr.message);
       handoffMsg = `could not be sent to Reception automatically (${safeErrorMessage(adviceErr, 'error')}) — please use the Admission Advice tab instead`;
     } else {
       const items = est.lines.filter(l => l.priced).map(l => ({
@@ -2443,16 +2701,20 @@ window.savePkCarePlan = async function() {
         const { error: itemsErr } = await supabase.from('admission_advice_items').insert(items);
         if (itemsErr) console.warn('[doctor] admission_advice_items insert (from PK plan):', itemsErr.message);
       }
-      await supabase.from('pk_care_plans').update({ admission_advice_id: advice.id }).eq('id', plan.id);
-      handoffMsg = `sent to Reception's Admission Requests queue`;
+      if (!existingAdmissionAdviceId) await supabase.from('pk_care_plans').update({ admission_advice_id: advice.id }).eq('id', plan.id);
+      handoffMsg = existingAdmissionAdviceId ? `updated in Reception's Admission Requests queue` : `sent to Reception's Admission Requests queue`;
     }
   }
 
   _pkPlanSaved = true;
-  btn.disabled = false; btn.textContent = '🌸 Save Care Plan';
+  // Session 268 -- keep pointing at this same plan id (whether it was just created or
+  // just updated) so a second save later in the same wizard session correctly continues
+  // updating it, instead of silently creating a duplicate care plan.
+  _pkEditingPlanId = plan.id;
+  btn.disabled = false; btn.textContent = '🌸 Update Care Plan';
   const status = document.getElementById('pk-save-status');
   status.style.display = '';
-  status.textContent = `✓ Saved — ${_activePatient?.name}'s Panchakarma care plan (${_pkProtocols.length} protocol${_pkProtocols.length > 1 ? 's' : ''}) is finalized and ${handoffMsg}.`;
+  status.textContent = `✓ ${isEditing ? 'Updated' : 'Saved'} — ${_activePatient?.name}'s Panchakarma care plan (${_pkProtocols.length} protocol${_pkProtocols.length > 1 ? 's' : ''}) is finalized and ${handoffMsg}.`;
 };
 
 // ── Disposition change ────────────────────────────
