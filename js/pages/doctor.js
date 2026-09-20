@@ -1830,6 +1830,17 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
     db_id: null,
   });
   chipEl.classList.add('on');
+
+  // Session 269 -- for a protocol that doesn't need a Basti-style pack-type/schedule
+  // step first, the calendar for picking its start date can appear right away; Basti's
+  // own equivalent trigger is _pkSetBastiScheduleMode() once Standard/Compressed is
+  // chosen (its day-plan is empty/meaningless before that).
+  if (procedureKey !== 'basti') {
+    const newIdx = _pkProtocols.length - 1;
+    const d = new Date(_pkProtocols[newIdx].start_date + 'T00:00:00');
+    _pkDatePickerOpenFor = newIdx;
+    _pkDatePickerMonth[newIdx] = { y: d.getFullYear(), m: d.getMonth() };
+  }
 };
 
 function _pkRecomputeBastiBlockLengths(p) {
@@ -1853,10 +1864,16 @@ window._pkSetBastiPackType = function(pi, packType) {
 };
 
 window._pkSetBastiScheduleMode = function(pi, mode) {
-  const p = _pkProtocols[Number(pi)]; if (!p) return;
+  pi = Number(pi);
+  const p = _pkProtocols[pi]; if (!p) return;
   if (mode === 'compressed' && !_PK_BASTI_COMPRESSED_TOTALS[p.basti_pack_type]) return; // no pack type chosen yet
   p.basti_schedule_mode = mode;
   _pkRecomputeBastiBlockLengths(p);
+  // Session 269 -- Dr. Venkatesh: once Standard/Compressed is chosen, the calendar for
+  // picking the actual start date should appear right away, not need a separate click.
+  const d = new Date((p.start_date || todayLocalStr()) + 'T00:00:00');
+  _pkDatePickerOpenFor = pi;
+  _pkDatePickerMonth[pi] = { y: d.getFullYear(), m: d.getMonth() };
   _renderPkCalendar();
 };
 
@@ -1967,8 +1984,11 @@ function _renderPkCalendar() {
         <div style="display:flex;align-items:center;gap:6px">
           <label style="font-size:11px;color:var(--text-mid)">Start</label>
           <input type="date" value="${_esc(p.start_date)}" data-onchange="_pkSetProtocolStart" data-onchange-a0="${pi}" data-onchange-a1="@this" style="height:32px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12.5px"/>
+          <button type="button" data-onclick="_pkToggleDatePicker" data-onclick-a0="${pi}"
+            style="height:32px;padding:0 10px;border:1.5px solid var(--green-mid);border-radius:6px;background:${_pkDatePickerOpenFor === pi ? 'var(--green-mid)' : '#fff'};color:${_pkDatePickerOpenFor === pi ? '#fff' : 'var(--green-mid)'};font-size:11.5px;font-weight:600;cursor:pointer">📅 ${_pkDatePickerOpenFor === pi ? 'Hide Calendar' : 'Pick from Calendar'}</button>
         </div>
       </div>
+      ${_pkDatePickerOpenFor === pi ? _pkRenderDatePicker(pi) : ''}
       ${!p.is_reviewed ? `<div style="background:#fff8e1;border:1px solid #e6c200;border-radius:6px;padding:6px 10px;font-size:11px;color:#6b4c00;margin-bottom:8px">⚠ Draft SOP — pending clinical review. Day-counts/phases below are a generic starting point, not yet confirmed.</div>` : ''}
       ${p.procedure_key === 'basti' ? `
       <div style="border:1px solid var(--gold);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fffaf0">
@@ -2129,17 +2149,24 @@ window._pkSetProtocolStart = function(pi, inputEl) {
 const _PK_CAL_COLORS = ['var(--green-mid)', 'var(--gold)', 'var(--blue)', 'var(--purple)', 'var(--orange)'];
 const _PK_CAL_DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-window._pkOpenCalendarView = function() {
-  if (!_pkProtocols.length) { alert('Select at least one protocol first.'); return; }
-
-  // date -> [{ protocolLabel, activity, color }]
+// Shared by the Full Calendar view and the inline per-protocol date picker (Session
+// 269) so the two can't disagree about which dates are occupied or which color a
+// protocol gets. date -> [{ protocolLabel, activity, color, pi }]
+function _pkComputeDatesByProtocol() {
   const byDate = {};
   _pkProtocols.forEach((p, pi) => {
     const color = _PK_CAL_COLORS[pi % _PK_CAL_COLORS.length];
     _pkExpandDays(p).forEach(r => {
-      (byDate[r.planned_date] = byDate[r.planned_date] || []).push({ protocolLabel: p.protocol_label, activity: r.activity_label, color });
+      (byDate[r.planned_date] = byDate[r.planned_date] || []).push({ protocolLabel: p.protocol_label, activity: r.activity_label, color, pi });
     });
   });
+  return byDate;
+}
+
+window._pkOpenCalendarView = function() {
+  if (!_pkProtocols.length) { alert('Select at least one protocol first.'); return; }
+
+  const byDate = _pkComputeDatesByProtocol();
   const dates = Object.keys(byDate).sort();
   if (!dates.length) {
     document.getElementById('pk-cal-body').innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">No days planned yet — choose a Start date (and, for Basti, a Pack Type) first.</div>';
@@ -2198,6 +2225,100 @@ window._pkOpenCalendarView = function() {
 window._pkCloseCalendarView = function() {
   document.getElementById('pk-cal-overlay').style.display = 'none';
 };
+
+// ── Inline per-protocol Start-Date picker (Session 269) ─────────────────────────
+// Replaces the plain <input type=date> "Start" control: click a real calendar date
+// to set a protocol's start, and immediately see that protocol's whole computed span
+// shaded, alongside every other protocol's span already planned -- so the doctor can
+// deliberately place two protocols on overlapping days (a real, common pattern
+// confirmed by Dr. Venkatesh, e.g. Basti followed by Abhyanga+Swedana the same day)
+// with full visibility, not blind date math. Overlap is always just flagged, never
+// blocked -- matches the Full Calendar view's philosophy: the system informs, the
+// doctor decides.
+let _pkDatePickerOpenFor = null;   // protocol index whose picker is currently expanded, or null
+let _pkDatePickerMonth   = {};     // pi -> {y, m} the picker is currently showing
+
+window._pkToggleDatePicker = function(pi) {
+  pi = Number(pi);
+  if (_pkDatePickerOpenFor === pi) { _pkDatePickerOpenFor = null; _renderPkCalendar(); return; }
+  _pkDatePickerOpenFor = pi;
+  const p = _pkProtocols[pi];
+  const d = new Date((p?.start_date || todayLocalStr()) + 'T00:00:00');
+  _pkDatePickerMonth[pi] = { y: d.getFullYear(), m: d.getMonth() };
+  _renderPkCalendar();
+};
+
+window._pkDatePickerNav = function(pi, delta) {
+  pi = Number(pi);
+  const cur = _pkDatePickerMonth[pi] || { y: new Date().getFullYear(), m: new Date().getMonth() };
+  const d = new Date(cur.y, cur.m + Number(delta), 1);
+  _pkDatePickerMonth[pi] = { y: d.getFullYear(), m: d.getMonth() };
+  _renderPkCalendar();
+};
+
+window._pkPickStartDate = function(pi, dateStr) {
+  const p = _pkProtocols[Number(pi)]; if (!p) return;
+  p.start_date = dateStr;
+  // Stay open on the picked date's month -- lets the doctor see the shaded span
+  // immediately without an extra click, and keep adjusting if needed.
+  const d = new Date(dateStr + 'T00:00:00');
+  _pkDatePickerMonth[Number(pi)] = { y: d.getFullYear(), m: d.getMonth() };
+  _renderPkCalendar();
+};
+
+function _pkRenderDatePicker(pi) {
+  const p = _pkProtocols[pi];
+  const view = _pkDatePickerMonth[pi] || { y: new Date().getFullYear(), m: new Date().getMonth() };
+  const byDate = _pkComputeDatesByProtocol();
+  const y = view.y, mo = view.m;
+  const daysInMonth = new Date(y, mo + 1, 0).getDate();
+  const firstDow = new Date(y, mo, 1).getDay();
+  const myColor = _PK_CAL_COLORS[pi % _PK_CAL_COLORS.length];
+
+  const cells = [];
+  for (let i = 0; i < firstDow; i++) cells.push('<td></td>');
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${y}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const allEntries = byDate[dateStr] || [];
+    const mine = allEntries.some(e => e.pi === pi);           // does THIS protocol's own span cover this day
+    const others = allEntries.filter(e => e.pi !== pi);       // any OTHER protocol's occupancy
+    const isStart = dateStr === p.start_date;
+    const otherColors = [...new Set(others.map(e => e.color))];
+    const titleParts = [];
+    if (mine) titleParts.push(`${_esc(p.protocol_label)}${isStart ? ' (start)' : ''}`);
+    if (others.length) titleParts.push(others.map(e => e.protocolLabel).join(', ') + ' already planned this day');
+    cells.push(`<td style="padding:2px;border:1px solid var(--border)">
+      <button type="button" data-onclick="_pkPickStartDate" data-onclick-a0="${pi}" data-onclick-a1="${dateStr}"
+        title="${_esc(titleParts.join(' · '))}"
+        style="width:100%;height:34px;border:${isStart ? '2px solid ' + myColor : '1px solid transparent'};border-radius:4px;cursor:pointer;font-size:11px;font-weight:${isStart ? '700' : '400'};background:${isStart ? myColor : (mine ? `color-mix(in srgb, ${myColor} 25%, white)` : '#fff')};color:${isStart ? '#fff' : '#333'};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px">
+        <span>${d}${isStart ? ' ★' : ''}</span>
+        ${otherColors.length ? `<span style="display:flex;gap:1px">${otherColors.map(c => `<span style="width:5px;height:5px;border-radius:50%;background:${c}"></span>`).join('')}</span>` : ''}
+      </button>
+    </td>`);
+  }
+  while (cells.length % 7 !== 0) cells.push('<td></td>');
+  const rows = [];
+  for (let i = 0; i < cells.length; i += 7) rows.push(`<tr>${cells.slice(i, i + 7).join('')}</tr>`);
+
+  const legend = _pkProtocols.map((op, opi) => `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;margin-right:10px">
+      <span style="width:9px;height:9px;border-radius:2px;background:${_PK_CAL_COLORS[opi % _PK_CAL_COLORS.length]};display:inline-block"></span>${_esc(op.protocol_label)}${opi === pi ? ' (this one)' : ''}
+    </span>`).join('');
+
+  return `
+    <div style="border:1px solid var(--green-mid);border-radius:6px;padding:10px 12px;margin-top:8px;background:#fafff7">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <button type="button" data-onclick="_pkDatePickerNav" data-onclick-a0="${pi}" data-onclick-a1="-1" style="width:26px;height:26px;border:1px solid var(--border);border-radius:5px;background:#fff;cursor:pointer">‹</button>
+        <div style="font-weight:700;font-size:12.5px;color:var(--green-deep)">${new Date(y, mo, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</div>
+        <button type="button" data-onclick="_pkDatePickerNav" data-onclick-a0="${pi}" data-onclick-a1="1" style="width:26px;height:26px;border:1px solid var(--border);border-radius:5px;background:#fff;cursor:pointer">›</button>
+      </div>
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+        <thead><tr>${_PK_CAL_DOW.map(dw => `<th style="font-size:10px;color:var(--text-mid);padding:2px;border:1px solid var(--border);background:var(--green-light)">${dw}</th>`).join('')}</tr></thead>
+        <tbody>${rows.join('')}</tbody>
+      </table>
+      <div style="margin-top:6px">${legend}</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:4px">Dots on a day = another protocol already planned there — you can still pick it (e.g. Basti followed by Abhyanga + Swedana the same day is a real, common plan), the dot is just so you can see it.</div>
+    </div>`;
+}
 
 // Session 254 -- one Medicines section PER ACTIVITY (block), not one flat list for the
 // whole protocol: Dr. Venkatesh confirmed the doctor needs to name a different medicine
@@ -2394,6 +2515,10 @@ function _resetPkCarePlan() {
   // re-detects a draft for the newly active patient and shows the banner again if one exists.
   _pkEditingPlanId = null;
   _pkExistingDraftId = null;
+  // Session 269 -- inline date-picker state is per-wizard-session UI state, not
+  // per-protocol data -- reset it too so a stale picker doesn't carry over patients.
+  _pkDatePickerOpenFor = null;
+  _pkDatePickerMonth = {};
   [1, 2, 3, 4].forEach(i => { const stepEl = document.getElementById('pk-step-' + i); if (stepEl) stepEl.hidden = i !== 1; });
   const ind = document.getElementById('pk-step-indicator');
   if (ind) ind.textContent = 'Step 1 of 4 — Select protocol(s)';
