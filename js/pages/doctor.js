@@ -1984,8 +1984,13 @@ function _renderPkCalendar() {
         <div style="display:flex;align-items:center;gap:6px">
           <label style="font-size:11px;color:var(--text-mid)">Start</label>
           <input type="date" value="${_esc(p.start_date)}" data-onchange="_pkSetProtocolStart" data-onchange-a0="${pi}" data-onchange-a1="@this" style="height:32px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12.5px"/>
+          <!-- Session 269 follow-up -- Dr. Venkatesh: the button was there for every
+               protocol including Basti (never actually missing), just easy to miss in
+               its default unopened state (plain white/outline) next to Basti's more
+               colorful Pack Type/Schedule panels. Solid-filled by default now instead
+               of outline-only, so it reads as a real action, not a quiet label. -->
           <button type="button" data-onclick="_pkToggleDatePicker" data-onclick-a0="${pi}"
-            style="height:32px;padding:0 10px;border:1.5px solid var(--green-mid);border-radius:6px;background:${_pkDatePickerOpenFor === pi ? 'var(--green-mid)' : '#fff'};color:${_pkDatePickerOpenFor === pi ? '#fff' : 'var(--green-mid)'};font-size:11.5px;font-weight:600;cursor:pointer">📅 ${_pkDatePickerOpenFor === pi ? 'Hide Calendar' : 'Pick from Calendar'}</button>
+            style="height:32px;padding:0 10px;border:1.5px solid ${_pkDatePickerOpenFor === pi ? 'var(--green-mid)' : 'var(--gold)'};border-radius:6px;background:${_pkDatePickerOpenFor === pi ? 'var(--green-mid)' : 'var(--gold)'};color:#fff;font-size:11.5px;font-weight:700;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.15)">📅 ${_pkDatePickerOpenFor === pi ? 'Hide Calendar' : 'Pick from Calendar'}</button>
         </div>
       </div>
       ${_pkDatePickerOpenFor === pi ? _pkRenderDatePicker(pi) : ''}
