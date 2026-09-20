@@ -1842,6 +1842,14 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
     // pk_care_plan_protocols.id once this protocol has been persisted (either by a
     // normal save, or because it was reconstructed from an existing draft plan).
     db_id: null,
+    // Session 277 -- mandatory doctor-entered duration/man-power/room-requirement for
+    // any protocol with no sop_content_templates hint (see _pkNeedsManualScheduleInput()).
+    // Starts blank so the wizard genuinely requires an explicit entry, not a silent
+    // guess; doctor_requires_room defaults true (the common case) but is still an
+    // explicit stored value, never left unset.
+    doctor_duration_minutes: null,
+    doctor_man_power: null,
+    doctor_requires_room: true,
   });
   chipEl.classList.add('on');
 
@@ -2036,6 +2044,62 @@ function _pkRenderGenericDayGrid(p) {
       </div>`;
 }
 
+// Session 277 -- true when this protocol has no sop_content_templates duration/man-
+// power hint (the 59 generic Session-276 procedures, or any future one authored
+// without real source content yet) -- the wizard then requires the doctor to enter
+// both explicitly before Step 3 (Medicines) is reachable, rather than the scheduling
+// engine silently falling back to a generic 30min/1-staff guess.
+function _pkNeedsManualScheduleInput(p) {
+  const hint = _pkContentHints[p.template_id];
+  return !hint || !hint.typical_duration_minutes || !hint.man_power_staff;
+}
+
+function _pkRenderManualScheduleInput(p, pi) {
+  if (!_pkNeedsManualScheduleInput(p)) return '';
+  const missing = !p.doctor_duration_minutes || !p.doctor_man_power;
+  return `
+      <div style="border:1.5px solid ${missing ? 'var(--red)' : 'var(--gold)'};border-radius:6px;padding:10px 12px;margin-bottom:10px;background:${missing ? '#fff5f5' : '#fffaf0'}">
+        <div style="font-weight:600;font-size:12.5px;color:${missing ? 'var(--red)' : 'var(--green-mid)'};margin-bottom:6px">⏱️ No platform SOP data yet for this procedure — specify how it should be scheduled${missing ? ' (required)' : ''}</div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+          <div class="field" style="min-width:140px">
+            <label style="font-size:11px">Session duration (minutes) *</label>
+            <input type="number" min="1" step="1" value="${p.doctor_duration_minutes || ''}" placeholder="e.g. 45"
+              data-onchange="_pkSetManualScheduleField" data-onchange-a0="${pi}" data-onchange-a1="doctor_duration_minutes" data-onchange-a2="@this"
+              style="height:34px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12.5px;width:100px"/>
+          </div>
+          <div class="field" style="min-width:140px">
+            <label style="font-size:11px">Man power (staff) *</label>
+            <input type="number" min="1" step="1" value="${p.doctor_man_power || ''}" placeholder="e.g. 2"
+              data-onchange="_pkSetManualScheduleField" data-onchange-a0="${pi}" data-onchange-a1="doctor_man_power" data-onchange-a2="@this"
+              style="height:34px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12.5px;width:90px"/>
+          </div>
+          <div class="field" style="min-width:160px">
+            <label style="font-size:11px">Needs a dedicated treatment room?</label>
+            <div style="display:flex;gap:6px">
+              <button type="button" data-onclick="_pkSetManualRoomRequired" data-onclick-a0="${pi}" data-onclick-a1="true"
+                style="font-size:11.5px;padding:7px 12px;border-radius:6px;border:1.5px solid var(--green-mid);cursor:pointer;font-weight:600;background:${p.doctor_requires_room ? 'var(--green-deep)' : '#fff'};color:${p.doctor_requires_room ? '#fff' : 'var(--green-deep)'}">Yes</button>
+              <button type="button" data-onclick="_pkSetManualRoomRequired" data-onclick-a0="${pi}" data-onclick-a1="false"
+                style="font-size:11.5px;padding:7px 12px;border-radius:6px;border:1.5px solid var(--green-mid);cursor:pointer;font-weight:600;background:${!p.doctor_requires_room ? 'var(--green-deep)' : '#fff'};color:${!p.doctor_requires_room ? '#fff' : 'var(--green-deep)'}">No — bedside/no room</button>
+            </div>
+          </div>
+        </div>
+        ${missing ? `<div style="font-size:10.5px;color:var(--red);margin-top:6px">Both fields are required — you can’t proceed to Medicines & Instructions until they’re filled in. Gender-matched therapist and room assignment happen automatically once scheduled — no separate entry needed for that.</div>` : ''}
+      </div>`;
+}
+
+window._pkSetManualScheduleField = function(pi, field, inputEl) {
+  const p = _pkProtocols[Number(pi)]; if (!p) return;
+  const v = Number(inputEl.value);
+  p[field] = v > 0 ? v : null;
+  _renderPkCalendar();
+};
+
+window._pkSetManualRoomRequired = function(pi, val) {
+  const p = _pkProtocols[Number(pi)]; if (!p) return;
+  p.doctor_requires_room = val === 'true';
+  _renderPkCalendar();
+};
+
 function _renderPkCalendar() {
   const el = document.getElementById('pk-calendar-body');
   if (!el) return;
@@ -2057,6 +2121,7 @@ function _renderPkCalendar() {
       </div>
       ${_pkDatePickerOpenFor === pi ? _pkRenderDatePicker(pi) : ''}
       ${!p.is_reviewed ? `<div style="background:#fff8e1;border:1px solid #e6c200;border-radius:6px;padding:6px 10px;font-size:11px;color:#6b4c00;margin-bottom:8px">⚠ Draft SOP — pending clinical review. Day-counts/phases below are a generic starting point, not yet confirmed.</div>` : ''}
+      ${_pkRenderManualScheduleInput(p, pi)}
       ${p.procedure_key === 'basti' ? `
       <div style="border:1.5px solid var(--blue);border-radius:6px;padding:9px 12px;margin-bottom:10px;background:#f5f8ff;font-size:11.5px;color:var(--text-dark)">
         <strong>📌 Standing instruction:</strong> Local Abhyanga + Swedana (~10 minutes) is performed immediately before <em>every</em> Anuvasana and every Niruha administration — not a separate scheduled day. Applies throughout the whole course, every administration day, without needing its own calendar entry.
@@ -2654,6 +2719,20 @@ window._pkRecomputeStep4 = async function() {
 window._pkGoToStep = function(n) {
   n = Number(n);
   if (n >= 2 && !_pkProtocols.length) { alert('Select at least one Panchakarma protocol first.'); return; }
+  // Session 277 -- can't reach Medicines & Instructions while any protocol with no
+  // platform SOP data is missing its mandatory doctor-entered duration/man-power.
+  if (n >= 3) {
+    const incomplete = _pkProtocols.find(p => _pkNeedsManualScheduleInput(p) && (!p.doctor_duration_minutes || !p.doctor_man_power));
+    if (incomplete) {
+      alert(`"${incomplete.protocol_label}" has no platform SOP data yet — enter its session duration and man power in Step 2 before continuing.`);
+      _pkStep = 2;
+      [1, 2, 3, 4].forEach(i => { const stepEl = document.getElementById('pk-step-' + i); if (stepEl) stepEl.hidden = i !== 2; });
+      const ind0 = document.getElementById('pk-step-indicator');
+      if (ind0) ind0.textContent = 'Step 2 of 4 — Calendar';
+      _renderPkCalendar();
+      return;
+    }
+  }
   _pkStep = n;
   [1, 2, 3, 4].forEach(i => { const stepEl = document.getElementById('pk-step-' + i); if (stepEl) stepEl.hidden = i !== n; });
   const labels = { 1: 'Select protocol(s)', 2: 'Calendar', 3: 'Medicines & Instructions', 4: 'Setting & Save' };
@@ -2775,6 +2854,11 @@ function _pkReconstructProtocol(pr, allDays, allMeds) {
     snehapana_increment_ml: pr.snehapana_increment_ml || 30,
     basti_pack_type: pr.basti_pack_type,
     basti_schedule_mode: pr.basti_schedule_mode || 'standard',
+    // Session 277 -- carried uniformly on every day row for this protocol; any one of
+    // them reflects what the doctor entered (or true default) at save time.
+    doctor_duration_minutes: days[0]?.doctor_duration_minutes ?? null,
+    doctor_man_power: days[0]?.doctor_man_power ?? null,
+    doctor_requires_room: days[0]?.doctor_requires_room ?? true,
   };
 
   tplDays.forEach(td => {
@@ -2829,6 +2913,10 @@ window.savePkCarePlan = async function() {
   // its entire administration phase missing (0 days) -- block the save instead.
   const missingBastiPack = _pkProtocols.find(p => p.procedure_key === 'basti' && !p.basti_pack_type);
   if (missingBastiPack) { alert('Choose a Basti Pack Type (Karma/Kala/Yoga) in Step 2 before saving.'); return; }
+  // Session 277 -- same defensive re-check as the Basti pack-type guard above, in case
+  // this is ever reached without going through _pkGoToStep()'s own gate.
+  const missingSchedule = _pkProtocols.find(p => _pkNeedsManualScheduleInput(p) && (!p.doctor_duration_minutes || !p.doctor_man_power));
+  if (missingSchedule) { alert(`"${missingSchedule.protocol_label}" is missing its session duration/man power — enter them in Step 2 before saving.`); return; }
   const settingEl = document.querySelector('input[name="pk-setting"]:checked');
   const setting = settingEl ? settingEl.value : 'day_care';
 
@@ -2921,6 +3009,12 @@ window.savePkCarePlan = async function() {
       // Session 257 -- a block in skip mode already contributes zero rows here (its
       // length is 0), so only 'home' vs. 'hospital' ever needs saving.
       location_mode: r.location_mode,
+      // Session 277 -- doctor's mandatory manual entry for a protocol with no
+      // sop_content_templates hint (null for a hinted protocol -- the reference-table
+      // lookup covers it, this column simply stays unused for those rows).
+      doctor_duration_minutes: p.doctor_duration_minutes || null,
+      doctor_man_power: p.doctor_man_power || null,
+      doctor_requires_room: p.doctor_requires_room ?? null,
     }));
     const { error: daysErr } = await supabase.from('pk_care_plan_days').insert(dayRows);
     if (daysErr) console.warn('[doctor] pk_care_plan_days insert:', daysErr.message);
