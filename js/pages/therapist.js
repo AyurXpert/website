@@ -2007,6 +2007,12 @@ function renderTable(rows) {
                when a note already exists, matching the Instructions column's own pattern. -->
           <button class="icon-btn" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@false" data-onclick-a2="@true" title="${s.therapist_notes ? _esc('View/Edit Notes: ' + s.therapist_notes.slice(0,80)) : 'Add Notes'}" style="${s.therapist_notes ? 'color:var(--green-mid)' : ''}">&#128203;</button>
           <button class="icon-btn" data-onclick="openRxDrawer" data-onclick-a0="${s.id}" title="Prescribe Therapy Materials" style="color:#1a4a2e">💊</button>
+          <!-- Session 264 -- Vamana administration is real-time-witnessed (4-8 bouts inside
+               one short session), unlike Virechana's whole-day bulk entry on nursing.html.
+               Shown for any non-skipped Vamana session regardless of status, same reasoning
+               as the Notes button above -- the assessment genuinely needs to be logged AS
+               bouts happen, not just at Complete time. -->
+          ${s.therapy_name === 'Vamana administration' && s.status !== 'skipped' ? `<button class="icon-btn" data-onclick="openVamanaVegaModal" data-onclick-a0="${s.id}" title="Vamana Vega Assessment" style="color:var(--red)">🌀</button>` : ''}
         </div>
       </td>
     </tr>`;
@@ -2975,6 +2981,235 @@ window.saveCompletion = async function() {
     ? (rescheduleDate ? `Session skipped and rescheduled to ${rescheduleDate}.` : 'Session skipped.')
     : 'Session completed.');
   await loadAll();
+};
+
+// ── Vamana Vega Assessment (Session 264) ────────────────────────────────────────
+// Real-time entry, unlike Virechana's bulk/paper-form workflow on nursing.html --
+// Vamana's 4-8 bouts all happen inside one short witnessed PK-room session.
+const PK_VAMANA_SAMYAK_YOGA_SIGNS = [
+  ['hril_laghava', 'Hril Laghava (lightness in chest)'], ['kantha_shuddhi', 'Kantha Shuddhi (clear throat)'],
+  ['indriya_prasada', 'Indriya Prasada (clarity of senses)'], ['laghuta', 'Laghuta (lightness of body)'],
+  ['vata_anulomana', 'Vata Anulomana (normal flatus/bowel movement)'], ['ruchi', 'Ruchi (appetite returns)'],
+];
+const PK_VAMANA_AYOGA_SIGNS = [
+  ['gaurava_persists', 'Gaurava (heaviness persists)'], ['hrid_kantha_upalepa', 'Hrid-Kantha Upalepa (coating/heaviness in chest-throat)'],
+  ['angamarda', 'Angamarda (body ache continues)'], ['klama', 'Klama (fatigue without relief)'],
+  ['few_bouts_no_kapha', 'Very few bouts, no real Kapha seen'],
+];
+const PK_VAMANA_ATIYOGA_SIGNS = [
+  ['raktasrava', 'Raktasrava (blood in vomit)'], ['bhrama', 'Bhrama (dizziness/vertigo)'],
+  ['murchha', 'Murchha (fainting)'], ['trishna_atiyoga', 'Trishna Atiyoga (excessive thirst)'],
+  ['hridaya_peeda', 'Hridaya Peeda (chest pain)'], ['continuous_vomiting', 'Continuous/uncontrolled vomiting beyond safe bouts'],
+];
+const PK_VAMANA_ANTYAKI_LABEL = { ingested_contents: 'Ingested Contents', kapha: 'Kapha (Mucus)', pitta: 'Pitta (Bile) — STOP' };
+const PK_VAMANA_SHUDDHI_LABEL = {
+  pravara: 'Pravara (Superior)', madhyama: 'Madhyama (Moderate)', avara: 'Avara (Mild)',
+  ayoga: 'Ayoga (Inadequate)', atiyoga: 'Atiyoga (Excessive/Danger — ALERT)',
+};
+const PK_VAMANA_SHUDDHI_COLOR = { pravara: 'var(--green-deep)', madhyama: 'var(--blue)', avara: 'var(--orange)', ayoga: 'var(--gold)', atiyoga: 'var(--red)' };
+
+function _nowHHMM() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+function _istISO(dateStr, timeStr) {
+  return timeStr ? `${dateStr}T${timeStr}:00+05:30` : null;
+}
+function _toIST(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+function _checkedValues(containerId) {
+  return Array.from(document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)).map(el => el.value);
+}
+function _isDoctorLike() {
+  return role === 'doctor' || role === 'super_admin' || role === 'dept_admin';
+}
+
+window.openVamanaVegaModal = async function(sessionId) {
+  const s = _sessions.find(x => x.id === sessionId);
+  if (!s) return;
+  document.getElementById('vamana-session-id').value = sessionId;
+  document.getElementById('vamana-detail-card').innerHTML = `
+    <div class="detail-row"><span>Patient</span><strong>${_esc(s.patients?.name || '—')}</strong></div>
+    <div class="detail-row"><span>Scheduled</span><strong>${s.scheduled_time ? s.scheduled_time.slice(0,5) : '—'}</strong></div>
+  `;
+  document.getElementById('vamana-time-administered').value = _nowHHMM();
+  document.getElementById('vamana-add-time').value = _nowHHMM();
+
+  const { data: a, error } = await supabase.from('pk_vamana_assessment')
+    .select('*, pk_vamana_vegas(*)')
+    .eq('care_plan_day_id', await _vamanaDayIdForSession(sessionId))
+    .maybeSingle();
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not load the Vamana assessment record.')); return; }
+  if (!a) { _alert('error', 'No Vamana assessment record found for this session — the Care Plan may not have generated it.'); return; }
+
+  document.getElementById('vamana-assessment-id').value = a.id;
+  _renderVamanaDrawer(a);
+  document.getElementById('vamana-vega-overlay').classList.add('open');
+};
+
+async function _vamanaDayIdForSession(sessionId) {
+  const { data } = await supabase.from('pk_care_plan_days').select('id').eq('session_id', sessionId).maybeSingle();
+  return data?.id || null;
+}
+
+function _renderVamanaDrawer(a) {
+  const started = !!a.time_administered;
+  document.getElementById('vamana-start-section').style.display = started ? 'none' : '';
+  document.getElementById('vamana-live-section').style.display = started ? '' : 'none';
+  if (started) {
+    document.getElementById('vamana-drug').value = a.drug_administered || '';
+  }
+
+  const pittaAlert = document.getElementById('vamana-pitta-alert');
+  pittaAlert.style.display = a.antyaki_status === 'pitta' ? '' : 'none';
+
+  const level = a.calculated_shuddhi_level;
+  const gradeHtml = level
+    ? `<span style="font-weight:700;color:${PK_VAMANA_SHUDDHI_COLOR[level]}">${_esc(PK_VAMANA_SHUDDHI_LABEL[level])}</span>`
+    : `<span style="color:var(--text-muted)">grading pending</span>`;
+  document.getElementById('vamana-summary-body').innerHTML = `
+    ${_esc(a.drug_administered || 'Vamana')} @ ${_esc(_toIST(a.time_administered))}<br>
+    Vegas: <strong>${a.total_vegas}</strong> (${_esc(String(a.total_volume_ml))}ml)
+    ${a.latency_minutes != null ? ` · Latency: ${a.latency_minutes} min` : ''}<br>
+    Antyaki: <strong>${_esc(PK_VAMANA_ANTYAKI_LABEL[a.antyaki_status] || '—')}</strong><br>
+    Grade: ${gradeHtml}
+    ${a.confirmed_shuddhi_level ? `<br><span style="color:${PK_VAMANA_SHUDDHI_COLOR[a.confirmed_shuddhi_level]}">✅ Confirmed: ${_esc(PK_VAMANA_SHUDDHI_LABEL[a.confirmed_shuddhi_level])}</span>` : ''}
+  `;
+
+  const vegas = (a.pk_vamana_vegas || []).slice().sort((x, y) => x.vega_number - y.vega_number);
+  document.getElementById('vamana-vega-log').innerHTML = vegas.length
+    ? `<table style="width:100%;font-size:11px;border-collapse:collapse">
+        <thead><tr>
+          <th style="text-align:left;padding:3px 4px">#</th><th style="text-align:left;padding:3px 4px">Time</th>
+          <th style="text-align:left;padding:3px 4px">Qty</th><th style="text-align:left;padding:3px 4px">Antyaki</th>
+          <th style="text-align:left;padding:3px 4px"></th>
+        </tr></thead>
+        <tbody>${vegas.map(v => `<tr>
+          <td style="padding:3px 4px">${v.vega_number}${v.is_upavega ? ' <span title="Upavega">†</span>' : ''}</td>
+          <td style="padding:3px 4px">${_esc(_toIST(v.occurred_at))}</td>
+          <td style="padding:3px 4px">${v.quantity_ml != null ? _esc(String(v.quantity_ml)) + 'ml' : '—'}</td>
+          <td style="padding:3px 4px${v.antyaki_substance === 'pitta' ? ';color:var(--red);font-weight:700' : ''}">${_esc(PK_VAMANA_ANTYAKI_LABEL[v.antyaki_substance] || v.antyaki_substance)}</td>
+          <td style="padding:3px 4px;color:var(--text-muted)">${v.counts_toward_grading ? '' : 'excl.'}</td>
+        </tr>`).join('')}</tbody>
+      </table>`
+    : `<div style="font-size:11px;color:var(--text-muted)">No Vegas recorded yet.</div>`;
+
+  const fill = (containerId, vocab, selected) => {
+    document.getElementById(containerId).innerHTML = vocab.map(([val, label]) => `
+      <label style="display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:5px;cursor:pointer">
+        <input type="checkbox" value="${val}" ${selected?.includes(val) ? 'checked' : ''}
+          style="width:16px;height:16px;min-width:16px;flex-shrink:0;accent-color:var(--green-mid);border-radius:3px;padding:0;background:none"/>
+        <span>${_esc(label)}</span>
+      </label>`).join('');
+  };
+  fill('vamana-samyak-list', PK_VAMANA_SAMYAK_YOGA_SIGNS, a.samyak_yoga_signs);
+  fill('vamana-ayoga-list', PK_VAMANA_AYOGA_SIGNS, a.ayoga_signs);
+  fill('vamana-atiyoga-list', PK_VAMANA_ATIYOGA_SIGNS, a.atiyoga_signs);
+  document.getElementById('vamana-signs-notes').value = a.notes || '';
+
+  const confirmSection = document.getElementById('vamana-confirm-section');
+  if (_isDoctorLike() && level && !a.confirmed_shuddhi_level) {
+    confirmSection.style.display = '';
+    document.getElementById('vamana-confirm-select').innerHTML =
+      ['pravara', 'madhyama', 'avara', 'ayoga', 'atiyoga'].map(l =>
+        `<option value="${l}" ${l === level ? 'selected' : ''}>${_esc(PK_VAMANA_SHUDDHI_LABEL[l])}</option>`).join('');
+  } else {
+    confirmSection.style.display = 'none';
+  }
+}
+
+window.closeVamanaVegaModal = function() {
+  document.getElementById('vamana-vega-overlay').classList.remove('open');
+};
+
+async function _reloadVamanaDrawer() {
+  const assessmentId = document.getElementById('vamana-assessment-id').value;
+  if (!assessmentId) return;
+  const { data: a, error } = await supabase.from('pk_vamana_assessment').select('*, pk_vamana_vegas(*)').eq('id', assessmentId).maybeSingle();
+  if (error || !a) return;
+  _renderVamanaDrawer(a);
+  await loadAll();
+}
+
+window.startVamanaFromDrawer = async function() {
+  const sessionId = document.getElementById('vamana-session-id').value;
+  const assessmentId = document.getElementById('vamana-assessment-id').value;
+  const drug = document.getElementById('vamana-drug').value.trim();
+  const time = document.getElementById('vamana-time-administered').value;
+  if (!drug) { _alert('error', 'Enter the drug administered.'); return; }
+  const s = _sessions.find(x => x.id === sessionId);
+  const dateStr = s?.scheduled_date || todayLocalStr();
+  const { error } = await supabase.rpc('start_vamana_assessment', {
+    p_assessment_id: assessmentId, p_drug: drug, p_time_administered: time ? _istISO(dateStr, time) : null,
+  });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not start the Vamana assessment.')); return; }
+  await _reloadVamanaDrawer();
+};
+
+window.addVamanaVega = async function() {
+  const assessmentId = document.getElementById('vamana-assessment-id').value;
+  const sessionId = document.getElementById('vamana-session-id').value;
+  const s = _sessions.find(x => x.id === sessionId);
+  const dateStr = s?.scheduled_date || todayLocalStr();
+  const time = document.getElementById('vamana-add-time').value;
+  if (!time) { _alert('error', 'Enter the time this Vega happened.'); return; }
+  const qty = document.getElementById('vamana-add-qty').value;
+  const antyaki = document.getElementById('vamana-add-antyaki').value;
+  const isUpavega = document.getElementById('vamana-add-upavega').checked;
+  const countsToward = document.getElementById('vamana-add-counts').checked;
+
+  const { error } = await supabase.rpc('record_vamana_vega', {
+    p_assessment_id: assessmentId,
+    p_occurred_at: _istISO(dateStr, time),
+    p_quantity_ml: qty ? Number(qty) : null,
+    p_antyaki_substance: antyaki,
+    p_is_upavega: isUpavega,
+    p_counts_toward_grading: countsToward,
+  });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not record the Vega.')); return; }
+
+  document.getElementById('vamana-add-time').value = _nowHHMM();
+  document.getElementById('vamana-add-qty').value = '';
+  document.getElementById('vamana-add-antyaki').value = 'ingested_contents';
+  document.getElementById('vamana-add-upavega').checked = false;
+  document.getElementById('vamana-add-counts').checked = true;
+
+  await _reloadVamanaDrawer();
+  if (antyaki === 'pitta') {
+    _alert('error', '🛑 PITTA recorded — mandatory stop point reached. Do not administer further drug/fluid.');
+  }
+};
+
+window.saveVamanaSigns = async function() {
+  const assessmentId = document.getElementById('vamana-assessment-id').value;
+  if (!assessmentId) return;
+  const { error } = await supabase.rpc('record_vamana_signs', {
+    p_assessment_id: assessmentId,
+    p_samyak_yoga: _checkedValues('vamana-samyak-list'),
+    p_ayoga: _checkedValues('vamana-ayoga-list'),
+    p_atiyoga: _checkedValues('vamana-atiyoga-list'),
+    p_notes: document.getElementById('vamana-signs-notes').value.trim() || null,
+  });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not save Vamana signs.')); return; }
+  _alert('success', 'Signs saved.');
+  await _reloadVamanaDrawer();
+};
+
+window.confirmVamanaShuddhiFromDrawer = async function() {
+  const assessmentId = document.getElementById('vamana-assessment-id').value;
+  const level = document.getElementById('vamana-confirm-select').value;
+  if (!confirm(
+    `Confirm Shuddhi level as "${PK_VAMANA_SHUDDHI_LABEL[level]}"?\n\n` +
+    (['pravara', 'madhyama', 'avara'].includes(level)
+      ? 'The Samsarjana Krama diet block will be generated automatically (same as Virechana).'
+      : 'This is a safety/inadequate-emesis state -- the diet plan will NOT be auto-generated; please manage clinically.')
+  )) return;
+  const { error } = await supabase.rpc('confirm_vamana_shuddhi', { p_assessment_id: assessmentId, p_level: level });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not confirm the Shuddhi level.')); return; }
+  _alert('success', 'Shuddhi grade confirmed.');
+  await _reloadVamanaDrawer();
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

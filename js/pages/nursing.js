@@ -1665,13 +1665,14 @@ function _renderVireAssessmentCell(vire, isDoctorLike) {
   const vegaLog = vegas.length
     ? `<details style="margin-top:3px"><summary style="font-size:10px;cursor:pointer;color:var(--text-muted)">View Vega log (${vegas.length})</summary>
         <table style="width:100%;font-size:10px;margin-top:3px;border-collapse:collapse">
-          <thead><tr><th style="text-align:left;padding:2px 4px">#</th><th style="text-align:left;padding:2px 4px">Time</th><th style="text-align:left;padding:2px 4px">Qty</th><th style="text-align:left;padding:2px 4px">Bristol</th><th style="text-align:left;padding:2px 4px">Antyaki</th></tr></thead>
+          <thead><tr><th style="text-align:left;padding:2px 4px">#</th><th style="text-align:left;padding:2px 4px">Time</th><th style="text-align:left;padding:2px 4px">Qty</th><th style="text-align:left;padding:2px 4px">Bristol</th><th style="text-align:left;padding:2px 4px">Antyaki</th><th style="text-align:left;padding:2px 4px"></th></tr></thead>
           <tbody>${vegas.slice().sort((a, b) => a.vega_number - b.vega_number).map(v => `<tr>
             <td style="padding:2px 4px">${v.vega_number}</td>
             <td style="padding:2px 4px">${_esc(_toIST(v.occurred_at))}</td>
             <td style="padding:2px 4px">${v.quantity_ml != null ? _esc(v.quantity_ml) + 'ml' : '—'}</td>
             <td style="padding:2px 4px">${v.bristol_type != null ? 'Type ' + v.bristol_type : '—'}</td>
             <td style="padding:2px 4px">${_esc(PK_ANTYAKI_LABEL[v.antyaki_substance] || v.antyaki_substance)}</td>
+            <td style="padding:2px 4px;color:var(--text-muted)">${v.counts_toward_grading === false ? 'excl.' : ''}</td>
           </tr>`).join('')}</tbody>
         </table>
       </details>`
@@ -1728,6 +1729,7 @@ window.openVireVegaModal = function(assessmentId) {
   document.getElementById('vire-vega-bristol').value = '';
   document.getElementById('vire-vega-antyaki').value = 'vit';
   document.getElementById('vire-vega-notes').value = '';
+  document.getElementById('vire-vega-counts').checked = true;
   document.getElementById('vire-vega-modal-overlay').style.display = 'flex';
 };
 window.closeVireVegaModal = function() { document.getElementById('vire-vega-modal-overlay').style.display = 'none'; };
@@ -1747,6 +1749,7 @@ window.saveVireVega = async function() {
     p_bristol_type: bristol ? Number(bristol) : null,
     p_antyaki_substance: document.getElementById('vire-vega-antyaki').value,
     p_notes: document.getElementById('vire-vega-notes').value.trim() || null,
+    p_counts_toward_grading: document.getElementById('vire-vega-counts').checked,
   });
   if (error) { alert(safeErrorMessage(error, 'Could not save the Vega.')); return; }
   closeVireVegaModal();
@@ -1794,6 +1797,7 @@ function _vireBulkRowHTML(n) {
       </select>
     </td>
     <td style="padding:3px 4px"><input type="text" class="v-notes" placeholder="if patient marked Unusual" style="width:150px;height:24px;font-size:11px"/></td>
+    <td style="padding:3px 4px;text-align:center"><input type="checkbox" class="v-counts" checked style="width:15px;height:15px;accent-color:var(--green-mid)" title="Counts toward Shuddhi grading -- uncheck for a bout that's clearly just the ingested drug"/></td>
   </tr>`;
 }
 
@@ -1833,6 +1837,7 @@ window.saveVireBulk = async function() {
       bristol_type: bristol ? Number(bristol) : null,
       antyaki_substance: tr.querySelector('.v-type').value,
       notes: tr.querySelector('.v-notes').value.trim() || null,
+      counts_toward_grading: tr.querySelector('.v-counts').checked,
     });
   });
   if (!vegas.length) { alert('No rows filled -- enter at least a time on one row.'); return; }

@@ -911,6 +911,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <label>Notes</label>
         <textarea id="vire-vega-notes" rows="2" placeholder="Any other observation…"></textarea>
       </div>
+      <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;margin-top:2px">
+        <input type="checkbox" id="vire-vega-counts" checked style="width:16px;height:16px;min-width:16px;flex-shrink:0;accent-color:var(--green-mid);border-radius:3px;padding:0;background:none"/>
+        Counts toward Shuddhi grading
+      </label>
+      <div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">Uncheck for a bout that's clearly just the ingested drug, not real elimination — the classical rule excludes the first 2–3 bouts from the count/volume grading (use clinical judgement, not a fixed number).</div>
     </div>
     <div class="modal-foot">
       <button data-onclick="closeVireVegaModal" class="btn btn-secondary btn-sm">Cancel</button>
@@ -939,6 +944,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <th style="padding:4px 6px;text-align:left;border-bottom:1.5px solid var(--border)">Consistency</th>
             <th style="padding:4px 6px;text-align:left;border-bottom:1.5px solid var(--border)">Type</th>
             <th style="padding:4px 6px;text-align:left;border-bottom:1.5px solid var(--border)">Unusual? / Notes</th>
+            <th style="padding:4px 6px;text-align:center;border-bottom:1.5px solid var(--border)" title="Uncheck for a bout that's clearly just the ingested drug, not real elimination">Counts?</th>
           </tr></thead>
           <tbody id="vire-bulk-tbody"></tbody>
         </table>

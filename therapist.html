@@ -590,6 +590,103 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
   </div>
 </div>
 
+<!-- Session 264 -- Vamana Vega Assessment: real-time entry, unlike Virechana's bulk/paper-
+     form workflow on nursing.html -- Vamana's 4-8 bouts all happen in one short witnessed
+     PK-room session, so this is logged live as each bout happens. -->
+<div class="drawer-overlay" id="vamana-vega-overlay">
+  <div class="drawer" style="width:460px">
+    <div class="drawer-header">
+      <span class="drawer-title">🌀 Vamana Vega Assessment</span>
+      <button class="drawer-close" data-onclick="closeVamanaVegaModal">&#x2715;</button>
+    </div>
+    <div class="drawer-body">
+      <input type="hidden" id="vamana-session-id"/>
+      <input type="hidden" id="vamana-assessment-id"/>
+
+      <div class="detail-card" id="vamana-detail-card"></div>
+
+      <div id="vamana-pitta-alert" style="display:none;background:#fdecea;border:2px solid var(--red);border-radius:8px;padding:10px 12px;margin:10px 0;font-weight:700;color:var(--red);font-size:12.5px">
+        🛑 PITTA SEEN — classical mandatory stop point (Pittaantah Vamanam). Do not administer further drug/fluid. Alert the doctor immediately.
+      </div>
+
+      <div id="vamana-start-section">
+        <div class="field-row">
+          <div class="field">
+            <label>Drug Administered</label>
+            <input type="text" id="vamana-drug" placeholder="e.g. Madanaphala Pippali Yoga"/>
+          </div>
+          <div class="field">
+            <label>Time Administered</label>
+            <input type="time" id="vamana-time-administered"/>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;margin-top:4px" data-onclick="startVamanaFromDrawer">Start Assessment</button>
+      </div>
+
+      <div id="vamana-live-section" style="display:none">
+        <div class="samsarjana-section" id="vamana-summary-card">
+          <div class="samsarjana-title">Running Summary</div>
+          <div id="vamana-summary-body" style="font-size:12.5px"></div>
+        </div>
+
+        <div id="vamana-vega-log" style="margin:10px 0"></div>
+
+        <div class="samsarjana-section">
+          <div class="samsarjana-title">+ Add Vega</div>
+          <div class="field-row">
+            <div class="field">
+              <label>Time</label>
+              <input type="time" id="vamana-add-time"/>
+            </div>
+            <div class="field">
+              <label>Qty (ml)</label>
+              <input type="number" min="0" id="vamana-add-qty" placeholder="e.g. 200"/>
+            </div>
+          </div>
+          <div class="field">
+            <label>Antyaki (what appeared)</label>
+            <select id="vamana-add-antyaki">
+              <option value="ingested_contents">Ingested Contents (just the drug/food)</option>
+              <option value="kapha">Kapha (mucus — desired end-point)</option>
+              <option value="pitta">Pitta (bile — MANDATORY STOP)</option>
+            </select>
+          </div>
+          <label class="check-label"><input type="checkbox" id="vamana-add-upavega"/> Upavega (minor gag/trickle, not a full Vega)</label>
+          <label class="check-label"><input type="checkbox" id="vamana-add-counts" checked/> Counts toward Shuddhi grading</label>
+          <div class="field-note">Uncheck for a bout that's clearly just the ingested drug, not real elimination — the classical rule excludes the first 2–3 bouts from the count/volume grading (use your clinical judgement, not a fixed number).</div>
+          <button class="btn btn-primary" style="width:100%;margin-top:6px" data-onclick="addVamanaVega">+ Add Vega</button>
+        </div>
+
+        <div class="samsarjana-section">
+          <div class="samsarjana-title">Signs</div>
+          <div style="font-size:11.5px;font-weight:700;margin-bottom:4px">Samyak Yoga (proper signs)</div>
+          <div id="vamana-samyak-list"></div>
+          <div style="font-size:11.5px;font-weight:700;margin:8px 0 4px">Ayoga (insufficient)</div>
+          <div id="vamana-ayoga-list"></div>
+          <div style="font-size:11.5px;font-weight:700;margin:8px 0 4px">Atiyoga (danger signs)</div>
+          <div id="vamana-atiyoga-list"></div>
+          <div class="field" style="margin-top:6px">
+            <textarea id="vamana-signs-notes" placeholder="Notes" style="height:60px"></textarea>
+          </div>
+          <button class="btn btn-secondary" style="width:100%;margin-top:6px" data-onclick="saveVamanaSigns">Save Signs</button>
+        </div>
+
+        <div class="samsarjana-section" id="vamana-confirm-section" style="display:none">
+          <div class="samsarjana-title">Doctor: Confirm Shuddhi Grade</div>
+          <div class="field-row">
+            <select id="vamana-confirm-select" style="flex:1"></select>
+            <button class="btn btn-primary" data-onclick="confirmVamanaShuddhiFromDrawer">✅ Confirm</button>
+          </div>
+          <div class="field-note">Confirming Pravara/Madhyama/Avara generates the Samsarjana Krama diet chart automatically (same as Virechana).</div>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" data-onclick="closeVamanaVegaModal">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- Therapy Prescription Drawer -->
 <div class="drawer-overlay" id="rx-overlay">
   <div class="drawer" style="width:440px">
