@@ -1229,6 +1229,14 @@ async function _abdmCareContextDischarge(adm, admId) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function _fmtDate(d) { if(!d)return'—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+// A timestamptz comes back from Supabase as a UTC ISO string -- .slice(11,16) on it
+// shows raw UTC, not the IST wall-clock time a nurse actually entered (real bug found
+// live, Session 259: a Virechana Vega logged at 08:20 IST displayed as its UTC value
+// instead, throwing latency negative). toLocaleTimeString with no explicit timeZone
+// uses the browser's own zone, which is safe here since every AyurXpert user is
+// physically in India -- same pattern already relied on elsewhere in this file (the
+// Ward Procedures log, line ~699).
+function _toIST(iso) { return iso ? new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—'; }
 function _daysSince(d) { if(!d)return'?'; return Math.floor((Date.now()-new Date(d+'T00:00'))/86400000)+1; }
 function _alert(type,msg) { const el=document.getElementById('alert-box');el.className=`alert ${type} show`;el.textContent=msg;setTimeout(()=>el.classList.remove('show'),4000); }
 
@@ -1374,7 +1382,35 @@ const PK_AYOGA_SIGNS = [
   ['skin_dryness', 'Skin dryness'], ['weak_agni', 'Weak digestive fire'],
 ];
 
+// ── Session 258 -- Virechana Vega Assessment (Chaturvidha Shuddhi) ─────────────────
+// Fixed vocabularies confirmed by Dr. Venkatesh from Charaka Samhita/Sushruta Samhita/
+// Ashtanga Hridaya. Separate arrays from Snehapana's above (different classical
+// criteria set, deliberately not reused even where a sign name is superficially close).
+const PK_SAMYAK_YOGA_SIGNS = [
+  ['deha_laghuta', 'Deha Laghuta (lightness of body)'], ['hridaya_shuddhi', 'Hridaya Shuddhi (clarity of chest/heart)'],
+  ['indriya_shuddhi', 'Indriya Shuddhi (clarity of senses)'], ['agni_deepti', 'Agni Deepti (digestive fire awakened)'],
+  ['srotovishodhana', 'Srotovishodhana (channels feel clear)'], ['kshudha_pipasa', 'Increased appetite & thirst'],
+  ['udara_laghuta', 'Lightness of abdomen'], ['vata_anulomana', 'Timely elimination of flatus'],
+];
+const PK_VIRE_AYOGA_SIGNS = [
+  ['kandu', 'Kandu (skin itching)'], ['deha_gaurava', 'Heaviness of body'],
+  ['stabdhata', 'Stiffness'], ['vibandha', 'Retention of stool/flatus/urine'],
+  ['sanga_bhava', 'Feeling impurities still congested'],
+];
+const PK_VIRE_ATIYOGA_SIGNS = [
+  ['rakta_kapha_without_mala', 'Mucus/blood discharge without fecal matter'], ['anga_marda', 'Body ache'],
+  ['kampa', 'Tremors'], ['tamo_darshana', 'Tamo Darshana (blindness/fainting)'],
+  ['hikka', 'Hiccups'], ['atisara_shosha', 'Profound dehydration'],
+];
+const PK_ANTYAKI_LABEL = { vit: 'Vit (Feces)', pitta: 'Pitta (Bile)', kapha: 'Kapha (Mucus)', vata_clear: 'Vata / Clear fluid' };
+const PK_SHUDDHI_LABEL = {
+  pravara: 'Pravara (Superior)', madhyama: 'Madhyama (Moderate)', avara: 'Avara (Mild)',
+  ayoga: 'Ayoga (Inadequate)', atiyoga: 'Atiyoga (Excessive — ALERT)',
+};
+const PK_SHUDDHI_COLOR = { pravara: 'var(--green-deep)', madhyama: 'var(--blue)', avara: 'var(--orange)', ayoga: 'var(--gold)', atiyoga: 'var(--red)' };
+
 let _pkSnehaDoses = []; // flat list of pk_snehapana_doses rows for the currently-loaded plan(s)
+let _pkVireAssessments = []; // flat list of pk_virechana_assessment rows for the currently-loaded plan(s)
 
 async function loadPkCarePlan() {
   const el = document.getElementById('pk-careplan-content');
@@ -1386,7 +1422,7 @@ async function loadPkCarePlan() {
       id, status, created_at,
       pk_care_plan_protocols(
         id, protocol_label, koshtha, snehapana_start_dose_ml, snehapana_increment_ml,
-        pk_care_plan_days(id, phase, activity_label, planned_date, sequence_order, ayush_code, location_mode, pk_therapy_sessions(status), pk_snehapana_doses(*))
+        pk_care_plan_days(id, phase, activity_label, planned_date, sequence_order, ayush_code, location_mode, pk_therapy_sessions(status), pk_snehapana_doses(*), pk_virechana_assessment(*, pk_virechana_vegas(*), clinical_media(file_url, caption)))
       )
     `)
     .eq('tenant_id', tenantId)
@@ -1406,6 +1442,7 @@ async function loadPkCarePlan() {
   // doctor's own call, per Dr. Venkatesh's explicit "confirmed by doctor").
   const canConfirmDose = profile?.role === 'doctor' || ['super_admin', 'dept_admin'].includes(profile?.role) || profile?.secondary_role === 'dept_admin';
   _pkSnehaDoses = [];
+  _pkVireAssessments = [];
 
   el.innerHTML = plans.map(p => {
     const rows = (p.pk_care_plan_protocols || [])
@@ -1425,18 +1462,20 @@ async function loadPkCarePlan() {
           <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Phase</th>
           <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Activity</th>
           <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Status</th>
-          <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Snehapana Dose</th>
+          <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Dosing / Assessment</th>
         </tr></thead>
         <tbody>
           ${rows.map(d => {
             const sessStatus = d.pk_therapy_sessions?.status || 'scheduled';
             const isToday = d.planned_date === today;
-            // pk_snehapana_doses has a UNIQUE constraint on care_plan_day_id, so
-            // PostgREST embeds it as a single object, not an array -- confirmed live
-            // testing therapist.js's identical embed (a plain .[0] index silently
-            // returned undefined every time).
+            // pk_snehapana_doses/pk_virechana_assessment both have a UNIQUE constraint
+            // on care_plan_day_id, so PostgREST embeds each as a single object, not an
+            // array -- confirmed live testing therapist.js's identical embed (a plain
+            // .[0] index silently returned undefined every time).
             const sneha = d.ayush_code === 'PCK54' ? (d.pk_snehapana_doses || null) : null;
             if (sneha) _pkSnehaDoses.push(sneha);
+            const vire = d.ayush_code === 'PCK64' ? (d.pk_virechana_assessment || null) : null;
+            if (vire) _pkVireAssessments.push(vire);
             return `<tr style="border-bottom:1px solid #f0f4f2;${isToday ? 'background:#fff8e1' : ''}">
               <td style="padding:5px 8px">${_esc(d.planned_date || '—')}${isToday ? ' <strong>(Today)</strong>' : ''}</td>
               <td style="padding:5px 8px">${_esc(d.protocol_label)}</td>
@@ -1445,7 +1484,7 @@ async function loadPkCarePlan() {
               <td style="padding:5px 8px">${d.location_mode === 'home'
                 ? `<span style="font-size:11px;font-weight:600;color:var(--gold)">🏠 Advised at home</span>`
                 : `<span style="font-size:11px;font-weight:600;color:${PK_SESSION_STATUS_COLOR[sessStatus] || '#333'}">${PK_SESSION_STATUS_LABEL[sessStatus] || sessStatus}</span>`}</td>
-              <td style="padding:5px 8px">${sneha ? _renderSnehaDoseCell(sneha, canConfirmDose) : '—'}</td>
+              <td style="padding:5px 8px">${sneha ? _renderSnehaDoseCell(sneha, canConfirmDose) : (vire ? _renderVireAssessmentCell(vire, canConfirmDose) : '—')}</td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -1457,7 +1496,7 @@ async function loadPkCarePlan() {
 
 function _renderSnehaDoseCell(sneha, isDoctorLike) {
   const given = sneha.administered_dose_ml
-    ? `Given: <strong>${_esc(sneha.administered_dose_ml)}ml</strong>${sneha.administered_at ? ' @ ' + _esc(sneha.administered_at.slice(11, 16)) : ''}`
+    ? `Given: <strong>${_esc(sneha.administered_dose_ml)}ml</strong>${sneha.administered_at ? ' @ ' + _esc(_toIST(sneha.administered_at)) : ''}`
     : (sneha.planned_dose_ml ? `Planned: <strong>${_esc(sneha.planned_dose_ml)}ml</strong>` : '<span style="color:var(--text-muted)">awaiting prior day</span>');
   const signsCount = ['jeeryamana_signs', 'jeerna_signs', 'samyak_snigdha_signs', 'atiyoga_signs', 'ayoga_signs']
     .reduce((n, k) => n + (sneha[k]?.length || 0), 0);
@@ -1525,7 +1564,7 @@ window.openSnehaSignsModal = function(doseId) {
   fill('sneha-ayoga-list', PK_AYOGA_SIGNS, d.ayoga_signs);
   document.getElementById('sneha-notes').value = d.notes || '';
   document.getElementById('sneha-jeerna-observed').textContent = d.jeerna_observed_at
-    ? `Jeerna first recorded ${_fmtDate(d.jeerna_observed_at.slice(0, 10))} ${d.jeerna_observed_at.slice(11, 16)}` : '';
+    ? `Jeerna first recorded ${_fmtDate(d.jeerna_observed_at.slice(0, 10))} ${_toIST(d.jeerna_observed_at)}` : '';
   document.getElementById('sneha-signs-modal-overlay').style.display = 'flex';
 };
 window.closeSnehaSignsModal = function() { document.getElementById('sneha-signs-modal-overlay').style.display = 'none'; };
@@ -1566,6 +1605,365 @@ window._pkConfirmSnehaDose = async function(doseId, inputEl) {
   await loadPkCarePlan();
 };
 
+// ── Session 258 -- Virechana Vega Assessment cell + modals ─────────────────────────
+// Builds the query string virechana-vega-form.html reads for pre-fill -- patient/bed
+// info always available (comes from the already-loaded _activeAdm), drug/time only
+// once Start has actually been clicked. "doctor" is deliberately left blank: this
+// page doesn't currently load admitting_doctor_id, and guessing the logged-in staff
+// member (who's often the nurse, not the doctor) would print a wrong name -- staff
+// can hand-write it from the case sheet, same as the UHID line on a blank stock print.
+function _vireFormUrl(vire) {
+  const p = _activeAdm?.patients;
+  const params = new URLSearchParams({
+    name: p?.name || '',
+    age: p ? `${p.age || '?'} / ${(p.gender || '').charAt(0).toUpperCase() || '?'}` : '',
+    bed: _activeAdm?.beds?.bed_number || '',
+  });
+  if (vire.drug_administered) params.set('drug', vire.drug_administered);
+  if (vire.time_administered) params.set('time', _toIST(vire.time_administered));
+  return `virechana-vega-form.html?${params.toString()}`;
+}
+
+function _renderVireAssessmentCell(vire, isDoctorLike) {
+  if (!vire.time_administered) {
+    // Not started yet -- inline mini-form, same "input sits directly in the cell"
+    // pattern as Snehapana's doctorEdit, rather than a whole extra modal for one field.
+    // Print is available here too (blank drug/time) since the real workflow is print
+    // FIRST, hand it to the patient, THEN click Start -- not necessarily the other
+    // way round.
+    return `<div style="font-size:11px">
+      <input type="text" id="vire-drug-${vire.id}" placeholder="Drug administered" style="width:110px;height:24px;font-size:11px"/>
+      <button type="button" class="icon-btn" data-onclick="startVireAssessment" data-onclick-a0="${vire.id}"
+        style="font-size:10px;padding:2px 6px;margin-top:3px" title="Record Virechana drug administered now">▶ Start</button><br>
+      <a href="${_vireFormUrl(vire)}" target="_blank" rel="noopener" class="icon-btn"
+        style="font-size:10px;padding:2px 6px;margin-top:3px;display:inline-block;text-decoration:none" title="Print the blank Vega sheet to hand to the patient">🖨 Print Vega Sheet</a>
+    </div>`;
+  }
+
+  const latency = vire.latency_minutes != null ? `${vire.latency_minutes} min latency` : 'awaiting first Vega';
+  const level = vire.calculated_shuddhi_level;
+  const levelBadge = level
+    ? `<span style="font-size:10px;font-weight:700;color:${PK_SHUDDHI_COLOR[level]}">${_esc(PK_SHUDDHI_LABEL[level])}</span>`
+    : `<span style="color:var(--text-muted)">grading pending</span>`;
+  const antyaki = vire.antyaki_status ? ` · Antyaki: ${_esc(PK_ANTYAKI_LABEL[vire.antyaki_status] || vire.antyaki_status)}` : '';
+  const signsCount = ['samyak_yoga_signs', 'ayoga_signs', 'atiyoga_signs'].reduce((n, k) => n + (vire[k]?.length || 0), 0);
+  const atiyogaFlag = vire.atiyoga_signs?.length ? `<span style="color:var(--red);font-weight:700;margin-left:4px" title="Atiyoga (excessive purgation) signs recorded">⚠ Atiyoga</span>` : '';
+
+  const confirmCtrl = (isDoctorLike && level && !vire.confirmed_shuddhi_level)
+    ? `<div style="margin-top:4px">
+        <select id="vire-confirm-select-${vire.id}" style="font-size:10.5px;height:22px">
+          ${['pravara', 'madhyama', 'avara', 'ayoga', 'atiyoga'].map(l => `<option value="${l}" ${l === level ? 'selected' : ''}>${_esc(PK_SHUDDHI_LABEL[l])}</option>`).join('')}
+        </select>
+        <button type="button" class="icon-btn" data-onclick="confirmVireShuddhi" data-onclick-a0="${vire.id}"
+          style="font-size:10px;padding:2px 6px" title="Confirm grade -- sets the Samsarjana Krama diet length">✅ Confirm</button>
+      </div>`
+    : (vire.confirmed_shuddhi_level
+      ? `<div style="margin-top:3px;font-size:10.5px;color:${PK_SHUDDHI_COLOR[vire.confirmed_shuddhi_level]}">✅ Confirmed: ${_esc(PK_SHUDDHI_LABEL[vire.confirmed_shuddhi_level])}</div>`
+      : '');
+
+  const vegas = vire.pk_virechana_vegas || [];
+  const vegaLog = vegas.length
+    ? `<details style="margin-top:3px"><summary style="font-size:10px;cursor:pointer;color:var(--text-muted)">View Vega log (${vegas.length})</summary>
+        <table style="width:100%;font-size:10px;margin-top:3px;border-collapse:collapse">
+          <thead><tr><th style="text-align:left;padding:2px 4px">#</th><th style="text-align:left;padding:2px 4px">Time</th><th style="text-align:left;padding:2px 4px">Qty</th><th style="text-align:left;padding:2px 4px">Bristol</th><th style="text-align:left;padding:2px 4px">Antyaki</th></tr></thead>
+          <tbody>${vegas.slice().sort((a, b) => a.vega_number - b.vega_number).map(v => `<tr>
+            <td style="padding:2px 4px">${v.vega_number}</td>
+            <td style="padding:2px 4px">${_esc(_toIST(v.occurred_at))}</td>
+            <td style="padding:2px 4px">${v.quantity_ml != null ? _esc(v.quantity_ml) + 'ml' : '—'}</td>
+            <td style="padding:2px 4px">${v.bristol_type != null ? 'Type ' + v.bristol_type : '—'}</td>
+            <td style="padding:2px 4px">${_esc(PK_ANTYAKI_LABEL[v.antyaki_substance] || v.antyaki_substance)}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </details>`
+    : '';
+
+  return `<div style="font-size:11px">
+    ${_esc(vire.drug_administered || 'Virechana')} @ ${_esc(_toIST(vire.time_administered))}<br>
+    Vegas: <strong>${vire.total_vegas}</strong> (${_esc(vire.total_volume_ml)}ml) · ${_esc(latency)}<br>
+    ${levelBadge}${antyaki}${atiyogaFlag}
+    ${confirmCtrl}
+    <button type="button" class="icon-btn" data-onclick="openVireVegaModal" data-onclick-a0="${vire.id}"
+      style="font-size:10px;padding:2px 6px;margin-top:3px" title="Log a single Vega right now (rare -- staff present bedside)">+ Vega</button>
+    <button type="button" class="icon-btn" data-onclick="openVireBulkModal" data-onclick-a0="${vire.id}"
+      style="font-size:10px;padding:2px 6px;margin-top:3px" title="Transcribe the patient's printed Vega sheet, handed over at end of day">📋 Bulk Entry</button>
+    <a href="${_vireFormUrl(vire)}" target="_blank" rel="noopener" class="icon-btn"
+      style="font-size:10px;padding:2px 6px;margin-top:3px;display:inline-block;text-decoration:none" title="Print/reprint the Vega sheet (drug + time pre-filled)">🖨 Print</a>
+    <button type="button" class="icon-btn" data-onclick="openVireSignsModal" data-onclick-a0="${vire.id}"
+      style="font-size:10px;padding:2px 6px;margin-top:3px" title="Record Samyak Yoga/Ayoga/Atiyoga signs">
+      📋 Signs${signsCount ? ` (${signsCount})` : ''}
+    </button>
+    <button type="button" class="icon-btn" data-onclick="triggerVireScanUpload" data-onclick-a0="${vire.id}"
+      style="font-size:10px;padding:2px 6px;margin-top:3px" title="Upload a scanned/photographed copy of the patient's filled sheet">📷 ${vire.clinical_media ? 'Replace Scan' : 'Upload Scan'}</button>
+    ${vire.clinical_media ? `<button type="button" class="icon-btn" data-onclick="viewVireScannedForm" data-onclick-a0="${vire.id}"
+      style="font-size:10px;padding:2px 6px;margin-top:3px" title="View the uploaded scan">📎 View Scan</button>` : ''}
+    ${vegaLog}
+  </div>`;
+}
+
+window.startVireAssessment = async function(assessmentId) {
+  const input = document.getElementById(`vire-drug-${assessmentId}`);
+  const drug = input?.value.trim() || null;
+  const { error } = await supabase.rpc('start_virechana_assessment', { p_assessment_id: assessmentId, p_drug: drug });
+  if (error) { alert(safeErrorMessage(error, 'Could not start Virechana assessment.')); return; }
+  await loadPkCarePlan();
+};
+
+// AyurXpert is India-only (every tenant operates in IST) -- an explicit +05:30
+// offset avoids the same class of platform-wide UTC-vs-local bug fixed globally
+// in Session 205/dateUtils.js, since a naive "no offset" timestamp string would be
+// interpreted as UTC server-side, not the nurse's actual wall-clock entry.
+function _istISO(dateStr, timeStr) {
+  return timeStr ? `${dateStr}T${timeStr}:00+05:30` : null;
+}
+function _nowHHMM() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+// ── Add Vega modal (single, rare bedside case) ──────────────────────────────────────
+window.openVireVegaModal = function(assessmentId) {
+  document.getElementById('vire-vega-assessment-id').value = assessmentId;
+  document.getElementById('vire-vega-time').value = _nowHHMM();
+  document.getElementById('vire-vega-qty').value = '';
+  document.getElementById('vire-vega-bristol').value = '';
+  document.getElementById('vire-vega-antyaki').value = 'vit';
+  document.getElementById('vire-vega-notes').value = '';
+  document.getElementById('vire-vega-modal-overlay').style.display = 'flex';
+};
+window.closeVireVegaModal = function() { document.getElementById('vire-vega-modal-overlay').style.display = 'none'; };
+window._closeVireVegaIfBackdrop = function(isTarget) { if (isTarget) closeVireVegaModal(); };
+
+window.saveVireVega = async function() {
+  const assessmentId = document.getElementById('vire-vega-assessment-id').value;
+  if (!assessmentId) return;
+  const time = document.getElementById('vire-vega-time').value;
+  if (!time) { alert('Enter the time.'); return; }
+  const qty = document.getElementById('vire-vega-qty').value;
+  const bristol = document.getElementById('vire-vega-bristol').value;
+  const { error } = await supabase.rpc('record_virechana_vega', {
+    p_assessment_id: assessmentId,
+    p_occurred_at: _istISO(todayLocalStr(), time),
+    p_quantity_ml: qty ? Number(qty) : null,
+    p_bristol_type: bristol ? Number(bristol) : null,
+    p_antyaki_substance: document.getElementById('vire-vega-antyaki').value,
+    p_notes: document.getElementById('vire-vega-notes').value.trim() || null,
+  });
+  if (error) { alert(safeErrorMessage(error, 'Could not save the Vega.')); return; }
+  closeVireVegaModal();
+  await loadPkCarePlan();
+};
+
+// ── Bulk Entry modal (Session 259) — transcribing the patient's printed sheet ───────
+// Amount S/M/L -> ml is a placeholder default pending Dr. Venkatesh's real-world
+// calibration (flagged, not silently permanent) -- editable per row regardless, since
+// the patient may have noted something more precise than a household-cup estimate.
+const PK_AMOUNT_ML = { S: 100, M: 200, L: 300 };
+const PK_BULK_ROW_BATCH = 10;
+
+function _vireBulkRowHTML(n) {
+  return `<tr>
+    <td style="padding:3px 4px;color:var(--text-muted)">${n}</td>
+    <td style="padding:3px 4px"><input type="time" class="v-time" style="width:88px;height:24px;font-size:11px"/></td>
+    <td style="padding:3px 4px">
+      <select class="v-amount" style="height:24px;font-size:11px" data-onchange="_vireBulkAmountChanged" data-onchange-a0="@this">
+        <option value="">—</option>
+        <option value="S">Small</option>
+        <option value="M">Medium</option>
+        <option value="L">Large</option>
+      </select>
+    </td>
+    <td style="padding:3px 4px"><input type="number" min="0" class="v-qty" style="width:60px;height:24px;font-size:11px"/></td>
+    <td style="padding:3px 4px">
+      <select class="v-consistency" style="height:24px;font-size:11px">
+        <option value="">—</option>
+        <option value="1">1 Very Hard</option>
+        <option value="2">2 Hard</option>
+        <option value="3">3 Firm</option>
+        <option value="4">4 Semi-solid</option>
+        <option value="5">5 Soft</option>
+        <option value="6">6 Loose</option>
+        <option value="7">7 Watery</option>
+      </select>
+    </td>
+    <td style="padding:3px 4px">
+      <select class="v-type" style="height:24px;font-size:11px">
+        <option value="vit">Stool</option>
+        <option value="pitta">Bile</option>
+        <option value="kapha">Mucus</option>
+        <option value="vata_clear">Clear</option>
+      </select>
+    </td>
+    <td style="padding:3px 4px"><input type="text" class="v-notes" placeholder="if patient marked Unusual" style="width:150px;height:24px;font-size:11px"/></td>
+  </tr>`;
+}
+
+window._vireBulkAmountChanged = function(selectEl) {
+  const ml = PK_AMOUNT_ML[selectEl.value];
+  if (ml) selectEl.closest('tr').querySelector('.v-qty').value = ml;
+};
+
+window.openVireBulkModal = function(assessmentId) {
+  document.getElementById('vire-bulk-assessment-id').value = assessmentId;
+  const tbody = document.getElementById('vire-bulk-tbody');
+  tbody.innerHTML = Array.from({ length: 12 }, (_, i) => _vireBulkRowHTML(i + 1)).join('');
+  document.getElementById('vire-bulk-modal-overlay').style.display = 'flex';
+};
+window.closeVireBulkModal = function() { document.getElementById('vire-bulk-modal-overlay').style.display = 'none'; };
+window._closeVireBulkIfBackdrop = function(isTarget) { if (isTarget) closeVireBulkModal(); };
+
+window.addVireBulkRows = function() {
+  const tbody = document.getElementById('vire-bulk-tbody');
+  const start = tbody.querySelectorAll('tr').length;
+  tbody.insertAdjacentHTML('beforeend', Array.from({ length: PK_BULK_ROW_BATCH }, (_, i) => _vireBulkRowHTML(start + i + 1)).join(''));
+};
+
+window.saveVireBulk = async function() {
+  const assessmentId = document.getElementById('vire-bulk-assessment-id').value;
+  if (!assessmentId) return;
+  const today = todayLocalStr();
+  const vegas = [];
+  document.querySelectorAll('#vire-bulk-tbody tr').forEach(tr => {
+    const time = tr.querySelector('.v-time').value;
+    if (!time) return; // blank row -- patient didn't fill this one, ignore
+    const qty = tr.querySelector('.v-qty').value;
+    const bristol = tr.querySelector('.v-consistency').value;
+    vegas.push({
+      occurred_at: _istISO(today, time),
+      quantity_ml: qty ? Number(qty) : null,
+      bristol_type: bristol ? Number(bristol) : null,
+      antyaki_substance: tr.querySelector('.v-type').value,
+      notes: tr.querySelector('.v-notes').value.trim() || null,
+    });
+  });
+  if (!vegas.length) { alert('No rows filled -- enter at least a time on one row.'); return; }
+
+  const { data, error } = await supabase.rpc('record_virechana_vegas_bulk', { p_assessment_id: assessmentId, p_vegas: vegas });
+  if (error) { alert(safeErrorMessage(error, 'Could not save the Vega sheet.')); return; }
+  await logAudit('pk_virechana_vegas_bulk_entered', 'pk_virechana_assessment', assessmentId, { count: data }, _ctx);
+  closeVireBulkModal();
+  await loadPkCarePlan();
+};
+
+// ── Scanned form upload (Session 260) ───────────────────────────────────────────────
+// Reuses clinical_media/clinical-media exactly like doctor.js's consultation-media
+// upload (same table, same private bucket, same tenant-scoped RLS) -- tagged
+// media_type='image' so it's also automatically picked up by abdm-fhir's
+// HealthDocumentRecord push, not a separate mechanism. Deliberately not asking for a
+// consent checkbox here the way doctor.js's photo upload does -- this is the
+// patient's own already-consented clinical record of their Virechana course, not a
+// new photo of the patient being taken.
+const VIRE_SCAN_MAX_BYTES = 5 * 1024 * 1024; // "very low-size" per Dr. Venkatesh -- a soft ceiling, not compression
+let _vireScanTargetId = null;
+
+window.triggerVireScanUpload = function(assessmentId) {
+  _vireScanTargetId = assessmentId;
+  document.getElementById('vire-scan-file-input').click();
+};
+
+window.handleVireScanFileSelected = async function(inputEl) {
+  const file = inputEl.files?.[0];
+  const assessmentId = _vireScanTargetId;
+  inputEl.value = ''; // always clear, so selecting the same file twice still fires change
+  if (!file || !assessmentId) return;
+
+  if (file.size > VIRE_SCAN_MAX_BYTES) {
+    alert(`That file is ${(file.size / 1024 / 1024).toFixed(1)}MB -- please keep the scan under 5MB (a single phone photo of the sheet, not a multi-page PDF scan).`);
+    return;
+  }
+
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = `${tenantId}/virechana-vega/${assessmentId}/${Date.now()}.${ext}`;
+
+  const { error: upErr } = await supabase.storage.from('clinical-media').upload(path, file, { cacheControl: '3600', upsert: false });
+  if (upErr) { alert(safeErrorMessage(upErr, 'Upload failed. Please try again.')); return; }
+
+  const { data: media, error: insErr } = await supabase.from('clinical_media').insert({
+    tenant_id: tenantId,
+    patient_id: _activeAdm?.patients?.id,
+    visit_id: null,
+    file_url: path,
+    media_type: 'image',
+    caption: 'Virechana Vega Assessment -- scanned patient sheet',
+    consent_obtained: true,
+    captured_by: userId,
+  }).select('id').single();
+  if (insErr) { alert(safeErrorMessage(insErr, 'Could not save the scan record.')); return; }
+
+  const { error: linkErr } = await supabase.rpc('link_virechana_scanned_form', { p_assessment_id: assessmentId, p_media_id: media.id });
+  if (linkErr) { alert(safeErrorMessage(linkErr, 'Uploaded, but could not attach it to this Vega record.')); return; }
+
+  await logAudit('pk_virechana_scanned_form_uploaded', 'pk_virechana_assessment', assessmentId, { media_id: media.id }, _ctx);
+  await loadPkCarePlan();
+};
+
+window.viewVireScannedForm = async function(assessmentId) {
+  const v = _pkVireAssessments.find(x => x.id === assessmentId);
+  const path = v?.clinical_media?.file_url;
+  if (!path) return;
+  const { data, error } = await supabase.storage.from('clinical-media').createSignedUrl(path, 3600);
+  if (error || !data?.signedUrl) { alert(safeErrorMessage(error, 'Could not open the scan.')); return; }
+  window.open(data.signedUrl, '_blank', 'noopener');
+};
+
+// ── Signs modal (Samyak Yoga / Ayoga / Atiyoga) ─────────────────────────────────────
+window.openVireSignsModal = function(assessmentId) {
+  const v = _pkVireAssessments.find(x => x.id === assessmentId);
+  if (!v) return;
+  document.getElementById('vire-signs-assessment-id').value = assessmentId;
+  const fill = (containerId, vocab, selected) => {
+    document.getElementById(containerId).innerHTML = vocab.map(([val, label]) => `
+      <label style="display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:5px;cursor:pointer">
+        <input type="checkbox" value="${val}" ${selected?.includes(val) ? 'checked' : ''}
+          style="width:16px;height:16px;min-width:16px;flex-shrink:0;accent-color:var(--green-mid);border-radius:3px;padding:0;background:none"/>
+        <span>${_esc(label)}</span>
+      </label>`).join('');
+  };
+  fill('vire-samyak-list', PK_SAMYAK_YOGA_SIGNS, v.samyak_yoga_signs);
+  fill('vire-ayoga-list', PK_VIRE_AYOGA_SIGNS, v.ayoga_signs);
+  fill('vire-atiyoga-list', PK_VIRE_ATIYOGA_SIGNS, v.atiyoga_signs);
+  document.getElementById('vire-signs-notes').value = v.notes || '';
+  document.getElementById('vire-signs-modal-overlay').style.display = 'flex';
+};
+window.closeVireSignsModal = function() { document.getElementById('vire-signs-modal-overlay').style.display = 'none'; };
+window._closeVireSignsIfBackdrop = function(isTarget) { if (isTarget) closeVireSignsModal(); };
+
+window.saveVireSigns = async function() {
+  const assessmentId = document.getElementById('vire-signs-assessment-id').value;
+  if (!assessmentId) return;
+  const { error } = await supabase.rpc('record_virechana_signs', {
+    p_assessment_id: assessmentId,
+    p_samyak_yoga: _checkedValues('vire-samyak-list'),
+    p_ayoga: _checkedValues('vire-ayoga-list'),
+    p_atiyoga: _checkedValues('vire-atiyoga-list'),
+    p_notes: document.getElementById('vire-signs-notes').value.trim() || null,
+  });
+  if (error) { alert(safeErrorMessage(error, 'Could not save Virechana signs.')); return; }
+  closeVireSignsModal();
+  await loadPkCarePlan();
+};
+
+// Doctor-only Shuddhi grade confirmation -- a real, consequential decision (recalendars
+// the Samsarjana Krama diet block to 7/5/3 days), same discipline as Snehapana's
+// stop-early confirm() gate. The control is only rendered for isDoctorLike, but the
+// real gate is server-side via confirm_virechana_shuddhi()'s
+// _pk_virechana_shuddhi_confirm_ok().
+window.confirmVireShuddhi = async function(assessmentId) {
+  const sel = document.getElementById(`vire-confirm-select-${assessmentId}`);
+  if (!sel) return;
+  const level = sel.value;
+  if (!confirm(
+    `Confirm Shuddhi level as "${PK_SHUDDHI_LABEL[level]}"?\n\n` +
+    (['pravara', 'madhyama', 'avara'].includes(level)
+      ? 'The Samsarjana Krama diet block will be resized to match this grade.'
+      : 'This is a safety/inadequate-purgation state -- the diet plan length will NOT be auto-changed; please manage the diet clinically.')
+  )) return;
+
+  const { error } = await supabase.rpc('confirm_virechana_shuddhi', { p_assessment_id: assessmentId, p_level: level });
+  if (error) { alert(safeErrorMessage(error, 'Could not confirm the Shuddhi level.')); return; }
+  await logAudit('pk_virechana_shuddhi_confirmed', 'pk_virechana_assessment', assessmentId, { level }, _ctx);
+  await loadPkCarePlan();
+};
+
 // nursing.js's first-ever realtime channel (confirmed by full-file review, Session 209
 // research) — a plan-generated session's status changes on therapist.html, and this
 // oversight tab should reflect that without a manual refresh. Deliberately page-level
@@ -1573,12 +1971,16 @@ window._pkConfirmSnehaDose = async function(doseId, inputEl) {
 // happens to be looking at the PK tab right now, same "any event -> reload if relevant"
 // convention reception.js's queues already use. Session 255: also watches
 // pk_snehapana_doses, since a therapist's dose-administration on therapist.html should
-// update this page's "Given" figure live too.
+// update this page's "Given" figure live too. Session 258: also watches
+// pk_virechana_assessment for the same reason (Vega logging/signs/confirm all update it).
 supabase.channel('nursing-pk-sessions')
   .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pk_therapy_sessions' }, () => {
     if (_activeTab === 'pk' && _activeAdm) loadPkCarePlan();
   })
   .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pk_snehapana_doses' }, () => {
+    if (_activeTab === 'pk' && _activeAdm) loadPkCarePlan();
+  })
+  .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pk_virechana_assessment' }, () => {
     if (_activeTab === 'pk' && _activeAdm) loadPkCarePlan();
   })
   .subscribe();

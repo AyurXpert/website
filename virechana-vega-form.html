@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Virechana Vega Assessment Form — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://static.cloudflareinsights.com https://cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--cream:#faf8f3;--white:#fff;--red:#c0392b;--red-light:#fdecea;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);padding:24px 16px}
+.page-wrap{max-width:1040px;margin:0 auto}
+
+.print-btn{
+  display:flex;align-items:center;gap:8px;margin-bottom:16px;
+  padding:10px 20px;background:var(--green-deep);color:#fff;border:none;
+  border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;
+  font-weight:500;cursor:pointer;transition:background .2s
+}
+.print-btn:hover{background:#1f5c37}
+
+.sheet{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,.07);margin-bottom:20px}
+
+/* Header */
+.form-header{padding:18px 24px 14px;border-bottom:2px solid var(--green-deep);display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.clinic-row{display:flex;align-items:flex-start;gap:10px}
+.clinic-logo{width:40px;height:40px;object-fit:contain;border-radius:8px;flex-shrink:0;border:1px solid var(--border)}
+.clinic-name{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep)}
+.form-title{font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:600;color:var(--green-deep);text-align:right}
+.form-subtitle{font-size:11px;color:var(--text-muted);margin-top:2px;text-align:right}
+
+/* Patient info grid */
+.pt-strip{padding:12px 24px;background:var(--cream);border-bottom:1px solid var(--border);display:grid;grid-template-columns:repeat(4,1fr);gap:10px 16px}
+.pt-field label{display:block;font-size:9.5px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.pt-field .fill-line{display:inline-block;min-width:100%;border-bottom:1px solid var(--text-muted);font-size:13px;font-weight:500;color:var(--text-dark);padding-bottom:1px;min-height:16px}
+
+/* Instructions */
+.instr-box{padding:14px 24px;border-bottom:1px solid var(--border)}
+.instr-title{font-size:12px;font-weight:700;color:var(--green-deep);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px}
+.instr-box ol{margin-left:18px;font-size:12.5px;color:var(--text-mid);line-height:1.7}
+.safety-note{margin-top:10px;padding:8px 12px;background:var(--red-light);border:1px solid #e6b3ab;border-radius:6px;font-size:12px;color:var(--red);font-weight:600}
+
+/* Legends */
+.legend-row{display:flex;gap:16px;padding:14px 24px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.legend-block{flex:1;min-width:300px}
+.legend-title{font-size:11px;font-weight:700;color:var(--green-deep);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.legend-cards{display:flex;gap:6px;flex-wrap:wrap}
+.legend-card{border:1px solid var(--border);border-radius:6px;padding:5px 7px;font-size:10.5px;min-width:0;flex:1 1 auto}
+.legend-num{display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;border-radius:50%;background:var(--green-light);color:var(--green-deep);font-weight:700;font-size:10px;margin-right:4px}
+.legend-word{font-weight:600;color:var(--text-dark)}
+.legend-desc{color:var(--text-muted);display:block;margin-top:1px}
+
+/* Table */
+.table-wrap{padding:14px 24px 20px}
+.table-wrap-title{font-size:12px;font-weight:700;color:var(--green-deep);margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px}
+table.vega-table{width:100%;border-collapse:collapse;font-size:10.5px}
+table.vega-table th{background:var(--green-light);color:var(--green-deep);font-weight:700;padding:5px 4px;border:1px solid var(--border);text-align:center;font-size:9.5px;text-transform:uppercase;letter-spacing:.3px}
+table.vega-table td{border:1px solid var(--border);padding:5px 4px;text-align:center;height:20px;vertical-align:middle}
+table.vega-table td.num-col{color:var(--text-muted);font-weight:600;width:3%}
+table.vega-table td.time-col{width:9%}
+table.vega-table .opt-row{font-size:9.5px;color:var(--text-mid);white-space:nowrap}
+
+/* Footer / handover */
+.handover-box{padding:14px 24px 20px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;border-top:1px solid var(--border)}
+.handover-box label{display:block;font-size:9.5px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px}
+.handover-box .fill-line{display:block;border-bottom:1px solid var(--text-muted);min-height:18px}
+
+.form-powered{text-align:center;padding:8px;border-top:1px solid var(--border);font-size:10px;color:var(--text-muted);position:relative;z-index:1}
+
+/* Light background watermark -- deliberately faint (opacity .05): this form's whole
+   purpose depends on the patient being able to clearly circle numbers/words by hand,
+   so legibility takes priority over brand visibility here. print-color-adjust makes
+   sure it actually survives to the physical printout (Chrome otherwise sometimes
+   drops low-opacity/background styling by default when printing). */
+.sheet{position:relative}
+.wm-layer{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;pointer-events:none;z-index:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.wm-layer span{font-family:'Cormorant Garamond',serif;font-size:88px;font-weight:600;color:var(--green-deep);opacity:.05;transform:rotate(-28deg);white-space:nowrap;letter-spacing:1px}
+.form-header,.pt-strip,.instr-box,.legend-row,.table-wrap,.handover-box{position:relative;z-index:1}
+
+@media print{
+  body{background:#fff;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .print-btn{display:none}
+  .sheet{box-shadow:none;border:none;border-radius:0}
+  .page-wrap{max-width:100%}
+  .page-break{page-break-before:always}
+  @page{size:A4 landscape;margin:10mm}
+}
+</style>
+</head>
+<body>
+
+<div class="page-wrap">
+  <button class="print-btn" data-onclick="print">🖨 Print Blank Form (for the patient)</button>
+
+  <!-- Page 1: instructions + legends -->
+  <div class="sheet" id="page1">
+    <div class="wm-layer"><span>AyurXpert Technologies</span></div>
+    <div class="form-header">
+      <div class="clinic-row">
+        <img class="clinic-logo" id="clinic-logo" src="assets/icon.svg" alt="" style="display:none"/>
+        <div>
+          <div class="clinic-name" id="clinic-name">AyurXpert Hospital</div>
+        </div>
+      </div>
+      <div>
+        <div class="form-title">Virechana Vega Assessment Chart</div>
+        <div class="form-subtitle">विरेचन वेग परीक्षा · to be filled by the patient after each motion</div>
+      </div>
+    </div>
+
+    <div class="pt-strip">
+      <div class="pt-field"><label>Patient Name</label><span class="fill-line" id="f-name"></span></div>
+      <div class="pt-field"><label>Age / Gender</label><span class="fill-line" id="f-age"></span></div>
+      <div class="pt-field"><label>Bed / Ward</label><span class="fill-line" id="f-bed"></span></div>
+      <div class="pt-field"><label>Date</label><span class="fill-line" id="f-date"></span></div>
+      <div class="pt-field"><label>Drug Administered</label><span class="fill-line" id="f-drug"></span></div>
+      <div class="pt-field"><label>Time of Administration</label><span class="fill-line" id="f-time"></span></div>
+      <div class="pt-field"><label>Admitting Doctor</label><span class="fill-line" id="f-doctor"></span></div>
+      <div class="pt-field"><label>Patient ID</label><span class="fill-line" id="f-uhid"></span></div>
+    </div>
+
+    <div class="instr-box">
+      <div class="instr-title">Instructions for the Patient</div>
+      <ol>
+        <li>You have been given a Virechana (purgation) medicine. You will pass motion several times through the day — this is expected and part of the treatment.</li>
+        <li>Each time you pass motion, please fill <strong>one row</strong> in the table on the next page, before flushing:</li>
+        <li>Note the <strong>time</strong> you passed motion.</li>
+        <li>Circle how <strong>much</strong> — Small, Medium or Large (a small cup, a full cup, or more than a cup).</li>
+        <li>Look at the <strong>Consistency chart</strong> below and circle the number that looks closest.</li>
+        <li>Look at the <strong>Type chart</strong> below and circle what it looked like.</li>
+        <li>When you are done for the day, or if you need any help filling this, hand this sheet to the nurse, PG doctor, or doctor on duty.</li>
+      </ol>
+      <div class="safety-note">⚠ If you feel dizzy, faint, have severe stomach pain, vomiting, or see blood — STOP and call the nurse IMMEDIATELY. Do not wait to finish filling this form.</div>
+    </div>
+
+    <div class="legend-row">
+      <div class="legend-block">
+        <div class="legend-title">Consistency — circle the closest match</div>
+        <div class="legend-cards">
+          <div class="legend-card"><span class="legend-num">1</span><span class="legend-word">Very Hard</span><span class="legend-desc">separate hard lumps</span></div>
+          <div class="legend-card"><span class="legend-num">2</span><span class="legend-word">Hard</span><span class="legend-desc">lumpy, sausage-shaped</span></div>
+          <div class="legend-card"><span class="legend-num">3</span><span class="legend-word">Firm</span><span class="legend-desc">sausage, cracked surface</span></div>
+          <div class="legend-card"><span class="legend-num">4</span><span class="legend-word">Semi-solid</span><span class="legend-desc">smooth & soft, formed</span></div>
+          <div class="legend-card"><span class="legend-num">5</span><span class="legend-word">Soft</span><span class="legend-desc">soft blobs, clear edges</span></div>
+          <div class="legend-card"><span class="legend-num">6</span><span class="legend-word">Loose</span><span class="legend-desc">mushy, ragged edges</span></div>
+          <div class="legend-card"><span class="legend-num">7</span><span class="legend-word">Watery</span><span class="legend-desc">liquid, no solid pieces</span></div>
+        </div>
+      </div>
+      <div class="legend-block">
+        <div class="legend-title">Type — circle what it looked like</div>
+        <div class="legend-cards">
+          <div class="legend-card"><span class="legend-word">Stool</span><span class="legend-desc">normal brownish motion</span></div>
+          <div class="legend-card"><span class="legend-word">Bile</span><span class="legend-desc">yellowish / greenish liquid</span></div>
+          <div class="legend-card"><span class="legend-word">Mucus</span><span class="legend-desc">whitish, slippery, like egg-white</span></div>
+          <div class="legend-card"><span class="legend-word">Clear / Gas</span><span class="legend-desc">clear watery fluid, or just wind</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-powered">Powered by <strong>AyurXpert</strong></div>
+  </div>
+
+  <!-- Page 2: the 30-row table -->
+  <div class="sheet page-break" id="page2">
+    <div class="wm-layer"><span>AyurXpert Technologies</span></div>
+    <div class="table-wrap">
+      <div class="table-wrap-title">Each time you pass motion, fill one row</div>
+      <table class="vega-table" id="vega-table">
+        <thead>
+          <tr>
+            <th style="width:3%">#</th>
+            <th style="width:9%">Time</th>
+            <th style="width:14%">Amount</th>
+            <th style="width:36%">Consistency (circle one)</th>
+            <th style="width:26%">Type (circle one)</th>
+            <th style="width:12%">Anything unusual? (see warning above)</th>
+          </tr>
+        </thead>
+        <tbody id="vega-table-body"></tbody>
+      </table>
+    </div>
+
+    <div class="handover-box">
+      <div><label>Total Vegas passed today</label><span class="fill-line"></span></div>
+      <div><label>Handed over to (name)</label><span class="fill-line"></span></div>
+      <div><label>Role (Nurse / PG / Doctor)</label><span class="fill-line"></span></div>
+      <div><label>Time received</label><span class="fill-line"></span></div>
+    </div>
+
+    <div class="form-powered">Powered by <strong>AyurXpert</strong></div>
+  </div>
+</div>
+
+<script type="module" src="js/pages/virechanaVegaForm.js"></script>
+</body>
+</html>
