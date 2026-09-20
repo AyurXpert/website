@@ -1683,6 +1683,80 @@ function _renderPkChips() {
   otherEl.innerHTML = _pkTemplates.filter(t => t.phase_group === 'other_therapy').map(chipHtml).join('');
 }
 
+// Session 266 -- Basti Pack Type: doctor picks one of 3 classical multi-day package
+// configurations (Charaka's Karma/Kala/Yoga Basti), the day-by-day Anuvasana(Oil)/
+// Niruha(Decoction) rotation auto-populates the calendar. Sequence + oil/decoc counts
+// per Dr. Venkatesh's classical schedule matrix, verified internally consistent
+// (len/oil/decoc all check out) before building against it.
+const _PK_BASTI_PACK_TYPES = {
+  karma: { label: 'Karma Basti (30 days — 18 Oil / 12 Decoction)', days: 30 },
+  kala:  { label: 'Kala Basti (15 days — 9 Oil / 6 Decoction)',   days: 15 },
+  yoga:  { label: 'Yoga Basti (8 days — 5 Oil / 3 Decoction)',    days: 8  },
+};
+const _PK_BASTI_SHORT_NAME = { karma: 'Karma Basti', kala: 'Kala Basti', yoga: 'Yoga Basti' };
+// Session 267 -- Dr. Venkatesh: Anuvasana must always be after a meal (lunch/dinner),
+// never empty stomach; Niruha must always be empty stomach, before breakfast. Baked
+// directly into the saved activity_label (not a separate column) so the rule stays
+// visible everywhere this label is read -- medicines section, any future nursing/
+// therapist assignment screen, printouts -- without extra plumbing.
+const _PK_BASTI_ANUVASANA_LABEL = 'Basti Administration — Anuvasana (Oil, after meal — never empty stomach)';
+const _PK_BASTI_NIRUHA_LABEL    = 'Basti Administration — Niruha (Decoction, empty stomach before breakfast)';
+
+// Session 267 -- Compressed (same-day) schedule: some hospitals give both a Niruha
+// (morning, empty stomach) and an Anuvasana (evening, after the same day's meal) to
+// roughly halve the hospital stay. One up-front choice for the whole course (not a
+// per-day toggle). Day-count derivation confirmed correct: Day 1 is Anuvasana-only
+// (admission day), then double-days consume oil+decoction together until the smaller
+// total runs out, then any remaining oil closes the course as single-Anuvasana days --
+// preserves the exact same classical oil/decoction totals, just compressed (Karma
+// 30->21 total days, Kala 15->9, Yoga 8->5). Originally Karma/Kala only; Dr. Venkatesh
+// confirmed Yoga should be offered too (Session 267 follow-up).
+const _PK_BASTI_COMPRESSED_TOTALS = {
+  karma: { oil: 18, decoc: 12 },
+  kala:  { oil: 9,  decoc: 6  },
+  yoga:  { oil: 5,  decoc: 3  },
+};
+
+function _pkBastiCompressedPlan(packType) {
+  const t = _PK_BASTI_COMPRESSED_TOTALS[packType];
+  if (!t) return [];
+  const days = [{ anuvasana: true, niruha: false }]; // Day 1: admission, Anuvasana only
+  let oilLeft = t.oil - 1, decocLeft = t.decoc;
+  const doubleDays = Math.min(oilLeft, decocLeft);
+  for (let i = 0; i < doubleDays; i++) days.push({ anuvasana: true, niruha: true });
+  oilLeft -= doubleDays;
+  for (let i = 0; i < oilLeft; i++) days.push({ anuvasana: true, niruha: false });
+  return days;
+}
+
+// Unified day-by-day plan for whichever mode is active -- one entry per CALENDAR day
+// (not per administration), each flagging which of Anuvasana/Niruha happen that day.
+// Standard mode: exactly one is ever true per day (the classical rotation). Compressed
+// mode: some days have both true.
+function _pkBastiDayPlan(p) {
+  if (!p.basti_pack_type) return [];
+  if (p.basti_schedule_mode === 'compressed') return _pkBastiCompressedPlan(p.basti_pack_type);
+  return _pkBastiRotation(p.basti_pack_type).map(t => ({ anuvasana: t === 'anuvasana', niruha: t === 'niruha' }));
+}
+
+function _pkBastiRotation(packType) {
+  // 'O' = Anuvasana (Oil), 'D' = Niruha (Decoction). Each pattern is 1 Oil, then an
+  // alternating middle run, then a fixed closing run of Oil days -- per the classical
+  // schedule matrix. Kept as one small table rather than a formula since each pack's
+  // closing-run length differs (5/3/1) and isn't derivable from the others.
+  const table = {
+    karma: { openOil: 1, altDays: 24, closeOil: 5 }, // alt starts D,O,D,O...
+    kala:  { openOil: 1, altDays: 11, closeOil: 3 },
+    yoga:  { openOil: 1, altDays: 6,  closeOil: 1 },
+  };
+  const t = table[packType];
+  if (!t) return [];
+  const seq = ['anuvasana'];
+  for (let i = 0; i < t.altDays; i++) seq.push(i % 2 === 0 ? 'niruha' : 'anuvasana');
+  for (let i = 0; i < t.closeOil; i++) seq.push('anuvasana');
+  return seq;
+}
+
 window._pkToggleProtocol = function(procedureKey, chipEl) {
   const idx = _pkProtocols.findIndex(p => p.procedure_key === procedureKey);
   if (idx >= 0) {
@@ -1709,11 +1783,25 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
     // care blocks (Deepana-Pachana, Samsarjana Krama -- see _PK_TOGGLEABLE_ACTIVITIES)
     // ever render a toggle to change it. Confirmed live by Dr. Venkatesh: never for
     // Abhyanga+Sweda or the main procedure itself -- those always happen in hospital.
-    blocks: days.map(d => ({
-      phase: d.phase, activity_label: d.activity_label, is_flexible: d.is_flexible,
-      min_days: d.min_days, max_days: d.max_days, length: (d.day_end - d.day_start + 1),
-      ayush_code: d.ayush_code, medicines: [], mode: 'hospital',
-    })),
+    // Session 266 -- Basti's single generic "Basti administration (daily)" template day
+    // is replaced with two blocks (Anuvasana/Niruha), length 0 until a pack type is
+    // chosen -- _pkExpandDays() interleaves them per the classical rotation instead of
+    // placing them as two separate contiguous day-ranges.
+    blocks: days.flatMap(d => {
+      if (tpl.procedure_key === 'basti' && d.activity_label === 'Basti administration (daily)') {
+        return [
+          { phase: d.phase, activity_label: _PK_BASTI_ANUVASANA_LABEL, is_flexible: false,
+            min_days: 0, max_days: 0, length: 0, ayush_code: null, medicines: [], mode: 'hospital', bastiDayType: 'anuvasana' },
+          { phase: d.phase, activity_label: _PK_BASTI_NIRUHA_LABEL, is_flexible: false,
+            min_days: 0, max_days: 0, length: 0, ayush_code: null, medicines: [], mode: 'hospital', bastiDayType: 'niruha' },
+        ];
+      }
+      return [{
+        phase: d.phase, activity_label: d.activity_label, is_flexible: d.is_flexible,
+        min_days: d.min_days, max_days: d.max_days, length: (d.day_end - d.day_start + 1),
+        ayush_code: d.ayush_code, medicines: [], mode: 'hospital',
+      }];
+    }),
     // Session 255 -- Koshtha + Snehapana dosing, only meaningful for a protocol whose
     // days actually include Snehapana (PCK54). koshtha starts unset (doctor must
     // actively assess it, not a silent default); snehapana_increment_ml defaults to
@@ -1721,8 +1809,42 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
     koshtha: null,
     snehapana_start_dose_ml: null,
     snehapana_increment_ml: 30,
+    // Session 266 -- unset until the doctor picks one of the 3 classical pack types;
+    // only meaningful for procedure_key === 'basti'.
+    basti_pack_type: null,
+    // Session 267 -- 'standard' (classical 1/day rotation) or 'compressed' (same-day
+    // Niruha+Anuvasana, offered for all 3 pack types); defaults to 'standard'.
+    basti_schedule_mode: 'standard',
   });
   chipEl.classList.add('on');
+};
+
+function _pkRecomputeBastiBlockLengths(p) {
+  const plan = _pkBastiDayPlan(p);
+  const oilBlock   = p.blocks.find(b => b.bastiDayType === 'anuvasana');
+  const decocBlock = p.blocks.find(b => b.bastiDayType === 'niruha');
+  if (oilBlock)   oilBlock.length   = plan.filter(d => d.anuvasana).length;
+  if (decocBlock) decocBlock.length = plan.filter(d => d.niruha).length;
+}
+
+window._pkSetBastiPackType = function(pi, packType) {
+  const p = _pkProtocols[Number(pi)]; if (!p) return;
+  p.basti_pack_type = packType || null;
+  // Compressed is only ever offered for Karma/Kala -- reset to standard if the doctor
+  // switches to Yoga (or unpicks) while Compressed was active.
+  if (p.basti_schedule_mode === 'compressed' && !_PK_BASTI_COMPRESSED_TOTALS[packType]) {
+    p.basti_schedule_mode = 'standard';
+  }
+  _pkRecomputeBastiBlockLengths(p);
+  _renderPkCalendar();
+};
+
+window._pkSetBastiScheduleMode = function(pi, mode) {
+  const p = _pkProtocols[Number(pi)]; if (!p) return;
+  if (mode === 'compressed' && !_PK_BASTI_COMPRESSED_TOTALS[p.basti_pack_type]) return; // no pack type chosen yet
+  p.basti_schedule_mode = mode;
+  _pkRecomputeBastiBlockLengths(p);
+  _renderPkCalendar();
 };
 
 const _PK_KOSHTHA_DEFAULT_DOSE = { mridu: 25, madhyama: 45, krura: 55 };
@@ -1768,20 +1890,39 @@ function _pkExpandDays(p) {
   const rows = [];
   const base = new Date(p.start_date + 'T00:00:00');
   let dayNum = 1;
+  const pushDay = (b) => {
+    const d = new Date(base); d.setDate(d.getDate() + (dayNum - 1));
+    rows.push({
+      day_number: dayNum, phase: b.phase, activity_label: b.activity_label,
+      is_flexible: b.is_flexible, planned_date: d.toLocaleDateString('en-CA'),
+      ayush_code: b.ayush_code || null, sequence_order: dayNum,
+      // Session 257 -- a skipped block already contributes zero rows here (the loop
+      // just doesn't run for length=0), so only 'home' vs. 'hospital' ever needs
+      // carrying through to the actual saved day rows.
+      location_mode: b.mode === 'home' ? 'home' : 'hospital',
+    });
+  };
   p.blocks.forEach(b => {
-    for (let i = 0; i < b.length; i++) {
-      const d = new Date(base); d.setDate(d.getDate() + (dayNum - 1));
-      rows.push({
-        day_number: dayNum, phase: b.phase, activity_label: b.activity_label,
-        is_flexible: b.is_flexible, planned_date: d.toLocaleDateString('en-CA'),
-        ayush_code: b.ayush_code || null, sequence_order: dayNum,
-        // Session 257 -- a skipped block already contributes zero rows here (the loop
-        // just doesn't run for length=0), so only 'home' vs. 'hospital' ever needs
-        // carrying through to the actual saved day rows.
-        location_mode: b.mode === 'home' ? 'home' : 'hospital',
+    // Session 266/267 -- Basti's Anuvasana/Niruha pair are NOT two contiguous day-
+    // ranges (that would be classically wrong -- the two interleave, and in Compressed
+    // mode a single calendar day can carry BOTH). The pair is consumed together the
+    // first time either is encountered (by day-plan order, that's always the Anuvasana
+    // block, since the plan always opens on an Oil day); the Niruha block is then
+    // skipped when the loop reaches it. dayNum advances once per CALENDAR day, not
+    // once per pushed row -- a double-day pushes 2 rows sharing the same day_number.
+    if (b.bastiDayType === 'anuvasana') {
+      const niruha = p.blocks.find(x => x.bastiDayType === 'niruha');
+      const plan = _pkBastiDayPlan(p);
+      plan.forEach(entry => {
+        if (entry.anuvasana) pushDay(b);
+        if (entry.niruha) pushDay(niruha || b);
+        dayNum++;
       });
-      dayNum++;
+      return;
     }
+    if (b.bastiDayType === 'niruha') return; // already consumed as part of the pair above
+
+    for (let i = 0; i < b.length; i++) { pushDay(b); dayNum++; }
   });
   return rows;
 }
@@ -1809,13 +1950,35 @@ function _renderPkCalendar() {
   el.innerHTML = _pkProtocols.map((p, pi) => `
     <div class="section" style="border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
-        <div style="font-weight:700;font-size:14px;color:var(--green-deep)">${_esc(p.protocol_label)} <span style="font-size:11px;color:var(--text-muted)">(${_pkExpandDays(p).length} days)</span></div>
+        <div style="font-weight:700;font-size:14px;color:var(--green-deep)">${_esc(p.protocol_label)} <span style="font-size:11px;color:var(--text-muted)">(${new Set(_pkExpandDays(p).map(r => r.day_number)).size} days)</span></div>
         <div style="display:flex;align-items:center;gap:6px">
           <label style="font-size:11px;color:var(--text-mid)">Start</label>
           <input type="date" value="${_esc(p.start_date)}" data-onchange="_pkSetProtocolStart" data-onchange-a0="${pi}" data-onchange-a1="@this" style="height:32px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12.5px"/>
         </div>
       </div>
       ${!p.is_reviewed ? `<div style="background:#fff8e1;border:1px solid #e6c200;border-radius:6px;padding:6px 10px;font-size:11px;color:#6b4c00;margin-bottom:8px">⚠ Draft SOP — pending clinical review. Day-counts/phases below are a generic starting point, not yet confirmed.</div>` : ''}
+      ${p.procedure_key === 'basti' ? `
+      <div style="border:1px solid var(--gold);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fffaf0">
+        <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">🌀 Basti Pack Type (Charaka's classical Anuvasana/Niruha rotation)</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${Object.entries(_PK_BASTI_PACK_TYPES).map(([key, cfg]) => `
+            <button type="button" data-onclick="_pkSetBastiPackType" data-onclick-a0="${pi}" data-onclick-a1="${key}"
+              style="font-size:11.5px;padding:7px 12px;border-radius:6px;border:1.5px solid var(--green-mid);cursor:pointer;font-weight:600;background:${p.basti_pack_type === key ? 'var(--green-deep)' : '#fff'};color:${p.basti_pack_type === key ? '#fff' : 'var(--green-deep)'}">${_esc(cfg.label)}</button>
+          `).join('')}
+        </div>
+        ${!p.basti_pack_type ? `<div style="font-size:10.5px;color:var(--text-muted);margin-top:6px">Choose a pack type to generate the day-by-day Oil/Decoction calendar below.</div>` : ''}
+        ${p.basti_pack_type && _PK_BASTI_COMPRESSED_TOTALS[p.basti_pack_type] ? `
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+          <div style="font-size:11.5px;font-weight:600;color:var(--green-deep);margin-bottom:5px">Schedule</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button type="button" data-onclick="_pkSetBastiScheduleMode" data-onclick-a0="${pi}" data-onclick-a1="standard"
+              style="font-size:11px;padding:6px 10px;border-radius:6px;border:1.5px solid var(--border);cursor:pointer;background:${p.basti_schedule_mode !== 'compressed' ? 'var(--green-mid)' : '#fff'};color:${p.basti_schedule_mode !== 'compressed' ? '#fff' : '#333'}">Standard (${_PK_BASTI_PACK_TYPES[p.basti_pack_type].days} days, 1/day)</button>
+            <button type="button" data-onclick="_pkSetBastiScheduleMode" data-onclick-a0="${pi}" data-onclick-a1="compressed"
+              style="font-size:11px;padding:6px 10px;border-radius:6px;border:1.5px solid var(--border);cursor:pointer;background:${p.basti_schedule_mode === 'compressed' ? 'var(--green-mid)' : '#fff'};color:${p.basti_schedule_mode === 'compressed' ? '#fff' : '#333'}">Compressed (${_pkBastiCompressedPlan(p.basti_pack_type).length} days, same-day Niruha+Anuvasana from Day 2)</button>
+          </div>
+          <div style="font-size:10.5px;color:var(--text-muted);margin-top:5px">Compressed: Day 1 Anuvasana only (after admission); Day 2 onward, Niruha every morning (empty stomach) + Anuvasana the same evening (after the meal) — same total Oil/Decoction count, roughly half the stay.</div>
+        </div>` : ''}
+      </div>` : ''}
       <div style="overflow-x:auto">
       <table style="width:100%;font-size:12px;border-collapse:collapse">
         <thead><tr style="background:var(--green-light);color:var(--green-deep)">
@@ -1824,6 +1987,28 @@ function _renderPkCalendar() {
         </tr></thead>
         <tbody>
           ${p.blocks.map((b, bi) => {
+            // Session 266 -- the Niruha half of a Basti pair never gets its own row; it's
+            // shown combined with the Anuvasana row below (they're not a contiguous range).
+            if (b.bastiDayType === 'niruha') return '';
+
+            if (b.bastiDayType === 'anuvasana') {
+              const niruha = p.blocks.find(x => x.bastiDayType === 'niruha');
+              const total = b.length + (niruha?.length || 0);
+              let offset = 1;
+              for (let i = 0; i < bi; i++) if (p.blocks[i].bastiDayType !== 'niruha') offset += p.blocks[i].length;
+              const startNum = offset, endNum = offset + total - 1;
+              const base = new Date(p.start_date + 'T00:00:00');
+              const fmt = n => { const d = new Date(base); d.setDate(d.getDate() + (n - 1)); return d.toLocaleDateString('en-CA'); };
+              return `
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:5px 8px">${total ? (startNum === endNum ? `Day ${startNum}` : `Day ${startNum}-${endNum}`) : '—'}</td>
+            <td style="padding:5px 8px">${total ? `${fmt(startNum)} to ${fmt(endNum)}` : 'Choose a pack type'}</td>
+            <td style="padding:5px 8px"><span class="phase-badge phase-${b.phase}">${_PK_PHASE_LABEL[b.phase] || b.phase}</span></td>
+            <td style="padding:5px 8px">Basti Administration — Anuvasana (Oil) + Niruha (Decoction)${total ? ' — see day-by-day schedule below' : ''}</td>
+            <td style="padding:5px 8px">${total ? `${b.length}O / ${niruha?.length || 0}D` : '—'}</td>
+          </tr>`;
+            }
+
             const toggleable = _PK_TOGGLEABLE_ACTIVITIES.includes(b.activity_label);
             const r = b.length > 0 ? _pkBlockDayRange(p, bi) : { label: '—', dateLabel: 'Skipped' };
             const modeBtn = (val, label, color) => `<button type="button" data-onclick="_pkSetBlockMode" data-onclick-a0="${pi}" data-onclick-a1="${bi}" data-onclick-a2="${val}"
@@ -1851,6 +2036,35 @@ function _renderPkCalendar() {
         </tbody>
       </table>
       </div>
+      ${p.procedure_key === 'basti' && p.basti_pack_type ? (() => {
+        const plan = _pkBastiDayPlan(p);
+        if (!plan.length) return '';
+        const anuvasanaIdx = p.blocks.findIndex(b => b.bastiDayType === 'anuvasana');
+        let offset = 1;
+        for (let i = 0; i < anuvasanaIdx; i++) offset += p.blocks[i].length;
+        const base = new Date(p.start_date + 'T00:00:00');
+        const fmt = n => { const d = new Date(base); d.setDate(d.getDate() + (n - 1)); return d.toLocaleDateString('en-CA'); };
+        const anuCell = `<span title="Anuvasana — after lunch/dinner, never empty stomach" style="display:inline-block;padding:3px 7px;border-radius:4px;font-size:10.5px;font-weight:700;color:#fff;background:var(--gold)">Anu</span>`;
+        const niruCell = `<span title="Niruha — empty stomach, before breakfast" style="display:inline-block;padding:3px 7px;border-radius:4px;font-size:10.5px;font-weight:700;color:#fff;background:var(--blue)">Niru</span>`;
+        const dayCell = (n) => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border);white-space:nowrap;font-size:11px"><strong>Day ${n}</strong><br><span style="color:var(--text-muted);font-size:10px">${fmt(n)}</span></td>`;
+        const rowLabel = (label) => `<td style="padding:5px 9px;font-weight:600;color:var(--text-mid);white-space:nowrap;position:sticky;left:0;background:#fafff7;border-right:1.5px solid var(--border)">${label}</td>`;
+        const rows = p.basti_schedule_mode === 'compressed'
+          ? [
+              `<tr>${rowLabel('Niruha')}${plan.map(e => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border)">${e.niruha ? niruCell : ''}</td>`).join('')}</tr>`,
+              `<tr>${rowLabel('Anuvasana')}${plan.map(e => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border)">${e.anuvasana ? anuCell : ''}</td>`).join('')}</tr>`,
+            ]
+          : [`<tr>${rowLabel('Type')}${plan.map(e => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border)">${e.anuvasana ? anuCell : niruCell}</td>`).join('')}</tr>`];
+        return `
+      <div style="border:1px solid var(--green-mid);border-radius:6px;padding:10px 12px;margin-top:10px;background:#fafff7;overflow-x:auto">
+        <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">📅 Basti Day-by-Day Schedule — ${_esc(_PK_BASTI_SHORT_NAME[p.basti_pack_type] || '')} ${p.basti_schedule_mode === 'compressed' ? '(Compressed)' : '(Standard)'}</div>
+        <table style="border-collapse:collapse">
+          <tbody>
+            <tr>${rowLabel('Day / Date')}${plan.map((e, i) => dayCell(offset + i)).join('')}</tr>
+            ${rows.join('')}
+          </tbody>
+        </table>
+      </div>`;
+      })() : ''}
       ${p.blocks.some(b => b.ayush_code === 'PCK54') ? `
       <div style="border:1px solid var(--gold);border-radius:6px;padding:10px 12px;margin-top:10px;background:#fffaf0">
         <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">🌿 Snehapana Dosing</div>
@@ -1912,7 +2126,9 @@ function _renderPkMedicines() {
       ${p.blocks.map((b, bi) => {
         // Session 257 -- a skipped block isn't happening at all, so no medicines/
         // billing-code UI for it (the doctor already switched it off in Step 2).
-        if (b.mode === 'skip') return '';
+        // Session 266 -- a Basti Anuvasana/Niruha block with length 0 means no pack
+        // type has been chosen yet in Step 2 -- nothing to attach medicines to yet.
+        if (b.mode === 'skip' || (b.bastiDayType && b.length === 0)) return '';
         return `
         <div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fafff7">
           <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">${_esc(b.activity_label)}${b.mode === 'home' ? ' <span style="font-size:10px;color:var(--gold)">🏠 at home</span>' : ''}</div>
@@ -2094,6 +2310,10 @@ function _resetPkCarePlan() {
 window.savePkCarePlan = async function() {
   if (!_activePatient) { alert('Select a patient first.'); return; }
   if (!_pkProtocols.length) { alert('Select at least one Panchakarma protocol.'); return; }
+  // Session 266 -- a Basti protocol with no pack type chosen would silently save with
+  // its entire administration phase missing (0 days) -- block the save instead.
+  const missingBastiPack = _pkProtocols.find(p => p.procedure_key === 'basti' && !p.basti_pack_type);
+  if (missingBastiPack) { alert('Choose a Basti Pack Type (Karma/Kala/Yoga) in Step 2 before saving.'); return; }
   const settingEl = document.querySelector('input[name="pk-setting"]:checked');
   const setting = settingEl ? settingEl.value : 'day_care';
 
@@ -2141,6 +2361,10 @@ window.savePkCarePlan = async function() {
       koshtha: p.koshtha || null,
       snehapana_start_dose_ml: p.snehapana_start_dose_ml || null,
       snehapana_increment_ml: p.snehapana_increment_ml || 30,
+      // Session 266 -- which classical Basti pack (Karma/Kala/Yoga) the day-by-day
+      // Anuvasana/Niruha calendar below was generated from; null for every other protocol.
+      basti_pack_type: p.basti_pack_type || null,
+      basti_schedule_mode: p.basti_pack_type ? (p.basti_schedule_mode || 'standard') : null,
     }).select('id').single();
     if (protoErr) { console.warn('[doctor] pk_care_plan_protocols insert:', protoErr.message); continue; }
 
