@@ -160,7 +160,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'ipd-register.html',      label:'IPD Register',     roles:['super_admin','dept_admin','doctor','nurse'],            types:HOSP, module:'ipd'      },
         { href:'reports.html',           label:'Reports',          roles:['super_admin','dept_admin','accountant','lab_tech'],  types:null, module:'finance', monitoringSafe:true },
         { href:'fee-admin.html',         label:'Fee Management',   roles:['super_admin','dept_admin'],                         types:null, module:'finance'  },
-        { href:'lab.html',               label:'Clinical Lab',     roles:ALL_ROLES,                                            types:null, module:'lab'      },
+        { href:'lab.html',               label:'Clinical Lab',     roles:['super_admin','dept_admin','lab_tech','doctor','nurse','receptionist'], types:null, module:'lab' },
         { href:'lab-nabl.html',          label:'NABL Quality',     roles:['super_admin','dept_admin','lab_tech','doctor'],       types:null, module:'lab'      },
         { href:'ncism-compliance.html',  label:'NCISM Compliance', roles:ADMIN_ROLES,                                          types:NCISM,module:'ncism', monitoringSafe:true },
         { href:'quality.html',           label:'Quality',          roles:ADMIN_ROLES,                                          types:null, module:'quality'  },
