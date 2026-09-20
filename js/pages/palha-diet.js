@@ -23,7 +23,7 @@ async function loadIndents() {
       id, preparation_name, preparation_type, quantity, supply_date, supply_time,
       special_instructions, status, created_at,
       patients(name),
-      ipd:ipd_admissions(beds(bed_number,ward_name)),
+      ipd:ipd_admissions(beds(bed_number,ward_name,floor_number)),
       prescribed:profiles!prescribed_by(full_name)
     `)
     .eq('tenant_id', tenantId)
@@ -63,6 +63,10 @@ function renderIndents() {
     const pt   = i.patients?.name || '—';
     const bed  = i.ipd?.beds?.bed_number ? `Bed ${i.ipd.beds.bed_number}` : '';
     const ward = i.ipd?.beds?.ward_name  || '';
+    // Genuinely distinct from ward_name (which can already read like a building/wing
+    // label on its own) -- floor is the one piece bed-admin.html's own bed cards
+    // always show alongside it (same "F<n>" convention, js/pages/bed-admin.js:205).
+    const floor = i.ipd?.beds?.floor_number != null ? `F${i.ipd.beds.floor_number}` : '';
     const timeStr = i.supply_time ? i.supply_time.slice(0,5) : '—';
     const doctor  = i.prescribed?.full_name || '—';
     const typeLabel = TYPE_LABEL[i.preparation_type] || i.preparation_type;
@@ -78,7 +82,7 @@ function renderIndents() {
         <div class="indent-time">${timeStr}</div>
       </div>
       <div class="indent-patient">
-        👤 <strong>${_esc(pt)}</strong>${bed ? ` · ${_esc(bed)}` : ''}${ward ? ` · ${_esc(ward)}` : ''}
+        👤 <strong>${_esc(pt)}</strong>${bed ? ` · ${_esc(bed)}` : ''}${floor ? ` · ${_esc(floor)}` : ''}${ward ? ` · ${_esc(ward)}` : ''}
         ${i.quantity ? ` · <strong>${_esc(i.quantity)}</strong>` : ''}
       </div>
       ${i.special_instructions ? `<div class="indent-instructions">📌 ${_esc(i.special_instructions)}</div>` : ''}
