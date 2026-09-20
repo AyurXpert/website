@@ -2058,6 +2058,9 @@ function _renderPkCalendar() {
       ${_pkDatePickerOpenFor === pi ? _pkRenderDatePicker(pi) : ''}
       ${!p.is_reviewed ? `<div style="background:#fff8e1;border:1px solid #e6c200;border-radius:6px;padding:6px 10px;font-size:11px;color:#6b4c00;margin-bottom:8px">⚠ Draft SOP — pending clinical review. Day-counts/phases below are a generic starting point, not yet confirmed.</div>` : ''}
       ${p.procedure_key === 'basti' ? `
+      <div style="border:1.5px solid var(--blue);border-radius:6px;padding:9px 12px;margin-bottom:10px;background:#f5f8ff;font-size:11.5px;color:var(--text-dark)">
+        <strong>📌 Standing instruction:</strong> Local Abhyanga + Swedana (~10 minutes) is performed immediately before <em>every</em> Anuvasana and every Niruha administration — not a separate scheduled day. Applies throughout the whole course, every administration day, without needing its own calendar entry.
+      </div>
       <div style="border:1px solid var(--gold);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fffaf0">
         <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">🌀 Basti Pack Type (Charaka's classical Anuvasana/Niruha rotation)</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
