@@ -1998,14 +1998,14 @@ function _pkRenderGenericDayGrid(p) {
   const dateByDay = {};
   rows.forEach(r => { dateByDay[r.day_number] = r.planned_date; });
 
-  const rowLabel = (label, title) => `<td title="${_esc(title || label)}" style="padding:5px 9px;font-weight:600;color:var(--text-mid);white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;position:sticky;left:0;background:#fafff7;border-right:1.5px solid var(--border)">${_esc(label)}</td>`;
-  const dayCell = (n) => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border);white-space:nowrap;font-size:11px"><strong>Day ${n}</strong><br><span style="color:var(--text-muted);font-size:10px">${_esc(dateByDay[n])}</span></td>`;
+  const rowLabel = (label, title) => `<td title="${_esc(title || label)}" style="padding:5px 9px;font-weight:600;color:var(--text-mid);white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;position:sticky;left:0;background:#fafff7;border-right:1.5px solid var(--border);border-bottom:1px solid var(--border)">${_esc(label)}</td>`;
+  const dayCell = (n) => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border);border-bottom:1px solid var(--border);white-space:nowrap;font-size:11px"><strong>Day ${n}</strong><br><span style="color:var(--text-muted);font-size:10px">${_esc(dateByDay[n])}</span></td>`;
 
   const activityRows = activityOrder.map((label, ai) => {
     const color = _PK_CAL_COLORS[ai % _PK_CAL_COLORS.length];
     const cells = dayNumbers.map(n => {
       const present = byDayActivity[n]?.has(label);
-      return `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border)">${present ? `<span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:${color};color:#fff;font-size:11px;font-weight:700;line-height:18px">✓</span>` : ''}</td>`;
+      return `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border);border-bottom:1px solid var(--border)">${present ? `<span style="display:inline-block;width:18px;height:18px;border-radius:4px;background:${color};color:#fff;font-size:11px;font-weight:700;line-height:18px">✓</span>` : ''}</td>`;
     }).join('');
     return `<tr>${rowLabel(label)}${cells}</tr>`;
   }).join('');
@@ -2132,14 +2132,14 @@ function _renderPkCalendar() {
         const fmt = n => { const d = new Date(base); d.setDate(d.getDate() + (n - 1)); return d.toLocaleDateString('en-CA'); };
         const anuCell = `<span title="Anuvasana — after lunch/dinner, never empty stomach" style="display:inline-block;padding:3px 7px;border-radius:4px;font-size:10.5px;font-weight:700;color:#fff;background:var(--gold)">Anu</span>`;
         const niruCell = `<span title="Niruha — empty stomach, before breakfast" style="display:inline-block;padding:3px 7px;border-radius:4px;font-size:10.5px;font-weight:700;color:#fff;background:var(--blue)">Niru</span>`;
-        const dayCell = (n) => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border);white-space:nowrap;font-size:11px"><strong>Day ${n}</strong><br><span style="color:var(--text-muted);font-size:10px">${fmt(n)}</span></td>`;
-        const rowLabel = (label) => `<td style="padding:5px 9px;font-weight:600;color:var(--text-mid);white-space:nowrap;position:sticky;left:0;background:#fafff7;border-right:1.5px solid var(--border)">${label}</td>`;
+        const dayCell = (n) => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border);border-bottom:1px solid var(--border);white-space:nowrap;font-size:11px"><strong>Day ${n}</strong><br><span style="color:var(--text-muted);font-size:10px">${fmt(n)}</span></td>`;
+        const rowLabel = (label) => `<td style="padding:5px 9px;font-weight:600;color:var(--text-mid);white-space:nowrap;position:sticky;left:0;background:#fafff7;border-right:1.5px solid var(--border);border-bottom:1px solid var(--border)">${label}</td>`;
         const rows = p.basti_schedule_mode === 'compressed'
           ? [
-              `<tr>${rowLabel('Niruha')}${plan.map(e => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border)">${e.niruha ? niruCell : ''}</td>`).join('')}</tr>`,
-              `<tr>${rowLabel('Anuvasana')}${plan.map(e => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border)">${e.anuvasana ? anuCell : ''}</td>`).join('')}</tr>`,
+              `<tr>${rowLabel('Niruha')}${plan.map(e => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border);border-bottom:1px solid var(--border)">${e.niruha ? niruCell : ''}</td>`).join('')}</tr>`,
+              `<tr>${rowLabel('Anuvasana')}${plan.map(e => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border);border-bottom:1px solid var(--border)">${e.anuvasana ? anuCell : ''}</td>`).join('')}</tr>`,
             ]
-          : [`<tr>${rowLabel('Type')}${plan.map(e => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border)">${e.anuvasana ? anuCell : niruCell}</td>`).join('')}</tr>`];
+          : [`<tr>${rowLabel('Type')}${plan.map(e => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border);border-bottom:1px solid var(--border)">${e.anuvasana ? anuCell : niruCell}</td>`).join('')}</tr>`];
         return `
       <div style="border:1px solid var(--green-mid);border-radius:6px;padding:10px 12px;margin-top:10px;background:#fafff7;overflow-x:auto">
         <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">📅 Basti Day-by-Day Schedule — ${_esc(_PK_BASTI_SHORT_NAME[p.basti_pack_type] || '')} ${p.basti_schedule_mode === 'compressed' ? '(Compressed)' : '(Standard)'}</div>
