@@ -1787,7 +1787,7 @@ async function _loadPkTemplates() {
   // Step 2 "needs manual input" check (_pkNeedsManualScheduleInput) can check the same way
   // the real engine resolves it, not just the lowest-priority protocol-level fallback.
   const { data: hints } = await supabase.from('sop_content_templates')
-    .select('linked_pk_template_id,ayush_code,activity_label_match,typical_duration_minutes,man_power_staff,owner_role');
+    .select('id,linked_pk_template_id,ayush_code,activity_label_match,typical_duration_minutes,man_power_staff,owner_role');
   _pkContentHints = {};
   _pkContentHintsByAyush = {};
   _pkContentHintsByLabel = {};
@@ -2896,7 +2896,7 @@ function _renderPkMedicines() {
        'Dhanwantaram Taila', 'Ksheerabala Taila', 'Mahanarayana Taila', 'Go Ghrita (Cow Ghee)',
        'Guggulu Tiktaka Ghrita', 'Panchatiktaka Ghrita'].map(n => `<option value="${_esc(n)}">`).join('')}
   </datalist>`;
-  const unitOpts = u => ['ml','g','kg','L','batch'].map(x => `<option value="${x}"${(u || 'ml') === x ? ' selected' : ''}>${x}</option>`).join('');
+  const unitOpts = u => ['ml','g','kg','L','batch','Pcs','Set'].map(x => `<option value="${x}"${(u || 'ml') === x ? ' selected' : ''}>${x}</option>`).join('');
   el.innerHTML = snehaDatalist + _pkProtocols.map((p, pi) => {
     // Session 281 -- {b, bi} pairs keep each block's REAL index into p.blocks (the
     // handlers below index p.blocks[bi] directly) even after filtering out
@@ -2924,43 +2924,29 @@ function _renderPkMedicines() {
             <select data-onchange="_pkSetBlockAyush" data-onchange-a0="${pi}" data-onchange-a1="${bi}" data-onchange-a2="@this">${codeOpts}</select>
           </div>` : '';
 
-        if (hasSop) {
-          return `
-          <div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fafff7">
-            <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">${_esc(b.activity_label)}${b.mode === 'home' ? ' <span style="font-size:10px;color:var(--gold)">🏠 at home</span>' : ''}</div>
-            ${billingCode}
-            <div class="field">
-              <label style="font-size:11px">Medicines / Materials for this activity</label>
-              <div style="display:flex;gap:6px;margin-bottom:6px">
-                <input id="pk-med-name-${pi}-${bi}" type="text" placeholder="e.g. Panchatiktaka Ghrita" style="flex:1"
-                  ${b.bastiDayType === 'anuvasana' ? `list="pk-sneha-datalist"` : ''}/>
-                <button type="button" data-onclick="_pkAddMedicine" data-onclick-a0="${pi}" data-onclick-a1="${bi}" style="height:36px;padding:0 12px;background:var(--green-mid);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">+ Add</button>
-              </div>
-              ${b.bastiDayType === 'anuvasana' ? `<div style="font-size:10px;color:var(--text-muted);margin:-3px 0 6px">Start typing for common oils/ghees, or enter any name.</div>` : ''}
-              ${(b.medicines || []).map((m, mi) => `
-                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;background:#fff">
-                  <span style="font-size:12.5px">${_esc(m.medicine_name)}</span>
-                  <button type="button" data-onclick="_pkRemoveMedicine" data-onclick-a0="${pi}" data-onclick-a1="${bi}" data-onclick-a2="${mi}" style="width:24px;height:24px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:10px">&#10005;</button>
-                </div>`).join('')}
-            </div>
-          </div>`;
-        }
-
-        // Session 281 -- no platform SOP content for this activity: real ingredient
-        // rows with quantity/unit, same shape Niruha's own components already collect,
-        // under the protocol's one Formulation Name above.
+        // Session 282 -- unified ingredient-row UI (name + quantity + unit) for every
+        // block, hasSop or not; the only real difference is hasSop blocks get a "Load
+        // from SOP Materials" quick-fill (real reference materials + quantities already
+        // on file) instead of the Formulation Name field the no-SOP branch shows above.
+        // Fixes a real gap found live (Dr. Venkatesh, Session 282): the old hasSop
+        // branch never collected quantity/unit at all, so even a fully SOP-documented
+        // protocol's medicines auto-logged with a blank quantity on Mark Served -- same
+        // problem Session 281 fixed for no-SOP protocols, just never applied here too.
         return `
         <div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fafff7">
           <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">${_esc(b.activity_label)}${b.mode === 'home' ? ' <span style="font-size:10px;color:var(--gold)">🏠 at home</span>' : ''}</div>
           ${billingCode}
           <div class="field">
-            <label style="font-size:11px">Ingredients</label>
+            <label style="font-size:11px">${hasSop ? 'Medicines / Materials for this activity' : 'Ingredients'}</label>
+            ${hasSop ? `<button type="button" data-onclick="_pkLoadSopMaterials" data-onclick-a0="${pi}" data-onclick-a1="${bi}" style="height:30px;padding:0 10px;margin-bottom:6px;background:var(--white);border:1.5px solid var(--green-mid);color:var(--green-deep);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">📋 Load from SOP Materials</button>` : ''}
             <div style="display:grid;grid-template-columns:1.6fr .6fr .5fr auto;gap:6px;margin-bottom:6px">
-              <input id="pk-med-name-${pi}-${bi}" type="text" placeholder="e.g. Eranda Ela"/>
+              <input id="pk-med-name-${pi}-${bi}" type="text" placeholder="${hasSop ? 'e.g. Panchatiktaka Ghrita' : 'e.g. Eranda Ela'}"
+                ${b.bastiDayType === 'anuvasana' ? `list="pk-sneha-datalist"` : ''}/>
               <input id="pk-med-qty-${pi}-${bi}" type="number" min="0" step="0.01" placeholder="Qty"/>
               <select id="pk-med-unit-${pi}-${bi}">${unitOpts()}</select>
               <button type="button" data-onclick="_pkAddMedicineQty" data-onclick-a0="${pi}" data-onclick-a1="${bi}" style="height:36px;padding:0 12px;background:var(--green-mid);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">+ Add</button>
             </div>
+            ${b.bastiDayType === 'anuvasana' ? `<div style="font-size:10px;color:var(--text-muted);margin:-3px 0 6px">Start typing for common oils/ghees, or enter any name.</div>` : ''}
             ${(b.medicines || []).map((m, mi) => `
               <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;background:#fff">
                 <span style="font-size:12.5px">${_esc(m.medicine_name)}${m.quantity_value ? ` <span style="color:var(--text-muted)">(${m.quantity_value}${_esc(m.quantity_unit || '')})</span>` : ''}</span>
@@ -2984,19 +2970,8 @@ window._pkSetBlockAyush = function(pi, bi, selectEl) {
   _pkRenderStep3Estimate();
 };
 
-window._pkAddMedicine = function(pi, bi) {
-  const inp = document.getElementById(`pk-med-name-${pi}-${bi}`);
-  const name = inp?.value.trim();
-  if (!name) return;
-  const b = _pkProtocols[Number(pi)]?.blocks[Number(bi)];
-  if (!b) return;
-  (b.medicines = b.medicines || []).push({ medicine_name: name, dosage_instructions: null });
-  inp.value = '';
-  _renderPkMedicines();
-};
-
-// Session 281 -- the upgraded ingredient-row Add for a no-SOP block (name + quantity +
-// unit), used alongside the still-bare _pkAddMedicine for SOP-content-rich blocks.
+// Session 281/282 -- the ingredient-row Add (name + quantity + unit), used by every
+// block now, hasSop or not.
 window._pkAddMedicineQty = function(pi, bi) {
   const nameInp = document.getElementById(`pk-med-name-${pi}-${bi}`);
   const qtyInp = document.getElementById(`pk-med-qty-${pi}-${bi}`);
@@ -3018,6 +2993,36 @@ window._pkRemoveMedicine = function(pi, bi, mi) {
   const b = _pkProtocols[Number(pi)]?.blocks[Number(bi)];
   if (!b) return;
   b.medicines.splice(Number(mi), 1);
+  _renderPkMedicines();
+};
+
+// Session 282 -- quick-fill from the platform's own SOP reference materials (real
+// items + quantities, e.g. "Fresh lemons (6 Pcs)" for Jambeera Pinda Sweda) instead of
+// re-typing them from memory every time. Only ever shown for a hasSop block -- resolves
+// the same content-template id _pkBlockHasSopHint() already matched. Appends rather than
+// replaces (a doctor may have already typed a patient-specific addition), skipping any
+// name already present so repeat clicks don't duplicate.
+window._pkLoadSopMaterials = async function(pi, bi) {
+  const p = _pkProtocols[Number(pi)];
+  const b = p?.blocks[Number(bi)];
+  if (!p || !b) return;
+  const activityHint = _pkResolveActivityHint(b.ayush_code, b.activity_label);
+  const hint = activityHint || _pkContentHints[p.template_id];
+  if (!hint?.id) { _toast('No SOP materials on file for this activity yet.', 'error'); return; }
+
+  const { data: materials, error } = await supabase.from('sop_content_template_materials')
+    .select('item_name,quantity,unit').eq('template_id', hint.id).order('sequence_order');
+  if (error) { _toast('Could not load SOP materials.', 'error'); return; }
+  if (!materials || !materials.length) { _toast('No SOP materials on file for this activity yet.', 'error'); return; }
+
+  const existing = new Set((b.medicines || []).map(m => (m.medicine_name || '').trim().toLowerCase()));
+  const toAdd = materials.filter(m => !existing.has((m.item_name || '').trim().toLowerCase()));
+  if (!toAdd.length) { _toast('All of this activity\'s SOP materials are already listed.', 'error'); return; }
+
+  (b.medicines = b.medicines || []).push(...toAdd.map(m => ({
+    medicine_name: m.item_name, dosage_instructions: null,
+    quantity_value: m.quantity ?? null, quantity_unit: m.unit || null,
+  })));
   _renderPkMedicines();
 };
 
