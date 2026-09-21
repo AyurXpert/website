@@ -610,11 +610,14 @@ function _renderPrepPanel() {
   const dl = document.getElementById('prep-item-suggestions');
   dl.innerHTML = _formulary.map(f => `<option value="${_esc(f.medicine_name)}"></option>`).join('');
 
-  // Prepared By — defaults to the logged-in profile if they're in the eligible list.
+  // Prepared By — therapist-role staff only (Dr. Venkatesh, Session 279: the
+  // prep room is a therapist duty; the broader _prepStaff pool below still
+  // matches pk_preparation_logs' own write-allowed role set for other uses in
+  // this file). Defaults to the logged-in profile if they're a therapist.
   const byEl = document.getElementById('prep-by');
   const byVal = byEl.value;
-  byEl.innerHTML = _prepStaff.map(p => `<option value="${p.id}">${_esc(p.full_name)}</option>`).join('');
-  byEl.value = byVal || myProfile?.id || '';
+  byEl.innerHTML = _prepStaff.filter(p => p.role === 'therapist').map(p => `<option value="${p.id}">${_esc(p.full_name)}</option>`).join('');
+  byEl.value = byVal || (myProfile?.role === 'therapist' ? myProfile.id : '');
 
   // Issue-to-room — active rooms only, same pool the schedule drawer uses.
   const roomEl = document.getElementById('prep-room');
