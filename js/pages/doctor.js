@@ -1106,6 +1106,19 @@ window.toggleRefPanel = function() {
   body.style.display = body.style.display === 'none' ? '' : 'none';
 };
 
+// Session 279 -- collapsible queue panel (Dr. Venkatesh: more room for
+// consultation details). Default open every load, no persistence -- purely a
+// per-session toggle, desktop-only (the toggle button itself is hidden below
+// 860px via CSS, where the queue already collapses into its own stacked layout).
+window.toggleQueuePanel = function() {
+  const page = document.querySelector('.page');
+  const btn = document.getElementById('q-collapse-toggle');
+  if (!page || !btn) return;
+  const collapsed = page.classList.toggle('q-collapsed');
+  btn.textContent = collapsed ? '›' : '‹';
+  btn.title = collapsed ? 'Expand queue' : 'Collapse queue';
+};
+
 // ── §18l — Show/hide internal OPD row ────────────
 window.onRefTypeChange = function(val) {
   document.getElementById('ref-internal-row').style.display = val === 'internal' ? '' : 'none';

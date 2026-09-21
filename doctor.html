@@ -36,8 +36,29 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   display:grid;
   grid-template-columns:320px 1fr;
   grid-template-rows:auto auto 1fr;
-  overflow:hidden;gap:0
+  overflow:hidden;gap:0;
+  transition:grid-template-columns .28s ease
 }
+/* Session 279 -- collapsible queue panel, more room for consultation details.
+   The grid track itself animates 320px->0 (clipping .q-panel via its existing
+   overflow:hidden); .q-panel-inner stays a fixed 320px so nothing reflows/wraps
+   mid-transition, it's just progressively clipped -- the standard jank-free
+   sidebar-collapse technique. Default open every load, no persistence (doctor
+   toggles per-session as needed). Desktop-only -- mobile already collapses the
+   queue into its own stacked layout below 860px, untouched. */
+.page.q-collapsed{grid-template-columns:0px 1fr}
+.q-collapse-toggle{
+  position:absolute;top:50%;left:320px;transform:translate(-50%,-50%);
+  width:26px;height:46px;border-radius:0 10px 10px 0;
+  background:var(--white);border:1.5px solid var(--border);border-left:none;
+  color:var(--green-mid);font-size:14px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:2px 0 6px rgba(0,0,0,.1);
+  transition:left .28s ease;z-index:50
+}
+.q-collapse-toggle:hover{background:var(--green-light);color:var(--green-deep)}
+.page.q-collapsed .q-collapse-toggle{left:0px}
+@media(max-width:860px){.q-collapse-toggle{display:none}}
 /* Explicit placement (not DOM-order auto-flow) — an empty #promo-banner div
    (no active promo, the common case) still claims a grid cell despite having
    zero visible content, which without pinning here bumps .q-panel/.c-panel
@@ -96,6 +117,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   border-right:1px solid var(--border);background:var(--white);
   overflow:hidden;min-height:0
 }
+.q-panel-inner{display:flex;flex-direction:column;width:320px;min-width:320px;height:100%;min-height:0}
+@media(max-width:860px){.q-panel-inner{width:100%;min-width:0}}
 .q-hdr{
   padding:16px 20px 12px;border-bottom:1px solid var(--border);flex-shrink:0;
   display:flex;align-items:center;justify-content:space-between
@@ -866,6 +889,7 @@ body.medcert-print #mc-print{display:block!important}
 
   <!-- ── Queue Panel ────────────────────────────── -->
   <aside class="q-panel">
+   <div class="q-panel-inner">
     <div class="q-hdr">
       <div class="q-hdr-left">
         <div class="panel-title">My Queue</div>
@@ -920,7 +944,9 @@ body.medcert-print #mc-print{display:block!important}
       <div class="live-dot"></div>
       Live · real-time updates
     </div>
+   </div>
   </aside>
+  <button class="q-collapse-toggle" id="q-collapse-toggle" data-onclick="toggleQueuePanel" title="Collapse queue">‹</button>
 
   <!-- ── Consultation Panel ─────────────────────── -->
   <main class="c-panel">
