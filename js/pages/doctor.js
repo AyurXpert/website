@@ -2081,7 +2081,15 @@ function _pkRenderGenericDayGrid(p) {
 // without real source content yet) -- the wizard then requires the doctor to enter
 // both explicitly before Step 3 (Medicines) is reachable, rather than the scheduling
 // engine silently falling back to a generic 30min/1-staff guess.
+// Session 279 fix -- Basti is a real false positive here, not missing content: its
+// protocol-level sop_content_templates row deliberately has no single typical_duration
+// (Niruha=20min vs Anuvasana=10min -- activity-dependent, not one flat figure). Real
+// per-activity SOP data (duration/man-power/room/gender-match) already exists keyed by
+// activity_label_match and already drives both the auto-assignment engine (Sessions
+// 250-253, 274-275) and Basti's own bespoke Pack Type/Schedule-mode UI just below --
+// so the generic "no SOP data" fallback never applies to it.
 function _pkNeedsManualScheduleInput(p) {
+  if (p.procedure_key === 'basti') return false;
   const hint = _pkContentHints[p.template_id];
   return !hint || !hint.typical_duration_minutes || !hint.man_power_staff;
 }
