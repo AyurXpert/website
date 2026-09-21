@@ -4540,7 +4540,7 @@ function _renderConsentList(consents) {
         : ''}`;
 
     return `<div class="cons-card" style="border:1px solid ${note ? col + '44' : '#ddd'};border-radius:8px;margin-bottom:8px;background:#fff;overflow:hidden">
-      <div data-onclick="_toggleConsentCard" data-onclick-a0="${_esc(c.id)}" style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;background:${open ? '#f4faf5' : '#fafafa'}">
+      <div id="conshdr-${_esc(c.id)}" data-onclick="_toggleConsentCard" data-onclick-a0="${_esc(c.id)}" style="display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;background:${open ? '#f4faf5' : '#fafafa'}">
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
             <span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;background:${col}18;color:${col};border:1px solid ${col}44">${_esc((effStatus || '').toUpperCase())}</span>
@@ -4570,10 +4570,16 @@ function _renderConsentList(consents) {
 window._toggleConsentCard = function(cid) {
   const body = document.getElementById('consbody-' + cid);
   const chev = document.getElementById('conschev-' + cid);
+  const hdr  = document.getElementById('conshdr-' + cid);
   if (!body) return;
   const opening = body.style.display === 'none';
   body.style.display = opening ? 'block' : 'none';
   if (chev) chev.style.transform = `rotate(${opening ? 90 : 0}deg)`;
+  // Session 279 -- found checking for the same class of bug as the PK wizard chips:
+  // the header's own background tint was only ever set at initial render (matching
+  // whichever card auto-opened), never updated here, so a manually toggled card's
+  // header stayed stuck showing the wrong open/closed shade indefinitely.
+  if (hdr) hdr.style.background = opening ? '#f4faf5' : '#fafafa';
   if (opening) {
     const box = body.querySelector('[id^="recbox-"]');
     const hasRecordsBtn = body.querySelector('[data-onclick="_loadReceivedRecords"]');
