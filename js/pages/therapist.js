@@ -715,8 +715,40 @@ window.loadSopPrepChecklist = async function() {
   if (!sessionId) { _alert('error', 'Select a session first — the checklist loads from that session\'s prescribed protocol.'); return; }
 
   const { data: dayRow } = await supabase.from('pk_care_plan_days')
-    .select('protocol_instance_id').eq('session_id', sessionId).maybeSingle();
+    .select('protocol_instance_id, activity_label').eq('session_id', sessionId).maybeSingle();
   if (!dayRow) { _alert('error', 'This session isn\'t linked to a Panchakarma Care Plan protocol — nothing to load.'); return; }
+
+  // Session 279 -- a real, patient-specific prescribed Niruha Basti formula (doctor-
+  // authored in doctor.js's wizard) is far more clinically relevant here than the
+  // generic SOP-template reference material below -- prefer it when this session's
+  // day is a Niruha administration with real ingredients on record.
+  const { data: niruhaMedsRaw } = await supabase.from('pk_care_plan_medicines')
+    .select('medicine_name, basti_component, custom_component_label, quantity_value, quantity_unit')
+    .eq('protocol_instance_id', dayRow.protocol_instance_id).eq('activity_label', dayRow.activity_label);
+  const niruhaMeds = (niruhaMedsRaw || []).filter(m => m.basti_component || m.custom_component_label);
+  if (niruhaMeds.length) {
+    const { data: protoRow2 } = await supabase.from('pk_care_plan_protocols')
+      .select('niruha_formula_name').eq('id', dayRow.protocol_instance_id).maybeSingle();
+    const compOrder = ['madhu', 'lavana', 'sneha', 'kalka', 'kwatha', 'avapa'];
+    const items = niruhaMeds.slice().sort((a, b) => {
+      const ai = a.basti_component ? compOrder.indexOf(a.basti_component) : 99;
+      const bi = b.basti_component ? compOrder.indexOf(b.basti_component) : 99;
+      return ai - bi;
+    });
+    document.getElementById('sop-checklist-title').textContent =
+      `🌿 ${protoRow2?.niruha_formula_name ? protoRow2.niruha_formula_name + ' — ' : ''}Prescribed Niruha formula for this patient (uncheck anything already prepared)`;
+    document.getElementById('sop-checklist-items').innerHTML = items.map((m, i) => `
+      <div style="display:grid;grid-template-columns:auto 1.6fr .6fr .5fr;gap:8px;align-items:center;padding:4px 0">
+        <input type="checkbox" class="sop-cl-check" checked data-i="${i}"/>
+        <span style="font-size:13px">${_esc(m.medicine_name || '—')} <span style="font-size:10px;color:var(--text-muted)">(${_esc(m.custom_component_label || m.basti_component)})</span></span>
+        <input type="number" min="0" step="0.01" class="sop-cl-qty" data-i="${i}" value="${m.quantity_value ?? ''}" style="height:30px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit"/>
+        <select class="sop-cl-unit" data-i="${i}" style="height:30px;border:1.5px solid var(--border);border-radius:6px;padding:0 6px;font-size:12px;font-family:inherit">
+          ${['ml','L','g','kg','batch'].map(u => `<option value="${u}"${(m.quantity_unit || 'ml') === u ? ' selected' : ''}>${u}</option>`).join('')}
+        </select>
+      </div>`).join('');
+    document.getElementById('sop-checklist-panel').style.display = '';
+    return;
+  }
 
   const { data: protoRow } = await supabase.from('pk_care_plan_protocols')
     .select('template_id').eq('id', dayRow.protocol_instance_id).maybeSingle();

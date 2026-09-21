@@ -4230,7 +4230,7 @@ let _admReqSubscription = null;
 async function loadAdmissionRequests() {
   const { data, error } = await supabase
     .from('admission_advice')
-    .select('id, clinical_indication, expected_duration_days, duration_note, room_type_preference, payer_type, estimated_total, advance_amount_suggested, created_at, patients(name, phone), profiles!doctor_id(full_name), departments(name)')
+    .select('id, clinical_indication, expected_duration_days, duration_note, room_type_preference, payer_type, estimated_total, advance_amount_suggested, created_at, patients(name, phone), profiles!doctor_id(full_name), departments(name), pk_care_plan_id, pk_care_plans(pk_care_plan_protocols(protocol_label, niruha_formula_name))')
     .eq('tenant_id', tenantId)
     .eq('status', 'pending')
     .order('created_at', { ascending: true });
@@ -4250,6 +4250,12 @@ async function loadAdmissionRequests() {
     const roomLabel = ROOM_LABELS[r.room_type_preference] || r.room_type_preference || '—';
     const payerBadge = r.payer_type === 'insurance'
       ? `<span class="badge" style="background:#e3f0ff;color:#1a4080">INSURANCE</span>` : '';
+    // Session 279 -- an admission-setting Panchakarma Care Plan's protocols (and any
+    // doctor-named Niruha Basti formula) shown here too, same as the Day Care/OPD
+    // PK Care Plans queue already does.
+    const pkProtocolNames = (r.pk_care_plans?.pk_care_plan_protocols || [])
+      .map(p => p.niruha_formula_name ? `${p.protocol_label} (${p.niruha_formula_name})` : p.protocol_label)
+      .join(', ');
     return `<div class="q-item">
       <div class="q-token waiting">🛏️</div>
       <div class="q-info">
@@ -4259,6 +4265,7 @@ async function loadAdmissionRequests() {
              for most doctor profiles here -- an added "Dr." prefix doubled up. Matches the
              no-prefix convention ipd.js's own doctor display already uses. -->
         <div class="q-row2"><span style="color:var(--text-mid)">Advised by ${_esc(r.profiles?.full_name || '—')} · waiting ${waitedFor}</span></div>
+        ${pkProtocolNames ? `<div class="q-row2"><span style="color:var(--green-mid)">🌸 ${_esc(pkProtocolNames)}</span></div>` : ''}
         <div class="q-row3">${_esc(r.clinical_indication || '')}</div>
         <div class="q-row3">Estimated total: <strong>₹${Number(r.estimated_total||0).toLocaleString('en-IN')}</strong> · Suggested advance: <strong>₹${Number(r.advance_amount_suggested||0).toLocaleString('en-IN')}</strong></div>
       </div>
@@ -4306,7 +4313,7 @@ let _pkPlansSubscription = null;
 async function loadPkCarePlanRequests() {
   const { data, error } = await supabase
     .from('pk_care_plans')
-    .select('id, setting, estimated_total, advance_amount_suggested, created_at, patients(name, phone), profiles!doctor_id(full_name), pk_care_plan_protocols(protocol_label)')
+    .select('id, setting, estimated_total, advance_amount_suggested, created_at, patients(name, phone), profiles!doctor_id(full_name), pk_care_plan_protocols(protocol_label, niruha_formula_name)')
     .eq('tenant_id', tenantId)
     .eq('status', 'finalized')
     .in('setting', ['day_care', 'opd'])
@@ -4324,7 +4331,11 @@ async function loadPkCarePlanRequests() {
   const SETTING_LABELS = { day_care: 'Day Care', opd: 'OPD-based' };
   list.innerHTML = rows.map(r => {
     const waitedFor = _waitTime(r.created_at);
-    const protocolNames = (r.pk_care_plan_protocols || []).map(p => p.protocol_label).join(', ') || '—';
+    // Session 279 -- carry the doctor's named Niruha Basti formula through to
+    // reception, so it's identifiable here, not just a generic "Basti" line.
+    const protocolNames = (r.pk_care_plan_protocols || [])
+      .map(p => p.niruha_formula_name ? `${p.protocol_label} (${p.niruha_formula_name})` : p.protocol_label)
+      .join(', ') || '—';
     const suggested = Number(r.advance_amount_suggested || 0);
     return `<div class="q-item">
       <div class="q-token waiting">🌸</div>

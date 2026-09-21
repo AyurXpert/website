@@ -1421,7 +1421,7 @@ async function loadPkCarePlan() {
     .select(`
       id, status, created_at,
       pk_care_plan_protocols(
-        id, protocol_label, koshtha, snehapana_start_dose_ml, snehapana_increment_ml,
+        id, protocol_label, koshtha, snehapana_start_dose_ml, snehapana_increment_ml, niruha_formula_name,
         pk_care_plan_days(id, phase, activity_label, planned_date, sequence_order, ayush_code, location_mode, pk_therapy_sessions(status), pk_snehapana_doses(*), pk_virechana_assessment(*, pk_virechana_vegas(*), clinical_media(file_url, caption)))
       )
     `)
@@ -1435,6 +1435,26 @@ async function loadPkCarePlan() {
     return;
   }
 
+  // Session 279 -- the doctor's real prescribed Niruha Basti formula (name +
+  // ingredients), read-only reference so ward staff can see exactly what's being
+  // administered without needing to ask the therapist. pk_care_plan_medicines has
+  // no FK to pk_care_plan_days (it's scoped by protocol_instance_id + activity_label,
+  // same as therapist.js/doctor.js already read it) -- one flat query, matched
+  // client-side.
+  const allProtocolIds = plans.flatMap(p => (p.pk_care_plan_protocols || []).map(pr => pr.id));
+  let niruhaMedsByProtocol = {};
+  if (allProtocolIds.length) {
+    const { data: meds } = await supabase.from('pk_care_plan_medicines')
+      .select('protocol_instance_id, activity_label, medicine_name, basti_component, custom_component_label, quantity_value, quantity_unit')
+      .in('protocol_instance_id', allProtocolIds);
+    // Filtered client-side (not every row here is a Niruha component -- other
+    // activities in the same protocol share this table too).
+    (meds || []).filter(m => m.basti_component || m.custom_component_label).forEach(m => {
+      const key = `${m.protocol_instance_id}|${m.activity_label}`;
+      (niruhaMedsByProtocol[key] = niruhaMedsByProtocol[key] || []).push(m);
+    });
+  }
+
   const today = todayLocalStr();
   // Matches confirm_snehapana_dose()'s real server-side _pk_snehapana_dose_confirm_ok()
   // exactly -- deliberately excludes trainee_doctor (PG/intern can record signs, same
@@ -1446,7 +1466,7 @@ async function loadPkCarePlan() {
 
   el.innerHTML = plans.map(p => {
     const rows = (p.pk_care_plan_protocols || [])
-      .flatMap(pr => (pr.pk_care_plan_days || []).map(d => ({ ...d, protocol_label: pr.protocol_label })))
+      .flatMap(pr => (pr.pk_care_plan_days || []).map(d => ({ ...d, protocol_label: pr.protocol_label, protocol_id: pr.id, niruha_formula_name: pr.niruha_formula_name })))
       .sort((a, b) => (a.planned_date || '').localeCompare(b.planned_date || '') || a.sequence_order - b.sequence_order);
 
     return `<div style="border:1.5px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px">
@@ -1476,6 +1496,10 @@ async function loadPkCarePlan() {
             if (sneha) _pkSnehaDoses.push(sneha);
             const vire = d.ayush_code === 'PCK64' ? (d.pk_virechana_assessment || null) : null;
             if (vire) _pkVireAssessments.push(vire);
+            // Session 279 -- real prescribed Niruha Basti formula (name + every
+            // ingredient), matched by the same protocol_instance_id+activity_label
+            // key doctor.js saved it under.
+            const niruhaMeds = niruhaMedsByProtocol[`${d.protocol_id}|${d.activity_label}`];
             return `<tr style="border-bottom:1px solid #f0f4f2;${isToday ? 'background:#fff8e1' : ''}">
               <td style="padding:5px 8px">${_esc(d.planned_date || '—')}${isToday ? ' <strong>(Today)</strong>' : ''}</td>
               <td style="padding:5px 8px">${_esc(d.protocol_label)}</td>
@@ -1484,7 +1508,7 @@ async function loadPkCarePlan() {
               <td style="padding:5px 8px">${d.location_mode === 'home'
                 ? `<span style="font-size:11px;font-weight:600;color:var(--gold)">🏠 Advised at home</span>`
                 : `<span style="font-size:11px;font-weight:600;color:${PK_SESSION_STATUS_COLOR[sessStatus] || '#333'}">${PK_SESSION_STATUS_LABEL[sessStatus] || sessStatus}</span>`}</td>
-              <td style="padding:5px 8px">${sneha ? _renderSnehaDoseCell(sneha, canConfirmDose) : (vire ? _renderVireAssessmentCell(vire, canConfirmDose) : '—')}</td>
+              <td style="padding:5px 8px">${sneha ? _renderSnehaDoseCell(sneha, canConfirmDose) : (vire ? _renderVireAssessmentCell(vire, canConfirmDose) : (niruhaMeds ? _renderNiruhaFormulaCell(d.niruha_formula_name, niruhaMeds) : '—'))}</td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -1492,6 +1516,32 @@ async function loadPkCarePlan() {
       </div>
     </div>`;
   }).join('');
+}
+
+// Session 279 -- read-only reference: the doctor's real prescribed Niruha Basti
+// formula, grouped by component so ward staff can see exactly what's being
+// administered. Not editable here -- doctor.js's wizard is the only place this
+// is authored/changed.
+const _PK_COMPONENT_ORDER = ['madhu', 'lavana', 'sneha', 'kalka', 'kwatha', 'avapa'];
+const _PK_COMPONENT_SHORT = { madhu: 'Madhu', lavana: 'Lavana', sneha: 'Sneha', kalka: 'Kalka', kwatha: 'Kwatha', avapa: 'Avapa' };
+function _renderNiruhaFormulaCell(formulaName, meds) {
+  const byComponent = {};
+  const extra = {};
+  meds.forEach(m => {
+    if (m.basti_component) (byComponent[m.basti_component] = byComponent[m.basti_component] || []).push(m);
+    else if (m.custom_component_label) (extra[m.custom_component_label] = extra[m.custom_component_label] || []).push(m);
+  });
+  const itemStr = m => `${_esc(m.medicine_name || '—')}${m.quantity_value ? ` (${m.quantity_value}${_esc(m.quantity_unit || '')})` : ''}`;
+  const lines = [
+    ..._PK_COMPONENT_ORDER.filter(c => byComponent[c]?.length).map(c =>
+      `<div><strong>${_PK_COMPONENT_SHORT[c]}:</strong> ${byComponent[c].map(itemStr).join(', ')}</div>`),
+    ...Object.entries(extra).map(([label, items]) =>
+      `<div><strong>${_esc(label)}:</strong> ${items.map(itemStr).join(', ')}</div>`),
+  ];
+  return `<div style="font-size:11px;line-height:1.5">
+    ${formulaName ? `<div style="font-weight:700;color:var(--green-deep);margin-bottom:2px">🌿 ${_esc(formulaName)}</div>` : ''}
+    ${lines.join('')}
+  </div>`;
 }
 
 function _renderSnehaDoseCell(sneha, isDoctorLike) {
