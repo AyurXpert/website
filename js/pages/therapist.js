@@ -287,6 +287,7 @@ async function loadAll() {
   _renderRoomOccupancyGrid();
   _renderRoomsPanel();
   _renderPrepPanel();
+  loadPkPrepQueue();
   _renderPkRosterPanel();
   _renderPkInchargePanel();
 }
@@ -697,6 +698,152 @@ window.markPrepIssued = async function(id) {
   const { error } = await supabase.from('pk_preparation_logs').update({ issued_at: new Date().toISOString() }).eq('id', id);
   if (error) { _alert('error', safeErrorMessage(error, 'Failed to mark issued.')); return; }
   await loadAll();
+};
+
+// ── PK Prep Queue (Session 279) ─────────────────────────────────────────────────
+// Two sections, real Care Plan data, auto-populated (never manually entered):
+// Section 1 -- today's real patient list needing something prepared, Pending ->
+// In Preparation -> Dispatched -> Served, same status model palha-diet.html
+// already uses. Section 2 -- the SAME data grouped by formulation (doctor-named
+// Niruha formula, or protocol name otherwise) with a patient list per group, so
+// prep staff can batch-prepare one Kashaya for every patient who needs the exact
+// same thing instead of preparing it separately per patient.
+let _pkqRows = [];
+let _pkqFilter = 'active';
+
+async function loadPkPrepQueue() {
+  const { data, error } = await supabase
+    .from('pk_prep_queue')
+    .select(`
+      id, patient_id, session_id, protocol_instance_id, activity_label, formulation_name, status,
+      patients(name),
+      pk_therapy_sessions(scheduled_time),
+      pk_care_plan_protocols(pk_care_plans(instructions_therapist))
+    `)
+    .eq('tenant_id', tenantId)
+    .eq('prep_date', _prepToday)
+    .order('created_at', { ascending: true });
+  if (error) { console.error('pk_prep_queue load failed:', error); return; }
+  _pkqRows = data || [];
+
+  // Real ingredients per (protocol_instance_id, activity_label) -- same join key
+  // doctor.js saves under and loadSopPrepChecklist() already reads. One flat query
+  // for every distinct pair on today's queue, matched client-side (no FK from
+  // pk_care_plan_medicines to a specific day, so no relational embed is possible).
+  const protocolIds = [...new Set(_pkqRows.map(r => r.protocol_instance_id))];
+  let medsByKey = {};
+  if (protocolIds.length) {
+    const { data: meds } = await supabase.from('pk_care_plan_medicines')
+      .select('protocol_instance_id, activity_label, medicine_name, basti_component, custom_component_label, quantity_value, quantity_unit')
+      .in('protocol_instance_id', protocolIds);
+    (meds || []).forEach(m => {
+      const key = `${m.protocol_instance_id}|${m.activity_label}`;
+      (medsByKey[key] = medsByKey[key] || []).push(m);
+    });
+  }
+  _pkqRows.forEach(r => { r._meds = medsByKey[`${r.protocol_instance_id}|${r.activity_label}`] || []; });
+
+  renderPkqStats();
+  renderPkqList();
+  renderPkqGroups();
+}
+
+function renderPkqStats() {
+  document.getElementById('pkq-stat-pending').textContent    = _pkqRows.filter(r => r.status === 'pending').length;
+  document.getElementById('pkq-stat-inprep').textContent     = _pkqRows.filter(r => r.status === 'in_preparation').length;
+  document.getElementById('pkq-stat-dispatched').textContent = _pkqRows.filter(r => r.status === 'dispatched').length;
+  document.getElementById('pkq-stat-served').textContent     = _pkqRows.filter(r => r.status === 'served').length;
+}
+
+const _PK_COMPONENT_ORDER2 = ['madhu', 'lavana', 'sneha', 'kalka', 'kwatha', 'avapa'];
+function _pkqIngredientLine(meds) {
+  if (!meds.length) return '';
+  const byComp = {}, extra = {};
+  meds.forEach(m => {
+    if (m.basti_component) (byComp[m.basti_component] = byComp[m.basti_component] || []).push(m);
+    else if (m.custom_component_label) (extra[m.custom_component_label] = extra[m.custom_component_label] || []).push(m);
+  });
+  const itemStr = m => `${_esc(m.medicine_name || '—')}${m.quantity_value ? ` (${m.quantity_value}${_esc(m.quantity_unit || '')})` : ''}`;
+  const parts = [
+    ..._PK_COMPONENT_ORDER2.filter(c => byComp[c]?.length).map(c => byComp[c].map(itemStr).join(', ')),
+    ...Object.values(extra).map(items => items.map(itemStr).join(', ')),
+  ];
+  return parts.join(' · ');
+}
+
+window.setPkqFilter = function(f, el) {
+  _pkqFilter = f;
+  document.querySelectorAll('.pkq-filter-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderPkqList();
+};
+
+function renderPkqList() {
+  const filtered = _pkqFilter === 'all'    ? _pkqRows
+                  : _pkqFilter === 'active' ? _pkqRows.filter(r => ['pending','in_preparation','dispatched'].includes(r.status))
+                  : _pkqRows.filter(r => r.status === _pkqFilter);
+
+  const list = document.getElementById('pkq-list');
+  if (!filtered.length) {
+    list.innerHTML = `<div class="pkq-empty">No preparation items for this filter.<br><span style="font-size:11px">Items appear automatically once a patient's Panchakarma Care Plan is activated.</span></div>`;
+    return;
+  }
+
+  const STATUS_NEXT = { pending: 'in_preparation', in_preparation: 'dispatched', dispatched: 'served' };
+  const STATUS_BTN  = { pending: '▶ Start Preparation', in_preparation: '📦 Mark Dispatched', dispatched: '✓ Mark Served' };
+  const STATUS_CLASS = { pending: 'pkq-btn-start', in_preparation: 'pkq-btn-dispatch', dispatched: 'pkq-btn-served' };
+
+  list.innerHTML = filtered.map(r => {
+    const timeStr = r.pk_therapy_sessions?.scheduled_time ? r.pk_therapy_sessions.scheduled_time.slice(0, 5) : '—';
+    const instructions = r.pk_care_plan_protocols?.pk_care_plans?.instructions_therapist;
+    const nextStatus = STATUS_NEXT[r.status];
+    const canCancel = ['pending', 'in_preparation'].includes(r.status);
+    const ingredients = _pkqIngredientLine(r._meds);
+    return `<div class="pkq-card ${r.status}">
+      <div class="pkq-card-top">
+        <div class="pkq-formulation">${_esc(r.formulation_name)}</div>
+        <div class="pkq-time">${timeStr}</div>
+      </div>
+      <div class="pkq-patient">👤 <strong>${_esc(r.patients?.name || '—')}</strong> · ${_esc(r.activity_label)}</div>
+      ${ingredients ? `<div class="pkq-ingredients">🧪 ${ingredients}</div>` : ''}
+      ${instructions ? `<div class="pkq-instructions">📌 ${_esc(instructions)}</div>` : ''}
+      ${nextStatus ? `<div class="pkq-actions">
+        <button class="pkq-btn ${STATUS_CLASS[r.status]}" data-onclick="updatePkqStatus" data-onclick-a0="${r.id}" data-onclick-a1="${nextStatus}">${STATUS_BTN[r.status]}</button>
+        ${canCancel ? `<button class="pkq-btn pkq-btn-cancel" data-onclick="updatePkqStatus" data-onclick-a0="${r.id}" data-onclick-a1="cancelled">Cancel</button>` : ''}
+      </div>` : (r.status === 'served' ? `<div style="font-size:11px;color:var(--success-text);margin-top:8px;font-weight:600">✓ Served</div>` : (r.status === 'cancelled' ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">Cancelled</div>` : ''))}
+    </div>`;
+  }).join('');
+}
+
+function renderPkqGroups() {
+  const el = document.getElementById('pkq-groups');
+  const active = _pkqRows.filter(r => ['pending', 'in_preparation'].includes(r.status));
+  if (!active.length) {
+    el.innerHTML = `<div class="pkq-empty">Nothing pending preparation right now.</div>`;
+    return;
+  }
+  const groups = {};
+  active.forEach(r => (groups[r.formulation_name] = groups[r.formulation_name] || []).push(r));
+  el.innerHTML = Object.entries(groups)
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([name, rows]) => `
+      <div class="pkq-group">
+        <div class="pkq-group-hdr">
+          <div class="pkq-group-name">${_esc(name)}</div>
+          <div class="pkq-group-count">${rows.length}</div>
+        </div>
+        <div class="pkq-group-patients">${rows.map(r => _esc(r.patients?.name || '—')).join(', ')}</div>
+      </div>`).join('');
+}
+
+window.updatePkqStatus = async function(id, newStatus) {
+  const patch = { status: newStatus };
+  if (newStatus === 'in_preparation') { patch.in_preparation_by = myProfile?.id; patch.in_preparation_at = new Date().toISOString(); }
+  if (newStatus === 'dispatched')     { patch.dispatched_by = myProfile?.id; patch.dispatched_at = new Date().toISOString(); }
+  if (newStatus === 'served')         { patch.served_by = myProfile?.id; patch.served_at = new Date().toISOString(); }
+  const { error } = await supabase.from('pk_prep_queue').update(patch).eq('id', id);
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not update status.')); return; }
+  await loadPkPrepQueue();
 };
 
 // ── Load SOP Checklist (Session 248) ────────────────────────────────────────────
