@@ -632,6 +632,15 @@ function _renderPrepPanel() {
   sessEl.innerHTML = '<option value="">— Not linked to a session —</option>' +
     _sessions.map(s => `<option value="${s.id}">${_esc(s.patients?.name || 'Patient')} — ${_esc(s.therapy_name)}${s.scheduled_time ? ' @ ' + s.scheduled_time.slice(0,5) : ''}</option>`).join('');
 
+  // Session 280 -- live count backing the shift-end bulk waste-disposal button.
+  const wasteHintEl = document.getElementById('prep-waste-hint');
+  if (wasteHintEl) {
+    const unflaggedCount = _prepLogs.filter(p => !p.waste_logged).length;
+    wasteHintEl.textContent = unflaggedCount
+      ? `${unflaggedCount} of today's ${_prepLogs.length} preparation(s) still need waste disposal confirmed.`
+      : (_prepLogs.length ? 'All of today\'s preparations have waste disposal logged. ✅' : '');
+  }
+
   const list = document.getElementById('prep-list');
   if (!_prepLogs.length) {
     list.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No preparations logged today.</div>';
@@ -720,6 +729,7 @@ async function loadPkPrepQueue() {
     .from('pk_prep_queue')
     .select(`
       id, patient_id, session_id, protocol_instance_id, activity_label, formulation_name, status,
+      in_preparation_by, in_preparation_at,
       patients(name),
       pk_therapy_sessions(scheduled_time),
       pk_care_plan_protocols(pk_care_plans(instructions_therapist))
@@ -841,124 +851,76 @@ function renderPkqGroups() {
 }
 
 window.updatePkqStatus = async function(id, newStatus) {
+  const row = _pkqRows.find(r => r.id === id);
   const patch = { status: newStatus };
   if (newStatus === 'in_preparation') { patch.in_preparation_by = myProfile?.id; patch.in_preparation_at = new Date().toISOString(); }
   if (newStatus === 'dispatched')     { patch.dispatched_by = myProfile?.id; patch.dispatched_at = new Date().toISOString(); }
   if (newStatus === 'served')         { patch.served_by = myProfile?.id; patch.served_at = new Date().toISOString(); }
   const { error } = await supabase.from('pk_prep_queue').update(patch).eq('id', id);
   if (error) { _alert('error', safeErrorMessage(error, 'Could not update status.')); return; }
-  await loadPkPrepQueue();
-};
-
-// ── Load SOP Checklist (Session 248) ────────────────────────────────────────────
-// Resolves the selected session back to the real prescribed protocol -- session ->
-// pk_care_plan_days (whichever day generated this session) -> pk_care_plan_protocols ->
-// pk_sop_templates -> sop_content_templates (via linked_pk_template_id) ->
-// sop_content_template_materials -- and offers those as a reviewable, uncheck-if-not-
-// needed-today checklist rather than bulk-inserting blind (pk_preparation_logs has no
-// DELETE policy at all, only UPDATE for corrections -- a bad blind bulk-insert would be
-// stuck as noise in a compliance log, not something a therapist can just remove).
-// Sessions not generated from a real care plan (or whose protocol has no linked SOP
-// content yet) simply have nothing to load -- an honest gap, not a silent guess via
-// text-matching therapy_name.
-window.loadSopPrepChecklist = async function() {
-  const sessionId = document.getElementById('prep-session').value;
-  if (!sessionId) { _alert('error', 'Select a session first — the checklist loads from that session\'s prescribed protocol.'); return; }
-
-  const { data: dayRow } = await supabase.from('pk_care_plan_days')
-    .select('protocol_instance_id, activity_label').eq('session_id', sessionId).maybeSingle();
-  if (!dayRow) { _alert('error', 'This session isn\'t linked to a Panchakarma Care Plan protocol — nothing to load.'); return; }
-
-  // Session 279 -- a real, patient-specific prescribed Niruha Basti formula (doctor-
-  // authored in doctor.js's wizard) is far more clinically relevant here than the
-  // generic SOP-template reference material below -- prefer it when this session's
-  // day is a Niruha administration with real ingredients on record.
-  const { data: niruhaMedsRaw } = await supabase.from('pk_care_plan_medicines')
-    .select('medicine_name, basti_component, custom_component_label, quantity_value, quantity_unit')
-    .eq('protocol_instance_id', dayRow.protocol_instance_id).eq('activity_label', dayRow.activity_label);
-  const niruhaMeds = (niruhaMedsRaw || []).filter(m => m.basti_component || m.custom_component_label);
-  if (niruhaMeds.length) {
-    const { data: protoRow2 } = await supabase.from('pk_care_plan_protocols')
-      .select('niruha_formula_name').eq('id', dayRow.protocol_instance_id).maybeSingle();
-    const compOrder = ['madhu', 'lavana', 'sneha', 'kalka', 'kwatha', 'avapa'];
-    const items = niruhaMeds.slice().sort((a, b) => {
-      const ai = a.basti_component ? compOrder.indexOf(a.basti_component) : 99;
-      const bi = b.basti_component ? compOrder.indexOf(b.basti_component) : 99;
-      return ai - bi;
-    });
-    document.getElementById('sop-checklist-title').textContent =
-      `🌿 ${protoRow2?.niruha_formula_name ? protoRow2.niruha_formula_name + ' — ' : ''}Prescribed Niruha formula for this patient (uncheck anything already prepared)`;
-    document.getElementById('sop-checklist-items').innerHTML = items.map((m, i) => `
-      <div style="display:grid;grid-template-columns:auto 1.6fr .6fr .5fr;gap:8px;align-items:center;padding:4px 0">
-        <input type="checkbox" class="sop-cl-check" checked data-i="${i}"/>
-        <span style="font-size:13px">${_esc(m.medicine_name || '—')} <span style="font-size:10px;color:var(--text-muted)">(${_esc(m.custom_component_label || m.basti_component)})</span></span>
-        <input type="number" min="0" step="0.01" class="sop-cl-qty" data-i="${i}" value="${m.quantity_value ?? ''}" style="height:30px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit"/>
-        <select class="sop-cl-unit" data-i="${i}" style="height:30px;border:1.5px solid var(--border);border-radius:6px;padding:0 6px;font-size:12px;font-family:inherit">
-          ${['ml','L','g','kg','batch'].map(u => `<option value="${u}"${(m.quantity_unit || 'ml') === u ? ' selected' : ''}>${u}</option>`).join('')}
-        </select>
-      </div>`).join('');
-    document.getElementById('sop-checklist-panel').style.display = '';
-    return;
+  if (newStatus === 'served' && row) {
+    await _autoLogPrepFromQueueRow(row, patch);
+    await loadAll();
+  } else {
+    await loadPkPrepQueue();
   }
-
-  const { data: protoRow } = await supabase.from('pk_care_plan_protocols')
-    .select('template_id').eq('id', dayRow.protocol_instance_id).maybeSingle();
-  if (!protoRow) { _alert('error', 'Could not resolve this session\'s protocol.'); return; }
-
-  const { data: contentTpl } = await supabase.from('sop_content_templates')
-    .select('id,display_name').eq('linked_pk_template_id', protoRow.template_id).maybeSingle();
-  if (!contentTpl) { _alert('error', 'No SOP checklist available yet for this protocol.'); return; }
-
-  const { data: materials } = await supabase.from('sop_content_template_materials')
-    .select('item_name,quantity,unit').eq('template_id', contentTpl.id).order('sequence_order');
-  if (!materials || !materials.length) { _alert('error', `${contentTpl.display_name}'s SOP has no listed materials yet.`); return; }
-
-  document.getElementById('sop-checklist-title').textContent = `📋 ${contentTpl.display_name} — SOP materials (uncheck anything not needed today)`;
-  document.getElementById('sop-checklist-items').innerHTML = materials.map((m, i) => `
-    <div style="display:grid;grid-template-columns:auto 1.6fr .6fr .5fr;gap:8px;align-items:center;padding:4px 0">
-      <input type="checkbox" class="sop-cl-check" checked data-i="${i}"/>
-      <span style="font-size:13px">${_esc(m.item_name)}</span>
-      <input type="number" min="0" step="0.01" class="sop-cl-qty" data-i="${i}" value="${m.quantity ?? ''}" style="height:30px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12px;font-family:inherit"/>
-      <select class="sop-cl-unit" data-i="${i}" style="height:30px;border:1.5px solid var(--border);border-radius:6px;padding:0 6px;font-size:12px;font-family:inherit">
-        ${['ml','L','g','kg','batch'].map(u => `<option value="${u}"${(m.unit || 'batch') === u ? ' selected' : ''}>${u}</option>`).join('')}
-      </select>
-    </div>`).join('');
-  document.getElementById('sop-checklist-panel').style.display = '';
 };
 
-window.hideSopPrepChecklist = function() {
-  document.getElementById('sop-checklist-panel').style.display = 'none';
-};
+// Session 280 -- auto-generates the NCISM compliance log (pk_preparation_logs) the moment
+// a queue item is actually served, from the same real ingredient data the queue card
+// already shows (pk_care_plan_medicines) -- replaces the old manual "Load SOP Checklist"
+// path, which pulled generic protocol-level setup items (lavatory, towels), not medicines,
+// and required re-typing what the Queue already knew (Dr. Venkatesh, Session 280).
+async function _autoLogPrepFromQueueRow(row, patch) {
+  const preparedBy = row.in_preparation_by || patch.served_by || myProfile?.id;
+  const preparedAt = row.in_preparation_at || new Date().toISOString();
+  const issuedAt   = patch.served_at || new Date().toISOString();
+  const patientName = row.patients?.name || 'patient';
+  const note = `Auto-logged from Preparation Queue -- served to ${patientName} (${row.activity_label})`;
 
-window.logSopPrepChecklist = async function() {
-  const preparedBy = document.getElementById('prep-by').value;
-  if (!preparedBy) { _alert('error', 'Select who prepared it.'); return; }
-  const roomId = document.getElementById('prep-room').value || null;
-  const sessionId = document.getElementById('prep-session').value || null;
+  const items = (row._meds && row._meds.length)
+    ? row._meds.map(m => ({
+        item_name: m.medicine_name || row.formulation_name,
+        quantity: m.quantity_value ?? null,
+        unit: m.quantity_unit || 'ml',
+      }))
+    : [{ item_name: row.formulation_name, quantity: null, unit: 'batch' }];
 
-  const rows = [...document.querySelectorAll('.sop-cl-check:checked')].map(cb => {
-    const i = cb.dataset.i;
-    const itemName = document.querySelectorAll('#sop-checklist-items > div')[i]?.querySelector('span')?.textContent;
-    const qty = document.querySelector(`.sop-cl-qty[data-i="${i}"]`)?.value;
-    const unit = document.querySelector(`.sop-cl-unit[data-i="${i}"]`)?.value || 'batch';
-    return {
-      tenant_id: tenantId, prepared_date: _prepToday, item_name: itemName,
-      quantity: qty ? Number(qty) : null, unit, prepared_by: preparedBy,
-      room_id: roomId, session_id: sessionId, waste_logged: false,
-      notes: 'Loaded from SOP checklist',
-    };
-  });
-  if (!rows.length) { _alert('error', 'Nothing checked — check at least one item first.'); return; }
+  const rows = items.map(it => ({
+    tenant_id: tenantId,
+    prepared_date: _prepToday,
+    item_name: it.item_name,
+    quantity: it.quantity,
+    unit: it.unit,
+    prepared_by: preparedBy,
+    session_id: row.session_id,
+    prepared_at: preparedAt,
+    issued_at: issuedAt,
+    waste_logged: false,
+    notes: note,
+  }));
 
   const { error } = await supabase.from('pk_preparation_logs').insert(rows);
-  if (error) { _alert('error', safeErrorMessage(error, 'Failed to log the checklist items.')); return; }
+  if (error) console.error('auto prep-log insert failed:', error);
+}
 
-  window.hideSopPrepChecklist();
-  const saved = document.getElementById('prep-saved');
-  saved.style.display = '';
-  setTimeout(() => { saved.style.display = 'none'; }, 2000);
+// Session 280 -- one shift-end confirmation instead of a per-item waste checkbox: flips
+// waste_logged=true on every one of today's log entries still unflagged (manual entries
+// and auto-logged Queue entries alike).
+window.bulkLogWaste = async function() {
+  const unflagged = _prepLogs.filter(p => !p.waste_logged);
+  if (!unflagged.length) { _alert('error', 'Nothing to confirm -- all of today\'s preparations already have waste disposal logged.'); return; }
+  if (!confirm(`Confirm biomedical waste from all ${unflagged.length} of today's preparations has been disposed per NCISM Reg 47(a)(viii)/(xi)?`)) return;
+
+  const { error } = await supabase.from('pk_preparation_logs')
+    .update({ waste_logged: true })
+    .eq('tenant_id', tenantId)
+    .eq('prepared_date', _prepToday)
+    .eq('waste_logged', false);
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not log waste disposal.')); return; }
   await loadAll();
 };
+
 
 // ── Therapist Duty Roster (Session 206 piece 3) ─────────────────────────────────
 // Deliberately separate from roster.html/duty_roster -- see therapist.html's comment.

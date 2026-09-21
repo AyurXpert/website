@@ -1091,17 +1091,12 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
           <select id="prep-session" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"><option value="">— Not linked to a session —</option></select></div>
       </div>
 
-      <!-- Session 248 — pre-fills from the session's care-plan protocol's SOP materials list, instead of typing every item from memory -->
-      <div style="margin-bottom:10px">
-        <button data-onclick="loadSopPrepChecklist" style="height:32px;padding:0 12px;background:var(--white);border:1.5px solid var(--green-mid);color:var(--green-deep);border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📋 Load SOP Checklist</button>
-      </div>
-      <div id="sop-checklist-panel" style="display:none;margin-bottom:14px;padding:12px;background:var(--cream);border:1.5px solid var(--border);border-radius:8px">
-        <div id="sop-checklist-title" style="font-weight:600;font-size:12px;color:var(--green-deep);margin-bottom:8px"></div>
-        <div id="sop-checklist-items"></div>
-        <button data-onclick="logSopPrepChecklist" style="margin-top:8px;height:34px;padding:0 14px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">+ Log Checked Items</button>
-        <button data-onclick="hideSopPrepChecklist" style="margin-top:8px;margin-left:6px;height:34px;padding:0 14px;background:var(--white);border:1.5px solid var(--border);border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit">Cancel</button>
-      </div>
-
+      <!-- Session 280 -- for genuinely ad-hoc prep not tied to any Care Plan queue row
+           (general stock, a walk-in with no active plan). Real patient-linked medicine
+           prep is now auto-logged from the Preparation Queue above on Mark Served
+           (_autoLogPrepFromQueueRow) -- the old "Load SOP Checklist" shortcut pulled
+           generic protocol-level setup items (lavatory, towels), not real medicines, and
+           is removed rather than fixed since its actual job is now done automatically. -->
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:10px">
         <label class="check-label" style="display:flex;align-items:center;gap:6px;font-size:13px">
           <input type="checkbox" id="prep-waste"/> Biomedical waste from this prep logged (Reg 47(a)(viii)/(xi))
@@ -1112,7 +1107,14 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
       <button data-onclick="savePrepLog" style="height:40px;padding:0 18px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-weight:600;font-size:13px;cursor:pointer;font-family:inherit">+ Log Preparation</button>
       <span id="prep-saved" style="display:none;margin-left:10px;color:var(--green-mid);font-size:13px;font-weight:600">✓ Saved</span>
 
-      <div class="section-label">Today's Preparations</div>
+      <div class="section-label" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <span>Today's Preparations</span>
+        <button data-onclick="bulkLogWaste" style="height:30px;padding:0 12px;background:var(--white);border:1.5px solid var(--border);color:var(--text-mid);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">🗑️ Log Today's Waste Disposal</button>
+      </div>
+      <!-- Session 280 -- one shift-end confirmation instead of a per-item checkbox
+           (Reg 47(a)(viii)/(xi)): flips waste_logged=true on every one of today's log
+           entries still unflagged, manual or auto-logged alike. -->
+      <div id="prep-waste-hint" style="font-size:11px;color:var(--text-muted);margin:-4px 0 8px"></div>
       <div id="prep-list">Loading…</div>
     </div>
   </details>
