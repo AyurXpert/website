@@ -2017,6 +2017,11 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
     koshtha: null,
     snehapana_start_dose_ml: null,
     snehapana_increment_ml: 30,
+    // Session 281 -- doctor-typed specific formula/variant name for a protocol with no
+    // platform SOP content (e.g. "Eranda Patra Pinda Sweda" under the "Patra Pinda Sweda"
+    // protocol) -- same idea as Niruha's own formula_name, just for every other no-SOP
+    // protocol instead of only Basti. Null until the doctor types one.
+    custom_formulation_name: null,
     // Session 266 -- unset until the doctor picks one of the 3 classical pack types;
     // only meaningful for procedure_key === 'basti'.
     basti_pack_type: null,
@@ -2867,6 +2872,18 @@ window._pkSetNiruhaExtraItemField = function(pi, bi, xi, ii, field, inputEl) {
   if (field === 'qty') _renderPkMedicines();
 };
 
+// Session 281 -- true when this specific block has real platform SOP content (a
+// duration+man-power hint), same 3-tier resolution _pkNeedsManualScheduleInput() uses
+// per-block internally (ayush_code match > activity_label_match > protocol-level
+// fallback). Blocks WITHOUT this get the upgraded Formulation Name + quantity/unit
+// ingredient-row form; blocks WITH it keep the original bare name-only list unchanged
+// (Dr. Venkatesh: don't touch Anuvasana or the SOP-content-rich protocols).
+function _pkBlockHasSopHint(p, b) {
+  const activityHint = _pkResolveActivityHint(b.ayush_code, b.activity_label);
+  const hint = activityHint || _pkContentHints[p.template_id];
+  return !!(hint && hint.typical_duration_minutes && hint.man_power_staff);
+}
+
 function _renderPkMedicines() {
   const el = document.getElementById('pk-medicines-body');
   if (!el) return;
@@ -2879,46 +2896,87 @@ function _renderPkMedicines() {
        'Dhanwantaram Taila', 'Ksheerabala Taila', 'Mahanarayana Taila', 'Go Ghrita (Cow Ghee)',
        'Guggulu Tiktaka Ghrita', 'Panchatiktaka Ghrita'].map(n => `<option value="${_esc(n)}">`).join('')}
   </datalist>`;
-  el.innerHTML = snehaDatalist + _pkProtocols.map((p, pi) => `
+  const unitOpts = u => ['ml','g','kg','L','batch'].map(x => `<option value="${x}"${(u || 'ml') === x ? ' selected' : ''}>${x}</option>`).join('');
+  el.innerHTML = snehaDatalist + _pkProtocols.map((p, pi) => {
+    // Session 281 -- {b, bi} pairs keep each block's REAL index into p.blocks (the
+    // handlers below index p.blocks[bi] directly) even after filtering out
+    // skip/zero-length/Niruha blocks -- a plain .filter() would silently renumber
+    // them and point every handler at the wrong block.
+    const renderableBlocks = p.blocks
+      .map((b, bi) => ({ b, bi }))
+      .filter(({ b }) => !(b.mode === 'skip' || (b.bastiDayType && b.length === 0) || b.bastiDayType === 'niruha'));
+    // One Formulation Name per protocol instance (same placement Niruha's own Basti Name
+    // already uses), shown once above its blocks -- only when at least one of them
+    // actually needs it (has no SOP content).
+    const needsFormulationName = renderableBlocks.some(({ b }) => !_pkBlockHasSopHint(p, b));
+    return `
     <div class="section" style="border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:12px">
       <div style="font-weight:700;font-size:14px;color:var(--green-deep);margin-bottom:8px">${_esc(p.protocol_label)}</div>
-      ${p.blocks.map((b, bi) => {
-        // Session 257 -- a skipped block isn't happening at all, so no medicines/
-        // billing-code UI for it (the doctor already switched it off in Step 2).
-        // Session 266 -- a Basti Anuvasana/Niruha block with length 0 means no pack
-        // type has been chosen yet in Step 2 -- nothing to attach medicines to yet.
-        if (b.mode === 'skip' || (b.bastiDayType && b.length === 0)) return '';
-        // Session 271 -- Niruha is a 5-part compound formulation (Madhu/Lavana/
-        // Sneha/Kalka/Kwatha), never a flat medicines list -- structured form
-        // instead of the generic "type a name, click Add" UI every other activity
-        // gets.
-        if (b.bastiDayType === 'niruha') return _pkRenderNiruhaFormulaCard(p, pi, b, bi);
+      ${needsFormulationName ? `
+      <div class="field" style="margin-bottom:10px">
+        <label style="font-size:11px">Formulation Name <span style="font-weight:400;color:var(--text-muted)">(for the record — the specific variant used, e.g. "Eranda Patra Pinda Sweda" under "Patra Pinda Sweda")</span></label>
+        <input type="text" value="${_esc(p.custom_formulation_name || '')}" placeholder="e.g. Eranda Patra Pinda Sweda" data-onchange="_pkSetFormulationName" data-onchange-a0="${pi}" data-onchange-a1="@this"/>
+      </div>` : ''}
+      ${renderableBlocks.map(({ b, bi }) => {
+        const hasSop = _pkBlockHasSopHint(p, b);
+        const billingCode = !b.ayush_code ? `<div class="field" style="margin-bottom:6px">
+            <label style="font-size:11px">Billing code for "${_esc(b.activity_label)}" (optional)</label>
+            <select data-onchange="_pkSetBlockAyush" data-onchange-a0="${pi}" data-onchange-a1="${bi}" data-onchange-a2="@this">${codeOpts}</select>
+          </div>` : '';
 
+        if (hasSop) {
+          return `
+          <div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fafff7">
+            <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">${_esc(b.activity_label)}${b.mode === 'home' ? ' <span style="font-size:10px;color:var(--gold)">🏠 at home</span>' : ''}</div>
+            ${billingCode}
+            <div class="field">
+              <label style="font-size:11px">Medicines / Materials for this activity</label>
+              <div style="display:flex;gap:6px;margin-bottom:6px">
+                <input id="pk-med-name-${pi}-${bi}" type="text" placeholder="e.g. Panchatiktaka Ghrita" style="flex:1"
+                  ${b.bastiDayType === 'anuvasana' ? `list="pk-sneha-datalist"` : ''}/>
+                <button type="button" data-onclick="_pkAddMedicine" data-onclick-a0="${pi}" data-onclick-a1="${bi}" style="height:36px;padding:0 12px;background:var(--green-mid);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">+ Add</button>
+              </div>
+              ${b.bastiDayType === 'anuvasana' ? `<div style="font-size:10px;color:var(--text-muted);margin:-3px 0 6px">Start typing for common oils/ghees, or enter any name.</div>` : ''}
+              ${(b.medicines || []).map((m, mi) => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;background:#fff">
+                  <span style="font-size:12.5px">${_esc(m.medicine_name)}</span>
+                  <button type="button" data-onclick="_pkRemoveMedicine" data-onclick-a0="${pi}" data-onclick-a1="${bi}" data-onclick-a2="${mi}" style="width:24px;height:24px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:10px">&#10005;</button>
+                </div>`).join('')}
+            </div>
+          </div>`;
+        }
+
+        // Session 281 -- no platform SOP content for this activity: real ingredient
+        // rows with quantity/unit, same shape Niruha's own components already collect,
+        // under the protocol's one Formulation Name above.
         return `
         <div style="border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fafff7">
           <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">${_esc(b.activity_label)}${b.mode === 'home' ? ' <span style="font-size:10px;color:var(--gold)">🏠 at home</span>' : ''}</div>
-          ${!b.ayush_code ? `<div class="field" style="margin-bottom:6px">
-            <label style="font-size:11px">Billing code for "${_esc(b.activity_label)}" (optional)</label>
-            <select data-onchange="_pkSetBlockAyush" data-onchange-a0="${pi}" data-onchange-a1="${bi}" data-onchange-a2="@this">${codeOpts}</select>
-          </div>` : ''}
+          ${billingCode}
           <div class="field">
-            <label style="font-size:11px">Medicines / Materials for this activity</label>
-            <div style="display:flex;gap:6px;margin-bottom:6px">
-              <input id="pk-med-name-${pi}-${bi}" type="text" placeholder="e.g. Panchatiktaka Ghrita" style="flex:1"
-                ${b.bastiDayType === 'anuvasana' ? `list="pk-sneha-datalist"` : ''}/>
-              <button type="button" data-onclick="_pkAddMedicine" data-onclick-a0="${pi}" data-onclick-a1="${bi}" style="height:36px;padding:0 12px;background:var(--green-mid);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">+ Add</button>
+            <label style="font-size:11px">Ingredients</label>
+            <div style="display:grid;grid-template-columns:1.6fr .6fr .5fr auto;gap:6px;margin-bottom:6px">
+              <input id="pk-med-name-${pi}-${bi}" type="text" placeholder="e.g. Eranda Ela"/>
+              <input id="pk-med-qty-${pi}-${bi}" type="number" min="0" step="0.01" placeholder="Qty"/>
+              <select id="pk-med-unit-${pi}-${bi}">${unitOpts()}</select>
+              <button type="button" data-onclick="_pkAddMedicineQty" data-onclick-a0="${pi}" data-onclick-a1="${bi}" style="height:36px;padding:0 12px;background:var(--green-mid);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">+ Add</button>
             </div>
-            ${b.bastiDayType === 'anuvasana' ? `<div style="font-size:10px;color:var(--text-muted);margin:-3px 0 6px">Start typing for common oils/ghees, or enter any name.</div>` : ''}
             ${(b.medicines || []).map((m, mi) => `
               <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:4px;background:#fff">
-                <span style="font-size:12.5px">${_esc(m.medicine_name)}</span>
+                <span style="font-size:12.5px">${_esc(m.medicine_name)}${m.quantity_value ? ` <span style="color:var(--text-muted)">(${m.quantity_value}${_esc(m.quantity_unit || '')})</span>` : ''}</span>
                 <button type="button" data-onclick="_pkRemoveMedicine" data-onclick-a0="${pi}" data-onclick-a1="${bi}" data-onclick-a2="${mi}" style="width:24px;height:24px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:10px">&#10005;</button>
               </div>`).join('')}
           </div>
         </div>`;
       }).join('')}
-    </div>`).join('') || '<div style="text-align:center;color:var(--text-muted);padding:20px">No protocols selected — go back to Step 1.</div>';
+    </div>`;
+  }).join('') || '<div style="text-align:center;color:var(--text-muted);padding:20px">No protocols selected — go back to Step 1.</div>';
 }
+
+window._pkSetFormulationName = function(pi, inputEl) {
+  const p = _pkProtocols[Number(pi)];
+  if (p) p.custom_formulation_name = inputEl.value.trim() || null;
+};
 
 window._pkSetBlockAyush = function(pi, bi, selectEl) {
   const b = _pkProtocols[Number(pi)]?.blocks[Number(bi)];
@@ -2934,6 +2992,25 @@ window._pkAddMedicine = function(pi, bi) {
   if (!b) return;
   (b.medicines = b.medicines || []).push({ medicine_name: name, dosage_instructions: null });
   inp.value = '';
+  _renderPkMedicines();
+};
+
+// Session 281 -- the upgraded ingredient-row Add for a no-SOP block (name + quantity +
+// unit), used alongside the still-bare _pkAddMedicine for SOP-content-rich blocks.
+window._pkAddMedicineQty = function(pi, bi) {
+  const nameInp = document.getElementById(`pk-med-name-${pi}-${bi}`);
+  const qtyInp = document.getElementById(`pk-med-qty-${pi}-${bi}`);
+  const unitSel = document.getElementById(`pk-med-unit-${pi}-${bi}`);
+  const name = nameInp?.value.trim();
+  if (!name) return;
+  const b = _pkProtocols[Number(pi)]?.blocks[Number(bi)];
+  if (!b) return;
+  (b.medicines = b.medicines || []).push({
+    medicine_name: name, dosage_instructions: null,
+    quantity_value: qtyInp?.value ? Number(qtyInp.value) : null,
+    quantity_unit: unitSel?.value || 'ml',
+  });
+  nameInp.value = ''; if (qtyInp) qtyInp.value = '';
   _renderPkMedicines();
 };
 
@@ -3189,6 +3266,7 @@ function _pkReconstructProtocol(pr, allDays, allMeds) {
     koshtha: pr.koshtha,
     snehapana_start_dose_ml: pr.snehapana_start_dose_ml,
     snehapana_increment_ml: pr.snehapana_increment_ml || 30,
+    custom_formulation_name: pr.custom_formulation_name || null,
     basti_pack_type: pr.basti_pack_type,
     basti_schedule_mode: pr.basti_schedule_mode || 'standard',
     // Session 277 -- carried uniformly on every day row for this protocol; any one of
@@ -3245,7 +3323,7 @@ function _pkReconstructProtocol(pr, allDays, allMeds) {
       ayush_code: (matching[0]?.ayush_code) || td.ayush_code,
       mode: skipped ? 'skip' : (matching.every(d => d.location_mode === 'home') ? 'home' : 'hospital'),
       _skipLength: skipped ? (td.min_days || defaultLen) : undefined,
-      medicines: meds.filter(m => m.activity_label === td.activity_label).map(m => ({ medicine_name: m.medicine_name, dosage_instructions: m.dosage_instructions })),
+      medicines: meds.filter(m => m.activity_label === td.activity_label).map(m => ({ medicine_name: m.medicine_name, dosage_instructions: m.dosage_instructions, quantity_value: m.quantity_value, quantity_unit: m.quantity_unit })),
     });
   });
 
@@ -3337,6 +3415,7 @@ window.savePkCarePlan = async function() {
       basti_pack_type: p.basti_pack_type || null,
       basti_schedule_mode: p.basti_pack_type ? (p.basti_schedule_mode || 'standard') : null,
       niruha_formula_name: niruhaBlock?.niruhaFormula?.formula_name || null,
+      custom_formulation_name: p.custom_formulation_name || null,
     };
 
     let proto, protoErr;
@@ -3414,6 +3493,9 @@ window.savePkCarePlan = async function() {
         medRows.push({
           protocol_instance_id: proto.id, activity_label: b.activity_label, ayush_code: b.ayush_code || null,
           medicine_name: m.medicine_name, dosage_instructions: m.dosage_instructions, sequence_order: mi + 1,
+          // Session 281 -- present for the upgraded no-SOP-protocol ingredient rows,
+          // undefined (-> null) for a still-bare SOP-content-rich block's list.
+          quantity_value: m.quantity_value ?? null, quantity_unit: m.quantity_unit || null,
         });
       });
     });

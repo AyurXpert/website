@@ -4230,7 +4230,7 @@ let _admReqSubscription = null;
 async function loadAdmissionRequests() {
   const { data, error } = await supabase
     .from('admission_advice')
-    .select('id, clinical_indication, expected_duration_days, duration_note, room_type_preference, payer_type, estimated_total, advance_amount_suggested, created_at, patients(name, phone), profiles!doctor_id(full_name), departments(name), pk_care_plan_id, pk_care_plans(pk_care_plan_protocols(protocol_label, niruha_formula_name))')
+    .select('id, clinical_indication, expected_duration_days, duration_note, room_type_preference, payer_type, estimated_total, advance_amount_suggested, created_at, patients(name, phone), profiles!doctor_id(full_name), departments(name), pk_care_plan_id, pk_care_plans(pk_care_plan_protocols(protocol_label, niruha_formula_name, custom_formulation_name))')
     .eq('tenant_id', tenantId)
     .eq('status', 'pending')
     .order('created_at', { ascending: true });
@@ -4252,9 +4252,14 @@ async function loadAdmissionRequests() {
       ? `<span class="badge" style="background:#e3f0ff;color:#1a4080">INSURANCE</span>` : '';
     // Session 279 -- an admission-setting Panchakarma Care Plan's protocols (and any
     // doctor-named Niruha Basti formula) shown here too, same as the Day Care/OPD
-    // PK Care Plans queue already does.
+    // PK Care Plans queue already does. Session 281 -- same for the new generic
+    // Formulation Name (custom_formulation_name), Niruha's own name still wins if both
+    // are somehow present since it's the more specific of the two.
     const pkProtocolNames = (r.pk_care_plans?.pk_care_plan_protocols || [])
-      .map(p => p.niruha_formula_name ? `${p.protocol_label} (${p.niruha_formula_name})` : p.protocol_label)
+      .map(p => {
+        const named = p.niruha_formula_name || p.custom_formulation_name;
+        return named ? `${p.protocol_label} (${named})` : p.protocol_label;
+      })
       .join(', ');
     return `<div class="q-item">
       <div class="q-token waiting">🛏️</div>
@@ -4313,7 +4318,7 @@ let _pkPlansSubscription = null;
 async function loadPkCarePlanRequests() {
   const { data, error } = await supabase
     .from('pk_care_plans')
-    .select('id, setting, estimated_total, advance_amount_suggested, created_at, patients(name, phone), profiles!doctor_id(full_name), pk_care_plan_protocols(protocol_label, niruha_formula_name)')
+    .select('id, setting, estimated_total, advance_amount_suggested, created_at, patients(name, phone), profiles!doctor_id(full_name), pk_care_plan_protocols(protocol_label, niruha_formula_name, custom_formulation_name)')
     .eq('tenant_id', tenantId)
     .eq('status', 'finalized')
     .in('setting', ['day_care', 'opd'])
@@ -4332,9 +4337,13 @@ async function loadPkCarePlanRequests() {
   list.innerHTML = rows.map(r => {
     const waitedFor = _waitTime(r.created_at);
     // Session 279 -- carry the doctor's named Niruha Basti formula through to
-    // reception, so it's identifiable here, not just a generic "Basti" line.
+    // reception, so it's identifiable here, not just a generic "Basti" line. Session 281
+    // -- same for the generic Formulation Name (custom_formulation_name).
     const protocolNames = (r.pk_care_plan_protocols || [])
-      .map(p => p.niruha_formula_name ? `${p.protocol_label} (${p.niruha_formula_name})` : p.protocol_label)
+      .map(p => {
+        const named = p.niruha_formula_name || p.custom_formulation_name;
+        return named ? `${p.protocol_label} (${named})` : p.protocol_label;
+      })
       .join(', ') || '—';
     const suggested = Number(r.advance_amount_suggested || 0);
     return `<div class="q-item">
