@@ -34,6 +34,33 @@ async function loadIndents() {
   _indents = data || [];
   updateStats();
   renderIndents();
+  renderBatchGroups();
+}
+
+// Session 279 -- same idea + look as therapist.html's PK Prep Queue batch view:
+// today's active indents (pending/in_preparation -- dispatched/served/cancelled
+// ones are done, nothing left to batch-prepare) grouped by preparation_name with
+// a count + patient list per group.
+function renderBatchGroups() {
+  const el = document.getElementById('batch-groups');
+  if (!el) return;
+  const active = _indents.filter(i => ['pending', 'in_preparation'].includes(i.status));
+  if (!active.length) {
+    el.innerHTML = `<div class="indent-empty">Nothing pending preparation right now.</div>`;
+    return;
+  }
+  const groups = {};
+  active.forEach(i => (groups[i.preparation_name] = groups[i.preparation_name] || []).push(i));
+  el.innerHTML = Object.entries(groups)
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([name, rows]) => `
+      <div class="batch-group">
+        <div class="batch-group-hdr">
+          <div class="batch-group-name">${_esc(name)}</div>
+          <div class="batch-group-count">${rows.length}</div>
+        </div>
+        <div class="batch-group-patients">${rows.map(r => _esc(r.patients?.name || '—')).join(', ')}</div>
+      </div>`).join('');
 }
 
 function updateStats() {
