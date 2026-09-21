@@ -1630,6 +1630,8 @@ window.saveAdmissionAdvice = async function() {
 let _pkTemplates     = [];   // pk_sop_templates rows
 let _pkTemplateDays  = {};   // template_id -> pk_sop_template_days rows
 let _pkContentHints  = {};   // pk_sop_templates.id -> {duration, staff} from the linked sop_content_templates row (Session 248)
+let _pkContentHintsByAyush = {};  // ayush_code -> sop_content_templates row (Session 279)
+let _pkContentHintsByLabel = {};  // lower(trim(activity_label)) -> sop_content_templates row (Session 279)
 let _pkAyushOptions  = [];   // ayush_procedure_catalog rows (Panchakarma + Anu-Shastra Karma)
 let _pkFeeIndex      = {};   // ayush_code -> fee_structures row (tenant's active pricing)
 let _pkNiruhaFormulations = []; // pk_niruha_formulations rows (Session 271)
@@ -1655,11 +1657,25 @@ async function _loadPkTemplates() {
   // layer (sop_content_templates), not pk_sop_templates itself (that table was deliberately
   // left untouched, see PANCHAKARMA_SOP_EXPANSION_CHECKLIST.md §0b). Not every protocol has
   // a linked content row yet (or a stated figure within one) -- missing hints are just omitted.
+  // Session 279 -- a multi-day/multi-activity protocol (Vamana/Virechana/Basti) genuinely
+  // has no single protocol-level duration (each day-activity's real duration differs --
+  // Vamana's PCK63 administration is 60min, its PCK54 Snehapana prep is 10min); their real
+  // per-activity data lives in separate rows keyed by ayush_code or activity_label_match,
+  // exactly mirroring the 3-tier priority auto_assign_pk_course_sessions() itself uses
+  // (ayush_code > activity_label_match > linked_pk_template_id -- see
+  // sql/session277_pk_doctor_duration_manpower_override.sql). Load all 3 keyings so the
+  // Step 2 "needs manual input" check (_pkNeedsManualScheduleInput) can check the same way
+  // the real engine resolves it, not just the lowest-priority protocol-level fallback.
   const { data: hints } = await supabase.from('sop_content_templates')
-    .select('linked_pk_template_id,typical_duration_minutes,man_power_staff')
-    .not('linked_pk_template_id', 'is', null);
+    .select('linked_pk_template_id,ayush_code,activity_label_match,typical_duration_minutes,man_power_staff,owner_role');
   _pkContentHints = {};
-  (hints || []).forEach(h => { _pkContentHints[h.linked_pk_template_id] = h; });
+  _pkContentHintsByAyush = {};
+  _pkContentHintsByLabel = {};
+  (hints || []).forEach(h => {
+    if (h.linked_pk_template_id) _pkContentHints[h.linked_pk_template_id] = h;
+    if (h.ayush_code) _pkContentHintsByAyush[h.ayush_code] = h;
+    if (h.activity_label_match) _pkContentHintsByLabel[h.activity_label_match.trim().toLowerCase()] = h;
+  });
 
   // Session 271 -- Niruha Basti compound-formulation library (Madhu/Lavana/Sneha/
   // Kalka/Kwatha, classically mixed in that order); doctor picks one as a starting
@@ -2093,22 +2109,48 @@ function _pkRenderGenericDayGrid(p) {
       </div>`;
 }
 
+// Session 279 -- resolves one day-activity's real SOP hint the same way
+// auto_assign_pk_course_sessions() does: ayush_code match first, then
+// activity_label_match (case/whitespace-insensitive, matching the SQL's
+// lower(btrim(...)) comparison). Protocol-level (linked_pk_template_id) is NOT
+// included here -- that's a separate, lower-priority fallback the caller applies
+// itself, same as the SQL does.
+function _pkResolveActivityHint(ayushCode, activityLabel) {
+  if (ayushCode && _pkContentHintsByAyush[ayushCode]) return _pkContentHintsByAyush[ayushCode];
+  const key = (activityLabel || '').trim().toLowerCase();
+  if (!ayushCode && key && _pkContentHintsByLabel[key]) return _pkContentHintsByLabel[key];
+  return null;
+}
+
 // Session 277 -- true when this protocol has no sop_content_templates duration/man-
 // power hint (the 59 generic Session-276 procedures, or any future one authored
 // without real source content yet) -- the wizard then requires the doctor to enter
 // both explicitly before Step 3 (Medicines) is reachable, rather than the scheduling
 // engine silently falling back to a generic 30min/1-staff guess.
-// Session 279 fix -- Basti is a real false positive here, not missing content: its
-// protocol-level sop_content_templates row deliberately has no single typical_duration
-// (Niruha=20min vs Anuvasana=10min -- activity-dependent, not one flat figure). Real
-// per-activity SOP data (duration/man-power/room/gender-match) already exists keyed by
-// activity_label_match and already drives both the auto-assignment engine (Sessions
-// 250-253, 274-275) and Basti's own bespoke Pack Type/Schedule-mode UI just below --
-// so the generic "no SOP data" fallback never applies to it.
+// Session 279 fix -- the original version only ever checked the protocol-level
+// (linked_pk_template_id) hint, which is genuinely null by design for any multi-
+// day/multi-activity protocol whose real duration varies per activity (Vamana's
+// PCK63 administration=60min vs its PCK54 Snehapana prep=10min; Basti's Niruha=20min
+// vs Anuvasana=10min) -- flagging Vamana, Virechana AND Basti as "no SOP data" one at
+// a time as each got tested live, even though their real per-activity data has existed
+// since Sessions 241-253 and already drives the real scheduling engine successfully.
+// Now checks each of the protocol's actual day-activities (p.blocks) the same 3-tier
+// way the engine resolves them (ayush_code > activity_label_match > protocol-level
+// fallback), and skips ward-nurse/diet-pathya-owned activities entirely -- those never
+// get a PK-therapist session generated at all (generate_pk_sessions_for_plan() skips
+// them outright), so no scheduling data is ever needed for them.
 function _pkNeedsManualScheduleInput(p) {
-  if (p.procedure_key === 'basti') return false;
-  const hint = _pkContentHints[p.template_id];
-  return !hint || !hint.typical_duration_minutes || !hint.man_power_staff;
+  const parentHint = _pkContentHints[p.template_id];
+  const blocks = p.blocks || [];
+  if (!blocks.length) {
+    return !parentHint || !parentHint.typical_duration_minutes || !parentHint.man_power_staff;
+  }
+  return blocks.some(b => {
+    const activityHint = _pkResolveActivityHint(b.ayush_code, b.activity_label);
+    if (activityHint && activityHint.owner_role && activityHint.owner_role !== 'pk_therapist') return false;
+    const hint = activityHint || parentHint;
+    return !hint || !hint.typical_duration_minutes || !hint.man_power_staff;
+  });
 }
 
 function _pkRenderManualScheduleInput(p, pi) {
