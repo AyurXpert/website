@@ -3526,7 +3526,7 @@ window.addDiff = function() {
       <option value="">— Likelihood —</option>
       <option>Likely</option><option>Possible</option><option>Unlikely</option><option>Ruled out</option>
     </select>
-    <button class="btn-rm-diff" data-onclick="_removeClosest" data-onclick-a0="@this" data-onclick-a1="li">×</button>
+    <button class="btn-rm-diff" title="Remove this differential" aria-label="Remove this differential diagnosis" data-onclick="_removeClosest" data-onclick-a0="@this" data-onclick-a1="li">×</button>
   `;
   document.getElementById('diff-list').appendChild(li);
 };
@@ -3625,7 +3625,7 @@ function addRxRow(data = {}) {
       <label>Timing</label>
       <input type="text" class="rx-timing" placeholder="Before food, After food…" value="${_esc(data.timing||'')}"/>
     </div>
-    <button class="btn-rm-rx" data-onclick="_removeRxRowFromAttr" data-onclick-a0="${id}">×</button>
+    <button class="btn-rm-rx" title="Remove this medicine" aria-label="Remove this medicine row" data-onclick="_removeRxRowFromAttr" data-onclick-a0="${id}">×</button>
   `;
 
   document.getElementById('rx-rows').appendChild(div);
