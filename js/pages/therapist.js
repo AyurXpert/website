@@ -610,14 +610,15 @@ function _renderPrepPanel() {
   const dl = document.getElementById('prep-item-suggestions');
   dl.innerHTML = _formulary.map(f => `<option value="${_esc(f.medicine_name)}"></option>`).join('');
 
-  // Prepared By — therapist-role staff only (Dr. Venkatesh, Session 279: the
-  // prep room is a therapist duty; the broader _prepStaff pool below still
-  // matches pk_preparation_logs' own write-allowed role set for other uses in
-  // this file). Defaults to the logged-in profile if they're a therapist.
+  // Prepared By — real Panchakarma-department therapists only (Dr. Venkatesh,
+  // Session 279 follow-up: role='therapist' alone still pulled in Physiotherapy/
+  // Kriyakalpa/Yoga-instructor staff, since designation doesn't distinguish them
+  // -- department_id does). Reuses _pkTherapists, the same department='Panchakarma'
+  // pool every other therapist-picker on this page already uses (Session 213).
   const byEl = document.getElementById('prep-by');
   const byVal = byEl.value;
-  byEl.innerHTML = _prepStaff.filter(p => p.role === 'therapist').map(p => `<option value="${p.id}">${_esc(p.full_name)}</option>`).join('');
-  byEl.value = byVal || (myProfile?.role === 'therapist' ? myProfile.id : '');
+  byEl.innerHTML = _pkTherapists.map(p => `<option value="${p.id}">${_esc(p.full_name)}</option>`).join('');
+  byEl.value = byVal || (_pkTherapists.some(p => p.id === myProfile?.id) ? myProfile.id : '');
 
   // Issue-to-room — active rooms only, same pool the schedule drawer uses.
   const roomEl = document.getElementById('prep-room');
