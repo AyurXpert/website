@@ -47,16 +47,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
    toggles per-session as needed). Desktop-only -- mobile already collapses the
    queue into its own stacked layout below 860px, untouched. */
 .page.q-collapsed{grid-template-columns:0px 1fr}
+/* Session 279 follow-up -- Dr. Venkatesh: the toggle was there and worked but
+   was nearly invisible (white-on-white/cream, faint border, thin glyph) --
+   solid-filled by default instead, same "reads as a real action" fix already
+   applied to the PK wizard's Pick-from-Calendar button (session269 follow-up).
+   z-index raised above the admin icon-rail overlay's 200 (navbar.js
+   _injectAdminSidebarOverlay) so it can never be covered on pages where that
+   rail is also injected (dept_admin / secondary_role=dept_admin accounts). */
 .q-collapse-toggle{
   position:absolute;top:50%;left:320px;transform:translate(-50%,-50%);
-  width:26px;height:46px;border-radius:0 10px 10px 0;
-  background:var(--white);border:1.5px solid var(--border);border-left:none;
-  color:var(--green-mid);font-size:14px;cursor:pointer;
+  width:28px;height:52px;border-radius:0 10px 10px 0;
+  background:var(--green-mid);border:1.5px solid var(--green-deep);border-left:none;
+  color:#fff;font-size:17px;font-weight:700;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
-  box-shadow:2px 0 6px rgba(0,0,0,.1);
-  transition:left .28s ease;z-index:50
+  box-shadow:2px 0 10px rgba(0,0,0,.22);
+  transition:left .28s ease,background .15s;z-index:250
 }
-.q-collapse-toggle:hover{background:var(--green-light);color:var(--green-deep)}
+.q-collapse-toggle:hover{background:var(--green-deep)}
 .page.q-collapsed .q-collapse-toggle{left:0px}
 @media(max-width:860px){.q-collapse-toggle{display:none}}
 /* Explicit placement (not DOM-order auto-flow) — an empty #promo-banner div
