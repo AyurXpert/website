@@ -1699,11 +1699,21 @@ function _renderPkChips() {
     // Session 278 -- "using 2 colors alternatively makes it look good": alternating
     // unselected-state border/tint between the two brand tokens, by visible position (not
     // DB order, so it stays a clean zebra pattern even after the search box narrows the
-    // list). The existing .chip.on CSS (solid green highlight) is left completely alone --
-    // no inline style at all when selected, so it can't fight with that class rule.
+    // list).
+    // Session 279 fix -- that alternating tint reused --green-mid for half the chips,
+    // which is the exact color the shared .chip.on CSS class already used for
+    // "selected" -- an inline style always wins over a class rule, so once a chip had
+    // this inline style there was literally no way for .chip.on to ever show through,
+    // for ANY chip, selected or not (not just a subtle color collision on the green
+    // half). Selected chips now get their own explicit solid-fill inline style instead
+    // -- same "filled = selected" language already used by the Pack Type/Schedule
+    // Mode/Room buttons just below in this same wizard -- plus a ✓ prefix so selection
+    // never depends on color alone.
     const altColor = idx % 2 === 0 ? 'var(--green-mid)' : 'var(--gold)';
-    const styleAttr = isOn ? '' : ` style="border-color:${altColor};background:color-mix(in srgb, ${altColor} 8%, #fff);color:${altColor}"`;
-    return `<span class="chip${isOn ? ' on' : ''}"${styleAttr} data-onclick="_pkToggleProtocol" data-onclick-a0="${_esc(t.procedure_key)}" data-onclick-a1="@this">${_esc(t.display_name)}${!t.is_reviewed ? ' ⚠' : ''}${hintHtml}</span>`;
+    const styleAttr = isOn
+      ? ` style="border-color:var(--green-deep);background:var(--green-deep);color:#fff;font-weight:600"`
+      : ` style="border-color:${altColor};background:color-mix(in srgb, ${altColor} 8%, #fff);color:${altColor}"`;
+    return `<span class="chip${isOn ? ' on' : ''}"${styleAttr} data-onclick="_pkToggleProtocol" data-onclick-a0="${_esc(t.procedure_key)}" data-onclick-a1="@this">${isOn ? '✓ ' : ''}${_esc(t.display_name)}${!t.is_reviewed ? ' ⚠' : ''}${hintHtml}</span>`;
   };
 
   const mainSorted = _pkTemplates.filter(t => t.phase_group === 'main_karma')
@@ -1809,7 +1819,12 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
     // scope for now (see _pkLoadExistingDraft()'s comment). Chips only add new ones here.
     if (_pkProtocols[idx].db_id) { alert('This protocol is already part of the saved plan and can\'t be removed here.'); return; }
     _pkProtocols.splice(idx, 1);
-    chipEl.classList.remove('on');
+    // Session 279 fix -- toggling just the 'on' class here left the chip's own
+    // inline style (set at render time, see _renderPkChips) untouched, and an
+    // inline style always beats a class rule -- so the chip never visually
+    // reverted. A full re-render regenerates the correct inline style for every
+    // chip's new state, not just this one's class.
+    _renderPkChips();
     return;
   }
   const tpl = _pkTemplates.find(t => t.procedure_key === procedureKey);
@@ -1883,7 +1898,9 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
     doctor_man_power: null,
     doctor_requires_room: true,
   });
-  chipEl.classList.add('on');
+  // Session 279 fix -- see the matching comment on the removal branch above; a
+  // full re-render is what actually applies the selected-state inline style.
+  _renderPkChips();
 
   // Session 269 -- for a protocol that doesn't need a Basti-style pack-type/schedule
   // step first, the calendar for picking its start date can appear right away; Basti's
