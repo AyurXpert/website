@@ -1024,7 +1024,15 @@ window._openAbdmForHistory = function() {
   } else {
     abhaWrap.style.display = 'none';
   }
+  document.getElementById('pt-abha-addr-wrap').style.display = 'none';
   document.getElementById('pt-prakriti').style.display = 'none';
+  // Session 279 -- no live visit here (viewing ABDM history, not a consultation),
+  // so the age/gender/New-Followup badge and last-visit-diagnosis strip don't apply.
+  document.getElementById('pt-age-gender').textContent = '';
+  document.getElementById('pt-visit-badge').style.display = 'none';
+  document.getElementById('pt-followup-info').style.display = 'none';
+  document.getElementById('pt-hdr-detail').classList.remove('open');
+  document.getElementById('pt-detail-toggle').textContent = '▾ More';
 
   _switchTab('abdm');
 };
@@ -1190,6 +1198,27 @@ function subscribeRealtime() {
     .subscribe();
 }
 
+// Session 279 -- same fallback pattern reception.js's _ageFromDob() uses; patients.age
+// is preferred when set, this only covers the case where only date_of_birth was recorded.
+function _ageFromDob(dob) {
+  if (!dob) return null;
+  const today = new Date(), birth = new Date(dob);
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age >= 0 ? age : null;
+}
+
+// Session 279 -- collapsible patient-detail strip, vertical slide (top bar, unlike
+// the queue sidebar's left/right slide). Collapsed by default every fresh consultation
+// open (see startConsultation()); a plain per-click toggle, no persistence.
+window.togglePatientDetail = function() {
+  const detail = document.getElementById('pt-hdr-detail');
+  const btn    = document.getElementById('pt-detail-toggle');
+  const open   = detail.classList.toggle('open');
+  btn.textContent = open ? '▴ Less' : '▾ More';
+};
+
 // ── Start consultation ────────────────────────────
 window.startConsultation = async function(visitId) {
   // Real bug found live-testing the PK Care Plan wizard (Session 209): clicking a
@@ -1216,7 +1245,7 @@ window.startConsultation = async function(visitId) {
 
   const { data: visit } = await supabase
     .from('visits')
-    .select('*, patients(id, name, phone, abha_number, abha_address, prakriti_data, prakriti_assessed_at), opds(ncism_code, name, allows_prescription, specialty_proforma_key)')
+    .select('*, patients(id, name, phone, abha_number, abha_address, prakriti_data, prakriti_assessed_at, gender, age, date_of_birth), opds(ncism_code, name, allows_prescription, specialty_proforma_key)')
     .eq('id', visitId)
     .single();
 
@@ -1250,6 +1279,53 @@ window.startConsultation = async function(visitId) {
   } else {
     abhaWrap.style.display = 'none';
   }
+  const abhaAddrWrap = document.getElementById('pt-abha-addr-wrap');
+  if (_activePatient?.abha_address) {
+    document.getElementById('pt-abha-addr').textContent = _activePatient.abha_address;
+    abhaAddrWrap.style.display = '';
+  } else {
+    abhaAddrWrap.style.display = 'none';
+  }
+
+  // Session 279 -- always-visible age/gender + New/Followup badge (Dr. Venkatesh),
+  // collapsed by default; the rest (UHID/phone/ABHA/prakriti/last-visit-diagnosis)
+  // slides open on demand via togglePatientDetail() below.
+  const ptAge = _activePatient?.age ?? _ageFromDob(_activePatient?.date_of_birth);
+  const ptGenderLabel = { M: 'Male', F: 'Female', other: 'Other' }[_activePatient?.gender] || _activePatient?.gender || '';
+  const ageGenderParts = [];
+  if (ptAge) ageGenderParts.push(`${ptAge} yrs`);
+  if (ptGenderLabel) ageGenderParts.push(ptGenderLabel);
+  document.getElementById('pt-age-gender').textContent = ageGenderParts.length ? `· ${ageGenderParts.join(', ')}` : '';
+
+  const isFollowup = visit.visit_category === 'followup';
+  const visitBadge = document.getElementById('pt-visit-badge');
+  visitBadge.textContent = isFollowup ? 'Followup' : 'New';
+  visitBadge.className   = 'pt-visit-badge ' + (isFollowup ? 'followup' : 'new');
+  visitBadge.style.display = '';
+
+  const followupInfo = document.getElementById('pt-followup-info');
+  if (isFollowup && _activePatient?.id) {
+    supabase.from('visits')
+      .select('created_at, diagnosis')
+      .eq('patient_id', _activePatient.id)
+      .neq('id', visitId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .then(({ data: prevVisits }) => {
+        const prev = prevVisits?.[0];
+        if (!prev) { followupInfo.style.display = 'none'; return; }
+        document.getElementById('pt-last-visit-date').textContent =
+          new Date(prev.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        document.getElementById('pt-last-diagnosis').textContent = prev.diagnosis || 'Not recorded';
+        followupInfo.style.display = '';
+      });
+  } else {
+    followupInfo.style.display = 'none';
+  }
+
+  // Collapsed by default for every fresh consultation open.
+  document.getElementById('pt-hdr-detail').classList.remove('open');
+  document.getElementById('pt-detail-toggle').textContent = '▾ More';
 
   // §18d — Load existing Prakriti assessment result
   const prakritiResult = _activePatient?.prakriti_data?.result || '';

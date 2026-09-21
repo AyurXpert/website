@@ -221,9 +221,34 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;flex-shrink:0
 }
 .pt-name-block{flex:1;min-width:0}
+.pt-name-line{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
 .pt-name{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--green-deep)}
+.pt-age-gender{font-size:12px;color:var(--text-mid);font-weight:500}
+.pt-visit-badge{font-size:10px;font-weight:700;padding:2px 9px;border-radius:20px;letter-spacing:.3px;text-transform:uppercase}
+.pt-visit-badge.new{background:var(--blue-light);color:var(--blue)}
+.pt-visit-badge.followup{background:#fff3de;color:var(--gold)}
 .pt-complaint{font-size:12px;color:var(--text-muted);margin-top:1px}
-.pt-hdr-row2{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+/* Session 279 -- collapsible patient-detail strip (Dr. Venkatesh: same slide
+   pattern as the queue sidebar, but this is a top bar so it's a vertical
+   expand/collapse rather than left/right). Name/age/gender/New-or-Followup
+   badge always shown (pt-name-line, above); everything else -- UHID, phone,
+   ABHA, prior-visit diagnosis for a followup, prakriti -- is secondary detail
+   that slides open on demand. Collapsed by default (unlike the queue panel's
+   default-open call) since this only ever ADDS rows to an always-visible
+   header, and the whole point here is more room for the consultation below. */
+.pt-detail-toggle{
+  flex-shrink:0;background:none;border:1.5px solid var(--border);border-radius:20px;
+  padding:5px 12px;font-size:11px;font-weight:600;color:var(--text-mid);cursor:pointer;
+  white-space:nowrap;transition:all .15s
+}
+.pt-detail-toggle:hover{border-color:var(--green-mid);color:var(--green-deep);background:var(--green-light)}
+.pt-hdr-detail{
+  max-height:0;overflow:hidden;opacity:0;
+  transition:max-height .22s ease,opacity .18s ease,margin-top .22s ease
+}
+.pt-hdr-detail.open{max-height:120px;opacity:1;margin-top:10px}
+.pt-hdr-row2{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--border)}
+.pt-hdr-row3{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:8px}
 .pt-meta{font-size:11px;color:var(--text-muted)}
 .pt-meta span{color:var(--text-dark);font-weight:500}
 .prakriti-pill{
@@ -999,15 +1024,27 @@ body.medcert-print #mc-print{display:block!important}
         <div class="pt-hdr-row1">
           <div class="pt-token" id="pt-token">—</div>
           <div class="pt-name-block">
-            <div class="pt-name" id="pt-name">—</div>
+            <div class="pt-name-line">
+              <span class="pt-name" id="pt-name">—</span>
+              <span class="pt-age-gender" id="pt-age-gender"></span>
+              <span class="pt-visit-badge" id="pt-visit-badge" style="display:none"></span>
+            </div>
             <div class="pt-complaint" id="pt-complaint">—</div>
           </div>
+          <button type="button" class="pt-detail-toggle" id="pt-detail-toggle" data-onclick="togglePatientDetail" title="Show more patient details">▾ More</button>
         </div>
-        <div class="pt-hdr-row2">
-          <div class="pt-meta">UHID: <span id="pt-uhid">—</span></div>
-          <div class="pt-meta">Phone: <span id="pt-phone">—</span></div>
-          <div class="pt-meta" id="pt-abha-wrap" style="display:none">ABHA: <span id="pt-abha">—</span></div>
-          <div class="prakriti-pill" id="pt-prakriti" style="display:none"></div>
+        <div class="pt-hdr-detail" id="pt-hdr-detail">
+          <div class="pt-hdr-row2">
+            <div class="pt-meta">UHID: <span id="pt-uhid">—</span></div>
+            <div class="pt-meta">Phone: <span id="pt-phone">—</span></div>
+            <div class="pt-meta" id="pt-abha-wrap" style="display:none">ABHA: <span id="pt-abha">—</span></div>
+            <div class="pt-meta" id="pt-abha-addr-wrap" style="display:none">ABHA Address: <span id="pt-abha-addr">—</span></div>
+            <div class="prakriti-pill" id="pt-prakriti" style="display:none"></div>
+          </div>
+          <div class="pt-hdr-row3" id="pt-followup-info" style="display:none">
+            <div class="pt-meta">Last visit: <span id="pt-last-visit-date">—</span></div>
+            <div class="pt-meta">Last diagnosis: <span id="pt-last-diagnosis">—</span></div>
+          </div>
         </div>
       </div>
 
