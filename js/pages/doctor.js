@@ -1736,6 +1736,11 @@ let _pkPediatricNarrative      = {}; // procedure_key -> pediatric sop_content_t
 // scoped), not Virechana-only -- Vamana's own drug-by-age doses can reuse it later.
 let _pkPediatricDrugDoses = []; // pk_pediatric_drug_doses rows, all procedure_keys
 let _pkGrowthLatestByPatient = {}; // patient_id -> latest growth_records row (or null once checked)
+// Session 290 -- pediatric Abhyanga/Swedana: generic technique-family modifiers (duration/
+// masseur-count/pressure/room-temp/course-length), not per-procedure dosing -- these two
+// techniques have no drug-dose-by-weight data in the document at all, unlike the prior 4
+// procedures. _pkPediatricProcedureParams is keyed by technique_family, not procedure_key.
+let _pkPediatricProcedureParams = []; // pk_pediatric_procedure_params rows
 
 // Session 279 -- classical unit per Niruha component, fixed by Ayurvedic convention
 // (matches pk_care_plan_medicines.quantity_unit's own CHECK constraint: ml or g).
@@ -1868,6 +1873,11 @@ async function _loadPkTemplates() {
   const { data: drugDoses } = await supabase.from('pk_pediatric_drug_doses').select('*').order('sequence_order');
   _pkPediatricDrugDoses = drugDoses || [];
 
+  // Session 290 -- pediatric Abhyanga/Swedana procedural-parameter reference (duration/
+  // masseur-count/pressure/room-temp/course-length), same negligible-size query pattern.
+  const { data: procParams } = await supabase.from('pk_pediatric_procedure_params').select('*').order('sequence_order');
+  _pkPediatricProcedureParams = procParams || [];
+
   _renderPkChips();
 }
 
@@ -1899,6 +1909,26 @@ function _pkDrugDosesFor(procedureKey, usageContext, ageYears) {
   return _pkPediatricDrugDoses.filter(d =>
     d.procedure_key === procedureKey && d.usage_context === usageContext &&
     ageYears >= d.age_min_years && ageYears <= d.age_max_years);
+}
+
+// Session 290 -- resolves which technique family (if any) a given catalog protocol
+// belongs to, via pk_sop_templates.technique_family -- lets the pediatric Abhyanga/
+// Swedana panels apply generically across every already-cataloged variant (Sarvanga
+// Abhyanga, Padabhyanga, Patra Pinda Sweda, Nadi Swedana, etc.) instead of needing
+// per-procedure_key content like the prior 4 procedures.
+function _pkTemplateFamily(procedureKey) {
+  const tpl = _pkTemplates.find(t => t.procedure_key === procedureKey);
+  return tpl?.technique_family || null;
+}
+// Returns every reference row for a family/param type whose age range covers ageYears --
+// deliberately NOT collapsed to one value where the document itself gives several
+// sub-type-specific rows (e.g. Swedana's 3 different per-session durations) or where the
+// band can't be resolved from age-in-years alone (Abhyanga's Newborn/Neonate/Infant split).
+function _pkProcedureParamsFor(family, paramType, ageYears) {
+  if (ageYears == null) return [];
+  return _pkPediatricProcedureParams.filter(r =>
+    r.technique_family === family && r.param_type === paramType &&
+    ageYears >= r.age_min_years && ageYears <= r.age_max_years);
 }
 
 // Session 287 -- fetches (once per patient, cached) the most recent growth_records row
@@ -2311,6 +2341,145 @@ window._pkSelectNasyaSubstance = function(pi, bi, drugDoseId) {
   if (unitSel) unitSel.value = 'ml';
 };
 
+// Session 290 -- shared standard 5-band pediatric age label (Infant/Toddler/Pre-schooler/
+// School-age/Adolescent), reused by Abhyanga/Swedana instead of writing a 5th near-duplicate
+// of Virechana/Vamana/Nasya's own hand-written label functions -- those 3 needed their own
+// because each band carries procedure-specific meaning (Shuddhi tier, Nasya-type
+// recommendation); Abhyanga/Swedana's bands are purely descriptive, no such meaning attached.
+function _pkGenericAgeBandLabel(ageYears) {
+  if (ageYears == null) return null;
+  if (ageYears < 1) return 'Infant (0-1yr)';
+  if (ageYears < 3) return 'Toddler (1-3yr)';
+  if (ageYears < 6) return 'Pre-schooler (3-5yr)';
+  if (ageYears < 12) return 'School-age (6-12yr)';
+  return 'Adolescent (12-18yr)';
+}
+
+// Session 290 -- pediatric Abhyanga panel, generic across every technique_family='abhyanga'
+// catalog variant (Sarvanga Abhyanga, Ardhanga, Ekanga, Padabhyanga, the Abhyanga+Bashpa
+// Sweda combo). No drug-dose-by-weight data exists for this procedure in the document --
+// pediatric content here is entirely procedural parameters, not a medicine picker.
+function _pkRenderPediatricAbhyangaPanel(p, pi) {
+  if (!(_pkIsPediatricPatient() && _pkTemplateFamily(p.procedure_key) === 'abhyanga')) return '';
+  const ageYears = _pkPatientAgeYears();
+  const ageBandLabel = p.pediatric_age_band || _pkGenericAgeBandLabel(ageYears);
+  const narrative = _pkPediatricNarrative['abhyanga'];
+  const assentApplicable = ageYears >= _PK_PEDIATRIC_ASSENT_MIN_AGE;
+  const durationRows = _pkProcedureParamsFor('abhyanga', 'duration_minutes', ageYears);
+  const masseurRow = _pkProcedureParamsFor('abhyanga', 'masseur_count', ageYears)[0];
+  const pressureRow = _pkProcedureParamsFor('abhyanga', 'pressure_mmhg', ageYears)[0];
+  const oilTempRow = _pkProcedureParamsFor('abhyanga', 'oil_temp_f', ageYears)[0];
+
+  return `
+      <div style="border:2px solid var(--purple);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fdf5fb">
+        <div style="font-weight:700;font-size:12.5px;color:var(--purple);margin-bottom:8px">🧒 Pediatric Abhyanga — patient is ${_esc(String(ageYears))} years old</div>
+        ${ageBandLabel ? `<div style="font-size:11px;color:var(--text-dark);margin-bottom:8px">${_esc(ageBandLabel)}</div>` : ''}
+
+        ${durationRows.length ? `
+        <div style="font-size:11px;color:var(--text-dark);margin-bottom:6px">
+          <strong>⏱ Duration reference:</strong>
+          ${durationRows.map(d => `${_esc(d.age_band_label)}: ${d.value_min}${d.value_min !== d.value_max ? `-${d.value_max}` : ''} ${_esc(d.unit)}`).join(' &nbsp;·&nbsp; ')}
+          ${durationRows.length > 1 ? ' — pick the band matching real postnatal age, not resolvable from age-in-years alone.' : ''}
+        </div>` : ''}
+        <div style="font-size:11px;color:var(--text-dark);margin-bottom:6px">
+          <strong>🧑‍⚕️ Masseurs:</strong> ${masseurRow ? `${masseurRow.value_min} ${_esc(masseurRow.unit)}${masseurRow.notes ? ' — ' + _esc(masseurRow.notes) : ''}` : '—'}
+          &nbsp;·&nbsp; <strong>Pressure:</strong> ${pressureRow ? `${pressureRow.value_min}-${pressureRow.value_max} ${_esc(pressureRow.unit)}` : '—'}
+          &nbsp;·&nbsp; <strong>Oil temp:</strong> ${oilTempRow ? `${oilTempRow.value_min}-${oilTempRow.value_max}${_esc(oilTempRow.unit)}` : '—'}
+        </div>
+        <div style="font-size:10.5px;color:var(--text-muted);margin-bottom:8px">Positions: supine + prone only (not the adult 7-position sequence) — sitting position allowed if the child is non-cooperative.</div>
+
+        ${narrative?.contraindications ? `
+        <details style="margin-bottom:8px">
+          <summary style="font-size:11px;font-weight:600;color:var(--purple);cursor:pointer">⚠ Pediatric-specific contraindications — tap to review</summary>
+          <div style="font-size:10.5px;color:var(--text-mid);margin-top:4px">${_esc(narrative.contraindications)}</div>
+        </details>` : ''}
+
+        <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+          <label style="display:flex;align-items:flex-start;gap:6px;font-size:11.5px;margin-bottom:6px;cursor:pointer">
+            <input type="checkbox" ${p.pediatric_guardian_consent_obtained ? 'checked' : ''}
+              data-onchange="_pkTogglePediatricConsent" data-onchange-a0="${pi}" data-onchange-a1="pediatric_guardian_consent_obtained" data-onchange-a2="@this" style="margin-top:2px"/>
+            <span><strong>Written informed consent obtained from parent/guardian</strong> — required before this plan can be saved.</span>
+          </label>
+          ${assentApplicable ? `
+          <label style="display:flex;align-items:flex-start;gap:6px;font-size:11.5px;cursor:pointer">
+            <input type="checkbox" ${p.pediatric_assent_obtained ? 'checked' : ''}
+              data-onchange="_pkTogglePediatricConsent" data-onchange-a0="${pi}" data-onchange-a1="pediatric_assent_obtained" data-onchange-a2="@this" style="margin-top:2px"/>
+            <span><strong>Verbal/written assent obtained from the child</strong> — required before this plan can be saved.</span>
+          </label>` : `
+          <div style="font-size:10.5px;color:var(--text-muted)">Child assent: not applicable at this age (under ${_PK_PEDIATRIC_ASSENT_MIN_AGE} years) — guardian consent alone governs.</div>`}
+        </div>
+      </div>`;
+}
+
+// Session 290 -- pediatric Swedana panel, generic across every technique_family='swedana'
+// catalog variant. The document gives no infant (0-1yr) protocol for any Swedana sub-type
+// at all (youngest documented floor is 1yr for Nadi Swedan/SSPS, 6yr for Patra Pinda Sweda)
+// -- surfaced as a caution banner rather than a hard save-block, since the document itself
+// allows Patra Pinda Sweda "as per condition" below its stated floor, a clinical judgment
+// call this platform shouldn't override.
+function _pkRenderPediatricSwedanaPanel(p, pi) {
+  if (!(_pkIsPediatricPatient() && _pkTemplateFamily(p.procedure_key) === 'swedana')) return '';
+  const ageYears = _pkPatientAgeYears();
+  const ageBandLabel = p.pediatric_age_band || _pkGenericAgeBandLabel(ageYears);
+  const narrative = _pkPediatricNarrative['swedana'];
+  const assentApplicable = ageYears >= _PK_PEDIATRIC_ASSENT_MIN_AGE;
+  const isPatraPinda = p.procedure_key.startsWith('patra_pinda_sweda');
+  const ageFloor = isPatraPinda ? 6 : 1;
+  const roomTempRow = _pkProcedureParamsFor('swedana', 'room_temp_c', ageYears)[0];
+  const durationRows = _pkPediatricProcedureParams.filter(r => r.technique_family === 'swedana' && r.param_type === 'duration_minutes');
+  const courseDaysRows = _pkPediatricProcedureParams.filter(r => r.technique_family === 'swedana' && r.param_type === 'course_days');
+
+  return `
+      <div style="border:2px solid var(--purple);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fdf5fb">
+        <div style="font-weight:700;font-size:12.5px;color:var(--purple);margin-bottom:8px">🧒 Pediatric Swedana — patient is ${_esc(String(ageYears))} years old</div>
+        ${ageBandLabel ? `<div style="font-size:11px;color:var(--text-dark);margin-bottom:8px">${_esc(ageBandLabel)}</div>` : ''}
+
+        ${ageYears < ageFloor ? `
+        <div style="background:#fff8e1;border:1px solid #e6c200;border-radius:5px;padding:7px 10px;font-size:11.5px;color:#6b4c00;margin-bottom:8px">
+          ⚠ The document gives no standardized protocol under ${ageFloor} years${isPatraPinda ? ' for Patra Pinda Sweda specifically ("6-18yr / as per condition")' : ' for this Swedana type'} — proceed only on the attending physician's explicit clinical judgment for this specific condition.
+        </div>` : ''}
+
+        <div style="font-size:11px;color:var(--text-dark);margin-bottom:6px">
+          <strong>🌡 Room temperature:</strong> ${roomTempRow ? `${roomTempRow.value_min}-${roomTempRow.value_max}${_esc(roomTempRow.unit)}` : '—'} (Nivata Sthana — free of breeze)
+        </div>
+        ${durationRows.length ? `
+        <div style="font-size:11px;color:var(--text-dark);margin-bottom:6px">
+          <strong>⏱ Duration reference, by sub-type</strong> (match to the real classical name of the protocol selected):
+          <table style="width:100%;font-size:10.5px;margin-top:4px;border-collapse:collapse">
+            ${durationRows.map(d => `<tr><td style="padding:2px 6px 2px 0">${_esc(d.age_band_label)}</td><td style="padding:2px 0;color:var(--text-mid)">${d.value_min}-${d.value_max} ${_esc(d.unit)}${d.notes ? ' — ' + _esc(d.notes) : ''}</td></tr>`).join('')}
+          </table>
+        </div>` : ''}
+        ${courseDaysRows.length ? `
+        <details style="margin-bottom:8px">
+          <summary style="font-size:11px;font-weight:600;color:var(--purple);cursor:pointer">📅 Course length by age (Shashtika Shali Pinda Sweda) — reference</summary>
+          <table style="width:100%;font-size:10.5px;margin-top:4px;border-collapse:collapse">
+            ${courseDaysRows.map(d => `<tr><td style="padding:2px 6px 2px 0">${_esc(d.age_band_label)}</td><td style="padding:2px 0;color:var(--text-mid)">${d.value_min}${d.value_min !== d.value_max ? `-${d.value_max}` : ''} ${_esc(d.unit)}</td></tr>`).join('')}
+          </table>
+        </details>` : ''}
+
+        ${narrative?.contraindications ? `
+        <details style="margin-bottom:8px">
+          <summary style="font-size:11px;font-weight:600;color:var(--purple);cursor:pointer">⚠ Pediatric-specific contraindications — tap to review</summary>
+          <div style="font-size:10.5px;color:var(--text-mid);margin-top:4px">${_esc(narrative.contraindications)}</div>
+        </details>` : ''}
+
+        <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+          <label style="display:flex;align-items:flex-start;gap:6px;font-size:11.5px;margin-bottom:6px;cursor:pointer">
+            <input type="checkbox" ${p.pediatric_guardian_consent_obtained ? 'checked' : ''}
+              data-onchange="_pkTogglePediatricConsent" data-onchange-a0="${pi}" data-onchange-a1="pediatric_guardian_consent_obtained" data-onchange-a2="@this" style="margin-top:2px"/>
+            <span><strong>Written informed consent obtained from parent/guardian</strong> — required before this plan can be saved.</span>
+          </label>
+          ${assentApplicable ? `
+          <label style="display:flex;align-items:flex-start;gap:6px;font-size:11.5px;cursor:pointer">
+            <input type="checkbox" ${p.pediatric_assent_obtained ? 'checked' : ''}
+              data-onchange="_pkTogglePediatricConsent" data-onchange-a0="${pi}" data-onchange-a1="pediatric_assent_obtained" data-onchange-a2="@this" style="margin-top:2px"/>
+            <span><strong>Verbal/written assent obtained from the child</strong> — required before this plan can be saved.</span>
+          </label>` : `
+          <div style="font-size:10.5px;color:var(--text-muted)">Child assent: not applicable at this age (under ${_PK_PEDIATRIC_ASSENT_MIN_AGE} years) — guardian consent alone governs.</div>`}
+        </div>
+      </div>`;
+}
+
 async function _loadPkFeeIndex() {
   const { data } = await supabase.from('fee_structures')
     .select('ayush_code,label,amount,gst_percent,promo_price,promo_valid_until')
@@ -2595,6 +2764,12 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
     const newP = _pkProtocols[_pkProtocols.length - 1];
     newP.pediatric_age_band = _pkNasyaAgeBandLabel(_pkPatientAgeYears());
     _pkLoadLatestGrowthRecord(_activePatient.id).then(() => _renderPkCalendar());
+  }
+  // Session 290 -- Abhyanga/Swedana: generic age-band label only (no growth-record check,
+  // neither procedure lists SAM/MAM as a contraindication in the document).
+  if (['abhyanga', 'swedana'].includes(_pkTemplateFamily(procedureKey)) && _pkIsPediatricPatient()) {
+    const newP = _pkProtocols[_pkProtocols.length - 1];
+    newP.pediatric_age_band = _pkGenericAgeBandLabel(_pkPatientAgeYears());
   }
   // Session 279 fix -- see the matching comment on the removal branch above; a
   // full re-render is what actually applies the selected-state inline style.
@@ -2976,6 +3151,8 @@ function _renderPkCalendar() {
       ${p.procedure_key === 'virechana' ? _pkRenderPediatricVirechanaPanel(p, pi) : ''}
       ${p.procedure_key === 'vamana' ? _pkRenderPediatricVamanaPanel(p, pi) : ''}
       ${p.procedure_key === 'nasya' ? _pkRenderPediatricNasyaPanel(p, pi) : ''}
+      ${_pkRenderPediatricAbhyangaPanel(p, pi)}
+      ${_pkRenderPediatricSwedanaPanel(p, pi)}
       ${p.procedure_key === 'basti' ? `
       <div style="border:1.5px solid var(--blue);border-radius:6px;padding:9px 12px;margin-bottom:10px;background:#f5f8ff;font-size:11.5px;color:var(--text-dark)">
         <strong>📌 Standing instruction:</strong> Local Abhyanga + Swedana (~10 minutes) is performed immediately before <em>every</em> Anuvasana and every Niruha administration — not a separate scheduled day. Applies throughout the whole course, every administration day, without needing its own calendar entry.
@@ -4024,9 +4201,15 @@ window.savePkCarePlan = async function() {
   // a silent skip. Reused generically across both procedures (both use the exact same
   // pediatric_guardian_consent_obtained/pediatric_assent_obtained columns).
   const _PK_PEDIATRIC_GATED_PROCEDURES = ['basti', 'virechana', 'vamana', 'nasya'];
+  // Session 290 -- Abhyanga/Swedana gate by technique_family, not procedure_key, since
+  // they're generic modifiers across every already-cataloged variant of each family.
+  const _PK_PEDIATRIC_GATED_FAMILIES = ['abhyanga', 'swedana'];
   if (_pkIsPediatricPatient()) {
     const ageYears = _pkPatientAgeYears();
-    const missingPediatricConsent = _pkProtocols.find(p => _PK_PEDIATRIC_GATED_PROCEDURES.includes(p.procedure_key) && (
+    const missingPediatricConsent = _pkProtocols.find(p => (
+      _PK_PEDIATRIC_GATED_PROCEDURES.includes(p.procedure_key) ||
+      _PK_PEDIATRIC_GATED_FAMILIES.includes(_pkTemplateFamily(p.procedure_key))
+    ) && (
       !p.pediatric_guardian_consent_obtained ||
       (ageYears >= _PK_PEDIATRIC_ASSENT_MIN_AGE && !p.pediatric_assent_obtained)
     ));
