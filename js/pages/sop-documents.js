@@ -54,7 +54,12 @@ function _canFinalize() {
 }
 
 async function _loadDepartments() {
-  const { data } = await supabase.from('sop_content_templates').select('department').order('department');
+  // Session 285 -- age_band='pediatric' rows (Basti pediatric narrative) share a
+  // department+procedure_key with their adult counterpart; filtered out here so this
+  // page's department list/lookup keeps its pre-existing one-row-per-procedure-key
+  // assumption exactly as before -- the pediatric content is consumed by doctor.html's
+  // Care Plan wizard directly, not (yet) by this tenant-letterhead SOP generator.
+  const { data } = await supabase.from('sop_content_templates').select('department').eq('age_band', 'adult').order('department');
   const depts = [...new Set((data || []).map(d => d.department))];
   const sel = document.getElementById('dept-select');
   sel.innerHTML = depts.map(d => `<option value="${_esc(d)}">${_esc(d.charAt(0).toUpperCase() + d.slice(1))}</option>`).join('')
@@ -74,7 +79,7 @@ async function loadProtocols() {
   if (!_department) { document.getElementById('proto-list').innerHTML = '<div class="empty">No content yet.</div>'; return; }
 
   const [{ data: templates }, { data: docs }] = await Promise.all([
-    supabase.from('sop_content_templates').select('*').eq('department', _department).order('display_name'),
+    supabase.from('sop_content_templates').select('*').eq('department', _department).eq('age_band', 'adult').order('display_name'),
     supabase.from('sop_tenant_documents').select('*').eq('tenant_id', tenantId).eq('department', _department),
   ]);
   _templates = templates || [];

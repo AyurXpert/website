@@ -1724,6 +1724,13 @@ let _pkContentHintsByLabel = {};  // lower(trim(activity_label)) -> sop_content_
 let _pkAyushOptions  = [];   // ayush_procedure_catalog rows (Panchakarma + Anu-Shastra Karma)
 let _pkFeeIndex      = {};   // ayush_code -> fee_structures row (tenant's active pricing)
 let _pkNiruhaFormulations = []; // pk_niruha_formulations rows (Session 271)
+// Session 285 -- pediatric Basti age-band reference data + narrative, loaded once
+// alongside the rest of the PK reference tables. Only ever consulted for a Basti
+// protocol on a patient under 18 (_pkIsPediatricPatient()) -- the adult Basti pathway
+// never reads any of these, so a missing/empty result here can't break it.
+let _pkPediatricDosingBands    = []; // pk_pediatric_dosing_bands rows (procedure_key='basti_yapana')
+let _pkPediatricEquipmentSizing = []; // pk_pediatric_equipment_sizing rows (procedure_key='basti')
+let _pkPediatricNarrative      = {}; // procedure_key -> pediatric sop_content_templates row
 
 // Session 279 -- classical unit per Niruha component, fixed by Ayurvedic convention
 // (matches pk_care_plan_medicines.quantity_unit's own CHECK constraint: ml or g).
@@ -1736,6 +1743,37 @@ const _PK_NIRUHA_COMPONENT_PLACEHOLDER = {
   madhu: 'Honey', lavana: 'Saindhava Lavana', sneha: 'e.g. Eranda Taila',
   kalka: 'e.g. Shatahva', kwatha: 'e.g. Dashamula Kwatha', avapa: 'e.g. Gomutra',
 };
+
+// Session 285 follow-up -- maps each classical Niruha component onto its matching
+// column in pk_pediatric_dosing_bands (the NIA document's "Yapana Basti Karma: Age
+// Wise Doses" table). Kashaya = Kwatha (decoction); the document's "Gomutra" column
+// is exactly this app's existing Avapa slot (its own placeholder was always
+// "e.g. Gomutra", confirmed before adding this mapping, not a new assumption).
+const _PK_PEDIATRIC_NIRUHA_DOSE_FIELD = {
+  madhu: 'madhu_ml', lavana: 'saindhava_g', sneha: 'sneha_ml',
+  kalka: 'kalka_g', kwatha: 'kashaya_ml', avapa: 'gomutra_ml',
+};
+
+// Applies the patient's resolved pediatric dose band onto a Niruha formula's 6
+// primary components in place (only the first item per component -- fresh/loaded
+// formulas always start single-item per component, matching _pkNewNiruhaFormula()/
+// _pkLoadNiruhaFormulation()'s own shape). No-op for an adult patient or when no band
+// resolves (e.g. under 1 year -- see the Step 2 panel's own warning for that case).
+// Ingredient NAMES are left untouched -- a formulation's classical ingredient choice
+// doesn't change with age, only the quantity; Avapa's name defaults to "Gomutra" only
+// when the doctor hasn't already typed something else, since that's what the
+// document's own age-wise table actually names that slot for children.
+function _pkApplyPediatricNiruhaDoses(niruhaFormula) {
+  if (!_pkIsPediatricPatient() || !niruhaFormula) return;
+  const band = _pkResolvePediatricDoseBand(_pkPatientAgeYears());
+  if (!band) return;
+  Object.entries(_PK_PEDIATRIC_NIRUHA_DOSE_FIELD).forEach(([comp, field]) => {
+    const item = niruhaFormula.components[comp]?.[0];
+    if (!item) return;
+    item.qty = band[field] ?? item.qty;
+    if (comp === 'avapa' && !item.name) item.name = 'Gomutra';
+  });
+}
 
 // Session 279 -- fresh Niruha formula: each classical component starts as a
 // one-item list (add more via _pkAddNiruhaItem), plus a free-text course name
@@ -1803,7 +1841,44 @@ async function _loadPkTemplates() {
   const { data: niruhaForms } = await supabase.from('pk_niruha_formulations').select('*').order('display_name');
   _pkNiruhaFormulations = niruhaForms || [];
 
+  // Session 285 -- pediatric Basti reference data. These 3 queries are scoped so
+  // narrowly (dosing_bands/equipment_sizing tables barely have a handful of rows;
+  // the narrative query filters to age_band='pediatric', department='panchakarma')
+  // that they can never collide with or slow down the existing adult-only loads above.
+  const { data: doseBands } = await supabase.from('pk_pediatric_dosing_bands')
+    .select('*').eq('procedure_key', 'basti_yapana').order('sequence_order');
+  _pkPediatricDosingBands = doseBands || [];
+  const { data: equipBands } = await supabase.from('pk_pediatric_equipment_sizing')
+    .select('*').eq('procedure_key', 'basti').order('sequence_order');
+  _pkPediatricEquipmentSizing = equipBands || [];
+  const { data: pediatricNarrative } = await supabase.from('sop_content_templates')
+    .select('procedure_key,indications,contraindications,precautions')
+    .eq('department', 'panchakarma').eq('age_band', 'pediatric');
+  _pkPediatricNarrative = {};
+  (pediatricNarrative || []).forEach(r => { _pkPediatricNarrative[r.procedure_key] = r; });
+
   _renderPkChips();
+}
+
+// Session 285 -- patient age already resolved by _ageFromDob()/reception.js's own
+// autofill; this just applies the same "under 18 = pediatric" cutoff the platform
+// uses everywhere a ROLES.STUDENT/trainee-adjacent age distinction matters. Returns
+// null (not pediatric, not adult -- simply unknown) when age can't be determined,
+// so callers never have to special-case "no DOB on file" separately.
+function _pkPatientAgeYears() {
+  return _activePatient?.age ?? _ageFromDob(_activePatient?.date_of_birth);
+}
+function _pkIsPediatricPatient() {
+  const age = _pkPatientAgeYears();
+  return age != null && age < 18;
+}
+function _pkResolvePediatricDoseBand(ageYears) {
+  if (ageYears == null) return null;
+  return _pkPediatricDosingBands.find(b => ageYears >= b.age_min_years && ageYears <= b.age_max_years) || null;
+}
+function _pkResolvePediatricEquipmentBand(ageYears) {
+  if (ageYears == null) return null;
+  return _pkPediatricEquipmentSizing.find(b => ageYears >= b.age_min_years && ageYears <= b.age_max_years) || null;
 }
 
 async function _loadPkFeeIndex() {
@@ -2040,7 +2115,32 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
     doctor_duration_minutes: null,
     doctor_man_power: null,
     doctor_requires_room: true,
+    // Session 285 -- pediatric Basti dosing + consent/assent. Only ever populated
+    // when procedure_key === 'basti' AND the patient is under 18 (_pkIsPediatricPatient())
+    // -- stays fully null/false and renders nothing for every adult patient and every
+    // non-Basti protocol, same additive-only discipline as koshtha/snehapana_* above.
+    pediatric_age_band: null,
+    pediatric_dose_ml: null,
+    pediatric_guardian_consent_obtained: false,
+    pediatric_assent_obtained: false,
   });
+  // Session 285 -- auto-resolve the age band + suggested dose the moment a Basti
+  // protocol is added for a pediatric patient, same "pre-fill, stay doctor-editable"
+  // pattern _pkSetKoshtha() uses for Snehapana's starting dose.
+  if (procedureKey === 'basti' && _pkIsPediatricPatient()) {
+    const newP = _pkProtocols[_pkProtocols.length - 1];
+    const ageYears = _pkPatientAgeYears();
+    const band = _pkResolvePediatricDoseBand(ageYears);
+    if (band) {
+      newP.pediatric_age_band = band.band_label;
+      newP.pediatric_dose_ml = band.dose_ml;
+    }
+    // Session 285 follow-up -- same auto-fill, applied to the Niruha block's 6
+    // classical components (Madhu/Lavana/Sneha/Kalka/Kwatha/Avapa), not just the
+    // single reference total above.
+    const niruhaBlock = newP.blocks.find(b => b.bastiDayType === 'niruha');
+    if (niruhaBlock?.niruhaFormula) _pkApplyPediatricNiruhaDoses(niruhaBlock.niruhaFormula);
+  }
   // Session 279 fix -- see the matching comment on the removal branch above; a
   // full re-render is what actually applies the selected-state inline style.
   _renderPkChips();
@@ -2107,6 +2207,72 @@ window._pkSetSnehaField = function(pi, field, inputEl) {
   const v = Number(inputEl.value);
   p[field] = v > 0 ? v : null;
 };
+
+// Session 285 follow-up -- pediatric_dose_ml is now auto-set only (the reference
+// band's total, at protocol-creation time) and shown read-only in Step 2; the real
+// editable doses live per-ingredient in the Niruha formula card (Step 3) instead of
+// a single aggregate field here. No setter needed any more.
+window._pkTogglePediatricConsent = function(pi, field, checkboxEl) {
+  const p = _pkProtocols[Number(pi)]; if (!p) return;
+  p[field] = !!checkboxEl.checked;
+};
+
+// Session 285 -- below this age, a child cannot meaningfully assent (per the NIA
+// document's own age-group developmental justification -- Toddlers "limited
+// communication skills to express issues"); guardian consent alone is required and
+// the assent checkbox shows as not-applicable rather than blocking save. This
+// threshold is a reasonable clinical default, not something stated as a fixed number
+// anywhere in the source document -- flagged here for Dr. Venkatesh to adjust if the
+// real cutoff his department uses differs.
+const _PK_PEDIATRIC_ASSENT_MIN_AGE = 7;
+
+function _pkRenderPediatricBastiPanel(p, pi) {
+  if (!_pkIsPediatricPatient()) return '';
+  const ageYears = _pkPatientAgeYears();
+  const doseBand = _pkResolvePediatricDoseBand(ageYears);
+  const equipBand = _pkResolvePediatricEquipmentBand(ageYears);
+  const narrative = _pkPediatricNarrative['basti_niruha_administration'];
+  const assentApplicable = ageYears >= _PK_PEDIATRIC_ASSENT_MIN_AGE;
+
+  return `
+      <div style="border:2px solid var(--purple);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fdf5fb">
+        <div style="font-weight:700;font-size:12.5px;color:var(--purple);margin-bottom:8px">🧒 Pediatric Basti — patient is ${_esc(String(ageYears))} years old${doseBand ? ` (${_esc(doseBand.band_label)} band)` : ''}</div>
+
+        ${!doseBand ? `
+        <div style="background:#fff3f3;border:1px solid var(--red);border-radius:5px;padding:7px 10px;font-size:11.5px;color:#7a1a1a;margin-bottom:8px">
+          ⚠ No age-band dose reference available below 1 year — the NIA document's own Basti Age Group section does not recommend classical Basti this young (Acharya opinion ranges from birth to 5-6 months to 1-3 years for the earliest safe age). Use extreme clinical caution; dose is entirely at your discretion if proceeding.
+        </div>` : `
+        <div style="font-size:11px;color:var(--text-dark);margin-bottom:8px">
+          Reference dose for this band (Yapana Basti Karma, age-wise) — Kashaya ${doseBand.kashaya_ml}ml · Sneha ${doseBand.sneha_ml}ml · Gomutra ${doseBand.gomutra_ml}ml · Saindhava ${doseBand.saindhava_g}g · Kalka ${doseBand.kalka_g}g · Madhu ${doseBand.madhu_ml}ml (total ${doseBand.dose_ml}ml). Auto-filled into the Niruha Madhu/Lavana/Sneha/Kalka/Kwatha/Avapa formula in Step 3 — edit the exact per-ingredient doses there, not here.
+        </div>`}
+
+        ${equipBand ? `
+        <div style="font-size:11px;color:var(--text-dark);margin-bottom:8px">
+          🔧 Basti Netra (catheter) reference: length ${equipBand.netra_length_cm}cm, base ${equipBand.netra_base_cm}cm, tip sized to ${_esc(equipBand.netra_tip_desc)} — never insert more than 6 inches (15cm) regardless of table value.
+        </div>` : ''}
+
+        ${narrative?.contraindications ? `
+        <details style="margin-bottom:8px">
+          <summary style="font-size:11px;font-weight:600;color:var(--purple);cursor:pointer">⚠ Pediatric-specific contraindications — tap to review</summary>
+          <div style="font-size:10.5px;color:var(--text-mid);margin-top:4px">${_esc(narrative.contraindications)}</div>
+        </details>` : ''}
+
+        <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+          <label style="display:flex;align-items:flex-start;gap:6px;font-size:11.5px;margin-bottom:6px;cursor:pointer">
+            <input type="checkbox" ${p.pediatric_guardian_consent_obtained ? 'checked' : ''}
+              data-onchange="_pkTogglePediatricConsent" data-onchange-a0="${pi}" data-onchange-a1="pediatric_guardian_consent_obtained" data-onchange-a2="@this" style="margin-top:2px"/>
+            <span><strong>Written informed consent obtained from parent/guardian</strong> — required before this plan can be saved.</span>
+          </label>
+          ${assentApplicable ? `
+          <label style="display:flex;align-items:flex-start;gap:6px;font-size:11.5px;cursor:pointer">
+            <input type="checkbox" ${p.pediatric_assent_obtained ? 'checked' : ''}
+              data-onchange="_pkTogglePediatricConsent" data-onchange-a0="${pi}" data-onchange-a1="pediatric_assent_obtained" data-onchange-a2="@this" style="margin-top:2px"/>
+            <span><strong>Verbal/written assent obtained from the child</strong> — required before this plan can be saved.</span>
+          </label>` : `
+          <div style="font-size:10.5px;color:var(--text-muted)">Child assent: not applicable at this age (under ${_PK_PEDIATRIC_ASSENT_MIN_AGE} years) — guardian consent alone governs.</div>`}
+        </div>
+      </div>`;
+}
 
 // Session 257 -- Skip / Advise at home, scoped to exactly these two prep/post-care
 // activities (confirmed live). Never for Abhyanga+Sweda or the main procedure --
@@ -2352,6 +2518,7 @@ function _renderPkCalendar() {
       <div style="border:1.5px solid var(--blue);border-radius:6px;padding:9px 12px;margin-bottom:10px;background:#f5f8ff;font-size:11.5px;color:var(--text-dark)">
         <strong>📌 Standing instruction:</strong> Local Abhyanga + Swedana (~10 minutes) is performed immediately before <em>every</em> Anuvasana and every Niruha administration — not a separate scheduled day. Applies throughout the whole course, every administration day, without needing its own calendar entry.
       </div>
+      ${_pkRenderPediatricBastiPanel(p, pi)}
       <div style="border:1px solid var(--gold);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fffaf0">
         <div style="font-weight:600;font-size:12.5px;color:var(--green-mid);margin-bottom:6px">🌀 Basti Pack Type (Charaka's classical Anuvasana/Niruha rotation)</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -2764,9 +2931,11 @@ function _pkRenderNiruhaFormulaCard(p, pi, b, bi) {
         style="font-size:10.5px;padding:2px 8px;border:1px solid var(--gold);border-radius:10px;background:#fff;color:var(--gold);cursor:pointer">+ Add ingredient</button>
     </div>`;
 
+  const pediatricBand = _pkIsPediatricPatient() ? _pkResolvePediatricDoseBand(_pkPatientAgeYears()) : null;
   return `
         <div style="border:1px solid var(--blue);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#f5f8ff">
           <div style="font-weight:600;font-size:12.5px;color:var(--blue);margin-bottom:6px">${_esc(b.activity_label)}</div>
+          ${pediatricBand ? `<div style="background:#fdf5fb;border:1px solid var(--purple);border-radius:5px;padding:6px 10px;font-size:11px;color:var(--purple);margin-bottom:8px">🧒 Pediatric dose applied (${_esc(pediatricBand.band_label)} band) — every quantity below is pre-filled from the age-wise dose table, still fully editable.</div>` : ''}
           <div class="field" style="margin-bottom:8px">
             <label style="font-size:11px">Load Standard Formulation</label>
             <select data-onchange="_pkLoadNiruhaFormulation" data-onchange-a0="${pi}" data-onchange-a1="${bi}" data-onchange-a2="@this">${formOpts}</select>
@@ -2793,7 +2962,11 @@ function _pkRenderNiruhaFormulaCard(p, pi, b, bi) {
 window._pkLoadNiruhaFormulation = function(pi, bi, selectEl) {
   const b = _pkProtocols[Number(pi)]?.blocks[Number(bi)]; if (!b) return;
   const formId = selectEl.value;
-  if (!formId) { b.niruhaFormula = _pkNewNiruhaFormula(); b.niruhaFormula.formula_name = ''; _renderPkMedicines(); return; }
+  if (!formId) {
+    b.niruhaFormula = _pkNewNiruhaFormula(); b.niruhaFormula.formula_name = '';
+    _pkApplyPediatricNiruhaDoses(b.niruhaFormula); // Session 285 follow-up
+    _renderPkMedicines(); return;
+  }
   const f = _pkNiruhaFormulations.find(x => x.id === formId); if (!f) return;
   b.niruhaFormula = {
     formulation_key: f.formulation_key, formula_name: f.display_name,
@@ -2807,6 +2980,10 @@ window._pkLoadNiruhaFormulation = function(pi, bi, selectEl) {
     },
     extra: [],
   };
+  // Session 285 follow-up -- a standard formulation's default quantities are adult-
+  // scaled; for a pediatric patient, keep the formulation's classical ingredient
+  // NAMES but override every quantity with this patient's real age-band dose.
+  _pkApplyPediatricNiruhaDoses(b.niruhaFormula);
   _renderPkMedicines();
 };
 
@@ -2909,9 +3086,19 @@ function _renderPkMedicines() {
     // already uses), shown once above its blocks -- only when at least one of them
     // actually needs it (has no SOP content).
     const needsFormulationName = renderableBlocks.some(({ b }) => !_pkBlockHasSopHint(p, b));
+    // Bug fix -- _pkRenderNiruhaFormulaCard() (Madhu/Lavana/Sneha/Kalka/Kwatha/Avapa +
+    // "Load Standard Formulation" dropdown) has been fully implemented since Session
+    // 271/279 but was never actually called from here -- the Niruha block is
+    // deliberately excluded from renderableBlocks above (by design, it needs its own
+    // card, not the generic one) but nothing ever rendered that card in its place, so
+    // every doctor has been unable to build/edit a Niruha compound formula through the
+    // UI at all despite the save/reconstruct code paths fully supporting it. Found
+    // while wiring pediatric doses into this card -- fixed by actually rendering it.
+    const niruhaEntry = p.blocks.map((b, bi) => ({ b, bi })).find(({ b }) => b.bastiDayType === 'niruha');
     return `
     <div class="section" style="border:1.5px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:12px">
       <div style="font-weight:700;font-size:14px;color:var(--green-deep);margin-bottom:8px">${_esc(p.protocol_label)}</div>
+      ${niruhaEntry ? _pkRenderNiruhaFormulaCard(p, pi, niruhaEntry.b, niruhaEntry.bi) : ''}
       ${needsFormulationName ? `
       <div class="field" style="margin-bottom:10px">
         <label style="font-size:11px">Formulation Name <span style="font-weight:400;color:var(--text-muted)">(for the record — the specific variant used, e.g. "Eranda Patra Pinda Sweda" under "Patra Pinda Sweda")</span></label>
@@ -3274,6 +3461,12 @@ function _pkReconstructProtocol(pr, allDays, allMeds) {
     custom_formulation_name: pr.custom_formulation_name || null,
     basti_pack_type: pr.basti_pack_type,
     basti_schedule_mode: pr.basti_schedule_mode || 'standard',
+    // Session 285 -- pediatric Basti dosing/consent, carried over unchanged when
+    // re-opening an already-saved draft for editing.
+    pediatric_age_band: pr.pediatric_age_band || null,
+    pediatric_dose_ml: pr.pediatric_dose_ml || null,
+    pediatric_guardian_consent_obtained: !!pr.pediatric_guardian_consent_obtained,
+    pediatric_assent_obtained: !!pr.pediatric_assent_obtained,
     // Session 277 -- carried uniformly on every day row for this protocol; any one of
     // them reflects what the doctor entered (or true default) at save time.
     doctor_duration_minutes: days[0]?.doctor_duration_minutes ?? null,
@@ -3347,6 +3540,17 @@ window.savePkCarePlan = async function() {
   // this is ever reached without going through _pkGoToStep()'s own gate.
   const missingSchedule = _pkProtocols.find(p => _pkNeedsManualScheduleInput(p) && (!p.doctor_duration_minutes || !p.doctor_man_power));
   if (missingSchedule) { alert(`"${missingSchedule.protocol_label}" is missing its session duration/man power — enter them in Step 2 before saving.`); return; }
+  // Session 285 -- a pediatric Basti plan cannot save without guardian consent (always
+  // required) and, above _PK_PEDIATRIC_ASSENT_MIN_AGE, child assent too -- same hard
+  // block as the Basti-pack-type/schedule checks above, never a silent skip.
+  if (_pkIsPediatricPatient()) {
+    const ageYears = _pkPatientAgeYears();
+    const missingPediatricConsent = _pkProtocols.find(p => p.procedure_key === 'basti' && (
+      !p.pediatric_guardian_consent_obtained ||
+      (ageYears >= _PK_PEDIATRIC_ASSENT_MIN_AGE && !p.pediatric_assent_obtained)
+    ));
+    if (missingPediatricConsent) { alert('This is a pediatric Basti plan — obtain and check parent/guardian consent (and child assent, if age-appropriate) in Step 2 before saving.'); return; }
+  }
   const settingEl = document.querySelector('input[name="pk-setting"]:checked');
   const setting = settingEl ? settingEl.value : 'day_care';
 
@@ -3421,6 +3625,12 @@ window.savePkCarePlan = async function() {
       basti_schedule_mode: p.basti_pack_type ? (p.basti_schedule_mode || 'standard') : null,
       niruha_formula_name: niruhaBlock?.niruhaFormula?.formula_name || null,
       custom_formulation_name: p.custom_formulation_name || null,
+      // Session 285 -- pediatric Basti dosing/consent, null/false for every adult
+      // patient and every non-Basti protocol (matches the wizard's own gate).
+      pediatric_age_band: p.pediatric_age_band || null,
+      pediatric_dose_ml: p.pediatric_dose_ml || null,
+      pediatric_guardian_consent_obtained: !!p.pediatric_guardian_consent_obtained,
+      pediatric_assent_obtained: !!p.pediatric_assent_obtained,
     };
 
     let proto, protoErr;
