@@ -440,6 +440,9 @@ const APPROVAL_ACTION_LABELS = {
   pk_roster_cycle:         'Panchakarma therapist duty-roster cycle length',
   // Session 216: same maker-checker parity extended to PK's Shift Times.
   pk_shift_times:          'Panchakarma therapist shift start times',
+  // Session 292: a tenant's own new Panchakarma treatment protocol (pk-protocol-admin.html)
+  // -- reuses this exact generic approval list, no separate inbox.
+  pk_custom_protocol:      'New Panchakarma treatment protocol',
 };
 
 const NURSING_CYCLE_LABELS = { weekly: 'Weekly (7 days)', fortnightly: 'Fortnightly (14 days)', monthly: 'Monthly (30 days)' };
@@ -462,6 +465,7 @@ function _approvalSummary(row){
     case 'nursing_shift_pattern': return `Change to ${_esc(SHIFT_PATTERN_LABELS[p.pattern] || p.pattern || '—')}`;
     case 'pk_roster_cycle':      return `Change to ${_esc(PK_CYCLE_LABELS[p.cycle] || p.cycle || '—')}`;
     case 'pk_shift_times':       return `Shift 1: ${_esc(p.shift1_start || '—')} · Shift 2: ${_esc(p.shift2_start || '—')}`;
+    case 'pk_custom_protocol':   return _esc(p.display_name || '—');
     default: return '—';
   }
 }
@@ -482,6 +486,16 @@ function _canDecideApproval(requesterDesig){
   // decide_approval() groups it into the identical IN-list server-side.
   const iAmMsTier = ['medical_superintendent','deputy_medical_superintendent'].includes(profile?.designation);
   if (requesterDesig === 'medical_superintendent') return iAmSuperAdmin || iAmDirectorTier;
+  // Session 292 -- real pre-existing gap found while wiring pk_custom_protocol's approval
+  // display (Session 292 lets a Deputy MS author a protocol submission directly, a path
+  // that was always theoretically reachable for pk_roster_cycle/pk_shift_times/
+  // intern_roster too but apparently never actually hit): decide_approval() itself has
+  // always had a real server-side branch for requesterDesig==='deputy_medical_superintendent'
+  // (decided by super_admin or the Medical Superintendent), but this CLIENT-SIDE hint never
+  // had a matching branch, so it would silently fall through to the `iAmSuperAdmin`-only
+  // default -- undercounting the approvals badge/list for the real Medical Superintendent
+  // decider. Mirrors decide_approval()'s server branch exactly.
+  if (requesterDesig === 'deputy_medical_superintendent') return iAmSuperAdmin || profile?.designation === 'medical_superintendent';
   if (['nursing_superintendent','deputy_nursing_superintendent','pk_incharge'].includes(requesterDesig)) return iAmSuperAdmin || iAmMsTier;
   return iAmSuperAdmin;
 }

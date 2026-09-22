@@ -176,6 +176,11 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         // and a designations check (the department-specific authors and the tenant-wide
         // finalizers) -- navbar.js ORs the two, so either one alone is enough to see the link.
         { href:'sop-documents.html',     label:'SOP Documents',    roles:['super_admin','dept_admin'],                         types:null, module:'quality', designations:['pk_incharge','medical_director','principal','medical_superintendent'] },
+        // Session 292 -- tenant-scoped Custom PK Protocols, same designations-gating class
+        // as sop-documents.html above (PK In-charge/MD/Principal/MS all author, per Dr.
+        // Venkatesh's explicit design call), plus deputy_medical_superintendent since this
+        // feature deliberately lets Deputy MS author too, unlike sop-documents.html.
+        { href:'pk-protocol-admin.html', label:'Custom PK Protocols', roles:['super_admin','dept_admin'],                       types:null, module:'quality', designations:['pk_incharge','medical_director','principal','medical_superintendent','deputy_medical_superintendent'] },
         { href:'hai-surveillance.html',  label:'HAI Surveillance', roles:ADMIN_ROLES.concat(['nurse','doctor']),                types:HOSP, module:'quality'  },
         { href:'fms.html',               label:'Facility Mgmt',        roles:ADMIN_ROLES,                   types:null, module:'quality'  },
         { href:'nabh-self-assessment.html',label:'NABH Self-Assessment',roles:ADMIN_ROLES,                 types:null, module:'quality'  },

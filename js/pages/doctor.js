@@ -1815,6 +1815,22 @@ async function _loadPkTemplates() {
   _pkTemplateDays = {};
   (days || []).forEach(d => { (_pkTemplateDays[d.template_id] = _pkTemplateDays[d.template_id] || []).push(d); });
 
+  // Session 292 -- tenant-scoped custom PK protocols (pk-protocol-admin.html), merged into
+  // the same _pkTemplates/_pkTemplateDays arrays every other piece of this wizard already
+  // reads generically -- zero further changes needed anywhere else in the wizard. Only
+  // status='approved' rows for THIS tenant; a draft/pending/rejected one never reaches this
+  // query at all, so it can't leak into the chip list even briefly. is_reviewed is forced
+  // true (approval itself was the review) so these never show the generic draft-SOP warning.
+  const { data: customTemplates } = await supabase.from('pk_custom_sop_templates')
+    .select('id,procedure_key,display_name,phase_group,default_notes,price_amount,price_label')
+    .eq('tenant_id', tenantId).eq('status', 'approved');
+  (customTemplates || []).forEach(t => _pkTemplates.push({ ...t, is_reviewed: true, technique_family: null, is_custom_protocol: true }));
+  if (customTemplates?.length) {
+    const { data: customDays } = await supabase.from('pk_custom_sop_template_days')
+      .select('*').in('protocol_id', customTemplates.map(t => t.id)).order('sequence_order');
+    (customDays || []).forEach(d => { (_pkTemplateDays[d.protocol_id] = _pkTemplateDays[d.protocol_id] || []).push({ ...d, template_id: d.protocol_id, ayush_code: null }); });
+  }
+
   // Ambiguous-day billing-code picker options (Step 3) -- e.g. Basti has 9 real
   // site-specific codes and no generic one, so the doctor resolves it per plan.
   const { data: ayush } = await supabase.from('ayush_procedure_catalog')
@@ -3950,7 +3966,29 @@ window._pkLoadSopMaterials = async function(pi, bi) {
 function _pkComputeEstimate() {
   const byCode = {};
   let unpriced = 0;
+  const customLines = [];
   _pkProtocols.forEach(p => {
+    // Session 292 -- a tenant's custom protocol is priced directly from its own
+    // price_amount (a flat one-time course fee, what the PK HOD actually entered), not
+    // via the shared ayush_code system. fee_structures.ayush_code has a hard FK to
+    // ayush_procedure_catalog -- a genuinely global, non-tenant-scoped reference table --
+    // so a bespoke per-tenant code can never legally be set there (confirmed live: the
+    // FK rejected it). Scheduled days for a custom protocol never carry an ayush_code at
+    // all, so without this branch they'd all land in the generic "unpriced" bucket below.
+    const tpl = _pkTemplates.find(t => t.id === p.template_id);
+    if (tpl?.is_custom_protocol) {
+      const dayCount = _pkExpandDays(p).length;
+      if (tpl.price_amount != null) {
+        // days:1 deliberately, not the real dayCount -- this is a flat one-time course
+        // fee, not a per-day rate, and the shared "N days x unitPrice = lineTotal" line
+        // template below would otherwise render a mathematically wrong-looking line
+        // (e.g. "7 days x Rs.1,800 = Rs.1,800").
+        customLines.push({ code: null, days: 1, priced: true, unitPrice: tpl.price_amount, lineTotal: tpl.price_amount, label: tpl.price_label || tpl.display_name });
+      } else {
+        unpriced += dayCount;
+      }
+      return;
+    }
     _pkExpandDays(p).forEach(r => {
       if (r.ayush_code) byCode[r.ayush_code] = (byCode[r.ayush_code] || 0) + 1;
       else unpriced++;
@@ -3962,7 +4000,7 @@ function _pkComputeEstimate() {
     if (!feeRow) return { code, days, priced: false, unitPrice: 0, lineTotal: 0, label: code };
     const unitPrice = getEffectivePrice(feeRow);
     return { code, days, priced: true, unitPrice, lineTotal: unitPrice * days, label: feeRow.label || code };
-  });
+  }).concat(customLines);
   const total = lines.reduce((s, l) => s + l.lineTotal, 0);
   return { lines, total, unpriced };
 }
@@ -4173,14 +4211,20 @@ window._pkLoadExistingDraft = async function() {
 // means that block was skipped (never re-derivable from the days table alone, since a
 // skipped block contributes no rows at all).
 function _pkReconstructProtocol(pr, allDays, allMeds) {
-  const tpl = _pkTemplates.find(t => t.id === pr.template_id);
-  const tplDays = (_pkTemplateDays[pr.template_id] || []).slice().sort((a, b) => a.sequence_order - b.sequence_order);
+  // Session 292 -- a custom-protocol-built plan has its real template id in
+  // custom_template_id, not template_id (see protoFields' save-side comment). _pkTemplates
+  // already holds both global and this tenant's approved custom rows in one array keyed by
+  // the same id space, so a single resolvedTemplateId covers both transparently everywhere
+  // else in this function.
+  const resolvedTemplateId = pr.template_id || pr.custom_template_id;
+  const tpl = _pkTemplates.find(t => t.id === resolvedTemplateId);
+  const tplDays = (_pkTemplateDays[resolvedTemplateId] || []).slice().sort((a, b) => a.sequence_order - b.sequence_order);
   const days = allDays.filter(d => d.protocol_instance_id === pr.id);
   const meds = allMeds.filter(m => m.protocol_instance_id === pr.id);
 
   const p = {
     db_id: pr.id,
-    template_id: pr.template_id,
+    template_id: resolvedTemplateId,
     procedure_key: tpl?.procedure_key || pr.protocol_label,
     protocol_label: pr.protocol_label,
     is_reviewed: tpl?.is_reviewed ?? true,
@@ -4361,8 +4405,15 @@ window.savePkCarePlan = async function() {
     // protocol level so reception/therapist/nursing can show it without knowing
     // which block it came from.
     const niruhaBlock = p.blocks.find(b => b.bastiDayType === 'niruha');
+    // Session 292 -- a tenant's custom protocol (pk_custom_sop_templates.id) can't be
+    // written into template_id -- that column's FK only points at the global
+    // pk_sop_templates catalog. custom_template_id is the parallel column for that case;
+    // exactly one of the two is ever populated (DB-enforced via a CHECK constraint too).
+    const _pkTplForSave = _pkTemplates.find(t => t.id === p.template_id);
     const protoFields = {
-      template_id: p.template_id, protocol_label: p.protocol_label,
+      template_id: _pkTplForSave?.is_custom_protocol ? null : p.template_id,
+      custom_template_id: _pkTplForSave?.is_custom_protocol ? p.template_id : null,
+      protocol_label: p.protocol_label,
       start_date: p.start_date, sequence_order: pi + 1,
       // Session 255 -- Koshtha + Snehapana dosing, only meaningful when this protocol
       // actually has a Snehapana block (null otherwise, matches the wizard's own gate).

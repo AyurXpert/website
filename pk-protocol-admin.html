@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<title>Custom PK Protocols — AyurXpert</title>
+<link rel="icon" href="assets/icon.svg"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="assets/icon.svg"/>
+<meta name="theme-color" content="#1a4a2e"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--gold-light:#fdf6e8;--cream:#faf8f3;--white:#ffffff;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--radius:10px;
+  --error-bg:#fff3f3;--error-border:#f5b8b8;--error-text:#8b1a1a;
+  --success-bg:#f0f9f4;--success-border:#b8ddc6;--success-text:#1a4a2e;
+  --blue:#2563eb;--blue-light:#eff6ff;--blue-border:#bfdbfe;
+  --purple:#8b1a6b;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);min-height:100vh}
+.page-wrap{max-width:1100px;margin:0 auto;padding:28px 20px 80px}
+@media(max-width:600px){.page-wrap{padding:16px 12px 60px}}
+.page-hdr{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;gap:16px;flex-wrap:wrap}
+.page-title{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;color:var(--green-deep);line-height:1.1}
+.page-sub{font-size:13px;color:var(--text-muted);margin-top:4px;max-width:640px}
+
+.btn-add{height:42px;padding:0 20px;background:var(--green-deep);color:var(--white);border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .2s}
+.btn-add:hover{background:#1f5c37}
+.btn-add:disabled{opacity:.5;cursor:not-allowed}
+
+.table-card{background:var(--white);border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,0.06);overflow:hidden;margin-bottom:20px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead{background:var(--green-light)}
+th{padding:12px 16px;font-size:11px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.7px;text-align:left;white-space:nowrap}
+td{padding:14px 16px;font-size:14px;color:var(--text-dark);border-bottom:1px solid var(--green-light);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+
+.status-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;white-space:nowrap}
+.status-draft{background:var(--cream);color:var(--text-mid);border:1px solid var(--border)}
+.status-pending_approval{background:var(--gold-light);color:#7a5a10;border:1px solid #e8d08a}
+.status-approved{background:var(--success-bg);color:var(--success-text);border:1px solid var(--success-border)}
+.status-rejected{background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border)}
+
+.act-btn{height:30px;padding:0 12px;border-radius:6px;font-size:12px;font-family:'DM Sans',sans-serif;font-weight:500;cursor:pointer;border:1.5px solid;transition:all .15s;white-space:nowrap;margin-right:6px;margin-bottom:4px}
+.act-edit{background:var(--cream);color:var(--text-mid);border-color:var(--border)}
+.act-edit:hover{border-color:var(--green-mid);color:var(--green-deep)}
+.act-submit{background:var(--green-light);color:var(--green-deep);border-color:var(--green-mid)}
+.act-submit:hover{background:var(--green-mid);color:var(--white)}
+.act-delete{background:var(--cream);color:var(--text-muted);border-color:var(--border)}
+.act-delete:hover{background:var(--error-bg);color:var(--error-text);border-color:var(--error-border)}
+
+.empty{text-align:center;padding:48px 20px}
+.empty-icon{font-size:36px;margin-bottom:10px}
+.empty-text{font-size:14px;color:var(--text-muted)}
+
+.form-card{background:var(--white);border-radius:16px;box-shadow:0 2px 16px rgba(0,0,0,0.06);padding:22px 24px;margin-bottom:20px;display:none}
+.form-card.open{display:block}
+.form-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep);margin-bottom:4px}
+.section-lbl{font-size:12px;font-weight:600;color:var(--green-mid);text-transform:uppercase;letter-spacing:.6px;margin:18px 0 10px;padding-top:14px;border-top:1px solid var(--border)}
+.section-lbl:first-of-type{border-top:none;padding-top:0;margin-top:14px}
+
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;font-weight:500;color:var(--text-mid);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+.field input,.field select,.field textarea{width:100%;padding:0 14px;border:1.5px solid var(--border);border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text-dark);background:var(--cream);outline:none;transition:border-color .2s,box-shadow .2s,background .2s}
+.field input,.field select{height:44px}
+.field textarea{padding:10px 14px;height:70px;resize:vertical}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--green-mid);background:var(--white);box-shadow:0 0 0 3px rgba(45,122,79,.1)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.field-row{grid-template-columns:1fr}}
+.hint{font-size:11px;color:var(--text-muted);margin-top:3px}
+
+.row-card{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:var(--cream)}
+.row-grid-days{display:grid;grid-template-columns:.7fr .7fr 1.1fr 1.6fr auto;gap:8px;align-items:end}
+.row-grid-mat{display:grid;grid-template-columns:1.6fr .7fr .7fr auto;gap:8px;align-items:end}
+@media(max-width:700px){.row-grid-days,.row-grid-mat{grid-template-columns:1fr}}
+.row-list-item{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--white);font-size:12.5px}
+.row-remove{width:26px;height:26px;border:1px solid var(--border);border-radius:6px;background:var(--white);cursor:pointer;font-size:11px;color:var(--text-muted)}
+.row-remove:hover{background:var(--error-bg);color:var(--error-text);border-color:var(--error-border)}
+.btn-add-row{height:36px;padding:0 14px;background:var(--white);border:1.5px solid var(--green-mid);color:var(--green-deep);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer}
+
+.approval-note{background:var(--gold-light);border:1px solid #e8d08a;border-radius:8px;padding:12px 14px;font-size:12px;color:#7a5a10;line-height:1.6;margin:16px 0}
+.approval-note strong{display:block;margin-bottom:4px}
+
+.form-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+.btn-secondary{height:44px;padding:0 18px;background:var(--white);color:var(--text-mid);border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:500;cursor:pointer}
+.btn-secondary:hover{border-color:var(--green-mid);color:var(--green-deep)}
+.btn-primary{height:44px;padding:0 18px;background:var(--green-deep);color:var(--white);border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+.btn-primary:hover{background:#1f5c37}
+.btn-submit{height:44px;padding:0 18px;background:var(--gold);color:var(--white);border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
+.btn-submit:hover{background:#b57e22}
+
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:500;color:var(--white);z-index:9999;transform:translateY(80px);opacity:0;transition:all .3s ease;pointer-events:none}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.success{background:var(--green-deep)}
+.toast.err{background:#c0392b}
+
+.no-access{text-align:center;padding:60px 20px}
+</style>
+</head>
+<body>
+
+<div id="navbar-root"></div>
+
+<div class="page-wrap">
+  <div class="page-hdr">
+    <div>
+      <div class="page-title">🌸 Custom Panchakarma Protocols</div>
+      <div class="page-sub">Add a treatment protocol specific to your hospital — schedule, SOP, materials and price. Submitted protocols route for approval to your Medical Superintendent/Director/Principal (or super_admin) and, once approved, appear in the Panchakarma Care Plan wizard for your hospital only.</div>
+    </div>
+    <button class="btn-add" id="btn-new-protocol" data-onclick="openNewProtocolForm">+ Add New PK Treatment Protocol</button>
+  </div>
+
+  <div id="no-access-banner" class="no-access" style="display:none">
+    <div class="empty-icon">🔒</div>
+    <div class="empty-text">This page is for the Panchakarma In-charge, department admin, Medical Superintendent/Director/Principal, or super_admin.</div>
+  </div>
+
+  <div id="list-card" class="table-card">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Protocol</th><th>Status</th><th>Price</th><th>Updated</th><th>Actions</th></tr></thead>
+        <tbody id="protocol-list-body"><tr><td colspan="5" style="padding:24px;text-align:center;color:var(--text-muted)">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Add/Edit form ─────────────────────────────── -->
+  <div class="form-card" id="protocol-form">
+    <div class="form-title" id="form-title">New PK Treatment Protocol</div>
+    <div class="hint" id="form-status-hint"></div>
+
+    <div class="section-lbl">Basics</div>
+    <div class="field-row">
+      <div class="field">
+        <label>Display Name <span style="color:var(--gold)">*</span></label>
+        <input type="text" id="f-display-name" placeholder="e.g. Custom Kati Vasti Extended" data-onchange="_onDisplayNameChange" data-onchange-a0="@this"/>
+      </div>
+      <div class="field">
+        <label>Protocol Key (auto, editable)</label>
+        <input type="text" id="f-procedure-key" placeholder="auto_generated_key"/>
+        <div class="hint">Lowercase, no spaces — used internally, doesn't need to mean anything to patients.</div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes (optional, for staff reference)</label>
+      <textarea id="f-default-notes" placeholder="Any short internal note about this protocol"></textarea>
+    </div>
+
+    <div class="section-lbl">📅 Schedule — Day by Day</div>
+    <div class="row-card row-grid-days">
+      <div class="field" style="margin-bottom:0"><label>Day start</label><input type="number" id="d-start" min="1" step="1"/></div>
+      <div class="field" style="margin-bottom:0"><label>Day end</label><input type="number" id="d-end" min="1" step="1"/></div>
+      <div class="field" style="margin-bottom:0"><label>Phase</label>
+        <select id="d-phase">
+          <option value="purvakarma">Purvakarma</option>
+          <option value="pradhanakarma" selected>Pradhanakarma</option>
+          <option value="paschatkarma">Paschatkarma</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:0"><label>Activity</label><input type="text" id="d-activity" placeholder="e.g. Kati Vasti administration"/></div>
+      <button type="button" class="btn-add-row" data-onclick="_addDayRow">+ Add</button>
+    </div>
+    <div id="days-list"></div>
+
+    <div class="section-lbl">🧾 Materials / Equipment</div>
+    <div class="row-card row-grid-mat">
+      <div class="field" style="margin-bottom:0"><label>Item</label><input type="text" id="m-item" placeholder="e.g. Black gram dough ring"/></div>
+      <div class="field" style="margin-bottom:0"><label>Qty</label><input type="number" id="m-qty" min="0" step="0.01"/></div>
+      <div class="field" style="margin-bottom:0"><label>Unit</label>
+        <select id="m-unit">
+          <option value="ml">ml</option><option value="g">g</option><option value="kg">kg</option>
+          <option value="L">L</option><option value="Pcs">Pcs</option><option value="Set">Set</option><option value="batch">batch</option>
+        </select>
+      </div>
+      <button type="button" class="btn-add-row" data-onclick="_addMaterialRow">+ Add</button>
+    </div>
+    <div id="materials-list"></div>
+
+    <div class="section-lbl">📋 SOP Narrative</div>
+    <div class="field"><label>Indications</label><textarea id="f-indications" placeholder="Conditions/indications this protocol is used for"></textarea></div>
+    <div class="field"><label>Contraindications</label><textarea id="f-contraindications" placeholder="When NOT to use this protocol"></textarea></div>
+    <div class="field"><label>Precautions</label><textarea id="f-precautions" placeholder="Safety precautions during the procedure"></textarea></div>
+    <div class="field"><label>Complications &amp; Management</label><textarea id="f-complications" placeholder="Possible adverse effects and how to manage them"></textarea></div>
+    <div class="field"><label>Purvakarma (Preparation) Text</label><textarea id="f-purva" placeholder="Pre-procedure steps"></textarea></div>
+    <div class="field"><label>Pradhanakarma (Main Procedure) Text</label><textarea id="f-pradhana" placeholder="The main procedure, step by step"></textarea></div>
+    <div class="field"><label>Paschatkarma (Post-care) Text</label><textarea id="f-paschat" placeholder="Post-procedure care instructions"></textarea></div>
+
+    <div class="section-lbl">💰 Cost</div>
+    <div class="field-row">
+      <div class="field"><label>Price (₹)</label><input type="number" id="f-price" min="0" step="1" placeholder="e.g. 1500"/></div>
+      <div class="field"><label>Price Label (for the fee catalog)</label><input type="text" id="f-price-label" placeholder="e.g. Custom Kati Vasti — full course"/></div>
+    </div>
+    <div class="approval-note">
+      <strong>One approval covers both:</strong>
+      Submitting here asks your MS/Director/Principal (or super_admin) to approve this protocol. Once approved, it appears in the Care Plan wizard for your hospital <em>and</em> its price above becomes active in Fee Structure at the same time — nothing further to approve separately.
+    </div>
+
+    <div class="field">
+      <label>Reason / note for the approver (optional)</label>
+      <input type="text" id="f-submit-reason" placeholder="Why this protocol is needed"/>
+    </div>
+
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" data-onclick="closeProtocolForm">Cancel</button>
+      <button type="button" class="btn-primary" id="btn-save-draft" data-onclick="saveProtocolDraft">💾 Save Draft</button>
+      <button type="button" class="btn-submit" id="btn-submit-approval" data-onclick="submitProtocolForApproval">📤 Submit for Approval</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module" src="./js/pwa/register-sw.js"></script>
+<script type="module" src="./js/pages/pk-protocol-admin.js"></script>
+</body>
+</html>
