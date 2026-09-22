@@ -4230,7 +4230,16 @@ let _admReqSubscription = null;
 async function loadAdmissionRequests() {
   const { data, error } = await supabase
     .from('admission_advice')
-    .select('id, clinical_indication, expected_duration_days, duration_note, room_type_preference, payer_type, estimated_total, advance_amount_suggested, created_at, patients(name, phone), profiles!doctor_id(full_name), departments(name), pk_care_plan_id, pk_care_plans(pk_care_plan_protocols(protocol_label, niruha_formula_name, custom_formulation_name))')
+    // Session 293 -- real bug found live: admission_advice<->pk_care_plans has TWO FKs
+    // (admission_advice.pk_care_plan_id, and the reverse pk_care_plans.admission_advice_id
+    // set right after this row's own insert -- see doctor.js's savePkCarePlan()), so the
+    // implicit `pk_care_plans(...)` embed was ambiguous and PostgREST rejected the WHOLE
+    // query outright -- this entire tab has been unable to load ANY row with a linked PK
+    // Care Plan (global or custom protocol alike) since Session 279 added this embed, the
+    // error being silently swallowed by the early-return below. Disambiguated via the real
+    // FK constraint name (confirmed against pg_constraint) -- the direction this query
+    // actually wants, admission_advice.pk_care_plan_id -> pk_care_plans.id.
+    .select('id, clinical_indication, expected_duration_days, duration_note, room_type_preference, payer_type, estimated_total, advance_amount_suggested, created_at, patients(name, phone), profiles!doctor_id(full_name), departments(name), pk_care_plan_id, pk_care_plans!admission_advice_pk_care_plan_id_fkey(pk_care_plan_protocols(protocol_label, niruha_formula_name, custom_formulation_name))')
     .eq('tenant_id', tenantId)
     .eq('status', 'pending')
     .order('created_at', { ascending: true });

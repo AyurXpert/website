@@ -3983,7 +3983,11 @@ function _pkComputeEstimate() {
         // fee, not a per-day rate, and the shared "N days x unitPrice = lineTotal" line
         // template below would otherwise render a mathematically wrong-looking line
         // (e.g. "7 days x Rs.1,800 = Rs.1,800").
-        customLines.push({ code: null, days: 1, priced: true, unitPrice: tpl.price_amount, lineTotal: tpl.price_amount, label: tpl.price_label || tpl.display_name });
+        // code: a synthetic (not null) value -- window.savePkCarePlan()'s admission_advice_items
+        // insert writes this straight into fee_type, a plain NOT NULL text column with no FK
+        // (confirmed, unlike fee_structures.ayush_code) -- found live when an admission-setting
+        // plan's save failed on this exact null before this fix.
+        customLines.push({ code: 'custom:' + tpl.procedure_key, days: 1, priced: true, unitPrice: tpl.price_amount, lineTotal: tpl.price_amount, label: tpl.price_label || tpl.display_name });
       } else {
         unpriced += dayCount;
       }
@@ -4575,12 +4579,18 @@ window.savePkCarePlan = async function() {
         tenant_id: tenantId, admission_advice_id: advice.id, fee_type: l.code,
         description: l.label, sessions_count: l.days, unit_price_snapshot: l.unitPrice, line_total: l.lineTotal,
       }));
+      let itemsErr = null;
       if (items.length) {
-        const { error: itemsErr } = await supabase.from('admission_advice_items').insert(items);
+        ({ error: itemsErr } = await supabase.from('admission_advice_items').insert(items));
         if (itemsErr) console.warn('[doctor] admission_advice_items insert (from PK plan):', itemsErr.message);
       }
       if (!existingAdmissionAdviceId) await supabase.from('pk_care_plans').update({ admission_advice_id: advice.id }).eq('id', plan.id);
-      handoffMsg = existingAdmissionAdviceId ? `updated in Reception's Admission Requests queue` : `sent to Reception's Admission Requests queue`;
+      // Session 293 -- found live: this used to unconditionally report success even when
+      // the line-items insert above failed, silently handing Reception an admission
+      // request with a blank/incomplete cost breakdown and no signal to the doctor at all.
+      handoffMsg = itemsErr
+        ? `sent to Reception, but its cost breakdown could not be saved (${safeErrorMessage(itemsErr, 'error')}) — please check the Admission Advice tab`
+        : (existingAdmissionAdviceId ? `updated in Reception's Admission Requests queue` : `sent to Reception's Admission Requests queue`);
     }
   }
 
