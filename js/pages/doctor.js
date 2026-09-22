@@ -2028,6 +2028,51 @@ function _pkRenderPediatricVirechanaPanel(p, pi) {
       </div>`;
 }
 
+// Session 287 follow-up -- Dr. Venkatesh: the Virechana Dravya reference table in
+// Step 2 was read-only; the doctor still had to re-type the medicine name and figure
+// the dose from memory in Step 3's free-text Ingredients row. This turns that
+// reference into an actual picker on the "Virechana administration" block itself --
+// selecting a drug auto-fills the name + a Shuddhi-tier-aware suggested dose into the
+// existing name/qty/unit fields (still requires the doctor's own "+ Add" click to
+// commit it, same as every other ingredient entry -- nothing is silently added).
+// Scoped tightly to pediatric patients on the Virechana administration activity only
+// -- every other block/procedure keeps its plain free-text entry unchanged.
+function _pkRenderVirechanaDravyaPicker(p, pi, b, bi) {
+  if (!(_pkIsPediatricPatient() && p.procedure_key === 'virechana' && b.activity_label === 'Virechana administration')) return '';
+  const options = _pkDrugDosesFor('virechana', 'virechana_dravya', _pkPatientAgeYears());
+  if (!options.length) return '';
+  return `
+    <div class="field" style="margin-bottom:8px">
+      <label style="font-size:11px">🧒 Select a pediatric Virechana Dravya (age-appropriate options, auto-fills dose below)</label>
+      <select data-onchange="_pkSelectVirechanaDravya" data-onchange-a0="${pi}" data-onchange-a1="${bi}" data-onchange-a2="@value">
+        <option value="">— Choose a medicine —</option>
+        ${options.map(d => `<option value="${d.id}">${_esc(d.drug_name)} (${d.dose_min === d.dose_max ? d.dose_min : `${d.dose_min}-${d.dose_max}`}${_esc(d.unit)})</option>`).join('')}
+      </select>
+    </div>`;
+}
+
+window._pkSelectVirechanaDravya = function(pi, bi, drugDoseId) {
+  if (!drugDoseId) return;
+  const d = _pkPediatricDrugDoses.find(x => x.id === drugDoseId);
+  if (!d) return;
+  const p = _pkProtocols[Number(pi)];
+  const nameInp = document.getElementById(`pk-med-name-${pi}-${bi}`);
+  const qtyInp = document.getElementById(`pk-med-qty-${pi}-${bi}`);
+  const unitSel = document.getElementById(`pk-med-unit-${pi}-${bi}`);
+  if (nameInp) nameInp.value = d.drug_name;
+  // Suggested dose leans on the Shuddhi tier already assessed in Step 2 -- Uttam
+  // (full dose) suggests the range's upper bound, Hina (minimal dose only) the lower
+  // bound, Madhyama (or not yet assessed) the midpoint. Always doctor-editable before
+  // the actual "+ Add" click -- this is a starting suggestion, not a silent decision.
+  let qty = d.dose_min;
+  if (d.dose_min != null && d.dose_max != null) {
+    if (p?.pediatric_shuddhi_tier === 'uttam') qty = d.dose_max;
+    else if (p?.pediatric_shuddhi_tier !== 'hina') qty = Math.round(((d.dose_min + d.dose_max) / 2) * 100) / 100;
+  }
+  if (qtyInp) qtyInp.value = qty ?? '';
+  if (unitSel) unitSel.value = d.unit || 'g';
+};
+
 async function _loadPkFeeIndex() {
   const { data } = await supabase.from('fee_structures')
     .select('ayush_code,label,amount,gst_percent,promo_price,promo_valid_until')
@@ -3303,6 +3348,7 @@ function _renderPkMedicines() {
           <div class="field">
             <label style="font-size:11px">${hasSop ? 'Medicines / Materials for this activity' : 'Ingredients'}</label>
             ${hasSop ? `<button type="button" data-onclick="_pkLoadSopMaterials" data-onclick-a0="${pi}" data-onclick-a1="${bi}" style="height:30px;padding:0 10px;margin-bottom:6px;background:var(--white);border:1.5px solid var(--green-mid);color:var(--green-deep);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">📋 Load from SOP Materials</button>` : ''}
+            ${_pkRenderVirechanaDravyaPicker(p, pi, b, bi)}
             <div style="display:grid;grid-template-columns:1.6fr .6fr .5fr auto;gap:6px;margin-bottom:6px">
               <input id="pk-med-name-${pi}-${bi}" type="text" placeholder="${hasSop ? 'e.g. Panchatiktaka Ghrita' : 'e.g. Eranda Ela'}"
                 ${b.bastiDayType === 'anuvasana' ? `list="pk-sneha-datalist"` : ''}/>
