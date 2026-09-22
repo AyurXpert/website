@@ -350,10 +350,9 @@ function _gateFeatures() {
     document.getElementById('tab-btn-abdm').style.display = '';
 
     // Update disposition descriptions based on tenant capabilities
-    if (!_hasPK) {
-      document.getElementById('disp-pk-desc').textContent =
-        'Patient requires Panchakarma therapies — note details below and refer to a Panchakarma centre.';
-    }
+    // Session 294 -- "Panchakarma Treatment" dropped from Disposition entirely (the
+    // Panchakarma tab's own Setting field already captures Admission/Day Care/OPD, so a
+    // separate disposition value was pure duplication) -- disp-pk-desc no longer exists.
     if (!_hasAdm) {
       document.getElementById('disp-adm-desc').textContent =
         'Patient requires in-patient care — note below and refer to a hospital for admission.';
@@ -4615,10 +4614,10 @@ window.onDispChange = function(val) {
   document.getElementById('referral-section').style.display = val === 'referral' ? '' : 'none';
 
   const completeBtn = document.getElementById('btn-complete');
-  if (val === 'pk') {
-    completeBtn.textContent = '✓ Complete & Plan Panchakarma';
-    if (_hasPK) _switchTab('pk');
-  } else if (val === 'admission') {
+  // Session 294 -- 'pk' dropped as a disposition value entirely (see _gateFeatures()'s
+  // comment above); the Panchakarma tab is reachable directly from the tab bar now,
+  // not triggered by picking a disposition.
+  if (val === 'admission') {
     completeBtn.textContent = '✓ Complete & Initiate Admission';
     if (_hasAdm) _switchTab('adm');
   } else if (val === 'referral') {
@@ -5404,17 +5403,21 @@ async function completeConsultation() {
       }
     }
 
-    // Session 208: same honesty fix as Session 205's Admission Advice below -- this
-    // used to say "Panchakarma plan saved" unconditionally even though the tab's
-    // fields were never saved anywhere at all.
-    const dispMsg = disposition === 'pk' ? (_pkPlanSaved ? 'Panchakarma care plan saved' : 'Panchakarma care plan not saved — open the Panchakarma tab and save it')
-      // Session 205 (cont.): honest reflection of whether the advice was actually
-      // sent -- previously said "Admission order created" unconditionally even
-      // though the Admission tab's fields were never saved anywhere at all.
-      : disposition === 'admission' ? (_admAdviceSaved ? 'Admission advice sent to reception' : 'Admission advice not sent — open the Admission tab and send it')
+    // Session 205 (cont.): honest reflection of whether the advice was actually
+    // sent -- previously said "Admission order created" unconditionally even
+    // though the Admission tab's fields were never saved anywhere at all.
+    const dispMsg = disposition === 'admission' ? (_admAdviceSaved ? 'Admission advice sent to reception' : 'Admission advice not sent — open the Admission tab and send it')
       : disposition === 'referral'  ? (refSaved ? 'Referral sent — target OPD alerted' : 'Referral noted')
       : 'sent to pharmacy';
-    _toast(`${_activePatient?.name} — consultation complete, ${dispMsg}`, 'info');
+    // Session 294 -- 'pk' is no longer a disposition value (the Panchakarma tab is
+    // reachable independently of Disposition now), so its own honesty check runs
+    // separately -- only mentioned at all if the doctor actually engaged the tab this
+    // visit (added a protocol), same "don't claim work that didn't happen" discipline
+    // Session 208 established when this was still keyed off disposition.
+    const pkMsg = _pkProtocols.length
+      ? (_pkPlanSaved ? ' — Panchakarma care plan saved' : ' — Panchakarma care plan NOT saved, open the Panchakarma tab and save it')
+      : '';
+    _toast(`${_activePatient?.name} — consultation complete, ${dispMsg}${pkMsg}`, 'info');
     await _clearConsultationDraft(_activeVisitId);  // Session 185 — real note saved, autosave copy no longer needed
     _closeConsult();
     loadQueue();

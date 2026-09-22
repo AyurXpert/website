@@ -1081,12 +1081,12 @@ body.medcert-print #mc-print{display:block!important}
         <button class="tab active" data-tab="hist">📝 History</button>
         <button class="tab" data-tab="exam">🩺 Examination</button>
         <button class="tab" data-tab="proforma" id="tab-btn-proforma" style="display:none">📋 Proforma</button>
-        <button class="tab" data-tab="assess">🔍 Assessment</button>
-        <button class="tab" data-tab="diag">📋 Diagnosis</button>
+        <button class="tab" data-tab="assess">🔬 Investigations</button>
+        <button class="tab" data-tab="diag">📋 Assessment &amp; Diagnosis</button>
+        <button class="tab gated" data-tab="pk" id="tab-btn-pk">🌸 Panchakarma</button>
         <button class="tab" data-tab="rx">💊 Prescription</button>
         <button class="tab" data-tab="advice">🌿 Advice</button>
         <button class="tab" data-tab="disp">📤 Disposition</button>
-        <button class="tab gated" data-tab="pk" id="tab-btn-pk">🌸 Panchakarma</button>
         <button class="tab gated" data-tab="adm" id="tab-btn-adm">🏥 Admission</button>
         <button class="tab gated" data-tab="visha" id="tab-btn-visha">⚗ Visha Register</button>
         <button class="tab gated" data-tab="abdm" id="tab-btn-abdm">📂 ABDM Records</button>
@@ -2684,48 +2684,6 @@ body.medcert-print #mc-print{display:block!important}
         <div id="tab-assess" hidden>
 
           <div class="section">
-            <div class="section-title">Provisional Diagnosis</div>
-            <div class="field-row col2">
-              <div class="field">
-                <label>Provisional Modern Diagnosis</label>
-                <input id="as-provisional-modern" type="text" placeholder="Most likely diagnosis based on history &amp; exam"/>
-              </div>
-              <div class="field">
-                <label>Provisional Ayurveda Diagnosis</label>
-                <input id="as-provisional-ayurveda" type="text" placeholder="Likely Roga / Dosha imbalance"/>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">
-              Differential Diagnosis
-              <button class="btn-add-diff" data-onclick="addDiff">+ Add</button>
-            </div>
-            <ul class="diff-list" id="diff-list"></ul>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:4px">List alternative diagnoses to be ruled out</div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Red Flag Indicators</div>
-            <div class="flag-chips" id="flag-chips">
-              <span class="flag-chip" data-val="Unexplained weight loss">Wt. loss</span>
-              <span class="flag-chip" data-val="Night sweats">Night sweats</span>
-              <span class="flag-chip" data-val="Haemoptysis">Haemoptysis</span>
-              <span class="flag-chip" data-val="Altered consciousness">Altered consciousness</span>
-              <span class="flag-chip" data-val="Chest pain / pressure">Chest pain</span>
-              <span class="flag-chip" data-val="Severe headache sudden onset">Sudden severe headache</span>
-              <span class="flag-chip" data-val="Focal neurological deficit">Focal neuro deficit</span>
-              <span class="flag-chip" data-val="High-grade fever >104°F">High fever &gt;104°F</span>
-              <span class="flag-chip" data-val="Haematuria">Haematuria</span>
-              <span class="flag-chip" data-val="Melaena / Rectal bleeding">GI bleeding</span>
-            </div>
-            <div class="field">
-              <textarea id="as-redflags" placeholder="Document any red flag symptoms identified…" style="min-height:48px"></textarea>
-            </div>
-          </div>
-
-          <div class="section">
             <div class="section-title">Investigations Recommended</div>
             <div class="field">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
@@ -2788,6 +2746,48 @@ body.medcert-print #mc-print{display:block!important}
         <!-- TAB 4: DIAGNOSIS                            -->
         <!-- ═══════════════════════════════════════════ -->
         <div id="tab-diag" hidden>
+
+          <div class="section">
+            <div class="section-title">Provisional Diagnosis</div>
+            <div class="field-row col2">
+              <div class="field">
+                <label>Provisional Modern Diagnosis</label>
+                <input id="as-provisional-modern" type="text" placeholder="Most likely diagnosis based on history &amp; exam"/>
+              </div>
+              <div class="field">
+                <label>Provisional Ayurveda Diagnosis</label>
+                <input id="as-provisional-ayurveda" type="text" placeholder="Likely Roga / Dosha imbalance"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">
+              Differential Diagnosis
+              <button class="btn-add-diff" data-onclick="addDiff">+ Add</button>
+            </div>
+            <ul class="diff-list" id="diff-list"></ul>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px">List alternative diagnoses to be ruled out</div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Red Flag Indicators</div>
+            <div class="flag-chips" id="flag-chips">
+              <span class="flag-chip" data-val="Unexplained weight loss">Wt. loss</span>
+              <span class="flag-chip" data-val="Night sweats">Night sweats</span>
+              <span class="flag-chip" data-val="Haemoptysis">Haemoptysis</span>
+              <span class="flag-chip" data-val="Altered consciousness">Altered consciousness</span>
+              <span class="flag-chip" data-val="Chest pain / pressure">Chest pain</span>
+              <span class="flag-chip" data-val="Severe headache sudden onset">Sudden severe headache</span>
+              <span class="flag-chip" data-val="Focal neurological deficit">Focal neuro deficit</span>
+              <span class="flag-chip" data-val="High-grade fever >104°F">High fever &gt;104°F</span>
+              <span class="flag-chip" data-val="Haematuria">Haematuria</span>
+              <span class="flag-chip" data-val="Melaena / Rectal bleeding">GI bleeding</span>
+            </div>
+            <div class="field">
+              <textarea id="as-redflags" placeholder="Document any red flag symptoms identified…" style="min-height:48px"></textarea>
+            </div>
+          </div>
 
           <!-- §18ag — Visha Classification (Agadatantra OPD only) -->
           <div id="visha-class-panel" style="display:none;margin-bottom:4px;padding:14px 16px;background:#fff8f0;border:1.5px solid #e8a04a;border-radius:var(--radius)">
@@ -3128,14 +3128,6 @@ body.medcert-print #mc-print{display:block!important}
                 <div class="disp-opt-text">
                   <div class="disp-opt-label">OPD — Home with Prescription</div>
                   <div class="disp-opt-desc">Patient is stable, managed as outpatient. Prescription sent to pharmacy. Review on a future date.</div>
-                </div>
-              </label>
-
-              <label class="disp-opt" id="disp-pk-opt">
-                <input type="radio" name="disposition" value="pk" data-onchange="onDispChange" data-onchange-a0="@value"/>
-                <div class="disp-opt-text">
-                  <div class="disp-opt-label">Panchakarma Treatment</div>
-                  <div class="disp-opt-desc" id="disp-pk-desc">Patient requires Panchakarma therapies — plan therapies in the Panchakarma tab.</div>
                 </div>
               </label>
 
