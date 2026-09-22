@@ -1731,6 +1731,11 @@ let _pkNiruhaFormulations = []; // pk_niruha_formulations rows (Session 271)
 let _pkPediatricDosingBands    = []; // pk_pediatric_dosing_bands rows (procedure_key='basti_yapana')
 let _pkPediatricEquipmentSizing = []; // pk_pediatric_equipment_sizing rows (procedure_key='basti')
 let _pkPediatricNarrative      = {}; // procedure_key -> pediatric sop_content_templates row
+// Session 287 -- pediatric Virechana reference data, same "only ever consulted for a
+// pediatric patient" isolation as the Basti tables above. Generic table (procedure_key-
+// scoped), not Virechana-only -- Vamana's own drug-by-age doses can reuse it later.
+let _pkPediatricDrugDoses = []; // pk_pediatric_drug_doses rows, all procedure_keys
+let _pkGrowthLatestByPatient = {}; // patient_id -> latest growth_records row (or null once checked)
 
 // Session 279 -- classical unit per Niruha component, fixed by Ayurvedic convention
 // (matches pk_care_plan_medicines.quantity_unit's own CHECK constraint: ml or g).
@@ -1857,6 +1862,12 @@ async function _loadPkTemplates() {
   _pkPediatricNarrative = {};
   (pediatricNarrative || []).forEach(r => { _pkPediatricNarrative[r.procedure_key] = r; });
 
+  // Session 287 -- pediatric drug-by-age dose reference (Virechana Dravya, Snehapana
+  // test/max dose by Agnibala, Atiyoga rescue-medicine doses). Same negligible-size
+  // query pattern as the Basti reference tables above.
+  const { data: drugDoses } = await supabase.from('pk_pediatric_drug_doses').select('*').order('sequence_order');
+  _pkPediatricDrugDoses = drugDoses || [];
+
   _renderPkChips();
 }
 
@@ -1879,6 +1890,142 @@ function _pkResolvePediatricDoseBand(ageYears) {
 function _pkResolvePediatricEquipmentBand(ageYears) {
   if (ageYears == null) return null;
   return _pkPediatricEquipmentSizing.find(b => ageYears >= b.age_min_years && ageYears <= b.age_max_years) || null;
+}
+
+// Session 287 -- drug-by-age lookups, generic across procedure_key/usage_context so
+// a future procedure (Vamana) can reuse the same table+helpers with a new key.
+function _pkDrugDosesFor(procedureKey, usageContext, ageYears) {
+  if (ageYears == null) return [];
+  return _pkPediatricDrugDoses.filter(d =>
+    d.procedure_key === procedureKey && d.usage_context === usageContext &&
+    ageYears >= d.age_min_years && ageYears <= d.age_max_years);
+}
+
+// Session 287 -- fetches (once per patient, cached) the most recent growth_records row
+// so pediatric Virechana can check the document's own weight-for-age hard stop (SAM/MAM
+// = contraindicated) against REAL recorded data instead of asking the doctor to
+// re-derive it. Reuses growth_records.weight_percentile_band exactly as computed and
+// stored by saveGrowthRecord()'s own _grBand() call -- no new classification logic.
+async function _pkLoadLatestGrowthRecord(patientId) {
+  if (!patientId || _pkGrowthLatestByPatient[patientId] !== undefined) return _pkGrowthLatestByPatient[patientId];
+  const { data } = await supabase.from('growth_records')
+    .select('recorded_at,weight_kg,weight_percentile_band')
+    .eq('patient_id', patientId).eq('tenant_id', tenantId)
+    .order('recorded_at', { ascending: false }).limit(1).maybeSingle();
+  _pkGrowthLatestByPatient[patientId] = data || null;
+  return _pkGrowthLatestByPatient[patientId];
+}
+// SAM = '<3rd' percentile band, MAM = '3–15th' -- exact strings _grBand() writes.
+function _pkGrowthIsSamMam(record) {
+  return record && (record.weight_percentile_band === '<3rd' || record.weight_percentile_band === '3–15th');
+}
+
+// Session 287 -- Virechana's own age-group labels (document's Age Group section),
+// distinct from Basti's Yapana dose bands -- Virechana's recommendation genuinely
+// changes in KIND (Mridu Sadya Virechana vs. Snehana Purvaka Virechana) at these
+// boundaries, not just in dose quantity.
+function _pkVirechanaAgeBandLabel(ageYears) {
+  if (ageYears == null) return null;
+  if (ageYears < 1) return 'Infant (0-1yr) — Mridu Sadya Virechana / Koshtha Shuddhi only';
+  if (ageYears < 3) return 'Toddler (1-3yr) — Mridu Sadya Virechana / Koshtha Shuddhi only';
+  if (ageYears < 6) return 'Pre-schooler (3-5yr) — Mridu Sadya Virechana / Koshtha Shuddhi only';
+  if (ageYears < 10) return 'School-age (6-10yr) — Snehana Purvaka Virechana';
+  return 'Adolescent (10-18yr) — Snehana Purvaka Virechana';
+}
+
+window._pkSetShuddhiTier = function(pi, tier) {
+  const p = _pkProtocols[Number(pi)]; if (!p) return;
+  p.pediatric_shuddhi_tier = tier || null;
+};
+
+function _pkRenderPediatricVirechanaPanel(p, pi) {
+  if (!_pkIsPediatricPatient()) return '';
+  const ageYears = _pkPatientAgeYears();
+  const ageBandLabel = p.pediatric_age_band || _pkVirechanaAgeBandLabel(ageYears);
+  const narrative = _pkPediatricNarrative['virechana'];
+  const assentApplicable = ageYears >= _PK_PEDIATRIC_ASSENT_MIN_AGE;
+  const growth = _pkGrowthLatestByPatient[_activePatient?.id];
+  // Fire-and-forget fetch on first render too (not just at protocol-creation time) --
+  // covers re-opening an already-saved pediatric Virechana draft for editing, which
+  // reconstructs the protocol without going through _pkToggleProtocol()'s own trigger.
+  if (growth === undefined && _activePatient?.id) _pkLoadLatestGrowthRecord(_activePatient.id).then(() => _renderPkCalendar());
+  const samMam = _pkGrowthIsSamMam(growth);
+  const dravyaOptions = _pkDrugDosesFor('virechana', 'virechana_dravya', ageYears);
+  const snehaOptions = _pkDrugDosesFor('virechana', 'virechana_snehapana', ageYears);
+  const atiyogaOptions = _pkPediatricDrugDoses.filter(d => d.procedure_key === 'virechana' && d.usage_context === 'virechana_atiyoga_management');
+
+  return `
+      <div style="border:2px solid var(--purple);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fdf5fb">
+        <div style="font-weight:700;font-size:12.5px;color:var(--purple);margin-bottom:8px">🧒 Pediatric Virechana — patient is ${_esc(String(ageYears))} years old</div>
+        ${ageBandLabel ? `<div style="font-size:11px;color:var(--text-dark);margin-bottom:8px">${_esc(ageBandLabel)}</div>` : ''}
+
+        ${growth === undefined ? `
+        <div style="font-size:10.5px;color:var(--text-muted);margin-bottom:8px">Checking weight-for-age from the patient's Growth Record…</div>` : growth === null ? `
+        <div style="background:#fff8e1;border:1px solid #e6c200;border-radius:5px;padding:7px 10px;font-size:11.5px;color:#6b4c00;margin-bottom:8px">
+          ⚠ No Growth Record on file for this patient. Per the document, weight-for-age determines dose tier and SAM/MAM is an outright contraindication — record a Growth Record (History tab) before finalizing this plan.
+        </div>` : samMam ? `
+        <div style="background:#fff3f3;border:2px solid var(--red);border-radius:5px;padding:8px 10px;font-size:11.5px;color:#7a1a1a;margin-bottom:8px;font-weight:600">
+          🚫 CONTRAINDICATED: this patient's latest Growth Record (${new Date(growth.recorded_at+'T00:00').toLocaleDateString('en-IN')}) shows ${_esc(growth.weight_percentile_band)} weight-for-age — ${growth.weight_percentile_band === '<3rd' ? 'Severe Acute Malnutrition (SAM)' : 'Moderate Acute Malnutrition (MAM)'}. The document contraindicates Virechana outright for SAM/MAM children, not just a reduced dose. This plan cannot be saved while Virechana is selected for this patient.
+        </div>` : `
+        <div style="font-size:11px;color:var(--text-dark);margin-bottom:8px">✓ Latest Growth Record (${new Date(growth.recorded_at+'T00:00').toLocaleDateString('en-IN')}): weight-for-age ${_esc(growth.weight_percentile_band || '—')} — not SAM/MAM, Virechana not weight-contraindicated.</div>`}
+
+        <div class="field" style="width:220px;margin-bottom:8px">
+          <label style="font-size:11px">Shuddhi dose tier (weight-for-age)</label>
+          <select data-onchange="_pkSetShuddhiTier" data-onchange-a0="${pi}" data-onchange-a1="@value">
+            <option value="">— Assess —</option>
+            <option value="uttam"${p.pediatric_shuddhi_tier === 'uttam' ? ' selected' : ''}>Uttam (normal/above weight-for-age — full dose)</option>
+            <option value="madhyama"${p.pediatric_shuddhi_tier === 'madhyama' ? ' selected' : ''}>Madhyama (70-80% weight-for-age — reduced dose)</option>
+            <option value="hina"${p.pediatric_shuddhi_tier === 'hina' ? ' selected' : ''}>Hina (60-70% weight-for-age — minimal dose only)</option>
+          </select>
+        </div>
+
+        ${dravyaOptions.length ? `
+        <details style="margin-bottom:8px" open>
+          <summary style="font-size:11px;font-weight:600;color:var(--purple);cursor:pointer">💊 Virechana Dravya options for this age — reference for the medicine entry in Step 3</summary>
+          <table style="width:100%;font-size:10.5px;margin-top:4px;border-collapse:collapse">
+            ${dravyaOptions.map(d => `<tr><td style="padding:2px 6px 2px 0">${_esc(d.drug_name)}</td><td style="padding:2px 6px;color:var(--text-mid)">${d.dose_min === d.dose_max ? d.dose_min : `${d.dose_min}-${d.dose_max}`}${_esc(d.unit)}</td><td style="padding:2px 0;color:var(--text-muted)">${_esc(d.notes || '')}</td></tr>`).join('')}
+          </table>
+        </details>` : ''}
+
+        ${snehaOptions.length ? `
+        <details style="margin-bottom:8px">
+          <summary style="font-size:11px;font-weight:600;color:var(--purple);cursor:pointer">🌿 Snehapana test-dose / max-dose reference by Agnibala — for the Snehapana Dosing panel below</summary>
+          <table style="width:100%;font-size:10.5px;margin-top:4px;border-collapse:collapse">
+            <thead><tr style="color:var(--text-mid)"><th style="text-align:left;padding:2px 6px 2px 0">Agnibala</th><th style="text-align:left;padding:2px 6px">Test dose</th><th style="text-align:left;padding:2px 0">Max dose</th></tr></thead>
+            ${snehaOptions.map(d => `<tr><td style="padding:2px 6px 2px 0;text-transform:capitalize">${_esc(d.agnibala)}</td><td style="padding:2px 6px">${d.secondary_dose_min}-${d.secondary_dose_max}${_esc(d.unit)}</td><td style="padding:2px 0">${d.dose_min}-${d.dose_max}${_esc(d.unit)}</td></tr>`).join('')}
+          </table>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:3px">Pediatric Snehapana dose is Agnibala-dependent, not the flat adult Koshtha default the panel below auto-fills — set the start dose manually from this table.</div>
+        </details>` : ''}
+
+        ${atiyogaOptions.length ? `
+        <details style="margin-bottom:8px">
+          <summary style="font-size:11px;font-weight:600;color:var(--purple);cursor:pointer">🚑 Atiyoga (over-purgation) rescue-medicine doses by age — safety reference</summary>
+          <table style="width:100%;font-size:10.5px;margin-top:4px;border-collapse:collapse">
+            ${atiyogaOptions.map(d => `<tr><td style="padding:2px 6px 2px 0">${_esc(d.drug_name)}</td><td style="padding:2px 6px;color:var(--text-mid)">${_esc(d.age_band_label)}</td><td style="padding:2px 0;color:var(--text-mid)">${d.dose_min === d.dose_max ? d.dose_min : `${d.dose_min}-${d.dose_max}`}${_esc(d.unit)}</td></tr>`).join('')}
+          </table>
+        </details>` : ''}
+
+        ${narrative?.contraindications ? `
+        <details style="margin-bottom:8px">
+          <summary style="font-size:11px;font-weight:600;color:var(--purple);cursor:pointer">⚠ Pediatric-specific contraindications — tap to review</summary>
+          <div style="font-size:10.5px;color:var(--text-mid);margin-top:4px">${_esc(narrative.contraindications)}</div>
+        </details>` : ''}
+
+        <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+          <label style="display:flex;align-items:flex-start;gap:6px;font-size:11.5px;margin-bottom:6px;cursor:pointer">
+            <input type="checkbox" ${p.pediatric_guardian_consent_obtained ? 'checked' : ''}
+              data-onchange="_pkTogglePediatricConsent" data-onchange-a0="${pi}" data-onchange-a1="pediatric_guardian_consent_obtained" data-onchange-a2="@this" style="margin-top:2px"/>
+            <span><strong>Written informed consent obtained from parent/guardian</strong> — required before this plan can be saved.</span>
+          </label>
+          ${assentApplicable ? `
+          <label style="display:flex;align-items:flex-start;gap:6px;font-size:11.5px;cursor:pointer">
+            <input type="checkbox" ${p.pediatric_assent_obtained ? 'checked' : ''}
+              data-onchange="_pkTogglePediatricConsent" data-onchange-a0="${pi}" data-onchange-a1="pediatric_assent_obtained" data-onchange-a2="@this" style="margin-top:2px"/>
+            <span><strong>Verbal/written assent obtained from the child</strong> — required before this plan can be saved.</span>
+          </label>` : `
+          <div style="font-size:10.5px;color:var(--text-muted)">Child assent: not applicable at this age (under ${_PK_PEDIATRIC_ASSENT_MIN_AGE} years) — guardian consent alone governs.</div>`}
+        </div>
+      </div>`;
 }
 
 async function _loadPkFeeIndex() {
@@ -2123,6 +2270,9 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
     pediatric_dose_ml: null,
     pediatric_guardian_consent_obtained: false,
     pediatric_assent_obtained: false,
+    // Session 287 -- Virechana-only (null/unused for every other protocol, same
+    // additive discipline): doctor-asserted weight-for-age Shuddhi dose tier.
+    pediatric_shuddhi_tier: null,
   });
   // Session 285 -- auto-resolve the age band + suggested dose the moment a Basti
   // protocol is added for a pediatric patient, same "pre-fill, stay doctor-editable"
@@ -2140,6 +2290,16 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
     // single reference total above.
     const niruhaBlock = newP.blocks.find(b => b.bastiDayType === 'niruha');
     if (niruhaBlock?.niruhaFormula) _pkApplyPediatricNiruhaDoses(niruhaBlock.niruhaFormula);
+  }
+  // Session 287 -- same age-band auto-resolve for Virechana, plus a fire-and-forget
+  // fetch of the patient's latest growth record (async -- re-renders Step 2 once it
+  // resolves) so the SAM/MAM weight-for-age hard stop has real data to check against
+  // the moment the panel first appears, not only after the doctor happens to open the
+  // Growth Record tab first.
+  if (procedureKey === 'virechana' && _pkIsPediatricPatient()) {
+    const newP = _pkProtocols[_pkProtocols.length - 1];
+    newP.pediatric_age_band = _pkVirechanaAgeBandLabel(_pkPatientAgeYears());
+    _pkLoadLatestGrowthRecord(_activePatient.id).then(() => _renderPkCalendar());
   }
   // Session 279 fix -- see the matching comment on the removal branch above; a
   // full re-render is what actually applies the selected-state inline style.
@@ -2196,7 +2356,11 @@ const _PK_KOSHTHA_DEFAULT_DOSE = { mridu: 25, madhyama: 45, krura: 55 };
 window._pkSetKoshtha = function(pi, koshtha) {
   const p = _pkProtocols[Number(pi)]; if (!p) return;
   p.koshtha = koshtha || null;
-  if (koshtha && !p.snehapana_start_dose_ml) {
+  // Session 287 -- _PK_KOSHTHA_DEFAULT_DOSE is adult-scale (25/45/55ml); auto-filling
+  // it for a pediatric patient would silently understate what's still an adult dose
+  // relative to a child. Left blank instead so the doctor sets it from the pediatric
+  // Virechana panel's own Snehapana Agnibala reference table above.
+  if (koshtha && !p.snehapana_start_dose_ml && !_pkIsPediatricPatient()) {
     p.snehapana_start_dose_ml = _PK_KOSHTHA_DEFAULT_DOSE[koshtha] || null;
   }
   _renderPkCalendar();
@@ -2514,6 +2678,7 @@ function _renderPkCalendar() {
       ${_pkDatePickerOpenFor === pi ? _pkRenderDatePicker(pi) : ''}
       ${!p.is_reviewed ? `<div style="background:#fff8e1;border:1px solid #e6c200;border-radius:6px;padding:6px 10px;font-size:11px;color:#6b4c00;margin-bottom:8px">⚠ Draft SOP — pending clinical review. Day-counts/phases below are a generic starting point, not yet confirmed.</div>` : ''}
       ${_pkRenderManualScheduleInput(p, pi)}
+      ${p.procedure_key === 'virechana' ? _pkRenderPediatricVirechanaPanel(p, pi) : ''}
       ${p.procedure_key === 'basti' ? `
       <div style="border:1.5px solid var(--blue);border-radius:6px;padding:9px 12px;margin-bottom:10px;background:#f5f8ff;font-size:11.5px;color:var(--text-dark)">
         <strong>📌 Standing instruction:</strong> Local Abhyanga + Swedana (~10 minutes) is performed immediately before <em>every</em> Anuvasana and every Niruha administration — not a separate scheduled day. Applies throughout the whole course, every administration day, without needing its own calendar entry.
@@ -2633,7 +2798,19 @@ function _renderPkCalendar() {
         <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
           <div class="field" style="min-width:160px">
             <label style="font-size:11px">Koshtha (bowel type)</label>
-            <select data-onchange="_pkSetKoshtha" data-onchange-a0="${pi}" data-onchange-a1="@this">
+            <!-- Session 287 bug fix -- was "@this" (passes the raw <select> element, per
+                 domEvents.js's own token table), but _pkSetKoshtha()'s body always treated
+                 its 2nd arg as the plain string value ("koshtha || null", no el.value read
+                 anywhere) -- since Session 255. p.koshtha silently held a DOM element object
+                 instead of 'mridu'/'madhyama'/'krura' the whole time: _PK_KOSHTHA_DEFAULT_DOSE
+                 lookup silently failed (object coerces to "[object HTMLSelectElement]", never
+                 a real key, so the auto-fill never fired -- easy to miss since the field is
+                 doctor-editable anyway) and, far worse, EVERY care-plan save that had a Koshtha
+                 selected hit this exact CHECK constraint 400 and silently failed via a bare
+                 console.warn -- found live while wiring the same (copied) pattern for
+                 pediatric_shuddhi_tier and getting the identical error. Fixed at the source: "@value" is the token that actually
+                 resolves to el.value, matching what the handler already assumed. -->
+            <select data-onchange="_pkSetKoshtha" data-onchange-a0="${pi}" data-onchange-a1="@value">
               <option value="">— Assess —</option>
               <option value="mridu"${p.koshtha === 'mridu' ? ' selected' : ''}>Mridu (soft)</option>
               <option value="madhyama"${p.koshtha === 'madhyama' ? ' selected' : ''}>Madhyama (medium)</option>
@@ -3467,6 +3644,7 @@ function _pkReconstructProtocol(pr, allDays, allMeds) {
     pediatric_dose_ml: pr.pediatric_dose_ml || null,
     pediatric_guardian_consent_obtained: !!pr.pediatric_guardian_consent_obtained,
     pediatric_assent_obtained: !!pr.pediatric_assent_obtained,
+    pediatric_shuddhi_tier: pr.pediatric_shuddhi_tier || null,
     // Session 277 -- carried uniformly on every day row for this protocol; any one of
     // them reflects what the doctor entered (or true default) at save time.
     doctor_duration_minutes: days[0]?.doctor_duration_minutes ?? null,
@@ -3540,16 +3718,27 @@ window.savePkCarePlan = async function() {
   // this is ever reached without going through _pkGoToStep()'s own gate.
   const missingSchedule = _pkProtocols.find(p => _pkNeedsManualScheduleInput(p) && (!p.doctor_duration_minutes || !p.doctor_man_power));
   if (missingSchedule) { alert(`"${missingSchedule.protocol_label}" is missing its session duration/man power — enter them in Step 2 before saving.`); return; }
-  // Session 285 -- a pediatric Basti plan cannot save without guardian consent (always
-  // required) and, above _PK_PEDIATRIC_ASSENT_MIN_AGE, child assent too -- same hard
-  // block as the Basti-pack-type/schedule checks above, never a silent skip.
+  // Session 285/287 -- a pediatric Basti or Virechana plan cannot save without
+  // guardian consent (always required) and, above _PK_PEDIATRIC_ASSENT_MIN_AGE, child
+  // assent too -- same hard block as the Basti-pack-type/schedule checks above, never
+  // a silent skip. Reused generically across both procedures (both use the exact same
+  // pediatric_guardian_consent_obtained/pediatric_assent_obtained columns).
+  const _PK_PEDIATRIC_GATED_PROCEDURES = ['basti', 'virechana'];
   if (_pkIsPediatricPatient()) {
     const ageYears = _pkPatientAgeYears();
-    const missingPediatricConsent = _pkProtocols.find(p => p.procedure_key === 'basti' && (
+    const missingPediatricConsent = _pkProtocols.find(p => _PK_PEDIATRIC_GATED_PROCEDURES.includes(p.procedure_key) && (
       !p.pediatric_guardian_consent_obtained ||
       (ageYears >= _PK_PEDIATRIC_ASSENT_MIN_AGE && !p.pediatric_assent_obtained)
     ));
-    if (missingPediatricConsent) { alert('This is a pediatric Basti plan — obtain and check parent/guardian consent (and child assent, if age-appropriate) in Step 2 before saving.'); return; }
+    if (missingPediatricConsent) { alert(`This is a pediatric ${missingPediatricConsent.protocol_label} plan — obtain and check parent/guardian consent (and child assent, if age-appropriate) in Step 2 before saving.`); return; }
+    // Session 287 -- Virechana-only: weight-for-age SAM/MAM is a real document
+    // contraindication (not just a reduced dose), so it hard-blocks save the same way
+    // consent does, rather than being a warning the doctor could miss. Also requires
+    // the Shuddhi tier to have actually been assessed (not silently defaulted).
+    const samMamProtocol = _pkProtocols.find(p => p.procedure_key === 'virechana' && _pkGrowthIsSamMam(_pkGrowthLatestByPatient[_activePatient?.id]));
+    if (samMamProtocol) { alert('This patient\'s latest Growth Record shows SAM/MAM weight-for-age — Virechana is contraindicated per the pediatric protocol. Remove the Virechana protocol or address the growth concern first.'); return; }
+    const missingShuddhiTier = _pkProtocols.find(p => p.procedure_key === 'virechana' && !p.pediatric_shuddhi_tier);
+    if (missingShuddhiTier) { alert('Assess the Shuddhi dose tier (Uttam/Madhyama/Hina) for this pediatric Virechana plan in Step 2 before saving.'); return; }
   }
   const settingEl = document.querySelector('input[name="pk-setting"]:checked');
   const setting = settingEl ? settingEl.value : 'day_care';
@@ -3631,6 +3820,7 @@ window.savePkCarePlan = async function() {
       pediatric_dose_ml: p.pediatric_dose_ml || null,
       pediatric_guardian_consent_obtained: !!p.pediatric_guardian_consent_obtained,
       pediatric_assent_obtained: !!p.pediatric_assent_obtained,
+      pediatric_shuddhi_tier: p.pediatric_shuddhi_tier || null,
     };
 
     let proto, protoErr;
