@@ -267,12 +267,22 @@ async function _renderBedComplianceAlert() {
 
 // ── Populate selects ──────────────────────────────────────────────────────────
 function _populateDeptFilters() {
+  // Session 294 -- real gap found live (matches doctor.js's Admission-Advice tab, fixed
+  // the same session): "adm-dept" here is the Admit Patient modal's Department picker,
+  // which drives loadVacantBeds() -- it used to list every active department in the org
+  // (Accounts, Security, Laundry, Diagnostics, House Keeping, Finance...), none of which
+  // can actually receive an admission. Ground-truth filter is "does this department own
+  // any real row in `beds`" -- `_allBeds` is already loaded in full by loadAll(), so no
+  // extra query is needed here, unlike doctor.js's equivalent fix. "filter-dept" (the
+  // separate browse-existing-admissions-by-department filter, unrelated to picking an
+  // admission destination) is deliberately left showing every department, unchanged.
+  const beddedDeptIds = new Set(_allBeds.map(b => b.department_id).filter(Boolean));
   ['filter-dept','adm-dept'].forEach(id => {
     const sel = document.getElementById(id);
     const saved = sel.value;
     const isFilter = id === 'filter-dept';
     sel.innerHTML = isFilter ? '<option value="">All Departments</option>' : '<option value="">— Select department —</option>';
-    _depts.forEach(d => {
+    _depts.filter(d => isFilter || beddedDeptIds.has(d.id)).forEach(d => {
       const o = document.createElement('option');
       o.value = d.id;
       o.textContent = d.name;
