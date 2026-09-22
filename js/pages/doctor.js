@@ -1257,6 +1257,10 @@ window.startConsultation = async function(visitId) {
   // rest of the consultation load.
   if (_hasPK && _activePatient?.id) _pkCheckExistingDraft(_activePatient.id);
 
+  // Session 294 -- default Target Department to the doctor's own currently-consulting
+  // department (still freely changeable for a genuine cross-department referral).
+  if (_hasAdm) _setAdmDeptDefault();
+
   // NCISM — Swasthya Rakshana OPD: advisory + Swasthya Card button
   const allowsRx = visit?.opds?.allows_prescription ?? true;
   const noRxNotice = document.getElementById('no-rx-notice');
@@ -1520,12 +1524,43 @@ let _admItems       = [];   // working list: {fee_type, description, sessions_co
 let _admTenantPct   = { self_pay: 25, insurance: 10 };
 
 async function _loadAdmDepts() {
-  const { data } = await supabase.from('departments')
-    .select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true).order('name');
-  _admDepts = data || [];
+  // Session 294 -- real gap found live: this used to list every active department in
+  // the org (Accounts, Security, Laundry, Diagnostics, House Keeping, ...) with zero
+  // filtering, since Diagnostics/Finance/Laundry/etc. are real `departments` rows too
+  // (the HR org-tree needs them) but obviously can't receive an IPD admission.
+  // Ground-truth filter: only departments that actually own real beds -- confirmed live
+  // on SDM this resolves to exactly the 7 clinical wards (Kayachikitsa/Panchakarma/
+  // Shalya/Shalakya/Kaumarabhritya/Prasuti-Stri-Roga/Agada), not a hardcoded ncism_code
+  // list, so it stays correct for any tenant's actual bed configuration (e.g. a
+  // pk_center with only Panchakarma beds).
+  const [{ data: depts }, { data: bedDepts }] = await Promise.all([
+    supabase.from('departments').select('id,name,ncism_code').eq('tenant_id', tenantId).eq('is_active', true).order('name'),
+    supabase.from('beds').select('department_id').eq('tenant_id', tenantId).not('department_id', 'is', null),
+  ]);
+  const beddedIds = new Set((bedDepts || []).map(b => b.department_id));
+  _admDepts = (depts || []).filter(d => beddedIds.has(d.id));
   const sel = document.getElementById('adm-dept');
   if (sel) sel.innerHTML = '<option value="">— Select department —</option>' +
     _admDepts.map(d => `<option value="${d.id}">${_esc(d.name)}</option>`).join('');
+}
+
+// Session 294 -- pre-select the doctor's own currently-consulting department (the
+// overwhelmingly common case -- the patient's already been triaged/routed there from
+// Screening) while leaving the dropdown fully changeable for a genuine cross-department
+// admission referral. Matched via ncism_code (opds.parent_department_id is only ever
+// populated for a specialty sub-clinic splitting off a parent OPD, not a general OPD-
+// to-department link -- ncism_code is the real, already-established join key this
+// codebase uses elsewhere for the same OPD<->department resolution, e.g. scope_
+// department_id).
+async function _setAdmDeptDefault() {
+  const sel = document.getElementById('adm-dept');
+  const code = _activeVisit?.opds?.ncism_code;
+  if (!sel || !code) return;
+  // _loadAdmDepts() is fired (not awaited) once at page load by _gateFeatures() -- guard
+  // against the very first patient opening before that fetch has resolved.
+  if (!_admDepts.length) await _loadAdmDepts();
+  const match = _admDepts.find(d => d.ncism_code === code);
+  sel.value = match ? match.id : '';
 }
 
 async function _loadAdmProcedureOptions() {
