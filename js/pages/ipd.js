@@ -89,6 +89,21 @@ async function _loadCarePlanIds() {
   (data||[]).forEach(r => _carePlanAdmIds.add(r.ipd_admission_id));
 }
 
+// Session 294 -- PKTT (Panchakarma Treatment Tracker): admission_id -> {planId, labels}
+// for every admission with a linked pk_care_plans row, so the 🌸 icon only renders for
+// a real Panchakarma admission (never a dead-end click for every other department).
+const _pkCarePlanByAdmId = new Map();
+async function _loadPkCarePlanIds() {
+  const { data } = await supabase.from('pk_care_plans')
+    .select('id, ipd_admission_id, status, pk_care_plan_protocols(protocol_label)')
+    .eq('tenant_id', tenantId).not('ipd_admission_id', 'is', null);
+  _pkCarePlanByAdmId.clear();
+  (data||[]).forEach(r => _pkCarePlanByAdmId.set(r.ipd_admission_id, {
+    planId: r.id, status: r.status,
+    labels: (r.pk_care_plan_protocols||[]).map(p => p.protocol_label).join(', '),
+  }));
+}
+
 // NCISM §7 ward authorisation: ward ncism_code → authorised dept ncism_codes
 const WARD_AUTH = {
   KAY:  ['KAY'],
@@ -133,6 +148,10 @@ window.loadAll = async function loadAll() {
   _allBeds    = bedRes.data || [];
   _doctors    = docRes.data || [];
   _opdDoctors = opdDocRes.data || [];
+
+  // Session 294 -- refreshed on every loadAll(), not just at page init, so a
+  // just-admitted PK Care Plan patient shows the 🌸 icon without a full page reload.
+  await _loadPkCarePlanIds();
 
   _populateDeptFilters();
   _populateDoctorSelect();
@@ -368,6 +387,7 @@ function renderTable(rows) {
     const canGenerateBill = a.status === 'charges_locked' && BILLING_ROLES.includes(myRole);
     const admittedHrsAgo = a.admitted_at ? (Date.now() - new Date(a.admitted_at)) / 3600000 : 999;
     const needsCarePlan  = canDischarge && !_carePlanAdmIds.has(a.id) && admittedHrsAgo < 48;
+    const pkPlan          = _pkCarePlanByAdmId.get(a.id);
 
     const genderAge = [pt.gender, pt.age ? pt.age+'y' : ''].filter(Boolean).join(' · ');
 
@@ -396,6 +416,7 @@ function renderTable(rows) {
           <button class="icon-btn" data-onclick="openDietDrawer" data-onclick-a0="${a.id}" title="Palha-Diet Indent" style="font-size:11px">🍲</button>
           <button class="icon-btn" data-onclick="printDischargeSummary" data-onclick-a0="${a.id}" title="Print Discharge Summary" style="font-size:11px">🖨</button>
           ${canDischarge ? `<button class="icon-btn" data-onclick="openOtDrawer" data-onclick-a0="${a.id}" title="OT Procedures" style="font-size:10px;font-weight:700;color:#1a4080;border-color:#a8c8f0;background:#e3f0ff">OT</button>` : ''}
+          ${pkPlan ? `<button class="icon-btn" data-onclick="openPkTrackerDrawer" data-onclick-a0="${a.id}" title="Panchakarma Treatment Tracker — ${_esc(pkPlan.labels)}" style="font-size:11px;font-weight:700;color:#1a6b3a;border-color:#a8d8b8;background:#e8f5ee">🌸</button>` : ''}
           ${canOrderDischarge ? `<button class="icon-btn danger" data-onclick="openDischargeDrawer" data-onclick-a0="${a.id}" title="Order Discharge / Exit">&#10006;</button>` : ''}
           ${canGenerateBill ? `<button class="icon-btn" data-onclick="openGenerateBillDrawer" data-onclick-a0="${a.id}" title="Generate IPD Bill" style="font-size:10px;font-weight:700;color:#1a4a2e;border-color:#b8ddc6;background:#e8f5ee">💰</button>` : ''}
         </div>
@@ -1509,7 +1530,7 @@ window.saveOtProcedure = async function() {
 };
 
 // Close on overlay click
-['admit-overlay','discharge-overlay','notes-overlay','ot-overlay'].forEach(id => {
+['admit-overlay','discharge-overlay','notes-overlay','ot-overlay','pktt-overlay'].forEach(id => {
   document.getElementById(id).addEventListener('click', e => {
     if (e.target.id === id) document.getElementById(id).classList.remove('open');
   });
@@ -1920,6 +1941,111 @@ window.saveWrdNote = async function() {
   await _loadWrdNotes(_wrdAdmId);
   _alert('success','Ward round note saved.');
 };
+
+// ── PKTT — Panchakarma Treatment Tracker (Session 294) ─────────────────────────
+// Read-only, real-time oversight of an admission's PK Care Plan sessions, reachable
+// directly from IPD's admission row (mirrors nursing.html's existing PK Care Plan tab
+// content, which is bedside/ward-scoped; this is the admin/reception-facing view,
+// same underlying data, plus room/therapist assignment which nursing's tab omits since
+// it's a therapist.html concern there).
+let _pkttAdmId = null;
+
+window.openPkTrackerDrawer = async function(admId) {
+  _pkttAdmId = admId;
+  const adm = _admissions.find(a => a.id === admId);
+  const pt  = adm?.patients || {};
+  document.getElementById('pktt-pt-info').innerHTML =
+    `<strong>${_esc(pt.name||'—')}</strong> · Bed ${_esc(adm?.beds?.bed_number||'—')} · ${_esc(adm?.departments?.name||'—')}`;
+  document.getElementById('pktt-overlay').classList.add('open');
+  await _loadPkTrackerContent(admId);
+};
+
+window.closePkTrackerDrawer = function() {
+  document.getElementById('pktt-overlay').classList.remove('open');
+  _pkttAdmId = null;
+};
+
+const PK_PHASE_LABEL = { purvakarma: 'Purvakarma', pradhanakarma: 'Pradhanakarma', paschatkarma: 'Paschatkarma' };
+const PK_PHASE_COLOR = { purvakarma: '#7a5a00', pradhanakarma: '#1a4080', paschatkarma: '#1a4a2e' };
+const PK_SESSION_STATUS_LABEL = { scheduled: 'Scheduled', in_progress: 'In Progress', completed: '✓ Done', skipped: 'Skipped' };
+const PK_SESSION_STATUS_COLOR = { scheduled: '#555', in_progress: '#1a4080', completed: '#1a6b3a', skipped: '#8b1a1a' };
+
+async function _loadPkTrackerContent(admId) {
+  const el = document.getElementById('pktt-sessions-list');
+  el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Loading…</div>';
+
+  const { data: plans, error } = await supabase.from('pk_care_plans')
+    .select(`
+      id, status, created_at,
+      pk_care_plan_protocols(
+        id, protocol_label,
+        pk_care_plan_days(id, phase, activity_label, planned_date, sequence_order, location_mode,
+          pk_therapy_sessions(status, scheduled_time, room_id, therapist_id,
+            pk_treatment_rooms(room_name),
+            profiles!therapist_id(full_name)
+          )
+        )
+      )
+    `)
+    .eq('tenant_id', tenantId).eq('ipd_admission_id', admId)
+    .order('created_at', { ascending: false });
+
+  if (error) { el.innerHTML = `<div style="color:#c0392b;font-size:12px">Could not load: ${_esc(error.message)}</div>`; return; }
+  if (!plans?.length) { el.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:12px">No Panchakarma Care Plan for this admission.</div>`; return; }
+
+  const today = todayLocalStr();
+  el.innerHTML = plans.map(p => {
+    const rows = (p.pk_care_plan_protocols || [])
+      .flatMap(pr => (pr.pk_care_plan_days || []).map(d => ({ ...d, protocol_label: pr.protocol_label })))
+      .sort((a, b) => (a.planned_date||'').localeCompare(b.planned_date||'') || a.sequence_order - b.sequence_order);
+    const total = rows.length;
+    const done  = rows.filter(d => d.pk_therapy_sessions?.status === 'completed').length;
+
+    return `<div style="border:1.5px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:700;font-size:13px;color:var(--green-deep)">Plan — ${_esc(p.status)} <span style="font-weight:500;color:var(--text-muted)">(${done}/${total} sessions done)</span></div>
+        <div style="font-size:11px;color:var(--text-muted)">Created ${_fmt((p.created_at||'').slice(0,10))}</div>
+      </div>
+      <div style="overflow-x:auto">
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <thead><tr style="background:#f5faf7">
+          <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Date</th>
+          <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Protocol / Activity</th>
+          <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Phase</th>
+          <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Time</th>
+          <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Room / Therapist</th>
+          <th style="padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)">Status</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(d => {
+            const s = d.pk_therapy_sessions;
+            const sessStatus = s?.status || 'scheduled';
+            const isToday = d.planned_date === today;
+            return `<tr style="border-bottom:1px solid #f0f4f2;${isToday ? 'background:#fff8e1' : ''}">
+              <td style="padding:5px 8px">${_esc(d.planned_date || '—')}${isToday ? ' <strong>(Today)</strong>' : ''}</td>
+              <td style="padding:5px 8px"><div>${_esc(d.protocol_label)}</div><div style="font-size:10.5px;color:var(--text-muted)">${_esc(d.activity_label)}</div></td>
+              <td style="padding:5px 8px"><span style="font-size:10px;font-weight:600;color:${PK_PHASE_COLOR[d.phase]||'#333'};background:${PK_PHASE_COLOR[d.phase]||'#333'}15;padding:2px 7px;border-radius:8px">${PK_PHASE_LABEL[d.phase]||d.phase}</span></td>
+              <td style="padding:5px 8px">${s?.scheduled_time ? s.scheduled_time.slice(0,5) : '—'}</td>
+              <td style="padding:5px 8px">${d.location_mode === 'home' ? '🏠 Home' : `${_esc(s?.pk_treatment_rooms?.room_name || '—')} / ${_esc(s?.profiles?.full_name || '—')}`}</td>
+              <td style="padding:5px 8px">${d.location_mode === 'home'
+                ? `<span style="font-size:11px;font-weight:600;color:var(--gold)">🏠 Advised at home</span>`
+                : `<span style="font-size:11px;font-weight:600;color:${PK_SESSION_STATUS_COLOR[sessStatus]||'#333'}">${PK_SESSION_STATUS_LABEL[sessStatus]||sessStatus}</span>`}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// One page-wide channel (not re-subscribed per drawer open), same "any event -> reload
+// if relevant" convention nursing.js's own pk_therapy_sessions channel already uses.
+supabase.channel('ipd-pk-tracker')
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'pk_therapy_sessions' }, () => {
+    if (_pkttAdmId) _loadPkTrackerContent(_pkttAdmId);
+  })
+  .subscribe();
 
 // ── NABH Care Plan (AAC.3 CORE) ───────────────────────────────────────────────
 let _cpAdmId = null, _cpPatientId = null;

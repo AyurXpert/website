@@ -1021,6 +1021,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     </div>
   </div>
 </div>
+
+<!-- PKTT — Panchakarma Treatment Tracker drawer (Session 294) -->
+<div class="drawer-overlay" id="pktt-overlay">
+  <div class="drawer" style="width:640px">
+    <div class="drawer-header">
+      <span class="drawer-title">🌸 Panchakarma Treatment Tracker</span>
+      <button class="drawer-close" data-onclick="closePkTrackerDrawer">✕</button>
+    </div>
+    <div class="drawer-body" style="overflow-y:auto;flex:1">
+      <div id="pktt-pt-info" style="font-size:13px;color:var(--text-mid);margin-bottom:12px;padding:10px;background:var(--cream);border-radius:8px"></div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;font-style:italic">Real-time status of every scheduled session — administered and marked done by the assigned therapist (therapist.html); this view is oversight only.</div>
+      <div id="pktt-sessions-list"><div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">Loading…</div></div>
+    </div>
+  </div>
+</div>
 <!-- NABH Care Plan Drawer (AAC.3 CORE) -->
 <div id="cp-drawer" data-onclick="closeCarePlanDrawer" data-onclick-a0="@isTarget" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1500;align-items:flex-start;justify-content:flex-end">
   <div style="width:520px;max-width:100vw;height:100vh;background:#fff;overflow-y:auto;display:flex;flex-direction:column">
