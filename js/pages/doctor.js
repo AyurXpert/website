@@ -1938,6 +1938,19 @@ window._pkSetShuddhiTier = function(pi, tier) {
   p.pediatric_shuddhi_tier = tier || null;
 };
 
+// Session 288 -- Vamana's own age-group recommendation. Infants/Toddlers/Pre-
+// schoolers get Sadyo-Vamana (single-purpose, lighter, no Pachana/Snehana/Swedana
+// purvakarma) rather than classical Vamana -- the document's Vamana Dravya dose
+// table below only really applies to School-age/Adolescent classical Vamana.
+function _pkVamanaAgeBandLabel(ageYears) {
+  if (ageYears == null) return null;
+  if (ageYears < 1) return 'Infant (0-1yr) — Sadyo-Vamana only (Kapha Dushita Stanya / Atyayika)';
+  if (ageYears < 3) return 'Toddler (1-3yr) — Sadyo-Vamana only (Kapha/Kapha-Pittaja, Ajeerna)';
+  if (ageYears < 6) return 'Pre-schooler (3-5yr) — Sadyo-Vamana only (Pranavaha Srotovikara, Ajeerna)';
+  if (ageYears < 12) return 'School-age (6-12yr) — Sadyo-Vamana or classical Vamana';
+  return 'Adolescent (12-18yr) — classical Vamana';
+}
+
 function _pkRenderPediatricVirechanaPanel(p, pi) {
   if (!_pkIsPediatricPatient()) return '';
   const ageYears = _pkPatientAgeYears();
@@ -2071,6 +2084,112 @@ window._pkSelectVirechanaDravya = function(pi, bi, drugDoseId) {
   }
   if (qtyInp) qtyInp.value = qty ?? '';
   if (unitSel) unitSel.value = d.unit || 'g';
+};
+
+// Session 288 -- pediatric Vamana panel. Same structure as Virechana's (age band,
+// SAM/MAM hard-stop reusing the real growth_records check, Dravya reference,
+// contraindications, consent/assent) -- deliberately NO Shuddhi-tier dropdown, since
+// the document describes no equivalent pre-dose weight classification for Vamana
+// (only BSA/palm-proportion guidance, too imprecise to encode as a clean formula);
+// the suggested dose is just each drug's range midpoint instead. Adds one genuinely
+// new piece Virechana didn't need: an explicit "Snehapana not recommended" note,
+// since pediatric Vamana purvakarma differs from Virechana/Basti on this point.
+function _pkRenderPediatricVamanaPanel(p, pi) {
+  if (!_pkIsPediatricPatient()) return '';
+  const ageYears = _pkPatientAgeYears();
+  const ageBandLabel = p.pediatric_age_band || _pkVamanaAgeBandLabel(ageYears);
+  const narrative = _pkPediatricNarrative['vamana'];
+  const assentApplicable = ageYears >= _PK_PEDIATRIC_ASSENT_MIN_AGE;
+  const growth = _pkGrowthLatestByPatient[_activePatient?.id];
+  if (growth === undefined && _activePatient?.id) _pkLoadLatestGrowthRecord(_activePatient.id).then(() => _renderPkCalendar());
+  const samMam = _pkGrowthIsSamMam(growth);
+  const dravyaOptions = _pkDrugDosesFor('vamana', 'vamana_dravya', ageYears);
+
+  return `
+      <div style="border:2px solid var(--purple);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fdf5fb">
+        <div style="font-weight:700;font-size:12.5px;color:var(--purple);margin-bottom:8px">🧒 Pediatric Vamana — patient is ${_esc(String(ageYears))} years old</div>
+        ${ageBandLabel ? `<div style="font-size:11px;color:var(--text-dark);margin-bottom:8px">${_esc(ageBandLabel)}</div>` : ''}
+
+        <div style="background:#fff8e1;border:1px solid #e6c200;border-radius:5px;padding:7px 10px;font-size:11.5px;color:#6b4c00;margin-bottom:8px">
+          ℹ️ Snehapana is <strong>not recommended</strong> as Vamana purvakarma for children — they're considered already-oleated via their milk/ghee-predominant diet. If this protocol's calendar includes a Snehapana block, consider marking it Skip/Home for this patient rather than administering it as for an adult.
+        </div>
+
+        ${growth === undefined ? `
+        <div style="font-size:10.5px;color:var(--text-muted);margin-bottom:8px">Checking weight-for-age from the patient's Growth Record…</div>` : growth === null ? `
+        <div style="background:#fff8e1;border:1px solid #e6c200;border-radius:5px;padding:7px 10px;font-size:11.5px;color:#6b4c00;margin-bottom:8px">
+          ⚠ No Growth Record on file. A poorly-nourished (SAM/MAM) child is contraindicated for Vamana per the document — record a Growth Record (History tab) before finalizing this plan.
+        </div>` : samMam ? `
+        <div style="background:#fff3f3;border:2px solid var(--red);border-radius:5px;padding:8px 10px;font-size:11.5px;color:#7a1a1a;margin-bottom:8px;font-weight:600">
+          🚫 CONTRAINDICATED: this patient's latest Growth Record (${new Date(growth.recorded_at+'T00:00').toLocaleDateString('en-IN')}) shows ${_esc(growth.weight_percentile_band)} weight-for-age — ${growth.weight_percentile_band === '<3rd' ? 'Severe Acute Malnutrition (SAM)' : 'Moderate Acute Malnutrition (MAM)'}. A poorly-nourished child is contraindicated for Vamana. This plan cannot be saved while Vamana is selected for this patient.
+        </div>` : `
+        <div style="font-size:11px;color:var(--text-dark);margin-bottom:8px">✓ Latest Growth Record (${new Date(growth.recorded_at+'T00:00').toLocaleDateString('en-IN')}): weight-for-age ${_esc(growth.weight_percentile_band || '—')} — not SAM/MAM.</div>`}
+
+        ${dravyaOptions.length ? `
+        <details style="margin-bottom:8px" open>
+          <summary style="font-size:11px;font-weight:600;color:var(--purple);cursor:pointer">💊 Vamana Dravya options for classical Vamana — reference for the medicine entry in Step 3</summary>
+          <table style="width:100%;font-size:10.5px;margin-top:4px;border-collapse:collapse">
+            ${dravyaOptions.map(d => `<tr><td style="padding:2px 6px 2px 0">${_esc(d.drug_name)}</td><td style="padding:2px 6px;color:var(--text-mid)">${d.dose_min == null ? _esc(d.unit) : (d.dose_min === d.dose_max ? d.dose_min : `${d.dose_min}-${d.dose_max}`) + _esc(d.unit === 'q.s.' ? '' : d.unit)}</td><td style="padding:2px 0;color:var(--text-muted)">${_esc(d.notes || '')}</td></tr>`).join('')}
+          </table>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:3px">For Sadyo-Vamana (infants/toddlers/pre-schoolers), this table doesn't directly apply — dose is customized per child, not from this fixed reference.</div>
+        </details>` : ''}
+
+        ${narrative?.contraindications ? `
+        <details style="margin-bottom:8px">
+          <summary style="font-size:11px;font-weight:600;color:var(--purple);cursor:pointer">⚠ Pediatric-specific contraindications — tap to review</summary>
+          <div style="font-size:10.5px;color:var(--text-mid);margin-top:4px">${_esc(narrative.contraindications)}</div>
+        </details>` : ''}
+
+        <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+          <label style="display:flex;align-items:flex-start;gap:6px;font-size:11.5px;margin-bottom:6px;cursor:pointer">
+            <input type="checkbox" ${p.pediatric_guardian_consent_obtained ? 'checked' : ''}
+              data-onchange="_pkTogglePediatricConsent" data-onchange-a0="${pi}" data-onchange-a1="pediatric_guardian_consent_obtained" data-onchange-a2="@this" style="margin-top:2px"/>
+            <span><strong>Written informed consent obtained from parent/guardian</strong> — required before this plan can be saved.</span>
+          </label>
+          ${assentApplicable ? `
+          <label style="display:flex;align-items:flex-start;gap:6px;font-size:11.5px;cursor:pointer">
+            <input type="checkbox" ${p.pediatric_assent_obtained ? 'checked' : ''}
+              data-onchange="_pkTogglePediatricConsent" data-onchange-a0="${pi}" data-onchange-a1="pediatric_assent_obtained" data-onchange-a2="@this" style="margin-top:2px"/>
+            <span><strong>Verbal/written assent obtained from the child</strong> — required before this plan can be saved.</span>
+          </label>` : `
+          <div style="font-size:10.5px;color:var(--text-muted)">Child assent: not applicable at this age (under ${_PK_PEDIATRIC_ASSENT_MIN_AGE} years) — guardian consent alone governs.</div>`}
+        </div>
+      </div>`;
+}
+
+// Session 288 -- same picker pattern as Virechana's, scoped to Vamana's own
+// "Vamana administration" activity block. No Shuddhi-tier-aware branching (Vamana
+// has none) -- suggested dose is just the range midpoint, or blank for Madhu (q.s.,
+// no fixed dose — the doctor decides that one entirely).
+function _pkRenderVamanaDravyaPicker(p, pi, b, bi) {
+  if (!(_pkIsPediatricPatient() && p.procedure_key === 'vamana' && b.activity_label === 'Vamana administration')) return '';
+  const options = _pkDrugDosesFor('vamana', 'vamana_dravya', _pkPatientAgeYears());
+  if (!options.length) return '';
+  return `
+    <div class="field" style="margin-bottom:8px">
+      <label style="font-size:11px">🧒 Select a pediatric Vamana Dravya (age-appropriate options, auto-fills dose below)</label>
+      <select data-onchange="_pkSelectVamanaDravya" data-onchange-a0="${pi}" data-onchange-a1="${bi}" data-onchange-a2="@value">
+        <option value="">— Choose a medicine —</option>
+        ${options.map(d => `<option value="${d.id}">${_esc(d.drug_name)} (${d.dose_min == null ? 'q.s.' : (d.dose_min === d.dose_max ? d.dose_min : `${d.dose_min}-${d.dose_max}`) + _esc(d.unit)})</option>`).join('')}
+      </select>
+    </div>`;
+}
+
+window._pkSelectVamanaDravya = function(pi, bi, drugDoseId) {
+  if (!drugDoseId) return;
+  const d = _pkPediatricDrugDoses.find(x => x.id === drugDoseId);
+  if (!d) return;
+  const nameInp = document.getElementById(`pk-med-name-${pi}-${bi}`);
+  const qtyInp = document.getElementById(`pk-med-qty-${pi}-${bi}`);
+  const unitSel = document.getElementById(`pk-med-unit-${pi}-${bi}`);
+  if (nameInp) nameInp.value = d.drug_name;
+  if (d.dose_min == null) {
+    // Madhu (q.s.) -- no fixed dose to suggest, leave qty blank for the doctor.
+    if (qtyInp) qtyInp.value = '';
+  } else {
+    const qty = d.dose_min === d.dose_max ? d.dose_min : Math.round(((d.dose_min + d.dose_max) / 2) * 100) / 100;
+    if (qtyInp) qtyInp.value = qty;
+    if (unitSel) unitSel.value = d.unit || 'g';
+  }
 };
 
 async function _loadPkFeeIndex() {
@@ -2344,6 +2463,12 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
   if (procedureKey === 'virechana' && _pkIsPediatricPatient()) {
     const newP = _pkProtocols[_pkProtocols.length - 1];
     newP.pediatric_age_band = _pkVirechanaAgeBandLabel(_pkPatientAgeYears());
+    _pkLoadLatestGrowthRecord(_activePatient.id).then(() => _renderPkCalendar());
+  }
+  // Session 288 -- same pattern for Vamana.
+  if (procedureKey === 'vamana' && _pkIsPediatricPatient()) {
+    const newP = _pkProtocols[_pkProtocols.length - 1];
+    newP.pediatric_age_band = _pkVamanaAgeBandLabel(_pkPatientAgeYears());
     _pkLoadLatestGrowthRecord(_activePatient.id).then(() => _renderPkCalendar());
   }
   // Session 279 fix -- see the matching comment on the removal branch above; a
@@ -2724,6 +2849,7 @@ function _renderPkCalendar() {
       ${!p.is_reviewed ? `<div style="background:#fff8e1;border:1px solid #e6c200;border-radius:6px;padding:6px 10px;font-size:11px;color:#6b4c00;margin-bottom:8px">⚠ Draft SOP — pending clinical review. Day-counts/phases below are a generic starting point, not yet confirmed.</div>` : ''}
       ${_pkRenderManualScheduleInput(p, pi)}
       ${p.procedure_key === 'virechana' ? _pkRenderPediatricVirechanaPanel(p, pi) : ''}
+      ${p.procedure_key === 'vamana' ? _pkRenderPediatricVamanaPanel(p, pi) : ''}
       ${p.procedure_key === 'basti' ? `
       <div style="border:1.5px solid var(--blue);border-radius:6px;padding:9px 12px;margin-bottom:10px;background:#f5f8ff;font-size:11.5px;color:var(--text-dark)">
         <strong>📌 Standing instruction:</strong> Local Abhyanga + Swedana (~10 minutes) is performed immediately before <em>every</em> Anuvasana and every Niruha administration — not a separate scheduled day. Applies throughout the whole course, every administration day, without needing its own calendar entry.
@@ -3349,6 +3475,7 @@ function _renderPkMedicines() {
             <label style="font-size:11px">${hasSop ? 'Medicines / Materials for this activity' : 'Ingredients'}</label>
             ${hasSop ? `<button type="button" data-onclick="_pkLoadSopMaterials" data-onclick-a0="${pi}" data-onclick-a1="${bi}" style="height:30px;padding:0 10px;margin-bottom:6px;background:var(--white);border:1.5px solid var(--green-mid);color:var(--green-deep);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">📋 Load from SOP Materials</button>` : ''}
             ${_pkRenderVirechanaDravyaPicker(p, pi, b, bi)}
+            ${_pkRenderVamanaDravyaPicker(p, pi, b, bi)}
             <div style="display:grid;grid-template-columns:1.6fr .6fr .5fr auto;gap:6px;margin-bottom:6px">
               <input id="pk-med-name-${pi}-${bi}" type="text" placeholder="${hasSop ? 'e.g. Panchatiktaka Ghrita' : 'e.g. Eranda Ela'}"
                 ${b.bastiDayType === 'anuvasana' ? `list="pk-sneha-datalist"` : ''}/>
@@ -3769,7 +3896,7 @@ window.savePkCarePlan = async function() {
   // assent too -- same hard block as the Basti-pack-type/schedule checks above, never
   // a silent skip. Reused generically across both procedures (both use the exact same
   // pediatric_guardian_consent_obtained/pediatric_assent_obtained columns).
-  const _PK_PEDIATRIC_GATED_PROCEDURES = ['basti', 'virechana'];
+  const _PK_PEDIATRIC_GATED_PROCEDURES = ['basti', 'virechana', 'vamana'];
   if (_pkIsPediatricPatient()) {
     const ageYears = _pkPatientAgeYears();
     const missingPediatricConsent = _pkProtocols.find(p => _PK_PEDIATRIC_GATED_PROCEDURES.includes(p.procedure_key) && (
@@ -3777,12 +3904,12 @@ window.savePkCarePlan = async function() {
       (ageYears >= _PK_PEDIATRIC_ASSENT_MIN_AGE && !p.pediatric_assent_obtained)
     ));
     if (missingPediatricConsent) { alert(`This is a pediatric ${missingPediatricConsent.protocol_label} plan — obtain and check parent/guardian consent (and child assent, if age-appropriate) in Step 2 before saving.`); return; }
-    // Session 287 -- Virechana-only: weight-for-age SAM/MAM is a real document
-    // contraindication (not just a reduced dose), so it hard-blocks save the same way
-    // consent does, rather than being a warning the doctor could miss. Also requires
-    // the Shuddhi tier to have actually been assessed (not silently defaulted).
-    const samMamProtocol = _pkProtocols.find(p => p.procedure_key === 'virechana' && _pkGrowthIsSamMam(_pkGrowthLatestByPatient[_activePatient?.id]));
-    if (samMamProtocol) { alert('This patient\'s latest Growth Record shows SAM/MAM weight-for-age — Virechana is contraindicated per the pediatric protocol. Remove the Virechana protocol or address the growth concern first.'); return; }
+    // Session 287/288 -- Virechana + Vamana: weight-for-age SAM/MAM is a real document
+    // contraindication (not just a reduced dose) for both procedures, so it hard-blocks
+    // save the same way consent does, rather than being a warning the doctor could miss.
+    const samMamProtocol = _pkProtocols.find(p => ['virechana', 'vamana'].includes(p.procedure_key) && _pkGrowthIsSamMam(_pkGrowthLatestByPatient[_activePatient?.id]));
+    if (samMamProtocol) { alert(`This patient's latest Growth Record shows SAM/MAM weight-for-age — ${samMamProtocol.protocol_label} is contraindicated per the pediatric protocol. Remove that protocol or address the growth concern first.`); return; }
+    // Virechana-only: the Shuddhi tier has no Vamana equivalent (see Session 288's notes).
     const missingShuddhiTier = _pkProtocols.find(p => p.procedure_key === 'virechana' && !p.pediatric_shuddhi_tier);
     if (missingShuddhiTier) { alert('Assess the Shuddhi dose tier (Uttam/Madhyama/Hina) for this pediatric Virechana plan in Step 2 before saving.'); return; }
   }
