@@ -268,21 +268,24 @@ async function _renderBedComplianceAlert() {
 // ── Populate selects ──────────────────────────────────────────────────────────
 function _populateDeptFilters() {
   // Session 294 -- real gap found live (matches doctor.js's Admission-Advice tab, fixed
-  // the same session): "adm-dept" here is the Admit Patient modal's Department picker,
-  // which drives loadVacantBeds() -- it used to list every active department in the org
-  // (Accounts, Security, Laundry, Diagnostics, House Keeping, Finance...), none of which
-  // can actually receive an admission. Ground-truth filter is "does this department own
+  // the same session): both selects used to list every active department in the org
+  // (Accounts, Security, Laundry, Diagnostics, House Keeping, Finance...). "adm-dept" is
+  // the Admit Patient modal's Department picker (drives loadVacantBeds()) -- none of
+  // those can actually receive an admission. "filter-dept" browses EXISTING admissions
+  // by department -- initially left unfiltered on the assumption it was a harmless
+  // display filter, but Dr. Venkatesh correctly pointed out an admission can only ever
+  // be tagged to a bedded department in the first place (enforced by the adm-dept fix
+  // itself), so a non-bedded option there is dead weight, never matching a single real
+  // row -- filtered the same way now. Ground-truth filter is "does this department own
   // any real row in `beds`" -- `_allBeds` is already loaded in full by loadAll(), so no
-  // extra query is needed here, unlike doctor.js's equivalent fix. "filter-dept" (the
-  // separate browse-existing-admissions-by-department filter, unrelated to picking an
-  // admission destination) is deliberately left showing every department, unchanged.
+  // extra query is needed here, unlike doctor.js's equivalent fix.
   const beddedDeptIds = new Set(_allBeds.map(b => b.department_id).filter(Boolean));
   ['filter-dept','adm-dept'].forEach(id => {
     const sel = document.getElementById(id);
     const saved = sel.value;
     const isFilter = id === 'filter-dept';
     sel.innerHTML = isFilter ? '<option value="">All Departments</option>' : '<option value="">— Select department —</option>';
-    _depts.filter(d => isFilter || beddedDeptIds.has(d.id)).forEach(d => {
+    _depts.filter(d => beddedDeptIds.has(d.id)).forEach(d => {
       const o = document.createElement('option');
       o.value = d.id;
       o.textContent = d.name;
