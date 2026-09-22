@@ -1951,6 +1951,20 @@ function _pkVamanaAgeBandLabel(ageYears) {
   return 'Adolescent (12-18yr) — classical Vamana';
 }
 
+// Session 289 -- Nasya's own age-group recommendation. Pratimarsha is the one type
+// recommended at every pediatric age (even infants); Marsha only joins in from
+// School-age 9yr+ (the document splits 6-12yr into "6-8 only Pratimarsha" vs.
+// "9-12 both" -- the 6yr lower bound of the school-age band alone isn't enough).
+function _pkNasyaAgeBandLabel(ageYears) {
+  if (ageYears == null) return null;
+  if (ageYears < 1) return 'Infant (0-1yr) — Pratimarsha Nasya only';
+  if (ageYears < 3) return 'Toddler (1-3yr) — Pratimarsha Nasya only';
+  if (ageYears < 6) return 'Pre-schooler (3-5yr) — Pratimarsha Nasya only';
+  if (ageYears < 9) return 'School-age (6-8yr) — Pratimarsha Nasya only';
+  if (ageYears < 12) return 'School-age (9-12yr) — Pratimarsha and Marsha Nasya';
+  return 'Adolescent (12-18yr) — Pratimarsha and Marsha Nasya';
+}
+
 function _pkRenderPediatricVirechanaPanel(p, pi) {
   if (!_pkIsPediatricPatient()) return '';
   const ageYears = _pkPatientAgeYears();
@@ -2190,6 +2204,111 @@ window._pkSelectVamanaDravya = function(pi, bi, drugDoseId) {
     if (qtyInp) qtyInp.value = qty;
     if (unitSel) unitSel.value = d.unit || 'g';
   }
+};
+
+// Session 289 -- pediatric Nasya panel. Same age-band/SAM-MAM/contraindications/
+// consent-assent structure as Virechana/Vamana's panels, but the dosing reference is
+// genuinely two separate tables (Bindu count by Nasya-type/tier, and ml-per-Bindu by
+// substance/age) rather than one flat drug-dose table -- shown as two distinct
+// reference sections rather than forced into one.
+function _pkRenderPediatricNasyaPanel(p, pi) {
+  if (!_pkIsPediatricPatient()) return '';
+  const ageYears = _pkPatientAgeYears();
+  const ageBandLabel = p.pediatric_age_band || _pkNasyaAgeBandLabel(ageYears);
+  const narrative = _pkPediatricNarrative['nasya'];
+  const assentApplicable = ageYears >= _PK_PEDIATRIC_ASSENT_MIN_AGE;
+  const growth = _pkGrowthLatestByPatient[_activePatient?.id];
+  if (growth === undefined && _activePatient?.id) _pkLoadLatestGrowthRecord(_activePatient.id).then(() => _renderPkCalendar());
+  const samMam = _pkGrowthIsSamMam(growth);
+  const binduCounts = _pkPediatricDrugDoses.filter(d => d.procedure_key === 'nasya' && d.usage_context === 'nasya_bindu_count');
+  const binduMl = _pkDrugDosesFor('nasya', 'nasya_bindu_ml', ageYears);
+
+  return `
+      <div style="border:2px solid var(--purple);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fdf5fb">
+        <div style="font-weight:700;font-size:12.5px;color:var(--purple);margin-bottom:8px">🧒 Pediatric Nasya — patient is ${_esc(String(ageYears))} years old</div>
+        ${ageBandLabel ? `<div style="font-size:11px;color:var(--text-dark);margin-bottom:8px">${_esc(ageBandLabel)}</div>` : ''}
+
+        ${growth === undefined ? `
+        <div style="font-size:10.5px;color:var(--text-muted);margin-bottom:8px">Checking weight-for-age from the patient's Growth Record…</div>` : growth === null ? `
+        <div style="background:#fff8e1;border:1px solid #e6c200;border-radius:5px;padding:7px 10px;font-size:11.5px;color:#6b4c00;margin-bottom:8px">
+          ⚠ No Growth Record on file. Severe malnutrition (Apatarpita/SAM/MAM) is a Nasya contraindication per the document — record a Growth Record (History tab) before finalizing this plan.
+        </div>` : samMam ? `
+        <div style="background:#fff3f3;border:2px solid var(--red);border-radius:5px;padding:8px 10px;font-size:11.5px;color:#7a1a1a;margin-bottom:8px;font-weight:600">
+          🚫 CONTRAINDICATED: this patient's latest Growth Record (${new Date(growth.recorded_at+'T00:00').toLocaleDateString('en-IN')}) shows ${_esc(growth.weight_percentile_band)} weight-for-age — ${growth.weight_percentile_band === '<3rd' ? 'Severe Acute Malnutrition (SAM)' : 'Moderate Acute Malnutrition (MAM)'}. Nasya is contraindicated for a severely malnourished child. This plan cannot be saved while Nasya is selected for this patient.
+        </div>` : `
+        <div style="font-size:11px;color:var(--text-dark);margin-bottom:8px">✓ Latest Growth Record (${new Date(growth.recorded_at+'T00:00').toLocaleDateString('en-IN')}): weight-for-age ${_esc(growth.weight_percentile_band || '—')} — not SAM/MAM.</div>`}
+
+        ${binduCounts.length ? `
+        <details style="margin-bottom:8px">
+          <summary style="font-size:11px;font-weight:600;color:var(--purple);cursor:pointer">📏 Bindu (drop) count by Nasya type &amp; tier — reference (Table 8)</summary>
+          <table style="width:100%;font-size:10.5px;margin-top:4px;border-collapse:collapse">
+            ${binduCounts.map(d => `<tr><td style="padding:2px 6px 2px 0">${_esc(d.drug_name)}</td><td style="padding:2px 6px;color:var(--text-mid)">${d.dose_min} ${_esc(d.unit)}</td><td style="padding:2px 0;color:var(--text-muted)">${_esc(d.age_band_label)}${d.notes ? ' — ' + _esc(d.notes) : ''}</td></tr>`).join('')}
+          </table>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:3px">Total dose = Bindu count × ml-per-Bindu (below, for the chosen substance and this patient's age). Pratimarsha is auto-computed in Step 3 since its count never changes by tier; for Marsha/others, multiply manually.</div>
+        </details>` : ''}
+
+        ${binduMl.length ? `
+        <details style="margin-bottom:8px" open>
+          <summary style="font-size:11px;font-weight:600;color:var(--purple);cursor:pointer">💧 ml per single Bindu, this age band — reference for the medicine entry in Step 3</summary>
+          <table style="width:100%;font-size:10.5px;margin-top:4px;border-collapse:collapse">
+            ${binduMl.map(d => `<tr><td style="padding:2px 6px 2px 0">${_esc(d.drug_name)}</td><td style="padding:2px 0;color:var(--text-mid)">${d.dose_min === d.dose_max ? d.dose_min : `${d.dose_min}-${d.dose_max}`} ${_esc(d.unit)}</td></tr>`).join('')}
+          </table>
+        </details>` : ''}
+
+        ${narrative?.contraindications ? `
+        <details style="margin-bottom:8px">
+          <summary style="font-size:11px;font-weight:600;color:var(--purple);cursor:pointer">⚠ Pediatric-specific contraindications — tap to review</summary>
+          <div style="font-size:10.5px;color:var(--text-mid);margin-top:4px">${_esc(narrative.contraindications)}</div>
+        </details>` : ''}
+
+        <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+          <label style="display:flex;align-items:flex-start;gap:6px;font-size:11.5px;margin-bottom:6px;cursor:pointer">
+            <input type="checkbox" ${p.pediatric_guardian_consent_obtained ? 'checked' : ''}
+              data-onchange="_pkTogglePediatricConsent" data-onchange-a0="${pi}" data-onchange-a1="pediatric_guardian_consent_obtained" data-onchange-a2="@this" style="margin-top:2px"/>
+            <span><strong>Written informed consent obtained from parent/guardian</strong> — required before this plan can be saved.</span>
+          </label>
+          ${assentApplicable ? `
+          <label style="display:flex;align-items:flex-start;gap:6px;font-size:11.5px;cursor:pointer">
+            <input type="checkbox" ${p.pediatric_assent_obtained ? 'checked' : ''}
+              data-onchange="_pkTogglePediatricConsent" data-onchange-a0="${pi}" data-onchange-a1="pediatric_assent_obtained" data-onchange-a2="@this" style="margin-top:2px"/>
+            <span><strong>Verbal/written assent obtained from the child</strong> — required before this plan can be saved.</span>
+          </label>` : `
+          <div style="font-size:10.5px;color:var(--text-muted)">Child assent: not applicable at this age (under ${_PK_PEDIATRIC_ASSENT_MIN_AGE} years) — guardian consent alone governs.</div>`}
+        </div>
+      </div>`;
+}
+
+// Session 289 -- one-click Pratimarsha Nasya picker: auto-computes total ml =
+// 2 Bindu (fixed across all tiers, per Table 8) x this age band's ml-per-Bindu for
+// the chosen substance. Scoped to the "Nasya administration (daily)" block.
+const _PK_PRATIMARSHA_BINDU_COUNT = 2;
+function _pkRenderNasyaSubstancePicker(p, pi, b, bi) {
+  if (!(_pkIsPediatricPatient() && p.procedure_key === 'nasya' && b.activity_label === 'Nasya administration (daily)')) return '';
+  const options = _pkDrugDosesFor('nasya', 'nasya_bindu_ml', _pkPatientAgeYears());
+  if (!options.length) return '';
+  return `
+    <div class="field" style="margin-bottom:8px">
+      <label style="font-size:11px">🧒 Select a substance for Pratimarsha Nasya (2 Bindu, age-appropriate — auto-fills total dose below)</label>
+      <select data-onchange="_pkSelectNasyaSubstance" data-onchange-a0="${pi}" data-onchange-a1="${bi}" data-onchange-a2="@value">
+        <option value="">— Choose a substance —</option>
+        ${options.map(d => `<option value="${d.id}">${_esc(d.drug_name)} (${d.dose_min === d.dose_max ? d.dose_min : `${d.dose_min}-${d.dose_max}`}ml per Bindu)</option>`).join('')}
+      </select>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:3px">For Marsha Nasya (9yr+ only) instead, use the Bindu-count reference above and type the multiplied dose manually — its count varies by tier, unlike Pratimarsha's.</div>
+    </div>`;
+}
+
+window._pkSelectNasyaSubstance = function(pi, bi, drugDoseId) {
+  if (!drugDoseId) return;
+  const d = _pkPediatricDrugDoses.find(x => x.id === drugDoseId);
+  if (!d) return;
+  const nameInp = document.getElementById(`pk-med-name-${pi}-${bi}`);
+  const qtyInp = document.getElementById(`pk-med-qty-${pi}-${bi}`);
+  const unitSel = document.getElementById(`pk-med-unit-${pi}-${bi}`);
+  const perBindu = d.dose_min === d.dose_max ? d.dose_min : (d.dose_min + d.dose_max) / 2;
+  const total = Math.round(perBindu * _PK_PRATIMARSHA_BINDU_COUNT * 1000) / 1000;
+  if (nameInp) nameInp.value = `${d.drug_name} (Pratimarsha, ${_PK_PRATIMARSHA_BINDU_COUNT} Bindu)`;
+  if (qtyInp) qtyInp.value = total;
+  if (unitSel) unitSel.value = 'ml';
 };
 
 async function _loadPkFeeIndex() {
@@ -2469,6 +2588,12 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
   if (procedureKey === 'vamana' && _pkIsPediatricPatient()) {
     const newP = _pkProtocols[_pkProtocols.length - 1];
     newP.pediatric_age_band = _pkVamanaAgeBandLabel(_pkPatientAgeYears());
+    _pkLoadLatestGrowthRecord(_activePatient.id).then(() => _renderPkCalendar());
+  }
+  // Session 289 -- same pattern for Nasya.
+  if (procedureKey === 'nasya' && _pkIsPediatricPatient()) {
+    const newP = _pkProtocols[_pkProtocols.length - 1];
+    newP.pediatric_age_band = _pkNasyaAgeBandLabel(_pkPatientAgeYears());
     _pkLoadLatestGrowthRecord(_activePatient.id).then(() => _renderPkCalendar());
   }
   // Session 279 fix -- see the matching comment on the removal branch above; a
@@ -2850,6 +2975,7 @@ function _renderPkCalendar() {
       ${_pkRenderManualScheduleInput(p, pi)}
       ${p.procedure_key === 'virechana' ? _pkRenderPediatricVirechanaPanel(p, pi) : ''}
       ${p.procedure_key === 'vamana' ? _pkRenderPediatricVamanaPanel(p, pi) : ''}
+      ${p.procedure_key === 'nasya' ? _pkRenderPediatricNasyaPanel(p, pi) : ''}
       ${p.procedure_key === 'basti' ? `
       <div style="border:1.5px solid var(--blue);border-radius:6px;padding:9px 12px;margin-bottom:10px;background:#f5f8ff;font-size:11.5px;color:var(--text-dark)">
         <strong>📌 Standing instruction:</strong> Local Abhyanga + Swedana (~10 minutes) is performed immediately before <em>every</em> Anuvasana and every Niruha administration — not a separate scheduled day. Applies throughout the whole course, every administration day, without needing its own calendar entry.
@@ -3476,6 +3602,7 @@ function _renderPkMedicines() {
             ${hasSop ? `<button type="button" data-onclick="_pkLoadSopMaterials" data-onclick-a0="${pi}" data-onclick-a1="${bi}" style="height:30px;padding:0 10px;margin-bottom:6px;background:var(--white);border:1.5px solid var(--green-mid);color:var(--green-deep);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">📋 Load from SOP Materials</button>` : ''}
             ${_pkRenderVirechanaDravyaPicker(p, pi, b, bi)}
             ${_pkRenderVamanaDravyaPicker(p, pi, b, bi)}
+            ${_pkRenderNasyaSubstancePicker(p, pi, b, bi)}
             <div style="display:grid;grid-template-columns:1.6fr .6fr .5fr auto;gap:6px;margin-bottom:6px">
               <input id="pk-med-name-${pi}-${bi}" type="text" placeholder="${hasSop ? 'e.g. Panchatiktaka Ghrita' : 'e.g. Eranda Ela'}"
                 ${b.bastiDayType === 'anuvasana' ? `list="pk-sneha-datalist"` : ''}/>
@@ -3896,7 +4023,7 @@ window.savePkCarePlan = async function() {
   // assent too -- same hard block as the Basti-pack-type/schedule checks above, never
   // a silent skip. Reused generically across both procedures (both use the exact same
   // pediatric_guardian_consent_obtained/pediatric_assent_obtained columns).
-  const _PK_PEDIATRIC_GATED_PROCEDURES = ['basti', 'virechana', 'vamana'];
+  const _PK_PEDIATRIC_GATED_PROCEDURES = ['basti', 'virechana', 'vamana', 'nasya'];
   if (_pkIsPediatricPatient()) {
     const ageYears = _pkPatientAgeYears();
     const missingPediatricConsent = _pkProtocols.find(p => _PK_PEDIATRIC_GATED_PROCEDURES.includes(p.procedure_key) && (
@@ -3904,10 +4031,11 @@ window.savePkCarePlan = async function() {
       (ageYears >= _PK_PEDIATRIC_ASSENT_MIN_AGE && !p.pediatric_assent_obtained)
     ));
     if (missingPediatricConsent) { alert(`This is a pediatric ${missingPediatricConsent.protocol_label} plan — obtain and check parent/guardian consent (and child assent, if age-appropriate) in Step 2 before saving.`); return; }
-    // Session 287/288 -- Virechana + Vamana: weight-for-age SAM/MAM is a real document
-    // contraindication (not just a reduced dose) for both procedures, so it hard-blocks
-    // save the same way consent does, rather than being a warning the doctor could miss.
-    const samMamProtocol = _pkProtocols.find(p => ['virechana', 'vamana'].includes(p.procedure_key) && _pkGrowthIsSamMam(_pkGrowthLatestByPatient[_activePatient?.id]));
+    // Session 287/288/289 -- Virechana + Vamana + Nasya: weight-for-age SAM/MAM is a real
+    // document contraindication (not just a reduced dose) for all three procedures, so it
+    // hard-blocks save the same way consent does, rather than being a warning the doctor
+    // could miss.
+    const samMamProtocol = _pkProtocols.find(p => ['virechana', 'vamana', 'nasya'].includes(p.procedure_key) && _pkGrowthIsSamMam(_pkGrowthLatestByPatient[_activePatient?.id]));
     if (samMamProtocol) { alert(`This patient's latest Growth Record shows SAM/MAM weight-for-age — ${samMamProtocol.protocol_label} is contraindicated per the pediatric protocol. Remove that protocol or address the growth concern first.`); return; }
     // Virechana-only: the Shuddhi tier has no Vamana equivalent (see Session 288's notes).
     const missingShuddhiTier = _pkProtocols.find(p => p.procedure_key === 'virechana' && !p.pediatric_shuddhi_tier);
