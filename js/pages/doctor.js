@@ -2480,6 +2480,77 @@ function _pkRenderPediatricSwedanaPanel(p, pi) {
       </div>`;
 }
 
+// Session 291 -- pediatric Shirodhara, the 7th and last of the NIA document's procedures.
+// Single dedicated procedure_key ('shirodhara'), not a technique-family generalization --
+// the document's other Dhara-family catalog entries (Dhanyamla/Kashaya/Ksheera Dhara,
+// Thakra-dhara, Nethra-dhara) use different substances this document never covers.
+// Real age floor: the document gives NO Infant/Toddler protocol at all (youngest band is
+// Pre-schooler, 3yr) -- shown as a caution banner, same non-blocking treatment Session 290
+// gave Swedana's age floors, since nothing here explicitly forbids clinical-judgment use
+// below it the way, say, SAM/MAM explicitly forbids Virechana.
+function _pkRenderPediatricShirodharaPanel(p, pi) {
+  if (!(_pkIsPediatricPatient() && p.procedure_key === 'shirodhara')) return '';
+  const ageYears = _pkPatientAgeYears();
+  const ageBandLabel = p.pediatric_age_band || _pkGenericAgeBandLabel(ageYears);
+  const narrative = _pkPediatricNarrative['shirodhara'];
+  const assentApplicable = ageYears >= _PK_PEDIATRIC_ASSENT_MIN_AGE;
+  const oilTempRow = _pkProcedureParamsFor('shirodhara', 'oil_temp_c', ageYears)[0];
+  const oscRow = _pkProcedureParamsFor('shirodhara', 'oscillation_rate_per_min', ageYears)[0];
+  const flowRow = _pkProcedureParamsFor('shirodhara', 'oil_flow_ml_per_min', ageYears)[0];
+  const durationRow = _pkProcedureParamsFor('shirodhara', 'duration_minutes', ageYears)[0];
+  const courseRow = _pkProcedureParamsFor('shirodhara', 'course_days', ageYears)[0];
+  const volumeRow = _pkProcedureParamsFor('shirodhara', 'total_volume_liters', ageYears)[0];
+  const varianceRow = _pkProcedureParamsFor('shirodhara', 'temp_variance_c', ageYears)[0];
+
+  return `
+      <div style="border:2px solid var(--purple);border-radius:6px;padding:10px 12px;margin-bottom:10px;background:#fdf5fb">
+        <div style="font-weight:700;font-size:12.5px;color:var(--purple);margin-bottom:8px">🧒 Pediatric Shirodhara — patient is ${_esc(String(ageYears))} years old</div>
+        ${ageBandLabel ? `<div style="font-size:11px;color:var(--text-dark);margin-bottom:8px">${_esc(ageBandLabel)}</div>` : ''}
+
+        ${ageYears < 3 ? `
+        <div style="background:#fff8e1;border:1px solid #e6c200;border-radius:5px;padding:7px 10px;font-size:11.5px;color:#6b4c00;margin-bottom:8px">
+          ⚠ The document gives NO standardized Shirodhara protocol under 3 years (youngest documented band is Pre-schooler, 3-5yr) — proceed only on the attending physician's explicit clinical judgment for this specific condition.
+        </div>` : ''}
+
+        <div style="font-size:11px;color:var(--text-dark);margin-bottom:6px">
+          <strong>🌡 Oil temperature:</strong> ${oilTempRow ? `${oilTempRow.value_min}-${oilTempRow.value_max}${_esc(oilTempRow.unit)}` : '—'} (${oilTempRow?.notes ? _esc(oilTempRow.notes) : ''})
+        </div>
+        <div style="font-size:11px;color:var(--text-dark);margin-bottom:6px">
+          <strong>🔄 Oscillation rate:</strong> ${oscRow ? `${oscRow.value_min} ${_esc(oscRow.unit)}` : '—'}
+          &nbsp;·&nbsp; <strong>Flow rate:</strong> ${flowRow ? `${flowRow.value_min}-${flowRow.value_max} ${_esc(flowRow.unit)}` : '—'}
+        </div>
+        <div style="font-size:11px;color:var(--text-dark);margin-bottom:6px">
+          <strong>⏱ Session duration:</strong> ${durationRow ? `${durationRow.value_min}-${durationRow.value_max} ${_esc(durationRow.unit)}` : '—'}${durationRow?.notes ? ` — ${_esc(durationRow.notes)}` : ''}
+        </div>
+        <div style="font-size:11px;color:var(--text-dark);margin-bottom:6px">
+          <strong>📅 Course length:</strong> ${courseRow ? `${courseRow.value_min}-${courseRow.value_max} ${_esc(courseRow.unit)}` : '—'}
+          &nbsp;·&nbsp; <strong>Total oil:</strong> ${volumeRow ? `${volumeRow.value_min}-${volumeRow.value_max} ${_esc(volumeRow.unit)}` : '—'}${volumeRow?.notes ? ` (${_esc(volumeRow.notes)})` : ''}
+        </div>
+        <div style="font-size:10.5px;color:var(--text-muted);margin-bottom:8px">Post-procedure: avoid ambient temperature swings greater than ${varianceRow ? `${varianceRow.value_max}${_esc(varianceRow.unit)}` : '5°C'} from the procedure room.</div>
+
+        ${narrative?.contraindications ? `
+        <details style="margin-bottom:8px">
+          <summary style="font-size:11px;font-weight:600;color:var(--purple);cursor:pointer">⚠ Pediatric-specific contraindications — tap to review</summary>
+          <div style="font-size:10.5px;color:var(--text-mid);margin-top:4px">${_esc(narrative.contraindications)}</div>
+        </details>` : ''}
+
+        <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+          <label style="display:flex;align-items:flex-start;gap:6px;font-size:11.5px;margin-bottom:6px;cursor:pointer">
+            <input type="checkbox" ${p.pediatric_guardian_consent_obtained ? 'checked' : ''}
+              data-onchange="_pkTogglePediatricConsent" data-onchange-a0="${pi}" data-onchange-a1="pediatric_guardian_consent_obtained" data-onchange-a2="@this" style="margin-top:2px"/>
+            <span><strong>Written informed consent obtained from parent/guardian</strong> — required before this plan can be saved.</span>
+          </label>
+          ${assentApplicable ? `
+          <label style="display:flex;align-items:flex-start;gap:6px;font-size:11.5px;cursor:pointer">
+            <input type="checkbox" ${p.pediatric_assent_obtained ? 'checked' : ''}
+              data-onchange="_pkTogglePediatricConsent" data-onchange-a0="${pi}" data-onchange-a1="pediatric_assent_obtained" data-onchange-a2="@this" style="margin-top:2px"/>
+            <span><strong>Verbal/written assent obtained from the child</strong> — required before this plan can be saved.</span>
+          </label>` : `
+          <div style="font-size:10.5px;color:var(--text-muted)">Child assent: not applicable at this age (under ${_PK_PEDIATRIC_ASSENT_MIN_AGE} years) — guardian consent alone governs.</div>`}
+        </div>
+      </div>`;
+}
+
 async function _loadPkFeeIndex() {
   const { data } = await supabase.from('fee_structures')
     .select('ayush_code,label,amount,gst_percent,promo_price,promo_valid_until')
@@ -2768,6 +2839,11 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
   // Session 290 -- Abhyanga/Swedana: generic age-band label only (no growth-record check,
   // neither procedure lists SAM/MAM as a contraindication in the document).
   if (['abhyanga', 'swedana'].includes(_pkTemplateFamily(procedureKey)) && _pkIsPediatricPatient()) {
+    const newP = _pkProtocols[_pkProtocols.length - 1];
+    newP.pediatric_age_band = _pkGenericAgeBandLabel(_pkPatientAgeYears());
+  }
+  // Session 291 -- same generic age-band label for Shirodhara (7th and last procedure).
+  if (procedureKey === 'shirodhara' && _pkIsPediatricPatient()) {
     const newP = _pkProtocols[_pkProtocols.length - 1];
     newP.pediatric_age_band = _pkGenericAgeBandLabel(_pkPatientAgeYears());
   }
@@ -3153,6 +3229,7 @@ function _renderPkCalendar() {
       ${p.procedure_key === 'nasya' ? _pkRenderPediatricNasyaPanel(p, pi) : ''}
       ${_pkRenderPediatricAbhyangaPanel(p, pi)}
       ${_pkRenderPediatricSwedanaPanel(p, pi)}
+      ${p.procedure_key === 'shirodhara' ? _pkRenderPediatricShirodharaPanel(p, pi) : ''}
       ${p.procedure_key === 'basti' ? `
       <div style="border:1.5px solid var(--blue);border-radius:6px;padding:9px 12px;margin-bottom:10px;background:#f5f8ff;font-size:11.5px;color:var(--text-dark)">
         <strong>📌 Standing instruction:</strong> Local Abhyanga + Swedana (~10 minutes) is performed immediately before <em>every</em> Anuvasana and every Niruha administration — not a separate scheduled day. Applies throughout the whole course, every administration day, without needing its own calendar entry.
@@ -4200,7 +4277,7 @@ window.savePkCarePlan = async function() {
   // assent too -- same hard block as the Basti-pack-type/schedule checks above, never
   // a silent skip. Reused generically across both procedures (both use the exact same
   // pediatric_guardian_consent_obtained/pediatric_assent_obtained columns).
-  const _PK_PEDIATRIC_GATED_PROCEDURES = ['basti', 'virechana', 'vamana', 'nasya'];
+  const _PK_PEDIATRIC_GATED_PROCEDURES = ['basti', 'virechana', 'vamana', 'nasya', 'shirodhara'];
   // Session 290 -- Abhyanga/Swedana gate by technique_family, not procedure_key, since
   // they're generic modifiers across every already-cataloged variant of each family.
   const _PK_PEDIATRIC_GATED_FAMILIES = ['abhyanga', 'swedana'];
