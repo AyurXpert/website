@@ -108,6 +108,35 @@ export function labItemsToSelection(items) {
   return new Map((items || []).map(i => [i.test_name, i.panel_label || null]));
 }
 
+// Session 297 -- an IPD-origin lab order (doctor.html's IPD Orders panel) has no OPD
+// bill to attach to; it's staged to ipd_stay_charges instead, same 'pending' staging
+// PK sessions/room tariff already use -- reconciled at discharge like everything else
+// there (nursing.js's Discharge Reconciliation). Called from lab.js's saveResults()
+// once results are actually finalized (status='completed'), not at order time -- an
+// order that's cancelled or never processed shouldn't get charged. Idempotent: skips
+// if this order was already staged (a report can be re-released after edits).
+export async function stageIpdLabCharges({ supabase, tenantId, ipdAdmissionId, labOrderId, items, userId }) {
+  const { data: already } = await supabase.from('ipd_stay_charges')
+    .select('id').eq('ipd_admission_id', ipdAdmissionId).eq('source', 'lab').eq('source_ref_id', labOrderId).limit(1);
+  if (already?.length) return { skipped: true };
+
+  const { data: feeRows, error: feeErr } = await supabase.from('fee_structures')
+    .select('label,amount,gst_percent,promo_price,promo_valid_until')
+    .eq('tenant_id', tenantId).eq('is_active', true).in('category', ['lab', 'radiology']);
+  if (feeErr) return { error: feeErr };
+  const { lines, unmatched } = computeLabBillingLines(labItemsToSelection(items), feeRows || []);
+  if (!lines.length) return { unmatched };
+
+  const rows = lines.map(l => ({
+    tenant_id: tenantId, ipd_admission_id: ipdAdmissionId, source: 'lab', source_ref_id: labOrderId,
+    description: l.description, quantity: 1, unit_price: l.price, gst_percent: l.gst_percent,
+    amount: l.price, status: 'pending', added_by: userId,
+  }));
+  const { error } = await supabase.from('ipd_stay_charges').insert(rows);
+  if (error) return { error };
+  return { staged: rows.length, unmatched };
+}
+
 // "Before next visit" order, collected at reception: price it, create a new
 // 'investigation' bill for the patient dated today (status paid, the mode just
 // collected), and attach one bill_items row per priced line (lab_order_id-linked, same

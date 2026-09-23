@@ -23,6 +23,8 @@ let _lastSavedRoundId = null;   // this session's most-recently-saved round note
 let _orderTab = 'meds';
 let _medRowSeq = 0;
 let _activeOrders = [];
+let _dietOrders = [];
+let _pkPlanForAdm = null;
 const FREQ_TO_MAR = { OD: 'once_daily', BD: 'twice_daily', TDS: 'thrice_daily', QID: 'four_times', SOS: 'sos', HS: 'hs', QAM: 'qam', QPM: 'qpm' };
 const ROUTE_LABEL = { oral: 'Oral', iv: 'IV', im: 'IM', sc: 'SC', nasal: 'Nasal', topical: 'Topical', rectal: 'Rectal', sublingual: 'Sublingual' };
 
@@ -41,6 +43,15 @@ const _defaultLabel = () => { const h = new Date().getHours(); return h < 12 ? '
 const _pctText = v => v > 0 ? `${v}% better` : v < 0 ? `${Math.abs(v)}% worse` : 'No change';
 
 export function isIpdRoundOpen() { return !!_adm; }
+// Session 297 -- doctor IPD part 3 session 2: lets doctor.js's shared lab/imaging order
+// modals (already used from a normal OPD consultation) detect "this order is actually
+// for the currently open ward round" without wardRounds.js needing to know anything
+// about lab/imaging itself.
+export function getOpenIpdAdmission() { return _adm; }
+// Session 297 -- called by doctor.js after a lab/imaging order is submitted for the
+// open ward round (from the shared OPD modals), so the Investigations tab's list
+// reflects it without waiting for the whole round to reopen.
+export function refreshIpdInvestigations() { if (_adm) _loadInvestigations(_adm.id); }
 
 export async function openIpdRound(adm, ctx) {
   _c = ctx; _adm = adm;
@@ -67,6 +78,9 @@ export async function openIpdRound(adm, ctx) {
   _resetOrderForm();
   _switchOrderPane();
   _loadActiveOrders(adm.id);
+  _loadInvestigations(adm.id);
+  _loadDietOrders(adm.id);
+  _loadPkForAdm(adm.id);
 
   const [nR, vR] = await Promise.all([
     _c.supabase.from('ward_round_notes')
@@ -415,3 +429,117 @@ window.countersignOrder = async function(id) {
   _c.toast?.('Order countersigned.', 'info');
   _loadActiveOrders(_adm.id);
 };
+
+// ── Orders panel (Investigations) -- Session 297 ────────────────────────────────────
+// Ordering itself reuses doctor.js's existing lab/imaging modals (openLabOrderModal()/
+// openImgOrderModal() detect this open round and borrow its patient/visit); this just
+// lists what's already been ordered for this admission.
+const LAB_STATUS_LABEL = { pending: 'Pending', sample_collected: 'Sample collected', in_progress: 'In progress', completed: '✓ Completed' };
+const IMG_STATUS_LABEL = { ordered: 'Ordered', performed: 'Performed', reported: '✓ Reported' };
+
+async function _loadInvestigations(admId) {
+  const [lR, iR] = await Promise.all([
+    _c.supabase.from('lab_orders')
+      .select('id, status, priority, created_at, lab_order_items(test_name)')
+      .eq('ipd_admission_id', admId).order('created_at', { ascending: false }),
+    _c.supabase.from('imaging_orders')
+      .select('id, modality, study_name, status, priority, created_at')
+      .eq('ipd_admission_id', admId).order('created_at', { ascending: false }),
+  ]);
+  const rows = [
+    ...(lR.data || []).map(o => ({ type: 'lab', id: o.id, status: o.status, priority: o.priority, created_at: o.created_at,
+      label: (o.lab_order_items || []).map(i => i.test_name).join(', ') || '—' })),
+    ...(iR.data || []).map(o => ({ type: 'img', id: o.id, status: o.status, priority: o.priority, created_at: o.created_at,
+      label: `${o.modality?.toUpperCase() || ''} — ${o.study_name}` })),
+  ].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+
+  const e = _c.esc;
+  const box = document.getElementById('ordi-list');
+  if (!box) return;
+  box.innerHTML = !rows.length ? '<div class="ordm-empty">No investigations ordered yet.</div>'
+    : rows.map(r => `<div class="ordm-active-row">
+        <div>
+          <div class="ordm-active-name">${r.type === 'lab' ? '🧪' : '📡'} ${e(r.label)}</div>
+          <div class="ordm-active-meta">${e((r.type === 'lab' ? LAB_STATUS_LABEL[r.status] : IMG_STATUS_LABEL[r.status]) || r.status)}${r.priority && r.priority !== 'routine' ? ' · ' + e(r.priority.toUpperCase()) : ''}</div>
+        </div>
+      </div>`).join('');
+}
+
+// ── Orders panel (Diet) -- Session 297 ──────────────────────────────────────────────
+async function _loadDietOrders(admId) {
+  const { data } = await _c.supabase.from('ipd_diet_orders')
+    .select('id, diet_type, instructions, created_at')
+    .eq('admission_id', admId).order('created_at', { ascending: false });
+  _dietOrders = data || [];
+  document.getElementById('ordd-type').value = '';
+  document.getElementById('ordd-instructions').value = '';
+  document.getElementById('ordd-err').textContent = '';
+  _renderDietOrders();
+}
+
+function _renderDietOrders() {
+  const e = _c.esc;
+  const box = document.getElementById('ordd-list');
+  if (!box) return;
+  box.innerHTML = !_dietOrders.length ? '<div class="ordm-empty">No diet order recorded yet.</div>'
+    : _dietOrders.map((d, i) => `<div class="ordm-active-row ${i === 0 ? '' : 'stopped'}">
+        <div>
+          <div class="ordm-active-name">${e(d.diet_type)} ${i === 0 ? '<span style="color:var(--green-deep);font-weight:600;font-size:11px">CURRENT</span>' : ''}</div>
+          <div class="ordm-active-meta">${e(new Date(d.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }))}${d.instructions ? ' · ' + e(d.instructions) : ''}</div>
+        </div>
+      </div>`).join('');
+}
+
+window.saveDietOrder = async function() {
+  const dietType = document.getElementById('ordd-type').value.trim();
+  const err = document.getElementById('ordd-err');
+  if (!dietType) { err.textContent = 'Enter a diet type.'; return; }
+  err.textContent = '';
+  const instructions = document.getElementById('ordd-instructions').value.trim() || null;
+  const btn = document.getElementById('ordd-save');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const { error } = await _c.supabase.from('ipd_diet_orders').insert({
+    tenant_id: _c.tenantId, admission_id: _adm.id, diet_type: dietType, instructions, ordered_by: _c.userId,
+  });
+  btn.disabled = false; btn.textContent = '✓ Save diet order';
+  if (error) { err.textContent = 'Could not save: ' + error.message; return; }
+  // Keep ipd_admissions.diet_type synced (used elsewhere -- e.g. ipd.js's admission card).
+  await _c.supabase.from('ipd_admissions').update({ diet_type: dietType }).eq('id', _adm.id);
+  _c.toast?.('Diet order saved.', 'info');
+  _loadDietOrders(_adm.id);
+};
+
+// ── Orders panel (Panchakarma) -- Session 297 ───────────────────────────────────────
+// Creation itself reuses the same PK Care Plan wizard a normal OPD consultation uses
+// (doctor.js's window.openPkWizardForAdmission()); this shows what's already there, or
+// the entry point to start one.
+async function _loadPkForAdm(admId) {
+  const { data } = await _c.supabase.from('pk_care_plans')
+    .select('id, status, created_at, pk_care_plan_protocols(protocol_label)')
+    .eq('ipd_admission_id', admId).order('created_at', { ascending: false });
+  _pkPlanForAdm = (data || [])[0] || null;
+  _renderPkTab();
+}
+
+function _renderPkTab() {
+  const e = _c.esc;
+  const box = document.getElementById('ordpk-body');
+  if (!box) return;
+  if (!_pkPlanForAdm) {
+    box.innerHTML = `<div class="ordm-empty" style="padding-bottom:10px">No Panchakarma Care Plan for this admission yet.</div>
+      <button type="button" class="ordm-add" data-onclick="_openPkForCurrentAdm">🌸 Start Panchakarma Care Plan</button>`;
+    return;
+  }
+  const protocols = (_pkPlanForAdm.pk_care_plan_protocols || []).map(p => p.protocol_label).join(', ') || '—';
+  box.innerHTML = `<div class="ordm-active-row">
+      <div>
+        <div class="ordm-active-name">🌸 ${e(protocols)}</div>
+        <div class="ordm-active-meta">Status: ${e(_pkPlanForAdm.status)} · Created ${e(_fmtD(_pkPlanForAdm.created_at.slice(0, 10)))}</div>
+      </div>
+      <div class="ordm-active-actions">
+        <a class="ordm-btn ordm-btn-sign" style="text-decoration:none;display:inline-flex;align-items:center" href="ipd.html?admission_id=${encodeURIComponent(_adm.id)}">🏥 Open in IPD →</a>
+      </div>
+    </div>`;
+}
+
+window._openPkForCurrentAdm = function() { if (_adm) _c.openPkForAdmission?.(_adm); };

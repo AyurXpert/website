@@ -9,7 +9,7 @@ import { isNCISMType } from '../config/ncism.js';
 import { addOpdBillItem } from '../modules/billing/opdBillItems.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { LAB_PANELS, computeLabBillingLines } from '../modules/billing/labBilling.js';
-import { openIpdRound, closeIpdRound } from '../modules/ipd/wardRounds.js';
+import { openIpdRound, closeIpdRound, getOpenIpdAdmission, refreshIpdInvestigations } from '../modules/ipd/wardRounds.js';
 import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { openTimePicker, formatTime12 } from '../components/timePicker.js';
@@ -781,7 +781,7 @@ window.openIpdRoundFromList = function(admId) {
     return;
   }
   document.getElementById('c-active').style.display = 'none';
-  openIpdRound(a, { supabase, esc: _esc, tenantId, userId, isTrainee: _isTrainee, toast: _toast, getInventory: () => _inventory });
+  openIpdRound(a, { supabase, esc: _esc, tenantId, userId, isTrainee: _isTrainee, toast: _toast, getInventory: () => _inventory, openPkForAdmission: window.openPkWizardForAdmission });
 };
 
 // One batch of queries for all cards: labs (critical/abnormal since admission), PK today.
@@ -1969,6 +1969,11 @@ let _pkProtocols     = [];   // working list: {template_id, procedure_key, proto
 let _pkStep          = 1;
 let _pkLastEstimate  = null;
 let _pkPlanSaved     = false;
+// Session 297 -- doctor IPD part 3 session 2: set only while the PK wizard is open for
+// an already-admitted patient's ward round (not a normal OPD consultation). See
+// window.openPkWizardForAdmission()/closePkWizardForAdmission().
+let _pkForAdmissionId  = null;
+let _pkForAdmissionCtx = null;
 
 async function _loadPkTemplates() {
   const { data: templates } = await supabase.from('pk_sop_templates').select('*').order('phase_group').order('display_name');
@@ -4214,7 +4219,12 @@ window._pkRecomputeStep4 = async function() {
   const el = document.getElementById('pk-estimate-step4');
   if (!el) return;
   const myToken = ++_pkRecomputeToken;
-  const setting = document.querySelector('input[name="pk-setting"]:checked')?.value || 'day_care';
+  // Session 297 -- the Setting radio group is hidden entirely in IPD-admission mode (no
+  // radio is ever checked there), so this must resolve the same way savePkCarePlan()
+  // does -- otherwise this falls through to the `|| 'day_care'` default and prices a
+  // phantom General Ward room charge on top of the room the patient's already paying
+  // for via the real admission (this exact bug was caught live before shipping).
+  const setting = _pkForAdmissionId ? 'ipd_admission' : (document.querySelector('input[name="pk-setting"]:checked')?.value || 'day_care');
   document.getElementById('pk-room-type-field').style.display = setting === 'admission' ? '' : 'none';
 
   const est = _pkComputeEstimate();
@@ -4312,6 +4322,61 @@ function _resetPkCarePlan() {
   const saveBtn = document.getElementById('btn-save-pk-plan');
   if (saveBtn) saveBtn.textContent = '🌸 Save Care Plan';
 }
+
+// Session 297 -- doctor IPD part 3 session 2: open the same PK wizard used from a normal
+// OPD consultation, but scoped to an already-admitted patient's ward round. _activePatient/
+// _activeVisitId are the wizard's real data source (untouched otherwise) -- borrowing them
+// here is deliberate reuse, not a parallel implementation. Locks navigation to the PK tab
+// only (see doctor.html's pk-ipd-banner comment) since every other tab assumes a live OPD
+// visit that create_ipd_admission() has already closed.
+window.openPkWizardForAdmission = function(adm) {
+  if (!_hasPK) { _toast('Panchakarma is not enabled for this organisation.', 'error'); return; }
+  if (_activeVisitId) { _toast('Finish or close the open OPD consultation first.', 'error'); return; }
+  _pkForAdmissionId = adm.id;
+  _pkForAdmissionCtx = adm;
+  _activePatient = { id: adm.patient_id, name: adm.patients?.name || '—' };
+  _activeVisitId = adm.visit_id;
+
+  document.getElementById('c-ipd').style.display = 'none';
+  document.getElementById('c-active').style.display = '';
+  document.getElementById('tabs').style.display = 'none';
+  document.getElementById('pt-hdr').style.display = 'none';
+  // Hide banners a real startConsultation() would normally reset for the new patient --
+  // this mode never calls it, so a stale one from an earlier OPD consultation this
+  // session (different patient) would otherwise keep showing.
+  document.getElementById('ref-banner').style.display = 'none';
+  document.getElementById('allergy-banner').style.display = 'none';
+  document.getElementById('anc-risk-banner').style.display = 'none';
+  document.getElementById('pk-ipd-banner').style.display = 'flex';
+  document.getElementById('pk-ipd-banner-name').textContent = adm.patients?.name || '—';
+  document.getElementById('pk-setting-row').style.display = 'none';
+  document.getElementById('pk-setting-ipd-note').style.display = '';
+  // The bottom action bar (Complete & Send to Pharmacy / Med Cert / Print Rx / ✕ close-
+  // without-saving) all assume a live OPD consultation -- none apply here, and ✕ in
+  // particular would leave this mode's state stuck (bypasses closePkWizardForAdmission()'s
+  // own cleanup). Hidden entirely; "← Back to Ward Round" in pk-ipd-banner is the only exit.
+  document.getElementById('c-active-action-bar').style.display = 'none';
+
+  _resetPkCarePlan();
+  ALL_TABS.forEach(id => { const el = document.getElementById(`tab-${id}`); if (el) el.hidden = id !== 'pk'; });
+  _pkCheckExistingDraft(adm.patient_id);
+};
+
+window.closePkWizardForAdmission = function() {
+  const adm = _pkForAdmissionCtx;
+  _pkForAdmissionId = null; _pkForAdmissionCtx = null;
+  _activePatient = null; _activeVisitId = null;
+
+  document.getElementById('c-active').style.display = 'none';
+  document.getElementById('tabs').style.display = '';
+  document.getElementById('pt-hdr').style.display = '';
+  document.getElementById('pk-ipd-banner').style.display = 'none';
+  document.getElementById('pk-setting-row').style.display = '';
+  document.getElementById('pk-setting-ipd-note').style.display = 'none';
+  document.getElementById('c-active-action-bar').style.display = '';
+
+  if (adm) window.openIpdRoundFromList(adm.id);
+};
 
 // ── Session 268 -- Add protocol(s) to / edit an existing draft Care Plan ────────────
 // Scope (deliberate): only ever offered for a plan still status='finalized' -- i.e.
@@ -4512,7 +4577,9 @@ window.savePkCarePlan = async function() {
     if (missingShuddhiTier) { alert('Assess the Shuddhi dose tier (Uttam/Madhyama/Hina) for this pediatric Virechana plan in Step 2 before saving.'); return; }
   }
   const settingEl = document.querySelector('input[name="pk-setting"]:checked');
-  const setting = settingEl ? settingEl.value : 'day_care';
+  // Session 297 -- a plan opened from an admission's ward round has no Setting choice
+  // (see openPkWizardForAdmission()) -- it always activates for that admission.
+  const setting = _pkForAdmissionId ? 'ipd_admission' : (settingEl ? settingEl.value : 'day_care');
 
   const btn = document.getElementById('btn-save-pk-plan');
   btn.disabled = true; btn.textContent = 'Saving…';
@@ -4754,6 +4821,18 @@ window.savePkCarePlan = async function() {
         ? `sent to Reception, but its cost breakdown could not be saved (${safeErrorMessage(itemsErr, 'error')}) — please check the Admission Advice tab`
         : (existingAdmissionAdviceId ? `updated in Reception's Admission Requests queue` : `sent to Reception's Admission Requests queue`);
     }
+  } else if (setting === 'ipd_admission' && _pkForAdmissionId) {
+    // Session 297 -- no reception hand-off, no advance: the patient is already admitted,
+    // so this activates immediately (generates + auto-assigns real sessions right away).
+    // Safe to call unconditionally here -- editing is only ever offered for a plan still
+    // status='finalized' (see _pkLoadExistingDraft()'s own scope comment), so this branch
+    // never runs against an already-active plan.
+    const { error: actErr } = await supabase.rpc('activate_pk_care_plan_for_admission', {
+      p_plan_id: plan.id, p_admission_id: _pkForAdmissionId,
+    });
+    handoffMsg = actErr
+      ? `could not be activated for this admission (${safeErrorMessage(actErr, 'error')}) — please try again`
+      : `activated immediately for this admission — Panchakarma sessions have been generated and auto-assigned where possible`;
   }
 
   _pkPlanSaved = true;
@@ -8091,7 +8170,15 @@ const IMG_STUDIES_DOC = {
   outside:['Outside — Lab Tests','Outside — MRI','Outside — CT Scan','Outside — PET Scan','Outside — Nuclear Medicine','Outside — Other (specify)'],
 };
 
+// Session 297 -- set only when openImgOrderModal() borrowed its patient/visit context
+// from an open IPD ward round (see closeImgOrderModal()).
+let _imgOrderIpdAdm = null;
+
 function openImgOrderModal() {
+  // Session 297 -- same borrow-from-the-open-ward-round pattern as openLabOrderModal().
+  const ipdAdm = !_activePatient ? getOpenIpdAdmission() : null;
+  _imgOrderIpdAdm = ipdAdm;
+  if (ipdAdm) { _activePatient = { id: ipdAdm.patient_id, name: ipdAdm.patients?.name || '—' }; _activeVisitId = ipdAdm.visit_id; }
   if (!_activePatient) { alert('Select a patient first.'); return; }
   updateImgStudyOpts();
   document.getElementById('io-indication').value = '';
@@ -8101,6 +8188,8 @@ function openImgOrderModal() {
   document.getElementById('io-when').value = 'today';
   document.getElementById('io-due-by').value = '';
   window.onImgWhenChange();
+  document.getElementById('io-when-row').style.display = ipdAdm ? 'none' : '';
+  document.getElementById('io-ipd-note').style.display = ipdAdm ? '' : 'none';
   document.getElementById('img-order-overlay').style.display = 'flex';
 }
 // Session 295 -- was a bare function: the "Order Imaging" button's delegated
@@ -8116,7 +8205,10 @@ window.onImgWhenChange = function() {
     due.min = todayLocalStr();
   }
 };
-window.closeImgOrderModal = function() { document.getElementById('img-order-overlay').style.display = 'none'; };
+window.closeImgOrderModal = function() {
+  if (_imgOrderIpdAdm) { _activePatient = null; _activeVisitId = null; _imgOrderIpdAdm = null; }
+  document.getElementById('img-order-overlay').style.display = 'none';
+};
 
 window.updateImgStudyOpts = function() {
   const mod = document.getElementById('io-modality')?.value || 'xray';
@@ -8130,11 +8222,13 @@ window.submitImgOrder = async function() {
   if (!_activePatient) return;
   const mod   = document.getElementById('io-modality').value;
   const study = document.getElementById('io-study').value;
-  const nextVisit = document.getElementById('io-when').value === 'next_visit';
+  const isIpd = !!_imgOrderIpdAdm;
+  const nextVisit = !isIpd && document.getElementById('io-when').value === 'next_visit';
   const { error } = await supabase.from('imaging_orders').insert({
     tenant_id:           tenantId,
     patient_id:          _activePatient.id,
     visit_id:            _activeVisitId,
+    ipd_admission_id:    _imgOrderIpdAdm?.id || null,
     ordered_by:          userId,
     order_date:          todayLocalStr(),
     order_time:          new Date().toTimeString().slice(0,8),
@@ -8151,15 +8245,20 @@ window.submitImgOrder = async function() {
   });
   if (error) { alert(safeErrorMessage(error, 'Could not save imaging order.')); return; }
 
-  // Update imaging text field
-  const existing = document.getElementById('as-inv-imaging').value.trim();
-  const label = `${{xray:'X-Ray',usg:'USG',ecg:'ECG',echo:'ECHO',doppler:'Doppler',mri:'MRI',ct:'CT',outside:'Outside'}[mod]||mod}: ${study}`;
-  document.getElementById('as-inv-imaging').value = existing ? existing + ', ' + label : label;
+  // Update imaging text field -- OPD-consultation-form-only, skipped for an IPD order.
+  if (!isIpd) {
+    const existing = document.getElementById('as-inv-imaging').value.trim();
+    const label = `${{xray:'X-Ray',usg:'USG',ecg:'ECG',echo:'ECHO',doppler:'Doppler',mri:'MRI',ct:'CT',outside:'Outside'}[mod]||mod}: ${study}`;
+    document.getElementById('as-inv-imaging').value = existing ? existing + ', ' + label : label;
+  }
 
   closeImgOrderModal();
-  alert(nextVisit
-    ? `📅 ${study} advised before the next visit.\n\nRadiology can do it any day before then; if done outside, enter the report at the follow-up visit.`
-    : `✅ Imaging order submitted: ${study}`);
+  if (isIpd) refreshIpdInvestigations();
+  alert(isIpd
+    ? `✅ Imaging order submitted for this admission: ${study}`
+    : nextVisit
+      ? `📅 ${study} advised before the next visit.\n\nRadiology can do it any day before then; if done outside, enter the report at the follow-up visit.`
+      : `✅ Imaging order submitted: ${study}`);
 };
 
 // ── Lab Order Module ──────────────────────────────────────────────────────────
@@ -8223,6 +8322,9 @@ async function _billLabOrder(labSelected, labOrderId) {
 // its panel association (null = individually selected) since that's a
 // deliberate choice on that one test, separate from the bundle.
 let _labSelected = new Map();
+// Session 297 -- set only when openLabOrderModal() borrowed its patient/visit context
+// from an open IPD ward round (see that function + closeLabOrderModal()).
+let _labOrderIpdAdm = null;
 
 // 6 Sep 2026 (Session 198) — real bug found live-testing: declared as a bare `function`,
 // unreachable from the "🧪 Order via Lab Module" button's data-onclick="openLabOrderModal"
@@ -8231,12 +8333,21 @@ let _labSelected = new Map();
 // only lab-ordering entry point in doctor.html. Every sibling handler here (closeLabOrderModal,
 // submitLabOrder, selectPanel, etc.) is correctly assigned to window — this one was missed.
 window.openLabOrderModal = function openLabOrderModal() {
+  // Session 297 -- reused as-is from an open IPD ward round: borrow the admission's
+  // patient/visit the same way openPkWizardForAdmission() does (see that function's
+  // comment). Only kicks in when no OPD consultation is already the active context.
+  const ipdAdm = !_activePatient ? getOpenIpdAdmission() : null;
+  _labOrderIpdAdm = ipdAdm;
+  if (ipdAdm) { _activePatient = { id: ipdAdm.patient_id, name: ipdAdm.patients?.name || '—' }; _activeVisitId = ipdAdm.visit_id; }
   if (!_activePatient) { alert('Select a patient first.'); return; }
   _labSelected = new Map();
   // Session 295 -- every new order starts as "Today" (no carry-over between patients).
   document.getElementById('lo-when').value = 'today';
   document.getElementById('lo-due-by').value = '';
   window.onLabWhenChange();
+  document.getElementById('lo-when-field').style.display = ipdAdm ? 'none' : '';
+  document.getElementById('lo-bypass-wrap').style.display = ipdAdm ? 'none' : 'flex';
+  document.getElementById('lo-ipd-note').style.display = ipdAdm ? '' : 'none';
   // Build panels
   document.getElementById('lo-panels').innerHTML = LAB_PANELS.map(p =>
     `<button data-onclick="_selectPanelFromAttr" data-onclick-a0="${_esc(JSON.stringify(p.tests))}" data-onclick-a1="${_esc(p.label)}"
@@ -8280,6 +8391,10 @@ function updateLabCount() {
 }
 
 window.closeLabOrderModal = function() {
+  // Session 297 -- undo openLabOrderModal()'s borrowed IPD patient/visit context so the
+  // ward round view's own "no active OPD consultation" state (openIpdRoundFromList()'s
+  // guard) isn't left incorrectly tripped after this modal closes.
+  if (_labOrderIpdAdm) { _activePatient = null; _activeVisitId = null; _labOrderIpdAdm = null; }
   document.getElementById('lab-order-overlay').style.display = 'none';
 };
 
@@ -8323,18 +8438,23 @@ window.submitLabOrder = async function() {
   // doctor finalizes the consultation, even though it's billed immediately
   // below same as any other order -- matches "no draft order reaches the
   // payment counter/lab until the professor signs off."
+  // Session 297 -- an IPD order is always "today" (the "before next visit"/emergency-
+  // bypass concepts don't apply to an admitted patient) and skips the payment gate
+  // entirely via payment_status='ipd_credit' -- lab.js's markSampleCollected() only
+  // blocks on ==='pending', so this passes through unchanged there.
   const { data: order, error: oErr } = await supabase.from('lab_orders').insert({
     tenant_id:  tenantId,
     visit_id:   _activeVisitId,
+    ipd_admission_id: _labOrderIpdAdm?.id || null,
     status:     'pending',
     priority,
     clinical_notes: clinicalNotes,
     ordered_by: profile.id,
-    payment_status: bypassPayment ? 'waived' : 'pending',
+    payment_status: _labOrderIpdAdm ? 'ipd_credit' : (bypassPayment ? 'waived' : 'pending'),
     drafted_by: _isTrainee ? profile.id : null,
     review_status: _isTrainee ? 'pending_review' : 'finalized',
-    due_timing: nextVisit ? 'next_visit' : 'today',
-    due_by: dueBy,
+    due_timing: _labOrderIpdAdm ? 'today' : (nextVisit ? 'next_visit' : 'today'),
+    due_by: _labOrderIpdAdm ? null : dueBy,
   }).select('id').single();
   if (oErr) { alert('Error creating order: ' + oErr.message); return; }
 
@@ -8346,21 +8466,28 @@ window.submitLabOrder = async function() {
   const { error: iErr } = await supabase.from('lab_order_items').insert(items);
   if (iErr) { alert('Error adding tests: ' + iErr.message); return; }
 
-  // Update as-inv-lab text field
-  const existingText = document.getElementById('as-inv-lab').value.trim();
-  const newTests = [..._labSelected.keys()].join(', ');
-  document.getElementById('as-inv-lab').value = existingText ? existingText + ', ' + newTests : newTests;
+  // Update as-inv-lab text field -- OPD-consultation-form-only, meaningless for an IPD
+  // order (no such field in the ward round view).
+  if (!_labOrderIpdAdm) {
+    const existingText = document.getElementById('as-inv-lab').value.trim();
+    const newTests = [..._labSelected.keys()].join(', ');
+    document.getElementById('as-inv-lab').value = existingText ? existingText + ', ' + newTests : newTests;
+  }
 
   // Session 124 Step 4 (charge attaches to the bill immediately) + Session 126
   // (payment now gates the lab, unless bypassed above) -- billing itself is never
   // blocking, the clinical order is already saved regardless of what happens here.
-  const { unmatched, noBill } = nextVisit
+  // Session 297 -- an IPD order has no OPD bill to attach to; it's staged to
+  // ipd_stay_charges by lab.js itself once results are finalized, not here.
+  const { unmatched, noBill } = (nextVisit || _labOrderIpdAdm)
     ? { unmatched: [], noBill: false }
     : await _billLabOrder(_labSelected, order.id);
 
+  const isIpd = !!_labOrderIpdAdm;
+  const testCount = _labSelected.size;
   closeLabOrderModal();
   if (nextVisit) {
-    alert(`📅 ${_labSelected.size} test${_labSelected.size === 1 ? '' : 's'} advised before the next visit` +
+    alert(`📅 ${testCount} test${testCount === 1 ? '' : 's'} advised before the next visit` +
       (dueBy ? ` (by ${new Date(dueBy + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})` : '') +
       `.
 
@@ -8368,7 +8495,12 @@ Not billed today. If done at our lab, the patient pays at reception on that day;
     loadLabResults();
     return;
   }
-  let msg = `✅ Lab order submitted: ${_labSelected.size} tests ordered.`;
+  if (isIpd) {
+    refreshIpdInvestigations();
+    alert(`✅ Lab order submitted: ${testCount} test${testCount === 1 ? '' : 's'} ordered for this admission.\n\n🏥 No payment step — the lab can collect the sample immediately. Charged to the IPD stay once results are finalized.`);
+    return;
+  }
+  let msg = `✅ Lab order submitted: ${testCount} tests ordered.`;
   if (bypassPayment) msg += `\n\n🚨 Emergency bypass — lab can proceed immediately. Payment is still owed and will show as pending at reception.`;
   else msg += `\n\n⏳ Payment pending — patient must pay at reception before the lab can collect the sample.`;
   if (noBill) msg += `\n\n⚠ No bill found for this visit -- lab charges were not added. Please add them manually via reception.`;

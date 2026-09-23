@@ -5,6 +5,7 @@ import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { stageIpdLabCharges } from '../modules/billing/labBilling.js';
 
 // Session 113 -- receptionist added so front-desk staff can check whether a patient's
 // report is ready when they call in (Dr. Venkatesh's ask). Deliberately read-only and
@@ -557,6 +558,17 @@ window.saveResults = async function(status) {
   // to gate the call itself on having a number specifically.
   if (status === 'completed') {
     _abdmCareContextLabReport(_activeOrder).catch(() => {});
+  }
+
+  // Session 297 -- an IPD order (doctor.html's IPD Orders panel) is charged to the stay
+  // once its report is actually released, not at order time -- see stageIpdLabCharges().
+  if (status === 'completed' && _activeOrder.ipd_admission_id) {
+    const staged = await stageIpdLabCharges({
+      supabase, tenantId, ipdAdmissionId: _activeOrder.ipd_admission_id,
+      labOrderId: _activeOrder.id, items: _activeItems, userId,
+    });
+    if (staged.error) console.warn('[lab] stageIpdLabCharges:', staged.error.message);
+    else if (staged.unmatched?.length) console.warn('[lab] stageIpdLabCharges unmatched:', staged.unmatched);
   }
 
   _alert('success', status === 'completed' ? 'Report released. Doctor notified of critical values.' : 'Results saved as in-progress.');
