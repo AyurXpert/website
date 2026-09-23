@@ -12,6 +12,7 @@ import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { openTimePicker, formatTime12 } from '../components/timePicker.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { loadVisitTimeline, resetVisitTimeline } from '../modules/patient/visitTimeline.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -1251,6 +1252,14 @@ window.startConsultation = async function(visitId) {
   _activeVisit     = visit;
   _activePatient   = visit?.patients;
   _activeNcismCode = visit?.opds?.ncism_code || null;
+
+  // Session 295 -- follow-up Visit History rail (this department's previous visits +
+  // admissions, newest first). Not blocking; shows for any patient with a prior visit
+  // here, not only visit_category='followup'.
+  loadVisitTimeline({
+    supabase, esc: _esc, tenantId, patientId: visit?.patient_id, currentVisitId: visitId,
+    ncismCode: _activeNcismCode, opdId: visit?.opd_id,
+  });
 
   // Session 268 -- an existing not-yet-activated Care Plan for this patient (drafted
   // by any doctor, any visit) can be resumed/added to; fired without blocking the
@@ -7486,6 +7495,7 @@ function _closeConsult() {
 }
 
 function _clearForm() {
+  resetVisitTimeline();
   const textInputs = [
     'h-complaint','h-duration','h-aggravating','h-relieving','h-associated','h-history',
     'np-purvarupa','np-rupa','np-samprapti','np-upashaya',

@@ -280,6 +280,67 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 /* Tab content */
 .tab-body{flex:1;min-height:0;overflow-y:auto;padding:20px 24px 80px}
 
+/* ── Session 295: follow-up Visit History rail + side panel ─────────── */
+.c-work{display:flex;flex:1;min-height:0}
+.c-main{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0}
+.vh-rail{width:210px;flex-shrink:0;display:flex;flex-direction:column;min-height:0;background:var(--white);border-right:1px solid var(--border)}
+.vh-rail[hidden]{display:none}
+.vh-rail-hdr{padding:10px 12px;border-bottom:1px solid var(--border)}
+.vh-rail-title{font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:700;color:var(--green-deep)}
+.vh-rail-meta{font-size:11px;color:var(--text-muted);margin-top:2px}
+.vh-list{flex:1;min-height:0;overflow-y:auto;padding:8px}
+.vh-item{display:flex;flex-direction:column;gap:2px;width:100%;min-height:44px;text-align:left;font-family:'DM Sans',sans-serif;
+  background:var(--white);border:1px solid var(--border);border-left:4px solid var(--green-mid);border-radius:8px;
+  padding:8px 10px;margin-bottom:6px;cursor:pointer;color:var(--text-dark);transition:background .15s,border-color .15s}
+button.vh-item:hover{background:var(--green-light)}
+button.vh-item:focus-visible{outline:2px solid var(--green-deep);outline-offset:2px}
+.vh-item.active{background:var(--green-light);border-color:var(--green-deep);border-left-color:var(--green-deep)}
+.vh-item.vh-today{cursor:default;background:var(--gold-light);border-left-color:var(--gold)}
+/* Admissions: colour + 🏥 icon + "Admitted" text -- never colour alone (CLAUDE.md tag rule) */
+.vh-item.vh-adm{background:var(--blue-light);border-color:var(--blue-border);border-left-color:var(--blue)}
+.vh-item.vh-adm.active{border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
+.vh-adm-label{font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--blue)}
+.vh-date{font-size:13px;font-weight:700}
+.vh-sub{font-size:11px;color:var(--text-mid)}
+.vh-dx{font-size:11.5px;color:var(--text-dark);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.vh-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.vh-tag{font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;background:var(--cream);border:1px solid var(--border);color:var(--text-mid)}
+.vh-tag-first{background:var(--gold-light);border-color:#e8c77a;color:#7a5410}
+.vh-tag-warn{border-color:var(--orange);color:var(--orange)}
+.vh-panel{position:fixed;top:var(--nav-h);right:0;bottom:0;width:min(520px,100vw);z-index:400;display:flex;flex-direction:column;
+  background:var(--white);border-left:2px solid var(--border);box-shadow:-10px 0 28px rgba(0,0,0,.14);
+  transform:translateX(105%);visibility:hidden;transition:transform .25s ease,visibility 0s linear .25s}
+.vh-panel.open{transform:translateX(0);visibility:visible;transition:transform .25s ease}
+.vh-panel-hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:14px 18px;background:var(--green-deep);color:#fff}
+.vh-panel-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700}
+.vh-panel-sub{font-size:12px;opacity:.85;margin-top:2px}
+.vh-panel-close{width:44px;height:44px;flex-shrink:0;border-radius:8px;border:1.5px solid rgba(255,255,255,.5);background:transparent;color:#fff;font-size:18px;cursor:pointer}
+.vh-panel-close:hover,.vh-panel-close:focus-visible{background:rgba(255,255,255,.15);outline:none}
+.vh-panel-body{flex:1;min-height:0;overflow-y:auto;padding:14px 18px 40px;font-size:13px}
+.vh-sec{margin-bottom:16px}
+.vh-sec h4{margin:0 0 6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--green-deep);border-bottom:1px solid var(--border);padding-bottom:4px}
+.vh-row{display:flex;gap:10px;padding:3px 0;line-height:1.5}
+.vh-k{flex:0 0 130px;color:var(--text-muted);font-size:12px}
+.vh-v{flex:1;white-space:pre-wrap;word-break:break-word}
+.vh-muted{color:var(--text-muted);font-size:12px}
+.vh-rx{margin:0;padding-left:18px}.vh-rx li{margin-bottom:4px}
+.vh-inv{border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-top:8px;background:var(--cream)}
+.vh-inv-hd{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px}
+.vh-res{width:100%;border-collapse:collapse;font-size:12px}
+.vh-res td{padding:3px 4px;border-top:1px solid var(--border);vertical-align:top}
+.vh-flag{font-size:10.5px;font-weight:700;color:var(--orange);margin-left:4px}
+.vh-flag.crit{color:var(--red)}
+.vh-pk{padding:4px 0}
+.vh-loading,.vh-empty{color:var(--text-muted);padding:20px 0;text-align:center}
+@media(max-width:860px){
+  .c-work{flex-direction:column}
+  .vh-rail{width:auto;border-right:none;border-bottom:1px solid var(--border);flex-shrink:0}
+  .vh-list{display:flex;gap:6px;overflow-x:auto;overflow-y:hidden;padding:8px}
+  .vh-item{min-width:160px;max-width:200px;margin-bottom:0}
+  .vh-panel{width:100vw}
+}
+@media print{.vh-rail,.vh-panel{display:none!important}.c-work,.c-main{display:block}}
+
 /* ABDM longitudinal FHIR display */
 .fhir-detail{font-size:12px;color:#333;display:flex;flex-direction:column;gap:6px}
 .fhir-row{display:flex;gap:8px;line-height:1.6;flex-wrap:wrap;align-items:flex-start}
@@ -1076,6 +1137,18 @@ body.medcert-print #mc-print{display:block!important}
         <span id="anc-risk-detail" style="color:#a04040;font-style:italic"></span>
       </div>
 
+      <!-- Session 295 -- follow-up Visit History rail (this department only, newest
+           first) + the tabs/tab-body, side by side. Hidden when the patient has no
+           previous visit here. See js/modules/patient/visitTimeline.js. -->
+      <div class="c-work">
+      <aside class="vh-rail" id="vh-rail" hidden aria-label="Visit history">
+        <div class="vh-rail-hdr">
+          <div class="vh-rail-title">🗂 Visit History</div>
+          <div class="vh-rail-meta"><span id="vh-dept"></span> · <span id="vh-count"></span></div>
+        </div>
+        <div class="vh-list" id="vh-list"></div>
+      </aside>
+      <div class="c-main">
       <!-- Tabs -->
       <div class="tabs" id="tabs">
         <button class="tab active" data-tab="hist">📝 History</button>
@@ -3682,6 +3755,8 @@ body.medcert-print #mc-print{display:block!important}
         </div><!-- /tab-abdm -->
 
       </div><!-- /tab-body -->
+      </div><!-- /c-main -->
+      </div><!-- /c-work -->
 
       <!-- §18c — Swasthya Card print area (hidden on screen, shown on print) -->
       <div id="sc-print"></div>
@@ -3703,6 +3778,19 @@ body.medcert-print #mc-print{display:block!important}
     </div><!-- /c-active -->
   </main>
 
+</div>
+
+<!-- Session 295 -- previous-visit detail side panel (read-only; opens over the right of
+     today's form so nothing typed is lost). Filled by visitTimeline.js. -->
+<div class="vh-panel" id="vh-panel" role="dialog" aria-modal="false" aria-labelledby="vh-panel-title" aria-hidden="true">
+  <div class="vh-panel-hdr">
+    <div>
+      <div class="vh-panel-title" id="vh-panel-title"></div>
+      <div class="vh-panel-sub" id="vh-panel-sub"></div>
+    </div>
+    <button type="button" class="vh-panel-close" id="vh-panel-close" data-onclick="closeVhPanel" aria-label="Close visit details">✕</button>
+  </div>
+  <div class="vh-panel-body" id="vh-panel-body"></div>
 </div>
 
 <!-- §21o Clinical Media Modal -->
