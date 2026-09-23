@@ -772,15 +772,19 @@ function renderPkqStats() {
 const _PK_COMPONENT_ORDER2 = ['madhu', 'lavana', 'sneha', 'kalka', 'kwatha', 'avapa'];
 function _pkqIngredientLine(meds) {
   if (!meds.length) return '';
-  const byComp = {}, extra = {};
+  // Niruha Basti rows carry a component label; every other protocol's medicines are
+  // plain rows (neither label set) -- those were silently dropped here until Session 295.
+  const byComp = {}, extra = {}, plain = [];
   meds.forEach(m => {
     if (m.basti_component) (byComp[m.basti_component] = byComp[m.basti_component] || []).push(m);
     else if (m.custom_component_label) (extra[m.custom_component_label] = extra[m.custom_component_label] || []).push(m);
+    else plain.push(m);
   });
   const itemStr = m => `${_esc(m.medicine_name || '—')}${m.quantity_value ? ` (${m.quantity_value}${_esc(m.quantity_unit || '')})` : ''}`;
   const parts = [
     ..._PK_COMPONENT_ORDER2.filter(c => byComp[c]?.length).map(c => byComp[c].map(itemStr).join(', ')),
     ...Object.values(extra).map(items => items.map(itemStr).join(', ')),
+    ...(plain.length ? [plain.map(itemStr).join(', ')] : []),
   ];
   return parts.join(' · ');
 }
