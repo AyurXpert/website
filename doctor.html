@@ -330,7 +330,7 @@ button.vh-item:focus-visible{outline:2px solid var(--green-deep);outline-offset:
 .prog-hdr{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px}
 .prog-ref{font-size:12px;color:var(--text-mid)}
 /* Overall slider carries the scale: -50 .. 100, so "0" sits one third along, not mid */
-.prog-slide{flex:1 1 200px;max-width:360px;display:flex;flex-direction:column}
+.prog-slide{flex:1 1 300px;max-width:360px;display:flex;flex-direction:column}  /* >=300px so the 3 scale labels never collide; the row wraps instead */
 .prog-slide .prog-range{flex:none;width:100%;max-width:none}
 .prog-ticks{position:relative;height:14px;font-size:10.5px;color:var(--text-muted);margin:0 8px}
 .prog-ticks span{position:absolute;top:0;white-space:nowrap;transform:translateX(-50%)}

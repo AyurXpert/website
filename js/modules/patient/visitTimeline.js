@@ -167,14 +167,22 @@ function _openPanel(entryId, title, sub) {
 //  - Phone (<= 860px): full-screen panel, neither of the above.
 // Decided from real available width (not a fixed breakpoint), so collapsing the queue
 // on a mid-size screen can be enough to switch to split. Agreed with Dr. Venkatesh.
-const SPLIT_W = 480, MIN_FORM_W = 640;
+// Both the form AND the fixed bottom action bar must keep enough room (Session 295
+// follow-up: at 1366px with the queue collapsed the old 640px form-only rule chose
+// split, squeezing the progress-scale labels together and wrapping "Complete & Send to
+// Pharmacy" onto 3 lines -- the action bar keeps its own left:320px regardless).
+const SPLIT_W = 480, MIN_FORM_W = 760, MIN_BAR_W = 760;
 function _layoutPanel() {
   const p = document.getElementById('vh-panel');
   if (!p) return;
   const desktop = window.innerWidth > 860;
   const main = document.querySelector('.c-main');
   const formLeft = main ? main.getBoundingClientRect().left : 0;
-  const split = desktop && !!main && (window.innerWidth - SPLIT_W - formLeft) >= MIN_FORM_W;
+  const barBox = document.querySelector('.action-bar')?.getBoundingClientRect();
+  const barLeft = barBox && barBox.height > 0 ? barBox.left : 0;
+  const split = desktop && !!main
+    && (window.innerWidth - SPLIT_W - formLeft) >= MIN_FORM_W
+    && (window.innerWidth - SPLIT_W - barLeft) >= MIN_BAR_W;
   document.body.classList.toggle('vh-split', split);
   if (split || !desktop) { p.style.bottom = ''; return; }
   // (offsetParent is always null for a position:fixed element -- use its real box instead)
