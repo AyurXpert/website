@@ -354,6 +354,42 @@ button.vh-item:focus-visible{outline:2px solid var(--green-deep);outline-offset:
 .vh-trend svg{display:block;width:100%;height:auto;overflow:visible}
 .vh-tag-prog{background:var(--white)}
 @media(max-width:860px){.prog-label,.prog-name{flex:1 1 100%}}
+/* Session 295 -- phase 4b: "Investigations advised last visit" + outside-result modal */
+.inv-due-card{border:1.5px solid var(--blue-border);border-radius:var(--radius);background:var(--blue-light);padding:14px 16px}
+.inv-due-card[hidden]{display:none}
+.inv-row{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;background:var(--white);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:8px}
+.inv-main{flex:1;min-width:0}
+.inv-tests{font-size:13px;color:var(--text-dark);line-height:1.6}
+.inv-res.abn strong{color:var(--orange)}
+.inv-res.crit strong{color:var(--red)}
+.inv-meta{margin-top:4px;font-size:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.inv-st{font-weight:700}
+.inv-st.ok{color:var(--green-deep)}
+.inv-st.no{color:var(--red)}
+.inv-st.wait{color:#7a4a00}
+.inv-tag{font-size:11px;color:var(--blue);background:var(--blue-light);border-radius:10px;padding:1px 8px}
+.inv-hint{font-size:11.5px;color:var(--text-muted);margin-top:3px}
+.inv-act{flex-shrink:0}
+.inv-btn{min-height:40px;padding:0 14px;border-radius:8px;border:1.5px solid var(--blue);background:var(--white);color:var(--blue);font-weight:600;font-size:12.5px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.inv-btn-primary{background:var(--blue);color:#fff}
+.inv-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.inv-note{font-size:12.5px;margin-top:8px;color:var(--text-dark)}
+.inv-note-k{font-weight:700;color:var(--text-mid)}
+.inv-empty{font-size:12.5px;color:var(--text-muted);margin-top:6px}
+.oor-top{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px}
+.oor-top label,.oor-file label{display:block;font-size:11px;font-weight:600;color:var(--text-mid);margin-bottom:4px}
+.oor-top input{width:100%;height:40px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif}
+.oor-head,.oor-row{display:grid;grid-template-columns:2fr 1fr 70px 1.2fr 92px 40px;gap:6px;align-items:center}
+.oor-head{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin-bottom:4px}
+.oor-row{margin-bottom:6px}
+.oor-row input[type=text]{height:38px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-size:13px;font-family:'DM Sans',sans-serif;min-width:0}
+.oor-row input[readonly]{background:var(--cream);font-weight:600}
+.oor-abn{display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer}
+.oor-abn input{width:18px;height:18px;accent-color:var(--orange)}
+.oor-rm{width:40px;height:38px;border:1px solid var(--border);border-radius:7px;background:var(--white);cursor:pointer}
+.oor-file{margin-top:12px}
+.oor-err{color:var(--red);font-size:12.5px;font-weight:600;margin-top:8px;min-height:1em}
+@media(max-width:760px){.oor-head{display:none}.oor-row{grid-template-columns:1fr 1fr;padding-bottom:6px;border-bottom:1px solid var(--border)}.oor-top{grid-template-columns:1fr}}
 .vh-rx-list{display:flex;flex-direction:column;gap:4px}
 .vh-rx-item{display:flex;align-items:flex-start;gap:10px;min-height:44px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;line-height:1.45}
 .vh-rx-item:hover{background:var(--green-light)}
@@ -373,6 +409,7 @@ button.vh-item:focus-visible{outline:2px solid var(--green-deep);outline-offset:
 .vh-flag{font-size:10.5px;font-weight:700;color:var(--orange);margin-left:4px}
 .vh-flag.crit{color:var(--red)}
 .vh-pk{padding:4px 0}
+.vh-link{background:none;border:none;padding:0;color:var(--blue);font:inherit;font-weight:600;text-decoration:underline;cursor:pointer;min-height:24px}
 .vh-loading,.vh-empty{color:var(--text-muted);padding:20px 0;text-align:center}
 @media(max-width:860px){
   .c-work{flex-direction:column}
@@ -1247,6 +1284,17 @@ body.medcert-print #mc-print{display:block!important}
             <div class="prog-sub">By complaint</div>
             <div id="prog-complaints"></div>
             <button type="button" class="prog-add" data-onclick="progAddComplaint">+ Add complaint</button>
+          </div>
+
+          <!-- Session 295 -- phase 4b: tests advised last visit + outside-lab result entry
+               by the clinician during this follow-up (js/modules/patient/investigationsDue.js) -->
+          <div class="section inv-due-card" id="inv-due-card" hidden>
+            <div class="prog-hdr">
+              <div class="section-title" style="margin:0;border:none;padding:0">⏳ Investigations advised last visit</div>
+              <div class="prog-ref" id="inv-due-ref"></div>
+            </div>
+            <div id="inv-due-body"></div>
+            <button type="button" class="prog-add" data-onclick="openOutsideResult" data-onclick-a0="@null">+ Add outside report</button>
           </div>
 
           <div class="section">
@@ -4124,6 +4172,32 @@ body.medcert-print #mc-print{display:block!important}
     <div class="mha-modal-foot">
       <button data-onclick="closeImgOrderModal" style="padding:0 18px;height:44px;background:#f0f0f0;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Cancel</button>
       <button data-onclick="submitImgOrder" style="padding:0 22px;height:44px;background:var(--purple);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500">Submit Imaging Order</button>
+    </div>
+  </div>
+</div>
+
+<!-- Session 295 -- outside-lab result entry (investigationsDue.js) -->
+<div class="mha-overlay" id="oor-overlay" style="display:none" data-onclick="_closeIfSelf" data-onclick-a0="@isTarget" data-onclick-a1="closeOutsideResult">
+  <div class="mha-modal" role="dialog" aria-modal="true" aria-labelledby="oor-title" style="width:760px">
+    <div class="mha-modal-hdr" style="background:var(--blue)">
+      <span id="oor-title">Enter outside lab result</span>
+      <button type="button" data-onclick="closeOutsideResult" aria-label="Close" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;min-width:44px;min-height:44px">✕</button>
+    </div>
+    <div class="mha-modal-body" style="max-height:70vh;overflow-y:auto">
+      <div class="oor-top">
+        <div><label for="oor-lab">Outside lab name *</label><input id="oor-lab" type="text" placeholder="e.g. Metropolis, Thyrocare…"></div>
+        <div><label for="oor-date">Report date *</label><input id="oor-date" type="date"></div>
+      </div>
+      <div class="oor-head" aria-hidden="true"><span>Test</span><span>Result</span><span>Unit</span><span>Normal range</span><span></span><span></span></div>
+      <div id="oor-rows"></div>
+      <button type="button" class="prog-add" id="oor-add-row" data-onclick="oorAddRow">+ Add test</button>
+      <div class="oor-file"><label for="oor-file">Attach report (photo or PDF, optional, max 10 MB)</label>
+        <input id="oor-file" type="file" accept="image/*,application/pdf"></div>
+      <div class="oor-err" id="oor-err" role="alert"></div>
+    </div>
+    <div class="mha-modal-foot">
+      <button type="button" data-onclick="closeOutsideResult" style="padding:0 18px;height:44px;background:#f0f0f0;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px">Cancel</button>
+      <button type="button" id="oor-save" data-onclick="saveOutsideResult" style="padding:0 22px;height:44px;background:var(--blue);color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600">Save result</button>
     </div>
   </div>
 </div>

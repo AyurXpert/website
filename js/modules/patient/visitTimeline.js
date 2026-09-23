@@ -13,6 +13,8 @@
 // Read-only, no schema change. Excludes waiting (never-seen) visits, deleted rows, and
 // trainee drafts that were never finalized.
 
+import { loadInvestigationsDue, resetInvestigationsDue } from './investigationsDue.js';
+
 let _sb = null, _esc = s => String(s ?? '');
 let _entries = [];          // merged visit + admission entries, newest first
 let _loadToken = 0;         // guards against a slow load rendering after a patient switch
@@ -37,6 +39,7 @@ export function resetVisitTimeline() {
   const trend = document.getElementById('vh-trend');
   if (trend) { trend.hidden = true; trend.innerHTML = ''; }
   _progRef = null; _pendingProgress = null;
+  resetInvestigationsDue();
   const card = document.getElementById('prog-card');
   if (card) card.hidden = true;
   const rows = document.getElementById('prog-complaints');
@@ -46,7 +49,7 @@ export function resetVisitTimeline() {
   window.closeVhPanel();
 }
 
-export async function loadVisitTimeline({ supabase, esc, tenantId, patientId, currentVisitId, ncismCode, opdId }) {
+export async function loadVisitTimeline({ supabase, esc, tenantId, patientId, currentVisitId, ncismCode, opdId, userId }) {
   _sb = supabase; _esc = esc;
   const token = ++_loadToken;
   const rail = document.getElementById('vh-rail');
@@ -97,6 +100,8 @@ export async function loadVisitTimeline({ supabase, esc, tenantId, patientId, cu
   // Phase 3 -- today's "Progress since last visit" card is measured against the newest
   // previous VISIT in this department (not an admission).
   if (visits.length) _buildProgressCard(visits[0]);
+  // Phase 4b -- tests advised last visit (+ outside-lab result entry), same department.
+  loadInvestigationsDue({ supabase, esc, tenantId, patientId, currentVisitId, userId, prevVisits: visits });
 
   if (!_entries.length) { rail.hidden = true; return; }
 
@@ -230,7 +235,7 @@ window.openVhVisit = async function(visitId) {
   const [cnR, rxR, labR, imgR, pkR] = await Promise.all([
     _sb.from('consultation_notes').select('*').eq('visit_id', visitId).order('created_at', { ascending: false }),
     _sb.from('prescriptions').select('id, review_status, is_deleted, advice_diet, prescription_items(medicine_name, dosage, frequency, duration, anupana, timing)').eq('visit_id', visitId),
-    _sb.from('lab_orders').select('id, test_name, status, order_date, review_status, lab_order_items(test_name, result_value, result_unit, reference_range, is_abnormal, is_critical, remarks)').eq('visit_id', visitId),
+    _sb.from('lab_orders').select('id, test_name, status, order_date, review_status, due_timing, performed_outside, outside_lab_name, outside_report_date, outside_report_path, lab_order_items(test_name, result_value, result_unit, reference_range, is_abnormal, is_critical, remarks)').eq('visit_id', visitId),
     _sb.from('imaging_orders').select('study_name, modality, status, order_date, findings, impression').eq('visit_id', visitId),
     _sb.from('pk_care_plans').select('status, setting, instructions_patient, pk_care_plan_protocols(protocol_label, start_date, status)').eq('visit_id', visitId),
   ]);
@@ -333,7 +338,9 @@ function _labHtml(l) {
   const items = (l.lab_order_items || []).filter(i => i.result_value !== null && i.result_value !== '');
   const flag = i => i.is_critical ? '<span class="vh-flag crit">⚠ Critical</span>' : i.is_abnormal ? '<span class="vh-flag">⚠ Abnormal</span>' : '';
   return `<div class="vh-inv">
-    <div class="vh-inv-hd"><strong>🧪 ${_esc(l.test_name)}</strong><span class="vh-muted">${_esc(_nice(l.status) || '')}</span></div>
+    <div class="vh-inv-hd"><strong>🧪 ${_esc(l.test_name || (l.lab_order_items || []).map(i => i.test_name).slice(0, 3).join(', ') || 'Lab tests')}</strong><span class="vh-muted">${l.performed_outside ? '🔗 Outside lab' : _esc(_nice(l.status) || '')}</span></div>
+    ${l.performed_outside ? `<div class="vh-muted" style="margin-bottom:4px">🔗 ${_esc(l.outside_lab_name || 'Outside lab')}${l.outside_report_date ? ', ' + _fmtD(l.outside_report_date) : ''}${l.outside_report_path ? ` · <button type="button" class="vh-link" data-onclick="openLabReportFile" data-onclick-a0="${_esc(l.outside_report_path)}">📄 View report</button>` : ''}</div>` : ''}
+    ${l.due_timing === 'next_visit' && l.status !== 'completed' ? '<div class="vh-muted" style="margin-bottom:4px">📅 Advised before next visit — not done yet</div>' : ''}
     ${items.length ? `<table class="vh-res"><tbody>${items.map(i => `<tr>
       <td>${_esc(i.test_name)}</td><td><strong>${_esc(i.result_value)}</strong> ${_esc(i.result_unit || '')} ${flag(i)}</td>
       <td class="vh-muted">${_esc(i.reference_range || '')}</td></tr>`).join('')}</tbody></table>`

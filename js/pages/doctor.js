@@ -1264,7 +1264,7 @@ window.startConsultation = async function(visitId) {
   // here, not only visit_category='followup'.
   loadVisitTimeline({
     supabase, esc: _esc, tenantId, patientId: visit?.patient_id, currentVisitId: visitId,
-    ncismCode: _activeNcismCode, opdId: visit?.opd_id,
+    ncismCode: _activeNcismCode, opdId: visit?.opd_id, userId,
   });
 
   // Session 268 -- an existing not-yet-activated Care Plan for this patient (drafted
@@ -8246,7 +8246,7 @@ async function loadLabResults() {
   if (!_activeVisitId) return;
   const { data: orders, error: ordErr } = await supabase
     .from('lab_orders')
-    .select('id,status,payment_status')
+    .select('id,status,payment_status,order_date,due_timing,due_by,performed_outside,outside_lab_name')
     .eq('tenant_id', tenantId)
     .eq('visit_id', _activeVisitId);
   if (ordErr) { console.warn('[lab] loadLabResults:', ordErr.message); return; }
@@ -8268,13 +8268,16 @@ async function loadLabResults() {
 
   const html = orders.map(o => {
     const isDone = o.status === 'completed';
+    // Session 295 -- a "before next visit" order isn't owed yet; say so instead of PAYMENT PENDING.
+    const nextVisitOpen = o.due_timing === 'next_visit' && o.payment_status === 'pending' && !isDone;
     const items  = itemsByOrder[o.id] || [];
     const criticals = items.filter(i => i.is_critical);
     return `<div style="margin-bottom:8px;padding:8px 10px;background:var(--white);border-radius:6px;border:1px solid ${isDone?'#b2d8bf':'#9ab8e0'}">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-        <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;background:${isDone?'var(--green-light)':'#e3f0ff'};color:${isDone?'var(--green-deep)':'#1a4080'}">${_esc(isDone?'REPORT READY':{pending:'PENDING',sample_collected:'SAMPLE COLLECTED',in_progress:'IN PROGRESS'}[o.status]||o.status)}</span>
+        <span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;background:${isDone?'var(--green-light)':'#e3f0ff'};color:${isDone?'var(--green-deep)':'#1a4080'}">${_esc(o.performed_outside ? '🔗 OUTSIDE LAB: ' + (o.outside_lab_name || '').toUpperCase() : nextVisitOpen ? '📅 ADVISED FOR NEXT VISIT' : isDone ? 'REPORT READY' : ({pending:'PENDING',sample_collected:'SAMPLE COLLECTED',in_progress:'IN PROGRESS'}[o.status]||o.status))}</span>
         ${o.order_date ? `<span style="font-size:10px;color:var(--text-muted)">${_fmtDate(o.order_date)}</span>` : ''}
-        ${o.payment_status === 'pending' ? '<span style="color:#7a4a00;font-size:10px;font-weight:700">⏳ PAYMENT PENDING</span>' : ''}
+        ${nextVisitOpen && o.due_by ? `<span style="font-size:10px;color:var(--text-muted)">due by ${_fmtDate(o.due_by)}</span>` : ''}
+        ${o.payment_status === 'pending' && !nextVisitOpen && !o.performed_outside ? '<span style="color:#7a4a00;font-size:10px;font-weight:700">⏳ PAYMENT PENDING</span>' : ''}
         ${criticals.length ? '<span style="color:var(--red);font-size:11px;font-weight:700">⚠ CRITICAL</span>' : ''}
       </div>
       <div style="line-height:1.8">${items.map(i => `<span style="font-size:11px;${i.is_critical?'color:var(--red);font-weight:700':i.is_abnormal?'color:#7a5c00':''}">${_esc(i.test_name)}${i.result_value?' = <strong>'+_esc(i.result_value)+'</strong>':''}</span>`).join(' · ')}</div>
@@ -8282,6 +8285,10 @@ async function loadLabResults() {
   }).join('');
   document.getElementById('lab-results-body').innerHTML = html;
 }
+
+// Session 295 -- an outside report added from the "Investigations advised last visit"
+// card may belong to today's visit; refresh this visit's lab box.
+window.addEventListener('ax:outside-result-saved', () => loadLabResults());
 
 // Enable lab order button when patient is selected
 const _origSelectPatient = window._selectPatientPost;
