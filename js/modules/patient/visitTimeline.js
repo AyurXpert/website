@@ -181,7 +181,9 @@ function _layoutPanel() {
   const p = document.getElementById('vh-panel');
   if (!p) return;
   const desktop = window.innerWidth > 860;
-  const main = document.querySelector('.c-main');
+  // The visible form area (doctor.html has two .c-main: the consultation and, since the
+  // IPD ward-round view, a second one -- a hidden one measures as 0 and fakes lots of room).
+  const main = [...document.querySelectorAll('.c-main')].find(el => el.getBoundingClientRect().width > 0) || null;
   const formLeft = main ? main.getBoundingClientRect().left : 0;
   const barBox = document.querySelector('.action-bar')?.getBoundingClientRect();
   const barLeft = barBox && barBox.height > 0 ? barBox.left : 0;

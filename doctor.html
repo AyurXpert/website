@@ -413,6 +413,29 @@ button.vh-item:focus-visible{outline:2px solid var(--green-deep);outline-offset:
 .ipd-flag.due{background:var(--blue-light);color:var(--blue);border-color:var(--blue-border)}
 .ipd-foot{margin-top:4px;font-size:11px;color:var(--text-muted)}
 .ipd-open{display:inline-flex;align-items:center;gap:5px;background:#be185d;color:#fff;border-radius:7px;padding:6px 12px;font-size:11.5px;font-weight:600;text-decoration:none;min-height:32px}
+/* Session 295 -- doctor IPD part 2: ward round view */
+.c-ipd{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+.ipdws-hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:14px 20px;background:var(--white);border-bottom:1px solid var(--border)}
+.ipdws-name{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:700;color:var(--green-deep)}
+.ipdws-meta{font-size:12.5px;color:var(--text-mid);margin-top:2px}
+.ipdws-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.ipdws-close{width:44px;height:44px;border-radius:8px;border:1.5px solid var(--border);background:var(--white);cursor:pointer;font-size:16px}
+.ipdws-close:hover,.ipdws-close:focus-visible{border-color:var(--green-deep);outline:none}
+.ipdws-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+.ipdws-inline{font-size:12px;font-weight:600;color:var(--text-mid);display:flex;align-items:center;gap:6px}
+.ipdws-inline select{height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 8px;font-family:'DM Sans',sans-serif}
+.ipdws-note{font-size:12.5px;background:var(--gold-light);border:1px solid #e8c77a;color:#7a5410;border-radius:8px;padding:8px 10px;margin-bottom:8px}
+.ipdws-vitals{font-size:12.5px;background:var(--blue-light);border:1px solid var(--blue-border);border-radius:8px;padding:8px 12px;margin-bottom:10px;color:var(--text-dark)}
+.ipdws-muted{color:var(--text-muted);font-size:12px}
+.ipdws-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.ipdws-err{color:var(--red);font-weight:600;font-size:12.5px;min-height:1em;margin:4px 0}
+.ipdws-save{min-height:46px;padding:0 22px;border:none;border-radius:8px;background:var(--green-deep);color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer}
+.ipdws-save:disabled{opacity:.6;cursor:wait}
+.ipdws-save:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.ipdws-sign{font-size:12.5px;border-radius:8px;padding:8px 10px;margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ipdws-sign.wait{background:var(--gold-light);border:1px solid #e8c77a;color:#7a5410}
+.ipdws-sign.ok{background:var(--green-light);border:1px solid var(--green-mid);color:var(--green-deep)}
+@media(max-width:860px){.ipdws-grid{grid-template-columns:1fr 1fr}.ipdws-hdr{flex-direction:column}}
 .vh-rx-list{display:flex;flex-direction:column;gap:4px}
 .vh-rx-item{display:flex;align-items:flex-start;gap:10px;min-height:44px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;line-height:1.45}
 .vh-rx-item:hover{background:var(--green-light)}
@@ -1171,6 +1194,75 @@ body.medcert-print #mc-print{display:block!important}
 
     <!-- Patient History (read-only) -->
     <div id="c-history" style="display:none;padding:20px;overflow-y:auto;height:100%"></div>
+
+    <!-- Session 295 -- doctor IPD part 2: ward rounds (js/modules/ipd/wardRounds.js) -->
+    <div class="c-ipd" id="c-ipd" style="display:none">
+      <div class="ipdws-hdr">
+        <div class="ipdws-id">
+          <div class="ipdws-name" id="ipdws-name"></div>
+          <div class="ipdws-meta" id="ipdws-meta"></div>
+          <div class="ipd-flags" id="ipdws-flags"></div>
+        </div>
+        <div class="ipdws-actions">
+          <a id="ipdws-open" class="ipd-open" target="_blank" rel="noopener">🏥 Open in IPD →</a>
+          <button type="button" class="ipdws-close" data-onclick="closeIpdRound" aria-label="Close ward round">✕</button>
+        </div>
+      </div>
+      <div class="c-work">
+        <aside class="vh-rail" aria-label="Ward rounds">
+          <div class="vh-rail-hdr">
+            <div class="vh-rail-title">🗒 Ward rounds</div>
+            <div class="vh-rail-meta" id="ipdws-count"></div>
+          </div>
+          <div class="vh-list" id="ipdws-list"></div>
+        </aside>
+        <div class="c-main">
+          <div class="tab-body">
+            <div class="section">
+              <div class="ipdws-row">
+                <div class="section-title" style="margin:0;border:none;padding:0">Today's round</div>
+                <label class="ipdws-inline" for="ipdws-label">Round
+                  <select id="ipdws-label">
+                    <option value="morning">Morning</option><option value="evening">Evening</option>
+                    <option value="night">Night</option><option value="emergency">Emergency</option><option value="other">Other</option>
+                  </select></label>
+              </div>
+              <div class="ipdws-note" id="ipdws-trainee-note" hidden>📝 Your note will be saved as a PG / Intern note, marked "awaiting countersign" until a doctor countersigns it.</div>
+              <div class="ipdws-vitals" id="ipdws-vitals"></div>
+              <div class="field"><label for="ipdws-s">S — Subjective (complaints today)</label><textarea id="ipdws-s" rows="2" placeholder="How the patient feels today, new complaints…"></textarea></div>
+              <div class="field"><label for="ipdws-o">O — Objective (examination)</label><textarea id="ipdws-o" rows="2" placeholder="General / systemic examination findings…"></textarea></div>
+            </div>
+            <div class="section">
+              <div class="section-title">🌿 Ayurvedic daily assessment</div>
+              <div class="ipdws-grid">
+                <div class="field"><label for="ipdws-nadi">Nadi</label><input id="ipdws-nadi" type="text" list="ipdws-nadi-opts" placeholder="e.g. Vata-Pitta"/>
+                  <datalist id="ipdws-nadi-opts"><option value="Vata"><option value="Pitta"><option value="Kapha"><option value="Vata-Pitta"><option value="Vata-Kapha"><option value="Pitta-Kapha"><option value="Sama"></datalist></div>
+                <div class="field"><label for="ipdws-agni">Agni</label><select id="ipdws-agni"><option value="">—</option><option>Sama</option><option>Manda</option><option>Tikshna</option><option>Vishama</option></select></div>
+                <div class="field"><label for="ipdws-koshtha">Koshtha</label><select id="ipdws-koshtha"><option value="">—</option><option>Mridu</option><option>Madhyama</option><option>Krura</option></select></div>
+                <div class="field"><label for="ipdws-mala">Mala</label><input id="ipdws-mala" type="text" placeholder="e.g. Once, formed"/></div>
+                <div class="field"><label for="ipdws-mutra">Mutra</label><input id="ipdws-mutra" type="text" placeholder="e.g. 5–6 times, clear"/></div>
+                <div class="field"><label for="ipdws-nidra">Nidra</label><select id="ipdws-nidra"><option value="">—</option><option>Samyak (sound)</option><option>Alpa (less)</option><option>Ati (excess)</option><option>Disturbed</option></select></div>
+              </div>
+              <div class="prog-row">
+                <label class="prog-label" for="ipdws-imp">Improvement since last round</label>
+                <div class="prog-slide">
+                  <div class="prog-ticks" aria-hidden="true"><span>−50% worse</span><span>0 · no change</span><span>+100% better</span></div>
+                  <input type="range" id="ipdws-imp" class="prog-range unset" min="-50" max="100" step="10" value="0" data-oninput="progSliderInput" data-oninput-a0="@this">
+                </div>
+                <output class="prog-val unset">Not recorded</output>
+                <button type="button" class="prog-clear" data-onclick="progClear" data-onclick-a0="@this" aria-label="Clear improvement">Clear</button>
+              </div>
+            </div>
+            <div class="section">
+              <div class="field"><label for="ipdws-a">A — Assessment</label><textarea id="ipdws-a" rows="2" placeholder="Clinical assessment / response to treatment…"></textarea></div>
+              <div class="field"><label for="ipdws-p">P — Plan</label><textarea id="ipdws-p" rows="2" placeholder="Continue / change treatment, investigations, diet, PK…"></textarea></div>
+              <div class="ipdws-err" id="ipdws-err" role="alert"></div>
+              <button type="button" class="ipdws-save" id="ipdws-save" data-onclick="saveIpdRound">✓ Save round note</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Active consultation -->
     <div class="c-active" id="c-active" style="display:none">

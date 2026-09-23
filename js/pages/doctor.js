@@ -9,6 +9,7 @@ import { isNCISMType } from '../config/ncism.js';
 import { addOpdBillItem } from '../modules/billing/opdBillItems.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { LAB_PANELS, computeLabBillingLines } from '../modules/billing/labBilling.js';
+import { openIpdRound, closeIpdRound } from '../modules/ipd/wardRounds.js';
 import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { openTimePicker, formatTime12 } from '../components/timePicker.js';
@@ -426,6 +427,7 @@ window.switchQueueTab = function(tab) {
   // stuck on screen after you move to OPD/Tele/IPD. A real open consultation
   // (_activeVisitId set) is never touched.
   if (!_activeVisitId) {
+    closeIpdRound();
     const ca = document.getElementById('c-active');
     const ch = document.getElementById('c-history');
     const wl = document.getElementById('welcome');
@@ -765,8 +767,22 @@ async function loadIPDPatients() {
     list.innerHTML = toggle + `<div class="q-empty"><div class="q-empty-icon">🏥</div>${_ipdScope === 'dept' ? 'No admitted patients in your department' : 'No admitted patients'}</div>`;
     return;
   }
+  _ipdRows = rows;
   list.innerHTML = toggle + rows.map(a => _ipdCard(a, flags[a.id] || {})).join('');
 }
+
+// Part 2 -- open an admitted patient's ward round view inside doctor.html.
+let _ipdRows = [];
+window.openIpdRoundFromList = function(admId) {
+  const a = _ipdRows.find(r => r.id === admId);
+  if (!a) return;
+  if (_activeVisitId) {
+    _toast('Finish or close the open OPD consultation first, then open the ward round.', 'error');
+    return;
+  }
+  document.getElementById('c-active').style.display = 'none';
+  openIpdRound(a, { supabase, esc: _esc, tenantId, userId, isTrainee: _isTrainee, toast: _toast });
+};
 
 // One batch of queries for all cards: labs (critical/abnormal since admission), PK today.
 async function _loadIpdFlags(rows) {
@@ -806,7 +822,10 @@ async function _loadIpdFlags(rows) {
 }
 
 function _ipdCard(a, f) {
-  const day = Math.max(1, Math.floor((Date.now() - new Date(a.admitted_at || a.admission_date)) / 86400000) + 1);
+  // Calendar day of stay in local dates (admission day = Day 1); was elapsed 24-hour
+  // periods, which showed "Day 1" the morning after an evening admission.
+  const _ld = d => (String(d).length === 10 ? String(d) : new Date(d).toLocaleDateString('en-CA'));
+  const day = Math.max(1, Math.round((new Date(_ld(new Date()) + 'T00:00:00') - new Date(_ld(a.admission_date || a.admitted_at) + 'T00:00:00')) / 86400000) + 1);
   const admDate = new Date(a.admission_date || a.admitted_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
   const planned = a.advice?.expected_duration_days;
   const ipdUrl = `ipd.html?admission_id=${encodeURIComponent(a.id)}`;
@@ -821,7 +840,8 @@ function _ipdCard(a, f) {
   else if (planned && day > planned) chips.push(`<span class="ipd-flag due">⏰ Planned ${_esc(String(planned))}-day stay over</span>`);
   else if (planned && day === planned) chips.push('<span class="ipd-flag due">⏰ Discharge due today</span>');
 
-  return `<div class="q-card ipd-card" data-onclick="_openBlank" data-onclick-a0="${_esc(ipdUrl)}">
+  a._flagsHtml = chips.join('');
+  return `<div class="q-card ipd-card" data-onclick="openIpdRoundFromList" data-onclick-a0="${a.id}">
     <div class="q-card-top">
       <div class="q-token ipd-token">IPD</div>
       <div class="q-name">${_esc(a.patients?.name || '—')}</div>
@@ -988,6 +1008,7 @@ async function searchPastPatients(query) {
 }
 
 window.openPatientHistory = async function(patientId) {
+  closeIpdRound();
   const histEl    = document.getElementById('c-history');
   const welcomeEl = document.getElementById('welcome');
   const activeEl  = document.getElementById('c-active');
@@ -1318,6 +1339,7 @@ window.togglePatientDetail = function() {
 
 // ── Start consultation ────────────────────────────
 window.startConsultation = async function(visitId) {
+  closeIpdRound();   // Session 295 -- never leave the ward round view on top of a consultation
   // Real bug found live-testing the PK Care Plan wizard (Session 209): clicking a
   // different queue card directly -- without first closing the previous consultation
   // via the (✕) button -- never reset any tab's form state, so a chip left selected
