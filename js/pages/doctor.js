@@ -713,43 +713,134 @@ async function loadQueue() {
 }
 
 // ── IPD patients for this doctor ─────────────────
+// ── IPD patient list (Session 295, doctor IPD part 1) ─────────────────────
+// "My patients" (admitted by me) or "My department" (everyone admitted under my
+// department -- cover / rounds). Each card carries day-of-stay, critical/abnormal lab,
+// PK-today and discharge flags. Clicking still opens ipd.html (part 2 brings ward rounds
+// into this page). Plan: memory doctor_ipd_plan.md.
+let _ipdScope = 'mine';
+let _myDeptIds = null;   // resolved once per page load
+
+window.setIpdScope = function(scope) { _ipdScope = scope === 'dept' ? 'dept' : 'mine'; loadIPDPatients(); };
+
+// profiles.department_id first; otherwise the departments matching my OPDs' ncism_code
+// (same OPD<->department join _setAdmDeptDefault() uses).
+async function _resolveMyDeptIds() {
+  if (_myDeptIds) return _myDeptIds;
+  if (profile?.department_id) return (_myDeptIds = [profile.department_id]);
+  const { data: od } = await supabase.from('opd_doctors').select('opds(ncism_code)').eq('tenant_id', tenantId).eq('doctor_id', userId);
+  const codes = [...new Set((od || []).map(r => r.opds?.ncism_code).filter(Boolean))];
+  if (!codes.length) return (_myDeptIds = []);
+  const { data: depts } = await supabase.from('departments').select('id').eq('tenant_id', tenantId).in('ncism_code', codes);
+  return (_myDeptIds = (depts || []).map(d => d.id));
+}
+
 async function loadIPDPatients() {
   const list = document.getElementById('q-list');
   list.innerHTML = '<div class="q-empty"><div class="q-empty-icon">⏳</div>Loading…</div>';
-  const { data, error } = await supabase
+  const deptIds = await _resolveMyDeptIds();
+  if (_queueTab !== 'ipd') return;
+
+  let q = supabase
     .from('ipd_admissions')
-    .select('id, diagnosis_primary, admission_date, admitted_at, beds(bed_number, ward_name), departments(name), patients(id, name, phone, abha_number)')
+    .select('id, patient_id, visit_id, diagnosis_primary, admission_date, admitted_at, admitting_doctor_id, admission_advice_id, discharge_ordered_by, clinically_discharged_at, beds(bed_number, ward_name), departments(name), patients(id, name, phone, abha_number), admitting_doctor:profiles!admitting_doctor_id(full_name), advice:admission_advice!admission_advice_id(expected_duration_days)')
     .eq('tenant_id', tenantId)
-    .eq('admitting_doctor_id', userId)
     .eq('status', 'admitted')
     .order('admitted_at', { ascending: false });
+  q = _ipdScope === 'dept' && deptIds.length ? q.in('department_id', deptIds) : q.eq('admitting_doctor_id', userId);
+  const { data, error } = await q;
+  if (_queueTab !== 'ipd') return;
   if (error) { list.innerHTML = `<div class="q-empty" style="color:#e74c3c">Error: ${_esc(safeErrorMessage(error, 'Could not load admitted patients.'))}</div>`; return; }
   const rows = data || [];
-  document.getElementById('q-ipd-count').textContent = rows.length;
-  if (!rows.length) { list.innerHTML = '<div class="q-empty"><div class="q-empty-icon">🏥</div>No admitted patients</div>'; return; }
-  list.innerHTML = rows.map(a => {
-    const days = Math.floor((Date.now() - new Date(a.admitted_at)) / 86400000);
-    const admDate = new Date(a.admission_date || a.admitted_at).toLocaleDateString('en-IN', { day:'2-digit', month:'short' });
-    const ipdUrl = `ipd.html?admission_id=${encodeURIComponent(a.id)}`;
-    return `<div class="q-card" style="border-color:#fce7f3" data-onclick="_openBlank" data-onclick-a0="${_esc(ipdUrl)}">
-      <div class="q-card-top">
-        <div class="q-token" style="background:#fce7f3;color:#be185d;font-size:9px;font-weight:700;min-width:36px">IPD</div>
-        <div class="q-name">${_esc(a.patients?.name || '—')}</div>
-        <div class="q-wait" style="color:#be185d">${days}d</div>
-      </div>
-      <div class="q-meta">
-        ${a.beds?.ward_name ? `<span class="badge" style="background:#fce7f3;color:#be185d">${_esc(a.beds.ward_name)}</span>` : ''}
-        ${a.beds?.bed_number ? `<span class="badge" style="background:#fce7f3;color:#be185d">Bed ${_esc(a.beds.bed_number)}</span>` : ''}
-        ${a.departments?.name ? `<span class="badge">${_esc(a.departments.name)}</span>` : ''}
-      </div>
-      <div class="q-complaint">${_esc(a.diagnosis_primary || '—')}</div>
-      <div style="margin-top:4px;font-size:11px;color:#888">Admitted ${admDate}</div>
-      <div style="margin-top:6px" data-onclick="_stopProp" data-onclick-a0="@event">
-        <a href="${ipdUrl}" target="_blank" style="display:inline-flex;align-items:center;gap:5px;background:#be185d;color:#fff;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;text-decoration:none">🏥 Ward Rounds</a>
-      </div>
+  if (_ipdScope === 'mine') document.getElementById('q-ipd-count').textContent = rows.length;
+
+  const flags = await _loadIpdFlags(rows);
+  if (_queueTab !== 'ipd') return;
+
+  const toggle = `<div class="ipd-scope" role="group" aria-label="Which admitted patients">
+      <button type="button" class="ipd-scope-btn${_ipdScope === 'mine' ? ' active' : ''}" aria-pressed="${_ipdScope === 'mine'}" data-onclick="setIpdScope" data-onclick-a0="mine">My patients</button>
+      <button type="button" class="ipd-scope-btn${_ipdScope === 'dept' ? ' active' : ''}" aria-pressed="${_ipdScope === 'dept'}" data-onclick="setIpdScope" data-onclick-a0="dept"${deptIds.length ? '' : ' disabled title="No department is set on your profile"'}>My department</button>
     </div>`;
-  }).join('');
+  if (!rows.length) {
+    list.innerHTML = toggle + `<div class="q-empty"><div class="q-empty-icon">🏥</div>${_ipdScope === 'dept' ? 'No admitted patients in your department' : 'No admitted patients'}</div>`;
+    return;
+  }
+  list.innerHTML = toggle + rows.map(a => _ipdCard(a, flags[a.id] || {})).join('');
 }
+
+// One batch of queries for all cards: labs (critical/abnormal since admission), PK today.
+async function _loadIpdFlags(rows) {
+  const out = {};
+  if (!rows.length) return out;
+  const today = todayLocalStr();
+  const pids = [...new Set(rows.map(a => a.patient_id))];
+  const minAdmit = rows.reduce((m, a) => (a.admitted_at && a.admitted_at < m ? a.admitted_at : m), rows[0].admitted_at || new Date().toISOString());
+  const [vR, pkR] = await Promise.all([
+    supabase.from('visits').select('id, patient_id, created_at').eq('tenant_id', tenantId).in('patient_id', pids).gte('created_at', minAdmit.slice(0, 10)),
+    supabase.from('pk_therapy_sessions').select('ipd_admission_id, therapy_name, scheduled_time, status')
+      .eq('tenant_id', tenantId).in('ipd_admission_id', rows.map(a => a.id)).eq('scheduled_date', today)
+      .order('scheduled_time', { ascending: true }),
+  ]);
+  // Visits belonging to each admission: its admitting visit + any visit since admission.
+  const visitAdm = {};
+  rows.forEach(a => { if (a.visit_id) visitAdm[a.visit_id] = a.id; });
+  (vR.data || []).forEach(v => {
+    const a = rows.find(r => r.patient_id === v.patient_id && v.created_at >= (r.admitted_at || ''));
+    if (a) visitAdm[v.id] = a.id;
+  });
+  const vids = Object.keys(visitAdm);
+  if (vids.length) {
+    const { data: labs } = await supabase.from('lab_orders')
+      .select('visit_id, review_status, lab_order_items(test_name, is_abnormal, is_critical)')
+      .eq('tenant_id', tenantId).in('visit_id', vids);
+    (labs || []).filter(l => !l.review_status || l.review_status === 'finalized').forEach(l => {
+      const f = (out[visitAdm[l.visit_id]] = out[visitAdm[l.visit_id]] || {});
+      (l.lab_order_items || []).forEach(i => {
+        if (i.is_critical) (f.critical = f.critical || []).push(i.test_name);
+        else if (i.is_abnormal) (f.abnormal = f.abnormal || []).push(i.test_name);
+      });
+    });
+  }
+  (pkR.data || []).forEach(s => { (out[s.ipd_admission_id] = out[s.ipd_admission_id] || {}).pk = (out[s.ipd_admission_id].pk || []).concat(s); });
+  return out;
+}
+
+function _ipdCard(a, f) {
+  const day = Math.max(1, Math.floor((Date.now() - new Date(a.admitted_at || a.admission_date)) / 86400000) + 1);
+  const admDate = new Date(a.admission_date || a.admitted_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  const planned = a.advice?.expected_duration_days;
+  const ipdUrl = `ipd.html?admission_id=${encodeURIComponent(a.id)}`;
+  const chips = [];
+  if (f.critical?.length) chips.push(`<span class="ipd-flag crit" title="${_esc(f.critical.join(', '))}">⚠ Critical lab: ${_esc(f.critical.slice(0, 2).join(', '))}${f.critical.length > 2 ? '…' : ''}</span>`);
+  else if (f.abnormal?.length) chips.push(`<span class="ipd-flag abn" title="${_esc(f.abnormal.join(', '))}">⚠ Abnormal lab: ${_esc(f.abnormal.slice(0, 2).join(', '))}${f.abnormal.length > 2 ? '…' : ''}</span>`);
+  if (f.pk?.length) {
+    const s = f.pk[0];
+    chips.push(`<span class="ipd-flag pk">🌸 PK today: ${_esc(s.therapy_name || '')}${s.scheduled_time ? ' · ' + _esc(String(s.scheduled_time).slice(0, 5)) : ''} · ${_esc(_ipdNice(s.status))}${f.pk.length > 1 ? ` (+${f.pk.length - 1})` : ''}</span>`);
+  }
+  if (a.clinically_discharged_at || a.discharge_ordered_by) chips.push('<span class="ipd-flag dis">🏁 Discharge ordered</span>');
+  else if (planned && day > planned) chips.push(`<span class="ipd-flag due">⏰ Planned ${_esc(String(planned))}-day stay over</span>`);
+  else if (planned && day === planned) chips.push('<span class="ipd-flag due">⏰ Discharge due today</span>');
+
+  return `<div class="q-card ipd-card" data-onclick="_openBlank" data-onclick-a0="${_esc(ipdUrl)}">
+    <div class="q-card-top">
+      <div class="q-token ipd-token">IPD</div>
+      <div class="q-name">${_esc(a.patients?.name || '—')}</div>
+      <div class="q-wait ipd-day" title="Admitted ${admDate}">Day ${day}${planned ? ` / ${_esc(String(planned))}` : ''}</div>
+    </div>
+    <div class="q-meta">
+      ${a.beds?.ward_name ? `<span class="badge ipd-badge">${_esc(a.beds.ward_name)}</span>` : ''}
+      ${a.beds?.bed_number ? `<span class="badge ipd-badge">Bed ${_esc(a.beds.bed_number)}</span>` : ''}
+      ${a.departments?.name ? `<span class="badge">${_esc(a.departments.name)}</span>` : ''}
+    </div>
+    <div class="q-complaint">${_esc(a.diagnosis_primary || '—')}</div>
+    ${chips.length ? `<div class="ipd-flags">${chips.join('')}</div>` : ''}
+    <div class="ipd-foot">Admitted ${admDate}${_ipdScope === 'dept' && a.admitting_doctor?.full_name ? ' · Dr ' + _esc(a.admitting_doctor.full_name.replace(/^Dr\.?\s*/i, '')) : ''}</div>
+    <div style="margin-top:6px" data-onclick="_stopProp" data-onclick-a0="@event">
+      <a href="${_esc(ipdUrl)}" target="_blank" rel="noopener" class="ipd-open">🏥 Open in IPD →</a>
+    </div>
+  </div>`;
+}
+const _ipdNice = s => ({ scheduled: 'Scheduled', in_progress: 'In progress', completed: 'Done', skipped: 'Skipped', cancelled: 'Cancelled' })[s] || s || '';
 
 // ── Pending Review (Session 127 -- Trainee Doctor drafts) ─────────────────
 async function loadPendingReviews() {
