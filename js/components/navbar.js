@@ -419,6 +419,52 @@ function _injectWatermark() {
   wm.innerHTML = `Powered by <strong>AyurXpert</strong>`;
   wm.addEventListener('click', _showPopup);
   document.body.appendChild(wm);
+  // Session 295 -- the watermark is pinned bottom-right on every page, so it could sit on
+  // top of a page's own fixed bottom bar and swallow clicks (found on doctor.html: it
+  // covered the centre of the ✕ Close-consultation button at ~1300px). Lift it just
+  // clear of any fixed/sticky button or link underneath; re-checked on resize and
+  // periodically because bars like doctor.html's action bar appear/disappear.
+  _keepWatermarkClear();
+  window.addEventListener('resize', _keepWatermarkClear);
+  setInterval(_keepWatermarkClear, 2000);
+}
+
+const _WM_INTERACTIVE = 'button, a[href], input, select, textarea, [role="button"], [data-onclick]';
+// Only a bottom BAR counts (nearest fixed/sticky ancestor touching the bottom edge and
+// < 40% of the viewport tall, e.g. doctor.html's .action-bar) -- not a full-page fixed
+// container like doctor.html's .page, whose ordinary form fields would otherwise make
+// the watermark climb into the form and hop around as the user scrolls.
+function _inFixedLayer(el) {
+  for (let n = el; n && n !== document.body; n = n.parentElement) {
+    const pos = getComputedStyle(n).position;
+    if (pos === 'fixed' || pos === 'sticky') {
+      const r = n.getBoundingClientRect();
+      return r.bottom >= window.innerHeight - 2 && r.height < window.innerHeight * 0.4;
+    }
+  }
+  return false;
+}
+function _watermarkCollides(wm) {
+  const r = wm.getBoundingClientRect();
+  if (!r.width) return false;
+  const pts = [[r.left + 3, r.top + 3], [r.right - 3, r.top + 3], [r.left + 3, r.bottom - 3],
+               [r.right - 3, r.bottom - 3], [r.left + r.width / 2, r.top + r.height / 2]];
+  return pts.some(([x, y]) => document.elementsFromPoint(x, y).some(el => {
+    if (el === wm || wm.contains(el)) return false;
+    const hit = el.closest(_WM_INTERACTIVE);
+    return !!hit && !wm.contains(hit) && _inFixedLayer(hit);
+  }));
+}
+function _keepWatermarkClear() {
+  const wm = document.getElementById('ax-watermark');
+  if (!wm) return;
+  wm.style.bottom = '';                       // back to the stylesheet position, then climb
+  const base = parseFloat(getComputedStyle(wm).bottom) || 14;
+  let lift = 0;
+  while (_watermarkCollides(wm) && lift < 200) { lift += 8; wm.style.bottom = `${base + lift}px`; }
+  if (_watermarkCollides(wm)) { wm.style.bottom = ''; return; }   // never float mid-page; give up cleanly
+  // Lifted: add a little clearance so it sits fully above the bar's top edge, not astride it.
+  if (lift) wm.style.bottom = `${base + lift + 10}px`;
 }
 
 // ── Popup ─────────────────────────────────────────────────────────────────────
