@@ -8,6 +8,7 @@ import { isNCISMType, ncismRequiredBeds } from '../config/ncism.js';
 import { logAudit } from '../core/auditLogger.js';
 import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
+import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml } from '../modules/ipd/dischargePrint.js';
 
 /*
   SQL to run in Supabase (one time) before using this page:
@@ -124,6 +125,9 @@ window.loadAll = async function loadAll() {
       .select(`
         id, tenant_id, admission_date, admitted_at, discharged_at, charges_locked_at,
         status, disposition, diagnosis_primary, diet_type, notes, advance_amount_collected,
+        discharge_diagnosis_ayurveda, discharge_diagnosis_icd10, discharge_medications,
+        discharge_pathya_apathya, discharge_pk_procedures, discharge_followup_date, discharge_condition,
+        discharge_course, discharge_treatment_given, discharge_investigations, discharge_advice,
         patients(id, name, phone, abha_number, abha_address, age, gender),
         beds(id, bed_number, ward_name, bed_type, department_id),
         departments(id, name, ncism_code),
@@ -1600,62 +1604,6 @@ if (_qAdviceId) {
   }
 }
 
-// ── Session 262 — Samsarjana Krama home-care chart, for a patient advised to do
-// their post-Virechana graded diet at home (location_mode='home', Session 257)
-// rather than the hospital kitchen handling it via palha_diet_indents (Session
-// 261). A dish NAME means nothing to a family without dietetics training -- this
-// pulls the day-by-day schedule AND the recipe for whichever stages actually fall
-// on a home day, straight from the same classical reference table the kitchen
-// queue already uses, so the two can never disagree.
-async function _fetchSamsarjanaHomeChart(admId) {
-  const { data: plans } = await supabase
-    .from('pk_care_plans')
-    .select(`
-      id,
-      pk_care_plan_protocols(
-        id,
-        pk_care_plan_days(id, day_number, planned_date, activity_label, location_mode),
-        pk_virechana_assessment(confirmed_shuddhi_level)
-      )
-    `)
-    .eq('ipd_admission_id', admId);
-
-  for (const plan of (plans || [])) {
-    for (const pr of (plan.pk_care_plan_protocols || [])) {
-      // pk_virechana_assessment has no unique constraint on protocol_instance_id
-      // alone (only on care_plan_day_id), so PostgREST embeds it as an array here,
-      // unlike the care_plan_day-scoped embeds elsewhere in this codebase that hit
-      // the opposite (array-vs-object) gotcha.
-      const grade = pr.pk_virechana_assessment?.[0]?.confirmed_shuddhi_level;
-      if (!grade || !['pravara', 'madhyama', 'avara'].includes(grade)) continue;
-
-      const allDays = (pr.pk_care_plan_days || [])
-        .filter(d => d.activity_label === 'Samsarjana Krama (graded diet)')
-        .sort((a, b) => a.day_number - b.day_number)
-        .map((d, i) => ({ ...d, day_offset: i + 1 }));
-      const homeDays = allDays.filter(d => d.location_mode === 'home');
-      if (!homeDays.length) continue;
-
-      const { data: stages } = await supabase
-        .from('samsarjana_krama_stages')
-        .select('day_offset, meal_slot, stage_key, stage_label, preparation_name, preparation_method, requires_kitchen_indent')
-        .eq('grade', grade);
-
-      const stageAt = (offset, slot) => (stages || []).find(s => s.day_offset === offset && s.meal_slot === slot && s.requires_kitchen_indent);
-      const chartDays = homeDays.map(d => ({
-        day_offset: d.day_offset, planned_date: d.planned_date,
-        morning: stageAt(d.day_offset, 'morning') || null,
-        evening: stageAt(d.day_offset, 'evening') || null,
-      }));
-
-      const recipes = new Map();
-      chartDays.forEach(d => { [d.morning, d.evening].forEach(s => { if (s) recipes.set(s.stage_key, s); }); });
-
-      return { grade, days: chartDays, recipes: [...recipes.values()] };
-    }
-  }
-  return null;
-}
 
 // ── §15d — Print Discharge Summary ───────────────────────────────────────────
 window.printDischargeSummary = async function(admId) {
@@ -1678,7 +1626,7 @@ window.saveAndPrintDischarge = async function() {
   const adm   = _admissions.find(a => a.id === admId);
   if (!adm) return;
   // Save Ayurvedic fields back to ipd_admissions
-  await supabase.from('ipd_admissions').update({
+  const dsFields = {
     discharge_diagnosis_ayurveda: document.getElementById('ds-modal-dx-ay').value.trim()||null,
     discharge_diagnosis_icd10:    document.getElementById('ds-modal-dx-icd').value.trim()||null,
     discharge_medications:        document.getElementById('ds-modal-meds').value.trim()||null,
@@ -1686,9 +1634,15 @@ window.saveAndPrintDischarge = async function() {
     discharge_pk_procedures:      document.getElementById('ds-modal-pk').value.trim()||null,
     discharge_followup_date:      document.getElementById('ds-modal-fu-date').value||null,
     discharge_condition:          document.getElementById('ds-modal-condition').value||null,
-  }).eq('id', admId);
+  };
+  const { error: dsErr } = await supabase.from('ipd_admissions').update(dsFields).eq('id', admId);
+  if (dsErr) { _alert('error', safeErrorMessage(dsErr, 'Could not save discharge details.')); return; }
+  // Session 298 -- the print reads the in-memory row; it used to print the stale copy
+  // (and loadAll() never even selected these columns), so none of the fields just typed
+  // above ever appeared on the printed summary.
+  Object.assign(adm, dsFields);
   document.getElementById('ds-fields-modal').style.display = 'none';
-  const homeChart = await _fetchSamsarjanaHomeChart(admId);
+  const homeChart = await fetchSamsarjanaHomeChart(supabase, admId);
   _printDischargeSummaryNow(admId, homeChart);
 };
 
@@ -1697,128 +1651,11 @@ window.closeDsModal = function() { document.getElementById('ds-fields-modal').st
 function _printDischargeSummaryNow(admId, homeChart) {
   const adm  = _admissions.find(a => a.id === admId);
   if (!adm) return;
-  const pt   = adm.patients || {};
-  const bed  = adm.beds || {};
-  const dept = adm.departments || {};
-  const doc  = adm.profiles || {};
   const tenant = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
-
-  const admDate = adm.admission_date
-    ? new Date(adm.admission_date+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})
-    : '—';
-  const disDate = adm.discharged_at
-    ? new Date(adm.discharged_at).toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})
-    : new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'});
-  const los = _daysSince(adm.admitted_at) || '—';
-  const statusLabel = { discharged:'Discharged', lama:'LAMA (Left Against Medical Advice)', transferred:'Transferred', deceased:'Deceased' }[adm.status] || adm.status;
-
-  document.getElementById('ds-print').innerHTML = `
-<div style="font-family:'DM Sans',sans-serif;max-width:680px;margin:0 auto;color:#1c2b1f">
-  <div style="text-align:center;padding:14px 0 10px;border-bottom:3px double #1a4a2e">
-    <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:#1a4a2e">${_esc(tenant.name||'Ayurveda Hospital')}</div>
-    <div style="font-size:11px;color:#6a8070;margin-top:2px">${_esc(tenant.city||'')} ${_esc(tenant.state||'')}</div>
-  </div>
-  <div style="text-align:center;padding:10px;background:#f5fbf8;border-bottom:1px solid #c8ddd0">
-    <div style="font-size:16px;font-weight:700;letter-spacing:2px;color:#1a4a2e;text-transform:uppercase">DISCHARGE SUMMARY</div>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid #c8ddd0;border-top:none">
-    <div style="padding:12px 16px;border-right:1px solid #c8ddd0">
-      <div style="font-size:18px;font-weight:600;color:#1a4a2e">${_esc(pt.name||'—')}</div>
-      <div style="font-size:12px;color:#4a6352;margin-top:3px;display:flex;flex-wrap:wrap;gap:10px">
-        ${pt.age||pt.gender ? `<span>${[pt.age?pt.age+'y':'',pt.gender].filter(Boolean).join(' · ')}</span>` : ''}
-        ${pt.phone ? `<span>Ph: ${_esc(pt.phone)}</span>` : ''}
-        ${pt.abha_number ? `<span>ABHA: ${_esc(pt.abha_number)}</span>` : ''}
-      </div>
-    </div>
-    <div style="padding:12px 16px;font-size:12px;color:#4a6352">
-      <div style="display:grid;grid-template-columns:auto 1fr;gap:2px 10px">
-        <span style="font-weight:600">IPD No:</span><span>${admId.slice(0,8).toUpperCase()}</span>
-        <span style="font-weight:600">Ward / Bed:</span><span>${_esc(bed.ward_name||dept.name||'—')} / Bed ${_esc(bed.bed_number||'—')}</span>
-        <span style="font-weight:600">Doctor:</span><span>${_esc(doc.full_name||'—')}</span>
-        <span style="font-weight:600">Department:</span><span>${_esc(dept.name||'—')}</span>
-      </div>
-    </div>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #c8ddd0;border-top:none;font-size:12px">
-    <div style="padding:8px 14px;border-right:1px solid #c8ddd0"><span style="font-weight:600">Admitted:</span> ${admDate}</div>
-    <div style="padding:8px 14px;border-right:1px solid #c8ddd0"><span style="font-weight:600">Discharged:</span> ${disDate}</div>
-    <div style="padding:8px 14px"><span style="font-weight:600">LOS:</span> ${los} day(s) · <strong>${statusLabel}</strong></div>
-  </div>
-  ${adm.diagnosis_primary ? `
-  <div style="border:1px solid #c8ddd0;border-top:none;padding:10px 16px">
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#4a6352;margin-bottom:4px">Diagnosis</div>
-    <div style="font-size:13px;font-weight:600">${_esc(adm.diagnosis_primary)}</div>
-  </div>` : ''}
-  ${adm.discharge_diagnosis_ayurveda || adm.discharge_diagnosis_icd10 ? `
-  <div style="display:grid;grid-template-columns:1fr 1fr;border:1px solid #c8ddd0;border-top:none;font-size:12px">
-    ${adm.discharge_diagnosis_ayurveda ? `<div style="padding:8px 14px;border-right:1px solid #c8ddd0"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#4a6352;margin-bottom:2px">Final Ayurvedic Diagnosis</div><div style="font-weight:600">${_esc(adm.discharge_diagnosis_ayurveda)}</div></div>` : '<div></div>'}
-    ${adm.discharge_diagnosis_icd10 ? `<div style="padding:8px 14px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#4a6352;margin-bottom:2px">ICD-10 Code</div><div>${_esc(adm.discharge_diagnosis_icd10)}</div></div>` : '<div></div>'}
-  </div>` : ''}
-  ${adm.discharge_pk_procedures ? `
-  <div style="border:1px solid #c8ddd0;border-top:none;padding:8px 14px">
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#4a6352;margin-bottom:3px">Panchakarma / Procedures Performed</div>
-    <div style="font-size:12px;white-space:pre-wrap">${_esc(adm.discharge_pk_procedures)}</div>
-  </div>` : ''}
-  ${adm.discharge_medications ? `
-  <div style="border:1px solid #c8ddd0;border-top:none;padding:8px 14px">
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#4a6352;margin-bottom:3px">Medications on Discharge (with Anupana)</div>
-    <div style="font-size:12px;white-space:pre-wrap">${_esc(adm.discharge_medications)}</div>
-  </div>` : ''}
-  ${adm.discharge_pathya_apathya ? `
-  <div style="border:1px solid #c8ddd0;border-top:none;padding:8px 14px">
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#4a6352;margin-bottom:3px">Pathya (Do's) &amp; Apathya (Don'ts)</div>
-    <div style="font-size:12px;white-space:pre-wrap">${_esc(adm.discharge_pathya_apathya)}</div>
-  </div>` : ''}
-  ${homeChart ? `
-  <div style="border:1px solid #c8ddd0;border-top:none;padding:8px 14px">
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#4a6352;margin-bottom:3px">🏠 Samsarjana Krama — Home Diet Chart (${_esc(homeChart.grade.charAt(0).toUpperCase() + homeChart.grade.slice(1))} Shuddhi)</div>
-    <div style="font-size:11px;color:#4a6352;margin-bottom:6px">Your Panchakarma course includes a graded return-to-normal diet. The days below are to be prepared and served at home — please follow the schedule and recipes exactly, in order.</div>
-    <table style="width:100%;font-size:11px;border-collapse:collapse;margin-bottom:8px">
-      <thead><tr style="background:#f5fbf8">
-        <th style="text-align:left;padding:3px 6px;border-bottom:1px solid #c8ddd0">Day</th>
-        <th style="text-align:left;padding:3px 6px;border-bottom:1px solid #c8ddd0">Date</th>
-        <th style="text-align:left;padding:3px 6px;border-bottom:1px solid #c8ddd0">Morning</th>
-        <th style="text-align:left;padding:3px 6px;border-bottom:1px solid #c8ddd0">Evening</th>
-      </tr></thead>
-      <tbody>${homeChart.days.map(d => `<tr>
-        <td style="padding:3px 6px;border-bottom:1px solid #eef3ee">${d.day_offset}</td>
-        <td style="padding:3px 6px;border-bottom:1px solid #eef3ee">${d.planned_date ? new Date(d.planned_date+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short'}) : '—'}</td>
-        <td style="padding:3px 6px;border-bottom:1px solid #eef3ee">${d.morning ? _esc(d.morning.preparation_name) : '—'}</td>
-        <td style="padding:3px 6px;border-bottom:1px solid #eef3ee">${d.evening ? _esc(d.evening.preparation_name) : '—'}</td>
-      </tr>`).join('')}</tbody>
-    </table>
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#4a6352;margin-bottom:3px">How to Prepare</div>
-    ${homeChart.recipes.map(r => `<div style="font-size:11px;margin-bottom:5px"><strong>${_esc(r.preparation_name)}</strong> (${_esc(r.stage_label)})<br>${_esc(r.preparation_method || '')}</div>`).join('')}
-  </div>` : ''}
-  <div style="border:1px solid #c8ddd0;border-top:none;padding:10px 16px;min-height:60px">
-    <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#4a6352;margin-bottom:6px">Clinical Notes / Discharge Advice</div>
-    <div style="font-size:12px;line-height:1.8;white-space:pre-wrap">${_esc(adm.notes||'—')}</div>
-  </div>
-  ${adm.discharge_followup_date ? `
-  <div style="border:1px solid #c8ddd0;border-top:none;padding:8px 14px;background:#f5fbf8">
-    <span style="font-size:12px;font-weight:600;color:#1a4a2e">📅 Follow-up OPD: </span>
-    <span style="font-size:12px">${new Date(adm.discharge_followup_date+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})}</span>
-  </div>` : ''}
-  <div style="display:flex;justify-content:space-between;align-items:flex-end;border:1px solid #c8ddd0;border-top:none;padding:12px 16px;background:#fafbf9">
-    <div style="font-size:11px;color:#6a8070">Printed: ${new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})}</div>
-    <div style="text-align:center">
-      <div style="width:160px;border-top:1px solid #aaa;padding-top:5px;font-size:11px;color:#6a8070">
-        ${_esc(doc.full_name||myProfile?.full_name||'—')}<br>
-        <span style="font-size:10px">${_esc(dept.name||'')}</span>
-      </div>
-    </div>
-  </div>
-  <div style="text-align:center;margin-top:8px;font-size:10px;color:#aaa">Powered by AyurXpert Technologies™</div>
-</div>`;
-
-  document.body.classList.add('ds-print');
-  window.addEventListener('afterprint', () => {
-    document.body.classList.remove('ds-print');
-    document.getElementById('ds-print').style.display = 'none';
-  }, { once: true });
-  document.getElementById('ds-print').style.display = 'block';
-  window.print();
-};
+  // Session 298 -- layout moved to js/modules/ipd/dischargePrint.js, shared with
+  // doctor.html's discharge summary so both print the same document.
+  printDischargeHtml(buildDischargeSummaryHtml({ adm, admId, tenant, homeChart, esc: _esc, signerName: adm.profiles?.full_name || myProfile?.full_name }));
+}
 
 // ── §18bb — Palha-Diet Indent ─────────────────────────────────────────────────
 const DIET_HINTS = {

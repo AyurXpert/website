@@ -491,6 +491,8 @@ body.vh-split .page{right:480px}
 body.vh-split .action-bar{right:480px}
 body.vh-split .vh-panel{width:480px;box-shadow:none}
 @media print{.vh-rail,.vh-panel{display:none!important}.c-work,.c-main{display:block}}
+/* Session 298 -- discharge summary print: only #ds-print, nothing else on the page. */
+@media print{body.ds-print > *:not(#ds-print){display:none!important}body.ds-print #ds-print{display:block!important}}
 
 /* ABDM longitudinal FHIR display */
 .fhir-detail{font-size:12px;color:#333;display:flex;flex-direction:column;gap:6px}
@@ -1332,6 +1334,41 @@ body.medcert-print #mc-print{display:block!important}
               <div id="ordt-pane-pk" style="display:none">
                 <div id="ordpk-body"></div>
               </div>
+            </div>
+            <!-- Session 298 -- doctor IPD part 4: discharge summary, pre-filled from the
+                 stay (js/modules/ipd/dischargeSummary.js). Trainees draft, doctors sign;
+                 signing orders the discharge (same as ipd.html's Order Discharge). -->
+            <div class="section" id="ds-section">
+              <div class="section-title">🏠 Discharge summary</div>
+              <div id="ds-status" class="ipdws-muted" style="margin-bottom:10px"></div>
+              <button type="button" class="ordm-add" id="ds-prepare" data-onclick="prepareDischargeSummary">Prepare discharge summary</button>
+              <div id="ds-form" hidden>
+                <div class="ipdws-grid" style="grid-template-columns:2fr 1fr">
+                  <div class="field"><label for="ds-dx-ay">Final diagnosis (Ayurveda)</label><input id="ds-dx-ay" type="text"/></div>
+                  <div class="field"><label for="ds-dx-icd">ICD-10 / modern</label><input id="ds-dx-icd" type="text"/></div>
+                </div>
+                <div class="field"><label for="ds-course">Course in hospital</label><textarea id="ds-course" rows="5"></textarea></div>
+                <div class="field"><label for="ds-treatment">Treatment given (medicines &amp; Panchakarma)</label><textarea id="ds-treatment" rows="6"></textarea></div>
+                <div class="field"><label for="ds-inv">Investigations</label><textarea id="ds-inv" rows="4"></textarea></div>
+                <div class="field"><label for="ds-condition">Condition at discharge</label>
+                  <select id="ds-condition">
+                    <option value="improved">Improved</option><option value="cured">Cured</option>
+                    <option value="unchanged">Unchanged</option><option value="deteriorated">Deteriorated</option>
+                  </select></div>
+                <div class="section-title" style="margin-top:6px">Take-home medicines <span class="section-sub">sent to the pharmacy when signed</span></div>
+                <div id="ds-med-rows"></div>
+                <button type="button" class="ordm-add" data-onclick="addDsMedRow">+ Add medicine</button>
+                <div class="field"><label for="ds-pathya">Pathya (do's) &amp; Apathya (don'ts)</label><textarea id="ds-pathya" rows="3"></textarea></div>
+                <div class="field"><label for="ds-advice">Discharge advice</label><textarea id="ds-advice" rows="3"></textarea></div>
+                <div class="field" style="max-width:220px"><label for="ds-fu">Follow-up date</label><input id="ds-fu" type="date"/></div>
+                <div class="ipdws-err" id="ds-err" role="alert"></div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                  <button type="button" class="ordm-add" style="margin-bottom:0" data-onclick="refreshDischargeFromStay">↻ Refresh from stay</button>
+                  <button type="button" class="ipdws-save" style="background:var(--white);color:var(--green-deep);border:1.5px solid var(--green-deep)" id="ds-save" data-onclick="saveDischargeDraft">Save draft</button>
+                  <button type="button" class="ipdws-save" id="ds-sign" data-onclick="signDischargeSummary">✓ Sign &amp; order discharge</button>
+                </div>
+              </div>
+              <button type="button" class="ordm-add" id="ds-print-btn" style="margin-top:10px" hidden data-onclick="printDischargeFromRound">🖨 Print discharge summary</button>
             </div>
           </div>
         </div>
@@ -4726,6 +4763,9 @@ body.medcert-print #mc-print{display:block!important}
     </div>
   </div>
 </div>
+
+<!-- Session 298 -- discharge summary print target (js/modules/ipd/dischargePrint.js) -->
+<div id="ds-print" style="display:none"></div>
 
 </body>
 </html>

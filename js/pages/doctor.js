@@ -745,9 +745,12 @@ async function loadIPDPatients() {
 
   let q = supabase
     .from('ipd_admissions')
-    .select('id, patient_id, visit_id, diagnosis_primary, admission_date, admitted_at, admitting_doctor_id, admission_advice_id, discharge_ordered_by, clinically_discharged_at, beds(bed_number, ward_name), departments(name), patients(id, name, phone, abha_number), admitting_doctor:profiles!admitting_doctor_id(full_name), advice:admission_advice!admission_advice_id(expected_duration_days)')
+    .select('id, patient_id, visit_id, status, diagnosis_primary, admission_date, admitted_at, admitting_doctor_id, admission_advice_id, discharge_ordered_by, clinically_discharged_at, beds(bed_number, ward_name), departments(name), patients(id, name, phone, abha_number), admitting_doctor:profiles!admitting_doctor_id(full_name), advice:admission_advice!admission_advice_id(expected_duration_days)')
     .eq('tenant_id', tenantId)
-    .eq('status', 'admitted')
+    // Session 298 -- discharge-ordered patients stay on the list (with the existing
+    // "Discharge ordered" chip) until the nurse locks charges, so the doctor can still
+    // reopen the round to correct or print the discharge summary.
+    .in('status', ['admitted', 'clinically_discharged'])
     .order('admitted_at', { ascending: false });
   q = _ipdScope === 'dept' && deptIds.length ? q.in('department_id', deptIds) : q.eq('admitting_doctor_id', userId);
   const { data, error } = await q;

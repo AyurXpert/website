@@ -11,6 +11,8 @@
 // rounds a day; PG / intern notes are saved "awaiting countersign" until a doctor
 // countersigns (enforced server-side by trg_ward_round_guard + RLS).
 
+import { openDischarge, closeDischarge } from './dischargeSummary.js';
+
 let _c = null;        // { supabase, esc, tenantId, userId, isTrainee, toast, fmtDate, getInventory }
 let _adm = null;      // the open admission (row from doctor.js's IPD list)
 let _notes = [];
@@ -81,6 +83,7 @@ export async function openIpdRound(adm, ctx) {
   _loadInvestigations(adm.id);
   _loadDietOrders(adm.id);
   _loadPkForAdm(adm.id);
+  openDischarge(adm, ctx);
 
   const [nR, vR] = await Promise.all([
     _c.supabase.from('ward_round_notes')
@@ -102,6 +105,7 @@ export async function openIpdRound(adm, ctx) {
 export function closeIpdRound() {
   _token++; _adm = null; _notes = []; _vitals = null;
   _activeOrders = []; _lastSavedRoundId = null;
+  closeDischarge();
   window.closeVhPanel?.();
   const el = document.getElementById('c-ipd');
   if (el) el.style.display = 'none';
@@ -543,3 +547,7 @@ function _renderPkTab() {
 }
 
 window._openPkForCurrentAdm = function() { if (_adm) _c.openPkForAdmission?.(_adm); };
+
+// Session 298 -- signing the discharge summary stops every active MAR order server-side;
+// refresh the Medicines tab's Active Orders strip so it doesn't keep showing them.
+window.reloadIpdOrdersAfterDischarge = function() { if (_adm) { _adm.status = 'clinically_discharged'; _loadActiveOrders(_adm.id); } };
