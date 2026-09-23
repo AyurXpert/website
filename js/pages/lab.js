@@ -274,15 +274,15 @@ function renderQueue() {
     const paymentDue = o.payment_status === 'pending';
     return `<div class="order-item${isActive?' selected':''}" data-onclick="selectOrder" data-onclick-a0="${o.id}">
       <div style="display:flex;align-items:center;justify-content:space-between">
-        <span class="order-pt-name">${o.patients?.name||'—'}${hasCritical?'<span style="color:var(--red);margin-left:4px">⚠</span>':''}</span>
+        <span class="order-pt-name">${_esc(o.patients?.name||'—')}${hasCritical?'<span style="color:var(--red);margin-left:4px">⚠</span>':''}</span>
         <span class="priority-badge p-${o.priority}">${o.priority.toUpperCase()}</span>
       </div>
       <div class="order-meta">
         <span class="status-dot dot-${o.status}"></span>${{pending:'Awaiting sample',sample_collected:'Sample collected',in_progress:'In progress',completed:'Completed',cancelled:'Cancelled'}[o.status]||o.status}
-        · ${o.patients?.age||'—'}${o.patients?.gender?('/'+o.patients.gender.charAt(0).toUpperCase()):''}
+        · ${_esc(String(o.patients?.age??'—'))}${o.patients?.gender?('/'+_esc(o.patients.gender.charAt(0).toUpperCase())):''}
         ${paymentDue ? '<span style="color:#7a4a00;font-weight:700;margin-left:4px">⏳ Payment due</span>' : o.payment_status === 'waived' ? '<span style="color:#7a1a1a;font-weight:700;margin-left:4px">🚨 Waived</span>' : ''}
       </div>
-      <div class="order-tests">${tests||'No tests listed'}</div>
+      <div class="order-tests">${_esc(tests||'No tests listed')}</div>
     </div>`;
   }).join('');
 }
@@ -427,7 +427,7 @@ function renderTestRow(item) {
   const inputCls  = item.is_critical ? 'critical-val' : item.is_abnormal ? 'abnormal-val' : '';
   const isComplete = _activeOrder?.status === 'completed';
   return `<div class="test-row ${rowCls}" id="tr-${item.id}">
-    <div class="test-name">${item.test_name}</div>
+    <div class="test-name">${_esc(item.test_name)}</div>
     <input class="test-input ${inputCls}" id="val-${item.id}" type="text" value="${_esc(item.result_value||'')}"
       placeholder="Enter result" data-oninput="evalResult" data-oninput-a0="${item.id}" data-oninput-a1="${_esc(item.test_name)}" data-oninput-a2="@value"
       ${isComplete?'readonly style="background:#f5f5f5"':''}/>
@@ -726,7 +726,7 @@ function renderImgQueue() {
     const isActive = _activeImgOrder?.id === o.id;
     return `<div class="order-item${isActive?' selected':''}" data-onclick="selectImgOrder" data-onclick-a0="${o.id}">
       <div style="display:flex;align-items:center;justify-content:space-between">
-        <span class="order-pt-name">${o.patients?.name||'—'}</span>
+        <span class="order-pt-name">${_esc(o.patients?.name||'—')}</span>
         <span class="priority-badge p-${o.priority}">${o.priority.toUpperCase()}</span>
       </div>
       <div class="order-meta">
@@ -734,7 +734,7 @@ function renderImgQueue() {
         ${o.is_outside_referral?'<span style="font-size:10px;color:#1a4080">🔗 Outside</span>':''}
         · ${{ordered:'Ordered',performed:'Performed',completed:'Report Ready',referred_outside:'Referred Out'}[o.status]||o.status}
       </div>
-      <div class="order-tests">${o.study_name}</div>
+      <div class="order-tests">${_esc(o.study_name||'')}</div>
     </div>`;
   }).join('');
 }
@@ -1047,10 +1047,10 @@ window.loadAerbLog = async function loadAerbLog() {
   document.getElementById('aerb-count').textContent = _aerbEntries.length + ' entries';
   const tbody = document.getElementById('aerb-tbody');
   tbody.innerHTML = _aerbEntries.length ? _aerbEntries.map((e,i)=>`<tr>
-    <td>${i+1}</td><td>${_fmtDate(e.date)}</td><td>${e.pt_name}</td><td>${e.age_sex}</td>
-    <td style="font-size:11px">${e.uhid}</td><td>${e.study}${e.view&&e.view!=='—'?' ('+e.view+')':''}</td>
-    <td>${e.ordered_by}</td><td>${e.operator}</td><td>${e.kvp}</td>
-    <td style="font-size:11px">${e.indication}</td>
+    <td>${i+1}</td><td>${_fmtDate(e.date)}</td><td>${_esc(e.pt_name)}</td><td>${_esc(e.age_sex)}</td>
+    <td style="font-size:11px">${_esc(e.uhid)}</td><td>${_esc(e.study)}${e.view&&e.view!=='—'?' ('+_esc(e.view)+')':''}</td>
+    <td>${_esc(e.ordered_by)}</td><td>${_esc(e.operator)}</td><td>${_esc(e.kvp)}</td>
+    <td style="font-size:11px">${_esc(e.indication)}</td>
   </tr>`).join('') : `<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-muted)">No X-ray entries for this month</td></tr>`;
 }
 
@@ -1105,17 +1105,17 @@ window.loadPcpndtLog = async function loadPcpndtLog() {
   tbody.innerHTML = entries.length ? entries.map((o,i)=>`<tr>
     <td>${i+1}</td>
     <td>${_fmtDate(o.order_date)}</td>
-    <td>${o.patients?.name||'—'}</td>
-    <td>${o.patients?.age||'—'}</td>
-    <td>${o.pcpndt_husband_name||'—'}</td>
-    <td style="font-size:11px">${o.pcpndt_address||'—'}</td>
-    <td style="font-size:11px">${o.usg_indication||o.clinical_indication||'—'}</td>
-    <td>${o.profiles?.full_name||'—'}</td>
-    <td>${o.radiologist_name||'—'}</td>
+    <td>${_esc(o.patients?.name||'—')}</td>
+    <td>${_esc(String(o.patients?.age??'—'))}</td>
+    <td>${_esc(o.pcpndt_husband_name||'—')}</td>
+    <td style="font-size:11px">${_esc(o.pcpndt_address||'—')}</td>
+    <td style="font-size:11px">${_esc(o.usg_indication||o.clinical_indication||'—')}</td>
+    <td>${_esc(o.profiles?.full_name||'—')}</td>
+    <td>${_esc(o.radiologist_name||'—')}</td>
     <td style="font-weight:700;color:${o.pcpndt_sex_not_determined===false?'var(--red)':'var(--green-deep)'}">
       ${o.pcpndt_sex_not_determined===false?'⚠ YES — VIOLATION':'Not Determined ✓'}
     </td>
-    <td style="font-size:11px">${o.impression||'—'}</td>
+    <td style="font-size:11px">${_esc(o.impression||'—')}</td>
   </tr>`).join('')
   : `<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--text-muted)">No USG entries for this month</td></tr>`;
 }
