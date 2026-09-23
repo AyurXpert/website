@@ -79,6 +79,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .dot-completed{background:var(--green-mid)}
 .dot-cancelled{background:#ccc}
 .empty-queue{padding:30px;text-align:center;color:var(--text-muted);font-size:13px}
+/* Session 295 -- "Advised for next visit" list (informational: payment first at reception) */
+.adv-wrap{border-bottom:2px solid var(--border);background:var(--blue-light)}
+.adv-wrap[hidden]{display:none}
+.adv-hdr{padding:10px 14px;font-size:12.5px;font-weight:700;color:var(--blue);cursor:pointer;min-height:44px;display:flex;align-items:center;gap:6px}
+.adv-hdr:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+.adv-item{padding:10px 14px;border-top:1px solid #d0def2;background:var(--white);font-size:12px}
+.adv-item .adv-name{font-weight:700;font-size:13px;color:var(--text-dark)}
+.adv-item .adv-meta{color:var(--text-muted);margin-top:2px}
+.adv-item .adv-tests{color:var(--text-mid);margin-top:3px}
+.adv-item .adv-pay{color:#7a4a00;font-weight:700;margin-top:4px}
 
 /* Result panel */
 .result-panel{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden}
@@ -260,6 +270,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="queue-search">
         <input id="q-search" type="text" placeholder="Search patient name…" data-oninput="renderQueue"/>
       </div>
+      <!-- Session 295 -- tests a doctor advised "before next visit": visible here on any
+           day (the patient may come early), not billed until reception collects -->
+      <details class="adv-wrap" id="adv-wrap" hidden>
+        <summary class="adv-hdr">📅 Advised for next visit <span id="adv-count"></span></summary>
+        <div id="adv-list"></div>
+      </details>
       <div class="queue-list" id="queue-list"></div>
     </div>
 

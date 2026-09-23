@@ -8,6 +8,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
+import { computeLabBillingLines, labItemsToSelection, billDeferredLabOrder } from '../modules/billing/labBilling.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import {
@@ -4136,7 +4137,7 @@ document.getElementById('tab-pkplans').addEventListener('click', () => {
 async function loadPendingLabBills() {
   const { data: orders, error } = await supabase
     .from('lab_orders')
-    .select('id, priority, payment_status, created_at, visits(token_number, patients(name)), lab_order_items(test_name)')
+    .select('id, priority, payment_status, created_at, due_timing, due_by, order_date, performed_outside, status, visits(token_number, patient_id, patients(name, phone)), lab_order_items(test_name, panel_label)')
     .eq('tenant_id', tenantId)
     // Session 127 -- a trainee doctor's still-unreviewed draft order shouldn't
     // reach the payment counter at all until a supervising doctor finalizes it.
@@ -4144,7 +4145,25 @@ async function loadPendingLabBills() {
     .in('payment_status', ['pending', 'waived']);
   if (error) { console.warn('[reception] loadPendingLabBills:', error.message); return; }
 
-  const orderIds = (orders || []).map(o => o.id);
+  // Session 295 -- "before next visit" orders aren't billed yet: listed in their own
+  // group with an estimate, billed on a new bill the day the patient actually pays.
+  // One that was done outside (entered by the doctor) or already closed never shows.
+  const openOrders = (orders || []).filter(o => !o.performed_outside && o.status !== 'completed');
+  const deferred = openOrders.filter(o => o.due_timing === 'next_visit' && o.payment_status === 'pending');
+  const nowOrders = openOrders.filter(o => !deferred.includes(o));
+  let estimateByOrder = {};
+  if (deferred.length) {
+    const { data: feeRows } = await supabase.from('fee_structures')
+      .select('label,amount,gst_percent,promo_price,promo_valid_until')
+      .eq('tenant_id', tenantId).eq('is_active', true).in('category', ['lab', 'radiology']);
+    deferred.forEach(o => {
+      const { lines } = computeLabBillingLines(labItemsToSelection(o.lab_order_items), feeRows || []);
+      estimateByOrder[o.id] = lines.reduce((s, l) => s + (Number(l.price) || 0) * (1 + (Number(l.gst_percent) || 0) / 100), 0);
+    });
+  }
+  _deferredLabOrders = Object.fromEntries(deferred.map(o => [o.id, o]));
+
+  const orderIds = nowOrders.map(o => o.id);
   let amountByOrder = {};
   if (orderIds.length) {
     const { data: items } = await supabase.from('bill_items').select('lab_order_id,total,gst_amount').in('lab_order_id', orderIds);
@@ -4154,12 +4173,13 @@ async function loadPendingLabBills() {
   }
 
   const rank = { stat: 0, urgent: 1, routine: 2 };
-  const sorted = (orders || []).slice().sort((a, b) =>
+  const sorted = nowOrders.slice().sort((a, b) =>
     (rank[a.priority] ?? 2) - (rank[b.priority] ?? 2) || new Date(a.created_at) - new Date(b.created_at));
 
-  document.getElementById('labbills-count').textContent = sorted.length ? `(${sorted.length})` : '';
+  const totalCount = sorted.length + deferred.length;
+  document.getElementById('labbills-count').textContent = totalCount ? `(${totalCount})` : '';
   const list = document.getElementById('lab-bills-list');
-  if (!sorted.length) {
+  if (!totalCount) {
     list.innerHTML = `<div class="q-empty"><div class="q-empty-icon">✅</div><div class="q-empty-text">No pending lab/investigation bills</div></div>`;
     return;
   }
@@ -4194,19 +4214,68 @@ async function loadPendingLabBills() {
         </div>
       </div>
     </div>`;
+  }).join('') + _deferredLabBillsHtml(deferred, estimateByOrder);
+}
+
+// Session 295 -- "Advised for next visit" group (see loadPendingLabBills).
+let _deferredLabOrders = {};
+function _deferredLabBillsHtml(deferred, estimateByOrder) {
+  if (!deferred.length) return '';
+  const fmt = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '';
+  const today = todayLocalStr();
+  const rows = deferred.slice().sort((a, b) => String(a.due_by || '9999').localeCompare(String(b.due_by || '9999'))).map(o => {
+    const tests = _esc((o.lab_order_items || []).map(i => i.test_name).join(', ') || '—');
+    const name  = o.visits?.patients?.name || '—';
+    const overdue = o.due_by && o.due_by < today;
+    return `<div class="q-item">
+      <div class="q-token" style="background:var(--blue-light,#e3f0ff);color:var(--blue,#1a4080)" aria-hidden="true">📅</div>
+      <div class="q-info">
+        <div class="q-name">${_esc(name)} <span class="badge" style="background:#e3f0ff;color:#1a4080">📅 ADVISED FOR NEXT VISIT</span></div>
+        <div class="q-row2"><span style="color:var(--text-mid)">${tests}</span></div>
+        <div class="q-row3">Advised ${fmt(o.order_date)}${o.due_by ? ` · ${overdue ? '⚠ was due' : 'due by'} ${fmt(o.due_by)}` : ''} · Est. <strong>₹${(estimateByOrder[o.id] || 0).toFixed(2)}</strong> — billed only when collected</div>
+      </div>
+      <div class="q-right" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <select id="pm-${o.id}" aria-label="Payment mode" style="height:26px;font-size:11px;border-radius:5px;border:1px solid var(--border)">
+          <option value="cash">Cash</option>
+          <option value="upi">UPI</option>
+          <option value="card">Card</option>
+        </select>
+        <button class="q-edit-btn" data-onclick="collectLabPayment" data-onclick-a0="${o.id}" style="width:auto;padding:0 8px;font-size:11px;background:var(--green-mid);color:#fff">💰 Collect & send to lab</button>
+      </div>
+    </div>`;
   }).join('');
+  return `<div style="padding:8px 12px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)">📅 Advised for next visit — collect only when the patient is here for the test</div>` + rows;
 }
 
 window.collectLabPayment = async function(orderId) {
   const mode = document.getElementById('pm-' + orderId)?.value || 'cash';
+  // Session 295 -- a "before next visit" order is billed now, on a new 'investigation'
+  // bill dated today (Dr. Venkatesh's choice), and moves into today's lab work list.
+  const deferred = _deferredLabOrders[orderId];
+  if (deferred) {
+    const patientId = deferred.visits?.patient_id;
+    if (!patientId) { _alert('error', 'Could not find the patient for this order.'); return; }
+    const res = await billDeferredLabOrder({ supabase, tenantId, patientId, labOrderId: orderId,
+      items: deferred.lab_order_items, paymentMode: mode });
+    if (res.error) { _alert('error', safeErrorMessage(res.error, 'Could not create the investigation bill.')); return; }
+    await logAudit('create_bill', 'bills', res.billId, {
+      bill_type: 'investigation', lab_order_id: orderId, total_amount: res.total, payment_mode: mode,
+    }, _ctx);
+    deferred._unmatched = res.unmatched;
+  }
   const { error } = await supabase.from('lab_orders').update({
     payment_status: 'paid',
     payment_mode: mode,
     payment_collected_by: profile.id,
     payment_collected_at: new Date().toISOString(),
+    ...(deferred ? { order_date: todayLocalStr() } : {}),
   }).eq('id', orderId);
   if (error) { _alert('error', safeErrorMessage(error, 'Could not record payment.')); return; }
-  _alert('success', 'Payment collected — lab notified.');
+  if (deferred?._unmatched?.length) {
+    _alert('error', `Payment collected and lab notified, but no price was found for: ${deferred._unmatched.join(', ')} — please add these to the investigation bill manually.`);
+  } else {
+    _alert('success', deferred ? 'Payment collected on a new investigation bill — lab notified.' : 'Payment collected — lab notified.');
+  }
   loadPendingLabBills();
 };
 

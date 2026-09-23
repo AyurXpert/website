@@ -8,6 +8,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType } from '../config/ncism.js';
 import { addOpdBillItem } from '../modules/billing/opdBillItems.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
+import { LAB_PANELS, computeLabBillingLines } from '../modules/billing/labBilling.js';
 import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { openTimePicker, formatTime12 } from '../components/timePicker.js';
@@ -8027,15 +8028,6 @@ window.submitImgOrder = async function() {
 };
 
 // ── Lab Order Module ──────────────────────────────────────────────────────────
-const LAB_PANELS = [
-  { label:'CBC',        tests:['Haemoglobin (Hb)','Total Leucocyte Count (TLC)','Differential Leucocyte Count (DLC)','Platelet Count','PCV / Haematocrit'] },
-  { label:'LFT',        tests:['SGOT (AST)','SGPT (ALT)','Serum Bilirubin Total','Serum Bilirubin Direct','Alkaline Phosphatase (ALP)','Serum Albumin','Total Protein'] },
-  { label:'KFT / RFT',  tests:['Serum Creatinine','Blood Urea','Serum Uric Acid','Serum Sodium','Serum Potassium'] },
-  { label:'Lipid Profile', tests:['Total Cholesterol','Triglycerides (TG)','HDL Cholesterol','LDL Cholesterol','VLDL Cholesterol'] },
-  { label:'TFT',        tests:['TSH','T3 (Triiodothyronine)','T4 (Thyroxine)'] },
-  { label:'Blood Sugar', tests:['Fasting Blood Sugar (FBS)','Post-Prandial Blood Sugar (PPBS)','HbA1c'] },
-  { label:'Urine R/M',  tests:['Urine — Albumin (Protein)','Urine — Sugar (Glucose)','Urine — Pus Cells (WBCs)','Urine — RBCs','Urine — pH','Urine — Specific Gravity'] },
-];
 const LAB_CAT_LABEL = {
   haematology:'🩸 Haematology', biochemistry:'🧪 Biochemistry', lipid:'💛 Lipid',
   thyroid:'🦋 Thyroid', urine:'💧 Urine', stool:'🟤 Stool',
@@ -8053,90 +8045,8 @@ const LAB_CATALOG = {
   other:['Coagulation Profile (PT/INR/aPTT)','PAP Smear','FNAC (specify site)','Biopsy (specify site)','Procalcitonin (PCT)'],
 };
 
-// Session 124 Step 4 -- explicit panel -> fee_structures label mapping.
-// Deliberately NOT automatic string-matching -- verified by hand against the
-// real fee-admin.js catalog (Step 1) rather than guessed, since a silent
-// mismatch here means a patient gets billed wrong. 'Blood Sugar' is
-// deliberately absent: unlike the other 6 panels, no single bundle fee
-// exists for it (real labs don't bundle HbA1c with same-day sugar tests) --
-// it always decomposes to its 3 individual tests instead.
-const PANEL_FEE_MAP = {
-  'CBC':            'Blood — CBC',
-  'LFT':            'Blood — LFT',
-  'KFT / RFT':      'Blood — RFT',   // KFT (Kidney) and RFT (Renal) are the same test, regional naming only
-  'Lipid Profile':  'Blood — Lipid Profile',
-  'TFT':            'Blood — Thyroid (T3/T4/TSH)',
-  'Urine R/M':      'Urine — Routine',
-};
 
-// Known near-miss label variants between doctor.js's exact order test names
-// and fee-admin.js's catalog labels (found during Step 1's cross-check) --
-// e.g. "Urine Culture & Sensitivity" (ordered) vs "Culture & Sensitivity"
-// (priced) are the same real-world charge, just phrased differently.
-// X-Ray/USG variants resolve to the RADIOLOGY category, not lab, since
-// that's genuinely where their pricing lives.
-const TEST_LABEL_OVERRIDES = {
-  'Urine Culture & Sensitivity': 'Culture & Sensitivity',
-  'Blood Culture & Sensitivity': 'Culture & Sensitivity',
-  'Stool Routine & Microscopy':  'Stool — Routine',
-  'Biopsy (specify site)':       'Biopsy',
-  'X-Ray Chest (PA view)':       'X-Ray',
-  'X-Ray (specify area)':        'X-Ray',
-  'USG Abdomen & Pelvis':        'Ultrasound (USG)',
-  'USG Pelvis (Obstetric)':      'Ultrasound (USG)',
-  'ECG (12-lead)':               'ECG',
-  'ECHO (Echocardiography)':     'Echo (2D Echo)',
-  // The 'Blood Sugar' panel (unlike the other 6) has no bundle fee and
-  // always decomposes to individual pricing -- caught by testing that these
-  // 2 exact-match a completely different fee label convention (found live,
-  // would otherwise have always shown "unmatched" even with a real fee).
-  'Fasting Blood Sugar (FBS)':      'Blood Sugar — Fasting',
-  'Post-Prandial Blood Sugar (PPBS)': 'Blood Sugar — PP',
-};
 
-// Turns this order's Map<testName, panelLabel> into priced billing lines.
-// A tagged panel only bundles if EVERY one of its real tests (per LAB_PANELS,
-// never trusted from the tag alone) is actually present -- a partial panel
-// (one test unchecked after the panel button was clicked) decomposes to
-// individual pricing for whatever remains, same as a never-tagged test.
-function _computeLabBillingLines(labSelected, feeRows) {
-  const byLabel = {};
-  feeRows.forEach(f => { byLabel[f.label] = f; });
-
-  const byPanel = {};
-  const individual = [];
-  for (const [testName, panelLabel] of labSelected.entries()) {
-    if (panelLabel) (byPanel[panelLabel] = byPanel[panelLabel] || []).push(testName);
-    else individual.push(testName);
-  }
-
-  const lines = [];
-  const unmatched = [];
-
-  for (const [panelLabel, taggedTests] of Object.entries(byPanel)) {
-    const panelDef = LAB_PANELS.find(p => p.label === panelLabel);
-    const isComplete = panelDef && panelDef.tests.length === taggedTests.length
-      && panelDef.tests.every(t => taggedTests.includes(t));
-    const bundleFeeLabel = PANEL_FEE_MAP[panelLabel];
-    const bundleFee = bundleFeeLabel ? byLabel[bundleFeeLabel] : null;
-    if (isComplete && bundleFee) {
-      lines.push({ description: bundleFee.label, price: getEffectivePrice(bundleFee), gst_percent: Number(bundleFee.gst_percent) || 0 });
-    } else {
-      // Not a complete/priceable bundle -- fall back to individual pricing
-      // for every test in this group, same path as never-tagged tests.
-      individual.push(...taggedTests);
-    }
-  }
-
-  for (const testName of individual) {
-    const feeLabel = TEST_LABEL_OVERRIDES[testName] || testName;
-    const fee = byLabel[feeLabel];
-    if (fee) lines.push({ description: fee.label, price: getEffectivePrice(fee), gst_percent: Number(fee.gst_percent) || 0 });
-    else unmatched.push(testName);
-  }
-
-  return { lines, unmatched };
-}
 
 // Attaches this lab order's charges to the visit's existing OPD bill
 // (Step 3's addOpdBillItem) -- deliberately non-blocking: a billing hiccup
@@ -8152,7 +8062,7 @@ async function _billLabOrder(labSelected, labOrderId) {
     const { data: feeRows } = await supabase.from('fee_structures')
       .select('label,amount,gst_percent,promo_price,promo_valid_until').eq('tenant_id', tenantId).eq('is_active', true).in('category', ['lab','radiology']);
 
-    const { lines, unmatched } = _computeLabBillingLines(labSelected, feeRows || []);
+    const { lines, unmatched } = computeLabBillingLines(labSelected, feeRows || []);
 
     for (const line of lines) {
       const { error } = await addOpdBillItem({
@@ -8188,6 +8098,10 @@ let _labSelected = new Map();
 window.openLabOrderModal = function openLabOrderModal() {
   if (!_activePatient) { alert('Select a patient first.'); return; }
   _labSelected = new Map();
+  // Session 295 -- every new order starts as "Today" (no carry-over between patients).
+  document.getElementById('lo-when').value = 'today';
+  document.getElementById('lo-due-by').value = '';
+  window.onLabWhenChange();
   // Build panels
   document.getElementById('lo-panels').innerHTML = LAB_PANELS.map(p =>
     `<button data-onclick="_selectPanelFromAttr" data-onclick-a0="${_esc(JSON.stringify(p.tests))}" data-onclick-a1="${_esc(p.label)}"
@@ -8234,13 +8148,31 @@ window.closeLabOrderModal = function() {
   document.getElementById('lab-order-overlay').style.display = 'none';
 };
 
+// Session 295 -- "When" in the lab order modal.
+window.onLabWhenChange = function() {
+  const next = document.getElementById('lo-when').value === 'next_visit';
+  document.getElementById('lo-due-wrap').style.display = next ? '' : 'none';
+  document.getElementById('lo-next-note').style.display = next ? '' : 'none';
+  document.getElementById('lo-bypass-wrap').style.display = next ? 'none' : 'flex';
+  if (next) {
+    document.getElementById('lo-bypass-payment').checked = false;
+    const due = document.getElementById('lo-due-by');
+    if (!due.value) due.value = document.getElementById('fu-date')?.value || '';
+    due.min = todayLocalStr();
+  }
+};
+
 window.submitLabOrder = async function() {
   if (_labSelected.size === 0) { alert('Select at least one test.'); return; }
   if (!_activePatient) return;
 
   const priority = document.getElementById('lo-priority').value || 'routine';
   const clinicalNotes = document.getElementById('lo-notes').value.trim() || null;
-  const bypassPayment = document.getElementById('lo-bypass-payment').checked;
+  // Session 295 -- "before next visit": not billed now (reception bills it the day the
+  // test is actually done), never an emergency bypass.
+  const nextVisit = document.getElementById('lo-when').value === 'next_visit';
+  const dueBy = nextVisit ? (document.getElementById('lo-due-by').value || null) : null;
+  const bypassPayment = !nextVisit && document.getElementById('lo-bypass-payment').checked;
 
   // Create lab_orders record -- lab_orders has no patient_id column at all
   // (confirmed live, zero rows exist in the whole platform); it routes
@@ -8266,6 +8198,8 @@ window.submitLabOrder = async function() {
     payment_status: bypassPayment ? 'waived' : 'pending',
     drafted_by: _isTrainee ? profile.id : null,
     review_status: _isTrainee ? 'pending_review' : 'finalized',
+    due_timing: nextVisit ? 'next_visit' : 'today',
+    due_by: dueBy,
   }).select('id').single();
   if (oErr) { alert('Error creating order: ' + oErr.message); return; }
 
@@ -8285,9 +8219,20 @@ window.submitLabOrder = async function() {
   // Session 124 Step 4 (charge attaches to the bill immediately) + Session 126
   // (payment now gates the lab, unless bypassed above) -- billing itself is never
   // blocking, the clinical order is already saved regardless of what happens here.
-  const { unmatched, noBill } = await _billLabOrder(_labSelected, order.id);
+  const { unmatched, noBill } = nextVisit
+    ? { unmatched: [], noBill: false }
+    : await _billLabOrder(_labSelected, order.id);
 
   closeLabOrderModal();
+  if (nextVisit) {
+    alert(`📅 ${_labSelected.size} test${_labSelected.size === 1 ? '' : 's'} advised before the next visit` +
+      (dueBy ? ` (by ${new Date(dueBy + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})` : '') +
+      `.
+
+Not billed today. If done at our lab, the patient pays at reception on that day; if done outside, enter the result at the follow-up visit.`);
+    loadLabResults();
+    return;
+  }
   let msg = `✅ Lab order submitted: ${_labSelected.size} tests ordered.`;
   if (bypassPayment) msg += `\n\n🚨 Emergency bypass — lab can proceed immediately. Payment is still owed and will show as pending at reception.`;
   else msg += `\n\n⏳ Payment pending — patient must pay at reception before the lab can collect the sample.`;

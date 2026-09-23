@@ -169,6 +169,12 @@ async function loadOrders() {
     // stays invisible here until the supervising doctor finalizes it; existing/
     // normal orders default to 'finalized' so this is fully backward compatible.
     .eq('review_status', 'finalized')
+    // Session 295 -- a "before next visit" order only joins the day's work list once
+    // reception has collected payment (which also moves its order_date to that day);
+    // until then it's in the "Advised for next visit" list below. Outside-lab results
+    // (entered by the doctor at a follow-up) are never lab work.
+    .or('due_timing.eq.today,payment_status.neq.pending')
+    .eq('performed_outside', false)
     .order('priority', { ascending: false }) // stat > urgent > routine
     .order('created_at');
 
@@ -181,6 +187,7 @@ async function loadOrders() {
   });
   renderQueue();
   updateStats();
+  loadAdvisedOrders();
 
   // Deliberately NOT re-rendering the open detail pane here even though _activeOrder
   // may be stale after this reload -- renderOrderDetail() rebuilds test-category HTML
@@ -188,6 +195,36 @@ async function loadOrders() {
   // typed but not yet saved. The queue-list badge (which this realtime widening exists
   // for) already reflects the change; the detail pane catches up next time they
   // reselect the order.
+}
+
+// Session 295 -- open "before next visit" orders, any order date. Informational only:
+// the patient pays at reception first (which moves the order into the day's list),
+// exactly the same payment gate as a today order.
+async function loadAdvisedOrders() {
+  const { data, error } = await supabase.from('lab_orders')
+    .select('id, order_date, due_by, priority, visits(patients(name, age, gender, phone)), profiles!ordered_by(full_name), lab_order_items(test_name, panel_label)')
+    .eq('tenant_id', tenantId).eq('review_status', 'finalized')
+    .eq('due_timing', 'next_visit').eq('payment_status', 'pending')
+    .eq('performed_outside', false).eq('status', 'pending')
+    .order('due_by', { ascending: true, nullsFirst: false });
+  const wrap = document.getElementById('adv-wrap');
+  if (!wrap) return;
+  if (error) { console.warn('[lab] advised orders:', error.message); wrap.hidden = true; return; }
+  const rows = data || [];
+  wrap.hidden = !rows.length;
+  document.getElementById('adv-count').textContent = rows.length ? `(${rows.length})` : '';
+  const fmt = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '';
+  const today = todayLocalStr();
+  document.getElementById('adv-list').innerHTML = rows.map(o => {
+    const p = o.visits?.patients || {};
+    const overdue = o.due_by && o.due_by < today;
+    return `<div class="adv-item">
+      <div class="adv-name">${_esc(p.name || '—')} <span style="font-weight:500;color:var(--text-muted)">${_esc(String(p.age ?? ''))}${p.gender ? '/' + _esc(String(p.gender).charAt(0).toUpperCase()) : ''}</span></div>
+      <div class="adv-meta">Advised ${fmt(o.order_date)}${o.profiles?.full_name ? ' by ' + _esc(o.profiles.full_name) : ''}${o.due_by ? ` · ${overdue ? '⚠ was due' : 'due by'} ${fmt(o.due_by)}` : ''}</div>
+      <div class="adv-tests">🧪 ${_esc(_summarizeTests(o.lab_order_items) || '—')}</div>
+      <div class="adv-pay">⏳ If the patient is here: send to reception to pay first</div>
+    </div>`;
+  }).join('');
 }
 
 function updateStats() {
