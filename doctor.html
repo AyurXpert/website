@@ -324,6 +324,36 @@ button.vh-item:focus-visible{outline:2px solid var(--green-deep);outline-offset:
 .vh-v{flex:1;white-space:pre-wrap;word-break:break-word}
 .vh-muted{color:var(--text-muted);font-size:12px}
 .vh-rx{margin:0;padding-left:18px}.vh-rx li{margin-bottom:4px}
+/* Session 295 -- phase 3: "Progress since last visit" card (History tab) + trend */
+.prog-card{border:1.5px solid var(--green-mid);border-radius:var(--radius);background:var(--green-light);padding:14px 16px}
+.prog-card[hidden]{display:none}
+.prog-hdr{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.prog-ref{font-size:12px;color:var(--text-mid)}
+/* Overall slider carries the scale: -50 .. 100, so "0" sits one third along, not mid */
+.prog-slide{flex:1 1 200px;max-width:360px;display:flex;flex-direction:column}
+.prog-slide .prog-range{flex:none;width:100%;max-width:none}
+.prog-ticks{position:relative;height:14px;font-size:10.5px;color:var(--text-muted);margin:0 8px}
+.prog-ticks span{position:absolute;top:0;white-space:nowrap;transform:translateX(-50%)}
+.prog-ticks span:nth-child(1){left:0;transform:none}
+.prog-ticks span:nth-child(2){left:33.333%}
+.prog-ticks span:nth-child(3){right:0;transform:none}
+.prog-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-height:44px}
+.prog-label{flex:0 0 170px;font-size:13px;font-weight:600;color:var(--text-dark)}
+.prog-name{flex:0 0 170px;height:36px;padding:0 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;background:var(--white)}
+.prog-range{flex:1 1 200px;max-width:360px;height:44px;margin:0;accent-color:var(--green-deep);cursor:pointer}
+.prog-range.unset{accent-color:var(--text-muted);opacity:.55}
+.prog-val{flex:0 0 120px;font-size:13px;font-weight:700;color:var(--text-dark)}
+.prog-val.unset{font-weight:500;color:var(--text-muted)}
+.prog-clear,.prog-rm{min-width:44px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--white);color:var(--text-mid);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.prog-clear:hover,.prog-rm:hover{border-color:var(--green-mid);color:var(--green-deep)}
+.prog-sub{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin:10px 0 2px}
+.prog-add{margin-top:6px;min-height:40px;padding:0 14px;border:1.5px dashed var(--green-mid);border-radius:8px;background:transparent;color:var(--green-deep);font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer}
+.prog-add:hover{background:var(--white)}
+.vh-trend{padding:6px 12px 8px;border-bottom:1px solid var(--border)}
+.vh-trend-title{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)}
+.vh-trend svg{display:block;width:100%;height:auto;overflow:visible}
+.vh-tag-prog{background:var(--white)}
+@media(max-width:860px){.prog-label,.prog-name{flex:1 1 100%}}
 .vh-rx-list{display:flex;flex-direction:column;gap:4px}
 .vh-rx-item{display:flex;align-items:flex-start;gap:10px;min-height:44px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;line-height:1.45}
 .vh-rx-item:hover{background:var(--green-light)}
@@ -1168,6 +1198,7 @@ body.medcert-print #mc-print{display:block!important}
           <div class="vh-rail-title">🗂 Visit History</div>
           <div class="vh-rail-meta"><span id="vh-dept"></span> · <span id="vh-count"></span></div>
         </div>
+        <div class="vh-trend" id="vh-trend" hidden></div>
         <div class="vh-list" id="vh-list"></div>
       </aside>
       <div class="c-main">
@@ -1194,6 +1225,29 @@ body.medcert-print #mc-print{display:block!important}
         <!-- TAB 1: HISTORY                              -->
         <!-- ═══════════════════════════════════════════ -->
         <div id="tab-hist">
+
+          <!-- Session 295 -- follow-up layout phase 3: improvement since the previous visit
+               in this department (overall + per complaint, -50 worse .. +100 better).
+               Shown only when a previous visit exists; built by visitTimeline.js. -->
+          <div class="section prog-card" id="prog-card" hidden>
+            <div class="prog-hdr">
+              <div class="section-title" style="margin:0;border:none;padding:0">📈 Progress since last visit</div>
+              <div class="prog-ref" id="prog-ref"></div>
+            </div>
+            <div class="prog-row prog-overall">
+              <label class="prog-label" for="prog-overall">Overall improvement</label>
+              <div class="prog-slide">
+                <div class="prog-ticks" aria-hidden="true"><span>−50% worse</span><span>0 · no change</span><span>+100% better</span></div>
+                <input type="range" id="prog-overall" class="prog-range unset" min="-50" max="100" step="10" value="0"
+                       data-oninput="progSliderInput" data-oninput-a0="@this" aria-describedby="prog-overall-val">
+              </div>
+              <output class="prog-val" id="prog-overall-val">Not recorded</output>
+              <button type="button" class="prog-clear" data-onclick="progClear" data-onclick-a0="@this" aria-label="Clear overall improvement">Clear</button>
+            </div>
+            <div class="prog-sub">By complaint</div>
+            <div id="prog-complaints"></div>
+            <button type="button" class="prog-add" data-onclick="progAddComplaint">+ Add complaint</button>
+          </div>
 
           <div class="section">
             <div class="section-title">Chief Complaint</div>

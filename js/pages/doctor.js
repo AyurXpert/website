@@ -12,7 +12,7 @@ import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { openTimePicker, formatTime12 } from '../components/timePicker.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
-import { loadVisitTimeline, resetVisitTimeline } from '../modules/patient/visitTimeline.js';
+import { loadVisitTimeline, resetVisitTimeline, getProgressData, setProgressData, isProgressMissing } from '../modules/patient/visitTimeline.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -214,6 +214,9 @@ function _applyDraftToForm(notes) {
 
   // addRxRow() already accepts a prefill object in this exact shape.
   (notes.prescription_json || []).forEach(rx => addRxRow(rx));
+
+  // Session 295 -- improvement % (overall + per complaint).
+  setProgressData(notes);
 
   const pf = notes.proforma_data;
   if (pf) {
@@ -5345,10 +5348,23 @@ async function _collectConsultationFields() {
     const ogData  = collectObsGynData();
     if (ogData)  notes.proforma_data = { ...(notes.proforma_data || {}), obsgyn_exam: ogData };
 
+  // Session 295 -- follow-up layout phase 3: improvement since the previous visit in
+  // this department (all-null when there is no previous visit / nothing recorded).
+  Object.assign(notes, getProgressData());
+
   return { notes, disposition };
 }
 
 document.getElementById('btn-complete').addEventListener('click', () => {
+  // Session 295 -- improvement % is optional (Dr. Venkatesh's choice), but a follow-up
+  // visit gets one reminder if the overall figure was never recorded.
+  if (isProgressMissing() && !confirm(
+    'Progress since the last visit (overall improvement %) has not been recorded.\n\n' +
+    'OK = complete anyway    Cancel = go back and record it')) {
+    _switchTab('hist');
+    window.focusProgressCard?.();
+    return;
+  }
   // Session 127 -- a trainee never has finalize authority, regardless of
   // whether this visit came from their own department queue or (in principle)
   // anywhere else; everyone else keeps the exact existing behaviour.

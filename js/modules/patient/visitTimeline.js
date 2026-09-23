@@ -17,6 +17,8 @@ let _sb = null, _esc = s => String(s ?? '');
 let _entries = [];          // merged visit + admission entries, newest first
 let _loadToken = 0;         // guards against a slow load rendering after a patient switch
 let _panelRx = [];          // prescription items of the visit open in the side panel (phase 2 copy)
+let _progRef = null;        // phase 3: the previous visit today's improvement % is measured against
+let _pendingProgress = null;// phase 3: draft values restored before the card was built
 
 const _fmtD = d => d ? new Date(d.length === 10 ? d + 'T00:00:00' : d)
   .toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -32,6 +34,15 @@ export function resetVisitTimeline() {
   if (rail) rail.hidden = true;
   const list = document.getElementById('vh-list');
   if (list) list.innerHTML = '';
+  const trend = document.getElementById('vh-trend');
+  if (trend) { trend.hidden = true; trend.innerHTML = ''; }
+  _progRef = null; _pendingProgress = null;
+  const card = document.getElementById('prog-card');
+  if (card) card.hidden = true;
+  const rows = document.getElementById('prog-complaints');
+  if (rows) rows.innerHTML = '';
+  const ov = document.getElementById('prog-overall');
+  if (ov) _setSlider(ov, null);
   window.closeVhPanel();
 }
 
@@ -63,21 +74,29 @@ export async function loadVisitTimeline({ supabase, esc, tenantId, patientId, cu
 
   // Small 🌸/🧪 markers on the rail -- one cheap query each, not per visit.
   const ids = visits.map(v => v.id);
-  const pkSet = new Set(), labSet = new Set();
+  const pkSet = new Set(), labSet = new Set(), progMap = {};
   if (ids.length) {
-    const [pk, lab] = await Promise.all([
+    const [pk, lab, prog] = await Promise.all([
       supabase.from('pk_care_plans').select('visit_id').in('visit_id', ids),
       supabase.from('lab_orders').select('visit_id, review_status').in('visit_id', ids),
+      supabase.from('consultation_notes').select('visit_id, improvement_overall_pct, review_status, is_deleted')
+        .in('visit_id', ids).not('improvement_overall_pct', 'is', null),
     ]);
     if (token !== _loadToken) return;
     (pk.data || []).forEach(r => pkSet.add(r.visit_id));
     (lab.data || []).filter(r => _okReview(r.review_status)).forEach(r => labSet.add(r.visit_id));
+    (prog.data || []).filter(r => !r.is_deleted && _okReview(r.review_status))
+      .forEach(r => { progMap[r.visit_id] = r.improvement_overall_pct; });
   }
 
   _entries = [
-    ...visits.map(v => ({ kind: 'visit', id: v.id, sortKey: v.created_at, row: v, pk: pkSet.has(v.id), lab: labSet.has(v.id) })),
+    ...visits.map(v => ({ kind: 'visit', id: v.id, sortKey: v.created_at, row: v, pk: pkSet.has(v.id), lab: labSet.has(v.id), prog: progMap[v.id] ?? null })),
     ...adms.map(a => ({ kind: 'adm', id: a.id, sortKey: a.admitted_at || a.admission_date, row: a })),
   ].sort((x, y) => new Date(y.sortKey) - new Date(x.sortKey));
+
+  // Phase 3 -- today's "Progress since last visit" card is measured against the newest
+  // previous VISIT in this department (not an admission).
+  if (visits.length) _buildProgressCard(visits[0]);
 
   if (!_entries.length) { rail.hidden = true; return; }
 
@@ -90,6 +109,8 @@ export async function loadVisitTimeline({ supabase, esc, tenantId, patientId, cu
   list.innerHTML = `<div class="vh-item vh-today" aria-current="true">
       <span class="vh-date">Today</span><span class="vh-sub">Current visit</span></div>` +
     _entries.map(e => e.kind === 'adm' ? _admItem(e.row) : _visitItem(e, e.id === firstVisitId)).join('');
+  _renderTrend(visits.filter(v => progMap[v.id] !== undefined).reverse()
+    .map(v => ({ date: v.created_at, pct: progMap[v.id] })));
   rail.hidden = false;
 }
 
@@ -99,6 +120,7 @@ function _visitItem(e, isFirst) {
     isFirst ? '<span class="vh-tag vh-tag-first">1st visit</span>' : '',
     e.pk ? '<span class="vh-tag" title="Panchakarma planned">🌸 PK</span>' : '',
     e.lab ? '<span class="vh-tag" title="Investigations ordered">🧪 Lab</span>' : '',
+    e.prog !== null && e.prog !== undefined ? `<span class="vh-tag vh-tag-prog" title="Improvement vs the visit before">${_pctIcon(e.prog)} ${_pctText(e.prog)}</span>` : '',
     v.status === 'incomplete' ? '<span class="vh-tag vh-tag-warn">Incomplete</span>' : '',
   ].join('');
   return `<button type="button" class="vh-item" data-vh-id="${v.id}" data-onclick="openVhVisit" data-onclick-a0="${v.id}">
@@ -215,7 +237,12 @@ window.openVhVisit = async function(visitId) {
   _panelRx = rxItems;
 
   const bp = c.bp_systolic ? `${c.bp_systolic}/${c.bp_diastolic ?? '—'} mmHg` : null;
+  const progPairs = c.improvement_overall_pct !== null && c.improvement_overall_pct !== undefined
+    ? [['Overall', `${_pctIcon(c.improvement_overall_pct)} ${_pctText(c.improvement_overall_pct)}`],
+       ...((c.improvement_by_complaint || []).map(x => [x.complaint, `${_pctIcon(x.pct)} ${_pctText(x.pct)}`]))]
+    : [];
   const html = [
+    _sec('📈 Progress vs the visit before', _rows(progPairs)),
     _sec('📝 Case history', _rows([
       ['Chief complaint', v.chief_complaint], ['Duration', c.duration], ['Onset', c.onset],
       ['Severity', c.severity], ['Progression', c.progression], ['Pain score', v.pain_score],
@@ -331,3 +358,142 @@ window.openVhAdmission = function(admId) {
     ]) || (out ? '' : '<div class="vh-muted">Patient not yet discharged.</div>')),
   ].join('');
 };
+
+// ── Phase 3: improvement % ("Progress since last visit") ─────────────────
+// Scale -50 (worse) .. +100 (better), 10-point steps. A slider has no native "empty"
+// state, so each one starts .unset ("Not recorded") until the doctor touches it --
+// an untouched slider is saved as NULL, never as a silent 0%.
+const _pctText = v => v > 0 ? `${v}% better` : v < 0 ? `${Math.abs(v)}% worse` : 'No change';
+const _pctIcon = v => v > 0 ? '📈' : v < 0 ? '📉' : '➖';
+const _splitComplaints = s => String(s || '').split(/[,;\n]+/).map(x => x.trim()).filter(Boolean)
+  .map(x => x.charAt(0).toUpperCase() + x.slice(1)).slice(0, 8);
+
+function _setSlider(el, val) {
+  // (row-scoped: the overall slider sits inside .prog-slide with its scale ticks)
+  const out = el.closest('.prog-row')?.querySelector('.prog-val');
+  out?.classList.toggle('unset', val === null || val === undefined || val === '');
+  if (val === null || val === undefined || val === '') {
+    el.value = 0; el.classList.add('unset'); el.dataset.set = '';
+    if (out) out.textContent = 'Not recorded';
+    el.setAttribute('aria-valuetext', 'Not recorded');
+  } else {
+    el.value = val; el.classList.remove('unset'); el.dataset.set = '1';
+    const txt = _pctText(Number(el.value));
+    if (out) out.textContent = `${_pctIcon(Number(el.value))} ${txt}`;
+    el.setAttribute('aria-valuetext', txt);
+  }
+}
+const _sliderVal = el => el?.dataset.set === '1' ? Number(el.value) : null;
+
+window.progSliderInput = function(el) { _setSlider(el, el.value); };
+window.progClear = function(btn) {
+  const el = btn.closest('.prog-row')?.querySelector('.prog-range');
+  if (el) { _setSlider(el, null); el.dispatchEvent(new Event('change', { bubbles: true })); }
+};
+window.progRemoveComplaint = function(btn) {
+  const card = document.getElementById('prog-card');
+  btn.closest('.prog-row')?.remove();
+  card?.dispatchEvent(new Event('change', { bubbles: true }));   // marks the autosave dirty
+};
+window.progAddComplaint = function(name = '', pct = null) {
+  const wrap = document.getElementById('prog-complaints');
+  if (!wrap) return;
+  const n = wrap.children.length + 1;
+  const row = document.createElement('div');
+  row.className = 'prog-row';
+  row.innerHTML = `
+    <input type="text" class="prog-name" value="${_esc(typeof name === 'string' ? name : '')}" placeholder="Complaint" aria-label="Complaint ${n}">
+    <input type="range" class="prog-range unset" min="-50" max="100" step="10" value="0"
+           data-oninput="progSliderInput" data-oninput-a0="@this" aria-label="Improvement for complaint ${n}">
+    <output class="prog-val">Not recorded</output>
+    <button type="button" class="prog-rm" data-onclick="progRemoveComplaint" data-onclick-a0="@this" aria-label="Remove complaint ${n}">✕</button>`;
+  wrap.appendChild(row);
+  _setSlider(row.querySelector('.prog-range'), typeof pct === 'number' ? pct : null);
+  if (typeof name !== 'string' || !name) row.querySelector('.prog-name').focus();
+};
+
+function _buildProgressCard(prevVisit) {
+  const card = document.getElementById('prog-card');
+  if (!card) return;
+  _progRef = { visitId: prevVisit.id };
+  document.getElementById('prog-ref').textContent =
+    `vs ${_fmtD(prevVisit.created_at)}${prevVisit.diagnosis ? ' · ' + prevVisit.diagnosis : ''}`;
+  const wrap = document.getElementById('prog-complaints');
+  wrap.innerHTML = '';
+  const pend = _pendingProgress;
+  _pendingProgress = null;
+  if (pend && Array.isArray(pend.improvement_by_complaint) && pend.improvement_by_complaint.length) {
+    pend.improvement_by_complaint.forEach(x => window.progAddComplaint(x.complaint, x.pct));
+  } else {
+    _splitComplaints(prevVisit.chief_complaint).forEach(c => window.progAddComplaint(c, null));
+  }
+  _setSlider(document.getElementById('prog-overall'), pend?.improvement_overall_pct ?? null);
+  card.hidden = false;
+}
+
+// Collected into consultation_notes by doctor.js _collectConsultationFields() -- so
+// Complete, trainee Submit-for-Review and the 30s autosave all carry it.
+export function getProgressData() {
+  const empty = { improvement_overall_pct: null, improvement_by_complaint: null, improvement_ref_visit_id: null };
+  const card = document.getElementById('prog-card');
+  if (!card || card.hidden || !_progRef) return empty;
+  const overall = _sliderVal(document.getElementById('prog-overall'));
+  const byC = [...document.querySelectorAll('#prog-complaints .prog-row')].map(r => ({
+    complaint: r.querySelector('.prog-name').value.trim(), pct: _sliderVal(r.querySelector('.prog-range')),
+  })).filter(x => x.complaint && x.pct !== null);
+  if (overall === null && !byC.length) return empty;
+  return { improvement_overall_pct: overall, improvement_by_complaint: byC.length ? byC : null,
+           improvement_ref_visit_id: _progRef.visitId };
+}
+
+// Draft restore (doctor.js _applyDraftToForm). The card may not be built yet if the
+// doctor restores before the history finishes loading -- held and applied on build.
+export function setProgressData(notes) {
+  if (!notes || (notes.improvement_overall_pct == null && !notes.improvement_by_complaint)) return;
+  const card = document.getElementById('prog-card');
+  if (!card || card.hidden) { _pendingProgress = notes; return; }
+  const wrap = document.getElementById('prog-complaints');
+  if (Array.isArray(notes.improvement_by_complaint) && notes.improvement_by_complaint.length) {
+    wrap.innerHTML = '';
+    notes.improvement_by_complaint.forEach(x => window.progAddComplaint(x.complaint, x.pct));
+  }
+  _setSlider(document.getElementById('prog-overall'), notes.improvement_overall_pct ?? null);
+}
+
+// Complete-time reminder (optional, not blocking -- Dr. Venkatesh's choice).
+export function isProgressMissing() {
+  const card = document.getElementById('prog-card');
+  return !!card && !card.hidden && _sliderVal(document.getElementById('prog-overall')) === null;
+}
+window.focusProgressCard = function() {
+  const card = document.getElementById('prog-card');
+  card?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  document.getElementById('prog-overall')?.focus();
+};
+
+// Trend sparkline in the rail header: overall % as recorded at each previous visit,
+// oldest -> newest. One series, one hue (brand green), 2px line, 8px markers, dashed
+// 0% baseline (values go negative), latest value labelled directly, per-point hover
+// tooltip via <title> on an enlarged invisible hit target, full values in aria-label.
+function _renderTrend(points) {
+  const box = document.getElementById('vh-trend');
+  if (!box) return;
+  if (points.length < 2) { box.hidden = true; box.innerHTML = ''; return; }
+  const W = 186, H = 54, padL = 4, padR = 40, padT = 6, padB = 6;
+  const x = i => padL + (i * (W - padL - padR)) / (points.length - 1);
+  const y = v => padT + ((100 - v) * (H - padT - padB)) / 150;   // domain -50..100
+  const path = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.pct).toFixed(1)}`).join(' ');
+  const last = points[points.length - 1];
+  const summary = points.map(p => `${_fmtD(p.date)}: ${_pctText(p.pct)}`).join('; ');
+  box.innerHTML = `<div class="vh-trend-title">Overall improvement trend</div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Overall improvement trend. ${_esc(summary)}">
+      <line x1="${padL}" x2="${W - padR}" y1="${y(0)}" y2="${y(0)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="${W - padR + 4}" y="${y(0) + 3}" font-size="8" fill="var(--text-muted)">0</text>
+      <path d="${path}" fill="none" stroke="var(--green-deep)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${points.map((p, i) => `<g><title>${_esc(_fmtD(p.date))}: ${_esc(_pctText(p.pct))}</title>
+        <circle cx="${x(i)}" cy="${y(p.pct)}" r="10" fill="transparent"/>
+        <circle cx="${x(i)}" cy="${y(p.pct)}" r="4" fill="var(--green-deep)" stroke="var(--white)" stroke-width="2"/></g>`).join('')}
+      <text x="${x(points.length - 1) + 8}" y="${y(last.pct) + 4}" font-size="11" font-weight="700" fill="var(--text-dark)">${last.pct > 0 ? '+' : ''}${last.pct}%</text>
+    </svg>`;
+  box.hidden = false;
+}
