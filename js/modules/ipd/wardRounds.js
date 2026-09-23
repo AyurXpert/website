@@ -11,11 +11,20 @@
 // rounds a day; PG / intern notes are saved "awaiting countersign" until a doctor
 // countersigns (enforced server-side by trg_ward_round_guard + RLS).
 
-let _c = null;        // { supabase, esc, tenantId, userId, isTrainee, toast, fmtDate }
+let _c = null;        // { supabase, esc, tenantId, userId, isTrainee, toast, fmtDate, getInventory }
 let _adm = null;      // the open admission (row from doctor.js's IPD list)
 let _notes = [];
 let _vitals = null;   // latest nursing_vitals row
 let _token = 0;
+let _lastSavedRoundId = null;   // this session's most-recently-saved round note id, for tagging new orders
+
+// ── Orders panel (Session 296 -- doctor IPD part 3, build session 1: Medicines only;
+// Investigations/Diet/Panchakarma are shells for the next session, see doctor_ipd_plan.md) ──
+let _orderTab = 'meds';
+let _medRowSeq = 0;
+let _activeOrders = [];
+const FREQ_TO_MAR = { OD: 'once_daily', BD: 'twice_daily', TDS: 'thrice_daily', QID: 'four_times', SOS: 'sos', HS: 'hs', QAM: 'qam', QPM: 'qpm' };
+const ROUTE_LABEL = { oral: 'Oral', iv: 'IV', im: 'IM', sc: 'SC', nasal: 'Nasal', topical: 'Topical', rectal: 'Rectal', sublingual: 'Sublingual' };
 
 const ROUND_LABEL = { morning: 'Morning', evening: 'Evening', night: 'Night', emergency: 'Emergency', other: 'Other' };
 // Day of stay in LOCAL dates (admission day = Day 1). admitted_at is a UTC timestamp, so
@@ -53,6 +62,11 @@ export async function openIpdRound(adm, ctx) {
   document.getElementById('ipdws-open').href = `ipd.html?admission_id=${encodeURIComponent(adm.id)}`;
   document.getElementById('ipdws-trainee-note').hidden = !_c.isTrainee;
   _resetForm();
+  _lastSavedRoundId = null;
+  _orderTab = 'meds';
+  _resetOrderForm();
+  _switchOrderPane();
+  _loadActiveOrders(adm.id);
 
   const [nR, vR] = await Promise.all([
     _c.supabase.from('ward_round_notes')
@@ -73,6 +87,7 @@ export async function openIpdRound(adm, ctx) {
 
 export function closeIpdRound() {
   _token++; _adm = null; _notes = []; _vitals = null;
+  _activeOrders = []; _lastSavedRoundId = null;
   window.closeVhPanel?.();
   const el = document.getElementById('c-ipd');
   if (el) el.style.display = 'none';
@@ -197,7 +212,206 @@ window.saveIpdRound = async function() {
   btn.disabled = false; btn.textContent = '✓ Save round note';
   if (error) { err.textContent = 'Could not save: ' + error.message; return; }
   _notes.unshift(data);
+  _lastSavedRoundId = data.id;   // new orders placed this visit get tagged to this round
   _renderRail();
   _resetForm();
   _c.toast?.(data.author_is_trainee ? 'Round note saved — awaiting a doctor’s countersign.' : 'Round note saved.', 'info');
+};
+
+// ── Orders panel (Medicines) ──────────────────────────────────────────────────
+window.switchOrderTab = function(tab) {
+  _orderTab = tab;
+  _switchOrderPane();
+};
+
+function _switchOrderPane() {
+  ['meds', 'inv', 'diet', 'pk'].forEach(t => {
+    document.getElementById(`ordt-tab-${t}`)?.classList.toggle('active', t === _orderTab);
+    const pane = document.getElementById(`ordt-pane-${t}`);
+    if (pane) pane.style.display = t === _orderTab ? '' : 'none';
+  });
+}
+
+function _resetOrderForm() {
+  _medRowSeq = 0;
+  const rows = document.getElementById('ordm-rows');
+  if (rows) rows.innerHTML = '';
+  document.getElementById('ordm-err').textContent = '';
+  _addOrderMedRow();
+}
+
+function _addOrderMedRow() {
+  const id = ++_medRowSeq;
+  const e = _c.esc;
+  const div = document.createElement('div');
+  div.className = 'ordm-row';
+  div.id = `ordm-${id}`;
+  div.innerHTML = `
+    <div class="rx-col">
+      <label>Medicine Name</label>
+      <div class="rx-wrap">
+        <input type="text" class="ordm-name" placeholder="Start typing…" autocomplete="off"/>
+        <div class="typeahead" id="ordm-ta-${id}"></div>
+      </div>
+    </div>
+    <div class="rx-col"><label>Dose</label><input type="text" class="ordm-dose" placeholder="e.g. 3g"/></div>
+    <div class="rx-col"><label>Route</label>
+      <select class="ordm-route">${Object.entries(ROUTE_LABEL).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+    </div>
+    <div class="rx-col"><label>Frequency</label>
+      <select class="ordm-freq">${Object.keys(FREQ_TO_MAR).map(v => `<option value="${v}">${v}</option>`).join('')}</select>
+    </div>
+    <div class="rx-col"><label>Duration</label><input type="text" class="ordm-dur" placeholder="e.g. 5d"/></div>
+    <div class="rx-col"><label>Anupana</label><input type="text" class="ordm-anupana" placeholder="Warm water, Milk…"/></div>
+    <div class="rx-col"><label>Timing / Instructions</label><input type="text" class="ordm-timing" placeholder="Before food, after food…"/></div>
+    <button type="button" class="btn-rm-rx" title="Remove this medicine" aria-label="Remove this medicine row" data-onclick="removeOrderMedRow" data-onclick-a0="${id}">×</button>
+  `;
+  document.getElementById('ordm-rows').appendChild(div);
+
+  const nameInput = div.querySelector('.ordm-name');
+  const ta = document.getElementById(`ordm-ta-${id}`);
+  nameInput.addEventListener('input', function() {
+    const inv = _c.getInventory?.() || [];
+    const q = this.value.toLowerCase().trim();
+    if (q.length < 2 || !inv.length) { ta.classList.remove('show'); return; }
+    const results = inv.filter(i => i.medicine.name.toLowerCase().includes(q)).slice(0, 8);
+    if (!results.length) { ta.classList.remove('show'); return; }
+    ta.innerHTML = results.map(i => `<div class="ta-item" data-name="${e(i.medicine.name)}" data-mid="${i.medicine.id}"><span class="ta-name">${e(i.medicine.name)}</span></div>`).join('');
+    ta.classList.add('show');
+  });
+  ta.addEventListener('click', ev => {
+    const item = ev.target.closest('.ta-item');
+    if (!item) return;
+    nameInput.value = item.dataset.name;
+    nameInput.dataset.medicineId = item.dataset.mid;
+    ta.classList.remove('show');
+  });
+  nameInput.addEventListener('blur', () => setTimeout(() => ta.classList.remove('show'), 200));
+}
+window.addOrderMedRow = _addOrderMedRow;
+
+window.removeOrderMedRow = function(id) {
+  document.getElementById(`ordm-${id}`)?.remove();
+};
+
+function _getOrderMedRows() {
+  return [...document.querySelectorAll('#ordm-rows .ordm-row')].map(row => ({
+    name:        row.querySelector('.ordm-name')?.value?.trim() || '',
+    medicine_id: row.querySelector('.ordm-name')?.dataset?.medicineId || null,
+    dose:        row.querySelector('.ordm-dose')?.value?.trim() || '',
+    route:       row.querySelector('.ordm-route')?.value || 'oral',
+    freq:        row.querySelector('.ordm-freq')?.value || 'OD',
+    dur:         row.querySelector('.ordm-dur')?.value?.trim() || '',
+    anupana:     row.querySelector('.ordm-anupana')?.value?.trim() || '',
+    timing:      row.querySelector('.ordm-timing')?.value?.trim() || '',
+  })).filter(r => r.name);
+}
+
+window.saveIpdOrders = async function() {
+  if (!_adm || !_c) return;
+  const rows = _getOrderMedRows();
+  const err = document.getElementById('ordm-err');
+  if (!rows.length) { err.textContent = 'Add at least one medicine.'; return; }
+  const btn = document.getElementById('ordm-save');
+  btn.disabled = true; btn.textContent = 'Saving…'; err.textContent = '';
+
+  try {
+    const reviewStatus = _c.isTrainee ? 'pending_review' : 'finalized';
+    let prescriptionId = null;
+    if (_adm.visit_id) {
+      const { data: presc, error: pErr } = await _c.supabase.from('prescriptions')
+        .insert({
+          tenant_id: _c.tenantId, visit_id: _adm.visit_id, patient_id: _adm.patient_id,
+          patient_type: 'ipd', doctor_id: _c.userId, review_status: reviewStatus,
+        }).select('id').single();
+      if (pErr) throw pErr;
+      prescriptionId = presc.id;
+      await _c.supabase.from('prescription_items').insert(rows.map(r => ({
+        prescription_id: prescriptionId, medicine_id: r.medicine_id, medicine_name: r.name,
+        dosage: r.dose, frequency: r.freq, duration: r.dur, anupana: r.anupana, timing: r.timing || null, quantity: 1,
+      })));
+    }
+
+    const marRows = rows.map(r => ({
+      tenant_id: _c.tenantId, admission_id: _adm.id, medicine_name: r.name, dose: r.dose,
+      route: r.route, frequency: FREQ_TO_MAR[r.freq] || 'other', instructions: r.timing || null,
+      timing: r.timing || null, anupana: r.anupana || null, medicine_id: r.medicine_id,
+      ward_round_id: _lastSavedRoundId, prescription_id: prescriptionId,
+    }));
+    const { error: mErr } = await _c.supabase.from('nursing_mar').insert(marRows);
+    if (mErr) throw mErr;
+
+    _c.toast?.(
+      _c.isTrainee
+        ? `${rows.length} medicine order${rows.length === 1 ? '' : 's'} placed — awaiting a doctor’s countersign.`
+        : `${rows.length} medicine order${rows.length === 1 ? '' : 's'} placed.`,
+      'info'
+    );
+    _resetOrderForm();
+    _loadActiveOrders(_adm.id);
+  } catch (e) {
+    err.textContent = 'Could not save orders: ' + (e?.message || 'please try again.');
+  } finally {
+    btn.disabled = false; btn.textContent = '✓ Save orders';
+  }
+};
+
+async function _loadActiveOrders(admissionId) {
+  const token = _token;
+  const { data } = await _c.supabase.from('nursing_mar')
+    .select('id, medicine_name, dose, route, frequency, timing, anupana, status, author_role, is_verbal_order, countersigned_at, stopped_at, created_at, prescription_id')
+    .eq('admission_id', admissionId).order('created_at', { ascending: false });
+  if (token !== _token) return;
+  _activeOrders = data || [];
+  _renderActiveOrders();
+}
+
+function _renderActiveOrders() {
+  const e = _c.esc;
+  const box = document.getElementById('ordm-active');
+  if (!box) return;
+  if (!_activeOrders.length) { box.innerHTML = '<div class="ordm-empty">No medicine orders yet.</div>'; return; }
+  box.innerHTML = _activeOrders.map(m => {
+    const needsSign = m.author_role && m.author_role !== 'doctor' && !m.countersigned_at;
+    const provenance = m.is_verbal_order
+      ? (needsSign ? '<span class="ipdws-sign wait" style="display:inline-flex;padding:2px 8px;margin:0">🗣 Verbal order</span>' : '<span class="ipdws-sign ok" style="display:inline-flex;padding:2px 8px;margin:0">🗣 Verbal · ✓ signed</span>')
+      : m.author_role === 'trainee'
+        ? (needsSign ? '<span class="ipdws-sign wait" style="display:inline-flex;padding:2px 8px;margin:0">🧑‍🎓 Trainee order</span>' : '<span class="ipdws-sign ok" style="display:inline-flex;padding:2px 8px;margin:0">🧑‍🎓 Trainee · ✓ signed</span>')
+        : '';
+    const canSign = !_c.isTrainee && needsSign;
+    const canStop = m.status === 'active';
+    return `<div class="ordm-active-row ${m.status === 'stopped' ? 'stopped' : ''}">
+      <div>
+        <div class="ordm-active-name">${e(m.medicine_name)} ${m.status === 'stopped' ? '<span style="color:var(--red);font-weight:600;font-size:11px">STOPPED</span>' : ''}</div>
+        <div class="ordm-active-meta">${e(m.dose)} · ${e(ROUTE_LABEL[m.route] || m.route)} · ${e((m.frequency || '').replace(/_/g, ' '))}${m.timing ? ' · ' + e(m.timing) : ''}</div>
+        ${provenance ? `<div style="margin-top:4px">${provenance}</div>` : ''}
+      </div>
+      <div class="ordm-active-actions">
+        ${canSign ? `<button type="button" class="ordm-btn ordm-btn-sign" data-onclick="countersignOrder" data-onclick-a0="${m.id}">✓ Countersign</button>` : ''}
+        ${canStop ? `<button type="button" class="ordm-btn ordm-btn-stop" data-onclick="stopOrder" data-onclick-a0="${m.id}">Stop</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.stopOrder = async function(id) {
+  if (!confirm('Stop this medicine order? The nurse will no longer see it as active.')) return;
+  const { error } = await _c.supabase.from('nursing_mar').update({ status: 'stopped' }).eq('id', id);
+  if (error) { _c.toast?.('Could not stop order: ' + error.message, 'error'); return; }
+  _c.toast?.('Order stopped.', 'info');
+  _loadActiveOrders(_adm.id);
+};
+
+window.countersignOrder = async function(id) {
+  const { error } = await _c.supabase.from('nursing_mar').update({ countersigned_by: _c.userId }).eq('id', id);
+  if (error) { _c.toast?.('Could not countersign: ' + error.message, 'error'); return; }
+  // Finalize the linked pharmacy order too, if it was held back pending this countersign.
+  const m = _activeOrders.find(x => x.id === id);
+  if (m?.prescription_id) {
+    await _c.supabase.from('prescriptions')
+      .update({ review_status: 'finalized', finalized_by: _c.userId })
+      .eq('id', m.prescription_id).eq('review_status', 'pending_review');
+  }
+  _c.toast?.('Order countersigned.', 'info');
+  _loadActiveOrders(_adm.id);
 };

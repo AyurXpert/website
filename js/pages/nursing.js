@@ -715,9 +715,13 @@ async function loadMar() {
   const { data: given } = await supabase.from('nursing_mar_given')
     .select('*').eq('admission_id', _activeAdm.id).gte('given_at', today+'T00:00').order('given_at', {ascending:false});
 
+  // Session 296 -- hs/qam/qpm added (IPD Orders panel on doctor.html writes these three
+  // in addition to the original 7; kept in the same snake_case vocabulary as the rest of
+  // this map rather than introducing OD/BD-style short codes into the DB).
   const FREQ_TIMES = {
     once_daily:['08:00'], twice_daily:['08:00','20:00'], thrice_daily:['08:00','14:00','20:00'],
-    four_times:['08:00','12:00','16:00','20:00'], sos:['SOS'], stat:['STAT'], other:['As ordered']
+    four_times:['08:00','12:00','16:00','20:00'], sos:['SOS'], stat:['STAT'], other:['As ordered'],
+    hs:['21:00'], qam:['08:00'], qpm:['18:00'],
   };
 
   if (!meds?.length) {
@@ -745,8 +749,18 @@ async function loadMar() {
     // no escaping -- unlike this file's own established _esc() convention (used for patient
     // names/diagnosis elsewhere). Confirmed live: an <img onerror=...> in a medicine name field
     // would render as a real element, only blocked from executing by this page's own CSP.
+    // Session 296 -- provenance badge: a doctor's own order needs no flag; a trainee's
+    // order or a nurse's verbal order is flagged until a doctor countersigns it on
+    // doctor.html's IPD Orders panel (this page has no write access to countersign it --
+    // see sql/session296_*.sql's nursing_mar_update policy, doctor/trainee only).
+    const needsSign = m.author_role && m.author_role !== 'doctor' && !m.countersigned_at;
+    const badge = m.is_verbal_order
+      ? (needsSign ? '<span class="mar-badge mar-badge-warn">🗣 Verbal order — awaiting countersign</span>' : '<span class="mar-badge mar-badge-ok">🗣 Verbal order · ✓ countersigned</span>')
+      : m.author_role === 'trainee'
+        ? (needsSign ? '<span class="mar-badge mar-badge-warn">🧑‍🎓 Trainee order — awaiting countersign</span>' : '<span class="mar-badge mar-badge-ok">🧑‍🎓 Trainee order · ✓ countersigned</span>')
+        : '';
     return `<tr>
-      <td><div style="font-weight:600">${_esc(m.medicine_name)}</div><div style="font-size:10px;color:var(--text-muted)">${_esc(m.dose)} · ${_esc(m.route)} · ${_esc(m.frequency?.replace(/_/g,' '))}</div>${m.instructions?`<div style="font-size:10px;color:var(--text-mid)">${_esc(m.instructions)}</div>`:''}</td>
+      <td><div style="font-weight:600">${_esc(m.medicine_name)}</div><div style="font-size:10px;color:var(--text-muted)">${_esc(m.dose)} · ${_esc(m.route)} · ${_esc(m.frequency?.replace(/_/g,' '))}</div>${m.instructions?`<div style="font-size:10px;color:var(--text-mid)">${_esc(m.instructions)}</div>`:''}${badge?`<div style="margin-top:3px">${badge}</div>`:''}</td>
       ${timeCols}
     </tr>`;
   }).join('');

@@ -781,7 +781,7 @@ window.openIpdRoundFromList = function(admId) {
     return;
   }
   document.getElementById('c-active').style.display = 'none';
-  openIpdRound(a, { supabase, esc: _esc, tenantId, userId, isTrainee: _isTrainee, toast: _toast });
+  openIpdRound(a, { supabase, esc: _esc, tenantId, userId, isTrainee: _isTrainee, toast: _toast, getInventory: () => _inventory });
 };
 
 // One batch of queries for all cards: labs (critical/abnormal since admission), PK today.

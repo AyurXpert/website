@@ -21,6 +21,7 @@ const _tenant  = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
 let _inventory      = [];
 let _activeRxId     = null;
 let _activeRx       = null;
+let _activeIpdAdmissionId = null;   // set when _activeRx.patient_type === 'ipd' (Session 296)
 let _cartItems      = [];    // {medicine_id, name, price, qty, fromRx}
 let _filter         = 'pending';
 let _rxPayerMap     = {};    // rxId → payer_type (populated during loadQueue)
@@ -188,7 +189,7 @@ window.openRx = async function(rxId) {
   const { data: rx } = await supabase
     .from('prescriptions')
     .select(`
-      id, created_at, status,
+      id, created_at, status, patient_type,
       visit:visits(id, token_number, chief_complaint, doctor_id,
         notes:consultation_notes(modern_diagnosis, ayurveda_diagnosis)),
       patient:patients(id, name, phone, abha_number, abha_address),
@@ -198,6 +199,15 @@ window.openRx = async function(rxId) {
     .single();
 
   _activeRx = rx;
+  _activeIpdAdmissionId = null;
+  // Session 296 -- an IPD-origin prescription (doctor.html's IPD Orders panel) is charged
+  // to the admission's stay, not a standalone OPD-style bill (see dispense()). Resolve the
+  // admission once here rather than re-querying it at dispense time.
+  if (rx.patient_type === 'ipd' && rx.visit?.id) {
+    const { data: adm } = await supabase.from('ipd_admissions')
+      .select('id').eq('visit_id', rx.visit.id).order('admitted_at', { ascending: false }).limit(1).maybeSingle();
+    _activeIpdAdmissionId = adm?.id || null;
+  }
 
   // Load doctor name
   let doctorName = '—';
@@ -217,7 +227,7 @@ window.openRx = async function(rxId) {
   // Populate header
   document.getElementById('pt-token').textContent  = rx.visit?.token_number || '—';
   document.getElementById('pt-name').textContent   = rx.patient?.name || '—';
-  document.getElementById('pt-sub').textContent    = `UHID: ${_uhid(rx.patient?.id)} · Rx #${rx.id.slice(-6).toUpperCase()}`;
+  document.getElementById('pt-sub').textContent    = `UHID: ${_uhid(rx.patient?.id)} · Rx #${rx.id.slice(-6).toUpperCase()}${rx.patient_type === 'ipd' ? ' · IPD — charged to stay' : ''}`;
   document.getElementById('pt-phone').textContent  = rx.patient?.phone || '—';
   document.getElementById('pt-doctor').textContent = doctorName;
 
@@ -447,35 +457,56 @@ async function dispense() {
   btn.disabled = true;
   btn.textContent = 'Processing…';
 
-  try {
-    // 1. Create bill
-    const { data: bill, error: bErr } = await supabase
-      .from('bills')
-      .insert({
-        tenant_id:      tenantId,
-        patient_id:     _activeRx.patient.id,
-        visit_id:       _activeRx.visit.id,
-        total_amount:   subtotal,
-        final_amount:   total,
-        status:         payMethod === 'Credit' ? 'partial' : 'paid',
-        bill_type:      'pharmacy',
-        payment_method: payMethod,
-        updated_by:     userId,
-        update_reason:  'pharmacy_dispense'
-      })
-      .select('id').single();
-    if (bErr) throw bErr;
+  // Session 296 -- an IPD prescription (from doctor.html's IPD Orders panel) has no OPD
+  // visit bill to attach to; it's charged to the stay instead (ipd_stay_charges, staged
+  // 'pending' same as PK sessions/room tariff -- reconciled at discharge like everything
+  // else there, see nursing.js's Discharge Reconciliation).
+  const isIpd = _activeRx.patient_type === 'ipd';
 
-    // 2. Bill items
-    const billItems = payable.map(c => ({
-      bill_id:     bill.id,
-      medicine_id: c.medicine_id || null,
-      quantity:    c.qty,
-      price:       c.price,
-      total:       c.qty * c.price,
-      tenant_id:   tenantId
-    }));
-    await supabase.from('bill_items').insert(billItems);
+  try {
+    let bill = null;
+    if (isIpd) {
+      // 1. Stage IPD stay charges (one row per medicine, matching source_ref_id so they're
+      // traceable back to this dispense)
+      if (!_activeIpdAdmissionId) throw new Error("Could not find this patient's IPD admission to charge — contact support before dispensing.");
+      const stayCharges = payable.map(c => ({
+        tenant_id: tenantId, ipd_admission_id: _activeIpdAdmissionId, source: 'pharmacy', source_ref_id: _activeRxId,
+        description: c.name, quantity: c.qty, unit_price: c.price, gst_percent: c.gst_pct || null,
+        amount: c.qty * c.price, status: 'pending', added_by: userId,
+      }));
+      const { error: scErr } = await supabase.from('ipd_stay_charges').insert(stayCharges);
+      if (scErr) throw scErr;
+    } else {
+      // 1. Create bill
+      const { data: b, error: bErr } = await supabase
+        .from('bills')
+        .insert({
+          tenant_id:      tenantId,
+          patient_id:     _activeRx.patient.id,
+          visit_id:       _activeRx.visit.id,
+          total_amount:   subtotal,
+          final_amount:   total,
+          status:         payMethod === 'Credit' ? 'partial' : 'paid',
+          bill_type:      'pharmacy',
+          payment_method: payMethod,
+          updated_by:     userId,
+          update_reason:  'pharmacy_dispense'
+        })
+        .select('id').single();
+      if (bErr) throw bErr;
+      bill = b;
+
+      // 2. Bill items
+      const billItems = payable.map(c => ({
+        bill_id:     bill.id,
+        medicine_id: c.medicine_id || null,
+        quantity:    c.qty,
+        price:       c.price,
+        total:       c.qty * c.price,
+        tenant_id:   tenantId
+      }));
+      await supabase.from('bill_items').insert(billItems);
+    }
 
     // 3. Deduct stock
     for (const c of payable) {
@@ -527,15 +558,23 @@ async function dispense() {
     // patient whose abha_address was backfilled by a prior link-confirm now gets
     // this Invoice proactively pushed too, not just left to wait for the next
     // discover/link cycle.
-    _abdmCareContextInvoice(bill.id, _activeRx.patient.id, _activeRx.visit?.id, {
-      abhaNumber:  _activeRx.patient.abha_number,
-      abhaAddress: _activeRx.patient.abha_address,
-    });
+    // Session 296 -- no `bills` row exists for an IPD dispense (charged to the stay
+    // instead), so there's nothing to tag a BILL-<id> Invoice care context to; the
+    // Prescription care context above still covers it.
+    if (!isIpd) {
+      _abdmCareContextInvoice(bill.id, _activeRx.patient.id, _activeRx.visit?.id, {
+        abhaNumber:  _activeRx.patient.abha_number,
+        abhaAddress: _activeRx.patient.abha_address,
+      });
+    }
 
-    // 7. Print invoice
-    _printInvoice(bill.id, payable, subtotal, discount, total, payMethod, _discountPct());
+    // 7. Print invoice (OPD only — an IPD dispense is staged to the stay, printed at
+    // discharge like every other stay charge, not per dispense)
+    if (!isIpd) _printInvoice(bill.id, payable, subtotal, discount, total, payMethod, _discountPct());
 
-    _toast(`${_esc(_activeRx.patient?.name)} — dispensed, bill generated`, 'info');
+    _toast(isIpd
+      ? `${_esc(_activeRx.patient?.name)} — dispensed, charged to the IPD stay`
+      : `${_esc(_activeRx.patient?.name)} — dispensed, bill generated`, 'info');
     _closeRx();
     loadQueue();
 
@@ -720,6 +759,7 @@ document.getElementById('btn-close').addEventListener('click', _closeRx);
 function _closeRx() {
   _activeRxId = null;
   _activeRx   = null;
+  _activeIpdAdmissionId = null;
   _cartItems  = [];
   document.getElementById('d-active').style.display = 'none';
   document.getElementById('welcome').style.display  = '';
