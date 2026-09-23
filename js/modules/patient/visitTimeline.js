@@ -16,6 +16,7 @@
 let _sb = null, _esc = s => String(s ?? '');
 let _entries = [];          // merged visit + admission entries, newest first
 let _loadToken = 0;         // guards against a slow load rendering after a patient switch
+let _panelRx = [];          // prescription items of the visit open in the side panel (phase 2 copy)
 
 const _fmtD = d => d ? new Date(d.length === 10 ? d + 'T00:00:00' : d)
   .toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
@@ -195,6 +196,7 @@ window.openVhVisit = async function(visitId) {
   const imgs = imgR.data || [];
   const pks = pkR.data || [];
   const c = cn || {};
+  _panelRx = rxItems;
 
   const bp = c.bp_systolic ? `${c.bp_systolic}/${c.bp_diastolic ?? '—'} mmHg` : null;
   const html = [
@@ -226,9 +228,7 @@ window.openVhVisit = async function(visitId) {
     _sec('🔬 Investigations', _rows([
       ['Lab advised', c.inv_lab], ['Imaging advised', c.inv_imaging], ['Ayurveda', c.inv_ayurveda],
     ]) + labs.map(_labHtml).join('') + imgs.map(_imgHtml).join('')),
-    _sec('💊 Prescription', (rxItems.length ? `<ul class="vh-rx">${rxItems.map(r =>
-      `<li><strong>${_esc(r.medicine_name)}</strong> ${_esc([r.dosage, r.frequency, r.timing].filter(Boolean).join(' · '))}${r.duration ? ' × ' + _esc(r.duration) : ''}${r.anupana ? ` <span class="vh-muted">with ${_esc(r.anupana)}</span>` : ''}</li>`).join('')}</ul>` : '')
-      + _rows([['Instructions', c.rx_instructions]])),
+    _sec('💊 Prescription', _rxHtml(rxItems) + _rows([['Instructions', c.rx_instructions]])),
     _sec('🌸 Panchakarma', pks.map(p => `<div class="vh-pk">
       ${(p.pk_care_plan_protocols || []).map(pr => `<div><strong>${_esc(pr.protocol_label)}</strong>${pr.start_date ? ` <span class="vh-muted">from ${_fmtD(pr.start_date)}</span>` : ''}</div>`).join('')}
       <div class="vh-muted">${_esc([_nice(p.setting), _nice(p.status)].filter(Boolean).join(' · '))}</div></div>`).join('')),
@@ -241,6 +241,41 @@ window.openVhVisit = async function(visitId) {
 
   document.getElementById('vh-panel-body').innerHTML = html ||
     '<div class="vh-empty">No clinical notes were recorded for this visit.</div>';
+};
+
+// Phase 2 -- tick medicines to copy into today's prescription, or repeat the whole list.
+// Rows land as normal editable rows via doctor.js's window._copyRxFromHistory().
+function _rxHtml(items) {
+  if (!items.length) return '';
+  return `<div class="vh-rx-list">${items.map((r, i) => `
+    <label class="vh-rx-item">
+      <input type="checkbox" class="vh-rx-chk" data-idx="${i}" data-onchange="vhRxSelChanged">
+      <span><strong>${_esc(r.medicine_name)}</strong> ${_esc([r.dosage, r.frequency, r.timing].filter(Boolean).join(' · '))}${r.duration ? ' × ' + _esc(r.duration) : ''}${r.anupana ? ` <span class="vh-muted">with ${_esc(r.anupana)}</span>` : ''}</span>
+    </label>`).join('')}</div>
+    <div class="vh-rx-actions">
+      <button type="button" class="vh-btn" id="vh-rx-copy-sel" data-onclick="vhCopyRx" data-onclick-a0="selected" disabled>Copy selected</button>
+      <button type="button" class="vh-btn vh-btn-primary" data-onclick="vhCopyRx" data-onclick-a0="all">↻ Repeat all (${items.length})</button>
+    </div>`;
+}
+
+window.vhRxSelChanged = function() {
+  const n = document.querySelectorAll('#vh-panel-body .vh-rx-chk:checked').length;
+  const btn = document.getElementById('vh-rx-copy-sel');
+  if (!btn) return;
+  btn.disabled = n === 0;
+  btn.textContent = n ? `Copy selected (${n})` : 'Copy selected';
+};
+
+window.vhCopyRx = function(mode) {
+  const picked = mode === 'all' ? _panelRx
+    : [...document.querySelectorAll('#vh-panel-body .vh-rx-chk:checked')].map(el => _panelRx[Number(el.dataset.idx)]);
+  if (!picked.length || typeof window._copyRxFromHistory !== 'function') return;
+  window._copyRxFromHistory(picked.map(r => ({
+    name: r.medicine_name, dose: r.dosage || '', freq: r.frequency || '',
+    dur: r.duration || '', anupana: r.anupana || '', timing: r.timing || '',
+  })));
+  document.querySelectorAll('#vh-panel-body .vh-rx-chk:checked').forEach(el => { el.checked = false; });
+  window.vhRxSelChanged();
 };
 
 function _labHtml(l) {

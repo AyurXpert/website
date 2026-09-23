@@ -324,6 +324,18 @@ button.vh-item:focus-visible{outline:2px solid var(--green-deep);outline-offset:
 .vh-v{flex:1;white-space:pre-wrap;word-break:break-word}
 .vh-muted{color:var(--text-muted);font-size:12px}
 .vh-rx{margin:0;padding-left:18px}.vh-rx li{margin-bottom:4px}
+.vh-rx-list{display:flex;flex-direction:column;gap:4px}
+.vh-rx-item{display:flex;align-items:flex-start;gap:10px;min-height:44px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;line-height:1.45}
+.vh-rx-item:hover{background:var(--green-light)}
+.vh-rx-item input{width:20px;height:20px;margin:1px 0 0;flex-shrink:0;accent-color:var(--green-deep);cursor:pointer}
+.vh-rx-item:has(input:checked){background:var(--green-light);border-color:var(--green-mid)}
+.vh-rx-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.vh-btn{min-height:44px;padding:0 16px;border-radius:8px;border:1.5px solid var(--green-deep);background:var(--white);color:var(--green-deep);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer}
+.vh-btn:hover:not(:disabled){background:var(--green-light)}
+.vh-btn:disabled{opacity:.45;cursor:not-allowed}
+.vh-btn-primary{background:var(--green-deep);color:#fff}
+.vh-btn-primary:hover:not(:disabled){background:var(--green-mid)}
+.vh-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .vh-inv{border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-top:8px;background:var(--cream)}
 .vh-inv-hd{display:flex;justify-content:space-between;gap:8px;margin-bottom:4px}
 .vh-res{width:100%;border-collapse:collapse;font-size:12px}

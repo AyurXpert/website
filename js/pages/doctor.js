@@ -4896,11 +4896,15 @@ window.setFollowup = function(days) {
 
 // ── Prescription rows ─────────────────────────────
 let _rxRows = [];
+// Session 295 -- was `Date.now()`, which repeats when several rows are added in one
+// synchronous loop (draft restore, Repeat-all copy): duplicate rx-/ta-/sb- element ids,
+// so × could remove the wrong row. A plain counter is always unique.
+let _rxSeq = 0;
 
 document.getElementById('btn-add-rx').addEventListener('click', () => addRxRow());
 
 function addRxRow(data = {}) {
-  const id = Date.now();
+  const id = ++_rxSeq;
   _rxRows.push(id);
 
   const div = document.createElement('div');
@@ -4956,6 +4960,24 @@ function addRxRow(data = {}) {
   const ta = document.getElementById(`ta-${id}`);
   const sb = document.getElementById(`sb-${id}`);
 
+  // Session 295 -- a prefilled frequency outside the 8 fixed options (older/free-text
+  // prescription_items rows) used to silently fall back to OD; keep it as its own option.
+  const freqSel = div.querySelector('.rx-freq');
+  if (data.freq && ![...freqSel.options].some(o => o.value === data.freq)) {
+    freqSel.add(new Option(data.freq, data.freq, true, true));
+  }
+  // Prefilled name (copied / suggested / restored): show the same stock badge a
+  // typeahead pick would, when the medicine is in this tenant's inventory.
+  if (data.name) {
+    const inv = _inventory.find(i => i.medicine.name.toLowerCase() === String(data.name).toLowerCase().trim());
+    if (inv) {
+      const stock = inv.stock_quantity;
+      sb.className = `stock-badge ${stock <= 0 ? 'stock-out' : stock < 10 ? 'stock-low' : 'stock-in'}`;
+      sb.textContent = stock <= 0 ? 'Out of Stock' : stock < 10 ? `Low (${stock})` : 'In Stock';
+      sb.style.display = 'inline-block';
+    }
+  }
+
   nameInput.addEventListener('input', function() {
     _updateCompleteBtn();
     const q = this.value.toLowerCase().trim();
@@ -4996,6 +5018,28 @@ function addRxRow(data = {}) {
 }
 
 window.addRxRow = addRxRow;
+
+// Session 295 (follow-up layout phase 2) -- called by the Visit History side panel's
+// "Copy selected" / "Repeat all" (js/modules/patient/visitTimeline.js). Adds each
+// previous medicine as a normal editable row; skips one already in today's list.
+window._copyRxFromHistory = function(items) {
+  const have = new Set(_getRxData().map(r => r.name.toLowerCase()));
+  let added = 0; const skipped = [];
+  (items || []).forEach(it => {
+    const name = (it.name || '').trim();
+    if (!name) return;
+    if (have.has(name.toLowerCase())) { skipped.push(name); return; }
+    have.add(name.toLowerCase());
+    addRxRow(it);
+    added++;
+  });
+  if (added) _switchTab('rx');
+  const msg = added
+    ? `${added} medicine${added === 1 ? '' : 's'} copied to today's prescription — please review dose and duration.`
+    : 'Nothing copied.';
+  _toast(skipped.length ? `${msg} Already in today's list: ${skipped.join(', ')}.` : msg, added ? 'info' : 'error');
+  return { added, skipped };
+};
 
 // Enable Complete button only when at least one named medicine row exists
 function _updateCompleteBtn() {
