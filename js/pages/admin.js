@@ -1,5 +1,6 @@
 import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId,
          getCurrentRole, getPendingApprovals } from '../core/auth.js';
+import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, collectedAmount } from '../modules/billing/billCategory.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase }   from '../core/db/supabaseClient.js';
 import { logAudit }   from '../core/auditLogger.js';
@@ -279,28 +280,32 @@ window.loadAccounts = async function() {
   const thirtyDaysAgo = new Date(Date.now() - 30*24*60*60*1000).toISOString();
 
   const [paidToday, paidMonth, allPending] = await Promise.all([
-    supabase.from('bills').select('final_amount,payer_type,bill_type')
-      .eq('tenant_id',tenantId).eq('status','paid')
+    // Session 295 -- 'partial' (e.g. Panchakarma advance) counts what was actually paid.
+    supabase.from('bills').select('final_amount,patient_due,status,payer_type,bill_type')
+      .eq('tenant_id',tenantId).in('status',['paid','partial'])
       .gte('created_at',todayStart).lte('created_at',todayEnd),
-    supabase.from('bills').select('final_amount,payer_type,bill_type')
-      .eq('tenant_id',tenantId).eq('status','paid')
+    supabase.from('bills').select('final_amount,patient_due,status,payer_type,bill_type')
+      .eq('tenant_id',tenantId).in('status',['paid','partial'])
       .gte('created_at',monthStart),
     supabase.from('bills')
       .select('id,final_amount,patient_due,created_at,bill_type,payer_type,tpa_name,insurance_provider,insurance_approved_amount,insurance_claim_status,pre_auth_status,status,patients(name)')
       .eq('tenant_id',tenantId)
-      .in('status',['pending','partial'])
+      // Session 295 -- reception writes 'unpaid'; a ₹0 bill owes nothing.
+      .in('status',OUTSTANDING_STATUSES).gt('final_amount',0)
       .order('created_at',{ascending:false})
       .limit(100),
   ]);
 
   const todayList = paidToday.data  || [];
   const monthList = paidMonth.data  || [];
-  const pendList  = allPending.data || [];
+  const pendList  = (allPending.data || []).filter(b => dueAmount(b) > 0);
 
   const sumAmt = (arr, key='final_amount') => arr.reduce((s,b)=>s+(Number(b[key])||0), 0);
+  const sumCollected = arr => arr.reduce((s,b)=>s+collectedAmount(b), 0);
+  const sumDue       = arr => arr.reduce((s,b)=>s+dueAmount(b), 0);
 
-  const revenueToday   = sumAmt(todayList);
-  const revenueMonth   = sumAmt(monthList);
+  const revenueToday   = sumCollected(todayList);
+  const revenueMonth   = sumCollected(monthList);
   const selfPay        = pendList.filter(b=>b.payer_type==='self_pay');
   const insClaims      = pendList.filter(b=>b.payer_type!=='self_pay');
   const overdue30      = pendList.filter(b=>new Date(b.created_at)<new Date(thirtyDaysAgo));
@@ -310,20 +315,23 @@ window.loadAccounts = async function() {
   if(acGrid) acGrid.innerHTML=[
     {ico:'₹',  cls:'gold', num:_fmt(revenueToday),    lbl:'Revenue Today',     sub:'cash & digital in'},
     {ico:'📅', cls:'g',    num:_fmt(revenueMonth),     lbl:'This Month',         sub:'total revenue collected'},
-    {ico:'👤', cls:'b',    num:_fmt(sumAmt(selfPay)),  lbl:'Self-Pay Pending',   sub:selfPay.length+' bills awaiting'},
+    {ico:'👤', cls:'b',    num:_fmt(sumDue(selfPay)),  lbl:'Self-Pay Pending',   sub:selfPay.length+' bills awaiting'},
     {ico:'🏥', cls:'p',    num:insClaims.length,        lbl:'Insurance Claims',   sub:'pending with TPA / PMJAY'},
-    {ico:'⚠️', cls:'r',    num:overdue30.length,        lbl:'Outstanding >30d',   sub:_fmt(sumAmt(overdue30))+' at risk'},
+    {ico:'⚠️', cls:'r',    num:overdue30.length,        lbl:'Outstanding >30d',   sub:_fmt(sumDue(overdue30))+' at risk'},
   ].map(c=>`<div class="sc"><div class="sc-ico ${c.cls}">${c.ico}</div><div class="sc-num">${c.num??'—'}</div><div class="sc-lbl">${c.lbl}</div><div class="sc-sub">${c.sub}</div></div>`).join('');
 
   // ── Revenue Breakdown table ──
-  const opdT  = sumAmt(todayList.filter(b=>b.bill_type==='OPD'));
-  const ipdT  = sumAmt(todayList.filter(b=>b.bill_type==='IPD'));
-  const opdM  = sumAmt(monthList.filter(b=>b.bill_type==='OPD'));
-  const ipdM  = sumAmt(monthList.filter(b=>b.bill_type==='IPD'));
-  const spT   = sumAmt(todayList.filter(b=>b.payer_type==='self_pay'));
-  const insT  = sumAmt(todayList.filter(b=>b.payer_type!=='self_pay'));
-  const spM   = sumAmt(monthList.filter(b=>b.payer_type==='self_pay'));
-  const insM  = sumAmt(monthList.filter(b=>b.payer_type!=='self_pay'));
+  // Session 295 -- was bill_type==='OPD' / 'IPD' (exact capitals): real bills are
+  // 'consultation'/'opd'/'OPD' and 'ipd', so both rows were ~always 0.
+  const byCat = (arr, cat) => sumCollected(arr.filter(b=>billCategory(b.bill_type)===cat));
+  const opdT  = byCat(todayList,'opd'),           opdM  = byCat(monthList,'opd');
+  const ipdT  = byCat(todayList,'ipd'),           ipdM  = byCat(monthList,'ipd');
+  const phmT  = byCat(todayList,'pharmacy'),      phmM  = byCat(monthList,'pharmacy');
+  const labT  = byCat(todayList,'investigation'), labM  = byCat(monthList,'investigation');
+  const spT   = sumCollected(todayList.filter(b=>b.payer_type==='self_pay'));
+  const insT  = sumCollected(todayList.filter(b=>b.payer_type!=='self_pay'));
+  const spM   = sumCollected(monthList.filter(b=>b.payer_type==='self_pay'));
+  const insM  = sumCollected(monthList.filter(b=>b.payer_type!=='self_pay'));
 
   const bkDiv = document.getElementById('accounts-breakdown');
   if(bkDiv) bkDiv.innerHTML=`<div class="tw"><table>
@@ -331,6 +339,8 @@ window.loadAccounts = async function() {
     <tbody>
       <tr><td><span class="chip b">OPD</span> Outpatient</td><td>${_fmt(opdT)}</td><td>${_fmt(opdM)}</td></tr>
       <tr><td><span class="chip p">IPD</span> Inpatient</td><td>${_fmt(ipdT)}</td><td>${_fmt(ipdM)}</td></tr>
+      <tr><td><span class="chip g">Pharmacy</span> Dispensary</td><td>${_fmt(phmT)}</td><td>${_fmt(phmM)}</td></tr>
+      <tr><td><span class="chip b">Lab</span> Investigation bills</td><td>${_fmt(labT)}</td><td>${_fmt(labM)}</td></tr>
       <tr style="border-top:2px solid var(--border);font-weight:600">
         <td>Total Collected</td><td>${_fmt(revenueToday)}</td><td>${_fmt(revenueMonth)}</td>
       </tr>
@@ -394,7 +404,7 @@ window.loadAccounts = async function() {
     </tr></thead>
     <tbody>${pendList.map(b=>`<tr>
       <td><strong>${_esc(b.patients?.name||'—')}</strong></td>
-      <td><span class="chip ${b.bill_type==='IPD'?'p':'b'}">${b.bill_type||'OPD'}</span></td>
+      <td><span class="chip ${billCategory(b.bill_type)==='ipd'?'p':'b'}">${BILL_CATEGORY_LABEL[billCategory(b.bill_type)]}</span></td>
       <td>${_payerChip(b)}</td>
       <td style="text-align:right">${_fmt(b.final_amount)}</td>
       <td style="text-align:right">${b.payer_type!=='self_pay'&&b.insurance_approved_amount?_fmt(b.insurance_approved_amount):'—'}</td>

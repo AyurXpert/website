@@ -5,6 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { logAudit } from '../core/auditLogger.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, collectedAmount } from '../modules/billing/billCategory.js';
 
 wireDelegatedEvents();
 
@@ -190,13 +191,14 @@ window.loadAll = async function() {
 async function loadBills(from, to) {
   const { data, error } = await supabase
     .from('bills')
-    .select('id, created_at, final_amount, total_amount, registration_fee, consultation_fee, bill_type, payment_mode, status, patients(name), insurer_name')
+    .select('id, created_at, final_amount, total_amount, registration_fee, consultation_fee, on_request_surcharge, patient_due, bill_type, payment_mode, status, patients(name), insurer_name')
     .eq('tenant_id', tenantId)
     .gte('created_at', from + 'T00:00:00')
     .lte('created_at', to + 'T23:59:59')
     .order('created_at', { ascending: false });
   if (error) { _toast(safeErrorMessage(error, 'Could not load bills.'), 'error'); return; }
   _bills = data || [];
+  await _loadLabItemTotals();
   renderRevenue(from, to);
   renderGST();
   renderDaily(from, to);
@@ -207,19 +209,14 @@ function renderRevenue(from, to) {
   const tbody = document.getElementById('rev-tbody');
   document.getElementById('rev-period-lbl').textContent = `${_fmtD(from)} to ${_fmtD(to)} · ${_bills.length} bills`;
 
-  let regTotal=0, conTotal=0, phmTotal=0, othTotal=0;
-  let regCnt=0, conCnt=0, phmCnt=0, othCnt=0, grandFinal=0;
+  const k = _revenueBuckets(_bills);
+  const grandFinal = _bills.reduce((s, b) => s + collectedAmount(b), 0);
 
   tbody.innerHTML = _bills.map(b => {
-    const f = parseFloat(b.final_amount)||0;
-    grandFinal += (['paid','partial'].includes(b.status) ? f : 0);
-    const bt = b.bill_type || 'opd';
-    if (bt === 'opd') { regTotal += parseFloat(b.registration_fee)||0; conTotal += parseFloat(b.consultation_fee)||0; regCnt++; conCnt++; }
-    else if (bt === 'pharmacy') { phmTotal += f; phmCnt++; }
-    else { othTotal += f; othCnt++; }
+    const bt = BILL_CATEGORY_LABEL[billCategory(b.bill_type)];
     return `<tr>
       <td style="font-size:12px;white-space:nowrap">${_fmtD(b.created_at?.slice(0,10))}</td>
-      <td>${b.patients?.name || '—'}</td>
+      <td>${_esc(b.patients?.name || '—')}</td>
       <td><span class="badge b-pending" style="font-size:10px">${bt}</span></td>
       <td>₹${_n(b.total_amount)}</td>
       <td>₹${_n((parseFloat(b.total_amount)||0)-(parseFloat(b.final_amount)||0))}</td>
@@ -230,26 +227,69 @@ function renderRevenue(from, to) {
   }).join('') || '<tr><td colspan="8" class="empty">No bills in this period</td></tr>';
 
   document.getElementById('rev-total-final').textContent = '₹' + _n(grandFinal);
-  document.getElementById('r-reg').textContent = '₹' + _n(regTotal);
-  document.getElementById('r-con').textContent = '₹' + _n(conTotal);
-  document.getElementById('r-phm').textContent = '₹' + _n(phmTotal);
-  document.getElementById('r-oth').textContent = '₹' + _n(othTotal);
-  document.getElementById('r-reg-c').textContent = regCnt + ' OPD bills';
-  document.getElementById('r-con-c').textContent = conCnt + ' consultations';
-  document.getElementById('r-phm-c').textContent = phmCnt + ' pharmacy bills';
-  document.getElementById('r-oth-c').textContent = othCnt + ' other bills';
+  document.getElementById('r-reg').textContent = '₹' + _n(k.reg);
+  document.getElementById('r-con').textContent = '₹' + _n(k.con);
+  document.getElementById('r-phm').textContent = '₹' + _n(k.phm);
+  document.getElementById('r-lab').textContent = '₹' + _n(k.lab);
+  document.getElementById('r-oth').textContent = '₹' + _n(k.oth);
+  document.getElementById('r-reg-c').textContent = k.opdCnt + ' OPD bills';
+  document.getElementById('r-con-c').textContent = k.opdCnt + ' OPD bills';
+  document.getElementById('r-phm-c').textContent = k.phmCnt + ' pharmacy bills';
+  document.getElementById('r-lab-c').textContent = k.labCnt + ' bills with lab charges';
+  document.getElementById('r-oth-c').textContent = k.othCnt + ' IPD / package / other bills';
+}
+
+// Session 295 -- lab charges attached to OPD bills (bill_items.item_type='lab') are part of
+// those bills' final_amount but belong under Lab / Investigations, not "Other".
+let _labByBill = {};
+async function _loadLabItemTotals() {
+  _labByBill = {};
+  const ids = _bills.map(b => b.id);
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data } = await supabase.from('bill_items').select('bill_id, total, gst_amount')
+      .in('bill_id', ids.slice(i, i + 200)).eq('item_type', 'lab');
+    (data || []).forEach(r => {
+      _labByBill[r.bill_id] = (_labByBill[r.bill_id] || 0) + (Number(r.total) || 0) + (Number(r.gst_amount) || 0);
+    });
+  }
+}
+
+// One pass, shared by the revenue cards and the GST summary so they can't disagree.
+// OPD bill = registration + consultation (incl. on-request surcharge) + lab items + the
+// rest (e.g. a Panchakarma plan estimate) under Other; investigation bills -> Lab.
+function _revenueBuckets(bills) {
+  const k = { reg: 0, con: 0, phm: 0, lab: 0, oth: 0, opdCnt: 0, phmCnt: 0, labCnt: 0, othCnt: 0 };
+  bills.forEach(b => {
+    const f = Number(b.final_amount) || 0;
+    const cat = billCategory(b.bill_type);
+    if (cat === 'opd') {
+      const reg = Number(b.registration_fee) || 0;
+      const con = (Number(b.consultation_fee) || 0) + (Number(b.on_request_surcharge) || 0);
+      const lab = _labByBill[b.id] || 0;
+      const rest = Math.max(0, f - reg - con - lab);
+      k.reg += reg; k.con += con; k.lab += lab; k.oth += rest; k.opdCnt++;
+      if (lab) k.labCnt++;
+      if (rest) k.othCnt++;
+    } else if (cat === 'pharmacy') { k.phm += f; k.phmCnt++; }
+    else if (cat === 'investigation') { k.lab += f; k.labCnt++; }
+    else { k.oth += f; k.othCnt++; }
+  });
+  return k;
 }
 
 // ── Outstanding ─────────────────────────────────────
 async function loadOutstanding() {
   const { data, error } = await supabase
     .from('bills')
-    .select('id, created_at, final_amount, bill_type, payer_type, payment_mode, status, patients(name)')
+    .select('id, created_at, final_amount, patient_due, bill_type, payer_type, payment_mode, status, patients(name)')
     .eq('tenant_id', tenantId)
-    .in('status', ['pending','partial'])
+    // Session 295 -- bills are written 'unpaid' (reception) / 'partial' (PK advance);
+    // 'pending' kept for legacy rows. A ₹0 bill (free follow-up) owes nothing.
+    .in('status', OUTSTANDING_STATUSES)
+    .gt('final_amount', 0)
     .order('created_at', { ascending: true });
   if (error) { _toast(safeErrorMessage(error, 'Could not load outstanding dues.'), 'error'); return; }
-  _outstanding = data || [];
+  _outstanding = (data || []).filter(b => dueAmount(b) > 0);
   renderOutstanding();
   updateKPIs();
 }
@@ -261,7 +301,7 @@ function renderOutstanding() {
   const aging = { '0-7':0, '8-30':0, '31+':0 };
 
   tbody.innerHTML = _outstanding.map(b => {
-    const f = parseFloat(b.final_amount) || 0;
+    const f = dueAmount(b);   // what is still owed, not the whole bill
     total += f;
     const created = new Date(b.created_at); created.setHours(0,0,0,0);
     const days = Math.floor((today - created) / 86400000);
@@ -271,7 +311,7 @@ function renderOutstanding() {
     // are locked) get a Collect action right here rather than a separate
     // "Ward Billing Queue" view, since Outstanding already lists every
     // unpaid bill regardless of type -- no need to duplicate that list.
-    const canCollect = b.bill_type === 'ipd' && b.payer_type === 'self_pay';
+    const canCollect = billCategory(b.bill_type) === 'ipd' && b.payer_type === 'self_pay';
     const actionCell = canCollect
       ? `<select id="pm-${b.id}" style="height:26px;font-size:11px;border:1.5px solid var(--border);border-radius:5px;padding:0 4px;margin-right:4px">
            <option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option>
@@ -279,9 +319,9 @@ function renderOutstanding() {
       : '—';
     return `<tr>
       <td style="font-size:12px">${_fmtD(b.created_at?.slice(0,10))}</td>
-      <td>${b.patients?.name || '—'}</td>
-      <td>${b.bill_type || 'opd'}</td>
-      <td style="font-weight:500">₹${_n(b.final_amount)}</td>
+      <td>${_esc(b.patients?.name || '—')}</td>
+      <td>${BILL_CATEGORY_LABEL[billCategory(b.bill_type)]}</td>
+      <td style="font-weight:500">₹${_n(f)}${f < (Number(b.final_amount) || 0) ? ` <span style="font-size:11px;color:var(--text-muted)">of ₹${_n(b.final_amount)}</span>` : ''}</td>
       <td><span class="badge b-${b.status}">${b.status}</span></td>
       <td style="${ageCls};font-weight:500">${days} days</td>
       <td style="font-size:12px">${b.payment_mode || '—'}</td>
@@ -357,11 +397,13 @@ function renderExpenses(from, to) {
 
 // ── GST Summary ───────────────────────────────────────
 function renderGST() {
+  const k = _revenueBuckets(_bills);
   const rows = [
-    { type:'OPD Consultation', taxable: _bills.filter(b=>b.bill_type==='opd').reduce((s,b)=>s+(parseFloat(b.consultation_fee)||0),0), rate:0 },
-    { type:'OPD Registration', taxable: _bills.filter(b=>b.bill_type==='opd').reduce((s,b)=>s+(parseFloat(b.registration_fee)||0),0), rate:0 },
-    { type:'Pharmacy / Medicines', taxable: _bills.filter(b=>b.bill_type==='pharmacy').reduce((s,b)=>s+(parseFloat(b.final_amount)||0),0), rate:5 },
-    { type:'IPD / Package', taxable: _bills.filter(b=>!['opd','pharmacy'].includes(b.bill_type||'opd')).reduce((s,b)=>s+(parseFloat(b.final_amount)||0),0), rate:0 },
+    { type:'OPD Consultation',     taxable: k.con, rate:0, cnt: k.opdCnt },
+    { type:'OPD Registration',     taxable: k.reg, rate:0, cnt: k.opdCnt },
+    { type:'Pharmacy / Medicines', taxable: k.phm, rate:5, cnt: k.phmCnt },
+    { type:'Lab / Investigations', taxable: k.lab, rate:0, cnt: k.labCnt },
+    { type:'IPD / Package / Other', taxable: k.oth, rate:0, cnt: k.othCnt },
   ];
   let tBills=0, tTaxable=0, tCGST=0, tSGST=0, tGST=0, tInvoice=0;
   const tbody = document.getElementById('gst-tbody');
@@ -369,7 +411,7 @@ function renderGST() {
     const gst = r.taxable * r.rate / 100;
     const cgst = gst / 2, sgst = gst / 2;
     const invoice = r.taxable + gst;
-    const cnt = _bills.filter(b => r.type.startsWith('OPD') ? b.bill_type==='opd' : r.type.startsWith('Pharmacy') ? b.bill_type==='pharmacy' : true).length;
+    const cnt = r.cnt;
     tTaxable += r.taxable; tCGST += cgst; tSGST += sgst; tGST += gst; tInvoice += invoice;
     return `<tr>
       <td>${r.type}</td>
@@ -396,15 +438,16 @@ function renderDaily(from, to) {
   _bills.forEach(b => {
     const d = b.created_at?.slice(0,10);
     if (!byDay[d]) byDay[d] = { bills:0, cash:0, upi:0, credit:0, ins:0, collected:0, pending:0 };
-    const f = parseFloat(b.final_amount) || 0;
+    const f = collectedAmount(b);   // a part-paid bill counts only what was received
     byDay[d].bills++;
-    if (b.status === 'paid' || b.status === 'partial') {
+    if (f > 0) {
       if (b.payment_mode === 'cash') byDay[d].cash += f;
       else if (b.payment_mode === 'Insurance / TPA') byDay[d].ins += f;
       else if (b.payment_mode === 'credit') byDay[d].credit += f;
       else byDay[d].upi += f;
       byDay[d].collected += f;
-    } else { byDay[d].pending += f; }
+    }
+    byDay[d].pending += dueAmount(b);
   });
   const days = Object.keys(byDay).sort().reverse();
   let tBills=0,tCash=0,tUpi=0,tCred=0,tIns=0,tCol=0,tPend=0;
@@ -431,8 +474,8 @@ function renderDaily(from, to) {
 // ── KPI update ────────────────────────────────────────
 function updateKPIs() {
   const total    = _bills.reduce((s,b) => s + (parseFloat(b.final_amount)||0), 0);
-  const collected= _bills.filter(b=>['paid','partial'].includes(b.status)).reduce((s,b)=>s+(parseFloat(b.final_amount)||0),0);
-  const outstanding = _outstanding.reduce((s,b)=>s+(parseFloat(b.final_amount)||0),0);
+  const collected= _bills.reduce((s,b)=>s+collectedAmount(b),0);
+  const outstanding = _outstanding.reduce((s,b)=>s+dueAmount(b),0);
   const expenses = _expenses.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
 
   document.getElementById('k-revenue').textContent = '₹' + _n(total);
