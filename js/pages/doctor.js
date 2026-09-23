@@ -7984,8 +7984,25 @@ function openImgOrderModal() {
   document.getElementById('io-indication').value = '';
   document.getElementById('io-priority').value   = 'routine';
   document.getElementById('io-outside-fields').style.display = 'none';
+  // Session 295 -- every new order starts as "Today" (no carry-over between patients).
+  document.getElementById('io-when').value = 'today';
+  document.getElementById('io-due-by').value = '';
+  window.onImgWhenChange();
   document.getElementById('img-order-overlay').style.display = 'flex';
 }
+// Session 295 -- was a bare function: the "Order Imaging" button's delegated
+// data-onclick looks up window.openImgOrderModal, so the button has silently done
+// nothing since it was built (same bug the lab button had, fixed Session 198).
+window.openImgOrderModal = openImgOrderModal;
+window.onImgWhenChange = function() {
+  const next = document.getElementById('io-when').value === 'next_visit';
+  document.getElementById('io-due-wrap').style.display = next ? '' : 'none';
+  if (next) {
+    const due = document.getElementById('io-due-by');
+    if (!due.value) due.value = document.getElementById('fu-date')?.value || '';
+    due.min = todayLocalStr();
+  }
+};
 window.closeImgOrderModal = function() { document.getElementById('img-order-overlay').style.display = 'none'; };
 
 window.updateImgStudyOpts = function() {
@@ -8000,6 +8017,7 @@ window.submitImgOrder = async function() {
   if (!_activePatient) return;
   const mod   = document.getElementById('io-modality').value;
   const study = document.getElementById('io-study').value;
+  const nextVisit = document.getElementById('io-when').value === 'next_visit';
   const { error } = await supabase.from('imaging_orders').insert({
     tenant_id:           tenantId,
     patient_id:          _activePatient.id,
@@ -8015,6 +8033,8 @@ window.submitImgOrder = async function() {
     outside_centre_name: document.getElementById('io-centre')?.value?.trim() || null,
     expected_date:       document.getElementById('io-exp-date')?.value || null,
     status:              'ordered',
+    due_timing:          nextVisit ? 'next_visit' : 'today',
+    due_by:              nextVisit ? (document.getElementById('io-due-by').value || null) : null,
   });
   if (error) { alert(safeErrorMessage(error, 'Could not save imaging order.')); return; }
 
@@ -8024,7 +8044,9 @@ window.submitImgOrder = async function() {
   document.getElementById('as-inv-imaging').value = existing ? existing + ', ' + label : label;
 
   closeImgOrderModal();
-  alert(`✅ Imaging order submitted: ${study}`);
+  alert(nextVisit
+    ? `📅 ${study} advised before the next visit.\n\nRadiology can do it any day before then; if done outside, enter the report at the follow-up visit.`
+    : `✅ Imaging order submitted: ${study}`);
 };
 
 // ── Lab Order Module ──────────────────────────────────────────────────────────

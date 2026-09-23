@@ -374,6 +374,7 @@ button.vh-item:focus-visible{outline:2px solid var(--green-deep);outline-offset:
 .inv-btn-primary{background:var(--blue);color:#fff}
 .inv-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .inv-note{font-size:12.5px;margin-top:8px;color:var(--text-dark)}
+.inv-concl{font-size:12.5px;color:var(--text-mid);margin-top:2px;white-space:pre-wrap}
 .inv-note-k{font-weight:700;color:var(--text-mid)}
 .inv-empty{font-size:12.5px;color:var(--text-muted);margin-top:6px}
 .oor-top{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:12px}
@@ -388,6 +389,9 @@ button.vh-item:focus-visible{outline:2px solid var(--green-deep);outline-offset:
 .oor-abn input{width:18px;height:18px;accent-color:var(--orange)}
 .oor-rm{width:40px;height:38px;border:1px solid var(--border);border-radius:7px;background:var(--white);cursor:pointer}
 .oor-file{margin-top:12px}
+.oor-type{margin-bottom:12px;max-width:320px}
+.oor-type label,.oor-lbl{display:block;font-size:11px;font-weight:600;color:var(--text-mid);margin:10px 0 4px}
+.oor-img-study{font-size:13px;font-weight:700;color:var(--text-dark);margin:4px 0 2px}
 .oor-err{color:var(--red);font-size:12.5px;font-weight:600;margin-top:8px;min-height:1em}
 @media(max-width:760px){.oor-head{display:none}.oor-row{grid-template-columns:1fr 1fr;padding-bottom:6px;border-bottom:1px solid var(--border)}.oor-top{grid-template-columns:1fr}}
 .vh-rx-list{display:flex;flex-direction:column;gap:4px}
@@ -4153,6 +4157,21 @@ body.medcert-print #mc-print{display:block!important}
           </select>
         </div>
       </div>
+      <!-- Session 295 -- imaging "before next visit" (not billed anywhere today, so this is
+           about radiology finding it on any day + the follow-up card showing its status) -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="mha-field">
+          <label for="io-when">When</label>
+          <select id="io-when" data-onchange="onImgWhenChange" style="width:100%;height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif">
+            <option value="today">Today</option>
+            <option value="next_visit">Before next visit</option>
+          </select>
+        </div>
+        <div class="mha-field" id="io-due-wrap" style="display:none">
+          <label for="io-due-by">Get done by</label>
+          <input id="io-due-by" type="date" style="width:100%;height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif"/>
+        </div>
+      </div>
       <div class="mha-field">
         <label>Study / Region</label>
         <select id="io-study" style="width:100%;height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif"></select>
@@ -4184,13 +4203,39 @@ body.medcert-print #mc-print{display:block!important}
       <button type="button" data-onclick="closeOutsideResult" aria-label="Close" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;min-width:44px;min-height:44px">✕</button>
     </div>
     <div class="mha-modal-body" style="max-height:70vh;overflow-y:auto">
+      <div id="oor-type-wrap" class="oor-type">
+        <label for="oor-type">Report type</label>
+        <select id="oor-type" data-onchange="oorTypeChange" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif">
+          <option value="lab">Lab tests</option>
+          <option value="img">Imaging (X-ray, USG, ECG…)</option>
+        </select>
+      </div>
       <div class="oor-top">
-        <div><label for="oor-lab">Outside lab name *</label><input id="oor-lab" type="text" placeholder="e.g. Metropolis, Thyrocare…"></div>
+        <div><label for="oor-lab" id="oor-lab-label">Outside lab name *</label><input id="oor-lab" type="text" placeholder="e.g. Metropolis, Thyrocare…"></div>
         <div><label for="oor-date">Report date *</label><input id="oor-date" type="date"></div>
       </div>
-      <div class="oor-head" aria-hidden="true"><span>Test</span><span>Result</span><span>Unit</span><span>Normal range</span><span></span><span></span></div>
-      <div id="oor-rows"></div>
-      <button type="button" class="prog-add" id="oor-add-row" data-onclick="oorAddRow">+ Add test</button>
+      <div id="oor-lab-fields">
+        <div class="oor-head" aria-hidden="true"><span>Test</span><span>Result</span><span>Unit</span><span>Normal range</span><span></span><span></span></div>
+        <div id="oor-rows"></div>
+        <button type="button" class="prog-add" id="oor-add-row" data-onclick="oorAddRow">+ Add test</button>
+      </div>
+      <!-- Session 295 -- imaging outside report -->
+      <div id="oor-img-fields" hidden>
+        <div class="oor-top" id="oor-img-new">
+          <div><label for="oor-mod">Modality *</label>
+            <select id="oor-mod" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif">
+              <option value="xray">X-Ray</option><option value="usg">USG</option><option value="ecg">ECG</option>
+              <option value="echo">ECHO</option><option value="doppler">Doppler</option><option value="mri">MRI</option>
+              <option value="ct">CT Scan</option><option value="outside">Other</option>
+            </select></div>
+          <div><label for="oor-study">Study / region *</label><input id="oor-study" type="text" placeholder="e.g. X-Ray Knee AP/Lat" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif"></div>
+        </div>
+        <div id="oor-img-study" class="oor-img-study"></div>
+        <label for="oor-findings" class="oor-lbl">Findings</label>
+        <textarea id="oor-findings" style="width:100%;min-height:70px;border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;font-family:'DM Sans',sans-serif;resize:vertical" placeholder="As written in the report…"></textarea>
+        <label for="oor-impression" class="oor-lbl">Impression *</label>
+        <textarea id="oor-impression" style="width:100%;min-height:70px;border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;font-family:'DM Sans',sans-serif;resize:vertical" placeholder="Radiologist's impression / conclusion"></textarea>
+      </div>
       <div class="oor-file"><label for="oor-file">Attach report (photo or PDF, optional, max 10 MB)</label>
         <input id="oor-file" type="file" accept="image/*,application/pdf"></div>
       <div class="oor-err" id="oor-err" role="alert"></div>

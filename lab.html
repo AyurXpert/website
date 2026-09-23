@@ -89,6 +89,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .adv-item .adv-meta{color:var(--text-muted);margin-top:2px}
 .adv-item .adv-tests{color:var(--text-mid);margin-top:3px}
 .adv-item .adv-pay{color:#7a4a00;font-weight:700;margin-top:4px}
+button.adv-item{display:block;width:100%;text-align:left;border:none;border-top:1px solid #d0def2;cursor:pointer;font-family:inherit;min-height:44px}
+button.adv-item:hover{background:var(--blue-light)}
+button.adv-item:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+.adv-item .adv-go{color:var(--blue);font-weight:700;margin-top:4px}
 
 /* Result panel */
 .result-panel{background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden}
@@ -386,6 +390,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <div class="queue-search">
           <input id="img-q-search" type="text" placeholder="Search patient name…" data-oninput="renderImgQueue"/>
         </div>
+        <!-- Session 295 -- imaging advised "before next visit": open it here and perform on
+             any day (imaging has no payment step) -->
+        <details class="adv-wrap" id="img-adv-wrap" hidden>
+          <summary class="adv-hdr">📅 Advised for next visit <span id="img-adv-count"></span></summary>
+          <div id="img-adv-list"></div>
+        </details>
         <div class="queue-list" id="img-queue-list"></div>
       </div>
 

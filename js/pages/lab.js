@@ -689,14 +689,56 @@ async function loadImagingOrders() {
     .from('imaging_orders')
     .select('*, patients(name,age,gender,phone,abha_number), profiles!ordered_by(full_name)')
     .eq('tenant_id', tenantId)
-    .eq('order_date', date)
+    // Session 295 -- a "before next visit" order joins a day's list on the day it is
+    // actually performed; until then it sits in "Advised for next visit" below. Reports
+    // recorded from an outside centre at a follow-up (outside_entered_at) aren't
+    // radiology work at all.
+    .or(`and(due_timing.eq.today,order_date.eq.${date}),and(due_timing.eq.next_visit,performed_date.eq.${date})`)
+    .is('outside_entered_at', null)
     .order('priority', { ascending: false })
     .order('created_at');
   if (error) { _alert('error', safeErrorMessage(error, 'Could not load imaging orders.')); return; }
   _imgOrders = (data || []).sort((a,b)=>({stat:0,urgent:1,routine:2}[a.priority]||2)-({stat:0,urgent:1,routine:2}[b.priority]||2));
   renderImgQueue();
   updateImgStats();
+  loadAdvisedImaging();
 }
+
+// Session 295 -- open "before next visit" imaging, any order date. Clicking one opens it
+// in the normal report panel so the radiographer can perform it today.
+let _imgAdvised = [];
+async function loadAdvisedImaging() {
+  const { data, error } = await supabase.from('imaging_orders')
+    .select('*, patients(name,age,gender,phone,abha_number), profiles!ordered_by(full_name)')
+    .eq('tenant_id', tenantId).eq('due_timing', 'next_visit').eq('status', 'ordered')
+    .is('outside_entered_at', null)
+    .is('performed_date', null)
+    .order('due_by', { ascending: true, nullsFirst: false });
+  const wrap = document.getElementById('img-adv-wrap');
+  if (!wrap) return;
+  if (error) { console.warn('[lab] advised imaging:', error.message); wrap.hidden = true; return; }
+  _imgAdvised = data || [];
+  wrap.hidden = !_imgAdvised.length;
+  document.getElementById('img-adv-count').textContent = _imgAdvised.length ? `(${_imgAdvised.length})` : '';
+  const fmt = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '';
+  const today = todayLocalStr();
+  document.getElementById('img-adv-list').innerHTML = _imgAdvised.map(o => {
+    const p = o.patients || {};
+    const overdue = o.due_by && o.due_by < today;
+    return `<button type="button" class="adv-item" data-onclick="openAdvisedImaging" data-onclick-a0="${o.id}">
+      <div class="adv-name">${_esc(p.name || '—')} <span style="font-weight:500;color:var(--text-muted)">${_esc(String(p.age ?? ''))}${p.gender ? '/' + _esc(String(p.gender).charAt(0).toUpperCase()) : ''}</span></div>
+      <div class="adv-meta">Advised ${fmt(o.order_date)}${o.profiles?.full_name ? ' by ' + _esc(o.profiles.full_name) : ''}${o.due_by ? ` · ${overdue ? '⚠ was due' : 'due by'} ${fmt(o.due_by)}` : ''}</div>
+      <div class="adv-tests">📡 ${_esc(MOD_LABEL[o.modality] || o.modality)} — ${_esc(o.study_name || '')}</div>
+      <div class="adv-go">▶ Patient is here — open to perform</div>
+    </button>`;
+  }).join('');
+}
+window.openAdvisedImaging = function(id) {
+  const o = _imgAdvised.find(x => x.id === id);
+  if (!o) return;
+  if (!_imgOrders.some(x => x.id === id)) _imgOrders.unshift(o);
+  window.selectImgOrder(id);
+};
 
 function updateImgStats() {
   const stat    = _imgOrders.filter(o=>o.priority==='stat'||o.priority==='urgent').length;

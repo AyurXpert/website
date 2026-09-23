@@ -14,6 +14,8 @@
 let _ctx = null;            // { supabase, esc, tenantId, patientId, currentVisitId, userId }
 let _orders = [];           // orders shown in the card
 let _modalOrder = null;     // order being completed, or null = new outside report
+let _imgOrders = [];        // imaging orders shown in the card
+let _modalKind = 'lab';     // 'lab' | 'img' -- what the outside-report window is recording
 let _token = 0;
 
 const _fmtD = d => d ? new Date(String(d).length === 10 ? d + 'T00:00:00' : d)
@@ -21,7 +23,7 @@ const _fmtD = d => d ? new Date(String(d).length === 10 ? d + 'T00:00:00' : d)
 const _todayStr = () => new Date().toLocaleDateString('en-CA');
 
 export function resetInvestigationsDue() {
-  _token++; _orders = []; _ctx = null;
+  _token++; _orders = []; _imgOrders = []; _ctx = null;
   const card = document.getElementById('inv-due-card');
   if (card) { card.hidden = true; document.getElementById('inv-due-body').innerHTML = ''; }
 }
@@ -36,7 +38,8 @@ export async function loadInvestigationsDue(ctx) {
   const last = prevVisits[0];
   const ids = prevVisits.map(v => v.id);
   const SEL = 'id, visit_id, status, order_date, due_timing, due_by, payment_status, performed_outside, outside_lab_name, outside_report_date, outside_report_path, review_status, lab_order_items(id, test_name, panel_label, result_value, result_unit, reference_range, is_abnormal, is_critical)';
-  const [oR, nR, tR] = await Promise.all([
+  const IMG = 'id, visit_id, modality, study_name, status, order_date, due_timing, due_by, is_outside_referral, outside_centre_name, performed_date, findings, impression, outside_report_path, outside_entered_at';
+  const [oR, nR, tR, iR, itR] = await Promise.all([
     supabase.from('lab_orders').select(SEL)
       .eq('tenant_id', ctx.tenantId).in('visit_id', ids).order('created_at', { ascending: true }),
     supabase.from('consultation_notes').select('inv_lab, inv_imaging, review_status, is_deleted')
@@ -46,6 +49,12 @@ export async function loadInvestigationsDue(ctx) {
     supabase.from('lab_orders').select(SEL)
       .eq('tenant_id', ctx.tenantId).eq('visit_id', ctx.currentVisitId).eq('performed_outside', true)
       .order('created_at', { ascending: true }),
+    // Session 295 -- imaging, same rules as labs.
+    supabase.from('imaging_orders').select(IMG)
+      .eq('tenant_id', ctx.tenantId).in('visit_id', ids).order('created_at', { ascending: true }),
+    supabase.from('imaging_orders').select(IMG)
+      .eq('tenant_id', ctx.tenantId).eq('visit_id', ctx.currentVisitId).not('outside_entered_at', 'is', null)
+      .order('created_at', { ascending: true }),
   ]);
   if (token !== _token) return;
   if (oR.error) console.warn('[investigations due]', oR.error.message);
@@ -53,15 +62,19 @@ export async function loadInvestigationsDue(ctx) {
   _orders = (oR.data || []).filter(o => (!o.review_status || o.review_status === 'finalized')
     && (o.visit_id === last.id || (o.due_timing === 'next_visit' && o.status !== 'completed')))
     .concat(tR.data || []);
+  _imgOrders = (iR.data || []).filter(o => o.visit_id === last.id || (o.due_timing === 'next_visit' && o.status !== 'completed'))
+    .concat(itR.data || []);
 
   const text = [['Lab advised', notes.inv_lab], ['Imaging advised', notes.inv_imaging]]
     .filter(([, v]) => v && String(v).trim())
     .map(([k, v]) => `<div class="inv-note"><span class="inv-note-k">${k} (as written):</span> ${esc(v)}</div>`).join('');
 
-  if (!_orders.length && !text) { card.hidden = true; return; }
+  if (!_orders.length && !_imgOrders.length && !text) { card.hidden = true; return; }
   document.getElementById('inv-due-ref').textContent = `advised ${_fmtD(last.created_at)}`;
   document.getElementById('inv-due-body').innerHTML =
-    (_orders.length ? _orders.map(o => _orderRow(o, esc)).join('') : '<div class="inv-empty">No lab order was placed last visit.</div>') + text;
+    (_orders.length || _imgOrders.length
+      ? _orders.map(o => _orderRow(o, esc)).join('') + _imgOrders.map(o => _imgRow(o, esc)).join('')
+      : '<div class="inv-empty">No lab or imaging order was placed last visit.</div>') + text;
   card.hidden = false;
 }
 
@@ -99,6 +112,33 @@ function _orderRow(o, esc) {
   </div>`;
 }
 
+const _MOD = { xray: 'X-Ray', usg: 'USG', ecg: 'ECG', echo: 'ECHO', doppler: 'Doppler', mri: 'MRI', ct: 'CT', outside: 'Imaging' };
+function _imgRow(o, esc) {
+  const outside = o.outside_entered_at || o.is_outside_referral;
+  const concl = o.impression || o.findings;
+  let status, action = '';
+  if (o.status === 'completed') {
+    status = outside
+      ? `<span class="inv-st ok">✅ Outside centre: ${esc(o.outside_centre_name || '—')}${o.performed_date ? ' · ' + _fmtD(o.performed_date) : ''}</span>`
+      : '<span class="inv-st ok">✅ Report ready (our centre)</span>';
+    if (o.outside_report_path) action = `<button type="button" class="inv-btn" data-onclick="openLabReportFile" data-onclick-a0="${esc(o.outside_report_path)}">📄 Report</button>`;
+  } else if (o.status === 'performed') {
+    status = '<span class="inv-st wait">⏳ Done at our centre — report awaited</span>';
+  } else {
+    status = o.status === 'referred_outside'
+      ? `<span class="inv-st wait">🔗 Referred to ${esc(o.outside_centre_name || 'outside centre')} — report not entered</span>`
+      : `<span class="inv-st no">❌ Not done yet${o.due_by ? ' · was due ' + _fmtD(o.due_by) : ''}</span>`;
+    action = `<button type="button" class="inv-btn inv-btn-primary" data-onclick="openOutsideImaging" data-onclick-a0="${o.id}">Enter outside report</button>`;
+  }
+  return `<div class="inv-row">
+    <div class="inv-main">
+      <div class="inv-tests">📡 ${esc(_MOD[o.modality] || o.modality || '')} — ${esc(o.study_name || '')}${concl ? `<div class="inv-concl">${esc(concl)}</div>` : ''}</div>
+      <div class="inv-meta">${status}${o.due_timing === 'next_visit' ? ' <span class="inv-tag">📅 advised for next visit</span>' : ''}</div>
+    </div>
+    ${action ? `<div class="inv-act">${action}</div>` : ''}
+  </div>`;
+}
+
 // ── Outside-lab result modal ────────────────────────────────────────────────
 function _itemRow(it, editableName, esc) {
   return `<div class="oor-row"${it.id ? ` data-item-id="${it.id}"` : ''}>
@@ -111,16 +151,54 @@ function _itemRow(it, editableName, esc) {
   </div>`;
 }
 
-window.openOutsideResult = function(orderId) {
-  if (!_ctx) return;
-  const { esc } = _ctx;
-  _modalOrder = orderId ? _orders.find(o => o.id === orderId) || null : null;
-  document.getElementById('oor-title').textContent = _modalOrder ? 'Enter outside lab result' : 'Add outside lab report';
+// Switches the window between lab-test rows and imaging findings/impression.
+function _setKind(kind, isNew) {
+  _modalKind = kind;
+  document.getElementById('oor-lab-fields').hidden = kind !== 'lab';
+  document.getElementById('oor-img-fields').hidden = kind !== 'img';
+  document.getElementById('oor-img-new').hidden = !(kind === 'img' && isNew);
+  document.getElementById('oor-lab-label').textContent = kind === 'img' ? 'Outside centre name *' : 'Outside lab name *';
+  document.getElementById('oor-lab').placeholder = kind === 'img' ? 'e.g. Aarthi Scans, city diagnostic centre…' : 'e.g. Metropolis, Thyrocare…';
+}
+window.oorTypeChange = function() {
+  _setKind(document.getElementById('oor-type').value, true);
+  document.getElementById('oor-title').textContent = _modalKind === 'img' ? 'Add outside imaging report' : 'Add outside lab report';
+};
+function _resetCommon() {
   document.getElementById('oor-lab').value = '';
   const date = document.getElementById('oor-date');
   date.value = ''; date.max = _todayStr();
   document.getElementById('oor-file').value = '';
   document.getElementById('oor-err').textContent = '';
+  ['oor-findings', 'oor-impression', 'oor-study'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('oor-mod').value = 'xray';
+}
+
+window.openOutsideImaging = function(orderId) {
+  if (!_ctx) return;
+  _modalOrder = _imgOrders.find(o => o.id === orderId) || null;
+  if (!_modalOrder) return;
+  _resetCommon();
+  document.getElementById('oor-type-wrap').hidden = true;
+  _setKind('img', false);
+  document.getElementById('oor-title').textContent = 'Enter outside imaging report';
+  document.getElementById('oor-img-study').textContent = `📡 ${_MOD[_modalOrder.modality] || _modalOrder.modality || ''} — ${_modalOrder.study_name || ''}`;
+  if (_modalOrder.outside_centre_name) document.getElementById('oor-lab').value = _modalOrder.outside_centre_name;
+  document.getElementById('oor-overlay').style.display = 'flex';
+  document.getElementById('oor-lab').focus();
+};
+
+window.openOutsideResult = function(orderId) {
+  if (!_ctx) return;
+  const { esc } = _ctx;
+  _modalOrder = orderId ? _orders.find(o => o.id === orderId) || null : null;
+  _resetCommon();
+  // "+ Add outside report" (no order) can be either kind; an existing lab order is lab.
+  document.getElementById('oor-type-wrap').hidden = !!_modalOrder;
+  document.getElementById('oor-type').value = 'lab';
+  _setKind('lab', !_modalOrder);
+  document.getElementById('oor-img-study').textContent = '';
+  document.getElementById('oor-title').textContent = _modalOrder ? 'Enter outside lab result' : 'Add outside lab report';
   document.getElementById('oor-rows').innerHTML = _modalOrder
     ? (_modalOrder.lab_order_items || []).map(i => _itemRow(i, false, esc)).join('')
     : _itemRow({}, true, esc);
@@ -137,6 +215,7 @@ window.oorRemoveRow = function(btn) { btn.closest('.oor-row')?.remove(); };
 
 window.saveOutsideResult = async function() {
   if (!_ctx) return;
+  if (_modalKind === 'img') return _saveOutsideImaging();
   const { supabase, tenantId, patientId, currentVisitId, userId } = _ctx;
   const err = document.getElementById('oor-err');
   const lab = document.getElementById('oor-lab').value.trim();
@@ -212,6 +291,64 @@ window.saveOutsideResult = async function() {
     btn.disabled = false; btn.textContent = 'Save result';
   }
 };
+
+// Session 295 -- outside imaging report: fills an existing order (advised last visit) or
+// records a new one on today's visit (advised only as text). Never radiology work.
+async function _saveOutsideImaging() {
+  const { supabase, tenantId, patientId, currentVisitId, userId } = _ctx;
+  const err = document.getElementById('oor-err');
+  const centre = document.getElementById('oor-lab').value.trim();
+  const date = document.getElementById('oor-date').value;
+  const findings = document.getElementById('oor-findings').value.trim() || null;
+  const impression = document.getElementById('oor-impression').value.trim() || null;
+  const study = document.getElementById('oor-study').value.trim();
+  const file = document.getElementById('oor-file').files[0] || null;
+  if (!centre) { err.textContent = 'Enter the outside centre\'s name.'; return; }
+  if (!date) { err.textContent = 'Enter the report date.'; return; }
+  if (date > _todayStr()) { err.textContent = 'Report date cannot be in the future.'; return; }
+  if (!_modalOrder && !study) { err.textContent = 'Enter the study / region.'; return; }
+  if (!impression && !findings && !file) { err.textContent = 'Enter the impression or findings, or attach the report.'; return; }
+  if (file && !/^(image\/|application\/pdf$)/.test(file.type)) { err.textContent = 'Attach a photo or a PDF.'; return; }
+  if (file && file.size > 10 * 1024 * 1024) { err.textContent = 'The file is larger than 10 MB.'; return; }
+
+  const btn = document.getElementById('oor-save');
+  btn.disabled = true; btn.textContent = 'Saving…'; err.textContent = '';
+  const now = new Date().toISOString();
+  try {
+    const outside = {
+      is_outside_referral: true, outside_centre_name: centre, performed_date: date,
+      findings, impression, status: 'completed', report_released_at: now, report_released_by: userId,
+      outside_entered_by: userId, outside_entered_at: now, outside_entered_visit_id: currentVisitId,
+    };
+    let orderId = _modalOrder?.id;
+    if (orderId) {
+      const { error } = await supabase.from('imaging_orders').update(outside).eq('id', orderId);
+      if (error) throw error;
+    } else {
+      const { data: o, error } = await supabase.from('imaging_orders').insert({
+        tenant_id: tenantId, patient_id: patientId, visit_id: currentVisitId, ordered_by: userId,
+        order_date: _todayStr(), modality: document.getElementById('oor-mod').value, study_name: study,
+        priority: 'routine', due_timing: 'today', ...outside,
+      }).select('id').single();
+      if (error) throw error;
+      orderId = o.id;
+    }
+    if (file) {
+      const safe = file.name.replace(/[^\w.\-]+/g, '_').slice(-80);
+      const path = `${tenantId}/${patientId}/img-${orderId}/${Date.now()}-${safe}`;
+      const { error: upErr } = await supabase.storage.from('lab-reports').upload(path, file, { contentType: file.type, upsert: false });
+      if (upErr) throw upErr;
+      const { error: pErr } = await supabase.from('imaging_orders').update({ outside_report_path: path }).eq('id', orderId);
+      if (pErr) throw pErr;
+    }
+    window.closeOutsideResult();
+    await loadInvestigationsDue(_ctx);
+  } catch (e) {
+    err.textContent = 'Could not save: ' + (e?.message || e);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save result';
+  }
+}
 
 // Signed, short-lived link to a private report file (also used by the Visit History panel).
 window.openLabReportFile = async function(path) {
