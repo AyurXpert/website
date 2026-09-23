@@ -1125,6 +1125,8 @@ window.toggleQueuePanel = function() {
   const collapsed = page.classList.toggle('q-collapsed');
   btn.textContent = collapsed ? '›' : '‹';
   btn.title = collapsed ? 'Expand queue' : 'Collapse queue';
+  // Visit History panel re-decides split vs overlay once the 0.28s collapse finishes.
+  setTimeout(() => window._vhRelayout?.(), 320);
 };
 
 // ── §18l — Show/hide internal OPD row ────────────

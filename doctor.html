@@ -351,6 +351,13 @@ button.vh-item:focus-visible{outline:2px solid var(--green-deep);outline-offset:
   .vh-item{min-width:160px;max-width:200px;margin-bottom:0}
   .vh-panel{width:100vw}
 }
+/* Split view (wide desktop only -- toggled by visitTimeline.js _layoutPanel()):
+   page + fixed action bar narrow by the panel width so the form sits beside it. */
+.page{transition:grid-template-columns .28s ease,right .25s ease}
+.action-bar{transition:right .25s ease}
+body.vh-split .page{right:480px}
+body.vh-split .action-bar{right:480px}
+body.vh-split .vh-panel{width:480px;box-shadow:none}
 @media print{.vh-rail,.vh-panel{display:none!important}.c-work,.c-main{display:block}}
 
 /* ABDM longitudinal FHIR display */
@@ -620,7 +627,10 @@ button.vh-item:focus-visible{outline:2px solid var(--green-deep);outline-offset:
 
 /* ── Prescription rows ───────────────────────────── */
 .rx-row{
-  display:grid;grid-template-columns:2fr 80px 100px 80px 1fr 32px;
+  /* 7 tracks: name, dose, freq, duration, anupana, timing, remove. Timing (added
+     Session 182) never got its own track -- it was squeezed into the 32px remove slot,
+     clipping it and wrapping x onto a second line (found Session 295). */
+  display:grid;grid-template-columns:2fr 80px 100px 80px 1fr 1fr 32px;
   gap:8px;align-items:center;padding:8px 10px;
   border:1.5px solid var(--border);border-radius:var(--radius);
   background:var(--white);margin-bottom:6px;position:relative

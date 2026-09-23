@@ -128,29 +128,43 @@ function _openPanel(entryId, title, sub) {
   document.getElementById('vh-panel-sub').textContent = sub;
   document.getElementById('vh-panel-body').innerHTML = '<div class="vh-loading">Loading…</div>';
   const p = document.getElementById('vh-panel');
-  _fitAboveActionBar();
+  _layoutPanel();
   p.classList.add('open');
   p.setAttribute('aria-hidden', 'false');
   document.getElementById('vh-panel-close').focus();
 }
 
-// Desktop: stop the panel just above doctor.html's fixed bottom action bar so Complete /
-// Print Rx / Close stay reachable while a previous visit is open (found live -- the panel
-// covered the bar's right end, incl. the ✕ Close button). The bar's height varies as its
-// buttons wrap, so it's measured, not hardcoded. Phone width: full-screen panel, as before.
-function _fitAboveActionBar() {
+// Panel layout, re-decided on every open / resize / queue collapse:
+//  - SPLIT (wide desktop): if today's form still gets >= MIN_FORM_W beside a
+//    SPLIT_W panel, the page and the fixed action bar narrow (body.vh-split) so the
+//    form sits next to the panel -- both fully visible and editable.
+//  - OVERLAY (smaller laptops): the panel covers the right of the form as before, but
+//    stops just above doctor.html's fixed bottom action bar so Complete / Print Rx /
+//    Close stay reachable (found live -- it covered the ✕ Close button). The bar's
+//    height varies as its buttons wrap, so it's measured, not hardcoded.
+//  - Phone (<= 860px): full-screen panel, neither of the above.
+// Decided from real available width (not a fixed breakpoint), so collapsing the queue
+// on a mid-size screen can be enough to switch to split. Agreed with Dr. Venkatesh.
+const SPLIT_W = 480, MIN_FORM_W = 640;
+function _layoutPanel() {
   const p = document.getElementById('vh-panel');
-  const bar = document.querySelector('.action-bar');
   if (!p) return;
+  const desktop = window.innerWidth > 860;
+  const main = document.querySelector('.c-main');
+  const formLeft = main ? main.getBoundingClientRect().left : 0;
+  const split = desktop && !!main && (window.innerWidth - SPLIT_W - formLeft) >= MIN_FORM_W;
+  document.body.classList.toggle('vh-split', split);
+  if (split || !desktop) { p.style.bottom = ''; return; }
   // (offsetParent is always null for a position:fixed element -- use its real box instead)
-  const r = bar?.getBoundingClientRect();
+  const r = document.querySelector('.action-bar')?.getBoundingClientRect();
   const barTop = r && r.height > 0 ? r.top : null;
-  p.style.bottom = (window.innerWidth > 860 && barTop !== null && barTop < window.innerHeight)
+  p.style.bottom = barTop !== null && barTop < window.innerHeight
     ? `${Math.round(window.innerHeight - barTop)}px` : '';
 }
-window.addEventListener('resize', () => {
-  if (document.getElementById('vh-panel')?.classList.contains('open')) _fitAboveActionBar();
-});
+window._vhRelayout = function() {
+  if (document.getElementById('vh-panel')?.classList.contains('open')) _layoutPanel();
+};
+window.addEventListener('resize', window._vhRelayout);
 
 window.closeVhPanel = function() {
   const p = document.getElementById('vh-panel');
@@ -158,6 +172,8 @@ window.closeVhPanel = function() {
   const wasOpen = p.classList.contains('open');
   p.classList.remove('open');
   p.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('vh-split');
+  p.style.bottom = '';
   const active = document.querySelector('#vh-list .vh-item.active');
   document.querySelectorAll('#vh-list .vh-item.active').forEach(el => el.classList.remove('active'));
   if (wasOpen && active) active.focus();   // keyboard users land back where they were
