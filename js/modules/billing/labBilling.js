@@ -6,6 +6,7 @@
 // a today order (panel bundling, label overrides, promo-aware effective price).
 import { getEffectivePrice } from './effectivePrice.js';
 import { addOpdBillItem } from './opdBillItems.js';
+import { todayLocalStr } from '../../utils/dateUtils.js';
 
 export const LAB_PANELS = [
   { label:'CBC',        tests:['Haemoglobin (Hb)','Total Leucocyte Count (TLC)','Differential Leucocyte Count (DLC)','Platelet Count','PCV / Haematocrit'] },
@@ -84,7 +85,7 @@ export function computeLabBillingLines(labSelected, feeRows) {
     const bundleFeeLabel = PANEL_FEE_MAP[panelLabel];
     const bundleFee = bundleFeeLabel ? byLabel[bundleFeeLabel] : null;
     if (isComplete && bundleFee) {
-      lines.push({ description: bundleFee.label, price: getEffectivePrice(bundleFee), gst_percent: Number(bundleFee.gst_percent) || 0 });
+      lines.push({ description: bundleFee.label, price: getEffectivePrice(bundleFee), gst_percent: Number(bundleFee.gst_percent) || 0, fee_structure_id: bundleFee.id || null });
     } else {
       // Not a complete/priceable bundle -- fall back to individual pricing
       // for every test in this group, same path as never-tagged tests.
@@ -95,7 +96,7 @@ export function computeLabBillingLines(labSelected, feeRows) {
   for (const testName of individual) {
     const feeLabel = TEST_LABEL_OVERRIDES[testName] || testName;
     const fee = byLabel[feeLabel];
-    if (fee) lines.push({ description: fee.label, price: getEffectivePrice(fee), gst_percent: Number(fee.gst_percent) || 0 });
+    if (fee) lines.push({ description: fee.label, price: getEffectivePrice(fee), gst_percent: Number(fee.gst_percent) || 0, fee_structure_id: fee.id || null });
     else unmatched.push(testName);
   }
 
@@ -121,16 +122,20 @@ export async function stageIpdLabCharges({ supabase, tenantId, ipdAdmissionId, l
   if (already?.length) return { skipped: true };
 
   const { data: feeRows, error: feeErr } = await supabase.from('fee_structures')
-    .select('label,amount,gst_percent,promo_price,promo_valid_until')
+    .select('id,label,amount,gst_percent,promo_price,promo_valid_until')
     .eq('tenant_id', tenantId).eq('is_active', true).in('category', ['lab', 'radiology']);
   if (feeErr) return { error: feeErr };
   const { lines, unmatched } = computeLabBillingLines(labItemsToSelection(items), feeRows || []);
   if (!lines.length) return { unmatched };
 
+  // GST Phase 2b -- fee_structure_id/charge_date let a future gst_v1 bill use this
+  // test's own tax profile instead of the tenant default; harmless today.
+  const chargeDate = todayLocalStr();
   const rows = lines.map(l => ({
     tenant_id: tenantId, ipd_admission_id: ipdAdmissionId, source: 'lab', source_ref_id: labOrderId,
     description: l.description, quantity: 1, unit_price: l.price, gst_percent: l.gst_percent,
     amount: l.price, status: 'pending', added_by: userId,
+    fee_structure_id: l.fee_structure_id || null, charge_date: chargeDate,
   }));
   const { error } = await supabase.from('ipd_stay_charges').insert(rows);
   if (error) return { error };

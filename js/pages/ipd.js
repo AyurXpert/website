@@ -7,7 +7,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { isNCISMType, ncismRequiredBeds } from '../config/ncism.js';
 import { logAudit } from '../core/auditLogger.js';
 import { computeRoomTariff } from '../modules/billing/roomTariff.js';
-import { todayLocalStr } from '../utils/dateUtils.js';
+import { todayLocalStr, localDateStr } from '../utils/dateUtils.js';
 import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml } from '../modules/ipd/dischargePrint.js';
 
 /*
@@ -806,12 +806,15 @@ window.saveAdmission = async function() {
     p_diagnosis_primary:     diagnosis || null,
     p_diet_type:             diet || null,
     p_notes:                 notes || null,
-    // 24 Aug 2026 (Session 182): visit_id was read from the URL (?visit_id=, passed
-    // by doctor.html's old "Open IPD Admission" link) only to pre-select the
-    // patient, then discarded -- never actually saved on the admission row, even
-    // though the column exists. Also useful generally as the one real link between
-    // an OPD visit and the IPD admission it led to.
-    p_visit_id:              _qp.get('visit_id') || null,
+    // 24 Sep 2026 (TODO_LATER #59): the sole real caller today is the Admission
+    // Advice -> Reception flow (?advice_id=), so _currentAdvice.visit_id (set by
+    // doctor.js's saveAdmissionAdvice() from the live consultation) is now the
+    // primary source -- the ?visit_id= URL param (Session 182, for a since-removed
+    // "Open IPD Admission" link) is dead in practice but kept as a harmless fallback.
+    // Without this, ipd_admissions.visit_id was null on every real admission, which
+    // silently breaks dispensaryPOS.js's IPD medicine-dispense lookup (it resolves
+    // the admission via ipd_admissions.visit_id = prescriptions.visit_id).
+    p_visit_id:              _currentAdvice?.visit_id || _qp.get('visit_id') || null,
     p_advice_id:             _currentAdvice?.id || null,
     p_is_mlc:                isMlc,
     p_mlc_number:            isMlc ? (document.getElementById('adm-mlc-no').value.trim() || null) : null,
@@ -982,6 +985,31 @@ window.saveDischarge = async function() {
 let _billTariff  = null;
 let _billCharges = [];
 
+// GST Phase 2b -- gst_billing_paths.ipd is the only path turned on so far;
+// nothing here fires for any tenant until tenant_tax_settings.gst_go_live_date
+// is set AND the admission started on/after it (both true only for a tenant
+// that has been deliberately taken live on all 4 billing paths, none today).
+// Legacy admissions never call the GST RPCs at all -- the regime is decided
+// client-side from a plain read of tenant_tax_settings, matching the DB's own
+// _billing_regime() logic (see sql/session300_gst_phase2a_billing_calc.sql).
+let _taxSettings   = undefined; // undefined = not fetched yet; null = no row (not GST-registered)
+let _billRegime    = 'legacy';
+let _billGstPreview = null;
+let _billBillingNote = null;
+
+async function _loadTenantTaxSettings() {
+  if (_taxSettings !== undefined) return _taxSettings;
+  const { data } = await supabase.from('tenant_tax_settings')
+    .select('gst_go_live_date').eq('tenant_id', tenantId).maybeSingle();
+  _taxSettings = data || null;
+  return _taxSettings;
+}
+
+function _admIsGstRegime(adm) {
+  if (!_taxSettings?.gst_go_live_date) return false;
+  return localDateStr(new Date(adm.admitted_at)) >= _taxSettings.gst_go_live_date;
+}
+
 window.openGenerateBillDrawer = async function(admId) {
   const adm = _admissions.find(a => a.id === admId);
   if (!adm) return;
@@ -1011,6 +1039,7 @@ window.openGenerateBillDrawer = async function(admId) {
   }
   document.getElementById('bill-payer-type').value = payerHint;
 
+  await _loadTenantTaxSettings();
   document.getElementById('bill-overlay').classList.add('open');
   await _refreshBillPreview(adm);
 };
@@ -1020,6 +1049,22 @@ window.closeGenerateBillDrawer = function() {
 };
 
 async function _refreshBillPreview(adm) {
+  _billRegime = _admIsGstRegime(adm) ? 'gst_v1' : 'legacy';
+  const notice = document.getElementById('bill-gst-notice');
+
+  if (_billRegime === 'gst_v1') {
+    if (notice) notice.style.display = '';
+    await _refreshBillPreviewGst(adm);
+    return;
+  }
+
+  if (notice) notice.style.display = 'none';
+  document.getElementById('btn-generate-bill').disabled = false;
+  // Tenant has a go-live date set, but this admission started before it --
+  // matches _billing_regime()'s own definition of "legacy" exactly.
+  _billBillingNote = _taxSettings?.gst_go_live_date
+    ? 'Admitted before GST billing go-live — tax not calculated by system.' : null;
+
   const bed        = adm.beds || {};
   const admittedAt = new Date(adm.admitted_at);
   const throughAt  = adm.charges_locked_at ? new Date(adm.charges_locked_at) : new Date();
@@ -1035,6 +1080,67 @@ async function _refreshBillPreview(adm) {
   }
 
   await _loadBillCharges(adm.id);
+}
+
+// GST Phase 2b -- admission is on/after the tenant's gst_go_live_date. The DB
+// is the only calculator (per session300's own stated rule); this just renders
+// what preview_ipd_bill returns.
+async function _refreshBillPreviewGst(adm) {
+  const payerType = document.getElementById('bill-payer-type').value;
+  const { data, error } = await supabase.rpc('preview_ipd_bill', {
+    p_adm: adm.id, p_payer: payerType, p_bill_discount: 0,
+  });
+  if (error) {
+    _alert('error', safeErrorMessage(error, 'Could not preview the GST bill.'));
+    return;
+  }
+  _billGstPreview = data;
+  _renderGstPreview(data);
+}
+
+const DOC_TYPE_LABEL = { TAX_INVOICE: 'Tax Invoice', BILL_OF_SUPPLY: 'Bill of Supply', BILL: 'Bill' };
+const TAX_CAT_LABEL  = { TAXABLE: 'Taxable', EXEMPT: 'Exempt', NIL_RATED: 'Nil-rated', NON_GST: 'Non-GST', OUT_OF_SCOPE: 'Out of scope' };
+
+function _gstLineTaxNote(l) {
+  return l.tax_category === 'TAXABLE'
+    ? `CGST ${l.cgst_rate}% + SGST ${l.sgst_rate}%`
+    : (TAX_CAT_LABEL[l.tax_category] || l.tax_category || '—');
+}
+
+function _renderGstPreview(data) {
+  const notice = document.getElementById('bill-gst-notice');
+  const warnings = (data.warnings || []).map(w => `<div style="color:#8a6d00;font-size:11.5px">⚠ ${_esc(w)}</div>`).join('');
+  const issues = data.issues || [];
+  notice.innerHTML = `
+    <div style="font-size:11.5px;font-weight:700;color:var(--green-deep)">GST BILL — ${_esc(DOC_TYPE_LABEL[data.document_type] || data.document_type || '—')}</div>
+    ${warnings}
+    ${issues.length ? `<div style="color:#c0392b;font-size:12px;margin-top:4px">${issues.map(i => '⛔ ' + _esc(i)).join('<br>')}</div>` : ''}
+  `;
+
+  const lines = data.lines || [];
+  const roomLines  = lines.filter(l => l.source_type === 'room_day');
+  const otherLines = lines.filter(l => l.source_type !== 'room_day');
+
+  const tariffEl = document.getElementById('bill-room-tariff');
+  tariffEl.innerHTML = roomLines.length
+    ? roomLines.map(l => `${_esc(l.description)} — ₹${Number(l.line_total||0).toLocaleString('en-IN')} <span style="color:var(--text-muted)">(${_gstLineTaxNote(l)})</span>`).join('<br>')
+    : '<span style="color:var(--text-muted)">No room charge.</span>';
+
+  const el = document.getElementById('bill-charges-list');
+  el.innerHTML = otherLines.length
+    ? otherLines.map(l => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:5px;background:#fafff7">
+        <div>
+          <div style="font-size:12.5px;font-weight:600">${_esc(l.description)}</div>
+          <div style="font-size:10.5px;color:var(--text-muted)">${l.quantity} × ₹${Number(l.price||0).toLocaleString('en-IN')} · ${_gstLineTaxNote(l)} = ₹${Number(l.line_total||0).toLocaleString('en-IN')}</div>
+        </div>
+      </div>`).join('')
+    : '<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:12.5px">No stay charges recorded.</div>';
+
+  const grand = data.bill?.final_amount != null ? Number(data.bill.final_amount) : 0;
+  document.getElementById('bill-grand-total').textContent = '₹' + grand.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+
+  document.getElementById('btn-generate-bill').disabled = issues.length > 0;
 }
 
 async function _loadBillCharges(admId) {
@@ -1084,6 +1190,13 @@ window.addBillCharge = async function() {
   document.getElementById('bc-desc').value  = '';
   document.getElementById('bc-qty').value   = '1';
   document.getElementById('bc-price').value = '';
+  // GST Phase 2b -- a staged charge just changed. Under gst_v1 that changes the
+  // tax preview (new preview_ipd_bill call); under legacy, keep the original,
+  // narrower refresh (stay charges only, no tariff recompute, no RPC).
+  if (_billRegime === 'gst_v1') {
+    const adm = _admissions.find(a => a.id === admId);
+    if (adm) { await _refreshBillPreviewGst(adm); return; }
+  }
   await _loadBillCharges(admId);
 };
 
@@ -1091,6 +1204,10 @@ window.voidBillCharge = async function(chargeId) {
   const admId = document.getElementById('bill-adm-id').value;
   const { error } = await supabase.from('ipd_stay_charges').update({ status: 'voided' }).eq('id', chargeId);
   if (error) { _alert('error', safeErrorMessage(error, 'Could not remove charge.')); return; }
+  if (_billRegime === 'gst_v1') {
+    const adm = _admissions.find(a => a.id === admId);
+    if (adm) { await _refreshBillPreviewGst(adm); return; }
+  }
   await _loadBillCharges(admId);
 };
 
@@ -1098,10 +1215,37 @@ window.confirmGenerateBill = async function() {
   const admId = document.getElementById('bill-adm-id').value;
   const adm = _admissions.find(a => a.id === admId);
   if (!adm) return;
-  if (!_billTariff) { _alert('error','Fix the room tariff issue above before generating the bill.'); return; }
 
   const payerType = document.getElementById('bill-payer-type').value;
   const btn = document.getElementById('btn-generate-bill');
+
+  // GST Phase 2b -- gst_v1 admissions go through the DB's own atomic RPC
+  // (build draft + calculate + finalize + stay-charge status + admission
+  // status + audit log, all in one transaction) instead of the manual
+  // inserts below, which stay exactly as they were for legacy admissions.
+  if (_billRegime === 'gst_v1') {
+    btn.disabled = true; btn.textContent = 'Generating…';
+    const { data, error } = await supabase.rpc('generate_ipd_bill', {
+      p_adm: admId, p_payer: payerType, p_bill_discount: 0,
+    });
+    if (error) {
+      btn.disabled = false; btn.textContent = 'Generate Bill';
+      _alert('error', safeErrorMessage(error, 'Could not generate bill.')); return;
+    }
+    if (adm.patients?.id) {
+      _abdmCareContextInvoice(data.bill_id, adm.patients.id, admId, {
+        abhaNumber:  adm.patients.abha_number,
+        abhaAddress: adm.patients.abha_address,
+      });
+    }
+    btn.disabled = false; btn.textContent = 'Generate Bill';
+    closeGenerateBillDrawer();
+    _alert('success', `IPD bill generated — ${data.document_number || ''} ₹${Number(data.final_amount||0).toLocaleString('en-IN')}.`);
+    await loadAll();
+    return;
+  }
+
+  if (!_billTariff) { _alert('error','Fix the room tariff issue above before generating the bill.'); return; }
   btn.disabled = true; btn.textContent = 'Generating…';
 
   const tariffGst    = _billTariff.gstPercent ? _billTariff.total * _billTariff.gstPercent / 100 : 0;
@@ -1128,6 +1272,7 @@ window.confirmGenerateBill = async function() {
     payer_type: payerType, insurance_claim_status: insuranceClaimStatus,
     status: 'pending', payment_mode: null,
     advance_credited: Number(adm.advance_amount_collected) || 0,
+    billing_note: _billBillingNote,
   }).select('id').single();
 
   if (billErr) {
@@ -1581,7 +1726,7 @@ const _qAdviceId = _qp.get('advice_id');
 if (_qAdviceId) {
   const { data: advice } = await supabase
     .from('admission_advice')
-    .select('id, patient_id, department_id, clinical_indication, diet_type, nursing_care_notes, room_type_preference, payer_type, estimated_total, advance_amount_suggested, status, patients(id,name,phone,gender,age,abha_number)')
+    .select('id, patient_id, visit_id, department_id, clinical_indication, diet_type, nursing_care_notes, room_type_preference, payer_type, estimated_total, advance_amount_suggested, status, patients(id,name,phone,gender,age,abha_number)')
     .eq('id', _qAdviceId).eq('tenant_id', tenantId).maybeSingle();
   if (advice && advice.status === 'pending' && advice.patients) {
     openAdmitDrawer();  // resets _currentAdvice to null first -- set it AFTER, not before

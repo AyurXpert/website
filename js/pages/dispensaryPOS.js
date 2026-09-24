@@ -469,11 +469,21 @@ async function dispense() {
       // 1. Stage IPD stay charges (one row per medicine, matching source_ref_id so they're
       // traceable back to this dispense)
       if (!_activeIpdAdmissionId) throw new Error("Could not find this patient's IPD admission to charge — contact support before dispensing.");
-      const stayCharges = payable.map(c => ({
-        tenant_id: tenantId, ipd_admission_id: _activeIpdAdmissionId, source: 'pharmacy', source_ref_id: _activeRxId,
-        description: c.name, quantity: c.qty, unit_price: c.price, gst_percent: c.gst_pct || null,
-        amount: c.qty * c.price, status: 'pending', added_by: userId,
-      }));
+      // GST Phase 2b -- inventory_id/charge_date let a future gst_v1 bill resolve this
+      // medicine's own tax profile (inventory.ip_tax_profile_id) instead of falling back
+      // to the tenant default; the pharmacy flag itself stays off, so this only matters
+      // once IPD bills for this stay actually go GST-live. Same best-effort batch match
+      // as the high-risk check above -- stock deduction below doesn't pin one batch either.
+      const todayStr = todayLocalStr();
+      const stayCharges = payable.map(c => {
+        const inv = _inventory.find(i => i.id === c.id || i.medicine_id === c.medicine_id);
+        return {
+          tenant_id: tenantId, ipd_admission_id: _activeIpdAdmissionId, source: 'pharmacy', source_ref_id: _activeRxId,
+          description: c.name, quantity: c.qty, unit_price: c.price, gst_percent: c.gst_pct || null,
+          amount: c.qty * c.price, status: 'pending', added_by: userId,
+          inventory_id: inv?.id || null, charge_date: todayStr,
+        };
+      });
       const { error: scErr } = await supabase.from('ipd_stay_charges').insert(stayCharges);
       if (scErr) throw scErr;
     } else {

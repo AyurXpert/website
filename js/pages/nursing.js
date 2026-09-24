@@ -1104,8 +1104,11 @@ window.loadDischargeReconciliation = async function() {
   const newSessionRows = (sessions || []).filter(s => !stagedRefIds.has(s.id));
   if (newSessionRows.length) {
     const { data: feeRows } = await supabase.from('fee_structures')
-      .select('label, amount, gst_percent, promo_price, promo_valid_until')
+      .select('id, label, amount, gst_percent, promo_price, promo_valid_until')
       .eq('tenant_id', tenantId).eq('category', 'procedure').eq('is_active', true);
+    // GST Phase 2b -- fee_structure_id/charge_date let a future gst_v1 bill use this
+    // fee's own tax profile instead of the tenant default; harmless while pharmacy
+    // stays off and no tenant is GST-live yet.
     const inserts = newSessionRows.map(s => {
       const match = (feeRows || []).find(f => (f.label||'').toLowerCase().includes((s.therapy_name||'').toLowerCase().trim()) && s.therapy_name?.trim());
       const price = match ? getEffectivePrice(match) : 0;
@@ -1114,6 +1117,7 @@ window.loadDischargeReconciliation = async function() {
         description: match ? s.therapy_name : `${s.therapy_name || 'PK Session'} (price not found — verify)`,
         quantity: 1, unit_price: price, gst_percent: match?.gst_percent ?? null,
         amount: price, status: 'pending', added_by: userId,
+        fee_structure_id: match?.id || null, charge_date: s.scheduled_date || todayLocalStr(),
       };
     });
     const { data: inserted } = await supabase.from('ipd_stay_charges').insert(inserts).select('*');
