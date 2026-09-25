@@ -5,7 +5,9 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 
-await requireAuth(['dept_admin','super_admin']);
+// accountant = maker: creates fees as pending, edits/deletes only their own pending ones;
+// an admin approves (sql/session305c_fee_admin_accountant_maker.sql enforces this in RLS).
+await requireAuth(['dept_admin','super_admin','accountant']);
 initNavbar();
 wireDelegatedEvents();
 
@@ -65,6 +67,10 @@ roleBadge.classList.add(rl.cls);
 
 if (role === 'super_admin') {
   document.getElementById('bypass-banner').style.display = 'flex';
+}
+// set_ipd_advance_policy() is super_admin/dept_admin only -- don't show the accountant a Save that 403s
+if (role === 'accountant') {
+  document.getElementById('advance-policy-card').style.display = 'none';
 }
 
 // ── NCISM/Ayush benchmark-rate catalog (Session 207) ──────────────────────

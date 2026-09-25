@@ -129,9 +129,11 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'dispensaryPOS.html',  label:'Dispensary POS',  roles:RX_ROLES,                          types:null, module:'pharmacy'},
         { href:'inventory.html',      label:'Inventory',       roles:RX_ROLES,                          types:null, module:'pharmacy'},
         { href:'aushadha-nirman.html',label:'Aushadha Nirman', roles:RX_ROLES.concat(ADMIN_ROLES),      types:null, module:'pharmacy'},
-        { href:'purchase.html',       label:'Purchase / GRN',  roles:RX_ROLES.concat(['accountant']),   types:null, module:'pharmacy'},
-        { href:'purchase-order.html', label:'Purchase Orders', roles:RX_ROLES.concat(['accountant']),   types:null, module:'pharmacy'},
-        { href:'formulary-admin.html',label:'Formulary',       roles:RX_ROLES.concat(ADMIN_ROLES),      types:HOSP, module:'pharmacy'},
+        // Session 305: accountant / pharmacist links removed -- those pages' requireAuth()
+        // bounced them straight back (purchase*: pharmacist+admins; formulary: admins only).
+        { href:'purchase.html',       label:'Purchase / GRN',  roles:RX_ROLES,                          types:null, module:'pharmacy'},
+        { href:'purchase-order.html', label:'Purchase Orders', roles:RX_ROLES,                          types:null, module:'pharmacy'},
+        { href:'formulary-admin.html',label:'Formulary',       roles:ADMIN_ROLES,                       types:HOSP, module:'pharmacy'},
         { href:'dpc.html',            label:'Procurement Cmte',roles:ADMIN_ROLES.concat(['accountant']),types:HOSP, module:'pharmacy'},
         { href:'disposal-register.html',label:'Disposal Register',roles:RX_ROLES.concat(ADMIN_ROLES),  types:null, module:'pharmacy'},
         { href:'suppliers.html',      label:'Supplier Register',roles:RX_ROLES.concat(ADMIN_ROLES),    types:null, module:'pharmacy'},
@@ -146,7 +148,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         // other role clicking it got silently bounced straight back to their own ROLE_HOME, no
         // message, no explanation. Narrowed to ADMIN_ROLES to match the destination exactly.
         { href:'admin.html',             label:'Dashboard',        roles:ADMIN_ROLES,                                          types:null  },
-        { href:'finance.html',           label:'Finance',          roles:['super_admin','dept_admin','accountant','receptionist'], types:null, module:'finance'  },
+        { href:'finance.html',           label:'Finance',          roles:['super_admin','dept_admin','accountant','cashier','finance_manager','receptionist'], types:null, module:'finance'  },
         { href:'insurance-claims.html',  label:'Insurance Claims', roles:['super_admin','dept_admin','accountant'],             types:null, module:'finance'  },
         { href:'hr.html',                label:'HR',               roles:['super_admin','dept_admin'],                         types:null, module:'hr'       },
         { href:'recruitment.html',       label:'Recruitment',      roles:['super_admin','dept_admin'],                         types:null, module:'hr'       },
@@ -159,7 +161,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         { href:'opd-register.html',      label:'OPD Register',     roles:['super_admin','dept_admin','doctor','receptionist'],    types:null, module:'opd'      },
         { href:'ipd-register.html',      label:'IPD Register',     roles:['super_admin','dept_admin','doctor','nurse'],            types:HOSP, module:'ipd'      },
         { href:'reports.html',           label:'Reports',          roles:['super_admin','dept_admin','accountant','lab_tech'],  types:null, module:'finance', monitoringSafe:true },
-        { href:'fee-admin.html',         label:'Fee Management',   roles:['super_admin','dept_admin'],                         types:null, module:'finance'  },
+        { href:'fee-admin.html',         label:'Fee Management',   roles:['super_admin','dept_admin','accountant'],            types:null, module:'finance'  },
         { href:'lab.html',               label:'Clinical Lab',     roles:['super_admin','dept_admin','lab_tech','doctor','nurse','receptionist'], types:null, module:'lab' },
         { href:'lab-nabl.html',          label:'NABL Quality',     roles:['super_admin','dept_admin','lab_tech','doctor'],       types:null, module:'lab'      },
         { href:'ncism-compliance.html',  label:'NCISM Compliance', roles:ADMIN_ROLES,                                          types:NCISM,module:'ncism', monitoringSafe:true },

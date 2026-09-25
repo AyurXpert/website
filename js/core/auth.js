@@ -95,38 +95,20 @@ export async function registerTenant({
 
     const userId = authData.user.id;
 
-    const { data: tenant, error: tenantError } = await supabase
-      .from('tenants')
-      .insert({
-        name:      tenantName,
-        type:      tenantType,
-        city,
-        state,
-        phone,
-        email,
-        is_active: true,
-      })
-      .select()
-      .single();
-    if (tenantError) {
+    // Session 305: organisation + super_admin profile are created together, server-side, with
+    // platform defaults for plan/subscription fields (sql/session305d_tenant_registration_lockdown.sql)
+    // -- browsers can no longer insert tenants directly. One transaction, so no orphaned tenant.
+    const { data: tenant, error: tenantError } = await supabase.rpc('register_tenant', {
+      p_tenant_name: tenantName,
+      p_tenant_type: tenantType,
+      p_full_name:   fullName,
+      p_phone:       phone || null,
+      p_city:        city  || null,
+      p_state:       state || null,
+    });
+    if (tenantError || !tenant?.id) {
       await _rollbackFailedSignup();
       throw new Error(safeErrorMessage(tenantError, 'Could not create organisation. Please try again with the same email address.'));
-    }
-
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        id:        userId,
-        tenant_id: tenant.id,
-        role:      ROLES.SUPER_ADMIN,
-        full_name: fullName,
-        phone,
-        status:    'active',
-        is_active: true,
-      });
-    if (profileError) {
-      await _rollbackFailedSignup(tenant.id);
-      throw new Error(safeErrorMessage(profileError, 'Could not create profile. Please try again with the same email address.'));
     }
 
     // Gives hospital/pk_center/clinic tenants a working department/OPD/bed structure
@@ -789,4 +771,4 @@ export function isPharmacist()      { return hasRole(ROLES.PHARMACIST); }
 export function isNurse()           { return hasRole(ROLES.NURSE); }
 export function isLabTech()         { return hasRole(ROLES.LAB_TECH); }
 export function isAccountant()      { return hasRole(ROLES.ACCOUNTANT); }
-export function isAdmin()           { return hasRole(ROLES.SUPER_ADMIN, ROLES.DEPT_ADMIN); }
+export function isAdmin()           { return hasRole(ROLES.SUPER_ADMIN, ROLES.DEPT_ADMIN); }

@@ -42,6 +42,11 @@ const tenant    = getCurrentTenant();
 const tenantId  = tenant?.id;
 const userId    = profile?.id;
 const _ctx      = { tenantId, userId, userName: profile?.full_name };
+// Trainees cannot lock IPD charges (lock_ipd_charges() refuses them) -- don't show the button.
+if (profile?.role === 'trainee_doctor') {
+  const lockBtn = document.getElementById('btn-lock-charges');
+  if (lockBtn) lockBtn.style.display = 'none';
+}
 function _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 let _admissions = [];
@@ -1173,17 +1178,12 @@ window.lockChargesAndFreeBed = async function() {
   if (!_activeAdm) return;
   if (!confirm('Lock charges and free the bed? Once locked, only the billing clerk can adjust charges.')) return;
   const admId = _activeAdm.id;
-  const bedId = _activeAdm.beds?.id;
 
-  await supabase.from('ipd_stay_charges').update({ status: 'confirmed' })
-    .eq('ipd_admission_id', admId).eq('status', 'pending');
-
-  const { error } = await supabase.from('ipd_admissions').update({
-    status: 'charges_locked', charges_locked_at: new Date().toISOString(),
-  }).eq('id', admId);
+  // Session 305: one server-side transaction (confirm pending charges + lock admission + free
+  // bed) -- the old three separate writes could stop half-way (trainee: charges confirmed,
+  // admission never locked). sql/session305e_ipd_lock_charges_rpc.sql.
+  const { error } = await supabase.rpc('lock_ipd_charges', { p_admission_id: admId });
   if (error) { _alert('error', safeErrorMessage(error, 'Could not lock charges.')); return; }
-
-  if (bedId) await supabase.from('beds').update({ status: 'vacant' }).eq('id', bedId);
 
   // ABDM M2 — create care context for DischargeSummary FHIR type (fire-and-forget).
   // 7 Sep 2026 (Session 199) — this is the real completion point for a NORMAL

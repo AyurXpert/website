@@ -6648,8 +6648,12 @@ async function _saveModules() {
     const def  = defaults[key] === true;
     if (val !== def) overrides[key] = val;   // only store when admin overrides the default
   });
-  const { error } = await supabase.from('tenants').update({ modules: overrides }).eq('id', tenantId);
+  // tenants UPDATE RLS is super_admin only -- a dept_admin's update matched 0 rows with no
+  // error and used to show a false "saved" (launch plan 0a Part D).
+  if (role !== 'super_admin') { _toast('Only a Super Admin can change feature modules.'); return; }
+  const { data: saved, error } = await supabase.from('tenants').update({ modules: overrides }).eq('id', tenantId).select('id');
   if (error) { _toast(safeErrorMessage(error, 'Save error.')); return; }
+  if (!saved?.length) { _toast('Modules were not saved — your role cannot change them.'); return; }
   _toast('✓ Modules saved — changes take effect on next login');
 }
 
