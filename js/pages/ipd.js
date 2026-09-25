@@ -1181,7 +1181,7 @@ function _renderBillCharges() {
           <div style="font-size:12.5px;font-weight:600">${_esc(r.description)}</div>
           <div style="font-size:10.5px;color:var(--text-muted)">${r.quantity} × ₹${Number(r.unit_price).toLocaleString('en-IN')} = ₹${Number(r.amount).toLocaleString('en-IN')}</div>
         </div>
-        <button class="icon-btn" data-onclick="voidBillCharge" data-onclick-a0="${r.id}" title="Remove" style="font-size:11px">&#10005;</button>
+        <button class="icon-btn" data-onclick="voidBillCharge" data-onclick-a0="${r.id}" title="Cancel charge (reason required)" style="font-size:11px">&#10005;</button>
       </div>`).join('')
     : '<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:12.5px">No stay charges recorded.</div>';
   _updateBillGrandTotal();
@@ -1223,8 +1223,11 @@ window.addBillCharge = async function() {
 
 window.voidBillCharge = async function(chargeId) {
   const admId = document.getElementById('bill-adm-id').value;
-  const { error } = await supabase.from('ipd_stay_charges').update({ status: 'voided' }).eq('id', chargeId);
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not remove charge.')); return; }
+  // Session 305: cancel with a reason (who/when/why recorded), never a silent void/delete.
+  const reason = (prompt('Reason for cancelling this charge (required):') || '').trim();
+  if (!reason) return;
+  const { error } = await supabase.rpc('cancel_ipd_stay_charge', { p_charge_id: chargeId, p_reason: reason });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not cancel the charge.')); return; }
   if (_billRegime === 'gst_v1') {
     const adm = _admissions.find(a => a.id === admId);
     if (adm) { await _refreshBillPreviewGst(adm); return; }

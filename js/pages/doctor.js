@@ -75,6 +75,10 @@ const _ctx     = { tenantId, userId, userName: profile.full_name };
 // roles can review across departments too).
 const _isTrainee  = profile.role === 'trainee_doctor';
 const _canReview  = ['doctor', 'super_admin', 'dept_admin'].includes(profile.role);
+if (_isTrainee) {   // Session 305: trainees cannot send admission advice (doctor-only in the database)
+  const advBtn = document.getElementById('btn-save-advice');
+  if (advBtn) advBtn.style.display = 'none';
+}
 let _activeDraftId    = null;  // consultation_notes.id of the draft being reviewed, if any
 let _activeDraftedBy  = null;  // that draft's original trainee author (profile.id) -- credited on finalize
 
@@ -1809,6 +1813,9 @@ function _resetAdmissionAdvice() {
 }
 
 window.saveAdmissionAdvice = async function() {
+  // Session 305: admission advice is doctor-only in the database (_admission_advice_write_ok);
+  // the button is hidden for trainees below, this is the backstop.
+  if (_isTrainee) { alert('Admission advice is sent by the consultant doctor.'); return; }
   if (!_activePatient || !_activeVisitId) { alert('Select a patient first.'); return; }
   const deptId       = document.getElementById('adm-dept').value;
   const indication   = document.getElementById('adm-indication').value.trim();

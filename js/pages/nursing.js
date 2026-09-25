@@ -1070,7 +1070,7 @@ window.loadWardProcedures = async function() {
 // sql/session114_ipd_discharge_workflow.sql for why a staging table exists
 // instead of writing straight into bill_items.
 const DISCHARGE_STATUS_LABELS = {
-  pending:'Pending confirmation', confirmed:'Confirmed', billed:'Billed', voided:'Voided',
+  pending:'Pending confirmation', confirmed:'Confirmed', billed:'Billed', voided:'Cancelled',
 };
 
 window.loadDischargeReconciliation = async function() {
@@ -1144,8 +1144,9 @@ function renderReconciliationList(rows) {
       <div>
         <div style="font-size:13px;font-weight:600;${r.status==='voided'?'text-decoration:line-through;color:var(--text-muted)':''}">${_esc(r.description)}</div>
         <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${r.quantity} × ₹${Number(r.unit_price).toLocaleString('en-IN')} = ₹${Number(r.amount).toLocaleString('en-IN')} · ${DISCHARGE_STATUS_LABELS[r.status]||r.status}</div>
+        ${r.status==='voided' && r.cancel_reason ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">Reason: ${_esc(r.cancel_reason)}</div>` : ''}
       </div>
-      ${r.status==='pending' || r.status==='confirmed' ? `<button class="btn btn-secondary btn-sm" data-onclick="voidStayCharge" data-onclick-a0="${r.id}">Remove</button>` : ''}
+      ${r.status==='pending' || r.status==='confirmed' ? `<button class="btn btn-secondary btn-sm" data-onclick="voidStayCharge" data-onclick-a0="${r.id}">Cancel charge</button>` : ''}
     </div>`).join('') +
     `<div style="text-align:right;font-weight:700;font-size:13px;margin-top:8px;color:var(--green-deep)">Total so far: ₹${total.toLocaleString('en-IN')}</div>`;
 }
@@ -1169,8 +1170,12 @@ window.addManualCharge = async function() {
 };
 
 window.voidStayCharge = async function(chargeId) {
-  const { error } = await supabase.from('ipd_stay_charges').update({ status: 'voided' }).eq('id', chargeId);
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not remove charge.')); return; }
+  // Session 305: charges are never deleted or silently voided -- cancel with a reason
+  // (cancel_ipd_stay_charge records who/when/why).
+  const reason = (prompt('Reason for cancelling this charge (required):') || '').trim();
+  if (!reason) return;
+  const { error } = await supabase.rpc('cancel_ipd_stay_charge', { p_charge_id: chargeId, p_reason: reason });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not cancel the charge.')); return; }
   loadDischargeReconciliation();
 };
 

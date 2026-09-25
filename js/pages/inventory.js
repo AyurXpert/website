@@ -204,7 +204,6 @@ function renderTable() {
             ${i.is_student_batch ? `<button class="btn btn-xs btn-practical" data-id="${i.id}" data-name="${_esc(i.medicine.name)}" data-stock="${i.stock_quantity||0}" data-expiry="${i.expiry_date||''}" data-batch="${_esc(i.batch_number||'')}" style="background:#fff8e1;color:#7a4000;border:1px solid #e8c068;white-space:nowrap">🎓 Practical Use</button>` : ''}
             <button class="btn btn-ghost btn-xs btn-adj" data-id="${i.id}" data-name="${_esc(i.medicine.name)}">±</button>
             <button class="btn btn-secondary btn-xs btn-edit" data-id="${i.id}">Edit</button>
-            <button class="btn btn-xs btn-del" data-id="${i.id}" data-name="${_esc(i.medicine.name)}" style="background:var(--error-bg);color:var(--error-text);border:1px solid var(--error-border)">Del</button>
           </div>
         </td>
       </tr>
@@ -761,7 +760,10 @@ function _updateBulkBar() {
   const n   = _selectedIds.size;
   const btn = document.getElementById('btn-bulk-del');
   document.getElementById('bulk-count').textContent = n;
-  btn.style.display = n > 0 ? '' : 'none';
+  // Session 305: deleting inventory rows is not allowed (no DELETE rule; the old one never matched
+  // anyone, so Delete silently removed nothing). Bulk delete stays hidden; see TODO_LATER
+  // 'mark item inactive instead of delete'.
+  btn.style.display = 'none';
   const chkAll = document.getElementById('chk-all');
   if (chkAll) {
     const visible = document.querySelectorAll('.row-chk').length;
