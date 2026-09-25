@@ -7,6 +7,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { isNCISMType, ncismRequiredBeds } from '../config/ncism.js';
 import { logAudit } from '../core/auditLogger.js';
 import { computeRoomTariff } from '../modules/billing/roomTariff.js';
+import { computeIpdChargesToDate } from '../modules/billing/ipdChargesToDate.js';
 import { todayLocalStr, localDateStr } from '../utils/dateUtils.js';
 import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml } from '../modules/ipd/dischargePrint.js';
 
@@ -49,7 +50,11 @@ import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml
   GRANT SELECT, INSERT, UPDATE ON ot_procedures TO authenticated;
 */
 
-await requireAuth(['super_admin','dept_admin','doctor','receptionist','nurse']);
+// Session 302 fix -- cashier/accountant/finance_manager are in BILLING_ROLES (Generate
+// Bill since Session 114, the Account drawer now) but were never let onto this page at
+// all, redirected straight to their ROLE_HOME by this allowlist -- found live testing
+// the Account drawer as cashier.
+await requireAuth(['super_admin','dept_admin','doctor','receptionist','nurse','cashier','accountant','finance_manager']);
 initNavbar();
 wireDelegatedEvents();
 const tenantId = getCurrentTenantId();
@@ -436,6 +441,7 @@ function renderTable(rows) {
           ${pkPlan ? `<button class="icon-btn" data-onclick="openPkTrackerDrawer" data-onclick-a0="${a.id}" title="Panchakarma Treatment Tracker — ${_esc(pkPlan.labels)}" style="font-size:11px;font-weight:700;color:#1a6b3a;border-color:#a8d8b8;background:#e8f5ee">🌸</button>` : ''}
           ${canOrderDischarge ? `<button class="icon-btn danger" data-onclick="openDischargeDrawer" data-onclick-a0="${a.id}" title="Order Discharge / Exit">&#10006;</button>` : ''}
           ${canGenerateBill ? `<button class="icon-btn" data-onclick="openGenerateBillDrawer" data-onclick-a0="${a.id}" title="Generate IPD Bill" style="font-size:10px;font-weight:700;color:#1a4a2e;border-color:#b8ddc6;background:#e8f5ee">💰</button>` : ''}
+          ${BILLING_ROLES.includes(myRole) ? `<button class="icon-btn" data-onclick="openAccountDrawer" data-onclick-a0="${a.id}" title="Account — deposits, payments, receipts" style="font-size:11px">💳</button>` : ''}
         </div>
       </td>
     </tr>`;
@@ -468,6 +474,8 @@ window.openAdmitDrawer = function() {
   _currentAdvice = null;
   document.getElementById('adm-advance-amount').value = '';
   document.getElementById('adm-advance-mode').value   = '';
+  document.getElementById('adm-advance-reference').value = '';
+  document.getElementById('adm-advance-ref-field').style.display = 'none';
   document.getElementById('adm-advice-banner').style.display = 'none';
   _populateDoctorSelect(); // reset to "select department first" state
   goStep(1);
@@ -476,6 +484,14 @@ window.openAdmitDrawer = function() {
 
 window.closeAdmitDrawer = function() {
   document.getElementById('admit-overlay').classList.remove('open');
+};
+
+// Session 303 -- the reference field only means anything for a non-cash mode
+// (it's what the advance's ledger receipt is matched against later).
+window.onAdvanceModeChange = function(mode) {
+  const field = document.getElementById('adm-advance-ref-field');
+  field.style.display = mode && mode !== 'cash' ? '' : 'none';
+  if (!mode || mode === 'cash') document.getElementById('adm-advance-reference').value = '';
 };
 
 window.goStep = function(n) {
@@ -784,6 +800,7 @@ window.saveAdmission = async function() {
   const isMlc     = document.getElementById('adm-is-mlc').checked;
   const advanceAmount = document.getElementById('adm-advance-amount').value;
   const advanceMode   = document.getElementById('adm-advance-mode').value;
+  const advanceRef    = document.getElementById('adm-advance-reference').value.trim();
 
   if (!deptId)   { _alert('error','Select a department.'); return; }
   if (!bedId)    { _alert('error','Select a bed.'); return; }
@@ -791,6 +808,9 @@ window.saveAdmission = async function() {
   if (!admDate)  { _alert('error','Enter admission date.'); return; }
   if (advanceAmount === '' || Number(advanceAmount) < 0) { _alert('error','Enter the advance amount collected.'); return; }
   if (!advanceMode) { _alert('error','Select the advance payment mode.'); return; }
+  if (advanceMode !== 'cash' && Number(advanceAmount) > 0 && !advanceRef) {
+    _alert('error','Enter the payment reference (UPI ref / card auth / cheque no. / NEFT UTR).'); return;
+  }
 
   const btn = document.getElementById('btn-admit-save');
   btn.disabled = true; btn.textContent = 'Admitting…';
@@ -803,6 +823,7 @@ window.saveAdmission = async function() {
     p_admission_date:        admDate,
     p_advance_amount:        Number(advanceAmount),
     p_advance_payment_mode:  advanceMode,
+    p_advance_reference:     advanceRef || null,
     p_diagnosis_primary:     diagnosis || null,
     p_diet_type:             diet || null,
     p_notes:                 notes || null,
@@ -1242,6 +1263,7 @@ window.confirmGenerateBill = async function() {
     closeGenerateBillDrawer();
     _alert('success', `IPD bill generated — ${data.document_number || ''} ₹${Number(data.final_amount||0).toLocaleString('en-IN')}.`);
     await loadAll();
+    await openAccountDrawer(admId); // Session 302 -- straight into collection
     return;
   }
 
@@ -1261,17 +1283,20 @@ window.confirmGenerateBill = async function() {
   // which this bill surfaces in automatically once payer_type != self_pay.
   const insuranceClaimStatus = payerType === 'self_pay' ? 'not_applicable' : 'pre_auth_pending';
 
-  // Session 205 (cont.): credit the advance collected at admission against this bill --
-  // patient_due (GENERATED STORED, sql/session205_bills_advance_credit.sql) is
-  // final_amount - insurance_approved_amount - advance_credited, so this is the only
-  // field this insert needs to set for the advance to actually reduce what's shown as
-  // owed. Insurance settlement (insurance-claims.html) reduces it further, unchanged.
+  // Session 302: advance_credited is no longer set here -- the payments ledger's
+  // sync trigger (_ipd_ledger_sync, fired on ipd_admissions.discharge_bill_id being
+  // set below) fills it in from the real ledger total the moment this bill is
+  // linked to the admission, and keeps it correct from then on as deposits/
+  // payments/refunds are recorded. patient_due (GENERATED STORED) is
+  // final_amount - insurance_approved_amount - advance_credited.
   const { data: bill, error: billErr } = await supabase.from('bills').insert({
     tenant_id: tenantId, patient_id: adm.patients?.id,
     bill_type: 'ipd', total_amount: finalAmount, final_amount: finalAmount,
     payer_type: payerType, insurance_claim_status: insuranceClaimStatus,
     status: 'pending', payment_mode: null,
-    advance_credited: Number(adm.advance_amount_collected) || 0,
+    // Session 302 -- same field the GST path's _ipd_build_draft() already sets; finance.js's
+    // Outstanding list uses it to link straight back into this admission's Account drawer.
+    ipd_admission_id: admId,
     billing_note: _billBillingNote,
   }).select('id').single();
 
@@ -1326,6 +1351,304 @@ window.confirmGenerateBill = async function() {
   closeGenerateBillDrawer();
   _alert('success', `IPD bill generated — ₹${finalAmount.toLocaleString('en-IN')}.`);
   await loadAll();
+  await openAccountDrawer(admId); // Session 302 -- straight into collection
+};
+
+// ── IPD Account Drawer (Session 302/303 — patient_payments ledger) ──────────
+// One drawer covers the whole payment lifecycle: deposits before a bill exists,
+// split collection + refunds against a generated bill, receipt printing and
+// same-day void. The database (record_ipd_payments/void_ipd_payment/
+// get_ipd_account) is the only source of truth for what's allowed — this UI
+// just renders its answers and shows its errors back verbatim.
+const PAYMENT_MODES = ['cash', 'upi', 'card', 'cheque', 'neft'];
+const MODE_LABEL = { cash: 'Cash', upi: 'UPI', card: 'Card', cheque: 'Cheque', neft: 'NEFT' };
+const KIND_LABEL = { advance: 'Advance', deposit: 'Deposit', payment: 'Payment', refund: 'Refund' };
+const VOID_ROLES = ['accountant', 'finance_manager', 'super_admin'];
+
+let _acctAdmId      = null;
+let _lastAcct        = null;
+let _lastReceipts    = [];
+let _lastCharges     = null;
+let _lastNewReceipts = null;
+let _voidingId       = null;
+
+window.openAccountDrawer = async function(admId) {
+  const adm = _admissions.find(a => a.id === admId);
+  if (!adm) return;
+  _acctAdmId = admId;
+  _lastNewReceipts = null;
+  _voidingId = null;
+  document.getElementById('acct-adm-id').value = admId;
+
+  const pt = adm.patients || {}, bed = adm.beds || {}, dept = adm.departments || {};
+  document.getElementById('acct-detail-card').innerHTML = `
+    <div class="adm-detail-row"><span>Patient</span><strong>${_esc(pt.name || '—')}</strong></div>
+    <div class="adm-detail-row"><span>Bed</span><strong>${_esc(bed.bed_number || '—')} (${_esc(bed.bed_type || '—')})</strong></div>
+    <div class="adm-detail-row"><span>Department</span><strong>${_esc(dept.name || '—')}</strong></div>
+    <div class="adm-detail-row"><span>Status</span><strong>${_esc(_statusLabel(adm.status))}</strong></div>
+  `;
+
+  document.getElementById('acct-overlay').classList.add('open');
+  await _refreshAccountDrawer();
+};
+
+window.closeAccountDrawer = function() {
+  document.getElementById('acct-overlay').classList.remove('open');
+  _acctAdmId = null;
+};
+
+async function _refreshAccountDrawer() {
+  const admId = _acctAdmId;
+  if (!admId) return;
+  const body = document.getElementById('acct-body');
+  body.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:12.5px">Loading…</div>';
+
+  const adm = _admissions.find(a => a.id === admId);
+  const [{ data: acc, error: accErr }, { data: receipts, error: rcErr }] = await Promise.all([
+    supabase.rpc('get_ipd_account', { p_adm: admId }),
+    supabase.from('patient_payments').select('*').eq('ipd_admission_id', admId).order('received_at', { ascending: false }),
+  ]);
+  if (accErr || !acc) {
+    body.innerHTML = `<div style="color:var(--red);padding:10px;font-size:12.5px">${_esc(safeErrorMessage(accErr, 'Could not load the account.'))}</div>`;
+    return;
+  }
+  if (rcErr) _alert('error', safeErrorMessage(rcErr, 'Could not load receipts.'));
+
+  let chargesToDate = null;
+  if (!acc.bill_id && adm) chargesToDate = await computeIpdChargesToDate({ supabase, tenantId, admission: adm });
+
+  _renderAccountDrawer(acc, receipts || [], chargesToDate);
+}
+
+function _fmtMoney(v) {
+  return '₹' + Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// One row per payment mode (a mode can only appear once per record_ipd_payments
+// call anyway — the DB rejects a duplicate — so a fixed 5-row grid instead of a
+// dynamic add-row list keeps this simple and matches that rule exactly).
+function _modeRowsHtml(prefix) {
+  return `<div style="margin-bottom:6px">` + PAYMENT_MODES.map(m => `
+    <div style="display:grid;grid-template-columns:64px 1fr 1.3fr;gap:6px;align-items:center;margin-bottom:6px">
+      <span style="font-size:12px;font-weight:600;color:var(--text-mid)">${MODE_LABEL[m]}</span>
+      <input type="number" min="0" step="0.01" placeholder="₹ amount" id="${prefix}-amt-${m}"
+        style="height:32px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12.5px"/>
+      <input type="text" placeholder="${m === 'cash' ? '(no reference needed)' : 'reference — required'}" id="${prefix}-ref-${m}" ${m === 'cash' ? 'disabled' : ''}
+        style="height:32px;border:1.5px solid var(--border);border-radius:6px;padding:0 8px;font-size:12.5px${m === 'cash' ? ';background:var(--cream)' : ''}"/>
+    </div>`).join('') + `</div>`;
+}
+
+function _readModeRows(prefix) {
+  const lines = [];
+  for (const m of PAYMENT_MODES) {
+    const amt = Number(document.getElementById(`${prefix}-amt-${m}`)?.value);
+    if (amt > 0) {
+      lines.push({ mode: m, amount: amt, reference: document.getElementById(`${prefix}-ref-${m}`)?.value?.trim() || null });
+    }
+  }
+  return lines;
+}
+
+function _receiptRowHtml(r, isClosed) {
+  const voided  = !!r.voided_at;
+  const sameDay = localDateStr(new Date(r.received_at)) === todayLocalStr();
+  const canVoid = !voided && !isClosed && sameDay && VOID_ROLES.includes(myRole);
+  const rowStyle = voided ? 'text-decoration:line-through;color:var(--text-muted)' : '';
+
+  let actionCell;
+  if (_voidingId === r.id) {
+    actionCell = `<div style="display:flex;gap:4px;align-items:center;white-space:nowrap">
+      <input type="text" id="void-reason-${r.id}" placeholder="reason" style="height:26px;font-size:11px;width:90px;border:1.5px solid var(--border);border-radius:5px;padding:0 6px"/>
+      <button class="icon-btn" data-onclick="confirmVoidReceipt" data-onclick-a0="${r.id}" title="Confirm void" style="font-size:11px;color:var(--red)">&#10003;</button>
+      <button class="icon-btn" data-onclick="toggleVoidRow" data-onclick-a0="${r.id}" title="Cancel">&#10005;</button>
+    </div>`;
+  } else {
+    actionCell = `<button class="icon-btn" data-onclick="printAccountReceipt" data-onclick-a0="${r.id}" title="Print receipt" style="font-size:11px">&#128424;</button>` +
+      (canVoid ? `<button class="icon-btn" data-onclick="toggleVoidRow" data-onclick-a0="${r.id}" title="Void (same day only)" style="font-size:11px;color:var(--red)">&#8856;</button>` : '');
+  }
+
+  return `<tr style="${rowStyle}">
+      <td style="padding:5px 4px">${new Date(r.received_at).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</td>
+      <td style="padding:5px 4px">${_esc(r.receipt_no)}</td>
+      <td style="padding:5px 4px">${KIND_LABEL[r.kind] || r.kind}</td>
+      <td style="padding:5px 4px">${MODE_LABEL[r.mode] || r.mode}${r.reference ? ' · ' + _esc(r.reference) : ''}</td>
+      <td style="padding:5px 4px;text-align:right;font-weight:600">${_fmtMoney(r.amount)}</td>
+      <td style="padding:5px 4px;white-space:nowrap">${actionCell}</td>
+    </tr>${voided ? `<tr style="${rowStyle}"><td colspan="6" style="padding:0 4px 8px;font-size:10.5px">VOID — ${_esc(r.void_reason || '')}</td></tr>` : ''}`;
+}
+
+function _renderAccountDrawer(acc, receipts, chargesToDate) {
+  _lastAcct = acc; _lastReceipts = receipts; _lastCharges = chargesToDate;
+
+  const isClosed = ['paid_cleared', 'discharged'].includes(acc.admission_status);
+  const hasBill  = !!acc.bill_id;
+  const isDraft  = hasBill && acc.document_status && acc.document_status !== 'finalized';
+  const balance  = Number(acc.balance) || 0;
+
+  let html = '';
+
+  if (_lastNewReceipts && _lastNewReceipts.length) {
+    html += `<div style="background:var(--green-light);border:1px solid #b8ddc6;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px">
+      <strong>Recorded.</strong> Print:
+      ${_lastNewReceipts.map(r => `<button class="btn btn-secondary btn-sm" style="height:26px;padding:0 8px;font-size:11px;margin-left:6px" data-onclick="printAccountReceipt" data-onclick-a0="${r.id}">&#128424; ${_esc(r.receipt_no)}</button>`).join('')}
+    </div>`;
+  }
+
+  // ── Summary ──
+  html += `<div class="sec" style="margin-top:0">Summary</div>`;
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+    <div style="background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+      <div style="font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px">Money Held</div>
+      <div style="font-size:17px;font-weight:700;color:var(--green-deep)">${_fmtMoney(acc.held)}</div>
+    </div>`;
+  if (!hasBill) {
+    html += `<div style="background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+      <div style="font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px">Charges So Far (est.)</div>
+      <div style="font-size:17px;font-weight:700;color:var(--text-dark)">${_fmtMoney(chargesToDate?.total || 0)}</div>
+    </div>`;
+  } else {
+    html += `<div style="background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+      <div style="font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px">${balance < 0 ? 'Refund Due' : 'Balance Due'}</div>
+      <div style="font-size:17px;font-weight:700;color:${balance > 0 ? 'var(--red)' : 'var(--green-deep)'}">${_fmtMoney(Math.abs(balance))}</div>
+    </div>`;
+  }
+  html += `</div>`;
+
+  if (!hasBill) {
+    html += `<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:10px">
+      ${chargesToDate?.tariff?.error ? `⚠ ${_esc(chargesToDate.tariff.error)}` : `${chargesToDate?.tariff?.days || 0} day(s) room${chargesToDate?.charges?.length ? ' + ' + chargesToDate.charges.length + ' stay charge(s)' : ''} — estimate only, excludes tax.`}
+    </div>`;
+    html += `<button class="btn btn-secondary btn-sm" data-onclick="printInterimBillBtn" style="margin-bottom:16px">&#128424; Print Interim Bill</button>`;
+  }
+
+  // ── Bill block ──
+  if (hasBill) {
+    // Paid and refunded shown as separate lines, not netted into one figure -- a
+    // refund-only bill used to show "Paid So Far: ₹-2,500.00" here, which reads as an
+    // error rather than a refund even though the underlying paid_net math is correct.
+    // Computed from the same receipts already loaded for the list below (matches
+    // _ipd_account()'s own paid_net definition: payments minus post-bill refunds,
+    // voided rows excluded) rather than a second round trip.
+    const paidTotal = receipts
+      .filter(r => r.kind === 'payment' && !r.voided_at)
+      .reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const refundedTotal = receipts
+      .filter(r => r.kind === 'refund' && r.bill_id && !r.voided_at)
+      .reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+    html += `<div class="sec">Bill</div>`;
+    html += `<div class="adm-detail-card" style="margin-bottom:14px">
+      <div class="adm-detail-row"><span>Document</span><strong>${_esc(acc.document_number || 'Legacy bill')}</strong></div>
+      <div class="adm-detail-row"><span>Bill Total</span><strong>${_fmtMoney(acc.final_amount)}</strong></div>
+      ${Number(acc.insurance_approved) > 0 ? `<div class="adm-detail-row"><span>Insurance Approved</span><strong>${_fmtMoney(acc.insurance_approved)}</strong></div>` : ''}
+      <div class="adm-detail-row"><span>Advance / Deposits Credited</span><strong>${_fmtMoney(acc.held)}</strong></div>
+      <div class="adm-detail-row"><span>Paid</span><strong>${_fmtMoney(paidTotal)}</strong></div>
+      ${refundedTotal > 0 ? `<div class="adm-detail-row"><span>Refunded</span><strong>${_fmtMoney(refundedTotal)}</strong></div>` : ''}
+      <div class="adm-detail-row"><span>Status</span><strong>${_esc((acc.bill_status || '').toUpperCase())}</strong></div>
+    </div>`;
+  }
+
+  // ── Actions ──
+  if (isClosed) {
+    html += `<div style="background:var(--green-light);border:1px solid #b8ddc6;border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:12.5px;font-weight:600;color:var(--green-deep)">
+      ✅ ${acc.payer_type === 'self_pay' ? 'Paid — admission released.' : 'Account closed.'}
+    </div>`;
+  } else if (isDraft) {
+    html += `<div style="background:#fffbea;border:1px solid #f0d878;border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:12.5px;color:#7a5a00">
+      This GST bill is still a draft — finalise it (open 💰 Generate Bill again) before collecting.
+    </div>`;
+  } else if (!hasBill) {
+    html += `<div class="sec">Add Deposit</div>${_modeRowsHtml('dep')}
+      <div style="display:flex;justify-content:flex-end;margin-bottom:16px"><button class="btn btn-primary btn-sm" data-onclick="submitAccountDeposit">+ Add Deposit</button></div>`;
+    if (Number(acc.held) > 0) {
+      html += `<div class="sec">Refund</div>${_modeRowsHtml('rfd')}
+        <div class="field" style="margin-top:2px"><label>Reason <span class="req">*</span></label><input type="text" id="rfd-reason" placeholder="e.g. patient request"/></div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px"><button class="btn btn-secondary btn-sm" data-onclick="submitAccountRefund">Refund</button></div>`;
+    }
+  } else {
+    if (balance > 0) {
+      html += `<div class="sec">Collect</div>${_modeRowsHtml('pay')}
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px"><button class="btn btn-primary btn-sm" data-onclick="submitAccountPayment">Collect</button></div>`;
+    }
+    if (balance < 0) {
+      html += `<div class="sec">Refund Excess</div>${_modeRowsHtml('rfd')}
+        <div class="field" style="margin-top:2px"><label>Reason <span class="req">*</span></label><input type="text" id="rfd-reason" placeholder="e.g. excess advance"/></div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px"><button class="btn btn-secondary btn-sm" data-onclick="submitAccountRefund">Refund</button></div>`;
+    }
+    if (balance === 0 && acc.payer_type !== 'self_pay') {
+      html += `<div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Patient share settled. Awaiting insurance final approval (next update).</div>`;
+    }
+  }
+
+  // ── Receipts list ──
+  html += `<div class="sec">Receipts</div>`;
+  html += receipts.length
+    ? `<div style="overflow-x:auto"><table style="width:100%;font-size:11.5px;border-collapse:collapse">
+        <thead><tr style="text-align:left;color:var(--text-muted)"><th style="padding:5px 4px">Date</th><th style="padding:5px 4px">Receipt</th><th style="padding:5px 4px">Kind</th><th style="padding:5px 4px">Mode</th><th style="padding:5px 4px;text-align:right">Amount</th><th></th></tr></thead>
+        <tbody>${receipts.map(r => _receiptRowHtml(r, isClosed)).join('')}</tbody>
+      </table></div>`
+    : `<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:12.5px">No receipts yet.</div>`;
+
+  document.getElementById('acct-body').innerHTML = html;
+}
+
+window.submitAccountDeposit = async function() {
+  const lines = _readModeRows('dep');
+  if (!lines.length) { _alert('error', 'Enter at least one amount.'); return; }
+  await _submitAccountLedger('deposit', lines, null);
+};
+
+window.submitAccountPayment = async function() {
+  const lines = _readModeRows('pay');
+  if (!lines.length) { _alert('error', 'Enter at least one amount.'); return; }
+  await _submitAccountLedger('payment', lines, null);
+};
+
+window.submitAccountRefund = async function() {
+  const lines = _readModeRows('rfd');
+  const reason = document.getElementById('rfd-reason')?.value?.trim() || '';
+  if (!lines.length) { _alert('error', 'Enter at least one amount.'); return; }
+  if (!reason) { _alert('error', 'Give a reason for the refund.'); return; }
+  await _submitAccountLedger('refund', lines, reason);
+};
+
+async function _submitAccountLedger(kind, lines, notes) {
+  const admId = _acctAdmId;
+  if (!admId) return;
+  const { data, error } = await supabase.rpc('record_ipd_payments', {
+    p_adm: admId, p_kind: kind, p_lines: lines, p_notes: notes,
+  });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not record this.')); return; }
+  await logAudit('ipd_' + kind + '_recorded_ui', 'ipd_admissions', admId, { lines, notes }, _ctx);
+  _alert('success', `${KIND_LABEL[kind]} recorded.`);
+  _lastNewReceipts = data?.receipts || [];
+  await loadAll();
+  await _refreshAccountDrawer();
+}
+
+window.toggleVoidRow = function(id) {
+  _voidingId = _voidingId === id ? null : id;
+  if (_lastAcct) _renderAccountDrawer(_lastAcct, _lastReceipts, _lastCharges);
+};
+
+window.confirmVoidReceipt = async function(id) {
+  const reason = document.getElementById('void-reason-' + id)?.value?.trim() || '';
+  if (reason.length < 5) { _alert('error', 'Give a reason of at least 5 characters.'); return; }
+  const { error } = await supabase.rpc('void_ipd_payment', { p_id: id, p_reason: reason });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not void this receipt.')); return; }
+  await logAudit('ipd_receipt_voided_ui', 'patient_payments', id, { reason }, _ctx);
+  _voidingId = null;
+  _alert('success', 'Receipt voided.');
+  await loadAll();
+  await _refreshAccountDrawer();
+};
+
+window.printAccountReceipt = function(id) {
+  window.open(`printReceipt.html?payment=${id}`, '_blank');
+};
+
+window.printInterimBillBtn = function() {
+  if (_acctAdmId) window.open(`printReceipt.html?interim=${_acctAdmId}`, '_blank');
 };
 
 // ── ABDM M2 — Care context: DischargeSummary (fire-and-forget) ───────
@@ -1747,6 +2070,12 @@ if (_qAdviceId) {
   } else if (advice) {
     alert(`This admission advice has already been ${advice.status} — it cannot be used again.`);
   }
+}
+
+// Session 302 -- arriving from finance.html's "Open in IPD" link (ipd.html?account=<admission id>).
+const _qAccountAdmId = _qp.get('account');
+if (_qAccountAdmId && _admissions.some(a => a.id === _qAccountAdmId)) {
+  await openAccountDrawer(_qAccountAdmId);
 }
 
 

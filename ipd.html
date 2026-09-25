@@ -449,13 +449,22 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             </div>
             <div class="field">
               <label>Payment Mode <span class="req">*</span></label>
-              <select id="adm-advance-mode">
+              <select id="adm-advance-mode" data-onchange="onAdvanceModeChange" data-onchange-a0="@value">
                 <option value="">— Select —</option>
                 <option value="cash">Cash</option>
                 <option value="upi">UPI</option>
                 <option value="card">Card</option>
+                <option value="cheque">Cheque</option>
+                <option value="neft">NEFT</option>
               </select>
             </div>
+          </div>
+          <!-- Session 303 -- shown only for a non-cash mode; the reference is
+               what the advance's ledger receipt (and any later void/refund lookup)
+               is matched against. -->
+          <div class="field" id="adm-advance-ref-field" style="display:none;margin-top:0">
+            <label>Reference <span class="req">*</span></label>
+            <input id="adm-advance-reference" type="text" placeholder="UPI ref / card auth / cheque no. / NEFT UTR"/>
           </div>
         </div>
 
@@ -654,6 +663,27 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div class="drawer-footer">
       <button class="btn btn-secondary" data-onclick="closeGenerateBillDrawer">Cancel</button>
       <button class="btn btn-primary" id="btn-generate-bill" data-onclick="confirmGenerateBill">Generate Bill</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     ACCOUNT DRAWER (Session 302/303 -- IPD payments ledger:
+     deposits, split collection, refunds, receipts, void)
+     ══════════════════════════════════════════════════════ -->
+<div class="drawer-overlay" id="acct-overlay">
+  <div class="drawer" style="width:560px">
+    <div class="drawer-header">
+      <span class="drawer-title">💳 Account</span>
+      <button class="drawer-close" data-onclick="closeAccountDrawer">&#x2715;</button>
+    </div>
+    <div class="drawer-body">
+      <input type="hidden" id="acct-adm-id"/>
+      <div class="adm-detail-card" id="acct-detail-card"></div>
+      <div id="acct-body"><div style="text-align:center;color:var(--text-muted);padding:20px;font-size:12.5px">Loading…</div></div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" data-onclick="closeAccountDrawer">Close</button>
     </div>
   </div>
 </div>

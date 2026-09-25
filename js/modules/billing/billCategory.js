@@ -29,10 +29,16 @@ export const OUTSTANDING_STATUSES = ['unpaid', 'pending', 'partial'];
 
 // Amount still owed by the patient. patient_due is a generated column
 // (final_amount - insurance_approved_amount - advance_credited); fall back to final.
+// Session 302 -- also subtracts amount_paid (the IPD payments ledger's running total of
+// payments made against an already-generated bill). amount_paid is 0 for every bill type
+// other than IPD-via-the-ledger, so this is a strict refinement, not a behaviour change,
+// for OPD/pharmacy/lab bills and for any IPD bill that predates the ledger.
 export function dueAmount(b) {
   if (b.status === 'paid') return 0;
-  const due = b.patient_due !== undefined && b.patient_due !== null ? Number(b.patient_due) : Number(b.final_amount);
-  return Math.max(0, Number.isFinite(due) ? due : 0);
+  const due  = b.patient_due !== undefined && b.patient_due !== null ? Number(b.patient_due) : Number(b.final_amount);
+  const paid = Number(b.amount_paid) || 0;
+  const remaining = (Number.isFinite(due) ? due : 0) - paid;
+  return Math.max(0, remaining);
 }
 
 // Amount actually received. A 'partial' bill (e.g. a Panchakarma plan's advance against

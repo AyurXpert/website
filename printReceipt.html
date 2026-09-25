@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>Receipt - AyurXpert</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+  <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-white p-6">
+
+<div id="receipt" class="max-w-md mx-auto border p-6 relative">
+
+  <div id="void-watermark" class="absolute inset-0 flex items-center justify-center pointer-events-none" style="display:none">
+    <span class="text-red-600 font-bold text-6xl opacity-20" style="transform:rotate(-25deg)">VOID</span>
+  </div>
+
+  <!-- HEADER -->
+  <div class="flex justify-between items-start mb-4">
+    <div>
+      <h1 id="clinicName" class="text-xl font-bold">AyurXpert HMS</h1>
+      <p id="clinicAddress" class="text-xs text-gray-500" style="display:none"></p>
+      <p id="clinicGstin" class="text-xs text-gray-500" style="display:none"></p>
+    </div>
+    <img class="h-12" id="clinic-logo" style="display:none;object-fit:contain" />
+  </div>
+
+  <hr class="my-3">
+
+  <div id="docTitle" class="text-center text-lg font-bold mb-3">RECEIPT</div>
+
+  <div id="receiptMeta" class="text-sm mb-3"></div>
+  <div id="patientInfo" class="text-sm mb-3"></div>
+
+  <table class="w-full text-sm mb-3">
+    <tbody id="lineTable"></tbody>
+  </table>
+
+  <div class="text-right border-t pt-2 mb-2">
+    <div class="text-lg font-bold" id="totalAmount"></div>
+  </div>
+  <div id="amountWords" class="text-xs text-gray-600 italic mb-3"></div>
+
+  <div id="receivedByLine" class="text-xs text-gray-600 mb-1"></div>
+  <div id="voidLine" class="text-xs text-red-600 font-semibold mt-2" style="display:none"></div>
+
+  <div class="mt-6 text-center text-xs text-gray-500" id="notaxNote" style="display:none">
+    Interim bill — not a tax invoice
+  </div>
+
+</div>
+
+<div class="text-center mt-4 no-print">
+  <button data-onclick="print" class="bg-green-600 text-white px-4 py-2 rounded">
+    Print / Save PDF
+  </button>
+</div>
+
+<style>@media print { .no-print { display:none } }</style>
+
+<script type="module" src="js/pages/printReceipt.js"></script>
+</body>
+</html>

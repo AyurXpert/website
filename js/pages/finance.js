@@ -281,7 +281,7 @@ function _revenueBuckets(bills) {
 async function loadOutstanding() {
   const { data, error } = await supabase
     .from('bills')
-    .select('id, created_at, final_amount, patient_due, bill_type, payer_type, payment_mode, status, patients(name)')
+    .select('id, created_at, final_amount, patient_due, amount_paid, bill_type, payer_type, payment_mode, status, ipd_admission_id, patients(name)')
     .eq('tenant_id', tenantId)
     // Session 295 -- bills are written 'unpaid' (reception) / 'partial' (PK advance);
     // 'pending' kept for legacy rows. A ₹0 bill (free follow-up) owes nothing.
@@ -307,15 +307,14 @@ function renderOutstanding() {
     const days = Math.floor((today - created) / 86400000);
     if (days <= 7) aging['0-7'] += f; else if (days <= 30) aging['8-30'] += f; else aging['31+'] += f;
     const ageCls = days > 30 ? 'color:var(--red)' : days > 7 ? 'color:var(--gold)' : '';
-    // Session 114 -- IPD self-pay bills (generated in ipd.html once charges
-    // are locked) get a Collect action right here rather than a separate
-    // "Ward Billing Queue" view, since Outstanding already lists every
-    // unpaid bill regardless of type -- no need to duplicate that list.
-    const canCollect = billCategory(b.bill_type) === 'ipd' && b.payer_type === 'self_pay';
-    const actionCell = canCollect
-      ? `<select id="pm-${b.id}" style="height:26px;font-size:11px;border:1.5px solid var(--border);border-radius:5px;padding:0 4px;margin-right:4px">
-           <option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option>
-         </select><button class="btn btn-outline btn-sm" style="height:26px;padding:0 10px;font-size:11px" data-onclick="collectIpdPayment" data-onclick-a0="${b.id}">Collect</button>`
+    // Session 302 -- IPD bills are collected in ipd.html's own Account drawer now
+    // (deposits/split payments/refunds/receipts via the patient_payments ledger),
+    // not here -- this just links straight to that admission's drawer. Shown for
+    // any IPD bill still outstanding, not only self-pay: the ledger also records
+    // an insurance bill's patient-share payments (release still waits on Session
+    // B's insurance workflow, but collecting the share today is already useful).
+    const actionCell = billCategory(b.bill_type) === 'ipd' && b.ipd_admission_id
+      ? `<a class="btn btn-outline btn-sm" style="height:26px;padding:0 10px;font-size:11px;display:inline-flex;align-items:center;text-decoration:none" href="ipd.html?account=${b.ipd_admission_id}">Open in IPD →</a>`
       : '—';
     return `<tr>
       <td style="font-size:12px">${_fmtD(b.created_at?.slice(0,10))}</td>
@@ -341,20 +340,6 @@ function renderOutstanding() {
     <div class="aging-bar"><div class="aging-fill ${a.cls}" style="width:${total?Math.round(a.val/total*100):0}%"></div></div>
   </div>`).join('');
 }
-
-// Session 114 -- collect final payment on a self-pay IPD bill. The
-// sync_ipd_admission_on_bill_settled DB trigger (sql/session114_...sql)
-// picks up the resulting patient_due=0 and advances ipd_admissions to
-// paid_cleared automatically -- nothing else to do client-side.
-window.collectIpdPayment = async function(billId) {
-  const payMode = document.getElementById('pm-'+billId)?.value || 'cash';
-  if (!confirm('Mark this IPD bill as fully paid?')) return;
-  const { error } = await supabase.from('bills').update({ status: 'paid', payment_mode: payMode }).eq('id', billId);
-  if (error) { _toast(safeErrorMessage(error, 'Could not record payment.'), 'error'); return; }
-  await logAudit('ipd_payment_collected', 'bills', billId, { payment_mode: payMode }, _ctx);
-  _toast('Payment recorded.', 'success');
-  await loadOutstanding();
-};
 
 // ── Expenses ─────────────────────────────────────────
 async function loadExpenses(from, to) {
