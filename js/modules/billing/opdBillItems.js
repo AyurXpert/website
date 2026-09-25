@@ -14,7 +14,22 @@
 // extra read. Matches ipd.js's convention that a bill's grand total is
 // sum(item.total) + sum(item.gst_amount) on top of any flat fee columns
 // (item.total itself is the pre-GST amount).
+//
+// Launch plan 0a (Session 304): browsers can no longer write bills.total_amount/
+// final_amount directly (trg_bill_client_write_guard), so this now calls the
+// add_opd_bill_item() RPC, which does the same insert + recompute server-side.
+// The direct path below is kept ONLY as a fallback while that RPC does not exist
+// yet (PGRST202), so this file can deploy before the SQL — remove the fallback
+// once sql/session304_bills_write_lockdown.sql is live.
 export async function addOpdBillItem({ supabase, tenantId, billId, itemType, description, quantity, price, gstPercent = 0, labOrderId = null }) {
+  const { data, error } = await supabase.rpc('add_opd_bill_item', {
+    p_bill_id: billId, p_item_type: itemType, p_description: description,
+    p_quantity: Number(quantity) || 1, p_price: Number(price) || 0,
+    p_gst_percent: Number(gstPercent) || 0, p_lab_order_id: labOrderId,
+  });
+  if (!error) return { total: Number(data?.total) };
+  if (error.code !== 'PGRST202') return { error };
+
   const total = Math.round((Number(quantity) || 1) * (Number(price) || 0) * 100) / 100;
   const gstAmount = Math.round(total * (Number(gstPercent) || 0) / 100 * 100) / 100;
 
