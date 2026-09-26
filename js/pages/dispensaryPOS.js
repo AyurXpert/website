@@ -17,7 +17,14 @@ const tenantId = getCurrentTenantId();
 const userId   = profile.id;
 // Session 306 — NDPS entries are never edited or deleted; "Correct" adds a reversing entry.
 initCorrections(supabase, tenantId);
-defineCorrection('ndps_register', { title: 'NDPS entry', mode: 'reverse', canWrite: true, reload: () => loadNDPSRegister() });
+defineCorrection('ndps_register', { title: 'NDPS entry', mode: 'reverse', canWrite: true, reload: async () => { await loadNDPSRegister(); await window._ndpsUpdateBalance(); } });
+// Session 307 — Schedule H1 register (sql/session307_ndps_h1_e1_flags.sql): corrected by a new entry
+defineCorrection('schedule_h1_register', { title: 'H1 register entry', canWrite: true, reload: () => loadH1Register(),
+  fields: [ { k:'supply_date', label:'Supply date', type:'date' }, { k:'medicine_name', label:'Drug' },
+    { k:'batch_number', label:'Batch no.' }, { k:'quantity', label:'Quantity', type:'number' }, { k:'unit', label:'Unit' },
+    { k:'patient_name', label:'Patient name' }, { k:'patient_address', label:'Patient address', full:true },
+    { k:'prescriber_name', label:'Prescriber name' }, { k:'prescriber_reg_no', label:'Prescriber reg. no.' },
+    { k:'prescriber_address', label:'Prescriber address', full:true }, { k:'notes', label:'Notes', type:'textarea' } ] });
 const _ctx     = { tenantId, userId, userName: profile.full_name };
 const _tenant  = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
 
@@ -53,7 +60,7 @@ async function loadInventory() {
   try {
     const [invRes, fRes] = await Promise.all([
       supabase.from('inventory')
-        .select('id, medicine_id, stock_quantity, mrp, cost_price, gst_percent, is_student_batch, is_high_risk, is_lasa, lasa_pair, is_schedule_h, medicine:medicines(id,name)')
+        .select('id, medicine_id, stock_quantity, mrp, cost_price, gst_percent, is_student_batch, is_high_risk, is_lasa, lasa_pair, is_schedule_h, is_schedule_h1, is_schedule_e1, is_ndps, batch_number, medicine:medicines(id,name)')
         .eq('tenant_id', tenantId),
       supabase.from('hospital_formulary')
         .select('medicine_name')
@@ -83,7 +90,7 @@ async function loadQueue() {
     .select(`
       id, created_at, status,
       visit:visits(id, token_number, chief_complaint, doctor_id, bills(payer_type)),
-      patient:patients(id, name, phone, abha_number, abha_address),
+      patient:patients(id, name, phone, address, abha_number, abha_address),
       items:prescription_items(id, medicine_name, medicine_id, dosage, frequency, duration)
     `)
     .eq('tenant_id', tenantId)
@@ -196,7 +203,7 @@ window.openRx = async function(rxId) {
       id, created_at, status, patient_type,
       visit:visits(id, token_number, chief_complaint, doctor_id,
         notes:consultation_notes(modern_diagnosis, ayurveda_diagnosis)),
-      patient:patients(id, name, phone, abha_number, abha_address),
+      patient:patients(id, name, phone, address, abha_number, abha_address),
       items:prescription_items(id, medicine_name, medicine_id, dosage, frequency, duration, anupana, quantity)
     `)
     .eq('id', rxId)
@@ -444,11 +451,19 @@ async function dispense() {
   // NABH MOM.3 CORE — High-risk double verification
   const highRiskItems = payable.filter(c => {
     const inv = _inventory.find(i => i.id === c.id || i.medicine_id === c.medicine_id);
-    return inv?.is_high_risk || inv?.is_schedule_h;
+    return inv?.is_high_risk || inv?.is_schedule_h || inv?.is_schedule_h1 || inv?.is_ndps;
   });
   if (highRiskItems.length) {
     const names = highRiskItems.map(c => c.name).join(', ');
     const ok = confirm(`⚠ HIGH-RISK MEDICATION — NABH Double Verification Required\n\nThe following require a second check before dispensing:\n${names}\n\nConfirm:\n✅ Prescription verified against original order\n✅ Patient identity confirmed (2 identifiers)\n✅ Dose and route are correct\n\nProceed with dispensing?`);
+    if (!ok) return;
+  }
+
+  // Session 307 — Schedule E1 (ASU drug with a poisonous ingredient): D&C Rules require the
+  // caution "to be taken under medical supervision"; the pharmacist confirms it was given.
+  const e1Items = payable.filter(c => _invFor(c)?.is_schedule_e1);
+  if (e1Items.length) {
+    const ok = confirm(`⚠ SCHEDULE E1 — CAUTION: TO BE TAKEN UNDER MEDICAL SUPERVISION\n\n${e1Items.map(c => c.name).join(', ')}\n\nContains a poisonous ingredient. Confirm the patient has been told to take it only under medical supervision (the label carries this caution).\n\nProceed with dispensing?`);
     if (!ok) return;
   }
 
@@ -502,6 +517,7 @@ async function dispense() {
           final_amount:   total,
           status:         payMethod === 'Credit' ? 'partial' : 'paid',
           bill_type:      'pharmacy',
+          prescription_id: _activeRxId,   // Session 307 — matched by the "not in register" check
           payment_method: payMethod,
           updated_by:     userId,
           update_reason:  'pharmacy_dispense'
@@ -547,6 +563,10 @@ async function dispense() {
       .update({ status: 'dispensed' })
       .eq('id', _activeRxId);
 
+    // 4b. Session 307 — Schedule H1 register: one entry per H1 drug supplied (prescriber, patient,
+    // drug, quantity). A failure never undoes the sale; the pharmacist is told to record it by hand.
+    await _recordControlledSupplies(payable);
+
     // 5. Audit
     await logAudit('dispense_prescription', 'prescriptions', _activeRxId, {
       patient_name:   _activeRx.patient?.name,
@@ -591,6 +611,7 @@ async function dispense() {
       : `${_esc(_activeRx.patient?.name)} — dispensed, bill generated`, 'info');
     _closeRx();
     loadQueue();
+    loadUnregistered();
 
   } catch (err) {
     console.error(err);
@@ -838,6 +859,7 @@ window.printMedLabel = function(i) {
     ${item.anupana?`<div class="lbl-row"><span class="lbl-key">Anupana:</span><span>${_esc(item.anupana)}</span></div>`:''}
     <div class="lbl-row"><span class="lbl-key">Qty:</span><span>${item.qty}</span></div>
     ${item.is_high_risk?'<div class="lbl-warn">⚠ HIGH-RISK MEDICATION — DOUBLE CHECK</div>':''}
+    ${_invFor(item)?.is_schedule_e1?'<div class="lbl-warn">CAUTION: TO BE TAKEN UNDER MEDICAL SUPERVISION</div>':''}
   <\/body><\/html>`);
   w.document.close();
 };
@@ -860,10 +882,10 @@ window.closeNDPSTab = function() {
 async function loadNDPSMeds() {
   const { data } = await supabase.from('inventory')
     .select('id,medicine_id,stock_quantity,medicine:medicines(name)')
-    .eq('tenant_id',tenantId).eq('is_schedule_h',true);
+    .eq('tenant_id',tenantId).eq('is_ndps',true);   // Session 307 — NDPS drugs, not Schedule H
   _ndpsMeds = data || [];
   const sel = document.getElementById('ndps-med-sel');
-  sel.innerHTML = '<option value="">— Select Schedule H drug —</option>' +
+  sel.innerHTML = '<option value="">— Select NDPS drug —</option>' +
     _ndpsMeds.map(m => `<option value="${m.id}">${_esc(m.medicine?.name||'—')} (Stock: ${m.stock_quantity||0})</option>`).join('');
 }
 
@@ -915,11 +937,193 @@ window.saveNDPSEntry = async function() {
   const { error } = await supabase.from('ndps_register').insert({
     tenant_id: tenantId, medicine_id: inv.medicine_id, medicine_name: inv.medicine?.name,
     transaction_type: type, quantity: qty, unit: 'units', balance: newBalance,
-    notes: notes || null, created_by: userId, transaction_date: todayLocalStr(),
+    notes: notes || null, created_by: userId,
+    transaction_date: _ndpsPending?.sale_date || todayLocalStr(),
+    patient_id: _ndpsPending?.patient_id || null, prescription_ref: _ndpsPending?.prescription_id || null,
   });
   if (error) { _toast(safeErrorMessage(error, 'Could not save NDPS entry.'),'error'); return; }
   _toast('NDPS entry saved','success');
+  if (_ndpsPending) { _ndpsPending = null; _setRecordNote('ndps', ''); loadUnregistered(); }
   document.getElementById('ndps-qty').value = '';
   document.getElementById('ndps-notes').value = '';
   await loadNDPSRegister();
+  await window._ndpsUpdateBalance();   // Session 306 — refresh the running balance shown for the next entry
 };
+
+
+// ── Session 307 — Schedule H1 register ───────────────────────────────────────
+// Every H1 drug supplied is recorded: prescriber (name, reg. no.), patient, drug, quantity. Kept 3 years.
+function _invFor(c) {
+  return _inventory.find(i => i.id === c.id || (c.medicine_id && i.medicine_id === c.medicine_id));
+}
+
+async function _recordControlledSupplies(payable) {
+  const items = payable.map(c => ({ c, inv: _invFor(c) }));
+  const h1   = items.filter(x => x.inv?.is_schedule_h1);
+  const ndps = items.filter(x => x.inv?.is_ndps);
+  if (!h1.length && !ndps.length) return;
+  const pt = _activeRx?.patient || {};
+  const problems = [];
+
+  // NDPS — a "dispensed" line per drug; the server works out the running balance (and refuses a
+  // negative one, e.g. when the register has no opening balance yet).
+  for (const { c, inv } of ndps) {
+    const { error } = await supabase.from('ndps_register').insert({
+      tenant_id: tenantId, medicine_id: inv.medicine_id, medicine_name: c.name, transaction_type: 'dispensed',
+      quantity: c.qty, unit: 'units', balance: 0, batch_number: inv.batch_number || null,
+      patient_id: pt.id || null, prescription_ref: _activeRxId, transaction_date: todayLocalStr(),
+      notes: `Dispensed at the counter — ${pt.name || 'patient'}`,
+    });
+    if (error) problems.push(`NDPS register — ${c.name}: ${safeErrorMessage(error, 'not saved')}`);
+  }
+
+  // H1 — prescriber (name, reg. no.) from the visit's doctor
+  if (h1.length) {
+    const doctorId = _activeRx?.visit?.doctor_id || null;
+    let doc = null;
+    if (doctorId) {
+      const { data } = await supabase.from('profiles').select('full_name, registration_number, address').eq('id', doctorId).maybeSingle();
+      doc = data;
+    }
+    if (!doc?.full_name) {
+      problems.push(`H1 register — ${h1.map(x => x.c.name).join(', ')}: the prescriber could not be found from the visit. Record it by hand with the prescriber's name and registration number from the prescription.`);
+    } else {
+      const { error } = await supabase.from('schedule_h1_register').insert(h1.map(({ c, inv }) => ({
+        tenant_id: tenantId, medicine_id: inv.medicine_id, inventory_id: inv.id,
+        medicine_name: c.name, batch_number: inv.batch_number || null, quantity: c.qty,
+        patient_id: pt.id || null, patient_name: pt.name || '', patient_address: pt.address || null,
+        prescriber_id: doctorId, prescriber_name: doc.full_name, prescriber_reg_no: doc.registration_number || null,
+        prescriber_address: doc.address || null, prescription_id: _activeRxId,
+      })));
+      if (error) problems.push(`H1 register — ${h1.map(x => x.c.name).join(', ')}: ${safeErrorMessage(error, 'not saved')}`);
+    }
+  }
+
+  // The sale itself stands; what didn't reach a register shows in "Dispensed — not in register".
+  if (problems.length) {
+    alert('Dispensed, but not recorded in the register:\n\n• ' + problems.join('\n• ') +
+      '\n\nIt is listed under "Dispensed — not in register" on this page. Record it there today.');
+  }
+}
+
+let _h1Meds = [];
+window.openH1Tab = async function() {
+  document.getElementById('h1-panel').style.display = '';
+  document.getElementById('main-panel').style.display = 'none';
+  document.getElementById('h1-date').value = todayLocalStr();
+  const { data } = await supabase.from('inventory')
+    .select('id,medicine_id,batch_number,medicine:medicines(name)')
+    .eq('tenant_id', tenantId).eq('is_schedule_h1', true);
+  _h1Meds = data || [];
+  document.getElementById('h1-med-sel').innerHTML = '<option value="">— Select Schedule H1 drug —</option>' +
+    _h1Meds.map(m => `<option value="${m.id}">${_esc(m.medicine?.name || '—')}${m.batch_number ? ' · batch ' + _esc(m.batch_number) : ''}</option>`).join('');
+  await loadH1Register();
+};
+window.closeH1Tab = function() {
+  document.getElementById('h1-panel').style.display = 'none';
+  document.getElementById('main-panel').style.display = '';
+};
+
+async function loadH1Register() {
+  const { data, error } = await supabase.from('schedule_h1_register')
+    .select('*').eq('tenant_id', tenantId).order('entry_no', { ascending: false }).limit(50);
+  const el = document.getElementById('h1-list');
+  if (error) { el.textContent = safeErrorMessage(error, 'Could not load the H1 register.'); return; }
+  if (!data?.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px">No entries yet.</div>'; return; }
+  const th = 'padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)';
+  const td = 'padding:6px 10px;border-bottom:1px solid #f0f4f2';
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:#f5faf7"><th style="${th}">Date</th><th style="${th}">Drug</th><th style="${th};text-align:right">Qty</th><th style="${th}">Patient</th><th style="${th}">Prescriber</th></tr></thead>
+    <tbody>${data.map(r => `<tr class="${corrRowClass(r)}">
+      <td style="${td}">${_esc(r.supply_date)}${corrCell('schedule_h1_register', r)}</td>
+      <td style="${td};font-weight:600">${_esc(r.medicine_name)}${r.batch_number ? `<br><span style="font-size:11px;color:var(--text-muted)">Batch ${_esc(r.batch_number)}</span>` : ''}</td>
+      <td style="${td};text-align:right">${_esc(r.quantity)} ${_esc(r.unit || '')}</td>
+      <td style="${td}">${_esc(r.patient_name)}${r.patient_address ? `<br><span style="font-size:11px;color:var(--text-muted)">${_esc(r.patient_address)}</span>` : ''}</td>
+      <td style="${td}">${_esc(r.prescriber_name)}${r.prescriber_reg_no ? `<br><span style="font-size:11px;color:var(--text-muted)">Reg. ${_esc(r.prescriber_reg_no)}</span>` : ''}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+window.saveH1Entry = async function() {
+  const inv = _h1Meds.find(m => m.id === document.getElementById('h1-med-sel').value);
+  const qty = parseFloat(document.getElementById('h1-qty').value);
+  const v = id => document.getElementById(id).value.trim();
+  if (!inv || !qty) { _toast('Select the drug and enter the quantity', 'error'); return; }
+  if (!v('h1-patient') || !v('h1-prescriber')) { _toast("Enter the patient's and the prescriber's name", 'error'); return; }
+  const { error } = await supabase.from('schedule_h1_register').insert({
+    tenant_id: tenantId, medicine_id: inv.medicine_id, inventory_id: inv.id, medicine_name: inv.medicine?.name || '—',
+    batch_number: inv.batch_number || null, quantity: qty, supply_date: v('h1-date') || todayLocalStr(),
+    patient_name: v('h1-patient'), patient_address: v('h1-patient-addr') || null,
+    prescriber_name: v('h1-prescriber'), prescriber_reg_no: v('h1-reg') || null, notes: v('h1-notes') || null,
+    patient_id: _h1Pending?.patient_id || null, prescriber_id: _h1Pending?.prescriber_id || null,
+    prescription_id: _h1Pending?.prescription_id || null,
+  });
+  if (error) { _toast(safeErrorMessage(error, 'Could not save the H1 entry.'), 'error'); return; }
+  _toast('H1 register entry saved', 'success');
+  if (_h1Pending) { _h1Pending = null; _setRecordNote('h1', ''); loadUnregistered(); }
+  ['h1-qty','h1-patient','h1-patient-addr','h1-prescriber','h1-reg','h1-notes'].forEach(id => { document.getElementById(id).value = ''; });
+  await loadH1Register();
+};
+
+// ── Session 307 — "Dispensed — not in register" ───────────────────────────────
+// H1 / NDPS supplies of the last 7 days with no matching register entry (failed or missed), so they
+// are caught the same day. Server check: get_unregistered_controlled_supplies() (caller's own RLS).
+let _unregRows = [], _h1Pending = null, _ndpsPending = null;
+
+async function loadUnregistered() {
+  const box = document.getElementById('unreg-box');
+  if (!box) return;
+  const { data, error } = await supabase.rpc('get_unregistered_controlled_supplies', { p_days: 7 });
+  if (error) { console.error(error); box.style.display = 'none'; return; }
+  _unregRows = data || [];
+  document.getElementById('unreg-count').textContent = _unregRows.length;
+  box.style.display = _unregRows.length ? '' : 'none';
+  const list = document.getElementById('unreg-list');
+  list.innerHTML = _unregRows.map((r, i) => `<div style="display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid #f0d8d8;font-size:12px">
+      <div><strong>${_esc(r.register)}</strong> · ${_esc(r.medicine_name || '—')} × ${_esc(r.quantity)} · ${_esc(r.patient_name || '—')} · ${_esc(r.sale_date)} (${_esc(r.source)})
+        ${r.register === 'H1' && !r.prescriber_name ? '<br><span style="color:#8b1a1a;font-weight:600">Prescriber not found from the visit — take the name and registration number from the prescription.</span>' : ''}</div>
+      <button type="button" data-onclick="recordUnregistered" data-onclick-a0="${i}" style="min-height:44px;padding:0 12px;border:1.5px solid #c0392b;background:#fff;color:#8b1a1a;border-radius:7px;font:600 12px 'DM Sans',sans-serif;cursor:pointer;white-space:nowrap">Record now</button>
+    </div>`).join('');
+}
+window.toggleUnregistered = function() {
+  const l = document.getElementById('unreg-list');
+  l.style.display = l.style.display === 'none' ? '' : 'none';
+};
+
+function _setRecordNote(kind, text) {
+  const el = document.getElementById(kind + '-record-note');
+  if (!el) return;
+  el.textContent = text;
+  el.style.display = text ? '' : 'none';
+}
+
+window.recordUnregistered = async function(i) {
+  const r = _unregRows[Number(i)];
+  if (!r) return;
+  const who = `${r.medicine_name} × ${r.quantity} · ${r.patient_name || 'patient'} · sold ${r.sale_date}`;
+  if (r.register === 'H1') {
+    await window.openH1Tab();
+    const inv = _h1Meds.find(m => m.medicine_id === r.medicine_id);
+    if (inv) document.getElementById('h1-med-sel').value = inv.id;
+    document.getElementById('h1-qty').value = r.quantity;
+    document.getElementById('h1-date').value = r.sale_date;
+    document.getElementById('h1-patient').value = r.patient_name || '';
+    document.getElementById('h1-patient-addr').value = r.patient_address || '';
+    document.getElementById('h1-prescriber').value = r.prescriber_name || '';
+    document.getElementById('h1-reg').value = r.prescriber_reg_no || '';
+    _h1Pending = { patient_id: r.patient_id, prescriber_id: r.prescriber_id, prescription_id: r.prescription_id };
+    _setRecordNote('h1', `Recording a missed supply: ${who}.` + (r.prescriber_name ? '' :
+      ' Prescriber not found from the visit — enter the prescriber’s name and registration number from the prescription.'));
+  } else {
+    await window.openNDPSTab();
+    const inv = _ndpsMeds.find(m => m.medicine_id === r.medicine_id);
+    const sel = document.getElementById('ndps-med-sel');
+    if (inv) { sel.value = inv.id; await window._ndpsUpdateBalance(); }
+    document.getElementById('ndps-type').value = 'dispensed';
+    document.getElementById('ndps-qty').value = r.quantity;
+    document.getElementById('ndps-notes').value = `Dispensed ${r.sale_date} — ${r.patient_name || 'patient'} (recorded late)`;
+    _ndpsPending = { patient_id: r.patient_id, prescription_id: r.prescription_id, sale_date: r.sale_date };
+    _setRecordNote('ndps', `Recording a missed supply: ${who}.`);
+  }
+};
+window.addEventListener('focus', () => loadUnregistered());
+loadUnregistered();

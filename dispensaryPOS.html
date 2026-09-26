@@ -272,8 +272,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <div class="q-count" id="q-count">0</div>
-          <button data-onclick="openNDPSTab" style="font-size:10px;padding:3px 8px;background:#e3f0ff;color:#1a4080;border:1px solid #a8c8f0;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:600">Sch-H</button>
+          <button data-onclick="openNDPSTab" title="NDPS register (narcotic / psychotropic drugs)" style="min-height:32px;font-size:10px;padding:3px 8px;background:#f7e6f2;color:#8b1a6b;border:1px solid #d9a8c9;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:600">NDPS</button>
+          <button data-onclick="openH1Tab" title="Schedule H1 register" style="min-height:32px;font-size:10px;padding:3px 8px;background:#e3f0ff;color:#1a4080;border:1px solid #a8c8f0;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:600">H1</button>
         </div>
+      </div>
+      <!-- Session 307 — H1 / NDPS supplies with no register entry (last 7 days) -->
+      <div id="unreg-box" style="display:none;margin:0 0 10px;padding:10px 12px;background:#fdecea;border:1.5px solid #f5b8b8;border-radius:8px">
+        <button type="button" data-onclick="toggleUnregistered" style="all:unset;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#8b1a1a;min-height:32px">
+          ⚠ Dispensed — not in register: <span id="unreg-count">0</span> (H1 / NDPS, last 7 days)
+        </button>
+        <div id="unreg-list"></div>
       </div>
       <div class="q-filters">
         <button class="q-filter active" data-filter="pending" data-onclick="setFilter" data-onclick-a0="pending" data-onclick-a1="@this">Pending</button>
@@ -427,19 +435,20 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 <script type="module" src="./js/pwa/register-sw.js"></script>
 <script type="module" src="js/pages/dispensaryPOS.js"></script>
 
-<!-- NABH MOM.3 CORE — NDPS / Schedule H Narcotic Register Panel -->
+<!-- NABH MOM.3 CORE — NDPS (narcotic / psychotropic) Register Panel — Session 307: NDPS drugs only, not Schedule H -->
 <div id="ndps-panel" style="display:none;position:fixed;inset:0;background:var(--cream);z-index:200;overflow-y:auto;padding:20px">
   <div style="max-width:900px;margin:0 auto">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
       <div>
-        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep)">💊 Schedule H / NDPS Register</div>
-        <div style="font-size:12px;color:var(--text-muted)">NABH MOM.3 CORE — Narcotic and Psychotropic Substances Act 1985 compliance</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep)">💊 NDPS Register</div>
+        <div style="font-size:12px;color:var(--text-muted)">NABH MOM.3 CORE — Narcotic Drugs and Psychotropic Substances Act 1985 · drugs flagged NDPS in Inventory</div>
       </div>
       <button data-onclick="closeNDPSTab" style="height:44px;padding:0 16px;border:1.5px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px">← Back to Dispensary</button>
     </div>
 
     <!-- Entry form -->
     <div style="background:#fff;border:1.5px solid #a8c8f0;border-radius:12px;padding:18px 20px;margin-bottom:20px">
+<div id="ndps-record-note" role="status" style="display:none;margin-bottom:12px;padding:10px 12px;background:#fff7e6;border:1.5px solid #e8c068;border-radius:8px;font-size:13px;color:#7a4000"></div>
       <div style="font-weight:600;font-size:14px;color:#1a4080;margin-bottom:12px">New Register Entry</div>
       <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:10px;margin-bottom:10px">
         <div>
@@ -482,5 +491,41 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   </div>
 </div>
 
+
+<!-- Session 307 — Schedule H1 Register Panel (Drugs & Cosmetics Rules: prescriber, patient, drug, quantity; kept 3 years) -->
+<div id="h1-panel" style="display:none;position:fixed;inset:0;background:var(--cream);z-index:200;overflow-y:auto;padding:20px">
+  <div style="max-width:900px;margin:0 auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep)">💊 Schedule H1 Register</div>
+        <div style="font-size:12px;color:var(--text-muted)">Drugs &amp; Cosmetics Rules · every supply of a Schedule H1 drug · kept 3 years · filled automatically when an H1 drug is dispensed</div>
+      </div>
+      <button data-onclick="closeH1Tab" style="height:44px;padding:0 16px;border:1.5px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px">← Back to Dispensary</button>
+    </div>
+    <div style="background:#fff;border:1.5px solid #a8c8f0;border-radius:12px;padding:18px 20px;margin-bottom:20px">
+<div id="h1-record-note" role="status" style="display:none;margin-bottom:12px;padding:10px 12px;background:#fff7e6;border:1.5px solid #e8c068;border-radius:8px;font-size:13px;color:#7a4000"></div>
+      <div style="font-weight:600;font-size:14px;color:#1a4080;margin-bottom:12px">Record a supply by hand (e.g. not dispensed through this counter)</div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label for="h1-med-sel" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:3px;text-transform:uppercase">Drug *</label><select id="h1-med-sel" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"></select></div>
+        <div><label for="h1-qty" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:3px;text-transform:uppercase">Quantity *</label><input id="h1-qty" type="number" min="0.01" step="0.01" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+        <div><label for="h1-date" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:3px;text-transform:uppercase">Supply date *</label><input id="h1-date" type="date" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div><label for="h1-patient" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:3px;text-transform:uppercase">Patient name *</label><input id="h1-patient" type="text" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+        <div><label for="h1-patient-addr" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:3px;text-transform:uppercase">Patient address</label><input id="h1-patient-addr" type="text" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+        <div><label for="h1-prescriber" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:3px;text-transform:uppercase">Prescriber name *</label><input id="h1-prescriber" type="text" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+        <div><label for="h1-reg" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:3px;text-transform:uppercase">Prescriber reg. no.</label><input id="h1-reg" type="text" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end">
+        <div><label for="h1-notes" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:3px;text-transform:uppercase">Notes</label><input id="h1-notes" type="text" style="width:100%;height:36px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:inherit"/></div>
+        <button data-onclick="saveH1Entry" style="height:44px;padding:0 20px;background:#1a4080;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">Save Entry</button>
+      </div>
+    </div>
+    <div style="background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:18px 20px">
+      <div style="font-weight:600;font-size:14px;color:var(--green-deep);margin-bottom:12px">Register (last 50 entries)</div>
+      <div id="h1-list"><div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px">Loading…</div></div>
+    </div>
+  </div>
+</div>
 </body>
 </html>

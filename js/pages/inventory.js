@@ -74,7 +74,7 @@ async function loadInventory() {
     .select(`id, stock_quantity, mrp, cost_price, gst_percent, reorder_level,
              profit_percent, max_stock, expiry_date, inward_date, supplier_name, batch_number,
              is_gmp_certified, gmp_certificate_no, is_student_batch,
-             is_high_risk, is_lasa, lasa_pair, is_schedule_h,
+             is_high_risk, is_lasa, lasa_pair, is_schedule_h, is_schedule_h1, is_schedule_e1, is_ndps,
              medicine:medicines(id, name, category, is_active, indications, barcode, med_id, brand, unit, image_url, anupana, classical_reference, dosage_text)`)
     .eq('tenant_id', tenantId);
 
@@ -194,6 +194,9 @@ function renderTable() {
           ${i.is_high_risk ? '<span style="display:inline-block;margin-left:4px;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;background:#fdecea;color:#8b1a1a;border:1px solid #f5b8b8">⚠ HIGH-RISK</span>' : ''}
           ${i.is_lasa      ? '<span style="display:inline-block;margin-left:4px;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;background:#fff3cd;color:#7a4a00;border:1px solid #e8d08a">LASA</span>' : ''}
           ${i.is_schedule_h ? '<span style="display:inline-block;margin-left:4px;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;background:#e3f0ff;color:#1a4080;border:1px solid #a8c8f0">Sch-H</span>' : ''}
+          ${i.is_schedule_h1 ? '<span style="display:inline-block;margin-left:4px;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;background:#e3f0ff;color:#1a4080;border:1px solid #a8c8f0">Sch-H1</span>' : ''}
+          ${i.is_ndps ? '<span style="display:inline-block;margin-left:4px;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;background:#f7e6f2;color:#8b1a6b;border:1px solid #d9a8c9">NDPS</span>' : ''}
+          ${i.is_schedule_e1 ? '<span style="display:inline-block;margin-left:4px;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;background:#fdeee2;color:#9a4a10;border:1px solid #f0c09a">Sch-E1</span>' : ''}
           ${i.is_student_batch
             ? '<br><span style="display:inline-block;margin-top:2px;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;background:#fff8e1;color:#7a4000;border:1px solid #e8c068">⚠ STUDENT</span>'
             : ''}
@@ -460,6 +463,9 @@ function openPanel(invId) {
     document.getElementById('f-is-lasa').checked          = item.is_lasa           || false;
     document.getElementById('f-lasa-pair').value          = item.lasa_pair         || '';
     document.getElementById('f-is-schedule-h').checked    = item.is_schedule_h     || false;
+    document.getElementById('f-is-schedule-h1').checked   = item.is_schedule_h1    || false;
+    document.getElementById('f-is-schedule-e1').checked   = item.is_schedule_e1    || false;
+    document.getElementById('f-is-ndps').checked          = item.is_ndps           || false;
     _tags = Array.isArray(item.medicine.indications) ? [...item.medicine.indications] : [];
     document.getElementById('f-anupana').value       = item.medicine.anupana || '';
     document.getElementById('f-classical-ref').value = item.medicine.classical_reference || '';
@@ -487,6 +493,10 @@ function openPanel(invId) {
     document.getElementById('f-is-gmp').checked          = false;
     document.getElementById('f-gmp-cert-no').value        = '';
     document.getElementById('f-is-student-batch').checked = false;
+    // Session 307 — a new item must not inherit the safety / schedule flags of the last item edited
+    ['f-is-high-risk','f-is-lasa','f-is-schedule-h','f-is-schedule-h1','f-is-schedule-e1','f-is-ndps']
+      .forEach(id => { document.getElementById(id).checked = false; });
+    document.getElementById('f-lasa-pair').value = '';
   }
   renderTags();
   window._calcPricing();
@@ -539,6 +549,10 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
   const isLasa       = document.getElementById('f-is-lasa').checked;
   const lasaPair     = document.getElementById('f-lasa-pair').value.trim() || null;
   const isScheduleH  = document.getElementById('f-is-schedule-h').checked;
+  // Session 307 — separate drug classes: H1 register, E1 caution, NDPS register (not Schedule H)
+  const isScheduleH1 = document.getElementById('f-is-schedule-h1').checked;
+  const isScheduleE1 = document.getElementById('f-is-schedule-e1').checked;
+  const isNdps       = document.getElementById('f-is-ndps').checked;
   const imageUrl = document.getElementById('edit-image-url').value || null;
   const stock    = parseInt(document.getElementById('f-stock')?.value) || 0;
 
@@ -559,7 +573,8 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
                   inward_date: inward, expiry_date: expiry, batch_number: batch, supplier_name: supplier,
                   is_gmp_certified: isGmp, gmp_certificate_no: gmpCert,
                   is_student_batch: isStudentBatch, medicine_type: medType,
-                  is_high_risk: isHighRisk, is_lasa: isLasa, lasa_pair: lasaPair, is_schedule_h: isScheduleH })
+                  is_high_risk: isHighRisk, is_lasa: isLasa, lasa_pair: lasaPair, is_schedule_h: isScheduleH,
+                  is_schedule_h1: isScheduleH1, is_schedule_e1: isScheduleE1, is_ndps: isNdps })
         .eq('id', invId).eq('tenant_id', tenantId);
       if (ie) throw ie;
       _alert('success', `"${name}" updated.`);
@@ -579,7 +594,8 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
         inward_date: inward, expiry_date: expiry, batch_number: batch, supplier_name: supplier,
         is_gmp_certified: isGmp, gmp_certificate_no: gmpCert,
         is_student_batch: isStudentBatch, medicine_type: medType,
-        is_high_risk: isHighRisk, is_lasa: isLasa, lasa_pair: lasaPair, is_schedule_h: isScheduleH
+        is_high_risk: isHighRisk, is_lasa: isLasa, lasa_pair: lasaPair, is_schedule_h: isScheduleH,
+        is_schedule_h1: isScheduleH1, is_schedule_e1: isScheduleE1, is_ndps: isNdps
       });
       if (ie) throw ie;
       _alert('success', `"${name}" added to inventory.`);
