@@ -4,6 +4,8 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr } from '../utils/dateUtils.js';
+import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
+import { initCorrections, defineCorrection, corrRowClass, corrCell, activeRows } from '../modules/registers/corrections.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist'], 'index.html');
 initNavbar();
@@ -15,6 +17,28 @@ window._closeIfSelf = function(isSelf, fnName) {
 
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
+// Session 306 — only these roles may write this register (must match sql/session306_statutory_registers_lockdown.sql)
+if (!canWriteRegister(profile, ['nurse','nurse_manager','dept_admin','super_admin'])) {
+  hideRegisterWrites(['saveCycle','saveBI','openEquipModal','saveEquipment']);
+  showViewOnlyNote('CSSD entries are recorded by nursing staff and administrators. You can view this register.');
+}
+// Session 306 — a cycle / BI test is corrected by a new entry; the old one is struck through, not counted
+const _IND = [['pass','Pass'],['fail','Fail'],['pending','Pending'],['not_done','Not done']];
+initCorrections(supabase, tenantId);
+defineCorrection('sterilisation_cycles', {
+  title: 'sterilisation entry',
+  canWrite: canWriteRegister(profile, ['nurse','nurse_manager','dept_admin','super_admin']),
+  reload: async () => { await window.loadCycleTable(); await loadBITable(); await loadStats(); await loadComplianceBanner(); },
+  fields: [ { k:'cycle_date', label:'Date', type:'date' }, { k:'cycle_no', label:'Cycle no.', type:'number' },
+    { k:'load_description', label:'Load', full:true }, { k:'item_count', label:'Items', type:'number' },
+    { k:'start_time', label:'Start', type:'time' }, { k:'end_time', label:'End', type:'time' },
+    { k:'duration_min', label:'Duration (min)', type:'number' }, { k:'temperature_c', label:'Temperature (°C)', type:'number' },
+    { k:'pressure_psi', label:'Pressure (psi)', type:'number' }, { k:'sterility_expiry_date', label:'Sterility expiry', type:'date' },
+    { k:'chemical_indicator', label:'Chemical indicator', type:'select', options:_IND },
+    { k:'biological_indicator', label:'Biological indicator', type:'select', options:_IND },
+    { k:'bi_lot_no', label:'BI lot no.' },
+    { k:'status', label:'Status', type:'select', options:[['completed','Completed'],['failed','Failed'],['quarantine','Quarantine']] },
+    { k:'released_by', label:'Released / tested by' }, { k:'remarks', label:'Remarks', type:'textarea' } ] });
 const now      = new Date();
 const todayStr = localDateStr(now);
 
@@ -81,10 +105,10 @@ async function loadStats() {
   const sevenAgo  = new Date(now); sevenAgo.setDate(sevenAgo.getDate()-7);
 
   const [todayRes, weekRes, failRes, expiryRes, equipRes] = await Promise.all([
-    supabase.from('sterilisation_cycles').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).eq('cycle_date',todayStr),
-    supabase.from('sterilisation_cycles').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('cycle_date',weekStart),
-    supabase.from('sterilisation_cycles').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).eq('biological_indicator','fail').gte('cycle_date',localDateStr(thirtyAgo)),
-    supabase.from('sterilisation_cycles').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('sterility_expiry_date',todayStr).lte('sterility_expiry_date',localDateStr(sevenAgo)),
+    supabase.from('sterilisation_cycles').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).is('superseded_by',null).eq('cycle_date',todayStr),
+    supabase.from('sterilisation_cycles').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).is('superseded_by',null).gte('cycle_date',weekStart),
+    supabase.from('sterilisation_cycles').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).is('superseded_by',null).eq('biological_indicator','fail').gte('cycle_date',localDateStr(thirtyAgo)),
+    supabase.from('sterilisation_cycles').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).is('superseded_by',null).gte('sterility_expiry_date',todayStr).lte('sterility_expiry_date',localDateStr(sevenAgo)),
     supabase.from('sterilisation_equipment').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).eq('is_active',true),
   ]);
 
@@ -100,7 +124,7 @@ async function loadComplianceBanner() {
   const banner = document.getElementById('compliance-banner');
   const { data, error } = await supabase.from('sterilisation_cycles')
     .select('cycle_date,sterilisation_equipment(name)')
-    .eq('tenant_id',tenantId)
+    .eq('tenant_id',tenantId).is('superseded_by',null)
     .in('biological_indicator',['pass','fail'])
     .order('cycle_date',{ascending:false}).limit(1);
 
@@ -211,13 +235,13 @@ window.loadCycleTable = async function() {
   const utilEl = document.getElementById('cssd-utilization');
   if (utilEl) {
     const deptCounts = {};
-    _cycleData.forEach(r => {
+    activeRows(_cycleData).forEach(r => {
       const dn = r.departments?.name || 'Unspecified';
       if (!deptCounts[dn]) deptCounts[dn] = { cycles: 0, items: 0 };
       deptCounts[dn].cycles++;
       deptCounts[dn].items += r.item_count || 0;
     });
-    const total = _cycleData.length;
+    const total = activeRows(_cycleData).length;
     utilEl.innerHTML = Object.entries(deptCounts).length === 0
       ? '<span style="color:var(--text-muted)">No data</span>'
       : Object.entries(deptCounts).map(([dept, d]) => {
@@ -239,8 +263,8 @@ window.loadCycleTable = async function() {
     const expTxt    = expDays === null ? '—' : expDays < 0 ? `Expired ${Math.abs(expDays)}d ago` : expDays === 0 ? 'Expires today' : `${expDays}d`;
     const biResult  = r.biological_indicator || 'not_done';
     const rowCls    = (r.status === 'failed' || r.biological_indicator === 'fail') ? 'row-failed' : '';
-    return `<tr class="${rowCls}">
-      <td style="font-weight:700">#${r.cycle_no||'—'}<br><span style="font-size:10px;color:var(--text-muted)">${r.start_time||''}</span></td>
+    return `<tr class="${rowCls} ${corrRowClass(r)}">
+      <td style="font-weight:700">#${r.cycle_no||'—'}<br><span style="font-size:10px;color:var(--text-muted)">${r.start_time||''}</span>${corrCell('sterilisation_cycles', r)}</td>
       <td style="font-size:12px;font-weight:500">${_esc(r.sterilisation_equipment?.name||'—')}</td>
       <td style="font-size:12px">${_esc(r.departments?.name||'—')}</td>
       <td style="font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${_esc(r.load_description||'')}">${_esc(r.load_description||'—')}</td>
@@ -320,8 +344,8 @@ async function loadBITable() {
   }
   _biData = data || [];
   if (!_biData.length) { tbody.innerHTML='<tr><td colspan="8"><div class="empty"><div class="empty-ico">🧫</div><div class="empty-ttl">No BI tests in last 90 days</div></div></td></tr>'; return; }
-  tbody.innerHTML = _biData.map(r=>`<tr class="${r.biological_indicator==='fail'?'row-failed':''}">
-    <td style="font-weight:600">${r.cycle_date}</td>
+  tbody.innerHTML = _biData.map(r=>`<tr class="${r.biological_indicator==='fail'?'row-failed':''} ${corrRowClass(r)}">
+    <td style="font-weight:600">${r.cycle_date}${corrCell('sterilisation_cycles', r)}</td>
     <td style="font-size:12px">${_esc(r.sterilisation_equipment?.name||'—')}</td>
     <td style="text-align:center">${r.cycle_no||'—'}</td>
     <td style="font-size:12px">${_esc(r.bi_spore_type?.replace('_',' ')||'—')}</td>

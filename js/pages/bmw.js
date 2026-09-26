@@ -4,6 +4,8 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr } from '../utils/dateUtils.js';
+import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
+import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist'], 'index.html');
 initNavbar();
@@ -11,6 +13,40 @@ wireDelegatedEvents();
 
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
+// Session 306 — only these roles may write this register (must match sql/session306_statutory_registers_lockdown.sql)
+if (!canWriteRegister(profile, ['nurse','nurse_manager','dept_admin','super_admin'])) {
+  hideRegisterWrites(['saveDailyLog','savePickup','saveTreatment']);
+  showViewOnlyNote('Biomedical waste entries are recorded by nursing staff and administrators. You can view this register.');
+}
+// Session 306 — corrections are new entries; the corrected one is struck through and left out of totals
+const _bmwCanWrite = canWriteRegister(profile, ['nurse','nurse_manager','dept_admin','super_admin']);
+const _BIN = [['yellow','Yellow'],['red','Red'],['white','White (sharps)'],['blue','Blue'],['mixed','Mixed']];
+initCorrections(supabase, tenantId);
+defineCorrection('bmw_daily_log', { title: 'BMW daily log entry', canWrite: _bmwCanWrite,
+  reload: () => window.loadAll(),
+  fields: [ { k:'log_date', label:'Date', type:'date' }, { k:'yellow_kg', label:'Yellow (kg)', type:'number' },
+    { k:'red_kg', label:'Red (kg)', type:'number' }, { k:'white_count', label:'White / sharps (count)', type:'number' },
+    { k:'blue_kg', label:'Blue (kg)', type:'number' }, { k:'collection_time', label:'Collection time', type:'time' },
+    { k:'storage_hours', label:'Storage (hours)', type:'number' }, { k:'remarks', label:'Remarks', type:'textarea' } ] });
+defineCorrection('bmw_pickups', { title: 'CBWTF pickup', canWrite: _bmwCanWrite,
+  reload: async () => { await loadPickupTable(); await loadComplianceBanner(); },
+  fields: [ { k:'pickup_date', label:'Pickup date', type:'date' }, { k:'pickup_time', label:'Time', type:'time' },
+    { k:'cbwtf_name', label:'CBWTF agency' }, { k:'vehicle_no', label:'Vehicle no.' }, { k:'driver_name', label:'Driver' },
+    { k:'manifest_no', label:'Manifest no.' }, { k:'receipt_no', label:'Receipt no.' },
+    { k:'yellow_kg', label:'Yellow (kg)', type:'number' }, { k:'red_kg', label:'Red (kg)', type:'number' },
+    { k:'white_kg', label:'Sharps (kg)', type:'number' }, { k:'blue_kg', label:'Blue (kg)', type:'number' },
+    { k:'total_kg', label:'Total (kg)', type:'number' }, { k:'remarks', label:'Remarks', type:'textarea' } ] });
+defineCorrection('bmw_treatment_log', { title: 'treatment cycle', canWrite: _bmwCanWrite,
+  reload: () => loadTreatmentTable(),
+  fields: [ { k:'treatment_date', label:'Date', type:'date' },
+    { k:'treatment_type', label:'Treatment', type:'select', options:[['autoclave','Autoclave'],['microwave','Microwave'],['dry_heat','Dry heat'],['chemical','Chemical'],['incineration','Incineration'],['deep_burial','Deep burial']] },
+    { k:'equipment_id', label:'Equipment' }, { k:'cycle_no', label:'Cycle no.', type:'number' },
+    { k:'waste_category', label:'Waste category', type:'select', options:_BIN },
+    { k:'start_time', label:'Start', type:'time' }, { k:'end_time', label:'End', type:'time' },
+    { k:'temperature_c', label:'Temperature (°C)', type:'number' }, { k:'pressure_psi', label:'Pressure (psi)', type:'number' },
+    { k:'duration_min', label:'Duration (min)', type:'number' }, { k:'weight_kg', label:'Weight (kg)', type:'number' },
+    { k:'biological_indicator', label:'BI result', type:'select', options:[['pass','Pass'],['fail','Fail'],['pending','Pending'],['not_done','Not done']] },
+    { k:'operator_name', label:'Operator' }, { k:'remarks', label:'Remarks', type:'textarea' } ] });
 const now      = new Date();
 const todayStr = localDateStr(now);
 
@@ -51,7 +87,7 @@ window.loadAll = async function() {
 async function loadStats() {
   const monthStart = localDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
   const { data } = await supabase.from('bmw_daily_log').select('yellow_kg,red_kg,white_count,blue_kg')
-    .eq('tenant_id',tenantId).gte('log_date',monthStart).lte('log_date',todayStr);
+    .eq('tenant_id',tenantId).is('superseded_by',null).gte('log_date',monthStart).lte('log_date',todayStr);
   if (!data) return;
   const sum = (key) => data.reduce((s,r)=>s+(Number(r[key])||0),0);
   const yellow = sum('yellow_kg'), red = sum('red_kg'), white = sum('white_count'), blue = sum('blue_kg');
@@ -65,7 +101,7 @@ async function loadStats() {
 
 async function loadComplianceBanner() {
   const banner = document.getElementById('compliance-banner');
-  const { data } = await supabase.from('bmw_pickups').select('pickup_date').eq('tenant_id',tenantId)
+  const { data } = await supabase.from('bmw_pickups').select('pickup_date').eq('tenant_id',tenantId).is('superseded_by',null)
     .order('pickup_date',{ascending:false}).limit(1);
   const lastPickup = data?.[0]?.pickup_date;
   if (!lastPickup) {
@@ -132,10 +168,10 @@ window.loadDailyTable = async function() {
   if (!_dailyData.length) { tbody.innerHTML='<tr><td colspan="7"><div class="empty"><div class="empty-ico">♻</div><div class="empty-ttl">No entries for this date</div></div></td></tr>'; return; }
   let totalY=0,totalR=0,totalW=0,totalB=0;
   tbody.innerHTML = _dailyData.map(r=>{
-    totalY+=Number(r.yellow_kg||0); totalR+=Number(r.red_kg||0); totalW+=Number(r.white_count||0); totalB+=Number(r.blue_kg||0);
+    if (!r.superseded_by) { totalY+=Number(r.yellow_kg||0); totalR+=Number(r.red_kg||0); totalW+=Number(r.white_count||0); totalB+=Number(r.blue_kg||0); }
     const storageWarn = r.storage_hours > 24 ? 'color:var(--bmw-red);font-weight:700' : '';
-    return `<tr>
-      <td style="font-weight:500">${_esc(r.departments?.name||'—')}</td>
+    return `<tr class="${corrRowClass(r)}">
+      <td style="font-weight:500">${_esc(r.departments?.name||'—')}${corrCell('bmw_daily_log', r)}</td>
       <td style="background:var(--bmw-yellow-bg);color:var(--bmw-yellow);font-weight:600;text-align:center">${r.yellow_kg||'—'}</td>
       <td style="background:var(--bmw-red-bg);color:var(--bmw-red);font-weight:600;text-align:center">${r.red_kg||'—'}</td>
       <td style="background:var(--bmw-white-bg);color:var(--bmw-white);font-weight:600;text-align:center">${r.white_count||'—'}</td>
@@ -203,8 +239,8 @@ async function loadPickupTable() {
   }
   _pickupData = data || [];
   if (!_pickupData.length) { tbody.innerHTML='<tr><td colspan="8"><div class="empty"><div class="empty-ico">🚛</div><div class="empty-ttl">No pickups logged yet</div></div></td></tr>'; return; }
-  tbody.innerHTML = _pickupData.map(r=>`<tr>
-    <td style="font-weight:600">${r.pickup_date}<br><span style="font-size:11px;color:var(--text-muted)">${r.pickup_time||''}</span></td>
+  tbody.innerHTML = _pickupData.map(r=>`<tr class="${corrRowClass(r)}">
+    <td style="font-weight:600">${r.pickup_date}<br><span style="font-size:11px;color:var(--text-muted)">${r.pickup_time||''}</span>${corrCell('bmw_pickups', r)}</td>
     <td style="font-size:12px">${_esc(r.cbwtf_name||'—')}</td>
     <td style="font-size:12px">${_esc(r.vehicle_no||'—')}</td>
     <td style="font-size:12px;font-weight:600">${_esc(r.manifest_no||'—')}</td>
@@ -265,8 +301,8 @@ async function loadTreatmentTable() {
   _treatData = data || [];
   if (!_treatData.length) { tbody.innerHTML='<tr><td colspan="9"><div class="empty"><div class="empty-ico">🔬</div><div class="empty-ttl">No treatment cycles logged yet</div></div></td></tr>'; return; }
   const biCls = {pass:'bi-pass',fail:'bi-fail',pending:'bi-pending',not_done:''};
-  tbody.innerHTML = _treatData.map(r=>`<tr>
-    <td style="font-weight:600;white-space:nowrap">${r.treatment_date}</td>
+  tbody.innerHTML = _treatData.map(r=>`<tr class="${corrRowClass(r)}">
+    <td style="font-weight:600;white-space:nowrap">${r.treatment_date}${corrCell('bmw_treatment_log', r)}</td>
     <td style="font-size:12px;font-weight:500">${_typeLabel(r.treatment_type)}</td>
     <td style="font-size:12px">${_esc(r.equipment_id||'—')}</td>
     <td style="text-align:center">${r.cycle_no||'—'}</td>
@@ -297,9 +333,9 @@ window.loadMonthlySummary = async function() {
   body.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Generating…</div></div>';
 
   const [logRes, pickRes, treatRes] = await Promise.all([
-    supabase.from('bmw_daily_log').select('yellow_kg,red_kg,white_count,blue_kg,log_date').eq('tenant_id',tenantId).gte('log_date',start).lte('log_date',end),
-    supabase.from('bmw_pickups').select('yellow_kg,red_kg,white_kg,blue_kg,total_kg,manifest_no,pickup_date').eq('tenant_id',tenantId).gte('pickup_date',start).lte('pickup_date',end),
-    supabase.from('bmw_treatment_log').select('weight_kg,treatment_type,waste_category').eq('tenant_id',tenantId).gte('treatment_date',start).lte('treatment_date',end),
+    supabase.from('bmw_daily_log').select('yellow_kg,red_kg,white_count,blue_kg,log_date').eq('tenant_id',tenantId).is('superseded_by',null).gte('log_date',start).lte('log_date',end),
+    supabase.from('bmw_pickups').select('yellow_kg,red_kg,white_kg,blue_kg,total_kg,manifest_no,pickup_date').eq('tenant_id',tenantId).is('superseded_by',null).gte('pickup_date',start).lte('pickup_date',end),
+    supabase.from('bmw_treatment_log').select('weight_kg,treatment_type,waste_category').eq('tenant_id',tenantId).is('superseded_by',null).gte('treatment_date',start).lte('treatment_date',end),
   ]);
 
   if (logRes.error && logRes.error.code === '42P01') {

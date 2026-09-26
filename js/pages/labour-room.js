@@ -4,6 +4,8 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr } from '../utils/dateUtils.js';
+import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
+import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist'], 'index.html');
 initNavbar();
@@ -11,6 +13,27 @@ wireDelegatedEvents();
 
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
+// Session 306 — only these roles may write this register (must match sql/session306_statutory_registers_lockdown.sql)
+if (!canWriteRegister(profile, ['doctor','nurse','dept_admin','super_admin'])) {
+  hideRegisterWrites(['openNewDelivery','saveDelivery']);
+  showViewOnlyNote('Deliveries are recorded by doctors and nurses. You can view the register.');
+}
+// Session 306 — the delivery (birth) register is corrected by a new entry, never edited or deleted
+initCorrections(supabase, tenantId);
+defineCorrection('deliveries', { title: 'delivery record',
+  canWrite: canWriteRegister(profile, ['doctor','nurse','dept_admin','super_admin']),
+  reload: async () => { await loadStats(); await loadRegister(); },
+  fields: [ { k:'delivery_date', label:'Delivery date', type:'date' }, { k:'delivery_time', label:'Time', type:'time' },
+    { k:'mode', label:'Mode', type:'select', options:[['normal','Normal'],['lscs','LSCS'],['forceps','Forceps'],['vacuum','Vacuum']] },
+    { k:'gestational_age', label:'Gestational age (weeks)', type:'number' }, { k:'duration_labour', label:'Labour (hours)', type:'number' },
+    { k:'blood_loss_ml', label:'Blood loss (ml)', type:'number' },
+    { k:'sex', label:'Baby sex', type:'select', options:[['male','Male'],['female','Female'],['ambiguous','Ambiguous']] },
+    { k:'birth_weight_g', label:'Birth weight (g)', type:'number' },
+    { k:'apgar_1min', label:'APGAR 1 min', type:'number' }, { k:'apgar_5min', label:'APGAR 5 min', type:'number' },
+    { k:'baby_outcome', label:'Baby outcome', type:'select', options:[['live_birth','Live birth'],['stillbirth','Stillbirth'],['nnd','Neonatal death']] },
+    { k:'mother_outcome', label:'Mother outcome', type:'select', options:[['normal','Normal'],['icu','ICU'],['referred','Referred'],['deceased','Deceased']] },
+    { k:'is_mlc', label:'Medico-legal case (MLC)', type:'checkbox' }, { k:'mlc_number', label:'MLC number' },
+    { k:'complications', label:'Complications', type:'textarea' }, { k:'notes', label:'Notes', type:'textarea' } ] });
 
 // Default month = current
 const now = new Date();
@@ -47,8 +70,8 @@ async function loadStats() {
   const todayE = localDateStr(now) + 'T23:59:59';
 
   const [mRes, tRes] = await Promise.all([
-    supabase.from('deliveries').select('id,mode,sex,birth_weight_g,baby_outcome').eq('tenant_id',tenantId).gte('delivery_date',start).lte('delivery_date',end),
-    supabase.from('deliveries').select('id').eq('tenant_id',tenantId).gte('delivery_date',todayS.split('T')[0]).lte('delivery_date',todayE.split('T')[0]),
+    supabase.from('deliveries').select('id,mode,sex,birth_weight_g,baby_outcome').eq('tenant_id',tenantId).is('superseded_by',null).gte('delivery_date',start).lte('delivery_date',end),
+    supabase.from('deliveries').select('id').eq('tenant_id',tenantId).is('superseded_by',null).gte('delivery_date',todayS.split('T')[0]).lte('delivery_date',todayE.split('T')[0]),
   ]);
   const mData = mRes.data || [];
   const tData = tRes.data || [];
@@ -94,10 +117,10 @@ window.renderRegister = function() {
   const rows = _allDeliveries.filter(d => !mf || d.mode === mf);
   const tbody = document.getElementById('register-tbody');
   if (!rows.length) { tbody.innerHTML='<tr><td colspan="9"><div class="empty"><div class="empty-ico">🤱</div><div class="empty-ttl">No deliveries in this period</div></div></td></tr>'; return; }
-  tbody.innerHTML = rows.map(d=>`<tr>
+  tbody.innerHTML = rows.map(d=>`<tr class="${corrRowClass(d)}">
     <td>
       <div style="font-weight:600">${d.delivery_date}</div>
-      <div style="font-size:11px;color:var(--text-muted)">${d.delivery_time||''}</div>
+      <div style="font-size:11px;color:var(--text-muted)">${d.delivery_time||''}</div>${corrCell('deliveries', d)}
     </td>
     <td>
       <div style="font-weight:500">${_esc(d.patients?.name||'Unknown')}</div>

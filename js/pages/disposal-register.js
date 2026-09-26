@@ -1,9 +1,11 @@
-import { requireAuth, getCurrentTenantId, getCurrentTenant } from '../core/auth.js';
+import { requireAuth, getCurrentTenantId, getCurrentTenant, getCurrentProfile } from '../core/auth.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr } from '../utils/dateUtils.js';
+import { initCorrections, defineCorrection, corrRowClass, corrCell, activeRows } from '../modules/registers/corrections.js';
+import { canWriteRegister } from '../utils/registerAccess.js';
 
 await requireAuth(['pharmacist','super_admin','dept_admin','accountant'], 'login.html');
 initNavbar();
@@ -32,6 +34,24 @@ const METHOD_LABEL = {
 
 let _records = [];
 
+// Session 306 — corrections, never edits/deletes (sql/session306_statutory_registers_lockdown.sql)
+initCorrections(supabase, tenantId);
+defineCorrection('disposal_records', {
+  title: 'disposal entry',
+  canWrite: canWriteRegister(getCurrentProfile(), ['pharmacist','dept_admin','super_admin']),
+  reload: () => window.loadRecords(),
+  fields: [
+    { k:'disposal_date', label:'Disposal date', type:'date' },
+    { k:'medicine_name', label:'Medicine' },
+    { k:'batch_number', label:'Batch no.' },
+    { k:'expiry_date', label:'Expiry date', type:'date' },
+    { k:'quantity', label:'Quantity', type:'number' },
+    { k:'disposal_method', label:'Method', type:'select', options: Object.entries(METHOD_LABEL) },
+    { k:'witnessed_by', label:'Witnessed by' },
+    { k:'remarks', label:'Remarks', type:'textarea' },
+  ],
+});
+
 window.loadRecords = async function() {
   const from   = document.getElementById('f-from').value;
   const to     = document.getElementById('f-to').value;
@@ -58,10 +78,11 @@ window.loadRecords = async function() {
 
 function renderStats() {
   const thisMonth = `${y}-${m}`;
-  document.getElementById('s-total').textContent   = _records.length;
-  document.getElementById('s-qty').textContent     = _records.reduce((s,r)=>s+(r.quantity||0),0);
-  document.getElementById('s-month').textContent   = _records.filter(r=>(r.disposal_date||'').startsWith(thisMonth)).length;
-  const methods = new Set(_records.map(r=>r.disposal_method)).size;
+  const live = activeRows(_records);   // corrected entries are superseded — not counted
+  document.getElementById('s-total').textContent   = live.length;
+  document.getElementById('s-qty').textContent     = live.reduce((s,r)=>s+(r.quantity||0),0);
+  document.getElementById('s-month').textContent   = live.filter(r=>(r.disposal_date||'').startsWith(thisMonth)).length;
+  const methods = new Set(live.map(r=>r.disposal_method)).size;
   document.getElementById('s-methods').textContent = methods;
 }
 
@@ -72,8 +93,8 @@ function renderTable() {
     return;
   }
   tbody.innerHTML = _records.map((r, idx) => `
-    <tr>
-      <td style="color:var(--text-muted)">${idx+1}</td>
+    <tr class="${corrRowClass(r)}">
+      <td style="color:var(--text-muted)">${idx+1}${corrCell('disposal_records', r)}</td>
       <td>${_fmtDate(r.disposal_date)}</td>
       <td><strong>${_esc(r.medicine_name)}</strong></td>
       <td style="font-family:monospace;font-size:12px;color:var(--text-muted)">${_esc(r.batch_number||'—')}</td>

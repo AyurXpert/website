@@ -4,6 +4,8 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
+import { initCorrections, defineCorrection, corrRowClass, corrCell, activeRows, CORR_COLS } from '../modules/registers/corrections.js';
+import { canWriteRegister } from '../utils/registerAccess.js';
 
 await requireAuth(['super_admin','dept_admin','nurse','receptionist']);
 initNavbar();
@@ -16,6 +18,27 @@ const myProfile = getCurrentProfile();
 const todayStr  = todayLocalStr();
 
 let _hkRows = [], _ldRows = [], _visRows = [], _incRows = [];
+
+// Session 306 — log entries are corrected by a new entry, never edited or deleted
+// (sql/session306_statutory_registers_lockdown.sql); the corrected one is struck through, not counted.
+const _facWriter = canWriteRegister(myProfile, ['nurse','receptionist','dept_admin','super_admin']);
+initCorrections(supabase, tenantId);
+defineCorrection('housekeeping_rounds', { title: 'housekeeping round', canWrite: _facWriter, reload: () => window.loadHk(),
+  fields: [ { k:'round_date', label:'Date', type:'date' },
+    { k:'shift', label:'Shift', type:'select', options:[['morning','Morning'],['afternoon','Afternoon'],['night','Night']] },
+    { k:'zone', label:'Zone' }, { k:'qc_score', label:'QC score', type:'number' }, { k:'notes', label:'Notes', type:'textarea' } ] });
+defineCorrection('laundry_cycles', { title: 'laundry cycle', canWrite: _facWriter, reload: () => window.loadLd(),
+  fields: [ { k:'cycle_date', label:'Date', type:'date' }, { k:'source_zone', label:'Source zone' },
+    { k:'collected_qty', label:'Collected', type:'number' }, { k:'distributed_qty', label:'Distributed', type:'number' },
+    { k:'disinfection_method', label:'Disinfection' }, { k:'vendor_name', label:'Vendor' }, { k:'notes', label:'Notes', type:'textarea' } ] });
+defineCorrection('security_visitor_log', { title: 'visitor entry', canWrite: _facWriter, reload: () => window.loadVisitors(),
+  fields: [ { k:'visitor_name', label:'Visitor name' }, { k:'purpose', label:'Purpose' },
+    { k:'id_proof', label:'ID proof' }, { k:'met_person', label:'Person met' } ] });
+defineCorrection('security_incidents', { title: 'incident', canWrite: _facWriter, reload: () => window.loadIncidents(),
+  fields: [ { k:'incident_date', label:'Date', type:'date' }, { k:'incident_time', label:'Time', type:'time' },
+    { k:'location', label:'Location' },
+    { k:'severity', label:'Severity', type:'select', options:[['low','Low'],['medium','Medium'],['high','High']] },
+    { k:'description', label:'Description', type:'textarea' }, { k:'action_taken', label:'Action taken', type:'textarea' } ] });
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 window.setTab = function(btn, tab) {
@@ -71,7 +94,7 @@ window.saveHk = async function() {
 
 window.loadHk = async function() {
   let q = supabase.from('housekeeping_rounds')
-    .select('id,round_date,shift,zone,qc_score,notes,staff:profiles!staff_id(full_name),qc:profiles!qc_by(full_name)')
+    .select('id,round_date,shift,zone,qc_score,notes,staff:profiles!staff_id(full_name),qc:profiles!qc_by(full_name),' + CORR_COLS)
     .eq('tenant_id', tenantId).order('round_date',{ascending:false});
   const from = document.getElementById('hk-from').value, to = document.getElementById('hk-to').value;
   if (from) q = q.gte('round_date', from);
@@ -79,15 +102,15 @@ window.loadHk = async function() {
   const { data, error } = await q;
   if (error) { _alert('error', safeErrorMessage(error, 'Load error. Please try again.')); return; }
   _hkRows = data || [];
-  const todays = _hkRows.filter(r => r.round_date === todayStr);
+  const todays = activeRows(_hkRows).filter(r => r.round_date === todayStr);
   document.getElementById('hk-stat-rounds').textContent = todays.length;
   const scored = todays.filter(r=>r.qc_score);
   document.getElementById('hk-stat-qc').textContent = scored.length ? (scored.reduce((s,r)=>s+r.qc_score,0)/scored.length).toFixed(1) : '—';
 
   const tbody = document.getElementById('hk-tbody');
   if (!_hkRows.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">No rounds logged for this range.</td></tr>'; return; }
-  tbody.innerHTML = _hkRows.map(r => `<tr>
-    <td>${_fmtDate(r.round_date)}</td><td>${_cap(r.shift)}</td><td>${_esc(r.zone)}</td>
+  tbody.innerHTML = _hkRows.map(r => `<tr class="${corrRowClass(r)}">
+    <td>${_fmtDate(r.round_date)}${corrCell('housekeeping_rounds', r)}</td><td>${_cap(r.shift)}</td><td>${_esc(r.zone)}</td>
     <td>${_esc(r.staff?.full_name || '—')}</td><td>${r.qc_score || '—'}</td>
     <td>${_esc(r.qc?.full_name || '—')}</td><td>${_esc(r.notes || '—')}</td>
   </tr>`).join('');
@@ -124,7 +147,7 @@ window.saveLd = async function() {
 
 window.loadLd = async function() {
   let q = supabase.from('laundry_cycles')
-    .select('id,cycle_date,source_zone,collected_qty,disinfection_method,distributed_qty,vendor_name,notes,handler:profiles!handled_by(full_name)')
+    .select('id,cycle_date,source_zone,collected_qty,disinfection_method,distributed_qty,vendor_name,notes,handler:profiles!handled_by(full_name),' + CORR_COLS)
     .eq('tenant_id', tenantId).order('cycle_date',{ascending:false});
   const from = document.getElementById('ld-from').value, to = document.getElementById('ld-to').value;
   if (from) q = q.gte('cycle_date', from);
@@ -132,14 +155,14 @@ window.loadLd = async function() {
   const { data, error } = await q;
   if (error) { _alert('error', safeErrorMessage(error, 'Load error. Please try again.')); return; }
   _ldRows = data || [];
-  const todays = _ldRows.filter(r => r.cycle_date === todayStr);
+  const todays = activeRows(_ldRows).filter(r => r.cycle_date === todayStr);
   document.getElementById('ld-stat-cycles').textContent = todays.length;
   document.getElementById('ld-stat-qty').textContent = todays.reduce((s,r)=>s+(r.collected_qty||0),0);
 
   const tbody = document.getElementById('ld-tbody');
   if (!_ldRows.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted)">No cycles logged for this range.</td></tr>'; return; }
-  tbody.innerHTML = _ldRows.map(r => `<tr>
-    <td>${_fmtDate(r.cycle_date)}</td><td>${_esc(r.source_zone || '—')}</td><td>${r.collected_qty ?? '—'}</td>
+  tbody.innerHTML = _ldRows.map(r => `<tr class="${corrRowClass(r)}">
+    <td>${_fmtDate(r.cycle_date)}${corrCell('laundry_cycles', r)}</td><td>${_esc(r.source_zone || '—')}</td><td>${r.collected_qty ?? '—'}</td>
     <td>${_esc(r.disinfection_method || '—')}</td><td>${r.distributed_qty ?? '—'}</td>
     <td>${_esc(r.vendor_name || '—')}</td><td>${_esc(r.handler?.full_name || '—')}</td><td>${_esc(r.notes || '—')}</td>
   </tr>`).join('');
@@ -178,7 +201,7 @@ window.markExit = async function(id) {
 
 window.loadVisitors = async function() {
   let q = supabase.from('security_visitor_log')
-    .select('id,visitor_name,purpose,met_person,entry_time,exit_time')
+    .select('id,visitor_name,purpose,met_person,entry_time,exit_time,' + CORR_COLS)
     .eq('tenant_id', tenantId).order('entry_time',{ascending:false});
   const from = document.getElementById('vis-from').value, to = document.getElementById('vis-to').value;
   if (from) q = q.gte('entry_time', from+'T00:00:00');
@@ -188,11 +211,11 @@ window.loadVisitors = async function() {
   _visRows = data || [];
   const tbody = document.getElementById('vis-tbody');
   if (!_visRows.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">No visitor entries for this range.</td></tr>'; return; }
-  tbody.innerHTML = _visRows.map(r => `<tr>
-    <td>${_esc(r.visitor_name)}</td><td>${_esc(r.purpose || '—')}</td><td>${_esc(r.met_person || '—')}</td>
+  tbody.innerHTML = _visRows.map(r => `<tr class="${corrRowClass(r)}">
+    <td>${_esc(r.visitor_name)}${corrCell('security_visitor_log', r)}</td><td>${_esc(r.purpose || '—')}</td><td>${_esc(r.met_person || '—')}</td>
     <td>${_fmtDateTime(r.entry_time)}</td><td>${r.exit_time ? _fmtDateTime(r.exit_time) : '—'}</td>
     <td><span class="status-pill ${r.exit_time ? 'pill-exited' : 'pill-open'}">${r.exit_time ? 'Exited' : 'On Premises'}</span></td>
-    <td>${!r.exit_time ? `<button class="btn btn-secondary btn-sm" data-onclick="markExit" data-onclick-a0="${r.id}">Mark Exit</button>` : '—'}</td>
+    <td>${!r.exit_time && !r.superseded_by ? `<button class="btn btn-secondary btn-sm" data-onclick="markExit" data-onclick-a0="${r.id}">Mark Exit</button>` : '—'}</td>
   </tr>`).join('');
 };
 
@@ -235,7 +258,7 @@ window.closeIncident = async function(id) {
 
 window.loadIncidents = async function() {
   let q = supabase.from('security_incidents')
-    .select('id,incident_date,location,severity,description,action_taken,status,reporter:profiles!reported_by(full_name)')
+    .select('id,incident_date,location,severity,description,action_taken,status,reporter:profiles!reported_by(full_name),' + CORR_COLS)
     .eq('tenant_id', tenantId).order('incident_date',{ascending:false});
   const from = document.getElementById('inc-from').value, to = document.getElementById('inc-to').value;
   if (from) q = q.gte('incident_date', from);
@@ -245,13 +268,13 @@ window.loadIncidents = async function() {
   _incRows = data || [];
   const tbody = document.getElementById('inc-tbody');
   if (!_incRows.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted)">No incidents for this range.</td></tr>'; return; }
-  tbody.innerHTML = _incRows.map(r => `<tr>
-    <td>${_fmtDate(r.incident_date)}</td><td>${_esc(r.location || '—')}</td>
+  tbody.innerHTML = _incRows.map(r => `<tr class="${corrRowClass(r)}">
+    <td>${_fmtDate(r.incident_date)}${corrCell('security_incidents', r)}</td><td>${_esc(r.location || '—')}</td>
     <td><span class="status-pill pill-${r.severity}">${_cap(r.severity)}</span></td>
     <td>${_esc(r.description)}</td><td>${_esc(r.action_taken || '—')}</td>
     <td><span class="status-pill pill-${r.status}">${_cap(r.status)}</span></td>
     <td>${_esc(r.reporter?.full_name || '—')}</td>
-    <td>${r.status==='open' ? `<button class="btn btn-secondary btn-sm" data-onclick="closeIncident" data-onclick-a0="${r.id}">Close</button>` : '—'}</td>
+    <td>${r.status==='open' && !r.superseded_by ? `<button class="btn btn-secondary btn-sm" data-onclick="closeIncident" data-onclick-a0="${r.id}">Close</button>` : '—'}</td>
   </tr>`).join('');
 };
 

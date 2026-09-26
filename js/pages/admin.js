@@ -6772,7 +6772,7 @@ window.generateMonthlyStats = async function() {
     supabase.from('visits').select('id,is_teleconsultation').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00').lte('created_at',to+'T23:59:59'),
     supabase.from('ipd_admissions').select('id').eq('tenant_id',tenantId).gte('admission_date',from).lte('admission_date',to),
     supabase.from('bills').select('id,final_amount').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00').lte('created_at',to+'T23:59:59').eq('status','paid'),
-    supabase.from('deliveries').select('id').eq('tenant_id',tenantId).gte('delivery_date',from).lte('delivery_date',to),
+    supabase.from('deliveries').select('id').eq('tenant_id',tenantId).is('superseded_by',null).gte('delivery_date',from).lte('delivery_date',to),
     supabase.from('lab_orders').select('id').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00').lte('created_at',to+'T23:59:59'),
   ]);
   const opdCount  = (v.data||[]).filter(x=>!x.is_teleconsultation).length;

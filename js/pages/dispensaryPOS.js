@@ -6,6 +6,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
+import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
 
 await requireAuth(['pharmacist', 'super_admin', 'dept_admin']);
 initNavbar();
@@ -14,6 +15,9 @@ wireDelegatedEvents();
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
 const userId   = profile.id;
+// Session 306 — NDPS entries are never edited or deleted; "Correct" adds a reversing entry.
+initCorrections(supabase, tenantId);
+defineCorrection('ndps_register', { title: 'NDPS entry', mode: 'reverse', canWrite: true, reload: () => loadNDPSRegister() });
 const _ctx     = { tenantId, userId, userName: profile.full_name };
 const _tenant  = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
 
@@ -867,14 +871,14 @@ async function loadNDPSRegister() {
   const { data } = await supabase.from('ndps_register')
     .select('*,profiles!created_by(full_name)')
     .eq('tenant_id',tenantId)
-    .order('transaction_date',{ascending:false})
+    .order('entry_no',{ascending:false})
     .limit(50);
   const el = document.getElementById('ndps-list');
   if (!data?.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:16px;font-size:13px">No entries yet.</div>'; return; }
-  const typeColor = {received:'#27ae60',dispensed:'#e74c3c',returned:'#f39c12',written_off:'#888'};
+  const typeColor = {opening:'#1a4080',received:'#27ae60',dispensed:'#e74c3c',returned:'#f39c12',written_off:'#888',correction:'#8b1a6b'};
   el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead><tr style="background:#f5faf7"><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Date</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">Drug</th><th style="padding:6px 10px;text-align:center;border-bottom:1.5px solid var(--border)">Type</th><th style="padding:6px 10px;text-align:right;border-bottom:1.5px solid var(--border)">Qty</th><th style="padding:6px 10px;text-align:right;border-bottom:1.5px solid var(--border)">Balance</th><th style="padding:6px 10px;text-align:left;border-bottom:1.5px solid var(--border)">By</th></tr></thead>
-    <tbody>${data.map(r=>`<tr><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${r.transaction_date}</td>
+    <tbody>${data.map(r=>`<tr class="${corrRowClass(r)}"><td style="padding:6px 10px;border-bottom:1px solid #f0f4f2">${r.transaction_date}${corrCell('ndps_register', r)}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;font-weight:600">${_esc(r.medicine_name)}</td>
       <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;text-align:center"><span style="font-size:10px;font-weight:700;color:${typeColor[r.transaction_type]||'#888'};background:${typeColor[r.transaction_type]||'#888'}18;padding:2px 7px;border-radius:10px;text-transform:uppercase">${r.transaction_type}</span></td>
       <td style="padding:6px 10px;border-bottom:1px solid #f0f4f2;text-align:right">${r.quantity} ${_esc(r.unit||'')}</td>
@@ -889,10 +893,10 @@ window._ndpsUpdateBalance = async function() {
   const { data } = await supabase.from('ndps_register')
     .select('balance').eq('tenant_id',tenantId)
     .eq('medicine_id', _ndpsMeds.find(m=>m.id===invId)?.medicine_id)
-    .order('created_at',{ascending:false}).limit(1).maybeSingle();
-  const inv = _ndpsMeds.find(m=>m.id===invId);
-  const bal = data?.balance ?? inv?.stock_quantity ?? 0;
-  document.getElementById('ndps-current-balance').textContent = bal;
+    .order('entry_no',{ascending:false}).limit(1).maybeSingle();
+  // Session 306 — the balance is the register's own running figure (computed by the server);
+  // pharmacy stock is NOT a stand-in. An empty register starts with an Opening balance entry.
+  document.getElementById('ndps-current-balance').textContent = data ? data.balance : '0 (start with Opening balance)';
 };
 
 window.saveNDPSEntry = async function() {
@@ -903,8 +907,10 @@ window.saveNDPSEntry = async function() {
   if (!invId || !qty) { _toast('Select drug and enter quantity','error'); return; }
   const inv = _ndpsMeds.find(m => m.id === invId);
   if (!inv) return;
-  const currentBalance = parseFloat(document.getElementById('ndps-current-balance').textContent) || inv.stock_quantity || 0;
-  const newBalance = type === 'received' ? currentBalance + qty : currentBalance - qty;
+  // Session 306 — the server computes the running balance (and refuses a negative one) under a
+  // per-medicine lock; this pre-check only saves a round trip.
+  const currentBalance = parseFloat(document.getElementById('ndps-current-balance').textContent) || 0;
+  const newBalance = ['received','opening'].includes(type) ? currentBalance + qty : currentBalance - qty;
   if (newBalance < 0) { _toast('Insufficient balance in register','error'); return; }
   const { error } = await supabase.from('ndps_register').insert({
     tenant_id: tenantId, medicine_id: inv.medicine_id, medicine_name: inv.medicine?.name,

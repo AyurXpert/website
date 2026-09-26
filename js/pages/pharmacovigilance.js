@@ -4,6 +4,8 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr } from '../utils/dateUtils.js';
+import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
+import { initCorrections, defineCorrection, corrRowClass, corrCell, activeRows } from '../modules/registers/corrections.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','receptionist'], 'index.html');
 initNavbar();
@@ -15,6 +17,25 @@ window._closeIfSelf = function(isSelf, fnName) {
 
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
+// Session 306 — only these roles may write this register (must match sql/session306_statutory_registers_lockdown.sql)
+if (!canWriteRegister(profile, ['doctor','dept_admin','super_admin'])) {
+  hideRegisterWrites(['openModal','addDec','saveMeeting']);
+  showViewOnlyNote('Meeting minutes are recorded by doctors and administrators. You can view them.');
+}
+// Session 306 — completed minutes are locked; a mistake is corrected by a new entry (original struck through)
+initCorrections(supabase, tenantId);
+defineCorrection('pv_meetings', { title: 'PV meeting record',
+  canWrite: canWriteRegister(profile, ['doctor','dept_admin','super_admin']),
+  reload: () => window.loadMeetings(),
+  fields: [ { k:'meeting_date', label:'Meeting date', type:'date' },
+    { k:'meeting_type', label:'Type', type:'select', options:[['bimonthly','Bimonthly'],['special','Special / Emergency'],['annual','Annual review']] },
+    { k:'status', label:'Status', type:'select', options:[['scheduled','Scheduled'],['completed','Completed']] },
+    { k:'chairperson', label:'Chairperson' }, { k:'venue', label:'Venue' },
+    { k:'agenda', label:'Agenda', type:'textarea' }, { k:'adr_count', label:'ADRs reviewed', type:'number' },
+    { k:'adr_summary', label:'ADR summary', type:'textarea' }, { k:'report_to', label:'Reported to' },
+    { k:'report_date', label:'Report date', type:'date' }, { k:'report_ref', label:'Report reference' },
+    { k:'minutes', label:'Minutes', type:'textarea' }, { k:'minutes_by', label:'Minutes by' },
+    { k:'next_meeting_date', label:'Next meeting', type:'date' }, { k:'remarks', label:'Remarks', type:'textarea' } ] });
 const now      = new Date();
 const todayStr = localDateStr(now);
 
@@ -85,16 +106,16 @@ window.loadMeetings = async function() {
   }
 
   _allMeetings = data || [];
-  renderStats(_allMeetings);
-  renderCompliance(_allMeetings);
+  renderStats(activeRows(_allMeetings));        // corrected records are superseded — not counted
+  renderCompliance(activeRows(_allMeetings));
 
   if (!_allMeetings.length) {
     tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><div class="empty-ico">🧪</div><div class="empty-ttl">No meetings recorded yet</div><div class="empty-bod">Record the first PV Cell meeting to start compliance tracking</div></div></td></tr>';
     return;
   }
 
-  tbody.innerHTML = _allMeetings.map(m=>`<tr>
-    <td style="font-weight:600;white-space:nowrap">${m.meeting_date}</td>
+  tbody.innerHTML = _allMeetings.map(m=>`<tr class="${corrRowClass(m)}">
+    <td style="font-weight:600;white-space:nowrap">${m.meeting_date}${corrCell('pv_meetings', m)}</td>
     <td><span class="pill pill-${m.meeting_type}">${_typeLabel(m.meeting_type)}</span></td>
     <td style="font-size:12px">${_esc(m.chairperson||'—')}</td>
     <td style="font-size:12px">${_esc(m.venue||'—')}</td>

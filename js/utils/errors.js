@@ -31,5 +31,15 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 306 statutory-register guards (sql/session306_statutory_registers_lockdown.sql) —
+  // plain, schema-free messages written to be shown to staff as-is.
+  const REGISTER_MSGS = ['NDPS balance', 'An NDPS entry', 'An opening balance', 'Quantity must',
+    'A correction', 'The entry being corrected', 'Register entries cannot', 'These minutes are final',
+    'MLC details', 'This imaging report has been released', 'Exit time is already', 'This incident is closed',
+    'A disposal entry'];
+  if (error?.code === 'P0001' && REGISTER_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   return fallback;
 }

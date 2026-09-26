@@ -4,6 +4,8 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
+import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
 
 wireDelegatedEvents();
 
@@ -12,6 +14,43 @@ initNavbar();
 
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
+// Session 306 — only these roles may write this register (must match sql/session306_statutory_registers_lockdown.sql)
+if (!canWriteRegister(profile, ['doctor','nurse','dept_admin','super_admin'])) {
+  hideRegisterWrites(['saveDutyLog','openBLSModal','saveBLS']);
+}
+// Session 306 — cases, MLC details, duty and BLS entries are corrected by a new entry, never edited
+// or deleted (sql/session306_statutory_registers_lockdown.sql). A corrected case is struck through,
+// left out of the counts and can no longer be updated; its correcting entry carries on instead.
+const _erLogWriter = canWriteRegister(profile, ['doctor','nurse','dept_admin','super_admin']);
+initCorrections(supabase, tenantId);
+defineCorrection('emergency_cases', { title: 'emergency case',
+  canWrite: canWriteRegister(profile, ['doctor','nurse','receptionist','dept_admin','super_admin']),
+  reload: async () => { await window.loadAll(); if (document.getElementById('mlc-tbody')) await window.loadMLC(); },
+  fields: [
+    { k:'triage_category', label:'Triage', type:'select', options:[['emergency','Emergency'],['urgent','Urgent'],['semi_urgent','Semi-urgent'],['routine','Routine']] },
+    { k:'status', label:'Status', type:'select', options:[['active','Active'],['observation','Observation'],['admitted','Admitted'],['discharged','Discharged'],['referred','Referred'],['lama','LAMA'],['deceased','Deceased']] },
+    { k:'chief_complaint', label:'Chief complaint', type:'textarea' },
+    { k:'is_mlc', label:'Medico-legal case (MLC)', type:'checkbox' },
+    { k:'mlc_number', label:'MLC number' }, { k:'mlc_police_station', label:'Police station' },
+    { k:'mlc_nature', label:'Nature of MLC' },
+    { k:'mlc_intimation', label:'Police intimation', type:'select', options:[['pending','Pending'],['informed','Informed'],['not_required','Not required']] },
+    { k:'obs_bed_no', label:'Observation bed' } ] });
+defineCorrection('emergency_duty_log', { title: 'RMO duty entry', canWrite: _erLogWriter,
+  reload: () => window.loadDutyLog(),
+  fields: [ { k:'duty_date', label:'Date', type:'date' },
+    { k:'shift', label:'Shift', type:'select', options:[['morning','Morning'],['afternoon','Afternoon'],['night','Night']] },
+    { k:'start_time', label:'Start', type:'time' }, { k:'end_time', label:'End', type:'time' },
+    { k:'oncall_consultants', label:'On-call consultants' }, { k:'incidents_handled', label:'Incidents handled', type:'number' },
+    { k:'notes', label:'Notes', type:'textarea' } ] });
+defineCorrection('bls_logs', { title: 'BLS check', canWrite: _erLogWriter,
+  reload: () => window.loadBLS(),
+  fields: [ { k:'log_date', label:'Date', type:'date' },
+    { k:'shift', label:'Shift', type:'select', options:[['morning','Morning'],['afternoon','Afternoon'],['night','Night']] },
+    { k:'department', label:'Department' },
+    { k:'kit_complete', label:'BLS kit complete', type:'checkbox' }, { k:'aed_functional', label:'AED functional', type:'checkbox' },
+    { k:'o2_cylinder_ok', label:'O₂ cylinder OK', type:'checkbox' }, { k:'crash_cart_ok', label:'Crash cart OK', type:'checkbox' },
+    { k:'cpr_trained_count', label:'CPR-trained staff on duty', type:'number' }, { k:'cpr_trained_staff', label:'CPR-trained staff (names)' },
+    { k:'checked_by_name', label:'Checked by' }, { k:'remarks', label:'Remarks', type:'textarea' } ] });
 const role     = getCurrentRole();
 
 // Session 152: the tenant's real Atyayika/Emergency department row (Session 151), if one has
@@ -84,7 +123,7 @@ async function loadStats() {
   const dateStr = document.getElementById('filter-date').value || todayStr;
   const start = dateStr + 'T00:00:00';
   const end   = dateStr + 'T23:59:59';
-  const { data } = await supabase.from('emergency_cases').select('id,status,is_mlc,is_obs_bed').eq('tenant_id',tenantId).gte('arrival_time',start).lte('arrival_time',end);
+  const { data } = await supabase.from('emergency_cases').select('id,status,is_mlc,is_obs_bed').eq('tenant_id',tenantId).is('superseded_by',null).gte('arrival_time',start).lte('arrival_time',end);
   if (!data) { showStatsError(); return; }
   const total    = data.length;
   const active   = data.filter(c=>c.status==='active').length;
@@ -143,14 +182,14 @@ window.renderCases = function() {
     const { label:tLabel, cls:tCls } = triageInfo(c.triage_category);
     const sChip = statusChip(c.status);
     const mlcTag = c.is_mlc ? `<span class="mlc-badge">MLC ${c.mlc_number ? '#'+_esc(c.mlc_number) : ''}</span>` : '—';
-    return `<tr>
-      <td style="font-weight:600">${time}</td>
+    return `<tr class="${corrRowClass(c)}">
+      <td style="font-weight:600">${time}${corrCell('emergency_cases', c)}</td>
       <td><div style="font-weight:500">${_esc(pat)}</div><div style="font-size:11px;color:var(--text-muted)">${_esc(phone)}</div></td>
       <td><span class="triage-chip triage-${c.triage_category}">${tLabel}</span></td>
       <td style="max-width:220px;font-size:12px">${_esc(c.chief_complaint||'—')}</td>
       <td>${sChip}</td>
       <td>${mlcTag}</td>
-      <td><button class="btn btn-secondary btn-sm" data-onclick="openUpdateModal" data-onclick-a0="${_esc(c.id)}" data-onclick-a1="${_esc(c.status)}">Update</button></td>
+      <td>${c.superseded_by ? '—' : `<button class="btn btn-secondary btn-sm" data-onclick="openUpdateModal" data-onclick-a0="${_esc(c.id)}" data-onclick-a1="${_esc(c.status)}">Update</button>`}</td>
     </tr>`;
   }).join('');
 };
@@ -340,8 +379,8 @@ window.loadDutyLog = async function() {
   if (!data?.length) { wrap.innerHTML = '<div class="empty"><div class="empty-ico">📋</div><div class="empty-ttl">No duty logged in last 7 days</div></div>'; return; }
   wrap.innerHTML = `<div class="tw"><table>
     <thead><tr><th>Date</th><th>Shift</th><th>Doctor</th><th>Start</th><th>End</th><th>Notes</th></tr></thead>
-    <tbody>${data.map(d=>`<tr>
-      <td>${d.duty_date}</td>
+    <tbody>${data.map(d=>`<tr class="${corrRowClass(d)}">
+      <td>${d.duty_date}${corrCell('emergency_duty_log', d)}</td>
       <td><span style="background:var(--green-light);color:var(--green-deep);padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600">${d.shift}</span></td>
       <td>Dr. ${_esc(d.profiles?.full_name||'—')}</td>
       <td>${d.start_time||'—'}</td>
@@ -355,7 +394,7 @@ window.loadDutyLog = async function() {
 window.loadObsBeds = async function() {
   const { data, error } = await supabase.from('emergency_cases')
     .select('id,obs_bed_no,chief_complaint,arrival_time,status,patients(name,phone)')
-    .eq('tenant_id',tenantId).eq('is_obs_bed',true).in('status',['active','observation'])
+    .eq('tenant_id',tenantId).is('superseded_by',null).eq('is_obs_bed',true).in('status',['active','observation'])
     .order('arrival_time',{ascending:false});
   const summary = document.getElementById('obs-summary');
   const list    = document.getElementById('obs-list');
@@ -402,8 +441,8 @@ window.loadMLC = async function() {
   }
   _mlcData = data||[];
   if (!_mlcData.length) { tbody.innerHTML='<tr><td colspan="8"><div class="empty"><div class="empty-ico">⚖️</div><div class="empty-ttl">No MLC cases in selected period</div></div></td></tr>'; return; }
-  tbody.innerHTML = _mlcData.map(c=>`<tr>
-    <td style="font-size:12px">${c.arrival_time ? new Date(c.arrival_time).toLocaleString('en-IN') : '—'}</td>
+  tbody.innerHTML = _mlcData.map(c=>`<tr class="${corrRowClass(c)}">
+    <td style="font-size:12px">${c.arrival_time ? new Date(c.arrival_time).toLocaleString('en-IN') : '—'}${corrCell('emergency_cases', c)}</td>
     <td><strong>${_esc(c.mlc_number||'—')}</strong></td>
     <td>${_esc(c.patients?.name||'Unknown')}<br><small style="color:var(--text-muted)">${_esc(c.patients?.phone||'')}</small></td>
     <td style="font-size:12px">${_esc(c.mlc_nature||'—')}</td>
@@ -450,7 +489,7 @@ function checkBLSMissing(rows, d) {
   if (d !== todayFull) { banner.style.display='none'; return; }
   const hr   = new Date().getHours();
   const curShift = hr>=6 && hr<14 ? 'morning' : hr>=14 && hr<22 ? 'afternoon' : 'night';
-  const done = rows.some(r => r.shift === curShift);
+  const done = rows.some(r => !r.superseded_by && r.shift === curShift);
   banner.style.display = done ? 'none' : '';
 }
 
@@ -458,8 +497,8 @@ function renderBLSTable(rows) {
   const yes = v => v ? '✅' : '❌';
   const tbody = document.getElementById('bls-tbody');
   if (!rows.length) { tbody.innerHTML = '<tr><td colspan="10"><div class="empty">No BLS log entries for this date</div></td></tr>'; return; }
-  tbody.innerHTML = rows.map(r => `<tr>
-    <td>${r.log_date}</td>
+  tbody.innerHTML = rows.map(r => `<tr class="${corrRowClass(r)}">
+    <td>${r.log_date}${corrCell('bls_logs', r)}</td>
     <td><span style="background:var(--green-light);color:var(--green-deep);padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600">${r.shift}</span></td>
     <td>${_esc(r.department||'—')}</td>
     <td style="text-align:center">${yes(r.kit_complete)}</td>

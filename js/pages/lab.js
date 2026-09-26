@@ -6,6 +6,8 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { stageIpdLabCharges } from '../modules/billing/labBilling.js';
+import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
+import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
 
 // Session 113 -- receptionist added so front-desk staff can check whether a patient's
 // report is ready when they call in (Dr. Venkatesh's ask). Deliberately read-only and
@@ -20,6 +22,20 @@ const supabase  = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const profile   = getCurrentProfile();
 const tenant    = getCurrentTenant();
 const tenantId  = tenant?.id;
+// Session 306 — only these roles may write this register (must match sql/session306_statutory_registers_lockdown.sql)
+if (!canWriteRegister(profile, ['lab_tech','dept_admin','super_admin'])) {
+  hideRegisterWrites(['openAerbEntry','saveAerbEntry']);
+}
+const _AERB_FIELDS = [
+  { k:'xray_date', label:'X-ray date', type:'date' }, { k:'patient_name', label:'Patient name' },
+  { k:'age', label:'Age' }, { k:'sex', label:'Sex', type:'select', options:[['M','Male'],['F','Female'],['O','Other']] },
+  { k:'uhid', label:'UHID / ABHA' }, { k:'study', label:'Study / region' }, { k:'xray_view', label:'View' },
+  { k:'ordered_by', label:'Ordered by' }, { k:'operator_name', label:'Operator' },
+  { k:'kvp', label:'kVp' }, { k:'mas', label:'mAs' }, { k:'clinical_indication', label:'Clinical indication', type:'textarea' },
+];
+initCorrections(supabase, tenantId);
+defineCorrection('aerb_log', { title: 'AERB entry', fields: _AERB_FIELDS, reload: () => window.loadAerbLog(),
+  canWrite: canWriteRegister(profile, ['lab_tech','dept_admin','super_admin']) });
 const userId    = profile?.id;
 const _isReceptionist = profile?.role === 'receptionist';
 
@@ -1094,14 +1110,14 @@ window.loadAerbLog = async function loadAerbLog() {
       uhid: m.uhid||'—', study: m.study||'—', view: m.xray_view||'—',
       ordered_by: m.ordered_by||'—', operator: m.operator_name||'—',
       kvp: [m.kvp,m.mas].filter(Boolean).join('/')||'—',
-      indication: m.clinical_indication||'—', source: 'manual',
+      indication: m.clinical_indication||'—', source: 'manual', raw: m,
     })),
   ].sort((a,b)=>a.date?.localeCompare(b.date));
 
-  document.getElementById('aerb-count').textContent = _aerbEntries.length + ' entries';
+  document.getElementById('aerb-count').textContent = _aerbEntries.filter(e => !e.raw?.superseded_by).length + ' entries';
   const tbody = document.getElementById('aerb-tbody');
-  tbody.innerHTML = _aerbEntries.length ? _aerbEntries.map((e,i)=>`<tr>
-    <td>${i+1}</td><td>${_fmtDate(e.date)}</td><td>${_esc(e.pt_name)}</td><td>${_esc(e.age_sex)}</td>
+  tbody.innerHTML = _aerbEntries.length ? _aerbEntries.map((e,i)=>`<tr class="${corrRowClass(e.raw)}">
+    <td>${i+1}${e.raw ? corrCell('aerb_log', e.raw) : ''}</td><td>${_fmtDate(e.date)}</td><td>${_esc(e.pt_name)}</td><td>${_esc(e.age_sex)}</td>
     <td style="font-size:11px">${_esc(e.uhid)}</td><td>${_esc(e.study)}${e.view&&e.view!=='—'?' ('+_esc(e.view)+')':''}</td>
     <td>${_esc(e.ordered_by)}</td><td>${_esc(e.operator)}</td><td>${_esc(e.kvp)}</td>
     <td style="font-size:11px">${_esc(e.indication)}</td>

@@ -4,6 +4,8 @@ import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
+import { initCorrections, defineCorrection, corrRowClass, corrCell, activeRows } from '../modules/registers/corrections.js';
+import { canWriteRegister } from '../utils/registerAccess.js';
 
 await requireAuth(['super_admin','dept_admin','accountant']);
 initNavbar();
@@ -21,6 +23,19 @@ const userId   = profile?.id;
 
 let _meetings  = [];
 let _editId    = null;
+
+// Session 306 — completed minutes are locked; a mistake is corrected by a new entry (original struck through)
+initCorrections(supabase, tenantId);
+defineCorrection('dpc_meetings', { title: 'DPC meeting record',
+  canWrite: canWriteRegister(profile, ['accountant','dept_admin','super_admin']),
+  reload: () => load(),
+  fields: [ { k:'meeting_date', label:'Meeting date', type:'date' },
+    { k:'meeting_type', label:'Type', type:'select', options:[['quarterly','Quarterly review'],['annual','Annual review'],['special','Special / Emergency'],['scheduled','Scheduled (ad-hoc)']] },
+    { k:'status', label:'Status', type:'select', options:[['scheduled','Scheduled'],['completed','Done'],['cancelled','Cancelled']] },
+    { k:'chairperson', label:'Chairperson' }, { k:'venue', label:'Venue' },
+    { k:'members_present', label:'Members present', type:'textarea' }, { k:'agenda', label:'Agenda', type:'textarea' },
+    { k:'discussion_summary', label:'Discussions', type:'textarea' }, { k:'supplier_reviewed', label:'Supplier reviewed' },
+    { k:'next_meeting_date', label:'Next meeting', type:'date' }, { k:'remarks', label:'Remarks', type:'textarea' } ] });
 
 const TYPE_LABEL = { quarterly:'Quarterly', annual:'Annual', special:'Special', scheduled:'Scheduled' };
 
@@ -41,8 +56,8 @@ function render() {
     return;
   }
   tbody.innerHTML = _meetings.map((m, i) => `
-    <tr>
-      <td>${_meetings.length - i}</td>
+    <tr class="${corrRowClass(m)}">
+      <td>${_meetings.length - i}${corrCell('dpc_meetings', m)}</td>
       <td>${_fmtDate(m.meeting_date)}</td>
       <td>${_esc(TYPE_LABEL[m.meeting_type] || m.meeting_type)}</td>
       <td style="font-size:12px">${_esc(m.chairperson) || '—'}</td>
@@ -57,11 +72,12 @@ function render() {
 }
 
 function updateStats() {
+  const live = activeRows(_meetings);   // corrected records are superseded — not counted
   const year = new Date().getFullYear();
-  const thisYear = _meetings.filter(m => m.meeting_date?.startsWith(String(year))).length;
-  const upcoming = _meetings.filter(m => m.status === 'scheduled').length;
-  const actionItems = _meetings.reduce((n, m) => n + (Array.isArray(m.decisions) ? m.decisions.length : 0), 0);
-  document.getElementById('stat-total').textContent   = _meetings.length;
+  const thisYear = live.filter(m => m.meeting_date?.startsWith(String(year))).length;
+  const upcoming = live.filter(m => m.status === 'scheduled').length;
+  const actionItems = live.reduce((n, m) => n + (Array.isArray(m.decisions) ? m.decisions.length : 0), 0);
+  document.getElementById('stat-total').textContent   = live.length;
   document.getElementById('stat-year').textContent    = thisYear;
   document.getElementById('stat-upcoming').textContent= upcoming;
   document.getElementById('stat-actions').textContent = actionItems;

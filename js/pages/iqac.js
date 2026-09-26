@@ -4,6 +4,8 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr } from '../utils/dateUtils.js';
+import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
+import { initCorrections, defineCorrection, corrRowClass, corrCell, activeRows } from '../modules/registers/corrections.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','receptionist'], 'index.html');
 initNavbar();
@@ -16,6 +18,28 @@ window._closeIfSelf = function(isSelf, fnName) {
 const profile  = getCurrentProfile();
 const tenant   = getCurrentTenant();
 const tenantId = getCurrentTenantId();
+// Session 306 — only these roles may write this register (must match sql/session306_statutory_registers_lockdown.sql)
+if (!canWriteRegister(profile, ['doctor','dept_admin','super_admin'])) {
+  hideRegisterWrites(['openModal','addActionRow','saveMeeting']);
+  showViewOnlyNote('Meeting minutes are recorded by doctors and administrators. You can view them.');
+}
+// Session 306 — completed minutes are locked; a mistake is corrected by a new entry (original struck through)
+initCorrections(supabase, tenantId);
+defineCorrection('iqac_meetings', { title: 'IQAC meeting record',
+  canWrite: canWriteRegister(profile, ['doctor','dept_admin','super_admin']),
+  reload: () => window.loadMeetings(),
+  fields: [ { k:'meeting_date', label:'Meeting date', type:'date' },
+    { k:'meeting_type', label:'Type', type:'select', options:[['quarterly','Quarterly'],['special','Special / Emergency'],['annual','Annual review']] },
+    { k:'status', label:'Status', type:'select', options:[['scheduled','Scheduled'],['completed','Completed']] },
+    { k:'chairperson', label:'Chairperson' }, { k:'venue', label:'Venue' },
+    { k:'opd_pct', label:'OPD %', type:'number' }, { k:'ipd_pct', label:'IPD %', type:'number' },
+    { k:'satisfaction_score', label:'Satisfaction score', type:'number' },
+    { k:'complaint_count', label:'Complaints', type:'number' }, { k:'complaint_resolved', label:'Complaints resolved', type:'number' },
+    { k:'infection_count', label:'Infections', type:'number' }, { k:'mortality_count', label:'Mortality', type:'number' },
+    { k:'staff_attendance_pct', label:'Staff attendance %', type:'number' },
+    { k:'agenda', label:'Agenda', type:'textarea' }, { k:'atr', label:'Action taken report', type:'textarea' },
+    { k:'minutes', label:'Minutes', type:'textarea' }, { k:'minutes_by', label:'Minutes by' },
+    { k:'next_meeting_date', label:'Next meeting', type:'date' }, { k:'remarks', label:'Remarks', type:'textarea' } ] });
 const now      = new Date();
 const todayStr = localDateStr(now);
 
@@ -168,8 +192,8 @@ window.loadMeetings = async function() {
   }
 
   _allMeetings = data || [];
-  renderStats(_allMeetings);
-  renderCompliance(_allMeetings);
+  renderStats(activeRows(_allMeetings));        // corrected records are superseded — not counted
+  renderCompliance(activeRows(_allMeetings));
 
   if (!_allMeetings.length) {
     tbody.innerHTML = '<tr><td colspan="9"><div class="empty"><div class="empty-ico">📋</div><div class="empty-ttl">No IQAC meetings recorded yet</div><div class="empty-bod">Record the first meeting to start quarterly compliance tracking</div></div></td></tr>';
@@ -186,9 +210,9 @@ window.loadMeetings = async function() {
     const opdCls      = m.opd_pct == null ? '' : m.opd_pct >= 80 ? 'color:var(--green-mid)' : m.opd_pct >= 50 ? 'color:var(--gold)' : 'color:var(--red)';
     const ipdCls      = m.ipd_pct == null ? '' : m.ipd_pct >= 60 ? 'color:var(--green-mid)' : m.ipd_pct >= 40 ? 'color:var(--gold)' : 'color:var(--red)';
 
-    html += `<tr style="cursor:pointer" data-onclick="toggleDetail" data-onclick-a0="${i}">
+    html += `<tr class="${corrRowClass(m)}" style="cursor:pointer" data-onclick="toggleDetail" data-onclick-a0="${i}">
       <td style="font-size:16px;text-align:center;color:var(--text-muted)" id="expand-${i}">▶</td>
-      <td style="font-weight:600;white-space:nowrap">${m.meeting_date}</td>
+      <td style="font-weight:600;white-space:nowrap">${m.meeting_date}${corrCell('iqac_meetings', m)}</td>
       <td><span class="pill pill-${m.meeting_type}">${_typeLabel(m.meeting_type)}</span></td>
       <td style="font-size:12px">${_esc(m.chairperson||'—')}</td>
       <td style="font-size:12px"><span style="${membersCls};font-weight:600">${present}/${total}</span></td>
