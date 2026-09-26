@@ -612,6 +612,10 @@ async function dispense() {
     _closeRx();
     loadQueue();
     loadUnregistered();
+    // Session 307 — ready for the next prescription (was left disabled on "Processing…" after a
+    // successful dispense, so the next patient needed a page reload)
+    btn.disabled = false;
+    btn.textContent = '✓ Dispense & Generate Bill';
 
   } catch (err) {
     console.error(err);
