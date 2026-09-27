@@ -937,7 +937,7 @@ window.openCredModal = async function(credId) {
   // Load staff for selector
   const { data: staff } = await supabase.from('profiles').select('id,full_name,role').eq('tenant_id',tenantId).eq('is_active',true).in('role',['doctor','nurse','therapist','lab_tech']);
   const sel = document.getElementById('cred-profile-sel');
-  sel.innerHTML = '<option value="">— Select staff member —</option>' + (staff||[]).map(s=>`<option value="${s.id}">${_esc(s.full_name)} (${_esc(s.role)})</option>`).join('');
+  sel.innerHTML = '<option value="">— Select staff member —</option>' + (staff||[]).map(s=>`<option value="${s.id}" data-role="${_esc(s.role)}">${_esc(s.full_name)} (${_esc(s.role)})</option>`).join('');
   sel.onchange = () => _loadHprForProfile(sel.value);
   document.getElementById('cred-hpr-id').value = '';
   if (credId) {
@@ -957,8 +957,10 @@ window.openCredModal = async function(credId) {
 };
 window.closeCredModal = function() { document.getElementById('cred-modal').style.display='none'; _credEditId=null; };
 window.saveCred = async function() {
-  const profileId = document.getElementById('cred-profile-sel').value;
+  const profileSel = document.getElementById('cred-profile-sel');
+  const profileId = profileSel.value;
   if (!profileId) { _toast('Select a staff member','error'); return; }
+  const isDoctor = profileSel.selectedOptions[0]?.dataset.role === 'doctor';
   const hprDigits = (document.getElementById('cred-hpr-id').value || '').replace(/\D/g,'');
   if (hprDigits && hprDigits.length !== 14) { _toast('HPR ID must be exactly 14 digits','error'); return; }
   const payload = {
@@ -991,6 +993,17 @@ window.saveCred = async function() {
   // touching another user's row directly; the RPC re-checks same-tenant + admin).
   const { error: hprErr } = await supabase.rpc('set_staff_hpr_id', { p_staff_id: profileId, p_hpr_id: hprDigits || null });
   if (hprErr) { _toast('Credentials saved, but HPR ID failed: ' + safeErrorMessage(hprErr), 'error'); closeCredModal(); loadCredentials(); return; }
+  // Session 308c — for a doctor only, the same Reg. Number also goes onto profiles.registration_number
+  // (via RPC, same reason as HPR ID above) so it can be snapshotted onto a prescription at the moment
+  // it's created/finalized. staff_credentials.registration_number stays the NABH-credentialing record;
+  // these two currently live separately (TODO_LATER: reconcile into one source).
+  if (isDoctor) {
+    const { error: regErr } = await supabase.rpc('set_staff_registration_number', {
+      p_staff_id: profileId,
+      p_registration_number: payload.registration_number,
+    });
+    if (regErr) { _toast('Credentials saved, but registration number for prescriptions failed: ' + safeErrorMessage(regErr), 'error'); closeCredModal(); loadCredentials(); return; }
+  }
   _toast('Credentials saved','success');
   closeCredModal();
   loadCredentials();

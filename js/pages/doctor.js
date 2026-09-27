@@ -5616,6 +5616,7 @@ async function completeConsultation() {
 
     // Create prescription record for pharmacy
     const rx = _getRxData();
+    let _savedRxId = null; // Session 308c — used below to auto-open the real, valid printout
     if (rx.length > 0) {
       const { data: presc, error: pErr } = await supabase
         .from('prescriptions')
@@ -5623,6 +5624,7 @@ async function completeConsultation() {
         .select('id').single();
 
       if (!pErr && presc) {
+        _savedRxId = presc.id;
         await supabase.from('prescription_items').insert(
           rx.map(r => ({
             prescription_id: presc.id,
@@ -5726,7 +5728,12 @@ async function completeConsultation() {
     const pkMsg = _pkProtocols.length
       ? (_pkPlanSaved ? ' — Panchakarma care plan saved' : ' — Panchakarma care plan NOT saved, open the Panchakarma tab and save it')
       : '';
-    _toast(`${_activePatient?.name} — consultation complete, ${dispMsg}${pkMsg}`, 'info');
+    // Session 308c — an auto-opened new tab here would often be popup-blocked (this fires after an
+    // async save, not synchronously inside the click handler that most browsers require for an
+    // auto-allowed popup) — so the saved prescription's one valid printout is offered as an
+    // explicit button in the completion toast instead of opened automatically.
+    if (_savedRxId) _toastWithPrintAction(`${_activePatient?.name} — consultation complete, ${dispMsg}${pkMsg}`, _savedRxId);
+    else _toast(`${_activePatient?.name} — consultation complete, ${dispMsg}${pkMsg}`, 'info');
     await _clearConsultationDraft(_activeVisitId);  // Session 185 — real note saved, autosave copy no longer needed
     _closeConsult();
     loadQueue();
@@ -7647,8 +7654,22 @@ window.printSwasthyaCard = function() {
 };
 
 // ── Print ─────────────────────────────────────────
-document.getElementById('btn-print-rx').addEventListener('click', () => {
+// Session 308c — the only VALID printout is the one built from a saved prescription's server-set
+// snapshot (printPrescription.js, by rxId — normal/dual/draft modes). If Complete Consultation has
+// already saved a prescription for this visit, route there instead of building a second copy of
+// that logic here. Before that, this renders an in-memory PREVIEW only — watermarked, no signature
+// block — since no server-verified prescriber/HPR/registration snapshot exists yet to print.
+document.getElementById('btn-print-rx').addEventListener('click', async () => {
   if (!_activePatient) return;
+
+  if (_activeVisitId) {
+    const { data: savedRx } = await supabase.from('prescriptions')
+      .select('id').eq('visit_id', _activeVisitId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (savedRx) {
+      window.open(`printPrescription.html?rxId=${savedRx.id}`, '_blank');
+      return;
+    }
+  }
 
   const tenant = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
   const rx   = _getRxData();
@@ -7658,6 +7679,9 @@ document.getElementById('btn-print-rx').addEventListener('click', () => {
     <div style="text-align:center;margin-bottom:16px;border-bottom:2px solid #1a4a2e;padding-bottom:12px">
       <h2 style="font-family:'Cormorant Garamond',serif;font-size:24px;color:#1a4a2e;margin:0">${_esc(tenant.name || 'AyurXpert Clinic')}</h2>
       <p style="font-size:12px;color:#8a9e90;margin-top:4px">${_esc(tenant.city || '')} ${_esc(tenant.state || '')}</p>
+    </div>
+    <div style="text-align:center;margin-bottom:14px">
+      <span style="display:inline-block;border:3px solid #8b1a1a;color:#8b1a1a;font-weight:800;font-size:16px;padding:8px 18px;border-radius:6px;letter-spacing:0.5px;transform:rotate(-3deg)">PREVIEW — NOT A VALID PRESCRIPTION</span>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;font-size:12px">
       <div>Patient: <strong>${_esc(_activePatient.name)}</strong></div>
@@ -7682,9 +7706,7 @@ document.getElementById('btn-print-rx').addEventListener('click', () => {
     ${document.getElementById('adv-pathya').value ? `<div style="margin-top:12px;font-size:11px"><strong>Pathya:</strong> ${document.getElementById('adv-pathya').value}</div>` : ''}
     ${document.getElementById('adv-apathya').value ? `<div style="font-size:11px"><strong>Apathya:</strong> ${document.getElementById('adv-apathya').value}</div>` : ''}
     ${document.getElementById('fu-date').value ? `<div style="font-size:11px;margin-top:8px">Review on: <strong>${new Date(document.getElementById('fu-date').value).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</strong> ${document.getElementById('fu-notes').value ? '— '+document.getElementById('fu-notes').value : ''}</div>` : ''}
-    <div style="margin-top:24px;text-align:right;font-size:11px;color:#8a9e90">
-      <div style="border-top:1px solid #ccc;width:160px;display:inline-block;padding-top:6px">${profile.full_name}<br>AyurXpert HMS</div>
-    </div>
+    <div style="margin-top:24px;text-align:center;font-size:11px;color:#8b1a1a;font-weight:600">PREVIEW ONLY — not signed, not valid until Complete Consultation is saved</div>
   `;
   window.print();
 });
@@ -7840,6 +7862,22 @@ function _toast(msg, type = 'info') {
   document.getElementById('toast').appendChild(el);
   setTimeout(() => el.remove(), 4000);
 }
+
+// Session 308c — same completion toast, plus an explicit "Print Rx" action opening the saved
+// prescription's real, server-set printout (printPrescription.html?rxId=). Given a longer timeout
+// than the plain toast so there's time to notice and click it.
+function _toastWithPrintAction(msg, rxId) {
+  const el = document.createElement('div');
+  el.className = 'toast-item info';
+  el.innerHTML = `<span class="toast-icon">✓</span><span>${_esc(msg)}</span>
+    <button type="button" data-onclick="_openSavedRxPrint" data-onclick-a0="${_esc(rxId)}"
+      style="margin-left:10px;padding:4px 10px;border:1.5px solid currentColor;background:transparent;color:inherit;border-radius:5px;font-size:12px;cursor:pointer;font-weight:600;white-space:nowrap">🖨 Print Rx</button>`;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(() => el.remove(), 10000);
+}
+window._openSavedRxPrint = function(rxId) {
+  window.open(`printPrescription.html?rxId=${rxId}`, '_blank');
+};
 
 // ── Exam Guide (§18am — Specialty OPD examination library) ──
 
