@@ -21,6 +21,11 @@ await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
 initNavbar();
 wireDelegatedEvents();
 
+// Session 308c — relocate the shared print target to a direct child of <body>, once, so the
+// print-isolation allowlist (`body.rxpreview-print > *:not(#print-header)`, doctor.html) can
+// actually isolate it regardless of how deeply nested it is in the tab structure otherwise.
+document.body.appendChild(document.getElementById('print-header'));
+
 // ── CSP delegation helpers ────────────────────────────────────────────────
 // Small named wrappers for inline-handler patterns that aren't a plain
 // fn(args) call (DOM one-liners, event.stopPropagation(), object/array args) —
@@ -7657,8 +7662,17 @@ window.printSwasthyaCard = function() {
 // Session 308c — the only VALID printout is the one built from a saved prescription's server-set
 // snapshot (printPrescription.js, by rxId — normal/dual/draft modes). If Complete Consultation has
 // already saved a prescription for this visit, route there instead of building a second copy of
-// that logic here. Before that, this renders an in-memory PREVIEW only — watermarked, no signature
-// block — since no server-verified prescriber/HPR/registration snapshot exists yet to print.
+// that logic here. Before that, this renders an in-memory PREVIEW only — a real, large diagonal
+// watermark (same technique as printReceipt.html's #void-watermark) and no signature block — since
+// no server-verified prescriber/HPR/registration snapshot exists yet to print.
+//
+// Isolation: `body.rxpreview-print > *:not(#print-header){display:none!important}` (doctor.html) is
+// a true allowlist, not another entry in the old enumerated hide-list — a live investigation (27 Sep
+// 2026) found the previous denylist approach leaking the whole page (nav, tabs, live form fields)
+// into every print on this page, the same bug class already found once before in ipd.html
+// (Session 262, an internal compliance banner printed straight to a patient). #print-header is
+// relocated to a direct child of <body> once on page load (below) so the :not() selector can work
+// regardless of how deeply nested it would otherwise be inside the tab structure.
 document.getElementById('btn-print-rx').addEventListener('click', async () => {
   if (!_activePatient) return;
 
@@ -7676,38 +7690,44 @@ document.getElementById('btn-print-rx').addEventListener('click', async () => {
   const date = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
 
   document.getElementById('print-header').innerHTML = `
-    <div style="text-align:center;margin-bottom:16px;border-bottom:2px solid #1a4a2e;padding-bottom:12px">
-      <h2 style="font-family:'Cormorant Garamond',serif;font-size:24px;color:#1a4a2e;margin:0">${_esc(tenant.name || 'AyurXpert Clinic')}</h2>
-      <p style="font-size:12px;color:#8a9e90;margin-top:4px">${_esc(tenant.city || '')} ${_esc(tenant.state || '')}</p>
+    <div style="position:relative;overflow:hidden;min-height:600px">
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;overflow:hidden;z-index:1">
+        <span style="font-size:38px;font-weight:800;color:#8b1a1a;opacity:0.18;transform:rotate(-25deg);white-space:nowrap;letter-spacing:1px">PREVIEW — NOT A VALID PRESCRIPTION</span>
+      </div>
+      <div style="position:relative;z-index:0">
+        <div style="text-align:center;margin-bottom:16px;border-bottom:2px solid #1a4a2e;padding-bottom:12px">
+          <h2 style="font-family:'Cormorant Garamond',serif;font-size:24px;color:#1a4a2e;margin:0">${_esc(tenant.name || 'AyurXpert Clinic')}</h2>
+          <p style="font-size:12px;color:#8a9e90;margin-top:4px">${_esc(tenant.city || '')} ${_esc(tenant.state || '')}</p>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;font-size:12px">
+          <div>Patient: <strong>${_esc(_activePatient.name)}</strong></div>
+          <div style="text-align:right">Date: <strong>${date}</strong></div>
+          <div>UHID: <strong>${_uhid(_activePatient.id)}</strong></div>
+          <div style="text-align:right">Token: <strong>#${_esc(_activeVisit?.token_number)}</strong></div>
+          <div>Doctor: <strong>${_esc(profile.full_name)}</strong></div>
+          <div style="text-align:right">Phone: <strong>${_esc(_activePatient.phone || '—')}</strong></div>
+        </div>
+        ${document.getElementById('d-modern').value || document.getElementById('d-ayurveda').value ? `
+        <div style="background:#f0f9f4;padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:12px">
+          ${document.getElementById('d-modern').value ? `Diagnosis: <strong>${document.getElementById('d-modern').value}</strong>` : ''}
+          ${document.getElementById('d-ayurveda').value ? ` / <strong>${document.getElementById('d-ayurveda').value}</strong>` : ''}
+        </div>` : ''}
+        <div style="font-size:12px;font-weight:600;color:#1a4a2e;margin-bottom:8px;border-bottom:1px solid #d4e6da;padding-bottom:4px">&#8478; Medicines</div>
+        ${rx.map((r,i) => `<div style="padding:6px 0;border-bottom:1px dashed #d4e6da;font-size:12px">
+          <strong>${i+1}. ${r.name}</strong> — ${r.dose} ${r.freq} × ${r.dur}
+          ${r.anupana ? `<span style="color:#8a9e90"> (with ${r.anupana})</span>` : ''}
+          ${r.timing ? `<span style="color:#8a9e90"> — ${r.timing}</span>` : ''}
+        </div>`).join('')}
+        ${document.getElementById('rx-instructions').value ? `<p style="font-size:11px;color:#4a6352;margin-top:8px">${document.getElementById('rx-instructions').value}</p>` : ''}
+        ${document.getElementById('adv-pathya').value ? `<div style="margin-top:12px;font-size:11px"><strong>Pathya:</strong> ${document.getElementById('adv-pathya').value}</div>` : ''}
+        ${document.getElementById('adv-apathya').value ? `<div style="font-size:11px"><strong>Apathya:</strong> ${document.getElementById('adv-apathya').value}</div>` : ''}
+        ${document.getElementById('fu-date').value ? `<div style="font-size:11px;margin-top:8px">Review on: <strong>${new Date(document.getElementById('fu-date').value).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</strong> ${document.getElementById('fu-notes').value ? '— '+document.getElementById('fu-notes').value : ''}</div>` : ''}
+        <div style="margin-top:24px;text-align:center;font-size:11px;color:#8b1a1a;font-weight:600">PREVIEW ONLY — not signed, not valid until Complete Consultation is saved</div>
+      </div>
     </div>
-    <div style="text-align:center;margin-bottom:14px">
-      <span style="display:inline-block;border:3px solid #8b1a1a;color:#8b1a1a;font-weight:800;font-size:16px;padding:8px 18px;border-radius:6px;letter-spacing:0.5px;transform:rotate(-3deg)">PREVIEW — NOT A VALID PRESCRIPTION</span>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;font-size:12px">
-      <div>Patient: <strong>${_esc(_activePatient.name)}</strong></div>
-      <div style="text-align:right">Date: <strong>${date}</strong></div>
-      <div>UHID: <strong>${_uhid(_activePatient.id)}</strong></div>
-      <div style="text-align:right">Token: <strong>#${_esc(_activeVisit?.token_number)}</strong></div>
-      <div>Doctor: <strong>${_esc(profile.full_name)}</strong></div>
-      <div style="text-align:right">Phone: <strong>${_esc(_activePatient.phone || '—')}</strong></div>
-    </div>
-    ${document.getElementById('d-modern').value || document.getElementById('d-ayurveda').value ? `
-    <div style="background:#f0f9f4;padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:12px">
-      ${document.getElementById('d-modern').value ? `Diagnosis: <strong>${document.getElementById('d-modern').value}</strong>` : ''}
-      ${document.getElementById('d-ayurveda').value ? ` / <strong>${document.getElementById('d-ayurveda').value}</strong>` : ''}
-    </div>` : ''}
-    <div style="font-size:12px;font-weight:600;color:#1a4a2e;margin-bottom:8px;border-bottom:1px solid #d4e6da;padding-bottom:4px">&#8478; Medicines</div>
-    ${rx.map((r,i) => `<div style="padding:6px 0;border-bottom:1px dashed #d4e6da;font-size:12px">
-      <strong>${i+1}. ${r.name}</strong> — ${r.dose} ${r.freq} × ${r.dur}
-      ${r.anupana ? `<span style="color:#8a9e90"> (with ${r.anupana})</span>` : ''}
-      ${r.timing ? `<span style="color:#8a9e90"> — ${r.timing}</span>` : ''}
-    </div>`).join('')}
-    ${document.getElementById('rx-instructions').value ? `<p style="font-size:11px;color:#4a6352;margin-top:8px">${document.getElementById('rx-instructions').value}</p>` : ''}
-    ${document.getElementById('adv-pathya').value ? `<div style="margin-top:12px;font-size:11px"><strong>Pathya:</strong> ${document.getElementById('adv-pathya').value}</div>` : ''}
-    ${document.getElementById('adv-apathya').value ? `<div style="font-size:11px"><strong>Apathya:</strong> ${document.getElementById('adv-apathya').value}</div>` : ''}
-    ${document.getElementById('fu-date').value ? `<div style="font-size:11px;margin-top:8px">Review on: <strong>${new Date(document.getElementById('fu-date').value).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</strong> ${document.getElementById('fu-notes').value ? '— '+document.getElementById('fu-notes').value : ''}</div>` : ''}
-    <div style="margin-top:24px;text-align:center;font-size:11px;color:#8b1a1a;font-weight:600">PREVIEW ONLY — not signed, not valid until Complete Consultation is saved</div>
   `;
+  document.body.classList.add('rxpreview-print');
+  window.addEventListener('afterprint', () => document.body.classList.remove('rxpreview-print'), { once: true });
   window.print();
 });
 

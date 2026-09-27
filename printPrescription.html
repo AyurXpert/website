@@ -129,7 +129,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   body{background:#fff;padding:0}
   .print-btn{display:none}
   .rx-card{box-shadow:none;border:none;border-radius:0}
-  .page-wrap{max-width:100%}
+  /* Session 308c — do NOT stretch to 100% here: at a wide print-preview viewport (e.g. a
+     Playwright screenshot, or a browser print-preview pane wider than a real printed page),
+     `justify-content:space-between` in .rx-header pushes .doctor-block far enough right that it
+     clips past the visible edge. Keeping the same bounded width as on screen renders correctly
+     at any viewport width and matches how a real printed page (A4/letter) would lay it out
+     anyway — a centred content column, not edge-to-edge bleed. */
+  .page-wrap{max-width:680px;margin:0 auto}
 }
 </style>
 </head>

@@ -902,12 +902,20 @@ body.vh-split .vh-panel{width:480px;box-shadow:none}
   .c-panel{display:block;overflow:visible}
   .c-active{display:block;height:auto}
   .tab-body{overflow:visible;padding:0}
-  #tab-rx{display:block!important}
-  .pt-hdr{border:none;padding:0 0 16px}
-  .rx-row{border:1px solid #ccc;break-inside:avoid;background:#fff}
-  .rx-row select,.rx-row input{border:none;padding:0;background:transparent;height:auto;font-size:13px}
   .print-header{display:block!important}
   .exam-block-body{display:block!important}
+  /* Session 308c — Print Rx preview: a TRUE allowlist (hides every other direct child of
+     <body>, regardless of what future tabs/banners get added), not another entry appended to
+     the enumerated denylist above — that pattern already caused one real patient-facing data
+     leak (ipd.html, Session 262: an internal compliance banner printed straight to a patient)
+     and, found live 27 Sep 2026, was leaking this page's entire nav/tabs/live form fields into
+     every print. Requires #print-header to be a direct child of <body> (relocated once, on
+     load, in doctor.js) for the :not() selector to actually isolate it. The old #tab-rx/
+     .pt-hdr/.rx-row rules below this used to force-print the live editable tab underneath
+     #print-header at the same time — removed, since they're now fully redundant and were half
+     of the leak. */
+  body.rxpreview-print > *:not(#print-header){display:none!important}
+  body.rxpreview-print #print-header{display:block!important}
   /* §18c — Swasthya Card print mode */
   body.swasthya-print .print-header{display:none!important}
   body.swasthya-print #tab-rx{display:none!important}

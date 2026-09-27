@@ -12,6 +12,11 @@ await requireAuth(['pharmacist', 'super_admin', 'dept_admin']);
 initNavbar();
 wireDelegatedEvents();
 
+// Session 308c — relocate the shared print target to a direct child of <body>, once, so the
+// print-isolation allowlist (`body.invoice-print > *:not(#print-header)`, dispensaryPOS.html) can
+// actually isolate it regardless of how deeply nested it is in the panel structure otherwise.
+document.body.appendChild(document.getElementById('print-header'));
+
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
 const userId   = profile.id;
@@ -789,6 +794,10 @@ function _printInvoice(billId, items, subtotal, discount, total, payMethod, disc
     </div>
     <div style="margin-top:16px;font-size:10px;color:#8a9e90;text-align:center">Dispensed by: ${_esc(profile.full_name)} · AyurXpert HMS</div>
   `;
+  // Session 308c — isolate via the true allowlist in dispensaryPOS.html's @media print block
+  // (`body.invoice-print > *:not(#print-header)`), not the page's other live UI leaking through.
+  document.body.classList.add('invoice-print');
+  window.addEventListener('afterprint', () => document.body.classList.remove('invoice-print'), { once: true });
   window.print();
 }
 

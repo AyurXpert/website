@@ -245,13 +245,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
 /* Print */
 @media print{
-  #navbar-root,.q-panel,.action-bar,.toast{display:none!important}
+  /* Session 308c — a TRUE allowlist for the invoice printout (hides every other direct child
+     of <body>, regardless of what future UI gets added to this page), not the previous
+     enumerated denylist — that pattern was found live 27 Sep 2026 to leak the whole page
+     (nav, cart, action bar) into every print, the same bug class already found once before in
+     ipd.html (Session 262). Requires #print-header to be a direct child of <body> (relocated
+     once, on load, in dispensaryPOS.js) for the :not() selector to actually isolate it.
+     printMedLabel()'s own popup window is unaffected — it already builds a fresh, separate
+     document from scratch, nothing on this page to leak into it. */
+  body.invoice-print > *:not(#print-header){display:none!important}
+  body.invoice-print #print-header{display:block!important}
   body{overflow:auto;background:#fff}
-  .page{display:block;height:auto;margin-top:0}
-  .d-panel{display:block;overflow:visible}
-  .d-active{display:block;height:auto}
-  .d-body{overflow:visible;padding:0}
-  .print-header{display:block!important}
 }
 .print-header{display:none}
 </style>
