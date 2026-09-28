@@ -20,3 +20,23 @@ export function localDateStr(date = new Date()) {
 export function todayLocalStr() {
   return new Date().toLocaleDateString('en-CA');
 }
+
+// Asia/Kolkata-forced variants -- for the few screens (e.g. doctor.html's My Patients tab)
+// where "today" must mean the IST calendar day regardless of the browser/OS clock's own
+// timezone, not just whatever zone the machine happens to be set to.
+const IST_TZ = 'Asia/Kolkata';
+
+export function istDateStr(date = new Date()) {
+  return (date instanceof Date ? date : new Date(date)).toLocaleDateString('en-CA', { timeZone: IST_TZ });
+}
+
+export function todayISTStr() {
+  return istDateStr(new Date());
+}
+
+// UTC instant bounds [startUTC, endUTC) covering one IST calendar day (fixed UTC+5:30,
+// no DST) -- for filtering a timestamptz column to that day without a UTC-boundary bug.
+export function istDayRangeUTC(dateStr) {
+  const start = new Date(`${dateStr}T00:00:00+05:30`);
+  return { startUTC: start.toISOString(), endUTC: new Date(start.getTime() + 24 * 60 * 60 * 1000).toISOString() };
+}

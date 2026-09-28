@@ -15,6 +15,7 @@ import { renderPromoBanner } from '../components/promoBanner.js';
 import { openTimePicker, formatTime12 } from '../components/timePicker.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { loadVisitTimeline, resetVisitTimeline, getProgressData, setProgressData, isProgressMissing } from '../modules/patient/visitTimeline.js';
+import { loadMyPatients, resetMyPatients } from '../modules/patient/myPatients.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -39,6 +40,11 @@ window._closeIfSelf = function(isSelf, fnName) {
   if (isSelf) { const fn = window[fnName]; if (typeof fn === 'function') fn(); }
 };
 window._openBlank = function(url) { window.open(url, '_blank'); };
+// investigationsDue.js's openLabReportFile() falls back to this global when its own
+// module-scoped _ctx hasn't been set yet (e.g. the doctor opens My Patients before ever
+// loading an active consultation's Visit History rail this session) — was referenced but
+// never actually assigned anywhere, so "View report" silently no-op'd in that case.
+window._axSupabase = supabase;
 window._closeHistoryToWelcome = function() {
   document.getElementById('c-history').style.display = 'none';
   document.getElementById('welcome').style.display = '';
@@ -449,9 +455,11 @@ window.switchQueueTab = function(tab) {
   const ipd    = document.getElementById('q-tab-ipd');
   const review = document.getElementById('q-tab-review');
   const abdm   = document.getElementById('q-tab-abdm');
-  [opd, tele, ipd, review, abdm].forEach(b => { if (!b) return; b.style.background = 'none'; b.style.color = 'var(--text-muted)'; b.style.borderBottom = '2px solid transparent'; b.style.fontWeight = '500'; });
+  const mine   = document.getElementById('q-tab-mine');
+  [opd, tele, ipd, review, abdm, mine].forEach(b => { if (!b) return; b.style.background = 'none'; b.style.color = 'var(--text-muted)'; b.style.borderBottom = '2px solid transparent'; b.style.fontWeight = '500'; });
   // Leaving the ABDM tab stops its auto-refresh poll.
   if (tab !== 'abdm' && _abdmReqTimer) { clearInterval(_abdmReqTimer); _abdmReqTimer = null; }
+  if (tab !== 'mine') resetMyPatients();
   if (tab === 'opd') {
     opd.style.background = 'var(--green-light)'; opd.style.color = 'var(--green-deep)'; opd.style.borderBottom = '2px solid var(--green-mid)'; opd.style.fontWeight = '600';
     loadQueue();
@@ -466,6 +474,9 @@ window.switchQueueTab = function(tab) {
     _loadAbdmRequests();
     if (_abdmReqTimer) clearInterval(_abdmReqTimer);
     _abdmReqTimer = setInterval(() => { if (_queueTab === 'abdm') _loadAbdmRequests(_abdmReqFilter, true); }, 90000);
+  } else if (tab === 'mine') {
+    mine.style.background = '#f3f4f6'; mine.style.color = '#4b5563'; mine.style.borderBottom = '2px solid #9ca3af'; mine.style.fontWeight = '600';
+    loadMyPatients({ supabase, esc: _esc, tenantId, userId });
   } else {
     ipd.style.background = '#fce7f3'; ipd.style.color = '#be185d'; ipd.style.borderBottom = '2px solid #db2777'; ipd.style.fontWeight = '600';
     loadIPDPatients();

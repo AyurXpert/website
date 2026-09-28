@@ -160,6 +160,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
    zero visual indication it was focused (WCAG 2.4.7). */
 #q-search:focus{border-color:var(--green-mid)!important;background:var(--white)!important;box-shadow:0 0 0 3px rgba(45,122,79,.1)}
 
+/* "My Patients" is the only queue tab whose label has no natural break point (no space
+   after the icon's word like "Tele 0"/"ABDM 0" do) -- without this, the browser's flex
+   min-content sizing lets it wrap to 2 lines and drags every other tab into wrapping too. */
+#q-tab-mine{white-space:nowrap}
 .q-list{flex:1;overflow-y:auto;padding:8px 12px}
 .q-empty{text-align:center;padding:48px 16px;color:var(--text-muted)}
 .q-empty-icon{margin-bottom:10px}
@@ -1181,6 +1185,7 @@ body.medcert-print #mc-print{display:block!important}
       <button id="q-tab-ipd" data-onclick="switchQueueTab" data-onclick-a0="ipd" style="flex:1;padding:8px 2px;font-size:10.5px;font-weight:500;border:none;background:none;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent">🏥 IPD <span id="q-ipd-count" style="background:#fce7f3;color:#be185d;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:2px">0</span></button>
       <button id="q-tab-review" data-onclick="switchQueueTab" data-onclick-a0="review" style="display:none;flex:1;padding:8px 2px;font-size:10.5px;font-weight:500;border:none;background:none;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent">📝 Review <span id="q-review-count" style="background:#fff4e5;color:#7a4a00;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:2px">0</span></button>
       <button id="q-tab-abdm" data-onclick="switchQueueTab" data-onclick-a0="abdm" title="Consent requests you raised — track their status" style="flex:1;padding:8px 2px;font-size:10.5px;font-weight:500;border:none;background:none;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent">🔗 ABDM <span id="q-abdm-count" style="background:#e6f0e6;color:#1a6a34;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:2px">0</span></button>
+      <button id="q-tab-mine" data-onclick="switchQueueTab" data-onclick-a0="mine" title="Your own finalized consultations, read-only" style="flex:1;padding:8px 2px;font-size:10.5px;font-weight:500;border:none;background:none;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent">👥 My Patients</button>
     </div>
 
     <div class="q-list" id="q-list">
