@@ -1,9 +1,10 @@
-import { requireAuth, getCurrentTenantId, getCurrentTenant } from '../core/auth.js';
+import { requireAuth, getCurrentTenantId, getCurrentTenant, getCurrentRole } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
 
 await requireAuth(['pharmacist','super_admin','dept_admin','accountant'], 'login.html');
 initNavbar();
@@ -13,6 +14,14 @@ const tenantId  = getCurrentTenantId();
 const tenant    = getCurrentTenant();
 const TODAY     = todayLocalStr();
 const IN_90     = localDateStr(new Date(Date.now() + 90*86400000));
+
+// accountant sees the GMP supplier register for reference but can't change it —
+// writes are pharmacist + admins only (session310_partd_money_tables2_lockdown.sql)
+const _viewOnly = getCurrentRole() === 'accountant';
+if (_viewOnly) {
+  hideRegisterWrites(['openAdd', 'saveSupplier', 'deactivate']);
+  showViewOnlyNote('You can view the supplier register. Adding, editing, or deactivating a supplier needs a pharmacist or admin.');
+}
 
 let _suppliers = [];
 

@@ -1912,13 +1912,21 @@ async function _showReceipt(d) {
   document.getElementById('receipt-title').innerHTML = `✓ Visit Registered ${payBadge}`;
   document.getElementById('receipt-card').classList.add('show');
 
-  // Deduct package session if used
+  // Deduct package session if used. The registration + consultation fee were already zeroed
+  // on the bill at togglePkgUse() (before this bill was created) on the assumption the package
+  // would cover them — so if redemption is refused here, the bill just created is UNDER-BILLED
+  // (₹0 reg/consultation fee) and the session was NOT deducted from the package. This is not a
+  // "redeem it later" situation: the visit needs its fee corrected now, not the package.
   if (_activePackage && document.getElementById('pkg-use-chk').checked) {
-    const newUsed = (_activePackage.sessions_used || 0) + 1;
-    const newStatus = newUsed >= _activePackage.sessions_total ? 'completed' : 'active';
-    await supabase.from('patient_packages')
-      .update({ sessions_used: newUsed, status: newStatus })
-      .eq('id', _activePackage.id);
+    const { error: redeemErr } = await supabase.rpc('redeem_patient_package', {
+      p_patient_package_id: _activePackage.id
+    });
+    if (redeemErr) {
+      _alert('error', '⚠ PACKAGE NOT REDEEMED — ' +
+        safeErrorMessage(redeemErr, 'This package could not be used for this visit.') +
+        ' The visit is registered but was billed ₹0 assuming the package covered it — it did NOT. ' +
+        'Correct this bill’s registration/consultation fee and collect payment before the patient leaves.');
+    }
     _activePackage = null;
     document.getElementById('pkg-card').classList.remove('show');
     document.getElementById('pkg-use-chk').checked = false;

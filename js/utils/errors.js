@@ -41,5 +41,19 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 310 money-tables RPCs (sql/session310_partd_money_tables2_lockdown.sql) —
+  // redeem_patient_package / cancel_patient_package / void_expense_record. Same as the
+  // register guards above: plain, schema-free, written to be shown to staff as-is — the
+  // specific reason (over-limit vs. wrong role vs. already voided) matters to what the
+  // staff member does next, so the generic fallback would actively hide useful information.
+  const PACKAGE_EXPENSE_MSGS = ['Your role cannot redeem', 'Your role cannot void',
+    'This package is', 'This package has no sessions remaining', 'Package not found',
+    'Only an active package', 'Give a reason for cancelling', 'Give a reason for voiding',
+    'This expense is already voided', 'Expense record not found', 'Only super_admin or dept_admin can cancel'];
+  if ((error?.code === 'P0001' || error?.code === '22023' || error?.code === '42501' || error?.code === 'P0002')
+      && PACKAGE_EXPENSE_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   return fallback;
 }

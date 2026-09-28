@@ -250,7 +250,7 @@ window.saveClaimEdit = async function() {
     return;
   }
 
-  await logAudit('update_insurance_claim', { bill_id: billId, ...payload });
+  await logAudit('update_insurance_claim', 'bills', billId, { ...payload }, { tenantId, userId: currentUser?.id, userName: currentUser?.full_name });
   closeModal('modal-edit-bg');
   await loadActiveClaims();
 };
@@ -434,7 +434,7 @@ window.saveAssignCode = async function() {
     .eq('id', billId)
     .eq('tenant_id', tenantId);
   if (error) { alert(safeErrorMessage(error, 'Could not assign PMJAY code.')); return; }
-  await logAudit('assign_pmjay_code', { bill_id: billId, pmjay_package_code: code });
+  await logAudit('assign_pmjay_code', 'bills', billId, { pmjay_package_code: code }, { tenantId, userId: currentUser?.id, userName: currentUser?.full_name });
   closeModal('modal-assign-bg');
   _allInsuranceBills = null;
   await loadActiveClaims();
