@@ -1006,6 +1006,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="stat-value" id="stat-admitted">—</div>
       <div class="stat-label">Currently Admitted</div>
     </div>
+    <!-- Session 317 -- separate from "Currently Admitted" on purpose: this counts admissions
+         past the point the patient physically left (bed already freed by lock_ipd_charges())
+         but whose bill/payment/MRD-release is still pending -- a real population reception/
+         billing/MRD need to track, previously invisible under the default "Current Admissions"
+         filter (which only ever included admitted/clinically_discharged). -->
+    <div class="stat-card">
+      <div class="stat-value" id="stat-in-billing">—</div>
+      <div class="stat-label">Awaiting Billing/Release</div>
+    </div>
     <div class="stat-card">
       <div class="stat-value" id="stat-vacant">—</div>
       <div class="stat-label">Vacant Beds</div>
@@ -1032,6 +1041,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     </select>
     <select id="filter-status" data-onchange="applyFilters">
       <option value="admitted">Current Admissions</option>
+      <option value="in_billing">Awaiting Billing/Release</option>
       <option value="">All Statuses</option>
       <option value="discharged">Discharged</option>
       <option value="lama">LAMA</option>

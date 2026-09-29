@@ -59,7 +59,10 @@ import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml
 // below both grant trainee_doctor real rights on this page, matching _ward_round_role()
 // (already live) and doctor.html's own established trainee_doctor pattern -- without
 // this, every one of those grants would be unreachable dead code.
-await requireAuth(['super_admin','dept_admin','doctor','trainee_doctor','receptionist','nurse','cashier','accountant','finance_manager']);
+// Session 317 -- mrd_staff added, so MRD can use the new "Awaiting Billing/Release" filter
+// here directly (mrd.html's own IPD tab already has an equivalent pending_release filter --
+// this is a second, richer-context view of the same population, not a replacement for it).
+await requireAuth(['super_admin','dept_admin','doctor','trainee_doctor','receptionist','nurse','cashier','accountant','finance_manager','mrd_staff']);
 initNavbar();
 wireDelegatedEvents();
 const tenantId = getCurrentTenantId();
@@ -196,6 +199,9 @@ function renderStats() {
   // uses charges_locked_at (the real bed-vacate moment), not discharged_at
   // (now stamped at MRD's final release, which can trail actual departure).
   const admitted   = _admissions.filter(a => ['admitted','clinically_discharged'].includes(a.status)).length;
+  // Session 317 -- kept deliberately separate from "admitted" (physically-in-bed): this is
+  // "bed already freed, but the bill/payment/MRD-release still needs closing out."
+  const inBilling  = _admissions.filter(a => ['charges_locked','bill_generated','paid_cleared'].includes(a.status)).length;
   const vacant     = _allBeds.filter(b => b.status === 'vacant').length;
   const today      = todayLocalStr();
   const todayDis   = _admissions.filter(a =>
@@ -214,6 +220,7 @@ function renderStats() {
   }
 
   document.getElementById('stat-admitted').textContent   = admitted;
+  document.getElementById('stat-in-billing').textContent = inBilling;
   document.getElementById('stat-vacant').textContent     = vacant;
   document.getElementById('stat-avg-los').textContent    = avgLos;
   document.getElementById('stat-today-dis').textContent  = todayDis;
@@ -403,6 +410,10 @@ window.applyFilters = function() {
   // Transferred/Deceased now live in disposition, never status.
   let rows = _admissions;
   if (statFilter === 'admitted')        rows = rows.filter(a => ['admitted','clinically_discharged'].includes(a.status));
+  // Session 317 -- "bed vacated, financial process still running" (charges_locked/
+  // bill_generated/paid_cleared) had no filter of its own -- the only way to see this
+  // population was "All Statuses", mixed in with every historical discharged record.
+  else if (statFilter === 'in_billing') rows = rows.filter(a => ['charges_locked','bill_generated','paid_cleared'].includes(a.status));
   else if (statFilter === 'discharged') rows = rows.filter(a => a.status === 'discharged' && (a.disposition||'discharged') === 'discharged');
   else if (statFilter)                  rows = rows.filter(a => a.disposition === statFilter);
   if (deptFilter) rows = rows.filter(a => a.departments?.id === deptFilter);

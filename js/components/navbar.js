@@ -80,7 +80,9 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         // deposit on a not-yet-billed admission. Matches ipd.html's requireAuth list exactly
         // (also trainee_doctor, added Session 314 for its own clinical reasons -- unrelated to
         // this finance gap, listed here since CLINICAL doesn't cover it either).
-        { href:'ipd.html',           label:'Admissions',      roles:CLINICAL.concat(['receptionist','trainee_doctor','cashier','accountant','finance_manager']),        types:HOSP, module:'ipd'        },
+        // Session 317 -- mrd_staff added, matching ipd.js's own requireAuth() (they can now
+        // use the new "Awaiting Billing/Release" filter directly on this page).
+        { href:'ipd.html',           label:'Admissions',      roles:CLINICAL.concat(['receptionist','trainee_doctor','cashier','accountant','finance_manager','mrd_staff']),        types:HOSP, module:'ipd'        },
         // Session 205 (cont.) real bug found continuing the IPD-group review: 'therapist' was
         // granted here but nursing.js's requireAuth() never allowed it (['nurse','nurse_manager',
         // 'super_admin','dept_admin','doctor'] -- no therapist-specific code anywhere in the
