@@ -72,7 +72,15 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
     {
       label: 'IPD', icon: '🏥',
       items: [
-        { href:'ipd.html',           label:'Admissions',      roles:CLINICAL.concat(['receptionist']),        types:HOSP, module:'ipd'        },
+        // Session 315 -- cashier/accountant/finance_manager already have full page access
+        // (ipd.html's own requireAuth() has allowed them since Session 302 -- Generate Bill /
+        // the 💳 Account drawer are exactly for them) but had no way to actually FIND the page:
+        // this nav link never granted them, and finance.html's Outstanding tab only links in
+        // AFTER a bill exists ("Open in IPD →"), leaving no discoverable path for a mid-stay
+        // deposit on a not-yet-billed admission. Matches ipd.html's requireAuth list exactly
+        // (also trainee_doctor, added Session 314 for its own clinical reasons -- unrelated to
+        // this finance gap, listed here since CLINICAL doesn't cover it either).
+        { href:'ipd.html',           label:'Admissions',      roles:CLINICAL.concat(['receptionist','trainee_doctor','cashier','accountant','finance_manager']),        types:HOSP, module:'ipd'        },
         // Session 205 (cont.) real bug found continuing the IPD-group review: 'therapist' was
         // granted here but nursing.js's requireAuth() never allowed it (['nurse','nurse_manager',
         // 'super_admin','dept_admin','doctor'] -- no therapist-specific code anywhere in the

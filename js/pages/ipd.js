@@ -90,6 +90,10 @@ const DISCHARGE_PRINT_ROLES = ['doctor','trainee_doctor','nurse','mrd_staff','su
 // a doctor advises admission (doctor.html), reception collects the advance and admits
 // -- never a doctor/nurse directly. Matches _ipd_admissions_insert_ok() server-side.
 const ADMIT_ROLES = ['receptionist','super_admin','dept_admin'];
+// Session 315 -- the button used to be shown to everyone (a doctor/nurse/finance role could
+// open the whole Admit form only to be told "only reception or admin" at the very last step).
+// Matches create_ipd_admission()'s own role check exactly -- same ADMIT_ROLES constant.
+document.getElementById('btn-admit-patient').style.display = ADMIT_ROLES.includes(myRole) ? '' : 'none';
 
 let _admissions  = [];
 let _depts       = [];
@@ -2375,6 +2379,10 @@ window._toggleBypassBtn = function() {
   document.getElementById('btn-bypass-confirm').disabled = !document.getElementById('bypass-reason').value.trim();
 };
 
+// Session 316 -- was a raw client .update() with the reason only ever shown in the confirm()
+// dialog and logAudit() (never DB-verified) and no forward-only enforcement at all. Now calls
+// force_ipd_admission_status() -- the one RPC allowed to move ipd_admissions.status backward
+// or arbitrarily, super_admin-only, reason required and stored server-side, not just logged.
 window.confirmForceStatus = async function() {
   const admId  = document.getElementById('bypass-adm-id').value;
   const target = document.getElementById('bypass-target-status').value;
@@ -2384,23 +2392,10 @@ window.confirmForceStatus = async function() {
   if (!adm) return;
   if (!confirm(`Force this admission's status to "${_statusLabel(target)}"? This bypasses the normal discharge/billing gates and is logged to the audit trail.`)) return;
 
-  const update = { status: target };
-  const stampCol = {
-    clinically_discharged: 'clinically_discharged_at', charges_locked: 'charges_locked_at',
-    bill_generated: 'bill_generated_at', paid_cleared: 'paid_cleared_at', discharged: 'discharged_at',
-  }[target];
-  if (stampCol) update[stampCol] = new Date().toISOString();
-
-  const { error } = await supabase.from('ipd_admissions').update(update).eq('id', admId);
+  const { error } = await supabase.rpc('force_ipd_admission_status', {
+    p_admission_id: admId, p_new_status: target, p_reason: reason,
+  });
   if (error) { _alert('error', safeErrorMessage(error, 'Could not force status change.')); return; }
-
-  if (['charges_locked','bill_generated','paid_cleared','discharged'].includes(target) && adm.beds?.id) {
-    await supabase.from('beds').update({ status: 'vacant' }).eq('id', adm.beds.id);
-  }
-
-  await logAudit('ipd_status_override', 'ipd_admissions', admId, {
-    from_status: adm.status, to_status: target, reason, patient_name: adm.patients?.name,
-  }, _ctx);
 
   closeNotesDrawer();
   _alert('success', `Status forced to "${_statusLabel(target)}".`);
