@@ -2355,7 +2355,12 @@ window.openNotesDrawer = function(admId) {
       <div class="adm-detail-row"><span>Department</span><strong>${_esc(dept.name||'—')}</strong></div>
       <div class="adm-detail-row"><span>Doctor</span><strong>${_esc(doc.full_name||'—')}</strong></div>
       <div class="adm-detail-row"><span>Admitted</span><strong>${_fmt(adm.admission_date)} (${days} days)</strong></div>
-      <div class="adm-detail-row"><span>Status</span><strong>${_statusLabel(adm.status==='discharged' ? (adm.disposition||'discharged') : adm.status)}</strong></div>
+      <div class="adm-detail-row"><span>Status</span><strong>${_esc(_statusLabel(
+        adm.status==='discharged' && KNOWN_DISPOSITION_KEYS.includes(adm.disposition) ? adm.disposition : adm.status
+      ))}</strong></div>
+      ${adm.status==='discharged' && adm.disposition && !KNOWN_DISPOSITION_KEYS.includes(adm.disposition)
+        ? `<div style="margin-top:8px;font-size:12px;color:var(--text-mid)"><strong>Discharge Reason:</strong><br>${_esc(adm.disposition)}</div>`
+        : ''}
     </div>
     ${adm.diagnosis_primary || adm.diet_type || adm.notes ? `
     <div class="adm-detail-card">
@@ -2433,6 +2438,15 @@ function _statusLabel(s) {
 // real reason lives in disposition. In-progress billing stages (charges_
 // locked/bill_generated/paid_cleared) share one visual style since they're
 // all "bed vacated, financial process still running."
+// Session 318 fix: for a 'discharged' admission, `disposition` was used BOTH as the CSS
+// class suffix and the displayed label with no validation -- fine for the 4 short known
+// keywords (discharged/lama/transferred/deceased), but a real clinical narrative disposition
+// (found live on an unrelated admission) or a data-correction reason (the Ramachandra fix)
+// rendered its ENTIRE text as the badge, and as an invalid `status-<giant text>` CSS class.
+// Only a recognized short keyword -- or the specific data-correction prefix this project's
+// own convention uses -- gets special-cased; everything else safely falls back to the plain
+// "Discharged" label. The full text is still shown, properly labeled, in the 📋 details view.
+const KNOWN_DISPOSITION_KEYS = ['discharged', 'lama', 'transferred', 'deceased'];
 function _statusBadgeHtml(a) {
   if (['admitted','clinically_discharged'].includes(a.status)) {
     return `<span class="status-badge status-${a.status==='admitted'?'admitted':'inprogress'}">${_esc(_statusLabel(a.status))}</span>`;
@@ -2440,8 +2454,18 @@ function _statusBadgeHtml(a) {
   if (a.status !== 'discharged') {
     return `<span class="status-badge status-inprogress">${_esc(_statusLabel(a.status))}</span>`;
   }
-  const key = a.disposition || 'discharged';
-  return `<span class="status-badge status-${key}">${_esc(_statusLabel(key))}</span>`;
+  const raw = a.disposition || 'discharged';
+  let key, label;
+  if (KNOWN_DISPOSITION_KEYS.includes(raw)) {
+    key = raw; label = _statusLabel(raw);
+  } else if (raw.startsWith('Closed as duplicate admission')) {
+    key = 'discharged'; label = 'Closed — Duplicate';
+  } else {
+    key = 'discharged'; label = _statusLabel('discharged');
+  }
+  // No title/tooltip here either -- the reason belongs only in the 📋 details view, per
+  // Dr. Venkatesh's explicit instruction, not surfaced anywhere in the list at all.
+  return `<span class="status-badge status-${key}">${_esc(label)}</span>`;
 }
 // Session 312 fix: the page-level #alert bar sits in normal document flow, so it's
 // completely hidden behind any open .drawer-overlay (fixed, high z-index) -- every error/
