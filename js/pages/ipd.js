@@ -535,10 +535,15 @@ window.onPayerTypeChange = function(val) {
     document.getElementById('adm-policy-number').value = '';
     document.getElementById('adm-member-id').value = '';
     document.getElementById('adm-pmjay-code').value = '';
-    document.querySelectorAll('input[name="adm-cashless"]').forEach(r => r.checked = false);
   }
 
   const isScheme = ADVANCE_SCHEME_PAYERS.includes(val);
+  // Session 313 -- a scheme payer is cashless by definition (server forces it); the choice
+  // is only meaningful for insurance/corporate, so it's hidden (not just unrequired) here.
+  document.getElementById('adm-cashless-field').style.display = (showInsurer && !isScheme) ? '' : 'none';
+  if (!showInsurer || isScheme) document.querySelectorAll('input[name="adm-cashless"]').forEach(r => r.checked = false);
+
+
   const isOptional = ADVANCE_OPTIONAL_PAYERS.includes(val);
   document.getElementById('adm-advance-fields').style.display = isScheme ? 'none' : '';
   document.getElementById('adm-advance-scheme-note').style.display = isScheme ? '' : 'none';
@@ -876,16 +881,19 @@ window.saveAdmission = async function() {
   // required radio pair (mirrors create_ipd_admission's own new required-choice rule).
   const cashlessValue  = _radioValue('adm-cashless');
 
+  const isSchemePayer = ADVANCE_SCHEME_PAYERS.includes(payerType);
+
   if (!deptId)   { _alert('error','Select a department.'); return; }
   if (!bedId)    { _alert('error','Select a bed.'); return; }
   if (!doctorId) { _alert('error','Select an admitting doctor.'); return; }
   if (!admDate)  { _alert('error','Enter admission date.'); return; }
   if (!payerType) { _alert('error','Select a payer type.'); return; }
-  if (payerType !== 'self_pay' && !cashlessValue) { _alert('error','Choose Cashless or Reimbursement.'); return; }
+  // Session 313 -- a scheme payer never asks this (server forces cashless=true); only
+  // insurance/corporate genuinely need the explicit choice.
+  if (payerType !== 'self_pay' && !isSchemePayer && !cashlessValue) { _alert('error','Choose Cashless or Reimbursement.'); return; }
 
   // Session 312 -- advance is required only for self_pay; optional for insurance/corporate
   // (blank/zero allowed); not asked at all (forced ₹0) for pmjay/cghs/echs/esi.
-  const isSchemePayer = ADVANCE_SCHEME_PAYERS.includes(payerType);
   const effectiveAdvance = isSchemePayer ? 0 : (advanceAmount === '' ? 0 : Number(advanceAmount));
   if (payerType === 'self_pay' && (advanceAmount === '' || Number(advanceAmount) < 0)) {
     _alert('error','Enter the advance amount collected.'); return;
@@ -913,7 +921,9 @@ window.saveAdmission = async function() {
     p_policy_number:         payerType !== 'self_pay' ? (policyNumber || null) : null,
     p_member_id:             payerType !== 'self_pay' ? (memberId || null) : null,
     p_pmjay_package_code:    payerType === 'pmjay' ? (pmjayCode || null) : null,
-    p_is_cashless:           payerType !== 'self_pay' ? (cashlessValue === 'cashless') : null,
+    // Session 313 -- for a scheme payer this is sent null; the server ignores it and forces
+    // true regardless (cashless by definition), so this is never trusted for that decision.
+    p_is_cashless:           (payerType !== 'self_pay' && !isSchemePayer) ? (cashlessValue === 'cashless') : null,
     p_advance_amount:        effectiveAdvance,
     p_advance_payment_mode:  effectiveAdvance > 0 ? advanceMode : null,
     p_advance_reference:     effectiveAdvance > 0 ? (advanceRef || null) : null,
@@ -1533,8 +1543,11 @@ function _docLabel(path) {
   // only never opened anything (this app's CSP blocks inline onclick -- see js/utils/domEvents.js)
   // but its silent no-op is what made an EARLIER hidden-behind-the-drawer alert (bug #2) look
   // like it was caused by this click. Real signed-URL open now, via the delegated-event pattern.
+  // Session 313 fix: was `.icon-btn` (fixed 30x30px square built for one emoji glyph) fighting
+  // inline style overrides -- reported "grey and overlapping the text, hard to read". Own
+  // page-local `.doc-link` class instead (auto-width, real padding, no inline style).
   return path
-    ? `<button type="button" class="icon-btn" data-onclick="openInsuranceDocument" data-onclick-a0="${_esc(path)}" title="${_esc(path)}" style="font-size:11px;color:#1a4080;border-color:#a8c8f0;background:#eef4fb">📄 document on file</button>`
+    ? `<button type="button" class="doc-link" data-onclick="openInsuranceDocument" data-onclick-a0="${_esc(path)}" title="${_esc(path)}">📄 document on file</button>`
     : '<span style="color:var(--text-muted)">—</span>';
 }
 
@@ -1610,7 +1623,7 @@ function _renderInsuranceDrawer() {
     const isDeciding = _decidingEnhId === e.id;
     let row = `<div style="border-bottom:1px solid var(--border);padding:6px 0;font-size:12.5px">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <span>₹${Number(e.requested_amount).toLocaleString('en-IN')} requested ${_fmt(e.requested_at)}</span>
+        <span>₹${Number(e.requested_amount).toLocaleString('en-IN')} requested ${new Date(e.requested_at).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</span>
         <span style="font-weight:600;color:${e.status==='approved'?'var(--green-deep)':e.status==='rejected'?'var(--red)':'#a86a00'}">${e.status}</span>
       </div>`;
     if (e.status === 'pending' && canAct) {
@@ -1639,16 +1652,22 @@ function _renderInsuranceDrawer() {
 
   // Session 312 -- server-enforced too (request_enhancement RPC), this is just the matching
   // UI: an enhancement only makes sense once the base pre-authorization has been approved.
+  // Session 313 -- also server-enforced: only one pending enhancement at a time.
   const preAuthApproved = c.pre_auth_status === 'approved';
+  const hasPendingEnh = _insEnhancements.some(e => e.status === 'pending');
   const enhHtml = `
     <div class="ins-section">
       <div class="ins-section-title">Enhancements</div>
       ${enhRows}
-      ${canAct ? (preAuthApproved ? `
+      ${canAct ? (!preAuthApproved
+        ? `<div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Available once pre-authorization is approved.</div>`
+        : hasPendingEnh
+        ? `<div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">A request is already pending — decide it before requesting another.</div>`
+        : `
       <div class="field-row" style="margin-top:8px">
         <div class="field"><label>New enhancement amount</label><input type="number" min="0" step="0.01" id="enh-req-amount" placeholder="₹"/></div>
         <div class="field" style="align-self:flex-end"><button class="btn btn-sm btn-primary" data-onclick="submitEnhancementRequest">Request Enhancement</button></div>
-      </div>` : `<div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Available once pre-authorization is approved.</div>`) : ''}
+      </div>`) : ''}
     </div>`;
 
   // ── Final approval ──
@@ -1703,7 +1722,8 @@ function _switchPayerHtml(adm) {
           <div class="field"><label>Member ID</label><input type="text" id="sw-member"/></div>
         </div>
         <div class="field" id="sw-pmjay-field" style="display:none"><label>PM-JAY Package Code</label><input type="text" id="sw-pmjay"/></div>
-        <div class="field">
+        <!-- Session 313 -- hidden for pmjay/cghs/echs/esi: server forces cashless=true, never asked. -->
+        <div class="field" id="sw-cashless-field">
           <label>Cashless or Reimbursement <span class="req">*</span></label>
           <div style="display:flex;gap:16px;margin-top:4px">
             <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:normal">
@@ -1726,6 +1746,9 @@ window.toggleEnhDecision = function(id) { _decidingEnhId = id || null; _renderIn
 window.onSwitchPayerTypeChange = function(val) {
   document.getElementById('sw-insurer-fields').style.display = val && val !== 'self_pay' ? '' : 'none';
   document.getElementById('sw-pmjay-field').style.display = val === 'pmjay' ? '' : 'none';
+  const isScheme = ADVANCE_SCHEME_PAYERS.includes(val);
+  document.getElementById('sw-cashless-field').style.display = (val && val !== 'self_pay' && !isScheme) ? '' : 'none';
+  if (!val || val === 'self_pay' || isScheme) document.querySelectorAll('input[name="sw-cashless"]').forEach(r => r.checked = false);
 };
 
 // Uploads to the private 'insurance-documents' bucket, tenant/admission/case-scoped
@@ -1870,8 +1893,10 @@ window.submitPayerSwitch = async function() {
     if (reason.length < 5) { _alert('error','Enter a reason (at least 5 characters).'); return; }
     // Session 312 fix: this used to hardcode p_is_cashless:false unconditionally -- exactly
     // the same "silent default" bug reported for the admit form, just on the switch-payer path.
-    const cashlessChoice = newPayer !== 'self_pay' ? _radioValue('sw-cashless') : null;
-    if (newPayer !== 'self_pay' && !cashlessChoice) { _alert('error','Choose Cashless or Reimbursement.'); return; }
+    // Session 313 -- a scheme payer (pmjay/cghs/echs/esi) never asks this; server forces true.
+    const isSchemeSwitch = ADVANCE_SCHEME_PAYERS.includes(newPayer);
+    const cashlessChoice = (newPayer !== 'self_pay' && !isSchemeSwitch) ? _radioValue('sw-cashless') : null;
+    if (newPayer !== 'self_pay' && !isSchemeSwitch && !cashlessChoice) { _alert('error','Choose Cashless or Reimbursement.'); return; }
     const { error } = await supabase.rpc('switch_ipd_payer', {
       p_admission_id: _insAdmId, p_new_payer_type: newPayer, p_reason: reason,
       p_insurer_name: document.getElementById('sw-insurer')?.value.trim() || null,

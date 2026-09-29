@@ -73,7 +73,8 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     'There is no pending pre-authorization', 'A valid enhancement amount',
     'An enhancement can only be requested', 'This enhancement has already been decided',
     'Enhancement request not found', 'Non-payable amount cannot be negative',
-    'Final approval for a cashless case', 'Decision status must be approved or rejected'];
+    'Final approval for a cashless case', 'Decision status must be approved or rejected',
+    'An enhancement request is already pending'];
   if (error?.code === 'P0001' && INSURANCE_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
