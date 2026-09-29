@@ -450,7 +450,8 @@ function renderTable(rows) {
 }
 
 // ── Admit drawer ──────────────────────────────────────────────────────────────
-window.openAdmitDrawer = function() {
+let _tenantDefaultInsuranceAdvance = null;
+window.openAdmitDrawer = async function() {
   _selectedPatient = null;
   _selectedVisitId = null;
   document.getElementById('pt-search').value = '';
@@ -488,10 +489,20 @@ window.openAdmitDrawer = function() {
   document.getElementById('adm-policy-number').value = '';
   document.getElementById('adm-member-id').value = '';
   document.getElementById('adm-pmjay-code').value = '';
-  document.getElementById('adm-is-cashless').checked = false;
+  document.querySelectorAll('input[name="adm-cashless"]').forEach(r => r.checked = false);
+  // Session 312 -- advance block reset to its default (self_pay-shaped) state; onPayerTypeChange
+  // re-adjusts it the moment a payer is actually picked.
+  document.getElementById('adm-advance-fields').style.display = '';
+  document.getElementById('adm-advance-scheme-note').style.display = 'none';
+  document.getElementById('adm-advance-required-note').textContent = '(required to admit)';
+  document.getElementById('adm-advance-amount-label').innerHTML = 'Advance Collected <span class="req">*</span>';
+  document.getElementById('adm-advance-mode-label').innerHTML = 'Payment Mode <span class="req">*</span>';
   _populateDoctorSelect(); // reset to "select department first" state
   goStep(1);
   document.getElementById('admit-overlay').classList.add('open');
+
+  const { data: t } = await supabase.from('tenants').select('ipd_default_advance_insurance').eq('id', tenantId).maybeSingle();
+  _tenantDefaultInsuranceAdvance = t?.ipd_default_advance_insurance ?? null;
 };
 
 window.closeAdmitDrawer = function() {
@@ -506,9 +517,14 @@ window.onAdvanceModeChange = function(mode) {
   if (!mode || mode === 'cash') document.getElementById('adm-advance-reference').value = '';
 };
 
-// Session 311 -- shows the insurer/scheme fields for any non-self-pay payer, and the
-// PM-JAY package field only for that one scheme (matches create_ipd_admission's
-// own payer-type CHECK).
+const ADVANCE_SCHEME_PAYERS = ['pmjay','cghs','echs','esi']; // never asked, always ₹0
+const ADVANCE_OPTIONAL_PAYERS = ['insurance','corporate'];   // optional, tenant default hint
+
+// Session 311/312 -- shows the insurer/scheme fields for any non-self-pay payer, the
+// PM-JAY package field only for that one scheme, and (312) adjusts the Advance block's
+// requiredness by payer type: self_pay required, insurance/corporate optional (prefilled
+// from the tenant default if one is configured), pmjay/cghs/echs/esi hidden and forced ₹0.
+// create_ipd_admission() enforces the same rules server-side (see sql/session312_*.sql).
 window.onPayerTypeChange = function(val) {
   const showInsurer = !!val && val !== 'self_pay';
   document.getElementById('adm-payer-insurer-fields').style.display = showInsurer ? '' : 'none';
@@ -519,7 +535,25 @@ window.onPayerTypeChange = function(val) {
     document.getElementById('adm-policy-number').value = '';
     document.getElementById('adm-member-id').value = '';
     document.getElementById('adm-pmjay-code').value = '';
-    document.getElementById('adm-is-cashless').checked = false;
+    document.querySelectorAll('input[name="adm-cashless"]').forEach(r => r.checked = false);
+  }
+
+  const isScheme = ADVANCE_SCHEME_PAYERS.includes(val);
+  const isOptional = ADVANCE_OPTIONAL_PAYERS.includes(val);
+  document.getElementById('adm-advance-fields').style.display = isScheme ? 'none' : '';
+  document.getElementById('adm-advance-scheme-note').style.display = isScheme ? '' : 'none';
+  document.getElementById('adm-advance-required-note').textContent = isScheme
+    ? '(not applicable)' : isOptional ? '(optional for this payer)' : '(required to admit)';
+  document.getElementById('adm-advance-amount-label').innerHTML = isOptional
+    ? 'Advance Collected' : 'Advance Collected <span class="req">*</span>';
+  document.getElementById('adm-advance-mode-label').innerHTML = isOptional
+    ? 'Payment Mode' : 'Payment Mode <span class="req">*</span>';
+  if (isScheme) {
+    document.getElementById('adm-advance-amount').value = '';
+    document.getElementById('adm-advance-mode').value = '';
+    onAdvanceModeChange('');
+  } else if (isOptional && !document.getElementById('adm-advance-amount').value && _tenantDefaultInsuranceAdvance) {
+    document.getElementById('adm-advance-amount').value = _tenantDefaultInsuranceAdvance;
   }
 };
 
@@ -838,17 +872,30 @@ window.saveAdmission = async function() {
   const policyNumber   = document.getElementById('adm-policy-number').value.trim();
   const memberId       = document.getElementById('adm-member-id').value.trim();
   const pmjayCode      = document.getElementById('adm-pmjay-code').value.trim();
-  const isCashless     = document.getElementById('adm-is-cashless').checked;
+  // Session 312 fix -- was a checkbox defaulting to false with no explicit choice; now a
+  // required radio pair (mirrors create_ipd_admission's own new required-choice rule).
+  const cashlessValue  = _radioValue('adm-cashless');
 
   if (!deptId)   { _alert('error','Select a department.'); return; }
   if (!bedId)    { _alert('error','Select a bed.'); return; }
   if (!doctorId) { _alert('error','Select an admitting doctor.'); return; }
   if (!admDate)  { _alert('error','Enter admission date.'); return; }
   if (!payerType) { _alert('error','Select a payer type.'); return; }
-  if (advanceAmount === '' || Number(advanceAmount) < 0) { _alert('error','Enter the advance amount collected.'); return; }
-  if (!advanceMode) { _alert('error','Select the advance payment mode.'); return; }
-  if (advanceMode !== 'cash' && Number(advanceAmount) > 0 && !advanceRef) {
-    _alert('error','Enter the payment reference (UPI ref / card auth / cheque no. / NEFT UTR).'); return;
+  if (payerType !== 'self_pay' && !cashlessValue) { _alert('error','Choose Cashless or Reimbursement.'); return; }
+
+  // Session 312 -- advance is required only for self_pay; optional for insurance/corporate
+  // (blank/zero allowed); not asked at all (forced ₹0) for pmjay/cghs/echs/esi.
+  const isSchemePayer = ADVANCE_SCHEME_PAYERS.includes(payerType);
+  const effectiveAdvance = isSchemePayer ? 0 : (advanceAmount === '' ? 0 : Number(advanceAmount));
+  if (payerType === 'self_pay' && (advanceAmount === '' || Number(advanceAmount) < 0)) {
+    _alert('error','Enter the advance amount collected.'); return;
+  }
+  if (!isSchemePayer && effectiveAdvance < 0) { _alert('error','Advance amount cannot be negative.'); return; }
+  if (effectiveAdvance > 0) {
+    if (!advanceMode) { _alert('error','Select the advance payment mode.'); return; }
+    if (advanceMode !== 'cash' && !advanceRef) {
+      _alert('error','Enter the payment reference (UPI ref / card auth / cheque no. / NEFT UTR).'); return;
+    }
   }
 
   const btn = document.getElementById('btn-admit-save');
@@ -866,10 +913,10 @@ window.saveAdmission = async function() {
     p_policy_number:         payerType !== 'self_pay' ? (policyNumber || null) : null,
     p_member_id:             payerType !== 'self_pay' ? (memberId || null) : null,
     p_pmjay_package_code:    payerType === 'pmjay' ? (pmjayCode || null) : null,
-    p_is_cashless:           payerType !== 'self_pay' ? isCashless : false,
-    p_advance_amount:        Number(advanceAmount),
-    p_advance_payment_mode:  advanceMode,
-    p_advance_reference:     advanceRef || null,
+    p_is_cashless:           payerType !== 'self_pay' ? (cashlessValue === 'cashless') : null,
+    p_advance_amount:        effectiveAdvance,
+    p_advance_payment_mode:  effectiveAdvance > 0 ? advanceMode : null,
+    p_advance_reference:     effectiveAdvance > 0 ? (advanceRef || null) : null,
     p_diagnosis_primary:     diagnosis || null,
     p_diet_type:             diet || null,
     p_notes:                 notes || null,
@@ -1426,6 +1473,11 @@ let _insCase  = null;
 let _insEnhancements = [];
 let _decidingEnhId = null;
 let _showSwitchForm = false;
+// Session 312 fix: the root cause of the "document link fails" bug report -- none of these
+// submit* functions guarded against a double-click, so a second click before the first RPC
+// resolved fired the whole thing again (re-uploading the same file as an orphan, then hitting
+// the RPC's own "already decided" guard). One shared flag, checked at the top of every submit.
+let _insSubmitting = false;
 
 window.openInsuranceDrawer = async function(admId) {
   const adm = _admissions.find(a => a.id === admId);
@@ -1477,8 +1529,20 @@ async function _refreshInsuranceDrawer() {
 }
 
 function _docLabel(path) {
-  return path ? `<a href="#" onclick="return false" title="${_esc(path)}" style="color:#1a4080">📄 document on file</a>` : '<span style="color:var(--text-muted)">—</span>';
+  // Session 312 fix: this used to be a dead <a href="#" onclick="return false">, which not
+  // only never opened anything (this app's CSP blocks inline onclick -- see js/utils/domEvents.js)
+  // but its silent no-op is what made an EARLIER hidden-behind-the-drawer alert (bug #2) look
+  // like it was caused by this click. Real signed-URL open now, via the delegated-event pattern.
+  return path
+    ? `<button type="button" class="icon-btn" data-onclick="openInsuranceDocument" data-onclick-a0="${_esc(path)}" title="${_esc(path)}" style="font-size:11px;color:#1a4080;border-color:#a8c8f0;background:#eef4fb">📄 document on file</button>`
+    : '<span style="color:var(--text-muted)">—</span>';
 }
+
+window.openInsuranceDocument = async function(path) {
+  const { data, error } = await supabase.storage.from('insurance-documents').createSignedUrl(path, 300);
+  if (error || !data?.signedUrl) { _alert('error', safeErrorMessage(error, 'Could not open the document.')); return; }
+  window.open(data.signedUrl, '_blank', 'noopener');
+};
 
 function _renderInsuranceDrawer() {
   const body = document.getElementById('ins-body');
@@ -1573,23 +1637,30 @@ function _renderInsuranceDrawer() {
     return row + `</div>`;
   }).join('') || '<div style="font-size:12px;color:var(--text-muted)">No enhancement requests yet.</div>';
 
+  // Session 312 -- server-enforced too (request_enhancement RPC), this is just the matching
+  // UI: an enhancement only makes sense once the base pre-authorization has been approved.
+  const preAuthApproved = c.pre_auth_status === 'approved';
   const enhHtml = `
     <div class="ins-section">
       <div class="ins-section-title">Enhancements</div>
       ${enhRows}
-      ${canAct ? `
+      ${canAct ? (preAuthApproved ? `
       <div class="field-row" style="margin-top:8px">
         <div class="field"><label>New enhancement amount</label><input type="number" min="0" step="0.01" id="enh-req-amount" placeholder="₹"/></div>
         <div class="field" style="align-self:flex-end"><button class="btn btn-sm btn-primary" data-onclick="submitEnhancementRequest">Request Enhancement</button></div>
-      </div>` : ''}
+      </div>` : `<div style="font-size:11.5px;color:var(--text-muted);margin-top:6px">Available once pre-authorization is approved.</div>`) : ''}
     </div>`;
 
   // ── Final approval ──
+  // Session 312: matches record_final_approval()'s own rule -- a cashless (non-PMJAY) case
+  // needs an approved pre-auth first; reimbursement and PM-JAY skip pre-auth entirely by design.
+  const finalBlockedCashless = c.payer_type !== 'pmjay' && c.is_cashless === true && !preAuthApproved;
   const finalHtml = `
     <div class="ins-section">
       <div class="ins-section-title">Final Approval${c.final_approval_at ? ' — recorded' : ''}</div>
       ${c.final_approval_at ? `<div style="font-size:12.5px">₹${Number(c.final_approval_amount||0).toLocaleString('en-IN')} approved${c.non_payable_amount ? ' · ₹'+Number(c.non_payable_amount).toLocaleString('en-IN')+' non-payable' : ''} · Ref: ${_esc(c.final_approval_reference_number||'—')} · ${_docLabel(c.final_approval_document_path)}</div>` : ''}
-      ${canAct ? `
+      ${finalBlockedCashless ? `<div style="font-size:11.5px;color:var(--red);margin-top:4px">This is a cashless case — pre-authorization must be approved before final approval.</div>` : ''}
+      ${canAct && !finalBlockedCashless ? `
       <div class="field-row">
         <div class="field"><label>Approved amount</label><input type="number" min="0" step="0.01" id="fa-amount"/></div>
         <div class="field"><label>Non-payable amount</label><input type="number" min="0" step="0.01" id="fa-nonpayable" value="0"/></div>
@@ -1632,6 +1703,15 @@ function _switchPayerHtml(adm) {
           <div class="field"><label>Member ID</label><input type="text" id="sw-member"/></div>
         </div>
         <div class="field" id="sw-pmjay-field" style="display:none"><label>PM-JAY Package Code</label><input type="text" id="sw-pmjay"/></div>
+        <div class="field">
+          <label>Cashless or Reimbursement <span class="req">*</span></label>
+          <div style="display:flex;gap:16px;margin-top:4px">
+            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:normal">
+              <input type="radio" name="sw-cashless" value="cashless"/> Cashless</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:normal">
+              <input type="radio" name="sw-cashless" value="reimbursement"/> Reimbursement</label>
+          </div>
+        </div>
       </div>
       <div class="field"><label>Reason <span class="req">*</span></label><input type="text" id="sw-reason" placeholder="at least 5 characters"/></div>
       <div style="display:flex;gap:8px">
@@ -1661,104 +1741,151 @@ async function _uploadInsuranceDoc(fileInputId, subDir) {
   return path;
 }
 
+// Session 312 fix -- shared busy-guard: every submit* below starts with this, so a
+// double-click can't fire the same action (and its file upload) twice.
+// Session 312 fix (confirmed root cause of the double-submit bug): a logic flag alone stops
+// the second call from doing anything real, but the button itself stayed clickable-looking,
+// so this also disables every button in the open drawer's body for the duration of the
+// request -- matches saveAdmission()'s own existing btn.disabled pattern for the admit form.
+function _insGuardStart() {
+  if (_insSubmitting) return false;
+  _insSubmitting = true;
+  document.querySelectorAll('#ins-body button').forEach(b => b.disabled = true);
+  return true;
+}
+function _insGuardEnd() {
+  _insSubmitting = false;
+  // On success this is moot (the drawer body was just replaced by _refreshInsuranceDrawer()'s
+  // re-render, so these are detached nodes) -- on failure the same buttons are still live and
+  // need re-enabling so the user can correct the form and retry.
+  document.querySelectorAll('#ins-body button').forEach(b => b.disabled = false);
+}
+
+function _radioValue(name) {
+  const el = document.querySelector(`input[name="${name}"]:checked`);
+  return el ? el.value : null;
+}
+
 window.submitPreAuthRequest = async function() {
-  const amount = Number(document.getElementById('pa-req-amount').value);
-  if (!amount || amount <= 0) { _alert('error','Enter a valid amount.'); return; }
-  const { error } = await supabase.rpc('request_pre_auth', { p_case_id: _insCase.id, p_amount: amount });
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not request pre-authorization.')); return; }
-  await _refreshInsuranceDrawer();
+  if (!_insGuardStart()) return;
+  try {
+    const amount = Number(document.getElementById('pa-req-amount').value);
+    if (!amount || amount <= 0) { _alert('error','Enter a valid amount.'); return; }
+    const { error } = await supabase.rpc('request_pre_auth', { p_case_id: _insCase.id, p_amount: amount });
+    if (error) { _alert('error', safeErrorMessage(error, 'Could not request pre-authorization.')); return; }
+    await _refreshInsuranceDrawer();
+  } finally { _insGuardEnd(); }
 };
 
 window.submitPreAuthDecision = async function(status) {
-  const amount = document.getElementById('pa-dec-amount').value;
-  const ref    = document.getElementById('pa-dec-ref').value.trim();
-  const reason = document.getElementById('pa-dec-reason').value.trim();
-  if (!ref) { _alert('error','Enter the insurer reference number.'); return; }
-  let docPath;
-  try { docPath = await _uploadInsuranceDoc('pa-dec-doc', 'preauth'); }
-  catch (e) { _alert('error', e.message); return; }
-  if (!docPath) { _alert('error','Select the decision document to upload.'); return; }
-  if (status === 'rejected' && !reason) { _alert('error','Enter a rejection reason.'); return; }
-  const { error } = await supabase.rpc('record_pre_auth_decision', {
-    p_case_id: _insCase.id, p_status: status,
-    p_approved_amount: status === 'approved' ? Number(amount || 0) : null,
-    p_reference_number: ref, p_document_path: docPath,
-    p_rejection_reason: status === 'rejected' ? reason : null,
-  });
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not record the decision.')); return; }
-  await _refreshInsuranceDrawer();
+  if (!_insGuardStart()) return;
+  try {
+    const amount = document.getElementById('pa-dec-amount').value;
+    const ref    = document.getElementById('pa-dec-ref').value.trim();
+    const reason = document.getElementById('pa-dec-reason').value.trim();
+    if (!ref) { _alert('error','Enter the insurer reference number.'); return; }
+    if (status === 'rejected' && !reason) { _alert('error','Enter a rejection reason.'); return; }
+    let docPath;
+    try { docPath = await _uploadInsuranceDoc('pa-dec-doc', 'preauth'); }
+    catch (e) { _alert('error', e.message); return; }
+    if (!docPath) { _alert('error','Select the decision document to upload.'); return; }
+    const { error } = await supabase.rpc('record_pre_auth_decision', {
+      p_case_id: _insCase.id, p_status: status,
+      p_approved_amount: status === 'approved' ? Number(amount || 0) : null,
+      p_reference_number: ref, p_document_path: docPath,
+      p_rejection_reason: status === 'rejected' ? reason : null,
+    });
+    if (error) { _alert('error', safeErrorMessage(error, 'Could not record the decision.')); return; }
+    await _refreshInsuranceDrawer();
+  } finally { _insGuardEnd(); }
 };
 
 window.submitEnhancementRequest = async function() {
-  const amount = Number(document.getElementById('enh-req-amount').value);
-  if (!amount || amount <= 0) { _alert('error','Enter a valid amount.'); return; }
-  const { error } = await supabase.rpc('request_enhancement', { p_case_id: _insCase.id, p_amount: amount });
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not request an enhancement.')); return; }
-  document.getElementById('enh-req-amount').value = '';
-  await _refreshInsuranceDrawer();
+  if (!_insGuardStart()) return;
+  try {
+    const amount = Number(document.getElementById('enh-req-amount').value);
+    if (!amount || amount <= 0) { _alert('error','Enter a valid amount.'); return; }
+    const { error } = await supabase.rpc('request_enhancement', { p_case_id: _insCase.id, p_amount: amount });
+    if (error) { _alert('error', safeErrorMessage(error, 'Could not request an enhancement.')); return; }
+    document.getElementById('enh-req-amount').value = '';
+    await _refreshInsuranceDrawer();
+  } finally { _insGuardEnd(); }
 };
 
 window.submitEnhancementDecision = async function(enhId, status) {
-  const amount = document.getElementById('enh-dec-amount').value;
-  const ref    = document.getElementById('enh-dec-ref').value.trim();
-  const reason = document.getElementById('enh-dec-reason').value.trim();
-  if (!ref) { _alert('error','Enter the insurer reference number.'); return; }
-  let docPath;
-  try { docPath = await _uploadInsuranceDoc('enh-dec-doc', `enh-${enhId}`); }
-  catch (e) { _alert('error', e.message); return; }
-  if (!docPath) { _alert('error','Select the decision document to upload.'); return; }
-  if (status === 'rejected' && !reason) { _alert('error','Enter a rejection reason.'); return; }
-  const { error } = await supabase.rpc('record_enhancement_decision', {
-    p_enhancement_id: enhId, p_status: status,
-    p_decided_amount: status === 'approved' ? Number(amount || 0) : null,
-    p_reference_number: ref, p_document_path: docPath,
-    p_rejection_reason: status === 'rejected' ? reason : null,
-  });
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not record the decision.')); return; }
-  _decidingEnhId = null;
-  await _refreshInsuranceDrawer();
+  if (!_insGuardStart()) return;
+  try {
+    const amount = document.getElementById('enh-dec-amount').value;
+    const ref    = document.getElementById('enh-dec-ref').value.trim();
+    const reason = document.getElementById('enh-dec-reason').value.trim();
+    if (!ref) { _alert('error','Enter the insurer reference number.'); return; }
+    if (status === 'rejected' && !reason) { _alert('error','Enter a rejection reason.'); return; }
+    let docPath;
+    try { docPath = await _uploadInsuranceDoc('enh-dec-doc', `enh-${enhId}`); }
+    catch (e) { _alert('error', e.message); return; }
+    if (!docPath) { _alert('error','Select the decision document to upload.'); return; }
+    const { error } = await supabase.rpc('record_enhancement_decision', {
+      p_enhancement_id: enhId, p_status: status,
+      p_decided_amount: status === 'approved' ? Number(amount || 0) : null,
+      p_reference_number: ref, p_document_path: docPath,
+      p_rejection_reason: status === 'rejected' ? reason : null,
+    });
+    if (error) { _alert('error', safeErrorMessage(error, 'Could not record the decision.')); return; }
+    _decidingEnhId = null;
+    await _refreshInsuranceDrawer();
+  } finally { _insGuardEnd(); }
 };
 
 window.submitFinalApproval = async function(status) {
-  const amount     = document.getElementById('fa-amount').value;
-  const nonPayable = Number(document.getElementById('fa-nonpayable').value || 0);
-  const ref        = document.getElementById('fa-ref').value.trim();
-  const reason     = document.getElementById('fa-reason').value.trim();
-  if (!ref) { _alert('error','Enter the insurer reference number.'); return; }
-  let docPath;
-  try { docPath = await _uploadInsuranceDoc('fa-doc', 'final'); }
-  catch (e) { _alert('error', e.message); return; }
-  if (!docPath) { _alert('error','Select the decision document to upload.'); return; }
-  if (status === 'rejected' && !reason) { _alert('error','Enter a rejection reason.'); return; }
-  const { error } = await supabase.rpc('record_final_approval', {
-    p_case_id: _insCase.id, p_status: status,
-    p_amount: status === 'approved' ? Number(amount || 0) : null,
-    p_reference_number: ref, p_document_path: docPath,
-    p_non_payable_amount: nonPayable,
-    p_rejection_reason: status === 'rejected' ? reason : null,
-  });
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not record the final approval.')); return; }
-  await _refreshInsuranceDrawer();
+  if (!_insGuardStart()) return;
+  try {
+    const amount     = document.getElementById('fa-amount').value;
+    const nonPayable = Number(document.getElementById('fa-nonpayable').value || 0);
+    const ref        = document.getElementById('fa-ref').value.trim();
+    const reason     = document.getElementById('fa-reason').value.trim();
+    if (!ref) { _alert('error','Enter the insurer reference number.'); return; }
+    if (status === 'rejected' && !reason) { _alert('error','Enter a rejection reason.'); return; }
+    let docPath;
+    try { docPath = await _uploadInsuranceDoc('fa-doc', 'final'); }
+    catch (e) { _alert('error', e.message); return; }
+    if (!docPath) { _alert('error','Select the decision document to upload.'); return; }
+    const { error } = await supabase.rpc('record_final_approval', {
+      p_case_id: _insCase.id, p_status: status,
+      p_amount: status === 'approved' ? Number(amount || 0) : null,
+      p_reference_number: ref, p_document_path: docPath,
+      p_non_payable_amount: nonPayable,
+      p_rejection_reason: status === 'rejected' ? reason : null,
+    });
+    if (error) { _alert('error', safeErrorMessage(error, 'Could not record the final approval.')); return; }
+    await _refreshInsuranceDrawer();
+  } finally { _insGuardEnd(); }
 };
 
 window.submitPayerSwitch = async function() {
-  const newPayer = document.getElementById('sw-payer-type').value;
-  const reason   = document.getElementById('sw-reason').value.trim();
-  if (!newPayer) { _alert('error','Select the new payer type.'); return; }
-  if (reason.length < 5) { _alert('error','Enter a reason (at least 5 characters).'); return; }
-  const { error } = await supabase.rpc('switch_ipd_payer', {
-    p_admission_id: _insAdmId, p_new_payer_type: newPayer, p_reason: reason,
-    p_insurer_name: document.getElementById('sw-insurer')?.value.trim() || null,
-    p_tpa_name: document.getElementById('sw-tpa')?.value.trim() || null,
-    p_policy_number: document.getElementById('sw-policy')?.value.trim() || null,
-    p_member_id: document.getElementById('sw-member')?.value.trim() || null,
-    p_pmjay_package_code: document.getElementById('sw-pmjay')?.value.trim() || null,
-    p_is_cashless: false,
-  });
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not switch the payer.')); return; }
-  _showSwitchForm = false;
-  await loadAll();      // admission's payer_type changed -- refresh the list (icon visibility etc.)
-  await _refreshInsuranceDrawer();
+  if (!_insGuardStart()) return;
+  try {
+    const newPayer = document.getElementById('sw-payer-type').value;
+    const reason    = document.getElementById('sw-reason').value.trim();
+    if (!newPayer) { _alert('error','Select the new payer type.'); return; }
+    if (reason.length < 5) { _alert('error','Enter a reason (at least 5 characters).'); return; }
+    // Session 312 fix: this used to hardcode p_is_cashless:false unconditionally -- exactly
+    // the same "silent default" bug reported for the admit form, just on the switch-payer path.
+    const cashlessChoice = newPayer !== 'self_pay' ? _radioValue('sw-cashless') : null;
+    if (newPayer !== 'self_pay' && !cashlessChoice) { _alert('error','Choose Cashless or Reimbursement.'); return; }
+    const { error } = await supabase.rpc('switch_ipd_payer', {
+      p_admission_id: _insAdmId, p_new_payer_type: newPayer, p_reason: reason,
+      p_insurer_name: document.getElementById('sw-insurer')?.value.trim() || null,
+      p_tpa_name: document.getElementById('sw-tpa')?.value.trim() || null,
+      p_policy_number: document.getElementById('sw-policy')?.value.trim() || null,
+      p_member_id: document.getElementById('sw-member')?.value.trim() || null,
+      p_pmjay_package_code: document.getElementById('sw-pmjay')?.value.trim() || null,
+      p_is_cashless: cashlessChoice === null ? null : cashlessChoice === 'cashless',
+    });
+    if (error) { _alert('error', safeErrorMessage(error, 'Could not switch the payer.')); return; }
+    _showSwitchForm = false;
+    await loadAll();      // admission's payer_type changed -- refresh the list (icon visibility etc.)
+    await _refreshInsuranceDrawer();
+  } finally { _insGuardEnd(); }
 };
 
 const KIND_LABEL = { advance: 'Advance', deposit: 'Deposit', payment: 'Payment', refund: 'Refund' };
@@ -2262,7 +2389,26 @@ function _statusBadgeHtml(a) {
   const key = a.disposition || 'discharged';
   return `<span class="status-badge status-${key}">${_esc(_statusLabel(key))}</span>`;
 }
+// Session 312 fix: the page-level #alert bar sits in normal document flow, so it's
+// completely hidden behind any open .drawer-overlay (fixed, high z-index) -- every error/
+// success message triggered from inside a drawer (Admit, Insurance, etc.) was invisible
+// until the drawer closed. When a drawer is open, render into a dedicated alert slot at
+// the top of THAT drawer's body instead; otherwise keep the original page-level behavior.
 function _alert(type, msg) {
+  const drawerBody = document.querySelector('.drawer-overlay.open .drawer-body');
+  if (drawerBody) {
+    let el = drawerBody.querySelector('.alert.in-drawer');
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'alert in-drawer';
+      drawerBody.insertBefore(el, drawerBody.firstChild);
+    }
+    el.className = `alert in-drawer show ${type}`;
+    el.textContent = msg;
+    if (type === 'success') setTimeout(() => el.classList.remove('show'), 3500);
+    drawerBody.scrollTop = 0;
+    return;
+  }
   const el = document.getElementById('alert');
   el.className = `alert show ${type}`;
   el.textContent = msg;

@@ -55,5 +55,28 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 311/312 IPD insurance RPCs (sql/session311_ipd_insurance_phase1.sql,
+  // sql/session312_ipd_insurance_fixes.sql) -- same reasoning as the two blocks above: plain,
+  // schema-free, staff-actionable messages. Found missing live (Session 312): a double-submit's
+  // second call correctly hit "There is no pending pre-authorization request on this case." but
+  // it wasn't allowlisted, so it silently became the generic fallback text and the real reason
+  // was never seen -- masked the actual duplicate-click bug during testing.
+  const INSURANCE_MSGS = ['A payer type must be chosen', 'Invalid payer type', 'A valid advance amount',
+    'Advance amount cannot be negative', 'Advance payment mode is required', 'Cashless or reimbursement',
+    'This patient already has an open IPD admission', 'Admission advice record not found',
+    'This admission advice has already been', "Not authorized to change an admission's payer",
+    'A reason (at least 5 characters)', 'Admission not found', 'This admission is already discharged',
+    'Payer is already', 'Insurance case not found', 'This case is closed',
+    'A pre-authorization request is already', 'A valid pre-authorization amount',
+    "The insurer's reference number is required", "The insurer's approval/rejection document is required",
+    'A rejection reason is required', 'A valid approved amount is required',
+    'There is no pending pre-authorization', 'A valid enhancement amount',
+    'An enhancement can only be requested', 'This enhancement has already been decided',
+    'Enhancement request not found', 'Non-payable amount cannot be negative',
+    'Final approval for a cashless case', 'Decision status must be approved or rejected'];
+  if (error?.code === 'P0001' && INSURANCE_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   return fallback;
 }

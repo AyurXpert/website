@@ -298,6 +298,16 @@ tr:hover td{background:rgba(232,245,238,.4)}
       <button type="button" data-onclick="saveAdvancePolicy" style="height:38px;padding:0 16px;background:var(--green-deep);color:#fff;border:none;border-radius:7px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer">Save</button>
       <span id="advpol-status" style="display:none;font-size:12px;font-weight:600;color:var(--green-deep)"></span>
     </div>
+    <!-- Session 312 -- separate flat default for ipd.html's walk-in Admit form (no doctor's
+         estimate exists there to take a percentage of, unlike the Admission Advice flow above).
+         Optional for insurance/corporate admissions; the receptionist can still change or clear
+         it. Blank = no tenant default, defaults to ₹0. -->
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-top:12px;padding-top:12px;border-top:1px solid #e8d08a">
+      <div class="field" style="max-width:260px">
+        <label>Default Advance for Insurance/Corporate Admissions (₹)</label>
+        <input id="advpol-default-insurance-advance" type="number" min="0" step="0.01" placeholder="e.g. 5000 (blank = ₹0)"/>
+      </div>
+    </div>
   </div>
 
   <!-- Add Service + Export buttons -->

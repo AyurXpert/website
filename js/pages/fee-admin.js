@@ -1647,18 +1647,23 @@ window.saveBedMultipliers = async function() {
 // dynamic group-tabs system. Drives doctor.html's Admission Advice cost estimate.
 async function loadAdvancePolicy() {
   const { data, error } = await supabase.from('tenants')
-    .select('ipd_advance_pct_self_pay, ipd_advance_pct_insurance').eq('id', tenantId).maybeSingle();
+    .select('ipd_advance_pct_self_pay, ipd_advance_pct_insurance, ipd_default_advance_insurance').eq('id', tenantId).maybeSingle();
   if (error || !data) return;
   document.getElementById('advpol-self-pay').value = data.ipd_advance_pct_self_pay ?? 25;
   document.getElementById('advpol-insurance').value = data.ipd_advance_pct_insurance ?? 10;
+  // Session 312 -- separate flat default (₹), not a percentage; blank means "unset", not 0.
+  document.getElementById('advpol-default-insurance-advance').value = data.ipd_default_advance_insurance ?? '';
 }
 
 window.saveAdvancePolicy = async function() {
   const selfPay    = Number(document.getElementById('advpol-self-pay').value);
   const insurance  = Number(document.getElementById('advpol-insurance').value);
+  const defAdvRaw  = document.getElementById('advpol-default-insurance-advance').value;
+  const defAdv     = defAdvRaw === '' ? null : Number(defAdvRaw);
   if (!(selfPay >= 0 && selfPay <= 100) || !(insurance >= 0 && insurance <= 100)) {
     toast('Enter a percentage between 0 and 100 for both fields.', 'error'); return;
   }
+  if (defAdv !== null && defAdv < 0) { toast('The default advance amount cannot be negative.', 'error'); return; }
   // Real bug found live-testing on SDM (14 Sep, ofcsuptd@sdm.com/dept_admin): tenants' only
   // UPDATE RLS policy is role='super_admin' ONLY -- a direct .update() from a dept_admin
   // silently affected 0 rows with no error (this page's own requireAuth() allows dept_admin,
@@ -1666,7 +1671,7 @@ window.saveAdvancePolicy = async function() {
   // update_nursing_head_delegate() -- fixed the same way, via a SECURITY DEFINER RPC with its
   // own explicit role check rather than loosening tenants' blanket RLS.
   const { error } = await supabase.rpc('set_ipd_advance_policy', {
-    p_self_pay: selfPay, p_insurance: insurance,
+    p_self_pay: selfPay, p_insurance: insurance, p_default_insurance_advance: defAdv,
   });
   if (error) { toast(safeErrorMessage(error, 'Could not save the advance policy.'), 'error'); return; }
   toast('Admission advance policy updated.', 'success');

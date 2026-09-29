@@ -488,25 +488,36 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
               <label>PM-JAY Package Code</label>
               <input id="adm-pmjay-code" type="text" placeholder="e.g. AB-AYUSH-P03"/>
             </div>
-            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-top:2px">
-              <input type="checkbox" id="adm-is-cashless" style="accent-color:#1a4080"/> Cashless
-            </label>
+            <!-- Session 312 fix -- was a checkbox (silent default false); create_ipd_admission()
+                 now REQUIRES this to be chosen explicitly for any non-self-pay payer, no default. -->
+            <div class="field" style="margin-bottom:0">
+              <label>Cashless or Reimbursement <span class="req">*</span></label>
+              <div style="display:flex;gap:16px;margin-top:4px">
+                <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:normal">
+                  <input type="radio" name="adm-cashless" value="cashless"/> Cashless</label>
+                <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;font-weight:400;text-transform:none;letter-spacing:normal">
+                  <input type="radio" name="adm-cashless" value="reimbursement"/> Reimbursement</label>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Session 205 (cont.): reception always collects an advance before admitting --
-             both the advice-flow and the direct-walk-in flow (never optional; matches
-             Dr. Venkatesh's described process). Required by create_ipd_admission() RPC
-             server-side too, not just this UI. -->
-        <div style="background:#fffdf0;border:1.5px solid #e8d08a;border-radius:8px;padding:12px 14px;margin-top:4px">
-          <div style="font-weight:600;font-size:13px;color:#7a4a00;margin-bottom:8px">💰 Advance Payment <span style="font-size:10px;font-weight:400;color:var(--text-muted)">(required to admit)</span></div>
-          <div class="field-row">
+        <!-- Session 205 (cont.): self-pay always collects an advance -- never optional.
+             Session 312 -- insurance/corporate: OPTIONAL (tenant-configurable default shown
+             as a hint, receptionist can change or clear it); pmjay/cghs/echs/esi: not asked at
+             all, always zero. create_ipd_admission() enforces all of this server-side too, not
+             just this UI (a direct RPC call with a different payer would still be corrected/
+             refused there). -->
+        <div id="adm-advance-block" style="background:#fffdf0;border:1.5px solid #e8d08a;border-radius:8px;padding:12px 14px;margin-top:4px">
+          <div style="font-weight:600;font-size:13px;color:#7a4a00;margin-bottom:8px">💰 Advance Payment <span id="adm-advance-required-note" style="font-size:10px;font-weight:400;color:var(--text-muted)">(required to admit)</span></div>
+          <div id="adm-advance-scheme-note" style="display:none;font-size:11.5px;color:var(--text-mid);margin-bottom:8px">No advance is collected for this payer type.</div>
+          <div id="adm-advance-fields" class="field-row">
             <div class="field">
-              <label>Advance Collected <span class="req">*</span></label>
+              <label id="adm-advance-amount-label">Advance Collected <span class="req">*</span></label>
               <input id="adm-advance-amount" type="number" min="0" step="0.01" placeholder="₹"/>
             </div>
             <div class="field">
-              <label>Payment Mode <span class="req">*</span></label>
+              <label id="adm-advance-mode-label">Payment Mode <span class="req">*</span></label>
               <select id="adm-advance-mode" data-onchange="onAdvanceModeChange" data-onchange-a0="@value">
                 <option value="">— Select —</option>
                 <option value="cash">Cash</option>
