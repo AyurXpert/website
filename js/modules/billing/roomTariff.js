@@ -11,7 +11,7 @@ export async function computeRoomTariff({ supabase, tenantId, bed, admissionDate
   const days = Math.max(1, Math.ceil((throughDate - admissionDate) / 86400000));
   const { data: rateRow, error } = await supabase
     .from('fee_structures')
-    .select('amount, gst_percent, promo_price, promo_valid_until')
+    .select('amount, gst_percent, promo_price, promo_valid_until, label')
     .eq('tenant_id', tenantId)
     .eq('category', 'ipd')
     .eq('fee_type', 'room_' + bed.bed_type)
@@ -28,5 +28,8 @@ export async function computeRoomTariff({ supabase, tenantId, bed, admissionDate
     dailyRate,
     total: days * dailyRate,
     gstPercent: rateRow.gst_percent ?? null,
+    // Session 319 -- the admin-set fee label (not the raw bed_type key), so patient-facing
+    // bill lines/receipts never print a raw custom-type key like "custom-1735500000000".
+    label: rateRow.label || 'Room charges',
   };
 }

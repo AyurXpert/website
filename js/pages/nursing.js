@@ -1157,6 +1157,9 @@ window.addManualCharge = async function() {
   const qty   = parseFloat(document.getElementById('rc-qty').value) || 1;
   const price = parseFloat(document.getElementById('rc-price').value) || 0;
   if (!description || price <= 0) { _alert('error','Enter a description and amount.'); return; }
+  // Session 319 -- catches the "typed the amount into Description by mistake" pattern
+  // (found live, Patient 6/KAY-95's stray "1000" charge) without being overly strict.
+  if (/^\d+(\.\d+)?$/.test(description)) { _alert('error','Description looks like a number, not a description — did you mean to type that in Unit Price instead?'); return; }
   const { error } = await supabase.from('ipd_stay_charges').insert({
     tenant_id: tenantId, ipd_admission_id: _activeAdm.id, source: 'manual',
     description, quantity: qty, unit_price: price, amount: qty * price,

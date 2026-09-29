@@ -10,6 +10,7 @@ import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 import { computeIpdChargesToDate } from '../modules/billing/ipdChargesToDate.js';
 import { todayLocalStr, localDateStr } from '../utils/dateUtils.js';
 import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml } from '../modules/ipd/dischargePrint.js';
+import { bedTypeLabel } from '../config/bedTypes.js';
 
 /*
   SQL to run in Supabase (one time) before using this page:
@@ -105,6 +106,10 @@ let _doctors     = [];
 let _opdDoctors  = [];   // { doctor_id, opd_id } — for NCISM ward auth
 let _selectedPatient = null;
 let _selectedVisitId = null;
+// Session 319 -- bed_type suffixes ('private', 'dormitory', ...) with an active
+// room_<type> fee_structures rate, refreshed once whenever the admit drawer opens.
+// Used only for a non-blocking heads-up at bed selection -- never blocks admission.
+let _ratedBedTypes = new Set();
 
 // NABH Care Plan (AAC.3 CORE) — declared here (not near its own section further down) because
 // renderTable() reads _carePlanAdmIds, and renderTable() runs as part of loadAll()'s continuation
@@ -509,6 +514,13 @@ window.openAdmitDrawer = async function() {
   document.getElementById('mlc-fields').style.display = 'none';
   document.getElementById('adm-date').value    = todayLocalStr();
   document.getElementById('bed-picker').innerHTML = '<span class="bed-picker-empty">Select a department first</span>';
+  const rateWarnEl = document.getElementById('bed-rate-warning');
+  if (rateWarnEl) rateWarnEl.style.display = 'none';
+  // Session 319 -- refreshed once per drawer-open, not per click (a handful of rows, cheap).
+  const { data: ratedRows } = await supabase.from('fee_structures')
+    .select('fee_type').eq('tenant_id', tenantId).eq('category', 'ipd')
+    .eq('is_active', true).like('fee_type', 'room_%');
+  _ratedBedTypes = new Set((ratedRows || []).map(r => r.fee_type.slice('room_'.length)));
   // Session 205 (cont.) -- advance payment + advice-reference reset. _currentAdvice
   // is only ever set again by the ?advice_id= boot block, AFTER this function returns.
   _currentAdvice = null;
@@ -833,7 +845,6 @@ window.loadVacantBeds = function() {
     a.bed_number.localeCompare(b.bed_number, undefined, { numeric: true, sensitivity: 'base' }));
 
   const deptNameById = Object.fromEntries(_depts.map(d => [d.id, d.name]));
-  const BED_TYPE_LABELS = {male_general:'Male General',female_general:'Female General',general:'General',twin_sharing:'Twin Sharing',semi_private:'Shared Private',private:'Private',deluxe:'Deluxe',dormitory:'Dormitory',icu:'ICU',day_care:'Day Care',pk_treatment:'PK Treatment',observation:'Observation'};
 
   const crossZoneNote = crossZone
     ? `<div class="bed-picker-note">No vacant beds remain in this department's usual ward(s) — showing vacant beds from elsewhere in the hospital as last-resort overflow.</div>`
@@ -843,7 +854,7 @@ window.loadVacantBeds = function() {
     vacant.map(b => {
     const isPk       = b.bed_type === 'pk_treatment';
     const isOverflow = b.department_id !== deptId;
-    const typeLabel  = BED_TYPE_LABELS[b.bed_type] || b.bed_type.replace(/_/g, ' ');
+    const typeLabel  = bedTypeLabel(b.bed_type);
     const ownerName  = isOverflow ? (deptNameById[b.department_id] || 'another department') : '';
     const flagClass  = crossZone ? ' crosszone' : (isOverflow ? ' overflow' : '');
     return `<div class="bed-option${isPk ? ' pk' : ''}${flagClass}" data-id="${b.id}"
@@ -879,6 +890,18 @@ window.pickBed = function(el, bedId, isOverflow, ownerName, crossZone) {
   document.querySelectorAll('.bed-option').forEach(o => o.classList.remove('selected'));
   el.classList.add('selected');
   document.getElementById('adm-bed-id').value = bedId;
+
+  // Session 319 -- non-blocking heads-up only; admission proceeds either way. The real
+  // gate is at Generate Bill time (computeRoomTariff()'s own hard error), same as today.
+  const rateWarnEl = document.getElementById('bed-rate-warning');
+  if (rateWarnEl) {
+    const bed = _allBeds.find(b => b.id === bedId);
+    const missing = bed && !_ratedBedTypes.has(bed.bed_type);
+    rateWarnEl.style.display = missing ? '' : 'none';
+    if (missing) {
+      rateWarnEl.textContent = `⚠ No room tariff configured for "${bedTypeLabel(bed.bed_type)}" yet — billing will be blocked until fee-admin.html (Administration → IPD Room Tariff) adds a rate.`;
+    }
+  }
 };
 
 // ── Save admission ─────────────────────────────────────────────────────────────
@@ -1183,23 +1206,19 @@ window.openGenerateBillDrawer = async function(admId) {
   const days = _daysSince(adm.admitted_at);
   document.getElementById('bill-detail-card').innerHTML = `
     <div class="adm-detail-row"><span>Patient</span><strong>${_esc(pt.name||'—')}</strong></div>
-    <div class="adm-detail-row"><span>Bed</span><strong>${_esc(bed.bed_number||'—')} (${_esc(bed.bed_type||'—')})</strong></div>
+    <div class="adm-detail-row"><span>Bed</span><strong>${_esc(bed.bed_number||'—')} (${_esc(bedTypeLabel(bed.bed_type))})</strong></div>
     <div class="adm-detail-row"><span>Department</span><strong>${_esc(dept.name||'—')}</strong></div>
     <div class="adm-detail-row"><span>Admitted</span><strong>${_fmt(adm.admission_date)} (${days} days)</strong></div>
   `;
 
-  // Informational prefill only -- no payer/insurance field exists on
-  // ipd_admissions or patients (confirmed), so this just checks the
-  // patient's most recent non-self-pay bill as a hint; billing clerk
-  // confirms or changes it before generating.
-  let payerHint = 'self_pay';
-  if (pt.id) {
-    const { data: recentBill } = await supabase.from('bills')
-      .select('payer_type').eq('patient_id', pt.id).eq('tenant_id', tenantId)
-      .neq('payer_type', 'self_pay').order('created_at', { ascending: false }).limit(1).maybeSingle();
-    if (recentBill) payerHint = recentBill.payer_type;
-  }
-  document.getElementById('bill-payer-type').value = payerHint;
+  // Session 319 -- locked to the admission's own real payer_type (live since Session 311).
+  // Previously this guessed from the patient's most recent non-self-pay bill across ANY
+  // past admission, which could silently disagree with THIS stay's actual payer. To
+  // correct a genuinely wrong payer_type, use Switch Payer in the Insurance drawer (already
+  // audited/reason-required) -- not this drawer.
+  const payerSel = document.getElementById('bill-payer-type');
+  payerSel.value = adm.payer_type || 'self_pay';
+  payerSel.disabled = true;
 
   await _loadTenantTaxSettings();
   document.getElementById('bill-overlay').classList.add('open');
@@ -1237,7 +1256,7 @@ async function _refreshBillPreview(adm) {
     tariffEl.innerHTML = `<span style="color:#c0392b">⚠ ${_esc(tariff.error)}</span>`;
     _billTariff = null;
   } else {
-    tariffEl.innerHTML = `${tariff.days} day${tariff.days>1?'s':''} × ₹${tariff.dailyRate.toLocaleString('en-IN')} (${_esc(bed.bed_type||'—')}) = <strong>₹${tariff.total.toLocaleString('en-IN')}</strong>${tariff.gstPercent!=null ? ' + GST '+tariff.gstPercent+'%' : ''}`;
+    tariffEl.innerHTML = `${tariff.days} day${tariff.days>1?'s':''} × ₹${tariff.dailyRate.toLocaleString('en-IN')} (${_esc(bedTypeLabel(bed.bed_type))}) = <strong>₹${tariff.total.toLocaleString('en-IN')}</strong>${tariff.gstPercent!=null ? ' + GST '+tariff.gstPercent+'%' : ''}`;
     _billTariff = tariff;
   }
 
@@ -1343,6 +1362,9 @@ window.addBillCharge = async function() {
   const qty   = parseFloat(document.getElementById('bc-qty').value) || 1;
   const price = parseFloat(document.getElementById('bc-price').value) || 0;
   if (!description || price <= 0) { _alert('error','Enter a description and amount.'); return; }
+  // Session 319 -- catches the "typed the amount into Description by mistake" pattern
+  // (found live, Patient 6/KAY-95's stray "1000" charge) without being overly strict.
+  if (/^\d+(\.\d+)?$/.test(description)) { _alert('error','Description looks like a number, not a description — did you mean to type that in Unit Price instead?'); return; }
   const { error } = await supabase.from('ipd_stay_charges').insert({
     tenant_id: tenantId, ipd_admission_id: admId, source: 'manual',
     description, quantity: qty, unit_price: price, amount: qty * price,
@@ -1451,7 +1473,10 @@ window.confirmGenerateBill = async function() {
 
   const billItems = [{
     bill_id: bill.id, tenant_id: tenantId, item_type: 'room_tariff',
-    description: `Room Tariff — ${_billTariff.days} day${_billTariff.days>1?'s':''} × ${adm.beds?.bed_type||''}`,
+    // Session 319 -- the fee's own admin-set label, not the raw bed_type key (this line is
+    // finalized/printed on the patient's invoice, and a custom bed type's raw key like
+    // "custom-1735500000000" must never appear there).
+    description: `Room Tariff — ${_billTariff.days} day${_billTariff.days>1?'s':''} × ${_billTariff.label}`,
     quantity: _billTariff.days, price: _billTariff.dailyRate, total: _billTariff.total,
     gst_percent: _billTariff.gstPercent, gst_amount: tariffGst,
   }].concat(_billCharges.map(r => ({
@@ -1538,7 +1563,7 @@ window.openInsuranceDrawer = async function(admId) {
   const pt = adm.patients || {}, bed = adm.beds || {}, dept = adm.departments || {};
   document.getElementById('ins-detail-card').innerHTML = `
     <div class="adm-detail-row"><span>Patient</span><strong>${_esc(pt.name || '—')}</strong></div>
-    <div class="adm-detail-row"><span>Bed</span><strong>${_esc(bed.bed_number || '—')} (${_esc(bed.bed_type || '—')})</strong></div>
+    <div class="adm-detail-row"><span>Bed</span><strong>${_esc(bed.bed_number || '—')} (${_esc(bedTypeLabel(bed.bed_type))})</strong></div>
     <div class="adm-detail-row"><span>Department</span><strong>${_esc(dept.name || '—')}</strong></div>
     <div class="adm-detail-row"><span>Payer</span><strong>${_esc(PAYER_LABEL[adm.payer_type] || adm.payer_type || '—')}</strong></div>
   `;
@@ -1972,7 +1997,7 @@ window.openAccountDrawer = async function(admId) {
   const pt = adm.patients || {}, bed = adm.beds || {}, dept = adm.departments || {};
   document.getElementById('acct-detail-card').innerHTML = `
     <div class="adm-detail-row"><span>Patient</span><strong>${_esc(pt.name || '—')}</strong></div>
-    <div class="adm-detail-row"><span>Bed</span><strong>${_esc(bed.bed_number || '—')} (${_esc(bed.bed_type || '—')})</strong></div>
+    <div class="adm-detail-row"><span>Bed</span><strong>${_esc(bed.bed_number || '—')} (${_esc(bedTypeLabel(bed.bed_type))})</strong></div>
     <div class="adm-detail-row"><span>Department</span><strong>${_esc(dept.name || '—')}</strong></div>
     <div class="adm-detail-row"><span>Status</span><strong>${_esc(_statusLabel(adm.status))}</strong></div>
   `;

@@ -372,6 +372,29 @@ async function loadAll() {
   checkNcismCompliance();
   await renderQuickSetup();
   renderUnplacedBedsBanner();
+  await renderRoomRateGapBanner();
+}
+
+// Session 319 -- "room rates still needed" notice, checked against real fee_structures
+// room_<bed_type> rows (the same lookup key computeRoomTariff() uses for actual billing),
+// so this can never disagree with what Generate Bill will actually accept.
+async function renderRoomRateGapBanner() {
+  const el = document.getElementById('room-rate-banner');
+  if (!el) return;
+  const bedTypes = [...new Set(_beds.map(b => b.bed_type))];
+  if (!bedTypes.length) { el.classList.remove('show'); return; }
+
+  const { data: rated } = await supabase.from('fee_structures')
+    .select('fee_type').eq('tenant_id', tenantId).eq('category', 'ipd')
+    .eq('is_active', true).like('fee_type', 'room_%');
+  const ratedSet = new Set((rated || []).map(r => r.fee_type.slice('room_'.length)));
+  const gaps = bedTypes.filter(t => !ratedSet.has(t));
+
+  if (!gaps.length) { el.classList.remove('show'); return; }
+  el.classList.add('show');
+  el.innerHTML = `<strong>Room tariff still needed for ${gaps.length} bed type${gaps.length !== 1 ? 's' : ''}.</strong>
+    Billing will be blocked for ${gaps.length !== 1 ? 'these types' : 'this type'} until a rate is set: ${gaps.map(t => _esc(BED_TYPE_SHORT[t] || t)).join(', ')}.
+    <a href="fee-admin.html" class="ub-link">Open fee-admin.html — IPD Room Tariff &rarr;</a>`;
 }
 
 // ── Quick Setup tab ───────────────────────────────────────────────────────────

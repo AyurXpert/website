@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
+import { BED_TYPE_LABELS, bedTypeLabel } from '../config/bedTypes.js';
 
 // accountant = maker: creates fees as pending, edits/deletes only their own pending ones;
 // an admin approves (sql/session305c_fee_admin_accountant_maker.sql enforces this in RLS).
@@ -27,7 +28,9 @@ const facType   = tenant?.type || 'clinic';
 let _allFees        = [];
 let _opds           = [];
 let _allDepts       = [];   // {id, name, ncism_code} -- tenant's real departments (Session 107)
-let _bedMultipliers = [];   // {tenant_id, bed_type, multiplier, is_active} -- Session 109
+let _bedMultipliers = [];   // {tenant_id, bed_type, multiplier, is_active} -- Session 109 (decorative, not read by billing)
+let _tenantBedTypes = [];   // distinct beds.bed_type values this tenant actually has -- Session 319
+let _lockedRoomBedType = null; // set by openAddRoomRate()/openEdit() on a room_* fee -- Session 319
 let _editId         = null;
 let _activeGroup      = 'all'; // 'all' | 'general' | a GROUP_CONFIG key | a real department id
 let _activeSub        = 'all'; // 'all' | a sub-item key within the active group
@@ -91,10 +94,10 @@ const CAT_TYPES = {
   ],
   ipd: [
     { value:'admission',          label:'Admission Charge' },
-    { value:'room_general',       label:'Room — General Ward' },
-    { value:'room_semi_private',  label:'Room — Semi-Private' },
-    { value:'room_private',       label:'Room — Private' },
-    { value:'room_icu',           label:'Room — ICU / HDU' },
+    // Session 319 -- room_* removed from this fixed list. SDM alone has 7 real bed
+    // types and only 2 (private/semi_private) matched this list's old fixed 4 -- room
+    // rates are now driven by the tenant's own beds.bed_type values instead, via the
+    // dedicated "Room Tariff" sub-tab (renderRoomTariffTable()/openAddRoomRate()).
     { value:'nursing',            label:'Nursing Care (per day)' },
     { value:'attendant_bed',      label:'Attendant Bed (per night)' }
   ],
@@ -230,15 +233,9 @@ const SERVICE_GROUPS = {
   laundry:            'Laundry',
 };
 
-// Same 12-value vocabulary as beds.bed_type (user-guide/bed-admin.html's documented
-// CHECK constraint, mirrored in js/pages/bed-admin.js's BED_LABELS) -- duplicated here
-// rather than imported, matching this codebase's per-page self-containment convention.
-const BED_TYPE_LABELS = {
-  male_general:'Male General Ward', female_general:'Female General Ward', general:'General Ward',
-  twin_sharing:'Twin Sharing', semi_private:'Shared Private', private:'Private Room',
-  deluxe:'Deluxe Private', dormitory:'Dormitory', icu:'ICU', day_care:'Day Care',
-  pk_treatment:'PK Treatment', observation:'Observation',
-};
+// Session 319 -- now a shared import (js/config/bedTypes.js) instead of a third
+// independently-drifting copy, so this page's labels can never again disagree with
+// bed-admin.js's Quick Setup wording or ipd.js's admit-drawer bed picker.
 
 const IPD_SUBITEMS = [
   ['admission', 'Admission Charge'],
@@ -426,7 +423,31 @@ async function loadFees() {
   updateStats();
   renderGroupTabs();
   renderTable();
+  renderRoomRateGapBanner();
 }
+
+// Session 319 -- persistent "room rates still needed" notice, independent of which tab
+// is currently open (a rate gap is actionable regardless of where the admin happens to
+// be looking). Hidden entirely once every real bed type has an active room rate.
+function renderRoomRateGapBanner() {
+  const el = document.getElementById('room-rate-gap-banner');
+  if (!el) return;
+  const gaps = _roomTariffRows().filter(r => !r.feeRow);
+  if (!gaps.length) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.innerHTML = `⚠ Room tariff still needed for ${gaps.length} bed type${gaps.length>1?'s':''}: ` +
+    gaps.map(g => _esc(g.label)).join(', ') +
+    ` — <button type="button" class="act-btn act-approve" data-onclick="jumpToRoomTariff">Set rates →</button>`;
+}
+
+window.jumpToRoomTariff = function() {
+  const ipdBtn = document.querySelector('#group-tabs .dept-tab[data-onclick-a1="ipd"]');
+  if (ipdBtn) window.setGroupTab(ipdBtn, 'ipd');
+  setTimeout(() => {
+    const roomSub = document.querySelector('#subgroup-tabs .sub-tab[data-onclick-a1="room"]');
+    if (roomSub) window.setSubTab(roomSub, 'room');
+  }, 0);
+};
 
 function updateStats() {
   const active  = _allFees.filter(f => f.approval_status === 'active').length;
@@ -567,6 +588,11 @@ window.toggleTierExpand = function(rowId) {
 };
 
 function renderTable() {
+  // Session 319 -- the IPD "Room Tariff" sub-tab gets its own dedicated renderer (one
+  // row per real tenant bed type, "rate needed" flagged) instead of the generic list,
+  // since room fee_types are no longer a fixed CAT_TYPES.ipd list to filter through.
+  if (_activeGroup === 'ipd' && _activeSub === 'room') { renderRoomTariffTable(); return; }
+
   const rows = _currentFilteredFees();
 
   const tbody = document.getElementById('fee-tbody');
@@ -826,6 +852,7 @@ function _prefillFromActiveGroup() {
 
 window.openModal = function() {
   _editId = null;
+  _lockedRoomBedType = null;
   document.getElementById('modal-title').textContent = 'Add New Service';
   document.getElementById('m-label').value   = '';
   document.getElementById('m-category').value = '';
@@ -852,7 +879,12 @@ window.openEdit = function(id) {
   const f = _allFees.find(x => x.id === id);
   if (!f) return;
   _editId = id;
-  document.getElementById('modal-title').textContent = 'Edit Service';
+  // Session 319 -- editing an existing room_* fee goes through the same locked/
+  // simplified path as adding one (no type dropdown, no dead Tiered checkbox).
+  _lockedRoomBedType = (f.category === 'ipd' && (f.fee_type || '').startsWith('room_'))
+    ? f.fee_type.slice('room_'.length) : null;
+  document.getElementById('modal-title').textContent = _lockedRoomBedType
+    ? `Edit Room Tariff — ${bedTypeLabel(_lockedRoomBedType, _lockedRoomBedType)}` : 'Edit Service';
   document.getElementById('m-label').value    = f.label || '';
   document.getElementById('m-category').value = f.category || '';
   document.getElementById('m-amount').value   = f.amount || '';
@@ -864,13 +896,17 @@ window.openEdit = function(id) {
   if (groupSel) groupSel.value = f.service_group || '';
   onCategoryChange();
   document.getElementById('m-opd').value      = f.opd_id || '';
-  document.getElementById('m-tiered').checked = f.pricing_mode === 'tiered';
+  document.getElementById('m-tiered').checked = _lockedRoomBedType ? false : f.pricing_mode === 'tiered';
   updateTierPreview();
   // Set fee_type
   const sel = document.getElementById('m-type-select');
   const inp = document.getElementById('m-type-input');
   if (sel.style.display !== 'none') sel.value = f.fee_type || '';
   if (inp.style.display !== 'none') inp.value = f.fee_type || '';
+  if (_lockedRoomBedType) {
+    document.getElementById('m-type-wrap').style.display = 'none';
+    document.getElementById('m-tiered-wrap').style.display = 'none';
+  }
 
   const ncismNote = document.getElementById('m-ncism-note');
   if (f.ayush_code && f.ayush_catalog?.benchmark_rate_2026 != null) {
@@ -962,11 +998,14 @@ window.saveFee = async function() {
   const opdId    = document.getElementById('m-opd').value || null;
   const deptId   = document.getElementById('m-department')?.value || null;
   const groupTag = document.getElementById('m-group')?.value || null;
-  const tiered   = TIERABLE_CATEGORIES.includes(category) && document.getElementById('m-tiered').checked;
+  const tiered   = !_lockedRoomBedType && TIERABLE_CATEGORIES.includes(category) && document.getElementById('m-tiered').checked;
 
   const sel  = document.getElementById('m-type-select');
   const inp  = document.getElementById('m-type-input');
-  const feeType = sel.style.display !== 'none' ? sel.value : inp.value.trim();
+  // Session 319 -- a room-tariff row's fee_type is derived from which bed type's
+  // "+ Set Rate" was clicked, not picked from the (now room_*-free) type dropdown.
+  const feeType = _lockedRoomBedType ? ('room_' + _lockedRoomBedType)
+    : (sel.style.display !== 'none' ? sel.value : inp.value.trim());
 
   if (!label)    { toast('Please enter a service label.', 'error'); return; }
   if (!category) { toast('Please select a category.', 'error'); return; }
@@ -1581,6 +1620,73 @@ window.exportPdf = function(scope) {
   setTimeout(() => { try { w.print(); } catch (e) {} }, 350);
 };
 
+// ── IPD Room Tariff (Session 319) ──────────────────
+// Distinct real bed_type values this tenant has beds of. Deliberately reads beds
+// directly (not Quick Setup's Table 1, which is browser-localStorage-only and not
+// reliably readable here -- see TODO_LATER.md's pre-go-live item on that gap), so
+// this only ever lists types that actually have real beds, never a merely-planned one.
+async function loadTenantBedTypes() {
+  const { data } = await supabase.from('beds').select('bed_type').eq('tenant_id', tenantId);
+  _tenantBedTypes = [...new Set((data || []).map(b => b.bed_type))].sort();
+}
+
+// {bedType, label, feeRow|null} for every real bed type, feeRow null = "rate needed".
+function _roomTariffRows() {
+  const roomFees = _allFees.filter(f => f.category === 'ipd' && (f.fee_type || '').startsWith('room_') && f.is_active);
+  return _tenantBedTypes.map(bt => ({
+    bedType: bt,
+    label:   bedTypeLabel(bt, bt),
+    feeRow:  roomFees.find(f => f.fee_type === 'room_' + bt) || null,
+  }));
+}
+
+function _roomRateGapCount() {
+  return _roomTariffRows().filter(r => !r.feeRow).length;
+}
+
+function renderRoomTariffTable() {
+  const rows = _roomTariffRows();
+  const tbody = document.getElementById('fee-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty">
+      <div class="empty-icon">🛏️</div>
+      <div class="empty-text">No beds created yet — set up beds in bed-admin.html first.</div>
+      </div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const f = r.feeRow;
+    const amountCell = f
+      ? `<span class="fee-amount">₹${parseFloat(f.amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>`
+      : `<span class="status-badge status-pending">⚠ Rate needed</span>`;
+    const statusCell = f
+      ? `<span class="status-badge status-${f.approval_status}">${{pending:'Pending',dept_approved:'Dept. Approved',active:'Active',rejected:'Rejected'}[f.approval_status] || f.approval_status}</span>`
+      : '—';
+    const actionBtn = f
+      ? `<button class="act-btn act-edit" data-onclick="openEdit" data-onclick-a0="${f.id}">Edit</button>`
+      : `<button class="act-btn act-approve" data-onclick="openAddRoomRate" data-onclick-a0="${_esc(r.bedType)}">+ Set Rate</button>`;
+    return `<tr>
+      <td><div class="fee-label">${_esc(r.label)}</div>${f?.notes ? `<div class="fee-notes">${_esc(f.notes)}</div>` : ''}</td>
+      <td><span class="cat-badge cat-ipd">IPD</span></td>
+      <td style="color:var(--text-mid);font-size:13px">Room</td>
+      <td>${amountCell}</td>
+      <td>${statusCell}</td>
+      <td><div class="actions">${actionBtn}${f && role === 'super_admin' ? `<button class="act-btn act-edit" data-onclick="openEdit" data-onclick-a0="${f.id}">Edit</button>` : ''}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+window.openAddRoomRate = function(bedType) {
+  openModal();
+  _lockedRoomBedType = bedType;
+  document.getElementById('m-category').value = 'ipd';
+  onCategoryChange();
+  document.getElementById('m-type-wrap').style.display = 'none';
+  document.getElementById('m-tiered-wrap').style.display = 'none';
+  document.getElementById('m-label').value = bedTypeLabel(bedType, bedType);
+  document.getElementById('modal-title').textContent = `Set Room Tariff — ${bedTypeLabel(bedType, bedType)}`;
+};
+
 // ── Bed Category Multipliers (Session 109) ────────
 async function loadBedMultipliers() {
   const { data } = await supabase
@@ -1692,5 +1798,6 @@ try { await supabase.rpc('apply_silent_pending_migrations'); } catch (e) { /* no
 await loadOPDs();
 await loadDepartments();
 await loadBedMultipliers();
+await loadTenantBedTypes();
 await loadAdvancePolicy();
 await loadFees();

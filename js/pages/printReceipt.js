@@ -123,7 +123,8 @@ async function loadInterim() {
   if (charges.tariff.error) {
     rows.push(`<tr><td colspan="2" class="py-1 text-red-600 text-xs">${_esc(charges.tariff.error)}</td></tr>`);
   } else {
-    rows.push(`<tr><td class="py-1">Room Tariff — ${charges.tariff.days} day${charges.tariff.days>1?'s':''} × ${_esc(bed.bed_type||'')}</td><td class="py-1 text-right">₹${_n(charges.tariffTotal)}</td></tr>`);
+    // Session 319 -- the fee's own admin-set label, not the raw bed_type key (patient-facing print).
+    rows.push(`<tr><td class="py-1">Room Tariff — ${charges.tariff.days} day${charges.tariff.days>1?'s':''} × ${_esc(charges.tariff.label || 'Room charges')}</td><td class="py-1 text-right">₹${_n(charges.tariffTotal)}</td></tr>`);
   }
   charges.charges.forEach(c => {
     rows.push(`<tr><td class="py-1">${_esc(c.description)}</td><td class="py-1 text-right">₹${_n(c.amount)}</td></tr>`);
