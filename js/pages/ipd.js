@@ -54,7 +54,12 @@ import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml
 // Bill since Session 114, the Account drawer now) but were never let onto this page at
 // all, redirected straight to their ROLE_HOME by this allowlist -- found live testing
 // the Account drawer as cashier.
-await requireAuth(['super_admin','dept_admin','doctor','receptionist','nurse','cashier','accountant','finance_manager']);
+// Session 314 -- trainee_doctor added. Found during the IPD icon/role audit: the new
+// clinical-write RLS (sql/session314_ipd_clinical_write_lockdown.sql) and print-gating
+// below both grant trainee_doctor real rights on this page, matching _ward_round_role()
+// (already live) and doctor.html's own established trainee_doctor pattern -- without
+// this, every one of those grants would be unreachable dead code.
+await requireAuth(['super_admin','dept_admin','doctor','trainee_doctor','receptionist','nurse','cashier','accountant','finance_manager']);
 initNavbar();
 wireDelegatedEvents();
 const tenantId = getCurrentTenantId();
@@ -70,6 +75,17 @@ const DISCHARGE_ROLES = ['doctor','nurse','super_admin','dept_admin'];
 // own ALLOWED list (billing-clerk designation is a receptionist role) --
 // not doctor/nurse, whose job ends once charges are locked.
 const BILLING_ROLES = ['receptionist','cashier','accountant','finance_manager','super_admin','dept_admin'];
+// Session 314 -- who may see/write the clinical icons (CP/🍲/OT) and countersign/print.
+// FINANCE_ROLES loses every clinical icon (keeps only 💳/🏥); receptionist loses CP/WR/🍲/OT
+// (keeps 📋) plus 🖨 (print-gated separately below). Matches the new RLS write-gate
+// (_ipd_clinical_write_ok()) exactly so a visible button is never one RLS blocks.
+const FINANCE_ROLES = ['cashier','accountant','finance_manager'];
+const CLINICAL_WRITE_ROLES = ['doctor','trainee_doctor','nurse','super_admin','dept_admin'];
+// Ward Rounds' own write rule (ward_round_notes RLS, already live, unchanged) is narrower
+// than CLINICAL_WRITE_ROLES -- no nurse. Kept separate so the button is only ever shown to
+// a role that can actually save into it.
+const WARD_ROUND_ROLES = ['doctor','trainee_doctor','super_admin','dept_admin'];
+const DISCHARGE_PRINT_ROLES = ['doctor','trainee_doctor','nurse','mrd_staff','super_admin','dept_admin'];
 // Session 205 (cont.) -- who may actually CREATE an admission. Real hospital process:
 // a doctor advises admission (doctor.html), reception collects the advance and admits
 // -- never a doctor/nurse directly. Matches _ipd_admissions_insert_ok() server-side.
@@ -404,6 +420,13 @@ function renderTable(rows) {
     const dept    = a.departments || {};
     const doctor  = a.profiles || {};
     const days    = _daysSince(a.admitted_at);
+    // Session 314 -- icon visibility now matches who can actually write the underlying table
+    // (see sql/session314_ipd_clinical_write_lockdown.sql), so a shown button is never one
+    // RLS silently blocks.
+    const isFinance      = FINANCE_ROLES.includes(myRole);
+    const canClinicalWrite = CLINICAL_WRITE_ROLES.includes(myRole);
+    const canWardRound     = WARD_ROUND_ROLES.includes(myRole);
+    const canPrintDischarge = DISCHARGE_PRINT_ROLES.includes(myRole);
     const canDischarge = a.status === 'admitted';
     const canOrderDischarge = canDischarge && DISCHARGE_ROLES.includes(myRole);
     const canGenerateBill = a.status === 'charges_locked' && BILLING_ROLES.includes(myRole);
@@ -432,12 +455,12 @@ function renderTable(rows) {
       <td>${_statusBadgeHtml(a)}</td>
       <td>
         <div class="row-actions">
-          <button class="icon-btn" data-onclick="openNotesDrawer" data-onclick-a0="${a.id}" title="View details">&#128203;</button>
-          <button class="icon-btn" data-onclick="openCarePlanDrawer" data-onclick-a0="${a.id}" data-onclick-a1="${a.patients?.id||''}" title="Care Plan (NABH CORE)" style="font-size:10px;font-weight:700;color:#7a4a00;border-color:#e8d08a;background:#fffdf0">CP</button>
-          <button class="icon-btn" data-onclick="openWardRoundsDrawer" data-onclick-a0="${a.id}" title="Ward Round Notes" style="font-size:10px;font-weight:700;color:#1a4a2e;border-color:#b8ddc6;background:#e8f5ee">WR</button>
-          <button class="icon-btn" data-onclick="openDietDrawer" data-onclick-a0="${a.id}" title="Palha-Diet Indent" style="font-size:11px">🍲</button>
-          <button class="icon-btn" data-onclick="printDischargeSummary" data-onclick-a0="${a.id}" title="Print Discharge Summary" style="font-size:11px">🖨</button>
-          ${canDischarge ? `<button class="icon-btn" data-onclick="openOtDrawer" data-onclick-a0="${a.id}" title="OT Procedures" style="font-size:10px;font-weight:700;color:#1a4080;border-color:#a8c8f0;background:#e3f0ff">OT</button>` : ''}
+          ${!isFinance ? `<button class="icon-btn" data-onclick="openNotesDrawer" data-onclick-a0="${a.id}" title="View details">&#128203;</button>` : ''}
+          ${canClinicalWrite ? `<button class="icon-btn" data-onclick="openCarePlanDrawer" data-onclick-a0="${a.id}" data-onclick-a1="${a.patients?.id||''}" title="Care Plan (NABH CORE)" style="font-size:10px;font-weight:700;color:#7a4a00;border-color:#e8d08a;background:#fffdf0">CP</button>` : ''}
+          ${canWardRound ? `<button class="icon-btn" data-onclick="openWardRoundsDrawer" data-onclick-a0="${a.id}" title="Ward Round Notes" style="font-size:10px;font-weight:700;color:#1a4a2e;border-color:#b8ddc6;background:#e8f5ee">WR</button>` : ''}
+          ${canClinicalWrite ? `<button class="icon-btn" data-onclick="openDietDrawer" data-onclick-a0="${a.id}" title="Palha-Diet Indent" style="font-size:11px">🍲</button>` : ''}
+          ${canPrintDischarge ? `<button class="icon-btn" data-onclick="printDischargeSummary" data-onclick-a0="${a.id}" title="Print Discharge Summary" style="font-size:11px">🖨</button>` : ''}
+          ${canDischarge && canClinicalWrite ? `<button class="icon-btn" data-onclick="openOtDrawer" data-onclick-a0="${a.id}" title="OT Procedures" style="font-size:10px;font-weight:700;color:#1a4080;border-color:#a8c8f0;background:#e3f0ff">OT</button>` : ''}
           ${pkPlan ? `<button class="icon-btn" data-onclick="openPkTrackerDrawer" data-onclick-a0="${a.id}" title="Panchakarma Treatment Tracker — ${_esc(pkPlan.labels)}" style="font-size:11px;font-weight:700;color:#1a6b3a;border-color:#a8d8b8;background:#e8f5ee">🌸</button>` : ''}
           ${canOrderDischarge ? `<button class="icon-btn danger" data-onclick="openDischargeDrawer" data-onclick-a0="${a.id}" title="Order Discharge / Exit">&#10006;</button>` : ''}
           ${canGenerateBill ? `<button class="icon-btn" data-onclick="openGenerateBillDrawer" data-onclick-a0="${a.id}" title="Generate IPD Bill" style="font-size:10px;font-weight:700;color:#1a4a2e;border-color:#b8ddc6;background:#e8f5ee">💰</button>` : ''}
@@ -2836,7 +2859,10 @@ window.saveWrdNote = async function() {
     subjective:   subj||null, objective: obj||null,
     assessment:   asmt||null, plan:      plan||null,
   });
-  if (error) { _alert('error', safeErrorMessage(error)); return; }
+  // Session 314 -- the WR button is now hidden for any role RLS wouldn't let write anyway
+  // (see WARD_ROUND_ROLES above), so this is defense-in-depth: a clear message instead of
+  // the generic fallback if it's ever reached some other way (stale tab, role change mid-session).
+  if (error) { _alert('error', safeErrorMessage(error, 'You are not authorized to add ward round notes.')); return; }
   ['wrd-subjective','wrd-objective','wrd-assessment','wrd-plan'].forEach(id => {
     document.getElementById(id).value = '';
   });
