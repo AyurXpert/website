@@ -75,7 +75,29 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     'Enhancement request not found', 'Non-payable amount cannot be negative',
     'Final approval for a cashless case', 'Decision status must be approved or rejected',
     'An enhancement request is already pending'];
-  if (error?.code === 'P0001' && INSURANCE_MSGS.some(m => error?.message?.startsWith(m))) {
+  // Session 316 fix: several of these RPCs' own role checks (e.g. "Not authorized to change
+  // an admission's payer") raise with ERRCODE 42501, not the default P0001 -- this condition
+  // only ever checked P0001, so every 42501 message here was silently falling through to the
+  // generic fallback text since Session 311. Widened to match PACKAGE_EXPENSE_MSGS's own
+  // broader pattern above, which already got this right.
+  if ((error?.code === 'P0001' || error?.code === '42501')
+      && INSURANCE_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
+  // Session 316 ipd_admissions write guard (sql/session316_ipd_admissions_write_guard.sql) +
+  // the pre-existing lock_ipd_charges() (Session 305e). Same reasoning again -- plain,
+  // schema-free messages naming exactly which field-group or role check failed.
+  const IPD_WRITE_GUARD_MSGS = ['Only super_admin can force a status change', 'Invalid status:',
+    'Invalid status transition', 'Your role cannot order a discharge or exit',
+    'Your role cannot generate an IPD bill', 'Your role cannot release the final discharge record',
+    'Your role cannot edit the discharge summary', 'Your role cannot initiate a care plan',
+    'Your role cannot change the diet order', 'This combination of fields',
+    'Your role cannot lock IPD charges', 'Charges can be locked only after', 'Admission not found'];
+  // 42501 (role checks + the trigger's own messages), 22023 and P0002 (lock_ipd_charges'
+  // pre-existing explicit codes) -- not just P0001.
+  if (['P0001','42501','22023','P0002'].includes(error?.code)
+      && IPD_WRITE_GUARD_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }
 
