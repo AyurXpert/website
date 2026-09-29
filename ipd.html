@@ -48,8 +48,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .btn-secondary:hover{background:var(--green-light)}
 .btn-danger{background:var(--white);color:var(--red);border:1.5px solid var(--error-border)}
 .btn-danger:hover{background:var(--error-bg)}
+.btn-outline{background:var(--white);color:var(--text-mid);border:1.5px solid var(--border)}
+.btn-outline:hover{border-color:var(--green-mid);color:var(--green-deep)}
 .btn-sm{height:44px;padding:0 12px;font-size:12px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── Insurance drawer (Session 311) ── */
+.ins-section{border-top:1.5px solid var(--border);padding-top:12px;margin-top:12px}
+.ins-section:first-of-type{border-top:none;padding-top:0;margin-top:0}
+.ins-section-title{font-weight:600;font-size:12.5px;color:#1a4080;margin-bottom:8px}
 
 /* ── Alert ── */
 .alert{padding:10px 14px;border-radius:var(--radius);font-size:13px;margin-bottom:16px;display:none}
@@ -436,6 +443,57 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <textarea id="adm-notes" placeholder="Special instructions, referring doctor…"></textarea>
         </div>
 
+        <!-- Session 311 -- payer is an explicit choice per admission, required by
+             create_ipd_admission() server-side (no default). The doctor's admission
+             advice may SUGGEST a payer (adm-payer-suggestion banner below) but it is
+             never auto-applied to the dropdown -- reception/admin always confirms it. -->
+        <div style="background:#eef4fb;border:1.5px solid #a8c8f0;border-radius:8px;padding:12px 14px;margin-top:4px">
+          <div style="font-weight:600;font-size:13px;color:#1a4080;margin-bottom:8px">💳 Payer <span style="font-size:10px;font-weight:400;color:var(--text-muted)">(required to admit)</span></div>
+          <div id="adm-payer-suggestion" style="display:none;font-size:11.5px;color:var(--text-mid);margin-bottom:8px;background:#fff;border-radius:6px;padding:6px 8px"></div>
+          <div class="field">
+            <label>Payer Type <span class="req">*</span></label>
+            <select id="adm-payer-type" data-onchange="onPayerTypeChange" data-onchange-a0="@value">
+              <option value="">— Select —</option>
+              <option value="self_pay">Self-Pay</option>
+              <option value="insurance">Insurance</option>
+              <option value="pmjay">PM-JAY</option>
+              <option value="cghs">CGHS</option>
+              <option value="echs">ECHS</option>
+              <option value="esi">ESI</option>
+              <option value="corporate">Corporate</option>
+            </select>
+          </div>
+          <div id="adm-payer-insurer-fields" style="display:none">
+            <div class="field-row">
+              <div class="field">
+                <label>Insurer / Scheme Name</label>
+                <input id="adm-insurer-name" type="text" placeholder="e.g. Star Health, HDFC Ergo"/>
+              </div>
+              <div class="field">
+                <label>TPA</label>
+                <input id="adm-tpa-name" type="text" placeholder="if applicable"/>
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label>Policy Number</label>
+                <input id="adm-policy-number" type="text"/>
+              </div>
+              <div class="field">
+                <label>Member ID</label>
+                <input id="adm-member-id" type="text"/>
+              </div>
+            </div>
+            <div class="field" id="adm-pmjay-field" style="display:none">
+              <label>PM-JAY Package Code</label>
+              <input id="adm-pmjay-code" type="text" placeholder="e.g. AB-AYUSH-P03"/>
+            </div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-top:2px">
+              <input type="checkbox" id="adm-is-cashless" style="accent-color:#1a4080"/> Cashless
+            </label>
+          </div>
+        </div>
+
         <!-- Session 205 (cont.): reception always collects an advance before admitting --
              both the advice-flow and the direct-walk-in flow (never optional; matches
              Dr. Venkatesh's described process). Required by create_ipd_admission() RPC
@@ -663,6 +721,27 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div class="drawer-footer">
       <button class="btn btn-secondary" data-onclick="closeGenerateBillDrawer">Cancel</button>
       <button class="btn btn-primary" id="btn-generate-bill" data-onclick="confirmGenerateBill">Generate Bill</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     INSURANCE DRAWER (Session 311, Phase 1 -- pre-auth / enhancement /
+     final-approval case tracking + mid-stay payer switch)
+     ══════════════════════════════════════════════════════ -->
+<div class="drawer-overlay" id="insurance-overlay">
+  <div class="drawer" style="width:560px">
+    <div class="drawer-header">
+      <span class="drawer-title">🏥 Insurance</span>
+      <button class="drawer-close" data-onclick="closeInsuranceDrawer">&#x2715;</button>
+    </div>
+    <div class="drawer-body">
+      <input type="hidden" id="ins-adm-id"/>
+      <div class="adm-detail-card" id="ins-detail-card"></div>
+      <div id="ins-body"><div style="text-align:center;color:var(--text-muted);padding:20px;font-size:12.5px">Loading…</div></div>
+    </div>
+    <div class="drawer-footer">
+      <button class="btn btn-secondary" data-onclick="closeInsuranceDrawer">Close</button>
     </div>
   </div>
 </div>

@@ -129,7 +129,7 @@ window.loadAll = async function loadAll() {
       .from('ipd_admissions')
       .select(`
         id, tenant_id, admission_date, admitted_at, discharged_at, charges_locked_at,
-        status, disposition, diagnosis_primary, diet_type, notes, advance_amount_collected,
+        status, disposition, diagnosis_primary, diet_type, notes, advance_amount_collected, payer_type,
         discharge_diagnosis_ayurveda, discharge_diagnosis_icd10, discharge_medications,
         discharge_pathya_apathya, discharge_pk_procedures, discharge_followup_date, discharge_condition,
         discharge_course, discharge_treatment_given, discharge_investigations, discharge_advice,
@@ -442,6 +442,7 @@ function renderTable(rows) {
           ${canOrderDischarge ? `<button class="icon-btn danger" data-onclick="openDischargeDrawer" data-onclick-a0="${a.id}" title="Order Discharge / Exit">&#10006;</button>` : ''}
           ${canGenerateBill ? `<button class="icon-btn" data-onclick="openGenerateBillDrawer" data-onclick-a0="${a.id}" title="Generate IPD Bill" style="font-size:10px;font-weight:700;color:#1a4a2e;border-color:#b8ddc6;background:#e8f5ee">💰</button>` : ''}
           ${BILLING_ROLES.includes(myRole) ? `<button class="icon-btn" data-onclick="openAccountDrawer" data-onclick-a0="${a.id}" title="Account — deposits, payments, receipts" style="font-size:11px">💳</button>` : ''}
+          ${BILLING_ROLES.includes(myRole) && a.payer_type && a.payer_type !== 'self_pay' ? `<button class="icon-btn" data-onclick="openInsuranceDrawer" data-onclick-a0="${a.id}" title="Insurance — pre-auth, enhancements, final approval (${_esc(a.payer_type)})" style="font-size:11px">🏥</button>` : ''}
         </div>
       </td>
     </tr>`;
@@ -477,6 +478,17 @@ window.openAdmitDrawer = function() {
   document.getElementById('adm-advance-reference').value = '';
   document.getElementById('adm-advance-ref-field').style.display = 'none';
   document.getElementById('adm-advice-banner').style.display = 'none';
+  // Session 311 -- payer is never pre-selected, not even from an advice's suggestion.
+  document.getElementById('adm-payer-type').value = '';
+  document.getElementById('adm-payer-suggestion').style.display = 'none';
+  document.getElementById('adm-payer-insurer-fields').style.display = 'none';
+  document.getElementById('adm-pmjay-field').style.display = 'none';
+  document.getElementById('adm-insurer-name').value = '';
+  document.getElementById('adm-tpa-name').value = '';
+  document.getElementById('adm-policy-number').value = '';
+  document.getElementById('adm-member-id').value = '';
+  document.getElementById('adm-pmjay-code').value = '';
+  document.getElementById('adm-is-cashless').checked = false;
   _populateDoctorSelect(); // reset to "select department first" state
   goStep(1);
   document.getElementById('admit-overlay').classList.add('open');
@@ -492,6 +504,23 @@ window.onAdvanceModeChange = function(mode) {
   const field = document.getElementById('adm-advance-ref-field');
   field.style.display = mode && mode !== 'cash' ? '' : 'none';
   if (!mode || mode === 'cash') document.getElementById('adm-advance-reference').value = '';
+};
+
+// Session 311 -- shows the insurer/scheme fields for any non-self-pay payer, and the
+// PM-JAY package field only for that one scheme (matches create_ipd_admission's
+// own payer-type CHECK).
+window.onPayerTypeChange = function(val) {
+  const showInsurer = !!val && val !== 'self_pay';
+  document.getElementById('adm-payer-insurer-fields').style.display = showInsurer ? '' : 'none';
+  document.getElementById('adm-pmjay-field').style.display = val === 'pmjay' ? '' : 'none';
+  if (!showInsurer) {
+    document.getElementById('adm-insurer-name').value = '';
+    document.getElementById('adm-tpa-name').value = '';
+    document.getElementById('adm-policy-number').value = '';
+    document.getElementById('adm-member-id').value = '';
+    document.getElementById('adm-pmjay-code').value = '';
+    document.getElementById('adm-is-cashless').checked = false;
+  }
 };
 
 window.goStep = function(n) {
@@ -801,11 +830,21 @@ window.saveAdmission = async function() {
   const advanceAmount = document.getElementById('adm-advance-amount').value;
   const advanceMode   = document.getElementById('adm-advance-mode').value;
   const advanceRef    = document.getElementById('adm-advance-reference').value.trim();
+  // Session 311 -- payer is required, no default; the RPC refuses without it too,
+  // this is just the same check surfaced earlier as a clear client-side message.
+  const payerType      = document.getElementById('adm-payer-type').value;
+  const insurerName    = document.getElementById('adm-insurer-name').value.trim();
+  const tpaName        = document.getElementById('adm-tpa-name').value.trim();
+  const policyNumber   = document.getElementById('adm-policy-number').value.trim();
+  const memberId       = document.getElementById('adm-member-id').value.trim();
+  const pmjayCode      = document.getElementById('adm-pmjay-code').value.trim();
+  const isCashless     = document.getElementById('adm-is-cashless').checked;
 
   if (!deptId)   { _alert('error','Select a department.'); return; }
   if (!bedId)    { _alert('error','Select a bed.'); return; }
   if (!doctorId) { _alert('error','Select an admitting doctor.'); return; }
   if (!admDate)  { _alert('error','Enter admission date.'); return; }
+  if (!payerType) { _alert('error','Select a payer type.'); return; }
   if (advanceAmount === '' || Number(advanceAmount) < 0) { _alert('error','Enter the advance amount collected.'); return; }
   if (!advanceMode) { _alert('error','Select the advance payment mode.'); return; }
   if (advanceMode !== 'cash' && Number(advanceAmount) > 0 && !advanceRef) {
@@ -821,6 +860,13 @@ window.saveAdmission = async function() {
     p_bed_id:                bedId,
     p_admitting_doctor_id:   doctorId,
     p_admission_date:        admDate,
+    p_payer_type:            payerType,
+    p_insurer_name:          payerType !== 'self_pay' ? (insurerName || null) : null,
+    p_tpa_name:              payerType !== 'self_pay' ? (tpaName || null) : null,
+    p_policy_number:         payerType !== 'self_pay' ? (policyNumber || null) : null,
+    p_member_id:             payerType !== 'self_pay' ? (memberId || null) : null,
+    p_pmjay_package_code:    payerType === 'pmjay' ? (pmjayCode || null) : null,
+    p_is_cashless:           payerType !== 'self_pay' ? isCashless : false,
     p_advance_amount:        Number(advanceAmount),
     p_advance_payment_mode:  advanceMode,
     p_advance_reference:     advanceRef || null,
@@ -1365,6 +1411,356 @@ window.confirmGenerateBill = async function() {
 // just renders its answers and shows its errors back verbatim.
 const PAYMENT_MODES = ['cash', 'upi', 'card', 'cheque', 'neft'];
 const MODE_LABEL = { cash: 'Cash', upi: 'UPI', card: 'Card', cheque: 'Cheque', neft: 'NEFT' };
+// ══════════════════════════════════════════════════════════════════════════════
+// INSURANCE DRAWER (Session 311, Phase 1) -- pre-auth / enhancement / final-approval
+// case tracking + mid-stay payer switch. Every write here goes through the case
+// RPCs (sql/session311_ipd_insurance_phase1.sql) -- this file never writes
+// ipd_insurance_cases/ipd_insurance_enhancements directly (RLS blocks it anyway).
+// Bill-generation wiring + release-gate + settlement (Phase 2) are NOT part of
+// this drawer yet -- it only manages the case itself, pre-discharge.
+// ══════════════════════════════════════════════════════════════════════════════
+const PAYER_LABEL = { self_pay:'Self-Pay', insurance:'Insurance', pmjay:'PM-JAY', cghs:'CGHS', echs:'ECHS', esi:'ESI', corporate:'Corporate' };
+
+let _insAdmId = null;
+let _insCase  = null;
+let _insEnhancements = [];
+let _decidingEnhId = null;
+let _showSwitchForm = false;
+
+window.openInsuranceDrawer = async function(admId) {
+  const adm = _admissions.find(a => a.id === admId);
+  if (!adm) return;
+  _insAdmId = admId;
+  _decidingEnhId = null;
+  _showSwitchForm = false;
+  document.getElementById('ins-adm-id').value = admId;
+
+  const pt = adm.patients || {}, bed = adm.beds || {}, dept = adm.departments || {};
+  document.getElementById('ins-detail-card').innerHTML = `
+    <div class="adm-detail-row"><span>Patient</span><strong>${_esc(pt.name || '—')}</strong></div>
+    <div class="adm-detail-row"><span>Bed</span><strong>${_esc(bed.bed_number || '—')} (${_esc(bed.bed_type || '—')})</strong></div>
+    <div class="adm-detail-row"><span>Department</span><strong>${_esc(dept.name || '—')}</strong></div>
+    <div class="adm-detail-row"><span>Payer</span><strong>${_esc(PAYER_LABEL[adm.payer_type] || adm.payer_type || '—')}</strong></div>
+  `;
+
+  document.getElementById('insurance-overlay').classList.add('open');
+  await _refreshInsuranceDrawer();
+};
+
+window.closeInsuranceDrawer = function() {
+  document.getElementById('insurance-overlay').classList.remove('open');
+  _insAdmId = null;
+};
+
+async function _refreshInsuranceDrawer() {
+  const admId = _insAdmId;
+  if (!admId) return;
+  const body = document.getElementById('ins-body');
+  body.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:12.5px">Loading…</div>';
+
+  const { data: caseRow, error: caseErr } = await supabase
+    .from('ipd_insurance_cases').select('*')
+    .eq('ipd_admission_id', admId).eq('status', 'open').maybeSingle();
+  if (caseErr) {
+    body.innerHTML = `<div style="color:var(--red);padding:10px;font-size:12.5px">${_esc(safeErrorMessage(caseErr, 'Could not load the insurance case.'))}</div>`;
+    return;
+  }
+  _insCase = caseRow;
+  _insEnhancements = [];
+  if (caseRow) {
+    const { data: enh } = await supabase
+      .from('ipd_insurance_enhancements').select('*')
+      .eq('case_id', caseRow.id).order('requested_at', { ascending: false });
+    _insEnhancements = enh || [];
+  }
+  _renderInsuranceDrawer();
+}
+
+function _docLabel(path) {
+  return path ? `<a href="#" onclick="return false" title="${_esc(path)}" style="color:#1a4080">📄 document on file</a>` : '<span style="color:var(--text-muted)">—</span>';
+}
+
+function _renderInsuranceDrawer() {
+  const body = document.getElementById('ins-body');
+  const adm = _admissions.find(a => a.id === _insAdmId);
+  const canAct = BILLING_ROLES.includes(myRole);
+
+  if (!_insCase) {
+    body.innerHTML = `<div style="padding:14px;text-align:center;color:var(--text-muted);font-size:12.5px">
+      No open insurance case for this admission (payer was switched to self-pay, or the case was already closed).
+    </div>${canAct ? _switchPayerHtml(adm) : ''}`;
+    return;
+  }
+  const c = _insCase;
+
+  const caseSummary = `
+    <div style="background:var(--cream);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px">
+      <div><strong>${_esc(PAYER_LABEL[c.payer_type] || c.payer_type)}</strong>${c.is_cashless ? ' · Cashless' : ''}</div>
+      ${c.insurer_name ? `<div>${_esc(c.insurer_name)}${c.tpa_name ? ' / ' + _esc(c.tpa_name) : ''}</div>` : ''}
+      ${c.policy_number ? `<div>Policy: ${_esc(c.policy_number)}${c.member_id ? ' · Member: ' + _esc(c.member_id) : ''}</div>` : ''}
+      ${c.pmjay_package_code ? `<div>Package: ${_esc(c.pmjay_package_code)}${c.pmjay_mo_approved ? ' · MO Approved ✓' : ''}</div>` : ''}
+    </div>`;
+
+  // ── Pre-authorization ──
+  let preAuthHtml;
+  if (!c.pre_auth_status || c.pre_auth_status === 'rejected') {
+    preAuthHtml = `
+      <div class="ins-section">
+        <div class="ins-section-title">Pre-Authorization</div>
+        ${c.pre_auth_status === 'rejected' ? `<div style="font-size:12px;color:var(--red);margin-bottom:6px">Previous request rejected: ${_esc(c.pre_auth_rejection_reason||'')} (${_docLabel(c.pre_auth_document_path)})</div>` : ''}
+        ${canAct ? `
+        <div class="field-row">
+          <div class="field"><label>Amount to request</label><input type="number" min="0" step="0.01" id="pa-req-amount" placeholder="₹"/></div>
+          <div class="field" style="align-self:flex-end"><button class="btn btn-sm btn-primary" data-onclick="submitPreAuthRequest">Request Pre-Auth</button></div>
+        </div>` : '<div style="font-size:12px;color:var(--text-muted)">No pre-authorization requested yet.</div>'}
+      </div>`;
+  } else if (c.pre_auth_status === 'pending') {
+    preAuthHtml = `
+      <div class="ins-section">
+        <div class="ins-section-title">Pre-Authorization — ₹${Number(c.pre_auth_requested_amount).toLocaleString('en-IN')} requested, awaiting decision</div>
+        ${canAct ? `
+        <div class="field-row">
+          <div class="field"><label>Approved amount (if approved)</label><input type="number" min="0" step="0.01" id="pa-dec-amount"/></div>
+          <div class="field"><label>Insurer reference # <span class="req">*</span></label><input type="text" id="pa-dec-ref"/></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Decision document <span class="req">*</span></label><input type="file" id="pa-dec-doc"/></div>
+          <div class="field"><label>Rejection reason (if rejected)</label><input type="text" id="pa-dec-reason"/></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm btn-primary" data-onclick="submitPreAuthDecision" data-onclick-a0="approved">Record Approved</button>
+          <button class="btn btn-sm btn-secondary" data-onclick="submitPreAuthDecision" data-onclick-a0="rejected">Record Rejected</button>
+        </div>` : ''}
+      </div>`;
+  } else {
+    preAuthHtml = `
+      <div class="ins-section">
+        <div class="ins-section-title">Pre-Authorization — ${c.pre_auth_status === 'approved' ? '✅ Approved' : '❌ Rejected'}</div>
+        <div style="font-size:12.5px">Requested ₹${Number(c.pre_auth_requested_amount||0).toLocaleString('en-IN')} · Approved ₹${Number(c.pre_auth_approved_amount||0).toLocaleString('en-IN')} · Rejected ₹${Number(c.pre_auth_rejected_amount||0).toLocaleString('en-IN')}</div>
+        <div style="font-size:12px;color:var(--text-mid)">Ref: ${_esc(c.pre_auth_reference_number||'—')} · ${_docLabel(c.pre_auth_document_path)}</div>
+      </div>`;
+  }
+
+  // ── Enhancements ──
+  const enhRows = _insEnhancements.map(e => {
+    const isDeciding = _decidingEnhId === e.id;
+    let row = `<div style="border-bottom:1px solid var(--border);padding:6px 0;font-size:12.5px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span>₹${Number(e.requested_amount).toLocaleString('en-IN')} requested ${_fmt(e.requested_at)}</span>
+        <span style="font-weight:600;color:${e.status==='approved'?'var(--green-deep)':e.status==='rejected'?'var(--red)':'#a86a00'}">${e.status}</span>
+      </div>`;
+    if (e.status === 'pending' && canAct) {
+      row += isDeciding
+        ? `<div style="margin-top:6px">
+             <div class="field-row">
+               <div class="field"><label>Approved amount</label><input type="number" min="0" step="0.01" id="enh-dec-amount"/></div>
+               <div class="field"><label>Insurer reference # <span class="req">*</span></label><input type="text" id="enh-dec-ref"/></div>
+             </div>
+             <div class="field-row">
+               <div class="field"><label>Decision document <span class="req">*</span></label><input type="file" id="enh-dec-doc"/></div>
+               <div class="field"><label>Rejection reason (if rejected)</label><input type="text" id="enh-dec-reason"/></div>
+             </div>
+             <div style="display:flex;gap:8px">
+               <button class="btn btn-sm btn-primary" data-onclick="submitEnhancementDecision" data-onclick-a0="${e.id}" data-onclick-a1="approved">Record Approved</button>
+               <button class="btn btn-sm btn-secondary" data-onclick="submitEnhancementDecision" data-onclick-a0="${e.id}" data-onclick-a1="rejected">Record Rejected</button>
+               <button class="btn btn-sm btn-secondary" data-onclick="toggleEnhDecision" data-onclick-a0="">Cancel</button>
+             </div>
+           </div>`
+        : `<button class="btn btn-sm btn-outline" style="margin-top:4px" data-onclick="toggleEnhDecision" data-onclick-a0="${e.id}">Decide</button>`;
+    } else if (e.status !== 'pending') {
+      row += `<div style="font-size:11.5px;color:var(--text-mid)">Decided ₹${Number(e.decided_amount||0).toLocaleString('en-IN')} · Ref: ${_esc(e.reference_number||'—')} · ${_docLabel(e.document_path)}${e.rejection_reason ? ' · ' + _esc(e.rejection_reason) : ''}</div>`;
+    }
+    return row + `</div>`;
+  }).join('') || '<div style="font-size:12px;color:var(--text-muted)">No enhancement requests yet.</div>';
+
+  const enhHtml = `
+    <div class="ins-section">
+      <div class="ins-section-title">Enhancements</div>
+      ${enhRows}
+      ${canAct ? `
+      <div class="field-row" style="margin-top:8px">
+        <div class="field"><label>New enhancement amount</label><input type="number" min="0" step="0.01" id="enh-req-amount" placeholder="₹"/></div>
+        <div class="field" style="align-self:flex-end"><button class="btn btn-sm btn-primary" data-onclick="submitEnhancementRequest">Request Enhancement</button></div>
+      </div>` : ''}
+    </div>`;
+
+  // ── Final approval ──
+  const finalHtml = `
+    <div class="ins-section">
+      <div class="ins-section-title">Final Approval${c.final_approval_at ? ' — recorded' : ''}</div>
+      ${c.final_approval_at ? `<div style="font-size:12.5px">₹${Number(c.final_approval_amount||0).toLocaleString('en-IN')} approved${c.non_payable_amount ? ' · ₹'+Number(c.non_payable_amount).toLocaleString('en-IN')+' non-payable' : ''} · Ref: ${_esc(c.final_approval_reference_number||'—')} · ${_docLabel(c.final_approval_document_path)}</div>` : ''}
+      ${canAct ? `
+      <div class="field-row">
+        <div class="field"><label>Approved amount</label><input type="number" min="0" step="0.01" id="fa-amount"/></div>
+        <div class="field"><label>Non-payable amount</label><input type="number" min="0" step="0.01" id="fa-nonpayable" value="0"/></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Insurer reference # <span class="req">*</span></label><input type="text" id="fa-ref"/></div>
+        <div class="field"><label>Decision document <span class="req">*</span></label><input type="file" id="fa-doc"/></div>
+      </div>
+      <div class="field"><label>Rejection reason (if rejected)</label><input type="text" id="fa-reason"/></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm btn-primary" data-onclick="submitFinalApproval" data-onclick-a0="approved">Record Approved</button>
+        <button class="btn btn-sm btn-secondary" data-onclick="submitFinalApproval" data-onclick-a0="rejected">Record Rejected</button>
+      </div>` : ''}
+    </div>`;
+
+  body.innerHTML = caseSummary + preAuthHtml + enhHtml + finalHtml + (canAct ? _switchPayerHtml(adm) : '');
+}
+
+function _switchPayerHtml(adm) {
+  if (!_showSwitchForm) {
+    return `<div class="ins-section"><button class="btn btn-sm btn-outline" data-onclick="toggleSwitchForm">Switch Payer…</button></div>`;
+  }
+  return `
+    <div class="ins-section">
+      <div class="ins-section-title">Switch Payer</div>
+      <div class="field">
+        <label>New Payer Type <span class="req">*</span></label>
+        <select id="sw-payer-type" data-onchange="onSwitchPayerTypeChange" data-onchange-a0="@value">
+          <option value="">— Select —</option>
+          ${Object.keys(PAYER_LABEL).map(p => `<option value="${p}">${PAYER_LABEL[p]}</option>`).join('')}
+        </select>
+      </div>
+      <div id="sw-insurer-fields" style="display:none">
+        <div class="field-row">
+          <div class="field"><label>Insurer / Scheme</label><input type="text" id="sw-insurer"/></div>
+          <div class="field"><label>TPA</label><input type="text" id="sw-tpa"/></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Policy Number</label><input type="text" id="sw-policy"/></div>
+          <div class="field"><label>Member ID</label><input type="text" id="sw-member"/></div>
+        </div>
+        <div class="field" id="sw-pmjay-field" style="display:none"><label>PM-JAY Package Code</label><input type="text" id="sw-pmjay"/></div>
+      </div>
+      <div class="field"><label>Reason <span class="req">*</span></label><input type="text" id="sw-reason" placeholder="at least 5 characters"/></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm btn-primary" data-onclick="submitPayerSwitch">Confirm Switch</button>
+        <button class="btn btn-sm btn-secondary" data-onclick="toggleSwitchForm">Cancel</button>
+      </div>
+    </div>`;
+}
+
+window.toggleSwitchForm = function() { _showSwitchForm = !_showSwitchForm; _renderInsuranceDrawer(); };
+window.toggleEnhDecision = function(id) { _decidingEnhId = id || null; _renderInsuranceDrawer(); };
+window.onSwitchPayerTypeChange = function(val) {
+  document.getElementById('sw-insurer-fields').style.display = val && val !== 'self_pay' ? '' : 'none';
+  document.getElementById('sw-pmjay-field').style.display = val === 'pmjay' ? '' : 'none';
+};
+
+// Uploads to the private 'insurance-documents' bucket, tenant/admission/case-scoped
+// path (matches the RLS folder-prefix check in sql/session311_ipd_insurance_phase1.sql).
+// Returns the storage path (not a public URL -- the bucket is private).
+async function _uploadInsuranceDoc(fileInputId, subDir) {
+  const input = document.getElementById(fileInputId);
+  const file = input?.files?.[0];
+  if (!file) return null;
+  const path = `${tenantId}/${_insAdmId}/${subDir}/${Date.now()}_${file.name}`;
+  const { error } = await supabase.storage.from('insurance-documents').upload(path, file);
+  if (error) throw new Error(safeErrorMessage(error, 'Could not upload the document.'));
+  return path;
+}
+
+window.submitPreAuthRequest = async function() {
+  const amount = Number(document.getElementById('pa-req-amount').value);
+  if (!amount || amount <= 0) { _alert('error','Enter a valid amount.'); return; }
+  const { error } = await supabase.rpc('request_pre_auth', { p_case_id: _insCase.id, p_amount: amount });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not request pre-authorization.')); return; }
+  await _refreshInsuranceDrawer();
+};
+
+window.submitPreAuthDecision = async function(status) {
+  const amount = document.getElementById('pa-dec-amount').value;
+  const ref    = document.getElementById('pa-dec-ref').value.trim();
+  const reason = document.getElementById('pa-dec-reason').value.trim();
+  if (!ref) { _alert('error','Enter the insurer reference number.'); return; }
+  let docPath;
+  try { docPath = await _uploadInsuranceDoc('pa-dec-doc', 'preauth'); }
+  catch (e) { _alert('error', e.message); return; }
+  if (!docPath) { _alert('error','Select the decision document to upload.'); return; }
+  if (status === 'rejected' && !reason) { _alert('error','Enter a rejection reason.'); return; }
+  const { error } = await supabase.rpc('record_pre_auth_decision', {
+    p_case_id: _insCase.id, p_status: status,
+    p_approved_amount: status === 'approved' ? Number(amount || 0) : null,
+    p_reference_number: ref, p_document_path: docPath,
+    p_rejection_reason: status === 'rejected' ? reason : null,
+  });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not record the decision.')); return; }
+  await _refreshInsuranceDrawer();
+};
+
+window.submitEnhancementRequest = async function() {
+  const amount = Number(document.getElementById('enh-req-amount').value);
+  if (!amount || amount <= 0) { _alert('error','Enter a valid amount.'); return; }
+  const { error } = await supabase.rpc('request_enhancement', { p_case_id: _insCase.id, p_amount: amount });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not request an enhancement.')); return; }
+  document.getElementById('enh-req-amount').value = '';
+  await _refreshInsuranceDrawer();
+};
+
+window.submitEnhancementDecision = async function(enhId, status) {
+  const amount = document.getElementById('enh-dec-amount').value;
+  const ref    = document.getElementById('enh-dec-ref').value.trim();
+  const reason = document.getElementById('enh-dec-reason').value.trim();
+  if (!ref) { _alert('error','Enter the insurer reference number.'); return; }
+  let docPath;
+  try { docPath = await _uploadInsuranceDoc('enh-dec-doc', `enh-${enhId}`); }
+  catch (e) { _alert('error', e.message); return; }
+  if (!docPath) { _alert('error','Select the decision document to upload.'); return; }
+  if (status === 'rejected' && !reason) { _alert('error','Enter a rejection reason.'); return; }
+  const { error } = await supabase.rpc('record_enhancement_decision', {
+    p_enhancement_id: enhId, p_status: status,
+    p_decided_amount: status === 'approved' ? Number(amount || 0) : null,
+    p_reference_number: ref, p_document_path: docPath,
+    p_rejection_reason: status === 'rejected' ? reason : null,
+  });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not record the decision.')); return; }
+  _decidingEnhId = null;
+  await _refreshInsuranceDrawer();
+};
+
+window.submitFinalApproval = async function(status) {
+  const amount     = document.getElementById('fa-amount').value;
+  const nonPayable = Number(document.getElementById('fa-nonpayable').value || 0);
+  const ref        = document.getElementById('fa-ref').value.trim();
+  const reason     = document.getElementById('fa-reason').value.trim();
+  if (!ref) { _alert('error','Enter the insurer reference number.'); return; }
+  let docPath;
+  try { docPath = await _uploadInsuranceDoc('fa-doc', 'final'); }
+  catch (e) { _alert('error', e.message); return; }
+  if (!docPath) { _alert('error','Select the decision document to upload.'); return; }
+  if (status === 'rejected' && !reason) { _alert('error','Enter a rejection reason.'); return; }
+  const { error } = await supabase.rpc('record_final_approval', {
+    p_case_id: _insCase.id, p_status: status,
+    p_amount: status === 'approved' ? Number(amount || 0) : null,
+    p_reference_number: ref, p_document_path: docPath,
+    p_non_payable_amount: nonPayable,
+    p_rejection_reason: status === 'rejected' ? reason : null,
+  });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not record the final approval.')); return; }
+  await _refreshInsuranceDrawer();
+};
+
+window.submitPayerSwitch = async function() {
+  const newPayer = document.getElementById('sw-payer-type').value;
+  const reason   = document.getElementById('sw-reason').value.trim();
+  if (!newPayer) { _alert('error','Select the new payer type.'); return; }
+  if (reason.length < 5) { _alert('error','Enter a reason (at least 5 characters).'); return; }
+  const { error } = await supabase.rpc('switch_ipd_payer', {
+    p_admission_id: _insAdmId, p_new_payer_type: newPayer, p_reason: reason,
+    p_insurer_name: document.getElementById('sw-insurer')?.value.trim() || null,
+    p_tpa_name: document.getElementById('sw-tpa')?.value.trim() || null,
+    p_policy_number: document.getElementById('sw-policy')?.value.trim() || null,
+    p_member_id: document.getElementById('sw-member')?.value.trim() || null,
+    p_pmjay_package_code: document.getElementById('sw-pmjay')?.value.trim() || null,
+    p_is_cashless: false,
+  });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not switch the payer.')); return; }
+  _showSwitchForm = false;
+  await loadAll();      // admission's payer_type changed -- refresh the list (icon visibility etc.)
+  await _refreshInsuranceDrawer();
+};
+
 const KIND_LABEL = { advance: 'Advance', deposit: 'Deposit', payment: 'Payment', refund: 'Refund' };
 const VOID_ROLES = ['accountant', 'finance_manager', 'super_admin'];
 
@@ -2067,9 +2463,17 @@ if (_qAdviceId) {
     const banner = document.getElementById('adm-advice-banner');
     banner.style.display = '';
     banner.innerHTML = `<strong>From doctor's admission advice</strong> — ` +
-      `${advice.payer_type === 'insurance' ? 'Insurance' : 'Self-pay'} · ` +
+      `${advice.payer_type === 'self_pay' ? 'Self-pay' : advice.payer_type} · ` +
       `Estimated total: ₹${Number(advice.estimated_total||0).toLocaleString('en-IN')} · ` +
       `Suggested advance: ₹${Number(advice.advance_amount_suggested||0).toLocaleString('en-IN')}`;
+    // Session 311 -- a SUGGESTION only, shown next to the Payer field; the actual
+    // dropdown is never auto-set from it (Dr. Venkatesh's decision -- the payer must
+    // be reception/admin's own explicit choice at admission time, not inherited).
+    if (advice.payer_type) {
+      const sugg = document.getElementById('adm-payer-suggestion');
+      sugg.style.display = '';
+      sugg.innerHTML = `💡 Doctor's advice suggested: <strong>${_esc(advice.payer_type === 'self_pay' ? 'Self-Pay' : advice.payer_type.toUpperCase())}</strong> — confirm the payer below, it is not applied automatically.`;
+    }
   } else if (advice) {
     alert(`This admission advice has already been ${advice.status} — it cannot be used again.`);
   }
