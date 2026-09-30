@@ -11,6 +11,7 @@ import { computeIpdChargesToDate } from '../modules/billing/ipdChargesToDate.js'
 import { todayLocalStr, localDateStr } from '../utils/dateUtils.js';
 import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml } from '../modules/ipd/dischargePrint.js';
 import { bedTypeLabel } from '../config/bedTypes.js';
+import { notify } from '../components/notify.js';
 
 /*
   SQL to run in Supabase (one time) before using this page:
@@ -2505,32 +2506,10 @@ function _statusBadgeHtml(a) {
   // Dr. Venkatesh's explicit instruction, not surfaced anywhere in the list at all.
   return `<span class="status-badge status-${key}">${_esc(label)}</span>`;
 }
-// Session 312 fix: the page-level #alert bar sits in normal document flow, so it's
-// completely hidden behind any open .drawer-overlay (fixed, high z-index) -- every error/
-// success message triggered from inside a drawer (Admit, Insurance, etc.) was invisible
-// until the drawer closed. When a drawer is open, render into a dedicated alert slot at
-// the top of THAT drawer's body instead; otherwise keep the original page-level behavior.
-function _alert(type, msg) {
-  const drawerBody = document.querySelector('.drawer-overlay.open .drawer-body');
-  if (drawerBody) {
-    let el = drawerBody.querySelector('.alert.in-drawer');
-    if (!el) {
-      el = document.createElement('div');
-      el.className = 'alert in-drawer';
-      drawerBody.insertBefore(el, drawerBody.firstChild);
-    }
-    el.className = `alert in-drawer show ${type}`;
-    el.textContent = msg;
-    if (type === 'success') setTimeout(() => el.classList.remove('show'), 3500);
-    drawerBody.scrollTop = 0;
-    return;
-  }
-  const el = document.getElementById('alert');
-  el.className = `alert show ${type}`;
-  el.textContent = msg;
-  if (type === 'success') setTimeout(() => el.classList.remove('show'), 3500);
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
+// Session 322: messages go through the shared top-layer notify(). This replaces the Session 312
+// in-drawer special case, which only covered .drawer-overlay drawers (not #cp-drawer or
+// #ds-fields-modal) -- the top layer sits above every drawer and modal, whatever its class.
+function _alert(type, msg) { notify(msg, type); }
 
 // ── OT Procedures drawer ──────────────────────────────────────────────────────
 let _otAdmId     = null;

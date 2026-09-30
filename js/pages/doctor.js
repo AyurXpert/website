@@ -17,6 +17,7 @@ import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { loadVisitTimeline, resetVisitTimeline, getProgressData, setProgressData, isProgressMissing } from '../modules/patient/visitTimeline.js';
 import { loadMyPatients, resetMyPatients } from '../modules/patient/myPatients.js';
 import { uhidOf } from '../utils/uhid.js';
+import { notify } from '../components/notify.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -7882,26 +7883,14 @@ document.getElementById('btn-alerts').addEventListener('click', async () => {
 });
 
 // ── Toast ─────────────────────────────────────────
-function _toast(msg, type = 'info') {
-  const icon = type === 'alert' ? '🔔' : type === 'error' ? '⚠' : '✓';
-  const el = document.createElement('div');
-  el.className = `toast-item ${type}`;
-  el.innerHTML = `<span class="toast-icon">${icon}</span><span>${_esc(msg)}</span>`;
-  document.getElementById('toast').appendChild(el);
-  setTimeout(() => el.remove(), 4000);
-}
+// Session 322: shared top-layer notify(); this page's own 'alert' (bell) type maps to warning.
+function _toast(msg, type = 'info') { notify(msg, type === 'alert' ? 'warning' : type); }
 
 // Session 308c — same completion toast, plus an explicit "Print Rx" action opening the saved
 // prescription's real, server-set printout (printPrescription.html?rxId=). Given a longer timeout
 // than the plain toast so there's time to notice and click it.
 function _toastWithPrintAction(msg, rxId) {
-  const el = document.createElement('div');
-  el.className = 'toast-item info';
-  el.innerHTML = `<span class="toast-icon">✓</span><span>${_esc(msg)}</span>
-    <button type="button" data-onclick="_openSavedRxPrint" data-onclick-a0="${_esc(rxId)}"
-      style="margin-left:10px;padding:4px 10px;border:1.5px solid currentColor;background:transparent;color:inherit;border-radius:5px;font-size:12px;cursor:pointer;font-weight:600;white-space:nowrap">🖨 Print Rx</button>`;
-  document.getElementById('toast').appendChild(el);
-  setTimeout(() => el.remove(), 10000);
+  notify(msg, 'success', { action: { label: '🖨 Print Rx', onClick: () => window._openSavedRxPrint(rxId) }, timeout: 10000 });
 }
 window._openSavedRxPrint = function(rxId) {
   window.open(`printPrescription.html?rxId=${rxId}`, '_blank');

@@ -12,6 +12,7 @@ import { computeLabBillingLines, labItemsToSelection, billDeferredLabOrder } fro
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { uhidOf } from '../utils/uhid.js';
+import { notify, dismissNotify } from '../components/notify.js';
 import {
   requestABHAOtp, enrollABHA,
   checkAndGenerateMobileOTP, verifyCommMobileOtp, finalizeAbhaEnrollment,
@@ -2134,15 +2135,10 @@ function _resetForm() {
   _applyOpdRule();
 }
 
-function _alert(type, msg) {
-  const el = document.getElementById('alert');
-  document.getElementById('alert-icon').textContent = type === 'error' ? '⚠' : '✓';
-  document.getElementById('alert-text').textContent = msg;
-  el.className = `alert show ${type}`;
-  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
+// Session 322: messages go through the shared top-layer notify() (never hidden behind a modal)
+function _alert(type, msg) { notify(msg, type); }
 
-function _hideAlert() { document.getElementById('alert').className = 'alert'; }
+function _hideAlert() { dismissNotify(); }
 function _loading(btn, on) { btn.classList.toggle('loading', on); btn.disabled = on; }
 
 function _setAbhaNote(type, msg) {

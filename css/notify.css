@@ -1,0 +1,102 @@
+/* Shared user messages -- js/components/notify.js (Session 322 pilot).
+   The container is a popover in the browser's top layer, so no z-index is needed (or would help)
+   in the normal case; the --fallback rules cover browsers without the Popover API.
+   Colours reuse the platform tokens (with their standard values as fallbacks), and every type
+   also carries an icon + a text label -- colour is never the only signal. */
+
+#ax-notify.ax-notify {
+  /* reset the UA's default [popover] box (centred, bordered, padded) */
+  position: fixed;
+  inset: 16px 16px auto auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;          /* the empty gaps never block the page underneath */
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+#ax-notify.ax-notify:popover-open,
+#ax-notify.ax-notify--fallback.ax-notify--open { display: flex; }
+#ax-notify.ax-notify--fallback { z-index: 2147483647; }
+
+.ax-notify__item {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 8px 12px 14px;
+  background: #fff;
+  color: var(--text-dark, #1c2b1f);
+  border: 1px solid var(--border, #d4e6da);
+  border-left: 5px solid var(--ax-notify-accent);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+  font-size: 14px;
+  line-height: 1.4;
+  animation: ax-notify-in .18s ease-out;
+}
+.ax-notify__item--success { --ax-notify-accent: var(--green-deep, #1a4a2e); }
+.ax-notify__item--info    { --ax-notify-accent: var(--blue, #1a4080); }
+.ax-notify__item--warning { --ax-notify-accent: var(--orange, #d35400); }
+.ax-notify__item--error   { --ax-notify-accent: var(--red, #c0392b); }
+
+.ax-notify__icon {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ax-notify-accent);
+}
+.ax-notify__body { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; padding-top: 2px; }
+.ax-notify__label { font-weight: 700; color: var(--ax-notify-accent); }
+.ax-notify__item--warning .ax-notify__label { color: #a04000; }   /* darker orange: AA on white */
+
+.ax-notify__action,
+.ax-notify__close {
+  flex: 0 0 auto;
+  min-height: 44px;              /* WCAG touch target */
+  border-radius: 8px;
+  font: 600 13px 'DM Sans', system-ui, sans-serif;
+  cursor: pointer;
+}
+.ax-notify__action {
+  padding: 0 12px;
+  border: 1.5px solid var(--ax-notify-accent);
+  background: transparent;
+  color: var(--ax-notify-accent);
+  white-space: nowrap;
+}
+.ax-notify__close {
+  min-width: 44px;
+  margin: -8px 0 -8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-mid, #4a6352);
+  font-size: 22px;
+  line-height: 1;
+}
+.ax-notify__action:focus-visible,
+.ax-notify__close:focus-visible { outline: 3px solid var(--gold, #c9902a); outline-offset: 2px; }
+.ax-notify__close:hover { background: var(--cream, #faf8f3); }
+
+@keyframes ax-notify-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ax-notify__item { animation: none; } }
+
+/* phone width: full width with the standard 16px gutter */
+@media (max-width: 600px) {
+  #ax-notify.ax-notify { inset: 12px 16px auto 16px; width: auto; }
+}
+
+@media print { #ax-notify { display: none !important; } }

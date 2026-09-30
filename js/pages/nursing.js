@@ -26,6 +26,7 @@ import { shiftTimes, shiftNames } from '../config/ncism.js';
 import { IPD_MEDICAL_BED_CODES, IPD_SURGICAL_BED_CODES } from '../config/ncismStaffCompliance.js';
 import { computeNurseBedSlice } from '../modules/roster/realBedSlicing.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 // Session 255: trainee_doctor (posted PG/intern) added -- Dr. Venkatesh confirmed
 // posted interns/PGs need real IPD case-sheet access, not just Snehapana sign-recording
@@ -1264,7 +1265,7 @@ function _fmtDate(d) { if(!d)return'—'; return new Date(d+'T00:00:00').toLocal
 // Ward Procedures log, line ~699).
 function _toIST(iso) { return iso ? new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false }) : '—'; }
 function _daysSince(d) { if(!d)return'?'; return Math.floor((Date.now()-new Date(d+'T00:00'))/86400000)+1; }
-function _alert(type,msg) { const el=document.getElementById('alert-box');el.className=`alert ${type} show`;el.textContent=msg;setTimeout(()=>el.classList.remove('show'),4000); }
+function _alert(type,msg) { notify(msg, type); }   // Session 322: shared top-layer notify()
 
 // ── NABH Risk Assessments ──────────────────────────────────────────────────────
 window.calcMorse = function() {

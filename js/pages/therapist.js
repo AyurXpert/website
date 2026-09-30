@@ -7,6 +7,7 @@ import { renderPromoBanner } from '../components/promoBanner.js';
 import { isNCISMType, ncismUgTier, PK_THERAPY_ROOM_COUNT } from '../config/ncism.js';
 import { NCISM_XX_ROWS } from '../config/ncismStaffCompliance.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 /*
   SQL to run once in Supabase:
@@ -3586,13 +3587,8 @@ function _samLabel(s) {
 function _esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-function _alert(type, msg) {
-  const el = document.getElementById('alert');
-  el.className = `alert show ${type}`;
-  el.textContent = msg;
-  if (type === 'success') setTimeout(() => el.classList.remove('show'), 3500);
-  window.scrollTo({ top:0, behavior:'smooth' });
-}
+// Session 322: messages go through the shared top-layer notify() (never hidden behind a drawer)
+function _alert(type, msg) { notify(msg, type); }
 
 // ── Therapy Prescription ─────────────────────────────────────────────────────
 let _rxSession = null;
