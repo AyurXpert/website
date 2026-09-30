@@ -1,0 +1,268 @@
+/* Final Bill / Invoice print layout (Session 320) -- used by printFinalBill.html via
+   js/modules/billing/invoiceLayout.js. Layout approved from the Session 320 mockup.
+   Print: A4, allowlist isolation (only .sheet prints), page numbers, black-and-white safe. */
+:root {
+  --green-deep: #1a4a2e;
+  --gold: #c9902a;
+  --cream: #faf8f3;
+  --border: #d9d4c7;
+  --red: #b03a2e;
+  --text-dark: #1f2a22;
+  --text-mid: #4a544c;
+  --text-muted: #6b716c;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #e9e6de;
+  color: var(--text-dark);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.35;
+}
+
+/* ── Screen-only toolbar + admin bar ── */
+.toolbar, .admin-bar {
+  max-width: 210mm;
+  margin: 16px auto 0;
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+}
+.admin-bar {
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.admin-bar[hidden] { display: none; }
+.admin-bar label { font-weight: 600; color: var(--text-mid); }
+.admin-bar select, .admin-bar input {
+  min-height: 44px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  padding: 0 10px;
+  font: inherit;
+}
+.admin-bar input { flex: 1 1 220px; }
+.btn {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 8px;
+  font: 600 14px 'DM Sans', system-ui, sans-serif;
+  cursor: pointer;
+  background: var(--green-deep);
+  color: #fff;
+}
+.btn-secondary { background: #fff; color: var(--green-deep); border: 1.5px solid var(--green-deep); }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn:focus-visible, .admin-bar select:focus-visible, .admin-bar input:focus-visible {
+  outline: 3px solid var(--gold); outline-offset: 2px;
+}
+.status-msg { font-size: 13px; color: var(--text-mid); }
+.status-msg.err { color: var(--red); font-weight: 600; }
+
+/* ── A4 sheet ── */
+.sheet {
+  width: 210mm;
+  max-width: 100%;
+  min-height: 297mm;
+  margin: 16px auto 32px;
+  padding: 14mm 14mm 18mm;
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .12);
+  position: relative;
+}
+.loading, .error-box { font-size: 14px; }
+.error-box { color: var(--red); font-weight: 600; }
+
+.watermark {
+  position: absolute; top: 90mm; left: 0; right: 0;
+  text-align: center;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 40pt; font-weight: 700;
+  color: rgba(0, 0, 0, .09);
+  transform: rotate(-18deg);
+  pointer-events: none;
+}
+
+/* ── Header ── */
+.hdr {
+  display: grid;
+  grid-template-columns: 22mm 1fr auto;
+  gap: 5mm;
+  align-items: center;
+  padding-bottom: 4mm;
+  border-bottom: 2px solid var(--text-dark);
+}
+.logo-box {
+  width: 22mm; height: 22mm;
+  border: 1.5px solid var(--text-dark);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 700; font-size: 16pt;
+}
+.logo-img { width: 22mm; height: 22mm; object-fit: contain; }
+.org-name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 20pt; font-weight: 700;
+  margin: 0; line-height: 1.1;
+}
+.org-lines { font-size: 9pt; color: var(--text-mid); margin-top: 1mm; }
+.org-lines div { margin-top: .6mm; }
+.doc-title-box { text-align: right; }
+.doc-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 18pt; font-weight: 700; letter-spacing: .5px;
+  text-transform: uppercase; margin: 0;
+}
+.doc-sub { font-size: 8.5pt; color: var(--text-muted); }
+
+/* ── Header strip: Bill No / Date / Bill To / Payer ── */
+.meta {
+  display: flex;
+  border: 1px solid var(--text-dark);
+  border-top: 0;
+}
+.meta > div { flex: 0 0 auto; padding: 2mm 3mm; border-right: 1px solid var(--border); white-space: nowrap; }
+.meta > div.wide { flex: 1 1 0; min-width: 0; white-space: normal; }
+.meta > div:last-child { border-right: 0; }
+.lbl {
+  display: block;
+  font-size: 7.5pt; text-transform: uppercase; letter-spacing: .4px;
+  color: var(--text-muted);
+}
+.val { font-weight: 600; display: block; }
+.val-sub { display: block; font-size: 8.5pt; color: var(--text-mid); }
+
+/* ── Patient block ── */
+.sec-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 12.5pt; font-weight: 700;
+  margin: 5mm 0 1.5mm;
+  padding-bottom: 1mm;
+  border-bottom: 1px solid var(--text-dark);
+}
+.pt-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2mm 5mm;
+}
+.pt-grid .wide { grid-column: span 2; }
+.pt-grid .full { grid-column: 1 / -1; }
+
+/* ── Tables ── */
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 1.4mm 2mm; vertical-align: top; }
+thead th {
+  font-size: 8pt; text-transform: uppercase; letter-spacing: .3px;
+  text-align: left;
+  border-top: 1.5px solid var(--text-dark);
+  border-bottom: 1.5px solid var(--text-dark);
+}
+tbody td { border-bottom: 1px solid var(--border); }
+.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+thead th.num { text-align: right; }
+.code { font-family: ui-monospace, Consolas, monospace; font-size: 8.5pt; }
+.cat-row td {
+  font-weight: 700; font-size: 9pt;
+  background: var(--cream);
+  border-bottom: 1px solid var(--text-dark);
+  padding-top: 2mm;
+}
+.sub-row td { font-weight: 600; border-bottom: 1.5px solid var(--text-dark); }
+.muted { color: var(--text-muted); font-size: 8.5pt; }
+.void-row td { text-decoration: line-through; color: var(--text-muted); }
+.void-note td { font-size: 8.5pt; }
+.pay td:nth-child(2) { white-space: nowrap; }
+table.gst th, table.gst td { font-size: 8.5pt; padding: 1.2mm 1.4mm; }
+.tax-summary td, .tax-summary th { font-size: 8.5pt; }
+
+/* ── Totals ── */
+.totals-wrap {
+  display: grid;
+  grid-template-columns: 1fr 78mm;
+  gap: 6mm;
+  margin-top: 4mm;
+  break-inside: avoid;
+}
+.words-col { align-self: end; padding-bottom: 3mm; }
+.words { font-style: italic; font-size: 10pt; font-weight: 600; margin-top: 1.5mm; }
+.totals td { border-bottom: 1px solid var(--border); }
+.totals .grand td {
+  font-size: 11.5pt; font-weight: 700;
+  border-top: 2px solid var(--text-dark);
+  border-bottom: 2px solid var(--text-dark);
+}
+.balance-box {
+  margin-top: 3mm;
+  border: 2px solid var(--text-dark);
+  padding: 2.5mm 3mm;
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-weight: 700; font-size: 12pt;
+}
+
+/* ── Signatures + footer ── */
+.sign-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20mm;
+  margin-top: 16mm;
+  break-inside: avoid;
+}
+.sign-row > div { border-top: 1px solid var(--text-dark); padding-top: 1.5mm; font-size: 9pt; }
+.sign-row .r { text-align: right; }
+.foot {
+  margin-top: 8mm;
+  padding-top: 2mm;
+  border-top: 1px solid var(--border);
+  font-size: 8pt; color: var(--text-muted);
+  text-align: center;
+  break-inside: avoid;
+}
+.foot p { margin: .8mm 0; }
+
+/* Placeholder for a value this record doesn't have (screen + print) */
+.gap { font-style: italic; font-weight: 400; color: var(--text-muted); }
+
+/* ── Phone width (screen only: A4's printable width is also under 800px) ── */
+@media screen and (max-width: 800px) {
+  body { font-size: 10pt; }
+  .toolbar, .admin-bar { margin-left: 16px; margin-right: 16px; }
+  .sheet { width: auto; min-height: 0; margin: 12px 16px 24px; padding: 16px; }
+  .hdr { grid-template-columns: 1fr; }
+  .doc-title-box { text-align: left; }
+  .meta { flex-wrap: wrap; }
+  .meta > div, .meta > div.wide { flex: 1 1 45%; white-space: normal; }
+  .pt-grid, .totals-wrap { grid-template-columns: 1fr; }
+  .pt-grid .wide { grid-column: auto; }
+  .items, .pay, .tax-summary { display: block; overflow-x: auto; }
+}
+
+/* ── Print: A4, allowlist isolation, page numbers ── */
+@page {
+  size: A4;
+  margin: 10mm 10mm 14mm;
+  @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; color: #444; }
+  @bottom-left  { content: "Computer-generated document"; font-size: 8pt; color: #444; }
+}
+@media print {
+  body { background: #fff; font-size: 9.5pt; }
+  body > *:not(.sheet) { display: none !important; }   /* allowlist: only the sheet prints */
+  .sheet { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+  thead { display: table-header-group; }              /* column headers repeat on each page */
+  tr { break-inside: avoid; }
+  .cat-row { break-after: avoid; }
+  .cat-row td { background: none; }                  /* B&W: rules + bold, not shading */
+  .hdr { padding-bottom: 3mm; }
+  .sec-title { margin: 3.5mm 0 1mm; font-size: 11.5pt; break-after: avoid; }
+  .pt-grid { grid-template-columns: repeat(4, 1fr); gap: 1.5mm 4mm; }
+  th, td { padding: 1mm 1.6mm; }
+  .totals-wrap { margin-top: 2mm; }
+  .balance-box { margin-top: 2mm; padding: 2mm 3mm; }
+  .sign-row { margin-top: 6mm; }
+  .foot { margin-top: 2mm; }
+}

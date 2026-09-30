@@ -2166,7 +2166,8 @@ function _renderAccountDrawer(acc, receipts, chargesToDate) {
       <div class="adm-detail-row"><span>Paid</span><strong>${_fmtMoney(paidTotal)}</strong></div>
       ${refundedTotal > 0 ? `<div class="adm-detail-row"><span>Refunded</span><strong>${_fmtMoney(refundedTotal)}</strong></div>` : ''}
       <div class="adm-detail-row"><span>Status</span><strong>${_esc((acc.bill_status || '').toUpperCase())}</strong></div>
-    </div>`;
+    </div>
+    <button class="btn btn-secondary btn-sm" data-onclick="printFinalBillBtn" style="margin-bottom:16px">&#129534; Final Bill</button>`;
   }
 
   // ── Actions ──
@@ -2270,6 +2271,11 @@ window.printAccountReceipt = function(id) {
 
 window.printInterimBillBtn = function() {
   if (_acctAdmId) window.open(`printReceipt.html?interim=${_acctAdmId}`, '_blank');
+};
+
+// Session 320 -- consolidated IPD Final Bill / Invoice (printFinalBill.html, get_ipd_final_bill RPC)
+window.printFinalBillBtn = function() {
+  if (_acctAdmId) window.open(`printFinalBill.html?adm=${_acctAdmId}`, '_blank');
 };
 
 // ── ABDM M2 — Care context: DischargeSummary (fire-and-forget) ───────
