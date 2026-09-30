@@ -130,9 +130,13 @@ async function loadInterim() {
     rows.push(`<tr><td class="py-1">${_esc(c.description)}</td><td class="py-1 text-right">₹${_n(c.amount)}</td></tr>`);
   });
   rows.push(`<tr><td class="py-1 border-t font-semibold">Charges so far</td><td class="py-1 text-right border-t font-semibold">₹${_n(charges.total)}</td></tr>`);
+  // If a bill has since been raised, the held money is already credited to it -- label
+  // it as applied (same rule as the Account drawer's Money Held tile).
+  const billRaised = !!(acc && acc.bill_id);
+  const heldLabel  = billRaised ? 'Advance / deposits applied to bill' : 'Money held (advance + deposits)';
   rows.push(acctBlocked
     ? `<tr><td class="py-1">Money held (advance + deposits)</td><td class="py-1 text-right text-red-600 text-xs">not available to this role</td></tr>`
-    : `<tr><td class="py-1">Money held (advance + deposits)</td><td class="py-1 text-right">₹${_n(acc.held || 0)}</td></tr>`);
+    : `<tr><td class="py-1">${heldLabel}</td><td class="py-1 text-right">₹${_n(acc.held || 0)}</td></tr>`);
   document.getElementById('lineTable').innerHTML = rows.join('');
 
   if (acctBlocked) {
@@ -141,7 +145,8 @@ async function loadInterim() {
     return;
   }
 
-  const balance = charges.total - (Number(acc.held) || 0);
+  // After a bill exists the server's own balance is authoritative (held is already netted into it).
+  const balance = billRaised ? (Number(acc.balance) || 0) : charges.total - (Number(acc.held) || 0);
   document.getElementById('totalAmount').textContent = balance >= 0
     ? `Estimated balance: ₹${_n(balance)}`
     : `Estimated refund due: ₹${_n(-balance)}`;

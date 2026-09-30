@@ -2098,6 +2098,12 @@ function _renderAccountDrawer(acc, receipts, chargesToDate) {
   const hasBill  = !!acc.bill_id;
   const isDraft  = hasBill && acc.document_status && acc.document_status !== 'finalized';
   const balance  = Number(acc.balance) || 0;
+  // acc.held = advances + deposits - pre-bill refunds. Once a bill exists that whole
+  // amount is credited to it (bills.advance_credited), so it is no longer money the
+  // hospital is holding for the patient -- unapplied balance is 0 (any excess over the
+  // bill total surfaces as "Refund Due", not as held money).
+  const heldTotal = Number(acc.held) || 0;
+  const unapplied = hasBill ? 0 : heldTotal;
 
   let html = '';
 
@@ -2113,7 +2119,8 @@ function _renderAccountDrawer(acc, receipts, chargesToDate) {
   html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
     <div style="background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
       <div style="font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px">Money Held</div>
-      <div style="font-size:17px;font-weight:700;color:var(--green-deep)">${_fmtMoney(acc.held)}</div>
+      <div style="font-size:17px;font-weight:700;color:var(--green-deep)">${_fmtMoney(unapplied)}</div>
+      ${hasBill && heldTotal > 0 ? `<div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">Advance ${_fmtMoney(heldTotal)} applied to bill</div>` : ''}
     </div>`;
   if (!hasBill) {
     html += `<div style="background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:10px 12px">
@@ -2174,7 +2181,7 @@ function _renderAccountDrawer(acc, receipts, chargesToDate) {
   } else if (!hasBill) {
     html += `<div class="sec">Add Deposit</div>${_modeRowsHtml('dep')}
       <div style="display:flex;justify-content:flex-end;margin-bottom:16px"><button class="btn btn-primary btn-sm" data-onclick="submitAccountDeposit">+ Add Deposit</button></div>`;
-    if (Number(acc.held) > 0) {
+    if (unapplied > 0) {
       html += `<div class="sec">Refund</div>${_modeRowsHtml('rfd')}
         <div class="field" style="margin-top:2px"><label>Reason <span class="req">*</span></label><input type="text" id="rfd-reason" placeholder="e.g. patient request"/></div>
         <div style="display:flex;justify-content:flex-end;margin-bottom:16px"><button class="btn btn-secondary btn-sm" data-onclick="submitAccountRefund">Refund</button></div>`;
