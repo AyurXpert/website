@@ -5,6 +5,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 const ALLOWED = ['super_admin','dept_admin','doctor','receptionist','nurse'];
 await requireAuth(ALLOWED);
@@ -344,7 +345,7 @@ window.enrolPatient = async function(patientId, patientName) {
 
 // ── Export CSV ────────────────────────────────────────
 window.exportEnrolCSV = function() {
-  if (!_enrolments.length) { _toast('No data to export', 'error'); return; }
+  if (!_enrolments.length) { _toast('No data to export', 'info'); return; }
   const rows = [['Patient','Phone','Age','Gender','Enrolled On','Sessions Attended','Total Sessions','Compliance %','Status','Outcome']];
   _enrolments.forEach(e => {
     const pat = e.patients;
@@ -370,11 +371,7 @@ function _seasonLabel(s) {
 function _statusLabel(s) {
   return {enrolled:'Enrolled',completed:'Completed',dropped:'Dropped',no_show:'No Show'}[s] || _esc(s);
 }
-function _toast(msg, type='success') {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.className = `toast ${type} show`;
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
+function _toast(msg, type='success') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // ── Init ──────────────────────────────────────────────
 await loadProgrammes();

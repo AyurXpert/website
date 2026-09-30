@@ -6,6 +6,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell, activeRows, CORR_COLS } from '../modules/registers/corrections.js';
 import { canWriteRegister } from '../utils/registerAccess.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','nurse','receptionist']);
 initNavbar();
@@ -291,7 +292,7 @@ window.exportCSV = function(which) {
            row:r=>[r.incident_date,r.location||'',r.severity,r.description,r.action_taken||'',r.status,r.reporter?.full_name||''], file:'Security_Incidents.csv' },
   };
   const cfg = map[which];
-  if (!cfg.rows.length) { _alert('error','Nothing to export.'); return; }
+  if (!cfg.rows.length) { _alert('info','Nothing to export.'); return; }
   const rows = [cfg.header, ...cfg.rows.map(cfg.row)];
   const csv = rows.map(row => row.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
@@ -305,7 +306,7 @@ function _fmtDate(d) { if (!d) return '—'; return new Date(d+'T00:00:00').toLo
 function _fmtDateTime(d) { if (!d) return '—'; return new Date(d).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }
 function _cap(s) { return s ? s.charAt(0).toUpperCase()+s.slice(1) : '—'; }
 function _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-function _alert(type, msg) { const el = document.getElementById('alert-box'); el.className = `alert ${type} show`; el.textContent = msg; setTimeout(() => el.classList.remove('show'), 4000); }
+function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 document.getElementById('hk-from').value  = todayStr.slice(0,8)+'01'; document.getElementById('hk-to').value  = todayStr;

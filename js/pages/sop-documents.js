@@ -19,6 +19,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth([]);
 initNavbar();
@@ -37,12 +38,7 @@ let _selectedKey  = null;
 
 const STATUS_LABEL = { draft: 'Draft', pending_review: 'Pending Review', finalized: 'Finalized' };
 
-function _toast(msg, isErr) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = 'toast show' + (isErr ? ' err' : '');
-  setTimeout(() => { el.className = 'toast'; }, 2200);
-}
+function _toast(msg, isErr) { notify(msg, isErr ? 'error' : 'success'); }   // Session 323: shared top-layer notify()
 
 function _canAuthor(department) {
   if (role === 'super_admin' || role === 'dept_admin' || secondaryRole === 'dept_admin') return true;

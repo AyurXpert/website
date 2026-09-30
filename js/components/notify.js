@@ -23,6 +23,9 @@ const TYPES = {
   warning: { icon: '⚠', label: 'Warning' },
   error:   { icon: '⚠', label: 'Error' },
 };
+// type names pages used before notify() existed (e.g. bed-admin/roster/inventory pass 'alert' for
+// their amber warning style) -> the four real types
+const ALIASES = { alert: 'warning', warn: 'warning', danger: 'error', err: 'error', fail: 'error', ok: 'success', done: 'success' };
 const AUTO_HIDE_MS = 4000;
 const MAX_VISIBLE  = 4;
 const HAS_POPOVER  = typeof HTMLElement !== 'undefined' && 'showPopover' in HTMLElement.prototype;
@@ -75,7 +78,7 @@ function _remove(item) {
 }
 
 export function notify(message, type = 'info', opts = {}) {
-  const t = TYPES[type] ? type : 'info';
+  const t = TYPES[type] ? type : (ALIASES[type] || 'info');
   const host = _getHost();
   const text = String(message ?? '');
 

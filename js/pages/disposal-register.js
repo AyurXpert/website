@@ -6,6 +6,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr } from '../utils/dateUtils.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell, activeRows } from '../modules/registers/corrections.js';
 import { canWriteRegister } from '../utils/registerAccess.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['pharmacist','super_admin','dept_admin','accountant'], 'login.html');
 initNavbar();
@@ -69,7 +70,7 @@ window.loadRecords = async function() {
   if (method) q = q.eq('disposal_method', method);
 
   const { data, error } = await q;
-  if (error) { _toast(safeErrorMessage(error, 'Could not load records.')); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not load records.'), 'error'); return; }
 
   _records = (data || []).filter(r => !name || r.medicine_name.toLowerCase().includes(name));
   renderTable();
@@ -116,7 +117,7 @@ window.resetFilters = function() {
 };
 
 window.exportCSV = function() {
-  if (!_records.length) { _toast('No records to export.'); return; }
+  if (!_records.length) { _toast('No records to export.', 'info'); return; }
   const hdr = ['#','Disposal Date','Medicine Name','Batch No.','Expiry Date','Qty Disposed','Disposal Method','Disposed By','Witnessed By','Remarks'];
   const rows = _records.map((r,i) => [
     i+1, r.disposal_date||'', r.medicine_name, r.batch_number||'',
@@ -129,11 +130,11 @@ window.exportCSV = function() {
   a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
   a.download = `Disposal_Register_${tenant?.name||'AyurXpert'}_${y}-${m}.csv`;
   a.click();
-  _toast('CSV exported');
+  _toast('CSV exported', 'success');
 };
 
 function _fmtDate(d){ if(!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-function _toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800); }
+function _toast(msg, type = 'info') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 await loadRecords();

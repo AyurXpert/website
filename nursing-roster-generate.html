@@ -70,6 +70,7 @@ table.gen-table th{background:var(--green-deep);color:#fff;font-weight:600;font-
 table.gen-table tbody tr:nth-child(even){background:var(--cream)}
 .empty{font-size:12.5px;color:var(--text-muted);padding:10px 0}
 </style>
+<link rel="stylesheet" href="css/notify.css"/>
 </head>
 <body>
 
@@ -90,7 +91,6 @@ table.gen-table tbody tr:nth-child(even){background:var(--cream)}
     <span class="page-nav-link active" id="nav-active-label">🆕 Generate Roster</span>
   </div>
 
-  <div id="alert" class="alert"></div>
   <!-- Session 167: no inline style="display:none" on either of these two -- .alert{display:none}
        (the class rule) already handles default-hidden, matching #alert above. An inline style
        here has HIGHER specificity than any class rule including .alert.show{display:block} and

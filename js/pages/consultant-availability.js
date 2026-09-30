@@ -1,5 +1,6 @@
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { notify } from '../components/notify.js';
 
 wireDelegatedEvents();
 
@@ -23,17 +24,12 @@ function fmtTime(t) {
   return `${hr}:${String(m).padStart(2,'0')} ${ampm}`;
 }
 
-function showToast(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2500);
-}
+function showToast(msg, type = 'info') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 document.getElementById('btn-copy-link').addEventListener('click', () => {
   navigator.clipboard.writeText(window.location.href)
-    .then(() => showToast('Link copied to clipboard!'))
-    .catch(() => showToast('Could not copy — please copy the URL manually'));
+    .then(() => showToast('Link copied to clipboard!', 'success'))
+    .catch(() => showToast('Could not copy — please copy the URL manually', 'error'));
 });
 
 function showError(title, msg) {

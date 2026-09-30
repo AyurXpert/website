@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { isNCISMType } from '../config/ncism.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['dept_admin', 'super_admin']);
 initNavbar();
@@ -602,13 +603,7 @@ async function removeDoctor(opdDocId) {
 }
 
 // ── Alert helper ──────────────────────────────────
-function _alert(type, msg) {
-  const el = document.getElementById('alert');
-  el.textContent = msg;
-  el.className = `alert show ${type}`;
-  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  setTimeout(() => el.className = 'alert', 4000);
-}
+function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // ── Boot ──────────────────────────────────────────
 _populateNcismSelect();

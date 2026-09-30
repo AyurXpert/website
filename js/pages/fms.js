@@ -5,6 +5,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -549,10 +550,6 @@ window.exportMaintCSV = function() {
 };
 
 // ── Toast ─────────────────────────────────────────────────
-function toast(msg, type='success') {
-  const el = document.getElementById('toast');
-  el.textContent = msg; el.className = `toast ${type} show`;
-  setTimeout(() => el.className='toast', 2800);
-}
+function toast(msg, type='success') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 loadAll();

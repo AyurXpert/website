@@ -23,6 +23,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth([]);
 initNavbar();
@@ -46,12 +47,7 @@ function _canAuthor() {
     || AUTHOR_DESIGNATIONS.includes(profile?.designation);
 }
 
-function _toast(msg, isErr) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = 'toast show' + (isErr ? ' err' : '');
-  setTimeout(() => { el.className = 'toast'; }, 2600);
-}
+function _toast(msg, isErr) { notify(msg, isErr ? 'error' : 'success'); }   // Session 323: shared top-layer notify()
 
 function _slugify(s) {
   return (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'custom_protocol';

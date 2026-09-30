@@ -4,6 +4,7 @@ import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist']);
 initNavbar();
@@ -204,7 +205,7 @@ function _updateSummary(from, to) {
 }
 
 window.exportCSV = function() {
-  if (!_rows.length) { _toast('No data to export', 'error'); return; }
+  if (!_rows.length) { _toast('No data to export', 'info'); return; }
   const headers = ['S.No','Admission Date','IPD No','Patient Name','Age','Sex','Phone',
     'Department','NCISM Code','Ward','Bed No','Admitting Doctor','Primary Diagnosis',
     'Status','Discharge Date','LOS (days)'];
@@ -236,10 +237,6 @@ function _fmtDate(s) {
 function _esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-function _toast(msg, type='success') {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.className = `toast ${type} show`;
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
+function _toast(msg, type='success') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 await init();

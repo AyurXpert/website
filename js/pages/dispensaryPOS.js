@@ -8,6 +8,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
 import { uhidOf } from '../utils/uhid.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['pharmacist', 'super_admin', 'dept_admin']);
 initNavbar();
@@ -827,13 +828,7 @@ function subscribeRealtime() {
 }
 
 // ── Toast ─────────────────────────────────────────
-function _toast(msg, type = 'info') {
-  const el = document.createElement('div');
-  el.className = `toast-item ${type}`;
-  el.innerHTML = `<span class="toast-icon">${type==='error'?'⚠':'✓'}</span><span>${msg}</span>`;
-  document.getElementById('toast').appendChild(el);
-  setTimeout(() => el.remove(), 4000);
-}
+function _toast(msg, type = 'info') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // ── Boot ──────────────────────────────────────────
 await Promise.all([loadInventory(), loadQueue()]);

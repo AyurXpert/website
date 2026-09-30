@@ -5,6 +5,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -267,7 +268,7 @@ function compLabel(c){const m={whole_blood:'Whole Blood',packed_rbc:'Packed RBC'
 function compShort(c){const m={whole_blood:'WB',packed_rbc:'PRBC',fresh_frozen_plasma:'FFP',platelets:'PLT',cryoprecipitate:'Cryo',single_donor_platelets:'SDP'};return m[c]||c;}
 function statusLabel(s){const m={requested:'Requested',crossmatch_pending:'CM Pending',compatible:'Compatible',issued:'Issued',transfused:'Transfused',reaction_reported:'Reaction',cancelled:'Cancelled'};return m[s]||s;}
 function fmtDt(dt){if(!dt)return'—';const d=new Date(dt);return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});}
-function showToast(msg,type='success'){const t=document.getElementById('toast');t.textContent=msg;t.className=`toast ${type} show`;setTimeout(()=>t.classList.remove('show'),3000);}
+function showToast(msg,type='success') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 loadRequests();
 loadKPIs();

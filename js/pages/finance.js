@@ -6,6 +6,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { logAudit } from '../core/auditLogger.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, collectedAmount } from '../modules/billing/billCategory.js';
+import { notify } from '../components/notify.js';
 
 wireDelegatedEvents();
 
@@ -536,7 +537,7 @@ window.exportExpCSV = function() { _csvDownload(_expenses.map(e => ({
 window.exportGSTCSV = window.exportDailyCSV = function() { _toast('Use the browser Print to save this view', 'success'); };
 
 function _csvDownload(rows, name) {
-  if (!rows.length) { _toast('No data to export', 'error'); return; }
+  if (!rows.length) { _toast('No data to export', 'info'); return; }
   const keys = Object.keys(rows[0]);
   const csv = [keys.join(','), ...rows.map(r => keys.map(k => `"${String(r[k]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
   const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
@@ -551,11 +552,7 @@ function _fmtD(s) {
 }
 function _n(v) { return (parseFloat(v)||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-function _toast(msg, type='success') {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.className = `toast ${type} show`;
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
+function _toast(msg, type='success') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // ── Insurance Cycles ──────────────────────────────────
 const INSURANCE_PROVIDERS = [

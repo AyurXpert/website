@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
 initNavbar();
@@ -520,13 +521,7 @@ document.getElementById('btn-ocr-add-lines').addEventListener('click', () => {
 });
 
 // ── Alert helper ──────────────────────────────────
-function _alert(type, msg) {
-  const el = document.getElementById('alert');
-  el.textContent = msg;
-  el.className = `alert show ${type}`;
-  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  if (type !== 'error') setTimeout(() => el.className = 'alert', 5000);
-}
+function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // ── Boot ──────────────────────────────────────────
 document.getElementById('invoice-date').value = todayLocalStr();

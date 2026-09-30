@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','therapist','receptionist'], 'index.html');
 initNavbar();
@@ -321,7 +322,7 @@ window.markComplete = async function(id) {
 };
 
 window.exportRegister = function() {
-  if (!_regData.length) { _toast('No data to export'); return; }
+  if (!_regData.length) { _toast('No data to export', 'info'); return; }
   const rows = [
     ['Date','Time','Patient','Phone','Procedure Type','Subtype','Site','Side','Duration (min)','Doctor','Status','Consent','Pre-findings','Post-observations','Adverse Events','Medicines Used','Remarks'],
     ..._regData.map(s=>[
@@ -365,13 +366,9 @@ function _procDetail(s) {
     return [s.block_type, s.drug_used].filter(Boolean).join(' · ');
   return s.procedure_subtype||'—';
 }
-function showAlert(msg, type) {
-  const el = document.getElementById('main-alert');
-  el.textContent = msg; el.className = `alert ${type} show`;
-  setTimeout(()=>el.classList.remove('show'), 4000);
-}
+function showAlert(msg, type) { notify(msg, type); }   // Session 323: shared top-layer notify()
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-function _toast(msg,isErr=false){ const el=document.getElementById('toast'); el.textContent=msg; el.style.background=isErr?'#7f1d1d':'#1c2b1f'; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),3000); }
+function _toast(msg,isErr=false) { notify(msg, typeof isErr === 'string' ? isErr : (isErr ? 'error' : 'success')); }   // Session 323: shared top-layer notify()
 
 // ─── Boot ─────────────────────────────────────────────────
 await Promise.all([loadStaff(), loadStats()]);

@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','therapist','doctor','receptionist']);
 initNavbar();
@@ -286,7 +287,7 @@ function _renderRegister(rows) {
 }
 
 window.exportRegisterCSV = function() {
-  if (!_registerRows.length) { _alert('error', 'Nothing to export.'); return; }
+  if (!_registerRows.length) { _alert('info', 'Nothing to export.'); return; }
   const rows = [['Date','Time','Type','Instructor','Patient','Marked By','Marked At']];
   _registerRows.forEach(r => rows.push([
     r.session?.session_date || '', r.session?.session_time?.slice(0,5) || '',
@@ -303,7 +304,7 @@ window.exportRegisterCSV = function() {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function _fmtDate(d) { if (!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
 function _esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function _alert(type, msg) { const el = document.getElementById('alert-box'); el.className = `alert ${type} show`; el.textContent = msg; setTimeout(() => el.classList.remove('show'), 4000); }
+function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 document.getElementById('reg-from').value = todayStr.slice(0,8) + '01';

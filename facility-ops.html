@@ -77,6 +77,7 @@ td{padding:8px 12px;font-size:12.5px;border-bottom:1px solid #f0f4f2;white-space
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a4a2e;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;z-index:999;opacity:0;pointer-events:none;transition:opacity .2s}
 .toast.show{opacity:1}
 </style>
+<link rel="stylesheet" href="css/notify.css"/>
 </head>
 <body>
 <div id="navbar-placeholder"></div>
@@ -89,7 +90,6 @@ td{padding:8px 12px;font-size:12.5px;border-bottom:1px solid #f0f4f2;white-space
     </div>
   </div>
 
-  <div id="alert-box" class="alert"></div>
 
   <div class="module-tabs">
     <button class="module-tab active" data-tab="housekeeping" data-onclick="setTab" data-onclick-a0="@this" data-onclick-a1="housekeeping">🧹 Housekeeping</button>
@@ -272,7 +272,6 @@ td{padding:8px 12px;font-size:12.5px;border-bottom:1px solid #f0f4f2;white-space
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
 
 <script type="module" src="./js/pages/facility-ops.js"></script>
 </body>

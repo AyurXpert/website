@@ -15,6 +15,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, UG_BED_RATIOS } from '../config/ncism.js';
 import { ROLE_HOME } from '../config/constants.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 // Session 137: widened from doctor-only to any active staff member -- access
 // is gated purely by scope_department_id below, not by primary role. This lets
@@ -39,11 +40,7 @@ const SHIFT_TYPES = ['morning','afternoon','night','on_call'];
 
 function _esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function _formatDesignation(d){ return d ? d.replace(/_/g,' ').replace(/\b\w/g, c=>c.toUpperCase()) : ''; }
-function _toast(msg, isErr){
-  const el = document.getElementById('toast');
-  el.textContent = msg; el.className = 'toast show' + (isErr?' err':'');
-  setTimeout(()=>el.classList.remove('show'), 3500);
-}
+function _toast(msg, isErr) { notify(msg, isErr ? 'error' : 'success'); }   // Session 323: shared top-layer notify()
 function _dateStr(d){ return localDateStr(d); }
 function _weekDates(){
   const out = []; const today = new Date();

@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','therapist','receptionist'], 'index.html');
 initNavbar();
@@ -273,7 +274,7 @@ window.exportHistoryCSV = function() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-function _alert(type, msg) { const el=document.getElementById('alert-box'); el.className=`alert ${type} show`; el.textContent=msg; setTimeout(()=>el.classList.remove('show'),4000); }
+function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 loadQueue();
 document.getElementById('hist-month').value = today.slice(0,7);

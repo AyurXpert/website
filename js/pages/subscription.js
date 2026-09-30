@@ -5,6 +5,7 @@ import { logAudit } from '../core/auditLogger.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { NCISM_DEPTS } from '../config/ncism.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['platform_admin','super_admin','dept_admin'], 'login.html');
 initNavbar();
@@ -197,7 +198,7 @@ window.deactivatePlatformAbdmFacility = async function() {
   t.abdm_hiu_id = null;
   abdmStatus.textContent = '— Not registered with ABDM';
   btn.style.display = 'none';
-  _toast('✅ ABDM services deactivated for ' + t.name);
+  _toast('✅ ABDM services deactivated for ' + t.name, 'success');
 };
 
 window.closeModal = function() {
@@ -223,8 +224,8 @@ window.saveSubscription = async function() {
     p_billing_cycle: billingCycle,
   });
 
-  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not update subscription.')); return; }
-  _toast('✅ Subscription updated');
+  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not update subscription.'), 'error'); return; }
+  _toast('✅ Subscription updated', 'success');
   closeModal();
   await init();
 };
@@ -285,11 +286,11 @@ window.approveNcismRequest = async function(requestId) {
   const { error } = await supabase.rpc('platform_approve_ncism_request', {
     p_request_id: requestId, p_approve: true, p_notes: null,
   });
-  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not approve request.')); return; }
+  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not approve request.'), 'error'); return; }
   await logAudit('ncism_subscription_approved', 'tenants', req?.tenant_id || null,
     { target_tenant_id: req?.tenant_id, requested_ug_intake: req?.requested_ug_intake, requested_pg: req?.requested_pg },
     { tenantId: profile.tenant_id, userId: profile.id, userName: profile.full_name });
-  _toast('✅ Request approved and applied');
+  _toast('✅ Request approved and applied', 'success');
   loadNcismRequests();
 };
 
@@ -299,10 +300,10 @@ window.rejectNcismRequest = async function(requestId) {
   const { error } = await supabase.rpc('platform_approve_ncism_request', {
     p_request_id: requestId, p_approve: false, p_notes: notes,
   });
-  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not reject request.')); return; }
+  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not reject request.'), 'error'); return; }
   await logAudit('ncism_subscription_rejected', 'tenants', req?.tenant_id || null,
     { target_tenant_id: req?.tenant_id, notes }, { tenantId: profile.tenant_id, userId: profile.id, userName: profile.full_name });
-  _toast('Request rejected');
+  _toast('Request rejected', 'success');
   loadNcismRequests();
 };
 
@@ -332,15 +333,15 @@ async function loadGstRate() {
 
 window.saveGstRate = async function() {
   const rate = parseFloat(document.getElementById('gst-rate').value);
-  if (Number.isNaN(rate) || rate < 0) { _toast('Enter a valid GST rate.'); return; }
+  if (Number.isNaN(rate) || rate < 0) { _toast('Enter a valid GST rate.', 'error'); return; }
   // .select() so a 0-row match (RLS/filter mismatch) surfaces as a real error
   // instead of a false-positive "success" toast — update() alone reports no
   // error even when nothing was actually written.
   const { data, error } = await supabase.from('platform_gst_config')
     .update({ gst_rate: rate, updated_at: new Date().toISOString() }).eq('id', 1).select();
-  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save GST rate.')); return; }
-  if (!data?.length) { _toast('❌ Save did not apply — no matching row (check permissions).'); return; }
-  _toast('✅ GST rate updated');
+  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save GST rate.'), 'error'); return; }
+  if (!data?.length) { _toast('❌ Save did not apply — no matching row (check permissions).', 'error'); return; }
+  _toast('✅ GST rate updated', 'success');
   loadPricing();
 };
 
@@ -410,9 +411,9 @@ window.savePlanPricing = async function(planType) {
     { plan_type: planType, billing_cycle: 'monthly', fee: monthly, updated_at: new Date().toISOString() },
     { plan_type: planType, billing_cycle: 'annual',  fee: annual,  updated_at: new Date().toISOString() },
   ], { onConflict: 'plan_type,billing_cycle' }).select();
-  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save plan pricing.')); return; }
-  if (!data?.length) { _toast('❌ Save did not apply — no matching row (check permissions).'); return; }
-  _toast('✅ Plan pricing saved');
+  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save plan pricing.'), 'error'); return; }
+  if (!data?.length) { _toast('❌ Save did not apply — no matching row (check permissions).', 'error'); return; }
+  _toast('✅ Plan pricing saved', 'success');
   loadPlanPricing();
 };
 
@@ -432,15 +433,15 @@ window.saveTier = async function() {
   const id       = document.getElementById('tier-id').value || null;
   const ugIntake = parseInt(document.getElementById('tier-ug-intake').value);
   const fee      = parseFloat(document.getElementById('tier-fee').value);
-  if (!ugIntake || Number.isNaN(fee)) { _toast('Enter a valid UG intake and fee.'); return; }
+  if (!ugIntake || Number.isNaN(fee)) { _toast('Enter a valid UG intake and fee.', 'error'); return; }
 
   const { data, error } = id
     ? await supabase.from('ncism_intake_tiers').update({ ug_intake: ugIntake, fee, updated_at: new Date().toISOString() }).eq('id', id).select()
     : await supabase.from('ncism_intake_tiers').insert({ ug_intake: ugIntake, fee, sort_order: _tiers.length }).select();
 
-  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save tier.')); return; }
-  if (!data?.length) { _toast('❌ Save did not apply — no matching row (check permissions).'); return; }
-  _toast('✅ Tier saved');
+  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save tier.'), 'error'); return; }
+  if (!data?.length) { _toast('❌ Save did not apply — no matching row (check permissions).', 'error'); return; }
+  _toast('✅ Tier saved', 'success');
   closeTierForm();
   loadPricing();
 };
@@ -449,20 +450,20 @@ window.toggleTierActive = async function(tierId, nextActive) {
   const { data, error } = await supabase.from('ncism_intake_tiers')
     .update({ is_active: nextActive === 'true' || nextActive === true, updated_at: new Date().toISOString() })
     .eq('id', tierId).select();
-  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not update tier.')); return; }
-  if (!data?.length) { _toast('❌ Update did not apply — no matching row (check permissions).'); return; }
+  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not update tier.'), 'error'); return; }
+  if (!data?.length) { _toast('❌ Update did not apply — no matching row (check permissions).', 'error'); return; }
   loadPricing();
 };
 
 window.savePgSeatFee = async function() {
   const fee = parseFloat(document.getElementById('pg-seat-fee').value);
-  if (Number.isNaN(fee) || fee < 0) { _toast('Enter a valid fee.'); return; }
+  if (Number.isNaN(fee) || fee < 0) { _toast('Enter a valid fee.', 'error'); return; }
   const { data, error } = await supabase.from('ncism_pg_seat_fee').update({ fee, updated_at: new Date().toISOString() }).eq('id', 1).select();
-  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save fee.')); return; }
-  if (!data?.length) { _toast('❌ Save did not apply — no matching row (check permissions).'); return; }
-  _toast('✅ PG seat fee updated');
+  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save fee.'), 'error'); return; }
+  if (!data?.length) { _toast('❌ Save did not apply — no matching row (check permissions).', 'error'); return; }
+  _toast('✅ PG seat fee updated', 'success');
   loadPgSeatFee();
 };
 
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-function _toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
+function _toast(msg, type = 'info') { notify(msg, type); }   // Session 323: shared top-layer notify()

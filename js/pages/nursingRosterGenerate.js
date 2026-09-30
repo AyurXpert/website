@@ -6,6 +6,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { buildRequiredMatrix } from '../modules/roster/requiredStaffing.js';
 import { resolveNursingHeadship, canActAsNursingHead } from '../modules/roster/nursingHeadship.js';
+import { notify } from '../components/notify.js';
 
 // Session 166 Phase 2: the UI for preview_nursing_week()/commit_nursing_week() -- the whole-week
 // solver (rotating weekly-off, same-department widening, named cross-department pairing, honest
@@ -72,11 +73,7 @@ function _dateStr(d) {
 }
 function _fmtDate(d) { return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); }
 
-function _alert(type, msg) {
-  const el = document.getElementById('alert');
-  el.textContent = msg;
-  el.className = `alert ${type} show`;
-}
+function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 async function loadCycle() {
   const { data } = await supabase.from('nursing_roster_settings').select('cycle').eq('tenant_id', tenantId).maybeSingle();

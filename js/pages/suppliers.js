@@ -5,6 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['pharmacist','super_admin','dept_admin','accountant'], 'login.html');
 initNavbar();
@@ -125,7 +126,7 @@ window.closeModal = function() { document.getElementById('sup-modal').classList.
 
 window.saveSupplier = async function() {
   const name = document.getElementById('m-name').value.trim();
-  if (!name) { _toast('Supplier name is required.'); return; }
+  if (!name) { _toast('Supplier name is required.', 'error'); return; }
   const isGmp = document.getElementById('m-gmp-certified').checked;
 
   const payload = {
@@ -149,8 +150,8 @@ window.saveSupplier = async function() {
     ? await supabase.from('suppliers').update(payload).eq('id', id).eq('tenant_id', tenantId)
     : await supabase.from('suppliers').insert(payload);
 
-  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save supplier.')); return; }
-  _toast(id ? '✅ Supplier updated' : '✅ Supplier added');
+  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save supplier.'), 'error'); return; }
+  _toast(id ? '✅ Supplier updated' : '✅ Supplier added', 'success');
   closeModal();
   await load();
 };
@@ -161,7 +162,7 @@ window.deactivate = async function(id) {
   const action = s.is_active ? 'deactivate' : 'activate';
   if (!confirm(`${action.charAt(0).toUpperCase()+action.slice(1)} supplier "${s.name}"?`)) return;
   await supabase.from('suppliers').update({ is_active: !s.is_active }).eq('id', id).eq('tenant_id', tenantId);
-  _toast(`✅ Supplier ${action}d`);
+  _toast(`✅ Supplier ${action}d`, 'success');
   await load();
 };
 
@@ -181,6 +182,6 @@ window.exportCSV = function() {
 };
 
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-function _toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800); }
+function _toast(msg, type = 'info') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 await load();

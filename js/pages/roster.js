@@ -9,6 +9,7 @@ import { buildRequiredMatrix } from '../modules/roster/requiredStaffing.js';
 import { computeCoverageCapacity, renderCoverageCapacityHtml, subscribeCoverageCapacity } from '../modules/roster/coverageCapacity.js';
 import { markRosterSeen } from '../modules/roster/scheduleChangeIndicator.js';
 import { localDateStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 // Session 137: widened from admin-only to also let plain nursing staff/ayahs
 // (role 'nurse', covers both designations) view the roster -- read-only,
@@ -1243,12 +1244,7 @@ document.getElementById('btn-monitor-today').addEventListener('click', () => {
 });
 
 // ── Alert ──────────────────────────────────────────
-function _alert(type, msg) {
-  const el = document.getElementById('alert');
-  el.textContent = msg;
-  el.className = `alert ${type} show`;
-  setTimeout(() => el.className = 'alert', 4000);
-}
+function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // ── Boot ───────────────────────────────────────────
 updateWeekLabel();

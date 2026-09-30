@@ -10,6 +10,7 @@ import {
   deptRequirement, _computeIpdBedTotals, _renderComplianceSummaryBanner,
   _computeGrandCompliance, _collectStaffClassification,
 } from '../config/ncismStaffCompliance.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','accountant'], 'login.html', { monitoringSafe: true });
 initNavbar();
@@ -546,12 +547,7 @@ function _esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-function _alert(type, msg) {
-  const el = document.getElementById('alert');
-  el.className = `alert show ${type}`;
-  el.textContent = msg;
-  if (type === 'success') setTimeout(() => el.classList.remove('show'), 3000);
-}
+function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // ── Faculty compliance — NCISM Schedule IV (Regulation 34) ───────────────────
 // SCHEDULE_IV now lives in js/config/ncism.js — shared with admin.js's HR panel,

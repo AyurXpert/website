@@ -6,6 +6,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr } from '../utils/dateUtils.js';
 import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell, activeRows } from '../modules/registers/corrections.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist'], 'index.html');
 initNavbar();
@@ -482,10 +483,10 @@ function _indChip(v, lbl) {
   if (v==='pending') return `<span class="chip chip-pending">${lbl} ⏳</span>`;
   return `<span class="chip chip-nd">${v}</span>`;
 }
-function showAlert(id,msg,type){ const el=document.getElementById(id); el.textContent=msg; el.className=`alert ${type} show`; setTimeout(()=>el.classList.remove('show'),5000); }
+function showAlert(id,msg,type) { notify(msg, type); }   // Session 323: shared top-layer notify()
 function _downloadCSV(rows,filename){ const csv=rows.map(r=>Array.isArray(r)?r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(','):`"${r}"`).join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download=filename; a.click(); }
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-function _toast(msg,isErr=false){ const el=document.getElementById('toast'); el.textContent=msg; el.style.background=isErr?'#7f1d1d':'#1c2b1f'; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),3000); }
+function _toast(msg,isErr=false) { notify(msg, isErr ? 'error' : 'success'); }   // Session 323: shared top-layer notify()
 
 // Boot
 await loadAll();

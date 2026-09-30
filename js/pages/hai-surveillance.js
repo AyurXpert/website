@@ -5,6 +5,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','nurse','doctor'], 'index.html');
 initNavbar();
@@ -315,10 +316,6 @@ window.exportHAICSV = function() {
   a.download = `hai_events_${todayLocalStr()}.csv`; a.click();
 };
 
-function toast(msg, type) {
-  const el = document.getElementById('toast');
-  el.textContent = msg; el.className = `toast ${type} show`;
-  setTimeout(() => el.className = 'toast', 2800);
-}
+function toast(msg, type) { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 loadDevices(); loadHAI();

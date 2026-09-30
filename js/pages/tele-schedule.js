@@ -3,6 +3,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['doctor','super_admin','dept_admin'], 'login.html');
 initNavbar();
@@ -69,8 +70,8 @@ window.saveSchedule = async function() {
   });
 
   const { error } = await supabase.from('tele_schedules').upsert(rows, { onConflict: 'tenant_id,doctor_id,day_of_week' });
-  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save schedule.')); return; }
-  _toast('✅ Schedule saved');
+  if (error) { _toast('❌ ' + safeErrorMessage(error, 'Could not save schedule.'), 'error'); return; }
+  _toast('✅ Schedule saved', 'success');
   await loadSchedule();
 };
 
@@ -117,11 +118,11 @@ function _genRoom(visitId) {
 }
 
 window.copyLink = function(url) {
-  navigator.clipboard.writeText(url).then(() => _toast('📋 Link copied!'));
+  navigator.clipboard.writeText(url).then(() => _toast('📋 Link copied!', 'success'));
 };
 
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-function _toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2800); }
+function _toast(msg, type = 'info') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // §21j — Teleconsultation Register
 document.getElementById('tele-reg-month').value = new Date().toISOString().slice(0,7);
@@ -162,7 +163,7 @@ window.loadTeleRegister = async function() {
 };
 
 window.exportTeleRegisterCSV = function() {
-  if (!_teleRegData.length) { _toast('Load data first'); return; }
+  if (!_teleRegData.length) { _toast('Load data first', 'info'); return; }
   const rows = [['#','Date','Patient','Doctor','OPD','Chief Complaint','Status']];
   _teleRegData.forEach((v, i) => rows.push([
     i+1, new Date(v.created_at).toLocaleDateString('en-IN'),

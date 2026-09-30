@@ -4,6 +4,7 @@ import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','pharmacist','doctor']);
 initNavbar();
@@ -268,7 +269,7 @@ function resetStaffPicker(kind) {
 }
 
 function typeLabel(t){const m={churna:'Churna',vati:'Vati/Gutika',kwatha:'Kwatha',asava_arishta:'Asava/Arishta',ghrita:'Ghrita',taila:'Taila',lepa:'Lepa',avaleha:'Avaleha',other:'Other'};return _esc(m[t]||t);}
-function showToast(msg,type='success'){const t=document.getElementById('toast');t.textContent=msg;t.className=`toast ${type} show`;setTimeout(()=>t.classList.remove('show'),3000);}
+function showToast(msg,type='success') { notify(msg, type); }   // Session 323: shared top-layer notify()
 function _esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 loadRegister();

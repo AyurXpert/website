@@ -5,6 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { BED_TYPE_LABELS, bedTypeLabel } from '../config/bedTypes.js';
+import { notify } from '../components/notify.js';
 
 // accountant = maker: creates fees as pending, edits/deletes only their own pending ones;
 // an admin approves (sql/session305c_fee_admin_accountant_maker.sql enforces this in RLS).
@@ -1480,12 +1481,7 @@ window.loadAyushCatalog = async function() {
 };
 
 // ── Toast ─────────────────────────────────────────
-function toast(msg, type = 'success') {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = `toast ${type} show`;
-  setTimeout(() => el.classList.remove('show'), 3000);
-}
+function toast(msg, type = 'success') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // ── Export (Session 107/109) ───────────────────────
 function _matchesActiveGroup(f) {
@@ -1535,7 +1531,7 @@ function _exportAmountText(f) {
 
 window.exportCsv = function(scope) {
   const rows = scope === 'all' ? _allFees : _currentFilteredFees();
-  if (!rows.length) { toast('No fees to export.', 'error'); return; }
+  if (!rows.length) { toast('No fees to export.', 'info'); return; }
 
   const header = ['Service', 'Category', 'OPD / Department', 'Amount (INR)', 'Status'];
   const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -1561,7 +1557,7 @@ window.exportCsv = function(scope) {
 
 window.exportPdf = function(scope) {
   const rows = scope === 'all' ? _allFees : _currentFilteredFees();
-  if (!rows.length) { toast('No fees to export.', 'error'); return; }
+  if (!rows.length) { toast('No fees to export.', 'info'); return; }
 
   const scopeLabel = scope === 'all' ? 'All Departments' : _currentScopeLabel();
   const _tenantCache = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');

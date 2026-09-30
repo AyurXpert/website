@@ -5,6 +5,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -278,11 +279,6 @@ function _daysAgo(d) { return Math.floor((new Date(_today()) - new Date(d)) / 86
 function _threadLabel(t) { return {apamarga:'Apamarga Kshara',snuhi:'Snuhi Kshara',combination:'Combination',other:'Other'}[t] || _esc(t || '—'); }
 function _condLabel(c) { return {fistula_in_ano:'Fistula-in-Ano',haemorrhoids:'Haemorrhoids',fissure:'Fissure',pilonidal_sinus:'Pilonidal Sinus',sentinel_tag:'Sentinel Tag',other:'Other'}[c] || _esc(c || '—'); }
 
-function _alert(type, msg) {
-  const el = document.getElementById('alert-box');
-  el.className = `alert ${type} show`;
-  el.textContent = msg;
-  setTimeout(() => el.classList.remove('show'), 4000);
-}
+function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 loadCases();

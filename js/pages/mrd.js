@@ -7,6 +7,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { logAudit } from '../core/auditLogger.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { uhidOf } from '../utils/uhid.js';
+import { notify } from '../components/notify.js';
 
 const ALLOWED = ['super_admin','dept_admin','mrd_staff'];
 await requireAuth(ALLOWED);
@@ -601,11 +602,7 @@ function _fmtD(s) {
   return new Date(s+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
 }
 function _n(v) { return (parseFloat(v)||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-function _toast(msg, type='success') {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.className = `toast ${type} show`;
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
+function _toast(msg, type='success') { notify(msg, type); }   // Session 323: shared top-layer notify()
 function _csvDownload(rows, name) {
   if (!rows.length) { _toast('No data', 'error'); return; }
   const keys = Object.keys(rows[0]);

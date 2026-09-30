@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist','diet_staff']);
 initNavbar();
@@ -152,13 +153,7 @@ function _esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-function _toast(msg, isErr) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.style.background = isErr ? '#8b1a1a' : '#1a4a2e';
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
+function _toast(msg, isErr) { notify(msg, isErr ? 'error' : 'success'); }   // Session 323: shared top-layer notify()
 
 // ── Realtime ─────────────────────────────────────
 supabase.channel('palha-diet-live')

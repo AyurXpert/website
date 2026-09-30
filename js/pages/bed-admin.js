@@ -9,6 +9,7 @@ import { UG_BED_RATIOS as SF_RATIOS, NCISM_OPDS as SF_OPDS, NCISM_DEPTS as SF_DE
 // Surgical) needs exactly this same Medical={KAY,PK,KAU,AGD}/Surgical={SHAL,SHAK,PST} grouping
 // ncismStaffCompliance.js already uses for bed-count summing purposes.
 import { IPD_MEDICAL_BED_CODES, IPD_SURGICAL_BED_CODES } from '../config/ncismStaffCompliance.js';
+import { notify } from '../components/notify.js';
 
 wireDelegatedEvents();
 
@@ -2948,12 +2949,7 @@ window.bulkAddBeds = async function() {
 };
 
 // ── Alert helper ──────────────────────────────────────────────────────────────
-function _alert(type, msg) {
-  const el = document.getElementById('alert');
-  el.className = `alert show ${type}`;
-  el.textContent = msg;
-  if (type === 'success') setTimeout(() => el.classList.remove('show'), 3500);
-}
+function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // ── Escape HTML ───────────────────────────────────────────────────────────────
 function _esc(s) {

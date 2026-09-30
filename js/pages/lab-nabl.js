@@ -6,6 +6,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 const ALLOWED = ['super_admin','dept_admin','lab_tech','doctor','nurse'];
 await requireAuth(ALLOWED);
@@ -851,11 +852,7 @@ function _lastDayOfMonth(yearMonth) {
   const [y,m] = yearMonth.split('-').map(Number);
   return localDateStr(new Date(y, m, 0));
 }
-function _toast(msg, type='success') {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.className = `toast ${type} show`;
-  setTimeout(() => t.classList.remove('show'), 3500);
-}
+function _toast(msg, type='success') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // ══════════════════════════════════════════════════════
 // REAGENT BATCHES (Tab 4)

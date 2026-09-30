@@ -6,6 +6,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr } from '../utils/dateUtils.js';
 import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist'], 'index.html');
 initNavbar();
@@ -473,13 +474,9 @@ function apgarColor(v) {
   if (v >= 4) return 'var(--gold)';
   return 'var(--red)';
 }
-function showAlert(id, msg, type) {
-  const el = document.getElementById(id);
-  el.textContent = msg; el.className = `alert ${type} show`;
-  setTimeout(()=>el.classList.remove('show'), 4000);
-}
+function showAlert(id, msg, type) { notify(msg, type); }   // Session 323: shared top-layer notify()
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-function _toast(msg,isErr=false){ const el=document.getElementById('toast'); el.textContent=msg; el.style.background=isErr?'#7f1d1d':'#1c2b1f'; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),3000); }
+function _toast(msg,isErr=false) { notify(msg, isErr ? 'error' : 'success'); }   // Session 323: shared top-layer notify()
 
 // Boot
 await Promise.all([loadDoctors(), loadAll()]);

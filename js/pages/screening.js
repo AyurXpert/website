@@ -4,6 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['doctor','nurse','super_admin','dept_admin']);
 initNavbar();
@@ -526,12 +527,7 @@ window.routePatient = async function() {
 function _esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-function _alert(type, msg) {
-  const el = document.getElementById('alert');
-  el.className = `alert show ${type}`;
-  el.textContent = msg;
-  if (type === 'success') setTimeout(() => el.classList.remove('show'), 4000);
-}
+function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // Runs the deferred init now that every window.* handler above (loadQueue,
 // selectVisit, onDeptChange, etc.) has actually been assigned — see the comment

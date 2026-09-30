@@ -17,6 +17,7 @@ import {
   _renderComplianceSummaryBanner, SCHEDULE_I_CODES, _rowStatusInfo,
   _renderComplianceLegend, _designationRollup, _collectStaffClassification, _collectOrganisationStaff,
 } from '../config/ncismStaffCompliance.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -5714,7 +5715,7 @@ function _roleLabel(r){return{super_admin:'Super Admin',dept_admin:'Dept. Admin'
 function _tenantLabel(t){return{clinic:'Clinic',hospital:'Hospital',teaching_hospital:'Teaching Hospital',pk_center:'PK Centre',dispensary:'Dispensary',college:'Ayurveda College',pharma:'Pharmaceutical Co.',supplier:'Supplier',dealer:'Dealer',journal:'Journal'}[t]||'Healthcare';}
 function _relDate(iso){if(!iso)return'—';const d=Math.floor((Date.now()-new Date(iso))/60000);if(d<60)return d+'m ago';if(d<1440)return Math.floor(d/60)+'h ago';return Math.floor(d/1440)+'d ago';}
 function _esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
-function _toast(msg,isError=false){const el=document.getElementById('toast');el.textContent=msg;el.style.background=isError?'#7f1d1d':'#1c2b1f';el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3000);}
+function _toast(msg,isError=false) { notify(msg, isError ? 'error' : 'success'); }   // Session 323: shared top-layer notify()
 
 // ── NCISM Setup Compliance Checker ───────────────────────────────────────────
 async function _renderNcismChecklist(ugIntake, orgType) {

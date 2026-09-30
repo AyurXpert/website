@@ -162,6 +162,7 @@ tr:hover td{background:#fafff8}
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1c2b1f;color:#fff;border-radius:10px;padding:10px 18px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:2000;white-space:nowrap}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
+<link rel="stylesheet" href="css/notify.css"/>
 </head>
 <body>
 <div id="navbar-placeholder"></div>
@@ -207,7 +208,6 @@ tr:hover td{background:#fafff8}
   <button class="vt-btn" data-view="register" data-onclick="switchView" data-onclick-a0="register" data-onclick-a1="@this">📋 Session Register</button>
 </div>
 
-<div class="alert" id="main-alert"></div>
 
 <!-- ══════════════════════════════════════
      VIEW: NEW SESSION
@@ -606,7 +606,6 @@ tr:hover td{background:#fafff8}
 </div>
 
 </div><!-- end page-wrap -->
-<div id="toast"></div>
 
 <script type="module" src="./js/pwa/register-sw.js"></script>
 <script type="module" src="js/pages/anushastra.js"></script>

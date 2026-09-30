@@ -5,6 +5,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['doctor','nurse','super_admin','dept_admin','therapist']);
 initNavbar();
@@ -251,4 +252,4 @@ window.cancelSession = async function(id) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function _fmtDate(d) { if (!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
-function _alert(type, msg) { const el = document.getElementById('alert-box'); el.className = `alert ${type} show`; el.textContent = msg; setTimeout(() => el.classList.remove('show'), 4000); }
+function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-layer notify()

@@ -10,6 +10,7 @@ import { computeRequiredPerShift, distributeAcrossShifts, buildRequiredMatrix, B
 import { checkCycleExpiry } from '../modules/roster/cycleExpiry.js';
 import { resolveIpdZoneMemberDeptIds, fetchZoneRealBedNumbers, sliceRange } from '../modules/roster/realBedSlicing.js';
 import { localDateStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 // Session 139 (Nursing Duty Roster Phase 3): template editor for the
 // "Template-Based Rolling Schedule" -- a repeating base pattern per
@@ -1021,12 +1022,7 @@ function renderRollResult(result, startDate) {
   box.className = 'result-box show' + (gaps.length ? ' warn' : '');
 }
 
-function _alert(type, msg) {
-  const el = document.getElementById('alert');
-  el.textContent = msg;
-  el.className = `alert ${type} show`;
-  setTimeout(() => el.className = 'alert', 5000);
-}
+function _alert(type, msg) { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // ── Cycle Expiry Banner (Session 148) ───────────────────────────────
 // Same check as nursing-admin.html's banner (shared js/modules/roster/

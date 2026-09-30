@@ -14,6 +14,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { computeInternRotationPlan, computeStopCounts } from '../modules/roster/internRotation.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth(['doctor']);
 initNavbar();
@@ -31,11 +32,7 @@ if (profile.designation !== 'deputy_medical_superintendent') {
   throw new Error('not authorized');
 }
 
-function _toast(msg, isErr) {
-  const el = document.getElementById('toast');
-  el.textContent = msg; el.className = 'toast show' + (isErr ? ' err' : '');
-  setTimeout(() => el.classList.remove('show'), 3500);
-}
+function _toast(msg, isErr) { notify(msg, isErr ? 'error' : 'success'); }   // Session 323: shared top-layer notify()
 
 const AREA_LABELS = {
   PK: 'Panchakarma', KAY: 'Kayachikitsa', SHAL: 'Shalya Tantra', SHAK: 'Shalakya Tantra',

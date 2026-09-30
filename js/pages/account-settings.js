@@ -5,12 +5,13 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { MFA_MANDATORY_ROLES, ROLE_HOME } from '../config/constants.js';
+import { notify } from '../components/notify.js';
 
 await requireAuth([]); // any authenticated role can manage their own account
 initNavbar();
 wireDelegatedEvents();
 
-function _toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2800); }
+function _toast(msg, type = 'info') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // Reached via requireAuth()'s forced redirect for a mandatory-MFA role with no
 // factor yet — this page has no nav link back anywhere, so once enrollment
@@ -36,7 +37,7 @@ let _pendingFactorId = null;
 
 async function loadFactorState() {
   const { data, error } = await supabase.auth.mfa.listFactors();
-  if (error) { _toast(safeErrorMessage(error, 'Could not load two-factor status.')); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not load two-factor status.'), 'error'); return; }
 
   const verified = data?.totp?.find(f => f.status === 'verified');
   if (verified) {
@@ -77,13 +78,13 @@ window.generateBackupCodes = async function () {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
     });
     const result = await res.json();
-    if (!res.ok) { _toast(result.error || 'Could not generate backup codes.'); return; }
+    if (!res.ok) { _toast(result.error || 'Could not generate backup codes.', 'error'); return; }
 
     _revealedCodes = result.codes;
     document.getElementById('bc-codes-list').innerHTML = result.codes.map(c => `<div>${c}</div>`).join('');
     document.getElementById('bc-reveal').style.display = 'block';
   } catch (err) {
-    _toast(safeErrorMessage(err, 'Could not generate backup codes.'));
+    _toast(safeErrorMessage(err, 'Could not generate backup codes.'), 'error');
   } finally {
     btn.disabled = false;
   }
@@ -127,7 +128,7 @@ window.dismissBackupCodes = function () {
 
 window.startEnroll = async function () {
   const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Authenticator App' });
-  if (error) { _toast(safeErrorMessage(error, 'Could not start enrollment.')); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not start enrollment.'), 'error'); return; }
 
   _pendingFactorId = data.id;
   document.getElementById('manual-secret').textContent = data.totp.secret;
@@ -178,7 +179,7 @@ window.confirmEnroll = async function () {
   }
 
   _pendingFactorId = null;
-  _toast('Two-factor authentication enabled ✓');
+  _toast('Two-factor authentication enabled ✓', 'success');
   await loadFactorState();
 
   if (_cameFromMfaGate) {
@@ -200,9 +201,9 @@ window.removeFactor = async function () {
   if (!verified) return;
 
   const { error } = await supabase.auth.mfa.unenroll({ factorId: verified.id });
-  if (error) { _toast(safeErrorMessage(error, 'Could not remove two-factor authentication.')); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not remove two-factor authentication.'), 'error'); return; }
 
-  _toast('Two-factor authentication removed');
+  _toast('Two-factor authentication removed', 'success');
   await loadFactorState();
 };
 
@@ -241,7 +242,7 @@ async function loadProfileTab() {
   const { data, error } = await supabase.from('profiles')
     .select('id, full_name, role, designation, phone, gender, date_of_birth, address, emergency_contact_name, emergency_contact_phone, blood_group, date_of_joining, photo_path')
     .eq('id', _uid).single();
-  if (error) { _toast(safeErrorMessage(error, 'Could not load your profile.')); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not load your profile.'), 'error'); return; }
   _myProfile = data;
 
   document.getElementById('pf-full-name').value = data.full_name || '';
@@ -285,8 +286,8 @@ window.saveProfile = async function () {
     emergency_contact_phone: document.getElementById('pf-ec-phone').value.trim() || null,
   };
   const { error } = await supabase.from('profiles').update(updates).eq('id', _uid);
-  if (error) { _toast(safeErrorMessage(error, 'Could not save changes.')); return; }
-  _toast('Profile updated ✓');
+  if (error) { _toast(safeErrorMessage(error, 'Could not save changes.'), 'error'); return; }
+  _toast('Profile updated ✓', 'success');
 };
 
 window.triggerPhotoPicker = function () { document.getElementById('profile-photo-input').click(); };
@@ -298,10 +299,10 @@ window.onPhotoSelected = async function (input) {
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
   const path = `${tenantId}/${_uid}/photo.${ext}`;
   const { error: upErr } = await supabase.storage.from('staff-documents').upload(path, file, { upsert: true });
-  if (upErr) { _toast(safeErrorMessage(upErr, 'Could not upload photo.')); return; }
+  if (upErr) { _toast(safeErrorMessage(upErr, 'Could not upload photo.'), 'error'); return; }
   const { error: dbErr } = await supabase.from('profiles').update({ photo_path: path }).eq('id', _uid);
-  if (dbErr) { _toast(safeErrorMessage(dbErr, 'Photo uploaded but could not be linked. Please try again.')); return; }
-  _toast('Photo updated ✓');
+  if (dbErr) { _toast(safeErrorMessage(dbErr, 'Photo uploaded but could not be linked. Please try again.'), 'error'); return; }
+  _toast('Photo updated ✓', 'success');
   await loadProfileTab();
 };
 
@@ -337,20 +338,20 @@ window.onDocumentSelected = async function (input) {
   const tenantId = getCurrentTenantId();
   const path = `${tenantId}/${_uid}/documents/${crypto.randomUUID()}-${file.name}`;
   const { error: upErr } = await supabase.storage.from('staff-documents').upload(path, file);
-  if (upErr) { _toast(safeErrorMessage(upErr, 'Could not upload document.')); return; }
+  if (upErr) { _toast(safeErrorMessage(upErr, 'Could not upload document.'), 'error'); return; }
   const { error: dbErr } = await supabase.from('staff_documents').insert({
     tenant_id: tenantId, profile_id: _uid, doc_type: docType, file_name: file.name,
     storage_path: path, uploaded_by: _uid,
   });
-  if (dbErr) { _toast(safeErrorMessage(dbErr, 'Document uploaded but could not be recorded. Please try again.')); return; }
-  _toast('Document uploaded ✓');
+  if (dbErr) { _toast(safeErrorMessage(dbErr, 'Document uploaded but could not be recorded. Please try again.'), 'error'); return; }
+  _toast('Document uploaded ✓', 'success');
   input.value = '';
   await loadDocuments();
 };
 
 window.viewDocument = async function (path) {
   const { data, error } = await supabase.storage.from('staff-documents').createSignedUrl(path, 300);
-  if (error) { _toast(safeErrorMessage(error, 'Could not open document.')); return; }
+  if (error) { _toast(safeErrorMessage(error, 'Could not open document.'), 'error'); return; }
   window.open(data.signedUrl, '_blank', 'noopener');
 };
 
@@ -358,8 +359,8 @@ window.deleteDocument = async function (id, path) {
   if (!confirm('Delete this document?')) return;
   await supabase.storage.from('staff-documents').remove([path]);
   const { error } = await supabase.from('staff_documents').delete().eq('id', id);
-  if (error) { _toast(safeErrorMessage(error, 'Could not delete document.')); return; }
-  _toast('Document deleted');
+  if (error) { _toast(safeErrorMessage(error, 'Could not delete document.'), 'error'); return; }
+  _toast('Document deleted', 'success');
   await loadDocuments();
 };
 
@@ -427,7 +428,7 @@ window.submitLeaveRequest = async function () {
   });
   if (error) { alertEl.textContent = safeErrorMessage(error, 'Could not submit your leave request.'); alertEl.classList.add('show'); return; }
 
-  _toast('Leave request sent ✓');
+  _toast('Leave request sent ✓', 'success');
   document.getElementById('lv-from').value = '';
   document.getElementById('lv-to').value = '';
   document.getElementById('lv-reason').value = '';
@@ -438,8 +439,8 @@ window.submitLeaveRequest = async function () {
 window.withdrawLeave = async function (id) {
   if (!confirm('Withdraw this leave request?')) return;
   const { error } = await supabase.from('staff_leaves').delete().eq('id', id);
-  if (error) { _toast(safeErrorMessage(error, 'Could not withdraw request.')); return; }
-  _toast('Leave request withdrawn');
+  if (error) { _toast(safeErrorMessage(error, 'Could not withdraw request.'), 'error'); return; }
+  _toast('Leave request withdrawn', 'success');
   await loadMyLeaves();
 };
 
