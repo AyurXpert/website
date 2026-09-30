@@ -16,6 +16,7 @@ import { openTimePicker, formatTime12 } from '../components/timePicker.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { loadVisitTimeline, resetVisitTimeline, getProgressData, setProgressData, isProgressMissing } from '../modules/patient/visitTimeline.js';
 import { loadMyPatients, resetMyPatients } from '../modules/patient/myPatients.js';
+import { uhidOf } from '../utils/uhid.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -398,10 +399,6 @@ document.getElementById('q-date').textContent = new Date().toLocaleDateString('e
   weekday: 'long', day: 'numeric', month: 'long'
 });
 
-// ── UHID formatter ────────────────────────────────
-function _uhid(uuid) {
-  return `AYX-${new Date().getFullYear()}-${(uuid||'').replace(/-/g,'').slice(-6).toUpperCase()}`;
-}
 function _fmtDate(d) { if (!d) return '—'; return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
 
 // ── Wait time ─────────────────────────────────────
@@ -610,7 +607,7 @@ async function _openAbdmRequestRow(consentId, status, patientId) {
 
   // Granted → load the patient and open their ABDM Records with this consent expanded.
   const { data: patient, error } = await supabase.from('patients')
-    .select('id, name, phone, abha_number, abha_address')
+    .select('id, uhid, name, phone, abha_number, abha_address')
     .eq('id', patientId).single();
   if (error || !patient) { alert('Could not load this patient record.'); return; }
   _historyPatient = patient;
@@ -640,7 +637,7 @@ async function loadQueue() {
 
   let query = supabase
     .from('visits')
-    .select('id, token_number, status, chief_complaint, created_at, is_on_request, visit_category, is_teleconsultation, meeting_url, patients(id, name, phone, abha_number, abha_address)')
+    .select('id, token_number, status, chief_complaint, created_at, is_on_request, visit_category, is_teleconsultation, meeting_url, patients(id, uhid, name, phone, abha_number, abha_address)')
     .eq('tenant_id', tenantId)
     .in('status', ['waiting', 'in_progress'])
     .gte('created_at', start.toISOString())
@@ -765,7 +762,7 @@ async function loadIPDPatients() {
 
   let q = supabase
     .from('ipd_admissions')
-    .select('id, patient_id, visit_id, status, diagnosis_primary, admission_date, admitted_at, admitting_doctor_id, admission_advice_id, discharge_ordered_by, clinically_discharged_at, beds(bed_number, ward_name), departments(name), patients(id, name, phone, abha_number), admitting_doctor:profiles!admitting_doctor_id(full_name), advice:admission_advice!admission_advice_id(expected_duration_days)')
+    .select('id, patient_id, visit_id, status, diagnosis_primary, admission_date, admitted_at, admitting_doctor_id, admission_advice_id, discharge_ordered_by, clinically_discharged_at, beds(bed_number, ward_name), departments(name), patients(id, uhid, name, phone, abha_number), admitting_doctor:profiles!admitting_doctor_id(full_name), advice:admission_advice!admission_advice_id(expected_duration_days)')
     .eq('tenant_id', tenantId)
     // Session 298 -- discharge-ordered patients stay on the list (with the existing
     // "Discharge ordered" chip) until the nurse locks charges, so the doctor can still
@@ -892,7 +889,7 @@ async function loadPendingReviews() {
 
   let query = supabase
     .from('consultation_notes')
-    .select('id, visit_id, modern_diagnosis, ayurveda_diagnosis, provisional_modern, created_at, visits(id, token_number, chief_complaint, patients(id, name)), profiles!drafted_by(full_name)')
+    .select('id, visit_id, modern_diagnosis, ayurveda_diagnosis, provisional_modern, created_at, visits(id, token_number, chief_complaint, patients(id, uhid, name)), profiles!drafted_by(full_name)')
     .eq('tenant_id', tenantId)
     .eq('review_status', 'pending_review')
     .order('created_at', { ascending: true });
@@ -978,12 +975,12 @@ async function searchPastPatients(query) {
   // Search patients by name/phone AND visits by chief_complaint in parallel
   const [{ data: byName }, { data: byDiag }] = await Promise.all([
     supabase.from('patients')
-      .select('id, name, phone, abha_number, abha_address')
+      .select('id, uhid, name, phone, abha_number, abha_address')
       .eq('tenant_id', tenantId)
       .or(`name.ilike.%${query}%,phone.ilike.%${query}%`)
       .limit(15),
     supabase.from('visits')
-      .select('patient_id, chief_complaint, created_at, patients(id, name, phone, abha_number, abha_address)')
+      .select('patient_id, chief_complaint, created_at, patients(id, uhid, name, phone, abha_number, abha_address)')
       .eq('tenant_id', tenantId)
       .eq('doctor_id', userId)
       .ilike('chief_complaint', `%${query}%`)
@@ -1042,7 +1039,7 @@ window.openPatientHistory = async function(patientId) {
 
   // Step 1: patient + visits (all doctors at this facility, not just this doctor)
   const [{ data: patient }, { data: visits }] = await Promise.all([
-    supabase.from('patients').select('id, name, phone, abha_number, abha_address').eq('id', patientId).single(),
+    supabase.from('patients').select('id, uhid, name, phone, abha_number, abha_address').eq('id', patientId).single(),
     supabase.from('visits')
       .select('id, status, chief_complaint, created_at, visit_category')
       .eq('tenant_id', tenantId)
@@ -1153,7 +1150,7 @@ window._openAbdmForHistory = function() {
   document.getElementById('pt-token').style.display   = 'none';
   document.getElementById('pt-name').textContent      = _historyPatient.name || '—';
   document.getElementById('pt-complaint').textContent = 'Viewing ABDM records';
-  document.getElementById('pt-uhid').textContent      = _uhid(_historyPatient.id);
+  document.getElementById('pt-uhid').textContent      = uhidOf(_historyPatient);
   document.getElementById('pt-phone').textContent     = _historyPatient.phone || '—';
   const abhaWrap = document.getElementById('pt-abha-wrap');
   const abhaVal  = _historyPatient.abha_number || _historyPatient.abha_address || '';
@@ -1223,7 +1220,7 @@ async function loadDoctorOpds() {
 async function loadIncomingReferrals() {
   if (!_doctorOpdIds.length) return;
   const { data } = await supabase.from('referrals')
-    .select('id, reason, urgency, referred_at, patients(id, name), referring_doctor:profiles!referring_doctor_id(full_name), source_opd:opds!source_opd_id(name)')
+    .select('id, reason, urgency, referred_at, patients(id, uhid, name), referring_doctor:profiles!referring_doctor_id(full_name), source_opd:opds!source_opd_id(name)')
     .eq('tenant_id', tenantId)
     .in('target_opd_id', _doctorOpdIds)
     .eq('status', 'pending')
@@ -1387,7 +1384,7 @@ window.startConsultation = async function(visitId) {
 
   const { data: visit } = await supabase
     .from('visits')
-    .select('*, patients(id, name, phone, abha_number, abha_address, prakriti_data, prakriti_assessed_at, gender, age, date_of_birth), opds(ncism_code, name, allows_prescription, specialty_proforma_key)')
+    .select('*, patients(id, uhid, name, phone, abha_number, abha_address, prakriti_data, prakriti_assessed_at, gender, age, date_of_birth), opds(ncism_code, name, allows_prescription, specialty_proforma_key)')
     .eq('id', visitId)
     .single();
 
@@ -1423,7 +1420,7 @@ window.startConsultation = async function(visitId) {
   ptTokenEl.textContent   = visit.token_number;
   document.getElementById('pt-name').textContent     = _activePatient?.name || '—';
   document.getElementById('pt-complaint').textContent = visit.chief_complaint || '—';
-  document.getElementById('pt-uhid').textContent     = _uhid(_activePatient?.id);
+  document.getElementById('pt-uhid').textContent     = uhidOf(_activePatient);
   document.getElementById('pt-phone').textContent    = _activePatient?.phone || '—';
 
   const abhaWrap = document.getElementById('pt-abha-wrap');
@@ -4360,7 +4357,7 @@ window.openPkWizardForAdmission = function(adm) {
   if (_activeVisitId) { _toast('Finish or close the open OPD consultation first.', 'error'); return; }
   _pkForAdmissionId = adm.id;
   _pkForAdmissionCtx = adm;
-  _activePatient = { id: adm.patient_id, name: adm.patients?.name || '—' };
+  _activePatient = { id: adm.patient_id, uhid: adm.patients?.uhid, name: adm.patients?.name || '—' };
   _activeVisitId = adm.visit_id;
 
   document.getElementById('c-ipd').style.display = 'none';
@@ -7442,7 +7439,7 @@ window.printMedCert = function() {
   <div style="padding:20px 24px">
     <p style="font-size:13px;line-height:1.9;margin:0 0 14px">
       This is to certify that <strong>${_esc(_activePatient.name)}</strong>
-      (UHID: ${_uhid(_activePatient.id)}${_activePatient.phone ? ', Ph: '+_esc(_activePatient.phone) : ''})
+      (UHID: ${_esc(uhidOf(_activePatient))}${_activePatient.phone ? ', Ph: '+_esc(_activePatient.phone) : ''})
       attended this clinic on <strong>${date}</strong>
       ${diag ? `and is suffering from / was examined for <strong>${_esc(diag)}</strong>` : ''}.
     </p>
@@ -7454,7 +7451,7 @@ window.printMedCert = function() {
     <div style="margin-top:32px;display:flex;justify-content:space-between;align-items:flex-end">
       <div style="font-size:11px;color:#8a9e90">
         <div>Date: ${date}</div>
-        <div style="margin-top:2px">UHID: ${_uhid(_activePatient.id)}</div>
+        <div style="margin-top:2px">UHID: ${_esc(uhidOf(_activePatient))}</div>
       </div>
       <div style="text-align:center">
         <div style="width:180px;border-top:1px solid #aaa;padding-top:6px;font-size:12px;color:#2a4a32">
@@ -7609,7 +7606,7 @@ window.printSwasthyaCard = function() {
     <div style="padding:14px 16px;border-right:1px solid #c8ddd0">
       <div style="font-size:19px;font-weight:600;color:#1a4a2e">${_esc(_activePatient.name)}</div>
       <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:#4a6352;margin-top:4px">
-        <span>UHID: <strong>${_uhid(_activePatient.id)}</strong></span>
+        <span>UHID: <strong>${_esc(uhidOf(_activePatient))}</strong></span>
         ${_activePatient.abha_number ? `<span>ABHA: <strong>${_esc(_activePatient.abha_number)}</strong></span>` : ''}
         <span>Phone: <strong>${_esc(_activePatient.phone || '—')}</strong></span>
       </div>
@@ -7713,7 +7710,7 @@ document.getElementById('btn-print-rx').addEventListener('click', async () => {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;font-size:12px">
           <div>Patient: <strong>${_esc(_activePatient.name)}</strong></div>
           <div style="text-align:right">Date: <strong>${date}</strong></div>
-          <div>UHID: <strong>${_uhid(_activePatient.id)}</strong></div>
+          <div>UHID: <strong>${_esc(uhidOf(_activePatient))}</strong></div>
           <div style="text-align:right">Token: <strong>#${_esc(_activeVisit?.token_number)}</strong></div>
           <div>Doctor: <strong>${_esc(profile.full_name)}</strong></div>
           <div style="text-align:right">Phone: <strong>${_esc(_activePatient.phone || '—')}</strong></div>
@@ -8257,7 +8254,7 @@ function openImgOrderModal() {
   // Session 297 -- same borrow-from-the-open-ward-round pattern as openLabOrderModal().
   const ipdAdm = !_activePatient ? getOpenIpdAdmission() : null;
   _imgOrderIpdAdm = ipdAdm;
-  if (ipdAdm) { _activePatient = { id: ipdAdm.patient_id, name: ipdAdm.patients?.name || '—' }; _activeVisitId = ipdAdm.visit_id; }
+  if (ipdAdm) { _activePatient = { id: ipdAdm.patient_id, uhid: ipdAdm.patients?.uhid, name: ipdAdm.patients?.name || '—' }; _activeVisitId = ipdAdm.visit_id; }
   if (!_activePatient) { alert('Select a patient first.'); return; }
   updateImgStudyOpts();
   document.getElementById('io-indication').value = '';
@@ -8417,7 +8414,7 @@ window.openLabOrderModal = function openLabOrderModal() {
   // comment). Only kicks in when no OPD consultation is already the active context.
   const ipdAdm = !_activePatient ? getOpenIpdAdmission() : null;
   _labOrderIpdAdm = ipdAdm;
-  if (ipdAdm) { _activePatient = { id: ipdAdm.patient_id, name: ipdAdm.patients?.name || '—' }; _activeVisitId = ipdAdm.visit_id; }
+  if (ipdAdm) { _activePatient = { id: ipdAdm.patient_id, uhid: ipdAdm.patients?.uhid, name: ipdAdm.patients?.name || '—' }; _activeVisitId = ipdAdm.visit_id; }
   if (!_activePatient) { alert('Select a patient first.'); return; }
   _labSelected = new Map();
   // Session 295 -- every new order starts as "Today" (no carry-over between patients).

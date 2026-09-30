@@ -4,6 +4,7 @@ import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { uhidOf } from '../utils/uhid.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','receptionist','nurse']);
 initNavbar();
@@ -85,7 +86,7 @@ window.loadRegister = async function() {
   let q = supabase.from('visits')
     .select(`
       id, created_at, token_number, chief_complaint, is_new_patient,
-      patients(id, name, age, gender, phone, abha_number),
+      patients(id, uhid, name, age, gender, phone, abha_number),
       profiles!doctor_id(id, full_name),
       opds(id, name, ncism_code),
       consultation_notes(diagnosis_namc_label, diagnosis_icd10_label, disposition)
@@ -134,7 +135,7 @@ function _renderTable() {
     const dt   = new Date(v.created_at);
     const dateStr = dt.toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
     const ageSex  = [pat.age ? pat.age+'y' : '—', pat.gender ? pat.gender.charAt(0).toUpperCase() : ''].filter(Boolean).join('/');
-    const uhid    = `AYX-${(pat.id||'').slice(0,6).toUpperCase()}`;
+    const uhid    = uhidOf(pat);
     const token   = v.token_number ? `#${v.token_number}` : '—';
     const isNew   = v.is_new_patient;
 
@@ -148,7 +149,7 @@ function _renderTable() {
     return `<tr>
       <td style="color:var(--text-muted);text-align:center">${i+1}</td>
       <td style="white-space:nowrap;font-size:11px">${dateStr}</td>
-      <td style="font-size:11px;white-space:nowrap">${token}<br><span style="color:var(--text-muted)">${uhid}</span></td>
+      <td style="font-size:11px;white-space:nowrap">${token}<br><span style="color:var(--text-muted)">${_esc(uhid)}</span></td>
       <td style="font-weight:500">${_esc(pat.name||'—')}</td>
       <td style="text-align:center;font-size:12px">${ageSex}</td>
       <td style="font-size:11px;color:var(--text-muted)">${_esc(pat.phone||'—')}</td>
@@ -192,10 +193,11 @@ window.exportCSV = function() {
     const pat  = v.patients || {};
     const doc  = v.profiles  || {};
     const opd  = v.opds      || {};
-    const notes = Array.isArray(v.consultation_notes) ? v.consultation_notes[0] : (v.consultation_notes || {});
+    // (a visit with no consultation notes yet embeds [] -- [0] is undefined, so fall back to {})
+    const notes = (Array.isArray(v.consultation_notes) ? v.consultation_notes[0] : v.consultation_notes) || {};
     const dt = new Date(v.created_at).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
     return [
-      i+1, dt, v.token_number||'', `AYX-${(pat.id||'').slice(0,6).toUpperCase()}`,
+      i+1, dt, v.token_number||'', pat.uhid||'',
       pat.name||'', pat.age||'', pat.gender||'', pat.phone||'', pat.abha_number||'',
       v.chief_complaint||'', notes.diagnosis_namc_label||'', notes.diagnosis_icd10_label||'',
       opd.name||'', doc.full_name ? 'Dr. '+doc.full_name : '',

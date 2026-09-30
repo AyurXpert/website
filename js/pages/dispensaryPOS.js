@@ -7,6 +7,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
+import { uhidOf } from '../utils/uhid.js';
 
 await requireAuth(['pharmacist', 'super_admin', 'dept_admin']);
 initNavbar();
@@ -48,9 +49,6 @@ document.getElementById('q-date').textContent = new Date().toLocaleDateString('e
 });
 
 // ── Helpers ───────────────────────────────────────
-function _uhid(uuid) {
-  return `AYX-${new Date().getFullYear()}-${(uuid||'').replace(/-/g,'').slice(-6).toUpperCase()}`;
-}
 function _timeAgo(ts) {
   const m = Math.floor((Date.now() - new Date(ts)) / 60000);
   if (m < 1) return 'Just now';
@@ -95,7 +93,7 @@ async function loadQueue() {
     .select(`
       id, created_at, status,
       visit:visits(id, token_number, chief_complaint, doctor_id, bills(payer_type)),
-      patient:patients(id, name, phone, address, abha_number, abha_address),
+      patient:patients(id, uhid, name, phone, address, abha_number, abha_address),
       items:prescription_items(id, medicine_name, medicine_id, dosage, frequency, duration)
     `)
     .eq('tenant_id', tenantId)
@@ -208,7 +206,7 @@ window.openRx = async function(rxId) {
       id, created_at, status, patient_type,
       visit:visits(id, token_number, chief_complaint, doctor_id,
         notes:consultation_notes(modern_diagnosis, ayurveda_diagnosis)),
-      patient:patients(id, name, phone, address, abha_number, abha_address),
+      patient:patients(id, uhid, name, phone, address, abha_number, abha_address),
       items:prescription_items(id, medicine_name, medicine_id, dosage, frequency, duration, anupana, quantity)
     `)
     .eq('id', rxId)
@@ -243,7 +241,7 @@ window.openRx = async function(rxId) {
   // Populate header
   document.getElementById('pt-token').textContent  = rx.visit?.token_number || '—';
   document.getElementById('pt-name').textContent   = rx.patient?.name || '—';
-  document.getElementById('pt-sub').textContent    = `UHID: ${_uhid(rx.patient?.id)} · Rx #${rx.id.slice(-6).toUpperCase()}${rx.patient_type === 'ipd' ? ' · IPD — charged to stay' : ''}`;
+  document.getElementById('pt-sub').textContent    = `UHID: ${uhidOf(rx.patient)} · Rx #${rx.id.slice(-6).toUpperCase()}${rx.patient_type === 'ipd' ? ' · IPD — charged to stay' : ''}`;
   document.getElementById('pt-phone').textContent  = rx.patient?.phone || '—';
   document.getElementById('pt-doctor').textContent = doctorName;
 
@@ -846,7 +844,7 @@ window.printMedLabel = function(i) {
   const item = _cartItems[Number(i)];
   if (!item) return;
   const pt    = _activeRx?.patient;
-  const uhid  = pt?.id ? `AYX-${pt.id.replace(/-/g,'').slice(0,8).toUpperCase()}` : '—';
+  const uhid  = uhidOf(pt);
   const today = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
   const w = window.open('','_blank','width=350,height=500');
   w.document.write(`<!DOCTYPE html><html><head>
@@ -864,7 +862,7 @@ window.printMedLabel = function(i) {
     <\/style><\/head><body onload="window.print();window.close()">
     <div class="lbl-org">${_esc(_tenant?.name||'Ayurveda Hospital')}</div>
     <div class="lbl-patient">${_esc(pt?.name||'—')}</div>
-    <div class="lbl-uhid">UHID: ${uhid} | Date: ${today}</div>
+    <div class="lbl-uhid">UHID: ${_esc(uhid)} | Date: ${today}</div>
     <div class="lbl-divider"></div>
     <div class="lbl-med">${_esc(item.name)}</div>
     ${item.dosage?`<div class="lbl-row"><span class="lbl-key">Dose:</span><span>${_esc(item.dosage)}</span></div>`:''}

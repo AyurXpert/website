@@ -11,6 +11,7 @@ import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { computeLabBillingLines, labItemsToSelection, billDeferredLabOrder } from '../modules/billing/labBilling.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { uhidOf } from '../utils/uhid.js';
 import {
   requestABHAOtp, enrollABHA,
   checkAndGenerateMobileOTP, verifyCommMobileOtp, finalizeAbhaEnrollment,
@@ -456,11 +457,6 @@ function _showConsentModal(mode = 'enroll') {
   });
 }
 
-// ── UHID formatter ────────────────────────────────
-function _uhid(uuid) {
-  const suffix = (uuid || '').replace(/-/g, '').slice(-6).toUpperCase();
-  return `AYX-${new Date().getFullYear()}-${suffix}`;
-}
 
 // ── Wait time formatter ───────────────────────────
 function _waitTime(createdAt) {
@@ -778,12 +774,13 @@ document.getElementById('phone').addEventListener('input', function() {
   clearTimeout(_phoneTimer);
   const val = this.value.trim();
   if (!val) { _clearTag(); _hidePhoneHint(); return; }
-  const isUhid  = val.toUpperCase().startsWith('AYX-');
+  // Stored UHID, e.g. 'AYX/2627/000001' -- also typed sloppily ('ayx 2627 000001', 'AYX2627000001')
+  const isUhid  = /^AYX[\s\-\/]*\d/i.test(val);
   const isPhone = /^[+\d\s\-]{6,}$/.test(val) && !isUhid;
   const isName  = !isPhone && !isUhid && val.length >= 3;
   _hidePhoneHint();
   if (isPhone)     _phoneTimer = setTimeout(() => _searchPhone(val), 350);
-  else if (isUhid && val.length >= 10) _phoneTimer = setTimeout(() => _searchUhid(val), 350);
+  else if (isUhid && val.replace(/[^A-Za-z0-9]/g, '').length >= 9) _phoneTimer = setTimeout(() => _searchUhid(val), 350);
   else if (isName) _phoneTimer = setTimeout(() => _searchName(val), 350);
   else _clearTag();
 });
@@ -793,7 +790,7 @@ async function _searchPhone(phone) {
   _confirmNewDespiteName = false;
   const { data } = await supabase
     .from('patients')
-    .select('id, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
+    .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
     .eq('tenant_id', tenantId)
     .eq('phone', phone)
     .limit(6);
@@ -815,7 +812,7 @@ async function _searchName(query) {
   _confirmNewDespiteName = false;
   const { data } = await supabase
     .from('patients')
-    .select('id, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
+    .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
     .eq('tenant_id', tenantId)
     .ilike('name', `%${query}%`)
     .limit(8);
@@ -833,9 +830,9 @@ async function _searchName(query) {
 async function _searchUhid(uhid) {
   _newFamilyMember = false;
   _confirmNewDespiteName = false;
-  const suffix = uhid.replace(/-/g,'').slice(-6).toLowerCase();
-  const { data } = await supabase
-    .rpc('search_patient_by_uhid', { p_tenant_id: tenantId, p_uhid_suffix: suffix });
+  // Session 321: match on the stored UHID only (case/space/slash-tolerant); the tenant is taken
+  // from the signed-in user server-side.
+  const { data } = await supabase.rpc('find_patient_by_uhid', { p_uhid: uhid });
 
   if (!data || data.length === 0) {
     _clearTag();
@@ -883,7 +880,7 @@ async function _selectPatient(patient, chosenCombo) {
   const balance = (pendingBills || []).reduce((s, b) => s + (parseFloat(b.final_amount) || 0), 0);
 
   document.getElementById('pt-name').textContent = patient.name;
-  document.getElementById('pt-uhid').textContent = _uhid(patient.id);
+  document.getElementById('pt-uhid').textContent = uhidOf(patient);
   document.getElementById('pt-visits').textContent = count || 0;
   document.getElementById('pt-lastvisit').textContent = lastVisit;
   document.getElementById('pt-balance').textContent = balance > 0 ? `₹${balance.toLocaleString('en-IN')}` : '₹0';
@@ -1184,7 +1181,7 @@ function _showPicker(patients, phone, opts = {}) {
       <div class="picker-avatar">${_esc(p.name.charAt(0).toUpperCase())}</div>
       <div>
         <div class="picker-name">${_esc(p.name)}</div>
-        <div class="picker-sub">UHID: ${_uhid(p.id)}${p.phone && opts.showPhone ? ' · ☎ ' + _esc(String(p.phone)) : ''}</div>
+        <div class="picker-sub">UHID: ${_esc(uhidOf(p))}${p.phone && opts.showPhone ? ' · ☎ ' + _esc(String(p.phone)) : ''}</div>
       </div>
     </div>
   `).join('') + `
@@ -1521,7 +1518,7 @@ async function handleSubmit() {
             : abha;
           const { data: byAbha } = await supabase
             .from('patients')
-            .select('id, name, age, gender, date_of_birth, blood_group, abha_number, abha_address')
+            .select('id, uhid, name, age, gender, date_of_birth, blood_group, abha_number, abha_address')
             .eq('tenant_id', tenantId)
             .or(`abha_number.eq.${abha},abha_number.eq.${abhaHyph}`)
             .limit(5);
@@ -1545,7 +1542,7 @@ async function handleSubmit() {
         if (!found && phone) {
           const { data: byPhone } = await supabase
             .from('patients')
-            .select('id, name, age, gender, date_of_birth, blood_group, abha_number, abha_address')
+            .select('id, uhid, name, age, gender, date_of_birth, blood_group, abha_number, abha_address')
             .eq('phone', phone).eq('tenant_id', tenantId).limit(1);
           const candidate = byPhone?.[0] ?? null;
           if (candidate) {
@@ -1569,7 +1566,7 @@ async function handleSubmit() {
           const prefix = name.slice(0, 3);   // index-friendly prefilter; exact match applied below
           const { data: sameName } = await supabase
             .from('patients')
-            .select('id, name, age, gender, date_of_birth, blood_group, abha_number, abha_address, phone')
+            .select('id, uhid, name, age, gender, date_of_birth, blood_group, abha_number, abha_address, phone')
             .eq('tenant_id', tenantId)
             .ilike('name', `${prefix}%`)
             .neq('phone', phone)
@@ -1801,7 +1798,7 @@ async function handleSubmit() {
     const catLabel   = document.getElementById('visit-category').selectedOptions[0]?.text || visitCat;
     _showReceipt({
       token: nextToken, name: patient.name, phone,
-      uhid: _uhid(patient.id), abha: abha || patient.abha_number || null,
+      uhid: uhidOf(patient), abha: abha || patient.abha_number || null,
       abhaAddress: _pendingAbhaAddress || null,
       opd: opdName, doctor: doctorName,
       category: catLabel, complaint, regFee, consFee, surcharge,
@@ -4724,7 +4721,7 @@ async function bookAppointment() {
     let patient = _patient;
     if (!patient) {
       const { data: found } = await supabase
-        .from('patients').select('id,name')
+        .from('patients').select('id,uhid,name')
         .eq('phone', phone).eq('tenant_id', tenantId).limit(1);
       patient = found?.length ? found[0]
         : await createPatient(name, phone, tenantId, null, {});
@@ -4833,7 +4830,7 @@ async function checkIn(apptId) {
 
   const { data: patient } = await supabase
     .from('patients')
-    .select('id, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
+    .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
     .eq('id', appt.patient_id).single();
 
   if (patient) {

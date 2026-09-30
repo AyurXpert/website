@@ -8,6 +8,7 @@ import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { stageIpdLabCharges } from '../modules/billing/labBilling.js';
 import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
+import { uhidOf } from '../utils/uhid.js';
 
 // Session 113 -- receptionist added so front-desk staff can check whether a patient's
 // report is ready when they call in (Dr. Venkatesh's ask). Deliberately read-only and
@@ -1083,7 +1084,7 @@ window.loadAerbLog = async function loadAerbLog() {
 
   // From imaging_orders (X-ray only)
   const { data: imgXray } = await supabase.from('imaging_orders')
-    .select('*, patients(name,age,gender,abha_number), profiles!ordered_by(full_name)')
+    .select('*, patients(uhid,name,age,gender,abha_number), profiles!ordered_by(full_name)')
     .eq('tenant_id', tenantId).eq('modality', 'xray')
     .gte('order_date', from).lte('order_date', to).order('order_date');
 
@@ -1096,7 +1097,7 @@ window.loadAerbLog = async function loadAerbLog() {
     ...(imgXray||[]).map(o => ({
       date: o.order_date, pt_name: o.patients?.name||'—',
       age_sex: `${o.patients?.age||'?'}/${(o.patients?.gender||'').charAt(0).toUpperCase()||'?'}`,
-      uhid: o.patients?.abha_number || '—',
+      uhid: uhidOf(o.patients), abha: o.patients?.abha_number || null,
       study: o.study_name, view: o.xray_view||'—',
       ordered_by: o.profiles?.full_name||'—',
       operator: o.operator_name||'—',
@@ -1118,7 +1119,7 @@ window.loadAerbLog = async function loadAerbLog() {
   const tbody = document.getElementById('aerb-tbody');
   tbody.innerHTML = _aerbEntries.length ? _aerbEntries.map((e,i)=>`<tr class="${corrRowClass(e.raw)}">
     <td>${i+1}${e.raw ? corrCell('aerb_log', e.raw) : ''}</td><td>${_fmtDate(e.date)}</td><td>${_esc(e.pt_name)}</td><td>${_esc(e.age_sex)}</td>
-    <td style="font-size:11px">${_esc(e.uhid)}</td><td>${_esc(e.study)}${e.view&&e.view!=='—'?' ('+_esc(e.view)+')':''}</td>
+    <td style="font-size:11px">${_esc(e.uhid)}${e.abha ? `<br><span style="color:var(--text-muted)">ABHA ${_esc(e.abha)}</span>` : ''}</td><td>${_esc(e.study)}${e.view&&e.view!=='—'?' ('+_esc(e.view)+')':''}</td>
     <td>${_esc(e.ordered_by)}</td><td>${_esc(e.operator)}</td><td>${_esc(e.kvp)}</td>
     <td style="font-size:11px">${_esc(e.indication)}</td>
   </tr>`).join('') : `<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-muted)">No X-ray entries for this month</td></tr>`;

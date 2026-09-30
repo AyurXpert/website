@@ -8,7 +8,7 @@ import { getCurrentRole, getCurrentSecondaryRole } from '../core/auth.js'
 import { wireDelegatedEvents } from '../utils/domEvents.js'
 import { amountInWords } from '../utils/amountInWords.js'
 import { safeErrorMessage } from '../utils/errors.js'
-import { uhidFor } from '../utils/uhid.js'
+import { uhidOf } from '../utils/uhid.js'
 import { renderInvoice, el } from '../modules/billing/invoiceLayout.js'
 
 wireDelegatedEvents()
@@ -149,7 +149,7 @@ function buildModel(d) {
   const fields = [
     { label: 'Patient Name', value: pt.name, wide: true },
     { label: 'Age / Sex', value: ageSex },
-    { label: 'UHID', value: uhidFor(pt.id) },
+    { label: 'UHID', value: uhidOf(pt) },
     { label: 'IP No.', value: adm.ip_number || 'Not numbered', gap: !adm.ip_number },
     { label: 'Phone', value: pt.phone },
     { label: 'Admitted', value: fmtDT(adm.admitted_at) || fmtD(adm.admission_date) },

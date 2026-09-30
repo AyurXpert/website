@@ -158,8 +158,16 @@ window.saveRequest = async () => {
   if (!patient_name||!blood_group||!component){showToast('Fill patient, blood group and component','error');return;}
 
   let patient_id = null;
-  const {data:pts} = await supabase.from('patients').select('id').eq('tenant_id',tenantId).ilike('name','%'+patient_name+'%').limit(1);
-  if (pts?.length) patient_id = pts[0].id;
+  if (/^AYX[\s\-\/]*\d/i.test(patient_name)) {
+    // Session 321: a UHID must resolve to exactly one patient (stored UHID, tenant server-side)
+    const {data:hits, error:uErr} = await supabase.rpc('find_patient_by_uhid', { p_uhid: patient_name });
+    if (uErr) { showToast(safeErrorMessage(uErr, 'Could not look up that UHID.'),'error'); return; }
+    if (hits?.length !== 1) { showToast(hits?.length ? 'That UHID matches more than one patient — use the full UHID.' : 'No patient found with that UHID.','error'); return; }
+    patient_id = hits[0].id;
+  } else {
+    const {data:pts} = await supabase.from('patients').select('id').eq('tenant_id',tenantId).ilike('name','%'+patient_name+'%').limit(1);
+    if (pts?.length) patient_id = pts[0].id;
+  }
 
   const {error} = await supabase.from('blood_bank_requests').insert({
     tenant_id:tenantId, patient_id, blood_group, component,

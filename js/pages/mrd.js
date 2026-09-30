@@ -6,6 +6,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { logAudit } from '../core/auditLogger.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { uhidOf } from '../utils/uhid.js';
 
 const ALLOWED = ['super_admin','dept_admin','mrd_staff'];
 await requireAuth(ALLOWED);
@@ -69,14 +70,21 @@ async function _doPatientSearch() {
   if (q.length < 3) { resultsEl.innerHTML = ''; return; }
 
   const isPhone = /^\d{7,}$/.test(q);
-  const isUHID  = q.toUpperCase().startsWith('AYX');
+  const isUHID  = /^AYX[\s\-\/]*\d/i.test(q);
 
   let query = supabase.from('patients')
-    .select('id,name,phone,age,gender,date_of_birth,blood_group,prakriti_data,prakriti_assessed_at,created_at')
+    .select('id,uhid,name,phone,age,gender,date_of_birth,blood_group,prakriti_data,prakriti_assessed_at,created_at')
     .eq('tenant_id', tenantId);
 
   if (isPhone)     query = query.eq('phone', q);
-  else if (isUHID) query = query.ilike('id', '%' + q.replace(/^AYX-?/i,'').toLowerCase() + '%');
+  else if (isUHID) {
+    // Session 321: resolve the stored UHID server-side (tenant from the signed-in user; case/
+    // space/slash-tolerant), then load the same fields as the name/phone search.
+    const { data: hits, error: uErr } = await supabase.rpc('find_patient_by_uhid', { p_uhid: q });
+    if (uErr) { _toast(safeErrorMessage(uErr, 'Could not search patients.'),'error'); return; }
+    if (!hits?.length) { resultsEl.innerHTML = '<div class="empty">No patients found</div>'; return; }
+    query = query.in('id', hits.map(h => h.id));
+  }
   else             query = query.ilike('name', `%${q}%`);
 
   const { data, error } = await query.limit(10);
@@ -87,7 +95,7 @@ async function _doPatientSearch() {
     data.map(p => `<div class="sr-item" data-onclick="openPatientFile" data-onclick-a0="${p.id}">
       <div class="sr-name">${_esc(p.name)}</div>
       <div class="sr-meta">
-        UHID: AYX-${p.id.replace(/-/g,'').slice(-6).toUpperCase()} &nbsp;·&nbsp;
+        UHID: ${_esc(uhidOf(p))} &nbsp;·&nbsp;
         ${_esc(p.phone||'No phone')} &nbsp;·&nbsp;
         ${p.age ? p.age+'y' : ''} ${_esc(p.gender||'')} &nbsp;·&nbsp;
         ${p.prakriti_data?.result ? '🌿 '+_esc(p.prakriti_data.result) : 'Prakriti not assessed'}
@@ -123,7 +131,7 @@ window.openPatientFile = async function(patientId) {
       <div class="pf-avatar">${_esc(initials)}</div>
       <div style="flex:1">
         <div class="pf-name">${_esc(pat.name)}</div>
-        <div class="pf-sub">UHID: AYX-${pat.id.replace(/-/g,'').slice(-6).toUpperCase()} &nbsp;·&nbsp; Registered: ${joined}</div>
+        <div class="pf-sub">UHID: ${_esc(uhidOf(pat))} &nbsp;·&nbsp; Registered: ${joined}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:20px;font-weight:700;font-family:'Cormorant Garamond',serif">${(visits||[]).length}</div>

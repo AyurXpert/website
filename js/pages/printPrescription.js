@@ -2,6 +2,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { requireAuth } from '../core/auth.js';
 import { ROLES } from '../config/constants.js';
+import { uhidOf } from '../utils/uhid.js';
 
 // Session 308c — this page had no auth gate at all until now (it was unreachable from any real
 // caller, per a repo-wide search). Roles that legitimately view/print a prescription: doctor/
@@ -51,7 +52,7 @@ async function load() {
   // 2. Visit + patient
   const { data: visit } = await supabase
     .from('visits')
-    .select('id, token_number, chief_complaint, created_at, doctor_id, patients(id, name, phone, abha_number)')
+    .select('id, token_number, chief_complaint, created_at, doctor_id, patients(id, uhid, name, phone, abha_number)')
     .eq('id', visitId)
     .single();
 
@@ -123,9 +124,6 @@ async function load() {
   render(visit, { mode, doctorName, doctorQual, doctorHpr, doctorReg, preparedName, preparedHpr, preparedReg }, notes, items);
 }
 
-function _uhid(uuid) {
-  return `AYX-${new Date().getFullYear()}-${(uuid||'').replace(/-/g,'').slice(-6).toUpperCase()}`;
-}
 
 function render(visit, rx, notes, items) {
   const patient = visit.patients;
@@ -185,7 +183,7 @@ function render(visit, rx, notes, items) {
       </div>
       <div class="pt-field">
         <label>UHID</label>
-        <span>${_uhid(patient?.id)}</span>
+        <span>${_esc(uhidOf(patient))}</span>
       </div>
       <div class="pt-field">
         <label>Date</label>

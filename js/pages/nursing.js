@@ -474,7 +474,7 @@ window.loadWardPatients = async function() {
   // create the DischargeSummary ABDM care context without a second round-trip —
   // see that function for why it needs them.
   let query = supabase.from('ipd_admissions')
-    .select('id,department_id,admission_date,diagnosis_primary,status,disposition,discharged_at,patients(id,name,age,gender,phone,abha_number,abha_address),beds(id,bed_number,ward_name)')
+    .select('id,department_id,admission_date,diagnosis_primary,status,disposition,discharged_at,patients(id,uhid,name,age,gender,phone,abha_number,abha_address),beds(id,bed_number,ward_name)')
     .eq('tenant_id', tenantId);
   if (isMySlice) {
     query = query.in('department_id', (_mySliceDeptIds && _mySliceDeptIds.length) ? _mySliceDeptIds : ['00000000-0000-0000-0000-000000000000']);
@@ -1687,7 +1687,8 @@ window._pkConfirmSnehaDose = async function(doseId, inputEl) {
 // once Start has actually been clicked. "doctor" is deliberately left blank: this
 // page doesn't currently load admitting_doctor_id, and guessing the logged-in staff
 // member (who's often the nurse, not the doctor) would print a wrong name -- staff
-// can hand-write it from the case sheet, same as the UHID line on a blank stock print.
+// can hand-write it from the case sheet. The UHID is the stored patients.uhid (Session 321);
+// URLSearchParams percent-encodes it, so the '/' in 'AYX/2627/000001' is safe in the query string.
 function _vireFormUrl(vire) {
   const p = _activeAdm?.patients;
   const params = new URLSearchParams({
@@ -1695,6 +1696,7 @@ function _vireFormUrl(vire) {
     age: p ? `${p.age || '?'} / ${(p.gender || '').charAt(0).toUpperCase() || '?'}` : '',
     bed: _activeAdm?.beds?.bed_number || '',
   });
+  if (p?.uhid) params.set('uhid', p.uhid);
   if (vire.drug_administered) params.set('drug', vire.drug_administered);
   if (vire.time_administered) params.set('time', _toIST(vire.time_administered));
   return `virechana-vega-form.html?${params.toString()}`;
