@@ -241,7 +241,7 @@ async function loadReport() {
       <div class="auth-block">
         <div class="auth-sig-line"></div>
         <input class="auth-editable" value="" placeholder="Lab In-charge Name"/>
-        <div class="auth-desig">NABL Authorised Signatory</div>
+        <div class="auth-desig"><span class="nabl-only">NABL </span>Authorised Signatory</div>
         <div style="font-size:10px;color:#6b7280;margin-top:2px">Technical Supervisor</div>
       </div>
       <div class="auth-block">
@@ -256,7 +256,7 @@ async function loadReport() {
     <div class="rpt-footer">
       <strong>Reference ranges are population-based guidelines; clinical correlation is advised.</strong>
       This report is valid only when printed on official letterhead and countersigned by the Reporting Pathologist.
-      Critical values have been telephonically communicated to the requesting clinician.
+      ${hasCritical ? 'Critical values have been telephonically communicated to the requesting clinician.' : ''}
       ${labEmail ? `For queries, contact: ${_esc(labEmail)}` : ''}
       <span class="nabl-only">${labEmail ? ' | ' : ''}NABL Cert. No.: <span id="footer-nabl-cert">${_esc(nablCert)}</span></span>
       <br/>Flags: N = Normal · ▲ High · ▼ Low · ▲▲ Critical High · ▼▼ Critical Low
