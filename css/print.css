@@ -1,0 +1,57 @@
+/* Shared print isolation — pairs with js/utils/printDocument.js.
+   While <body> has .ax-printing, ONLY .ax-print-root prints: every other direct child of
+   <body> (navbar, sidebar, drawers, modals, notify() messages, buttons) is hidden. This is
+   an allowlist on purpose — the old per-page hide-lists leaked whatever they forgot to name.
+   Dedicated print pages put .ax-printing on <body> permanently and wrap their document in
+   <div class="ax-print-root">; anything outside it (e.g. a Print button) never prints. */
+
+/* The container printDocument() builds is a hidden copy — never shown on screen. */
+@media screen {
+  .ax-print-root--temp { display: none !important; }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm 16mm;
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-family: 'DM Sans', Arial, sans-serif;
+      font-size: 8pt;
+      color: #555;
+    }
+  }
+
+  body.ax-printing > *:not(.ax-print-root) { display: none !important; }
+  body.ax-printing .ax-print-root { display: block !important; }
+  body.ax-printing {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  .ax-print-root .no-print { display: none !important; }
+  .ax-print-root { color: #000; }
+  .ax-print-root * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Form controls frozen to text by printDocument(): keep the original class (for grid
+     column placement) but drop the input chrome. */
+  .ax-print-root .ax-print-field {
+    display: inline-block;
+    border: 0 !important;
+    background: none !important;
+    box-shadow: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    white-space: pre-wrap;
+    /* break-word, not anywhere: `anywhere` lets an auto-sized grid column shrink to one
+       character, printing the value one letter per line. */
+    overflow-wrap: break-word;
+  }
+}

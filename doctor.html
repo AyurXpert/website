@@ -495,8 +495,6 @@ body.vh-split .page{right:480px}
 body.vh-split .action-bar{right:480px}
 body.vh-split .vh-panel{width:480px;box-shadow:none}
 @media print{.vh-rail,.vh-panel{display:none!important}.c-work,.c-main{display:block}}
-/* Session 298 -- discharge summary print: only #ds-print, nothing else on the page. */
-@media print{body.ds-print > *:not(#ds-print){display:none!important}body.ds-print #ds-print{display:block!important}}
 
 /* ABDM longitudinal FHIR display */
 .fhir-detail{font-size:12px;color:#333;display:flex;flex-direction:column;gap:6px}
@@ -920,11 +918,8 @@ body.vh-split .vh-panel{width:480px;box-shadow:none}
      of the leak. */
   body.rxpreview-print > *:not(#print-header){display:none!important}
   body.rxpreview-print #print-header{display:block!important}
-  /* §18c — Swasthya Card print mode */
-  body.swasthya-print .print-header{display:none!important}
-  body.swasthya-print #tab-rx{display:none!important}
-  body.swasthya-print .pt-hdr{display:none!important}
-  body.swasthya-print #sc-print{display:block!important}
+  /* §18c Swasthya Card / §12d Medical Certificate / discharge summary — printed via
+     printDocument() (js/utils/printDocument.js + css/print.css), no page-level rule needed. */
 }
 .print-header{display:none}
 /* §18c */
@@ -1097,11 +1092,7 @@ body.vh-split .vh-panel{width:480px;box-shadow:none}
 .mc-modal-body{padding:18px 20px;max-height:70vh;overflow-y:auto}
 .mc-modal-foot{padding:12px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--border)}
 #mc-print{display:none}
-/* §12d print mode */
-body.medcert-print .print-header{display:none!important}
-body.medcert-print #tab-rx{display:none!important}
-body.medcert-print .pt-hdr{display:none!important}
-body.medcert-print #mc-print{display:block!important}
+/* §12d — printed via printDocument() (js/utils/printDocument.js + css/print.css) */
 /* ── §18ai/§18aj Mental Health + MHA 2017 ──────────── */
 .mha-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px}
 .mha-modal{background:#fff;border-radius:var(--radius);width:540px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.2);overflow:hidden}
@@ -1145,6 +1136,7 @@ body.medcert-print #mc-print{display:block!important}
 .pedi-ref-tbl tr.pedi-hl td{background:#fff3e0;font-weight:600;color:#7a3800}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
+<link rel="stylesheet" href="css/print.css"/>
 </head>
 <body>
 
@@ -4778,7 +4770,6 @@ body.medcert-print #mc-print{display:block!important}
 </div>
 
 <!-- Session 298 -- discharge summary print target (js/modules/ipd/dischargePrint.js) -->
-<div id="ds-print" style="display:none"></div>
 
 </body>
 </html>

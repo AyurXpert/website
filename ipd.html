@@ -319,21 +319,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   .admissions-table th:nth-child(4),.admissions-table td:nth-child(4),
   .admissions-table th:nth-child(5),.admissions-table td:nth-child(5){display:none}
 }
-/* ── §15d Discharge Summary print ── */
-#ds-print{display:none}
-@media print{
-  /* Real bug found live (Dr. Venkatesh, checked an actual printed PDF, not just the
-     assumed HTML): #ipd-bed-alert (the internal NCISM department occupancy/compliance
-     banner) was never in this hide list, so it printed above the discharge summary --
-     internal hospital compliance data handed straight to the patient. Also hiding
-     #ax-navbar and #ax-watermark directly by id, since navbar.js injects both outside
-     any of the classed containers already covered here (confirmed by reading that
-     file) -- the same class of gap, just not yet demonstrated with a real printout. */
-  #navbar-placeholder,#ax-navbar,#ax-watermark,.page-header,.stats-row,#ipd-bed-alert,
-  .section-hdr,.admissions-table,.drawer-overlay,.filter-bar{display:none!important}
-  body.ds-print #ds-print{display:block!important}
-  body.ds-print .page-wrap{padding:0}
-}
+/* ── §15d Discharge Summary print ──
+   Printed via printDocument() (js/utils/printDocument.js + css/print.css): an allowlist,
+   replacing the old hide-list here that once leaked #ipd-bed-alert (internal NCISM
+   compliance banner) onto a patient's printed summary. */
 /* ── Ward Round Notes ── */
 .wrd-entry{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff;font-size:12px}
 .wrd-entry-hdr{display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;color:var(--text-muted)}
@@ -341,6 +330,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .wrd-soap-lbl{font-weight:700;color:var(--green-deep);padding-top:2px}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
+<link rel="stylesheet" href="css/print.css"/>
 </head>
 <body>
 <div id="navbar-placeholder"></div>
@@ -1076,7 +1066,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 <script type="module" src="js/pages/ipd.js"></script>
 
 <!-- §15d — Discharge Summary print area -->
-<div id="ds-print" style="display:none"></div>
 
 <!-- §18bb — Diet Indent drawer -->
 <div class="drawer-overlay" id="diet-overlay">

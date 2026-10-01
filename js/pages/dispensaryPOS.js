@@ -842,7 +842,12 @@ window.printMedLabel = function(i) {
   const uhid  = uhidOf(pt);
   const today = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
   const w = window.open('','_blank','width=350,height=500');
+  if (!w) { notify('Pop-up blocked — allow pop-ups for this site to print the label.', 'error'); return; }
+  // No inline onload="window.print()" — this page's CSP (script-src without 'unsafe-inline')
+  // applies to the about:blank popup too and silently blocked it, so the label never
+  // auto-printed. print() is called from this script below instead, like bed-admin/dpc/reception.
   w.document.write(`<!DOCTYPE html><html><head>
+    <title>Medicine Label</title>
     <style>
       body{font-family:'DM Sans',Arial,sans-serif;font-size:11px;margin:0;padding:10px;width:300px;color:#000}
       .lbl-org{font-size:10px;font-weight:600;text-align:center;border-bottom:1px solid #000;padding-bottom:4px;margin-bottom:6px}
@@ -853,8 +858,8 @@ window.printMedLabel = function(i) {
       .lbl-key{font-weight:600;min-width:60px}
       .lbl-divider{border-top:1px dashed #aaa;margin:6px 0}
       .lbl-warn{font-size:9px;font-weight:700;color:#8b1a1a;text-align:center;border:1px solid #f5b8b8;padding:2px;margin-top:4px}
-      @media print{body{margin:0}}
-    <\/style><\/head><body onload="window.print();window.close()">
+      @media print{@page{size:auto;margin:3mm}body{margin:0}}
+    <\/style><\/head><body>
     <div class="lbl-org">${_esc(_tenant?.name||'Ayurveda Hospital')}</div>
     <div class="lbl-patient">${_esc(pt?.name||'—')}</div>
     <div class="lbl-uhid">UHID: ${_esc(uhid)} | Date: ${today}</div>
@@ -868,6 +873,12 @@ window.printMedLabel = function(i) {
     ${_invFor(item)?.is_schedule_e1?'<div class="lbl-warn">CAUTION: TO BE TAKEN UNDER MEDICAL SUPERVISION</div>':''}
   <\/body><\/html>`);
   w.document.close();
+  w.addEventListener('afterprint', () => w.close(), { once: true });
+  // The popup is its own document (only the label is in it), so it needs no print.css —
+  // just print once it has rendered.
+  const go = () => { w.focus(); w.print(); };
+  if (w.document.readyState === 'complete') go();
+  else w.addEventListener('load', go, { once: true });
 };
 
 // ── NABH MOM.3 CORE — NDPS / Schedule H Register ─────────────────────────────

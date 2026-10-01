@@ -18,6 +18,7 @@ import { loadVisitTimeline, resetVisitTimeline, getProgressData, setProgressData
 import { loadMyPatients, resetMyPatients } from '../modules/patient/myPatients.js';
 import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
+import { printDocument } from '../utils/printDocument.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -7467,9 +7468,7 @@ window.printMedCert = function() {
 </div>`;
 
   document.getElementById('mc-overlay').style.display = 'none';
-  document.body.classList.add('medcert-print');
-  window.addEventListener('afterprint', () => document.body.classList.remove('medcert-print'), { once: true });
-  window.print();
+  printDocument(document.getElementById('mc-print'), { title: `${certTitle} — ${_activePatient.name}` });
 };
 
 // ── §18ac — Paediatric Dose Calculator ───────────
@@ -7662,9 +7661,7 @@ window.printSwasthyaCard = function() {
   <div style="text-align:center;margin-top:8px;font-size:10px;color:#aaa">Powered by AyurXpert Technologies™</div>
 </div>`;
 
-  document.body.classList.add('swasthya-print');
-  window.addEventListener('afterprint', () => document.body.classList.remove('swasthya-print'), { once: true });
-  window.print();
+  printDocument(document.getElementById('sc-print'), { title: `Swasthya Raksha Patra — ${_activePatient.name}` });
 };
 
 // ── Print ─────────────────────────────────────────
@@ -7697,6 +7694,12 @@ document.getElementById('btn-print-rx').addEventListener('click', async () => {
   const tenant = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
   const rx   = _getRxData();
   const date = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+  // Everything typed below is escaped with _esc() — these went into innerHTML raw before.
+  const val      = id => document.getElementById(id).value;
+  const dxModern = val('d-modern'),    dxAyur  = val('d-ayurveda');
+  const rxInstr  = val('rx-instructions');
+  const pathya   = val('adv-pathya'),  apathya = val('adv-apathya');
+  const fuDate   = val('fu-date'),     fuNotes = val('fu-notes');
 
   document.getElementById('print-header').innerHTML = `
     <div style="position:relative;overflow:hidden;min-height:600px">
@@ -7716,21 +7719,21 @@ document.getElementById('btn-print-rx').addEventListener('click', async () => {
           <div>Doctor: <strong>${_esc(profile.full_name)}</strong></div>
           <div style="text-align:right">Phone: <strong>${_esc(_activePatient.phone || '—')}</strong></div>
         </div>
-        ${document.getElementById('d-modern').value || document.getElementById('d-ayurveda').value ? `
+        ${dxModern || dxAyur ? `
         <div style="background:#f0f9f4;padding:8px 12px;border-radius:6px;margin-bottom:12px;font-size:12px">
-          ${document.getElementById('d-modern').value ? `Diagnosis: <strong>${document.getElementById('d-modern').value}</strong>` : ''}
-          ${document.getElementById('d-ayurveda').value ? ` / <strong>${document.getElementById('d-ayurveda').value}</strong>` : ''}
+          ${dxModern ? `Diagnosis: <strong>${_esc(dxModern)}</strong>` : ''}
+          ${dxAyur ? ` / <strong>${_esc(dxAyur)}</strong>` : ''}
         </div>` : ''}
         <div style="font-size:12px;font-weight:600;color:#1a4a2e;margin-bottom:8px;border-bottom:1px solid #d4e6da;padding-bottom:4px">&#8478; Medicines</div>
         ${rx.map((r,i) => `<div style="padding:6px 0;border-bottom:1px dashed #d4e6da;font-size:12px">
-          <strong>${i+1}. ${r.name}</strong> — ${r.dose} ${r.freq} × ${r.dur}
-          ${r.anupana ? `<span style="color:#8a9e90"> (with ${r.anupana})</span>` : ''}
-          ${r.timing ? `<span style="color:#8a9e90"> — ${r.timing}</span>` : ''}
+          <strong>${i+1}. ${_esc(r.name)}</strong> — ${_esc(r.dose)} ${_esc(r.freq)} × ${_esc(r.dur)}
+          ${r.anupana ? `<span style="color:#8a9e90"> (with ${_esc(r.anupana)})</span>` : ''}
+          ${r.timing ? `<span style="color:#8a9e90"> — ${_esc(r.timing)}</span>` : ''}
         </div>`).join('')}
-        ${document.getElementById('rx-instructions').value ? `<p style="font-size:11px;color:#4a6352;margin-top:8px">${document.getElementById('rx-instructions').value}</p>` : ''}
-        ${document.getElementById('adv-pathya').value ? `<div style="margin-top:12px;font-size:11px"><strong>Pathya:</strong> ${document.getElementById('adv-pathya').value}</div>` : ''}
-        ${document.getElementById('adv-apathya').value ? `<div style="font-size:11px"><strong>Apathya:</strong> ${document.getElementById('adv-apathya').value}</div>` : ''}
-        ${document.getElementById('fu-date').value ? `<div style="font-size:11px;margin-top:8px">Review on: <strong>${new Date(document.getElementById('fu-date').value).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</strong> ${document.getElementById('fu-notes').value ? '— '+document.getElementById('fu-notes').value : ''}</div>` : ''}
+        ${rxInstr ? `<p style="font-size:11px;color:#4a6352;margin-top:8px">${_esc(rxInstr)}</p>` : ''}
+        ${pathya ? `<div style="margin-top:12px;font-size:11px"><strong>Pathya:</strong> ${_esc(pathya)}</div>` : ''}
+        ${apathya ? `<div style="font-size:11px"><strong>Apathya:</strong> ${_esc(apathya)}</div>` : ''}
+        ${fuDate ? `<div style="font-size:11px;margin-top:8px">Review on: <strong>${new Date(fuDate).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</strong> ${fuNotes ? '— ' + _esc(fuNotes) : ''}</div>` : ''}
         <div style="margin-top:24px;text-align:center;font-size:11px;color:#8b1a1a;font-weight:600">PREVIEW ONLY — not signed, not valid until Complete Consultation is saved</div>
       </div>
     </div>

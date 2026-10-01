@@ -10,6 +10,7 @@ import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils
 import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
 import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
+import { printDocument } from '../utils/printDocument.js';
 
 // Session 113 -- receptionist added so front-desk staff can check whether a patient's
 // report is ready when they call in (Dr. Venkatesh's ask). Deliberately read-only and
@@ -670,10 +671,20 @@ window.printReport = function() {
   document.getElementById('ph-ayurveda').textContent         = aiText || '(Not entered)';
   document.getElementById('ph-ayurveda-wrap').style.display  = 'block';
   document.getElementById('ph-signatory').textContent        = sigName;
-  const hdr = document.getElementById('print-header');
-  hdr.style.display = 'block';
-  window.print();
-  hdr.style.display = 'none';
+  // Report = #print-header's hospital/patient block, then the result rows (typed values
+  // frozen to text by printDocument), then the Ayurvedic interpretation + signature. The
+  // two blocks live at opposite ends of the page, so they're assembled in reading order
+  // here rather than printed where they sit (which put the header under the results).
+  const hdr    = document.getElementById('print-header');
+  const top    = hdr.cloneNode(true);
+  const bottom = document.createElement('div');
+  bottom.append(...[...top.children].slice(2));          // ph-ayurveda-wrap + signature row
+  const crit   = document.getElementById('critical-banner');
+  const parts  = [top];
+  if (crit.classList.contains('show')) parts.push(crit);
+  parts.push(document.getElementById('test-categories'), bottom);
+  const ptName = document.getElementById('ph-pt').textContent;
+  printDocument(parts, { title: `Lab Report — ${ptName}` });
   document.getElementById('ph-ayurveda-wrap').style.display  = 'none';
 };
 

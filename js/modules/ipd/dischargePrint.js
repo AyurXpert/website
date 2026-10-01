@@ -4,6 +4,8 @@
 // sections (course in hospital, treatment given, investigations, discharge advice)
 // written by sign_ipd_discharge_summary().
 
+import { printDocument } from '../../utils/printDocument.js';
+
 // Session 262 -- Samsarjana Krama home-care chart, for a patient advised to do their
 // post-Virechana graded diet at home (location_mode='home', Session 257) rather than the
 // hospital kitchen handling it via palha_diet_indents (Session 261). A dish NAME means
@@ -177,16 +179,10 @@ export function buildDischargeSummaryHtml({ adm, admId, tenant, homeChart, esc, 
 </div>`;
 }
 
-// Renders into #ds-print and prints; the page supplies the #ds-print element and the
-// body.ds-print @media print rule that hides everything else.
+// Prints only the summary via the shared printDocument() allowlist — the calling page must
+// load css/print.css (ipd.html, doctor.html).
 export function printDischargeHtml(html) {
-  const el = document.getElementById('ds-print');
+  const el = document.createElement('div');
   el.innerHTML = html;
-  document.body.classList.add('ds-print');
-  window.addEventListener('afterprint', () => {
-    document.body.classList.remove('ds-print');
-    el.style.display = 'none';
-  }, { once: true });
-  el.style.display = 'block';
-  window.print();
+  printDocument(el, { title: 'Discharge Summary' });
 }

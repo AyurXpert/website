@@ -5,10 +5,13 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
   <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="css/print.css"/>
 </head>
 
-<body class="bg-white p-6">
+<!-- ax-printing + .ax-print-root (css/print.css): only the invoice prints, never the Print button. -->
+<body class="bg-white p-6 ax-printing">
 
+<div class="ax-print-root">
 <div id="invoice" class="max-w-2xl mx-auto border p-6">
 
   <!-- HEADER -->
@@ -62,6 +65,7 @@
   </div>
 
 </div>
+</div><!-- /ax-print-root -->
 
 <div class="text-center mt-4">
   <button data-onclick="print" class="bg-green-600 text-white px-4 py-2 rounded">
