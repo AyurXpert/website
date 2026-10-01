@@ -3,7 +3,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { localDateStr, todayLocalStr, monthEndStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, monthEndStr, istMonthStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { printDocument, docHeader } from '../utils/printDocument.js';
 
@@ -19,13 +19,13 @@ let _prepbyResults = [], _supbyResults = [];
 
 // Set current month default
 const now = new Date();
-document.getElementById('f-month').value = now.toISOString().slice(0,7);
+document.getElementById('f-month').value = istMonthStr(now);
 document.getElementById('f-status').value = 'active';
 
 async function loadKPIs() {
   const today = todayLocalStr();
   const exp30 = new Date(); exp30.setDate(exp30.getDate()+30);
-  const monthStart = now.toISOString().slice(0,7)+'-01';
+  const monthStart = istMonthStr(now)+'-01';
 
   const [active, qcpend, qcpass, expiring, monthly] = await Promise.all([
     supabase.from('aushadha_nirman_register').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('status','active'),

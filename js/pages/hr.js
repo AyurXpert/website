@@ -5,7 +5,7 @@ import { ENV } from '../config/env.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
-import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, istMonthStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 
 const ALLOWED = ['super_admin','dept_admin'];
@@ -573,7 +573,7 @@ function updateKPIs() {
   const pending   = _staff.filter(s => s.status === 'pending_approval').length;
   const leavePend = _leaves.filter(l => l.status === 'pending').length;
   const onLeave   = _leaves.filter(l => l.status === 'approved' && l.from_date <= today && l.to_date >= today).length;
-  const thisMonth = new Date().toISOString().slice(0,7);
+  const thisMonth = istMonthStr();
   const trainMth  = _trainings.filter(t => t.training_date?.startsWith(thisMonth)).length;
   document.getElementById('k-total').textContent       = _staff.length;
   document.getElementById('k-total-sub').textContent   = `${active} active, ${pending} pending`;

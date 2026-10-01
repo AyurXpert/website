@@ -4,7 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, istMonthStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','nurse','doctor'], 'index.html');
@@ -18,7 +18,7 @@ window._closeIfSelf = function(isSelf, fnName) {
 const tenantId = getCurrentTenantId();
 const profile  = getCurrentProfile();
 
-const todayStr = new Date().toISOString().slice(0,7);
+const todayStr = istMonthStr();
 document.getElementById('dev-month').value = todayStr;
 document.getElementById('hai-month').value = todayStr;
 document.getElementById('d-ins-date').value = todayLocalStr();

@@ -4,7 +4,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, SCHEDULE_IV, ncismRequiredBeds } from '../config/ncism.js';
-import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, istDayStartUTC } from '../utils/dateUtils.js';
 import {
   SCHEDULE_I_CODES, FACULTY_CONCURRENT_POSTS, buildDeptTree, _dedupById,
   deptRequirement, _computeIpdBedTotals, _renderComplianceSummaryBanner,
@@ -200,8 +200,8 @@ async function loadAll() {
     supabase.from('visits')
       .select('id,opd_id,created_at,is_teleconsultation,visit_category')
       .eq('tenant_id', tenantId)
-      .gte('created_at', from + 'T00:00:00')
-      .lte('created_at', to + 'T23:59:59'),
+      .gte('created_at', from + 'T00:00:00+05:30')
+      .lte('created_at', to + 'T23:59:59.999+05:30'),
     supabase.from('beds')
       .select('id,department_id,status,is_pg_allocated,bed_type')
       .eq('tenant_id', tenantId)
@@ -210,8 +210,8 @@ async function loadAll() {
     supabase.from('ipd_admissions')
       .select('id,department_id,admitted_at,discharged_at')
       .eq('tenant_id', tenantId)
-      .lte('admitted_at', to + 'T23:59:59')
-      .or(`discharged_at.is.null,discharged_at.gte.${from}T00:00:00`),
+      .lte('admitted_at', to + 'T23:59:59.999+05:30')
+      .or(`discharged_at.is.null,discharged_at.gte.${istDayStartUTC(from)}`),
     // §18ak — specialty clinic OPDs (visits attributed to parent dept)
     supabase.from('opds')
       .select('id,parent_department_id')
@@ -274,8 +274,8 @@ async function loadAll() {
   const periodDays = Math.round((new Date(to+'T00:00:00') - new Date(from+'T00:00:00')) / 86400000) + 1;
   const bedDaysByDept = {};
   (admRes.data || []).forEach(a => {
-    const pStart = new Date(from + 'T00:00:00');
-    const pEnd   = new Date(to   + 'T23:59:59');
+    const pStart = new Date(from + 'T00:00:00+05:30');   // IST days (TODO §59)
+    const pEnd   = new Date(to   + 'T23:59:59.999+05:30');
     const aStart = new Date(a.admitted_at);
     const aEnd   = a.discharged_at ? new Date(a.discharged_at) : pEnd;
     const start  = aStart > pStart ? aStart : pStart;

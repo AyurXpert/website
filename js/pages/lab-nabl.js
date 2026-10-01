@@ -5,7 +5,7 @@ import { ENV } from '../config/env.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
-import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, istMonthStr, istDateTimeLocalStr, istInputToISO } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
 
@@ -86,8 +86,8 @@ window.loadSamples = async function() {
   let q = supabase.from('lab_samples')
     .select('*, lab_orders(id, lab_order_items(test_name)), patients(id,name,age,gender)')
     .eq('tenant_id', tenantId)
-    .gte('created_at', from + 'T00:00:00')
-    .lte('created_at', to   + 'T23:59:59')
+    .gte('created_at', from + 'T00:00:00+05:30')
+    .lte('created_at', to   + 'T23:59:59.999+05:30')
     .order('created_at', { ascending: false });
 
   if (status) q = q.eq('status', status);
@@ -205,7 +205,7 @@ window.openSampleModal = function() {
   document.getElementById('sm-order-search').value   = '';
   document.getElementById('sm-order-results').style.display = 'none';
   document.getElementById('sm-barcode').value        = _genBarcode();
-  document.getElementById('sm-collected-at').value   = new Date().toISOString().slice(0,16);
+  document.getElementById('sm-collected-at').value   = istDateTimeLocalStr();
   document.getElementById('sm-tube').value           = '';
   document.getElementById('sm-volume').value         = '';
   document.getElementById('sm-notes').value          = '';
@@ -290,7 +290,7 @@ window.saveSample = async function() {
     tenant_id: tenantId, lab_order_id: orderId || null, patient_id: patientId,
     barcode_id: barcode, tube_type: document.getElementById('sm-tube').value || null,
     volume_ml: parseFloat(document.getElementById('sm-volume').value) || null,
-    collected_at: new Date(collectedAt).toISOString(),
+    collected_at: istInputToISO(collectedAt),
     collected_by: collectedBy || sess.id,
     status: 'collected',
     notes: document.getElementById('sm-notes').value.trim() || null,
@@ -357,7 +357,7 @@ function renderQCTable() {
 
 function updateQCKPIs() {
   const todayRuns = _qcRuns.filter(r => r.run_date === today);
-  const thisMonth = new Date().toISOString().slice(0,7);
+  const thisMonth = istMonthStr();
   document.getElementById('qk-today').textContent = todayRuns.length;
   document.getElementById('qk-pass').textContent  = _qcRuns.filter(r => r.status === 'pass').length;
   document.getElementById('qk-warn').textContent  = _qcRuns.filter(r => r.status === 'warning').length;
@@ -1041,8 +1041,8 @@ window.openReagentUpdateModal = function(id) {
   document.getElementById('rum-status').value     = r.status;
   document.getElementById('rum-notes').value      = '';
   const openedAt = r.opened_at
-    ? new Date(r.opened_at).toISOString().slice(0,16)
-    : new Date().toISOString().slice(0,16);
+    ? istDateTimeLocalStr(new Date(r.opened_at))
+    : istDateTimeLocalStr();
   document.getElementById('rum-opened-at').value  = openedAt;
   _toggleVialSection();
   _calcVialExpiry();
@@ -1060,7 +1060,7 @@ window._toggleVialSection = function() {
 window._calcVialExpiry = function() {
   const openedAt = document.getElementById('rum-opened-at').value;
   if (!openedAt) return;
-  const exp = new Date(openedAt);
+  const exp = new Date(istInputToISO(openedAt));
   exp.setHours(exp.getHours() + _updatingReagentStability);
   document.getElementById('rum-vial-expires').textContent =
     exp.toLocaleString('en-IN', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
@@ -1073,7 +1073,7 @@ window.saveReagentUpdate = async function() {
   if (status === 'in_use') {
     const openedAt = document.getElementById('rum-opened-at').value;
     if (!openedAt) { _toast('Set the opened-at time', 'error'); return; }
-    const openedDt  = new Date(openedAt);
+    const openedDt  = new Date(istInputToISO(openedAt));
     const expiresAt = new Date(openedDt.getTime() + _updatingReagentStability * 3600000);
     payload.opened_at      = openedDt.toISOString();
     payload.vial_expires_at= expiresAt.toISOString();
@@ -1231,8 +1231,8 @@ window.loadAuthorization = async function() {
     .eq('lab_orders.tenant_id', tenantId);
 
   if (authFilter) q = q.eq('authorisation_status', authFilter);
-  if (dateFilter) q = q.gte('lab_orders.created_at', dateFilter + 'T00:00:00')
-                       .lte('lab_orders.created_at', dateFilter + 'T23:59:59');
+  if (dateFilter) q = q.gte('lab_orders.created_at', dateFilter + 'T00:00:00+05:30')
+                       .lte('lab_orders.created_at', dateFilter + 'T23:59:59.999+05:30');
 
   const { data, error } = await q.order('created_at', { foreignTable: 'lab_orders', ascending: false }).limit(200);
   if (error) { _toast(safeErrorMessage(error, 'Load error. Please try again.'), 'error'); return; }
@@ -1453,8 +1453,8 @@ window.loadAuditLog = async function() {
 
   let q = supabase.from('nabl_audit_trail')
     .select('*').eq('tenant_id',tenantId)
-    .gte('performed_at', from+'T00:00:00')
-    .lte('performed_at', to  +'T23:59:59')
+    .gte('performed_at', from+'T00:00:00+05:30')
+    .lte('performed_at', to  +'T23:59:59.999+05:30')
     .order('performed_at',{ascending:false}).limit(300);
   if (table) q = q.eq('table_name',table);
 

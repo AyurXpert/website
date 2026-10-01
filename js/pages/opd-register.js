@@ -83,8 +83,8 @@ window.loadRegister = async function() {
 
   document.getElementById('reg-tbody').innerHTML = '<tr><td colspan="12" class="loading">Loading…</td></tr>';
 
-  const fromDT = from + 'T00:00:00';
-  const toDT   = to   + 'T23:59:59';
+  const fromDT = from + 'T00:00:00+05:30';   // IST day bounds (TODO §59) — a naive time is read as UTC
+  const toDT   = to   + 'T23:59:59.999+05:30';
 
   let q = supabase.from('visits')
     .select(`

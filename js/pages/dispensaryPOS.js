@@ -5,7 +5,7 @@ import { logAudit } from '../core/auditLogger.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { todayLocalStr } from '../utils/dateUtils.js';
+import { todayLocalStr, todayISTStr, istDayStartUTC } from '../utils/dateUtils.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
 import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
@@ -87,7 +87,7 @@ function _matchInventory(name) {
 
 // ── Load prescription queue ───────────────────────
 async function loadQueue() {
-  const start = new Date(); start.setHours(0,0,0,0);
+  const start = new Date(istDayStartUTC(todayISTStr()));   // IST midnight, any device clock (TODO §59)
 
   const { data, error: qErr } = await supabase
     .from('prescriptions')
@@ -174,8 +174,8 @@ window.loadRegisterTable = async function() {
   let q = supabase.from('prescriptions')
     .select('id,created_at,patient_type,patients(name),profiles!doctor_id(full_name),visits(chief_complaint)')
     .eq('tenant_id', tenantId)
-    .gte('created_at', date + 'T00:00:00')
-    .lte('created_at', date + 'T23:59:59')
+    .gte('created_at', date + 'T00:00:00+05:30')
+    .lte('created_at', date + 'T23:59:59.999+05:30')
     .order('created_at', { ascending: false });
   if (type) q = q.eq('patient_type', type);
   const { data, error } = await q;

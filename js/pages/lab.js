@@ -4,7 +4,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenant } from '../core/auth.j
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { localDateStr, todayLocalStr, monthEndStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, monthEndStr, istMonthStr, istDateTimeLocalStr, istInputToISO } from '../utils/dateUtils.js';
 import { stageIpdLabCharges } from '../modules/billing/labBilling.js';
 import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
@@ -354,11 +354,11 @@ function renderOrderDetail() {
   if (o.status === 'pending') {
     sBar.classList.remove('collected');
     document.getElementById('s-collect-time').value= o.collected_at
-      ? o.collected_at.slice(0,16) : new Date().toISOString().slice(0,16);
+      ? istDateTimeLocalStr(new Date(o.collected_at)) : istDateTimeLocalStr();
     document.getElementById('collect-btn').style.display = paymentDue ? 'none' : 'inline-flex';
   } else {
     sBar.classList.add('collected');
-    document.getElementById('s-collect-time').value= o.collected_at?.slice(0,16)||'';
+    document.getElementById('s-collect-time').value= o.collected_at ? istDateTimeLocalStr(new Date(o.collected_at)) : '';
     document.getElementById('collect-btn').style.display = 'none';
   }
 
@@ -510,7 +510,7 @@ window.markSampleCollected = async function() {
   const collectTime= document.getElementById('s-collect-time').value;
   const { error } = await supabase.from('lab_orders').update({
     status: 'sample_collected',
-    collected_at: collectTime ? new Date(collectTime).toISOString() : new Date().toISOString(),
+    collected_at: collectTime ? istInputToISO(collectTime) : new Date().toISOString(),
     collected_by: userId,
   }).eq('id', _activeOrder.id);
   if (error) { _alert('error', safeErrorMessage(error, 'Could not mark sample collected.')); return; }
@@ -702,8 +702,8 @@ window.switchModule = function(mod, el) {
     if (t) t.hidden = m !== mod;
   });
   if (mod === 'imaging')  { loadImagingOrders(); }
-  if (mod === 'aerb')     { document.getElementById('aerb-month').value = new Date().toISOString().slice(0,7); loadAerbLog(); }
-  if (mod === 'pcpndt')   { document.getElementById('pcpndt-month').value = new Date().toISOString().slice(0,7); loadPcpndtLog(); }
+  if (mod === 'aerb')     { document.getElementById('aerb-month').value = istMonthStr(); loadAerbLog(); }
+  if (mod === 'pcpndt')   { document.getElementById('pcpndt-month').value = istMonthStr(); loadPcpndtLog(); }
 };
 
 // ── Imaging catalog ───────────────────────────────────────────────────────────

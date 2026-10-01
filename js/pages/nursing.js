@@ -720,7 +720,7 @@ async function loadMar() {
   const { data: meds } = await supabase.from('nursing_mar')
     .select('*').eq('admission_id', _activeAdm.id).eq('is_active', true).order('created_at');
   const { data: given } = await supabase.from('nursing_mar_given')
-    .select('*').eq('admission_id', _activeAdm.id).gte('given_at', today+'T00:00').order('given_at', {ascending:false});
+    .select('*').eq('admission_id', _activeAdm.id).gte('given_at', today+'T00:00:00+05:30').order('given_at', {ascending:false});
 
   // Session 296 -- hs/qam/qpm added (IPD Orders panel on doctor.html writes these three
   // in addition to the original 7; kept in the same snake_case vocabulary as the rest of

@@ -3,7 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
-import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, istMonthStr, istDayStartUTC } from '../utils/dateUtils.js';
 import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
 import { notify } from '../components/notify.js';
@@ -122,8 +122,8 @@ window._allCases = [];
 
 async function loadStats() {
   const dateStr = document.getElementById('filter-date').value || todayStr;
-  const start = dateStr + 'T00:00:00';
-  const end   = dateStr + 'T23:59:59';
+  const start = dateStr + 'T00:00:00+05:30';   // IST day bounds (TODO §59)
+  const end   = dateStr + 'T23:59:59.999+05:30';
   const { data } = await supabase.from('emergency_cases').select('id,status,is_mlc,is_obs_bed').eq('tenant_id',tenantId).is('superseded_by',null).gte('arrival_time',start).lte('arrival_time',end);
   if (!data) { showStatsError(); return; }
   const total    = data.length;
@@ -144,7 +144,7 @@ function showStatsError() {
 
 async function loadCases() {
   const dateStr = document.getElementById('filter-date').value || todayStr;
-  const start = dateStr + 'T00:00:00', end = dateStr + 'T23:59:59';
+  const start = dateStr + 'T00:00:00+05:30', end = dateStr + 'T23:59:59.999+05:30';   // IST day bounds (TODO §59)
   document.getElementById('cases-title').textContent = dateStr === todayStr ? "Today's Cases" : 'Cases — ' + dateStr;
 
   const { data, error } = await supabase.from('emergency_cases')
@@ -428,9 +428,9 @@ window.loadMLC = async function() {
   const period = document.getElementById('mlc-month-filter').value;
   let start = null;
   const now = new Date();
-  if (period==='today') start = localDateStr(now) + 'T00:00:00';
+  if (period==='today') start = localDateStr(now) + 'T00:00:00+05:30';
   else if (period==='week') { const d = new Date(now); d.setDate(d.getDate()-7); start = d.toISOString(); }
-  else if (period==='month') { const d = new Date(now.getFullYear(),now.getMonth(),1); start = d.toISOString(); }
+  else if (period==='month') { start = istDayStartUTC(istMonthStr(now) + '-01'); }   // IST month start (TODO §59)
 
   let q = supabase.from('emergency_cases').select('*,patients(name,phone)').eq('tenant_id',tenantId).eq('is_mlc',true).order('arrival_time',{ascending:false});
   if (start) q = q.gte('arrival_time',start);

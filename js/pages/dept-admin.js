@@ -14,7 +14,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, UG_BED_RATIOS } from '../config/ncism.js';
 import { ROLE_HOME } from '../config/constants.js';
-import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, istDayStartUTC, istDayEndUTC } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 
 // Session 137: widened from doctor-only to any active staff member -- access
@@ -55,8 +55,8 @@ let _rosterByKey = {}; // `${date}|${shiftType}` -> row
 
 async function loadAll(){
   const today = todayLocalStr();
-  const todayStart = today + 'T00:00:00.000Z';
-  const tomorrowStart = new Date(new Date(today+'T00:00:00Z').getTime()+86400000).toISOString();
+  const todayStart = istDayStartUTC(today);   // IST day bounds, not UTC midnight (TODO §59)
+  const tomorrowStart = istDayEndUTC(today);
   const weekDates = _weekDates();
   const weekStart = _dateStr(weekDates[0]), weekEnd = _dateStr(weekDates[6]);
 

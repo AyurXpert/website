@@ -9,7 +9,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS, ncismRequiredBeds, PK_THERAPY_ROOM_COUNT } from '../config/ncism.js';
 import { SUPABASE_URL, SESSION_KEYS } from '../config/constants.js';
 import { DESIGS, DESIG_MAP, DESIG_CATS } from '../config/designations.js';
-import { localDateStr, todayLocalStr, monthEndStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, monthEndStr, todayISTStr, istMonthStr, istDayStartUTC, istDayEndUTC } from '../utils/dateUtils.js';
 import {
   NCISM_XX_ROWS, ORG_TREE_DEF, OPD_CHILD_NCISM_CODES,
   _deptKey, buildDeptTree, _dedupById, _scheduleIFacultyTotal, deptRequirement,
@@ -32,8 +32,8 @@ if (!profile) { window.location.href = 'login.html'; }
 document.title = 'Master Control — ' + (tenant?.name || 'AyurXpert');
 
 const todayStr   = todayLocalStr();
-const todayStart = todayStr + 'T00:00:00';
-const todayEnd   = todayStr + 'T23:59:59';
+const todayStart = todayStr + 'T00:00:00+05:30';   // IST day bounds (TODO §59) — a naive time is read as UTC
+const todayEnd   = todayStr + 'T23:59:59.999+05:30';
 
 // Non-admin roles are already redirected by requireAuth() above before this line
 // ever runs — no local redirect logic needed here (removed a stale duplicate
@@ -130,7 +130,7 @@ function _showSection(target, sub) {
   if (target==='abdm-bridge')        { window.loadAbdmCallbacks(); window.loadFacilityRegistration(); }
   if (target==='org-profile')        window.loadOrgProfile();
   if (target==='compliance-reports') {
-    const today = new Date().toISOString().slice(0,7);
+    const today = istMonthStr();
     document.getElementById('sdf-month').value    = today;
     document.getElementById('stat-month').value   = today;
     document.getElementById('namste-month').value = today;
@@ -278,7 +278,7 @@ window.loadStats = async function() {
 // SECTION 1b — ACCOUNTS (Financial)
 // ────────────────────────────────────────────────
 window.loadAccounts = async function() {
-  const monthStart   = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+  const monthStart   = istDayStartUTC(istMonthStr() + '-01');   // IST month start (TODO §59)
   const thirtyDaysAgo = new Date(Date.now() - 30*24*60*60*1000).toISOString();
 
   const [paidToday, paidMonth, allPending] = await Promise.all([
@@ -2254,7 +2254,7 @@ async function _renderStaffingPlan() {
   const wrap = document.getElementById('staffing-plan-wrap');
   wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
 
-  const _todayStart = new Date(); _todayStart.setHours(0,0,0,0);
+  const _todayStart = new Date(istDayStartUTC(todayISTStr()));   // IST midnight, any device clock (TODO §59)
 
   const [{ data:tRow }, { data:rawStaff }, { data:depts }, { data:pgDepts }, { data:dutySessionsToday }, { data:opds }, { data:bedsRows }] = await Promise.all([
     supabase.from('tenants').select('ug_intake,type,pg_student_strength').eq('id',tenantId).single(),
@@ -3359,8 +3359,8 @@ function _ddSubscribeRealtime(deptId, opdIds, isEmergencyDept){
 async function _renderDeptSnapshot(deptId){
   const body = document.getElementById('dd-body');
   const today = todayLocalStr();
-  const todayStart = today + 'T00:00:00.000Z';
-  const tomorrowStart = new Date(new Date(today+'T00:00:00Z').getTime() + 86400000).toISOString();
+  const todayStart = istDayStartUTC(today);   // IST day bounds, not UTC midnight (TODO §59)
+  const tomorrowStart = istDayEndUTC(today);
 
   const [{ data:dept }, { data:staff }, { data:roster }, { data:tRow }] = await Promise.all([
     supabase.from('departments').select('id,name,category,ncism_code,opd_id,pg_seats_sanctioned,is_active').eq('id',deptId).single(),
@@ -3501,8 +3501,8 @@ window.applyDeptDateRange = async function(){
   if(!from || !to || to < from){ rangeBody.innerHTML = '<div style="font-size:12px;color:#c0392b">Select a valid range (From must not be after To).</div>'; return; }
   rangeBody.innerHTML = '<div style="font-size:12px;color:var(--text-muted)">Loading…</div>';
 
-  const fromStart = from+'T00:00:00.000Z';
-  const toEnd = new Date(new Date(to+'T00:00:00Z').getTime()+86400000).toISOString();
+  const fromStart = istDayStartUTC(from);   // IST day bounds, not UTC midnight (TODO §59)
+  const toEnd = istDayEndUTC(to);
   const dayCount = Math.round((new Date(to+'T00:00:00Z')-new Date(from+'T00:00:00Z'))/86400000)+1;
 
   const [{ data:dept }, { data:tRow }, { data:staff }] = await Promise.all([
@@ -5388,8 +5388,8 @@ let _mrData = null;
 window.loadMonthlyReport = async function() {
   const m = parseInt(document.getElementById('mr-month').value);
   const y = parseInt(document.getElementById('mr-year').value);
-  const start = new Date(y, m - 1, 1).toISOString();
-  const end   = new Date(y, m, 0, 23, 59, 59).toISOString();
+  const start = istDayStartUTC(`${y}-${String(m).padStart(2, '0')}-01`);   // IST month start (TODO §59)
+  const end   = new Date(monthEndStr(`${y}-${String(m).padStart(2, '0')}`) + 'T23:59:59.999+05:30').toISOString();   // IST month end
   const monthLabel = new Date(y, m - 1, 1).toLocaleDateString('en-IN', {month:'long', year:'numeric'});
 
   const body = document.getElementById('mr-body');
@@ -6738,7 +6738,7 @@ window.generateSDF = async function() {
   const el = document.getElementById('sdf-content');
   el.textContent = 'Generating…';
   const [visitsRes, admRes, staffRes] = await Promise.all([
-    supabase.from('visits').select('id,is_teleconsultation,visit_category,opds(ncism_code)').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00').lte('created_at',to+'T23:59:59'),
+    supabase.from('visits').select('id,is_teleconsultation,visit_category,opds(ncism_code)').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30'),
     supabase.from('ipd_admissions').select('id,departments(ncism_code)').eq('tenant_id',tenantId).gte('admission_date',from).lte('admission_date',to),
     supabase.from('profiles').select('id,role').eq('tenant_id',tenantId).eq('is_active',true),
   ]);
@@ -6773,11 +6773,11 @@ window.generateMonthlyStats = async function() {
   const el = document.getElementById('stat-body');
   el.innerHTML = '<div style="color:var(--text-muted)">Generating…</div>';
   const [v, adm, bills, del, lab] = await Promise.all([
-    supabase.from('visits').select('id,is_teleconsultation').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00').lte('created_at',to+'T23:59:59'),
+    supabase.from('visits').select('id,is_teleconsultation').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30'),
     supabase.from('ipd_admissions').select('id').eq('tenant_id',tenantId).gte('admission_date',from).lte('admission_date',to),
-    supabase.from('bills').select('id,final_amount').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00').lte('created_at',to+'T23:59:59').eq('status','paid'),
+    supabase.from('bills').select('id,final_amount').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30').eq('status','paid'),
     supabase.from('deliveries').select('id').eq('tenant_id',tenantId).is('superseded_by',null).gte('delivery_date',from).lte('delivery_date',to),
-    supabase.from('lab_orders').select('id').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00').lte('created_at',to+'T23:59:59'),
+    supabase.from('lab_orders').select('id').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30'),
   ]);
   const opdCount  = (v.data||[]).filter(x=>!x.is_teleconsultation).length;
   const ipdCount  = (adm.data||[]).length;
@@ -6815,7 +6815,7 @@ window.generateNAMSTE = async function() {
   el.innerHTML = '<div style="color:var(--text-muted)">Fetching diagnosis data…</div>';
   const { data, error } = await supabase.from('consultation_notes')
     .select('diagnosis_namc_code,diagnosis_namc_label')
-    .eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00').lte('created_at',to+'T23:59:59')
+    .eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30')
     .not('diagnosis_namc_code','is',null);
   if (error) { el.innerHTML = `<div style="color:#c0392b">${_esc(safeErrorMessage(error, 'Could not load data.'))}</div>`; return; }
   const counts = {};

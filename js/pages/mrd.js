@@ -5,7 +5,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { logAudit } from '../core/auditLogger.js';
-import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, istMonthStr } from '../utils/dateUtils.js';
 import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
 
@@ -35,7 +35,7 @@ window.switchTab = function(id) {
 
 // ── KPIs ──────────────────────────────────────────────────
 async function loadKPIs() {
-  const thisMonth = new Date().toISOString().slice(0,7);
+  const thisMonth = istMonthStr();
   const [
     { count: patCount },
     { count: visCount },
@@ -237,9 +237,9 @@ window.loadStats = async function() {
     { data: patRows },
   ] = await Promise.all([
     supabase.from('visits').select('id,created_at,opds(name),is_new_patient')
-      .eq('tenant_id',tenantId).gte('created_at', from+'T00:00:00'),
+      .eq('tenant_id',tenantId).gte('created_at', from+'T00:00:00+05:30'),
     supabase.from('patients').select('id,age,gender,created_at')
-      .eq('tenant_id',tenantId).gte('created_at', from+'T00:00:00'),
+      .eq('tenant_id',tenantId).gte('created_at', from+'T00:00:00+05:30'),
   ]);
 
   // OPD breakdown
@@ -347,7 +347,7 @@ window.loadDiagnosis = async function() {
     .select(`${labelCol},${codeCol}`)
     .eq('tenant_id', tenantId)
     .not(labelCol, 'is', null)
-    .gte('created_at', from + 'T00:00:00');
+    .gte('created_at', from + 'T00:00:00+05:30');
 
   if (error) { _toast(safeErrorMessage(error, 'Could not load records.'),'error'); return; }
 
@@ -503,7 +503,7 @@ window.exportIPDCSV = function() {
 let _auditData = [];
 
 // Set default month to current
-document.getElementById('audit-month').value = new Date().toISOString().slice(0,7);
+document.getElementById('audit-month').value = istMonthStr();
 
 window.loadAudit = async function() {
   const m = document.getElementById('audit-month').value;
@@ -554,7 +554,7 @@ window.closeAuditModal = function() {
 window.saveAuditRecord = async function() {
   const name = document.getElementById('am-name').value.trim();
   if (!name) { _toast('Patient name required', 'error'); return; }
-  const m = document.getElementById('audit-month').value || new Date().toISOString().slice(0,7);
+  const m = document.getElementById('audit-month').value || istMonthStr();
   const payload = {
     tenant_id:              tenantId,
     audit_month:            m,

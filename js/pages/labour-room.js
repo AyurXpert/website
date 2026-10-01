@@ -3,7 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { localDateStr } from '../utils/dateUtils.js';
+import { localDateStr, istMonthStr, monthEndStr } from '../utils/dateUtils.js';
 import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
 import { notify } from '../components/notify.js';
@@ -38,7 +38,7 @@ defineCorrection('deliveries', { title: 'delivery record',
 
 // Default month = current
 const now = new Date();
-const monthStr = now.toISOString().slice(0,7);
+const monthStr = istMonthStr(now);
 document.getElementById('filter-month').value = monthStr;
 document.getElementById('nd-date').value = localDateStr(now);
 document.getElementById('nd-time').value = now.toTimeString().slice(0,5);
@@ -64,11 +64,13 @@ let _allDeliveries = [];
 
 async function loadStats() {
   const mStr = document.getElementById('filter-month').value || monthStr;
-  const [y, m] = mStr.split('-').map(Number);
-  const start = new Date(y, m-1, 1).toISOString();
-  const end   = new Date(y, m, 0, 23, 59, 59).toISOString();
-  const todayS = localDateStr(now) + 'T00:00:00';
-  const todayE = localDateStr(now) + 'T23:59:59';
+  // delivery_date is a DATE column: compare plain dates. The old ISO timestamp of local midnight on
+  // the 1st was '…-30T18:30Z', which the DB cast to the previous day — every month also counted the
+  // last day of the month before (TODO §59).
+  const start = mStr + '-01';
+  const end   = monthEndStr(mStr);
+  const todayS = localDateStr(now) + 'T00:00:00+05:30';   // IST day bounds (TODO §59)
+  const todayE = localDateStr(now) + 'T23:59:59.999+05:30';
 
   const [mRes, tRes] = await Promise.all([
     supabase.from('deliveries').select('id,mode,sex,birth_weight_g,baby_outcome').eq('tenant_id',tenantId).is('superseded_by',null).gte('delivery_date',start).lte('delivery_date',end),
@@ -391,7 +393,6 @@ window.savePartographEntry = async function(delivId) {
 let _newbornData = [];
 async function loadNewborn() {
   const mStr = document.getElementById('filter-month').value || monthStr;
-  const [y, m] = mStr.split('-').map(Number);
   const start = localDateStr(new Date(y, m-1, 1));
   const end   = localDateStr(new Date(y, m, 0));
   const { data, error } = await supabase.from('deliveries')

@@ -764,7 +764,7 @@ window.savePromo = async function() {
 
   const { error } = await supabase.from('fee_structures').update({
     promo_price: Number(price),
-    promo_valid_until: new Date(until + 'T23:59:59').toISOString(),
+    promo_valid_until: new Date(until + 'T23:59:59+05:30').toISOString(),   // end of the IST day (TODO §59)
     promo_reason: reason || null,
   }).eq('id', id);
 

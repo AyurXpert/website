@@ -3,7 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, istDateTimeLocalStr, istInputToISO } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { printDocument, docHeader } from '../utils/printDocument.js';
@@ -287,8 +287,8 @@ window.openIntra = function(id) {
   document.getElementById('intra-title').textContent = c.procedure_name;
   document.getElementById('intra-sub').textContent   = `${c.patients?.name||'—'} · ${c.ot_table||''}`;
   const now = new Date(); const later = new Date(now.getTime()+90*60000);
-  const fmtDt = d => d.toISOString().slice(0,16);
-  document.getElementById('i-start').value = c.actual_start ? c.actual_start.slice(0,16) : (now.toISOString().slice(0,16));
+  const fmtDt = d => istDateTimeLocalStr(d);
+  document.getElementById('i-start').value = c.actual_start ? istDateTimeLocalStr(new Date(c.actual_start)) : istDateTimeLocalStr(now);
   document.getElementById('i-end').value   = fmtDt(later);
   document.getElementById('i-post-diag').value = c.post_op_diagnosis || c.pre_op_diagnosis || '';
   document.getElementById('i-findings').value = '';
@@ -305,8 +305,8 @@ window.openIntra = function(id) {
 
   // Auto-calc duration when end changes
   document.getElementById('i-end').oninput = () => {
-    const s = new Date(document.getElementById('i-start').value);
-    const e = new Date(document.getElementById('i-end').value);
+    const s = new Date(istInputToISO(document.getElementById('i-start').value));
+    const e = new Date(istInputToISO(document.getElementById('i-end').value));
     if (s && e && e > s) document.getElementById('i-duration').value = Math.round((e-s)/60000);
   };
   document.getElementById('intra-overlay').style.display = 'flex';
@@ -323,8 +323,8 @@ window.saveIntra = async function() {
 
   const { error } = await supabase.from('ot_cases').update({
     status:               'completed',
-    actual_start:         start ? new Date(start).toISOString() : null,
-    actual_end:           end   ? new Date(end).toISOString()   : null,
+    actual_start:         start ? istInputToISO(start) : null,
+    actual_end:           end   ? istInputToISO(end)   : null,
     duration_minutes:     dur,
     post_op_diagnosis:    document.getElementById('i-post-diag').value.trim() || null,
     operative_findings:   findings,

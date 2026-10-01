@@ -9,6 +9,7 @@
 // to the pharmacy once (charged to the stay, like any IPD dispense).
 // Print: js/modules/ipd/dischargePrint.js (shared with ipd.html).
 import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml } from './dischargePrint.js';
+import { istDateStr } from '../../utils/dateUtils.js';
 
 let _c = null;      // { supabase, esc, tenantId, userId, isTrainee, toast }
 let _adm = null;
@@ -19,7 +20,7 @@ let _token = 0;
 const MAR_TO_FREQ = { once_daily: 'OD', twice_daily: 'BD', thrice_daily: 'TDS', four_times: 'QID', sos: 'SOS', hs: 'HS', qam: 'QAM', qpm: 'QPM' };
 const FREQS = ['OD', 'BD', 'TDS', 'QID', 'SOS', 'HS', 'QAM', 'QPM'];
 const _fmtD = d => d ? new Date(String(d).length === 10 ? d + 'T00:00:00' : d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '';
-const _localDate = d => (String(d).length === 10 ? String(d) : new Date(d).toLocaleDateString('en-CA'));
+const _localDate = d => (String(d).length === 10 ? String(d) : istDateStr(d));
 const _dayOf = d => {
   const start = new Date(_localDate(_adm.admission_date || _adm.admitted_at) + 'T00:00:00');
   return Math.max(1, Math.round((new Date(_localDate(d) + 'T00:00:00') - start) / 86400000) + 1);

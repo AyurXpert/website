@@ -184,8 +184,8 @@ window.loadQueue = async function() {
     .eq('tenant_id', tenantId)
     .eq('opd_id', _screeningOpdId)
     .in('status', ['waiting','in_progress'])
-    .gte('created_at', today + 'T00:00:00')
-    .lte('created_at', today + 'T23:59:59');
+    .gte('created_at', today + 'T00:00:00+05:30')
+    .lte('created_at', today + 'T23:59:59.999+05:30');
   // On duty: only this staffer's fair share, plus anything nobody had claimed at
   // assignment time (e.g. the gap before anyone toggled on) — never a silent loss.
   // Not on duty (the default, unchanged for a single-triage-nurse tenant): the full
@@ -228,8 +228,8 @@ async function loadScanBypassLog() {
     .select('id, token_number, created_at, opds(name), patients(name)')
     .eq('tenant_id', tenantId)
     .eq('routed_via_scan_qr', true)
-    .gte('created_at', today + 'T00:00:00')
-    .lte('created_at', today + 'T23:59:59');
+    .gte('created_at', today + 'T00:00:00+05:30')
+    .lte('created_at', today + 'T23:59:59.999+05:30');
   if (_screeningOpdId) query = query.neq('opd_id', _screeningOpdId);
   const { data, error } = await query.order('created_at', { ascending: false });
   if (error) { console.warn('[screening] loadScanBypassLog:', error.message); return; }
@@ -286,8 +286,8 @@ async function _updateStats() {
     .eq('tenant_id', tenantId)
     .eq('opd_id', _screeningOpdId)
     .eq('status', 'completed')
-    .gte('created_at', today + 'T00:00:00')
-    .lte('created_at', today + 'T23:59:59');
+    .gte('created_at', today + 'T00:00:00+05:30')
+    .lte('created_at', today + 'T23:59:59.999+05:30');
 
   document.getElementById('ss-waiting').textContent  = _queue.length + ' ';
   document.getElementById('ss-screened').textContent = (screened || 0) + ' ';
@@ -463,8 +463,8 @@ window.routePatient = async function() {
     .select('token_number')
     .eq('tenant_id', tenantId)
     .eq('opd_id', dept.opd_id)
-    .gte('created_at', today + 'T00:00:00')
-    .lte('created_at', today + 'T23:59:59')
+    .gte('created_at', today + 'T00:00:00+05:30')
+    .lte('created_at', today + 'T23:59:59.999+05:30')
     .order('token_number', { ascending: false })
     .limit(1);
 

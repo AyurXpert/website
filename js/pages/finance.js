@@ -194,8 +194,8 @@ async function loadBills(from, to) {
     .from('bills')
     .select('id, created_at, final_amount, total_amount, registration_fee, consultation_fee, on_request_surcharge, patient_due, bill_type, payment_mode, status, patients(name), insurer_name')
     .eq('tenant_id', tenantId)
-    .gte('created_at', from + 'T00:00:00')
-    .lte('created_at', to + 'T23:59:59')
+    .gte('created_at', from + 'T00:00:00+05:30')
+    .lte('created_at', to + 'T23:59:59.999+05:30')
     .order('created_at', { ascending: false });
   if (error) { _toast(safeErrorMessage(error, 'Could not load bills.'), 'error'); return; }
   _bills = data || [];

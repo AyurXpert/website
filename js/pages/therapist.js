@@ -6,7 +6,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { isNCISMType, ncismUgTier, PK_THERAPY_ROOM_COUNT } from '../config/ncism.js';
 import { NCISM_XX_ROWS } from '../config/ncismStaffCompliance.js';
-import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, istDateStr, todayISTStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 
 /*
@@ -73,14 +73,14 @@ const _prepToday = todayLocalStr();
 // for any local time before the UTC offset catches up (00:00-05:30 IST), a known
 // platform-wide gap only fixed in new code so far (Session 205), so fixed here too.
 function _thisWeekBounds() {
-  const todayStr = new Date().toLocaleDateString('en-CA');
+  const todayStr = todayISTStr();
   const d = new Date(todayStr + 'T00:00:00');
   const day = d.getDay(); // 0=Sun..6=Sat
   const monday = new Date(d);
   monday.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
-  const fmt = x => x.toLocaleDateString('en-CA');
+  const fmt = x => istDateStr(x);
   return { start: fmt(monday), end: fmt(sunday) };
 }
 

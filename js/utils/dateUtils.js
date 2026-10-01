@@ -13,12 +13,16 @@
 // reception.js/nursing-admin.js's Reception Coverage Duty feature (Session 205); this module
 // is the platform-wide fix.
 
+// TODO §59 (1 Oct 2026): these two now return the Asia/Kolkata calendar date, not the device
+// clock's — so "today" is right even on a device set to UTC or another zone, between 00:00 and
+// 05:30 IST included. On an IST device the result is identical to before. Every existing caller
+// (~275) gets this through these names; new code may call istDateStr()/todayISTStr() directly.
 export function localDateStr(date = new Date()) {
-  return (date instanceof Date ? date : new Date(date)).toLocaleDateString('en-CA');
+  return istDateStr(date);
 }
 
 export function todayLocalStr() {
-  return new Date().toLocaleDateString('en-CA');
+  return todayISTStr();
 }
 
 // Last calendar day of a 'YYYY-MM' month, as 'YYYY-MM-DD'. A fixed month + '-31' is an invalid
@@ -46,4 +50,35 @@ export function todayISTStr() {
 export function istDayRangeUTC(dateStr) {
   const start = new Date(`${dateStr}T00:00:00+05:30`);
   return { startUTC: start.toISOString(), endUTC: new Date(start.getTime() + 24 * 60 * 60 * 1000).toISOString() };
+}
+
+// Start instant of an IST day / end instant (exclusive) of an IST day, for .gte()/.lt() filters
+// on timestamptz columns over a 'from'..'to' date range. A naive `date + 'T00:00:00'` is read
+// by the database (TimeZone = UTC) as UTC, so "today" used to run 05:30 → 05:30 IST.
+export function istDayStartUTC(dateStr) { return istDayRangeUTC(dateStr).startUTC; }
+export function istDayEndUTC(dateStr)   { return istDayRangeUTC(dateStr).endUTC; }
+
+// 'YYYY-MM' of the IST month (default: now). toISOString().slice(0,7) gave last month on the
+// 1st between 00:00 and 05:30 IST.
+export function istMonthStr(date = new Date()) {
+  return istDateStr(date).slice(0, 7);
+}
+
+// <input type="datetime-local"> value ('YYYY-MM-DDTHH:mm') showing a moment in IST wall-clock
+// time (default: now). toISOString().slice(0,16) showed UTC wall-clock time — 5h30m behind —
+// and since the input is saved back as local time, a default or edited value was stored 5h30m
+// earlier than it really was.
+export function istDateTimeLocalStr(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: IST_TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(d).map(p => [p.type, p.value]));
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
+// The reverse: a datetime-local value typed/shown in IST → ISO instant for a timestamptz column,
+// independent of the device's own timezone (new Date(value) would use the device's zone).
+export function istInputToISO(value) {
+  if (!value) return null;
+  return new Date(`${value.length === 16 ? value + ':00' : value}+05:30`).toISOString();
 }

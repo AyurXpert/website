@@ -1,3 +1,4 @@
+import { todayISTStr } from '../../utils/dateUtils.js';
 // Follow-up consultation layout, phase 4b (Session 295) -- "⏳ Investigations advised
 // last visit" card on doctor.html's History tab + outside-lab result entry.
 //
@@ -20,7 +21,7 @@ let _token = 0;
 
 const _fmtD = d => d ? new Date(String(d).length === 10 ? d + 'T00:00:00' : d)
   .toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
-const _todayStr = () => new Date().toLocaleDateString('en-CA');
+const _todayStr = () => todayISTStr();
 
 export function resetInvestigationsDue() {
   _token++; _orders = []; _imgOrders = []; _ctx = null;

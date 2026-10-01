@@ -3,7 +3,7 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { todayLocalStr } from '../utils/dateUtils.js';
+import { todayLocalStr, istDateTimeLocalStr, istInputToISO } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { printDocument, docHeader, shown } from '../utils/printDocument.js';
 
@@ -72,8 +72,8 @@ window.loadFlowsheet = async () => {
     .select('*')
     .eq('tenant_id',tenantId)
     .eq('ipd_id',_currentAdm.id)
-    .gte('recorded_at',date+'T00:00:00')
-    .lte('recorded_at',date+'T23:59:59')
+    .gte('recorded_at',date+'T00:00:00+05:30')
+    .lte('recorded_at',date+'T23:59:59.999+05:30')
     .order('recorded_at');
 
   if (!data?.length) {
@@ -158,7 +158,7 @@ window.openEntry = () => {
   if (!_currentAdm){showToast('Select a patient first','error');return;}
   const now = new Date();
   now.setSeconds(0,0);
-  document.getElementById('e-dt').value = now.toISOString().slice(0,16);
+  document.getElementById('e-dt').value = istDateTimeLocalStr(now);
   document.getElementById('e-nurse').value = profile.full_name||'';
   ['e-bps','e-bpd','e-hr','e-temp','e-spo2','e-rr','e-pain','e-fio2','e-peep','e-tv','e-rrs','e-pip','e-eye','e-verbal','e-motor','e-vaso','e-notes','e-iv','e-oral','e-urine','e-other'].forEach(id=>{
     const el = document.getElementById(id);
@@ -190,7 +190,7 @@ window.saveEntry = async () => {
     tenant_id:tenantId,
     patient_id:_currentAdm.patient?.id,
     ipd_id:_currentAdm.id,
-    recorded_at:new Date(dt).toISOString(),
+    recorded_at:istInputToISO(dt),
     bp_systolic:parseInt(document.getElementById('e-bps').value)||null,
     bp_diastolic:parseInt(document.getElementById('e-bpd').value)||null,
     heart_rate:parseInt(document.getElementById('e-hr').value)||null,

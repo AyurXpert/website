@@ -12,6 +12,7 @@
 // countersigns (enforced server-side by trg_ward_round_guard + RLS).
 
 import { openDischarge, closeDischarge } from './dischargeSummary.js';
+import { istDateStr, todayISTStr } from '../../utils/dateUtils.js';
 
 let _c = null;        // { supabase, esc, tenantId, userId, isTrainee, toast, fmtDate, getInventory }
 let _adm = null;      // the open admission (row from doctor.js's IPD list)
@@ -34,7 +35,7 @@ const ROUND_LABEL = { morning: 'Morning', evening: 'Evening', night: 'Night', em
 // Day of stay in LOCAL dates (admission day = Day 1). admitted_at is a UTC timestamp, so
 // its first 10 chars can be the previous day for an evening admission in IST -- use the
 // admission_date column, else the timestamp converted to a local date.
-const _localDate = d => (String(d).length === 10 ? String(d) : new Date(d).toLocaleDateString('en-CA'));
+const _localDate = d => (String(d).length === 10 ? String(d) : istDateStr(d));
 const _day = (a, d) => {
   const start = new Date(_localDate(a.admission_date || a.admitted_at) + 'T00:00:00');
   const end = new Date(_localDate(d) + 'T00:00:00');
@@ -210,7 +211,7 @@ window.saveIpdRound = async function() {
   const imp = document.getElementById('ipdws-imp');
   const note = {
     tenant_id: _c.tenantId, admission_id: _adm.id, doctor_id: _c.userId,
-    note_date: new Date().toLocaleDateString('en-CA'), round_label: document.getElementById('ipdws-label').value,
+    note_date: todayISTStr(), round_label: document.getElementById('ipdws-label').value,
     subjective: v('ipdws-s') || null, objective: v('ipdws-o') || null,
     assessment: v('ipdws-a') || null, plan: v('ipdws-p') || null,
     nadi: v('ipdws-nadi') || null, agni: v('ipdws-agni') || null, mala: v('ipdws-mala') || null,

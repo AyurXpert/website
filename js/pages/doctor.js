@@ -13,7 +13,7 @@ import { openIpdRound, closeIpdRound, getOpenIpdAdmission, refreshIpdInvestigati
 import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { openTimePicker, formatTime12 } from '../components/timePicker.js';
-import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, istDateStr, todayISTStr, istDayStartUTC } from '../utils/dateUtils.js';
 import { loadVisitTimeline, resetVisitTimeline, getProgressData, setProgressData, isProgressMissing } from '../modules/patient/visitTimeline.js';
 import { loadMyPatients, resetMyPatients } from '../modules/patient/myPatients.js';
 import { uhidOf } from '../utils/uhid.js';
@@ -635,7 +635,7 @@ window._openAbdmRequestRow = _openAbdmRequestRow;
 
 async function loadQueue() {
   const list  = document.getElementById('q-list');
-  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const start = new Date(istDayStartUTC(todayISTStr()));   // IST midnight, any device clock (TODO §59)
 
   let query = supabase
     .from('visits')
@@ -846,7 +846,7 @@ async function _loadIpdFlags(rows) {
 function _ipdCard(a, f) {
   // Calendar day of stay in local dates (admission day = Day 1); was elapsed 24-hour
   // periods, which showed "Day 1" the morning after an evening admission.
-  const _ld = d => (String(d).length === 10 ? String(d) : new Date(d).toLocaleDateString('en-CA'));
+  const _ld = d => (String(d).length === 10 ? String(d) : istDateStr(d));
   const day = Math.max(1, Math.round((new Date(_ld(new Date()) + 'T00:00:00') - new Date(_ld(a.admission_date || a.admitted_at) + 'T00:00:00')) / 86400000) + 1);
   const admDate = new Date(a.admission_date || a.admitted_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
   const planned = a.advice?.expected_duration_days;
@@ -2924,7 +2924,7 @@ window._pkToggleProtocol = function(procedureKey, chipEl) {
     procedure_key: tpl.procedure_key,
     protocol_label: tpl.display_name,
     is_reviewed: tpl.is_reviewed,
-    start_date: new Date().toLocaleDateString('en-CA'),
+    start_date: todayISTStr(),
     // Cloned into an editable per-patient copy -- editing this plan never touches
     // the template, same "clone don't link" pattern nursing-roster-template.html uses.
     // Session 254 -- medicines live per-activity (block), not one flat list for the
@@ -3222,7 +3222,7 @@ function _pkExpandDays(p) {
     const d = new Date(base); d.setDate(d.getDate() + (dayNum - 1));
     rows.push({
       day_number: dayNum, phase: b.phase, activity_label: b.activity_label,
-      is_flexible: b.is_flexible, planned_date: d.toLocaleDateString('en-CA'),
+      is_flexible: b.is_flexible, planned_date: istDateStr(d),
       ayush_code: b.ayush_code || null, sequence_order: dayNum,
       // Session 257 -- a skipped block already contributes zero rows here (the loop
       // just doesn't run for length=0), so only 'home' vs. 'hospital' ever needs
@@ -3263,7 +3263,7 @@ function _pkBlockDayRange(p, bi) {
   const base = new Date(p.start_date + 'T00:00:00');
   const d1 = new Date(base); d1.setDate(d1.getDate() + (startNum - 1));
   const d2 = new Date(base); d2.setDate(d2.getDate() + (endNum - 1));
-  const fmt = d => d.toLocaleDateString('en-CA');
+  const fmt = d => istDateStr(d);
   return {
     label: startNum === endNum ? `Day ${startNum}` : `Day ${startNum}-${endNum}`,
     dateLabel: startNum === endNum ? fmt(d1) : `${fmt(d1)} to ${fmt(d2)}`,
@@ -3483,7 +3483,7 @@ function _renderPkCalendar() {
               for (let i = 0; i < bi; i++) if (p.blocks[i].bastiDayType !== 'niruha') offset += p.blocks[i].length;
               const startNum = offset, endNum = offset + total - 1;
               const base = new Date(p.start_date + 'T00:00:00');
-              const fmt = n => { const d = new Date(base); d.setDate(d.getDate() + (n - 1)); return d.toLocaleDateString('en-CA'); };
+              const fmt = n => { const d = new Date(base); d.setDate(d.getDate() + (n - 1)); return istDateStr(d); };
               return `
           <tr style="border-bottom:1px solid var(--border)">
             <td style="padding:5px 8px">${total ? (startNum === endNum ? `Day ${startNum}` : `Day ${startNum}-${endNum}`) : '—'}</td>
@@ -3528,7 +3528,7 @@ function _renderPkCalendar() {
         let offset = 1;
         for (let i = 0; i < anuvasanaIdx; i++) offset += p.blocks[i].length;
         const base = new Date(p.start_date + 'T00:00:00');
-        const fmt = n => { const d = new Date(base); d.setDate(d.getDate() + (n - 1)); return d.toLocaleDateString('en-CA'); };
+        const fmt = n => { const d = new Date(base); d.setDate(d.getDate() + (n - 1)); return istDateStr(d); };
         const anuCell = `<span title="Anuvasana — after lunch/dinner, never empty stomach" style="display:inline-block;padding:3px 7px;border-radius:4px;font-size:10.5px;font-weight:700;color:#fff;background:var(--gold)">Anu</span>`;
         const niruCell = `<span title="Niruha — empty stomach, before breakfast" style="display:inline-block;padding:3px 7px;border-radius:4px;font-size:10.5px;font-weight:700;color:#fff;background:var(--blue)">Niru</span>`;
         const dayCell = (n) => `<td style="padding:5px 9px;text-align:center;border-left:1px solid var(--border);border-bottom:1px solid var(--border);white-space:nowrap;font-size:11px"><strong>Day ${n}</strong><br><span style="color:var(--text-muted);font-size:10px">${fmt(n)}</span></td>`;
@@ -8037,7 +8037,7 @@ window.escalateToEmergency = async function() {
     const { count } = await supabase
       .from('visits').select('*', { count:'exact', head:true })
       .eq('opd_id', emergOpd.id).eq('tenant_id', tenantId)
-      .gte('created_at', today + 'T00:00:00Z');
+      .gte('created_at', istDayStartUTC(today));   // IST midnight — Emergency tokens reset at 05:30 IST before (TODO §59)
     const nextToken = (count || 0) + 1;
 
     // Create new Emergency visit
@@ -8133,8 +8133,8 @@ async function _loadOpdAttendanceBanner() {
   const today = todayLocalStr();
   const { count } = await supabase.from('visits').select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
-    .gte('created_at', today + 'T00:00:00')
-    .lte('created_at', today + 'T23:59:59');
+    .gte('created_at', today + 'T00:00:00+05:30')
+    .lte('created_at', today + 'T23:59:59.999+05:30');
 
   const pct = Math.min(Math.round(((count || 0) / target) * 100), 100);
   if (pct >= 80) return; // no banner if on track

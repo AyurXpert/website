@@ -10,7 +10,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { computeLabBillingLines, labItemsToSelection, billDeferredLabOrder } from '../modules/billing/labBilling.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
-import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, todayISTStr, istDayStartUTC } from '../utils/dateUtils.js';
 import { uhidOf } from '../utils/uhid.js';
 import { notify, dismissNotify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
@@ -1612,7 +1612,7 @@ async function handleSubmit() {
     }
 
     // 2. Duplicate check — today only (yesterday's incomplete visits must not block)
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const todayStart = new Date(istDayStartUTC(todayISTStr()));   // IST midnight, any device clock (TODO §59)
     const { data: existing } = await supabase
       .from('visits').select('id, token_number')
       .eq('patient_id', patient.id)
@@ -2008,7 +2008,7 @@ document.getElementById('btn-print').addEventListener('click', () => {
 
 // ── Queue ─────────────────────────────────────────
 async function loadQueue() {
-  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const start = new Date(istDayStartUTC(todayISTStr()));   // IST midnight, any device clock (TODO §59)
 
   // Token numbers are per-OPD (each OPD counts its own patients from 1 daily), so
   // this combined cross-OPD view can no longer sort by token_number — two different
@@ -4084,7 +4084,7 @@ let _staleVisits = [];
 document.getElementById('btn-eod').addEventListener('click', _openEodModal);
 
 async function _checkStaleVisits() {
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayStart = new Date(istDayStartUTC(todayISTStr()));   // IST midnight, any device clock (TODO §59)
   const { data } = await supabase
     .from('visits')
     .select('id, token_number, created_at, chief_complaint, doctor_id, patients(name)')

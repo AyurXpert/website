@@ -4,7 +4,7 @@ import { initNavbar } from '../components/navbar.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { todayLocalStr } from '../utils/dateUtils.js';
+import { todayLocalStr, istDayStartUTC } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
@@ -32,8 +32,8 @@ async function loadKPIs() {
   const [inv, pending, issued, reactions] = await Promise.all([
     supabase.from('blood_bank_inventory').select('id,expiry_date',{count:'exact'}).eq('tenant_id',tenantId).eq('status','available'),
     supabase.from('blood_bank_requests').select('id',{count:'exact'}).eq('tenant_id',tenantId).in('status',['requested','crossmatch_pending']),
-    supabase.from('blood_bank_requests').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('status','issued').gte('issued_at',today),
-    supabase.from('blood_bank_requests').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('status','reaction_reported').gte('created_at',monthStart),
+    supabase.from('blood_bank_requests').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('status','issued').gte('issued_at',istDayStartUTC(today)),
+    supabase.from('blood_bank_requests').select('id',{count:'exact'}).eq('tenant_id',tenantId).eq('status','reaction_reported').gte('created_at',istDayStartUTC(monthStart)),
   ]);
 
   document.getElementById('k-avail').textContent = inv.count ?? 0;

@@ -205,8 +205,8 @@ window.loadVisitors = async function() {
     .select('id,visitor_name,purpose,met_person,entry_time,exit_time,' + CORR_COLS)
     .eq('tenant_id', tenantId).order('entry_time',{ascending:false});
   const from = document.getElementById('vis-from').value, to = document.getElementById('vis-to').value;
-  if (from) q = q.gte('entry_time', from+'T00:00:00');
-  if (to)   q = q.lte('entry_time', to+'T23:59:59');
+  if (from) q = q.gte('entry_time', from+'T00:00:00+05:30');
+  if (to)   q = q.lte('entry_time', to+'T23:59:59.999+05:30');
   const { data, error } = await q;
   if (error) { _alert('error', safeErrorMessage(error, 'Load error. Please try again.')); return; }
   _visRows = data || [];

@@ -4,7 +4,7 @@ import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { notify } from '../components/notify.js';
-import { monthEndStr } from '../utils/dateUtils.js';
+import { monthEndStr, todayISTStr, istMonthStr, istDayStartUTC } from '../utils/dateUtils.js';
 
 await requireAuth(['doctor','super_admin','dept_admin'], 'login.html');
 initNavbar();
@@ -78,7 +78,7 @@ window.saveSchedule = async function() {
 
 // ── Today's tele queue ────────────────────────────────────────────────────────
 async function loadTeleToday() {
-  const start = new Date(); start.setHours(0,0,0,0);
+  const start = new Date(istDayStartUTC(todayISTStr()));   // IST midnight, any device clock (TODO §59)
   document.getElementById('tele-today-date').textContent =
     new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'});
 
@@ -126,7 +126,7 @@ function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 function _toast(msg, type = 'info') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // §21j — Teleconsultation Register
-document.getElementById('tele-reg-month').value = new Date().toISOString().slice(0,7);
+document.getElementById('tele-reg-month').value = istMonthStr();
 
 let _teleRegData = [];
 window.loadTeleRegister = async function() {
@@ -140,8 +140,8 @@ window.loadTeleRegister = async function() {
     .select('id,token_number,created_at,chief_complaint,status,patients(name),opds(name),profiles!doctor_id(full_name)')
     .eq('tenant_id', tenantId)
     .eq('is_teleconsultation', true)
-    .gte('created_at', from + 'T00:00:00')
-    .lte('created_at', to + 'T23:59:59')
+    .gte('created_at', from + 'T00:00:00+05:30')
+    .lte('created_at', to + 'T23:59:59.999+05:30')
     .order('created_at', { ascending: false });
   if (error) { tbody.innerHTML = `<tr><td colspan="7" style="padding:20px;text-align:center;color:#c0392b">${_esc(safeErrorMessage(error, 'Could not load register.'))}</td></tr>`; return; }
   _teleRegData = data || [];

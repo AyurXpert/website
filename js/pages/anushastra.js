@@ -3,7 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { localDateStr } from '../utils/dateUtils.js';
+import { localDateStr, istMonthStr, istDayStartUTC } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','therapist','receptionist'], 'index.html');
@@ -56,7 +56,7 @@ window._refreshStatsAndRegister = function() { loadStats(); loadRegister(); };
 
 // ─── Stats ────────────────────────────────────────────────
 window.loadStats = async function() {
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const monthStart = istDayStartUTC(istMonthStr(now) + '-01');   // IST month start (TODO §59)
   const [totRes, monRes] = await Promise.all([
     supabase.from('anushastra_sessions').select('id,procedure_type').eq('tenant_id',tenantId),
     supabase.from('anushastra_sessions').select('id,procedure_type').eq('tenant_id',tenantId).gte('created_at',monthStart),

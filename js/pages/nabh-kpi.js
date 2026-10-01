@@ -4,7 +4,7 @@ import { initNavbar }  from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { printDocument, docHeader, shown } from '../utils/printDocument.js';
-import { monthEndStr } from '../utils/dateUtils.js';
+import { monthEndStr, istDayStartUTC } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin']);
 initNavbar('nabh-kpi.html');
@@ -21,7 +21,9 @@ const monthSel = document.getElementById('kpi-month');
 const now = new Date();
 for (let i = 0; i < 12; i++) {
   const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-  const val = d.toISOString().slice(0,7);
+  // Built from d's own year/month: d is local midnight on the 1st, and toISOString() (UTC) turned
+  // it into the previous day — every option's value was the month BEFORE its label (TODO §59).
+  const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   const lbl = d.toLocaleDateString('en-IN',{month:'long',year:'numeric'});
   const opt = new Option(lbl, val);
   if (i === 1) opt.selected = true; // default: last month
@@ -95,7 +97,7 @@ const AUTO_KPIS = [
     compute: async (from, to) => {
       const { count: admCount } = await supabase.from('ipd_admissions').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('admission_date',from).lte('admission_date',to);
       if (!admCount) return 100;
-      const { data: consentData } = await supabase.from('consent_records').select('ipd_admission_id').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00').lte('created_at',to+'T23:59:59').not('ipd_admission_id','is',null);
+      const { data: consentData } = await supabase.from('consent_records').select('ipd_admission_id').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30').not('ipd_admission_id','is',null);
       const uniqueAdmWithConsent = new Set((consentData||[]).map(c=>c.ipd_admission_id)).size;
       return +((uniqueAdmWithConsent/admCount)*100).toFixed(1);
     }
@@ -152,7 +154,7 @@ const AUTO_KPIS = [
     compute: async (from, to) => {
       const { count: admCount } = await supabase.from('ipd_admissions').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('admission_date',from).lte('admission_date',to);
       if (!admCount) return 100;
-      const { count: cpCount } = await supabase.from('ipd_care_plans').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00').lte('created_at',to+'T23:59:59');
+      const { count: cpCount } = await supabase.from('ipd_care_plans').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30');
       return +((cpCount/admCount)*100).toFixed(1);
     }
   },
@@ -169,7 +171,7 @@ const AUTO_KPIS = [
         .select('created_at, collected_at')
         .eq('tenant_id',tenantId)
         .not('collected_at','is',null)
-        .gte('created_at',from+'T00:00:00').lte('created_at',to+'T23:59:59');
+        .gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30');
       if (!samples?.length) return null;
       const avgMs = samples.reduce((s,r) => s + (new Date(r.collected_at) - new Date(r.created_at)), 0) / samples.length;
       return +(avgMs/3600000).toFixed(1);
@@ -235,7 +237,7 @@ const AUTO_KPIS = [
       const { data } = await supabase.from('patient_feedback')
         .select('overall_rating')
         .eq('tenant_id',tenantId)
-        .gte('submitted_at',from+'T00:00:00').lte('submitted_at',to+'T23:59:59');
+        .gte('submitted_at',from+'T00:00:00+05:30').lte('submitted_at',to+'T23:59:59.999+05:30');
       if (!data?.length) return null;
       const avg = data.reduce((s,r) => s+(r.overall_rating||0), 0) / data.length;
       return +(avg/5*100).toFixed(1);
@@ -266,8 +268,8 @@ async function calcInpatientDays(from, to) {
     .select('admission_date,discharged_at')
     .eq('tenant_id',tenantId)
     .lte('admission_date',to)
-    .or(`discharged_at.gte.${from},discharged_at.is.null`);
-  const f = new Date(from), t = new Date(to+'T23:59:59');
+    .or(`discharged_at.gte.${istDayStartUTC(from)},discharged_at.is.null`);
+  const f = new Date(from + 'T00:00:00+05:30'), t = new Date(to + 'T23:59:59.999+05:30');   // IST days (TODO §59)
   return (data||[]).reduce((sum,a) => {
     const start = new Date(Math.max(new Date(a.admission_date), f));
     const end   = a.discharged_at ? new Date(Math.min(new Date(a.discharged_at), t)) : t;

@@ -3,7 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { localDateStr } from '../utils/dateUtils.js';
+import { localDateStr, istMonthStr, istDayStartUTC } from '../utils/dateUtils.js';
 import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell, activeRows } from '../modules/registers/corrections.js';
 import { notify } from '../components/notify.js';
@@ -95,9 +95,9 @@ document.getElementById('m-next').value = localDateStr(nextQ);
 
 // ─── Live QI pull ─────────────────────────────────────────
 async function loadLiveQI() {
-  const todayStart = todayStr + 'T00:00:00';
-  const todayEnd   = todayStr + 'T23:59:59';
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const todayStart = todayStr + 'T00:00:00+05:30';   // IST day bounds (TODO §59)
+  const todayEnd   = todayStr + 'T23:59:59.999+05:30';
+  const monthStart = istDayStartUTC(istMonthStr(now) + '-01');   // IST month start (TODO §59)
 
   const [visRes, bedRes, tRow, complRes] = await Promise.all([
     supabase.from('visits').select('id',{count:'exact',head:true}).eq('tenant_id',tenantId).gte('created_at',todayStart).lte('created_at',todayEnd),
