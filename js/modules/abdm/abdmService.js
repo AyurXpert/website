@@ -332,7 +332,7 @@ export async function deactivateAbhaConfirm(txnId, xToken, otp, reasons = ['User
 }
 
 // §3.2.5 — Register/update facility HIP+HIU services on ABDM bridge.
-// facilityId: 12-char HFR ID starting with IN (e.g. IN2910002132)
+// facilityId: 12-char HFR ID starting with IN (the tenant's own tenants.hfr_id)
 // facilityName: full facility name (max 100 chars)
 // hipName: max 15 chars, alphanumeric+space only — appears on ABHA app patient search
 // types: ['HIP','HIU'] (default) — can pass ['HIP'] or ['HIU'] alone

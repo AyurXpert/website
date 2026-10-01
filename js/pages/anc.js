@@ -5,6 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { printDocument, docHeader, shown } from '../utils/printDocument.js';
 
 await requireAuth(['doctor','nurse','super_admin','dept_admin','receptionist']);
 initNavbar();
@@ -268,7 +269,18 @@ window.viewVisit = function(id) {
   document.getElementById('detail-overlay').style.display = 'flex';
 };
 
-window.printRegister = function() { window.print(); };
+// Register = letterhead + patient bar + stats + visits table only (css/print.css allowlist).
+window.printRegister = function() {
+  const $ = id => document.getElementById(id);
+  if (!shown($('anc-card')).length) { _alert('info', 'Select a patient first — the register prints that patient’s ANC visits.'); return; }
+  printDocument([docHeader('ANC Register', 'NCISM §18x — Antenatal Care'), ...shown($('patient-bar'), $('anc-stats'), $('anc-card'))],
+    { title: `ANC Register — ${$('bar-name').textContent}`, size: 'A4-landscape' });
+};
+window.printAncVisit = function() {
+  const $ = id => document.getElementById(id);
+  printDocument([docHeader('ANC Visit Details', `${$('bar-name').textContent} · ${$('detail-sub').textContent}`), $('detail-body')],
+    { title: `ANC Visit — ${$('bar-name').textContent}` });
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 // ── §21q Garbhasanskara Sessions ─────────────────────────────────────────────

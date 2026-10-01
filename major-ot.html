@@ -128,7 +128,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .logbook-table tr:nth-child(even) td{background:#f8faf9}
 
 /* Print */
-@media print{body *{visibility:hidden}#ot-print,#ot-print *{visibility:visible}#ot-print{position:fixed;inset:0;padding:15mm;font-family:'DM Sans',sans-serif}}
+/* OT record + logbook print via printDocument() (css/print.css); the old visibility trick printed nothing (#ot-print stays display:none). */
 #ot-print{display:none}
 
 @media(max-width:768px){
@@ -138,6 +138,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 }
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
+<link rel="stylesheet" href="css/print.css"/>
 </head>
 <body>
 <div id="navbar-placeholder"></div>

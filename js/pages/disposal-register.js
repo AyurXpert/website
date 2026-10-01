@@ -7,12 +7,22 @@ import { localDateStr } from '../utils/dateUtils.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell, activeRows } from '../modules/registers/corrections.js';
 import { canWriteRegister } from '../utils/registerAccess.js';
 import { notify } from '../components/notify.js';
+import { printDocument, docHeader } from '../utils/printDocument.js';
 
 await requireAuth(['pharmacist','super_admin','dept_admin','accountant'], 'login.html');
 initNavbar();
 wireDelegatedEvents();
 
-window._print = () => window.print();
+// Register = letterhead (with the filters applied) + records table only.
+window._print = () => {
+  const $ = id => document.getElementById(id);
+  const fmt = v => v ? new Date(v + 'T00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+  const range = $('f-from').value || $('f-to').value ? `${fmt($('f-from').value) || '…'} to ${fmt($('f-to').value) || '…'}` : 'All dates';
+  const filters = [range, $('f-method').value ? $('f-method').selectedOptions[0].text : '', $('f-name').value.trim() ? `Medicine: ${$('f-name').value.trim()}` : '']
+    .filter(Boolean).join(' · ');
+  printDocument([docHeader('Expiry Medicine Disposal Register', `NCISM §6(5) · ${filters}`), document.querySelector('.cc')],
+    { title: 'Disposal Register', size: 'A4-landscape' });
+};
 
 const tenantId  = getCurrentTenantId();
 const tenant    = getCurrentTenant();

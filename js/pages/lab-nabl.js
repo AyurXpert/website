@@ -7,6 +7,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { printDocument } from '../utils/printDocument.js';
 
 const ALLOWED = ['super_admin','dept_admin','lab_tech','doctor','nurse'];
 await requireAuth(ALLOWED);
@@ -17,6 +18,8 @@ const today    = todayLocalStr();
 
 initNavbar();
 wireDelegatedEvents();
+// Sample barcode label = the barcode card only (ID, QR, patient/sample line), not the modal.
+window.printSampleLabel = () => printDocument(document.getElementById('barcode-preview'), { title: 'Sample Label' });
 init();
 
 // ── State ──────────────────────────────────────────────

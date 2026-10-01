@@ -87,8 +87,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .rating-row{display:flex;gap:6px;align-items:center;margin-top:4px}
 .rating-btn{font-size:18px;cursor:pointer;opacity:.4;transition:opacity .1s}
 .rating-btn.sel{opacity:1}
+/* Printed register (printDocument): no Actions column on paper. */
+@media print{.ax-print-root .tc-table th:last-child,.ax-print-root .tc-table td:last-child{display:none}}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
+<link rel="stylesheet" href="css/print.css"/>
 </head>
 <body>
 <div id="navbar-placeholder"></div>
@@ -99,7 +102,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="page-subtitle">Case Presentation Register — PG Training (Postgraduate Teaching OPD)</div>
     </div>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-secondary btn-sm" data-onclick="print">🖨 Print</button>
+      <button class="btn btn-secondary btn-sm" data-onclick="printTeachingOpd">🖨 Print</button>
       <button class="btn btn-primary" data-onclick="openModal">+ Record Case Presentation</button>
     </div>
   </div>

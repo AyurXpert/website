@@ -7,6 +7,9 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
 <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
 <style>
+/* @import must be the first rule in a stylesheet — it sat at the end, so browsers ignored it
+   and the report never loaded its fonts. */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=DM+Sans:wght@300;400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',Arial,sans-serif;background:#f5f5f5;color:#1a1a1a;font-size:13px}
 .report-wrap{max-width:820px;margin:20px auto;background:#fff;padding:0;box-shadow:0 2px 20px rgba(0,0,0,.12)}
@@ -24,7 +27,11 @@ body{font-family:'DM Sans',Arial,sans-serif;background:#f5f5f5;color:#1a1a1a;fon
 .nabl-cert-box{border:1.5px solid #1565c0;border-radius:6px;padding:6px 10px;text-align:center;min-width:130px}
 .nabl-cert-num{font-size:13px;font-weight:700;color:#1565c0;font-family:monospace}
 .nabl-label{font-size:9px;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
-.nabl-cert-input{border:none;border-bottom:1px dashed #90caf9;font-size:13px;font-weight:700;color:#1565c0;font-family:monospace;width:120px;text-align:center;outline:none;background:transparent}
+.nabl-cert-input{border:none;border-bottom:1px dashed #90caf9;font-size:13px;font-weight:700;color:#1565c0;font-family:monospace;width:120px;min-width:120px;max-width:100%;field-sizing:content;text-align:center;outline:none;background:transparent}
+/* NABL elements: the accreditation line + footer number only exist with a certificate number;
+   the header box stays on screen (to type one) but never prints empty. */
+.no-nabl-cert .rpt-org-sub .nabl-only,.no-nabl-cert .rpt-footer .nabl-only{display:none}
+@media print{.no-nabl-cert .nabl-cert-box{display:none!important}}
 
 /* ── Report title strip ── */
 .rpt-title-strip{background:#1a4a2e;color:#fff;padding:6px 24px;display:flex;justify-content:space-between;align-items:center}
@@ -76,7 +83,6 @@ tr:hover td{background:#fafdfb}
 
 /* ── PRINT ── */
 @media print {
-  @page { size: A4 portrait; margin: 10mm 12mm; }
   body   { background:#fff; font-size:11pt }
   .print-controls { display:none !important }
   .report-wrap { box-shadow:none; margin:0 }
@@ -87,10 +93,11 @@ tr:hover td{background:#fafdfb}
   tr { page-break-inside: avoid }
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=DM+Sans:wght@300;400;500&display=swap');
 </style>
+<link rel="stylesheet" href="css/print.css"/>
 </head>
-<body>
+<!-- ax-printing + .ax-print-root (css/print.css): only the report prints, never the controls bar. -->
+<body class="ax-printing">
 
 <!-- Print controls (hidden in print) -->
 <div class="print-controls" id="print-controls">
@@ -99,7 +106,7 @@ tr:hover td{background:#fafdfb}
   <button class="btn-print" data-onclick="print">🖨 Print / Save PDF</button>
 </div>
 
-<div id="report-wrap" class="report-wrap">
+<div id="report-wrap" class="report-wrap ax-print-root">
   <div id="report-content" class="loading-msg">Loading report…</div>
 </div>
 

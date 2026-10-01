@@ -11,6 +11,7 @@ import {
   _computeGrandCompliance, _collectStaffClassification,
 } from '../config/ncismStaffCompliance.js';
 import { notify } from '../components/notify.js';
+import { printDocument, docHeader, shown } from '../utils/printDocument.js';
 
 await requireAuth(['super_admin','dept_admin','accountant'], 'login.html', { monitoringSafe: true });
 initNavbar();
@@ -18,7 +19,12 @@ wireDelegatedEvents();
 const tenantId = getCurrentTenantId();
 const role     = getCurrentRole();
 
-window._print = () => window.print();
+// Report = letterhead (reporting period) + whichever compliance view is showing.
+window._print = () => {
+  const $ = id => document.getElementById(id);
+  printDocument([docHeader('NCISM Compliance Monitor', $('period-label').textContent.trim()),
+    ...shown($('ncism-not-applicable'), $('ncism-metrics'))], { title: 'NCISM Compliance' });
+};
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let _period      = 'monthly';

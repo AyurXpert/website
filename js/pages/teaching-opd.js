@@ -6,6 +6,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { printDocument, docHeader } from '../utils/printDocument.js';
 
 // Session 205 (cont.): nurse access removed -- this is a PG/faculty academic register (NCISM
 // Sec.18k/21l); a nurse had full write access (log Bedside Clinics as "faculty", enter PG faculty
@@ -13,6 +14,12 @@ import { notify } from '../components/notify.js';
 await requireAuth(['doctor','super_admin','dept_admin']);
 initNavbar();
 wireDelegatedEvents();
+
+// Register = letterhead + Bedside Clinics card + case-presentation table (Actions column dropped).
+window.printTeachingOpd = () => printDocument(
+  [docHeader('Teaching OPD Register', 'NCISM §18k / §21l — PG Case Presentations & Bedside Clinics'),
+   ...document.querySelectorAll('.page-wrap > .card')],
+  { title: 'Teaching OPD Register', size: 'A4-landscape' });
 
 const tenant   = getCurrentTenant();
 const profile  = getCurrentProfile();

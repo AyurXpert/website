@@ -3,7 +3,7 @@ import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { todayLocalStr } from '../utils/dateUtils.js';
+import { todayLocalStr, monthEndStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','therapist','receptionist'], 'index.html');
@@ -245,7 +245,7 @@ window.loadHistory = async function() {
     .select('*,patients(name,phone),profiles!physiotherapist_id(full_name)')
     .eq('tenant_id',tenantId)
     .gte('session_date', month+'-01')
-    .lte('session_date', month+'-31')
+    .lte('session_date', monthEndStr(month))
     .order('session_date',{ascending:false});
 
   if (error || !data?.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-muted)">No sessions for this month</td></tr>'; return; }

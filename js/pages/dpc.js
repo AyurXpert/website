@@ -7,12 +7,16 @@ import { todayLocalStr } from '../utils/dateUtils.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell, activeRows } from '../modules/registers/corrections.js';
 import { canWriteRegister } from '../utils/registerAccess.js';
 import { notify } from '../components/notify.js';
+import { printDocument, docHeader } from '../utils/printDocument.js';
 
 await requireAuth(['super_admin','dept_admin','accountant']);
 initNavbar();
 wireDelegatedEvents();
 
-window._print = () => window.print();
+// Register = letterhead + meeting register table (Actions column dropped, see dpc.html).
+window._print = () => printDocument(
+  [docHeader('Drug Procurement Committee — Meeting Register', 'NCISM §18at · §6(2) Pharmacy Committee'), document.querySelector('.dpc-table').closest('.card')],
+  { title: 'DPC Meeting Register', size: 'A4-landscape' });
 window._closeIfSelf = function(isSelf, fnName) {
   if (isSelf) { const fn = window[fnName]; if (typeof fn === 'function') fn(); }
 };
@@ -174,7 +178,7 @@ window.viewMeeting = function(id) {
       </div>
     </div>`;
   const w = window.open('', '_blank');
-  w.document.write('<html><head><title>DPC Minutes</title></head><body>' + html + '<\/body><\/html>');
+  w.document.write('<html><head><title>DPC Minutes</title><style>@page{size:A4;margin:14mm 12mm}body{font-family:"DM Sans",Arial,sans-serif}</style></head><body>' + html + '<\/body><\/html>');
   w.document.close();
   w.print();
 };

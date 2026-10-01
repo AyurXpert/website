@@ -85,8 +85,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .decision-row input{flex:1;height:34px;border:1.5px solid var(--border);border-radius:7px;padding:0 10px;font-size:13px;font-family:'DM Sans',sans-serif}
 .decision-rm{height:34px;width:32px;background:var(--red-light);border:1.5px solid #f5c6c6;border-radius:7px;cursor:pointer;font-size:13px;color:var(--red);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .add-dec-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:7px;border:1.5px dashed var(--green-mid);background:none;color:var(--green-mid);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;margin-top:4px}
+/* Printed register (printDocument): no Actions column on paper. */
+@media print{.ax-print-root .dpc-table th:last-child,.ax-print-root .dpc-table td:last-child{display:none}}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
+<link rel="stylesheet" href="css/print.css"/>
 </head>
 <body>
 <div id="navbar-placeholder"></div>

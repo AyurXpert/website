@@ -1,10 +1,35 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8"/>
   <title>Invoice - AyurXpert</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
   <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=DM+Sans:wght@400;500;600;700&display=swap"/>
+  <!-- Page-local styles replacing the Tailwind CDN (removed 1 Oct 2026: on the live site the
+       service worker could serve it as a non-script response, so invoices printed unstyled).
+       Same class names the markup and printInvoice.js already use, mapped to the brand palette. -->
+  <style>
+    :root{--green-deep:#1a4a2e;--text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#6a8070;--border:#c8ddd0;--cream:#faf8f3;--red:#c0392b}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:'DM Sans',Arial,sans-serif;color:var(--text-dark);background:#fff}
+    h1,p{margin:0}
+    hr{border:0;border-top:1px solid var(--border)}
+    table{border-collapse:collapse}
+    img{display:block}
+    .bg-white{background:#fff}.bg-gray-100{background:var(--cream)}
+    .p-2{padding:8px}.p-4{padding:16px}.p-6{padding:24px}.pt-2{padding-top:8px}.pt-4{padding-top:16px}.px-4{padding-left:16px;padding-right:16px}.py-2{padding-top:8px;padding-bottom:8px}
+    .mx-auto{margin-left:auto;margin-right:auto}.my-4{margin:16px 0}.mb-4{margin-bottom:16px}.mb-1{margin-bottom:4px}.mt-1{margin-top:4px}.mt-4{margin-top:16px}.mt-6{margin-top:24px}
+    .max-w-2xl{max-width:42rem}.w-full{width:100%}.h-12{height:48px}
+    .flex{display:flex}.justify-between{justify-content:space-between}.items-start{align-items:flex-start}
+    .border{border:1px solid var(--border)}.border-t{border-top:1px solid var(--border)}
+    .text-xs{font-size:12px}.text-sm{font-size:14px}.text-lg{font-size:18px}.text-xl{font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;color:var(--green-deep)}
+    .font-bold{font-weight:700}.italic{font-style:italic}.font-mono{font-family:ui-monospace,Consolas,monospace}.break-all{word-break:break-all}
+    .text-right{text-align:right}.text-center{text-align:center}
+    .text-gray-500{color:var(--text-muted)}.text-gray-600{color:var(--text-mid)}.text-green-700{color:var(--green-deep)}.text-red-500{color:var(--red)}
+    thead th{color:var(--green-deep);font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+    .print-btn{background:var(--green-deep);color:#fff;border:0;border-radius:8px;min-height:44px;padding:0 20px;font:600 14px 'DM Sans',sans-serif;cursor:pointer}
+  </style>
   <link rel="stylesheet" href="css/print.css"/>
 </head>
 
@@ -68,7 +93,7 @@
 </div><!-- /ax-print-root -->
 
 <div class="text-center mt-4">
-  <button data-onclick="print" class="bg-green-600 text-white px-4 py-2 rounded">
+  <button data-onclick="print" class="print-btn">
     Print / Save PDF
   </button>
 </div>

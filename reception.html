@@ -784,20 +784,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .dm-row{font-size:11px;white-space:nowrap}
 
 /* ── Print ───────────────────────────────────────── */
-@media print{
-  #navbar-root,.check-wrap,.pay-toggle,.refresh-foot,
-  .alert,.page > div:last-child,.receipt-actions,
-  .field,.field-row,.field-row3,.fee-summary{display:none!important}
-  body{background:#fff}
-  .page{display:block;margin:0;padding:0}
-  .panel{box-shadow:none;border:none}
-  .panel-hdr{display:none!important}
-  .receipt-card{display:block!important;border:none;background:#fff;padding:24px;margin:0}
-  .receipt-title{font-size:20px;margin-bottom:16px}
-  .receipt-row{padding:7px 0}
-}
+/* The visit receipt / appointment slip prints via printDocument() (js/utils/printDocument.js +
+   css/print.css) as its own document. The old hide-list here printed the whole screen. */
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
+<link rel="stylesheet" href="css/print.css"/>
 </head>
 <body>
 

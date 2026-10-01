@@ -4,13 +4,13 @@ import { requireAuth, getCurrentProfile, getCurrentTenant } from '../core/auth.j
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, monthEndStr } from '../utils/dateUtils.js';
 import { stageIpdLabCharges } from '../modules/billing/labBilling.js';
 import { canWriteRegister, hideRegisterWrites, showViewOnlyNote } from '../utils/registerAccess.js';
 import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
 import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
-import { printDocument } from '../utils/printDocument.js';
+import { printDocument, docHeader } from '../utils/printDocument.js';
 
 // Session 113 -- receptionist added so front-desk staff can check whether a patient's
 // report is ready when they call in (Dr. Venkatesh's ask). Deliberately read-only and
@@ -1006,7 +1006,13 @@ window.saveImaging = async function(status) {
   if (_activeImgOrder) selectImgOrder(_activeImgOrder.id);
 };
 
-window.printImagingReport = function() { window.print(); };
+// Imaging report = letterhead + patient header + the report form (typed findings frozen to text).
+window.printImagingReport = function() {
+  const $ = id => document.getElementById(id);
+  printDocument([docHeader('Imaging Report', $('i-mod-badge').textContent.trim()),
+    document.querySelector('#img-active-order .result-panel-hdr'), $('img-form-body')],
+    { title: `Imaging Report — ${$('i-pt-name').textContent}` });
+};
 
 // ── New imaging order from lab page ──────────────────────────────────────────
 let _imgPtSearch = null, _imgPtTimer = null;
@@ -1092,7 +1098,7 @@ let _aerbEntries = [];
 window.loadAerbLog = async function loadAerbLog() {
   const month = document.getElementById('aerb-month').value;
   if (!month) return;
-  const from = month + '-01', to = month + '-31';
+  const from = month + '-01', to = monthEndStr(month);
 
   // From imaging_orders (X-ray only)
   const { data: imgXray } = await supabase.from('imaging_orders')
@@ -1137,7 +1143,11 @@ window.loadAerbLog = async function loadAerbLog() {
   </tr>`).join('') : `<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-muted)">No X-ray entries for this month</td></tr>`;
 }
 
-window.printAerbLog = function() { window.print(); };
+// Register = letterhead (month) + the exposure register table only, A4 landscape.
+window.printAerbLog = function() {
+  printDocument([docHeader('AERB X-Ray Exposure Register', _monthLabel('aerb-month')), document.querySelector('#tab-aerb .register-wrap')],
+    { title: 'AERB X-Ray Register', size: 'A4-landscape' });
+};
 
 window.openAerbEntry = function() {
   document.getElementById('ae-date').value = todayLocalStr();
@@ -1176,7 +1186,7 @@ window.saveAerbEntry = async function() {
 window.loadPcpndtLog = async function loadPcpndtLog() {
   const month = document.getElementById('pcpndt-month').value;
   if (!month) return;
-  const from = month + '-01', to = month + '-31';
+  const from = month + '-01', to = monthEndStr(month);
   const { data, error } = await supabase.from('imaging_orders')
     .select('*, patients(name,age,gender), profiles!ordered_by(full_name)')
     .eq('tenant_id', tenantId).eq('modality', 'usg')
@@ -1203,7 +1213,15 @@ window.loadPcpndtLog = async function loadPcpndtLog() {
   : `<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--text-muted)">No USG entries for this month</td></tr>`;
 }
 
-window.printPcpndtLog = function() { window.print(); };
+// Register = letterhead (month) + the PCPNDT register table only, A4 landscape.
+window.printPcpndtLog = function() {
+  printDocument([docHeader('PCPNDT Register — USG / Imaging', _monthLabel('pcpndt-month')), document.querySelector('#tab-pcpndt .register-wrap')],
+    { title: 'PCPNDT Register', size: 'A4-landscape' });
+};
+function _monthLabel(id) {
+  const m = document.getElementById(id)?.value;
+  return m ? new Date(m + '-01T00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : '';
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 updateDateLabel();

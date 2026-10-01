@@ -7427,7 +7427,9 @@ window.printMedCert = function() {
     ? `from <strong>${new Date(fromDate+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})}</strong>` +
       (toDate ? ` to <strong>${new Date(toDate+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})}</strong>` : '')
     : '';
-  const regStr = profile.registration_number ? `Reg. No.: ${profile.registration_number}` : '';
+  // Registration number directly under the doctor's name; nothing at all when not set.
+  const regNo  = String(profile.registration_number || '').trim();
+  const regStr = regNo ? `Reg. No.: ${regNo}` : '';
 
   document.getElementById('mc-print').innerHTML = `
 <div style="font-family:'DM Sans',sans-serif;max-width:600px;margin:0 auto;padding:0;color:#1c2b1f">
@@ -7458,8 +7460,8 @@ window.printMedCert = function() {
       <div style="text-align:center">
         <div style="width:180px;border-top:1px solid #aaa;padding-top:6px;font-size:12px;color:#2a4a32">
           <strong>${_esc(profile.full_name)}</strong>
+          ${regStr ? `<div style="font-size:11px;color:#2a4a32">${_esc(regStr)}</div>` : ''}
           ${profile.qualification ? `<div style="font-size:11px;color:#6a8070">${_esc(profile.qualification)}</div>` : ''}
-          ${regStr ? `<div style="font-size:10px;color:#8a9e90">${_esc(regStr)}</div>` : ''}
         </div>
       </div>
     </div>
@@ -8700,7 +8702,7 @@ async function saveMhaConsent(doPrint) {
   if (doPrint) {
     const p = _activePatient;
     const html = `<html><head><title>MHA 2017 Consent</title>
-      <style>body{font-family:sans-serif;padding:32px;font-size:13px}h2{margin-bottom:4px}
+      <style>@page{size:A4;margin:14mm 12mm}body{font-family:sans-serif;padding:32px;font-size:13px}h2{margin-bottom:4px}
       .row{display:flex;gap:24px;margin-bottom:10px}.label{font-weight:600;min-width:130px}
       .check{margin:4px 0}.section{margin:18px 0 6px;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #ccc;padding-bottom:3px}
       .sig-box{margin-top:40px;display:flex;gap:60px}.sig-line{width:180px;border-top:1px solid #333;padding-top:4px;font-size:11px}</style>

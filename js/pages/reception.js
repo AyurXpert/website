@@ -13,6 +13,7 @@ import { renderPromoBanner } from '../components/promoBanner.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { uhidOf } from '../utils/uhid.js';
 import { notify, dismissNotify } from '../components/notify.js';
+import { printDocument } from '../utils/printDocument.js';
 import {
   requestABHAOtp, enrollABHA,
   checkAndGenerateMobileOTP, verifyCommMobileOtp, finalizeAbhaEnrollment,
@@ -1845,19 +1846,88 @@ async function handleSubmit() {
 }
 
 // ── Receipt ───────────────────────────────────────
-async function _showReceipt(d) {
-  const fmt  = n => n > 0 ? `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—';
+// Printed receipt — a real document built from the same data, not the on-screen card (which
+// carries buttons, the feedback/tele link boxes and the form around it). printDocument()
+// prints only this. _printReceipt is set by whichever slip is on screen (visit or appointment).
+let _printReceipt = null;
+
+function _receiptDoc(title, rows, note = '') {
+  const t = tenant || {};
+  const place = [t.address, [t.city, t.state].filter(Boolean).join(', ')].filter(Boolean).join(' · ');
+  const contact = [t.phone ? `Ph: ${t.phone}` : null, t.gstin ? `GSTIN: ${t.gstin}` : null].filter(Boolean).join(' · ');
+  const now = new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const el = document.createElement('div');
+  el.innerHTML = `
+<div style="font-family:'DM Sans',Arial,sans-serif;color:#1c2b1f;max-width:150mm;margin:0 auto;border:1px solid #c8ddd0;border-radius:6px;overflow:hidden">
+  <div style="text-align:center;padding:14px 18px 10px;border-bottom:2px solid #1a4a2e">
+    ${t.logo_url ? `<img src="${_esc(t.logo_url)}" alt="" style="height:44px;object-fit:contain;margin-bottom:4px">` : ''}
+    <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:#1a4a2e">${_esc(t.name || 'Hospital')}</div>
+    ${place ? `<div style="font-size:11px;color:#4a6352;margin-top:2px">${_esc(place)}</div>` : ''}
+    ${contact ? `<div style="font-size:11px;color:#4a6352">${_esc(contact)}</div>` : ''}
+  </div>
+  <div style="text-align:center;padding:7px;background:#f5fbf8;border-bottom:1px solid #c8ddd0;font-size:13px;font-weight:700;letter-spacing:1.5px;color:#1a4a2e;text-transform:uppercase">${_esc(title)}</div>
+  <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    ${rows.map(r => r.section
+      ? `<tr><td colspan="2" style="padding:8px 18px 3px;font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#4a6352">${_esc(r.section)}</td></tr>`
+      : `<tr${r.strong ? ' style="font-weight:700;border-top:1px solid #1a4a2e"' : ''}><td style="padding:4px 18px;color:#4a6352;width:42%">${_esc(r.l)}</td><td style="padding:4px 18px;text-align:right">${_esc(r.v)}</td></tr>`
+    ).join('')}
+  </table>
+  ${note ? `<div style="margin:8px 18px 0;font-size:11px;color:#4a6352">${_esc(note)}</div>` : ''}
+  <div style="display:flex;justify-content:space-between;padding:12px 18px 10px;margin-top:8px;border-top:1px dashed #c8ddd0;font-size:10px;color:#6a8070">
+    <span>Printed: ${_esc(now)}</span><span>Computer-generated receipt</span>
+  </div>
+</div>`;
+  return el;
+}
+
+function _visitReceiptDoc(d) {
+  const inr = n => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const payMode = d.isInsurance
+    ? ({ insurance: 'Insurance / TPA', pmjay: 'PMJAY (Ayushman)', cghs: 'CGHS / ECHS', echs: 'ECHS', esi: 'ESIC', corporate: 'Corporate' }[d.payerType] || 'Insurance')
+    : (d.payMode ? d.payMode.charAt(0).toUpperCase() + d.payMode.slice(1) : '—');
   const rows = [
-    { l: 'Token',          v: `<strong>#${d.token}</strong>` },
-    { l: 'UHID',           v: d.uhid },
-    d.abha ? { l: 'ABHA No.',  v: d.abha } : null,
+    { l: 'Token', v: `#${d.token}` },
+    { l: 'Date & Time', v: d.date },
+    { section: 'Patient' },
+    { l: 'Name', v: d.name },
+    { l: 'UHID', v: d.uhid },
+    d.abha ? { l: 'ABHA No.', v: d.abha } : null,
     d.abhaAddress ? { l: 'ABHA Address', v: d.abhaAddress } : null,
-    { l: 'Patient',        v: d.name },
-    { l: 'Phone',          v: d.phone },
+    d.phone ? { l: 'Phone', v: d.phone } : null,
+    { section: 'Visit' },
     { l: 'Visit Category', v: d.category },
-    { l: 'OPD',            v: d.opd },
-    { l: 'Doctor',         v: d.doctor },
-    { l: 'Complaint',      v: d.complaint },
+    { l: 'OPD', v: d.opd },
+    // The doctor dropdown's placeholder ("— No doctors active today —") is not a doctor.
+    { l: 'Doctor', v: !d.doctor || /^\s*—/.test(d.doctor) ? 'Not assigned' : d.doctor },
+    d.complaint ? { l: 'Complaint', v: d.complaint } : null,
+    { section: 'Fees' },
+    d.regFee > 0 ? { l: 'Registration Fee', v: inr(d.regFee) } : null,
+    { l: 'Consultation Fee', v: inr(d.consFee) },
+    d.surcharge > 0 ? { l: 'On-Request Surcharge', v: inr(d.surcharge) } : null,
+    { l: 'Total', v: inr(d.total), strong: true },
+    { section: 'Payment' },
+    { l: 'Payment Mode', v: payMode },
+    { l: 'Payment Status', v: d.payStatus === 'paid' ? 'Paid' : 'Pending' },
+  ].filter(Boolean);
+  return _receiptDoc('OPD Visit Receipt', rows,
+    d.isInsurance ? 'Insurance / TPA details will be completed by the accounts department.' : '');
+}
+
+async function _showReceipt(d) {
+  _printReceipt = () => _visitReceiptDoc(d);
+  const fmt  = n => n > 0 ? `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—';
+  // Free text (patient name, complaint, ABHA address…) is escaped — it went into innerHTML raw.
+  const rows = [
+    { l: 'Token',          v: `<strong>#${_esc(d.token)}</strong>` },
+    { l: 'UHID',           v: _esc(d.uhid) },
+    d.abha ? { l: 'ABHA No.',  v: _esc(d.abha) } : null,
+    d.abhaAddress ? { l: 'ABHA Address', v: _esc(d.abhaAddress) } : null,
+    { l: 'Patient',        v: _esc(d.name) },
+    { l: 'Phone',          v: _esc(d.phone) },
+    { l: 'Visit Category', v: _esc(d.category) },
+    { l: 'OPD',            v: _esc(d.opd) },
+    { l: 'Doctor',         v: _esc(d.doctor) },
+    { l: 'Complaint',      v: _esc(d.complaint) },
     d.regFee   > 0 ? { l: 'Registration Fee',      v: fmt(d.regFee) }   : null,
     { l: 'Consultation Fee', v: fmt(d.consFee) },
     d.surcharge > 0 ? { l: 'On-Request Surcharge', v: fmt(d.surcharge) } : null,
@@ -1867,7 +1937,7 @@ async function _showReceipt(d) {
         : (d.payMode.charAt(0).toUpperCase() + d.payMode.slice(1)) },
     d.isInsurance ? { l: 'Billing', v: 'Accounts dept will fill TPA / policy details' } : null,
     { l: 'Payment Status', v: d.payStatus === 'paid' ? '✓ Paid' : '⏳ Pending' },
-    { l: 'Date & Time',    v: d.date },
+    { l: 'Date & Time',    v: _esc(d.date) },
   ].filter(Boolean);
 
   document.getElementById('receipt-rows').innerHTML = rows.map(r =>
@@ -1881,7 +1951,7 @@ async function _showReceipt(d) {
     meetBlock.innerHTML = `
       <div style="background:#dbeafe;border:1.5px solid #93c5fd;border-radius:10px;padding:12px 14px;margin-top:12px">
         <div style="font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🎥 Teleconsultation Video Link</div>
-        <div style="font-size:12px;color:#1e40af;word-break:break-all;margin-bottom:8px">${d.meetingUrl}</div>
+        <div style="font-size:12px;color:#1e40af;word-break:break-all;margin-bottom:8px">${_esc(d.meetingUrl)}</div>
         <button data-onclick="_copyToClipboard" data-onclick-a0="@this" data-onclick-a1="${_esc(d.meetingUrl)}" style="background:#2563eb;color:#fff;border:none;border-radius:7px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">📋 Copy Link for Patient</button>
         <div style="font-size:11px;color:#3b82f6;margin-top:6px">Share this link with the patient via WhatsApp / SMS before the appointment.</div>
       </div>`;
@@ -1931,7 +2001,10 @@ async function _showReceipt(d) {
   }
 }
 
-document.getElementById('btn-print').addEventListener('click', () => window.print());
+document.getElementById('btn-print').addEventListener('click', () => {
+  if (!_printReceipt) return;
+  printDocument(_printReceipt(), { title: 'Receipt' });
+});
 
 // ── Queue ─────────────────────────────────────────
 async function loadQueue() {
@@ -3841,7 +3914,22 @@ async function _startScanSession(counterId, opdId) {
   const { data: tenant } = await supabase
     .from('tenants').select('hfr_id')
     .eq('id', tenantId).single();
-  const hipId     = tenant?.hfr_id || 'IN2910002132';
+  // This hospital's own HFR ID only. There used to be a hardcoded fallback to another
+  // tenant's real ABDM facility ID, so a hospital without one printed a QR pointing at that
+  // facility. No HFR ID now means no QR at all — "ABDM not configured" instead.
+  const hipId = String(tenant?.hfr_id || '').trim();
+  const qrBox   = document.getElementById('scan-qr-canvas').closest('.scan-qr-box');
+  const qrBtns  = document.getElementById('btn-scan-qr-download').parentElement;
+  const qrHint  = qrBox?.parentElement.querySelector('.scan-hint');
+  [qrBox, qrBtns, qrHint].forEach(el => { if (el) el.style.display = hipId ? '' : 'none'; });
+  if (!hipId) {
+    document.getElementById('scan-qr-canvas').innerHTML = '';
+    _scanRequestId = null;
+    document.getElementById('scan-status').className = 'scan-status';
+    document.getElementById('scan-status-text').textContent =
+      'ABDM not configured — this hospital has no HFR ID yet. An admin can add it in Admin → Settings before Scan & Share can be used.';
+    return;
+  }
   // Use NHPR counter ID (e.g. OPD1, IPD1) — must match counterid in NHPR-generated QR
   const baseCounterId = counterId || 'OPD1';
   const opdRow = opdId ? _opdListFull.find(o => o.id === opdId) : null;
@@ -4744,6 +4832,17 @@ async function bookAppointment() {
     const opdSel  = document.getElementById('opd');
     const opdName = opdSel.options[opdSel.selectedIndex]?.text || '';
 
+    const apptDoctor = doctorId ? (_doctorMap[doctorId] || '—') : 'No doctor preference';
+    _printReceipt = () => _receiptDoc('Appointment Slip', [
+      { section: 'Patient' },
+      { l: 'Name', v: patient.name },
+      { l: 'UHID', v: uhidOf(patient) },
+      { section: 'Appointment' },
+      { l: 'OPD', v: opdName },
+      { l: 'Doctor', v: apptDoctor },
+      { l: 'Date', v: new Date(apptDate + 'T00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) },
+      { l: 'Time', v: _fmt12(apptTime) },
+    ], 'Please arrive 15 minutes before your appointment time.');
     document.getElementById('receipt-card').classList.add('show');
     document.getElementById('receipt-title').textContent = '✓ Appointment Booked';
     document.getElementById('receipt-rows').innerHTML = `

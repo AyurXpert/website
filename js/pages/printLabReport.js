@@ -168,6 +168,13 @@ async function loadReport() {
 
   const authProfile = order.authorising_doctor;
 
+  // NABL certificate number and lab contact email: no tenant setting exists for either yet, so
+  // both start empty — never a placeholder ("MC-XXXX") and never a made-up address (this used to
+  // print lab@<tenant-name>.in for every tenant). The certificate number can be typed per report
+  // in the box below; anything left empty prints nothing, including the accreditation claim.
+  const nablCert = '';
+  const labEmail = '';
+
   document.getElementById('report-content').innerHTML = `
     <!-- NABL Header -->
     <div class="rpt-header">
@@ -177,16 +184,16 @@ async function loadReport() {
           <div class="rpt-org-name">${_esc(tenant.name || 'AyurXpert Laboratory')}</div>
           ${tenant.tagline ? `<div class="rpt-org-tagline">${_esc(tenant.tagline)}</div>` : ''}
           <div class="rpt-org-sub">
-            Department of Clinical Pathology &amp; Laboratory Medicine<br/>
-            NABL Accredited Medical Testing Laboratory — ISO 15189
+            Department of Clinical Pathology &amp; Laboratory Medicine
+            <span class="nabl-only"><br/>NABL Accredited Medical Testing Laboratory — ISO 15189</span>
           </div>
           ${(tenant.full_address || tenant.address) ? `<div class="rpt-org-address">${_esc(tenant.full_address || tenant.address)}</div>` : ''}
           ${tenant.gstin ? `<div class="rpt-org-gstin">GSTIN: ${_esc(tenant.gstin)}</div>` : ''}
         </div>
       </div>
       <div class="nabl-block">
-        <div class="nabl-cert-box">
-          <div><input class="nabl-cert-input" id="nabl-cert-input" value="MC-XXXX" placeholder="MC-XXXX" title="Enter NABL certificate number"/></div>
+        <div class="nabl-cert-box nabl-only">
+          <div><input class="nabl-cert-input" id="nabl-cert-input" value="${_esc(nablCert)}" placeholder="Type NABL certificate no. (if accredited)" title="NABL certificate number — leave empty if the lab is not NABL accredited"/></div>
           <div class="nabl-label">NABL Certificate No.</div>
         </div>
       </div>
@@ -250,16 +257,24 @@ async function loadReport() {
       <strong>Reference ranges are population-based guidelines; clinical correlation is advised.</strong>
       This report is valid only when printed on official letterhead and countersigned by the Reporting Pathologist.
       Critical values have been telephonically communicated to the requesting clinician.
-      For queries, contact: lab@${_esc((tenant.name||'clinic').toLowerCase().replace(/\s/g,''))}.in |
-      NABL Cert. No.: <span id="footer-nabl-cert">MC-XXXX</span>
+      ${labEmail ? `For queries, contact: ${_esc(labEmail)}` : ''}
+      <span class="nabl-only">${labEmail ? ' | ' : ''}NABL Cert. No.: <span id="footer-nabl-cert">${_esc(nablCert)}</span></span>
       <br/>Flags: N = Normal · ▲ High · ▼ Low · ▲▲ Critical High · ▼▼ Critical Low
     </div>`;
 
-  // Sync NABL cert number to footer
-  document.getElementById('nabl-cert-input').addEventListener('input', function() {
-    const el = document.getElementById('footer-nabl-cert');
-    if (el) el.textContent = this.value || 'MC-XXXX';
-  });
+  // NABL cert number: mirror into the footer, and show every NABL element (accreditation line,
+  // header box, footer number) only while a number is entered — on paper an empty one prints
+  // nothing at all. On screen the box stays visible so it can be filled in.
+  const certInput = document.getElementById('nabl-cert-input');
+  const syncCert = () => {
+    const v = certInput.value.trim();
+    // Grow with the value so a long number never clips (fallback where field-sizing isn't supported).
+    certInput.style.width = `${Math.max(12, certInput.value.length + 2)}ch`;
+    document.getElementById('footer-nabl-cert').textContent = v;
+    document.getElementById('report-content').classList.toggle('no-nabl-cert', !v);
+  };
+  certInput.addEventListener('input', syncCert);
+  syncCert();
 }
 
 loadReport();

@@ -5,6 +5,13 @@
    Dedicated print pages put .ax-printing on <body> permanently and wrap their document in
    <div class="ax-print-root">; anything outside it (e.g. a Print button) never prints. */
 
+/* docHeader() letterhead (js/utils/printDocument.js) */
+.ax-doc-header { text-align: center; border-bottom: 2px solid #1a4a2e; padding-bottom: 8px; margin-bottom: 12px; font-family: 'DM Sans', Arial, sans-serif; }
+.ax-doc-org { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 20px; font-weight: 600; color: #1a4a2e; }
+.ax-doc-title { font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #1a4a2e; margin-top: 2px; }
+.ax-doc-sub { font-size: 12px; color: #4a6352; margin-top: 2px; }
+.ax-doc-printed { font-size: 10px; color: #6a8070; margin-top: 3px; }
+
 /* The container printDocument() builds is a hidden copy — never shown on screen. */
 @media screen {
   .ax-print-root--temp { display: none !important; }
@@ -22,6 +29,13 @@
     }
   }
 
+  /* printDocument(el, { size }) — wide registers/flowsheets print landscape. Named pages, so
+     only that document's pages change; everything else stays A4 portrait. */
+  @page ax-a4l { size: A4 landscape; margin: 10mm; }
+  @page ax-a3l { size: A3 landscape; margin: 12mm; }
+  .ax-print-root.ax-size-A4-landscape { page: ax-a4l; }
+  .ax-print-root.ax-size-A3-landscape { page: ax-a3l; }
+
   body.ax-printing > *:not(.ax-print-root) { display: none !important; }
   body.ax-printing .ax-print-root { display: block !important; }
   body.ax-printing {
@@ -30,9 +44,16 @@
     padding: 0 !important;
     overflow: visible !important;
     height: auto !important;
+    min-height: 0 !important;   /* a page's body{min-height:100vh} otherwise adds a blank last page */
   }
+  html:has(> body.ax-printing) { height: auto !important; min-height: 0 !important; }
 
-  .ax-print-root .no-print { display: none !important; }
+  .ax-print-root .no-print,
+  .ax-print-root button { display: none !important; }   /* no buttons on paper, ever */
+  /* Scrolling table wrappers / capped panels expand fully on paper instead of clipping. */
+  .ax-print-root, .ax-print-root * { max-height: none !important; overflow: visible !important; }
+  .ax-print-root table { width: 100%; }
+  .ax-print-root tr, .ax-print-root .doc-card { break-inside: avoid; }
   .ax-print-root { color: #000; }
   .ax-print-root * {
     -webkit-print-color-adjust: exact;

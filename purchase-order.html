@@ -125,19 +125,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .sr-item-name{font-weight:500;font-size:13px}
 .sr-item-meta{font-size:11px;color:var(--text-muted);margin-top:1px}
 
-/* print styles */
+/* print styles — the PO prints via printDocument() (css/print.css allowlist). The quantity
+   boxes are frozen to the value actually typed; .po-qty-display (never updated on edit, so it
+   used to print the auto-suggested quantity instead of the typed one) stays hidden. */
 @media print{
-  #navbar-placeholder,.header-actions,.btn-gold,.btn-remove-row,.inp-po-qty{display:none!important}
-  body{background:#fff}
-  .page-wrap{padding:12px}
   .supplier-group{border:1px solid #ccc;margin-bottom:10px;page-break-inside:avoid}
   .sg-head{background:#1a4a2e!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .grand-total-bar{background:#1a4a2e!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .po-qty-display{display:block!important}
 }
 .po-qty-display{display:none}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
+<link rel="stylesheet" href="css/print.css"/>
 </head>
 <body>
 <div id="navbar-placeholder"></div>
@@ -151,7 +150,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div class="header-actions">
       <button class="btn btn-primary btn-sm" id="btn-add-med">+ Add Medicine</button>
       <button class="btn btn-ghost btn-sm" id="btn-export-csv">↓ Export CSV</button>
-      <button class="btn btn-ghost btn-sm" data-onclick="print">🖨 Print PO</button>
+      <button class="btn btn-ghost btn-sm" data-onclick="printPO">🖨 Print PO</button>
       <a href="inventory.html" class="btn btn-secondary btn-sm">← Inventory</a>
     </div>
   </div>

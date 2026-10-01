@@ -9,7 +9,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS, ncismRequiredBeds, PK_THERAPY_ROOM_COUNT } from '../config/ncism.js';
 import { SUPABASE_URL, SESSION_KEYS } from '../config/constants.js';
 import { DESIGS, DESIG_MAP, DESIG_CATS } from '../config/designations.js';
-import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, monthEndStr } from '../utils/dateUtils.js';
 import {
   NCISM_XX_ROWS, ORG_TREE_DEF, OPD_CHILD_NCISM_CODES,
   _deptKey, buildDeptTree, _dedupById, _scheduleIFacultyTotal, deptRequirement,
@@ -18,6 +18,7 @@ import {
   _renderComplianceLegend, _designationRollup, _collectStaffClassification, _collectOrganisationStaff,
 } from '../config/ncismStaffCompliance.js';
 import { notify } from '../components/notify.js';
+import { printDocument, docHeader } from '../utils/printDocument.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -6733,7 +6734,7 @@ window.saveNabhDetails = async function() {
 window.generateSDF = async function() {
   const month = document.getElementById('sdf-month').value;
   if (!month) { alert('Select a month'); return; }
-  const from = month + '-01', to = month + '-31';
+  const from = month + '-01', to = monthEndStr(month);   // real month end (not '-31')
   const el = document.getElementById('sdf-content');
   el.textContent = 'Generating…';
   const [visitsRes, admRes, staffRes] = await Promise.all([
@@ -6766,7 +6767,9 @@ let _statsData = {};
 window.generateMonthlyStats = async function() {
   const month = document.getElementById('stat-month').value;
   if (!month) { alert('Select a month'); return; }
-  const from = month + '-01', to = month + '-31';
+  // Real last day of the month — a fixed '-31' is an invalid date for 30-day months and February
+  // (e.g. 2026-09-31), which made every query below fail with HTTP 400 and the statistics blank.
+  const from = month + '-01', to = monthEndStr(month);
   const el = document.getElementById('stat-body');
   el.innerHTML = '<div style="color:var(--text-muted)">Generating…</div>';
   const [v, adm, bills, del, lab] = await Promise.all([
@@ -6792,14 +6795,22 @@ window.generateMonthlyStats = async function() {
     </div>
     <div style="font-size:11px;color:var(--text-muted);padding:10px;background:#f5faf7;border-radius:6px">Print PDF to publish on institutional website. NCISM Reg 11(6)(l) requires website publication by 10th of each month.</div>`;
 };
-window.exportStatsPDF = function() { if (!_statsData.month) { alert('Generate statistics first'); return; } window.print(); };
+// Statistics = letterhead (month) + the generated statistics only — it used to print the whole
+// admin screen (sidebar, every other card).
+window.exportStatsPDF = function() {
+  if (!_statsData.month) { alert('Generate statistics first'); return; }
+  const m = document.getElementById('stat-month').value;
+  const label = m ? new Date(m + '-01T00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : _statsData.month;
+  printDocument([docHeader('Monthly Hospital Statistics', `§21w — NCISM Regulation 11(6)(l) · ${label}`), document.getElementById('stat-body')],
+    { title: `Hospital Statistics — ${label}` });
+};
 
 // ── §21b NAMSTE Morbidity Export ──────────────────────────────────────────────
 let _namsteData = [];
 window.generateNAMSTE = async function() {
   const month = document.getElementById('namste-month').value;
   if (!month) { alert('Select a month'); return; }
-  const from = month + '-01', to = month + '-31';
+  const from = month + '-01', to = monthEndStr(month);   // real month end (not '-31')
   const el = document.getElementById('namste-body');
   el.innerHTML = '<div style="color:var(--text-muted)">Fetching diagnosis data…</div>';
   const { data, error } = await supabase.from('consultation_notes')

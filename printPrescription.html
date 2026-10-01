@@ -138,10 +138,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   .page-wrap{max-width:680px;margin:0 auto}
 }
 </style>
+<link rel="stylesheet" href="css/print.css"/>
 </head>
-<body>
+<!-- ax-printing + .ax-print-root (css/print.css): only the prescription prints. -->
+<body class="ax-printing">
 
-<div class="page-wrap">
+<div class="page-wrap ax-print-root">
   <button class="print-btn" data-onclick="print">🖨 Print Prescription</button>
 
   <div class="rx-card" id="rx-card">

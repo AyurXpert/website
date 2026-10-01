@@ -130,8 +130,10 @@ p:last-child{margin-bottom:0}
   .main{padding:24px 20px 60px}
 }
 </style>
+<link rel="stylesheet" href="css/print.css"/>
 </head>
-<body>
+<!-- ax-printing + .ax-print-root (css/print.css): Ctrl+P prints the manual text only, never the sidebar. -->
+<body class="ax-printing">
 
 <!-- ═══════════════ SIDEBAR ═══════════════ -->
 <nav class="sidebar">
@@ -177,7 +179,7 @@ p:last-child{margin-bottom:0}
 </nav>
 
 <!-- ═══════════════ MAIN ═══════════════ -->
-<main class="main">
+<main class="main ax-print-root">
 
   <div class="main-title">AyurXpert HMS</div>
   <div class="main-subtitle">Complete User Manual — v1.0 · May 2026</div>
@@ -185,7 +187,7 @@ p:last-child{margin-bottom:0}
   <!-- Session 167: role-scoped landing -- populated by the script at the bottom of the page.
        Deliberately never hides any other section (per Dr. Venkatesh's explicit instruction) --
        this is purely a scroll-to + a visible way back, nothing here is removed or hidden. -->
-  <div id="role-banner" style="display:none"></div>
+  <div id="role-banner" class="no-print" style="display:none"></div>
 
   <!-- ══════════════════════════════════════════════
        OVERVIEW
@@ -964,10 +966,10 @@ function roleBanner() {
   </select>`;
 
   if (!role || role === 'super_admin' || role === 'dept_admin') {
-    el.className = 'note';
+    el.className = 'note no-print';   // screen-only helper, never printed
     el.innerHTML = `Showing the full manual.${picker}`;
   } else if (sectionId) {
-    el.className = 'note';
+    el.className = 'note no-print';   // screen-only helper, never printed
     el.innerHTML = `👋 Showing the <strong>${label}</strong> guide (your role) — or <a href="#overview" style="color:inherit;font-weight:600">📖 view the full manual</a> from the top.${picker}`;
     requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   } else {

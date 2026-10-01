@@ -6,6 +6,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { printDocument } from '../utils/printDocument.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -222,7 +223,7 @@ window.printRecord = function() {
     <div style="font-size:11px;font-weight:700;color:#1a4a2e;text-transform:uppercase;margin:10px 0 4px">Post-op Instructions</div>
     <div class="print-notes">${_esc(r.post_op_instructions||'—')}</div>
     <div class="print-sign"><div class="print-sign-box">Surgeon: ${_esc(r.profiles?.full_name||'—')}</div></div>`;
-  window.print();
+  printDocument(document.getElementById('ot-print'), { title: `Minor OT Record — ${r.patients?.name || ''}` });
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -5,10 +5,18 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { printDocument, docHeader, shown } from '../utils/printDocument.js';
 
 await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
 initNavbar();
 wireDelegatedEvents();
+
+// PO = letterhead + summary + supplier groups (quantities as typed) + grand total.
+window.printPO = () => {
+  const $ = id => document.getElementById(id);
+  printDocument([docHeader('Purchase Order', $('po-date-line').textContent.trim()), ...shown($('summary-bar'), $('po-container'))],
+    { title: 'Purchase Order' });
+};
 
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 

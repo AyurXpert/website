@@ -3,8 +3,9 @@ import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
-import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
+import { localDateStr, todayLocalStr, monthEndStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { printDocument, docHeader } from '../utils/printDocument.js';
 
 await requireAuth(['super_admin','dept_admin','pharmacist','doctor']);
 initNavbar();
@@ -51,7 +52,7 @@ window.loadRegister = async () => {
     .eq('tenant_id',tenantId).order('preparation_date',{ascending:false});
   if (type) q = q.eq('preparation_type',type);
   if (status) q = q.eq('status',status);
-  if (month) q = q.gte('preparation_date',month+'-01').lte('preparation_date',month+'-31');
+  if (month) q = q.gte('preparation_date',month+'-01').lte('preparation_date',monthEndStr(month));
   const {data,error} = await q.limit(200);
   const tb = document.getElementById('reg-tbody');
   document.getElementById('rec-count').textContent = data?.length ? data.length+' records' : '';
@@ -201,7 +202,8 @@ window.recall = async (id) => {
   loadRegister(); loadKPIs();
 };
 
-window.printDetail = () => window.print();
+// Batch record = letterhead + the detail box only, not the register page behind the modal.
+window.printDetail = () => printDocument([docHeader('Aushadha Nirman — Preparation Record'), document.getElementById('d-title'), document.getElementById('d-body')], { title: document.getElementById('d-title').textContent });
 
 window.exportCSV = async () => {
   const {data} = await supabase.from('aushadha_nirman_register').select('*').eq('tenant_id',tenantId).order('preparation_date',{ascending:false});

@@ -6,12 +6,14 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
+import { printDocument } from '../utils/printDocument.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','receptionist','nurse']);
 initNavbar();
 wireDelegatedEvents();
 
-window._print = () => window.print();
+// Prints the register header + table only (css/print.css allowlist), A3 landscape as before.
+window._print = () => printDocument([document.querySelector('.print-header'), document.querySelector('.tbl-wrap')], { title: 'OPD Register', size: 'A3-landscape' });
 
 const tenant   = getCurrentTenant();
 const tenantId = getCurrentTenantId();

@@ -1,10 +1,12 @@
 // Shared print isolation — prints ONLY the document, never the page around it.
 //
-// printDocument(source, { title })
+// printDocument(source, { title, size })
 //   source — an Element, or an array of Elements printed in order (e.g. a report header
 //            + its result rows that live in different places on the page).
 //   title  — optional; set as document.title while printing (it becomes the PDF file name
 //            and the browser's header text), restored afterwards.
+//   size   — optional; 'A4' (default, portrait), 'A4-landscape' or 'A3-landscape' for wide
+//            registers/flowsheets.
 //
 // How it works: the source is deep-cloned into a fresh `.ax-print-root` container appended
 // as the LAST child of <body>, and <body> gets the `ax-printing` class. css/print.css then
@@ -27,7 +29,9 @@ const BODY_CLASS = 'ax-printing';
 
 let _cleanup = null;
 
-export function printDocument(source, { title } = {}) {
+const SIZES = new Set(['A4-landscape', 'A3-landscape']);
+
+export function printDocument(source, { title, size } = {}) {
   const sources = (Array.isArray(source) ? source : [source]).filter(Boolean);
   if (!sources.length) return;
 
@@ -37,6 +41,7 @@ export function printDocument(source, { title } = {}) {
 
   const root = document.createElement('div');
   root.className = `${ROOT_CLASS} ${TEMP_CLASS}`;
+  if (SIZES.has(size)) root.classList.add(`ax-size-${size}`);
   root.setAttribute('aria-hidden', 'true');   // a duplicate of on-screen content
   sources.forEach(src => root.appendChild(_cloneForPrint(src)));
 
@@ -57,18 +62,49 @@ export function printDocument(source, { title } = {}) {
   window.print();
 }
 
+// Keeps only the elements currently visible on screen — for sections that are hidden because
+// they don't apply yet (no patient selected, empty state), as opposed to print-only holders
+// like #mc-print, which printDocument() deliberately shows.
+export function shown(...els) {
+  return els.filter(el => el && getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0);
+}
+
+// Standard printed letterhead for registers/logs that have none of their own: hospital name
+// (from the logged-in tenant), document title, optional subtitle, printed date. Pass it as the
+// first element: printDocument([docHeader('ANC Register', patientName), tableEl], ...).
+export function docHeader(title, subtitle = '') {
+  let tenant = {};
+  try { tenant = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}') || {}; } catch { /* none */ }
+  const printed = new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const el = document.createElement('div');
+  el.className = 'ax-doc-header';
+  const name = document.createElement('div'); name.className = 'ax-doc-org';   name.textContent = tenant.name || '';
+  const t    = document.createElement('div'); t.className    = 'ax-doc-title'; t.textContent    = title;
+  el.append(name, t);
+  if (subtitle) { const s = document.createElement('div'); s.className = 'ax-doc-sub'; s.textContent = subtitle; el.append(s); }
+  const p = document.createElement('div'); p.className = 'ax-doc-printed'; p.textContent = `Printed: ${printed}`;
+  el.append(p);
+  return el;
+}
+
 function _cloneForPrint(src) {
   const clone = src.cloneNode(true);
   _freezeFormValues(src, clone);
 
-  // The source is often a hidden on-screen holder (display:none until print) — the clone
-  // must be visible inside the print root.
-  if (clone.style && clone.style.display === 'none') clone.style.display = '';
+  // The source is often a hidden on-screen holder (display:none until print, inline or via a
+  // class rule like `.print-header{display:none}`) — the clone must be visible in the root.
   clone.removeAttribute?.('hidden');
+  if (clone.style) {
+    if (clone.style.display === 'none') clone.style.display = '';
+    if (getComputedStyle(src).display === 'none') clone.style.setProperty('display', 'block', 'important');
+  }
 
-  // No duplicate ids (getElementById would start finding the copy) and no live handlers.
+  // The source's own id usually carries a "hidden on screen" rule (#mc-print{display:none}),
+  // so the copy's root drops it. Descendant ids are kept so register pages' #id-based table
+  // styling still applies on paper; getElementById keeps finding the original, which comes
+  // first in the document (the print root is <body>'s last child). No live handlers.
+  clone.removeAttribute('id');
   [clone, ...clone.querySelectorAll('*')].forEach(el => {
-    el.removeAttribute('id');
     for (const a of [...el.attributes]) {
       if (a.name.startsWith('data-on')) el.removeAttribute(a.name);
     }

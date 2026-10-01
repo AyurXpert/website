@@ -5,6 +5,8 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { escapeHtml as _esc } from '../utils/validators.js';
+import { printDocument, docHeader } from '../utils/printDocument.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -394,7 +396,7 @@ window.viewCase = function(id) {
   document.getElementById('view-body').innerHTML = sections.map(s => `
     <div class="view-section">
       <div class="view-section-title">${s.title}</div>
-      ${s.rows.map(([l,v])=>`<div class="view-row"><div class="view-label">${l}</div><div class="view-value">${v||'—'}</div></div>`).join('')}
+      ${s.rows.map(([l,v])=>`<div class="view-row"><div class="view-label">${_esc(l)}</div><div class="view-value">${_esc(v||'—')}</div></div>`).join('')}
     </div>`).join('');
   document.getElementById('view-overlay').style.display = 'flex';
 };
@@ -418,11 +420,11 @@ window.printOtRecord = function() {
            ['Anaesthesia', _anaesLabel(c.anaesthesia_type)],['OT Table', c.ot_table||'—'],
            ['Duration', dur],['Blood Loss', c.blood_loss_ml!=null?c.blood_loss_ml+' ml':'—'],
            ['Pre-op Diagnosis', c.pre_op_diagnosis||'—'],['Post-op Diagnosis', c.post_op_diagnosis||'—'],
-          ].map(([l,v])=>`<div style="border-bottom:1px dotted #ccc;padding:4px 0;font-size:12px"><strong style="display:block;font-size:10px;color:#555;text-transform:uppercase">${l}</strong>${v}</div>`).join('')}
+          ].map(([l,v])=>`<div style="border-bottom:1px dotted #ccc;padding:4px 0;font-size:12px"><strong style="display:block;font-size:10px;color:#555;text-transform:uppercase">${l}</strong>${_esc(v)}</div>`).join('')}
       </div>
       ${['Operative Findings','Procedure Details','Complications','Post-operative Instructions'].map(k=>{
         const map={['Operative Findings']:c.operative_findings,['Procedure Details']:c.procedure_details,['Complications']:c.complications,['Post-operative Instructions']:c.post_op_instructions};
-        return `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:700;color:#1a4a2e;text-transform:uppercase;margin-bottom:3px">${k}</div><div style="border:1px solid #ccc;border-radius:4px;padding:7px;font-size:12px;min-height:36px">${map[k]||'—'}</div></div>`;
+        return `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:700;color:#1a4a2e;text-transform:uppercase;margin-bottom:3px">${k}</div><div style="border:1px solid #ccc;border-radius:4px;padding:7px;font-size:12px;min-height:36px">${_esc(map[k]||'—')}</div></div>`;
       }).join('')}
       <div style="display:flex;justify-content:space-between;margin-top:30px">
         <div style="text-align:center;border-top:1px solid #333;padding-top:4px;width:160px;font-size:11px">Surgeon</div>
@@ -430,7 +432,7 @@ window.printOtRecord = function() {
         <div style="text-align:center;border-top:1px solid #333;padding-top:4px;width:160px;font-size:11px">Scrub Nurse</div>
       </div>
     </div>`;
-  window.print();
+  printDocument(document.getElementById('ot-print'), { title: `Operative Record — ${c.patients?.name || ''}` });
 };
 
 // ── OT Logbook ────────────────────────────────────────────────────────────────
@@ -478,8 +480,12 @@ window.loadLogbook = async function() {
     : `<div class="empty-state"><div class="empty-icon">📖</div><div class="empty-title">No cases in this month</div></div>`;
 };
 
+// Logbook = letterhead (month) + the month's case table only, not the modal or page behind it.
 window.printLogbook = function() {
-  window.print();
+  const m = document.getElementById('lb-month').value;
+  const label = m ? new Date(m + '-01T00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : '';
+  printDocument([docHeader('Major OT Logbook', `NCISM §18p${label ? ' · ' + label : ''}`), document.getElementById('logbook-body')],
+    { title: `OT Logbook — ${label}`, size: 'A4-landscape' });
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

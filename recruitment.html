@@ -106,12 +106,8 @@ textarea{resize:vertical;min-height:70px}
 .letter-preview .ltr-sig{margin-top:40px}
 .letter-preview .ltr-line{border-top:1px solid var(--text-dark);display:inline-block;width:180px;margin-top:36px}
 .letter-preview .join-link-box{background:var(--green-light);border:1.5px solid var(--green-mid);border-radius:8px;padding:12px 16px;margin:16px 0;word-break:break-all;font-family:monospace;font-size:12px;color:var(--green-deep)}
-@media print{
-  body *{visibility:hidden}
-  #print-area,#print-area *{visibility:visible}
-  #print-area{position:fixed;top:0;left:0;width:100%;padding:32px 40px}
-  .no-print{display:none!important}
-}
+/* Letters print via printDocument() (css/print.css allowlist) — the old visibility:hidden +
+   position:fixed trick here clipped any letter longer than one page. */
 
 /* Empty */
 .empty{text-align:center;padding:36px 20px;color:var(--text-muted);font-size:13px}
@@ -132,6 +128,7 @@ textarea{resize:vertical;min-height:70px}
 .modal-foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
+<link rel="stylesheet" href="css/print.css"/>
 </head>
 <body>
 <div id="navbar-container"></div>
@@ -284,7 +281,7 @@ textarea{resize:vertical;min-height:70px}
     <div id="letter-preview-area" style="display:none;margin-top:20px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px" class="no-print">
         <div class="card-title" id="ltr-preview-title">Letter Preview</div>
-        <button class="btn btn-primary btn-sm no-print" data-onclick="print">🖨 Print</button>
+        <button class="btn btn-primary btn-sm no-print" data-onclick="printLetter">🖨 Print</button>
       </div>
       <div id="print-area">
         <div class="letter-preview" id="letter-content"></div>

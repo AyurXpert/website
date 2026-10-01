@@ -5,12 +5,22 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { printDocument, docHeader, shown } from '../utils/printDocument.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
 wireDelegatedEvents();
 
-window._print = () => window.print();
+// Flowsheet = letterhead + patient banner + latest KPIs + hourly chart only, A4 landscape.
+window._print = () => {
+  const $ = id => document.getElementById(id);
+  if (!shown($('pt-banner')).length) { notify('Select a patient first — the flowsheet prints that patient’s chart.', 'info'); return; }
+  const d = $('sel-date').value;
+  const day = d ? new Date(d + 'T00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+  // fs-empty ("No entries for this date") prints in place of the chart when there are none.
+  printDocument([docHeader('ICU Clinical Flowsheet', day ? `Date: ${day}` : ''), ...shown($('pt-banner'), $('kpi-row'), $('fs-container'), $('fs-empty'))],
+    { title: `ICU Flowsheet — ${$('pt-name').textContent}`, size: 'A4-landscape' });
+};
 
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();

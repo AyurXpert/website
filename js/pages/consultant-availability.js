@@ -1,8 +1,15 @@
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { notify } from '../components/notify.js';
+import { printDocument } from '../utils/printDocument.js';
 
 wireDelegatedEvents();
+
+// Schedule = hospital header + doctor cards + booking steps (no buttons, banner or footer).
+window.printSchedule = () => printDocument(
+  [document.querySelector('.pub-header'), document.querySelector('.section-head'),
+   document.getElementById('doctors-grid'), document.querySelector('.book-card')].filter(Boolean),
+  { title: 'Consultant Availability' });
 
 function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 

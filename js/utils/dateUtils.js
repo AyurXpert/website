@@ -21,6 +21,13 @@ export function todayLocalStr() {
   return new Date().toLocaleDateString('en-CA');
 }
 
+// Last calendar day of a 'YYYY-MM' month, as 'YYYY-MM-DD'. A fixed month + '-31' is an invalid
+// date for 30-day months and February (e.g. '2026-09-31'), which Postgres rejects with HTTP 400.
+export function monthEndStr(month) {
+  const [y, m] = String(month).split('-').map(Number);
+  return `${month}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+}
+
 // Asia/Kolkata-forced variants -- for the few screens (e.g. doctor.html's My Patients tab)
 // where "today" must mean the IST calendar day regardless of the browser/OS clock's own
 // timezone, not just whatever zone the machine happens to be set to.

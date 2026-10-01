@@ -5,12 +5,14 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { printDocument } from '../utils/printDocument.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse','receptionist']);
 initNavbar();
 wireDelegatedEvents();
 
-window._print = () => window.print();
+// Prints the register header + table only (css/print.css allowlist), A3 landscape as before.
+window._print = () => printDocument([document.querySelector('.print-header'), document.querySelector('.tbl-wrap')], { title: 'IPD Register', size: 'A3-landscape' });
 
 const tenant   = getCurrentTenant();
 const tenantId = getCurrentTenantId();

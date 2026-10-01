@@ -27,6 +27,7 @@ import { IPD_MEDICAL_BED_CODES, IPD_SURGICAL_BED_CODES } from '../config/ncismSt
 import { computeNurseBedSlice } from '../modules/roster/realBedSlicing.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { printDocument, docHeader } from '../utils/printDocument.js';
 
 // Session 255: trainee_doctor (posted PG/intern) added -- Dr. Venkatesh confirmed
 // posted interns/PGs need real IPD case-sheet access, not just Snehapana sign-recording
@@ -1011,8 +1012,20 @@ async function loadHandovers() {
     </div>`).join('') : '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:13px">No handovers recorded</div>';
 }
 
-window.printHandover = function() { window.print(); };
-window.printNursingChart = function() { window.print(); };
+// Prints = letterhead + patient header + the tab being printed only (typed form values frozen
+// to text by printDocument()), never the ward list, tabs or duty cards.
+function _printNursingTab(tabEl, title) {
+  if (!_activeAdm || !tabEl) { _alert('error', 'Select a patient first'); return; }
+  const pt = document.getElementById('rp-pt-name').textContent;
+  printDocument([docHeader(title, pt), document.querySelector('#patient-content .rp-hdr'), tabEl],
+    { title: `${title} — ${pt}` });
+}
+window.printHandover = function() { _printNursingTab(document.getElementById('tab-handover'), 'SBAR Shift Handover'); };
+window.printNursingChart = function() {
+  const tab = document.querySelector('#patient-content .rp-body:not([hidden])');
+  const label = (document.querySelector('.module-tab.active')?.textContent || 'Nursing Chart').replace(/^\W+/u, '').trim();
+  _printNursingTab(tab, label);
+};
 
 // ── §21k Ward Procedures ─────────────────────────────────────────────────────
 window.saveWardProcedure = async function() {

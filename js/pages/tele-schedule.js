@@ -4,6 +4,7 @@ import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { notify } from '../components/notify.js';
+import { monthEndStr } from '../utils/dateUtils.js';
 
 await requireAuth(['doctor','super_admin','dept_admin'], 'login.html');
 initNavbar();
@@ -132,7 +133,7 @@ window.loadTeleRegister = async function() {
   const month = document.getElementById('tele-reg-month').value;
   if (!month) return;
   const from = month + '-01';
-  const to   = month + '-31';
+  const to   = monthEndStr(month);   // real month end (not '-31')
   const tbody = document.getElementById('tele-register-body');
   tbody.innerHTML = '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text-muted)">Loading…</td></tr>';
   const { data, error } = await supabase.from('visits')

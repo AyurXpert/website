@@ -3,6 +3,8 @@ import { supabase }    from '../core/db/supabaseClient.js';
 import { initNavbar }  from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { printDocument, docHeader, shown } from '../utils/printDocument.js';
+import { monthEndStr } from '../utils/dateUtils.js';
 
 await requireAuth(['super_admin','dept_admin']);
 initNavbar('nabh-kpi.html');
@@ -284,7 +286,7 @@ async function loadManualValues(month) {
 window.loadAllKPIs = async function() {
   const month = document.getElementById('kpi-month').value;
   const from  = month + '-01';
-  const to    = month + '-31';
+  const to    = monthEndStr(month);   // real month end; a fixed '-31' fails for 30-day months
 
   document.getElementById('auto-kpi-grid').innerHTML   = '<div class="loading">Computing KPIs…</div>';
   document.getElementById('manual-kpi-grid').innerHTML = '<div class="loading">Loading…</div>';
@@ -409,7 +411,15 @@ window.saveManualKPI = async function() {
 };
 
 // ── PDF export ────────────────────────────────────────────────────────────────
-window.exportKPIReport = function() { window.print(); };
+// Report = letterhead (month) + standards badge + alert + summary + both KPI grids; the manual
+// entry form and controls stay off paper.
+window.exportKPIReport = function() {
+  const $ = id => document.getElementById(id);
+  const [autoHdr, manHdr] = document.querySelectorAll('.section-hdr');
+  printDocument([docHeader('NABH KPI Report', $('kpi-month').selectedOptions[0]?.text || ''),
+    ...shown($('tenant-badge'), $('alert-banner'), $('summary-strip'), autoHdr, $('auto-kpi-grid'), manHdr, $('manual-kpi-grid'))],
+    { title: 'NABH KPI Report' });
+};
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadAllKPIs();

@@ -91,13 +91,14 @@ table.vega-table .opt-row{font-size:9.5px;color:var(--text-mid);white-space:nowr
   .sheet{box-shadow:none;border:none;border-radius:0}
   .page-wrap{max-width:100%}
   .page-break{page-break-before:always}
-  @page{size:A4 landscape;margin:10mm}
 }
 </style>
+<link rel="stylesheet" href="css/print.css"/>
 </head>
-<body>
+<!-- ax-printing + .ax-print-root (css/print.css): only the form sheets print, A4 landscape. -->
+<body class="ax-printing">
 
-<div class="page-wrap">
+<div class="page-wrap ax-print-root ax-size-A4-landscape">
   <button class="print-btn" data-onclick="print">🖨 Print Blank Form (for the patient)</button>
 
   <!-- Page 1: instructions + legends -->

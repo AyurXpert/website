@@ -6,11 +6,16 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { printDocument } from '../utils/printDocument.js';
 
 const ALLOWED = ['super_admin','dept_admin'];
 await requireAuth(ALLOWED);
 if (!hasModule('hr')) { window.location.replace('admin.html'); }
 wireDelegatedEvents();
+
+// Letter = the letter body only (its .no-print join-link box/copy button stay off paper).
+window.printLetter = () => printDocument(document.getElementById('letter-content'),
+  { title: document.getElementById('ltr-preview-title').textContent });
 
 const profile   = getCurrentProfile();
 const tenant    = getCurrentTenant() || {};

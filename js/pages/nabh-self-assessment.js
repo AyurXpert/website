@@ -5,12 +5,23 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { printDocument, docHeader, shown } from '../utils/printDocument.js';
 
 await requireAuth(['super_admin','dept_admin']);
 initNavbar();
 wireDelegatedEvents();
 
-window._print = () => window.print();
+// Checklist = letterhead (type · assessor · date as entered) + overall score + standards, with
+// every score/remark the assessor typed frozen to text by printDocument().
+window._print = () => {
+  const $ = id => document.getElementById(id);
+  const d = $('sel-date').value;
+  const sub = [$('sel-type').selectedOptions[0]?.text,
+    $('sel-assessor').value.trim() ? `Assessor: ${$('sel-assessor').value.trim()}` : '',
+    d ? `Date: ${new Date(d + 'T00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''].filter(Boolean).join(' · ');
+  printDocument([docHeader('NABH Self-Assessment Checklist', sub), ...shown($('overall-card'), $('standards-container'))],
+    { title: 'NABH Self-Assessment' });
+};
 
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
