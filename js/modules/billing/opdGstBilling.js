@@ -44,21 +44,25 @@ export async function previewOpdBill({ supabase, billType, feeIds, packageCover 
 // Creates the visit's bill: GST-live -> finalised invoice (Tax Invoice / Bill of Supply / Bill);
 // otherwise today's plain bill (registration / consultation / surcharge columns, no number).
 // A package, when given, is redeemed in the same transaction -- no bill without the session.
-export async function createOpdBill({ supabase, visitId, feeIds, payerType, paymentMode, paymentStatus, patientPackageId = null, regime = 'gst_v1' }) {
+export async function createOpdBill({ supabase, visitId, feeIds, payerType, paymentMode, paymentStatus, paymentReference = null, patientPackageId = null, regime = 'gst_v1' }) {
   const { data, error } = await supabase.rpc('create_opd_bill', {
     p_visit: visitId, p_lines: _lines(feeIds, regime), p_payer_type: payerType,
     p_payment_mode: paymentMode, p_payment_status: paymentStatus,
     p_bill_discount: 0, p_discount_reason: null,
     p_patient_package_id: patientPackageId, p_service_nature: 'treatment',
+    // Session 327: money received at registration gets a receipt (RCPT); UPI / card need the transaction reference
+    p_payment_reference: paymentMode === 'cash' ? null : (paymentReference || null),
   });
   return error ? { error } : data;
 }
 
 // The lab/radiology charge, billed when reception collects it (legacy: only when it is not already
 // on the visit bill -- an order already billed is just marked collected); marks the order paid.
-export async function createInvestigationBill({ supabase, labOrderId, feeIds, paymentMode, regime = 'gst_v1' }) {
+export async function createInvestigationBill({ supabase, labOrderId, feeIds, paymentMode, reference = null, regime = 'gst_v1' }) {
+  // Session 327: the receipt (RCPT number) is issued by this same call; UPI / card need the transaction reference.
   const { data, error } = await supabase.rpc('create_investigation_bill', {
     p_lab_order: labOrderId, p_lines: _lines(feeIds, regime), p_payment_mode: paymentMode,
+    p_reference: paymentMode === 'cash' ? null : (reference || null),
   });
   return error ? { error } : data;
 }

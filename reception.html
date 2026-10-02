@@ -845,6 +845,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
               <div class="pt-item pt-balance">Balance: <span id="pt-balance">₹0</span></div>
             </div>
             <div id="pt-prakriti" class="pt-prakriti none" style="display:none"></div>
+            <div id="pt-bills"></div>
             <button id="btn-diff-family" type="button" class="pt-family-btn">+ Different family member with same number</button>
           </div>
         </div>
@@ -1478,6 +1479,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <option value="credit">Credit / Due</option>
             <option value="package">Package</option>
           </select>
+          <input id="payment-ref" type="text" maxlength="60" placeholder="UPI / card transaction reference" aria-label="UPI / card transaction reference"
+                 style="display:none;margin-top:6px;width:100%;min-height:44px;font-size:13px;border-radius:6px;border:1px solid var(--border);padding:0 10px"/>
         </div>
         <div class="field">
           <label>Payment Status</label>
@@ -1523,6 +1526,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <div id="receipt-feedback-block" style="display:none"></div>
         <div class="receipt-actions">
           <button class="btn-rcpt btn-rcpt-print" id="btn-print">🖨 Print Receipt</button>
+          <button class="btn-rcpt btn-rcpt-print" id="btn-print-pay" style="display:none" title="The money receipt (RCPT number) for the amount just received">🧾 Print payment receipt</button>
           <button class="btn-rcpt btn-rcpt-sms" disabled title="SMS not configured">✉ Send SMS</button>
         </div>
       </div>

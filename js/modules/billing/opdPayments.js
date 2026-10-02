@@ -49,6 +49,24 @@ export async function collectOpdBill({ supabase, billId }) {
   return error ? { error } : data;
 }
 
+// Print a bill (printInvoice.html -- OPD visit bill, investigation bill, pharmacy bill alike).
+export function openBill(billId) {
+  window.open(`printInvoice.html?billId=${encodeURIComponent(billId)}`, '_blank');
+}
+
+// Reprint buttons for one bill: its bill, and its receipt when a payment was recorded against it.
+// ids are uuids from our own queries; the receipt number is escaped by the caller-supplied esc().
+const _BILL_LABEL = { opd: 'Visit bill', investigation: 'Lab bill' };
+export function billReprintHtml(bill, payment, esc) {
+  const label = _BILL_LABEL[billCategory(bill.bill_type)] || 'Bill';
+  const btn = 'min-height:44px;min-width:44px;padding:0 10px;font-size:12px;font-weight:600;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:#fff;color:var(--green-deep)';
+  const amt = Number(bill.final_amount || 0).toLocaleString('en-IN');
+  return `<span style="display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap">
+    <button type="button" style="${btn}" data-onclick="printBillDoc" data-onclick-a0="${bill.id}" title="Print this bill again">🖨 ${label} ₹${amt}</button>
+    ${payment ? `<button type="button" style="${btn}" data-onclick="printReceiptDoc" data-onclick-a0="${payment.id}" title="Print receipt ${esc(payment.receipt_no)}">🧾 ${esc(payment.receipt_no)}</button>` : ''}
+  </span>`;
+}
+
 export function openReceipt(paymentId) {
   window.open(`printReceipt.html?payment=${encodeURIComponent(paymentId)}`, '_blank');
 }

@@ -10,7 +10,8 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { computeLabBillingLines, labItemsToSelection } from '../modules/billing/labBilling.js';
 import { getOpdBillingRegime, previewOpdBill, createOpdBill, createInvestigationBill, DOCUMENT_TYPE_LABEL } from '../modules/billing/opdGstBilling.js';
-import { canCollectOpd, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt } from '../modules/billing/opdPayments.js';
+import { canCollectOpd, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt, openBill, billReprintHtml } from '../modules/billing/opdPayments.js';
+import { billCategory } from '../modules/billing/billCategory.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { localDateStr, todayLocalStr, todayISTStr, istDayStartUTC } from '../utils/dateUtils.js';
 import { uhidOf } from '../utils/uhid.js';
@@ -635,6 +636,7 @@ function _opdFeeIds() {
     onRequestChk.checked ? _feeByType.on_request_surcharge?.id : null,
   ].filter(Boolean);
 }
+let _lastPaymentId = null;
 const _pkgInUse = () => !!(_activePackage && document.getElementById('pkg-use-chk').checked);
 
 // Amounts come from the fee master on the server (every organisation, Session 325 / TODO §95) --
@@ -900,6 +902,23 @@ async function _searchUhid(uhid) {
   else _showPicker(data, uhid, { showCombos: true });
 }
 
+// Last few OPD / investigation bills of the selected patient, each reprintable with its receipt.
+async function _renderPatientBills(patientId) {
+  const box = document.getElementById('pt-bills');
+  if (!box) return;
+  const { bills, payByBill } = await _billsWithReceipts(q => q.eq('patient_id', patientId).limit(12));
+  if (!_patient || _patient.id !== patientId) return;          // another patient was picked meanwhile
+  const shown = bills.slice(0, 6);
+  if (!shown.length) { box.innerHTML = ''; return; }
+  const fmt = d => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  box.innerHTML = `<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin:8px 0 4px">Recent bills</div>`
+    + shown.map(b => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
+        <span style="font-size:12px;color:var(--text-mid);min-width:46px">${_esc(fmt(b.created_at))}</span>
+        <span class="badge ${b.status === 'paid' ? 'badge-paid' : 'badge-pending'}">${b.status === 'paid' ? 'PAID' : 'PENDING'}</span>
+        ${billReprintHtml(b, payByBill[b.id], _esc)}
+      </div>`).join('');
+}
+
 async function _selectPatient(patient, chosenCombo) {
   _patient = patient;
   _newFamilyMember = false;
@@ -944,6 +963,7 @@ async function _selectPatient(patient, chosenCombo) {
   document.getElementById('pt-demog').textContent =
     patient.age ? `${patient.age} yrs · ${gLabel}` : (patient.gender ? gLabel : '—');
   document.getElementById('patient-tag').classList.add('show');
+  _renderPatientBills(patient.id);   // Session 327: recent bills + receipts, reprintable
 
   // §12a — Prakriti badge
   const pkEl = document.getElementById('pt-prakriti');
@@ -1466,6 +1486,7 @@ function _clearTag() {
   _activeScanSessionId = null;  // Session 173: no longer registering whichever Reg. Queue entry (if any) was open
   _scanDeptOpdId = _scanDeptOpdName = null;  // Session 181: no longer that scan session's department lock either
   document.getElementById('patient-tag').classList.remove('show');
+  const _ptb = document.getElementById('pt-bills'); if (_ptb) _ptb.innerHTML = '';
   document.getElementById('pkg-card').classList.remove('show');
   document.getElementById('pkg-use-chk').checked = false;
   document.getElementById('patient-picker').classList.remove('show');
@@ -1547,6 +1568,12 @@ async function handleSubmit() {
   if (!phone)     return _alert('error', 'Please enter the patient\'s phone number.');
   if (!name)      return _alert('error', 'Please enter the patient\'s name.');
   if (!complaint) return _alert('error', 'Please enter the chief complaint.');
+  // Session 327: every rupee received at registration gets a receipt -- say how it was paid
+  const payRef = document.getElementById('payment-ref').value.trim();
+  if (payStatus === 'paid' && total > 0) {
+    if (!['cash', 'upi', 'card'].includes(payMode)) return _alert('error', 'Choose Cash, UPI or Card for the amount received (Credit / Package mean nothing is collected now) — or mark the payment Pending.');
+    if (payMode !== 'cash' && !payRef) return _alert('error', 'Enter the UPI / card transaction reference.');
+  }
 
   // §18aa — NCISM: Kaumarabhritya OPD is for patients up to 18 years
   if (_kaumarOpdId && opdId === _kaumarOpdId) {
@@ -1811,12 +1838,13 @@ async function handleSubmit() {
       throw Object.assign(new Error('No registration / consultation fee is set up for this OPD in Fee Management, so no bill could be made. The visit is in the queue.'), { code: 'P0001' });
     }
     const opdBill = await createOpdBill({
-      supabase, visitId: visit.id, feeIds, payerType, paymentMode: payMode, paymentStatus: payStatus,
+      supabase, visitId: visit.id, feeIds, payerType, paymentMode: payMode, paymentStatus: payStatus, paymentReference: payRef,
       patientPackageId: _pkgInUse() ? _activePackage.id : null, regime: _opdGst ? 'gst_v1' : 'legacy',
     });
     if (opdBill.error) throw opdBill.error;
     const gstBill = opdBill.regime === 'gst_v1' ? opdBill : null;
     const bill = { id: opdBill.bill_id };
+    _lastPaymentId = opdBill.payment_id || null;      // the money receipt (RCPT), offered on the receipt card
     const billTotal = Number(opdBill.final_amount) || 0;
     if (!gstBill) {
       regFee    = Number(opdBill.registration_fee)    || 0;
@@ -1865,7 +1893,7 @@ async function handleSubmit() {
       abhaAddress: _pendingAbhaAddress || null,
       opd: opdName, doctor: doctorName,
       category: catLabel, complaint, regFee, consFee, surcharge,
-      total: billTotal, payMode, payStatus, meetingUrl, visitId: visit.id,
+      total: billTotal, payMode, payStatus, meetingUrl, visitId: visit.id, paymentId: _lastPaymentId, receiptNo: opdBill.receipt_no || null,
       isInsurance, payerType,
       docNo: gstBill?.document_number || null, docType: gstBill?.document_type || null,
       taxTotal: gstBill ? Number(gstBill.tax_total) || 0 : 0,
@@ -1873,7 +1901,7 @@ async function handleSubmit() {
     });
 
     const payMsg = payStatus === 'paid'
-      ? ` · ₹${billTotal.toLocaleString('en-IN')} received via ${payMode}`
+      ? ` · ₹${billTotal.toLocaleString('en-IN')} received via ${payMode}${opdBill.receipt_no ? ' · receipt ' + opdBill.receipt_no : ''}`
       : ` · Payment pending`;
     _currentVisitId = visit.id;  // track for ABDM link token if ABHA verified later
 
@@ -1921,6 +1949,27 @@ window.collectOpdBill = async function(billId) {
   openReceipt(res.payment_id);
   loadQueue();
 };
+
+// Reprint from the queue / lab tab / patient card (Session 327).
+window.printBillDoc = function(billId) { openBill(billId); };
+window.printReceiptDoc = function(paymentId) { openReceipt(paymentId); };
+
+// The OPD / investigation bills of the given patients or visits, each with its receipt (if any).
+async function _billsWithReceipts(filter) {
+  let q = supabase.from('bills')
+    .select('id, visit_id, patient_id, bill_type, status, final_amount, payment_mode, created_at')
+    .eq('tenant_id', tenantId);
+  q = filter(q);
+  const { data: bills } = await q.order('created_at', { ascending: false });
+  const own = (bills || []).filter(b => ['opd', 'investigation'].includes(billCategory(b.bill_type)));
+  const payByBill = {};
+  if (own.length) {
+    const { data: pays } = await supabase.from('patient_payments')
+      .select('id, bill_id, receipt_no, voided_at').eq('tenant_id', tenantId).in('bill_id', own.map(b => b.id)).is('voided_at', null);
+    (pays || []).forEach(p => { payByBill[p.bill_id] = p; });
+  }
+  return { bills: own, payByBill };
+}
 
 // ── Receipt ───────────────────────────────────────
 // Printed receipt — a real document built from the same data, not the on-screen card (which
@@ -1993,6 +2042,8 @@ function _visitReceiptDoc(d) {
 }
 
 async function _showReceipt(d) {
+  const _payBtn = document.getElementById('btn-print-pay');
+  if (_payBtn) _payBtn.style.display = d.paymentId ? '' : 'none';
   _printReceipt = () => _visitReceiptDoc(d);
   const fmt  = n => n > 0 ? `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—';
   // Free text (patient name, complaint, ABHA address…) is escaped — it went into innerHTML raw.
@@ -2070,6 +2121,13 @@ async function _showReceipt(d) {
   }
 }
 
+document.getElementById('btn-print-pay').addEventListener('click', () => { if (_lastPaymentId) openReceipt(_lastPaymentId); });
+// the transaction-reference box only matters for UPI / card
+document.getElementById('payment-mode').addEventListener('change', function () {
+  const ref = document.getElementById('payment-ref');
+  ref.style.display = ['upi', 'card'].includes(this.value) ? '' : 'none';
+  if (ref.style.display === 'none') ref.value = '';
+});
 document.getElementById('btn-print').addEventListener('click', () => {
   if (!_printReceipt) return;
   printDocument(_printReceipt(), { title: 'Receipt' });
@@ -2094,12 +2152,22 @@ async function loadQueue() {
 
   // Fetch payment status for these visits
   const visitIds = (visits || []).map(v => v.id);
-  let billMap = {};
+  let billMap = {}, billsByVisit = {}, payByBill = {};
   if (visitIds.length > 0) {
     const { data: bills } = await supabase
       .from('bills').select('id, visit_id, status, payment_mode, bill_type, payer_type, final_amount, document_status')
       .in('visit_id', visitIds);
-    (bills || []).forEach(b => { billMap[b.visit_id] = b; });
+    (bills || []).forEach(b => {
+      // the visit's own (consultation) bill drives the badge; a later lab bill must not replace it
+      if (!billMap[b.visit_id] || billCategory(b.bill_type) === 'opd') billMap[b.visit_id] = b;
+      (billsByVisit[b.visit_id] = billsByVisit[b.visit_id] || []).push(b);
+    });
+    const printable = (bills || []).filter(b => ['opd', 'investigation'].includes(billCategory(b.bill_type)));
+    if (printable.length) {
+      const { data: pays } = await supabase.from('patient_payments')
+        .select('id, bill_id, receipt_no').eq('tenant_id', tenantId).in('bill_id', printable.map(b => b.id)).is('voided_at', null);
+      (pays || []).forEach(p => { payByBill[p.bill_id] = p; });
+    }
   }
 
   const count = visits ? visits.length : 0;
@@ -2150,6 +2218,10 @@ async function loadQueue() {
           ${payBadge}
         </div>
         ${_canCollect && isCollectableOpdBill(bill) ? `<div class="q-row3" style="margin-top:4px">${opdCollectControlsHtml(bill.id)}</div>` : ''}
+        ${(billsByVisit[v.id] || []).filter(b => ['opd', 'investigation'].includes(billCategory(b.bill_type))).length
+          ? `<div class="q-row3" style="margin-top:4px;gap:6px;flex-wrap:wrap">${(billsByVisit[v.id] || [])
+              .filter(b => ['opd', 'investigation'].includes(billCategory(b.bill_type)))
+              .map(b => billReprintHtml(b, payByBill[b.id], _esc)).join('')}</div>` : ''}
         <div class="q-row3">
           <span class="dot" style="background:${statusDot}"></span>
           ${statusLabel} · ${_esc(v.chief_complaint || '—')}
@@ -2264,6 +2336,7 @@ function _resetForm() {
   _closeScanPanel();
   document.getElementById('visit-category').value = 'opd';
   document.getElementById('payment-mode').value = 'cash';
+  document.getElementById('payment-ref').value = ''; document.getElementById('payment-ref').style.display = 'none';
   document.getElementById('pay-paid').checked = true;
   onRequestChk.checked = false;
   onRequestWrap.classList.remove('active');
@@ -4356,7 +4429,7 @@ async function loadPendingLabBills() {
   document.getElementById('labbills-count').textContent = totalCount ? `(${totalCount})` : '';
   const list = document.getElementById('lab-bills-list');
   if (!totalCount) {
-    list.innerHTML = `<div class="q-empty"><div class="q-empty-icon">✅</div><div class="q-empty-text">No pending lab/investigation bills</div></div>`;
+    list.innerHTML = `<div class="q-empty"><div class="q-empty-icon">✅</div><div class="q-empty-text">No pending lab/investigation bills</div></div>` + await _collectedLabBillsHtml();
     return;
   }
 
@@ -4384,13 +4457,37 @@ async function loadPendingLabBills() {
           <option value="upi">UPI</option>
           <option value="card">Card</option>
         </select>
+        <input id="pr-${o.id}" aria-label="UPI / card reference" placeholder="Ref (UPI/card)" maxlength="60"
+          style="height:26px;width:120px;font-size:11px;border-radius:5px;border:1px solid var(--border);padding:0 6px">
         <div style="display:flex;gap:4px">
           <button class="q-edit-btn" data-onclick="collectLabPayment" data-onclick-a0="${o.id}" style="width:auto;padding:0 8px;font-size:11px;background:var(--green-mid);color:#fff">💰 Collect</button>
           ${!isWaived ? `<button class="q-edit-btn" data-onclick="waiveLabPayment" data-onclick-a0="${o.id}" style="width:auto;padding:0 8px;font-size:11px;background:#a01a1a;color:#fff">⚠ Waive</button>` : ''}
         </div>
       </div>
     </div>`;
-  }).join('') + _deferredLabBillsHtml(deferred, estimateByOrder);
+  }).join('') + _deferredLabBillsHtml(deferred, estimateByOrder) + await _collectedLabBillsHtml();
+}
+
+// Today's collected lab / investigation bills, each reprintable with its receipt (Session 327).
+async function _collectedLabBillsHtml() {
+  const start = new Date(istDayStartUTC(todayISTStr()));
+  const { bills, payByBill } = await _billsWithReceipts(q => q.eq('bill_type', 'investigation').gte('created_at', start.toISOString()).limit(40));
+  if (!bills.length) return '';
+  const ids = [...new Set(bills.map(b => b.patient_id).filter(Boolean))];
+  const names = {};
+  if (ids.length) {
+    const { data: pts } = await supabase.from('patients').select('id, name').eq('tenant_id', tenantId).in('id', ids);
+    (pts || []).forEach(p => { names[p.id] = p.name; });
+  }
+  const t = d => new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  return `<div style="padding:12px 12px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)">✅ Collected today — print again</div>`
+    + bills.map(b => `<div class="q-item" style="align-items:center">
+        <div class="q-info">
+          <div class="q-name">${_esc(names[b.patient_id] || '—')}</div>
+          <div class="q-row3">${_esc(t(b.created_at))} · ${_esc(String(b.payment_mode || '').toUpperCase())} · <strong>₹${Number(b.final_amount || 0).toLocaleString('en-IN')}</strong></div>
+        </div>
+        <div class="q-right">${billReprintHtml(b, payByBill[b.id], _esc)}</div>
+      </div>`).join('');
 }
 
 // Session 295 -- "Advised for next visit" group (see loadPendingLabBills).
@@ -4416,6 +4513,8 @@ function _deferredLabBillsHtml(deferred, estimateByOrder) {
           <option value="upi">UPI</option>
           <option value="card">Card</option>
         </select>
+        <input id="pr-${o.id}" aria-label="UPI / card reference" placeholder="Ref (UPI/card)" maxlength="60"
+          style="height:26px;width:120px;font-size:11px;border-radius:5px;border:1px solid var(--border);padding:0 6px">
         <button class="q-edit-btn" data-onclick="collectLabPayment" data-onclick-a0="${o.id}" style="width:auto;padding:0 8px;font-size:11px;background:var(--green-mid);color:#fff">💰 Collect & send to lab</button>
       </div>
     </div>`;
@@ -4429,13 +4528,15 @@ function _deferredLabBillsHtml(deferred, estimateByOrder) {
 // just marked collected), and marks the order paid in the same transaction.
 window.collectLabPayment = async function(orderId) {
   const mode = document.getElementById('pm-' + orderId)?.value || 'cash';
+  const reference = document.getElementById('pr-' + orderId)?.value?.trim() || null;
+  if (mode !== 'cash' && !reference) { _alert('error', 'Enter the UPI / card transaction reference.'); return; }
   const priced = _labPriced[orderId] || { lines: [], unmatched: [] };
   if (!priced.lines.length && (_labGst || !_labOnBill[orderId])) {
     _alert('error', 'No price is set up in Fee Management for these tests, so nothing can be billed. Add the fee, or use Waive to let the lab proceed.');
     return;
   }
   const res = await createInvestigationBill({
-    supabase, labOrderId: orderId, feeIds: priced.lines.map(l => l.fee_structure_id), paymentMode: mode,
+    supabase, labOrderId: orderId, feeIds: priced.lines.map(l => l.fee_structure_id), paymentMode: mode, reference,
     regime: _labGst ? 'gst_v1' : 'legacy',
   });
   if (res.error) { _alert('error', safeErrorMessage(res.error, 'Could not create the investigation bill.')); return; }
@@ -4450,11 +4551,13 @@ window.collectLabPayment = async function(orderId) {
   const what = res.bill_id
     ? (res.document_number ? `${DOCUMENT_TYPE_LABEL[res.document_type] || 'Bill'} ${res.document_number} — ${amount}` : `new investigation bill — ${amount}`)
     : 'already on this visit’s earlier bill';
+  const rcpt = res.receipt_no ? ` Receipt ${res.receipt_no}.` : '';
   if (res.bill_id && priced.unmatched.length) {
-    _alert('error', `Payment collected (${what}) and lab notified, but no price was found for: ${priced.unmatched.join(', ')} — these were NOT billed. Add the fee in Fee Management.`);
+    _alert('error', `Payment collected (${what}) and lab notified, but no price was found for: ${priced.unmatched.join(', ')} — these were NOT billed. Add the fee in Fee Management.${rcpt}`);
   } else {
-    _alert('success', `Payment collected (${what}) — lab notified.`);
+    _alert('success', `Payment collected (${what}) — lab notified.${rcpt}`);
   }
+  if (res.payment_id) openReceipt(res.payment_id);      // same as 💰 Collect: the receipt opens straight away
   loadPendingLabBills();
 };
 
