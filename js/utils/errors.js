@@ -101,5 +101,15 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 324 OPD payment collection + paid-bill stop-gap (sql/session324_opd_payments.sql).
+  // Plain, staff-actionable reasons (wrong mode, missing UPI reference, already paid...).
+  const OPD_PAYMENT_MSGS = ['This bill is already marked paid', 'This bill is ', 'Only OPD and investigation bills',
+    'Insurance / scheme bills', 'Choose a payment mode', 'Enter the UPI / card', 'This bill has no patient',
+    'OPD receipt', 'Your role (', 'This record belongs to another organisation', 'Your account is not active'];
+  if (['P0001','42501','22023','P0002'].includes(error?.code)
+      && OPD_PAYMENT_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   return fallback;
 }

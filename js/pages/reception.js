@@ -9,6 +9,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { computeLabBillingLines, labItemsToSelection, billDeferredLabOrder } from '../modules/billing/labBilling.js';
+import { canCollectOpd, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt } from '../modules/billing/opdPayments.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { localDateStr, todayLocalStr, todayISTStr, istDayStartUTC } from '../utils/dateUtils.js';
 import { uhidOf } from '../utils/uhid.js';
@@ -1845,6 +1846,20 @@ async function handleSubmit() {
   _loading(btn, false);
 }
 
+// ── Collect a pending OPD bill (Session 324, TODO_LATER.md §96) ──
+// Full settlement + a receipt number (RCPT series), printed on printReceipt.html.
+const _canCollect = canCollectOpd(profile);
+window.collectOpdBill = async function(billId) {
+  const res = await collectOpdBill({ supabase, billId });
+  if (res.error) { _alert('error', safeErrorMessage(res.error, 'Could not record the payment.')); return; }
+  await logAudit('collect_opd_payment', 'bills', billId, {
+    receipt_no: res.receipt_no, amount: Number(res.amount) || 0, payment_mode: res.mode,
+  }, _ctx);
+  _alert('success', `₹${Number(res.amount || 0).toLocaleString('en-IN')} collected — receipt ${res.receipt_no}.`);
+  openReceipt(res.payment_id);
+  loadQueue();
+};
+
 // ── Receipt ───────────────────────────────────────
 // Printed receipt — a real document built from the same data, not the on-screen card (which
 // carries buttons, the feedback/tele link boxes and the form around it). printDocument()
@@ -2028,7 +2043,7 @@ async function loadQueue() {
   let billMap = {};
   if (visitIds.length > 0) {
     const { data: bills } = await supabase
-      .from('bills').select('visit_id, status, payment_mode')
+      .from('bills').select('id, visit_id, status, payment_mode, bill_type, payer_type, final_amount, document_status')
       .in('visit_id', visitIds);
     (bills || []).forEach(b => { billMap[b.visit_id] = b; });
   }
@@ -2080,6 +2095,7 @@ async function loadQueue() {
           <span class="badge badge-cat">${_esc(catLabel)}</span>
           ${payBadge}
         </div>
+        ${_canCollect && isCollectableOpdBill(bill) ? `<div class="q-row3" style="margin-top:4px">${opdCollectControlsHtml(bill.id)}</div>` : ''}
         <div class="q-row3">
           <span class="dot" style="background:${statusDot}"></span>
           ${statusLabel} · ${_esc(v.chief_complaint || '—')}

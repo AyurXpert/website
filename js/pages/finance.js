@@ -7,6 +7,7 @@ import { logAudit } from '../core/auditLogger.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, collectedAmount } from '../modules/billing/billCategory.js';
 import { notify } from '../components/notify.js';
+import { canCollectOpd, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt } from '../modules/billing/opdPayments.js';
 
 wireDelegatedEvents();
 
@@ -282,7 +283,7 @@ function _revenueBuckets(bills) {
 async function loadOutstanding() {
   const { data, error } = await supabase
     .from('bills')
-    .select('id, created_at, final_amount, patient_due, amount_paid, bill_type, payer_type, payment_mode, status, ipd_admission_id, patients(name)')
+    .select('id, created_at, final_amount, patient_due, amount_paid, bill_type, payer_type, payment_mode, status, document_status, ipd_admission_id, patients(name)')
     .eq('tenant_id', tenantId)
     // Session 295 -- bills are written 'unpaid' (reception) / 'partial' (PK advance);
     // 'pending' kept for legacy rows. A ₹0 bill (free follow-up) owes nothing.
@@ -294,6 +295,19 @@ async function loadOutstanding() {
   renderOutstanding();
   updateKPIs();
 }
+
+// ── Collect a pending OPD / investigation bill (Session 324, TODO_LATER.md §96) ──
+const _canCollectOpd = canCollectOpd(_profile);
+window.collectOpdBill = async function(billId) {
+  const res = await collectOpdBill({ supabase, billId });
+  if (res.error) { _toast(safeErrorMessage(res.error, 'Could not record the payment.'), 'error'); return; }
+  await logAudit('collect_opd_payment', 'bills', billId, {
+    receipt_no: res.receipt_no, amount: Number(res.amount) || 0, payment_mode: res.mode,
+  }, _ctx);
+  _toast(`₹${_n(res.amount)} collected — receipt ${res.receipt_no}.`, 'success');
+  openReceipt(res.payment_id);
+  loadAll();
+};
 
 function renderOutstanding() {
   const tbody = document.getElementById('out-tbody');
@@ -316,7 +330,8 @@ function renderOutstanding() {
     // B's insurance workflow, but collecting the share today is already useful).
     const actionCell = billCategory(b.bill_type) === 'ipd' && b.ipd_admission_id
       ? `<a class="btn btn-outline btn-sm" style="height:26px;padding:0 10px;font-size:11px;display:inline-flex;align-items:center;text-decoration:none" href="ipd.html?account=${b.ipd_admission_id}">Open in IPD →</a>`
-      : '—';
+      // Session 324 -- a pending OPD / lab bill is settled here with a receipt (§96)
+      : (_canCollectOpd && isCollectableOpdBill(b) ? opdCollectControlsHtml(b.id) : '—');
     return `<tr>
       <td style="font-size:12px">${_fmtD(b.created_at?.slice(0,10))}</td>
       <td>${_esc(b.patients?.name || '—')}</td>

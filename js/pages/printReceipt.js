@@ -36,7 +36,7 @@ function _fmtDateTime(iso) {
 async function loadReceipt() {
   const { data: pp, error } = await supabase
     .from('patient_payments')
-    .select(`id, kind, amount, mode, reference, notes, receipt_no, received_at, received_by, voided_at, void_reason,
+    .select(`id, kind, amount, mode, reference, notes, receipt_no, received_at, received_by, voided_at, void_reason, patient_id, bill_id,
       ipd_admissions(id, admission_date, patients(name, phone, age, gender), beds(bed_number, ward_name), departments(name))`)
     .eq('id', paymentId).single();
 
@@ -56,10 +56,24 @@ async function loadReceipt() {
   const adm = pp.ipd_admissions || {};
   const pt  = adm.patients || {};
   const bed = adm.beds || {};
-  document.getElementById('patientInfo').innerHTML = `
-    <div><b>Patient:</b> ${_esc(pt.name || '—')}</div>
-    <div><b>Admission:</b> ${adm.admission_date || '—'}${bed.bed_number ? ' · Bed ' + _esc(bed.bed_number) : ''}${adm.departments?.name ? ' · ' + _esc(adm.departments.name) : ''}</div>
-  `;
+  if (pp.ipd_admissions) {
+    document.getElementById('patientInfo').innerHTML = `
+      <div><b>Patient:</b> ${_esc(pt.name || '—')}</div>
+      <div><b>Admission:</b> ${adm.admission_date || '—'}${bed.bed_number ? ' · Bed ' + _esc(bed.bed_number) : ''}${adm.departments?.name ? ' · ' + _esc(adm.departments.name) : ''}</div>
+    `;
+  } else {
+    // Session 324 -- an OPD / investigation bill payment (record_opd_bill_payment) has no
+    // admission: show the patient and the bill it settled instead.
+    const [{ data: opdPt }, { data: opdBill }] = await Promise.all([
+      supabase.from('patients').select('name, uhid').eq('id', pp.patient_id).maybeSingle(),
+      supabase.from('bills').select('bill_type, document_number, created_at').eq('id', pp.bill_id).maybeSingle(),
+    ]);
+    const billLabel = { consultation: 'OPD visit bill', investigation: 'Lab / investigation bill' }[String(opdBill?.bill_type || '').toLowerCase()] || 'OPD bill';
+    document.getElementById('patientInfo').innerHTML = `
+      <div><b>Patient:</b> ${_esc(opdPt?.name || '—')}${opdPt?.uhid ? ' · UHID ' + _esc(opdPt.uhid) : ''}</div>
+      <div><b>Against:</b> ${_esc(billLabel)}${opdBill?.document_number ? ' ' + _esc(opdBill.document_number) : ''} · ${_fmtDateTime(opdBill?.created_at)}</div>
+    `;
+  }
 
   // pp.notes is free text a billing user typed (a refund/void reason) -- escape it, same
   // class of stored-XSS bug found elsewhere in this codebase (nursing.html free-text fields).
