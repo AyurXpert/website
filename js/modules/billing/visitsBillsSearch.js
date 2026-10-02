@@ -88,6 +88,8 @@ export function mountVisitsBillsSearch(root, { supabase }) {
     placeholder: 'UHID, patient name, phone, bill no. (B/…) or receipt no. (RCPT/…)', 'aria-label': 'Search visits and bills' })
   const from = el('input', { type: 'date', id: 'vb-from', value: today, style: INPUT, 'aria-label': 'From date' })
   const to = el('input', { type: 'date', id: 'vb-to', value: today, style: INPUT, 'aria-label': 'To date' })
+  const all = el('input', { type: 'checkbox', id: 'vb-all', style: 'width:18px;height:18px;margin:0' })
+  const allLabel = el('label', { for: 'vb-all', style: 'display:inline-flex;align-items:center;gap:6px;min-height:44px;font-size:13px;cursor:pointer' }, all, 'All dates')
   const go = el('button', { type: 'button', style: BTN.replace('background:#fff;color:var(--green-deep)', 'background:var(--green-deep);color:#fff') }, '🔎 Search')
   const clear = el('button', { type: 'button', style: BTN }, 'Reset')
   const status = el('div', { role: 'status', 'aria-live': 'polite', style: 'font-size:12px;color:var(--text-mid);margin:6px 0' })
@@ -96,28 +98,43 @@ export function mountVisitsBillsSearch(root, { supabase }) {
   root.replaceChildren(
     el('div', { style: 'padding:12px' },
       el('div', { style: 'font-size:12px;color:var(--text-muted);margin-bottom:8px' },
-        'Open and completed visits with their OPD / lab bills and receipts. Searching by a bill or receipt number looks at ALL dates; '
-        + 'everything else uses the date range (at most 31 days). Every reprint after the first is marked “Duplicate copy”.'),
-      el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, q, from, el('span', null, 'to'), to, go, clear),
+        'Open and completed visits with their OPD / lab bills and receipts. A UHID (AYX/…), bill no. (B/…) or receipt no. (RCPT/…) is searched across ALL dates. '
+        + 'A name or phone uses the date range (at most 31 days) unless you tick “All dates”. Newest first, at most 100 shown. '
+        + 'Every reprint after the first is marked “Duplicate copy”.'),
+      el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, q, from, el('span', null, 'to'), to, allLabel, go, clear),
       status, results))
 
+  // The same rule the server applies: a UHID / bill / receipt number always ignores the dates (dim them as a hint).
+  function syncDates() {
+    const v = q.value.trim()
+    const byNumber = /^(B|RCPT)\//i.test(v) || /^[A-Za-z]{2,6}\/\d{4}\//.test(v)
+    const ignored = byNumber || (all.checked && v.length > 0)
+    from.disabled = to.disabled = ignored
+    from.style.opacity = to.style.opacity = ignored ? '0.5' : '1'
+    all.disabled = byNumber
+  }
+
   async function run() {
+    syncDates()
     status.textContent = 'Searching…'
     results.replaceChildren()
     const { data, error } = await supabase.rpc('search_visits_bills', {
-      p_q: q.value.trim() || null, p_from: from.value || null, p_to: to.value || null })
+      p_q: q.value.trim() || null, p_from: from.value || null, p_to: to.value || null,
+      p_all_dates: all.checked })
     if (error) { status.textContent = safeErrorMessage(error, 'Could not search. Please try again.'); return }
     const rows = data?.rows || []
     if (!rows.length) {
-      status.textContent = 'Nothing found. Check the spelling, or widen the date range.'
+      status.textContent = 'Nothing found. Check the spelling, or tick “All dates”.'
       return
     }
     const scope = data.all_dates ? 'across all dates' : `${data.from === data.to ? day(data.from + 'T12:00:00+05:30') : day(data.from + 'T12:00:00+05:30') + ' to ' + day(data.to + 'T12:00:00+05:30')}`
-    status.textContent = `${rows.length} shown ${scope}` + (data.truncated ? ` — ${data.matched} matched, only the newest ${rows.length} are listed. Narrow your search.` : '.')
+    status.textContent = `${rows.length} shown ${scope}` + (data.truncated ? ` — showing latest ${rows.length} of ${data.matched}; refine your search.` : '.')
     results.replaceChildren(...rows.map(resultCard))
   }
   go.addEventListener('click', run)
+  q.addEventListener('input', syncDates)
+  all.addEventListener('change', syncDates)
   q.addEventListener('keydown', e => { if (e.key === 'Enter') run() })
-  clear.addEventListener('click', () => { q.value = ''; from.value = today; to.value = today; run() })
+  clear.addEventListener('click', () => { q.value = ''; all.checked = false; from.value = today; to.value = today; run() })
   run()
 }

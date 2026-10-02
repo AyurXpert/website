@@ -91,7 +91,7 @@ function buildModel(d, copy) {
   const kind = cat === 'investigation' ? 'Laboratory / Investigations' : 'Out-Patient'
   // Original or Duplicate copy: decided by the server (record_document_print) from the print audit trail
   const isDup = copy.copy !== 'ORIGINAL'
-  const subtitle = `${kind}${combined ? ' · Paid in full' : ''} · ${isDup ? 'DUPLICATE COPY' : 'Original'}`
+  const subtitle = `${kind}${combined ? ' · Paid in full' : ''} · ${isDup ? 'DUPLICATE COPY' + (copy.print_no ? ' · No. ' + copy.print_no : '') : 'Original'}`
   if (isDup && !watermark) watermark = 'DUPLICATE COPY'
 
   // ── Header strip ──

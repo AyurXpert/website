@@ -58,7 +58,7 @@ async function loadReceipt() {
   const isDup = copy.copy !== 'ORIGINAL';
 
   const isRefund = pp.kind === 'refund';
-  document.getElementById('docTitle').textContent = `${isRefund ? 'REFUND VOUCHER' : 'RECEIPT'} — ${isDup ? 'DUPLICATE COPY' : 'ORIGINAL'}`;
+  document.getElementById('docTitle').textContent = `${isRefund ? 'REFUND VOUCHER' : 'RECEIPT'} — ${isDup ? 'DUPLICATE COPY' + (copy.print_no ? ' · No. ' + copy.print_no : '') : 'ORIGINAL'}`;
   if (isDup) {
     const note = document.createElement('div');
     note.className = 'text-xs text-gray-600 italic mb-2';
