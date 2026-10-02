@@ -111,5 +111,28 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 323 GST OPD / investigation billing (sql/session323_gst_stage2.sql) + the shared
+  // GST engine messages it surfaces (Accounts-review block, discount bound). Same reasoning:
+  // the reason decides what reception does next (fix the fee master, pick another package...).
+  const OPD_GST_MSGS = ['This organisation bills', 'Unknown payment status', 'Unknown payment mode',
+    'Unknown payer type', 'Give a reason for the discount', 'This visit already has an OPD bill',
+    'This visit was deleted', 'This package does not belong', 'Add at least one charge', 'Line ',
+    'The bill discount', 'This bill cannot be finalised', 'IPD investigations are charged',
+    'This order is still awaiting', 'This test was done outside', "This order's charge has already",
+    'Could not find the patient for this order', 'Your role (', 'This record belongs to another organisation',
+    'Your account is not active', 'Tax settings are missing', 'No registration / consultation fee',
+    // Session 325 (legacy server pricing) + controlled discount (TODO §98)
+    'OPD visit and investigation bills are created only', 'Charges are added to a visit', 'GST bills are created only',
+    'Lines of a GST bill', 'Charges cannot be added', 'Only OPD', 'The discount cannot', 'Your role may give',
+    'Insurance / scheme bills take no discount', 'The same kind of charge', 'A visit bill takes', 'This bill is already marked paid'];
+  // A page opened before a billing release still calls the retired function -- say what to do.
+  if (/permission denied for function (add_opd_bill_item|create_opd_bill|create_investigation_bill)/.test(error?.message || '')) {
+    return 'This page is out of date. Please reload the page.';
+  }
+  if (['P0001','42501','22023','P0002'].includes(error?.code)
+      && OPD_GST_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   return fallback;
 }

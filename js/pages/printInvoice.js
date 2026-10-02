@@ -17,6 +17,15 @@ const prescriptionId = urlParams.get('prescriptionId')
 const tenantRaw = sessionStorage.getItem('ayurxpert_tenant')
 const tenant    = tenantRaw ? JSON.parse(tenantRaw) : {}
 document.getElementById('clinicName').innerText = tenant.name || 'AyurXpert HMS'
+
+// Session 326 (GST Stage 1): a demo organisation's documents are test documents -- say so on the
+// page itself so one can never be mistaken for a real tax document (prints with the document).
+if (tenant.is_demo) {
+  const demo = document.createElement('div')
+  demo.textContent = 'DEMO ORGANISATION — TEST DOCUMENT, NOT A VALID TAX INVOICE'
+  demo.style.cssText = 'border:2px solid #000;padding:4px 8px;margin:0 0 8px;text-align:center;font-weight:700;font-size:12px;letter-spacing:.5px'
+  document.body.prepend(demo)
+}
 document.getElementById('invoiceDate').innerText = new Date().toLocaleDateString('en-IN', {
   day: '2-digit', month: 'short', year: 'numeric'
 })
@@ -67,7 +76,7 @@ async function loadInvoice() {
     // printed as "Unknown".
     const { data: items } = await supabase
       .from('bill_items')
-      .select('medicine_id, description, quantity, price, total, gst_amount')
+      .select('medicine_id, description, quantity, price, total, gst_amount, line_total, cgst_amount, sgst_amount, line_no')
       .eq('bill_id', billId)
 
     const medicineIds = (items || []).map(i => i.medicine_id).filter(Boolean)
@@ -75,6 +84,14 @@ async function loadInvoice() {
       ? await supabase.from('medicines').select('id, name').in('id', medicineIds)
       : { data: [] }
 
+    // GST Stage 2 (Session 323) -- a finalised GST document prints its own number and
+    // type; the full Tax Invoice / Bill of Supply layouts are Stage 4.
+    const isGst = bill.tax_regime === 'gst_v1'
+    const DOC_LABEL = { TAX_INVOICE: 'Tax Invoice', BILL_OF_SUPPLY: 'Bill of Supply', BILL: 'Bill' }
+    if (isGst && bill.document_number) {
+      document.getElementById('refLine').innerHTML =
+        `<b>${_esc(DOC_LABEL[bill.document_type] || 'Bill')} No:</b> ${_esc(bill.document_number)}`
+    }
     document.getElementById('patientInfo').innerHTML = `
       <div><b>Bill ID:</b> ${_esc(bill.id)}</div>
       <div><b>Payment:</b> ${_esc(bill.payment_method || bill.payment_mode) || '—'}</div>
@@ -103,7 +120,8 @@ async function loadInvoice() {
     if (Number(bill.consultation_fee) > 0)     addRow('Consultation Fee',     1, Number(bill.consultation_fee),     0, Number(bill.consultation_fee))
     if (Number(bill.on_request_surcharge) > 0) addRow('On-Request Surcharge', 1, Number(bill.on_request_surcharge), 0, Number(bill.on_request_surcharge))
 
-    ;(items || []).forEach(item => {
+    const rows = isGst ? [...(items || [])].sort((a, b) => (a.line_no ?? 0) - (b.line_no ?? 0)) : (items || [])
+    rows.forEach(item => {
       const name = item.medicine_id
         ? ((medicines || []).find(m => m.id === item.medicine_id)?.name || 'Unknown')
         : (item.description || 'Unknown')
@@ -113,13 +131,28 @@ async function loadInvoice() {
       // not per-unit -- the old `gst * qty` here would have double-counted
       // for any qty > 1 (harmless by coincidence for pharmacy, which never
       // populates gst_amount at all, and for lab items which are always qty=1).
-      const gst = Number(item.gst_amount || 0)
-      const lineTotal = (item.total != null ? Number(item.total) : qty * price) + gst
+      // GST bills: the server's own line total and CGST+SGST (discounts already applied).
+      const gst = isGst ? Number(item.cgst_amount || 0) + Number(item.sgst_amount || 0) : Number(item.gst_amount || 0)
+      const lineTotal = isGst ? Number(item.line_total || 0)
+        : (item.total != null ? Number(item.total) : qty * price) + gst
       addRow(name, qty, price, gst, lineTotal)
     })
 
     if (!tbody.innerHTML) {
       tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-gray-500">No items on this bill.</td></tr>'
+    }
+
+    // Controlled discount (Session 325, TODO_LATER.md §98): amount + the reason given, printed on the
+    // invoice. A legacy bill's rows add up to the pre-discount total, so it gets a negative row; a GST
+    // bill's lines already carry the discount, so it gets a note only (a row would be counted twice).
+    const discountGiven = isGst ? Number(bill.bill_discount_total) || 0 : Number(bill.discount) || 0
+    if (discountGiven > 0) {
+      const why = bill.discount_reason ? ` — ${bill.discount_reason}` : ''
+      if (isGst) {
+        tbody.innerHTML += `<tr><td colspan="5" class="border p-2 text-xs italic">Discount of ₹${discountGiven.toFixed(2)} given${_esc(why)} (already applied to the lines above).</td></tr>`
+      } else {
+        addRow('Discount' + why, 1, -discountGiven, 0, -discountGiven)
+      }
     }
 
     // bill.final_amount is meant to be the authoritative total (kept in sync

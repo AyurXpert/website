@@ -8,7 +8,8 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
-import { computeLabBillingLines, labItemsToSelection, billDeferredLabOrder } from '../modules/billing/labBilling.js';
+import { computeLabBillingLines, labItemsToSelection } from '../modules/billing/labBilling.js';
+import { getOpdBillingRegime, previewOpdBill, createOpdBill, createInvestigationBill, DOCUMENT_TYPE_LABEL } from '../modules/billing/opdGstBilling.js';
 import { canCollectOpd, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt } from '../modules/billing/opdPayments.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { localDateStr, todayLocalStr, todayISTStr, istDayStartUTC } from '../utils/dateUtils.js';
@@ -180,6 +181,16 @@ document.getElementById('queue-date').textContent = new Date().toLocaleDateStrin
 document.querySelectorAll('form').forEach(f => f.addEventListener('submit', e => e.preventDefault()));
 
 // ── Fee state ─────────────────────────────────────
+// GST Stage 2 (Session 323): an organisation that is GST-live on the OPD / investigation
+// paths bills through create_opd_bill() / create_investigation_bill() -- the server prices
+// every line from the fee master and adds tax. Every other organisation (all of them today)
+// keeps the legacy code below, unchanged.
+const _opdRegime = await getOpdBillingRegime(supabase);
+const _opdGst = _opdRegime.consultation === 'gst_v1';
+const _labGst = _opdRegime.investigation === 'gst_v1';
+let _feeByType = {};      // the fee rows behind the three fee fields (their ids go to the server)
+let _labPriced = {};      // lab order id -> computeLabBillingLines() result (the fee ids Collect sends to the server)
+let _labOnBill = {};      // legacy: lab order id -> true when its charge already sits on the visit bill
 let _surchargeDefault = 0;
 let _patient = null;
 let _currentVisitId = null;  // last visit created in this session (for ABDM link token)
@@ -583,7 +594,7 @@ async function loadFees(opdId) {
     // to this exact OPD) is preferred when one has been manually created for it.
     const { data } = await supabase
       .from('fee_structures')
-      .select('fee_type, amount, opd_id, promo_price, promo_valid_until')
+      .select('id, label, fee_type, amount, opd_id, promo_price, promo_valid_until')
       .eq('tenant_id', tenantId)
       .eq('category', 'opd')
       .eq('approval_status', 'active')
@@ -604,10 +615,51 @@ async function loadFees(opdId) {
       _surchargeDefault = getEffectivePrice(byType.on_request_surcharge);
       document.getElementById('surcharge').value = _surchargeDefault;
     }
+    _feeByType = byType;
+  } else {
+    _feeByType = {};
   }
 
   if (_patient) document.getElementById('reg-fee').value = '0';
   _updateTotal();
+}
+
+// Which fee rows this registration bills (their ids go to the server, which prices them). Same rules as the fields --
+// registration only for a new patient (loadFees() zeroes it for a returning one), the
+// surcharge only for an on-request visit. A package does NOT drop lines: the server
+// discounts registration + consultation in full against the redeemed session.
+function _opdFeeIds() {
+  return [
+    !_patient ? _feeByType.registration?.id : null,
+    _feeByType.consultation?.id,
+    onRequestChk.checked ? _feeByType.on_request_surcharge?.id : null,
+  ].filter(Boolean);
+}
+const _pkgInUse = () => !!(_activePackage && document.getElementById('pkg-use-chk').checked);
+
+// Amounts come from the fee master on the server (every organisation, Session 325 / TODO §95) --
+// the fields only show them, so a typed figure can never reach a bill.
+['reg-fee', 'fee', 'surcharge'].forEach(id => { document.getElementById(id).readOnly = true; });
+if (_opdGst) {
+  const sum = document.querySelector('.fee-summary .fs-label');
+  if (sum) sum.textContent = 'Total Payable (incl. GST)';
+}
+
+// Server preview (no bill, no number). The newest request wins if several overlap.
+let _gstPreviewSeq = 0;
+async function _refreshGstTotal() {
+  const seq = ++_gstPreviewSeq;
+  const el = document.getElementById('fee-total');
+  const feeIds = _opdFeeIds();
+  if (!feeIds.length) { el.textContent = '₹0'; el.title = ''; return; }
+  const res = await previewOpdBill({ supabase, billType: 'consultation', feeIds, packageCover: _pkgInUse() });
+  if (seq !== _gstPreviewSeq) return;
+  if (res?.error || res?.regime !== 'gst_v1') { el.textContent = '—'; el.title = ''; return; }
+  const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const tax = Number(res.bill?.tax_total) || 0;
+  const issues = res.issues || [];
+  el.textContent = inr(res.bill?.final_amount) + (tax > 0 ? ` (GST ${inr(tax)})` : '') + (issues.length ? ' ⚠' : '');
+  el.title = issues.join(' | ');
 }
 
 // ── OPD routing rule ──────────────────────────────
@@ -722,6 +774,7 @@ function _updateTotal() {
   const total = reg + cons + sur;
   document.getElementById('fee-total').textContent =
     '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  if (_opdGst) _refreshGstTotal();
 }
 ['reg-fee', 'fee', 'surcharge'].forEach(id =>
   document.getElementById(id).addEventListener('input', () => { _updateTotal(); })
@@ -1398,6 +1451,7 @@ window.togglePkgUse = function() {
     document.getElementById('fee').value = '0';
     _updateTotal();
   }
+  if (_opdGst) _refreshGstTotal();   // GST preview depends on the package tick both ways
 };
 
 window._copyToClipboard = function(el, text) {
@@ -1478,16 +1532,17 @@ async function handleSubmit() {
     blood_group:   document.getElementById('f-blood').value           || null
   };
   const isOnReq     = onRequestChk.checked;
-  const regFee      = parseFloat(document.getElementById('reg-fee').value)  || 0;
-  const consFee     = parseFloat(document.getElementById('fee').value)      || 0;
-  const surcharge   = isOnReq ? (parseFloat(document.getElementById('surcharge').value) || 0) : 0;
+  // Display values only -- the server prices the bill from the fee ids; the receipt below
+  // shows the server's figures for a legacy organisation.
+  let regFee        = parseFloat(document.getElementById('reg-fee').value)  || 0;
+  let consFee       = parseFloat(document.getElementById('fee').value)      || 0;
+  let surcharge     = isOnReq ? (parseFloat(document.getElementById('surcharge').value) || 0) : 0;
   const total       = regFee + consFee + surcharge;
   const payMode     = document.getElementById('payment-mode').value;
   const payStatus   = document.querySelector('input[name="payment"]:checked').value;
 
   const payerType      = document.querySelector('input[name="payer_type"]:checked')?.value || 'self_pay';
   const isInsurance    = payerType !== 'self_pay';
-  const insClaimStatus = isInsurance ? 'pre_auth_pending' : 'not_applicable';
 
   if (!phone)     return _alert('error', 'Please enter the patient\'s phone number.');
   if (!name)      return _alert('error', 'Please enter the patient\'s name.');
@@ -1747,29 +1802,34 @@ async function handleSubmit() {
       complaint, visit_category: visitCat, opd_id: opdId || null, is_on_request: isOnReq
     }, _ctx);
 
-    // 6. Create bill
-    const billPayload = {
-      tenant_id:            tenantId,
-      patient_id:           patient.id,
-      visit_id:             visit.id,
-      registration_fee:     regFee,
-      consultation_fee:     consFee,
-      on_request_surcharge: surcharge,
-      total_amount:         total,
-      final_amount:         total,
-      payment_mode:         payMode,
-      status:               payStatus,
-      bill_type:            'consultation'
-    };
-    billPayload.payer_type             = payerType;
-    billPayload.insurance_claim_status = insClaimStatus;
-    const { data: bill, error: bErr } = await supabase
-      .from('bills').insert(billPayload).select('id').single();
-
-    if (bErr) throw bErr;
-
-    await logAudit('create_bill', 'bills', bill.id, {
-      patient_name: patient.name, total_amount: total,
+    // 6. Create bill -- priced on the server for EVERY organisation (Session 325, TODO §95): the
+    // browser sends fee ids, never an amount. A GST-live organisation also gets tax, a number and
+    // a finalised invoice (Session 323); a legacy one gets today's plain bill. The package, when
+    // used, is redeemed in the same transaction -- no under-billed bill if redemption is refused.
+    const feeIds = _opdFeeIds();
+    if (!feeIds.length) {
+      throw Object.assign(new Error('No registration / consultation fee is set up for this OPD in Fee Management, so no bill could be made. The visit is in the queue.'), { code: 'P0001' });
+    }
+    const opdBill = await createOpdBill({
+      supabase, visitId: visit.id, feeIds, payerType, paymentMode: payMode, paymentStatus: payStatus,
+      patientPackageId: _pkgInUse() ? _activePackage.id : null, regime: _opdGst ? 'gst_v1' : 'legacy',
+    });
+    if (opdBill.error) throw opdBill.error;
+    const gstBill = opdBill.regime === 'gst_v1' ? opdBill : null;
+    const bill = { id: opdBill.bill_id };
+    const billTotal = Number(opdBill.final_amount) || 0;
+    if (!gstBill) {
+      regFee    = Number(opdBill.registration_fee)    || 0;
+      consFee   = Number(opdBill.consultation_fee)    || 0;
+      surcharge = Number(opdBill.on_request_surcharge) || 0;
+    }
+    await logAudit('create_bill', 'bills', bill.id, gstBill ? {
+      patient_name: patient.name, total_amount: billTotal, tax_total: Number(gstBill.tax_total) || 0,
+      document_number: gstBill.document_number, document_type: gstBill.document_type,
+      payment_mode: payMode, status: payStatus,
+      ...(isInsurance && { payer_type: payerType })
+    } : {
+      patient_name: patient.name, total_amount: billTotal,
       reg_fee: regFee, cons_fee: consFee, surcharge,
       payment_mode: payMode, status: payStatus,
       ...(isInsurance && { payer_type: payerType })
@@ -1805,13 +1865,15 @@ async function handleSubmit() {
       abhaAddress: _pendingAbhaAddress || null,
       opd: opdName, doctor: doctorName,
       category: catLabel, complaint, regFee, consFee, surcharge,
-      total, payMode, payStatus, meetingUrl, visitId: visit.id,
+      total: billTotal, payMode, payStatus, meetingUrl, visitId: visit.id,
       isInsurance, payerType,
+      docNo: gstBill?.document_number || null, docType: gstBill?.document_type || null,
+      taxTotal: gstBill ? Number(gstBill.tax_total) || 0 : 0,
       date: new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     });
 
     const payMsg = payStatus === 'paid'
-      ? ` · ₹${total.toLocaleString('en-IN')} received via ${payMode}`
+      ? ` · ₹${billTotal.toLocaleString('en-IN')} received via ${payMode}`
       : ` · Payment pending`;
     _currentVisitId = visit.id;  // track for ABDM link token if ABHA verified later
 
@@ -1919,7 +1981,9 @@ function _visitReceiptDoc(d) {
     d.regFee > 0 ? { l: 'Registration Fee', v: inr(d.regFee) } : null,
     { l: 'Consultation Fee', v: inr(d.consFee) },
     d.surcharge > 0 ? { l: 'On-Request Surcharge', v: inr(d.surcharge) } : null,
+    d.taxTotal > 0 ? { l: 'GST', v: inr(d.taxTotal) } : null,
     { l: 'Total', v: inr(d.total), strong: true },
+    d.docNo ? { l: DOCUMENT_TYPE_LABEL[d.docType] || 'Bill No.', v: d.docNo } : null,
     { section: 'Payment' },
     { l: 'Payment Mode', v: payMode },
     { l: 'Payment Status', v: d.payStatus === 'paid' ? 'Paid' : 'Pending' },
@@ -1946,7 +2010,9 @@ async function _showReceipt(d) {
     d.regFee   > 0 ? { l: 'Registration Fee',      v: fmt(d.regFee) }   : null,
     { l: 'Consultation Fee', v: fmt(d.consFee) },
     d.surcharge > 0 ? { l: 'On-Request Surcharge', v: fmt(d.surcharge) } : null,
+    d.taxTotal > 0 ? { l: 'GST', v: fmt(d.taxTotal) } : null,
     { l: 'Total',          v: `<strong>₹${d.total.toLocaleString('en-IN')}</strong>` },
+    d.docNo ? { l: _esc(DOCUMENT_TYPE_LABEL[d.docType] || 'Bill No.'), v: _esc(d.docNo) } : null,
     { l: 'Payment Mode', v: d.isInsurance
         ? ({insurance:'Insurance / TPA', pmjay:'PMJAY (Ayushman)', cghs:'CGHS / ECHS', echs:'ECHS', esi:'ESIC', corporate:'Corporate'}[d.payerType] || 'Insurance')
         : (d.payMode.charAt(0).toUpperCase() + d.payMode.slice(1)) },
@@ -1995,21 +2061,9 @@ async function _showReceipt(d) {
   document.getElementById('receipt-title').innerHTML = `✓ Visit Registered ${payBadge}`;
   document.getElementById('receipt-card').classList.add('show');
 
-  // Deduct package session if used. The registration + consultation fee were already zeroed
-  // on the bill at togglePkgUse() (before this bill was created) on the assumption the package
-  // would cover them — so if redemption is refused here, the bill just created is UNDER-BILLED
-  // (₹0 reg/consultation fee) and the session was NOT deducted from the package. This is not a
-  // "redeem it later" situation: the visit needs its fee corrected now, not the package.
+  // A package session is redeemed by create_opd_bill() in the same transaction as the bill
+  // (Session 323 / 325) -- nothing to deduct here, only the card to clear.
   if (_activePackage && document.getElementById('pkg-use-chk').checked) {
-    const { error: redeemErr } = await supabase.rpc('redeem_patient_package', {
-      p_patient_package_id: _activePackage.id
-    });
-    if (redeemErr) {
-      _alert('error', '⚠ PACKAGE NOT REDEEMED — ' +
-        safeErrorMessage(redeemErr, 'This package could not be used for this visit.') +
-        ' The visit is registered but was billed ₹0 assuming the package covered it — it did NOT. ' +
-        'Correct this bill’s registration/consultation fee and collect payment before the patient leaves.');
-    }
     _activePackage = null;
     document.getElementById('pkg-card').classList.remove('show');
     document.getElementById('pkg-use-chk').checked = false;
@@ -4257,24 +4311,41 @@ async function loadPendingLabBills() {
   const deferred = openOrders.filter(o => o.due_timing === 'next_visit' && o.payment_status === 'pending');
   const nowOrders = openOrders.filter(o => !deferred.includes(o));
   let estimateByOrder = {};
-  if (deferred.length) {
+  _deferredLabOrders = Object.fromEntries(deferred.map(o => [o.id, o]));
+
+  // Every open order is priced from the fee master now (same panel/label rules as always) and the
+  // fee ids are kept for Collect: the server bills them (Session 325, TODO §95 -- no amount is
+  // ever typed or sent from here).
+  _labPriced = {};
+  _labOnBill = {};
+  if (openOrders.length) {
     const { data: feeRows } = await supabase.from('fee_structures')
-      .select('label,amount,gst_percent,promo_price,promo_valid_until')
+      .select('id,label,amount,gst_percent,promo_price,promo_valid_until')
       .eq('tenant_id', tenantId).eq('is_active', true).in('category', ['lab', 'radiology']);
-    deferred.forEach(o => {
-      const { lines } = computeLabBillingLines(labItemsToSelection(o.lab_order_items), feeRows || []);
-      estimateByOrder[o.id] = lines.reduce((s, l) => s + (Number(l.price) || 0) * (1 + (Number(l.gst_percent) || 0) / 100), 0);
+    openOrders.forEach(o => {
+      _labPriced[o.id] = computeLabBillingLines(labItemsToSelection(o.lab_order_items), feeRows || []);
     });
   }
-  _deferredLabOrders = Object.fromEntries(deferred.map(o => [o.id, o]));
 
   const orderIds = nowOrders.map(o => o.id);
   let amountByOrder = {};
-  if (orderIds.length) {
-    const { data: items } = await supabase.from('bill_items').select('lab_order_id,total,gst_amount').in('lab_order_id', orderIds);
-    (items || []).forEach(i => {
-      amountByOrder[i.lab_order_id] = (amountByOrder[i.lab_order_id] || 0) + (Number(i.total) || 0) + (Number(i.gst_amount) || 0);
+  if (_labGst) {
+    // GST (Session 323): nothing is on a bill until it is collected -- the priced lines ARE the amount.
+    openOrders.forEach(o => {
+      amountByOrder[o.id] = _labPriced[o.id].lines.reduce((s, l) => s + (Number(l.price) || 0), 0);
     });
+    deferred.forEach(o => { estimateByOrder[o.id] = amountByOrder[o.id] || 0; });
+  } else {
+    deferred.forEach(o => {
+      estimateByOrder[o.id] = _labPriced[o.id].lines.reduce((s, l) => s + (Number(l.price) || 0) * (1 + (Number(l.gst_percent) || 0) / 100), 0);
+    });
+    if (orderIds.length) {
+      const { data: items } = await supabase.from('bill_items').select('lab_order_id,total,gst_amount').in('lab_order_id', orderIds);
+      (items || []).forEach(i => {
+        amountByOrder[i.lab_order_id] = (amountByOrder[i.lab_order_id] || 0) + (Number(i.total) || 0) + (Number(i.gst_amount) || 0);
+        _labOnBill[i.lab_order_id] = true;
+      });
+    }
   }
 
   const rank = { stat: 0, urgent: 1, routine: 2 };
@@ -4305,7 +4376,7 @@ async function loadPendingLabBills() {
       <div class="q-info">
         <div class="q-name">${_esc(name)} ${priorityBadge}${waivedBadge}</div>
         <div class="q-row2"><span style="color:var(--text-mid)">${tests}</span></div>
-        <div class="q-row3">Amount due: <strong>₹${amount.toFixed(2)}</strong></div>
+        <div class="q-row3">${_labGst ? 'Est. before GST' : 'Amount due'}: <strong>₹${amount.toFixed(2)}</strong></div>
       </div>
       <div class="q-right" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
         <select id="pm-${o.id}" style="height:26px;font-size:11px;border-radius:5px;border:1px solid var(--border)">
@@ -4352,34 +4423,37 @@ function _deferredLabBillsHtml(deferred, estimateByOrder) {
   return `<div style="padding:8px 12px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)">📅 Advised for next visit — collect only when the patient is here for the test</div>` + rows;
 }
 
+// Collect: one server call for every organisation (Session 323 GST, Session 325 legacy). The server
+// bills the order only if its charge is not already on a bill (a "before next visit" order, or a
+// GST order -- a legacy today-order was added to the visit bill when the doctor ordered it, so it is
+// just marked collected), and marks the order paid in the same transaction.
 window.collectLabPayment = async function(orderId) {
   const mode = document.getElementById('pm-' + orderId)?.value || 'cash';
-  // Session 295 -- a "before next visit" order is billed now, on a new 'investigation'
-  // bill dated today (Dr. Venkatesh's choice), and moves into today's lab work list.
-  const deferred = _deferredLabOrders[orderId];
-  if (deferred) {
-    const patientId = deferred.visits?.patient_id;
-    if (!patientId) { _alert('error', 'Could not find the patient for this order.'); return; }
-    const res = await billDeferredLabOrder({ supabase, tenantId, patientId, labOrderId: orderId,
-      items: deferred.lab_order_items, paymentMode: mode });
-    if (res.error) { _alert('error', safeErrorMessage(res.error, 'Could not create the investigation bill.')); return; }
-    await logAudit('create_bill', 'bills', res.billId, {
-      bill_type: 'investigation', lab_order_id: orderId, total_amount: res.total, payment_mode: mode,
-    }, _ctx);
-    deferred._unmatched = res.unmatched;
+  const priced = _labPriced[orderId] || { lines: [], unmatched: [] };
+  if (!priced.lines.length && (_labGst || !_labOnBill[orderId])) {
+    _alert('error', 'No price is set up in Fee Management for these tests, so nothing can be billed. Add the fee, or use Waive to let the lab proceed.');
+    return;
   }
-  const { error } = await supabase.from('lab_orders').update({
-    payment_status: 'paid',
-    payment_mode: mode,
-    payment_collected_by: profile.id,
-    payment_collected_at: new Date().toISOString(),
-    ...(deferred ? { order_date: todayLocalStr() } : {}),
-  }).eq('id', orderId);
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not record payment.')); return; }
-  if (deferred?._unmatched?.length) {
-    _alert('error', `Payment collected and lab notified, but no price was found for: ${deferred._unmatched.join(', ')} — please add these to the investigation bill manually.`);
+  const res = await createInvestigationBill({
+    supabase, labOrderId: orderId, feeIds: priced.lines.map(l => l.fee_structure_id), paymentMode: mode,
+    regime: _labGst ? 'gst_v1' : 'legacy',
+  });
+  if (res.error) { _alert('error', safeErrorMessage(res.error, 'Could not create the investigation bill.')); return; }
+  if (res.bill_id) {
+    await logAudit('create_bill', 'bills', res.bill_id, {
+      bill_type: 'investigation', lab_order_id: orderId, total_amount: Number(res.final_amount) || 0,
+      ...(res.document_number && { document_number: res.document_number, document_type: res.document_type }),
+      payment_mode: mode,
+    }, _ctx);
+  }
+  const amount = `₹${Number(res.final_amount || 0).toFixed(2)}`;
+  const what = res.bill_id
+    ? (res.document_number ? `${DOCUMENT_TYPE_LABEL[res.document_type] || 'Bill'} ${res.document_number} — ${amount}` : `new investigation bill — ${amount}`)
+    : 'already on this visit’s earlier bill';
+  if (res.bill_id && priced.unmatched.length) {
+    _alert('error', `Payment collected (${what}) and lab notified, but no price was found for: ${priced.unmatched.join(', ')} — these were NOT billed. Add the fee in Fee Management.`);
   } else {
-    _alert('success', deferred ? 'Payment collected on a new investigation bill — lab notified.' : 'Payment collected — lab notified.');
+    _alert('success', `Payment collected (${what}) — lab notified.`);
   }
   loadPendingLabBills();
 };

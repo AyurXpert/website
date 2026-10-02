@@ -19,6 +19,17 @@ const statusEl = document.getElementById('status');
 const printBtn = document.getElementById('print-btn');
 const adminBar = document.getElementById('admin-bar');
 
+// Session 326 (GST Stage 1): a demo organisation's documents are test documents -- say so on the
+// page itself so one can never be mistaken for a real tax document (prints with the document).
+try {
+  if (JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}').is_demo) {
+    const demo = document.createElement('div');
+    demo.textContent = 'DEMO ORGANISATION — TEST DOCUMENT, NOT A VALID TAX INVOICE';
+    demo.style.cssText = 'border:2px solid #000;padding:4px 8px;margin:0 0 8px;text-align:center;font-weight:700;font-size:12px;letter-spacing:.5px';
+    sheet.before(demo);
+  }
+} catch { /* sessionStorage unavailable -- no banner */ }
+
 const KIND_LABEL  = { advance: 'Advance', deposit: 'Deposit', payment: 'Payment', refund: 'Refund' };
 const MODE_LABEL  = { cash: 'Cash', upi: 'UPI', card: 'Card', cheque: 'Cheque', neft: 'NEFT' };
 const PAYER_LABEL = { insurance: 'Insurance', pmjay: 'PM-JAY', cghs: 'CGHS', echs: 'ECHS', esi: 'ESI', corporate: 'Corporate' };

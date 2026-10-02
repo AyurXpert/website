@@ -5,7 +5,6 @@
 // 'investigation' bill dated that day) with exactly the same rules doctor.js uses for
 // a today order (panel bundling, label overrides, promo-aware effective price).
 import { getEffectivePrice } from './effectivePrice.js';
-import { addOpdBillItem } from './opdBillItems.js';
 import { todayLocalStr } from '../../utils/dateUtils.js';
 
 export const LAB_PANELS = [
@@ -142,34 +141,6 @@ export async function stageIpdLabCharges({ supabase, tenantId, ipdAdmissionId, l
   return { staged: rows.length, unmatched };
 }
 
-// "Before next visit" order, collected at reception: price it, create a new
-// 'investigation' bill for the patient dated today (status paid, the mode just
-// collected), and attach one bill_items row per priced line (lab_order_id-linked, same
-// as a today order). Returns { billId, total, unmatched } or { error }.
-export async function billDeferredLabOrder({ supabase, tenantId, patientId, labOrderId, items, paymentMode }) {
-  const { data: feeRows, error: feeErr } = await supabase.from('fee_structures')
-    .select('label,amount,gst_percent,promo_price,promo_valid_until')
-    .eq('tenant_id', tenantId).eq('is_active', true).in('category', ['lab', 'radiology']);
-  if (feeErr) return { error: feeErr };
-  const { lines, unmatched } = computeLabBillingLines(labItemsToSelection(items), feeRows || []);
-
-  const { data: bill, error: billErr } = await supabase.from('bills').insert({
-    tenant_id: tenantId, patient_id: patientId, visit_id: null,
-    registration_fee: 0, consultation_fee: 0, on_request_surcharge: 0,
-    total_amount: 0, final_amount: 0,
-    payment_mode: paymentMode, status: 'paid', bill_type: 'investigation',
-    payer_type: 'self_pay', insurance_claim_status: 'not_applicable',
-  }).select('id').single();
-  if (billErr) return { error: billErr };
-
-  let total = 0;
-  for (const line of lines) {
-    const r = await addOpdBillItem({
-      supabase, tenantId, billId: bill.id, itemType: 'lab',
-      description: line.description, quantity: 1, price: line.price, gstPercent: line.gst_percent, labOrderId,
-    });
-    if (r.error) unmatched.push(line.description + ' (billing failed)');
-    else total = r.total;
-  }
-  return { billId: bill.id, total, unmatched };
-}
+// Session 325 (TODO_LATER.md §95): billDeferredLabOrder() lived here -- it inserted the investigation
+// bill and typed its lines from the browser. reception.js now sends the priced fee ids from
+// computeLabBillingLines() to create_investigation_bill(), which builds the same bill on the server.

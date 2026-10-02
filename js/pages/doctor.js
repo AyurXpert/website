@@ -6,7 +6,8 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType } from '../config/ncism.js';
-import { addOpdBillItem } from '../modules/billing/opdBillItems.js';
+import { addOpdBillFeeItems } from '../modules/billing/opdBillItems.js';
+import { getOpdBillingRegime } from '../modules/billing/opdGstBilling.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { LAB_PANELS, computeLabBillingLines } from '../modules/billing/labBilling.js';
 import { openIpdRound, closeIpdRound, getOpenIpdAdmission, refreshIpdInvestigations } from '../modules/ipd/wardRounds.js';
@@ -8353,7 +8354,7 @@ const LAB_CATALOG = {
 
 
 // Attaches this lab order's charges to the visit's existing OPD bill
-// (Step 3's addOpdBillItem) -- deliberately non-blocking: a billing hiccup
+// (addOpdBillFeeItems) -- deliberately non-blocking: a billing hiccup
 // here must never stop the clinical order itself, which has already been
 // saved by the time this runs. Unmatched tests are surfaced, never silently
 // charged ₹0 or silently dropped.
@@ -8364,17 +8365,18 @@ async function _billLabOrder(labSelected, labOrderId) {
     if (!bill) return { billed: [], unmatched: [], noBill: true };
 
     const { data: feeRows } = await supabase.from('fee_structures')
-      .select('label,amount,gst_percent,promo_price,promo_valid_until').eq('tenant_id', tenantId).eq('is_active', true).in('category', ['lab','radiology']);
+      .select('id,label,amount,gst_percent,promo_price,promo_valid_until').eq('tenant_id', tenantId).eq('is_active', true).in('category', ['lab','radiology']);
 
     const { lines, unmatched } = computeLabBillingLines(labSelected, feeRows || []);
 
-    for (const line of lines) {
-      const { error } = await addOpdBillItem({
-        supabase, tenantId, billId: bill.id, itemType: 'lab',
-        description: line.description, quantity: 1, price: line.price, gstPercent: line.gst_percent,
-        labOrderId,
+    // Session 325 (TODO_LATER.md §95): only fee ids go to the server, which takes the label, the
+    // promo-aware price and the GST % from the fee row itself -- one atomic call for the order.
+    if (lines.length) {
+      const { error } = await addOpdBillFeeItems({
+        supabase, billId: bill.id,
+        lines: lines.map(l => ({ feeStructureId: l.fee_structure_id, labOrderId })),
       });
-      if (error) unmatched.push(line.description + ' (billing failed)');
+      if (error) return { billed: [], unmatched: [...unmatched, ...lines.map(l => l.description + ' (billing failed)')] };
     }
 
     return { billed: lines.map(l => l.description), unmatched };
@@ -8549,7 +8551,11 @@ window.submitLabOrder = async function() {
   // blocking, the clinical order is already saved regardless of what happens here.
   // Session 297 -- an IPD order has no OPD bill to attach to; it's staged to
   // ipd_stay_charges by lab.js itself once results are finalized, not here.
-  const { unmatched, noBill } = (nextVisit || _labOrderIpdAdm)
+  // GST Stage 2 (Session 323) -- a GST-live organisation's visit bill is already a finalised
+  // invoice; the lab charge becomes its own invoice when reception collects it.
+  const labGst = !nextVisit && !_labOrderIpdAdm
+    && (await getOpdBillingRegime(supabase)).investigation === 'gst_v1';
+  const { unmatched, noBill } = (nextVisit || _labOrderIpdAdm || labGst)
     ? { unmatched: [], noBill: false }
     : await _billLabOrder(_labSelected, order.id);
 
@@ -8573,6 +8579,7 @@ Not billed today. If done at our lab, the patient pays at reception on that day;
   let msg = `✅ Lab order submitted: ${testCount} tests ordered.`;
   if (bypassPayment) msg += `\n\n🚨 Emergency bypass — lab can proceed immediately. Payment is still owed and will show as pending at reception.`;
   else msg += `\n\n⏳ Payment pending — patient must pay at reception before the lab can collect the sample.`;
+  if (labGst) msg += `\n\n🧾 The charge is invoiced at reception when the patient pays.`;
   if (noBill) msg += `\n\n⚠ No bill found for this visit -- lab charges were not added. Please add them manually via reception.`;
   else if (unmatched.length) msg += `\n\n⚠ No price found for: ${unmatched.join(', ')} -- please add these to the bill manually.`;
   alert(msg);

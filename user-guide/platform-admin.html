@@ -152,6 +152,8 @@
     <h3 id="tenants-filter">2.2 Search &amp; Filter</h3>
     <p>Filter the tenant table by organisation name (text search), subscription status, or plan type. Filters combine with AND logic — e.g. status=Expiring + plan=Growth shows only Growth-plan tenants that are expiring.</p>
 
+    <p><strong>🧪 DEMO badge.</strong> A tenant flagged as a <em>demo organisation</em> shows a <strong>🧪 DEMO</strong> label next to its name. A demo tenant may go GST-live for testing while the other bill paths are still being built (it keeps billing the old way on every path that is not ready), and every GST document it issues carries a "DEMO — test document" marker. The flag is set only by a platform admin, through the <code>platform_set_tenant_demo()</code> function (a reason is required and the change is audited) — it cannot be changed from any tenant's own pages. SDM is the tenant intended to be the demo. Separately, <strong>no organisation</strong> — demo or real — can be taken GST-live unless it is marked GST-registered and has a GSTIN recorded.</p>
+
     <h3 id="tenants-edit">2.3 Editing a Tenant's Subscription</h3>
     <p>Click <strong>✏ Edit</strong> on any tenant row to open the Edit Subscription modal. This is the only place a platform admin directly changes a tenant's billing state.</p>
 

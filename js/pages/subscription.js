@@ -38,7 +38,7 @@ let _tenants = [];
 async function init() {
   const { data } = await supabase
     .from('tenants')
-    .select('id, name, type, tenant_code, is_active, plan_type, subscription_status, max_users, subscription_expiry, trial_ends_at, billing_cycle, hfr_id, abdm_hiu_id')
+    .select('id, name, type, tenant_code, is_active, plan_type, subscription_status, max_users, subscription_expiry, trial_ends_at, billing_cycle, hfr_id, abdm_hiu_id, is_demo')
     .order('name');
 
   _tenants = (data || []).map(t => {
@@ -99,7 +99,7 @@ window.renderTable = function() {
     const max  = t.max_users || 5;
     const rowCls = t.subscription_status === 'expired' ? 'row-expired' : t.subscription_status === 'expiring' ? 'row-expiring' : '';
     return `<tr class="${rowCls}">
-      <td><strong>${_esc(t.name)}</strong>${!t.is_active?'<br><span style="font-size:11px;color:var(--text-muted)">Inactive</span>':''}</td>
+      <td><strong>${_esc(t.name)}</strong>${t.is_demo?' <span class="chip" title="Demo organisation: may go GST-live for testing while other bill paths are not ready. Set by a platform admin only (platform_set_tenant_demo)." style="border:1px solid var(--gold);color:var(--gold)">🧪 DEMO</span>':''}${!t.is_active?'<br><span style="font-size:11px;color:var(--text-muted)">Inactive</span>':''}</td>
       <td style="font-family:monospace;font-size:12px;color:var(--text-muted)">${_esc(t.tenant_code||'—')}</td>
       <td style="font-size:12px;color:var(--text-muted)">${_esc((t.type||'').replace(/_/g,' '))}</td>
       <td><span class="${pCls}">${_esc(PLAN_LABEL[t.plan_type]||t.plan_type)}</span>${t.billing_cycle?`<br><span style="font-size:10px;color:var(--text-muted)">${CYCLE_LABEL[t.billing_cycle]||t.billing_cycle}</span>`:''}</td>

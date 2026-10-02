@@ -1,26 +1,22 @@
-// opdBillItems.js — Session 124, OPD Lab Billing rebuild Step 3.
+// opdBillItems.js — Session 124 (OPD Lab Billing rebuild, Step 3); rewritten Session 325.
 //
-// reception.js creates an OPD bill at registration with only 3 fixed
-// columns (registration_fee/consultation_fee/on_request_surcharge) and
-// never touches bill_items at all -- the generic line-item table that
-// ipd.js's discharge billing and dispensaryPOS.js's pharmacy dispense
-// already use. This is the missing piece: a charge discovered AFTER the
-// bill already exists (e.g. a lab test ordered mid-consultation, Step 4)
-// needs a way to attach to that same bill and have its total reflect it.
+// reception creates an OPD bill at registration with only 3 fixed columns
+// (registration_fee/consultation_fee/on_request_surcharge). A charge discovered AFTER the bill
+// exists (e.g. a lab test ordered mid-consultation) attaches to that same bill and its total is
+// recomputed server-side.
 //
-// Launch plan 0a (Session 304): browsers can no longer write
-// bills.total_amount/final_amount directly (trg_bill_client_write_guard), so
-// the line insert + total recompute now happen server-side in the
-// add_opd_bill_item() RPC (sql/session304_bills_write_lockdown.sql). It
-// recomputes the bill's total from scratch on every call (the 3 fixed fee
-// columns + sum(item.total + item.gst_amount) over every line), same as the
-// client-side version it replaces.
-export async function addOpdBillItem({ supabase, billId, itemType, description, quantity, price, gstPercent = 0, labOrderId = null }) {
-  const { data, error } = await supabase.rpc('add_opd_bill_item', {
-    p_bill_id: billId, p_item_type: itemType, p_description: description,
-    p_quantity: Number(quantity) || 1, p_price: Number(price) || 0,
-    p_gst_percent: Number(gstPercent) || 0, p_lab_order_id: labOrderId,
+// Session 325 (TODO_LATER.md §95): the browser no longer sends a description, price or GST %.
+// It sends fee_structures ids (and the lab order each belongs to); add_opd_bill_fee_items()
+// (sql/session325_legacy_server_pricing.sql) takes the label, the promo-aware price and the GST %
+// from the fee row. The old add_opd_bill_item() (typed price) is retired for every role.
+//
+// Only for a visit bill that is NOT on the GST path -- a GST-live organisation's lab charge is its
+// own invoice, created by create_investigation_bill() when reception collects it.
+export async function addOpdBillFeeItems({ supabase, billId, lines }) {
+  const { data, error } = await supabase.rpc('add_opd_bill_fee_items', {
+    p_bill_id: billId,
+    p_lines: lines.map(l => ({ fee_structure_id: l.feeStructureId, lab_order_id: l.labOrderId || null })),
   });
   if (error) return { error };
-  return { total: Number(data?.total) };
+  return { total: Number(data?.total), added: Number(data?.added) };
 }

@@ -1185,14 +1185,18 @@ let _billBillingNote = null;
 
 async function _loadTenantTaxSettings() {
   if (_taxSettings !== undefined) return _taxSettings;
-  const { data } = await supabase.from('tenant_tax_settings')
-    .select('gst_go_live_date').eq('tenant_id', tenantId).maybeSingle();
-  _taxSettings = data || null;
+  // Session 326 (Stage 1): a demo tenant can be GST-live while some bill paths are not on GST yet,
+  // so the IPD path's own flag must also be on -- mirrors _billing_regime_for_path(.., 'ipd').
+  const [{ data }, { data: path }] = await Promise.all([
+    supabase.from('tenant_tax_settings').select('gst_go_live_date').eq('tenant_id', tenantId).maybeSingle(),
+    supabase.from('gst_billing_paths').select('on_gst_path').eq('bill_path', 'ipd').maybeSingle(),
+  ]);
+  _taxSettings = data ? { ...data, ipd_on_gst_path: !!path?.on_gst_path } : null;
   return _taxSettings;
 }
 
 function _admIsGstRegime(adm) {
-  if (!_taxSettings?.gst_go_live_date) return false;
+  if (!_taxSettings?.gst_go_live_date || !_taxSettings.ipd_on_gst_path) return false;
   return localDateStr(new Date(adm.admitted_at)) >= _taxSettings.gst_go_live_date;
 }
 
@@ -1244,7 +1248,7 @@ async function _refreshBillPreview(adm) {
   document.getElementById('btn-generate-bill').disabled = false;
   // Tenant has a go-live date set, but this admission started before it --
   // matches _billing_regime()'s own definition of "legacy" exactly.
-  _billBillingNote = _taxSettings?.gst_go_live_date
+  _billBillingNote = (_taxSettings?.gst_go_live_date && _taxSettings.ipd_on_gst_path)
     ? 'Admitted before GST billing go-live — tax not calculated by system.' : null;
 
   const bed        = adm.beds || {};

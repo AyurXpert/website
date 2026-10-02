@@ -50,7 +50,7 @@ async function loadReceipt() {
 
   document.getElementById('receiptMeta').innerHTML = `
     <div><b>${_esc(pp.receipt_no)}</b></div>
-    <div>${_fmtDateTime(pp.received_at)}</div>
+    <div>${_esc(_fmtDateTime(pp.received_at))}</div>
   `;
 
   const adm = pp.ipd_admissions || {};
@@ -59,7 +59,7 @@ async function loadReceipt() {
   if (pp.ipd_admissions) {
     document.getElementById('patientInfo').innerHTML = `
       <div><b>Patient:</b> ${_esc(pt.name || '—')}</div>
-      <div><b>Admission:</b> ${adm.admission_date || '—'}${bed.bed_number ? ' · Bed ' + _esc(bed.bed_number) : ''}${adm.departments?.name ? ' · ' + _esc(adm.departments.name) : ''}</div>
+      <div><b>Admission:</b> ${_esc(adm.admission_date || '—')}${bed.bed_number ? ' · Bed ' + _esc(bed.bed_number) : ''}${adm.departments?.name ? ' · ' + _esc(adm.departments.name) : ''}</div>
     `;
   } else {
     // Session 324 -- an OPD / investigation bill payment (record_opd_bill_payment) has no
@@ -71,17 +71,17 @@ async function loadReceipt() {
     const billLabel = { consultation: 'OPD visit bill', investigation: 'Lab / investigation bill' }[String(opdBill?.bill_type || '').toLowerCase()] || 'OPD bill';
     document.getElementById('patientInfo').innerHTML = `
       <div><b>Patient:</b> ${_esc(opdPt?.name || '—')}${opdPt?.uhid ? ' · UHID ' + _esc(opdPt.uhid) : ''}</div>
-      <div><b>Against:</b> ${_esc(billLabel)}${opdBill?.document_number ? ' ' + _esc(opdBill.document_number) : ''} · ${_fmtDateTime(opdBill?.created_at)}</div>
+      <div><b>Against:</b> ${_esc(billLabel)}${opdBill?.document_number ? ' ' + _esc(opdBill.document_number) : ''} · ${_esc(_fmtDateTime(opdBill?.created_at))}</div>
     `;
   }
 
   // pp.notes is free text a billing user typed (a refund/void reason) -- escape it, same
   // class of stored-XSS bug found elsewhere in this codebase (nursing.html free-text fields).
-  const desc = `${KIND_LABEL[pp.kind] || pp.kind}${pp.notes ? ' — ' + _esc(pp.notes) : ''}`;
+  const desc = `${KIND_LABEL[pp.kind] || pp.kind}${pp.notes ? ' — ' + pp.notes : ''}`;  // escaped once, in the line below
   document.getElementById('lineTable').innerHTML = `
     <tr>
       <td class="py-1">${_esc(desc)}</td>
-      <td class="py-1 text-right">${MODE_LABEL[pp.mode] || pp.mode}${pp.reference && pp.mode !== 'cash' ? ' · ' + _esc(pp.reference) : ''}</td>
+      <td class="py-1 text-right">${_esc(MODE_LABEL[pp.mode] || pp.mode)}${pp.reference && pp.mode !== 'cash' ? ' · ' + _esc(pp.reference) : ''}</td>
     </tr>
   `;
 
@@ -120,7 +120,7 @@ async function loadInterim() {
   const bed = adm.beds || {};
   document.getElementById('patientInfo').innerHTML = `
     <div><b>Patient:</b> ${_esc(pt.name || '—')}</div>
-    <div><b>Admission:</b> ${adm.admission_date || '—'}${bed.bed_number ? ' · Bed ' + _esc(bed.bed_number) : ''}${adm.departments?.name ? ' · ' + _esc(adm.departments.name) : ''}</div>
+    <div><b>Admission:</b> ${_esc(adm.admission_date || '—')}${bed.bed_number ? ' · Bed ' + _esc(bed.bed_number) : ''}${adm.departments?.name ? ' · ' + _esc(adm.departments.name) : ''}</div>
   `;
 
   const [charges, acctRes] = await Promise.all([
