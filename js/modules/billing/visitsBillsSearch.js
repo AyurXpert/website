@@ -59,7 +59,8 @@ function billRow(bill) {
     el('span', { style: 'min-width:80px;color:var(--text-mid)' }, type),
     el('span', { style: 'min-width:80px;font-weight:600' }, inr(bill.final_amount)),
     el('span', { style: 'min-width:120px;color:var(--text-muted);font-size:12px' },
-      `${String(bill.status || '').toUpperCase()}${paidVia ? ' · ' + paidVia : ''}`),
+      // a bill whose net amount is nil (fees were not configured then) reads "No charge", like its print -- never "PAID"
+      Number(bill.final_amount || 0) < 0.005 ? 'NO CHARGE' : `${String(bill.status || '').toUpperCase()}${paidVia ? ' · ' + paidVia : ''}`),
     reprintButtons(bill))
 }
 
