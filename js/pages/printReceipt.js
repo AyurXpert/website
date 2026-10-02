@@ -56,13 +56,15 @@ async function loadReceipt() {
   }
   const copy = rec.data;
   const isDup = copy.copy !== 'ORIGINAL';
+  // ONE copy number for header and footer: a pre-tracking document's assumed original is copy 1, so its first tracked reprint is No. 2
+  const copyNo = (Number(copy.print_no) || 1) + (copy.legacy ? 1 : 0);
 
   const isRefund = pp.kind === 'refund';
-  document.getElementById('docTitle').textContent = `${isRefund ? 'REFUND VOUCHER' : 'RECEIPT'} — ${isDup ? 'DUPLICATE COPY' + (copy.print_no ? ' · No. ' + copy.print_no : '') : 'ORIGINAL'}`;
+  document.getElementById('docTitle').textContent = `${isRefund ? 'REFUND VOUCHER' : 'RECEIPT'} — ${isDup ? 'DUPLICATE COPY · No. ' + copyNo : 'ORIGINAL'}`;
   if (isDup) {
     const note = document.createElement('div');
     note.className = 'text-xs text-gray-600 italic mb-2';
-    note.textContent = `Duplicate copy no. ${copy.print_no}. ${copy.legacy
+    note.textContent = `Duplicate copy no. ${copyNo}. ${copy.legacy
       ? 'Issued before print tracking began — an original may already have been given to the patient.'
       : `The original was first printed ${_fmtDateTime(copy.first_printed_at)}${copy.first_printed_by ? ' by ' + copy.first_printed_by : ''}.`}`;
     document.getElementById('amountWords').after(note);

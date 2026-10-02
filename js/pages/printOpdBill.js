@@ -91,7 +91,9 @@ function buildModel(d, copy) {
   const kind = cat === 'investigation' ? 'Laboratory / Investigations' : 'Out-Patient'
   // Original or Duplicate copy: decided by the server (record_document_print) from the print audit trail
   const isDup = copy.copy !== 'ORIGINAL'
-  const subtitle = `${kind}${combined ? ' · Paid in full' : ''} · ${isDup ? 'DUPLICATE COPY' + (copy.print_no ? ' · No. ' + copy.print_no : '') : 'Original'}`
+  // ONE copy number for header and footer: a pre-tracking document's assumed original is copy 1, so its first tracked reprint is No. 2
+  const copyNo = (Number(copy.print_no) || 1) + (copy.legacy ? 1 : 0)
+  const subtitle = `${kind}${combined ? ' · Paid in full' : ''} · ${isDup ? 'DUPLICATE COPY · No. ' + copyNo : 'Original'}`
   if (isDup && !watermark) watermark = 'DUPLICATE COPY'
 
   // ── Header strip ──
@@ -216,7 +218,7 @@ function buildModel(d, copy) {
   if (isGst && docType === 'TAX_INVOICE' && !isDraft) footer.push('Whether tax is payable on reverse charge: No.')
   if (combined) footer.push('This document serves as both the bill and the payment receipt.')
   if (isDup) {
-    footer.push(`Duplicate copy no. ${copy.print_no}. ${copy.legacy
+    footer.push(`Duplicate copy no. ${copyNo}. ${copy.legacy
       ? 'Issued before print tracking began — an original may already have been given to the patient.'
       : `The original was first printed ${fmtDT(copy.first_printed_at)}${copy.first_printed_by ? ' by ' + copy.first_printed_by : ''}.`}`)
   }
