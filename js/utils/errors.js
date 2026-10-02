@@ -128,13 +128,18 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     // Session 327 (receipts at the counter)
     'Choose Cash, UPI or Card', 'Enter the UPI / card transaction reference',
     // Session 328 (Visits & Bills search, print audit)
-    'The date range', 'Type at least', 'The end date', 'Document not found', 'Unknown document type', 'You can print only'];
+    'The date range', 'Type at least', 'The end date', 'Document not found', 'Unknown document type', 'You can print only',
+    // Session 329 (shift close & cash handover)
+    'Nothing to close', 'Enter the cash counted', 'The counted cash differs', 'The denomination count', 'A denomination count',
+    'Unknown denomination', 'Note counts', 'The shift totals changed', 'Closing on behalf', 'Only a dept_admin', 'That user belongs',
+    'You cannot acknowledge', 'Your role cannot', 'Handover not found', 'A remark', 'Decision must be', 'Unknown scope', 'Unknown status',
+    'Receipt ', 'Handover HO/'];
   // A page opened before a billing release still calls the retired function -- say what to do.
   // (PostgREST says "Could not find the function ..." when the signature changed -- Session 327 added a reference argument)
   if (/permission denied for function (add_opd_bill_item|create_opd_bill|create_investigation_bill)|Could not find the function public\.(create_opd_bill|create_investigation_bill)/.test(error?.message || '')) {
     return 'This page is out of date. Please reload the page.';
   }
-  if (['P0001','42501','22023','P0002'].includes(error?.code)
+  if (['P0001','42501','22023','P0002','40001'].includes(error?.code)
       && OPD_GST_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
   }

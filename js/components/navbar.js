@@ -226,6 +226,9 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
   // logged in. navbar.js already has `role` in scope here, so it's the one place that CAN pass
   // it reliably.
   const manualUrl = role ? `user-manual.html?role=${encodeURIComponent(role)}` : 'user-manual.html';
+  // Session 329: Shift Close & Cash Handover -- for every role that can take or receive counter cash (the page re-checks)
+  const _SHIFT_ROLES = ['receptionist', 'nurse', 'cashier', 'accountant', 'finance_manager', 'dept_admin', 'super_admin', 'lab_tech', 'pharmacist'];
+  const shiftOk = _SHIFT_ROLES.includes(role) || _SHIFT_ROLES.includes(secondaryRole);
 
   const logoHTML = tenant.logo_url
     ? `<img src="${tenant.logo_url}" alt="${tenant.name}" class="ax-logo"/>`
@@ -254,6 +257,7 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
     <button class="ax-group-btn">🧾 Help <span class="ax-caret">▾</span></button>
     <div class="ax-dropdown">
       <button type="button" class="ax-dd-item" id="ax-dd-duties">📌 My Duties &amp; Responsibilities</button>
+      ${shiftOk ? '<a class="ax-dd-item" href="shift-close.html">🤝 Shift Close &amp; Handover</a>' : ''}
       <button type="button" class="ax-dd-item" id="ax-dd-copycode">📋 Copy Organisation Code</button>
       <a class="ax-dd-item" href="${manualUrl}" target="_blank" rel="noopener">📖 User Guide</a>
     </div>
@@ -268,6 +272,7 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
   ).join('') + `<div class="ax-mob-group">
       <div class="ax-mob-group-label">🧾 Help</div>
       <button type="button" class="ax-link" id="ax-mob-dd-duties">📌 My Duties &amp; Responsibilities</button>
+      ${shiftOk ? '<a class="ax-link" href="shift-close.html">🤝 Shift Close &amp; Handover</a>' : ''}
       <button type="button" class="ax-link" id="ax-mob-dd-copycode">📋 Copy Organisation Code</button>
       <a class="ax-link" href="${manualUrl}" target="_blank" rel="noopener">📖 User Guide</a>
     </div>`;

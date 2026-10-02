@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Shift Close &amp; Cash Handover — AyurXpert</title>
+  <link rel="manifest" href="manifest.json"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+  <link rel="stylesheet" href="css/print.css"/>
+  <script src="js/pwa/register-sw.js" defer></script>
+  <style>
+    :root {
+      --green-deep: #1a4a2e; --gold: #c9902a; --cream: #faf8f3; --white: #ffffff; --border: #e5ded4;
+      --red: #c0392b; --text-mid: #6b7280; --text-dark: #1a2332; --green-light: #f0f7f2; --green-mid: #4a8c62;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; background: var(--cream); color: var(--text-dark); min-height: 100vh; }
+    #navbar-placeholder { min-height: 60px; }
+    .page-wrap { max-width: 1000px; margin: 0 auto; padding: 24px 16px 60px; }
+    .page-heading { font-family: 'Cormorant Garamond', serif; font-size: 1.9rem; font-weight: 700; color: var(--green-deep); margin-bottom: 4px; }
+    .page-sub { font-size: 0.875rem; color: var(--text-mid); margin-bottom: 18px; }
+    .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--border); margin-bottom: 18px; flex-wrap: wrap; }
+    .tab { min-height: 44px; padding: 0 18px; background: none; border: none; border-bottom: 3px solid transparent; font: inherit; font-size: 0.9rem; color: var(--text-mid); cursor: pointer; margin-bottom: -2px; }
+    .tab:hover { color: var(--green-deep); background: var(--green-light); }
+    .tab.active { color: var(--green-deep); border-bottom-color: var(--green-deep); font-weight: 600; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  </style>
+</head>
+<body>
+<div id="navbar-placeholder"></div>
+<main class="page-wrap">
+  <h1 class="page-heading">Shift Close &amp; Cash Handover</h1>
+  <p class="page-sub">Count the cash you received, close your shift, and hand it over with a signed slip. Cash only is handed over — UPI, card, cheque and NEFT are listed but not counted as cash.</p>
+  <div class="tabs" role="tablist">
+    <button class="tab active" type="button" role="tab" id="tab-mine" aria-selected="true" aria-controls="panel-mine">💵 My shift</button>
+    <button class="tab" type="button" role="tab" id="tab-review" aria-selected="false" aria-controls="panel-review" style="display:none">✅ Review handovers</button>
+  </div>
+  <section class="tab-panel active" id="panel-mine" role="tabpanel" aria-labelledby="tab-mine"></section>
+  <section class="tab-panel" id="panel-review" role="tabpanel" aria-labelledby="tab-review"></section>
+</main>
+<script type="module" src="./js/pages/shift-close.js"></script>
+</body>
+</html>
