@@ -12,6 +12,7 @@
 import { el } from './invoiceLayout.js'
 import { safeErrorMessage } from '../../utils/errors.js'
 import { printDocument } from '../../utils/printDocument.js'
+import { istDateStr, istDayStartUTC } from '../../utils/dateUtils.js'
 
 const MODE_LABEL = { cash: 'Cash', upi: 'UPI', card: 'Card', cheque: 'Cheque', neft: 'NEFT' }
 const KIND_LABEL = { payment: 'Payment', advance: 'Advance', deposit: 'Deposit', refund: 'Refund' }
@@ -44,9 +45,59 @@ function diffText(d) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+// Shift window: when the shift started / ended and which receipts it covers (display only -- nothing here is a rule)
+//   start = the LATER of the person's first successful login on the IST day of their first receipt and their previous
+//           handover's closed_at ("first login" / "previous handover"); with no login record that day: the first
+//           receipt's time ("first receipt").
+//   end   = closed_at.   receipts = first live receipt -> last live receipt (all of them when every one is void).
+// Reads cash_handover_items / cash_handovers / audit_logs (action 'login') through the normal row-level rules; if a read is
+// refused or empty the line simply degrades to "first receipt". One batch of three queries per screen, not one per card.
+// ---------------------------------------------------------------------------------------------------------------------
+export async function loadShiftInfo(supabase, handovers) {
+  const hs = (handovers || []).filter(h => h && h.id && h.user_id && h.closed_at)
+  const out = {}
+  if (!hs.length) return out
+  const ids = hs.map(h => h.id)
+  const users = [...new Set(hs.map(h => h.user_id))]
+  const firstDay = istDateStr(new Date(Math.min(...hs.map(h => new Date(h.period_from || h.closed_at).getTime()))))
+  const lastClose = new Date(Math.max(...hs.map(h => new Date(h.closed_at).getTime()))).toISOString()
+  const [itemsQ, prevQ, loginQ] = await Promise.all([
+    supabase.from('cash_handover_items').select('handover_id, receipt_no, received_at, is_void').in('handover_id', ids).limit(5000),
+    supabase.from('cash_handovers').select('id, user_id, closed_at').in('user_id', users).lte('closed_at', lastClose).order('closed_at', { ascending: false }).limit(2000),
+    supabase.from('audit_logs').select('user_id, created_at').eq('action', 'login').in('user_id', users)
+      .gte('created_at', istDayStartUTC(firstDay)).lte('created_at', lastClose).order('created_at', { ascending: true }).limit(5000)
+  ])
+  const items = itemsQ.data || [], closes = prevQ.data || [], logins = loginQ.data || []
+  for (const h of hs) {
+    const mine = items.filter(i => i.handover_id === h.id).sort((a, b) => new Date(a.received_at) - new Date(b.received_at))
+    const live = mine.filter(i => !i.is_void)
+    const span = live.length ? live : mine
+    const first = span[0] || null, last = span[span.length - 1] || null
+    const firstAt = first ? new Date(first.received_at) : new Date(h.period_from || h.closed_at)
+    const dayStart = new Date(istDayStartUTC(istDateStr(firstAt)))
+    const closedAt = new Date(h.closed_at)
+    const login = logins.find(l => l.user_id === h.user_id && new Date(l.created_at) >= dayStart && new Date(l.created_at) <= closedAt)
+    const prev = closes.filter(c => c.user_id === h.user_id && c.id !== h.id && new Date(c.closed_at) < closedAt)
+      .map(c => new Date(c.closed_at)).sort((a, b) => b - a)[0] || null
+    let start, basis
+    if (login) {
+      const l = new Date(login.created_at)
+      if (prev && prev > l) { start = prev; basis = 'previous handover' } else { start = l; basis = 'first login' }
+    } else { start = firstAt; basis = 'first receipt' }
+    out[h.id] = { start: start.toISOString(), basis, end: h.closed_at,
+      first: first && { no: first.receipt_no, at: first.received_at }, last: last && { no: last.receipt_no, at: last.received_at } }
+  }
+  return out
+}
+
+const timeOnly = iso => iso ? new Date(iso).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' }) : '—'
+const startText = i => `${when(i.start)} (${i.basis})`
+const receiptsText = i => i.first ? `${i.first.no} · ${timeOnly(i.first.at)}  →  ${i.last.no} · ${timeOnly(i.last.at)}` : '—'
+
+// ---------------------------------------------------------------------------------------------------------------------
 // The slip (printed through the print audit)
 // ---------------------------------------------------------------------------------------------------------------------
-function buildSlip(d, copy) {
+function buildSlip(d, copy, info) {
   let tenant = {}
   try { tenant = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}') || {} } catch { /* none */ }
   const isDup = copy.copy !== 'ORIGINAL'
@@ -64,13 +115,15 @@ function buildSlip(d, copy) {
     el('div', { style: 'text-align:center;border-bottom:2px solid #1a4a2e;padding-bottom:8px;margin-bottom:10px' },
       el('div', { style: 'font-family:\'Cormorant Garamond\',Georgia,serif;font-size:22px;font-weight:600;color:#1a4a2e' }, tenant.name || ''),
       el('div', { style: 'font-size:14px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-top:2px' }, 'Shift Handover'),
-      el('div', { style: 'font-size:12px;font-weight:700;margin-top:2px' }, isDup ? `DUPLICATE COPY · No. ${copy.print_no}` : 'Original')),
+      el('div', { style: 'font-size:12px;font-weight:700;margin-top:2px' }, isDup ? `DUPLICATE COPY · No. ${copy.print_no}` : 'Original'),
+      el('div', { style: 'font-size:16px;font-weight:700;margin-top:6px' }, d.user_name || '—'),
+      el('div', { style: 'font-size:11px;color:#555' }, d.user_role ? `Cash handed over by (${d.user_role})` : 'Cash handed over by')),
     el('table', { style: 'width:100%;border-collapse:collapse;margin-bottom:8px' },
       el('tbody', null,
         row('Handover no.', d.handover_no, true),
-        row('Cash held by', `${d.user_name || '—'}${d.user_role ? ' (' + d.user_role + ')' : ''}`),
-        row('Closed at', when(d.closed_at)),
-        row('Period (oldest receipt)', when(d.period_from)),
+        info ? row('Shift start', startText(info)) : row('Period (oldest receipt)', when(d.period_from)),
+        row('Shift end', when(d.closed_at)),
+        info ? row('Receipts', receiptsText(info)) : null,
         d.on_behalf ? row('Closed on their behalf by', d.closed_by_name || '—') : null,
         row('Live receipts / voided (excluded)', `${d.receipt_count} / ${d.void_count}`))),
     el('div', { style: 'font-weight:700;font-size:13px;margin:8px 0 2px' }, 'Cash'),
@@ -112,7 +165,12 @@ async function printSlip(supabase, handoverId, statusEl) {
   const rec = await supabase.rpc('record_document_print', { p_doc_type: 'handover', p_doc_id: handoverId })
   if (rec.error || !rec.data) { statusEl.textContent = safeErrorMessage(rec.error, 'Could not record this print. Please try again.'); return }
   statusEl.textContent = ''
-  printDocument(buildSlip(detail.data, rec.data), { title: `Shift Handover ${detail.data.handover_no}` })
+  let info = null
+  try {
+    const { data: row } = await supabase.from('cash_handovers').select('id, user_id, closed_at, period_from').eq('id', handoverId).single()
+    if (row) info = (await loadShiftInfo(supabase, [row]))[handoverId] || null
+  } catch { /* the slip still prints, with the period line */ }
+  printDocument(buildSlip(detail.data, rec.data, info), { title: `Shift Handover ${detail.data.handover_no}` })
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -221,7 +279,8 @@ export function mountMyShift(root, { supabase }) {
     if (error) { history.replaceChildren(el('div', { style: 'font-size:13px;color:#c0392b' }, safeErrorMessage(error, 'Could not load your handovers.'))); return }
     const rows = data?.rows || []
     if (!rows.length) { history.replaceChildren(el('div', { style: 'font-size:13px;color:var(--text-mid)' }, 'No handovers yet.')); return }
-    history.replaceChildren(...rows.map(h => handoverCard(h, { supabase, status, actions: [] })))
+    const info = await loadShiftInfo(supabase, rows)
+    history.replaceChildren(...rows.map(h => handoverCard(h, { supabase, status, actions: [], info: info[h.id] })))
   }
 
   async function load() {
@@ -263,14 +322,18 @@ function printButton(supabase, id, statusEl) {
 }
 
 // One handover as a card. `actions` = extra buttons (acknowledge / dispute) supplied by the review screen.
-function handoverCard(h, { supabase, status, actions }) {
+function handoverCard(h, { supabase, status, actions, info }) {
   const money = (label, v) => el('div', { style: 'min-width:130px' }, el('div', { style: 'font-size:11px;color:var(--text-mid)' }, label), el('div', { style: 'font-weight:700;font-size:14px' }, v))
   const d = num(h.difference)
   return el('div', { style: CARD },
     el('div', { style: 'display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between' },
-      el('div', null, el('strong', null, h.handover_no), el('span', { style: 'font-size:12px;color:var(--text-mid)' }, ` · ${h.user_name || '—'} · ${when(h.closed_at)}`),
+      el('div', null, el('strong', { style: 'font-size:15px' }, h.user_name || '—'), el('span', { style: 'font-size:13px' }, `  ${h.handover_no}`),
+        el('span', { style: 'font-size:12px;color:var(--text-mid)' }, ` · closed ${when(h.closed_at)}`),
         h.on_behalf ? el('div', { style: 'font-size:12px;color:#92400e' }, `Closed on their behalf by ${h.closed_by_name || '—'}`) : null),
       badge(h.status)),
+    info ? el('div', { style: 'font-size:12px;color:var(--text-dark);margin-top:6px;line-height:1.5' },
+      el('div', null, el('strong', null, 'Shift: '), `${startText(info)}  →  ${when(info.end)}`),
+      el('div', null, el('strong', null, 'Receipts: '), receiptsText(info))) : null,
     el('div', { style: 'display:flex;gap:14px;flex-wrap:wrap;margin:8px 0' },
       money('System cash', inr(h.system_cash)), money('Counted', inr(h.counted_cash)),
       el('div', { style: 'min-width:130px' }, el('div', { style: 'font-size:11px;color:var(--text-mid)' }, 'Difference'),
@@ -349,7 +412,8 @@ export function mountHandoverReview(root, { supabase, canActOnBehalf }) {
     if (error) { list.replaceChildren(el('div', { style: 'font-size:13px;color:#c0392b' }, safeErrorMessage(error, 'Could not load the handovers.'))); return }
     const rows = data?.rows || []
     if (!rows.length) { list.replaceChildren(el('div', { style: 'font-size:13px;color:var(--text-mid)' }, 'No handovers match.')); return }
-    list.replaceChildren(...rows.map(h => handoverCard(h, { supabase, status, actions: decisionActions(h) })))
+    const info = await loadShiftInfo(supabase, rows)
+    list.replaceChildren(...rows.map(h => handoverCard(h, { supabase, status, actions: decisionActions(h), info: info[h.id] })))
   }
   filter.addEventListener('change', loadList)
   loadUnclosed(); loadList()
