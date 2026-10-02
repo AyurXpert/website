@@ -102,6 +102,32 @@ export function computeLabBillingLines(labSelected, feeRows) {
   return { lines, unmatched };
 }
 
+// Session 330c -- a test with no matching fee row must never slip through collection. Before this, reception billed
+// only the priced lines, marked the order paid and the lab proceeded, with the unpriced test mentioned only in an alert
+// that nothing stored (GST and legacy alike). Now collection is BLOCKED while any test on the order is unpriced: no bill,
+// the order stays unpaid. (Waive remains the explicit, audited-by-intent way to let the lab proceed.) Pure so it is tested
+// on its own (docs/handoff/session330c_lab_unpriced_block_tests.mjs).
+export function labCollectGate({ lines, unmatched }) {
+  const un = (unmatched || []).filter(Boolean);
+  if (un.length) {
+    return { blocked: true, message: `No price set for: ${un.join(', ')}. Ask the admin to add it in the fee master.` };
+  }
+  if (!(lines || []).length) {
+    return { blocked: true, message: 'No price is set up in Fee Management for these tests, so nothing can be billed. Add the fee, or use Waive to let the lab proceed.' };
+  }
+  return { blocked: false, message: '' };
+}
+
+// The tests of a just-ordered set that have no fee row (used at order time under GST / "next visit", where nothing is billed
+// yet, so the doctor learns now, not at the reception desk).
+export async function findUnpricedTests({ supabase, tenantId, labSelected }) {
+  const { data: feeRows, error } = await supabase.from('fee_structures')
+    .select('id,label,amount,gst_percent,promo_price,promo_valid_until')
+    .eq('tenant_id', tenantId).eq('is_active', true).in('category', ['lab', 'radiology']);
+  if (error) return { error, unmatched: [] };
+  return { unmatched: computeLabBillingLines(labSelected, feeRows || []).unmatched };
+}
+
 // Rebuilds the Map<testName, panelLabel> computeLabBillingLines() expects from saved
 // lab_order_items rows (panel_label is stored per item since Session 124).
 export function labItemsToSelection(items) {

@@ -8,7 +8,7 @@ import { escapeHtml as _esc } from '../utils/validators.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
-import { computeLabBillingLines, labItemsToSelection } from '../modules/billing/labBilling.js';
+import { computeLabBillingLines, labItemsToSelection, labCollectGate } from '../modules/billing/labBilling.js';
 import { getOpdBillingRegime, previewOpdBill, createOpdBill, createInvestigationBill, DOCUMENT_TYPE_LABEL } from '../modules/billing/opdGstBilling.js';
 import { canCollectOpd, canReprintDocs, canPrintOwnDocs, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt, openBill, billReprintHtml } from '../modules/billing/opdPayments.js';
 import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
@@ -4472,6 +4472,7 @@ async function loadPendingLabBills() {
         <div class="q-name">${_esc(name)} ${priorityBadge}${waivedBadge}</div>
         <div class="q-row2"><span style="color:var(--text-mid)">${tests}</span></div>
         <div class="q-row3">${_labGst ? 'Est. before GST' : 'Amount due'}: <strong>₹${amount.toFixed(2)}</strong></div>
+        ${_unpricedNoteHtml(o.id)}
       </div>
       <div class="q-right" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
         <select id="pm-${o.id}" style="height:26px;font-size:11px;border-radius:5px;border:1px solid var(--border)">
@@ -4513,6 +4514,13 @@ async function _collectedLabBillsHtml() {
       </div>`).join('');
 }
 
+// Session 330c -- a visible warning on an order with an unpriced test: Collect is blocked until the admin adds the price.
+function _unpricedNoteHtml(orderId) {
+  const un = _labPriced[orderId]?.unmatched || [];
+  if (!un.length) return '';
+  return `<div class="q-row3" style="color:#a01a1a;font-weight:600">⚠ No price set for: ${_esc(un.join(', '))} — cannot be collected until the admin adds it in the fee master.</div>`;
+}
+
 // Session 295 -- "Advised for next visit" group (see loadPendingLabBills).
 let _deferredLabOrders = {};
 function _deferredLabBillsHtml(deferred, estimateByOrder) {
@@ -4529,6 +4537,7 @@ function _deferredLabBillsHtml(deferred, estimateByOrder) {
         <div class="q-name">${_esc(name)} <span class="badge" style="background:#e3f0ff;color:#1a4080">📅 ADVISED FOR NEXT VISIT</span></div>
         <div class="q-row2"><span style="color:var(--text-mid)">${tests}</span></div>
         <div class="q-row3">Advised ${fmt(o.order_date)}${o.due_by ? ` · ${overdue ? '⚠ was due' : 'due by'} ${fmt(o.due_by)}` : ''} · Est. <strong>₹${(estimateByOrder[o.id] || 0).toFixed(2)}</strong> — billed only when collected</div>
+        ${_unpricedNoteHtml(o.id)}
       </div>
       <div class="q-right" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
         <select id="pm-${o.id}" aria-label="Payment mode" style="height:26px;font-size:11px;border-radius:5px;border:1px solid var(--border)">
@@ -4554,8 +4563,11 @@ window.collectLabPayment = async function(orderId) {
   const reference = document.getElementById('pr-' + orderId)?.value?.trim() || null;
   if (mode !== 'cash' && !reference) { _alert('error', 'Enter the UPI / card transaction reference.'); return; }
   const priced = _labPriced[orderId] || { lines: [], unmatched: [] };
-  if (!priced.lines.length && (_labGst || !_labOnBill[orderId])) {
-    _alert('error', 'No price is set up in Fee Management for these tests, so nothing can be billed. Add the fee, or use Waive to let the lab proceed.');
+  // Session 330c: an unpriced test BLOCKS collection (GST and legacy) -- no bill, the order is not marked paid.
+  // (A legacy order already on the visit bill with every test priced still just gets marked collected: no lines needed.)
+  const gate = labCollectGate({ lines: priced.lines, unmatched: priced.unmatched });
+  if (gate.blocked && (priced.unmatched.length || _labGst || !_labOnBill[orderId])) {
+    _alert('error', gate.message);
     return;
   }
   const res = await createInvestigationBill({
@@ -4575,11 +4587,7 @@ window.collectLabPayment = async function(orderId) {
     ? (res.document_number ? `${DOCUMENT_TYPE_LABEL[res.document_type] || 'Bill'} ${res.document_number} — ${amount}` : `new investigation bill — ${amount}`)
     : 'already on this visit’s earlier bill';
   const rcpt = res.receipt_no ? ` Receipt ${res.receipt_no}.` : '';
-  if (res.bill_id && priced.unmatched.length) {
-    _alert('error', `Payment collected (${what}) and lab notified, but no price was found for: ${priced.unmatched.join(', ')} — these were NOT billed. Add the fee in Fee Management.${rcpt}`);
-  } else {
-    _alert('success', `Payment collected (${what}) — lab notified.${rcpt}`);
-  }
+  _alert('success', `Payment collected (${what}) — lab notified.${rcpt}`);
   if (_canPrintOwn && res.bill_id && res.payment_id) openBill(res.bill_id);   // Bill cum Receipt: the bill and its payment on one page
   loadPendingLabBills();
 };

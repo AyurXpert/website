@@ -9,7 +9,7 @@ import { isNCISMType } from '../config/ncism.js';
 import { addOpdBillFeeItems } from '../modules/billing/opdBillItems.js';
 import { getOpdBillingRegime } from '../modules/billing/opdGstBilling.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
-import { LAB_PANELS, computeLabBillingLines } from '../modules/billing/labBilling.js';
+import { LAB_PANELS, computeLabBillingLines, findUnpricedTests } from '../modules/billing/labBilling.js';
 import { openIpdRound, closeIpdRound, getOpenIpdAdmission, refreshIpdInvestigations } from '../modules/ipd/wardRounds.js';
 import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
@@ -8555,9 +8555,17 @@ window.submitLabOrder = async function() {
   // invoice; the lab charge becomes its own invoice when reception collects it.
   const labGst = !nextVisit && !_labOrderIpdAdm
     && (await getOpdBillingRegime(supabase)).investigation === 'gst_v1';
-  const { unmatched, noBill } = (nextVisit || _labOrderIpdAdm || labGst)
+  let { unmatched, noBill } = (nextVisit || _labOrderIpdAdm || labGst)
     ? { unmatched: [], noBill: false }
     : await _billLabOrder(_labSelected, order.id);
+  // Session 330c: where nothing is billed at order time (GST, "before next visit"), still tell the doctor now which tests have no
+  // price -- the order is saved, but reception cannot collect it until the admin adds the price (TODO_LATER.md §110).
+  if (!_labOrderIpdAdm && (nextVisit || labGst)) {
+    unmatched = (await findUnpricedTests({ supabase, tenantId, labSelected: _labSelected })).unmatched;
+  }
+  const unpricedNote = unmatched.length
+    ? `\n\n⚠ No price set for: ${unmatched.join(', ')}. The order is saved, but reception cannot collect it until the admin adds the price in the fee master.`
+    : '';
 
   const isIpd = !!_labOrderIpdAdm;
   const testCount = _labSelected.size;
@@ -8567,7 +8575,7 @@ window.submitLabOrder = async function() {
       (dueBy ? ` (by ${new Date(dueBy + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})` : '') +
       `.
 
-Not billed today. If done at our lab, the patient pays at reception on that day; if done outside, enter the result at the follow-up visit.`);
+Not billed today. If done at our lab, the patient pays at reception on that day; if done outside, enter the result at the follow-up visit.${unpricedNote}`);
     loadLabResults();
     return;
   }
@@ -8581,7 +8589,7 @@ Not billed today. If done at our lab, the patient pays at reception on that day;
   else msg += `\n\n⏳ Payment pending — patient must pay at reception before the lab can collect the sample.`;
   if (labGst) msg += `\n\n🧾 The charge is invoiced at reception when the patient pays.`;
   if (noBill) msg += `\n\n⚠ No bill found for this visit -- lab charges were not added. Please add them manually via reception.`;
-  else if (unmatched.length) msg += `\n\n⚠ No price found for: ${unmatched.join(', ')} -- please add these to the bill manually.`;
+  else msg += unpricedNote;
   alert(msg);
   loadLabResults();
 };
