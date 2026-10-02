@@ -104,10 +104,14 @@ export function mountVisitsBillsSearch(root, { supabase }) {
       el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, q, from, el('span', null, 'to'), to, allLabel, go, clear),
       status, results))
 
+  // UHID / bill / receipt numbers run only on Enter or the button; a name or phone also runs by itself once typing pauses.
+  const isNumberPattern = v => /^(B|RCPT)\//i.test(v) || /^[A-Za-z]{2,6}\/\d{4}\//.test(v)
+  let timer = null
+  let seq = 0
   // The same rule the server applies: a UHID / bill / receipt number always ignores the dates (dim them as a hint).
   function syncDates() {
     const v = q.value.trim()
-    const byNumber = /^(B|RCPT)\//i.test(v) || /^[A-Za-z]{2,6}\/\d{4}\//.test(v)
+    const byNumber = isNumberPattern(v)
     const ignored = byNumber || (all.checked && v.length > 0)
     from.disabled = to.disabled = ignored
     from.style.opacity = to.style.opacity = ignored ? '0.5' : '1'
@@ -115,12 +119,15 @@ export function mountVisitsBillsSearch(root, { supabase }) {
   }
 
   async function run() {
+    clearTimeout(timer)
+    const mine = ++seq
     syncDates()
     status.textContent = 'Searching…'
     results.replaceChildren()
     const { data, error } = await supabase.rpc('search_visits_bills', {
       p_q: q.value.trim() || null, p_from: from.value || null, p_to: to.value || null,
       p_all_dates: all.checked })
+    if (mine !== seq) return                       // a newer search started meanwhile: drop this answer
     if (error) { status.textContent = safeErrorMessage(error, 'Could not search. Please try again.'); return }
     const rows = data?.rows || []
     if (!rows.length) {
@@ -132,7 +139,12 @@ export function mountVisitsBillsSearch(root, { supabase }) {
     results.replaceChildren(...rows.map(resultCard))
   }
   go.addEventListener('click', run)
-  q.addEventListener('input', syncDates)
+  q.addEventListener('input', () => {
+    syncDates()
+    clearTimeout(timer)
+    const v = q.value.trim()
+    if (v.length >= 3 && !isNumberPattern(v)) timer = setTimeout(run, 400)
+  })
   all.addEventListener('change', syncDates)
   q.addEventListener('keydown', e => { if (e.key === 'Enter') run() })
   clear.addEventListener('click', () => { q.value = ''; all.checked = false; from.value = today; to.value = today; run() })

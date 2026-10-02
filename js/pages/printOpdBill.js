@@ -93,7 +93,7 @@ function buildModel(d, copy) {
   const isDup = copy.copy !== 'ORIGINAL'
   // ONE copy number for header and footer: a pre-tracking document's assumed original is copy 1, so its first tracked reprint is No. 2
   const copyNo = (Number(copy.print_no) || 1) + (copy.legacy ? 1 : 0)
-  const subtitle = `${kind}${combined ? ' · Paid in full' : ''} · ${isDup ? 'DUPLICATE COPY · No. ' + copyNo : 'Original'}`
+  const subtitle = `${kind}${combined && !(num(b.final_amount) < 0.005) ? ' · Paid in full' : ''}${num(b.final_amount) < 0.005 ? ' · No charge' : ''} · ${isDup ? 'DUPLICATE COPY · No. ' + copyNo : 'Original'}`
   if (isDup && !watermark) watermark = 'DUPLICATE COPY'
 
   // ── Header strip ──
@@ -205,11 +205,14 @@ function buildModel(d, copy) {
   if (isGst && num(b.bill_discount_total) > 0 && b.discount_reason) rows.push({ label: `Discount reason: ${b.discount_reason}`, value: '' })
   if (payments) rows.push({ label: 'Less: payments received', value: money(paid) })
 
+  const noCharge = num(b.final_amount) < 0.005
   const due = Math.max(num(b.final_amount) - paid, 0)
   const paidInFull = b.status === 'paid' && (due < 0.005 || !payments)
   const balance = paidInFull ? { label: 'Balance Due', value: rupee(0) } : { label: 'Balance Due', value: rupee(due) }
   const wordsLines = [`${amountInWords(b.final_amount)}.`]
-  if (paidInFull) wordsLines.push(combined ? 'Paid in full — received with thanks.' : 'Paid in full.')
+  // a bill whose net amount is nil (e.g. fees were not configured then) says "No charge", never "Paid in full"
+  if (noCharge) wordsLines.push('No charge.')
+  else if (paidInFull) wordsLines.push(combined ? 'Paid in full — received with thanks.' : 'Paid in full.')
   else if (due > 0.005) wordsLines.push(`Balance due: ${amountInWords(due)}.`)
 
   const preparedBy = d.names[b.created_by] || (payments && d.names[d.payments[0]?.received_by]) || null
