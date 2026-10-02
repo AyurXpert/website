@@ -637,6 +637,7 @@ function _opdFeeIds() {
   ].filter(Boolean);
 }
 let _lastPaymentId = null;
+let _lastBillId = null;
 const _pkgInUse = () => !!(_activePackage && document.getElementById('pkg-use-chk').checked);
 
 // Amounts come from the fee master on the server (every organisation, Session 325 / TODO §95) --
@@ -1844,7 +1845,8 @@ async function handleSubmit() {
     if (opdBill.error) throw opdBill.error;
     const gstBill = opdBill.regime === 'gst_v1' ? opdBill : null;
     const bill = { id: opdBill.bill_id };
-    _lastPaymentId = opdBill.payment_id || null;      // the money receipt (RCPT), offered on the receipt card
+    _lastPaymentId = opdBill.payment_id || null;      // set when money was received -- offers the Bill cum Receipt on the receipt card
+    _lastBillId = opdBill.bill_id || null;
     const billTotal = Number(opdBill.final_amount) || 0;
     if (!gstBill) {
       regFee    = Number(opdBill.registration_fee)    || 0;
@@ -1965,7 +1967,7 @@ async function _billsWithReceipts(filter) {
   const payByBill = {};
   if (own.length) {
     const { data: pays } = await supabase.from('patient_payments')
-      .select('id, bill_id, receipt_no, voided_at').eq('tenant_id', tenantId).in('bill_id', own.map(b => b.id)).is('voided_at', null);
+      .select('id, bill_id, receipt_no, amount, received_at, kind, voided_at').eq('tenant_id', tenantId).in('bill_id', own.map(b => b.id)).is('voided_at', null);
     (pays || []).forEach(p => { payByBill[p.bill_id] = p; });
   }
   return { bills: own, payByBill };
@@ -2121,7 +2123,7 @@ async function _showReceipt(d) {
   }
 }
 
-document.getElementById('btn-print-pay').addEventListener('click', () => { if (_lastPaymentId) openReceipt(_lastPaymentId); });
+document.getElementById('btn-print-pay').addEventListener('click', () => { if (_lastBillId) openBill(_lastBillId); });
 // the transaction-reference box only matters for UPI / card
 document.getElementById('payment-mode').addEventListener('change', function () {
   const ref = document.getElementById('payment-ref');
@@ -2155,7 +2157,7 @@ async function loadQueue() {
   let billMap = {}, billsByVisit = {}, payByBill = {};
   if (visitIds.length > 0) {
     const { data: bills } = await supabase
-      .from('bills').select('id, visit_id, status, payment_mode, bill_type, payer_type, final_amount, document_status')
+      .from('bills').select('id, visit_id, status, payment_mode, bill_type, payer_type, final_amount, document_status, created_at')
       .in('visit_id', visitIds);
     (bills || []).forEach(b => {
       // the visit's own (consultation) bill drives the badge; a later lab bill must not replace it
@@ -2165,7 +2167,7 @@ async function loadQueue() {
     const printable = (bills || []).filter(b => ['opd', 'investigation'].includes(billCategory(b.bill_type)));
     if (printable.length) {
       const { data: pays } = await supabase.from('patient_payments')
-        .select('id, bill_id, receipt_no').eq('tenant_id', tenantId).in('bill_id', printable.map(b => b.id)).is('voided_at', null);
+        .select('id, bill_id, receipt_no, amount, received_at, kind').eq('tenant_id', tenantId).in('bill_id', printable.map(b => b.id)).is('voided_at', null);
       (pays || []).forEach(p => { payByBill[p.bill_id] = p; });
     }
   }
@@ -4564,7 +4566,7 @@ window.collectLabPayment = async function(orderId) {
   } else {
     _alert('success', `Payment collected (${what}) — lab notified.${rcpt}`);
   }
-  if (res.payment_id) openReceipt(res.payment_id);      // same as 💰 Collect: the receipt opens straight away
+  if (res.bill_id && res.payment_id) openBill(res.bill_id);   // Bill cum Receipt: the bill and its payment on one page
   loadPendingLabBills();
 };
 

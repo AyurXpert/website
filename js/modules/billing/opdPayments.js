@@ -49,9 +49,20 @@ export async function collectOpdBill({ supabase, billId }) {
   return error ? { error } : data;
 }
 
-// Print a bill (printInvoice.html -- OPD visit bill, investigation bill, pharmacy bill alike).
+// Print an OPD visit bill / lab bill (printOpdBill.html). Pharmacy bills keep printInvoice.html.
 export function openBill(billId) {
-  window.open(`printInvoice.html?billId=${encodeURIComponent(billId)}`, '_blank');
+  window.open(`printOpdBill.html?billId=${encodeURIComponent(billId)}`, '_blank');
+}
+
+// A bill paid IN FULL at the moment it was created (registration, lab collect) prints as ONE document, "Bill cum
+// Receipt". A later collection (pending bill settled by Collect), a part-payment or a bill with several payments
+// keeps its separate receipt. `payments` = the bill's non-voided ledger rows; 10 minutes tolerates the counter flow.
+export function isCombinedPayment(bill, payments) {
+  const live = (payments || []).filter(p => !p.voided_at && p.kind !== 'refund');
+  if (live.length !== 1 || !bill) return false;
+  const p = live[0];
+  return Math.abs(Number(p.amount) - Number(bill.final_amount)) < 0.005
+    && Math.abs(new Date(p.received_at) - new Date(bill.created_at)) <= 10 * 60 * 1000;
 }
 
 // Reprint buttons for one bill: its bill, and its receipt when a payment was recorded against it.
@@ -59,11 +70,12 @@ export function openBill(billId) {
 const _BILL_LABEL = { opd: 'Visit bill', investigation: 'Lab bill' };
 export function billReprintHtml(bill, payment, esc) {
   const label = _BILL_LABEL[billCategory(bill.bill_type)] || 'Bill';
+  const combined = !!payment && isCombinedPayment(bill, [payment]);
   const btn = 'min-height:44px;min-width:44px;padding:0 10px;font-size:12px;font-weight:600;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:#fff;color:var(--green-deep)';
   const amt = Number(bill.final_amount || 0).toLocaleString('en-IN');
   return `<span style="display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap">
-    <button type="button" style="${btn}" data-onclick="printBillDoc" data-onclick-a0="${bill.id}" title="Print this bill again">🖨 ${label} ₹${amt}</button>
-    ${payment ? `<button type="button" style="${btn}" data-onclick="printReceiptDoc" data-onclick-a0="${payment.id}" title="Print receipt ${esc(payment.receipt_no)}">🧾 ${esc(payment.receipt_no)}</button>` : ''}
+    <button type="button" style="${btn}" data-onclick="printBillDoc" data-onclick-a0="${bill.id}" title="${combined ? 'Print the bill and its payment receipt together' : 'Print this bill again'}">🖨 ${combined ? 'Bill cum Receipt' : label} ₹${amt}</button>
+    ${payment && !combined ? `<button type="button" style="${btn}" data-onclick="printReceiptDoc" data-onclick-a0="${payment.id}" title="Print receipt ${esc(payment.receipt_no)}">🧾 ${esc(payment.receipt_no)}</button>` : ''}
   </span>`;
 }
 

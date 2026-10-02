@@ -11,10 +11,11 @@
 //   meta:       [{ label, value, sub, wide, gap }],   // header strip (Bill No / Date / Bill To / Payer ...)
 //   party:      { title, fields: [{ label, value, wide, full, gap }] },
 //   gst:        boolean,                              // show Disc/Taxable/GST/CGST/SGST columns
+//   descLabel:  text (default 'Description'), noCode: boolean -- OPD / lab bills: "Service / Test", no SAC column (Session 327c)
 //   sections:   [{ title, rows: [{ no, description, sub, code, qty, rate, disc, taxable, gstLabel, cgst, sgst, amount }], subtotal }],
 //   emptyNote:  text | null,
 //   taxSummary: [{ label, value, cgst, sgst, tax }] | null,
-//   payments:   { rows: [{ receiptNo, date, type, mode, amount, voided, voidReason }], totalLabel, total } | null,
+//   payments:   { title?, rows: [{ receiptNo, date, type, mode, by?, amount, voided, voidReason }], totalLabel, total } | null,   // `by` adds a "Received by" column
 //   summary:    { rows: [{ label, value, grand }], balance: { label, value } },
 //   words:      { label, lines: [text] },
 //   signatures: { left: [text], right: [text] },
@@ -58,10 +59,11 @@ function headerBlock(m) {
 }
 
 function itemsTable(m) {
+  const dl = m.descLabel || 'Description';
   const head = m.gst
-    ? ['#', 'Description', 'SAC/HSN', 'Qty', 'Rate', 'Disc.', 'Taxable', 'GST', 'CGST', 'SGST', 'Amount']
-    : ['#', 'Description', 'SAC / HSN', 'Qty', 'Rate (₹)', 'Amount (₹)'];
-  const numFrom = 3;
+    ? ['#', dl, 'SAC/HSN', 'Qty', 'Rate', 'Disc.', 'Taxable', 'GST', 'CGST', 'SGST', 'Amount']
+    : m.noCode ? ['#', dl, 'Qty', 'Rate (₹)', 'Amount (₹)'] : ['#', dl, 'SAC / HSN', 'Qty', 'Rate (₹)', 'Amount (₹)'];
+  const numFrom = m.noCode && !m.gst ? 2 : 3;
   const cols = head.length;
   const tbody = h('tbody');
   for (const s of m.sections) {
@@ -72,7 +74,7 @@ function itemsTable(m) {
         ? [r.qty, r.rate, r.disc, r.taxable, r.gstLabel, r.cgst, r.sgst, r.amount]
         : [r.qty, r.rate, r.amount];
       tbody.appendChild(h('tr', null,
-        h('td', null, r.no), desc, h('td', { class: 'code' }, r.code || '—'),
+        h('td', null, r.no), desc, m.noCode && !m.gst ? null : h('td', { class: 'code' }, r.code || '—'),
         cells.map(c => h('td', { class: 'num' }, c ?? '—'))));
     }
     tbody.appendChild(h('tr', { class: 'sub-row' },
@@ -95,21 +97,23 @@ function taxSummaryTable(rows) {
 }
 
 function paymentsTable(p) {
+  const withBy = p.rows.some(r => r.by !== undefined);
+  const cols = withBy ? 6 : 5;
   const tbody = h('tbody');
   for (const r of p.rows) {
     tbody.appendChild(h('tr', { class: r.voided ? 'void-row' : null },
       h('td', { class: 'code' }, r.receiptNo), h('td', null, r.date), h('td', null, r.type),
-      h('td', null, r.mode), h('td', { class: 'num' }, r.amount)));
+      h('td', null, r.mode), withBy ? h('td', null, r.by || '—') : null, h('td', { class: 'num' }, r.amount)));
     if (r.voided) {
       tbody.appendChild(h('tr', { class: 'void-row void-note' },
-        h('td', { colspan: 5 }, `VOID — ${r.voidReason || 'no reason recorded'} (not counted)`)));
+        h('td', { colspan: cols }, `VOID — ${r.voidReason || 'no reason recorded'} (not counted)`)));
     }
   }
   tbody.appendChild(h('tr', { class: 'sub-row' },
-    h('td', { colspan: 4, class: 'num' }, p.totalLabel), h('td', { class: 'num' }, p.total)));
+    h('td', { colspan: cols - 1, class: 'num' }, p.totalLabel), h('td', { class: 'num' }, p.total)));
   return h('table', { class: 'pay' },
     h('thead', null, h('tr', null,
-      ['Receipt No.', 'Date', 'Type', 'Mode'].map(t => h('th', { scope: 'col' }, t)),
+      (withBy ? ['Receipt No.', 'Date', 'Type', 'Mode / Reference', 'Received by'] : ['Receipt No.', 'Date', 'Type', 'Mode']).map(t => h('th', { scope: 'col' }, t)),
       h('th', { scope: 'col', class: 'num' }, 'Amount (₹)'))),
     tbody);
 }
@@ -139,7 +143,7 @@ export function renderInvoice(sheet, m) {
   }
 
   if (m.payments) {
-    sheet.appendChild(h('h2', { class: 'sec-title' }, 'Payments & Adjustments'));
+    sheet.appendChild(h('h2', { class: 'sec-title' }, m.payments.title || 'Payments & Adjustments'));
     sheet.appendChild(paymentsTable(m.payments));
   }
 

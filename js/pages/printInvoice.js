@@ -1,5 +1,6 @@
 import { supabase } from '../core/db/supabaseClient.js'
 import { wireDelegatedEvents } from '../utils/domEvents.js'
+import { billCategory } from '../modules/billing/billCategory.js'
 
 wireDelegatedEvents()
 
@@ -67,6 +68,13 @@ async function loadInvoice() {
       .select('*')
       .eq('id', billId)
       .single()
+
+    // Session 327c: OPD visit bills and lab bills have their own document (letterhead, bill number,
+    // "Service / Test" table, payment section) -- this page keeps pharmacy bills.
+    if (bill && ['opd', 'investigation'].includes(billCategory(bill.bill_type))) {
+      window.location.replace(`printOpdBill.html?billId=${encodeURIComponent(billId)}`)
+      return
+    }
 
     // bill_items holds two real shapes: pharmacy dispensing is medicine_id-
     // keyed (name comes from the medicines catalog); IPD stay charges/room
@@ -149,7 +157,14 @@ async function loadInvoice() {
     if (discountGiven > 0) {
       const why = bill.discount_reason ? ` — ${bill.discount_reason}` : ''
       if (isGst) {
-        tbody.innerHTML += `<tr><td colspan="5" class="border p-2 text-xs italic">Discount of ₹${discountGiven.toFixed(2)} given${_esc(why)} (already applied to the lines above).</td></tr>`
+        // built from DOM nodes + textContent (no HTML string): the discount reason is free text a user typed
+        const note = document.createElement('td')
+        note.colSpan = 5
+        note.className = 'border p-2 text-xs italic'
+        note.textContent = `Discount of ₹${discountGiven.toFixed(2)} given${why} (already applied to the lines above).`
+        const noteRow = document.createElement('tr')
+        noteRow.appendChild(note)
+        tbody.appendChild(noteRow)
       } else {
         addRow('Discount' + why, 1, -discountGiven, 0, -discountGiven)
       }
