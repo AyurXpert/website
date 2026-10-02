@@ -4419,6 +4419,13 @@ async function loadPendingLabBills() {
         _labOnBill[i.lab_order_id] = true;
       });
     }
+    // An order with no line on any bill yet (the doctor's order-time billing is refused once the visit
+    // bill is paid) is billed when collected: show what Collect will charge, not Rs 0.
+    nowOrders.forEach(o => {
+      if (!_labOnBill[o.id]) {
+        amountByOrder[o.id] = (_labPriced[o.id]?.lines || []).reduce((s, l) => s + (Number(l.price) || 0) * (1 + (Number(l.gst_percent) || 0) / 100), 0);
+      }
+    });
   }
 
   const rank = { stat: 0, urgent: 1, routine: 2 };
