@@ -1564,6 +1564,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
            plans reuse the Admission Requests queue above unchanged). See
            sql/session209_pk_care_plan_activation.sql. -->
       <button class="q-tab" id="tab-pkplans" type="button">🌸 PK Care Plans <span id="pkplans-count"></span></button>
+      <button class="q-tab" id="tab-vbsearch" type="button" style="display:none">🔎 Visits &amp; Bills</button>
     </div>
     <div class="queue-body" id="queue-list">
       <div class="q-empty"><div class="q-empty-icon">⏳</div><div class="q-empty-text">Loading…</div></div>
@@ -1577,6 +1578,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div class="queue-body" id="admission-requests-list" style="display:none">
       <div class="q-empty"><div class="q-empty-icon">🛏️</div><div class="q-empty-text">Loading…</div></div>
     </div>
+    <div class="queue-body" id="vb-search-panel" style="display:none"></div>
     <div class="queue-body" id="pk-plans-list" style="display:none">
       <div class="q-empty"><div class="q-empty-icon">🌸</div><div class="q-empty-text">Loading…</div></div>
     </div>

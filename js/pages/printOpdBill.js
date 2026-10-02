@@ -54,7 +54,7 @@ const monogram = name => (name || '').split(/\s+/).filter(Boolean).slice(0, 3).m
 function setStatus(msg, isErr = false) { statusEl.textContent = msg || ''; statusEl.className = 'status-msg' + (isErr ? ' err' : '') }
 function showError(msg) { sheet.replaceChildren(el('p', { class: 'error-box' }, msg)); printBtn.disabled = true }
 
-function buildModel(d) {
+function buildModel(d, copy) {
   const b = d.bill, pt = d.patient || {}, v = d.visit || {}, tax = d.tax || {}
   const isGst   = b.tax_regime === 'gst_v1'
   const isDraft = isGst && b.document_status === 'draft'
@@ -89,7 +89,10 @@ function buildModel(d) {
     }
   }
   const kind = cat === 'investigation' ? 'Laboratory / Investigations' : 'Out-Patient'
-  const subtitle = `${kind}${combined ? ' · Paid in full' : ''} · Original`
+  // Original or Duplicate copy: decided by the server (record_document_print) from the print audit trail
+  const isDup = copy.copy !== 'ORIGINAL'
+  const subtitle = `${kind}${combined ? ' · Paid in full' : ''} · ${isDup ? 'DUPLICATE COPY' : 'Original'}`
+  if (isDup && !watermark) watermark = 'DUPLICATE COPY'
 
   // ── Header strip ──
   const meta = [
@@ -180,7 +183,7 @@ function buildModel(d) {
     by: d.names[p.received_by] || '—', amount: (p.kind === 'refund' ? '−' : '') + money(p.amount),
     voided: !!p.voided_at, voidReason: p.void_reason }))
   const payments = payRows.length
-    ? { title: combined ? 'Payment Received' : 'Payments Received', rows: payRows, totalLabel: 'Total received (voided excluded)', total: money(paid) } : null
+    ? { title: combined ? 'Payment Received' : 'Payments Received', rows: payRows, totalLabel: 'Total received', total: money(paid) } : null
 
   // ── Summary ──
   const rows = []
@@ -212,6 +215,11 @@ function buildModel(d) {
   const footer = []
   if (isGst && docType === 'TAX_INVOICE' && !isDraft) footer.push('Whether tax is payable on reverse charge: No.')
   if (combined) footer.push('This document serves as both the bill and the payment receipt.')
+  if (isDup) {
+    footer.push(`Duplicate copy no. ${copy.print_no}. ${copy.legacy
+      ? 'Issued before print tracking began — an original may already have been given to the patient.'
+      : `The original was first printed ${fmtDT(copy.first_printed_at)}${copy.first_printed_by ? ' by ' + copy.first_printed_by : ''}.`}`)
+  }
   const docWord = isDraft ? 'Draft bill — not a tax invoice' : isGst ? `Computer-generated ${(DOC_TITLE[docType] || 'bill').toLowerCase()}` : 'Computer-generated bill — not a tax invoice'
   footer.push(`${docWord}. · Powered by AyurXpert`)
 
@@ -254,7 +262,11 @@ async function load() {
     bill, items: items.data || [], patient: patient.data, visit: v, payments: pays.data || [], tax: taxS.data || {},
     names, doctor: v?.doctor_id ? names[v.doctor_id] || null : null, opd: opd.data?.name || null,
   }
-  const model = buildModel(d)
+  // Print audit: the SERVER records this print and says whether it is the Original or a Duplicate copy. If that
+  // cannot be established the document is not shown at all (an unmarked copy must never be printable).
+  const rec = await supabase.rpc('record_document_print', { p_doc_type: 'bill', p_doc_id: billId })
+  if (rec.error || !rec.data) { showError(safeErrorMessage(rec.error, 'Could not record this print. Please try again.')); return }
+  const model = buildModel(d, rec.data)
   renderInvoice(sheet, model)
   sheet.querySelector('.logo-img')?.addEventListener('error', e => e.target.remove())
   document.title = `${model.title} ${bill.document_number || ''} — ${d.patient?.name || ''}`.replace(/\s+/g, ' ').trim()

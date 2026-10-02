@@ -126,7 +126,9 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     'Lines of a GST bill', 'Charges cannot be added', 'Only OPD', 'The discount cannot', 'Your role may give',
     'Insurance / scheme bills take no discount', 'The same kind of charge', 'A visit bill takes', 'This bill is already marked paid',
     // Session 327 (receipts at the counter)
-    'Choose Cash, UPI or Card', 'Enter the UPI / card transaction reference'];
+    'Choose Cash, UPI or Card', 'Enter the UPI / card transaction reference',
+    // Session 328 (Visits & Bills search, print audit)
+    'The date range', 'Type at least', 'The end date', 'Document not found', 'Unknown document type', 'You can print only'];
   // A page opened before a billing release still calls the retired function -- say what to do.
   // (PostgREST says "Could not find the function ..." when the signature changed -- Session 327 added a reference argument)
   if (/permission denied for function (add_opd_bill_item|create_opd_bill|create_investigation_bill)|Could not find the function public\.(create_opd_bill|create_investigation_bill)/.test(error?.message || '')) {

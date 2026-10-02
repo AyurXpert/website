@@ -205,6 +205,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
       <button class="sub-tab active" data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="receipts" data-onclick-a2="@this">All Receipts</button>
       <button class="sub-tab" data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="outstanding" data-onclick-a2="@this">Outstanding</button>
       <button class="sub-tab" data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="daily" data-onclick-a2="@this">Daily Cash</button>
+      <button class="sub-tab" data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="vbsearch" data-onclick-a2="@this">🔎 Visits &amp; Bills</button>
     </div>
 
     <!-- All Receipts sub-panel -->
@@ -247,6 +248,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- Visits & Bills sub-panel (Session 328): find any past bill / receipt and reprint it as a Duplicate copy -->
+    <div class="sub-panel" id="sub-vbsearch">
+      <div class="card" id="vb-search-root"></div>
     </div>
 
     <!-- Daily Cash sub-panel -->

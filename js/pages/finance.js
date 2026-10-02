@@ -8,6 +8,7 @@ import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, collectedAmount } from '../modules/billing/billCategory.js';
 import { notify } from '../components/notify.js';
 import { canCollectOpd, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt } from '../modules/billing/opdPayments.js';
+import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
 
 wireDelegatedEvents();
 
@@ -43,7 +44,9 @@ window.switchSub = function(grp, sub, el) {
   el.classList.add('active');
   if (sub === 'audit') loadAudits();
   if (sub === 'preauth') renderPreAuth();
+  if (sub === 'vbsearch' && !_vbMounted) { _vbMounted = true; mountVisitsBillsSearch(document.getElementById('vb-search-root'), { supabase }); }
 };
+let _vbMounted = false;   // Visits & Bills search mounts once, on first open (Session 328)
 
 // Insurance Cycles state — declared here (not further down near the rest of the
 // Insurance Cycles code) since the receptionist-role branch below can call

@@ -7,6 +7,18 @@
 // finance's Outstanding list.
 import { billCategory } from './billCategory.js';
 
+// Who may print / reprint bills and receipts and use "Visits & Bills" (Session 328) = the database's own list in
+// record_document_print() / search_visits_bills(); doctors and nurses are deliberately NOT on it (financial records).
+export const DOC_PRINT_ROLES = ['receptionist', 'cashier', 'accountant', 'finance_manager', 'dept_admin', 'super_admin'];
+export function canReprintDocs(profile) {
+  return DOC_PRINT_ROLES.includes(profile?.role) || DOC_PRINT_ROLES.includes(profile?.secondary_role);
+}
+// A nurse covering reception may print the document she herself just created / received (the server checks created_by /
+// received_by) but has no search and no reprint lists: only the immediate "Bill cum Receipt" after her own collection.
+export function canPrintOwnDocs(profile) {
+  return canReprintDocs(profile) || profile?.role === 'nurse' || profile?.secondary_role === 'nurse';
+}
+
 // = the database's own role list (record_opd_bill_payment); the page only hides the button.
 const COLLECT_ROLES = ['receptionist', 'cashier', 'accountant', 'finance_manager', 'super_admin', 'dept_admin'];
 

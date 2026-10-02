@@ -2,6 +2,7 @@ import { supabase } from '../core/db/supabaseClient.js'
 import { getCurrentTenantId } from '../core/auth.js'
 import { wireDelegatedEvents } from '../utils/domEvents.js'
 import { amountInWords } from '../utils/amountInWords.js'
+import { safeErrorMessage } from '../utils/errors.js'
 import { computeIpdChargesToDate } from '../modules/billing/ipdChargesToDate.js'
 
 wireDelegatedEvents()
@@ -45,8 +46,27 @@ async function loadReceipt() {
     return;
   }
 
+  // Print audit: the SERVER records this print and says whether it is the Original or a Duplicate copy
+  // (fail closed: an unmarked receipt is never shown).
+  const rec = await supabase.rpc('record_document_print', { p_doc_type: 'receipt', p_doc_id: paymentId });
+  if (rec.error || !rec.data) {
+    document.getElementById('patientInfo').textContent = safeErrorMessage(rec.error, 'Could not record this print. Please try again.');
+    document.getElementById('receiptMeta').textContent = '';
+    return;
+  }
+  const copy = rec.data;
+  const isDup = copy.copy !== 'ORIGINAL';
+
   const isRefund = pp.kind === 'refund';
-  document.getElementById('docTitle').textContent = isRefund ? 'REFUND VOUCHER' : 'RECEIPT';
+  document.getElementById('docTitle').textContent = `${isRefund ? 'REFUND VOUCHER' : 'RECEIPT'} — ${isDup ? 'DUPLICATE COPY' : 'ORIGINAL'}`;
+  if (isDup) {
+    const note = document.createElement('div');
+    note.className = 'text-xs text-gray-600 italic mb-2';
+    note.textContent = `Duplicate copy no. ${copy.print_no}. ${copy.legacy
+      ? 'Issued before print tracking began — an original may already have been given to the patient.'
+      : `The original was first printed ${_fmtDateTime(copy.first_printed_at)}${copy.first_printed_by ? ' by ' + copy.first_printed_by : ''}.`}`;
+    document.getElementById('amountWords').after(note);
+  }
 
   document.getElementById('receiptMeta').innerHTML = `
     <div><b>${_esc(pp.receipt_no)}</b></div>

@@ -1,0 +1,123 @@
+// visitsBillsSearch.js -- "Visits & Bills" (Session 328, TODO_LATER.md §105).
+// A read-only search over visits (open AND completed) and their OPD / lab bills and receipts, so a bill or
+// receipt from any past day can be found and reprinted without depending on the live queue. One module,
+// mounted by reception.html (receptionist, dept_admin, super_admin) and finance.html (cashier, accountant,
+// finance_manager, dept_admin, super_admin). Data comes from the search_visits_bills() RPC
+// (sql/session328_visits_bills_search_and_print_audit.sql): the organisation and the role check are the
+// server's -- nothing here is trusted. Whether a print is the Original or a Duplicate copy is decided by the
+// server when the print page opens (record_document_print); this module only opens the documents.
+// Built with createElement / textContent only (no innerHTML): patient names are user-entered text.
+import { el } from './invoiceLayout.js'
+import { openBill, openReceipt, isCombinedPayment } from './opdPayments.js'
+import { safeErrorMessage } from '../../utils/errors.js'
+import { todayISTStr } from '../../utils/dateUtils.js'
+
+const BILL_LABEL = { consultation: 'Visit bill', opd: 'Visit bill', investigation: 'Lab bill' }
+const STATUS_LABEL = { waiting: 'Waiting', in_progress: 'With doctor', completed: 'Completed', incomplete: 'Incomplete' }
+const MODE_LABEL = { cash: 'Cash', upi: 'UPI', card: 'Card', cheque: 'Cheque', neft: 'NEFT' }
+const BTN = 'min-height:44px;min-width:44px;padding:0 12px;font-size:12px;font-weight:600;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:#fff;color:var(--green-deep)'
+const INPUT = 'min-height:44px;font-size:13px;border:1px solid var(--border);border-radius:6px;padding:0 10px;background:#fff'
+
+const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+const when = iso => iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
+const day = iso => iso ? new Date(iso).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+
+function printedHint(n) {
+  return n > 0 ? `Printed ${n}× — the next print is a Duplicate copy` : 'Not printed yet — the first print is the Original'
+}
+
+function printButton(label, hintCount, onClick) {
+  const b = el('button', { type: 'button', style: BTN, title: printedHint(hintCount) }, label)
+  b.addEventListener('click', onClick)
+  return b
+}
+
+// One bill's reprint buttons: a paid-in-full-at-creation bill is ONE "Bill cum Receipt"; anything else is the
+// bill plus each of its receipts (the receipt of a later collection stays a separate document).
+function reprintButtons(bill) {
+  const live = (bill.payments || []).filter(p => !p.voided && p.kind !== 'refund')
+  const forTest = live.map(p => ({ amount: p.amount, received_at: p.received_at, kind: p.kind, voided_at: null }))
+  const combined = isCombinedPayment({ final_amount: bill.final_amount, created_at: bill.created_at }, forTest)
+  const box = el('span', { style: 'display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap' })
+  if (combined) {
+    box.appendChild(printButton('🖨 Bill cum Receipt', bill.prints, () => openBill(bill.id)))
+    return box
+  }
+  box.appendChild(printButton('🖨 Bill', bill.prints, () => openBill(bill.id)))
+  for (const p of bill.payments || []) {
+    box.appendChild(printButton(`🧾 ${p.receipt_no}${p.voided ? ' (void)' : ''}`, p.prints, () => openReceipt(p.id)))
+  }
+  return box
+}
+
+function billRow(bill) {
+  const type = BILL_LABEL[String(bill.bill_type || '').toLowerCase()] || 'Bill'
+  const pays = (bill.payments || []).filter(p => !p.voided && p.kind !== 'refund')
+  const paidVia = pays.length ? pays.map(p => MODE_LABEL[p.mode] || p.mode).join(' + ') : null
+  return el('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 0;border-top:1px solid var(--border)' },
+    el('span', { style: 'min-width:130px;font-weight:600' }, bill.document_number || 'Not numbered'),
+    el('span', { style: 'min-width:80px;color:var(--text-mid)' }, type),
+    el('span', { style: 'min-width:80px;font-weight:600' }, inr(bill.final_amount)),
+    el('span', { style: 'min-width:120px;color:var(--text-muted);font-size:12px' },
+      `${String(bill.status || '').toUpperCase()}${paidVia ? ' · ' + paidVia : ''}`),
+    reprintButtons(bill))
+}
+
+function resultCard(row) {
+  const p = row.patient || {}
+  const v = row.visit
+  const head = el('div', { style: 'display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:4px' },
+    el('strong', { style: 'font-size:14px' }, p.name || '—'),
+    el('span', { style: 'font-size:12px;color:var(--text-mid)' }, `UHID ${p.uhid || '—'}`),
+    p.phone ? el('span', { style: 'font-size:12px;color:var(--text-muted)' }, p.phone) : null)
+  const sub = v
+    ? el('div', { style: 'font-size:12px;color:var(--text-mid);margin-bottom:4px' },
+        `${when(v.created_at)} · Token ${v.token ?? '—'} · ${STATUS_LABEL[v.status] || v.status || '—'}`
+        + `${v.doctor ? ' · ' + v.doctor : ''}${v.opd ? ' · ' + v.opd : ''}`)
+    : el('div', { style: 'font-size:12px;color:var(--text-mid);margin-bottom:4px' },
+        `No visit on this bill (e.g. a lab test advised for the next visit) · ${day(row.bills?.[0]?.created_at)}`)
+  const card = el('div', { style: 'border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin:0 0 10px;background:#fff' }, head, sub)
+  if (!row.bills || !row.bills.length) card.appendChild(el('div', { style: 'font-size:12px;color:var(--text-muted);padding-top:4px' }, 'No OPD or lab bill on this visit.'))
+  for (const b of row.bills || []) card.appendChild(billRow(b))
+  return card
+}
+
+export function mountVisitsBillsSearch(root, { supabase }) {
+  const today = todayISTStr()
+  const q = el('input', { type: 'text', id: 'vb-q', maxlength: '80', style: INPUT + ';flex:1;min-width:240px',
+    placeholder: 'UHID, patient name, phone, bill no. (B/…) or receipt no. (RCPT/…)', 'aria-label': 'Search visits and bills' })
+  const from = el('input', { type: 'date', id: 'vb-from', value: today, style: INPUT, 'aria-label': 'From date' })
+  const to = el('input', { type: 'date', id: 'vb-to', value: today, style: INPUT, 'aria-label': 'To date' })
+  const go = el('button', { type: 'button', style: BTN.replace('background:#fff;color:var(--green-deep)', 'background:var(--green-deep);color:#fff') }, '🔎 Search')
+  const clear = el('button', { type: 'button', style: BTN }, 'Reset')
+  const status = el('div', { role: 'status', 'aria-live': 'polite', style: 'font-size:12px;color:var(--text-mid);margin:6px 0' })
+  const results = el('div', { id: 'vb-results' })
+
+  root.replaceChildren(
+    el('div', { style: 'padding:12px' },
+      el('div', { style: 'font-size:12px;color:var(--text-muted);margin-bottom:8px' },
+        'Open and completed visits with their OPD / lab bills and receipts. Searching by a bill or receipt number looks at ALL dates; '
+        + 'everything else uses the date range (at most 31 days). Every reprint after the first is marked “Duplicate copy”.'),
+      el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, q, from, el('span', null, 'to'), to, go, clear),
+      status, results))
+
+  async function run() {
+    status.textContent = 'Searching…'
+    results.replaceChildren()
+    const { data, error } = await supabase.rpc('search_visits_bills', {
+      p_q: q.value.trim() || null, p_from: from.value || null, p_to: to.value || null })
+    if (error) { status.textContent = safeErrorMessage(error, 'Could not search. Please try again.'); return }
+    const rows = data?.rows || []
+    if (!rows.length) {
+      status.textContent = 'Nothing found. Check the spelling, or widen the date range.'
+      return
+    }
+    const scope = data.all_dates ? 'across all dates' : `${data.from === data.to ? day(data.from + 'T12:00:00+05:30') : day(data.from + 'T12:00:00+05:30') + ' to ' + day(data.to + 'T12:00:00+05:30')}`
+    status.textContent = `${rows.length} shown ${scope}` + (data.truncated ? ` — ${data.matched} matched, only the newest ${rows.length} are listed. Narrow your search.` : '.')
+    results.replaceChildren(...rows.map(resultCard))
+  }
+  go.addEventListener('click', run)
+  q.addEventListener('keydown', e => { if (e.key === 'Enter') run() })
+  clear.addEventListener('click', () => { q.value = ''; from.value = today; to.value = today; run() })
+  run()
+}

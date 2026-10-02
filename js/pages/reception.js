@@ -10,7 +10,8 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { getEffectivePrice } from '../modules/billing/effectivePrice.js';
 import { computeLabBillingLines, labItemsToSelection } from '../modules/billing/labBilling.js';
 import { getOpdBillingRegime, previewOpdBill, createOpdBill, createInvestigationBill, DOCUMENT_TYPE_LABEL } from '../modules/billing/opdGstBilling.js';
-import { canCollectOpd, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt, openBill, billReprintHtml } from '../modules/billing/opdPayments.js';
+import { canCollectOpd, canReprintDocs, canPrintOwnDocs, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt, openBill, billReprintHtml } from '../modules/billing/opdPayments.js';
+import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
 import { billCategory } from '../modules/billing/billCategory.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
 import { localDateStr, todayLocalStr, todayISTStr, istDayStartUTC } from '../utils/dateUtils.js';
@@ -906,7 +907,7 @@ async function _searchUhid(uhid) {
 // Last few OPD / investigation bills of the selected patient, each reprintable with its receipt.
 async function _renderPatientBills(patientId) {
   const box = document.getElementById('pt-bills');
-  if (!box) return;
+  if (!box || !_canReprint) return;
   const { bills, payByBill } = await _billsWithReceipts(q => q.eq('patient_id', patientId).limit(12));
   if (!_patient || _patient.id !== patientId) return;          // another patient was picked meanwhile
   const shown = bills.slice(0, 6);
@@ -1941,6 +1942,8 @@ async function handleSubmit() {
 // ── Collect a pending OPD bill (Session 324, TODO_LATER.md §96) ──
 // Full settlement + a receipt number (RCPT series), printed on printReceipt.html.
 const _canCollect = canCollectOpd(profile);
+const _canReprint = canReprintDocs(profile);   // Session 328: may print / reprint bills and receipts (search, queue, patient card, lists)
+const _canPrintOwn = canPrintOwnDocs(profile);  // + a nurse covering reception: only the document she just created (server-enforced)
 window.collectOpdBill = async function(billId) {
   const res = await collectOpdBill({ supabase, billId });
   if (res.error) { _alert('error', safeErrorMessage(res.error, 'Could not record the payment.')); return; }
@@ -2045,7 +2048,7 @@ function _visitReceiptDoc(d) {
 
 async function _showReceipt(d) {
   const _payBtn = document.getElementById('btn-print-pay');
-  if (_payBtn) _payBtn.style.display = d.paymentId ? '' : 'none';
+  if (_payBtn) _payBtn.style.display = (d.paymentId && _canPrintOwn) ? '' : 'none';
   _printReceipt = () => _visitReceiptDoc(d);
   const fmt  = n => n > 0 ? `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—';
   // Free text (patient name, complaint, ABHA address…) is escaped — it went into innerHTML raw.
@@ -2220,7 +2223,7 @@ async function loadQueue() {
           ${payBadge}
         </div>
         ${_canCollect && isCollectableOpdBill(bill) ? `<div class="q-row3" style="margin-top:4px">${opdCollectControlsHtml(bill.id)}</div>` : ''}
-        ${(billsByVisit[v.id] || []).filter(b => ['opd', 'investigation'].includes(billCategory(b.bill_type))).length
+        ${_canReprint && (billsByVisit[v.id] || []).filter(b => ['opd', 'investigation'].includes(billCategory(b.bill_type))).length
           ? `<div class="q-row3" style="margin-top:4px;gap:6px;flex-wrap:wrap">${(billsByVisit[v.id] || [])
               .filter(b => ['opd', 'investigation'].includes(billCategory(b.bill_type)))
               .map(b => billReprintHtml(b, payByBill[b.id], _esc)).join('')}</div>` : ''}
@@ -4333,8 +4336,8 @@ function _setMode(mode) {
 }
 
 // ── Queue / Appointments / Lab Bills / Reg. Queue / Admission Requests tabs ──
-const _allTabs   = ['tab-queue', 'tab-appts', 'tab-labbills', 'tab-regqueue', 'tab-admreq', 'tab-pkplans'];
-const _allPanels = ['queue-list', 'appt-list', 'lab-bills-list', 'reg-queue-list', 'admission-requests-list', 'pk-plans-list'];
+const _allTabs   = ['tab-queue', 'tab-appts', 'tab-labbills', 'tab-regqueue', 'tab-admreq', 'tab-pkplans', 'tab-vbsearch'];
+const _allPanels = ['queue-list', 'appt-list', 'lab-bills-list', 'reg-queue-list', 'admission-requests-list', 'pk-plans-list', 'vb-search-panel'];
 function _activateTab(tabId, panelId) {
   _allTabs.forEach(id => document.getElementById(id).classList.toggle('active', id === tabId));
   _allPanels.forEach(id => document.getElementById(id).style.display = (id === panelId) ? '' : 'none');
@@ -4358,6 +4361,16 @@ document.getElementById('tab-admreq').addEventListener('click', () => {
   _activateTab('tab-admreq', 'admission-requests-list');
   loadAdmissionRequests();
 });
+// Visits & Bills (Session 328): any past visit's bills and receipts, reprinted as Original / Duplicate by the server.
+// Only the roles the database allows (receptionist, cashier, accountant, finance_manager, dept_admin, super_admin).
+if (_canReprint) {
+  document.getElementById('tab-vbsearch').style.display = '';
+  let _vbMounted = false;
+  document.getElementById('tab-vbsearch').addEventListener('click', () => {
+    _activateTab('tab-vbsearch', 'vb-search-panel');
+    if (!_vbMounted) { _vbMounted = true; mountVisitsBillsSearch(document.getElementById('vb-search-panel'), { supabase }); }
+  });
+}
 document.getElementById('tab-pkplans').addEventListener('click', () => {
   _activateTab('tab-pkplans', 'pk-plans-list');
   loadPkCarePlanRequests();
@@ -4479,6 +4492,7 @@ async function loadPendingLabBills() {
 
 // Today's collected lab / investigation bills, each reprintable with its receipt (Session 327).
 async function _collectedLabBillsHtml() {
+  if (!_canReprint) return '';
   const start = new Date(istDayStartUTC(todayISTStr()));
   const { bills, payByBill } = await _billsWithReceipts(q => q.eq('bill_type', 'investigation').gte('created_at', start.toISOString()).limit(40));
   if (!bills.length) return '';
@@ -4566,7 +4580,7 @@ window.collectLabPayment = async function(orderId) {
   } else {
     _alert('success', `Payment collected (${what}) — lab notified.${rcpt}`);
   }
-  if (res.bill_id && res.payment_id) openBill(res.bill_id);   // Bill cum Receipt: the bill and its payment on one page
+  if (_canPrintOwn && res.bill_id && res.payment_id) openBill(res.bill_id);   // Bill cum Receipt: the bill and its payment on one page
   loadPendingLabBills();
 };
 
