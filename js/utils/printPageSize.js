@@ -10,10 +10,12 @@
 // CSP-safe on pages whose style-src has no 'unsafe-inline' (no <style> element is injected).
 // Nothing here talks to the server -- changing the size never records a print.
 
+// Thermal side margins keep the content inside the printer's printable area (Session 336c): 80 mm paper prints
+// 72 mm, 58 mm paper prints 48 mm -- centred; css/paper-size.css uses the same widths for the screen preview.
 const PAGES = {
   a5:  { w: 148, h: 210, margin: '8mm 8mm 10mm' },
-  t80: { w: 80, side: 3, top: 2, bottom: 2 },
-  t58: { w: 58, side: 2, top: 1.5, bottom: 1.5 },
+  t80: { w: 80, side: 4, top: 2, bottom: 2 },
+  t58: { w: 58, side: 5, top: 1.5, bottom: 1.5 },
 };
 const PX_TO_MM = 25.4 / 96;
 const SLACK_MM = 4;      // rounding / font-metric slack so the roll never spills onto a second page
