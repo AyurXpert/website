@@ -419,6 +419,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             <button class="pay-btn" data-method="UPI" data-onclick="selectPay" data-onclick-a0="@this">UPI</button>
             <button class="pay-btn" data-method="Credit" data-onclick="selectPay" data-onclick-a0="@this">Credit / Due</button>
           </div>
+          <div id="pay-ref-wrap" style="display:none;margin-top:8px">
+            <label for="pay-ref" style="font-size:12px;font-weight:600;color:var(--text-mid)">Transaction reference (UPI / card) — required</label>
+            <input id="pay-ref" type="text" maxlength="60" autocomplete="off" placeholder="e.g. UPI ref no. / card approval code" style="width:100%;height:44px;margin-top:4px;padding:0 10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif"/>
+          </div>
         </div>
 
         <div style="height:20px"></div>

@@ -399,6 +399,10 @@ window.recalcTotal = function() {
 window.selectPay = function(btn) {
   document.querySelectorAll('.pay-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  // Session 333: a UPI / card counter payment is receipted with its transaction reference
+  const needsRef = ['UPI', 'Card'].includes(btn.dataset.method);
+  document.getElementById('pay-ref-wrap').style.display = needsRef ? '' : 'none';
+  if (!needsRef) document.getElementById('pay-ref').value = '';
 };
 
 // ── Manual medicine search ────────────────────────
@@ -475,13 +479,7 @@ async function dispense() {
   }
 
   const payMethod = document.querySelector('.pay-btn.active')?.dataset.method || 'Cash';
-  const subtotal  = payable.reduce((s, c) => s + c.qty * c.price, 0);
-  const discount  = _discountAmount(subtotal);
-  const total     = Math.max(0, subtotal - discount);
-
-  const btn = document.getElementById('btn-dispense');
-  btn.disabled = true;
-  btn.textContent = 'Processing…';
+  const payRef    = document.getElementById('pay-ref').value.trim();
 
   // Session 296 -- an IPD prescription (from doctor.html's IPD Orders panel) has no OPD
   // visit bill to attach to; it's charged to the stay instead (ipd_stay_charges, staged
@@ -496,17 +494,47 @@ async function dispense() {
     _toast(`Not in this pharmacy's stock: ${unstocked.map(c => c.name).join(', ')}. Remove it from the bill or receive it through Purchase / GRN first.`, 'error');
     return;
   }
+  // Session 333: a UPI / card counter payment is receipted with its transaction reference
+  if (!isIpd && ['UPI', 'Card'].includes(payMethod) && !payRef) {
+    _toast('Enter the UPI / card transaction reference.', 'error');
+    document.getElementById('pay-ref').focus();
+    return;
+  }
+
+  const btn = document.getElementById('btn-dispense');
+  btn.disabled = true;
+  btn.textContent = 'Processing…';
+  const _resetBtn = () => { btn.disabled = false; btn.textContent = '✓ Dispense & Generate Bill'; };
+  const lines = payable.map(c => ({ medicine_id: c.medicine_id, qty: c.qty }));
 
   try {
-    // Session 332: ONE server call does the whole dispense in one transaction -- the bill (OPD) or the IPD
-    // stay charges, the stock deduction (earliest expiry first; never a student or an EXPIRED batch) and
-    // marking the prescription dispensed. The browser can no longer change stock itself.
     if (isIpd && !_activeIpdAdmissionId) throw new Error("Could not find this patient's IPD admission to charge — contact support before dispensing.");
+
+    // Session 333: the SERVER's preview -- the exact lines (one per batch, at that batch's MRP) and total it will
+    // write -- is what the pharmacist confirms, not the cart's estimate.
+    const { data: pv, error: pvErr } = await supabase.rpc('preview_pharmacy_sale', {
+      p_rx: _activeRxId, p_lines: lines, p_discount_pct: _discountPct(),
+    });
+    if (pvErr) throw pvErr;
+    if (!pv?.ok) { _toast((pv?.issues || ['Cannot dispense.']).join(' · '), 'error'); _resetBtn(); return; }
+    const fmtR = n => Number(n || 0).toFixed(2);
+    const pvText = (pv.lines || []).map(l =>
+      `${l.medicine} — batch ${l.batch_number || '—'}${l.expiry_date ? ' exp ' + l.expiry_date : ''}: ${l.qty} × ₹${fmtR(l.mrp)} = ₹${fmtR(l.amount)}`).join('\n');
+    const ok = confirm(`Confirm ${isIpd ? 'issue to the IPD stay' : 'bill'}:\n\n${pvText}\n\n` +
+      (Number(pv.discount) > 0 ? `Discount: −₹${fmtR(pv.discount)}\n` : '') +
+      `Total: ₹${fmtR(pv.total)}${isIpd ? ' (charged to the stay)' : ` · ${payMethod === 'Credit' ? 'Credit / Due — no receipt, balance outstanding' : payMethod}`}` +
+      (pv.note ? `\n${pv.note}` : '') + '\n\nDispense now?');
+    if (!ok) { _resetBtn(); return; }
+
+    // ONE server call does the whole dispense in one transaction -- the bill (OPD) or the IPD stay charges, one line
+    // per batch taken, the stock deduction (earliest expiry first; never a student or an EXPIRED batch), marking the
+    // prescription dispensed, and (Session 333) the RCPT receipt for a Cash / UPI / Card payment.
     const { data: sale, error: saleErr } = await supabase.rpc('create_pharmacy_sale', {
       p_rx: _activeRxId,
-      p_lines: payable.map(c => ({ medicine_id: c.medicine_id, qty: c.qty })),
+      p_lines: lines,
       p_discount_pct: _discountPct(),
       p_payment_method: payMethod,
+      p_payment_reference: ['UPI', 'Card'].includes(payMethod) ? payRef : null,
     });
     if (saleErr) throw saleErr;
     const bill = sale?.bill_id ? { id: sale.bill_id } : null;
@@ -520,7 +548,7 @@ async function dispense() {
     await logAudit('dispense_prescription', 'prescriptions', _activeRxId, {
       patient_name:   _activeRx.patient?.name,
       medicines_count: payable.length,
-      total_amount:   total,
+      total_amount:   Number(sale?.final_amount ?? pv.total),
       payment_method: payMethod
     }, _ctx);
 
@@ -554,7 +582,9 @@ async function dispense() {
     // 7. Print invoice (OPD only — an IPD dispense is staged to the stay, printed at
     // discharge like every other stay charge, not per dispense)
     // the server's bill total (Session 332) -- it prices from the batches it actually took
-    if (!isIpd) _printInvoice(bill.id, payable, subtotal, discount, Number(sale.final_amount ?? total), payMethod, _discountPct());
+    // Session 333: printed from the SERVER's stored lines (one per batch, with batch + expiry) and its totals /
+    // receipt -- never from the cart
+    if (!isIpd) _printInvoice(bill.id, sale, payMethod);
 
     _toast(isIpd
       ? `${_esc(_activeRx.patient?.name)} — dispensed, charged to the IPD stay`
@@ -693,7 +723,15 @@ async function _abdmCareContextInvoice(billId, patientId, visitId, { abhaNumber,
 }
 
 // ── Print invoice ─────────────────────────────────
-function _printInvoice(billId, items, subtotal, discount, total, payMethod, discountPct) {
+const _fmtExp = d => { const [y, m] = String(d).split('-'); return m && y ? `${m}/${y}` : String(d); };
+
+function _printInvoice(billId, sale, payMethod) {
+  // Session 333: everything below comes from the server's stored bill (sale.lines = bill_items, one per batch)
+  const items    = sale?.lines || [];
+  const subtotal = items.reduce((s, l) => s + Number(l.amount || 0), 0);
+  const total    = Number(sale?.final_amount || 0);
+  const discount = Math.max(0, Math.round((subtotal - total) * 100) / 100);
+  const balance  = Number(sale?.balance || 0);
   const tenant = _tenant;
   const date   = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
   const time   = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
@@ -716,6 +754,7 @@ function _printInvoice(billId, items, subtotal, discount, total, payMethod, disc
         <tr style="border-bottom:1px solid #1a4a2e">
           <th style="text-align:left;padding:4px 0;color:#1a4a2e">#</th>
           <th style="text-align:left;padding:4px 0;color:#1a4a2e">Medicine</th>
+          <th style="text-align:left;padding:4px 0;color:#1a4a2e">Batch / Exp.</th>
           <th style="text-align:right;padding:4px 0;color:#1a4a2e">Qty</th>
           <th style="text-align:right;padding:4px 0;color:#1a4a2e">Rate</th>
           <th style="text-align:right;padding:4px 0;color:#1a4a2e">Amount</th>
@@ -725,17 +764,20 @@ function _printInvoice(billId, items, subtotal, discount, total, payMethod, disc
         ${items.map((c,i) => `
           <tr style="border-bottom:1px dashed #d4e6da">
             <td style="padding:4px 0">${i+1}</td>
-            <td style="padding:4px 0">${_esc(c.name)}</td>
-            <td style="padding:4px 0;text-align:right">${c.qty}</td>
-            <td style="padding:4px 0;text-align:right">₹${c.price.toFixed(2)}</td>
-            <td style="padding:4px 0;text-align:right">₹${(c.qty*c.price).toFixed(2)}</td>
+            <td style="padding:4px 0">${_esc(c.medicine)}</td>
+            <td style="padding:4px 0;font-size:10px">${_esc(c.batch_number || '—')}${c.expiry_date ? ' · ' + _esc(_fmtExp(c.expiry_date)) : ''}</td>
+            <td style="padding:4px 0;text-align:right">${Number(c.qty)}</td>
+            <td style="padding:4px 0;text-align:right">₹${Number(c.mrp).toFixed(2)}</td>
+            <td style="padding:4px 0;text-align:right">₹${Number(c.amount).toFixed(2)}</td>
           </tr>`).join('')}
       </tbody>
     </table>
     <div style="text-align:right;font-size:11px">
       <div>Subtotal: ₹${subtotal.toFixed(2)}</div>
-      ${discount > 0 ? `<div>Discount: ${discountPct ? discountPct.toFixed(1) + '% — ' : ''}₹${discount.toFixed(2)}</div>` : ''}
+      ${discount > 0 ? `<div>Discount: ₹${discount.toFixed(2)}</div>` : ''}
       <div style="font-size:13px;font-weight:600;color:#1a4a2e;border-top:1px solid #1a4a2e;margin-top:4px;padding-top:4px">Total: ₹${total.toFixed(2)}</div>
+      ${sale?.receipt_no ? `<div style="margin-top:4px">Received: ₹${Number(sale.amount_paid || 0).toFixed(2)} · ${_esc(String(sale.payment_mode || '').toUpperCase())} · Receipt ${_esc(sale.receipt_no)}</div>` : ''}
+      ${balance > 0.005 ? `<div style="margin-top:4px;font-weight:600">Balance due: ₹${balance.toFixed(2)}</div>` : ''}
     </div>
     <div style="margin-top:16px;font-size:10px;color:#8a9e90;text-align:center">Dispensed by: ${_esc(profile.full_name)} · AyurXpert HMS</div>
   `;
