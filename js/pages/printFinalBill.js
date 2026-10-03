@@ -4,12 +4,13 @@
 // only formats and groups. Layout is the shared js/modules/billing/invoiceLayout.js; this file
 // is the IPD adapter that fills its model.
 import { supabase } from '../core/db/supabaseClient.js'
-import { getCurrentRole, getCurrentSecondaryRole } from '../core/auth.js'
+import { getCurrentRole, getCurrentSecondaryRole, getCurrentTenantId } from '../core/auth.js'
 import { wireDelegatedEvents } from '../utils/domEvents.js'
 import { amountInWords } from '../utils/amountInWords.js'
 import { safeErrorMessage } from '../utils/errors.js'
 import { uhidOf } from '../utils/uhid.js'
 import { renderInvoice, el } from '../modules/billing/invoiceLayout.js'
+import { isDemoTenant } from '../modules/billing/demoBanner.js'
 
 wireDelegatedEvents()
 
@@ -18,17 +19,6 @@ const sheet    = document.getElementById('invoice');
 const statusEl = document.getElementById('status');
 const printBtn = document.getElementById('print-btn');
 const adminBar = document.getElementById('admin-bar');
-
-// Session 326 (GST Stage 1): a demo organisation's documents are test documents -- say so on the
-// page itself so one can never be mistaken for a real tax document (prints with the document).
-try {
-  if (JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}').is_demo) {
-    const demo = document.createElement('div');
-    demo.textContent = 'DEMO ORGANISATION — TEST DOCUMENT, NOT A VALID TAX INVOICE';
-    demo.style.cssText = 'border:2px solid #000;padding:4px 8px;margin:0 0 8px;text-align:center;font-weight:700;font-size:12px;letter-spacing:.5px';
-    sheet.before(demo);
-  }
-} catch { /* sessionStorage unavailable -- no banner */ }
 
 const KIND_LABEL  = { advance: 'Advance', deposit: 'Deposit', payment: 'Payment', refund: 'Refund' };
 const MODE_LABEL  = { cash: 'Cash', upi: 'UPI', card: 'Card', cheque: 'Cheque', neft: 'NEFT' };
@@ -99,6 +89,8 @@ function buildModel(d) {
   const isDraft   = isGst && b.document_status === 'draft';
   const docType   = b.document_type;
   const payer     = payerInfo(d);
+  // No taxable line at all (e.g. a Bill of Supply for exempt healthcare services): no tax columns / tax summary
+  const exemptOnly = isGst && d.items.length > 0 && !d.items.some(it => it.tax_category === 'TAXABLE');
 
   // ── Hospital block: a GST document prints the supplier details frozen on the bill ──
   let orgName, orgLines;
@@ -137,9 +129,10 @@ function buildModel(d) {
   }
 
   const meta = [
-    { label: isGst && !isDraft ? 'Invoice No.' : 'Bill No.', value: b.document_number || (isDraft ? 'Issued on finalisation' : 'Not numbered'),
+    // "Invoice No." / "Invoice Date" only on a Tax Invoice; a Bill of Supply carries a Bill No.
+    { label: isGst && !isDraft && docType === 'TAX_INVOICE' ? 'Invoice No.' : 'Bill No.', value: b.document_number || (isDraft ? 'Issued on finalisation' : 'Not numbered'),
       gap: !b.document_number },
-    { label: isGst && !isDraft ? 'Invoice Date' : 'Bill Date',
+    { label: isGst && !isDraft && docType === 'TAX_INVOICE' ? 'Invoice Date' : 'Bill Date',
       value: isGst && !isDraft ? fmtD(b.document_date) : fmtDT(b.created_at),
       sub: isGst && b.place_of_supply_state_code ? `Place of supply: state ${b.place_of_supply_state_code}` : null },
   ];
@@ -208,8 +201,11 @@ function buildModel(d) {
   }
 
   // ── GST tax summary (by rate, from the stored line values) ──
-  let taxSummary = null;
-  if (isGst) {
+  let taxSummary = null, taxNote = null;
+  if (exemptOnly) {
+    const cats = [...new Set(d.items.map(it => TAXCAT_LABEL[it.tax_category] || 'Not taxable'))].join(' / ');
+    taxNote = `GST: ${cats} — no GST is charged on this bill.`;
+  } else if (isGst) {
     const byKey = new Map();
     for (const it of d.items) {
       const taxable = it.tax_category === 'TAXABLE';
@@ -250,10 +246,12 @@ function buildModel(d) {
   if (isGst) {
     rows.push({ label: 'Gross charges', value: money(b.gross_total) });
     rows.push({ label: 'Less: discount', value: money(num(b.line_discount_total) + num(b.bill_discount_total)) });
-    rows.push({ label: 'Taxable value', value: money(b.taxable_total) });
+    if (!exemptOnly) rows.push({ label: 'Taxable value', value: money(b.taxable_total) });
     rows.push({ label: 'Exempt / non-taxable value', value: money(num(b.exempt_total) + num(b.nil_rated_total) + num(b.non_gst_total)) });
-    rows.push({ label: 'CGST', value: money(b.cgst_total) });
-    rows.push({ label: 'SGST', value: money(b.sgst_total) });
+    if (!exemptOnly) {
+      rows.push({ label: 'CGST', value: money(b.cgst_total) });
+      rows.push({ label: 'SGST', value: money(b.sgst_total) });
+    }
     rows.push({ label: docType === 'TAX_INVOICE' ? 'Invoice total' : 'Bill total', value: rupee(b.final_amount), grand: true });
   } else {
     rows.push({ label: 'Gross charges', value: money(b.total_amount ?? b.final_amount) });
@@ -287,10 +285,10 @@ function buildModel(d) {
     org: { name: orgName, lines: orgLines, logoUrl: t.logo_url || null, monogram: monogram(orgName) },
     title, subtitle, watermark, meta,
     party: { title: 'Patient & Admission', fields },
-    gst: isGst, sections, emptyNote: null, taxSummary,
+    demo: d.isDemo, gst: isGst, exemptOnly, sections, emptyNote: null, taxNote, taxSummary,
     payments: { rows: payRows, totalLabel: 'Net received from patient (voided excluded)', total: money(netReceived) },
     summary: { rows, balance },
-    words: { label: `Amount in words (${isGst ? 'invoice total' : 'net bill amount'})`, lines: wordsLines },
+    words: { label: `Amount in words (${!isGst ? 'net bill amount' : docType === 'TAX_INVOICE' && !isDraft ? 'invoice total' : 'bill total'})`, lines: wordsLines },
     signatures: { left, right: ['Authorised Signatory', `for ${orgName}`] },
     footer,
   };
@@ -336,9 +334,14 @@ function showError(msg) {
 
 async function load() {
   if (!admId) { showError('No admission specified.'); return; }
-  const { data, error } = await supabase.rpc('get_ipd_final_bill', { p_adm: admId });
+  // get_ipd_final_bill only answers for the caller's own organisation, so that is the document's tenant
+  const [{ data, error }, isDemo] = await Promise.all([
+    supabase.rpc('get_ipd_final_bill', { p_adm: admId }),
+    isDemoTenant(supabase, getCurrentTenantId()),
+  ]);
   if (error) { showError(safeErrorMessage(error, 'Could not load the bill.')); return; }
   if (!data?.bill) { showError('No bill has been generated for this admission yet.'); return; }
+  data.isDemo = isDemo;
   _data = data;
   const model = buildModel(data);
   renderInvoice(sheet, model);

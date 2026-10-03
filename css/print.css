@@ -12,6 +12,10 @@
 .ax-doc-sub { font-size: 12px; color: #4a6352; margin-top: 2px; }
 .ax-doc-printed { font-size: 10px; color: #6a8070; margin-top: 3px; }
 
+/* Demo organisation (tenants.is_demo) marking -- js/modules/billing/demoBanner.js. Place it inside
+   .ax-print-root so it prints; black on white so it survives a B&W printer. */
+.demo-banner { border: 2px solid #000; padding: 4px 8px; margin: 0 0 8px; text-align: center; font-weight: 700; font-size: 12px; letter-spacing: .5px; color: #000; background: #fff; }
+
 /* The container printDocument() builds is a hidden copy — never shown on screen. */
 @media screen {
   .ax-print-root--temp { display: none !important; }

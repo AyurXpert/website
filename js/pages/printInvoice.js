@@ -1,6 +1,8 @@
 import { supabase } from '../core/db/supabaseClient.js'
 import { wireDelegatedEvents } from '../utils/domEvents.js'
 import { billCategory } from '../modules/billing/billCategory.js'
+import { getCurrentTenantId } from '../core/auth.js'
+import { isDemoTenant, demoBannerEl } from '../modules/billing/demoBanner.js'
 
 wireDelegatedEvents()
 
@@ -19,14 +21,11 @@ const tenantRaw = sessionStorage.getItem('ayurxpert_tenant')
 const tenant    = tenantRaw ? JSON.parse(tenantRaw) : {}
 document.getElementById('clinicName').innerText = tenant.name || 'AyurXpert HMS'
 
-// Session 326 (GST Stage 1): a demo organisation's documents are test documents -- say so on the
-// page itself so one can never be mistaken for a real tax document (prints with the document).
-if (tenant.is_demo) {
-  const demo = document.createElement('div')
-  demo.textContent = 'DEMO ORGANISATION — TEST DOCUMENT, NOT A VALID TAX INVOICE'
-  demo.style.cssText = 'border:2px solid #000;padding:4px 8px;margin:0 0 8px;text-align:center;font-weight:700;font-size:12px;letter-spacing:.5px'
-  document.body.prepend(demo)
-}
+// A demo organisation's documents are test documents -- say so on the page itself, inside #invoice so
+// it prints (flag read from the tenant row: js/modules/billing/demoBanner.js).
+isDemoTenant(supabase, getCurrentTenantId()).then(demo => {
+  if (demo) document.getElementById('invoice').prepend(demoBannerEl())
+})
 document.getElementById('invoiceDate').innerText = new Date().toLocaleDateString('en-IN', {
   day: '2-digit', month: 'short', year: 'numeric'
 })
@@ -95,10 +94,10 @@ async function loadInvoice() {
     // GST Stage 2 (Session 323) -- a finalised GST document prints its own number and
     // type; the full Tax Invoice / Bill of Supply layouts are Stage 4.
     const isGst = bill.tax_regime === 'gst_v1'
-    const DOC_LABEL = { TAX_INVOICE: 'Tax Invoice', BILL_OF_SUPPLY: 'Bill of Supply', BILL: 'Bill' }
+    // "Invoice No." only on a Tax Invoice; a Bill of Supply (and every other bill) carries a Bill No.
     if (isGst && bill.document_number) {
       document.getElementById('refLine').innerHTML =
-        `<b>${_esc(DOC_LABEL[bill.document_type] || 'Bill')} No:</b> ${_esc(bill.document_number)}`
+        `<b>${bill.document_type === 'TAX_INVOICE' ? 'Invoice' : 'Bill'} No:</b> ${_esc(bill.document_number)}`
     }
     document.getElementById('patientInfo').innerHTML = `
       <div><b>Bill ID:</b> ${_esc(bill.id)}</div>

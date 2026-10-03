@@ -10,10 +10,13 @@
 //   title, subtitle, watermark,                       // watermark: null | 'DRAFT' | 'CANCELLED' ...
 //   meta:       [{ label, value, sub, wide, gap }],   // header strip (Bill No / Date / Bill To / Payer ...)
 //   party:      { title, fields: [{ label, value, wide, full, gap }] },
+//   demo:       boolean,                              // demo organisation: "TEST DOCUMENT" banner at the top of the sheet
 //   gst:        boolean,                              // show Disc/Taxable/GST/CGST/SGST columns
+//   exemptOnly: boolean,                              // with gst: no taxable line -- keep SAC + Disc., drop Taxable/GST/CGST/SGST
 //   descLabel:  text (default 'Description'), noCode: boolean -- OPD / lab bills: "Service / Test", no SAC column (Session 327c)
 //   sections:   [{ title, rows: [{ no, description, sub, code, qty, rate, disc, taxable, gstLabel, cgst, sgst, amount }], subtotal }],
 //   emptyNote:  text | null,
+//   taxNote:    text | null,                          // printed under the charges table (e.g. the all-exempt statement)
 //   taxSummary: [{ label, value, cgst, sgst, tax }] | null,
 //   payments:   { title?, rows: [{ receiptNo, date, type, mode, by?, amount, voided, voidReason }], totalLabel, total } | null,   // `by` adds a "Received by" column
 //   summary:    { rows: [{ label, value, grand }], balance: { label, value } },
@@ -21,6 +24,7 @@
 //   signatures: { left: [text], right: [text] },
 //   footer:     [text],
 // }
+import { DEMO_TEXT } from './demoBanner.js';
 
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -60,7 +64,9 @@ function headerBlock(m) {
 
 function itemsTable(m) {
   const dl = m.descLabel || 'Description';
-  const head = m.gst
+  const exempt = m.gst && m.exemptOnly;
+  const head = exempt ? ['#', dl, 'SAC/HSN', 'Qty', 'Rate', 'Disc.', 'Amount']
+    : m.gst
     ? ['#', dl, 'SAC/HSN', 'Qty', 'Rate', 'Disc.', 'Taxable', 'GST', 'CGST', 'SGST', 'Amount']
     : m.noCode ? ['#', dl, 'Qty', 'Rate (₹)', 'Amount (₹)'] : ['#', dl, 'SAC / HSN', 'Qty', 'Rate (₹)', 'Amount (₹)'];
   const numFrom = m.noCode && !m.gst ? 2 : 3;
@@ -70,7 +76,8 @@ function itemsTable(m) {
     tbody.appendChild(h('tr', { class: 'cat-row' }, h('td', { colspan: cols }, s.title)));
     for (const r of s.rows) {
       const desc = h('td', null, r.description, r.sub ? [h('br'), h('span', { class: 'muted' }, r.sub)] : null);
-      const cells = m.gst
+      const cells = exempt ? [r.qty, r.rate, r.disc, r.amount]
+        : m.gst
         ? [r.qty, r.rate, r.disc, r.taxable, r.gstLabel, r.cgst, r.sgst, r.amount]
         : [r.qty, r.rate, r.amount];
       tbody.appendChild(h('tr', null,
@@ -80,7 +87,7 @@ function itemsTable(m) {
     tbody.appendChild(h('tr', { class: 'sub-row' },
       h('td', { colspan: cols - 1, class: 'num' }, `${s.title} subtotal`), h('td', { class: 'num' }, s.subtotal)));
   }
-  return h('table', { class: m.gst ? 'items gst' : 'items' },
+  return h('table', { class: m.gst && !exempt ? 'items gst' : 'items' },
     h('thead', null, h('tr', null, head.map((t, i) => h('th', { scope: 'col', class: i >= numFrom ? 'num' : null }, t)))),
     tbody);
 }
@@ -120,6 +127,7 @@ function paymentsTable(p) {
 
 export function renderInvoice(sheet, m) {
   sheet.replaceChildren();
+  if (m.demo) sheet.appendChild(h('div', { class: 'demo-banner', role: 'note' }, DEMO_TEXT));
   if (m.watermark) sheet.appendChild(h('div', { class: 'watermark', 'aria-hidden': 'true' }, m.watermark));
 
   sheet.appendChild(headerBlock(m));
@@ -136,6 +144,7 @@ export function renderInvoice(sheet, m) {
   if (m.sections.length) sheet.appendChild(itemsTable(m));
   else sheet.appendChild(h('p', { class: 'muted' }, 'No charges on this bill.'));
   if (m.emptyNote) sheet.appendChild(h('p', { class: 'muted' }, m.emptyNote));
+  if (m.taxNote) sheet.appendChild(h('p', { class: 'tax-note' }, m.taxNote));
 
   if (m.taxSummary && m.taxSummary.length) {
     sheet.appendChild(h('h2', { class: 'sec-title' }, 'Tax Summary'));

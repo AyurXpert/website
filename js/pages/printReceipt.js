@@ -4,6 +4,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js'
 import { amountInWords } from '../utils/amountInWords.js'
 import { safeErrorMessage } from '../utils/errors.js'
 import { computeIpdChargesToDate } from '../modules/billing/ipdChargesToDate.js'
+import { isDemoTenant, demoBannerEl } from '../modules/billing/demoBanner.js'
 
 wireDelegatedEvents()
 
@@ -28,6 +29,8 @@ const addr = tenant.full_address || tenant.address;
 if (addr) { const el = document.getElementById('clinicAddress'); el.textContent = addr; el.style.display = ''; }
 if (tenant.gstin) { const el = document.getElementById('clinicGstin'); el.textContent = `GSTIN: ${tenant.gstin}`; el.style.display = ''; }
 if (tenant.logo_url) { const img = document.getElementById('clinic-logo'); img.src = tenant.logo_url; img.style.display = ''; }
+// A demo organisation's receipts are test documents -- banner inside #receipt so it prints
+isDemoTenant(supabase, tenantId).then(demo => { if (demo) document.getElementById('receipt').prepend(demoBannerEl()); });
 
 function _fmtDateTime(iso) {
   if (!iso) return '—';

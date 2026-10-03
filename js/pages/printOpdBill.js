@@ -13,6 +13,7 @@ import { uhidOf } from '../utils/uhid.js'
 import { billCategory } from '../modules/billing/billCategory.js'
 import { isCombinedPayment } from '../modules/billing/opdPayments.js'
 import { renderInvoice, el } from '../modules/billing/invoiceLayout.js'
+import { isDemoTenant } from '../modules/billing/demoBanner.js'
 
 wireDelegatedEvents()
 
@@ -22,14 +23,6 @@ const statusEl = document.getElementById('status')
 const printBtn = document.getElementById('print-btn')
 
 const tenant = (() => { try { return JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}') } catch { return {} } })()
-
-// A demo organisation's documents are test documents -- say so on the page itself (prints with it).
-if (tenant.is_demo) {
-  const demo = document.createElement('div')
-  demo.textContent = 'DEMO ORGANISATION — TEST DOCUMENT, NOT A VALID TAX INVOICE'
-  demo.style.cssText = 'border:2px solid #000;padding:4px 8px;margin:0 0 8px;text-align:center;font-weight:700;font-size:12px;letter-spacing:.5px'
-  sheet.before(demo)
-}
 
 const MODE_LABEL   = { cash: 'Cash', upi: 'UPI', card: 'Card', cheque: 'Cheque', neft: 'NEFT' }
 const PAYER_LABEL  = { insurance: 'Insurance', pmjay: 'PM-JAY', cghs: 'CGHS', echs: 'ECHS', esi: 'ESI', corporate: 'Corporate' }
@@ -63,6 +56,8 @@ function buildModel(d, copy) {
   const live    = d.payments.filter(p => !p.voided_at)
   const paid    = live.filter(p => p.kind === 'payment').reduce((s, p) => s + num(p.amount), 0)
   const combined = isCombinedPayment(b, d.payments)
+  // No taxable line at all (e.g. a Bill of Supply for exempt healthcare services): no tax columns / tax summary
+  const exemptOnly = isGst && d.items.length > 0 && !d.items.some(it => it.tax_category === 'TAXABLE')
 
   // ── Hospital block: a GST document prints the supplier details frozen on the bill ──
   let orgName, orgLines
@@ -98,7 +93,8 @@ function buildModel(d, copy) {
 
   // ── Header strip ──
   const meta = [
-    { label: isGst && !isDraft && docType !== 'BILL' ? 'Invoice No.' : 'Bill No.', value: b.document_number || 'Not numbered', gap: !b.document_number },
+    // "Invoice No." only on a Tax Invoice; a Bill of Supply (and every other bill) carries a Bill No.
+    { label: isGst && !isDraft && docType === 'TAX_INVOICE' ? 'Invoice No.' : 'Bill No.', value: b.document_number || 'Not numbered', gap: !b.document_number },
     { label: 'Bill Date', value: fmtDT(b.created_at) },
   ]
   if (v.token_number != null) meta.push({ label: 'Visit', value: `Token ${v.token_number}`, sub: v.created_at ? fmtD(v.created_at) : null })
@@ -162,8 +158,11 @@ function buildModel(d, copy) {
   }
 
   // ── GST tax summary (by rate, from the stored line values) ──
-  let taxSummary = null
-  if (isGst) {
+  let taxSummary = null, taxNote = null
+  if (exemptOnly) {
+    const cats = [...new Set(d.items.map(it => TAXCAT_LABEL[it.tax_category] || 'Not taxable'))].join(' / ')
+    taxNote = `GST: ${cats} — no GST is charged on this bill.`
+  } else if (isGst) {
     const byKey = new Map()
     for (const it of d.items) {
       const taxable = it.tax_category === 'TAXABLE'
@@ -192,10 +191,12 @@ function buildModel(d, copy) {
   if (isGst) {
     rows.push({ label: 'Gross charges', value: money(b.gross_total) })
     rows.push({ label: 'Less: discount', value: money(num(b.line_discount_total) + num(b.bill_discount_total)) })
-    rows.push({ label: 'Taxable value', value: money(b.taxable_total) })
+    if (!exemptOnly) rows.push({ label: 'Taxable value', value: money(b.taxable_total) })
     rows.push({ label: 'Exempt / non-taxable value', value: money(num(b.exempt_total) + num(b.nil_rated_total) + num(b.non_gst_total)) })
-    rows.push({ label: 'CGST', value: money(b.cgst_total) })
-    rows.push({ label: 'SGST', value: money(b.sgst_total) })
+    if (!exemptOnly) {
+      rows.push({ label: 'CGST', value: money(b.cgst_total) })
+      rows.push({ label: 'SGST', value: money(b.sgst_total) })
+    }
     rows.push({ label: docType === 'TAX_INVOICE' ? 'Invoice total' : 'Bill total', value: rupee(b.final_amount), grand: true })
   } else {
     rows.push({ label: 'Gross charges', value: money(b.total_amount ?? b.final_amount) })
@@ -232,10 +233,10 @@ function buildModel(d, copy) {
     org: { name: orgName, lines: orgLines, logoUrl: tenant.logo_url || null, monogram: monogram(orgName) },
     title, subtitle, watermark, meta,
     party: { title: 'Patient Details', fields },
-    gst: isGst, descLabel: 'Service / Test', noCode: !isGst,
-    sections, emptyNote: null, taxSummary, payments,
+    demo: d.isDemo, gst: isGst, exemptOnly, descLabel: 'Service / Test', noCode: !isGst,
+    sections, emptyNote: null, taxNote, taxSummary, payments,
     summary: { rows, balance },
-    words: { label: `Amount in words (${isGst ? 'invoice total' : 'net bill amount'})`, lines: wordsLines },
+    words: { label: `Amount in words (${!isGst ? 'net bill amount' : docType === 'TAX_INVOICE' && !isDraft ? 'invoice total' : 'bill total'})`, lines: wordsLines },
     signatures: { left, right: ['Authorised Signatory', `for ${orgName}`] },
     footer,
   }
@@ -246,7 +247,7 @@ async function load() {
   const { data: bill, error } = await supabase.from('bills').select('*').eq('id', billId).single()
   if (error || !bill) { showError(safeErrorMessage(error, 'Could not load the bill.')); return }
 
-  const [items, patient, visit, pays, taxS] = await Promise.all([
+  const [items, patient, visit, pays, taxS, isDemo] = await Promise.all([
     supabase.from('bill_items')
       .select('description, quantity, price, total, gst_percent, gst_amount, line_total, line_no, tax_category, gst_rate, taxable_value, cgst_rate, cgst_amount, sgst_rate, sgst_amount, line_discount, bill_discount_alloc, sac_code, hsn_code, bill_section')
       .eq('bill_id', billId).order('line_no', { nullsFirst: false }).order('id'),
@@ -255,6 +256,7 @@ async function load() {
     supabase.from('patient_payments').select('id, receipt_no, kind, amount, mode, reference, received_at, received_by, voided_at, void_reason')
       .eq('bill_id', billId).order('received_at'),
     supabase.from('tenant_tax_settings').select('gst_registered, gstin').eq('tenant_id', bill.tenant_id).maybeSingle(),
+    isDemoTenant(supabase, bill.tenant_id),
   ])
   const v = visit.data
   const ids = [...new Set([bill.created_by, v?.doctor_id, ...(pays.data || []).map(p => p.received_by)].filter(Boolean))]
@@ -264,7 +266,7 @@ async function load() {
   ])
   const names = Object.fromEntries((profs.data || []).map(p => [p.id, p.full_name]))
   const d = {
-    bill, items: items.data || [], patient: patient.data, visit: v, payments: pays.data || [], tax: taxS.data || {},
+    bill, isDemo, items: items.data || [], patient: patient.data, visit: v, payments: pays.data || [], tax: taxS.data || {},
     names, doctor: v?.doctor_id ? names[v.doctor_id] || null : null, opd: opd.data?.name || null,
   }
   // Print audit: the SERVER records this print and says whether it is the Original or a Duplicate copy. If that
