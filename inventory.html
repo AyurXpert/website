@@ -531,9 +531,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
     <div id="opening-stock-section">
       <div class="field">
-        <label>Opening Stock (units)</label>
-        <input id="f-stock" type="number" min="0" placeholder="0"/>
-        <div class="field-hint">Current physical stock on hand</div>
+        <label>Stock</label>
+        <input id="f-stock" type="hidden" value="0"/>
+        <div class="field-hint">The item is added with 0 stock. Receive stock through <a href="purchase.html" style="color:var(--green-mid)">Purchase / GRN</a> — batch number, expiry and MRP are recorded there.</div>
       </div>
     </div>
 
@@ -650,9 +650,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div class="field">
       <label>Adjustment Type</label>
       <div class="adj-btns">
-        <button class="adj-btn selected" id="adj-add">+ Add Stock</button>
-        <button class="adj-btn" id="adj-remove">− Remove Stock</button>
+        <button class="adj-btn" id="adj-add" title="New stock is received through Purchase / GRN">+ Add Stock → Purchase / GRN</button>
+        <button class="adj-btn selected" id="adj-remove">− Remove Stock</button>
       </div>
+      <div class="field-hint">Stock is added only by a goods receipt (batch, expiry and MRP recorded). Removing stock needs a reason and is recorded.</div>
     </div>
     <div class="field">
       <label>Quantity</label>
@@ -666,9 +667,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <option value="damaged">Damaged / Broken</option>
         <option value="expired">Expired — Disposal (NCISM §6(5))</option>
         <option value="sample">Sample / Demonstration use</option>
-        <option value="received">Stock received / GRN</option>
         <option value="other">Other</option>
       </select>
+    </div>
+    <div class="field" id="adj-note-field">
+      <label for="adj-note">Details (required)</label>
+      <input id="adj-note" type="text" maxlength="300" placeholder="What happened — e.g. 2 bottles broken in transit" style="width:100%;height:44px;padding:0 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:'DM Sans',sans-serif;background:var(--cream);outline:none"/>
     </div>
 
     <!-- Disposal fields — shown only when reason = expired -->
@@ -716,8 +720,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
     <!-- Options + progress pinned below title, always visible -->
     <div class="import-opts" style="margin:10px 0 0;padding:10px 12px;background:var(--cream);border-radius:var(--radius);border:1px solid var(--border)">
-      <input type="checkbox" id="import-replace-stock"/>
-      <label for="import-replace-stock">Replace stock quantity from CSV <span style="color:var(--text-muted)">(unchecked = keep existing stock, only update pricing/details)</span></label>
+      <strong>Item settings only.</strong> This import updates reorder level, maximum stock and GST % for medicines,
+      and adds catalogue medicines to your inventory with 0 stock. Stock, MRP, batch and expiry columns are ignored —
+      stock is added through <a href="purchase.html" style="color:var(--green-mid)">Purchase / GRN</a>.
     </div>
     <div class="import-prog-wrap" id="import-prog-wrap" style="margin-top:10px">
       <div class="import-prog-bar"><div class="import-prog-fill" id="import-prog-fill"></div></div>
@@ -729,11 +734,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <input type="file" id="import-file" accept=".csv"/>
         <div class="import-drop-icon">📂</div>
         <div class="import-drop-label">Click or drag a CSV file here</div>
-        <div class="import-drop-hint">Use the exported CSV format. Med ID column is optional — if absent a new ID is assigned.</div>
+        <div class="import-drop-hint">Columns used: Med ID or Name, GST%, Reorder(Low), Max. Other columns are ignored.</div>
       </div>
       <div style="margin-top:8px;font-size:12px;color:var(--text-muted)">
         <a id="btn-dl-template" href="#" style="color:var(--green-mid)">↓ Download blank template</a>
-        &nbsp;·&nbsp; Matching: Med ID first, then medicine name (case-insensitive). Name match = update, no match = new record.
+        &nbsp;·&nbsp; Matching: your inventory by Med ID, then name (case-insensitive) = update; otherwise the AyurXpert medicine catalogue by exact name = add with 0 stock; no match = skipped (ask AyurXpert to add it to the catalogue).
       </div>
       <div class="import-summary" id="import-summary"></div>
       <div class="import-err" id="import-err"></div>

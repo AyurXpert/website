@@ -30,19 +30,23 @@ let _ocrImageType   = null;
 let _ocrExtractedItems = [];
 
 // ── Load medicines ─────────────────────────────────
+// Session 332: every ACTIVE medicine in the shared catalogue can be received -- not only those already in
+// this pharmacy's stock (receive_stock() creates the first batch). This pharmacy's last MRP / cost, where it
+// has stock rows, pre-fills the line.
 async function loadMedicines() {
-  const { data } = await supabase
-    .from('inventory')
-    .select('id, medicine_id, stock_quantity, expiry_date, inward_date, is_student_batch, mrp, cost_price, gst_percent, profit_percent, medicine:medicines(id, name, is_active, barcode)')
-    .eq('tenant_id', tenantId);
-  // one entry per medicine (a medicine can have several batches since Session 331)
-  _medicines = aggregateByMedicine(data)
-    .filter(i => i.medicine?.is_active !== false)
-    .map(i => ({
-      id: i.medicine.id, name: i.medicine.name, barcode: i.medicine.barcode,
-      mrp: i.mrp, cost: i.cost_price,
-      gst: i.gst_percent ?? 0, profit: i.profit_percent ?? 0,
-    }))
+  const [{ data: cat }, { data: inv }] = await Promise.all([
+    supabase.from('medicines').select('id, name, is_active, barcode, unit').eq('is_active', true),
+    supabase.from('inventory')
+      .select('id, medicine_id, stock_quantity, expiry_date, inward_date, is_student_batch, mrp, cost_price, gst_percent, profit_percent')
+      .eq('tenant_id', tenantId),
+  ]);
+  const mine = new Map(aggregateByMedicine(inv).map(i => [i.medicine_id, i]));   // one entry per medicine
+  _medicines = (cat || [])
+    .map(m => {
+      const i = mine.get(m.id);
+      return { id: m.id, name: m.name, label: m.unit ? `${m.name} [${m.unit}]` : m.name, barcode: m.barcode,
+               mrp: i?.mrp ?? null, cost: i?.cost_price ?? null, gst: i?.gst_percent ?? 0, profit: i?.profit_percent ?? 0 };
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -131,7 +135,7 @@ function _fmtD(d){ if(!d) return '—'; return new Date(d+'T00:00:00').toLocaleD
 function medOptions(selectedId = '') {
   return `<option value="">— Select medicine —</option>` +
     _medicines.map(m =>
-      `<option value="${m.id}" data-mrp="${m.mrp||0}" data-cost="${m.cost||0}" data-barcode="${_esc(m.barcode||'')}" data-profit="${m.profit||0}" data-gst="${m.gst||0}" ${m.id === selectedId ? 'selected' : ''}>${_esc(m.name)}</option>`
+      `<option value="${m.id}" data-mrp="${m.mrp||0}" data-cost="${m.cost||0}" data-barcode="${_esc(m.barcode||'')}" data-profit="${m.profit||0}" data-gst="${m.gst||0}" ${m.id === selectedId ? 'selected' : ''}>${_esc(m.label || m.name)}</option>`
     ).join('');
 }
 

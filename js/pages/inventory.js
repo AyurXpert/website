@@ -13,7 +13,12 @@ wireDelegatedEvents();
 const tenantId = getCurrentTenantId();
 const profile  = getCurrentProfile();
 let _items  = [];
-let _adjType = 'add';
+let _adjType = 'remove';   // Session 332: adding stock is a goods receipt (Purchase / GRN), never an adjustment
+// Session 332: the shared medicine catalogue (name, category, brand, unit, barcode, image, indications, active,
+// anupana, classical reference, dosage) is changed only by AyurXpert (platform admin) -- read-only here.
+const CATALOGUE_FIELDS = ['f-name', 'f-cat', 'f-brand', 'f-unit', 'f-barcode', 'f-active', 'f-anupana', 'f-classical-ref', 'f-dosage', 'f-image'];
+// a RECEIVED batch's identity is what the supplier delivered -- fixed (DB guard trg_inventory_browser_guard)
+const RECEIVED_BATCH_FIELDS = ['f-mrp', 'f-expiry', 'f-batch'];
 let _tags   = [];
 let _namcLabels = {};
 let _imgUploading = false;
@@ -72,7 +77,7 @@ document.getElementById('f-reorder').addEventListener('input', () => {
 async function loadInventory() {
   const { data, error } = await supabase
     .from('inventory')
-    .select(`id, stock_quantity, mrp, cost_price, gst_percent, reorder_level,
+    .select(`id, batch_source, stock_quantity, mrp, cost_price, gst_percent, reorder_level,
              profit_percent, max_stock, expiry_date, inward_date, supplier_name, batch_number,
              is_gmp_certified, gmp_certificate_no, is_student_batch,
              is_high_risk, is_lasa, lasa_pair, is_schedule_h, is_schedule_h1, is_schedule_e1, is_ndps,
@@ -202,7 +207,7 @@ function renderTable() {
             ? '<br><span style="display:inline-block;margin-top:2px;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:700;background:#fff8e1;color:#7a4000;border:1px solid #e8c068">⚠ STUDENT</span>'
             : ''}
         </td>
-        <td><button class="btn-status-toggle stock-badge ${isActive ? 'sb-ok' : ''}" data-med-id="${i.medicine.id}" data-active="${isActive}" style="${isActive ? '' : 'background:#f0f0f0;color:#666'}" title="Click to toggle Active / Inactive">${isActive ? 'Active' : 'Inactive'}</button></td>
+        <td><button class="btn-status-toggle stock-badge ${isActive ? 'sb-ok' : ''}" data-med-id="${i.medicine.id}" data-active="${isActive}" style="${isActive ? '' : 'background:#f0f0f0;color:#666'}" title="Catalogue status — set by AyurXpert">${isActive ? 'Active' : 'Inactive'}</button></td>
         <td>
           <div style="display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap">
             ${i.is_student_batch ? `<button class="btn btn-xs btn-practical" data-id="${i.id}" data-name="${_esc(i.medicine.name)}" data-stock="${i.stock_quantity||0}" data-expiry="${i.expiry_date||''}" data-batch="${_esc(i.batch_number||'')}" style="background:#fff8e1;color:#7a4000;border:1px solid #e8c068;white-space:nowrap">🎓 Practical Use</button>` : ''}
@@ -222,7 +227,7 @@ function renderTable() {
   ));
 
   tbody.querySelectorAll('.btn-status-toggle').forEach(btn =>
-    btn.addEventListener('click', () => toggleStatus(btn.dataset.medId, btn.dataset.active === 'true'))
+    btn.addEventListener('click', () => toggleStatus())
   );
 
   // Re-attach row checkbox listeners after each render
@@ -435,8 +440,18 @@ function openPanel(invId) {
 
   _tags = [];
 
+  // Session 332: on EDIT the catalogue fields are read-only (AyurXpert maintains the shared catalogue); on ADD the
+  // name is typed to find the medicine in that catalogue, the other catalogue fields are not used.
+  CATALOGUE_FIELDS.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = isEdit || id !== 'f-name'; });
+  const tagWrap = document.getElementById('tag-wrap');
+  if (tagWrap) tagWrap.style.pointerEvents = 'none';
+  const editItem = isEdit ? _items.find(i => i.id === invId) : null;
+  const receivedBatch = editItem?.batch_source === 'received';
+  RECEIVED_BATCH_FIELDS.forEach(id => { document.getElementById(id).disabled = receivedBatch; });
+  document.getElementById('f-is-student-batch').disabled = isEdit;   // fixed once the row exists
+
   if (isEdit) {
-    const item = _items.find(i => i.id === invId);
+    const item = editItem;
     if (!item) return;
     document.getElementById('edit-inv-id').value  = item.id;
     document.getElementById('edit-med-id').value  = item.medicine.id;
@@ -525,14 +540,6 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
 
   const invId       = document.getElementById('edit-inv-id').value;
   const medId       = document.getElementById('edit-med-id').value;
-  const cat         = document.getElementById('f-cat').value || null;
-  const anupana     = document.getElementById('f-anupana').value.trim() || null;
-  const classicalRef= document.getElementById('f-classical-ref').value.trim() || null;
-  const dosageText  = document.getElementById('f-dosage').value.trim() || null;
-  const brand    = document.getElementById('f-brand').value.trim() || null;
-  const unit     = document.getElementById('f-unit').value.trim() || null;
-  const barcode  = document.getElementById('f-barcode').value.trim() || null;
-  const active   = document.getElementById('f-active').value === 'true';
   const gstPct   = parseFloat(document.getElementById('f-gst').value) || 0;
   const profPct  = parseFloat(document.getElementById('f-profit').value) || 0;
   const maxStock = parseInt(document.getElementById('f-max').value) || 0;
@@ -554,43 +561,44 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
   const isScheduleH1 = document.getElementById('f-is-schedule-h1').checked;
   const isScheduleE1 = document.getElementById('f-is-schedule-e1').checked;
   const isNdps       = document.getElementById('f-is-ndps').checked;
-  const imageUrl = document.getElementById('edit-image-url').value || null;
-  const stock    = parseInt(document.getElementById('f-stock')?.value) || 0;
 
   const btn = document.getElementById('btn-save-med');
   btn.disabled = true; btn.textContent = 'Saving…';
 
   try {
     if (invId && medId) {
-      const { error: me } = await supabase.from('medicines')
-        .update({ name, category: cat, brand, unit, is_active: active,
-                  indications: _tags, barcode, image_url: imageUrl,
-                  anupana, classical_reference: classicalRef, dosage_text: dosageText })
-        .eq('id', medId);
-      if (me) throw me;
-      const { error: ie } = await supabase.from('inventory')
-        .update({ mrp, cost_price: cp, gst_percent: gstPct, profit_percent: profPct,
-                  reorder_level: reorder, max_stock: maxStock,
-                  inward_date: inward, expiry_date: expiry, batch_number: batch, supplier_name: supplier,
-                  is_gmp_certified: isGmp, gmp_certificate_no: gmpCert,
-                  is_student_batch: isStudentBatch, medicine_type: medType,
-                  is_high_risk: isHighRisk, is_lasa: isLasa, lasa_pair: lasaPair, is_schedule_h: isScheduleH,
-                  is_schedule_h1: isScheduleH1, is_schedule_e1: isScheduleE1, is_ndps: isNdps })
-        .eq('id', invId).eq('tenant_id', tenantId);
+      // Session 332: only this pharmacy's stock-row fields are saved -- the shared catalogue entry is read-only
+      // here, and a RECEIVED batch keeps its batch number / expiry / MRP (the database refuses a change).
+      const editItem = _items.find(i => i.id === invId);
+      const patch = { mrp, cost_price: cp, gst_percent: gstPct, profit_percent: profPct,
+                      reorder_level: reorder, max_stock: maxStock,
+                      inward_date: inward, expiry_date: expiry, batch_number: batch, supplier_name: supplier,
+                      is_gmp_certified: isGmp, gmp_certificate_no: gmpCert, medicine_type: medType,
+                      is_high_risk: isHighRisk, is_lasa: isLasa, lasa_pair: lasaPair, is_schedule_h: isScheduleH,
+                      is_schedule_h1: isScheduleH1, is_schedule_e1: isScheduleE1, is_ndps: isNdps };
+      if (editItem?.batch_source === 'received') { delete patch.mrp; delete patch.cost_price; delete patch.expiry_date; delete patch.batch_number; }
+      const { error: ie } = await supabase.from('inventory').update(patch).eq('id', invId).eq('tenant_id', tenantId);
       if (ie) throw ie;
       _alert('success', `"${name}" updated.`);
     } else {
+      // Session 332: a medicine is added from the shared AyurXpert catalogue (exact name), with 0 stock --
+      // the catalogue itself is maintained by AyurXpert, and stock arrives through Purchase / GRN.
       const exists = _items.find(i => i.medicine.name.toLowerCase() === name.toLowerCase());
       if (exists) { _alert('error', `"${name}" already exists.`); btn.disabled = false; btn.textContent = 'Save Medicine'; return; }
-      const { data: med, error: me } = await supabase.from('medicines')
-        .insert({ name, category: cat, brand, unit, is_active: active,
-                  indications: _tags, barcode, image_url: imageUrl,
-                  anupana, classical_reference: classicalRef, dosage_text: dosageText })
-        .select('id').single();
-      if (me) throw me;
+      const { data: found, error: fe } = await supabase.from('medicines')
+        .select('id, name, is_active').ilike('name', name.replace(/[\\%_]/g, c => '\\' + c)).limit(2);
+      if (fe) throw fe;
+      const med = (found || []).find(m => m.is_active !== false) || (found || [])[0];
+      if (!med) {
+        _alert('error', `"${name}" is not in the AyurXpert medicine catalogue. Ask AyurXpert support to add it — then add it here.`);
+        btn.disabled = false; btn.textContent = 'Save Medicine'; return;
+      }
+      if (_items.some(i => i.medicine.id === med.id)) {
+        _alert('error', `"${med.name}" is already in your inventory.`); btn.disabled = false; btn.textContent = 'Save Medicine'; return;
+      }
       const { error: ie } = await supabase.from('inventory').insert({
         tenant_id: tenantId, medicine_id: med.id,
-        stock_quantity: stock, mrp, cost_price: cp, gst_percent: gstPct,
+        stock_quantity: 0, mrp, cost_price: cp, gst_percent: gstPct,
         profit_percent: profPct, reorder_level: reorder, max_stock: maxStock,
         inward_date: inward, expiry_date: expiry, batch_number: batch, supplier_name: supplier,
         is_gmp_certified: isGmp, gmp_certificate_no: gmpCert,
@@ -599,7 +607,7 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
         is_schedule_h1: isScheduleH1, is_schedule_e1: isScheduleE1, is_ndps: isNdps
       });
       if (ie) throw ie;
-      _alert('success', `"${name}" added to inventory.`);
+      _alert('success', `"${med.name}" added to inventory with 0 stock — receive stock through Purchase / GRN.`);
     }
     closePanel();
     await loadInventory();
@@ -612,7 +620,10 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
 // ── Adjust stock modal ────────────────────────────────
 window.onAdjReasonChange = function(val) {
   document.getElementById('disposal-fields').style.display = val === 'expired' ? '' : 'none';
+  document.getElementById('adj-note-field').style.display  = val === 'expired' ? 'none' : '';
 };
+// modal reason -> adjust_stock() kind (Session 332)
+const ADJ_KIND = { expired: 'expiry_disposal', damaged: 'damaged', stock_correction: 'stock_correction', sample: 'sample', other: 'other' };
 
 function openAdjust(invId, name) {
   document.getElementById('adj-modal-title').textContent       = `Adjust Stock — ${name}`;
@@ -624,15 +635,18 @@ function openAdjust(invId, name) {
   document.getElementById('adj-disposal-date').value           = todayLocalStr();
   document.getElementById('adj-witnessed-by').value            = '';
   document.getElementById('adj-disposal-remarks').value        = '';
-  _adjType = 'add';
-  document.getElementById('adj-add').classList.add('selected');
-  document.getElementById('adj-remove').classList.remove('selected');
+  document.getElementById('adj-note').value                    = '';
+  document.getElementById('adj-note-field').style.display      = '';
+  _adjType = 'remove';
+  document.getElementById('adj-remove').classList.add('selected');
+  document.getElementById('adj-add').classList.remove('selected');
   document.getElementById('adj-modal').classList.add('open');
 }
+// Session 332: stock is ADDED only by a goods receipt (batch, expiry, MRP, supplier recorded)
 document.getElementById('adj-add').addEventListener('click', () => {
-  _adjType = 'add';
-  document.getElementById('adj-add').classList.add('selected');
-  document.getElementById('adj-remove').classList.remove('selected');
+  if (confirm('Stock is added through Purchase / GRN, where the batch number, expiry and MRP are recorded.\n\nOpen Purchase / GRN now?')) {
+    window.location.href = 'purchase.html';
+  }
 });
 document.getElementById('adj-remove').addEventListener('click', () => {
   _adjType = 'remove';
@@ -657,41 +671,29 @@ document.getElementById('btn-adj-confirm').addEventListener('click', async () =>
     if (!witnessed) { _alert('error', 'Enter the name of the witness / supervisor.'); return; }
   }
 
-  const item   = _items.find(i => i.id === invId);
-  if (!item) return;
-  const newQty = _adjType === 'add'
-    ? (item.stock_quantity ?? 0) + qty
-    : Math.max(0, (item.stock_quantity ?? 0) - qty);
+  const note = document.getElementById('adj-note').value.trim();
+  if (!isExpiry && note.length < 5) { _alert('error', 'Describe what happened (at least 5 characters).'); return; }
+  if (_adjType !== 'remove') return;
 
   const btn = document.getElementById('btn-adj-confirm');
   btn.disabled = true; btn.textContent = 'Saving…';
 
-  const { error } = await supabase.from('inventory')
-    .update({ stock_quantity: newQty }).eq('id', invId).eq('tenant_id', tenantId);
-  if (error) { btn.disabled = false; btn.textContent = 'Confirm'; _alert('error', safeErrorMessage(error, 'Failed to update stock.')); return; }
-
-  // If expired, log disposal record
-  if (isExpiry) {
-    await supabase.from('disposal_records').insert({
-      tenant_id:       tenantId,
-      inventory_id:    invId,
-      medicine_name:   item.medicine?.name  || '—',
-      batch_number:    item.batch_number    || null,
-      quantity:        qty,
-      expiry_date:     item.expiry_date     || null,
-      disposal_method: document.getElementById('adj-disposal-method').value,
-      disposed_by:     profile?.id          || null,
-      witnessed_by:    document.getElementById('adj-witnessed-by').value.trim(),
-      disposal_date:   document.getElementById('adj-disposal-date').value,
-      remarks:         document.getElementById('adj-disposal-remarks').value.trim() || null,
-    });
-  }
-
+  // Session 332: one server call removes the stock, writes the disposal register for an expiry disposal,
+  // and records who / why (audited). The browser can no longer set stock itself.
+  const { data: res, error } = await supabase.rpc('adjust_stock', {
+    p_inventory_id: invId, p_qty: qty, p_kind: ADJ_KIND[reason], p_reason: isExpiry ? null : note,
+    p_disposal_method: isExpiry ? document.getElementById('adj-disposal-method').value : null,
+    p_witnessed_by:    isExpiry ? document.getElementById('adj-witnessed-by').value.trim() : null,
+    p_disposal_date:   isExpiry ? (document.getElementById('adj-disposal-date').value || null) : null,
+    p_remarks:         isExpiry ? (document.getElementById('adj-disposal-remarks').value.trim() || null) : null,
+  });
   btn.disabled = false; btn.textContent = 'Confirm';
+  if (error) { _alert('error', safeErrorMessage(error, 'Failed to update stock.')); return; }
+
   document.getElementById('adj-modal').classList.remove('open');
   _alert('success', isExpiry
-    ? `${qty} units logged for disposal. Stock updated to ${newQty}.`
-    : `Stock updated to ${newQty} units.`);
+    ? `${qty} units logged for disposal. Stock now ${res?.stock_after ?? '—'}.`
+    : `Stock now ${res?.stock_after ?? '—'} units.`);
   await loadInventory();
 });
 
@@ -719,27 +721,11 @@ async function markPracticalUse(invId, name, currentStock, expiryDate, batchNumb
   if (witness === null) return; // cancelled
   if (!witness.trim()) { _alert('error', 'Witness name is required for practical use record.'); return; }
 
-  // Create disposal record
-  const { error: drErr } = await supabase.from('disposal_records').insert({
-    tenant_id:       tenantId,
-    inventory_id:    invId,
-    medicine_name:   name,
-    batch_number:    batchNumber || null,
-    quantity:        qty,
-    expiry_date:     expiryDate  || null,
-    disposal_method: 'student_practical',
-    disposed_by:     profile?.id || null,
-    witnessed_by:    witness.trim(),
-    disposal_date:   todayLocalStr(),
-    remarks:         'Student-prepared batch consumed in pharmacy practical session (NCISM §6(3))',
+  // Session 332: one server call -- disposal register entry + stock removal in one transaction, audited
+  const { error: adjErr } = await supabase.rpc('adjust_stock', {
+    p_inventory_id: invId, p_qty: qty, p_kind: 'student_practical', p_witnessed_by: witness.trim(),
   });
-  if (drErr) { _alert('error', 'Failed to log disposal: ' + drErr.message); return; }
-
-  // Deduct stock
-  const newStock = currentStock - qty;
-  const { error: invErr } = await supabase.from('inventory')
-    .update({ stock_quantity: newStock }).eq('id', invId).eq('tenant_id', tenantId);
-  if (invErr) { _alert('error', 'Stock update failed: ' + invErr.message); return; }
+  if (adjErr) { _alert('error', safeErrorMessage(adjErr, 'Could not record the practical use.')); return; }
 
   _alert('success', `${qty} units of "${name}" logged as used in practical. Disposal record created.`);
   await loadInventory();
@@ -756,18 +742,11 @@ async function deleteMedicine(invId, name) {
 }
 
 // ── Toggle active / inactive directly in row ─────────
-async function toggleStatus(medId, isActive) {
-  const { error } = await supabase.from('medicines')
-    .update({ is_active: !isActive }).eq('id', medId);
-  if (error) { _alert('error', safeErrorMessage(error, 'Status update failed.')); return; }
-  if (isActive) {
-    // Switching to Inactive — auto-show All so row stays visible
-    document.getElementById('filter-status').value = '';
-    _alert('warning', 'Marked Inactive — filter switched to All so you can still see it.');
-  } else {
-    _alert('success', 'Marked Active.');
-  }
-  await loadInventory();
+// Session 332: Active / Inactive is a flag on the SHARED catalogue entry -- switching it here used to switch the
+// medicine off for every organisation. Only AyurXpert can change it now; a per-organisation "not stocked here"
+// setting is TODO_LATER.md §124.
+function toggleStatus() {
+  _alert('info', 'Active / Inactive belongs to the shared AyurXpert medicine catalogue and is changed by AyurXpert support. To stop stocking a medicine, let its stock run out.');
 }
 
 // ── Bulk delete ───────────────────────────────────────
@@ -853,8 +832,9 @@ document.getElementById('import-file').addEventListener('change', e => {
 // Download blank template
 document.getElementById('btn-dl-template').addEventListener('click', e => {
   e.preventDefault();
-  const header = 'Med ID,Name,Category,Brand,Unit,Barcode,Stock,MRP(₹),GST%,P%,Inward,Expiry,Batch,Reorder(Low),Max,Supplier,Status,Indications';
-  const example = ',"Ashwagandha Capsule",tablet,"Himalaya","60 Nos",,100,150,5,20,2024-01-01,2026-12-31,BT20240101,20,100,"AVS",Active,"Stress | Immunity"';
+  // Session 332: item settings only -- stock / MRP / batch / expiry come in through Purchase / GRN
+  const header = 'Med ID,Name,GST%,Reorder(Low),Max';
+  const example = ',"Chandraprabha Vatika",5,20,100';
   const blob = new Blob([header + '\n' + example], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = 'inventory_template.csv'; a.click();
@@ -984,7 +964,7 @@ async function _parseImportFile(file) {
       supplier_name: iSupplier >= 0 ? (cols[iSupplier]||'').trim() || null : null,
     });
 
-    if (preview.length < 10) preview.push({ action, name: rawName, mrp: mrpRaw, stock: stockRaw, batch: batchRaw });
+    if (preview.length < 10) preview.push({ action, name: rawName, reorder: autoReorder, max: maxRaw, gst: gstRaw });
   }
 
   if (!_importRows.length) {
@@ -998,11 +978,11 @@ async function _parseImportFile(file) {
   const prevEl = document.getElementById('import-preview');
   prevEl.style.display = 'block';
   prevEl.innerHTML = `<table>
-    <thead><tr><th>Action</th><th>Name</th><th>MRP (₹)</th><th>Stock</th><th>Batch</th></tr></thead>
+    <thead><tr><th>Action</th><th>Name</th><th>Reorder</th><th>Max</th><th>GST %</th></tr></thead>
     <tbody>${preview.map(p => `
       <tr class="row-${p.action}">
-        <td><span class="badge-${p.action}">${p.action === 'new' ? 'NEW' : 'UPDATE'}</span></td>
-        <td>${_esc(p.name)}</td><td>${_esc(p.mrp)}</td><td>${_esc(p.stock)}</td><td>${_esc(p.batch) || '—'}</td>
+        <td><span class="badge-${p.action}">${p.action === 'new' ? 'ADD (catalogue)' : 'UPDATE'}</span></td>
+        <td>${_esc(p.name)}</td><td>${_esc(p.reorder)}</td><td>${_esc(p.max)}</td><td>${_esc(p.gst)}</td>
       </tr>`).join('')}
     ${_importRows.length > 10 ? `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);font-style:italic">…and ${_importRows.length - 10} more rows</td></tr>` : ''}
     </tbody></table>`;
@@ -1012,7 +992,6 @@ async function _parseImportFile(file) {
 
 document.getElementById('btn-do-import').addEventListener('click', async () => {
   if (!_importRows.length) return;
-  const replaceStock = document.getElementById('import-replace-stock').checked;
 
   const btn       = document.getElementById('btn-do-import');
   const cancelBtn = document.getElementById('btn-cancel-import');
@@ -1026,6 +1005,7 @@ document.getElementById('btn-do-import').addEventListener('click', async () => {
 
   const total   = _importRows.length;
   let done = 0, added = 0, updated = 0, skipped = 0, errors = 0;
+  const notInCatalogue = [];
 
   function _setProgress(label) {
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -1034,105 +1014,68 @@ document.getElementById('btn-do-import').addEventListener('click', async () => {
   }
   _setProgress('Starting…');
 
-  // ── Separate new vs update ──
+  // Session 332: ITEM SETTINGS ONLY. Stock, MRP, batch, expiry, inward date and supplier columns are ignored
+  // (stock arrives through Purchase / GRN -> receive_stock()); the shared medicine catalogue is never written
+  // (AyurXpert maintains it). New rows are matched to the catalogue by exact name and added with 0 stock.
+  const itemFields = r => {
+    const f = {};
+    if (r.gst_percent > 0)   f.gst_percent   = r.gst_percent;
+    if (r.max_stock > 0)     f.max_stock     = r.max_stock;
+    if (r.reorder_level > 0) f.reorder_level = r.reorder_level;
+    return f;
+  };
   const newRows    = _importRows.filter(r => r.action === 'new');
   const updateRows = _importRows.filter(r => r.action === 'update');
 
-  const CHUNK = 50;  // batch size
-
-  // ── 1. Batch-insert new medicines ──────────────────
+  // ── 1. New rows: catalogue match by exact name (case-insensitive) -> stock row with 0 stock ──
   if (newRows.length > 0) {
-    for (let i = 0; i < newRows.length; i += CHUNK) {
-      const chunk = newRows.slice(i, i + CHUNK);
-      const medPayload = chunk.map(r => ({
-        name: r.name, category: r.category, brand: r.brand,
-        unit: r.unit, barcode: r.barcode, is_active: r.is_active,
-        indications: r.indications,
-      }));
-
-      const { data: meds, error: me } = await supabase
-        .from('medicines').insert(medPayload).select('id, name');
-
-      if (me) {
-        console.error('Batch medicine insert error:', me);
-        errors += chunk.length;
-        done   += chunk.length;
-        _setProgress(`Inserting medicines… ${done}/${total}`);
-        continue;
-      }
-
-      // Map name → id (case-insensitive)
-      const nameToId = {};
-      (meds || []).forEach(m => { nameToId[m.name.toLowerCase()] = m.id; });
-
-      const invPayload = chunk.map(r => {
-        const medId = nameToId[r.name.toLowerCase()];
-        if (!medId) { errors++; return null; }
-        return {
-          tenant_id: tenantId, medicine_id: medId,
-          stock_quantity: r.stock_quantity,
-          mrp: r.mrp, cost_price: r.cost_price,
-          gst_percent: r.gst_percent, profit_percent: r.profit_percent,
-          max_stock: r.max_stock, reorder_level: r.reorder_level,
-          inward_date: r.inward_date, expiry_date: r.expiry_date,
-          batch_number: r.batch_number, supplier_name: r.supplier_name,
-        };
-      }).filter(Boolean);
-
-      if (invPayload.length) {
-        const { error: ie } = await supabase.from('inventory').insert(invPayload);
-        if (ie) { console.error('Batch inventory insert error:', ie); errors += invPayload.length; }
-        else    added += invPayload.length;
-      }
-
-      done += chunk.length;
-      _setProgress(`Adding new medicines… ${done}/${total}`);
+    _setProgress('Matching the medicine catalogue…');
+    const { data: cat, error: ce } = await supabase.from('medicines').select('id, name, is_active');
+    const byName = new Map();
+    (cat || []).forEach(m => {
+      const k = m.name.toLowerCase().trim();
+      if (!byName.has(k) || (byName.get(k).is_active === false && m.is_active !== false)) byName.set(k, m);
+    });
+    const have = new Set(_items.map(i => i.medicine.id));
+    const payload = [];
+    for (const r of newRows) {
+      const m = ce ? null : byName.get(r.name.toLowerCase().trim());
+      if (!m) { skipped++; notInCatalogue.push(r.name); }
+      else if (have.has(m.id)) { skipped++; }
+      else { have.add(m.id); payload.push({ tenant_id: tenantId, medicine_id: m.id, stock_quantity: 0, ...itemFields(r) }); }
+      done++;
     }
+    for (let i = 0; i < payload.length; i += 50) {
+      const chunk = payload.slice(i, i + 50);
+      const { error: ie } = await supabase.from('inventory').insert(chunk);
+      if (ie) { console.error('Inventory insert error:', ie); errors += chunk.length; }
+      else    added += chunk.length;
+    }
+    _setProgress(`Adding catalogue medicines… ${done}/${total}`);
   }
 
-  // ── 2. Update existing medicines — 10 in parallel ──
+  // ── 2. Existing items: item settings on EVERY batch row of the medicine (kept identical by the database) ──
   const UPDATE_BATCH = 10;
   for (let i = 0; i < updateRows.length; i += UPDATE_BATCH) {
     const batch = updateRows.slice(i, i + UPDATE_BATCH);
     await Promise.all(batch.map(async row => {
       try {
-        const inv = row.existing;
-
-        const medPatch = { name: row.name, is_active: row.is_active };
-        if (row.category !== null)    medPatch.category   = row.category;
-        if (row.brand    !== null)    medPatch.brand      = row.brand;
-        if (row.unit     !== null)    medPatch.unit       = row.unit;
-        if (row.barcode  !== null)    medPatch.barcode    = row.barcode;
-        if (row.indications.length)  medPatch.indications = row.indications;
-
-        const { error: me } = await supabase.from('medicines').update(medPatch).eq('id', inv.medicine.id);
-        if (me) throw me;
-
-        const invPatch = {};
-        if (row.mrp > 0)             { invPatch.mrp = row.mrp; invPatch.cost_price = row.cost_price; }
-        if (row.gst_percent > 0)     invPatch.gst_percent    = row.gst_percent;
-        if (row.profit_percent > 0)  invPatch.profit_percent = row.profit_percent;
-        if (row.max_stock > 0)       invPatch.max_stock      = row.max_stock;
-        if (row.reorder_level > 0)   invPatch.reorder_level  = row.reorder_level;
-        if (row.inward_date)         invPatch.inward_date    = row.inward_date;
-        if (row.expiry_date)         invPatch.expiry_date    = row.expiry_date;
-        if (row.batch_number)        invPatch.batch_number   = row.batch_number;
-        if (row.supplier_name)       invPatch.supplier_name  = row.supplier_name;
-        if (replaceStock)            invPatch.stock_quantity = row.stock_quantity;
-
+        const invPatch = itemFields(row);
         if (Object.keys(invPatch).length) {
           const { error: ie } = await supabase.from('inventory')
-            .update(invPatch).eq('id', inv.id).eq('tenant_id', tenantId);
+            .update(invPatch).eq('id', row.existing.id).eq('tenant_id', tenantId);
           if (ie) throw ie;
+          updated++;
+        } else {
+          skipped++;
         }
-        updated++;
       } catch (err) {
         console.error('Update error:', row.name, err);
         errors++;
       }
       done++;
     }));
-    _setProgress(`Updating existing records… ${done}/${total}`);
+    _setProgress(`Updating item settings… ${done}/${total}`);
   }
 
   // ── Done ───────────────────────────────────────────
@@ -1144,7 +1087,7 @@ document.getElementById('btn-do-import').addEventListener('click', async () => {
   const parts = [];
   if (added)   parts.push(`✅ ${added} added`);
   if (updated) parts.push(`✏️ ${updated} updated`);
-  if (skipped) parts.push(`⏭ ${skipped} skipped`);
+  if (skipped) parts.push(`⏭ ${skipped} skipped${notInCatalogue.length ? ` (${notInCatalogue.length} not in the AyurXpert catalogue: ${notInCatalogue.slice(0, 5).join(', ')}${notInCatalogue.length > 5 ? '…' : ''})` : ''}`);
   if (errors)  parts.push(`❌ ${errors} failed`);
   const resultMsg = `Import complete — ${parts.join('  ·  ')}`;
 

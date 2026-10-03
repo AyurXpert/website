@@ -489,91 +489,28 @@ async function dispense() {
   // else there, see nursing.js's Discharge Reconciliation).
   const isIpd = _activeRx.patient_type === 'ipd';
 
+  // Session 332: a line the server cannot price or deduct (no stock row for that medicine) is refused here,
+  // before anything is written -- the old browser code billed it at ₹0 and deducted nothing.
+  const unstocked = payable.filter(c => !c.medicine_id);
+  if (unstocked.length) {
+    _toast(`Not in this pharmacy's stock: ${unstocked.map(c => c.name).join(', ')}. Remove it from the bill or receive it through Purchase / GRN first.`, 'error');
+    return;
+  }
+
   try {
-    let bill = null;
-    if (isIpd) {
-      // 1. Stage IPD stay charges (one row per medicine, matching source_ref_id so they're
-      // traceable back to this dispense)
-      if (!_activeIpdAdmissionId) throw new Error("Could not find this patient's IPD admission to charge — contact support before dispensing.");
-      // GST Phase 2b -- inventory_id/charge_date let a future gst_v1 bill resolve this
-      // medicine's own tax profile (inventory.ip_tax_profile_id) instead of falling back
-      // to the tenant default; the pharmacy flag itself stays off, so this only matters
-      // once IPD bills for this stay actually go GST-live. Same best-effort batch match
-      // as the high-risk check above -- stock deduction below doesn't pin one batch either.
-      const todayStr = todayLocalStr();
-      const stayCharges = payable.map(c => {
-        const inv = _inventory.find(i => i.id === c.id || i.medicine_id === c.medicine_id);
-        return {
-          tenant_id: tenantId, ipd_admission_id: _activeIpdAdmissionId, source: 'pharmacy', source_ref_id: _activeRxId,
-          description: c.name, quantity: c.qty, unit_price: c.price, gst_percent: c.gst_pct || null,
-          amount: c.qty * c.price, status: 'pending', added_by: userId,
-          inventory_id: inv?.id || null, charge_date: todayStr,
-        };
-      });
-      const { error: scErr } = await supabase.from('ipd_stay_charges').insert(stayCharges);
-      if (scErr) throw scErr;
-    } else {
-      // 1. Create bill
-      const { data: b, error: bErr } = await supabase
-        .from('bills')
-        .insert({
-          tenant_id:      tenantId,
-          patient_id:     _activeRx.patient.id,
-          visit_id:       _activeRx.visit.id,
-          total_amount:   subtotal,
-          final_amount:   total,
-          status:         payMethod === 'Credit' ? 'partial' : 'paid',
-          bill_type:      'pharmacy',
-          prescription_id: _activeRxId,   // Session 307 — matched by the "not in register" check
-          payment_method: payMethod,
-          updated_by:     userId,
-          update_reason:  'pharmacy_dispense'
-        })
-        .select('id').single();
-      if (bErr) throw bErr;
-      bill = b;
-
-      // 2. Bill items
-      const billItems = payable.map(c => ({
-        bill_id:     bill.id,
-        medicine_id: c.medicine_id || null,
-        quantity:    c.qty,
-        price:       c.price,
-        total:       c.qty * c.price,
-        tenant_id:   tenantId
-      }));
-      await supabase.from('bill_items').insert(billItems);
-    }
-
-    // 3. Deduct stock
-    for (const c of payable) {
-      if (!c.medicine_id) continue;
-      // earliest expiry first, never a student (teaching-pharmacy) batch -- same order as the server
-      const { data: invList } = await supabase
-        .from('inventory')
-        .select('id, stock_quantity')
-        .eq('medicine_id', c.medicine_id)
-        .eq('tenant_id', tenantId)
-        .or('is_student_batch.is.null,is_student_batch.eq.false')
-        .order('expiry_date', { ascending: true, nullsFirst: false })
-        .order('inward_date', { ascending: true, nullsFirst: false })
-        .order('id');
-
-      let remaining = c.qty;
-      for (const inv of (invList || [])) {
-        if (remaining <= 0) break;
-        const deduct   = Math.min(inv.stock_quantity, remaining);
-        await supabase.from('inventory')
-          .update({ stock_quantity: inv.stock_quantity - deduct })
-          .eq('id', inv.id);
-        remaining -= deduct;
-      }
-    }
-
-    // 4. Mark prescription dispensed
-    await supabase.from('prescriptions')
-      .update({ status: 'dispensed' })
-      .eq('id', _activeRxId);
+    // Session 332: ONE server call does the whole dispense in one transaction -- the bill (OPD) or the IPD
+    // stay charges, the stock deduction (earliest expiry first; never a student or an EXPIRED batch) and
+    // marking the prescription dispensed. The browser can no longer change stock itself.
+    if (isIpd && !_activeIpdAdmissionId) throw new Error("Could not find this patient's IPD admission to charge — contact support before dispensing.");
+    const { data: sale, error: saleErr } = await supabase.rpc('create_pharmacy_sale', {
+      p_rx: _activeRxId,
+      p_lines: payable.map(c => ({ medicine_id: c.medicine_id, qty: c.qty })),
+      p_discount_pct: _discountPct(),
+      p_payment_method: payMethod,
+    });
+    if (saleErr) throw saleErr;
+    const bill = sale?.bill_id ? { id: sale.bill_id } : null;
+    if (!isIpd && !bill) throw new Error('The sale did not return a bill — please check the bill list before dispensing again.');
 
     // 4b. Session 307 — Schedule H1 register: one entry per H1 drug supplied (prescriber, patient,
     // drug, quantity). A failure never undoes the sale; the pharmacist is told to record it by hand.
@@ -616,7 +553,8 @@ async function dispense() {
 
     // 7. Print invoice (OPD only — an IPD dispense is staged to the stay, printed at
     // discharge like every other stay charge, not per dispense)
-    if (!isIpd) _printInvoice(bill.id, payable, subtotal, discount, total, payMethod, _discountPct());
+    // the server's bill total (Session 332) -- it prices from the batches it actually took
+    if (!isIpd) _printInvoice(bill.id, payable, subtotal, discount, Number(sale.final_amount ?? total), payMethod, _discountPct());
 
     _toast(isIpd
       ? `${_esc(_activeRx.patient?.name)} — dispensed, charged to the IPD stay`
