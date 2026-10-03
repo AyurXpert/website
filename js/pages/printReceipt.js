@@ -5,12 +5,13 @@ import { amountInWords } from '../utils/amountInWords.js'
 import { safeErrorMessage } from '../utils/errors.js'
 import { computeIpdChargesToDate } from '../modules/billing/ipdChargesToDate.js'
 import { isDemoTenant, demoBannerEl } from '../modules/billing/demoBanner.js'
-import { getPaperSize, applyPaperSize, mountPaperSizeSelect } from '../modules/billing/paperSize.js'
+import { getPaperSize, applyPaperSize, mountPaperSizeSelect, watchPrintPageSize, refreshPrintPageSize } from '../modules/billing/paperSize.js'
 
 // Session 336: A4 / A5 / thermal 80 / 58 mm (css/paper-size.css), remembered per device. Changing it only re-lays
-// out the page -- it never records another print.
+// out the page -- it never records another print. The printed page size follows it (thermal height measured).
 applyPaperSize(getPaperSize())
 mountPaperSizeSelect(document.getElementById('paper-slot'))
+watchPrintPageSize(() => document.getElementById('receipt'))
 
 wireDelegatedEvents()
 
@@ -198,6 +199,6 @@ async function loadInterim() {
   document.getElementById('amountWords').style.display = 'none';
 }
 
-if (paymentId) loadReceipt();
-else if (admId) loadInterim();
+if (paymentId) loadReceipt().finally(refreshPrintPageSize);
+else if (admId) loadInterim().finally(refreshPrintPageSize);
 else document.getElementById('patientInfo').innerHTML = `<span class="text-red-600">No receipt or admission specified.</span>`;

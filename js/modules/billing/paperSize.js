@@ -7,6 +7,7 @@
 // The choice is remembered per device (localStorage, guarded -- falls back to A4).
 import { renderInvoice } from './invoiceLayout.js';
 import { DEMO_TEXT } from './demoBanner.js';
+import { setPrintPageSize } from '../../utils/printPageSize.js';
 
 export const PAPER_SIZES = [
   { key: 'a4',  label: 'A4' },
@@ -31,6 +32,20 @@ export function applyPaperSize(size) {
   document.documentElement.dataset.paper = VALID.has(size) ? size : 'a4';
 }
 
+// Keeps the PRINTED page size (@page, js/utils/printPageSize.js) in step with the chosen paper for a dedicated print
+// page: now, once web fonts have loaded (they change the thermal height), and again just before every print
+// (Ctrl+P or the Print button). getEl() returns the element that prints. Call refreshPrintPageSize() after a re-render.
+let _getEl = null;
+export function refreshPrintPageSize() {
+  if (_getEl) setPrintPageSize(document.documentElement.dataset.paper || 'a4', _getEl());
+}
+export function watchPrintPageSize(getEl) {
+  _getEl = getEl;
+  refreshPrintPageSize();
+  document.fonts?.ready?.then(refreshPrintPageSize).catch(() => { /* fonts unavailable -- already set */ });
+  window.addEventListener('beforeprint', refreshPrintPageSize);
+}
+
 // An accessible <select> (44 px) placed in `container`; onChange(size) after the choice is stored + applied.
 export function mountPaperSizeSelect(container, onChange) {
   if (!container) return null;
@@ -48,7 +63,11 @@ export function mountPaperSizeSelect(container, onChange) {
     sel.appendChild(o);
   }
   sel.value = getPaperSize();
-  sel.addEventListener('change', () => { setPaperSize(sel.value); applyPaperSize(sel.value); if (onChange) onChange(sel.value); });
+  sel.addEventListener('change', () => {
+    setPaperSize(sel.value); applyPaperSize(sel.value);
+    if (onChange) onChange(sel.value);
+    refreshPrintPageSize();   // printed page follows the new layout (no-op where watchPrintPageSize wasn't called)
+  });
   wrap.appendChild(sel);
   container.appendChild(wrap);
   return sel;

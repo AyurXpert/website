@@ -10,7 +10,7 @@ import { safeErrorMessage } from '../utils/errors.js'
 import { uhidOf } from '../utils/uhid.js'
 import { isCombinedPayment } from '../modules/billing/opdPayments.js'
 import { el } from '../modules/billing/invoiceLayout.js'
-import { getPaperSize, applyPaperSize, mountPaperSizeSelect, renderDocument } from '../modules/billing/paperSize.js'
+import { getPaperSize, applyPaperSize, mountPaperSizeSelect, renderDocument, watchPrintPageSize } from '../modules/billing/paperSize.js'
 
 wireDelegatedEvents()
 applyPaperSize(getPaperSize())   // Session 336: A4 / A5 / thermal 80 / 58 mm, remembered per device
@@ -207,8 +207,10 @@ async function load() {
     sheet.querySelector('.logo-img')?.addEventListener('error', e => e.target.remove())
   }
   draw(getPaperSize())
-  // changing the paper size only re-lays out THIS copy -- it never records another print (no server call)
+  // changing the paper size only re-lays out THIS copy -- it never records another print (no server call);
+  // the printed page size follows it (thermal: the bill's measured height, one continuous page)
   mountPaperSizeSelect(document.getElementById('paper-slot'), draw)
+  watchPrintPageSize(() => sheet)
   document.title = `${model.title} ${data.bill.document_number || ''} — ${data.patient?.name || ''}`.replace(/\s+/g, ' ').trim()
   printBtn.disabled = false
   setStatus('')

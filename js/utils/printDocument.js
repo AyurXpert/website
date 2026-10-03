@@ -23,6 +23,8 @@
 // Popups (e.g. the dispensary medicine label) are their own document and need neither —
 // they just call w.print() from script, never an inline onload (blocked by our CSP).
 
+import { setPrintPageSize, clearPrintPageSize } from './printPageSize.js';
+
 const ROOT_CLASS = 'ax-print-root';
 const TEMP_CLASS = 'ax-print-root--temp';
 const BODY_CLASS = 'ax-printing';
@@ -31,6 +33,7 @@ let _cleanup = null;
 
 // + Session 336 paper sizes for slips / receipts: 'a5', 't80', 't58' (css/paper-size.css; 'a4' = no class)
 const SIZES = new Set(['A4-landscape', 'A3-landscape', 'a5', 't80', 't58']);
+const PAPER_SIZES = new Set(['a5', 't80', 't58']);
 
 export function printDocument(source, { title, size } = {}) {
   const sources = (Array.isArray(source) ? source : [source]).filter(Boolean);
@@ -51,7 +54,13 @@ export function printDocument(source, { title, size } = {}) {
   const prevTitle = document.title;
   if (title) document.title = title;
 
+  // A5 / thermal: the printed page itself must change size (Chrome ignores a roll's `auto` height, so the
+  // slip is measured at the roll width -- js/utils/printPageSize.js). A4 / landscape keep css/print.css.
+  const paper = PAPER_SIZES.has(size) ? size : null;
+  if (paper) setPrintPageSize(paper, root);
+
   _cleanup = () => {
+    if (paper) clearPrintPageSize();
     root.remove();
     document.body.classList.remove(BODY_CLASS);
     document.title = prevTitle;

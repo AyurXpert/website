@@ -1,12 +1,10 @@
 /* Paper sizes for printed documents (Session 336) -- pairs with js/modules/billing/paperSize.js.
    A4 (default) · A5 · Thermal 80 mm · Thermal 58 mm. The choice is set on <html data-paper="..."> (bill / receipt
    pages) or as an ax-size-* class on printDocument()'s root (shift handover slip). Named pages so only the
-   document's own pages change size; thermal rolls have no page-number boxes and minimal margins.
-   Black on white throughout -- thermal printers print one colour. */
-
-@page ax-a5  { size: A5; margin: 8mm 8mm 10mm; }
-@page ax-t80 { size: 80mm auto; margin: 2mm 3mm; @bottom-right { content: none; } @bottom-left { content: none; } }
-@page ax-t58 { size: 58mm auto; margin: 1.5mm 2mm; @bottom-right { content: none; } @bottom-left { content: none; } }
+   document's own layout changes. Black on white throughout -- thermal printers print one colour.
+   The PRINTED PAGE size is NOT set here: Chrome / Edge drop `size: 80mm auto` (invalid), which left every print A4.
+   js/utils/printPageSize.js sets one @page rule from script instead (A5 148 × 210 mm; thermal = width × the
+   document's measured height, one continuous page) and it overrides the A4 rules in print.css / print-final-bill.css. */
 
 /* ── the selector (screen only) ── */
 .ax-paper-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
@@ -20,9 +18,8 @@ html[data-paper="a5"] .sheet { width: 148mm; min-height: 210mm; padding: 8mm 8mm
 html[data-paper="t80"] .sheet { width: 80mm; min-height: 0; padding: 3mm; }
 html[data-paper="t58"] .sheet { width: 58mm; min-height: 0; padding: 2mm; }
 @media print {
-  html[data-paper="a5"] .sheet  { page: ax-a5; font-size: 8.5pt; }
-  html[data-paper="t80"] .sheet { page: ax-t80; width: auto; padding: 0; }
-  html[data-paper="t58"] .sheet { page: ax-t58; width: auto; padding: 0; }
+  html[data-paper="a5"] .sheet  { font-size: 8.5pt; }
+  html[data-paper="t80"] .sheet, html[data-paper="t58"] .sheet { width: auto; padding: 0; }
 }
 
 /* Thermal layout (renderThermal): single column, compact */
@@ -53,22 +50,16 @@ html[data-paper="t80"] #receipt .text-lg, html[data-paper="t58"] #receipt .text-
 html[data-paper="t80"] #receipt .h-12, html[data-paper="t58"] #receipt .h-12 { height: 28px !important; }
 html[data-paper="t58"] #receipt .flex.justify-between { display: block !important; }
 @media print {
-  html[data-paper="a5"]  body.ax-printing .ax-print-root { page: ax-a5; }
-  html[data-paper="t80"] body.ax-printing .ax-print-root { page: ax-t80; }
-  html[data-paper="t58"] body.ax-printing .ax-print-root { page: ax-t58; }
   html[data-paper="t80"] #receipt, html[data-paper="t58"] #receipt { max-width: none !important; padding: 0 !important; margin: 0 !important; }
 }
 
-/* ── Shift handover slip (printDocument root with ax-size-a5 / -t80 / -t58) ── */
-@media print {
-  .ax-print-root.ax-size-a5  { page: ax-a5; }
-  .ax-print-root.ax-size-t80 { page: ax-t80; }
-  .ax-print-root.ax-size-t58 { page: ax-t58; }
-  .ax-print-root.ax-size-a5 div, .ax-print-root.ax-size-a5 td { font-size: 10px !important; }
-  .ax-print-root.ax-size-t80 div, .ax-print-root.ax-size-t80 td { font-size: 10px !important; }
-  .ax-print-root.ax-size-t58 div, .ax-print-root.ax-size-t58 td { font-size: 8.5px !important; }
-  .ax-print-root.ax-size-t80 td, .ax-print-root.ax-size-t58 td { padding: 1px 2px !important; }
-  /* signature blocks stack instead of sitting side by side */
-  .ax-print-root.ax-size-t80 [style*="min-width:200px"], .ax-print-root.ax-size-t58 [style*="min-width:200px"] { min-width: 0 !important; flex-basis: 100% !important; }
-  .ax-print-root.ax-size-t80 [style*="height:46px"], .ax-print-root.ax-size-t58 [style*="height:46px"] { height: 26px !important; }
-}
+/* ── Shift handover slip (printDocument root with ax-size-a5 / -t80 / -t58) ──
+   Not inside @media print: the copy is hidden on screen anyway, and printPageSize.js measures it on screen just
+   before printing, so it must already have its print fonts then. */
+.ax-print-root.ax-size-a5 div, .ax-print-root.ax-size-a5 td { font-size: 10px !important; }
+.ax-print-root.ax-size-t80 div, .ax-print-root.ax-size-t80 td { font-size: 10px !important; }
+.ax-print-root.ax-size-t58 div, .ax-print-root.ax-size-t58 td { font-size: 8.5px !important; }
+.ax-print-root.ax-size-t80 td, .ax-print-root.ax-size-t58 td { padding: 1px 2px !important; }
+/* signature blocks stack instead of sitting side by side */
+.ax-print-root.ax-size-t80 [style*="min-width:200px"], .ax-print-root.ax-size-t58 [style*="min-width:200px"] { min-width: 0 !important; flex-basis: 100% !important; }
+.ax-print-root.ax-size-t80 [style*="height:46px"], .ax-print-root.ax-size-t58 [style*="height:46px"] { height: 26px !important; }
