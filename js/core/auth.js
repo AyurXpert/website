@@ -14,6 +14,7 @@ import {
 } from '../config/constants.js';
 import { logAudit } from './auditLogger.js';
 import { safeErrorMessage } from '../utils/errors.js';
+import { RETURN_KEY, safeReturnPath } from '../utils/signInGate.js';
 
 
 // 27 Aug 2026 — shared safety net for every signup flow below. Both
@@ -261,7 +262,10 @@ async function _finalizeLogin(user, profile) {
     { tenantId: profile.tenant_id, userId: profile.id, userName: profile.full_name }
   );
 
-  const destination = ROLE_HOME[profile.role] || 'admin.html';
+  // §118 -- signed in from a print page's "Sign in" button: go back to that document (our own print pages only)
+  let back = null;
+  try { back = safeReturnPath(sessionStorage.getItem(RETURN_KEY)); sessionStorage.removeItem(RETURN_KEY); } catch { back = null; }
+  const destination = back || ROLE_HOME[profile.role] || 'admin.html';
   window.location.href = destination;
 }
 

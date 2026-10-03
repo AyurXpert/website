@@ -5,6 +5,7 @@ import { amountInWords } from '../utils/amountInWords.js'
 import { safeErrorMessage } from '../utils/errors.js'
 import { computeIpdChargesToDate } from '../modules/billing/ipdChargesToDate.js'
 import { isDemoTenant, demoBannerEl } from '../modules/billing/demoBanner.js'
+import { ensureSignedIn } from '../utils/signInGate.js'
 import { getPaperSize, applyPaperSize, mountPaperSizeSelect, watchPrintPageSize, refreshPrintPageSize } from '../modules/billing/paperSize.js'
 
 // Session 336: A4 / A5 / thermal 80 / 58 mm (css/paper-size.css), remembered per device. Changing it only re-lays
@@ -199,6 +200,11 @@ async function loadInterim() {
   document.getElementById('amountWords').style.display = 'none';
 }
 
-if (paymentId) loadReceipt().finally(refreshPrintPageSize);
-else if (admId) loadInterim().finally(refreshPrintPageSize);
-else document.getElementById('patientInfo').innerHTML = `<span class="text-red-600">No receipt or admission specified.</span>`;
+async function start() {
+  // signed out / session ended: ask to sign in before touching the document (§118)
+  if (!(await ensureSignedIn(supabase))) return;
+  if (paymentId) await loadReceipt();
+  else if (admId) await loadInterim();
+  else document.getElementById('patientInfo').textContent = 'No receipt or admission specified.';
+}
+start().finally(refreshPrintPageSize);

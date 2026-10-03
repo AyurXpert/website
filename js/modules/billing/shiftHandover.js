@@ -15,6 +15,7 @@ import { printDocument } from '../../utils/printDocument.js'
 import { istDateStr, istDayStartUTC } from '../../utils/dateUtils.js'
 import { isDemoTenant, demoBannerEl } from './demoBanner.js'
 import { getPaperSize } from './paperSize.js'
+import { isSignedIn, showSignInInline } from '../../utils/signInGate.js'
 
 const MODE_LABEL = { cash: 'Cash', upi: 'UPI', card: 'Card', cheque: 'Cheque', neft: 'NEFT' }
 const KIND_LABEL = { payment: 'Payment', advance: 'Advance', deposit: 'Deposit', refund: 'Refund' }
@@ -164,6 +165,8 @@ function buildSlip(d, copy, info, demo = false) {
 
 // Records the print on the server (Original / Duplicate decided there) and only then prints. Fails closed.
 async function printSlip(supabase, handoverId, statusEl) {
+  // session ended while the page was open: ask to sign in (returns to this page), not "could not load" (§118)
+  if (!(await isSignedIn(supabase))) { showSignInInline(statusEl); return }
   const detail = await supabase.rpc('handover_detail', { p_id: handoverId })
   if (detail.error || !detail.data) { statusEl.textContent = safeErrorMessage(detail.error, 'Could not load this handover. Please try again.'); return }
   const rec = await supabase.rpc('record_document_print', { p_doc_type: 'handover', p_doc_id: handoverId })

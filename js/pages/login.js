@@ -1,6 +1,14 @@
 import { login, verifyMfaAndFinishLogin, verifyBackupCodeAndFinishLogin } from '../core/auth.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { isValidEmail } from '../utils/validators.js';
+import { RETURN_KEY, safeReturnPath } from '../utils/signInGate.js';
+
+// §118 -- login.html?next=<print page>: after login, return to the document the user was trying to open.
+// Only our own print pages are accepted (safeReturnPath); a login without ?next= clears any older one.
+{
+  const next = safeReturnPath(new URLSearchParams(window.location.search).get('next'));
+  try { if (next) sessionStorage.setItem(RETURN_KEY, next); else sessionStorage.removeItem(RETURN_KEY); } catch { /* storage blocked: role home */ }
+}
 
 // Form has no action/target — submit would otherwise reload the page and wipe JS state
 document.getElementById('login-form').addEventListener('submit', e => e.preventDefault());

@@ -14,6 +14,7 @@ import { billCategory } from '../modules/billing/billCategory.js'
 import { isCombinedPayment } from '../modules/billing/opdPayments.js'
 import { renderInvoice, el } from '../modules/billing/invoiceLayout.js'
 import { isDemoTenant } from '../modules/billing/demoBanner.js'
+import { ensureSignedIn } from '../utils/signInGate.js'
 
 wireDelegatedEvents()
 
@@ -244,6 +245,8 @@ function buildModel(d, copy) {
 
 async function load() {
   if (!billId) { showError('No bill specified.'); return }
+  // signed out / session ended: ask to sign in before touching the document (§118)
+  if (!(await ensureSignedIn(supabase))) return
   const { data: bill, error } = await supabase.from('bills').select('*').eq('id', billId).single()
   if (error || !bill) { showError(safeErrorMessage(error, 'Could not load the bill.')); return }
   // Session 334: a pharmacy bill has its own document (batch + expiry per line, pharmacist, prescriber)

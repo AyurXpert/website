@@ -3,6 +3,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js'
 import { billCategory } from '../modules/billing/billCategory.js'
 import { getCurrentTenantId } from '../core/auth.js'
 import { isDemoTenant, demoBannerEl } from '../modules/billing/demoBanner.js'
+import { ensureSignedIn } from '../utils/signInGate.js'
 
 wireDelegatedEvents()
 
@@ -56,6 +57,8 @@ if (tenant.logo_url) {
 }
 
 async function loadInvoice() {
+  // signed out / session ended: ask to sign in before touching the document (§118)
+  if (!(await ensureSignedIn(supabase))) return
 
   // ── BILL MODE (from pharmacyPOS, ipd.js discharge billing, and now OPD
   // lab charges -- Session 124 Step 5) ───────────────────
@@ -67,6 +70,15 @@ async function loadInvoice() {
       .select('*')
       .eq('id', billId)
       .single()
+    // not found / not this account's organisation (signed in): say so plainly -- this used to render an empty
+    // invoice and fail on bill.tax_regime (§118)
+    if (!bill) {
+      const msg = document.createElement('div')
+      msg.className = 'text-red-500'
+      msg.textContent = 'Could not load the bill.'
+      document.getElementById('patientInfo').replaceChildren(msg)
+      return
+    }
 
     // Session 327c: OPD visit bills and lab bills have their own document (letterhead, bill number,
     // "Service / Test" table, payment section) -- this page keeps pharmacy bills.

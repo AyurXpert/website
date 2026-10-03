@@ -10,6 +10,7 @@ import { safeErrorMessage } from '../utils/errors.js'
 import { uhidOf } from '../utils/uhid.js'
 import { isCombinedPayment } from '../modules/billing/opdPayments.js'
 import { el } from '../modules/billing/invoiceLayout.js'
+import { ensureSignedIn } from '../utils/signInGate.js'
 import { getPaperSize, applyPaperSize, mountPaperSizeSelect, renderDocument, watchPrintPageSize } from '../modules/billing/paperSize.js'
 
 wireDelegatedEvents()
@@ -196,6 +197,8 @@ function buildModel(d, copy) {
 
 async function load() {
   if (!billId) { showError('No bill specified.'); return }
+  // signed out / session ended: ask to sign in before touching the document (§118)
+  if (!(await ensureSignedIn(supabase))) return
   const { data, error } = await supabase.rpc('get_pharmacy_bill_print', { p_bill: billId })
   if (error || !data?.bill) { showError(safeErrorMessage(error, 'Could not load the bill.')); return }
   // Print audit first: an unmarked copy must never be printable (fail closed)

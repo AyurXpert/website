@@ -11,6 +11,7 @@ import { safeErrorMessage } from '../utils/errors.js'
 import { uhidOf } from '../utils/uhid.js'
 import { renderInvoice, el } from '../modules/billing/invoiceLayout.js'
 import { isDemoTenant } from '../modules/billing/demoBanner.js'
+import { ensureSignedIn } from '../utils/signInGate.js'
 
 wireDelegatedEvents()
 
@@ -334,6 +335,8 @@ function showError(msg) {
 
 async function load() {
   if (!admId) { showError('No admission specified.'); return; }
+  // signed out / session ended: ask to sign in before touching the document (§118)
+  if (!(await ensureSignedIn(supabase))) return;
   // get_ipd_final_bill only answers for the caller's own organisation, so that is the document's tenant
   const [{ data, error }, isDemo] = await Promise.all([
     supabase.rpc('get_ipd_final_bill', { p_adm: admId }),
