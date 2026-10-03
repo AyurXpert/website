@@ -13,6 +13,7 @@ import { el } from './invoiceLayout.js'
 import { safeErrorMessage } from '../../utils/errors.js'
 import { printDocument } from '../../utils/printDocument.js'
 import { istDateStr, istDayStartUTC } from '../../utils/dateUtils.js'
+import { isDemoTenant, demoBannerEl } from './demoBanner.js'
 
 const MODE_LABEL = { cash: 'Cash', upi: 'UPI', card: 'Card', cheque: 'Cheque', neft: 'NEFT' }
 const KIND_LABEL = { payment: 'Payment', advance: 'Advance', deposit: 'Deposit', refund: 'Refund' }
@@ -97,7 +98,7 @@ const receiptsText = i => i.first ? `${i.first.no} Â· ${timeOnly(i.first.at)}  â
 // ---------------------------------------------------------------------------------------------------------------------
 // The slip (printed through the print audit)
 // ---------------------------------------------------------------------------------------------------------------------
-function buildSlip(d, copy, info) {
+function buildSlip(d, copy, info, demo = false) {
   let tenant = {}
   try { tenant = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}') || {} } catch { /* none */ }
   const isDup = copy.copy !== 'ORIGINAL'
@@ -112,6 +113,8 @@ function buildSlip(d, copy, info) {
     el('div', { style: 'font-size:12px;margin-top:4px' }, label), name ? el('div', { style: 'font-size:11px;color:#555' }, name) : null)
 
   return el('div', { style: 'font-family:\'DM Sans\',Arial,sans-serif;color:#000;padding:4px;position:relative' },
+    // a demo organisation's slip is a test document -- same banner as its bills (flag read from the server, not the cache)
+    demo ? demoBannerEl() : null,
     el('div', { style: 'text-align:center;border-bottom:2px solid #1a4a2e;padding-bottom:8px;margin-bottom:10px' },
       el('div', { style: 'font-family:\'Cormorant Garamond\',Georgia,serif;font-size:22px;font-weight:600;color:#1a4a2e' }, tenant.name || ''),
       el('div', { style: 'font-size:14px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-top:2px' }, 'Shift Handover'),
@@ -170,7 +173,8 @@ async function printSlip(supabase, handoverId, statusEl) {
     const { data: row } = await supabase.from('cash_handovers').select('id, user_id, closed_at, period_from').eq('id', handoverId).single()
     if (row) info = (await loadShiftInfo(supabase, [row]))[handoverId] || null
   } catch { /* the slip still prints, with the period line */ }
-  printDocument(buildSlip(detail.data, rec.data, info), { title: `Shift Handover ${detail.data.handover_no}` })
+  const demo = await isDemoTenant(supabase, sessionStorage.getItem('ayurxpert_tenant_id'))
+  printDocument(buildSlip(detail.data, rec.data, info, demo), { title: `Shift Handover ${detail.data.handover_no}` })
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

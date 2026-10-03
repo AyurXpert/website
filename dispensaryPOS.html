@@ -258,6 +258,34 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   body{overflow:auto;background:#fff}
 }
 .print-header{display:none}
+/* Session 335 -- "Review bill" and "Sale complete" panels (in-page dialogs, replace the native confirm()) */
+.pos-dialog-wrap{position:fixed;inset:0;background:rgba(26,74,46,.35);z-index:300;display:flex;align-items:flex-start;justify-content:center;padding:32px 16px;overflow-y:auto}
+.pos-dialog-wrap[hidden]{display:none}
+.pos-dialog{background:var(--white,#fff);border-radius:var(--radius);box-shadow:0 10px 40px rgba(0,0,0,.25);width:100%;max-width:760px;padding:20px 22px}
+.pos-dialog h2{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep);margin:0 0 4px}
+.pos-dialog .sub{font-size:12px;color:var(--text-muted);margin-bottom:12px}
+.pos-dialog table{width:100%;border-collapse:collapse;font-size:13px}
+.pos-dialog th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);border-bottom:1.5px solid var(--border);padding:6px 4px}
+.pos-dialog td{padding:7px 4px;border-bottom:1px solid var(--border);vertical-align:top}
+.pos-dialog .num{text-align:right;white-space:nowrap}
+.pos-dialog .muted{font-size:11px;color:var(--text-muted)}
+.pos-dialog .totals{margin:10px 0 0 auto;max-width:320px;font-size:13px}
+.pos-dialog .totals div{display:flex;justify-content:space-between;padding:3px 0}
+.pos-dialog .totals .grand{font-weight:700;font-size:16px;color:var(--green-deep);border-top:1.5px solid var(--green-deep);margin-top:4px;padding-top:6px}
+.pos-dialog .issues{background:var(--red-light);border:1.5px solid var(--red);color:var(--red);border-radius:8px;padding:10px 12px;margin:10px 0;font-size:13px}
+.pos-dialog .issues ul{margin:4px 0 0 18px;padding:0}
+.pos-dialog .note{background:var(--green-light);border-radius:8px;padding:8px 12px;margin:10px 0 0;font-size:12px}
+.pos-dialog .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.pos-dialog .actions button{min-height:44px;min-width:44px;padding:0 18px;border-radius:8px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.pos-dialog .btn-back{background:#fff;border:1.5px solid var(--border);color:var(--text-dark)}
+.pos-dialog .btn-go{background:var(--green-deep);border:1.5px solid var(--green-deep);color:#fff}
+.pos-dialog .btn-go:disabled{opacity:.55;cursor:not-allowed}
+.pos-dialog button:focus-visible{outline:3px solid var(--gold,#c9902a);outline-offset:2px}
+.pos-dialog .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:14px;margin:8px 0}
+.pos-dialog .kv dt{color:var(--text-muted)}
+.pos-dialog .kv dd{margin:0;font-weight:600}
+.pos-dialog .msg{margin-top:10px;font-size:13px}
+.pos-dialog .msg.err{color:var(--red);font-weight:600}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
 </head>
@@ -500,6 +528,33 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   </div>
 </div>
 
+
+<!-- Session 335 — Review bill (the SERVER's preview, nothing written until Confirm) -->
+<div id="review-wrap" class="pos-dialog-wrap" hidden>
+  <div class="pos-dialog" role="dialog" aria-modal="true" aria-labelledby="review-title">
+    <h2 id="review-title">Review bill</h2>
+    <div class="sub" id="review-sub"></div>
+    <div id="review-body"></div>
+    <div class="actions">
+      <button type="button" class="btn-back" id="btn-review-back">Back</button>
+      <button type="button" class="btn-go" id="btn-review-confirm">Confirm &amp; Dispense</button>
+    </div>
+  </div>
+</div>
+
+<!-- Session 335 — Sale complete: bill no., receipt, Print Bill (opened by this click, never pop-up-blocked) -->
+<div id="done-wrap" class="pos-dialog-wrap" hidden>
+  <div class="pos-dialog" role="dialog" aria-modal="true" aria-labelledby="done-title">
+    <h2 id="done-title">✓ Dispensed</h2>
+    <div class="sub" id="done-sub"></div>
+    <dl class="kv" id="done-kv"></dl>
+    <div class="msg" id="done-msg" role="status" aria-live="polite"></div>
+    <div class="actions">
+      <button type="button" class="btn-back" id="btn-done-close">Done — next patient</button>
+      <button type="button" class="btn-go" id="btn-done-print">🖨 Print Bill</button>
+    </div>
+  </div>
+</div>
 
 <!-- Session 334 — Pharmacy bills & receipts: find and reprint any past bill / receipt (Visits & Bills search, pharmacy only) -->
 <div id="bills-panel" style="display:none;position:fixed;inset:0;background:var(--cream);z-index:200;overflow-y:auto;padding:20px">

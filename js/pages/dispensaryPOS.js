@@ -517,14 +517,10 @@ async function dispense() {
       p_rx: _activeRxId, p_lines: lines, p_discount_pct: _discountPct(),
     });
     if (pvErr) throw pvErr;
-    if (!pv?.ok) { _toast((pv?.issues || ['Cannot dispense.']).join(' · '), 'error'); _resetBtn(); return; }
-    const fmtR = n => Number(n || 0).toFixed(2);
-    const pvText = (pv.lines || []).map(l =>
-      `${l.medicine} — batch ${l.batch_number || '—'}${l.expiry_date ? ' exp ' + l.expiry_date : ''}: ${l.qty} × ₹${fmtR(l.mrp)} = ₹${fmtR(l.amount)}`).join('\n');
-    const ok = confirm(`Confirm ${isIpd ? 'issue to the IPD stay' : 'bill'}:\n\n${pvText}\n\n` +
-      (Number(pv.discount) > 0 ? `Discount: −₹${fmtR(pv.discount)}\n` : '') +
-      `Total: ₹${fmtR(pv.total)}${isIpd ? ' (charged to the stay)' : ` · ${payMethod === 'Credit' ? 'Credit / Due — no receipt, balance outstanding' : payMethod}`}` +
-      (pv.note ? `\n${pv.note}` : '') + '\n\nDispense now?');
+    // Session 335: the server's preview in an in-page "Review bill" panel (was a native confirm() that read like a
+    // plain "are you sure?"). Problems (shortfall / only expired stock) are shown there with Confirm disabled.
+    // Nothing is written until Confirm; Confirm is disabled on its first click (double-click safe).
+    const ok = await _reviewBill(pv, { isIpd, payMethod, payRef, patient: _activeRx.patient?.name });
     if (!ok) { _resetBtn(); return; }
 
     // ONE server call does the whole dispense in one transaction -- the bill (OPD) or the IPD stay charges, one line
@@ -580,18 +576,10 @@ async function dispense() {
       });
     }
 
-    // 7. Print invoice (OPD only — an IPD dispense is staged to the stay, printed at
-    // discharge like every other stay charge, not per dispense)
-    // the server's bill total (Session 332) -- it prices from the batches it actually took
-    // Session 333: printed from the SERVER's stored lines (one per batch, with batch + expiry) and its totals /
-    // receipt -- never from the cart
-    // Session 334: the proper pharmacy Bill cum Receipt (bill number, batch + expiry per line, prescriber,
-    // pharmacist, receipt, ORIGINAL / DUPLICATE decided by the server). Falls back to the in-page slip only if
-    // the pop-up is blocked.
-    if (!isIpd) {
-      const w = window.open(`printPharmacyBill.html?billId=${encodeURIComponent(bill.id)}`, '_blank');
-      if (!w) { notify('Pop-up blocked — printing the short slip here instead. Allow pop-ups to print the full bill.', 'warning'); _printInvoice(bill.id, sale, payMethod); }
-    }
+    // 7. Session 335: a "Dispensed" panel -- bill no., receipt no., amount, mode -- whose "Print Bill" button opens the
+    // pharmacy bill FROM THAT CLICK (a window opened after the awaits above is blocked as a pop-up). No silent fallback.
+    _closeReview();
+    await _showDone(sale, { isIpd, payMethod, payRef, billId: bill?.id, patient: _activeRx.patient?.name });
 
     _toast(isIpd
       ? `${_esc(_activeRx.patient?.name)} — dispensed, charged to the IPD stay`
@@ -606,10 +594,138 @@ async function dispense() {
 
   } catch (err) {
     console.error(err);
+    _closeReview();
     _toast(safeErrorMessage(err, 'Please try again.'), 'error');
     btn.disabled = false;
     btn.textContent = '✓ Dispense & Generate Bill';
   }
+}
+
+// ── Session 335: Review bill / Dispensed panels (DOM nodes + textContent only) ──────────────
+const _rupee = n => `₹${Number(n || 0).toFixed(2)}`;
+const _MODE_TEXT = { Cash: 'Cash', UPI: 'UPI', Card: 'Card', Credit: 'Credit / Due — no receipt, balance outstanding' };
+function _node(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) { if (v == null) continue; if (k === 'class') e.className = v; else e.setAttribute(k, v); }
+  for (const k of kids.flat()) if (k != null) e.appendChild(typeof k === 'string' || typeof k === 'number' ? document.createTextNode(String(k)) : k);
+  return e;
+}
+// keep Tab inside an open dialog (two-button dialogs: Back / Confirm, Done / Print)
+function _trapTab(e, first, last) {
+  if (e.key !== 'Tab') return;
+  const items = [first, last].filter(b => b && !b.disabled && b.offsetParent !== null);
+  if (!items.length) return;
+  const i = items.indexOf(document.activeElement);
+  e.preventDefault();
+  items[(i + (e.shiftKey ? -1 : 1) + items.length) % items.length].focus();
+}
+
+// Shows the server's preview; resolves true on Confirm, false on Back / Escape. The panel stays open (Confirm showing
+// "Saving…") until the caller closes it with _closeReview().
+function _reviewBill(pv, { isIpd, payMethod, payRef, patient }) {
+  const wrap = document.getElementById('review-wrap');
+  const go = document.getElementById('btn-review-confirm');
+  const back = document.getElementById('btn-review-back');
+  document.getElementById('review-title').textContent = isIpd ? 'Review issue to the IPD stay' : 'Review bill';
+  document.getElementById('review-sub').textContent = [patient, isIpd ? 'charged to the IPD stay — no bill or receipt now' : null]
+    .filter(Boolean).join(' · ');
+
+  const issues = pv?.issues || [];
+  const lines = pv?.lines || [];
+  const body = [];
+  if (!pv?.ok) {
+    body.push(_node('div', { class: 'issues', role: 'alert' }, _node('strong', null, 'This cannot be dispensed as it is:'),
+      _node('ul', null, (issues.length ? issues : ['Cannot dispense.']).map(t => _node('li', null, t)))));
+  }
+  if (lines.length) {
+    body.push(_node('table', null,
+      _node('thead', null, _node('tr', null, ['Medicine', 'Batch', 'Expiry', 'Qty', 'Rate', 'Amount'].map((h, k) =>
+        _node('th', { scope: 'col', class: k >= 3 ? 'num' : null }, h)))),
+      _node('tbody', null, lines.map(l => _node('tr', null,
+        _node('td', null, l.medicine || '—'),
+        _node('td', null, l.batch_number || '—'),
+        _node('td', null, l.expiry_date || '—'),
+        _node('td', { class: 'num' }, String(l.qty)),
+        _node('td', { class: 'num' }, _rupee(l.mrp)),
+        _node('td', { class: 'num' }, _rupee(l.amount)))))));
+    const tot = [_node('div', null, _node('span', null, 'Subtotal (MRP)'), _node('span', null, _rupee(pv.subtotal)))];
+    if (Number(pv.discount) > 0) tot.push(_node('div', null, _node('span', null, 'Less: discount'), _node('span', null, '−' + _rupee(pv.discount))));
+    const ro = Math.round(Number(pv.round_off || 0) * 100) / 100;
+    if (Math.abs(ro) >= 0.005) tot.push(_node('div', null, _node('span', null, 'Round off'), _node('span', null, (ro > 0 ? '+' : '−') + _rupee(Math.abs(ro)))));
+    tot.push(_node('div', { class: 'grand' }, _node('span', null, isIpd ? 'Charged to the stay' : 'Total'), _node('span', null, _rupee(pv.total))));
+    body.push(_node('div', { class: 'totals' }, tot));
+  }
+  if (!isIpd) {
+    body.push(_node('div', { class: 'note' }, 'Payment: ' + (_MODE_TEXT[payMethod] || payMethod) +
+      (['UPI', 'Card'].includes(payMethod) && payRef ? ` · reference ${payRef}` : '')));
+  }
+  if (pv?.note) body.push(_node('div', { class: 'note' }, pv.note));
+  document.getElementById('review-body').replaceChildren(...body);
+
+  go.disabled = !pv?.ok; back.disabled = false; go.textContent = isIpd ? 'Confirm & Issue' : 'Confirm & Dispense';
+  wrap.hidden = false;
+  (pv?.ok ? go : back).focus();
+
+  return new Promise(resolve => {
+    const cleanup = () => { go.removeEventListener('click', onGo); back.removeEventListener('click', onBack); wrap.removeEventListener('keydown', onKey); };
+    const onGo = () => {
+      if (go.disabled) return;
+      go.disabled = true; back.disabled = true; go.textContent = 'Saving…';   // double-click safe
+      cleanup(); resolve(true);
+    };
+    const onBack = () => { cleanup(); wrap.hidden = true; resolve(false); };
+    const onKey = e => { if (e.key === 'Escape' && !back.disabled) { e.preventDefault(); onBack(); } else _trapTab(e, back, go); };
+    go.addEventListener('click', onGo); back.addEventListener('click', onBack); wrap.addEventListener('keydown', onKey);
+  });
+}
+function _closeReview() {
+  document.getElementById('review-wrap').hidden = true;
+  document.getElementById('btn-review-back').disabled = false;
+}
+
+// The sale went through: bill no., receipt no., amount, mode -- and a Print Bill button that opens the bill from its
+// own click. If the bill page still cannot open, the panel says so (and where to reprint it); never a short slip.
+async function _showDone(sale, { isIpd, payMethod, payRef, billId, patient }) {
+  const wrap = document.getElementById('done-wrap');
+  const printBtn = document.getElementById('btn-done-print');
+  const closeBtn = document.getElementById('btn-done-close');
+  const msg = document.getElementById('done-msg');
+  let billNo = null;
+  if (billId) {
+    const { data } = await supabase.from('bills').select('document_number').eq('id', billId).maybeSingle();
+    billNo = data?.document_number || null;
+  }
+  document.getElementById('done-title').textContent = isIpd ? '✓ Issued to the IPD stay' : '✓ Dispensed — bill created';
+  document.getElementById('done-sub').textContent = patient || '';
+  const kv = [];
+  const pair = (k, v) => { kv.push(_node('dt', null, k), _node('dd', null, v)); };
+  if (isIpd) {
+    pair('Charged to', `the IPD stay (${sale?.stay_charges ?? 0} line${(sale?.stay_charges ?? 0) === 1 ? '' : 's'})`);
+  } else {
+    pair('Bill no.', billNo || 'number pending');
+    pair('Amount', _rupee(sale?.final_amount));
+    pair('Payment', (_MODE_TEXT[payMethod] || payMethod) + (['UPI', 'Card'].includes(payMethod) && payRef ? ` · ${payRef}` : ''));
+    pair('Receipt no.', sale?.receipt_no || (Number(sale?.balance) > 0 ? `none — balance due ${_rupee(sale.balance)}` : '—'));
+  }
+  document.getElementById('done-kv').replaceChildren(...kv);
+  msg.textContent = ''; msg.className = 'msg';
+  printBtn.hidden = isIpd || !billId;
+  wrap.hidden = false;
+  (printBtn.hidden ? closeBtn : printBtn).focus();
+
+  const onPrint = () => {
+    const w = window.open(`printPharmacyBill.html?billId=${encodeURIComponent(billId)}`, '_blank');
+    if (w) { msg.className = 'msg'; msg.textContent = 'The bill opened in a new tab — print it from there.'; }
+    else {
+      msg.className = 'msg err';
+      msg.textContent = 'The bill page could not open — the browser blocked it. Allow pop-ups for this site and press "Print Bill" again. '
+        + 'You can also reprint it any time from 🧾 Bills' + (billNo ? ` (${billNo}).` : '.');
+    }
+  };
+  const onClose = () => { printBtn.removeEventListener('click', onPrint); closeBtn.removeEventListener('click', onClose);
+    wrap.removeEventListener('keydown', onKey); wrap.hidden = true; };
+  const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } else _trapTab(e, closeBtn, printBtn); };
+  printBtn.addEventListener('click', onPrint); closeBtn.addEventListener('click', onClose); wrap.addEventListener('keydown', onKey);
 }
 
 // ── ABDM M2 — Care context: Prescription (fire-and-forget) ───────
@@ -730,70 +846,6 @@ async function _abdmCareContextInvoice(billId, patientId, visitId, { abhaNumber,
 }
 
 // ── Print invoice ─────────────────────────────────
-const _fmtExp = d => { const [y, m] = String(d).split('-'); return m && y ? `${m}/${y}` : String(d); };
-
-function _printInvoice(billId, sale, payMethod) {
-  // Session 333: everything below comes from the server's stored bill (sale.lines = bill_items, one per batch)
-  const items    = sale?.lines || [];
-  const subtotal = items.reduce((s, l) => s + Number(l.amount || 0), 0);
-  const total    = Number(sale?.final_amount || 0);
-  const discount = Math.max(0, Math.round((subtotal - total) * 100) / 100);
-  const balance  = Number(sale?.balance || 0);
-  const tenant = _tenant;
-  const date   = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
-  const time   = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
-
-  document.getElementById('print-header').innerHTML = `
-    <div style="text-align:center;margin-bottom:12px;border-bottom:2px solid #1a4a2e;padding-bottom:10px">
-      <h2 style="font-family:'Cormorant Garamond',serif;font-size:22px;color:#1a4a2e;margin:0">${_esc(tenant.name||'AyurXpert Dispensary')}</h2>
-      <p style="font-size:11px;color:#8a9e90;margin-top:2px">${_esc(tenant.city||'')} ${_esc(tenant.state||'')}</p>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;margin-bottom:10px">
-      <div>Patient: <strong>${_esc(_activeRx.patient?.name)}</strong></div>
-      <div style="text-align:right">Date: <strong>${date} ${time}</strong></div>
-      <div>Phone: <strong>${_esc(_activeRx.patient?.phone||'—')}</strong></div>
-      <div style="text-align:right">Bill #: <strong>${billId.slice(-8).toUpperCase()}</strong></div>
-      <div>Token: <strong>#${_activeRx.visit?.token_number||'—'}</strong></div>
-      <div style="text-align:right">Payment: <strong>${payMethod}</strong></div>
-    </div>
-    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px">
-      <thead>
-        <tr style="border-bottom:1px solid #1a4a2e">
-          <th style="text-align:left;padding:4px 0;color:#1a4a2e">#</th>
-          <th style="text-align:left;padding:4px 0;color:#1a4a2e">Medicine</th>
-          <th style="text-align:left;padding:4px 0;color:#1a4a2e">Batch / Exp.</th>
-          <th style="text-align:right;padding:4px 0;color:#1a4a2e">Qty</th>
-          <th style="text-align:right;padding:4px 0;color:#1a4a2e">Rate</th>
-          <th style="text-align:right;padding:4px 0;color:#1a4a2e">Amount</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${items.map((c,i) => `
-          <tr style="border-bottom:1px dashed #d4e6da">
-            <td style="padding:4px 0">${i+1}</td>
-            <td style="padding:4px 0">${_esc(c.medicine)}</td>
-            <td style="padding:4px 0;font-size:10px">${_esc(c.batch_number || '—')}${c.expiry_date ? ' · ' + _esc(_fmtExp(c.expiry_date)) : ''}</td>
-            <td style="padding:4px 0;text-align:right">${Number(c.qty)}</td>
-            <td style="padding:4px 0;text-align:right">₹${Number(c.mrp).toFixed(2)}</td>
-            <td style="padding:4px 0;text-align:right">₹${Number(c.amount).toFixed(2)}</td>
-          </tr>`).join('')}
-      </tbody>
-    </table>
-    <div style="text-align:right;font-size:11px">
-      <div>Subtotal: ₹${subtotal.toFixed(2)}</div>
-      ${discount > 0 ? `<div>Discount: ₹${discount.toFixed(2)}</div>` : ''}
-      <div style="font-size:13px;font-weight:600;color:#1a4a2e;border-top:1px solid #1a4a2e;margin-top:4px;padding-top:4px">Total: ₹${total.toFixed(2)}</div>
-      ${sale?.receipt_no ? `<div style="margin-top:4px">Received: ₹${Number(sale.amount_paid || 0).toFixed(2)} · ${_esc(String(sale.payment_mode || '').toUpperCase())} · Receipt ${_esc(sale.receipt_no)}</div>` : ''}
-      ${balance > 0.005 ? `<div style="margin-top:4px;font-weight:600">Balance due: ₹${balance.toFixed(2)}</div>` : ''}
-    </div>
-    <div style="margin-top:16px;font-size:10px;color:#8a9e90;text-align:center">Dispensed by: ${_esc(profile.full_name)} · AyurXpert HMS</div>
-  `;
-  // Session 308c — isolate via the true allowlist in dispensaryPOS.html's @media print block
-  // (`body.invoice-print > *:not(#print-header)`), not the page's other live UI leaking through.
-  document.body.classList.add('invoice-print');
-  window.addEventListener('afterprint', () => document.body.classList.remove('invoice-print'), { once: true });
-  window.print();
-}
 
 // ── Close ─────────────────────────────────────────
 document.getElementById('btn-close').addEventListener('click', _closeRx);
