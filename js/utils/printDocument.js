@@ -29,7 +29,8 @@ const BODY_CLASS = 'ax-printing';
 
 let _cleanup = null;
 
-const SIZES = new Set(['A4-landscape', 'A3-landscape']);
+// + Session 336 paper sizes for slips / receipts: 'a5', 't80', 't58' (css/paper-size.css; 'a4' = no class)
+const SIZES = new Set(['A4-landscape', 'A3-landscape', 'a5', 't80', 't58']);
 
 export function printDocument(source, { title, size } = {}) {
   const sources = (Array.isArray(source) ? source : [source]).filter(Boolean);

@@ -14,6 +14,7 @@ import { safeErrorMessage } from '../../utils/errors.js'
 import { printDocument } from '../../utils/printDocument.js'
 import { istDateStr, istDayStartUTC } from '../../utils/dateUtils.js'
 import { isDemoTenant, demoBannerEl } from './demoBanner.js'
+import { getPaperSize } from './paperSize.js'
 
 const MODE_LABEL = { cash: 'Cash', upi: 'UPI', card: 'Card', cheque: 'Cheque', neft: 'NEFT' }
 const KIND_LABEL = { payment: 'Payment', advance: 'Advance', deposit: 'Deposit', refund: 'Refund' }
@@ -174,7 +175,8 @@ async function printSlip(supabase, handoverId, statusEl) {
     if (row) info = (await loadShiftInfo(supabase, [row]))[handoverId] || null
   } catch { /* the slip still prints, with the period line */ }
   const demo = await isDemoTenant(supabase, sessionStorage.getItem('ayurxpert_tenant_id'))
-  printDocument(buildSlip(detail.data, rec.data, info, demo), { title: `Shift Handover ${detail.data.handover_no}` })
+  // the paper size chosen on this device (Session 336) -- used only when actually printing
+  printDocument(buildSlip(detail.data, rec.data, info, demo), { title: `Shift Handover ${detail.data.handover_no}`, size: getPaperSize() })
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

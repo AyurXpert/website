@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
   <link rel="stylesheet" href="css/print.css"/>
+  <link rel="stylesheet" href="css/paper-size.css"/>
   <script src="js/pwa/register-sw.js" defer></script>
   <style>
     :root {
@@ -36,6 +37,7 @@
 <main class="page-wrap">
   <h1 class="page-heading">Shift Close &amp; Cash Handover</h1>
   <p class="page-sub">Count the cash you received, close your shift, and hand it over with a signed slip. Cash only is handed over — UPI, card, cheque and NEFT are listed but not counted as cash.</p>
+  <div id="paper-slot" style="margin:-8px 0 14px" title="Paper size used when you print a handover slip"></div>
   <div class="tabs" role="tablist">
     <button class="tab active" type="button" role="tab" id="tab-mine" aria-selected="true" aria-controls="panel-mine">💵 My shift</button>
     <button class="tab" type="button" role="tab" id="tab-review" aria-selected="false" aria-controls="panel-review" style="display:none">✅ Review handovers</button>

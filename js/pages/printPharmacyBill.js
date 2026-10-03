@@ -9,9 +9,11 @@ import { amountInWords } from '../utils/amountInWords.js'
 import { safeErrorMessage } from '../utils/errors.js'
 import { uhidOf } from '../utils/uhid.js'
 import { isCombinedPayment } from '../modules/billing/opdPayments.js'
-import { renderInvoice, el } from '../modules/billing/invoiceLayout.js'
+import { el } from '../modules/billing/invoiceLayout.js'
+import { getPaperSize, applyPaperSize, mountPaperSizeSelect, renderDocument } from '../modules/billing/paperSize.js'
 
 wireDelegatedEvents()
+applyPaperSize(getPaperSize())   // Session 336: A4 / A5 / thermal 80 / 58 mm, remembered per device
 
 const billId   = new URLSearchParams(window.location.search).get('billId')
 const sheet    = document.getElementById('invoice')
@@ -200,8 +202,13 @@ async function load() {
   const rec = await supabase.rpc('record_document_print', { p_doc_type: 'bill', p_doc_id: billId })
   if (rec.error || !rec.data) { showError(safeErrorMessage(rec.error, 'Could not record this print. Please try again.')); return }
   const model = buildModel(data, rec.data)
-  renderInvoice(sheet, model)
-  sheet.querySelector('.logo-img')?.addEventListener('error', e => e.target.remove())
+  const draw = size => {
+    renderDocument(sheet, model, size)
+    sheet.querySelector('.logo-img')?.addEventListener('error', e => e.target.remove())
+  }
+  draw(getPaperSize())
+  // changing the paper size only re-lays out THIS copy -- it never records another print (no server call)
+  mountPaperSizeSelect(document.getElementById('paper-slot'), draw)
   document.title = `${model.title} ${data.bill.document_number || ''} — ${data.patient?.name || ''}`.replace(/\s+/g, ' ').trim()
   printBtn.disabled = false
   setStatus('')

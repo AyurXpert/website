@@ -4,11 +4,15 @@ import { requireAuth, getCurrentProfile } from '../core/auth.js'
 import { initNavbar } from '../components/navbar.js'
 import { supabase } from '../core/db/supabaseClient.js'
 import { mountMyShift, mountHandoverReview } from '../modules/billing/shiftHandover.js'
+import { mountPaperSizeSelect } from '../modules/billing/paperSize.js'
 
 // Anyone who can be handed money at a counter; the server decides who actually has receipts to close.
 await requireAuth(['receptionist', 'nurse', 'cashier', 'accountant', 'finance_manager', 'dept_admin', 'super_admin',
   'lab_tech', 'pharmacist', 'doctor', 'trainee_doctor', 'nurse_manager', 'therapist'])
 initNavbar()
+// Session 336: paper size for printed handover slips (A4 / A5 / thermal 80 / 58 mm), remembered per device --
+// choosing it never prints or records anything; it is used at the next Print.
+mountPaperSizeSelect(document.getElementById('paper-slot'))
 
 const me = getCurrentProfile() || {}
 const roles = [me.role, me.secondary_role]

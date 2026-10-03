@@ -31,6 +31,7 @@
     .print-btn{background:var(--green-deep);color:#fff;border:0;border-radius:8px;min-height:44px;padding:0 20px;font:600 14px 'DM Sans',sans-serif;cursor:pointer}
   </style>
   <link rel="stylesheet" href="css/print.css"/>
+  <link rel="stylesheet" href="css/paper-size.css"/>
 </head>
 
 <!-- ax-printing + .ax-print-root (css/print.css): only the receipt prints, never the Print button. -->
@@ -83,6 +84,7 @@
   <button data-onclick="print" class="print-btn">
     Print / Save PDF
   </button>
+  <span id="paper-slot" style="margin-left:10px"></span>
 </div>
 
 <script type="module" src="js/pages/printReceipt.js"></script>

@@ -5,6 +5,12 @@ import { amountInWords } from '../utils/amountInWords.js'
 import { safeErrorMessage } from '../utils/errors.js'
 import { computeIpdChargesToDate } from '../modules/billing/ipdChargesToDate.js'
 import { isDemoTenant, demoBannerEl } from '../modules/billing/demoBanner.js'
+import { getPaperSize, applyPaperSize, mountPaperSizeSelect } from '../modules/billing/paperSize.js'
+
+// Session 336: A4 / A5 / thermal 80 / 58 mm (css/paper-size.css), remembered per device. Changing it only re-lays
+// out the page -- it never records another print.
+applyPaperSize(getPaperSize())
+mountPaperSizeSelect(document.getElementById('paper-slot'))
 
 wireDelegatedEvents()
 

@@ -1,0 +1,74 @@
+/* Paper sizes for printed documents (Session 336) -- pairs with js/modules/billing/paperSize.js.
+   A4 (default) · A5 · Thermal 80 mm · Thermal 58 mm. The choice is set on <html data-paper="..."> (bill / receipt
+   pages) or as an ax-size-* class on printDocument()'s root (shift handover slip). Named pages so only the
+   document's own pages change size; thermal rolls have no page-number boxes and minimal margins.
+   Black on white throughout -- thermal printers print one colour. */
+
+@page ax-a5  { size: A5; margin: 8mm 8mm 10mm; }
+@page ax-t80 { size: 80mm auto; margin: 2mm 3mm; @bottom-right { content: none; } @bottom-left { content: none; } }
+@page ax-t58 { size: 58mm auto; margin: 1.5mm 2mm; @bottom-right { content: none; } @bottom-left { content: none; } }
+
+/* ── the selector (screen only) ── */
+.ax-paper-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.ax-paper-pick select { min-height: 44px; padding: 0 10px; border: 1.5px solid #d4e6da; border-radius: 8px; background: #fff;
+  font: inherit; color: #1a2e22; cursor: pointer; }
+.ax-paper-pick select:focus-visible { outline: 3px solid #c9902a; outline-offset: 2px; }
+@media print { .ax-paper-pick { display: none !important; } }
+
+/* ── Bill pages (.sheet, js/modules/billing/invoiceLayout.js) ── */
+html[data-paper="a5"] .sheet { width: 148mm; min-height: 210mm; padding: 8mm 8mm 10mm; font-size: 11px; }
+html[data-paper="t80"] .sheet { width: 80mm; min-height: 0; padding: 3mm; }
+html[data-paper="t58"] .sheet { width: 58mm; min-height: 0; padding: 2mm; }
+@media print {
+  html[data-paper="a5"] .sheet  { page: ax-a5; font-size: 8.5pt; }
+  html[data-paper="t80"] .sheet { page: ax-t80; width: auto; padding: 0; }
+  html[data-paper="t58"] .sheet { page: ax-t58; width: auto; padding: 0; }
+}
+
+/* Thermal layout (renderThermal): single column, compact */
+.th-doc { font-family: 'DM Sans', Arial, sans-serif; color: #000; font-size: 11px; line-height: 1.35; }
+html[data-paper="t58"] .th-doc { font-size: 9.5px; }
+.th-doc .th-c { text-align: center; }
+.th-doc .th-org { font-size: 1.25em; font-weight: 700; text-align: center; }
+.th-doc .th-orgline { text-align: center; font-size: .9em; }
+.th-doc .th-title { text-align: center; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; margin-top: 3px; }
+.th-doc .th-sub { text-align: center; font-size: .9em; }
+.th-doc .th-copy { text-align: center; font-weight: 700; border: 1px solid #000; margin: 3px 0; padding: 1px 2px; }
+.th-doc .th-rule { border-top: 1px dashed #000; margin: 4px 0; }
+.th-doc .th-kv { display: flex; justify-content: space-between; gap: 6px; }
+.th-doc .th-kv > span:last-child { text-align: right; font-weight: 600; }
+.th-doc .th-line1 { font-weight: 600; margin-top: 3px; }
+.th-doc .th-line2 { font-size: .92em; }
+.th-doc .th-grand { font-weight: 700; font-size: 1.15em; border-top: 1px solid #000; margin-top: 2px; padding-top: 2px; }
+.th-doc .th-void { text-decoration: line-through; }
+.th-doc .th-small { font-size: .85em; }
+.th-doc .demo-banner { font-size: .9em; padding: 2px 3px; margin: 0 0 4px; }
+
+/* ── Receipt page (printReceipt.html: #receipt inside .ax-print-root) ── */
+html[data-paper="a5"] #receipt { max-width: 148mm !important; }
+html[data-paper="t80"] #receipt { max-width: 80mm !important; padding: 3mm !important; border-width: 0 !important; font-size: 11px; }
+html[data-paper="t58"] #receipt { max-width: 58mm !important; padding: 2mm !important; border-width: 0 !important; font-size: 9.5px; }
+html[data-paper="t80"] #receipt .text-xl, html[data-paper="t58"] #receipt .text-xl { font-size: 1.2em !important; }
+html[data-paper="t80"] #receipt .text-lg, html[data-paper="t58"] #receipt .text-lg { font-size: 1.05em !important; }
+html[data-paper="t80"] #receipt .h-12, html[data-paper="t58"] #receipt .h-12 { height: 28px !important; }
+html[data-paper="t58"] #receipt .flex.justify-between { display: block !important; }
+@media print {
+  html[data-paper="a5"]  body.ax-printing .ax-print-root { page: ax-a5; }
+  html[data-paper="t80"] body.ax-printing .ax-print-root { page: ax-t80; }
+  html[data-paper="t58"] body.ax-printing .ax-print-root { page: ax-t58; }
+  html[data-paper="t80"] #receipt, html[data-paper="t58"] #receipt { max-width: none !important; padding: 0 !important; margin: 0 !important; }
+}
+
+/* ── Shift handover slip (printDocument root with ax-size-a5 / -t80 / -t58) ── */
+@media print {
+  .ax-print-root.ax-size-a5  { page: ax-a5; }
+  .ax-print-root.ax-size-t80 { page: ax-t80; }
+  .ax-print-root.ax-size-t58 { page: ax-t58; }
+  .ax-print-root.ax-size-a5 div, .ax-print-root.ax-size-a5 td { font-size: 10px !important; }
+  .ax-print-root.ax-size-t80 div, .ax-print-root.ax-size-t80 td { font-size: 10px !important; }
+  .ax-print-root.ax-size-t58 div, .ax-print-root.ax-size-t58 td { font-size: 8.5px !important; }
+  .ax-print-root.ax-size-t80 td, .ax-print-root.ax-size-t58 td { padding: 1px 2px !important; }
+  /* signature blocks stack instead of sitting side by side */
+  .ax-print-root.ax-size-t80 [style*="min-width:200px"], .ax-print-root.ax-size-t58 [style*="min-width:200px"] { min-width: 0 !important; flex-basis: 100% !important; }
+  .ax-print-root.ax-size-t80 [style*="height:46px"], .ax-print-root.ax-size-t58 [style*="height:46px"] { height: 26px !important; }
+}
