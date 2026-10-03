@@ -6593,7 +6593,8 @@ window.loadModules = async function() {
     .from('tenants').select('modules, type').eq('id', tenantId).single();
   if (error) { el.innerHTML = `<div class="alert show error">Error loading: ${_esc(safeErrorMessage(error, 'Could not load modules.'))}</div>`; return; }
 
-  const defaults = _getDefaultModules(t.type);
+  const defaults = await _getDefaultModules(t.type);
+  if (!defaults) { el.innerHTML = '<div class="alert show error">Could not load the default modules for your organisation type.</div>'; return; }
   const saved    = t.modules || {};
   const effective = { ...defaults, ...saved };
 
@@ -6604,7 +6605,7 @@ window.loadModules = async function() {
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px" id="mod-grid">
       ${_MODULE_META.map(m => {
-        const on = effective[m.key] !== false;
+        const on = effective[m.key] === true;   // same rule as the server's _tenant_has_module() (Session 331)
         const isDefault = defaults[m.key] === true && saved[m.key] === undefined;
         return `<div style="background:${on?'#f0fff4':'#fafafa'};border:1.5px solid ${on?'#a5d6b8':'#e0e0e0'};border-radius:8px;padding:12px 14px;display:flex;align-items:flex-start;gap:12px">
           <div style="font-size:20px;flex-shrink:0">${m.icon}</div>
@@ -6641,7 +6642,8 @@ function _refreshModCard(chk) {
 async function _saveModules() {
   const checkboxes = document.querySelectorAll('#mod-grid input[data-mod]');
   const { data: t } = await supabase.from('tenants').select('type').eq('id', tenantId).single();
-  const defaults = _getDefaultModules(t?.type);
+  const defaults = await _getDefaultModules(t?.type);
+  if (!defaults) { _toast('Could not load the default modules — nothing was saved.'); return; }
   // Only save explicit overrides — skip keys where checkbox matches the default
   const overrides = {};
   checkboxes.forEach(c => {
@@ -6659,19 +6661,12 @@ async function _saveModules() {
   _toast('✓ Modules saved — changes take effect on next login');
 }
 
-function _getDefaultModules(type) {
-  const D = {
-    clinic:           { opd:true, pharmacy:true, teleconsult:true, quality:true, finance:true, abdm:true },
-    hospital:         { opd:true, ipd:true, pharmacy:true, lab:true, emergency:true, nursing:true, panchakarma:true, teleconsult:true, finance:true, hr:true, mrd:true, quality:true, abdm:true },
-    teaching_hospital:{ opd:true, ipd:true, pharmacy:true, lab:true, emergency:true, nursing:true, panchakarma:true, teleconsult:true, ncism:true, finance:true, hr:true, mrd:true, quality:true, abdm:true },
-    college:          { opd:true, ipd:true, pharmacy:true, lab:true, emergency:true, nursing:true, panchakarma:true, teleconsult:true, ncism:true, finance:true, hr:true, mrd:true, quality:true, abdm:true },
-    pk_center:        { opd:true, panchakarma:true, pharmacy:true, teleconsult:true, quality:true, finance:true, abdm:true },
-    dispensary:       { pharmacy:true, finance:true },
-    pharma:           { pharmacy:true, finance:true },
-    supplier:         { finance:true },
-    dealer:           { finance:true },
-  };
-  return D[type] || { opd:true };
+// The organisation type's default modules -- from the server's module_defaults table (Session 331; this
+// used to be a hard-coded copy). Returns { key: true } for each default, or null if it could not be read.
+async function _getDefaultModules(type) {
+  const { data, error } = await supabase.from('module_defaults').select('module_key').eq('tenant_type', type);
+  if (error) return null;
+  return Object.fromEntries((data || []).map(r => [r.module_key, true]));
 }
 
 // ── §21x NABH Accreditation ────────────────────────────────────────────────

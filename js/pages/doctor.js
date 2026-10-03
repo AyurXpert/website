@@ -20,6 +20,7 @@ import { loadMyPatients, resetMyPatients } from '../modules/patient/myPatients.j
 import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
+import { aggregateByMedicine } from '../modules/inventory/stockByMedicine.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -417,9 +418,10 @@ async function loadInventory() {
   try {
     const { data } = await supabase
       .from('inventory')
-      .select('id, stock_quantity, mrp, medicine:medicines(id,name,indications,anupana,dosage_text,classical_reference)')
+      .select('id, medicine_id, stock_quantity, mrp, expiry_date, inward_date, is_student_batch, medicine:medicines(id,name,indications,anupana,dosage_text,classical_reference)')
       .eq('tenant_id', tenantId);
-    _inventory = (data || []).filter(i => i.medicine?.name);
+    // one entry per medicine with its total sellable stock (Session 331: a medicine can have several batches)
+    _inventory = aggregateByMedicine(data).filter(i => i.medicine?.name);
   } catch (e) {
     _inventory = [];
   }

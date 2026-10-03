@@ -9,6 +9,7 @@ import { todayLocalStr, todayISTStr, istDayStartUTC } from '../utils/dateUtils.j
 import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../modules/registers/corrections.js';
 import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
+import { aggregateByMedicine } from '../modules/inventory/stockByMedicine.js';
 
 await requireAuth(['pharmacist', 'super_admin', 'dept_admin']);
 initNavbar();
@@ -64,14 +65,16 @@ async function loadInventory() {
   try {
     const [invRes, fRes] = await Promise.all([
       supabase.from('inventory')
-        .select('id, medicine_id, stock_quantity, mrp, cost_price, gst_percent, is_student_batch, is_high_risk, is_lasa, lasa_pair, is_schedule_h, is_schedule_h1, is_schedule_e1, is_ndps, batch_number, medicine:medicines(id,name)')
+        .select('id, medicine_id, stock_quantity, mrp, cost_price, gst_percent, is_student_batch, is_high_risk, is_lasa, lasa_pair, is_schedule_h, is_schedule_h1, is_schedule_e1, is_ndps, batch_number, expiry_date, inward_date, medicine:medicines(id,name)')
         .eq('tenant_id', tenantId),
       supabase.from('hospital_formulary')
         .select('medicine_name')
         .eq('tenant_id', tenantId)
         .eq('is_active', true),
     ]);
-    _inventory = (invRes.data || []).filter(i => i.medicine?.name && !i.is_student_batch);
+    // Session 331 real batches: one entry per medicine -- total sellable stock, priced at the batch that
+    // sells first (earliest expiry), the same batch create_pharmacy_sale() would take; student batches excluded.
+    _inventory = aggregateByMedicine(invRes.data).filter(i => i.medicine?.name);
     _formularyNames = new Set((fRes.data || []).map(f => f.medicine_name.toLowerCase()));
   } catch { _inventory = []; }
 }
@@ -545,11 +548,16 @@ async function dispense() {
     // 3. Deduct stock
     for (const c of payable) {
       if (!c.medicine_id) continue;
+      // earliest expiry first, never a student (teaching-pharmacy) batch -- same order as the server
       const { data: invList } = await supabase
         .from('inventory')
         .select('id, stock_quantity')
         .eq('medicine_id', c.medicine_id)
-        .eq('tenant_id', tenantId);
+        .eq('tenant_id', tenantId)
+        .or('is_student_batch.is.null,is_student_batch.eq.false')
+        .order('expiry_date', { ascending: true, nullsFirst: false })
+        .order('inward_date', { ascending: true, nullsFirst: false })
+        .order('id');
 
       let remaining = c.qty;
       for (const inv of (invList || [])) {

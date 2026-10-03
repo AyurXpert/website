@@ -143,38 +143,5 @@ export const MODULE_KEYS = {
   ABDM:        'abdm',
 };
 
-// Default enabled modules per tenant type.
-// tenant.modules (JSONB) stores only explicit overrides vs these defaults.
-// hasModule() returns true if key is absent (safe) or explicitly true.
-export const DEFAULT_MODULES = {
-  clinic: {
-    opd:true, pharmacy:true, teleconsult:true, quality:true, finance:true, abdm:true,
-  },
-  hospital: {
-    opd:true, ipd:true, pharmacy:true, lab:true,
-    emergency:true, nursing:true, panchakarma:true, teleconsult:true,
-    finance:true, hr:true, mrd:true, quality:true, abdm:true,
-  },
-  teaching_hospital: {
-    opd:true, ipd:true, pharmacy:true, lab:true,
-    emergency:true, nursing:true, panchakarma:true, teleconsult:true,
-    ncism:true, finance:true, hr:true, mrd:true, quality:true, abdm:true,
-  },
-  college: {
-    opd:true, ipd:true, pharmacy:true, lab:true,
-    emergency:true, nursing:true, panchakarma:true, teleconsult:true,
-    ncism:true, finance:true, hr:true, mrd:true, quality:true, abdm:true,
-  },
-  pk_center: {
-    opd:true, panchakarma:true, pharmacy:true, teleconsult:true, quality:true, finance:true, abdm:true,
-  },
-  dispensary: {
-    pharmacy:true, finance:true,
-  },
-  pharma: {
-    pharmacy:true, finance:true,
-  },
-  supplier: { finance:true },
-  dealer:   { finance:true },
-  journal:  {},
-};
+// Default modules per tenant type live on the SERVER (module_defaults table, Session 331); tenants.modules
+// holds per-tenant overrides. The browser asks get_my_modules() -- see hasModule() in js/core/auth.js.

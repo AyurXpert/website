@@ -5,6 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { aggregateByMedicine } from '../modules/inventory/stockByMedicine.js';
 
 await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
 initNavbar();
@@ -32,9 +33,10 @@ let _ocrExtractedItems = [];
 async function loadMedicines() {
   const { data } = await supabase
     .from('inventory')
-    .select('medicine_id, mrp, cost_price, gst_percent, profit_percent, medicine:medicines(id, name, is_active, barcode)')
+    .select('id, medicine_id, stock_quantity, expiry_date, inward_date, is_student_batch, mrp, cost_price, gst_percent, profit_percent, medicine:medicines(id, name, is_active, barcode)')
     .eq('tenant_id', tenantId);
-  _medicines = (data || [])
+  // one entry per medicine (a medicine can have several batches since Session 331)
+  _medicines = aggregateByMedicine(data)
     .filter(i => i.medicine?.is_active !== false)
     .map(i => ({
       id: i.medicine.id, name: i.medicine.name, barcode: i.medicine.barcode,
@@ -263,13 +265,21 @@ document.getElementById('btn-save-grn').addEventListener('click', async () => {
     const cost   = parseFloat(l.querySelector('.inp-cost').value) || 0;
     const batch  = l.querySelector('.inp-batch').value.trim() || null;
     const expRaw = l.querySelector('.inp-expiry').value.trim();
-    // Convert MM/YY → YYYY-MM-01
+    // A label's "EXP 09/27" means usable through the END of that month (Session 331: was stored as the 1st)
     let expiry = null;
     if (expRaw && /^\d{2}\/\d{2}$/.test(expRaw)) {
-      const [mm, yy] = expRaw.split('/');
-      expiry = `20${yy}-${mm}-01`;
+      const [mm, yy] = expRaw.split('/').map(Number);
+      if (mm >= 1 && mm <= 12) {
+        const last = new Date(Date.UTC(2000 + yy, mm, 0)).getUTCDate();
+        expiry = `20${String(yy).padStart(2, '0')}-${String(mm).padStart(2, '0')}-${String(last).padStart(2, '0')}`;
+      }
     }
-    if (!medId || qty <= 0) { _alert('error', `Row ${idx+1}: select a medicine and enter quantity.`); hasError = true; return; }
+    const row = `Row ${idx + 1}`;
+    if (!medId || qty <= 0) { _alert('error', `${row}: select a medicine and enter quantity.`); hasError = true; return; }
+    // Session 331 -- real batches: every received line needs its batch number, expiry and MRP
+    if (!batch)   { _alert('error', `${row}: enter the batch number.`); hasError = true; return; }
+    if (!expiry)  { _alert('error', `${row}: enter the expiry as MM/YY (e.g. 09/27).`); hasError = true; return; }
+    if (!(mrp > 0)) { _alert('error', `${row}: enter the MRP.`); hasError = true; return; }
     items.push({ medId, qty, mrp, cost, batch, expiry });
   });
   if (hasError) return;
@@ -280,25 +290,19 @@ document.getElementById('btn-save-grn').addEventListener('click', async () => {
   const invoiceNumber = document.getElementById('invoice-number').value.trim() || null;
 
   try {
-    for (const item of items) {
-      await supabase.from('stock_batches').insert({
-        tenant_id: tenantId, medicine_id: item.medId,
-        batch_number: item.batch, expiry_date: item.expiry,
-        quantity_received: item.qty, cost_price: item.cost, mrp: item.mrp,
-        supplier_name: supplier, supplier_id: supplierId,
-        invoice_number: invoiceNumber, invoice_date: invoiceDate,
-        created_by: profile.id,
-      });
-      const { data: inv } = await supabase.from('inventory').select('id, stock_quantity')
-        .eq('tenant_id', tenantId).eq('medicine_id', item.medId).single();
-      if (inv) {
-        const update = { stock_quantity: (inv.stock_quantity || 0) + item.qty };
-        if (item.mrp  > 0) update.mrp        = item.mrp;
-        if (item.cost > 0) update.cost_price  = item.cost;
-        await supabase.from('inventory').update(update).eq('id', inv.id);
-      }
-    }
-    _alert('success', `GRN saved. ${items.length} medicine(s) — stock updated.`);
+    // Session 331: one server call, all lines or none. Each line goes into its own batch (same batch no. +
+    // expiry + MRP adds to that batch); the receipt is logged in stock_batches. It never reports stock that
+    // was not added -- the old per-line browser loop silently skipped a medicine with no / two stock rows.
+    const { data: res, error } = await supabase.rpc('receive_stock', {
+      p_lines: items.map(i => ({ medicine_id: i.medId, batch_number: i.batch, expiry_date: i.expiry,
+                                 qty: i.qty, mrp: i.mrp, cost_price: i.cost })),
+      p_supplier_id: supplierId, p_supplier_name: supplier,
+      p_invoice_number: invoiceNumber, p_invoice_date: invoiceDate,
+    });
+    if (error) throw error;
+    const newBatches = (res?.lines || []).filter(l => l.new_batch).length;
+    _alert('success', `GRN saved: ${items.length} line(s), ${res?.received_qty ?? 0} units received` +
+      (newBatches ? ` (${newBatches} new batch${newBatches > 1 ? 'es' : ''})` : '') + '. Stock updated.');
     document.getElementById('line-items').innerHTML = '';
     ['supplier-name','supplier-name-manual','supplier-id','invoice-number','invoice-date','remarks'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('supplier-select').value = '';

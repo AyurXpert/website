@@ -6,6 +6,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { printDocument, docHeader, shown } from '../utils/printDocument.js';
+import { aggregateByMedicine } from '../modules/inventory/stockByMedicine.js';
 
 await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
 initNavbar();
@@ -33,13 +34,14 @@ let _allInventory = []; // all active inventory (for add modal search)
 async function loadData() {
   const { data, error } = await supabase
     .from('inventory')
-    .select(`id, stock_quantity, cost_price, max_stock, reorder_level, supplier_name,
+    .select(`id, medicine_id, stock_quantity, expiry_date, inward_date, is_student_batch, cost_price, max_stock, reorder_level, supplier_name,
              medicine:medicines(id, name, med_id, unit, brand, is_active)`)
     .eq('tenant_id', tenantId);
 
   if (error) { _alert('error', safeErrorMessage(error, 'Failed to load purchase orders.')); return; }
 
-  const allItems = (data || []).filter(i => i.medicine?.is_active !== false);
+  // one entry per medicine, stock = all its sellable batches (Session 331 real batches)
+  const allItems = aggregateByMedicine(data).filter(i => i.medicine?.is_active !== false);
   _allInventory  = allItems;
 
   // Low stock = stock <= reorder_level (admin-set), and reorder_level must be set

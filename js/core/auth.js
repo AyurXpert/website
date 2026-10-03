@@ -9,7 +9,6 @@ import {
   ROLE_HOME,
   PUBLIC_PAGES,
   SESSION_KEYS,
-  DEFAULT_MODULES,
   MFA_MANDATORY_ROLES,
   SUPABASE_URL,
 } from '../config/constants.js';
@@ -254,10 +253,8 @@ async function _finalizeLogin(user, profile) {
   sessionStorage.setItem(SESSION_KEYS.SECONDARY_ROLE, profile.secondary_role || '');
   sessionStorage.setItem(SESSION_KEYS.MONITORING_ACCESS, profile.has_monitoring_access ? '1' : '');
 
-  // §7h — compute effective modules: type defaults merged with tenant overrides
-  const _defMods = DEFAULT_MODULES[profile.tenants?.type] || {};
-  const _tenMods = profile.tenants?.modules || {};
-  sessionStorage.setItem(SESSION_KEYS.MODULES, JSON.stringify({ ..._defMods, ..._tenMods }));
+  // §7h — the organisation's modules, decided by the server (type defaults + overrides, Session 331)
+  await _loadModules();
 
   await logAudit('login', 'profiles', profile.id,
     { role: profile.role, tenant: profile.tenants?.name },
@@ -535,13 +532,23 @@ export function getCurrentTenant() {
   return raw ? JSON.parse(raw) : null;
 }
 
-// §7h — returns true if module is enabled for this tenant.
-// Defaults to true when no modules are stored (backwards-compatible).
+// §7h — the server's answer for this organisation (get_my_modules(): every module key -> true / false,
+// from module_defaults + tenants.modules overrides). Session 331: no longer defaulted in the browser.
+async function _loadModules() {
+  const { data, error } = await supabase.rpc('get_my_modules');
+  if (error || !data || typeof data !== 'object') {
+    sessionStorage.removeItem(SESSION_KEYS.MODULES);   // fail closed: hasModule() is false until they load
+    return;
+  }
+  sessionStorage.setItem(SESSION_KEYS.MODULES, JSON.stringify(data));
+}
+
+// §7h — true only if the server said this module is on for this organisation. Fails CLOSED (Session 331):
+// before, a missing map (e.g. a new tab) meant every module was on.
 export function hasModule(key) {
   const raw = sessionStorage.getItem(SESSION_KEYS.MODULES);
-  if (!raw) return true;
-  const mods = JSON.parse(raw);
-  return mods[key] !== false;
+  if (!raw) return false;
+  try { return JSON.parse(raw)[key] === true; } catch { return false; }
 }
 
 export function getCurrentModules() {
@@ -709,6 +716,10 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
       return;
     }
   }
+
+  // Session 331: modules come from the server on EVERY protected page load, in every tab -- this block
+  // used to skip them when it re-fetched the profile, and hasModule() then treated every module as on.
+  await _loadModules();
 
   if (allowedRoles.length > 0) {
     const role = getCurrentRole();
