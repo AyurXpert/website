@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Pharmacy Bill - AyurXpert</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'"/>
+  <meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=DM+Sans:wght@400;600;700&display=swap"/>
+  <link rel="stylesheet" href="css/print-final-bill.css"/>
+</head>
+<body>
+
+<div class="toolbar">
+  <button type="button" class="btn" id="print-btn" data-onclick="print" disabled>Print / Save PDF</button>
+  <span id="status" class="status-msg" role="status" aria-live="polite"></span>
+</div>
+
+<main class="sheet" id="invoice">
+  <p class="loading">Loading bill…</p>
+</main>
+
+<script type="module" src="js/pages/printPharmacyBill.js"></script>
+</body>
+</html>

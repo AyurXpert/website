@@ -93,7 +93,7 @@ async function loadReceipt() {
       supabase.from('patients').select('name, uhid').eq('id', pp.patient_id).maybeSingle(),
       supabase.from('bills').select('bill_type, document_number, created_at').eq('id', pp.bill_id).maybeSingle(),
     ]);
-    const billLabel = { consultation: 'OPD visit bill', investigation: 'Lab / investigation bill' }[String(opdBill?.bill_type || '').toLowerCase()] || 'OPD bill';
+    const billLabel = { consultation: 'OPD visit bill', investigation: 'Lab / investigation bill', pharmacy: 'Pharmacy bill' }[String(opdBill?.bill_type || '').toLowerCase()] || 'OPD bill';
     document.getElementById('patientInfo').innerHTML = `
       <div><b>Patient:</b> ${_esc(opdPt?.name || '—')}${opdPt?.uhid ? ' · UHID ' + _esc(opdPt.uhid) : ''}</div>
       <div><b>Against:</b> ${_esc(billLabel)}${opdBill?.document_number ? ' ' + _esc(opdBill.document_number) : ''} · ${_esc(_fmtDateTime(opdBill?.created_at))}</div>

@@ -70,6 +70,11 @@ async function loadInvoice() {
 
     // Session 327c: OPD visit bills and lab bills have their own document (letterhead, bill number,
     // "Service / Test" table, payment section) -- this page keeps pharmacy bills.
+    // Session 334: pharmacy bills too -- printPharmacyBill.html (one line per batch, pharmacist, receipt)
+    if (bill && billCategory(bill.bill_type) === 'pharmacy') {
+      window.location.replace(`printPharmacyBill.html?billId=${encodeURIComponent(billId)}`)
+      return
+    }
     if (bill && ['opd', 'investigation'].includes(billCategory(bill.bill_type))) {
       window.location.replace(`printOpdBill.html?billId=${encodeURIComponent(billId)}`)
       return

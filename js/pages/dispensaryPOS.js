@@ -10,6 +10,7 @@ import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../mo
 import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
 import { aggregateByMedicine } from '../modules/inventory/stockByMedicine.js';
+import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
 
 await requireAuth(['pharmacist', 'super_admin', 'dept_admin']);
 initNavbar();
@@ -584,7 +585,13 @@ async function dispense() {
     // the server's bill total (Session 332) -- it prices from the batches it actually took
     // Session 333: printed from the SERVER's stored lines (one per batch, with batch + expiry) and its totals /
     // receipt -- never from the cart
-    if (!isIpd) _printInvoice(bill.id, sale, payMethod);
+    // Session 334: the proper pharmacy Bill cum Receipt (bill number, batch + expiry per line, prescriber,
+    // pharmacist, receipt, ORIGINAL / DUPLICATE decided by the server). Falls back to the in-page slip only if
+    // the pop-up is blocked.
+    if (!isIpd) {
+      const w = window.open(`printPharmacyBill.html?billId=${encodeURIComponent(bill.id)}`, '_blank');
+      if (!w) { notify('Pop-up blocked — printing the short slip here instead. Allow pop-ups to print the full bill.', 'warning'); _printInvoice(bill.id, sale, payMethod); }
+    }
 
     _toast(isIpd
       ? `${_esc(_activeRx.patient?.name)} — dispensed, charged to the IPD stay`
@@ -1010,6 +1017,18 @@ async function _recordControlledSupplies(payable) {
       '\n\nIt is listed under "Dispensed — not in register" on this page. Record it there today.');
   }
 }
+
+// Session 334 -- pharmacy bills & receipts of any date (the server shows a pharmacist pharmacy bills only)
+let _billsMounted = false;
+window.openBillsTab = function() {
+  document.getElementById('bills-panel').style.display = '';
+  document.getElementById('main-panel').style.display = 'none';
+  if (!_billsMounted) { mountVisitsBillsSearch(document.getElementById('bills-search-root'), { supabase }); _billsMounted = true; }
+};
+window.closeBillsTab = function() {
+  document.getElementById('bills-panel').style.display = 'none';
+  document.getElementById('main-panel').style.display = '';
+};
 
 let _h1Meds = [];
 window.openH1Tab = async function() {

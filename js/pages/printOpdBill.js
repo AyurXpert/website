@@ -246,6 +246,8 @@ async function load() {
   if (!billId) { showError('No bill specified.'); return }
   const { data: bill, error } = await supabase.from('bills').select('*').eq('id', billId).single()
   if (error || !bill) { showError(safeErrorMessage(error, 'Could not load the bill.')); return }
+  // Session 334: a pharmacy bill has its own document (batch + expiry per line, pharmacist, prescriber)
+  if (bill.bill_type === 'pharmacy') { window.location.replace(`printPharmacyBill.html?billId=${encodeURIComponent(billId)}`); return }
 
   const [items, patient, visit, pays, taxS, isDemo] = await Promise.all([
     supabase.from('bill_items')
