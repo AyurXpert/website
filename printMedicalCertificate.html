@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Medical Certificate — AyurXpert</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cloudflareinsights.com https://static.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"/>
+<meta http-equiv="X-Content-Type-Options" content="nosniff"/>
+<link rel="icon" href="assets/icon.svg"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --green-deep:#1a4a2e;--green-mid:#2d7a4f;--green-light:#e8f5ee;
+  --gold:#c9902a;--cream:#faf8f3;--white:#fff;
+  --text-dark:#1c2b1f;--text-mid:#4a6352;--text-muted:#8a9e90;
+  --border:#d4e6da;--red:#c0392b;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-dark);padding:32px 16px;min-height:100vh}
+.page-wrap{max-width:680px;margin:0 auto}
+.toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:20px}
+.print-btn{display:flex;align-items:center;gap:8px;min-height:44px;padding:10px 20px;background:var(--green-deep);color:#fff;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer}
+.print-btn:hover{background:#1f5c37}
+.print-btn:disabled{opacity:.55;cursor:not-allowed}
+.ax-paper-pick{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--text-mid)}
+.ax-paper-pick select{min-height:44px;padding:0 10px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;background:#fff}
+
+.mc-card{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 2px 16px rgba(0,0,0,.07)}
+.demo-banner{margin:10px 24px 0;padding:6px 10px;border:2px solid var(--red);color:var(--red);font-weight:700;font-size:12px;text-align:center;letter-spacing:.4px}
+.mc-header{display:flex;align-items:center;gap:12px;padding:18px 24px 12px;border-bottom:3px double var(--green-deep)}
+.mc-logo{width:48px;height:48px;object-fit:contain;border-radius:8px;border:1px solid var(--border);flex-shrink:0}
+.org-name{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:600;color:var(--green-deep)}
+.org-tagline{font-size:11px;color:var(--text-muted);font-style:italic;margin-top:2px}
+.org-lines{font-size:12px;color:var(--text-mid);margin-top:3px;line-height:1.5}
+.mc-titlebar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 24px;background:#f5fbf8;border-bottom:1px solid var(--border)}
+.mc-title{font-size:17px;font-weight:700;letter-spacing:2px;color:var(--green-deep);text-transform:uppercase}
+.mc-no{border:1.5px solid var(--green-deep);border-radius:8px;padding:6px 12px;text-align:right}
+.mc-no-label{font-size:10px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted)}
+.mc-no-value{font-size:16px;font-weight:700;color:var(--green-deep);font-variant-numeric:tabular-nums;letter-spacing:.5px}
+.copy-strip{padding:6px 24px;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--green-deep);background:var(--green-light);border-bottom:1px solid var(--border);text-align:right}
+.copy-strip.dup{color:#7a1f1f;background:#fdf0f0}
+.mc-body{padding:22px 24px 8px;font-size:14px;line-height:1.9}
+.mc-body p{margin:0 0 12px}
+.mc-remarks{font-size:13px;color:var(--text-mid);line-height:1.7}
+.mc-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;padding:26px 24px 18px}
+.mc-meta{font-size:12px;color:var(--text-mid);line-height:1.7}
+.sig-line{border-top:1px solid var(--text-muted);min-width:200px;max-width:280px;padding-top:6px;text-align:center;font-size:12px;color:var(--text-mid)}
+.sig-name{font-weight:600;color:var(--text-dark)}
+.sig-cred{font-size:11px;color:var(--text-mid);margin-top:1px}
+.sig-caption{font-size:11px;color:var(--text-muted);margin-top:4px}
+.copy-foot{padding:6px 24px;font-size:10.5px;color:var(--text-mid);border-top:1px solid var(--border)}
+.mc-powered{text-align:center;padding:8px;border-top:1px solid var(--border);font-size:10px;color:var(--text-muted)}
+.state-msg{text-align:center;padding:60px 24px;color:var(--text-muted);font-size:14px}
+html[data-paper="a5"] .page-wrap{max-width:520px}
+html[data-paper="a5"] .mc-card{font-size:92%}
+html[data-paper="a5"] .mc-body{font-size:13px}
+html[data-paper="a5"] .org-name{font-size:21px}
+@media print{
+  body{background:#fff;padding:0}
+  .toolbar{display:none}
+  .mc-card{box-shadow:none;border:none;border-radius:0}
+  .page-wrap{max-width:680px;margin:0 auto}
+}
+</style>
+<link rel="stylesheet" href="css/print.css"/>
+</head>
+<!-- ax-printing + .ax-print-root (css/print.css): only the certificate prints. -->
+<body class="ax-printing">
+
+<div class="page-wrap ax-print-root">
+  <div class="toolbar no-print">
+    <button class="print-btn" id="print-btn" data-onclick="printCertificateNow" disabled>🖨 Print Certificate</button>
+    <span id="paper-slot"></span>
+  </div>
+
+  <div class="mc-card" id="mc-card">
+    <div class="state-msg" id="state-msg">Loading certificate…</div>
+  </div>
+</div>
+
+<script type="module" src="js/pages/printMedicalCertificate.js"></script>
+</body>
+</html>

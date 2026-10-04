@@ -75,6 +75,16 @@ function prescriptionRow(rx) {
     b)
 }
 
+// Session 338b: the visit's medical certificates (MC/<fy>/<n>), same roles and pattern as prescriptions
+const CERT_LABEL = { medical: 'Medical', fitness: 'Fitness', sick_leave: 'Sick leave' }
+function certificateRow(c) {
+  const b = printButton(`🖨 ${c.certificate_no}`, c.prints, () => window.open(`printMedicalCertificate.html?certId=${encodeURIComponent(c.id)}`, '_blank'))
+  return el('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 0;border-top:1px solid var(--border)' },
+    el('span', { style: 'min-width:130px;font-weight:600' }, `${CERT_LABEL[c.cert_type] || 'Medical'} certificate`),
+    el('span', { style: 'min-width:160px;color:var(--text-mid);font-size:12px' }, `${day(c.issued_at)}${c.doctor ? ' · ' + c.doctor : ''}`),
+    b)
+}
+
 function resultCard(row) {
   const p = row.patient || {}
   const v = row.visit
@@ -111,7 +121,7 @@ export function mountVisitsBillsSearch(root, { supabase }) {
   root.replaceChildren(
     el('div', { style: 'padding:12px' },
       el('div', { style: 'font-size:12px;color:var(--text-muted);margin-bottom:8px' },
-        'Open and completed visits with their OPD / lab bills, receipts and prescriptions. A UHID (AYX/…), bill no. (B/…) or receipt no. (RCPT/…) is searched across ALL dates. '
+        'Open and completed visits with their OPD / lab bills, receipts, prescriptions and medical certificates. A UHID (AYX/…), bill no. (B/…) or receipt no. (RCPT/…) is searched across ALL dates. '
         + 'A name or phone uses the date range (at most 31 days) unless you tick “All dates”. Newest first, at most 100 shown. '
         + 'Every reprint after the first is marked “Duplicate copy”.'),
       el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, q, from, el('span', null, 'to'), to, allLabel, go, clear),
@@ -158,6 +168,12 @@ export function mountVisitsBillsSearch(root, { supabase }) {
     for (const p of rx.data) {
       const card = [...results.children].find(c => c.dataset.visitId === p.visit_id)
       if (card) card.appendChild(prescriptionRow(p))
+    }
+    const mc = await supabase.rpc('list_visit_certificates', { p_visit_ids: vids })
+    if (mine !== seq || mc.error || !Array.isArray(mc.data)) return
+    for (const c of mc.data) {
+      const card = [...results.children].find(x => x.dataset.visitId === c.visit_id)
+      if (card) card.appendChild(certificateRow(c))
     }
   }
   go.addEventListener('click', run)

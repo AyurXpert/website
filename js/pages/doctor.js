@@ -1077,6 +1077,13 @@ window.openPatientHistory = async function(patientId) {
   (rxHeaders || []).filter(r => r.review_status === 'finalized' && !r.is_deleted)
     .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
     .forEach(r => { rxPrintable[r.visit_id] = r.id; });
+  // Session 338b: the visits' medical certificates (MC numbers), reprinted through the print audit
+  const { data: certRows } = visitIds.length
+    ? await supabase.rpc('list_visit_certificates', { p_visit_ids: visitIds })
+    : { data: [] };
+  const certsByVisit = {};
+  (Array.isArray(certRows) ? certRows : []).forEach(c => { (certsByVisit[c.visit_id] ||= []).push(c); });
+  const certLabel = { medical: 'Medical', fitness: 'Fitness', sick_leave: 'Sick leave' };
   const rxIds = Object.keys(rxIdToVisit);
 
   const { data: rxItems } = rxIds.length
@@ -1123,6 +1130,10 @@ window.openPatientHistory = async function(patientId) {
         ${rxPrintable[v.id] ? `<button type="button" data-onclick="reprintPrescription" data-onclick-a0="${_esc(rxPrintable[v.id])}" style="min-height:44px;padding:0 12px;font-size:12px;font-weight:600;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--green-deep);cursor:pointer" title="Reprint — marked Duplicate copy after the first print">🖨 Reprint prescription</button>` : ''}
       </div>
       ${rxHtml}
+      ${(certsByVisit[v.id] || []).length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
+        <span style="font-size:12px;font-weight:600;color:var(--green-deep)">📄 Certificates</span>
+        ${certsByVisit[v.id].map(c => `<button type="button" data-onclick="reprintCertificate" data-onclick-a0="${_esc(c.id)}" style="min-height:44px;padding:0 12px;font-size:12px;font-weight:600;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--green-deep);cursor:pointer" title="Reprint — marked Duplicate copy after the first print">🖨 ${_esc(c.certificate_no)} · ${_esc(certLabel[c.cert_type] || 'Certificate')}</button>`).join('')}
+      </div>` : ''}
     </div>`;
   }).join('') || '<div style="color:#aaa;text-align:center;padding:30px">No past consultations found</div>';
 
@@ -7408,19 +7419,30 @@ window.openMcModal = function() {
   document.getElementById('mc-rest-from').value = todayLocalStr();
   document.getElementById('mc-rest-to').value   = '';
   document.getElementById('mc-remarks').value   = '';
+  _mcIssuedId = null;
+  _mcShowForm(true);
   document.getElementById('mc-overlay').style.display = 'flex';
 };
 window.closeMcModal = function() {
   document.getElementById('mc-overlay').style.display = 'none';
 };
 
-// Session 338: the certificate is ISSUED first (issue_medical_certificate -- a doctor only, add-only register) and
-// printed from what was stored, including the doctor's verified identity stamped at that moment.
+// Session 338 / 338b: the certificate is ISSUED first (issue_medical_certificate -- a doctor only, add-only register,
+// number MC/<fy>/<n> + the doctor's verified identity stored with it). The modal then shows the number and a
+// Print button: the print page opens from that click (a window.open after an await is blocked as a pop-up) and
+// records ORIGINAL / DUPLICATE COPY No. N itself (printMedicalCertificate.html).
 let _mcIssuing = false;
+let _mcIssuedId = null;
+function _mcShowForm(show) {
+  document.getElementById('mc-form-body').style.display = show ? '' : 'none';
+  document.getElementById('mc-form-foot').style.display = show ? '' : 'none';
+  document.getElementById('mc-done').style.display = show ? 'none' : '';
+}
 window.printMedCert = async function() {
-  if (_mcIssuing) return;
-  const tenant   = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
+  if (_mcIssuing || !_activePatient) return;
   _mcIssuing = true;
+  const btn = document.getElementById('mc-issue-btn');
+  if (btn) btn.disabled = true;
   const { data: cert, error: certErr } = await supabase.rpc('issue_medical_certificate', {
     p_patient: _activePatient.id, p_visit: _activeVisitId || null,
     p_cert_type: document.getElementById('mc-type').value,
@@ -7431,73 +7453,21 @@ window.printMedCert = async function() {
     p_remarks: document.getElementById('mc-remarks').value.trim() || null,
   });
   _mcIssuing = false;
+  if (btn) btn.disabled = false;
   if (certErr) { _toast(safeErrorMessage(certErr, 'Could not issue the certificate.'), 'error'); return; }
-  const date     = new Date(cert.issued_at).toLocaleDateString('en-IN', {day:'2-digit',month:'long',year:'numeric',timeZone:'Asia/Kolkata'});
-  const certType = cert.cert_type;
-  const diag     = cert.diagnosis || '';
-  const fromDate = cert.rest_from || '';
-  const toDate   = cert.rest_to || '';
-  const advice   = cert.advice;
-  const remarks  = cert.remarks || '';
-  const signer   = cert.doctor_identity || {};
-
-  const certTitle = certType === 'fitness' ? 'CERTIFICATE OF FITNESS'
-                  : certType === 'sick_leave' ? 'SICK LEAVE CERTIFICATE'
-                  : 'MEDICAL CERTIFICATE';
-  const adviceText = {
-    rest:       'Complete rest is advised.',
-    light_duty: 'Light duty only — no strenuous physical work.',
-    fit:        'The patient is fit to resume normal duties / work / school.',
-    unfit:      'The patient is unfit for duties / work / school.',
-    custom:     remarks || '',
-  }[advice] || '';
-
-  const restStr = fromDate
-    ? `from <strong>${new Date(fromDate+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})}</strong>` +
-      (toDate ? ` to <strong>${new Date(toDate+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})}</strong>` : '')
-    : '';
-  // The doctor's verified identity as stamped on the certificate (qualification, Reg. No. + council, HPR ID)
-  const credHtml = identityLines(signer).map(l => `<div style="font-size:11px;color:#2a4a32">${_esc(l)}</div>`).join('');
-
-  document.getElementById('mc-print').innerHTML = `
-<div style="font-family:'DM Sans',sans-serif;max-width:600px;margin:0 auto;padding:0;color:#1c2b1f">
-  <div style="text-align:center;padding:16px 20px 10px;border-bottom:3px double #1a4a2e">
-    <div style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:#1a4a2e">${_esc(tenant.name || 'Ayurveda Hospital')}</div>
-    <div style="font-size:11px;color:#6a8070;margin-top:2px">${_esc(tenant.city||'')} ${_esc(tenant.state||'')}</div>
-  </div>
-  <div style="text-align:center;padding:12px;background:#f5fbf8;border-bottom:1px solid #c8ddd0">
-    <div style="font-size:16px;font-weight:700;letter-spacing:2px;color:#1a4a2e;text-transform:uppercase">${_esc(certTitle)}</div>
-  </div>
-  <div style="padding:20px 24px">
-    <p style="font-size:13px;line-height:1.9;margin:0 0 14px">
-      This is to certify that <strong>${_esc(_activePatient.name)}</strong>
-      (UHID: ${_esc(uhidOf(_activePatient))}${_activePatient.phone ? ', Ph: '+_esc(_activePatient.phone) : ''})
-      attended this clinic on <strong>${date}</strong>
-      ${diag ? `and is suffering from / was examined for <strong>${_esc(diag)}</strong>` : ''}.
-    </p>
-    <p style="font-size:13px;line-height:1.9;margin:0 0 6px">
-      ${_esc(adviceText)}
-      ${restStr ? `Rest is advised ${restStr}.` : ''}
-    </p>
-    ${remarks && advice !== 'custom' ? `<p style="font-size:12px;color:#4a6352;line-height:1.7;margin:6px 0 0">${_esc(remarks)}</p>` : ''}
-    <div style="margin-top:32px;display:flex;justify-content:space-between;align-items:flex-end">
-      <div style="font-size:11px;color:#8a9e90">
-        <div>Date: ${date}</div>
-        <div style="margin-top:2px">UHID: ${_esc(uhidOf(_activePatient))}</div>
-      </div>
-      <div style="text-align:center">
-        <div style="width:180px;border-top:1px solid #aaa;padding-top:6px;font-size:12px;color:#2a4a32">
-          <strong>${_esc(signer.name || profile.full_name)}</strong>
-          ${credHtml}
-        </div>
-      </div>
-    </div>
-  </div>
-  <div style="text-align:center;padding:8px;font-size:9px;color:#aaa;border-top:1px solid #eee">Powered by AyurXpert Technologies™</div>
-</div>`;
-
-  document.getElementById('mc-overlay').style.display = 'none';
-  printDocument(document.getElementById('mc-print'), { title: `${certTitle} — ${_activePatient.name}` });
+  _mcIssuedId = cert.id;
+  document.getElementById('mc-done-no').textContent = cert.certificate_no || '';
+  document.getElementById('mc-done-msg').textContent = '';
+  _mcShowForm(false);
+  document.getElementById('mc-done-print').focus();
+};
+window.printIssuedMedCert = function() {
+  if (!_mcIssuedId) return;
+  const w = window.open(`printMedicalCertificate.html?certId=${encodeURIComponent(_mcIssuedId)}`, '_blank');
+  document.getElementById('mc-done-msg').textContent = w
+    ? 'The certificate opened in a new tab — print it from there.'
+    : 'The certificate page could not open — the browser blocked it. Allow pop-ups for this site and press Print again. '
+      + 'You can also reprint it any time from the patient\'s visit history.';
 };
 
 // ── §18ac — Paediatric Dose Calculator ───────────
