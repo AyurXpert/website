@@ -453,6 +453,28 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         </select>
       </div>
     </div>
+    <!-- Session 340: this pharmacy's own medicine list (item master) -->
+    <div class="field-row">
+      <div class="field">
+        <label for="f-form">Form <span style="color:var(--red)">*</span></label>
+        <select id="f-form"></select>
+      </div>
+      <div class="field">
+        <label for="f-strength">Strength</label>
+        <input id="f-strength" type="text" maxlength="60" placeholder="e.g. 500 mg, 1:16"/>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label for="f-mfr">Manufacturer</label>
+        <input id="f-mfr" type="text" maxlength="120" placeholder="e.g. AVS, Kottakkal"/>
+      </div>
+      <div class="field" id="deact-reason-wrap" style="display:none">
+        <label for="f-deact-reason">Reason for deactivating <span style="color:var(--red)">*</span></label>
+        <input id="f-deact-reason" type="text" maxlength="500" placeholder="e.g. no longer stocked"/>
+      </div>
+    </div>
+    <div id="item-master-note" style="font-size:12px;color:var(--text-muted);margin:2px 0 10px"></div>
 
     <!-- Indications -->
     <div class="section-divider">Indications <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:10px">(diseases/conditions this medicine treats)</span></div>

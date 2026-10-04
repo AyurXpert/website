@@ -164,7 +164,11 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   const CATALOGUE_MSGS = ['Only the AyurXpert platform administrator', 'Enter the medicine name', 'Choose the form', 'Enter the pack / unit',
     'Unknown form', 'HSN must be', 'The default GST rate', 'This medicine is already', 'Medicine not found', 'Say whether the medicine',
     'Give the reason for deactivating', 'Reason is too long', 'Name is too long', 'Strength is too long', 'Pack / unit is too long',
-    'Manufacturer is too long', 'Category is too long', 'Unknown status filter'];
+    'Manufacturer is too long', 'Category is too long', 'Unknown status filter',
+    // Session 340: each organisation's own medicine list
+    'Only the pharmacy team or an administrator can add a medicine', 'Only an administrator or the pharmacy in-charge',
+    'This medicine is already in your list', 'That medicine is not in this organisation', 'A medicine always belongs',
+    'Brand is too long', 'Sign in again', 'Your account is not active'];
   if (['P0001','42501','22023','P0002'].includes(error?.code)
       && (CATALOGUE_MSGS.some(m => error?.message?.startsWith(m))
           || /^".{1,200}" has been withdrawn from the AyurXpert medicine catalogue/.test(error?.message || ''))) {

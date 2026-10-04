@@ -195,6 +195,26 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div id="line-items"></div>
     <div class="add-line-row">
       <button class="btn btn-ghost btn-sm" id="btn-add-line">+ Add Item</button>
+      <!-- Session 340: a medicine not yet in this pharmacy's own list is added here, during the receipt -->
+      <button class="btn btn-ghost btn-sm" id="btn-new-med" type="button" style="margin-left:8px">＋ New medicine (not in your list)</button>
+    </div>
+    <div id="new-med-panel" style="display:none;margin-top:12px;border:1.5px solid var(--green-mid);background:var(--green-light);border-radius:10px;padding:14px" aria-live="polite">
+      <div style="font-weight:600;color:var(--green-deep);margin-bottom:10px">Add a medicine to this pharmacy's list</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px">Name *<input id="nm-name" maxlength="200" style="min-height:44px;padding:0 10px;border:1.5px solid var(--border,#d4e6da);border-radius:8px"/></label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px">Form *<select id="nm-form" style="min-height:44px;padding:0 10px;border:1.5px solid var(--border,#d4e6da);border-radius:8px"></select></label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px">Strength<input id="nm-strength" maxlength="60" placeholder="e.g. 500 mg" style="min-height:44px;padding:0 10px;border:1.5px solid var(--border,#d4e6da);border-radius:8px"/></label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px">Pack / unit *<input id="nm-unit" maxlength="40" placeholder="e.g. 100 Nos, 450 ml" style="min-height:44px;padding:0 10px;border:1.5px solid var(--border,#d4e6da);border-radius:8px"/></label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px">Manufacturer<input id="nm-mfr" maxlength="120" style="min-height:44px;padding:0 10px;border:1.5px solid var(--border,#d4e6da);border-radius:8px"/></label>
+        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px">HSN<input id="nm-hsn" maxlength="8" inputmode="numeric" style="min-height:44px;padding:0 10px;border:1.5px solid var(--border,#d4e6da);border-radius:8px"/></label>
+      </div>
+      <div id="nm-warn" role="alert" style="display:none;margin-top:10px;border:1.5px solid var(--gold,#c9902a);background:#fdf3e2;border-radius:8px;padding:10px 12px;font-size:13px"></div>
+      <div id="nm-err" role="alert" style="color:#c0392b;font-size:13px;margin-top:8px"></div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" id="nm-save" type="button">Add to my list</button>
+        <button class="btn btn-secondary btn-sm" id="nm-save-anyway" type="button" style="display:none">Add anyway</button>
+        <button class="btn btn-ghost btn-sm" id="nm-cancel" type="button">Cancel</button>
+      </div>
     </div>
   </div>
 

@@ -6,6 +6,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { aggregateByMedicine } from '../modules/inventory/stockByMedicine.js';
+import { fillFormSelect } from '../modules/inventory/medicineForms.js';
 
 await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
 initNavbar();
@@ -30,9 +31,9 @@ let _ocrImageType   = null;
 let _ocrExtractedItems = [];
 
 // ── Load medicines ─────────────────────────────────
-// Session 332: every ACTIVE medicine in the shared catalogue can be received -- not only those already in
-// this pharmacy's stock (receive_stock() creates the first batch). This pharmacy's last MRP / cost, where it
-// has stock rows, pre-fills the line.
+// Session 340: this pharmacy's OWN active medicines (each organisation owns its list -- RLS returns only its own rows),
+// not only those already in stock (receive_stock() creates the first batch). A medicine not yet in the list is added
+// here during the receipt ("＋ New medicine"). This pharmacy's last MRP / cost, where it has stock rows, pre-fills the line.
 async function loadMedicines() {
   const [{ data: cat }, { data: inv }] = await Promise.all([
     supabase.from('medicines').select('id, name, is_active, barcode, unit').eq('is_active', true),
@@ -224,6 +225,73 @@ function updateSummary() {
 }
 
 document.getElementById('btn-add-line').addEventListener('click', () => addLine());
+
+// ── Session 340: add a medicine to this pharmacy's own list during the receipt ──
+const _nm = id => document.getElementById(id);
+fillFormSelect(_nm('nm-form'));
+function _nmReset() {
+  ['nm-name', 'nm-strength', 'nm-unit', 'nm-mfr', 'nm-hsn'].forEach(id => { _nm(id).value = ''; });
+  _nm('nm-form').value = ''; _nm('nm-err').textContent = '';
+  _nm('nm-warn').style.display = 'none'; _nm('nm-warn').replaceChildren(); _nm('nm-save-anyway').style.display = 'none';
+}
+_nm('btn-new-med').addEventListener('click', () => { _nmReset(); _nm('new-med-panel').style.display = ''; _nm('nm-name').focus(); });
+_nm('nm-cancel').addEventListener('click', () => { _nm('new-med-panel').style.display = 'none'; });
+function _nmArgs() {
+  return { p_name: _nm('nm-name').value, p_form: _nm('nm-form').value || null, p_strength: _nm('nm-strength').value,
+           p_unit: _nm('nm-unit').value, p_manufacturer: _nm('nm-mfr').value, p_hsn: _nm('nm-hsn').value || null, p_gst_percent: null };
+}
+// rebuilds one line's medicine list with DOM nodes (same data-* attributes as medOptions())
+function _refillMedSelect(sel, keep) {
+  const blank = document.createElement('option');
+  blank.value = ''; blank.textContent = '— Select medicine —';
+  const opts = _medicines.map(m => {
+    const o = document.createElement('option');
+    o.value = m.id; o.textContent = m.label || m.name;
+    o.dataset.mrp = m.mrp || 0; o.dataset.cost = m.cost || 0; o.dataset.barcode = m.barcode || '';
+    o.dataset.profit = m.profit || 0; o.dataset.gst = m.gst || 0;
+    return o;
+  });
+  sel.replaceChildren(blank, ...opts);
+  sel.value = keep || '';
+}
+async function _nmCreate() {
+  _nm('nm-save').disabled = _nm('nm-save-anyway').disabled = true;
+  const { data, error } = await supabase.rpc('pharmacy_item_create_during_receipt', _nmArgs());
+  _nm('nm-save').disabled = _nm('nm-save-anyway').disabled = false;
+  if (error) { _nm('nm-err').textContent = safeErrorMessage(error, 'Could not add the medicine.'); return; }
+  _medicines.push({ id: data.id, name: data.name, label: data.unit ? `${data.name} [${data.unit}]` : data.name, barcode: null,
+                    mrp: null, cost: null, gst: 0, profit: 0 });
+  _medicines.sort((a, b) => a.name.localeCompare(b.name));
+  // refresh every line's list (keeping its choice), then put the new medicine on the first empty line (or a new one)
+  document.querySelectorAll('.sel-med').forEach(sel => _refillMedSelect(sel, sel.value));
+  const empty = [...document.querySelectorAll('.sel-med')].find(sel => !sel.value);
+  if (empty) { empty.value = data.id; empty.dispatchEvent(new Event('change')); } else addLine({ medId: data.id });
+  _nm('new-med-panel').style.display = 'none';
+  notify(`"${data.name}" added to your list`, 'success');
+}
+// similar names already in the list are a warning (an exact duplicate is refused by the server)
+_nm('nm-save').addEventListener('click', async () => {
+  _nm('nm-err').textContent = ''; _nm('nm-warn').style.display = 'none'; _nm('nm-save-anyway').style.display = 'none';
+  const a = _nmArgs();
+  if (a.p_name.trim().length >= 3) {
+    const { data: near, error } = await supabase.rpc('pharmacy_item_near_duplicates', { p_name: a.p_name, p_form: a.p_form, p_exclude: null });
+    if (error) { _nm('nm-err').textContent = safeErrorMessage(error, 'Could not check for similar medicines.'); return; }
+    if (Array.isArray(near) && near.length) {
+      const ul = document.createElement('ul');
+      ul.style.margin = '6px 0 0 18px';
+      near.forEach(n => { const li = document.createElement('li');
+        li.textContent = `${n.name}${n.strength ? ' · ' + n.strength : ''}${n.unit ? ' · ' + n.unit : ''}${n.manufacturer ? ' · ' + n.manufacturer : ''}${n.is_active ? '' : ' — inactive'}`;
+        ul.appendChild(li); });
+      const head = document.createElement('strong');
+      head.textContent = 'Similar medicines are already in your list — pick one of them on the line instead, if it is the same:';
+      _nm('nm-warn').replaceChildren(head, ul);
+      _nm('nm-warn').style.display = ''; _nm('nm-save-anyway').style.display = '';
+      return;
+    }
+  }
+  await _nmCreate();
+});
+_nm('nm-save-anyway').addEventListener('click', _nmCreate);
 document.getElementById('btn-clear').addEventListener('click', () => {
   if (!confirm('Clear all items?')) return;
   document.getElementById('line-items').innerHTML = '';

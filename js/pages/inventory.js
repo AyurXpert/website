@@ -1,4 +1,5 @@
 import { requireAuth, getCurrentTenantId, getCurrentProfile } from '../core/auth.js';
+import { fillFormSelect, ITEM_MASTER_ROLES } from '../modules/inventory/medicineForms.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
@@ -12,11 +13,17 @@ wireDelegatedEvents();
 
 const tenantId = getCurrentTenantId();
 const profile  = getCurrentProfile();
+const canItemMaster = ITEM_MASTER_ROLES.includes(profile?.role) || profile?.secondary_role === 'dept_admin';
 let _items  = [];
 let _adjType = 'remove';   // Session 332: adding stock is a goods receipt (Purchase / GRN), never an adjustment
 // Session 332: the shared medicine catalogue (name, category, brand, unit, barcode, image, indications, active,
 // anupana, classical reference, dosage) is changed only by AyurXpert (platform admin) -- read-only here.
-const CATALOGUE_FIELDS = ['f-name', 'f-cat', 'f-brand', 'f-unit', 'f-barcode', 'f-active', 'f-anupana', 'f-classical-ref', 'f-dosage', 'f-image'];
+const CATALOGUE_FIELDS = ['f-name', 'f-cat', 'f-brand', 'f-unit', 'f-barcode', 'f-active', 'f-anupana', 'f-classical-ref', 'f-dosage', 'f-image',
+                          'f-form', 'f-strength', 'f-mfr'];
+// Session 340: each organisation owns its medicine list. These fields are saved through pharmacy_item_save() by an
+// administrator (super_admin, or a dept_admin when the pharmacy module is on -- the server re-checks); a pharmacist sees
+// them read-only and adds new medicines while receiving stock (Purchase / GRN).
+const ITEM_FIELDS = ['f-name', 'f-cat', 'f-brand', 'f-unit', 'f-form', 'f-strength', 'f-mfr'];
 // a RECEIVED batch's identity is what the supplier delivered -- fixed (DB guard trg_inventory_browser_guard)
 const RECEIVED_BATCH_FIELDS = ['f-mrp', 'f-expiry', 'f-batch'];
 let _tags   = [];
@@ -81,7 +88,8 @@ async function loadInventory() {
              profit_percent, max_stock, expiry_date, inward_date, supplier_name, batch_number,
              is_gmp_certified, gmp_certificate_no, is_student_batch,
              is_high_risk, is_lasa, lasa_pair, is_schedule_h, is_schedule_h1, is_schedule_e1, is_ndps,
-             medicine:medicines(id, name, category, is_active, indications, barcode, med_id, brand, unit, image_url, anupana, classical_reference, dosage_text)`)
+             medicine:medicines(id, name, category, is_active, indications, barcode, med_id, brand, unit, image_url, anupana, classical_reference, dosage_text,
+                                dosage_form, strength, manufacturer, gst_percent, hsn_code, is_high_risk, is_schedule_e1)`)
     .eq('tenant_id', tenantId);
 
   if (error) { console.error('loadInventory error:', error); _alert('error', safeErrorMessage(error, 'Failed to load inventory.')); return; }
@@ -440,9 +448,17 @@ function openPanel(invId) {
 
   _tags = [];
 
-  // Session 332: on EDIT the catalogue fields are read-only (AyurXpert maintains the shared catalogue); on ADD the
-  // name is typed to find the medicine in that catalogue, the other catalogue fields are not used.
-  CATALOGUE_FIELDS.forEach(id => { const el = document.getElementById(id); if (el) el.disabled = isEdit || id !== 'f-name'; });
+  // Session 340: the medicine's own fields are editable by an administrator (add and edit); Active / Inactive only on edit;
+  // barcode / indications / classical text / image are not part of the item master save and stay read-only.
+  CATALOGUE_FIELDS.forEach(id => { const el = document.getElementById(id);
+    if (el) el.disabled = !(canItemMaster && (ITEM_FIELDS.includes(id) || (id === 'f-active' && isEdit))); });
+  fillFormSelect(document.getElementById('f-form'), '');
+  document.getElementById('f-strength').value = '';
+  document.getElementById('f-mfr').value = '';
+  document.getElementById('f-deact-reason').value = '';
+  document.getElementById('deact-reason-wrap').style.display = 'none';
+  document.getElementById('item-master-note').textContent = canItemMaster ? '' :
+    'Medicine details are kept by an administrator. To add a new medicine, receive it through Purchase / GRN (＋ New medicine).';
   const tagWrap = document.getElementById('tag-wrap');
   if (tagWrap) tagWrap.style.pointerEvents = 'none';
   const editItem = isEdit ? _items.find(i => i.id === invId) : null;
@@ -462,6 +478,9 @@ function openPanel(invId) {
     document.getElementById('f-unit').value       = item.medicine.unit || '';
     document.getElementById('f-barcode').value    = item.medicine.barcode || '';
     document.getElementById('f-active').value     = String(item.medicine.is_active !== false);
+    fillFormSelect(document.getElementById('f-form'), item.medicine.dosage_form || '');
+    document.getElementById('f-strength').value   = item.medicine.strength || '';
+    document.getElementById('f-mfr').value        = item.medicine.manufacturer || '';
     document.getElementById('f-mrp').value        = item.mrp || '';
     document.getElementById('f-gst').value        = item.gst_percent ?? 0;
     document.getElementById('f-profit').value     = item.profit_percent || '';
@@ -529,6 +548,10 @@ document.getElementById('overlay').addEventListener('click', closePanel);
 document.getElementById('btn-close-panel').addEventListener('click', closePanel);
 document.getElementById('btn-cancel-panel').addEventListener('click', closePanel);
 function openEdit(invId) { openPanel(invId); }
+// Session 340: deactivating a medicine needs a reason (asked only when it is switched to Inactive)
+document.getElementById('f-active').addEventListener('change', e => {
+  document.getElementById('deact-reason-wrap').style.display = e.target.value === 'false' ? '' : 'none';
+});
 
 // ── Save medicine ────────────────────────────────────
 document.getElementById('btn-save-med').addEventListener('click', async () => {
@@ -570,6 +593,27 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
       // Session 332: only this pharmacy's stock-row fields are saved -- the shared catalogue entry is read-only
       // here, and a RECEIVED batch keeps its batch number / expiry / MRP (the database refuses a change).
       const editItem = _items.find(i => i.id === invId);
+      if (canItemMaster && editItem) {
+        const m = editItem.medicine;
+        const f = { name, form: document.getElementById('f-form').value, strength: document.getElementById('f-strength').value.trim(),
+                    unit: document.getElementById('f-unit').value.trim(), mfr: document.getElementById('f-mfr').value.trim(),
+                    brand: document.getElementById('f-brand').value.trim(), cat: document.getElementById('f-cat').value };
+        const changed = f.name !== m.name || f.form !== (m.dosage_form || '') || f.strength !== (m.strength || '') || f.unit !== (m.unit || '')
+                     || f.mfr !== (m.manufacturer || '') || f.brand !== (m.brand || '') || f.cat !== (m.category || '');
+        if (changed) {
+          const { error: me } = await supabase.rpc('pharmacy_item_save', {
+            p_id: m.id, p_name: f.name, p_form: f.form || null, p_strength: f.strength, p_unit: f.unit, p_manufacturer: f.mfr,
+            p_brand: f.brand, p_category: f.cat, p_hsn: m.hsn_code, p_gst_percent: m.gst_percent,
+            p_is_high_risk: !!m.is_high_risk, p_is_schedule_e1: !!m.is_schedule_e1 });
+          if (me) throw me;
+        }
+        const wantActive = document.getElementById('f-active').value === 'true';
+        if (wantActive !== (m.is_active !== false)) {
+          const { error: ae } = await supabase.rpc('pharmacy_item_set_active', {
+            p_id: m.id, p_active: wantActive, p_reason: document.getElementById('f-deact-reason').value.trim() || null });
+          if (ae) throw ae;
+        }
+      }
       const patch = { mrp, cost_price: cp, gst_percent: gstPct, profit_percent: profPct,
                       reorder_level: reorder, max_stock: maxStock,
                       inward_date: inward, expiry_date: expiry, batch_number: batch, supplier_name: supplier,
@@ -581,26 +625,22 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
       if (ie) throw ie;
       _alert('success', `"${name}" updated.`);
     } else {
-      // Session 332: a medicine is added from the shared AyurXpert catalogue (exact name), with 0 stock --
-      // the catalogue itself is maintained by AyurXpert, and stock arrives through Purchase / GRN.
+      // Session 340: the medicine is created in THIS pharmacy's own list (item master), then a 0-stock row is added --
+      // stock arrives through Purchase / GRN. A pharmacist adds new medicines during a goods receipt instead.
+      if (!canItemMaster) {
+        _alert('error', 'Only an administrator can add a medicine here — receive it through Purchase / GRN (＋ New medicine) instead.');
+        btn.disabled = false; btn.textContent = 'Save Medicine'; return;
+      }
       const exists = _items.find(i => i.medicine.name.toLowerCase() === name.toLowerCase());
       if (exists) { _alert('error', `"${name}" already exists.`); btn.disabled = false; btn.textContent = 'Save Medicine'; return; }
-      const { data: found, error: fe } = await supabase.from('medicines')
-        .select('id, name, is_active').ilike('name', name.replace(/[\\%_]/g, c => '\\' + c)).limit(2);
-      if (fe) throw fe;
-      const med = (found || []).find(m => m.is_active !== false) || (found || [])[0];
-      // Session 339: a medicine withdrawn from the catalogue cannot be added (it could never be received or prescribed)
-      if (med && med.is_active === false) {
-        _alert('error', `"${med.name}" has been withdrawn from the AyurXpert medicine catalogue and cannot be added.`);
-        btn.disabled = false; btn.textContent = 'Save Medicine'; return;
-      }
-      if (!med) {
-        _alert('error', `"${name}" is not in the AyurXpert medicine catalogue. Ask AyurXpert support to add it — then add it here.`);
-        btn.disabled = false; btn.textContent = 'Save Medicine'; return;
-      }
-      if (_items.some(i => i.medicine.id === med.id)) {
-        _alert('error', `"${med.name}" is already in your inventory.`); btn.disabled = false; btn.textContent = 'Save Medicine'; return;
-      }
+      const { data: created, error: ce } = await supabase.rpc('pharmacy_item_save', {
+        p_id: null, p_name: name, p_form: document.getElementById('f-form').value || null,
+        p_strength: document.getElementById('f-strength').value.trim(), p_unit: document.getElementById('f-unit').value.trim(),
+        p_manufacturer: document.getElementById('f-mfr').value.trim(), p_brand: document.getElementById('f-brand').value.trim(),
+        p_category: document.getElementById('f-cat').value, p_hsn: null, p_gst_percent: gstPct,
+        p_is_high_risk: isHighRisk, p_is_schedule_e1: isScheduleE1 });
+      if (ce) throw ce;
+      const med = { id: created.id, name: created.name };
       const { error: ie } = await supabase.from('inventory').insert({
         tenant_id: tenantId, medicine_id: med.id,
         stock_quantity: 0, mrp, cost_price: cp, gst_percent: gstPct,
