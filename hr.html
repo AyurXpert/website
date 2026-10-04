@@ -137,6 +137,25 @@ textarea{resize:vertical;min-height:70px}
 .modal-close{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1}
 .modal-body{padding:20px}
 .modal-foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+
+/* Session 337 — Registration on bills (pending verification + printed values) */
+.bc-row{border:1.5px solid var(--border);border-left:4px solid var(--gold);border-radius:8px;padding:12px 14px;margin-bottom:10px;background:var(--white)}
+.bc-row-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.bc-name{font-size:13px;font-weight:600;color:var(--green-deep)}
+.bc-meta{font-size:11px;color:var(--text-muted);margin-top:2px}
+.bc-compare{display:grid;grid-template-columns:minmax(110px,auto) 1fr 1fr;gap:4px 12px;font-size:12px;margin-bottom:10px}
+.bc-compare .bc-h{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted)}
+.bc-compare .bc-new{font-weight:600;color:var(--text-dark);word-break:break-word}
+.bc-compare .bc-old{color:var(--text-mid);word-break:break-word}
+.bc-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.bc-own{font-size:12px;color:var(--text-mid);font-style:italic}
+.bc-reject-box{margin-top:10px;display:none}
+.bc-reject-box.show{display:block}
+.bc-reject-box textarea{margin-bottom:8px}
+.bc-panel{border:1.5px solid var(--green-mid);background:var(--green-light);border-radius:8px;padding:14px;margin-bottom:14px}
+.bc-panel-title{font-size:13px;font-weight:600;color:var(--green-deep);margin-bottom:10px}
+.bc-panel-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+@media(max-width:600px){.bc-panel .form-grid{grid-template-columns:1fr}.bc-panel .field.span2{grid-column:span 1}.bc-compare{grid-template-columns:1fr}}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
 </head>
@@ -340,6 +359,43 @@ textarea{resize:vertical;min-height:70px}
 
   <!-- ── TAB: CREDENTIALS & PRIVILEGING (NABH HRM.11/12 CORE) ── -->
   <div class="tab-pane" id="tab-credentials">
+    <!-- Session 337 (TODO §132) — Registration No. / council / qualification PRINTED ON BILLS.
+         Staff submit from My Profile; a super_admin / dept_admin of this organisation verifies.
+         Nobody verifies their own. Only verified values print. -->
+    <div class="card" id="bc-pending-card">
+      <div class="card-hdr">
+        <div>
+          <div class="card-title">🧾 Registration on bills — pending verification</div>
+          <div class="card-sub">Submitted by staff from My Profile. Check the certificate under the staff member's Official Documents, then Verify or Reject. Bills print only verified details.</div>
+        </div>
+        <button class="btn btn-outline btn-sm" data-onclick="loadBillCredentials">↻ Refresh</button>
+      </div>
+      <div id="bc-pending-list" role="list"><div class="empty">Loading…</div></div>
+    </div>
+
+    <div class="card" id="bc-staff-card">
+      <div class="card-hdr">
+        <div>
+          <div class="card-title">Printed on bills now</div>
+          <div class="card-sub">Verified Registration No., council and qualification of professional staff. Use Correct only to fix a value from the original certificate — the reason is recorded.</div>
+        </div>
+      </div>
+      <div id="bc-correct-panel" class="bc-panel" style="display:none" aria-live="polite">
+        <div class="bc-panel-title" id="bc-correct-title">Correct printed details</div>
+        <div class="form-grid">
+          <div class="field"><label for="bc-c-reg">Registration No.</label><input id="bc-c-reg" type="text" maxlength="50" autocomplete="off"/></div>
+          <div class="field"><label for="bc-c-council">Issuing council / board</label><input id="bc-c-council" type="text" maxlength="120" autocomplete="off"/></div>
+          <div class="field span2"><label for="bc-c-qual">Qualification</label><input id="bc-c-qual" type="text" maxlength="120" autocomplete="off"/></div>
+          <div class="field span2"><label for="bc-c-reason">Reason for the correction (required)</label><textarea id="bc-c-reason" maxlength="500" placeholder="e.g. Entered from the original registration certificate"></textarea></div>
+        </div>
+        <div class="bc-panel-actions">
+          <button class="btn btn-primary" id="bc-c-save" data-onclick="saveCredentialCorrection">Save correction</button>
+          <button class="btn btn-outline" data-onclick="closeCredentialCorrection">Cancel</button>
+        </div>
+      </div>
+      <div id="bc-staff-list"><div class="empty">Loading…</div></div>
+    </div>
+
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <div>
         <div style="font-size:16px;font-weight:600;color:var(--green-deep)">🏅 Credentials & Privileging Register</div>

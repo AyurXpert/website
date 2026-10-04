@@ -1,5 +1,5 @@
 import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId,
-         getCurrentRole, getPendingApprovals } from '../core/auth.js';
+         getCurrentRole, getPendingApprovals, hasModule } from '../core/auth.js';
 import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, collectedAmount } from '../modules/billing/billCategory.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase }   from '../core/db/supabaseClient.js';
@@ -98,6 +98,9 @@ function _bootMasterControl() {
   }
 
   // HR sub-tabs
+  // Session 337: the "Credentials (Reg. No.)" pointer goes to hr.html, which needs the HR module
+  const credLink = document.getElementById('hr-credentials-link');
+  if (credLink && !hasModule('hr')) credLink.style.display = 'none';
   document.querySelectorAll('.hr-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.hr-tab').forEach(b=>b.classList.remove('active'));
@@ -7025,6 +7028,7 @@ window.loadOrgProfile = function() {
   document.getElementById('orgp-address').value = tenant?.full_address || tenant?.address || '';
   document.getElementById('orgp-phone').value   = tenant?.phone || '';
   document.getElementById('orgp-gstin').value   = tenant?.gstin || '';
+  document.getElementById('orgp-license').value = tenant?.license_number || '';
 
   const preview = document.getElementById('orgp-logo-preview');
   const placeholder = document.getElementById('orgp-logo-placeholder');
@@ -7037,7 +7041,7 @@ window.loadOrgProfile = function() {
     placeholder.style.display = '';
   }
 
-  ['orgp-tagline','orgp-address','orgp-phone','orgp-gstin'].forEach(id => {
+  ['orgp-tagline','orgp-address','orgp-phone','orgp-gstin','orgp-license'].forEach(id => {
     document.getElementById(id).disabled = !iAmSuperAdmin;
   });
   document.getElementById('orgp-logo-btn').style.display = iAmSuperAdmin ? '' : 'none';
@@ -7139,13 +7143,27 @@ window.saveOrgProfile = async function() {
     p_tagline: tagline || null, p_full_address: address || null,
     p_phone: phone || null, p_gstin: gstin || null, p_logo_url: newLogoUrl,
   });
-  btn.disabled = false;
   if (error) {
+    btn.disabled = false;
     statusEl.innerHTML = `<span style="color:#dc2626">${_esc(safeErrorMessage(error, 'Could not save.'))}</span>`;
     return;
   }
 
+  // Session 337 (TODO §132): the drug / pharmacy licence no. has its own audited RPC (old -> new in
+  // audit_logs); tenants.license_number is not browser-writable. A no-change call writes nothing.
+  const license = document.getElementById('orgp-license').value.trim();
+  const { data: licRes, error: licErr } = await supabase.rpc('set_tenant_license', { p_license_number: license || null });
+  btn.disabled = false;
+  if (licErr) {
+    const errSpan = document.createElement('span');
+    errSpan.style.color = '#dc2626';
+    errSpan.textContent = safeErrorMessage(licErr, 'Profile saved, but the licence no. could not be saved.');
+    statusEl.replaceChildren(errSpan);
+    return;
+  }
+
   if (tenant) {
+    tenant.license_number = licRes?.license_number ?? (license || null);
     tenant.tagline = tagline || null;
     tenant.full_address = address || null;
     tenant.phone = phone || null;

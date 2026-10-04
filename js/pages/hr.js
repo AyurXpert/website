@@ -38,7 +38,7 @@ window.switchTab = function(id) {
   if (id === 'leave')       loadLeaves();
   if (id === 'training')    loadTrainings();
   if (id === 'health')      loadHealth();
-  if (id === 'credentials') loadCredentials();
+  if (id === 'credentials') { window.loadBillCredentials(); loadCredentials(); }
 };
 
 // ── Load all on init ────────────────────────────────────
@@ -872,6 +872,209 @@ function _csvDownload(rows, name) {
 
 await init();
 
+// ── Registration printed on bills (Session 337, TODO §132) ───────────────────
+// Staff submit from My Profile (submit_my_professional_credentials); a super_admin / dept_admin
+// of this organisation verifies or rejects here. Bills / prescriptions print ONLY the verified
+// values on profiles. Nobody verifies or corrects their own (also enforced server-side).
+// Mirrors the server's _is_professional_role().
+const BC_PROFESSIONAL_ROLES = ['doctor', 'trainee_doctor', 'pharmacist', 'nurse', 'nurse_manager', 'lab_tech',
+  'therapist', 'super_admin', 'dept_admin'];
+let _bcCorrectId = null;
+let _bcStaffById = {};
+
+function _bcEl(tag, props = {}, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'text') el.textContent = v;
+    else if (k === 'class') el.className = v;
+    else if (k === 'data') Object.entries(v).forEach(([dk, dv]) => el.setAttribute(`data-${dk}`, dv));
+    else el.setAttribute(k, v);
+  }
+  children.flat().forEach(c => { if (c != null) el.append(c); });
+  return el;
+}
+function _bcDate(iso) {
+  return iso ? new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+}
+function _bcEmpty(box, msg) { box.replaceChildren(_bcEl('div', { class: 'empty', text: msg })); }
+
+window.loadBillCredentials = async function() {
+  // printed list first: the pending card also lists on-file values (from before verification) taken from it
+  await _loadPrintedCredentials();
+  await _loadPendingCredentials();
+};
+
+async function _loadPendingCredentials() {
+  const box = document.getElementById('bc-pending-list');
+  const { data, error } = await supabase.rpc('list_pending_professional_credentials');
+  if (error) { _bcEmpty(box, safeErrorMessage(error, 'Could not load pending submissions.')); return; }
+  // Values recorded before verification existed: they keep printing, labelled "On file (before
+  // verification)", until an admin verifies them here (stamp only -- the values are not changed).
+  const onFile = Object.values(_bcStaffById).filter(p => !p.credentials_verified_at
+    && (p.registration_number || p.registration_council || p.qualification));
+  if (!data?.length && !onFile.length) { _bcEmpty(box, 'Nothing waiting for verification.'); return; }
+
+  const onFileRows = onFile.map(p => {
+    const details = _bcEl('div', { class: 'bc-compare' },
+      ...[['Registration No.', 'registration_number'], ['Council / board', 'registration_council'], ['Qualification', 'qualification']]
+        .flatMap(([label, key]) => [
+          _bcEl('div', { class: 'bc-h', text: label }),
+          _bcEl('div', { class: 'bc-new', text: p[key] || '—' }),
+          _bcEl('div', { class: 'bc-old', text: '' }),
+        ]));
+    const actions = _bcEl('div', { class: 'bc-actions' },
+      p.id === sess.id
+        ? _bcEl('span', { class: 'bc-own', text: 'Your own — another admin must verify it.' })
+        : _bcEl('button', { class: 'btn btn-approve btn-sm', type: 'button', data: { onclick: 'verifyOnFileCredential', 'onclick-a0': p.id, 'onclick-a1': '@this' }, text: '✔ Verify as on file' }),
+      _bcEl('span', { class: 'bc-own', text: 'Wrong? Use Correct in "Printed on bills now".' }));
+    return _bcEl('div', { class: 'bc-row', role: 'listitem' },
+      _bcEl('div', { class: 'bc-row-top' },
+        _bcEl('div', {},
+          _bcEl('div', { class: 'bc-name', text: p.full_name || '—' }),
+          _bcEl('div', { class: 'bc-meta', text: `${p.designation || p.role || ''} · On file (before verification) — printing now` }))),
+      details, actions);
+  });
+
+  box.replaceChildren(...onFileRows, ...(data || []).map(s => {
+    const sourceLabel = s.source === 'signup' ? 'typed at staff signup' : 'from My Profile';
+    const compare = _bcEl('div', { class: 'bc-compare' },
+      _bcEl('div', { class: 'bc-h', text: '' }), _bcEl('div', { class: 'bc-h', text: 'Submitted' }), _bcEl('div', { class: 'bc-h', text: 'Printed now' }),
+      ...[['Registration No.', 'registration_number'], ['Council / board', 'registration_council'], ['Qualification', 'qualification']]
+        .flatMap(([label, key]) => [
+          _bcEl('div', { class: 'bc-h', text: label }),
+          _bcEl('div', { class: 'bc-new', text: s[key] || '—' }),
+          _bcEl('div', { class: 'bc-old', text: s['current_' + key] || '—' }),
+        ]));
+
+    const actions = _bcEl('div', { class: 'bc-actions' });
+    const rejectBox = _bcEl('div', { class: 'bc-reject-box', id: `bc-rej-${s.id}` },
+      _bcEl('label', { for: `bc-rej-reason-${s.id}`, text: 'Reason for rejecting (required — the staff member sees it)', style: 'font-size:12px;font-weight:500;color:var(--text-mid);display:block;margin-bottom:5px' }),
+      _bcEl('textarea', { id: `bc-rej-reason-${s.id}`, maxlength: '500', placeholder: 'e.g. Number does not match the certificate uploaded' }),
+      _bcEl('div', { class: 'bc-actions' },
+        _bcEl('button', { class: 'btn btn-reject btn-sm', type: 'button', data: { onclick: 'confirmRejectCredential', 'onclick-a0': s.id }, text: 'Confirm reject' }),
+        _bcEl('button', { class: 'btn btn-outline btn-sm', type: 'button', data: { onclick: 'toggleRejectCredential', 'onclick-a0': s.id }, text: 'Cancel' })));
+    if (s.is_own) {
+      actions.append(_bcEl('span', { class: 'bc-own', text: 'Your own submission — another admin must verify it.' }));
+    } else {
+      actions.append(
+        _bcEl('button', { class: 'btn btn-approve btn-sm', type: 'button', data: { onclick: 'verifyCredential', 'onclick-a0': s.id, 'onclick-a1': '@this' }, text: '✔ Verify' }),
+        _bcEl('button', { class: 'btn btn-reject btn-sm', type: 'button', data: { onclick: 'toggleRejectCredential', 'onclick-a0': s.id }, text: '✖ Reject…' }));
+    }
+    return _bcEl('div', { class: 'bc-row', role: 'listitem' },
+      _bcEl('div', { class: 'bc-row-top' },
+        _bcEl('div', {},
+          _bcEl('div', { class: 'bc-name', text: s.full_name || '—' }),
+          _bcEl('div', { class: 'bc-meta', text: `${s.designation || s.role || ''} · submitted ${_bcDate(s.submitted_at)} (${sourceLabel})` }))),
+      compare, actions, s.is_own ? null : rejectBox);
+  }));
+}
+
+async function _loadPrintedCredentials() {
+  const box = document.getElementById('bc-staff-list');
+  const { data, error } = await supabase.from('profiles')
+    .select('id, full_name, role, secondary_role, designation, registration_number, registration_council, qualification, credentials_verified_at, credentials_verified_by')
+    .eq('tenant_id', tenantId).eq('is_active', true).order('full_name');
+  if (error) { _bcEmpty(box, safeErrorMessage(error, 'Could not load staff.')); return; }
+  const staff = (data || []).filter(p => BC_PROFESSIONAL_ROLES.includes(p.role) || BC_PROFESSIONAL_ROLES.includes(p.secondary_role));
+  if (!staff.length) { _bcEmpty(box, 'No professional staff yet.'); return; }
+  const names = Object.fromEntries((data || []).map(p => [p.id, p.full_name]));
+
+  const head = _bcEl('tr', {}, ...['Name', 'Role', 'Registration No.', 'Council / board', 'Qualification', 'Verified', ''].map(h => _bcEl('th', { text: h, scope: 'col' })));
+  const rows = staff.map(p => {
+    const verified = p.credentials_verified_at
+      ? `${_bcDate(p.credentials_verified_at)}${p.credentials_verified_by && names[p.credentials_verified_by] ? ' · ' + names[p.credentials_verified_by] : ''}`
+      : (p.registration_number || p.qualification ? 'On file (before verification)' : '—');
+    const action = p.id === sess.id
+      ? _bcEl('span', { class: 'bc-own', text: 'You' })
+      : _bcEl('button', { class: 'btn btn-outline btn-sm', type: 'button',
+          data: { onclick: 'openCredentialCorrection', 'onclick-a0': p.id }, text: 'Correct' });
+    return _bcEl('tr', {},
+      _bcEl('td', { text: p.full_name || '—', style: 'font-weight:600' }),
+      _bcEl('td', { text: p.designation || p.role || '—', style: 'color:var(--text-muted)' }),
+      _bcEl('td', { text: p.registration_number || '—' }),
+      _bcEl('td', { text: p.registration_council || '—' }),
+      _bcEl('td', { text: p.qualification || '—' }),
+      _bcEl('td', { text: verified, style: 'font-size:12px' }),
+      _bcEl('td', {}, action));
+  });
+  _bcStaffById = Object.fromEntries(staff.map(p => [p.id, p]));
+  box.replaceChildren(_bcEl('div', { class: 'tbl-wrap' }, _bcEl('table', {}, _bcEl('thead', {}, head), _bcEl('tbody', {}, rows))));
+}
+
+window.verifyCredential = async function(id, btn) {
+  if (btn) btn.disabled = true;
+  const { error } = await supabase.rpc('verify_professional_credentials', { p_submission: id });
+  if (btn) btn.disabled = false;
+  if (error) { _toast(safeErrorMessage(error, 'Could not verify.'), 'error'); return; }
+  _toast('Verified — these details now print on bills', 'success');
+  loadBillCredentials();
+};
+
+window.verifyOnFileCredential = async function(profileId, btn) {
+  if (btn) btn.disabled = true;
+  const { error } = await supabase.rpc('verify_onfile_professional_credentials', { p_staff: profileId });
+  if (btn) btn.disabled = false;
+  if (error) { _toast(safeErrorMessage(error, 'Could not verify.'), 'error'); return; }
+  _toast('Verified — the details on file are now marked verified', 'success');
+  loadBillCredentials();
+};
+
+window.toggleRejectCredential = function(id) {
+  const box = document.getElementById(`bc-rej-${id}`);
+  if (!box) return;
+  box.classList.toggle('show');
+  if (box.classList.contains('show')) document.getElementById(`bc-rej-reason-${id}`)?.focus();
+};
+
+window.confirmRejectCredential = async function(id) {
+  const reason = (document.getElementById(`bc-rej-reason-${id}`)?.value || '').trim();
+  if (reason.length < 5) { _toast('Give the reason for rejecting (at least 5 characters).', 'error'); return; }
+  const { error } = await supabase.rpc('reject_professional_credentials', { p_submission: id, p_reason: reason });
+  if (error) { _toast(safeErrorMessage(error, 'Could not reject.'), 'error'); return; }
+  _toast('Rejected — the staff member sees the reason in My Profile', 'success');
+  loadBillCredentials();
+};
+
+window.openCredentialCorrection = function(profileId) {
+  const p = _bcStaffById[profileId];
+  if (!p) return;
+  _bcCorrectId = profileId;
+  document.getElementById('bc-correct-title').textContent = `Correct printed details — ${p.full_name || ''}`;
+  document.getElementById('bc-c-reg').value = p.registration_number || '';
+  document.getElementById('bc-c-council').value = p.registration_council || '';
+  document.getElementById('bc-c-qual').value = p.qualification || '';
+  document.getElementById('bc-c-reason').value = '';
+  const panel = document.getElementById('bc-correct-panel');
+  panel.style.display = '';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  document.getElementById('bc-c-reg').focus();
+};
+
+window.closeCredentialCorrection = function() {
+  _bcCorrectId = null;
+  document.getElementById('bc-correct-panel').style.display = 'none';
+};
+
+window.saveCredentialCorrection = async function() {
+  if (!_bcCorrectId) return;
+  const reason = document.getElementById('bc-c-reason').value.trim();
+  if (reason.length < 5) { _toast('Give the reason for the correction (at least 5 characters).', 'error'); return; }
+  const btn = document.getElementById('bc-c-save');
+  btn.disabled = true;
+  const { error } = await supabase.rpc('admin_correct_professional_credentials', {
+    p_staff: _bcCorrectId,
+    p_registration_number: document.getElementById('bc-c-reg').value.trim() || null,
+    p_registration_council: document.getElementById('bc-c-council').value.trim() || null,
+    p_qualification: document.getElementById('bc-c-qual').value.trim() || null,
+    p_reason: reason,
+  });
+  btn.disabled = false;
+  if (error) { _toast(safeErrorMessage(error, 'Could not save the correction.'), 'error'); return; }
+  _toast('Correction saved — prints on bills from now on', 'success');
+  closeCredentialCorrection();
+  loadBillCredentials();
+};
+
 // ── NABH Credentials & Privileging ───────────────────────────────────────────
 let _credEditId = null;
 
@@ -932,7 +1135,7 @@ window.openCredModal = async function(credId) {
   _credEditId = credId || null;
   document.getElementById('cred-modal').style.display = 'flex';
   // Load staff for selector
-  const { data: staff } = await supabase.from('profiles').select('id,full_name,role').eq('tenant_id',tenantId).eq('is_active',true).in('role',['doctor','nurse','therapist','lab_tech']);
+  const { data: staff } = await supabase.from('profiles').select('id,full_name,role').eq('tenant_id',tenantId).eq('is_active',true).in('role',['doctor','trainee_doctor','pharmacist','nurse','therapist','lab_tech']);
   const sel = document.getElementById('cred-profile-sel');
   sel.innerHTML = '<option value="">— Select staff member —</option>' + (staff||[]).map(s=>`<option value="${s.id}" data-role="${_esc(s.role)}">${_esc(s.full_name)} (${_esc(s.role)})</option>`).join('');
   sel.onchange = () => _loadHprForProfile(sel.value);
@@ -957,7 +1160,6 @@ window.saveCred = async function() {
   const profileSel = document.getElementById('cred-profile-sel');
   const profileId = profileSel.value;
   if (!profileId) { _toast('Select a staff member','error'); return; }
-  const isDoctor = profileSel.selectedOptions[0]?.dataset.role === 'doctor';
   const hprDigits = (document.getElementById('cred-hpr-id').value || '').replace(/\D/g,'');
   if (hprDigits && hprDigits.length !== 14) { _toast('HPR ID must be exactly 14 digits','error'); return; }
   const payload = {
@@ -990,18 +1192,15 @@ window.saveCred = async function() {
   // touching another user's row directly; the RPC re-checks same-tenant + admin).
   const { error: hprErr } = await supabase.rpc('set_staff_hpr_id', { p_staff_id: profileId, p_hpr_id: hprDigits || null });
   if (hprErr) { _toast('Credentials saved, but HPR ID failed: ' + safeErrorMessage(hprErr), 'error'); closeCredModal(); loadCredentials(); return; }
-  // Session 308c — for a doctor only, the same Reg. Number also goes onto profiles.registration_number
-  // (via RPC, same reason as HPR ID above) so it can be snapshotted onto a prescription at the moment
-  // it's created/finalized. staff_credentials.registration_number stays the NABH-credentialing record;
-  // these two currently live separately (TODO_LATER: reconcile into one source).
-  if (isDoctor) {
-    const { error: regErr } = await supabase.rpc('set_staff_registration_number', {
-      p_staff_id: profileId,
-      p_registration_number: payload.registration_number,
-    });
-    if (regErr) { _toast('Credentials saved, but registration number for prescriptions failed: ' + safeErrorMessage(regErr), 'error'); closeCredModal(); loadCredentials(); return; }
-  }
+  // Session 337: this NABH register no longer writes the Reg. No. that prints on bills /
+  // prescriptions (Session 308c's set_staff_registration_number() bypassed verification and is
+  // now closed to browsers). The printed value comes only from "Registration on bills" above —
+  // staff submit from My Profile, an admin verifies or corrects it there.
   _toast('Credentials saved','success');
   closeCredModal();
   loadCredentials();
 };
+
+// Session 337: deep link from the admin icon rail / Admin → Human Resources ("hr.html#credentials").
+// Runs last so every function above (and the let bindings they read) already exists.
+if (window.location.hash === '#credentials') window.switchTab('credentials');

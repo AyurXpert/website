@@ -272,6 +272,7 @@ async function loadProfileTab() {
     }
   }
 
+  await loadProfessionalRegistration();
   await loadDocuments();
 }
 
@@ -304,6 +305,102 @@ window.onPhotoSelected = async function (input) {
   if (dbErr) { _toast(safeErrorMessage(dbErr, 'Photo uploaded but could not be linked. Please try again.'), 'error'); return; }
   _toast('Photo updated ✓', 'success');
   await loadProfileTab();
+};
+
+// ── Professional registration (Session 337, TODO §132) ─────────────────────
+// Staff submit their Reg. No. / issuing council / qualification; an admin of the organisation
+// verifies it in HR → Credentials. Bills and prescriptions print ONLY the verified values on
+// the profile — a pending change never prints. Mirrors the server's _is_professional_role().
+const PROFESSIONAL_ROLES = ['doctor', 'trainee_doctor', 'pharmacist', 'nurse', 'nurse_manager', 'lab_tech',
+  'therapist', 'super_admin', 'dept_admin'];
+
+function _setText(id, value) { document.getElementById(id).textContent = value || '—'; }
+
+async function loadProfessionalRegistration() {
+  const card = document.getElementById('pr-card');
+  const { data: me, error } = await supabase.from('profiles')
+    .select('role, secondary_role, registration_number, registration_council, qualification, credentials_verified_at, credentials_verified_by')
+    .eq('id', _uid).single();
+  if (error || !me) { card.style.display = 'none'; return; }
+  if (!PROFESSIONAL_ROLES.includes(me.role) && !PROFESSIONAL_ROLES.includes(me.secondary_role)) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  const { data: subs } = await supabase.from('professional_credential_submissions')
+    .select('id, status, registration_number, registration_council, qualification, submitted_at, decided_at, rejection_reason')
+    .eq('profile_id', _uid).order('submitted_at', { ascending: false }).limit(5);
+  const pending = (subs || []).find(s => s.status === 'pending') || null;
+  const lastDecided = (subs || []).find(s => s.status === 'verified' || s.status === 'rejected') || null;
+
+  let verifierName = '';
+  if (me.credentials_verified_by) {
+    const { data: v } = await supabase.from('profiles').select('full_name').eq('id', me.credentials_verified_by).maybeSingle();
+    verifierName = v?.full_name || '';
+  }
+
+  const hasPrinted = !!(me.registration_number || me.registration_council || me.qualification);
+  _setText('pr-v-reg', me.registration_number);
+  _setText('pr-v-council', me.registration_council);
+  _setText('pr-v-qual', me.qualification);
+  document.getElementById('pr-verified-block').style.display = hasPrinted ? '' : 'none';
+
+  document.getElementById('pr-pending-block').style.display = pending ? '' : 'none';
+  if (pending) {
+    _setText('pr-p-reg', pending.registration_number);
+    _setText('pr-p-council', pending.registration_council);
+    _setText('pr-p-qual', pending.qualification);
+  }
+
+  const statusEl = document.getElementById('pr-status');
+  statusEl.className = 'pr-status';
+  if (pending) {
+    statusEl.classList.add('pending');
+    statusEl.textContent = `⏳ Pending verification — submitted ${_fmtDateDisplay(pending.submitted_at)}.` +
+      (hasPrinted ? ' Bills keep printing your verified details until this is approved.' : ' Nothing prints on bills until it is approved.');
+  } else if (lastDecided?.status === 'rejected' && !(me.credentials_verified_at && new Date(me.credentials_verified_at) > new Date(lastDecided.decided_at))) {
+    statusEl.classList.add('rejected');
+    statusEl.textContent = `✖ Rejected on ${_fmtDateDisplay(lastDecided.decided_at)} — reason: ${lastDecided.rejection_reason || '—'}. Correct the details and submit again.`;
+  } else if (me.credentials_verified_at) {
+    statusEl.classList.add('verified');
+    statusEl.textContent = `✔ Verified on ${_fmtDateDisplay(me.credentials_verified_at)}${verifierName ? ' by ' + verifierName : ''}.`;
+  } else if (hasPrinted) {
+    statusEl.textContent = 'On file — recorded before verification existed. Submit your details to have them verified.';
+  } else {
+    statusEl.textContent = 'Not submitted — your bills and prescriptions print no registration number yet.';
+  }
+
+  // pre-fill the form with what's pending, else what's verified, so a correction starts from it
+  const src = pending || me;
+  document.getElementById('pr-reg').value = src.registration_number || '';
+  document.getElementById('pr-council').value = src.registration_council || '';
+  document.getElementById('pr-qual').value = src.qualification || '';
+  document.getElementById('pr-form-title').textContent = pending ? 'Change the pending submission'
+    : (hasPrinted ? 'Submit a change for verification' : 'Submit for verification');
+}
+
+window.submitProfessionalCredentials = async function () {
+  const alertEl = document.getElementById('pr-alert');
+  alertEl.classList.remove('show');
+  const reg = document.getElementById('pr-reg').value.trim();
+  const council = document.getElementById('pr-council').value.trim();
+  const qual = document.getElementById('pr-qual').value.trim();
+  if (!reg || !council || !qual) {
+    alertEl.textContent = 'Enter the Registration No., the issuing council / board and your qualification.';
+    alertEl.classList.add('show');
+    return;
+  }
+  const btn = document.getElementById('pr-submit-btn');
+  btn.disabled = true;
+  const { error } = await supabase.rpc('submit_my_professional_credentials', {
+    p_registration_number: reg, p_registration_council: council, p_qualification: qual,
+  });
+  btn.disabled = false;
+  if (error) {
+    alertEl.textContent = safeErrorMessage(error, 'Could not submit your registration details.');
+    alertEl.classList.add('show');
+    return;
+  }
+  _toast('Sent for verification ✓', 'success');
+  await loadProfessionalRegistration();
 };
 
 // ── Official documents ──────────────────────────────────────────────────────

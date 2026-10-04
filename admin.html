@@ -562,6 +562,8 @@ tr:hover td{background:#fafff8}
           <button class="btn-outline hr-tab" data-sub="orgstaff">🏢 Organisation Staff<span class="badge-count" id="hr-tab-orgstaff-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="terminated">🚫 Terminated Staff<span class="badge-count" id="hr-tab-terminated-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="leave" id="hr-tab-leave-btn" style="display:none">📅 Leave &amp; Holidays</button>
+          <!-- Session 337 (TODO §132): Reg. No. / qualification verification lives on hr.html, not in these tabs -->
+          <a class="btn-outline" id="hr-credentials-link" href="hr.html#credentials" style="text-decoration:none;display:inline-flex;align-items:center">🏅 Credentials (Reg. No.) ↗</a>
         </div>
       </div>
       <div id="hr-seed-bar" style="display:none;background:#fef9ec;border:1px solid #f5c842;border-radius:8px;padding:8px 14px;margin-bottom:14px;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
@@ -1093,6 +1095,11 @@ tr:hover td{background:#fafff8}
                   <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">GSTIN</label>
                   <input id="orgp-gstin" type="text" placeholder="e.g. 29ABCDE1234F1Z5" data-oninput="updateOrgPreview" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:14px;font-family:'DM Sans',sans-serif;text-transform:uppercase"/>
                 </div>
+              </div>
+              <!-- Session 337 (TODO §132): printed on pharmacy bills; saved through set_tenant_license() (Super Admin, audited) -->
+              <div>
+                <label for="orgp-license" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Drug / pharmacy licence no. <span style="font-weight:400;text-transform:none">(optional — printed on pharmacy bills)</span></label>
+                <input id="orgp-license" type="text" maxlength="100" autocomplete="off" placeholder="e.g. 20B: KA-BNG-123456 / 21B: KA-BNG-123457" style="width:100%;height:40px;border:1.5px solid var(--border);border-radius:8px;padding:0 12px;font-size:14px;font-family:'DM Sans',sans-serif"/>
               </div>
             </div>
           </div>

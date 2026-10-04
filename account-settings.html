@@ -96,6 +96,19 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 .leave-status.pending{background:var(--gold-light);color:#8a6100}
 .leave-status.approved{background:var(--green-light);color:var(--green-deep);border:1px solid var(--green-mid)}
 .leave-status.rejected{background:var(--red-light);color:var(--red)}
+
+/* Session 337 — Professional Registration card */
+.pr-status{border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px;background:var(--cream);border:1px solid var(--border);color:var(--text-mid)}
+.pr-status.verified{background:var(--green-light);border-color:var(--green-mid);color:var(--green-deep)}
+.pr-status.pending{background:var(--gold-light);border-color:var(--gold);color:#6b4a00}
+.pr-status.rejected{background:var(--red-light);border-color:var(--red);color:var(--red)}
+.pr-block{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px}
+.pr-block-pending{border-color:var(--gold);background:var(--gold-light)}
+.pr-block-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-mid);margin-bottom:8px}
+.pr-dl{display:grid;grid-template-columns:minmax(120px,auto) 1fr;gap:4px 14px;font-size:13px}
+.pr-dl dt{color:var(--text-muted)}
+.pr-dl dd{color:var(--text-dark);font-weight:500;word-break:break-word}
+.pr-form-title{font-size:13px;font-weight:600;color:var(--text-dark);margin:6px 0 10px;padding-top:12px;border-top:1px dashed var(--border)}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
 </head>
@@ -166,6 +179,47 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
         <div class="field"><label>Date of Joining 🔒</label><input type="text" id="pf-doj" disabled/></div>
 
         <button class="btn btn-primary" style="width:auto" data-onclick="saveProfile">Save Changes</button>
+      </div>
+    </div>
+
+    <!-- Session 337 (TODO §132) — professional registration printed on bills / prescriptions.
+         Staff submit; an admin of the organisation verifies. Only verified details print. -->
+    <div class="cc" id="pr-card" style="display:none">
+      <div class="cc-hd">
+        <div class="cc-title">Professional Registration</div>
+        <div class="cc-sub">Printed on bills and prescriptions only after your organisation's admin verifies it</div>
+      </div>
+      <div class="cc-body">
+        <div class="pr-status" id="pr-status" role="status"></div>
+
+        <div class="pr-block" id="pr-verified-block">
+          <div class="pr-block-title">Printed on bills now</div>
+          <dl class="pr-dl">
+            <dt>Registration No.</dt><dd id="pr-v-reg">—</dd>
+            <dt>Issuing council / board</dt><dd id="pr-v-council">—</dd>
+            <dt>Qualification</dt><dd id="pr-v-qual">—</dd>
+          </dl>
+        </div>
+
+        <div class="pr-block pr-block-pending" id="pr-pending-block" style="display:none">
+          <div class="pr-block-title">Waiting for verification</div>
+          <dl class="pr-dl">
+            <dt>Registration No.</dt><dd id="pr-p-reg">—</dd>
+            <dt>Issuing council / board</dt><dd id="pr-p-council">—</dd>
+            <dt>Qualification</dt><dd id="pr-p-qual">—</dd>
+          </dl>
+        </div>
+
+        <div class="pr-form-title" id="pr-form-title">Submit for verification</div>
+        <div class="field"><label for="pr-reg">Registration No.</label>
+          <input type="text" id="pr-reg" maxlength="50" autocomplete="off" placeholder="As on your registration certificate"/></div>
+        <div class="field"><label for="pr-council">Issuing council / board</label>
+          <input type="text" id="pr-council" maxlength="120" autocomplete="off" placeholder="e.g. Karnataka Ayurveda &amp; Unani Practitioners' Board"/></div>
+        <div class="field"><label for="pr-qual">Qualification</label>
+          <input type="text" id="pr-qual" maxlength="120" autocomplete="off" placeholder="e.g. BAMS, MD (Ayu) · D.Pharm (Ayurveda)"/></div>
+        <div class="alert alert-error" id="pr-alert" role="alert"></div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Upload a copy of your registration certificate under Official Documents below so the admin can check it.</div>
+        <button class="btn btn-primary" style="width:auto" id="pr-submit-btn" data-onclick="submitProfessionalCredentials">Submit for verification</button>
       </div>
     </div>
 

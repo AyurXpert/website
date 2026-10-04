@@ -134,6 +134,21 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     'Unknown denomination', 'Note counts', 'The shift totals changed', 'Closing on behalf', 'Only a dept_admin', 'That user belongs',
     'You cannot acknowledge', 'Your role cannot', 'Handover not found', 'A remark', 'Decision must be', 'Unknown scope', 'Unknown status',
     'Receipt ', 'Handover HO/'];
+  // Session 337 professional identity on bills (sql/session337_professional_identity_credentials.sql):
+  // My Profile submission, HR -> Credentials verify / reject / correct, organisation licence.
+  const CREDENTIAL_MSGS = ['Not signed in.', 'Your staff profile was not found', 'Only clinical, nursing',
+    'Registration No. is too long', 'Issuing council / board is too long', 'Qualification is too long', 'Licence no. is too long',
+    'Enter the Registration No.', 'These details are already verified', 'Only a Super Admin or Dept. Admin can',
+    'Submission not found', 'This submission was already', 'You cannot verify or reject your own',
+    'Give the reason for rejecting', 'Reason is too long', 'Staff member not found in your organisation',
+    'You cannot correct your own', 'A registration is recorded only', 'Give the reason for the correction',
+    'Nothing to change', 'Nothing on file to verify', "Only a Super Admin can change the organisation", 'Organisation not found',
+    'Registration No., council and qualification are changed', 'The drug / pharmacy licence no. is changed'];
+  if (['P0001','42501','22023','P0002'].includes(error?.code)
+      && CREDENTIAL_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // A page opened before a billing release still calls the retired function -- say what to do.
   // (PostgREST says "Could not find the function ..." when the signature changed -- Session 327 added a reference argument)
   if (/permission denied for function (add_opd_bill_item|create_opd_bill|create_investigation_bill)|Could not find the function public\.(create_opd_bill|create_investigation_bill)/.test(error?.message || '')) {

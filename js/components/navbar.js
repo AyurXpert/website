@@ -390,6 +390,9 @@ function _injectAdminSidebarOverlay(tenant, profile, role) {
     { ico:'💰', label:'Accounts',         href:'admin.html#accounts' },
     { group:'Organisation' },
     { ico:'👥', label:'Human Resources',  href:'admin.html#hr' },
+    // Session 337 (TODO §132): hr.html (Credentials = Reg. No. verification) had no rail link -- the two
+    // "HR" places were being confused. Same module gate as the top navbar's HR item.
+    { ico:'🏅', label:'HR & Credentials', href:'hr.html#credentials', module:'hr' },
     { ico:'🏥', label:'Departments',      href:'admin.html#departments' },
     { ico:'🏗️', label:'Infrastructure',   href:'admin.html#infrastructure' },
     { group:'Account' },
@@ -406,7 +409,7 @@ function _injectAdminSidebarOverlay(tenant, profile, role) {
     { ico:'🏠', label:'Dashboard',        href:'admin.html' },
   ];
 
-  const navHTML = ITEMS.map(it => {
+  const navHTML = ITEMS.filter(it => !it.module || hasModule(it.module)).map(it => {
     if (it.group) return `<div class="axsb-group">${it.group}</div>`;
     const isActive = it.href === currentPage || (it.href.startsWith(currentPage) && currentPage !== '');
     return `<a class="axsb-lnk${isActive ? ' active' : ''}" href="${it.href}">
