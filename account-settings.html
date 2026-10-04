@@ -198,6 +198,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
             <dt>Registration No.</dt><dd id="pr-v-reg">—</dd>
             <dt>Issuing council / board</dt><dd id="pr-v-council">—</dd>
             <dt>Qualification</dt><dd id="pr-v-qual">—</dd>
+            <dt>HPR ID</dt><dd id="pr-v-hpr">—</dd>
           </dl>
         </div>
 
@@ -207,6 +208,7 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
             <dt>Registration No.</dt><dd id="pr-p-reg">—</dd>
             <dt>Issuing council / board</dt><dd id="pr-p-council">—</dd>
             <dt>Qualification</dt><dd id="pr-p-qual">—</dd>
+            <dt>HPR ID</dt><dd id="pr-p-hpr">—</dd>
           </dl>
         </div>
 
@@ -217,6 +219,9 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
           <input type="text" id="pr-council" maxlength="120" autocomplete="off" placeholder="e.g. Karnataka Ayurveda &amp; Unani Practitioners' Board"/></div>
         <div class="field"><label for="pr-qual">Qualification</label>
           <input type="text" id="pr-qual" maxlength="120" autocomplete="off" placeholder="e.g. BAMS, MD (Ayu) · D.Pharm (Ayurveda)"/></div>
+        <div class="field"><label for="pr-hpr">HPR ID (ABDM Healthcare Professional Registry) <span style="font-weight:400;color:var(--text-muted)">— optional, 14 digits</span></label>
+          <input type="text" id="pr-hpr" maxlength="20" inputmode="numeric" autocomplete="off" placeholder="e.g. 71-2345-6789-0123"/>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:5px">Leave blank to keep the HPR ID already verified.</div></div>
         <div class="alert alert-error" id="pr-alert" role="alert"></div>
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Upload a copy of your registration certificate under Official Documents below so the admin can check it.</div>
         <button class="btn btn-primary" style="width:auto" id="pr-submit-btn" data-onclick="submitProfessionalCredentials">Submit for verification</button>

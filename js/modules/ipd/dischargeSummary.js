@@ -8,7 +8,7 @@
 // not already ordered, stops every active MAR order, and sends the take-home medicines
 // to the pharmacy once (charged to the stay, like any IPD dispense).
 // Print: js/modules/ipd/dischargePrint.js (shared with ipd.html).
-import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml } from './dischargePrint.js';
+import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml, loadDischargeSigner } from './dischargePrint.js';
 import { istDateStr } from '../../utils/dateUtils.js';
 
 let _c = null;      // { supabase, esc, tenantId, userId, isTrainee, toast }
@@ -287,10 +287,7 @@ window.printDischargeFromRound = async function() {
   if (error) { _c.toast?.('Could not load the admission for printing: ' + error.message, 'error'); return; }
   const tenant = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
   const homeChart = await fetchSamsarjanaHomeChart(_c.supabase, _adm.id);
-  let signerName = null;
-  if (_row?.signed_by) {
-    const { data: p } = await _c.supabase.from('profiles').select('full_name').eq('id', _row.signed_by).maybeSingle();
-    signerName = p?.full_name || null;
-  }
-  printDischargeHtml(buildDischargeSummaryHtml({ adm, admId: _adm.id, tenant, homeChart, esc: _c.esc, signerName }));
+  // Session 338: the signer's identity as stamped at signing (legacy: current verified values)
+  const signer = await loadDischargeSigner(_c.supabase, _adm.id);
+  printDischargeHtml(buildDischargeSummaryHtml({ adm, admId: _adm.id, tenant, homeChart, esc: _c.esc, signer }));
 };

@@ -9,7 +9,7 @@ import { logAudit } from '../core/auditLogger.js';
 import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 import { computeIpdChargesToDate } from '../modules/billing/ipdChargesToDate.js';
 import { todayLocalStr, localDateStr } from '../utils/dateUtils.js';
-import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml } from '../modules/ipd/dischargePrint.js';
+import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml, loadDischargeSigner } from '../modules/ipd/dischargePrint.js';
 import { bedTypeLabel } from '../config/bedTypes.js';
 import { notify } from '../components/notify.js';
 
@@ -2769,18 +2769,20 @@ window.saveAndPrintDischarge = async function() {
   Object.assign(adm, dsFields);
   document.getElementById('ds-fields-modal').style.display = 'none';
   const homeChart = await fetchSamsarjanaHomeChart(supabase, admId);
-  _printDischargeSummaryNow(admId, homeChart);
+  await _printDischargeSummaryNow(admId, homeChart);
 };
 
 window.closeDsModal = function() { document.getElementById('ds-fields-modal').style.display = 'none'; };
 
-function _printDischargeSummaryNow(admId, homeChart) {
+async function _printDischargeSummaryNow(admId, homeChart) {
   const adm  = _admissions.find(a => a.id === admId);
   if (!adm) return;
+  // Session 338: a signed summary prints its signer's identity as stamped at signing; unsigned -> name only (as before)
+  const signer = await loadDischargeSigner(supabase, admId);
   const tenant = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
   // Session 298 -- layout moved to js/modules/ipd/dischargePrint.js, shared with
   // doctor.html's discharge summary so both print the same document.
-  printDischargeHtml(buildDischargeSummaryHtml({ adm, admId, tenant, homeChart, esc: _esc, signerName: adm.profiles?.full_name || myProfile?.full_name }));
+  printDischargeHtml(buildDischargeSummaryHtml({ adm, admId, tenant, homeChart, esc: _esc, signer, signerName: adm.profiles?.full_name || myProfile?.full_name }));
 }
 
 // ── §18bb — Palha-Diet Indent ─────────────────────────────────────────────────

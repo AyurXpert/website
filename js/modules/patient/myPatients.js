@@ -254,8 +254,19 @@ function _rxHtml(rxRows) {
     </div>`).join('') : '<div class="vh-muted">No items recorded.</div>';
   const presc = rx.prescriber_display_name || rx.prepared_by_name;
   const prescLine = presc ? `<div class="vh-muted" style="margin-top:6px">Prescribed by ${_esc(presc)}${rx.prescriber_registration_number ? ' · Reg. ' + _esc(rx.prescriber_registration_number) : ''}${rx.prepared_by_name && rx.prepared_by_name !== presc ? ` (originally drafted by ${_esc(rx.prepared_by_name)})` : ''}</div>` : '';
-  return itemsHtml + prescLine;
+  // Session 338: reprint -- the server marks it Original / DUPLICATE COPY No. N
+  const reprint = rx.review_status === 'finalized' && !rx.is_deleted
+    ? `<div style="margin-top:8px"><button type="button" class="vh-link" data-onclick="reprintPrescription" data-onclick-a0="${_esc(rx.id)}" style="min-height:44px">🖨 Reprint prescription</button></div>`
+    : '';
+  return itemsHtml + prescLine + reprint;
 }
+
+// Opened straight from the click (a window.open after an await is blocked as a pop-up). Shared with doctor.js's
+// patient history. The print page records the print and decides Original / Duplicate.
+window.reprintPrescription = function(rxId) {
+  if (!rxId) return;
+  window.open(`printPrescription.html?rxId=${encodeURIComponent(rxId)}`, '_blank');
+};
 
 function _pharmacySection(rxRows) {
   if (!rxRows.length) return _sec('🏪 Pharmacy', '<div class="vh-muted">Not advised — no medicines prescribed.</div>');

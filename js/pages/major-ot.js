@@ -7,6 +7,7 @@ import { localDateStr, todayLocalStr, istDateTimeLocalStr, istInputToISO } from 
 import { notify } from '../components/notify.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
 import { printDocument, docHeader } from '../utils/printDocument.js';
+import { identityLines, identityOrLive } from '../utils/signerIdentity.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -67,7 +68,7 @@ async function loadCases() {
     .from('ot_cases')
     .select(`id,serial_no,procedure_name,case_type,procedure_category,pre_op_diagnosis,post_op_diagnosis,
              anaesthesia_type,ot_table,scheduled_date,scheduled_time,actual_start,actual_end,
-             status,post_op_condition,created_at,
+             status,post_op_condition,created_at,surgeon_id,surgeon_identity,
              patients(id,name,phone,age,gender),
              profiles!surgeon_id(full_name)`)
     .eq('tenant_id', tenantId)
@@ -402,8 +403,12 @@ window.viewCase = function(id) {
 };
 window.closeView = () => { document.getElementById('view-overlay').style.display='none'; };
 
-window.printOtRecord = function() {
+window.printOtRecord = async function() {
   const c = _allCases.find(x=>x.id===_activeId); if(!c) return;
+  // Session 338: the surgeon's verified identity -- frozen on the record once the case is completed (legacy: current)
+  const surg = await identityOrLive(supabase, c.surgeon_identity, c.surgeon_id);
+  const surgCred = [surg?.name ? `<div style="font-weight:600">${_esc(surg.name)}</div>` : '',
+    ...identityLines(surg).map(l => `<div style="font-size:10px;color:#444">${_esc(l)}</div>`)].join('');
   const anaes = _doctors.find(d=>d.id===c.anaesthetist_id)?.full_name || '—';
   const dur   = c.duration_minutes ? c.duration_minutes+' min' : '—';
   document.getElementById('ot-print').innerHTML = `
@@ -427,7 +432,7 @@ window.printOtRecord = function() {
         return `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:700;color:#1a4a2e;text-transform:uppercase;margin-bottom:3px">${k}</div><div style="border:1px solid #ccc;border-radius:4px;padding:7px;font-size:12px;min-height:36px">${_esc(map[k]||'—')}</div></div>`;
       }).join('')}
       <div style="display:flex;justify-content:space-between;margin-top:30px">
-        <div style="text-align:center;border-top:1px solid #333;padding-top:4px;width:160px;font-size:11px">Surgeon</div>
+        <div style="text-align:center;border-top:1px solid #333;padding-top:4px;width:180px;font-size:11px">Surgeon${surgCred}</div>
         <div style="text-align:center;border-top:1px solid #333;padding-top:4px;width:160px;font-size:11px">Anaesthetist</div>
         <div style="text-align:center;border-top:1px solid #333;padding-top:4px;width:160px;font-size:11px">Scrub Nurse</div>
       </div>

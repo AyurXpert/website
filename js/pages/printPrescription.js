@@ -1,270 +1,217 @@
+// Prescription print -- printPrescription.html?rxId=<id> (?visitId= = that visit's latest, kept for old links).
+// Session 338: the SERVER decides ORIGINAL vs DUPLICATE COPY No. N (record_document_print('prescription', id)) and the
+// page fails closed if that cannot be recorded; a draft (not yet countersigned) is shown as a DRAFT and never recorded.
+// The prescriber's identity is the one STAMPED on the prescription when it was finalised (prescriber_identity:
+// verified name, Reg. No., council, qualification, HPR ID); a prescription from before that stamp falls back to the
+// Session 308c snapshot columns + the prescriber's current verified values. Organisation + demo flag come from the
+// prescription's own tenant row. Shared helpers: signInGate, paperSize (A4 / A5), demoBanner, printPageSize.
+// Built with DOM nodes / textContent only.
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { requireAuth } from '../core/auth.js';
 import { ROLES } from '../config/constants.js';
 import { uhidOf } from '../utils/uhid.js';
+import { safeErrorMessage } from '../utils/errors.js';
+import { ensureSignedIn } from '../utils/signInGate.js';
+import { el } from '../modules/billing/invoiceLayout.js';
+import { demoBannerEl } from '../modules/billing/demoBanner.js';
+import { applyPaperSize, getPaperSizeFrom, mountPaperSizeSelect, watchPrintPageSize } from '../modules/billing/paperSize.js';
+import { identityLines, liveIdentity } from '../utils/signerIdentity.js';
 
-// Session 308c — this page had no auth gate at all until now (it was unreachable from any real
-// caller, per a repo-wide search). Roles that legitimately view/print a prescription: doctor/
-// trainee_doctor (their own consultations/orders), receptionist (counter reprints), pharmacist
-// (dispensing reference), nurse (IPD take-home meds), mrd_staff (records reprints). super_admin
-// bypasses this list entirely per requireAuth()'s own convention.
-await requireAuth([
-  ROLES.DOCTOR, ROLES.TRAINEE_DOCTOR, ROLES.RECEPTIONIST, ROLES.PHARMACIST, ROLES.NURSE, ROLES.MRD_STAFF,
-]);
-
+const SIZES = ['a4', 'a5'];
+applyPaperSize(getPaperSizeFrom(SIZES));
 wireDelegatedEvents();
 
-function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-
-// Session 308c — loads a SPECIFIC prescription by id (?rxId=) rather than "the visit's latest row",
-// so a visit with more than one prescription over time always prints the one actually asked for.
-// ?visitId= alone is kept for backward compatibility (no caller in this codebase currently links to
-// this page at all — confirmed by search — but the URL contract is documented in user-manual.html,
-// so an existing bookmark/hand-typed link still resolves to the visit's latest prescription as before.
-const params  = new URLSearchParams(window.location.search);
-const rxId    = params.get('rxId');
+const card     = document.getElementById('rx-card');
+const printBtn = document.getElementById('print-btn');
+const params   = new URLSearchParams(window.location.search);
+const rxId     = params.get('rxId');
 const visitIdParam = params.get('visitId');
 
-if (!rxId && !visitIdParam) {
-  document.getElementById('state-msg').textContent = 'No prescription or visit ID provided.';
-  throw new Error('No rxId/visitId');
+function showMessage(msg) {
+  card.replaceChildren(el('div', { class: 'state-msg', role: 'alert' }, msg));
+  if (printBtn) printBtn.disabled = true;
 }
 
-// Read tenant from sessionStorage (set by auth.js on login)
-const tenant = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
-
-async function load() {
-  // 1. The prescription itself — by id if given, else the visit's latest (legacy fallback).
-  const PRESC_COLS = 'id, visit_id, review_status, prepared_by_name, prescriber_display_name, prescriber_hpr_id, prescriber_registration_number';
-  let presc = null;
-  if (rxId) {
-    const { data } = await supabase.from('prescriptions').select(PRESC_COLS).eq('id', rxId).maybeSingle();
-    presc = data;
-    if (!presc) { document.getElementById('state-msg').textContent = 'Prescription not found.'; return; }
-  } else {
-    const { data } = await supabase.from('prescriptions').select(PRESC_COLS)
-      .eq('visit_id', visitIdParam).order('created_at', { ascending: false }).limit(1).maybeSingle();
-    presc = data || null;
-  }
-  const visitId = presc?.visit_id || visitIdParam;
-
-  // 2. Visit + patient
-  const { data: visit } = await supabase
-    .from('visits')
-    .select('id, token_number, chief_complaint, created_at, doctor_id, patients(id, uhid, name, phone, abha_number)')
-    .eq('id', visitId)
-    .single();
-
-  if (!visit) {
-    document.getElementById('state-msg').textContent = 'Visit not found.';
-    return;
-  }
-
-  // 3. Doctor / prescriber block. Session 308c: HPR ID/registration number must come from the
-  // prescription's own server-set snapshot (taken at finalization), never live from profiles --
-  // that live join is exactly the bug this feature closes (a later credential correction must not
-  // silently change what an already-printed prescription shows). Qualification isn't a
-  // credential-of-record the same way, so it still reads live. Three print modes:
-  //   'draft'    review_status is not yet 'finalized' -- an intern's un-countersigned order.
-  //   'dual'     finalized, and the author differs from the credentialed signer (a PG scholar
-  //              prescribing under a consultant, or a trainee's IPD order a doctor countersigned) --
-  //              print BOTH names.
-  //   'normal'   finalized, author IS the signer (the ordinary case) -- print ONE doctor block.
-  //   'fallback' no snapshot at all (a prescription that predates this feature, or none exists for
-  //              this visit) -- live name only from visit.doctor_id, never a live HPR/registration.
-  let mode = 'fallback';
-  let doctorName = '—', doctorQual = '', doctorHpr = '', doctorReg = '';
-  let preparedName = '', preparedHpr = '', preparedReg = '';
-
-  if (visit.doctor_id) {
-    const { data: doc } = await supabase.from('profiles').select('full_name, qualification').eq('id', visit.doctor_id).single();
-    doctorName = doc?.full_name || '—';
-    doctorQual = doc?.qualification || '';
-  }
-
-  if (presc && presc.review_status !== 'finalized') {
-    mode = 'draft';
-  } else if (presc?.prescriber_display_name) {
-    doctorName = presc.prescriber_display_name;
-    doctorHpr  = presc.prescriber_hpr_id || '';
-    doctorReg  = presc.prescriber_registration_number || '';
-    if (presc.prepared_by_name && presc.prepared_by_name !== presc.prescriber_display_name) {
-      mode = 'dual';
-      preparedName = presc.prepared_by_name;
-      // prepared_by_hpr_id/registration_number exist for the rare case a trainee already holds one
-      // (e.g. HPR ID, settable for any staff role via the pre-existing set_staff_hpr_id()); shown
-      // only if present, same "only if present" rule as the prescriber's own credentials.
-    } else {
-      mode = 'normal';
-    }
-  }
-  // else: mode stays 'fallback' -- doctorName already has the live profile name from above;
-  // doctorHpr/doctorReg stay blank rather than reading a live value that could have changed since.
-
-  // 4. Consultation notes (diagnosis, advice, follow-up)
-  const { data: notesRows } = await supabase
-    .from('consultation_notes')
-    .select('modern_diagnosis, ayurveda_diagnosis, pathya, apathya, followup_date, followup_notes, rx_instructions')
-    .eq('visit_id', visitId)
-    .order('created_at', { ascending: false })
-    .limit(1);
-  const notes = notesRows?.[0] || {};
-
-  // 5. Prescription items
-  let items = [];
-  if (presc) {
-    const { data: rows } = await supabase
-      .from('prescription_items')
-      .select('medicine_name, dosage, frequency, duration, anupana, quantity')
-      .eq('prescription_id', presc.id);
-    items = rows || [];
-  }
-
-  render(visit, { mode, doctorName, doctorQual, doctorHpr, doctorReg, preparedName, preparedHpr, preparedReg }, notes, items);
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', year: 'numeric', month: 'numeric', day: '2-digit' })
+    .formatToParts(new Date(iso)).map(x => [x.type, x.value]));
+  return `${p.day} ${MON[Number(p.month) - 1]} ${p.year}`;
 }
-
-
-function render(visit, rx, notes, items) {
-  const patient = visit.patients;
-  const date    = new Date(visit.created_at).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
-  const hasDiag = notes.modern_diagnosis || notes.ayurveda_diagnosis;
-  const hasAdvice = notes.pathya || notes.apathya;
-  const { mode, doctorName, doctorQual, doctorHpr, doctorReg, preparedName, preparedHpr, preparedReg } = rx;
-
-  const draftBanner = mode === 'draft'
-    ? `<div style="background:#fff3cd;border:1.5px solid #e0a800;border-radius:8px;padding:10px 14px;margin:10px 0;font-weight:700;color:#7a5c00;text-align:center">
-        DRAFT — not valid until countersigned by a doctor
-       </div>` : '';
-
-  const doctorBlockHtml = mode === 'draft' ? '' : mode === 'dual' ? `
-        <div class="doctor-name">Dr. ${_esc(preparedName)}</div>
-        ${preparedHpr ? `<div class="reg-num">HPR ID: ${_esc(preparedHpr)}</div>` : ''}
-        ${preparedReg ? `<div class="reg-num">Reg. No: ${_esc(preparedReg)}</div>` : ''}
-        <div class="doctor-name" style="margin-top:4px">for Dr. ${_esc(doctorName)}</div>
-        ${doctorHpr ? `<div class="reg-num">HPR ID: ${_esc(doctorHpr)}</div>` : ''}
-        ${doctorReg ? `<div class="reg-num">Reg. No: ${_esc(doctorReg)}</div>` : ''}
-    ` : `
-        <div class="doctor-name">${_esc(doctorName)}</div>
-        ${doctorQual ? `<div class="doctor-qual">${_esc(doctorQual)}</div>` : ''}
-        ${doctorHpr  ? `<div class="reg-num">HPR ID: ${_esc(doctorHpr)}</div>` : ''}
-        ${doctorReg  ? `<div class="reg-num">Reg. No: ${_esc(doctorReg)}</div>` : ''}
-    `;
-
-  const sigBlockHtml = mode === 'draft' ? '' : `
-      <div class="sig-block">
-        <div class="sig-line">${mode === 'dual' ? `Dr. ${_esc(preparedName)} for Dr. ${_esc(doctorName)}` : _esc(doctorName)}<br><span style="font-size:11px;color:var(--text-muted)">Signature &amp; Stamp</span></div>
-      </div>`;
-
-  document.getElementById('rx-card').innerHTML = `
-
-    <!-- Clinic header -->
-    <div class="rx-header">
-      <div class="clinic-header-row">
-        ${tenant.logo_url ? `<img class="clinic-logo" src="${_esc(tenant.logo_url)}" alt=""/>` : ''}
-        <div>
-          <div class="clinic-name">${_esc(tenant.name || 'AyurXpert Clinic')}</div>
-          ${tenant.tagline ? `<div class="clinic-tagline">${_esc(tenant.tagline)}</div>` : ''}
-          <div class="clinic-type">${_esc(_tenantTypeLabel(tenant.type))}</div>
-          <div class="clinic-address">${_esc([tenant.full_address || tenant.address, tenant.city, tenant.state].filter(Boolean).join(', '))}</div>
-          ${tenant.gstin ? `<div class="clinic-gstin">GSTIN: ${_esc(tenant.gstin)}</div>` : ''}
-        </div>
-      </div>
-      <div class="doctor-block">${doctorBlockHtml}</div>
-    </div>
-
-    ${draftBanner}
-
-    <!-- Patient info -->
-    <div class="pt-strip">
-      <div class="pt-field">
-        <label>Patient</label>
-        <span>${_esc(patient?.name) || '—'}</span>
-      </div>
-      <div class="pt-field">
-        <label>UHID</label>
-        <span>${_esc(uhidOf(patient))}</span>
-      </div>
-      <div class="pt-field">
-        <label>Date</label>
-        <span>${date}</span>
-      </div>
-      <div class="pt-field">
-        <label>Token</label>
-        <span>#${visit.token_number}</span>
-      </div>
-      <div class="pt-field">
-        <label>Phone</label>
-        <span>${_esc(patient?.phone) || '—'}</span>
-      </div>
-      ${patient?.abha_number ? `<div class="pt-field"><label>ABHA</label><span>${_esc(patient.abha_number)}</span></div>` : ''}
-    </div>
-
-    <!-- Diagnosis -->
-    ${hasDiag ? `
-    <div class="diag-box">
-      ${notes.modern_diagnosis ? `<div class="diag-item"><label>Diagnosis</label><span>${_esc(notes.modern_diagnosis)}</span></div>` : ''}
-      ${notes.ayurveda_diagnosis ? `<div class="diag-item"><label>Ayurveda Diagnosis</label><span>${_esc(notes.ayurveda_diagnosis)}</span></div>` : ''}
-    </div>` : ''}
-
-    <!-- Medicines -->
-    <div class="rx-body">
-      <div class="rx-symbol">&#8478;</div>
-      ${items.length ? `
-      <table class="med-table">
-        <thead>
-          <tr>
-            <th style="width:24px">#</th>
-            <th>Medicine</th>
-            <th>Dosage</th>
-            <th>Frequency</th>
-            <th>Duration</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${items.map((item, i) => `
-            <tr>
-              <td class="med-num">${i+1}.</td>
-              <td>
-                <div class="med-name">${_esc(item.medicine_name) || '—'}</div>
-                ${item.anupana ? `<div class="med-anupana">with ${_esc(item.anupana)}</div>` : ''}
-              </td>
-              <td class="med-dose">${_esc(item.dosage) || '—'}</td>
-              <td><span class="med-freq">${_esc(item.frequency) || '—'}</span></td>
-              <td class="med-dose">${_esc(item.duration) || '—'}</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
-      ${notes.rx_instructions ? `<div style="margin-top:10px;font-size:12px;color:var(--text-mid);padding:8px 10px;background:var(--cream);border-radius:6px;border-left:3px solid var(--green-mid)">${_esc(notes.rx_instructions)}</div>` : ''}
-      ` : '<div style="color:var(--text-muted);font-size:13px;padding:8px 0">No medicines prescribed.</div>'}
-    </div>
-
-    <!-- Advice -->
-    ${hasAdvice ? `
-    <div class="advice-box">
-      ${notes.pathya ? `<div class="advice-col"><label>Pathya (Follow)</label><p>${_esc(notes.pathya)}</p></div>` : ''}
-      ${notes.apathya ? `<div class="advice-col"><label>Apathya (Avoid)</label><p>${_esc(notes.apathya)}</p></div>` : ''}
-    </div>` : ''}
-
-    <!-- Follow-up + signature -->
-    <div class="rx-footer">
-      <div class="followup-block">
-        ${notes.followup_date ? `
-          <label>Review Date</label>
-          <span>${new Date(notes.followup_date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</span>
-          ${notes.followup_notes ? `<div class="followup-note">${_esc(notes.followup_notes)}</div>` : ''}
-        ` : `<div style="font-size:12px;color:var(--text-muted)">Review date: _______________</div>`}
-      </div>
-      ${sigBlockHtml}
-    </div>
-
-    <div class="rx-powered">Powered by AyurXpert HMS · ayurxpert.com</div>
-  `;
+function fmtDateTime(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
-
-function _tenantTypeLabel(type) {
+function tenantTypeLabel(type) {
   const map = { clinic:'Ayurveda Clinic', hospital:'Ayurveda Hospital', teaching_hospital:'Ayurveda Teaching Hospital', pk_center:'Panchakarma Centre', dispensary:'Dispensary', college:'Ayurveda College', pharma:'Pharmacy', wellness:'Wellness Centre' };
   return map[type] || 'Healthcare Centre';
 }
 
-load();
+async function load() {
+  if (!rxId && !visitIdParam) { showMessage('No prescription or visit ID provided.'); return; }
+  // signed out / session ended: ask to sign in before touching the document
+  if (!(await ensureSignedIn(supabase))) return;
+  await requireAuth([ROLES.DOCTOR, ROLES.TRAINEE_DOCTOR, ROLES.RECEPTIONIST, ROLES.PHARMACIST, ROLES.NURSE, ROLES.MRD_STAFF]);
+
+  const COLS = 'id, tenant_id, visit_id, doctor_id, finalized_by, review_status, is_deleted, created_at, prepared_by_name, '
+             + 'prescriber_display_name, prescriber_hpr_id, prescriber_registration_number, prescriber_identity';
+  let presc = null;
+  if (rxId) {
+    const { data } = await supabase.from('prescriptions').select(COLS).eq('id', rxId).maybeSingle();
+    presc = data;
+  } else {
+    const { data } = await supabase.from('prescriptions').select(COLS)
+      .eq('visit_id', visitIdParam).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    presc = data;
+  }
+  if (!presc) { showMessage('Prescription not found.'); return; }
+  if (presc.is_deleted) { showMessage('This prescription was deleted.'); return; }
+
+  const isDraft = presc.review_status !== 'finalized';
+  // Print audit first: a finalised prescription is never shown without its Original / Duplicate marking (fail closed)
+  let copy = null;
+  if (!isDraft) {
+    const rec = await supabase.rpc('record_document_print', { p_doc_type: 'prescription', p_doc_id: presc.id });
+    if (rec.error) { showMessage(safeErrorMessage(rec.error, 'Could not record this print. Please try again.')); return; }
+    copy = rec.data;
+  }
+
+  const [{ data: visit }, { data: org }, { data: notesRows }, { data: items }] = await Promise.all([
+    supabase.from('visits').select('id, token_number, created_at, patients(id, uhid, name, phone, abha_number)').eq('id', presc.visit_id).maybeSingle(),
+    supabase.from('tenants').select('name, tagline, type, full_address, address, city, state, gstin, logo_url, is_demo').eq('id', presc.tenant_id).maybeSingle(),
+    supabase.from('consultation_notes').select('modern_diagnosis, ayurveda_diagnosis, pathya, apathya, followup_date, followup_notes, rx_instructions')
+      .eq('visit_id', presc.visit_id).order('created_at', { ascending: false }).limit(1),
+    supabase.from('prescription_items').select('medicine_name, dosage, frequency, duration, anupana, quantity').eq('prescription_id', presc.id),
+  ]);
+
+  // The responsible prescriber: the stamp; else the 308c snapshot + current verified values (legacy)
+  let signer = presc.prescriber_identity || null;
+  if (!signer && !isDraft) {
+    const live = await liveIdentity(supabase, presc.finalized_by || presc.doctor_id);
+    signer = {
+      ...(live || {}),
+      name: presc.prescriber_display_name || live?.name || '—',
+      registration_number: presc.prescriber_registration_number || live?.registration_number || null,
+      hpr_id: presc.prescriber_hpr_id || live?.hpr_id || null,
+    };
+  }
+  const preparedName = presc.prepared_by_name && signer?.name && presc.prepared_by_name !== signer.name ? presc.prepared_by_name : '';
+
+  const draw = () => {
+    render({ presc, visit, org: org || {}, notes: notesRows?.[0] || {}, items: items || [], signer, preparedName, isDraft, copy });
+  };
+  draw();
+  mountPaperSizeSelect(document.getElementById('paper-slot'), draw, { sizes: SIZES });
+  watchPrintPageSize(() => card);
+  if (printBtn) printBtn.disabled = false;
+}
+
+function render({ presc, visit, org, notes, items, signer, preparedName, isDraft, copy }) {
+  const patient = visit?.patients || {};
+  const isDup  = copy && copy.copy !== 'ORIGINAL';
+  const copyNo = copy ? (Number(copy.print_no) || 1) + (copy.legacy ? 1 : 0) : null;
+
+  const nodes = [];
+  if (org.is_demo) nodes.push(demoBannerEl());
+
+  // ── Header: organisation + prescriber ──
+  const docBlock = el('div', { class: 'doctor-block' });
+  if (!isDraft && signer) {
+    if (preparedName) {
+      docBlock.append(el('div', { class: 'doctor-name' }, `Dr. ${preparedName}`),
+                      el('div', { class: 'doctor-name', style: 'margin-top:4px' }, `for Dr. ${signer.name}`));
+    } else {
+      docBlock.append(el('div', { class: 'doctor-name' }, signer.name || '—'));
+    }
+    for (const line of identityLines(signer)) docBlock.append(el('div', { class: 'reg-num' }, line));
+  }
+  nodes.push(el('div', { class: 'rx-header' },
+    el('div', { class: 'clinic-header-row' },
+      org.logo_url ? el('img', { class: 'clinic-logo', src: org.logo_url, alt: '' }) : null,
+      el('div', null,
+        el('div', { class: 'clinic-name' }, org.name || 'AyurXpert Clinic'),
+        org.tagline ? el('div', { class: 'clinic-tagline' }, org.tagline) : null,
+        el('div', { class: 'clinic-type' }, tenantTypeLabel(org.type)),
+        el('div', { class: 'clinic-address' }, [org.full_address || org.address, org.city, org.state].filter(Boolean).join(', ')),
+        org.gstin ? el('div', { class: 'clinic-gstin' }, `GSTIN: ${org.gstin}`) : null)),
+    docBlock));
+
+  // ── Copy marking (same number in the header and the footer) ──
+  if (isDraft) {
+    nodes.push(el('div', { class: 'draft-banner', role: 'note' }, 'DRAFT — not valid until countersigned by a doctor'));
+  } else {
+    nodes.push(el('div', { class: 'copy-strip' + (isDup ? ' dup' : '') }, isDup ? `DUPLICATE COPY · No. ${copyNo}` : 'Original'));
+  }
+
+  // ── Patient ──
+  const field = (label, value) => el('div', { class: 'pt-field' }, el('label', null, label), el('span', null, value || '—'));
+  nodes.push(el('div', { class: 'pt-strip' },
+    field('Patient', patient.name), field('UHID', uhidOf(patient)), field('Date', fmtDate(visit?.created_at || presc.created_at)),
+    field('Token', visit?.token_number != null ? `#${visit.token_number}` : '—'), field('Phone', patient.phone),
+    patient.abha_number ? field('ABHA', patient.abha_number) : null));
+
+  // ── Diagnosis ──
+  if (notes.modern_diagnosis || notes.ayurveda_diagnosis) {
+    nodes.push(el('div', { class: 'diag-box' },
+      notes.modern_diagnosis ? el('div', { class: 'diag-item' }, el('label', null, 'Diagnosis'), el('span', null, notes.modern_diagnosis)) : null,
+      notes.ayurveda_diagnosis ? el('div', { class: 'diag-item' }, el('label', null, 'Ayurveda Diagnosis'), el('span', null, notes.ayurveda_diagnosis)) : null));
+  }
+
+  // ── Medicines ──
+  const body = el('div', { class: 'rx-body' }, el('div', { class: 'rx-symbol', 'aria-label': 'Prescription' }, '℞'));
+  if (items.length) {
+    body.append(el('table', { class: 'med-table' },
+      el('thead', null, el('tr', null, ...['#', 'Medicine', 'Dosage', 'Frequency', 'Duration'].map(t => el('th', { scope: 'col' }, t)))),
+      el('tbody', null, items.map((it, i) => el('tr', null,
+        el('td', { class: 'med-num' }, `${i + 1}.`),
+        el('td', null, el('div', { class: 'med-name' }, it.medicine_name || '—'),
+          it.anupana ? el('div', { class: 'med-anupana' }, `with ${it.anupana}`) : null),
+        el('td', { class: 'med-dose' }, it.dosage || '—'),
+        el('td', null, el('span', { class: 'med-freq' }, it.frequency || '—')),
+        el('td', { class: 'med-dose' }, it.duration || '—'))))));
+    if (notes.rx_instructions) body.append(el('div', { class: 'rx-instr' }, notes.rx_instructions));
+  } else {
+    body.append(el('div', { class: 'rx-empty' }, 'No medicines prescribed.'));
+  }
+  nodes.push(body);
+
+  // ── Advice ──
+  if (notes.pathya || notes.apathya) {
+    nodes.push(el('div', { class: 'advice-box' },
+      notes.pathya ? el('div', { class: 'advice-col' }, el('label', null, 'Pathya (Follow)'), el('p', null, notes.pathya)) : null,
+      notes.apathya ? el('div', { class: 'advice-col' }, el('label', null, 'Apathya (Avoid)'), el('p', null, notes.apathya)) : null));
+  }
+
+  // ── Follow-up + signature (name and identity under the line) ──
+  const follow = el('div', { class: 'followup-block' });
+  if (notes.followup_date) {
+    follow.append(el('label', null, 'Review Date'), el('span', null, fmtDate(notes.followup_date + 'T12:00:00+05:30')),
+      notes.followup_notes ? el('div', { class: 'followup-note' }, notes.followup_notes) : null);
+  } else {
+    follow.append(el('div', { class: 'followup-empty' }, 'Review date: _______________'));
+  }
+  const sig = el('div', { class: 'sig-block' });
+  if (!isDraft) {
+    sig.append(el('div', { class: 'sig-line' },
+      el('div', { class: 'sig-name' }, preparedName ? `Dr. ${preparedName} for Dr. ${signer?.name || '—'}` : (signer?.name || '—')),
+      ...identityLines(signer).map(l => el('div', { class: 'sig-cred' }, l)),
+      el('div', { class: 'sig-caption' }, 'Signature & Stamp')));
+  }
+  nodes.push(el('div', { class: 'rx-footer' }, follow, sig));
+
+  // ── Footer: copy line + powered-by ──
+  if (isDup) {
+    nodes.push(el('div', { class: 'copy-foot' }, `Duplicate copy no. ${copyNo}. ` + (copy.legacy
+      ? 'Written before print tracking began; the original was printed at the time.'
+      : `The original was first printed ${fmtDateTime(copy.first_printed_at)}${copy.first_printed_by ? ' by ' + copy.first_printed_by : ''}.`)));
+  }
+  nodes.push(el('div', { class: 'rx-powered' }, 'Powered by AyurXpert HMS · ayurxpert.com'));
+
+  card.replaceChildren(...nodes);
+}
+
+window.printPrescriptionNow = () => window.print();
+
+load().catch(err => showMessage(safeErrorMessage(err, 'Could not load the prescription.')));

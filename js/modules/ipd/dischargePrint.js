@@ -5,6 +5,17 @@
 // written by sign_ipd_discharge_summary().
 
 import { printDocument } from '../../utils/printDocument.js';
+import { identityLines, identityOrLive } from '../../utils/signerIdentity.js';
+
+// Session 338: the signer of an admission's discharge summary -- the identity STAMPED when it was signed
+// (ipd_discharge_summaries.signer_identity), else (signed before 338) the signer's current verified values.
+// null when the summary is not signed yet (the print then shows a name only, no credentials).
+export async function loadDischargeSigner(supabase, admId) {
+  const { data } = await supabase.from('ipd_discharge_summaries')
+    .select('signed_by, signer_identity').eq('admission_id', admId).maybeSingle();
+  if (!data?.signed_by) return null;
+  return identityOrLive(supabase, data.signer_identity, data.signed_by);
+}
 
 // Session 262 -- Samsarjana Krama home-care chart, for a patient advised to do their
 // post-Virechana graded diet at home (location_mode='home', Session 257) rather than the
@@ -70,7 +81,7 @@ const _block = (esc, label, text) => text ? `
 
 // adm: ipd_admissions row with patients/beds/departments/profiles embeds (profiles = the
 // admitting doctor). tenant: sessionStorage ayurxpert_tenant. esc: HTML escaper.
-export function buildDischargeSummaryHtml({ adm, admId, tenant, homeChart, esc, signerName }) {
+export function buildDischargeSummaryHtml({ adm, admId, tenant, homeChart, esc, signerName, signer }) {
   const pt   = adm.patients || {};
   const bed  = adm.beds || {};
   const dept = adm.departments || {};
@@ -170,7 +181,8 @@ export function buildDischargeSummaryHtml({ adm, admId, tenant, homeChart, esc, 
     <div style="font-size:11px;color:#6a8070">Printed: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
     <div style="text-align:center">
       <div style="width:160px;border-top:1px solid #aaa;padding-top:5px;font-size:11px;color:#6a8070">
-        ${esc(signerName || doc.full_name || '—')}<br>
+        ${esc(signer?.name || signerName || doc.full_name || '—')}<br>
+        ${identityLines(signer).map(l => `<span style="font-size:10px;display:block">${esc(l)}</span>`).join('')}
         <span style="font-size:10px">${esc(dept.name || '')}</span>
       </div>
     </div>

@@ -315,18 +315,19 @@ const PROFESSIONAL_ROLES = ['doctor', 'trainee_doctor', 'pharmacist', 'nurse', '
   'therapist', 'super_admin', 'dept_admin'];
 
 function _setText(id, value) { document.getElementById(id).textContent = value || '—'; }
+const _fmtHpr = v => { const d = String(v || '').replace(/\D/g, ''); return d.length === 14 ? d.replace(/^(\d{2})(\d{4})(\d{4})(\d{4})$/, '$1-$2-$3-$4') : (v || ''); };
 
 async function loadProfessionalRegistration() {
   const card = document.getElementById('pr-card');
   const { data: me, error } = await supabase.from('profiles')
-    .select('role, secondary_role, registration_number, registration_council, qualification, credentials_verified_at, credentials_verified_by')
+    .select('role, secondary_role, registration_number, registration_council, qualification, hpr_id, credentials_verified_at, credentials_verified_by')
     .eq('id', _uid).single();
   if (error || !me) { card.style.display = 'none'; return; }
   if (!PROFESSIONAL_ROLES.includes(me.role) && !PROFESSIONAL_ROLES.includes(me.secondary_role)) { card.style.display = 'none'; return; }
   card.style.display = '';
 
   const { data: subs } = await supabase.from('professional_credential_submissions')
-    .select('id, status, registration_number, registration_council, qualification, submitted_at, decided_at, rejection_reason')
+    .select('id, status, registration_number, registration_council, qualification, hpr_id, submitted_at, decided_at, rejection_reason')
     .eq('profile_id', _uid).order('submitted_at', { ascending: false }).limit(5);
   const pending = (subs || []).find(s => s.status === 'pending') || null;
   const lastDecided = (subs || []).find(s => s.status === 'verified' || s.status === 'rejected') || null;
@@ -337,10 +338,11 @@ async function loadProfessionalRegistration() {
     verifierName = v?.full_name || '';
   }
 
-  const hasPrinted = !!(me.registration_number || me.registration_council || me.qualification);
+  const hasPrinted = !!(me.registration_number || me.registration_council || me.qualification || me.hpr_id);
   _setText('pr-v-reg', me.registration_number);
   _setText('pr-v-council', me.registration_council);
   _setText('pr-v-qual', me.qualification);
+  _setText('pr-v-hpr', _fmtHpr(me.hpr_id));
   document.getElementById('pr-verified-block').style.display = hasPrinted ? '' : 'none';
 
   document.getElementById('pr-pending-block').style.display = pending ? '' : 'none';
@@ -348,6 +350,7 @@ async function loadProfessionalRegistration() {
     _setText('pr-p-reg', pending.registration_number);
     _setText('pr-p-council', pending.registration_council);
     _setText('pr-p-qual', pending.qualification);
+    _setText('pr-p-hpr', pending.hpr_id ? _fmtHpr(pending.hpr_id) : 'unchanged');
   }
 
   const statusEl = document.getElementById('pr-status');
@@ -373,6 +376,7 @@ async function loadProfessionalRegistration() {
   document.getElementById('pr-reg').value = src.registration_number || '';
   document.getElementById('pr-council').value = src.registration_council || '';
   document.getElementById('pr-qual').value = src.qualification || '';
+  document.getElementById('pr-hpr').value = _fmtHpr((pending && pending.hpr_id) || me.hpr_id);
   document.getElementById('pr-form-title').textContent = pending ? 'Change the pending submission'
     : (hasPrinted ? 'Submit a change for verification' : 'Submit for verification');
 }
@@ -383,6 +387,12 @@ window.submitProfessionalCredentials = async function () {
   const reg = document.getElementById('pr-reg').value.trim();
   const council = document.getElementById('pr-council').value.trim();
   const qual = document.getElementById('pr-qual').value.trim();
+  const hpr = document.getElementById('pr-hpr').value.replace(/\D/g, '');
+  if (hpr && hpr.length !== 14) {
+    alertEl.textContent = 'HPR ID must be exactly 14 digits.';
+    alertEl.classList.add('show');
+    return;
+  }
   if (!reg || !council || !qual) {
     alertEl.textContent = 'Enter the Registration No., the issuing council / board and your qualification.';
     alertEl.classList.add('show');
@@ -391,7 +401,7 @@ window.submitProfessionalCredentials = async function () {
   const btn = document.getElementById('pr-submit-btn');
   btn.disabled = true;
   const { error } = await supabase.rpc('submit_my_professional_credentials', {
-    p_registration_number: reg, p_registration_council: council, p_qualification: qual,
+    p_registration_number: reg, p_registration_council: council, p_qualification: qual, p_hpr_id: hpr || null,
   });
   btn.disabled = false;
   if (error) {

@@ -169,7 +169,10 @@ function buildModel(d, copy) {
   // ── Signatures: the pharmacist who dispensed it (name, qualification, registration no.) ──
   const left = [`Dispensed by: ${ph?.name || '____________________'}`]
   if (ph?.qualification) left.push(ph.qualification)
-  left.push(ph?.registration_number ? `Pharmacist Reg. No. ${ph.registration_number}` : 'Pharmacist Reg. No. ____________')
+  // Session 338: the identity frozen on the bill at sale (get_pharmacy_bill_print; older bills: current verified values)
+  left.push(ph?.registration_number
+    ? `Pharmacist Reg. No. ${ph.registration_number}${ph.registration_council ? ` (${ph.registration_council})` : ''}`
+    : 'Pharmacist Reg. No. ____________')
 
   const footer = []
   if (isGst && docType === 'TAX_INVOICE' && !isDraft) footer.push('Whether tax is payable on reverse charge: No.')

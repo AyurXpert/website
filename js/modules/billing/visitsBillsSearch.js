@@ -64,6 +64,17 @@ function billRow(bill) {
     reprintButtons(bill))
 }
 
+// Session 338: a visit's finalised prescriptions, reprinted through record_document_print('prescription') -- the
+// print page decides Original / DUPLICATE COPY No. N. Listed by list_visit_prescriptions() (prescription-print roles:
+// reception, pharmacist, doctors, nurse, MRD, super_admin); for other roles the call is refused and nothing is shown.
+function prescriptionRow(rx) {
+  const b = printButton('🖨 Prescription', rx.prints, () => window.open(`printPrescription.html?rxId=${encodeURIComponent(rx.id)}`, '_blank'))
+  return el('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 0;border-top:1px solid var(--border)' },
+    el('span', { style: 'min-width:130px;font-weight:600' }, 'Prescription'),
+    el('span', { style: 'min-width:160px;color:var(--text-mid);font-size:12px' }, `${day(rx.created_at)}${rx.prescriber ? ' · ' + rx.prescriber : ''}`),
+    b)
+}
+
 function resultCard(row) {
   const p = row.patient || {}
   const v = row.visit
@@ -78,6 +89,7 @@ function resultCard(row) {
     : el('div', { style: 'font-size:12px;color:var(--text-mid);margin-bottom:4px' },
         `No visit on this bill (e.g. a lab test advised for the next visit) · ${day(row.bills?.[0]?.created_at)}`)
   const card = el('div', { style: 'border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin:0 0 10px;background:#fff' }, head, sub)
+  if (v) card.dataset.visitId = v.id
   if (!row.bills || !row.bills.length) card.appendChild(el('div', { style: 'font-size:12px;color:var(--text-muted);padding-top:4px' }, 'No OPD or lab bill on this visit.'))
   for (const b of row.bills || []) card.appendChild(billRow(b))
   return card
@@ -99,7 +111,7 @@ export function mountVisitsBillsSearch(root, { supabase }) {
   root.replaceChildren(
     el('div', { style: 'padding:12px' },
       el('div', { style: 'font-size:12px;color:var(--text-muted);margin-bottom:8px' },
-        'Open and completed visits with their OPD / lab bills and receipts. A UHID (AYX/…), bill no. (B/…) or receipt no. (RCPT/…) is searched across ALL dates. '
+        'Open and completed visits with their OPD / lab bills, receipts and prescriptions. A UHID (AYX/…), bill no. (B/…) or receipt no. (RCPT/…) is searched across ALL dates. '
         + 'A name or phone uses the date range (at most 31 days) unless you tick “All dates”. Newest first, at most 100 shown. '
         + 'Every reprint after the first is marked “Duplicate copy”.'),
       el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, q, from, el('span', null, 'to'), to, allLabel, go, clear),
@@ -138,6 +150,15 @@ export function mountVisitsBillsSearch(root, { supabase }) {
     const scope = data.all_dates ? 'across all dates' : `${data.from === data.to ? day(data.from + 'T12:00:00+05:30') : day(data.from + 'T12:00:00+05:30') + ' to ' + day(data.to + 'T12:00:00+05:30')}`
     status.textContent = `${rows.length} shown ${scope}` + (data.truncated ? ` — showing latest ${rows.length} of ${data.matched}; refine your search.` : '.')
     results.replaceChildren(...rows.map(resultCard))
+    // prescriptions of the visits shown (a separate read: a refusal for a non-clinical role simply shows none)
+    const vids = rows.filter(r => r.visit).map(r => r.visit.id)
+    if (!vids.length) return
+    const rx = await supabase.rpc('list_visit_prescriptions', { p_visit_ids: vids })
+    if (mine !== seq || rx.error || !Array.isArray(rx.data)) return
+    for (const p of rx.data) {
+      const card = [...results.children].find(c => c.dataset.visitId === p.visit_id)
+      if (card) card.appendChild(prescriptionRow(p))
+    }
   }
   go.addEventListener('click', run)
   q.addEventListener('input', () => {

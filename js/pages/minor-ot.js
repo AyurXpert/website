@@ -7,6 +7,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
+import { identityLines, identityOrLive } from '../utils/signerIdentity.js';
 
 await requireAuth(['super_admin','dept_admin','doctor','nurse']);
 initNavbar();
@@ -44,7 +45,7 @@ async function loadData() {
     .from('minor_ot_procedures')
     .select(`id,procedure_name,procedure_type,anaesthesia,procedure_date,duration_minutes,
              pre_op_diagnosis,post_op_diagnosis,operative_findings,procedure_notes,
-             instruments_used,complications,post_op_instructions,follow_up_date,status,created_at,
+             instruments_used,complications,post_op_instructions,follow_up_date,status,created_at,surgeon_id,surgeon_identity,
              patients(id,name,phone,age,gender),
              profiles!surgeon_id(full_name)`)
     .eq('tenant_id', tenantId)
@@ -200,9 +201,12 @@ window.viewRecord = function(id) {
 };
 window.closeViewModal = () => { document.getElementById('view-overlay').style.display = 'none'; };
 
-window.printRecord = function() {
+window.printRecord = async function() {
   if (!_viewRec) return;
   const r = _viewRec;
+  // Session 338: the surgeon's verified identity as stamped on the record (legacy: current verified values)
+  const surg = await identityOrLive(supabase, r.surgeon_identity, r.surgeon_id);
+  const surgCred = identityLines(surg).map(l => `<div style="font-size:10px;color:#444;font-weight:400">${_esc(l)}</div>`).join('');
   document.getElementById('ot-print').innerHTML = `
     <div class="print-title">Minor OT Procedure Record</div>
     <div class="print-sub">NCISM §18p · Shalya Chikitsa &nbsp;·&nbsp; ${_fmtDate(r.procedure_date)}</div>
@@ -222,7 +226,7 @@ window.printRecord = function() {
     <div class="print-notes">${_esc(r.procedure_notes||'—')}</div>
     <div style="font-size:11px;font-weight:700;color:#1a4a2e;text-transform:uppercase;margin:10px 0 4px">Post-op Instructions</div>
     <div class="print-notes">${_esc(r.post_op_instructions||'—')}</div>
-    <div class="print-sign"><div class="print-sign-box">Surgeon: ${_esc(r.profiles?.full_name||'—')}</div></div>`;
+    <div class="print-sign"><div class="print-sign-box">Surgeon: ${_esc(surg?.name || r.profiles?.full_name || '—')}${surgCred}</div></div>`;
   printDocument(document.getElementById('ot-print'), { title: `Minor OT Record — ${r.patients?.name || ''}` });
 };
 

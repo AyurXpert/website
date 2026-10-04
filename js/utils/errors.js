@@ -149,6 +149,17 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 338: HPR ID in the credential flow, medical certificates, prescription print / reprint.
+  const DOC_IDENTITY_MSGS = ['HPR ID must be exactly 14 digits', 'Registration No., council, qualification and HPR ID are changed',
+    'Only a doctor can issue a medical certificate', 'Patient not found', 'Visit not found for this patient',
+    'Choose the certificate type', 'Choose the advice', 'The rest end date is before', 'Write the advice in Remarks',
+    'Diagnosis or remarks are too long', 'Your role cannot print prescriptions', 'This prescription was deleted',
+    'This prescription is not finalised yet', 'Too many visits at once', 'Your account is not active', 'Document not found'];
+  if (['P0001','42501','22023','P0002'].includes(error?.code)
+      && DOC_IDENTITY_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // A page opened before a billing release still calls the retired function -- say what to do.
   // (PostgREST says "Could not find the function ..." when the signature changed -- Session 327 added a reference argument)
   if (/permission denied for function (add_opd_bill_item|create_opd_bill|create_investigation_bill)|Could not find the function public\.(create_opd_bill|create_investigation_bill)/.test(error?.message || '')) {

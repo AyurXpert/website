@@ -21,6 +21,7 @@ import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
 import { aggregateByMedicine } from '../modules/inventory/stockByMedicine.js';
+import { identityLines } from '../utils/signerIdentity.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -1066,11 +1067,16 @@ window.openPatientHistory = async function(patientId) {
 
   // Prescriptions: two steps (prescriptions → prescription_items)
   const { data: rxHeaders } = visitIds.length
-    ? await supabase.from('prescriptions').select('id, visit_id').in('visit_id', visitIds)
+    ? await supabase.from('prescriptions').select('id, visit_id, review_status, is_deleted, created_at').in('visit_id', visitIds)
     : { data: [] };
 
   const rxIdToVisit = {};
   (rxHeaders || []).forEach(r => { rxIdToVisit[r.id] = r.visit_id; });
+  // Session 338: the visit's latest finalised prescription can be reprinted (Original / Duplicate decided by the server)
+  const rxPrintable = {};
+  (rxHeaders || []).filter(r => r.review_status === 'finalized' && !r.is_deleted)
+    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+    .forEach(r => { rxPrintable[r.visit_id] = r.id; });
   const rxIds = Object.keys(rxIdToVisit);
 
   const { data: rxItems } = rxIds.length
@@ -1112,7 +1118,10 @@ window.openPatientHistory = async function(patientId) {
       ${diag ? `<div style="font-size:13px;margin-bottom:8px"><span style="color:#888">Diagnosis:</span> <strong>${_esc(diag)}</strong></div>` : ''}
       ${notes?.provisional_ayurveda ? `<div style="font-size:12px;color:#555;margin-bottom:8px;padding:8px;background:#fafdf8;border-radius:6px;border-left:3px solid var(--green-mid)"><strong>Provisional (Ayurveda):</strong> ${_esc(notes.provisional_ayurveda)}</div>` : ''}
       ${notes?.clinical_notes ? `<div style="font-size:12px;color:#555;margin-bottom:6px;padding:8px;background:#fafdf8;border-radius:6px;border-left:3px solid #c9902a"><strong>Clinical Notes:</strong> ${_esc(notes.clinical_notes)}</div>` : ''}
-      <div style="font-size:12px;font-weight:600;color:var(--green-deep);margin-bottom:6px">💊 Prescription</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+        <div style="font-size:12px;font-weight:600;color:var(--green-deep)">💊 Prescription</div>
+        ${rxPrintable[v.id] ? `<button type="button" data-onclick="reprintPrescription" data-onclick-a0="${_esc(rxPrintable[v.id])}" style="min-height:44px;padding:0 12px;font-size:12px;font-weight:600;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--green-deep);cursor:pointer" title="Reprint — marked Duplicate copy after the first print">🖨 Reprint prescription</button>` : ''}
+      </div>
       ${rxHtml}
     </div>`;
   }).join('') || '<div style="color:#aaa;text-align:center;padding:30px">No past consultations found</div>';
@@ -7405,15 +7414,32 @@ window.closeMcModal = function() {
   document.getElementById('mc-overlay').style.display = 'none';
 };
 
-window.printMedCert = function() {
+// Session 338: the certificate is ISSUED first (issue_medical_certificate -- a doctor only, add-only register) and
+// printed from what was stored, including the doctor's verified identity stamped at that moment.
+let _mcIssuing = false;
+window.printMedCert = async function() {
+  if (_mcIssuing) return;
   const tenant   = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
-  const date     = new Date().toLocaleDateString('en-IN', {day:'2-digit',month:'long',year:'numeric'});
-  const certType = document.getElementById('mc-type').value;
-  const diag     = document.getElementById('mc-diagnosis').value.trim();
-  const fromDate = document.getElementById('mc-rest-from').value;
-  const toDate   = document.getElementById('mc-rest-to').value;
-  const advice   = document.getElementById('mc-advice').value;
-  const remarks  = document.getElementById('mc-remarks').value.trim();
+  _mcIssuing = true;
+  const { data: cert, error: certErr } = await supabase.rpc('issue_medical_certificate', {
+    p_patient: _activePatient.id, p_visit: _activeVisitId || null,
+    p_cert_type: document.getElementById('mc-type').value,
+    p_diagnosis: document.getElementById('mc-diagnosis').value.trim() || null,
+    p_rest_from: document.getElementById('mc-rest-from').value || null,
+    p_rest_to: document.getElementById('mc-rest-to').value || null,
+    p_advice: document.getElementById('mc-advice').value,
+    p_remarks: document.getElementById('mc-remarks').value.trim() || null,
+  });
+  _mcIssuing = false;
+  if (certErr) { _toast(safeErrorMessage(certErr, 'Could not issue the certificate.'), 'error'); return; }
+  const date     = new Date(cert.issued_at).toLocaleDateString('en-IN', {day:'2-digit',month:'long',year:'numeric',timeZone:'Asia/Kolkata'});
+  const certType = cert.cert_type;
+  const diag     = cert.diagnosis || '';
+  const fromDate = cert.rest_from || '';
+  const toDate   = cert.rest_to || '';
+  const advice   = cert.advice;
+  const remarks  = cert.remarks || '';
+  const signer   = cert.doctor_identity || {};
 
   const certTitle = certType === 'fitness' ? 'CERTIFICATE OF FITNESS'
                   : certType === 'sick_leave' ? 'SICK LEAVE CERTIFICATE'
@@ -7430,9 +7456,8 @@ window.printMedCert = function() {
     ? `from <strong>${new Date(fromDate+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})}</strong>` +
       (toDate ? ` to <strong>${new Date(toDate+'T00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})}</strong>` : '')
     : '';
-  // Registration number directly under the doctor's name; nothing at all when not set.
-  const regNo  = String(profile.registration_number || '').trim();
-  const regStr = regNo ? `Reg. No.: ${regNo}` : '';
+  // The doctor's verified identity as stamped on the certificate (qualification, Reg. No. + council, HPR ID)
+  const credHtml = identityLines(signer).map(l => `<div style="font-size:11px;color:#2a4a32">${_esc(l)}</div>`).join('');
 
   document.getElementById('mc-print').innerHTML = `
 <div style="font-family:'DM Sans',sans-serif;max-width:600px;margin:0 auto;padding:0;color:#1c2b1f">
@@ -7462,9 +7487,8 @@ window.printMedCert = function() {
       </div>
       <div style="text-align:center">
         <div style="width:180px;border-top:1px solid #aaa;padding-top:6px;font-size:12px;color:#2a4a32">
-          <strong>${_esc(profile.full_name)}</strong>
-          ${regStr ? `<div style="font-size:11px;color:#2a4a32">${_esc(regStr)}</div>` : ''}
-          ${profile.qualification ? `<div style="font-size:11px;color:#6a8070">${_esc(profile.qualification)}</div>` : ''}
+          <strong>${_esc(signer.name || profile.full_name)}</strong>
+          ${credHtml}
         </div>
       </div>
     </div>
@@ -8701,7 +8725,8 @@ function closeMhaConsent() {
 async function saveMhaConsent(doPrint) {
   if (!_activePatient) return;
   const rows = ['r1','r2','r3','r4','r5','r6'].filter(r => document.getElementById('mha-c-'+r).checked);
-  const { error } = await supabase.from('mha_consents').insert({
+  // Session 338: the consent is the signed-in doctor's (server-set) and carries their verified identity
+  const { data: mhaRow, error } = await supabase.from('mha_consents').insert({
     tenant_id:         tenantId,
     patient_id:        _activePatient.id,
     visit_id:          _activeVisitId,
@@ -8714,8 +8739,11 @@ async function saveMhaConsent(doPrint) {
     consent_status:    document.getElementById('mha-c-consent').value,
     treatment_plan:    document.getElementById('mha-c-treatment').value.trim() || null,
     remarks:           document.getElementById('mha-c-remarks').value.trim() || null
-  });
+  }).select('doctor_identity').single();
   if (error) { alert(safeErrorMessage(error, 'Could not save consent.')); return; }
+  const mhaSigner = mhaRow?.doctor_identity || {};
+  const mhaCred = [mhaSigner.name ? `<div style="font-size:11px;margin-top:2px">${_esc(mhaSigner.name)}</div>` : '',
+    ...identityLines(mhaSigner).map(l => `<div style="font-size:10.5px;color:#444">${_esc(l)}</div>`)].join('');
   if (doPrint) {
     const p = _activePatient;
     const html = `<html><head><title>MHA 2017 Consent</title>
@@ -8742,7 +8770,7 @@ async function saveMhaConsent(doPrint) {
       <div class="row"><span class="label">Remarks:</span>${_esc(document.getElementById('mha-c-remarks').value||'—')}</div>
       <div class="sig-box">
         <div><div class="sig-line">Patient / Representative Signature</div></div>
-        <div><div class="sig-line">Doctor Signature &amp; Stamp</div></div>
+        <div><div class="sig-line">Doctor Signature &amp; Stamp</div>${mhaCred}</div>
       </div>
       <\/body><\/html>`;
     const w = window.open('','_blank');

@@ -26,6 +26,11 @@ export function setPaperSize(v) {
   try { localStorage.setItem(KEY, v); } catch { /* private mode etc. -- still applies to this page */ }
 }
 export const isThermal = size => size === 't80' || size === 't58';
+// A page that offers only some sizes (e.g. the prescription: A4 / A5): the remembered size if allowed, else the first.
+export function getPaperSizeFrom(allowed) {
+  const v = getPaperSize();
+  return allowed && allowed.length && !allowed.includes(v) ? allowed[0] : v;
+}
 
 // <html data-paper="..."> drives css/paper-size.css for the bill and receipt pages
 export function applyPaperSize(size) {
@@ -47,7 +52,8 @@ export function watchPrintPageSize(getEl) {
 }
 
 // An accessible <select> (44 px) placed in `container`; onChange(size) after the choice is stored + applied.
-export function mountPaperSizeSelect(container, onChange) {
+// opts.sizes limits the choices (keys of PAPER_SIZES); default = all four.
+export function mountPaperSizeSelect(container, onChange, { sizes } = {}) {
   if (!container) return null;
   const id = `ax-paper-${Math.random().toString(36).slice(2, 8)}`;
   const wrap = document.createElement('label');
@@ -57,12 +63,12 @@ export function mountPaperSizeSelect(container, onChange) {
   const sel = document.createElement('select');
   sel.id = id;
   sel.setAttribute('aria-label', 'Paper size');
-  for (const s of PAPER_SIZES) {
+  for (const s of PAPER_SIZES.filter(p => !sizes || sizes.includes(p.key))) {
     const o = document.createElement('option');
     o.value = s.key; o.textContent = s.label;
     sel.appendChild(o);
   }
-  sel.value = getPaperSize();
+  sel.value = getPaperSizeFrom(sizes);
   sel.addEventListener('change', () => {
     setPaperSize(sel.value); applyPaperSize(sel.value);
     if (onChange) onChange(sel.value);

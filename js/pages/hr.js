@@ -911,12 +911,12 @@ async function _loadPendingCredentials() {
   // Values recorded before verification existed: they keep printing, labelled "On file (before
   // verification)", until an admin verifies them here (stamp only -- the values are not changed).
   const onFile = Object.values(_bcStaffById).filter(p => !p.credentials_verified_at
-    && (p.registration_number || p.registration_council || p.qualification));
+    && (p.registration_number || p.registration_council || p.qualification || p.hpr_id));
   if (!data?.length && !onFile.length) { _bcEmpty(box, 'Nothing waiting for verification.'); return; }
 
   const onFileRows = onFile.map(p => {
     const details = _bcEl('div', { class: 'bc-compare' },
-      ...[['Registration No.', 'registration_number'], ['Council / board', 'registration_council'], ['Qualification', 'qualification']]
+      ...[['Registration No.', 'registration_number'], ['Council / board', 'registration_council'], ['Qualification', 'qualification'], ['HPR ID', 'hpr_id']]
         .flatMap(([label, key]) => [
           _bcEl('div', { class: 'bc-h', text: label }),
           _bcEl('div', { class: 'bc-new', text: p[key] || '—' }),
@@ -939,10 +939,11 @@ async function _loadPendingCredentials() {
     const sourceLabel = s.source === 'signup' ? 'typed at staff signup' : 'from My Profile';
     const compare = _bcEl('div', { class: 'bc-compare' },
       _bcEl('div', { class: 'bc-h', text: '' }), _bcEl('div', { class: 'bc-h', text: 'Submitted' }), _bcEl('div', { class: 'bc-h', text: 'Printed now' }),
-      ...[['Registration No.', 'registration_number'], ['Council / board', 'registration_council'], ['Qualification', 'qualification']]
+      ...[['Registration No.', 'registration_number'], ['Council / board', 'registration_council'], ['Qualification', 'qualification'], ['HPR ID', 'hpr_id']]
         .flatMap(([label, key]) => [
           _bcEl('div', { class: 'bc-h', text: label }),
-          _bcEl('div', { class: 'bc-new', text: s[key] || '—' }),
+          // a blank HPR ID in a submission keeps the verified one
+          _bcEl('div', { class: 'bc-new', text: s[key] || (key === 'hpr_id' && s['current_' + key] ? '(unchanged)' : '—') }),
           _bcEl('div', { class: 'bc-old', text: s['current_' + key] || '—' }),
         ]));
 
@@ -972,18 +973,18 @@ async function _loadPendingCredentials() {
 async function _loadPrintedCredentials() {
   const box = document.getElementById('bc-staff-list');
   const { data, error } = await supabase.from('profiles')
-    .select('id, full_name, role, secondary_role, designation, registration_number, registration_council, qualification, credentials_verified_at, credentials_verified_by')
+    .select('id, full_name, role, secondary_role, designation, registration_number, registration_council, qualification, hpr_id, credentials_verified_at, credentials_verified_by')
     .eq('tenant_id', tenantId).eq('is_active', true).order('full_name');
   if (error) { _bcEmpty(box, safeErrorMessage(error, 'Could not load staff.')); return; }
   const staff = (data || []).filter(p => BC_PROFESSIONAL_ROLES.includes(p.role) || BC_PROFESSIONAL_ROLES.includes(p.secondary_role));
   if (!staff.length) { _bcEmpty(box, 'No professional staff yet.'); return; }
   const names = Object.fromEntries((data || []).map(p => [p.id, p.full_name]));
 
-  const head = _bcEl('tr', {}, ...['Name', 'Role', 'Registration No.', 'Council / board', 'Qualification', 'Verified', ''].map(h => _bcEl('th', { text: h, scope: 'col' })));
+  const head = _bcEl('tr', {}, ...['Name', 'Role', 'Registration No.', 'Council / board', 'Qualification', 'HPR ID', 'Verified', ''].map(h => _bcEl('th', { text: h, scope: 'col' })));
   const rows = staff.map(p => {
     const verified = p.credentials_verified_at
       ? `${_bcDate(p.credentials_verified_at)}${p.credentials_verified_by && names[p.credentials_verified_by] ? ' · ' + names[p.credentials_verified_by] : ''}`
-      : (p.registration_number || p.qualification ? 'On file (before verification)' : '—');
+      : (p.registration_number || p.qualification || p.hpr_id ? 'On file (before verification)' : '—');
     const action = p.id === sess.id
       ? _bcEl('span', { class: 'bc-own', text: 'You' })
       : _bcEl('button', { class: 'btn btn-outline btn-sm', type: 'button',
@@ -994,6 +995,7 @@ async function _loadPrintedCredentials() {
       _bcEl('td', { text: p.registration_number || '—' }),
       _bcEl('td', { text: p.registration_council || '—' }),
       _bcEl('td', { text: p.qualification || '—' }),
+      _bcEl('td', { text: p.hpr_id || '—', style: 'font-variant-numeric:tabular-nums' }),
       _bcEl('td', { text: verified, style: 'font-size:12px' }),
       _bcEl('td', {}, action));
   });
@@ -1043,6 +1045,7 @@ window.openCredentialCorrection = function(profileId) {
   document.getElementById('bc-c-reg').value = p.registration_number || '';
   document.getElementById('bc-c-council').value = p.registration_council || '';
   document.getElementById('bc-c-qual').value = p.qualification || '';
+  document.getElementById('bc-c-hpr').value = p.hpr_id || '';
   document.getElementById('bc-c-reason').value = '';
   const panel = document.getElementById('bc-correct-panel');
   panel.style.display = '';
@@ -1067,6 +1070,7 @@ window.saveCredentialCorrection = async function() {
     p_registration_council: document.getElementById('bc-c-council').value.trim() || null,
     p_qualification: document.getElementById('bc-c-qual').value.trim() || null,
     p_reason: reason,
+    p_hpr_id: document.getElementById('bc-c-hpr').value.trim() || null,
   });
   btn.disabled = false;
   if (error) { _toast(safeErrorMessage(error, 'Could not save the correction.'), 'error'); return; }
@@ -1160,8 +1164,6 @@ window.saveCred = async function() {
   const profileSel = document.getElementById('cred-profile-sel');
   const profileId = profileSel.value;
   if (!profileId) { _toast('Select a staff member','error'); return; }
-  const hprDigits = (document.getElementById('cred-hpr-id').value || '').replace(/\D/g,'');
-  if (hprDigits && hprDigits.length !== 14) { _toast('HPR ID must be exactly 14 digits','error'); return; }
   const payload = {
     tenant_id: tenantId, profile_id: profileId,
     degree:               document.getElementById('cred-degree').value.trim()||null,
@@ -1188,10 +1190,8 @@ window.saveCred = async function() {
     ({ error } = await supabase.from('staff_credentials').upsert(payload,{onConflict:'profile_id'}));
   }
   if (error) { _toast(safeErrorMessage(error), 'error'); return; }
-  // HPR ID → profiles, via RPC (profiles' UPDATE RLS blocks a dept_admin from
-  // touching another user's row directly; the RPC re-checks same-tenant + admin).
-  const { error: hprErr } = await supabase.rpc('set_staff_hpr_id', { p_staff_id: profileId, p_hpr_id: hprDigits || null });
-  if (hprErr) { _toast('Credentials saved, but HPR ID failed: ' + safeErrorMessage(hprErr), 'error'); closeCredModal(); loadCredentials(); return; }
+  // Session 338: the HPR ID is part of the verified professional identity now (staff submit, an admin verifies or
+  // corrects it under "Registration on bills"); set_staff_hpr_id() is closed to browsers. This modal only shows it.
   // Session 337: this NABH register no longer writes the Reg. No. that prints on bills /
   // prescriptions (Session 308c's set_staff_registration_number() bypassed verification and is
   // now closed to browsers). The printed value comes only from "Registration on bills" above —
