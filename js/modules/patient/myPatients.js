@@ -209,7 +209,8 @@ window.openMyPatientVisit = async function(visitId) {
     _sb.from('pk_care_plans').select('status, setting, pk_care_plan_protocols(protocol_label, start_date)').eq('visit_id', visitId),
     _sb.from('admission_advice').select('status, clinical_indication').eq('visit_id', visitId).order('created_at', { ascending: false }),
     _sb.from('ipd_admissions').select('status, is_day_care, admission_date').eq('visit_id', visitId),
-    _sb.rpc('list_visit_certificates', { p_visit_ids: [visitId] }),
+    // Session 338c: by patient -- a certificate may have no visit
+    _sb.rpc('list_patient_certificates', { p_patient: p.id }),
   ]);
   if (token !== _detailToken) return;
 
@@ -274,9 +275,9 @@ window.reprintPrescription = function(rxId) {
 const _CERT_LABEL = { medical: 'Medical', fitness: 'Fitness', sick_leave: 'Sick leave' };
 function _certSection(certs) {
   if (!certs.length) return '';
-  return _sec('📄 Certificates', certs.map(c => `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:4px 0">
+  return _sec('📄 Medical certificates (this patient)', certs.map(c => `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:4px 0">
       <strong>${_esc(c.certificate_no)}</strong>
-      <span class="vh-muted">${_esc(_CERT_LABEL[c.cert_type] || 'Certificate')} · ${_esc(_fmtDT(c.issued_at))}${c.doctor ? ' · ' + _esc(c.doctor) : ''}</span>
+      <span class="vh-muted">${_esc(_CERT_LABEL[c.cert_type] || 'Certificate')} · ${_esc(_fmtDT(c.issued_at))}${c.doctor ? ' · ' + _esc(c.doctor) : ''}${c.visit_id ? '' : ' · not linked to a visit'}</span>
       <button type="button" class="vh-link" data-onclick="reprintCertificate" data-onclick-a0="${_esc(c.id)}" style="min-height:44px">🖨 Reprint</button>
     </div>`).join(''));
 }

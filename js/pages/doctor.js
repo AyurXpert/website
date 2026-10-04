@@ -1077,13 +1077,19 @@ window.openPatientHistory = async function(patientId) {
   (rxHeaders || []).filter(r => r.review_status === 'finalized' && !r.is_deleted)
     .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
     .forEach(r => { rxPrintable[r.visit_id] = r.id; });
-  // Session 338b: the visits' medical certificates (MC numbers), reprinted through the print audit
-  const { data: certRows } = visitIds.length
-    ? await supabase.rpc('list_visit_certificates', { p_visit_ids: visitIds })
-    : { data: [] };
-  const certsByVisit = {};
-  (Array.isArray(certRows) ? certRows : []).forEach(c => { (certsByVisit[c.visit_id] ||= []).push(c); });
+  // Session 338c: ALL the patient's medical certificates -- by patient, not by visit (a certificate can have no visit,
+  // e.g. issued from this history's "ABDM Records" view); reprinted through the print audit
+  const { data: certRows } = await supabase.rpc('list_patient_certificates', { p_patient: patientId });
+  const patientCerts = Array.isArray(certRows) ? certRows : [];
   const certLabel = { medical: 'Medical', fitness: 'Fitness', sick_leave: 'Sick leave' };
+  const certsHtml = patientCerts.length ? `<div style="border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;background:#fff">
+      <div style="font-size:13px;font-weight:600;color:var(--green-deep);margin-bottom:8px">📄 Medical certificates (${patientCerts.length})</div>
+      ${patientCerts.map(c => `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:4px 0;border-top:1px solid #f0ede5">
+        <strong style="font-size:13px">${_esc(c.certificate_no)}</strong>
+        <span style="font-size:12px;color:#666">${_esc(certLabel[c.cert_type] || 'Certificate')} · ${_esc(new Date(c.issued_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }))}${c.doctor ? ' · ' + _esc(c.doctor) : ''}${c.visit_id ? '' : ' · not linked to a visit'}</span>
+        <button type="button" data-onclick="reprintCertificate" data-onclick-a0="${_esc(c.id)}" style="min-height:44px;padding:0 12px;font-size:12px;font-weight:600;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--green-deep);cursor:pointer" title="${c.prints > 0 ? 'Printed ' + c.prints + '× — the next print is a Duplicate copy' : 'Not printed yet — the first print is the Original'}">🖨 Reprint</button>
+      </div>`).join('')}
+    </div>` : '';
   const rxIds = Object.keys(rxIdToVisit);
 
   const { data: rxItems } = rxIds.length
@@ -1130,10 +1136,6 @@ window.openPatientHistory = async function(patientId) {
         ${rxPrintable[v.id] ? `<button type="button" data-onclick="reprintPrescription" data-onclick-a0="${_esc(rxPrintable[v.id])}" style="min-height:44px;padding:0 12px;font-size:12px;font-weight:600;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--green-deep);cursor:pointer" title="Reprint — marked Duplicate copy after the first print">🖨 Reprint prescription</button>` : ''}
       </div>
       ${rxHtml}
-      ${(certsByVisit[v.id] || []).length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
-        <span style="font-size:12px;font-weight:600;color:var(--green-deep)">📄 Certificates</span>
-        ${certsByVisit[v.id].map(c => `<button type="button" data-onclick="reprintCertificate" data-onclick-a0="${_esc(c.id)}" style="min-height:44px;padding:0 12px;font-size:12px;font-weight:600;border:1.5px solid var(--border);border-radius:8px;background:#fff;color:var(--green-deep);cursor:pointer" title="Reprint — marked Duplicate copy after the first print">🖨 ${_esc(c.certificate_no)} · ${_esc(certLabel[c.cert_type] || 'Certificate')}</button>`).join('')}
-      </div>` : ''}
     </div>`;
   }).join('') || '<div style="color:#aaa;text-align:center;padding:30px">No past consultations found</div>';
 
@@ -1156,6 +1158,7 @@ window.openPatientHistory = async function(patientId) {
            every other entry point into this tab. -->
       <button data-onclick="_openAbdmForHistory" class="btn btn-primary" style="font-size:13px;padding:6px 14px">📋 ABDM Records</button>
     </div>
+    ${certsHtml}
     <div style="font-size:13px;font-weight:600;color:var(--green-deep);margin-bottom:12px">Past Consultations (${(visits||[]).length})</div>
     ${visitsHtml}`;
 };

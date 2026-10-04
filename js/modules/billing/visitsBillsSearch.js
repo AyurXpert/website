@@ -85,6 +85,19 @@ function certificateRow(c) {
     b)
 }
 
+// a certificate with no visit on the screen (e.g. issued from the patient's history with no visit): its own card
+function certificateCard(c) {
+  const p = c.patient || {}
+  return el('div', { style: 'border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin:0 0 10px;background:#fff' },
+    el('div', { style: 'display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:4px' },
+      el('strong', { style: 'font-size:14px' }, p.name || '—'),
+      el('span', { style: 'font-size:12px;color:var(--text-mid)' }, `UHID ${p.uhid || '—'}`),
+      p.phone ? el('span', { style: 'font-size:12px;color:var(--text-muted)' }, p.phone) : null),
+    el('div', { style: 'font-size:12px;color:var(--text-mid);margin-bottom:4px' },
+      c.visit_id ? `Medical certificate · ${when(c.issued_at)}` : `Medical certificate (not linked to a visit) · ${when(c.issued_at)}`),
+    certificateRow(c))
+}
+
 function resultCard(row) {
   const p = row.patient || {}
   const v = row.visit
@@ -108,7 +121,7 @@ function resultCard(row) {
 export function mountVisitsBillsSearch(root, { supabase }) {
   const today = todayISTStr()
   const q = el('input', { type: 'text', id: 'vb-q', maxlength: '80', style: INPUT + ';flex:1;min-width:240px',
-    placeholder: 'UHID, patient name, phone, bill no. (B/…) or receipt no. (RCPT/…)', 'aria-label': 'Search visits and bills' })
+    placeholder: 'UHID, patient name, phone, bill no. (B/…), receipt no. (RCPT/…) or certificate no. (MC/…)', 'aria-label': 'Search visits, bills and certificates' })
   const from = el('input', { type: 'date', id: 'vb-from', value: today, style: INPUT, 'aria-label': 'From date' })
   const to = el('input', { type: 'date', id: 'vb-to', value: today, style: INPUT, 'aria-label': 'To date' })
   const all = el('input', { type: 'checkbox', id: 'vb-all', style: 'width:18px;height:18px;margin:0' })
@@ -121,14 +134,14 @@ export function mountVisitsBillsSearch(root, { supabase }) {
   root.replaceChildren(
     el('div', { style: 'padding:12px' },
       el('div', { style: 'font-size:12px;color:var(--text-muted);margin-bottom:8px' },
-        'Open and completed visits with their OPD / lab bills, receipts, prescriptions and medical certificates. A UHID (AYX/…), bill no. (B/…) or receipt no. (RCPT/…) is searched across ALL dates. '
+        'Open and completed visits with their OPD / lab bills, receipts, prescriptions and medical certificates. A UHID (AYX/…), bill no. (B/…), receipt no. (RCPT/…) or certificate no. (MC/…) is searched across ALL dates. '
         + 'A name or phone uses the date range (at most 31 days) unless you tick “All dates”. Newest first, at most 100 shown. '
         + 'Every reprint after the first is marked “Duplicate copy”.'),
       el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, q, from, el('span', null, 'to'), to, allLabel, go, clear),
       status, results))
 
   // UHID / bill / receipt numbers run only on Enter or the button; a name or phone also runs by itself once typing pauses.
-  const isNumberPattern = v => /^(B|RCPT)\//i.test(v) || /^[A-Za-z]{2,6}\/\d{4}\//.test(v)
+  const isNumberPattern = v => /^(B|RCPT|MC)\//i.test(v) || /^[A-Za-z]{2,6}\/\d{4}\//.test(v)
   let timer = null
   let seq = 0
   // The same rule the server applies: a UHID / bill / receipt number always ignores the dates (dim them as a hint).
@@ -147,19 +160,34 @@ export function mountVisitsBillsSearch(root, { supabase }) {
     syncDates()
     status.textContent = 'Searching…'
     results.replaceChildren()
-    const { data, error } = await supabase.rpc('search_visits_bills', {
-      p_q: q.value.trim() || null, p_from: from.value || null, p_to: to.value || null,
-      p_all_dates: all.checked })
+    const args = { p_q: q.value.trim() || null, p_from: from.value || null, p_to: to.value || null, p_all_dates: all.checked }
+    // Session 338c: medical certificates are searched on their own (a certificate may have no visit at all) -- by MC
+    // number or UHID across all dates, by name / phone in the date range. A role that cannot print them gets none.
+    const [vb, mc] = await Promise.all([
+      supabase.rpc('search_visits_bills', args),
+      supabase.rpc('search_medical_certificates', args),
+    ])
     if (mine !== seq) return                       // a newer search started meanwhile: drop this answer
-    if (error) { status.textContent = safeErrorMessage(error, 'Could not search. Please try again.'); return }
-    const rows = data?.rows || []
-    if (!rows.length) {
+    const certs = !mc.error && Array.isArray(mc.data?.rows) ? mc.data.rows : []
+    if (vb.error && !certs.length) { status.textContent = safeErrorMessage(vb.error, 'Could not search. Please try again.'); return }
+    const data = vb.data || {}
+    const rows = vb.error ? [] : (data.rows || [])
+    if (!rows.length && !certs.length) {
       status.textContent = 'Nothing found. Check the spelling, or tick “All dates”.'
       return
     }
-    const scope = data.all_dates ? 'across all dates' : `${data.from === data.to ? day(data.from + 'T12:00:00+05:30') : day(data.from + 'T12:00:00+05:30') + ' to ' + day(data.to + 'T12:00:00+05:30')}`
-    status.textContent = `${rows.length} shown ${scope}` + (data.truncated ? ` — showing latest ${rows.length} of ${data.matched}; refine your search.` : '.')
+    const src = rows.length ? data : mc.data
+    const scope = src.all_dates ? 'across all dates' : `${src.from === src.to ? day(src.from + 'T12:00:00+05:30') : day(src.from + 'T12:00:00+05:30') + ' to ' + day(src.to + 'T12:00:00+05:30')}`
+    status.textContent = `${rows.length} visit / bill result${rows.length === 1 ? '' : 's'}`
+      + (certs.length ? ` and ${certs.length} medical certificate${certs.length === 1 ? '' : 's'}` : '') + ` shown ${scope}`
+      + ((data.truncated || mc.data?.truncated) ? ' — only the latest are shown; refine your search.' : '.')
     results.replaceChildren(...rows.map(resultCard))
+    // a certificate goes on its visit's card when that visit is shown; otherwise it gets a card of its own
+    for (const c of certs) {
+      const card = c.visit_id ? [...results.children].find(x => x.dataset.visitId === c.visit_id) : null
+      if (card) card.appendChild(certificateRow(c))
+      else results.appendChild(certificateCard(c))
+    }
     // prescriptions of the visits shown (a separate read: a refusal for a non-clinical role simply shows none)
     const vids = rows.filter(r => r.visit).map(r => r.visit.id)
     if (!vids.length) return
@@ -168,12 +196,6 @@ export function mountVisitsBillsSearch(root, { supabase }) {
     for (const p of rx.data) {
       const card = [...results.children].find(c => c.dataset.visitId === p.visit_id)
       if (card) card.appendChild(prescriptionRow(p))
-    }
-    const mc = await supabase.rpc('list_visit_certificates', { p_visit_ids: vids })
-    if (mine !== seq || mc.error || !Array.isArray(mc.data)) return
-    for (const c of mc.data) {
-      const card = [...results.children].find(x => x.dataset.visitId === c.visit_id)
-      if (card) card.appendChild(certificateRow(c))
     }
   }
   go.addEventListener('click', run)
