@@ -153,7 +153,7 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
   const DOC_IDENTITY_MSGS = ['HPR ID must be exactly 14 digits', 'Registration No., council, qualification and HPR ID are changed',
     'Only a doctor can issue a medical certificate', 'Patient not found', 'Visit not found for this patient',
     'Choose the certificate type', 'Choose the advice', 'The rest end date is before', 'Write the advice in Remarks',
-    'Diagnosis or remarks are too long', 'Your role cannot print prescriptions', 'This prescription was deleted',
+    'Diagnosis or remarks are too long', 'Your role cannot print prescriptions', 'Your role cannot view or print medical certificates', 'This prescription was deleted',
     'This prescription is not finalised yet', 'Too many visits at once', 'Your account is not active', 'Document not found'];
   if (['P0001','42501','22023','P0002'].includes(error?.code)
       && DOC_IDENTITY_MSGS.some(m => error?.message?.startsWith(m))) {

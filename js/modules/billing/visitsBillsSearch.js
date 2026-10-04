@@ -11,6 +11,12 @@ import { el } from './invoiceLayout.js'
 import { openBill, openReceipt, isCombinedPayment } from './opdPayments.js'
 import { safeErrorMessage } from '../../utils/errors.js'
 import { todayISTStr } from '../../utils/dateUtils.js'
+import { getCurrentRole } from '../../core/auth.js'
+
+// Session 338d: medical certificates are confidential clinical documents -- never listed, searched or printed by a
+// pharmacist or cashier / accountant / finance_manager (the server refuses them too: _certificate_caller()).
+// Reception reprints them at the counter. Mirrors the server's role list.
+const CERTIFICATE_ROLES = ['doctor', 'trainee_doctor', 'mrd_staff', 'dept_admin', 'super_admin', 'receptionist']
 
 const BILL_LABEL = { consultation: 'Visit bill', opd: 'Visit bill', investigation: 'Lab bill' }
 const STATUS_LABEL = { waiting: 'Waiting', in_progress: 'With doctor', completed: 'Completed', incomplete: 'Incomplete' }
@@ -120,8 +126,10 @@ function resultCard(row) {
 
 export function mountVisitsBillsSearch(root, { supabase }) {
   const today = todayISTStr()
+  const showCerts = CERTIFICATE_ROLES.includes(getCurrentRole())
   const q = el('input', { type: 'text', id: 'vb-q', maxlength: '80', style: INPUT + ';flex:1;min-width:240px',
-    placeholder: 'UHID, patient name, phone, bill no. (B/…), receipt no. (RCPT/…) or certificate no. (MC/…)', 'aria-label': 'Search visits, bills and certificates' })
+    placeholder: showCerts ? 'UHID, patient name, phone, bill no. (B/…), receipt no. (RCPT/…) or certificate no. (MC/…)' : 'UHID, patient name, phone, bill no. (B/…) or receipt no. (RCPT/…)',
+    'aria-label': showCerts ? 'Search visits, bills and certificates' : 'Search visits and bills' })
   const from = el('input', { type: 'date', id: 'vb-from', value: today, style: INPUT, 'aria-label': 'From date' })
   const to = el('input', { type: 'date', id: 'vb-to', value: today, style: INPUT, 'aria-label': 'To date' })
   const all = el('input', { type: 'checkbox', id: 'vb-all', style: 'width:18px;height:18px;margin:0' })
@@ -134,7 +142,9 @@ export function mountVisitsBillsSearch(root, { supabase }) {
   root.replaceChildren(
     el('div', { style: 'padding:12px' },
       el('div', { style: 'font-size:12px;color:var(--text-muted);margin-bottom:8px' },
-        'Open and completed visits with their OPD / lab bills, receipts, prescriptions and medical certificates. A UHID (AYX/…), bill no. (B/…), receipt no. (RCPT/…) or certificate no. (MC/…) is searched across ALL dates. '
+        (showCerts
+          ? 'Open and completed visits with their OPD / lab bills, receipts, prescriptions and medical certificates. A UHID (AYX/…), bill no. (B/…), receipt no. (RCPT/…) or certificate no. (MC/…) is searched across ALL dates. '
+          : 'Open and completed visits with their bills, receipts and prescriptions. A UHID (AYX/…), bill no. (B/…) or receipt no. (RCPT/…) is searched across ALL dates. ')
         + 'A name or phone uses the date range (at most 31 days) unless you tick “All dates”. Newest first, at most 100 shown. '
         + 'Every reprint after the first is marked “Duplicate copy”.'),
       el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, q, from, el('span', null, 'to'), to, allLabel, go, clear),
@@ -165,7 +175,7 @@ export function mountVisitsBillsSearch(root, { supabase }) {
     // number or UHID across all dates, by name / phone in the date range. A role that cannot print them gets none.
     const [vb, mc] = await Promise.all([
       supabase.rpc('search_visits_bills', args),
-      supabase.rpc('search_medical_certificates', args),
+      showCerts ? supabase.rpc('search_medical_certificates', args) : Promise.resolve({ data: null, error: null }),
     ])
     if (mine !== seq) return                       // a newer search started meanwhile: drop this answer
     const certs = !mc.error && Array.isArray(mc.data?.rows) ? mc.data.rows : []

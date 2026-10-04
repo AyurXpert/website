@@ -59,7 +59,8 @@ export function adviceSentence(c) {
 async function load() {
   if (!certId) { showMessage('No certificate ID provided.'); return; }
   if (!(await ensureSignedIn(supabase))) return;
-  await requireAuth([ROLES.DOCTOR, ROLES.TRAINEE_DOCTOR, ROLES.RECEPTIONIST, ROLES.PHARMACIST, ROLES.NURSE, ROLES.MRD_STAFF]);
+  // Session 338d: confidential -- no pharmacist, cashier or nurse (same list as the server's _certificate_caller())
+  await requireAuth([ROLES.DOCTOR, ROLES.TRAINEE_DOCTOR, ROLES.RECEPTIONIST, ROLES.MRD_STAFF, ROLES.DEPT_ADMIN]);
 
   // Print audit first: never shown without its Original / Duplicate marking (fail closed)
   const rec = await supabase.rpc('record_document_print', { p_doc_type: 'medical_certificate', p_doc_id: certId });
