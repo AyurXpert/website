@@ -180,6 +180,7 @@ function renderTable() {
         <td>
           <div class="med-name" title="${_esc(i.medicine.name)}">${_esc(i.medicine.name)}</div>
           <div class="med-sub">${CAT_LABELS[i.medicine.category] || ''}</div>
+          ${i.medicine.dosage_form ? '' : '<div class="med-sub" style="font-style:italic;color:var(--text-muted)">Form not set</div>'}
           ${inds.length ? `<div style="margin-top:2px">${indHtml}</div>` : ''}
         </td>
         <td style="color:var(--text-mid)">${_esc(i.medicine.brand) || '—'}</td>
@@ -453,6 +454,9 @@ function openPanel(invId) {
   CATALOGUE_FIELDS.forEach(id => { const el = document.getElementById(id);
     if (el) el.disabled = !(canItemMaster && (ITEM_FIELDS.includes(id) || (id === 'f-active' && isEdit))); });
   fillFormSelect(document.getElementById('f-form'), '');
+  // Session 340b: the form is required for a new medicine
+  document.getElementById('f-form-req').style.display = '';
+  document.getElementById('f-form-hint').textContent = '';
   document.getElementById('f-strength').value = '';
   document.getElementById('f-mfr').value = '';
   document.getElementById('f-deact-reason').value = '';
@@ -479,6 +483,13 @@ function openPanel(invId) {
     document.getElementById('f-barcode').value    = item.medicine.barcode || '';
     document.getElementById('f-active').value     = String(item.medicine.is_active !== false);
     fillFormSelect(document.getElementById('f-form'), item.medicine.dosage_form || '');
+    // Session 340b: a medicine added before forms existed may keep an empty form; once set, it cannot be cleared
+    if (item.medicine.dosage_form) {
+      document.getElementById('f-form').querySelector('option[value=""]')?.remove();
+    } else {
+      document.getElementById('f-form-req').style.display = 'none';
+      document.getElementById('f-form-hint').textContent = 'Form not set yet — optional for this medicine; once chosen it cannot be cleared.';
+    }
     document.getElementById('f-strength').value   = item.medicine.strength || '';
     document.getElementById('f-mfr').value        = item.medicine.manufacturer || '';
     document.getElementById('f-mrp').value        = item.mrp || '';
@@ -629,6 +640,10 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
       // stock arrives through Purchase / GRN. A pharmacist adds new medicines during a goods receipt instead.
       if (!canItemMaster) {
         _alert('error', 'Only an administrator can add a medicine here — receive it through Purchase / GRN (＋ New medicine) instead.');
+        btn.disabled = false; btn.textContent = 'Save Medicine'; return;
+      }
+      if (!document.getElementById('f-form').value) {
+        _alert('error', 'Choose the form (tablet, churna, kashaya …).');
         btn.disabled = false; btn.textContent = 'Save Medicine'; return;
       }
       const exists = _items.find(i => i.medicine.name.toLowerCase() === name.toLowerCase());

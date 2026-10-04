@@ -456,8 +456,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <!-- Session 340: this pharmacy's own medicine list (item master) -->
     <div class="field-row">
       <div class="field">
-        <label for="f-form">Form <span style="color:var(--red)">*</span></label>
-        <select id="f-form"></select>
+        <label for="f-form">Form <span id="f-form-req" style="color:var(--red)">*</span></label>
+        <select id="f-form" aria-describedby="f-form-hint"></select>
+        <div id="f-form-hint" style="font-size:11px;color:var(--text-muted);margin-top:3px"></div>
       </div>
       <div class="field">
         <label for="f-strength">Strength</label>

@@ -168,7 +168,9 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     // Session 340: each organisation's own medicine list
     'Only the pharmacy team or an administrator can add a medicine', 'Only an administrator or the pharmacy in-charge',
     'This medicine is already in your list', 'That medicine is not in this organisation', 'A medicine always belongs',
-    'Brand is too long', 'Sign in again', 'Your account is not active'];
+    'Brand is too long', 'Sign in again', 'Your account is not active',
+    // Session 340b: a form, once set, cannot be cleared
+    'The form cannot be cleared'];
   if (['P0001','42501','22023','P0002'].includes(error?.code)
       && (CATALOGUE_MSGS.some(m => error?.message?.startsWith(m))
           || /^".{1,200}" has been withdrawn from the AyurXpert medicine catalogue/.test(error?.message || ''))) {
