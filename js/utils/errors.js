@@ -160,6 +160,17 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 339: platform-admin medicine catalogue + the "withdrawn medicine" guard on new prescription lines / receipts.
+  const CATALOGUE_MSGS = ['Only the AyurXpert platform administrator', 'Enter the medicine name', 'Choose the form', 'Enter the pack / unit',
+    'Unknown form', 'HSN must be', 'The default GST rate', 'This medicine is already', 'Medicine not found', 'Say whether the medicine',
+    'Give the reason for deactivating', 'Reason is too long', 'Name is too long', 'Strength is too long', 'Pack / unit is too long',
+    'Manufacturer is too long', 'Category is too long', 'Unknown status filter'];
+  if (['P0001','42501','22023','P0002'].includes(error?.code)
+      && (CATALOGUE_MSGS.some(m => error?.message?.startsWith(m))
+          || /^".{1,200}" has been withdrawn from the AyurXpert medicine catalogue/.test(error?.message || ''))) {
+    return error.message;
+  }
+
   // A page opened before a billing release still calls the retired function -- say what to do.
   // (PostgREST says "Could not find the function ..." when the signature changed -- Session 327 added a reference argument)
   if (/permission denied for function (add_opd_bill_item|create_opd_bill|create_investigation_bill)|Could not find the function public\.(create_opd_bill|create_investigation_bill)/.test(error?.message || '')) {

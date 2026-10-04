@@ -589,6 +589,11 @@ document.getElementById('btn-save-med').addEventListener('click', async () => {
         .select('id, name, is_active').ilike('name', name.replace(/[\\%_]/g, c => '\\' + c)).limit(2);
       if (fe) throw fe;
       const med = (found || []).find(m => m.is_active !== false) || (found || [])[0];
+      // Session 339: a medicine withdrawn from the catalogue cannot be added (it could never be received or prescribed)
+      if (med && med.is_active === false) {
+        _alert('error', `"${med.name}" has been withdrawn from the AyurXpert medicine catalogue and cannot be added.`);
+        btn.disabled = false; btn.textContent = 'Save Medicine'; return;
+      }
       if (!med) {
         _alert('error', `"${name}" is not in the AyurXpert medicine catalogue. Ask AyurXpert support to add it — then add it here.`);
         btn.disabled = false; btn.textContent = 'Save Medicine'; return;

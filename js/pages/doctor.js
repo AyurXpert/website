@@ -419,10 +419,12 @@ async function loadInventory() {
   try {
     const { data } = await supabase
       .from('inventory')
-      .select('id, medicine_id, stock_quantity, mrp, expiry_date, inward_date, is_student_batch, medicine:medicines(id,name,indications,anupana,dosage_text,classical_reference)')
+      .select('id, medicine_id, stock_quantity, mrp, expiry_date, inward_date, is_student_batch, medicine:medicines(id,name,is_active,indications,anupana,dosage_text,classical_reference)')
       .eq('tenant_id', tenantId);
     // one entry per medicine with its total sellable stock (Session 331: a medicine can have several batches)
-    _inventory = aggregateByMedicine(data).filter(i => i.medicine?.name);
+    // Session 339: a medicine withdrawn from the AyurXpert catalogue is not offered for new prescriptions (the server
+    // refuses it too); stock already held can still be dispensed against existing prescriptions.
+    _inventory = aggregateByMedicine(data).filter(i => i.medicine?.name && i.medicine.is_active !== false);
   } catch (e) {
     _inventory = [];
   }
