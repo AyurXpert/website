@@ -2,6 +2,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId,
          getCurrentRole, getPendingApprovals, hasModule } from '../core/auth.js';
 import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, collectedAmount } from '../modules/billing/billCategory.js';
 import { initNavbar } from '../components/navbar.js';
+import { tenantTypeLabel } from '../utils/tenantTypeLabel.js';   // TODO §140: was navbar.js's private _tenantTypeLabel (ReferenceError here)
 import { supabase }   from '../core/db/supabaseClient.js';
 import { logAudit }   from '../core/auditLogger.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
@@ -6604,7 +6605,7 @@ window.loadModules = async function() {
 
   el.innerHTML = `
     <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:12.5px;color:#7a5200">
-      <strong>Note:</strong> Defaults are set by your organisation type (<strong>${_tenantTypeLabel(t.type)}</strong>).
+      <strong>Note:</strong> Defaults are set by your organisation type (<strong>${tenantTypeLabel(t.type)}</strong>).
       Toggle individual modules below. Changes take effect on next login.
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px" id="mod-grid">

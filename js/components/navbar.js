@@ -4,6 +4,7 @@
 import { getCurrentProfile, getCurrentTenant, getCurrentRole, getCurrentSecondaryRole, getCurrentHasMonitoringAccess, logout, hasModule } from '../core/auth.js';
 import { DESIG_MAP, ROLE_DUTY_FALLBACK } from '../config/designations.js';
 import { escapeHtml } from '../utils/validators.js';
+import { tenantTypeLabel } from '../utils/tenantTypeLabel.js';   // TODO §140: shared with admin.js
 
 export function initNavbar() {
   const profile = getCurrentProfile();
@@ -286,7 +287,7 @@ function _injectNavbar(profile, tenant, role, secondaryRole, hasMonitoringAccess
         ${logoHTML}
         <div class="ax-brand-text">
           <span class="ax-name">${tenant.name}</span>
-          <span class="ax-tagline">${_tenantTypeLabel(tenant.type)}${tenant.tenant_code ? ' · ' + tenant.tenant_code : ''}${NCISM.includes(tenant.type) && tenant.ug_intake ? ' · UG ' + tenant.ug_intake : ''}</span>
+          <span class="ax-tagline">${tenantTypeLabel(tenant.type)}${tenant.tenant_code ? ' · ' + tenant.tenant_code : ''}${NCISM.includes(tenant.type) && tenant.ug_intake ? ' · UG ' + tenant.ug_intake : ''}</span>
         </div>
       </div>
       <div class="ax-groups" id="ax-groups">${groupsHTML}${helpGroupHTML}</div>
@@ -596,11 +597,6 @@ function _userRoleLine(profile, role) {
     ? `${_roleLabel(role)} + ${_roleLabel(profile.secondary_role)}`
     : _roleLabel(role);
   return desig ? `${desig} · ${roleLabel}` : roleLabel;
-}
-function _tenantTypeLabel(type) {
-  return { clinic:'Clinic', hospital:'Hospital', pk_center:'Panchakarma Center', dispensary:'Dispensary',
-    college:'Ayurveda College', teaching_hospital:'Teaching Hospital',
-    pharma:'Pharmaceutical Co.', supplier:'Supplier', dealer:'Dealer', journal:'Journal' }[type] || 'Healthcare';
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
