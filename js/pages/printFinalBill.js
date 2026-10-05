@@ -50,6 +50,7 @@ const titleCase = s => (s || '').replace(/[_-]+/g, ' ').split(' ')
 const SEX = { f: 'Female', female: 'Female', m: 'Male', male: 'Male', o: 'Other', other: 'Other' };
 
 let _data = null;
+let _copy = null, _copyBill = null;   // Session 342: the print recorded at page load (record_document_print), and for which bill
 
 function category(it) {
   const sec = (it.bill_section || '').toLowerCase();
@@ -84,7 +85,7 @@ function monogram(name) {
   return (name || '').split(/\s+/).filter(Boolean).slice(0, 3).map(w => w[0].toUpperCase()).join('');
 }
 
-function buildModel(d) {
+function buildModel(d, copy) {
   const t = d.tenant || {}, tax = d.tax || {}, adm = d.admission, pt = d.patient || {}, b = d.bill, acc = d.account || {};
   const isGst     = b.tax_regime === 'gst_v1';
   const isDraft   = isGst && b.document_status === 'draft';
@@ -108,7 +109,11 @@ function buildModel(d) {
   }
   orgLines = orgLines.filter(Boolean);
 
-  // ── Title ──
+  // ── Title + copy marking (Session 342, TODO §141): the SERVER decides Original vs Duplicate (record_document_print);
+  // print 1 keeps this page's label (Tax Invoice "Original for Recipient", otherwise "Original") until the CA confirms;
+  // every reprint = "DUPLICATE COPY · No. N" in header AND footer + the watermark; CANCELLED wins; a draft is not marked.
+  const isDup  = !!copy && copy.copy !== 'ORIGINAL';
+  const copyNo = copy ? (Number(copy.print_no) || 1) + (copy.legacy ? 1 : 0) : null;
   let title = 'Final Bill', subtitle = 'In-Patient · Original', watermark = null;
   if (isGst) {
     if (isDraft) { title = 'Draft Bill'; subtitle = 'In-Patient'; watermark = 'DRAFT — NOT A TAX INVOICE'; }
@@ -117,6 +122,10 @@ function buildModel(d) {
       subtitle = docType === 'TAX_INVOICE' ? 'In-Patient · Original for Recipient' : 'In-Patient · Original';
       if (b.document_status === 'cancelled') watermark = 'CANCELLED';
     }
+  }
+  if (isDup && !isDraft) {
+    subtitle = `In-Patient · DUPLICATE COPY · No. ${copyNo}`;
+    if (!watermark) watermark = 'DUPLICATE COPY';
   }
 
   // ── Bill To (decision 5): tenant default, per-bill override; GST uses the frozen recipient ──
@@ -280,6 +289,11 @@ function buildModel(d) {
   const footer = [];
   if (isGst && docType === 'TAX_INVOICE' && !isDraft) footer.push('Whether tax is payable on reverse charge: No.');
   const docWord = isDraft ? 'Draft bill — not a tax invoice' : isGst ? `Computer-generated ${(DOC_TITLE[docType] || 'bill').toLowerCase()}` : 'Computer-generated bill — not a tax invoice';
+  if (isDup && !isDraft) {
+    footer.push(`Duplicate copy no. ${copyNo}. ${copy.legacy
+      ? 'Issued before print tracking began — an original may already have been given to the patient.'
+      : `The original was first printed ${fmtDT(copy.first_printed_at)}${copy.first_printed_by ? ' by ' + copy.first_printed_by : ''}.`}`);
+  }
   footer.push(`${docWord}. Receipts were issued separately at the time of payment. · Powered by AyurXpert`);
 
   return {
@@ -319,7 +333,7 @@ window.saveAddressee = async function() {
   const { error } = await supabase.rpc('set_bill_invoice_addressee', { p_bill: _data.bill.id, p_addressee: val, p_reason: reason });
   if (error) { setStatus(safeErrorMessage(error, 'Could not change who the bill is addressed to.'), true); return; }
   setStatus('Bill-to changed (audited).');
-  await load();
+  await load();   // re-reads the bill and re-renders; the print was recorded once, at page load (never again here)
 };
 
 function setStatus(msg, isErr = false) {
@@ -346,7 +360,20 @@ async function load() {
   if (!data?.bill) { showError('No bill has been generated for this admission yet.'); return; }
   data.isDemo = isDemo;
   _data = data;
-  const model = buildModel(data);
+  // Session 342 (TODO §141): RECORD the print once per page load (fail closed), then RENDER. A re-render -- the
+  // bill-to change, a reload of the data, a future paper-size change -- reuses the recorded copy and logs nothing.
+  // A GST draft is not a document: not recorded, not marked.
+  const isDraft = data.bill.tax_regime === 'gst_v1' && data.bill.document_status === 'draft';
+  if (!isDraft && (!_copy || _copyBill !== data.bill.id)) {
+    const rec = await supabase.rpc('record_document_print', { p_doc_type: 'bill', p_doc_id: data.bill.id });
+    if (rec.error || !rec.data) { showError(safeErrorMessage(rec.error, 'Could not record this print. Please try again.')); return; }
+    _copy = rec.data; _copyBill = data.bill.id;
+  }
+  render(data);
+}
+
+function render(data) {
+  const model = buildModel(data, data.bill.tax_regime === 'gst_v1' && data.bill.document_status === 'draft' ? null : _copy);
   renderInvoice(sheet, model);
   sheet.querySelector('.logo-img')?.addEventListener('error', e => e.target.remove());
   document.title = `${model.title} ${data.bill.document_number || ''} — ${data.patient?.name || ''}`.replace(/\s+/g, ' ').trim();

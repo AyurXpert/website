@@ -156,9 +156,20 @@ async function loadInterim() {
     return;
   }
 
-  document.getElementById('docTitle').textContent = 'INTERIM BILL';
-  document.getElementById('notaxNote').style.display = '';
-  document.getElementById('receiptMeta').innerHTML = `<div>${_fmtDateTime(new Date().toISOString())}</div>`;
+  // Session 342 (TODO §141, owner decision 5 Oct 2026): every interim print is logged as 'ipd_interim' (numbered per
+  // admission) BEFORE anything is shown -- fail closed. It is a statement whose figures change, so it is never a
+  // "DUPLICATE": header and footer both say "Interim statement · print N · as on <date time>".
+  const rec = await supabase.rpc('record_document_print', { p_doc_type: 'ipd_interim', p_doc_id: admId });
+  if (rec.error || !rec.data) {
+    document.getElementById('patientInfo').textContent = safeErrorMessage(rec.error, 'Could not record this print. Please try again.');
+    return;
+  }
+  const stamp = `Interim statement · print ${Number(rec.data.print_no) || 1} · as on ${_fmtDateTime(rec.data.printed_at || new Date().toISOString())}`;
+  document.getElementById('docTitle').textContent = 'INTERIM STATEMENT';
+  document.getElementById('receiptMeta').textContent = stamp;
+  const note = document.getElementById('notaxNote');
+  note.textContent = `${stamp} — not a bill, not a tax invoice.`;
+  note.style.display = '';
 
   const pt  = adm.patients || {};
   const bed = adm.beds || {};
