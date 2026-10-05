@@ -136,7 +136,8 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
     {
       label: 'Dispensary', icon: '💊',
       items: [
-        { href:'dispensaryPOS.html',  label:'Dispensary POS',  roles:RX_ROLES,                          types:null, module:'pharmacy'},
+        // Session 341: + cashier -- counter (walk-in) sales only; dispensaryPOS.js's requireAuth() allows it too
+        { href:'dispensaryPOS.html',  label:'Dispensary POS',  roles:RX_ROLES.concat(['cashier']),      types:null, module:'pharmacy'},
         { href:'inventory.html',      label:'Inventory',       roles:RX_ROLES,                          types:null, module:'pharmacy'},
         { href:'aushadha-nirman.html',label:'Aushadha Nirman', roles:RX_ROLES.concat(ADMIN_ROLES),      types:null, module:'pharmacy'},
         // Session 305: accountant / pharmacist links removed -- those pages' requireAuth()

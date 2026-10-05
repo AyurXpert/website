@@ -6600,6 +6600,7 @@ window.loadModules = async function() {
   if (!defaults) { el.innerHTML = '<div class="alert show error">Could not load the default modules for your organisation type.</div>'; return; }
   const saved    = t.modules || {};
   const effective = { ...defaults, ...saved };
+  _renderCounterSaleSetting(saved.counter_sale !== false);
 
   el.innerHTML = `
     <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:12.5px;color:#7a5200">
@@ -6662,6 +6663,43 @@ async function _saveModules() {
   if (error) { _toast(safeErrorMessage(error, 'Save error.')); return; }
   if (!saved?.length) { _toast('Modules were not saved — your role cannot change them.'); return; }
   _toast('✓ Modules saved — changes take effect on next login');
+}
+
+// Session 341 (owner decision 5 Oct 2026): the counter (walk-in) sale switch -- ON unless this organisation's own
+// super_admin switched it off; not a module (never in the grid above). Saved at once by set_counter_sale_enabled(),
+// which re-checks the role and audits old -> new; the Feature Modules save never changes it. Built from DOM nodes.
+function _renderCounterSaleSetting(on) {
+  const box = document.getElementById('counter-sale-setting');
+  if (!box) return;
+  box.hidden = !hasModule('pharmacy');
+  if (box.hidden) return;
+  const canChange = role === 'super_admin';
+  const mk = (tag, style, text) => { const e = document.createElement(tag); if (style) e.style.cssText = style; if (text != null) e.textContent = text; return e; };
+  const card = mk('div', `border-radius:8px;padding:14px 16px;margin-bottom:18px;border:1.5px solid ${on ? '#a5d6b8' : '#e0e0e0'};background:${on ? '#f0fff4' : '#fafafa'}`);
+  const row = mk('div', 'display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap');
+  const txt = mk('div');
+  txt.append(mk('div', 'font-weight:600;font-size:14px;color:var(--green-deep)', '🛒 Counter sale (walk-in, no prescription)'),
+    mk('div', 'font-size:12.5px;color:var(--text-mid);margin-top:2px',
+      `${on ? 'ON' : 'OFF'} — ${on ? 'the pharmacy can sell to walk-in customers without a prescription (NDPS, Schedule H1 and H are always refused).'
+                              : 'only prescriptions can be dispensed; the pharmacy cannot sell to walk-in customers.'}`));
+  row.append(txt);
+  if (canChange) {
+    const btn = mk('button', "min-height:44px;padding:0 16px;border-radius:8px;font:600 13px 'DM Sans',sans-serif;cursor:pointer;"
+      + (on ? 'background:#fff;color:var(--red,#c0392b);border:1.5px solid var(--red,#c0392b)' : 'background:var(--green-deep);color:#fff;border:1.5px solid var(--green-deep)'),
+      on ? 'Switch OFF' : 'Switch ON');
+    btn.type = 'button';
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      const { data, error } = await supabase.rpc('set_counter_sale_enabled', { p_enabled: !on });
+      if (error) { btn.disabled = false; _toast(safeErrorMessage(error, 'Could not change the counter sale setting.'), true); return; }
+      _toast(`✓ Counter sale switched ${data?.enabled ? 'ON' : 'OFF'}`);
+      _renderCounterSaleSetting(!!data?.enabled);
+    });
+    row.append(btn);
+  }
+  card.append(row);
+  if (!canChange) card.append(mk('div', 'font-size:12px;color:var(--text-muted);margin-top:6px', "Only this organisation's Super Admin can change this."));
+  box.replaceChildren(card);
 }
 
 // The organisation type's default modules -- from the server's module_defaults table (Session 331; this

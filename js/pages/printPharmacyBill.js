@@ -44,6 +44,8 @@ function showError(msg) { sheet.replaceChildren(el('p', { class: 'error-box' }, 
 
 function buildModel(d, copy) {
   const b = d.bill, pt = d.patient || {}, org = d.organisation || {}, tax = d.tax || {}, rx = d.prescription, ph = d.pharmacist
+  // Session 341: a counter (walk-in) sale with no patient -- the customer typed at the counter (both may be empty)
+  const cust = d.customer || null, counter = b.sale_channel === 'counter'
   const isGst   = b.tax_regime === 'gst_v1'
   const isDraft = isGst && b.document_status === 'draft'
   const docType = b.document_type
@@ -77,7 +79,7 @@ function buildModel(d, copy) {
   const isDup  = copy.copy !== 'ORIGINAL'
   const copyNo = (Number(copy.print_no) || 1) + (copy.legacy ? 1 : 0)
   if (isDup && !watermark) watermark = 'DUPLICATE COPY'
-  const subtitle = `Pharmacy${combined && !noCharge ? ' · Paid in full' : ''}${noCharge ? ' · No charge' : ''} · ${isDup ? 'DUPLICATE COPY · No. ' + copyNo : 'Original'}`
+  const subtitle = `Pharmacy${counter ? ' · Counter sale' : ''}${combined && !noCharge ? ' · Paid in full' : ''}${noCharge ? ' · No charge' : ''} · ${isDup ? 'DUPLICATE COPY · No. ' + copyNo : 'Original'}`
 
   const meta = [
     { label: isGst && !isDraft && docType === 'TAX_INVOICE' ? 'Invoice No.' : 'Bill No.', value: b.document_number || 'Not numbered', gap: !b.document_number },
@@ -86,9 +88,13 @@ function buildModel(d, copy) {
   if (rx?.prescriber) meta.push({ label: 'Prescribed by', value: rx.prescriber,
     sub: rx.prescriber_registration_number ? `Reg. No. ${rx.prescriber_registration_number}` : 'Reg. No. not recorded' })
 
-  // ── Patient ──
+  // ── Patient (or, for a counter sale with no patient, the customer -- no prescriber block: there is no prescription) ──
   const sex = SEX[(pt.gender || '').toLowerCase()] || pt.gender || null
-  const fields = [
+  const fields = cust ? [
+    { label: 'Customer', value: cust.name || 'Walk-in customer', wide: true },
+    { label: 'Phone', value: cust.phone },
+    { label: 'Payment', value: MODE_LABEL[b.payment_mode] || b.payment_method || '—' },
+  ] : [
     { label: 'Patient Name', value: pt.name, wide: true },
     { label: 'Age / Sex', value: [pt.age != null ? `${pt.age} Y` : null, sex].filter(Boolean).join(' / ') || null },
     { label: 'UHID', value: uhidOf(pt) },
@@ -188,7 +194,7 @@ function buildModel(d, copy) {
   return {
     org: { name: orgName, lines: orgLines, logoUrl: org.logo_url || null, monogram: monogram(orgName) },
     title, subtitle, watermark, meta, demo: !!org.is_demo,
-    party: { title: 'Patient Details', fields },
+    party: { title: cust ? 'Customer Details' : 'Patient Details', fields },
     gst: isGst, exemptOnly, descLabel: 'Medicine', noCode: !isGst,
     sections, emptyNote: rows.length ? null : 'No medicines on this bill.', taxNote, taxSummary, payments,
     summary: { rows: summary, balance },
@@ -217,7 +223,8 @@ async function load() {
   // the printed page size follows it (thermal: the bill's measured height, one continuous page)
   mountPaperSizeSelect(document.getElementById('paper-slot'), draw)
   watchPrintPageSize(() => sheet)
-  document.title = `${model.title} ${data.bill.document_number || ''} — ${data.patient?.name || ''}`.replace(/\s+/g, ' ').trim()
+  const who = data.patient?.name || (data.customer ? data.customer.name || 'Walk-in customer' : '')
+  document.title = `${model.title} ${data.bill.document_number || ''} — ${who}`.replace(/\s+/g, ' ').trim()
   printBtn.disabled = false
   setStatus('')
 }

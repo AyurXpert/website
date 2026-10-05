@@ -18,7 +18,7 @@ import { getCurrentRole } from '../../core/auth.js'
 // Reception reprints them at the counter. Mirrors the server's role list.
 const CERTIFICATE_ROLES = ['doctor', 'trainee_doctor', 'mrd_staff', 'dept_admin', 'super_admin', 'receptionist']
 
-const BILL_LABEL = { consultation: 'Visit bill', opd: 'Visit bill', investigation: 'Lab bill' }
+const BILL_LABEL = { consultation: 'Visit bill', opd: 'Visit bill', investigation: 'Lab bill', pharmacy: 'Pharmacy bill' }
 const STATUS_LABEL = { waiting: 'Waiting', in_progress: 'With doctor', completed: 'Completed', incomplete: 'Incomplete' }
 const MODE_LABEL = { cash: 'Cash', upi: 'UPI', card: 'Card', cheque: 'Cheque', neft: 'NEFT' }
 const BTN = 'min-height:44px;min-width:44px;padding:0 12px;font-size:12px;font-weight:600;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:#fff;color:var(--green-deep)'
@@ -107,16 +107,25 @@ function certificateCard(c) {
 function resultCard(row) {
   const p = row.patient || {}
   const v = row.visit
-  const head = el('div', { style: 'display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:4px' },
-    el('strong', { style: 'font-size:14px' }, p.name || '—'),
-    el('span', { style: 'font-size:12px;color:var(--text-mid)' }, `UHID ${p.uhid || '—'}`),
-    p.phone ? el('span', { style: 'font-size:12px;color:var(--text-muted)' }, p.phone) : null)
+  // Session 341: a counter (walk-in) sale with no patient shows the customer typed at the counter, or "Walk-in customer"
+  const c = row.customer
+  const head = c
+    ? el('div', { style: 'display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:4px' },
+        el('strong', { style: 'font-size:14px' }, c.name || 'Walk-in customer'),
+        el('span', { style: 'font-size:12px;color:var(--text-mid)' }, 'No patient record'),
+        c.phone ? el('span', { style: 'font-size:12px;color:var(--text-muted)' }, c.phone) : null)
+    : el('div', { style: 'display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:4px' },
+        el('strong', { style: 'font-size:14px' }, p.name || '—'),
+        el('span', { style: 'font-size:12px;color:var(--text-mid)' }, `UHID ${p.uhid || '—'}`),
+        p.phone ? el('span', { style: 'font-size:12px;color:var(--text-muted)' }, p.phone) : null)
   const sub = v
     ? el('div', { style: 'font-size:12px;color:var(--text-mid);margin-bottom:4px' },
         `${when(v.created_at)} · Token ${v.token ?? '—'} · ${STATUS_LABEL[v.status] || v.status || '—'}`
         + `${v.doctor ? ' · ' + v.doctor : ''}${v.opd ? ' · ' + v.opd : ''}`)
     : el('div', { style: 'font-size:12px;color:var(--text-mid);margin-bottom:4px' },
-        `No visit on this bill (e.g. a lab test advised for the next visit) · ${day(row.bills?.[0]?.created_at)}`)
+        row.counter
+          ? `Counter sale — no prescription · ${day(row.bills?.[0]?.created_at)}`
+          : `No visit on this bill (e.g. a lab test advised for the next visit) · ${day(row.bills?.[0]?.created_at)}`)
   const card = el('div', { style: 'border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin:0 0 10px;background:#fff' }, head, sub)
   if (v) card.dataset.visitId = v.id
   if (!row.bills || !row.bills.length) card.appendChild(el('div', { style: 'font-size:12px;color:var(--text-muted);padding-top:4px' }, 'No OPD or lab bill on this visit.'))

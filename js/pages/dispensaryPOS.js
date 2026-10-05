@@ -1,4 +1,4 @@
-import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth.js';
+import { requireAuth, getCurrentProfile, getCurrentTenantId, getCurrentRole, getCurrentSecondaryRole, hasModule } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { logAudit } from '../core/auditLogger.js';
@@ -12,7 +12,8 @@ import { notify } from '../components/notify.js';
 import { aggregateByMedicine } from '../modules/inventory/stockByMedicine.js';
 import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
 
-await requireAuth(['pharmacist', 'super_admin', 'dept_admin']);
+// Session 341: + cashier -- counter (walk-in) sales only (owner decision 1, 5 Oct 2026); the server re-checks every role
+await requireAuth(['pharmacist', 'cashier', 'super_admin', 'dept_admin']);
 initNavbar();
 wireDelegatedEvents();
 
@@ -35,6 +36,12 @@ defineCorrection('schedule_h1_register', { title: 'H1 register entry', canWrite:
     { k:'prescriber_name', label:'Prescriber name' }, { k:'prescriber_reg_no', label:'Prescriber reg. no.' },
     { k:'prescriber_address', label:'Prescriber address', full:true }, { k:'notes', label:'Notes', type:'textarea' } ] });
 const _ctx     = { tenantId, userId, userName: profile.full_name };
+// Session 341 (TODO §135): who may dispense PRESCRIPTIONS (the server's create_pharmacy_sale roles); everyone allowed on
+// this page may run a COUNTER sale. A pharmacy-only organisation (no OPD module) has no prescriptions at all, and a
+// cashier never dispenses one -- both open straight on the counter sale, with no prescription queue.
+const _RX_ROLES    = ['pharmacist', 'super_admin', 'dept_admin'];
+const _canRx       = _RX_ROLES.includes(getCurrentRole()) || _RX_ROLES.includes(getCurrentSecondaryRole());
+const _counterOnly = !_canRx || !hasModule('opd');
 const _tenant  = JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}');
 
 // ── State ─────────────────────────────────────────
@@ -45,6 +52,9 @@ let _activeIpdAdmissionId = null;   // set when _activeRx.patient_type === 'ipd'
 let _cartItems      = [];    // {medicine_id, name, price, qty, fromRx}
 let _filter         = 'pending';
 let _rxPayerMap     = {};    // rxId → payer_type (populated during loadQueue)
+let _mode           = 'rx';  // Session 341: 'rx' (a prescription from the queue) or 'counter' (a walk-in sale)
+let _counterPatient = null;  // Session 341: optional patient of this organisation picked for a counter sale
+let _ctrl           = new Map();   // Session 341: medicine_id -> {ndps,h1,h,e1} from ANY stock row (the server's rule)
 
 // ── Date ──────────────────────────────────────────
 document.getElementById('q-date').textContent = new Date().toLocaleDateString('en-IN', {
@@ -66,7 +76,7 @@ async function loadInventory() {
   try {
     const [invRes, fRes] = await Promise.all([
       supabase.from('inventory')
-        .select('id, medicine_id, stock_quantity, mrp, cost_price, gst_percent, is_student_batch, is_high_risk, is_lasa, lasa_pair, is_schedule_h, is_schedule_h1, is_schedule_e1, is_ndps, batch_number, expiry_date, inward_date, medicine:medicines(id,name)')
+        .select('id, medicine_id, stock_quantity, mrp, cost_price, gst_percent, is_student_batch, is_high_risk, is_lasa, lasa_pair, is_schedule_h, is_schedule_h1, is_schedule_e1, is_ndps, batch_number, expiry_date, inward_date, medicine:medicines(id,name,is_schedule_e1)')
         .eq('tenant_id', tenantId),
       supabase.from('hospital_formulary')
         .select('medicine_name')
@@ -76,6 +86,13 @@ async function loadInventory() {
     // Session 331 real batches: one entry per medicine -- total sellable stock, priced at the batch that
     // sells first (earliest expiry), the same batch create_pharmacy_sale() would take; student batches excluded.
     _inventory = aggregateByMedicine(invRes.data).filter(i => i.medicine?.name);
+    // Session 341: a medicine is controlled if ANY of its stock rows is flagged (as create_counter_sale() judges it)
+    _ctrl = new Map();
+    for (const r of invRes.data || []) {
+      const c = _ctrl.get(r.medicine_id) || { ndps: false, h1: false, h: false, e1: !!r.medicine?.is_schedule_e1 };
+      c.ndps ||= !!r.is_ndps; c.h1 ||= !!r.is_schedule_h1; c.h ||= !!r.is_schedule_h; c.e1 ||= !!r.is_schedule_e1;
+      _ctrl.set(r.medicine_id, c);
+    }
     _formularyNames = new Set((fRes.data || []).map(f => f.medicine_name.toLowerCase()));
   } catch { _inventory = []; }
 }
@@ -200,6 +217,7 @@ window.exportRegisterCSV = function() { alert('Use browser Print (Ctrl+P) to sav
 
 // ── Open a prescription ───────────────────────────
 window.openRx = async function(rxId) {
+  _setMode('rx');
   _activeRxId = rxId;
   _cartItems  = [];
   const _payerType = _rxPayerMap[rxId] || 'self_pay';
@@ -340,6 +358,7 @@ function renderRxList() {
           <div class="rx-item-name">${_esc(item.name)}</div>
           ${detail ? `<div class="rx-item-detail">${_esc(detail)}</div>` : ''}
           ${item.price ? `<div class="rx-item-detail" style="margin-top:2px">₹${item.price} / unit</div>` : '<div class="rx-item-detail" style="color:var(--gold)">Not in inventory — enter price manually</div>'}
+          ${_mode === 'counter' && _ctrlLabel(item.medicine_id) ? `<div class="ctrl-tag ${_ctrlRefused(item.medicine_id) ? 'ctrl-no' : 'ctrl-warn'}">${_esc(_ctrlLabel(item.medicine_id))}</div>` : ''}
         </div>
         <div class="rx-item-stock"><span class="stock-badge ${stockClass}">${stockLabel}</span></div>
         <div class="rx-item-qty">
@@ -369,7 +388,8 @@ window.updateQty = function(i, val) {
 window.removeCartItem = function(i) {
   const item = _cartItems[Number(i)];
   if (!item) return;
-  if (!confirm(`Remove "${item.name}" from this bill?`)) return;
+  // Session 341: no native confirm() in the counter sale (owner rule) -- the line is simply removed
+  if (_mode !== 'counter' && !confirm(`Remove "${item.name}" from this bill?`)) return;
   _cartItems.splice(Number(i), 1);
   renderRxList();
 };
@@ -419,8 +439,9 @@ medSearch.addEventListener('input', function() {
     const cls = i.stock_quantity <= 0 ? 'stock-out' : i.stock_quantity < 10 ? 'stock-low' : 'stock-in';
     const lbl = i.stock_quantity <= 0 ? 'Out' : `${i.stock_quantity} in stock`;
     const inFormulary = _formularyNames.has(i.medicine.name.toLowerCase());
+    const ctrl = _mode === 'counter' ? _ctrlLabel(i.medicine_id) : null;   // Session 341: marked, never hidden
     return `<div class="ta-item" data-mid="${i.medicine_id}" data-name="${_esc(i.medicine.name)}" data-price="${i.mrp||0}" data-stock="${i.stock_quantity}" data-gst="${i.gst_percent||0}" data-cost="${i.cost_price||0}" data-highrisk="${i.is_high_risk?'1':''}">
-      <span class="ta-name">${_esc(i.medicine.name)}${inFormulary ? ' <span style="font-size:10px;font-weight:700;background:#e8f5ee;color:#1a4a2e;border-radius:4px;padding:1px 5px;vertical-align:middle">📋 Formulary</span>' : ''}</span>
+      <span class="ta-name">${_esc(i.medicine.name)}${inFormulary ? ' <span style="font-size:10px;font-weight:700;background:#e8f5ee;color:#1a4a2e;border-radius:4px;padding:1px 5px;vertical-align:middle">📋 Formulary</span>' : ''}${ctrl ? ` <span class="ctrl-tag ${_ctrlRefused(i.medicine_id) ? 'ctrl-no' : 'ctrl-warn'}">${_esc(ctrl)}</span>` : ''}</span>
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:11px;color:var(--text-muted)">₹${i.mrp||0}</span>
         <span class="stock-badge ${cls}">${lbl}</span>
@@ -452,7 +473,7 @@ medTa.addEventListener('click', e => {
 medSearch.addEventListener('blur', () => setTimeout(() => medTa.classList.remove('show'), 200));
 
 // ── Dispense ──────────────────────────────────────
-document.getElementById('btn-dispense').addEventListener('click', dispense);
+document.getElementById('btn-dispense').addEventListener('click', () => (_mode === 'counter' ? sellCounter() : dispense()));
 
 async function dispense() {
   if (!_activeRxId || !_activeRx) return;
@@ -622,11 +643,11 @@ function _trapTab(e, first, last) {
 
 // Shows the server's preview; resolves true on Confirm, false on Back / Escape. The panel stays open (Confirm showing
 // "Saving…") until the caller closes it with _closeReview().
-function _reviewBill(pv, { isIpd, payMethod, payRef, patient }) {
+function _reviewBill(pv, { isIpd, payMethod, payRef, patient, counter = false, cautions = [] }) {
   const wrap = document.getElementById('review-wrap');
   const go = document.getElementById('btn-review-confirm');
   const back = document.getElementById('btn-review-back');
-  document.getElementById('review-title').textContent = isIpd ? 'Review issue to the IPD stay' : 'Review bill';
+  document.getElementById('review-title').textContent = isIpd ? 'Review issue to the IPD stay' : counter ? 'Review counter sale' : 'Review bill';
   document.getElementById('review-sub').textContent = [patient, isIpd ? 'charged to the IPD stay — no bill or receipt now' : null]
     .filter(Boolean).join(' · ');
 
@@ -634,8 +655,14 @@ function _reviewBill(pv, { isIpd, payMethod, payRef, patient }) {
   const lines = pv?.lines || [];
   const body = [];
   if (!pv?.ok) {
-    body.push(_node('div', { class: 'issues', role: 'alert' }, _node('strong', null, 'This cannot be dispensed as it is:'),
-      _node('ul', null, (issues.length ? issues : ['Cannot dispense.']).map(t => _node('li', null, t)))));
+    body.push(_node('div', { class: 'issues', role: 'alert' }, _node('strong', null, counter ? 'This cannot be sold as it is:' : 'This cannot be dispensed as it is:'),
+      _node('ul', null, (issues.length ? issues : [counter ? 'Cannot sell.' : 'Cannot dispense.']).map(t => _node('li', null, t)))));
+  }
+  // Session 341: the server's Schedule E1 caution + high-risk reminders -- shown here, never a native confirm()
+  const warns = [...(pv?.warnings || []), ...cautions];
+  if (warns.length) {
+    body.push(_node('div', { class: 'warn', role: 'note' }, _node('strong', null, 'Before you hand it over:'),
+      _node('ul', null, warns.map(t => _node('li', null, t)))));
   }
   if (lines.length) {
     body.push(_node('table', null,
@@ -662,7 +689,7 @@ function _reviewBill(pv, { isIpd, payMethod, payRef, patient }) {
   if (pv?.note) body.push(_node('div', { class: 'note' }, pv.note));
   document.getElementById('review-body').replaceChildren(...body);
 
-  go.disabled = !pv?.ok; back.disabled = false; go.textContent = isIpd ? 'Confirm & Issue' : 'Confirm & Dispense';
+  go.disabled = !pv?.ok; back.disabled = false; go.textContent = isIpd ? 'Confirm & Issue' : counter ? 'Confirm & Sell' : 'Confirm & Dispense';
   wrap.hidden = false;
   (pv?.ok ? go : back).focus();
 
@@ -685,7 +712,7 @@ function _closeReview() {
 
 // The sale went through: bill no., receipt no., amount, mode -- and a Print Bill button that opens the bill from its
 // own click. If the bill page still cannot open, the panel says so (and where to reprint it); never a short slip.
-async function _showDone(sale, { isIpd, payMethod, payRef, billId, patient }) {
+async function _showDone(sale, { isIpd, payMethod, payRef, billId, patient, counter = false }) {
   const wrap = document.getElementById('done-wrap');
   const printBtn = document.getElementById('btn-done-print');
   const closeBtn = document.getElementById('btn-done-close');
@@ -695,7 +722,8 @@ async function _showDone(sale, { isIpd, payMethod, payRef, billId, patient }) {
     const { data } = await supabase.from('bills').select('document_number').eq('id', billId).maybeSingle();
     billNo = data?.document_number || null;
   }
-  document.getElementById('done-title').textContent = isIpd ? '✓ Issued to the IPD stay' : '✓ Dispensed — bill created';
+  document.getElementById('done-title').textContent = isIpd ? '✓ Issued to the IPD stay' : counter ? '✓ Sold — bill created' : '✓ Dispensed — bill created';
+  closeBtn.textContent = counter ? 'Done — next sale' : 'Done — next patient';
   document.getElementById('done-sub').textContent = patient || '';
   const kv = [];
   const pair = (k, v) => { kv.push(_node('dt', null, k), _node('dd', null, v)); };
@@ -845,12 +873,188 @@ async function _abdmCareContextInvoice(billId, patientId, visitId, { abhaNumber,
   } catch (e) { console.warn('[ABDM] invoice care context failed:', e.message); }
 }
 
+// ── Session 341 (TODO §135): counter (walk-in) sale -- no prescription ─────────────────────────
+// preview_counter_sale() / create_counter_sale(): the organisation comes from the signed-in user on the server; the
+// server refuses NDPS / Schedule H1 / Schedule H (owner decision 3) and returns the Schedule E1 caution. Customer
+// name and phone are optional (decision 4: the phone is printed on the bill and used only to find the bill later).
+// Same cart, discount, payment, Review bill and Dispensed panels as a prescription; no native confirm() / alert().
+function _ctrlLabel(mid) {
+  const c = _ctrl.get(mid);
+  if (!c) return null;
+  if (c.ndps) return 'NDPS — prescription only, cannot be sold here';
+  if (c.h1)   return 'Schedule H1 — prescription only, cannot be sold here';
+  if (c.h)    return 'Schedule H — prescription only, cannot be sold here';
+  if (c.e1)   return 'Schedule E1 — to be taken under medical supervision';
+  return null;
+}
+function _ctrlRefused(mid) { const c = _ctrl.get(mid); return !!(c && (c.ndps || c.h1 || c.h)); }
+
+function _setMode(mode) {
+  _mode = mode;
+  const counter = mode === 'counter';
+  document.getElementById('counter-hdr').hidden = !counter;
+  document.getElementById('rx-hdr').hidden = counter;
+  if (counter) document.getElementById('allergy-banner').style.display = 'none';
+  document.getElementById('items-title').textContent = counter ? 'Medicines' : 'Prescribed Medicines';
+  document.getElementById('add-title').textContent = counter ? 'Add Medicine' : 'Add Item Manually';
+  document.getElementById('btn-dispense').textContent = counter ? '✓ Sell & Generate Bill' : '✓ Dispense & Generate Bill';
+  document.getElementById('btn-close').title = counter ? 'Clear this sale' : 'Close';
+  document.getElementById('btn-close').setAttribute('aria-label', counter ? 'Clear this sale' : 'Close');
+}
+
+function _resetCounter() {
+  _cartItems = [];
+  _counterPatient = null;
+  for (const id of ['cs-name', 'cs-phone', 'cs-find']) { const e = document.getElementById(id); e.value = ''; e.disabled = false; }
+  document.getElementById('cs-find-results').replaceChildren();
+  document.getElementById('cs-patient').hidden = true;
+  document.getElementById('cs-state').textContent = 'Walk-in customer — no details (both fields are optional).';
+  document.getElementById('discount-pct').value = '0';
+  document.querySelector('.pay-btn[data-method="Cash"]').click();
+  const payMethods = document.getElementById('pay-methods');
+  payMethods.style.opacity = ''; payMethods.style.pointerEvents = ''; payMethods.title = '';
+  renderRxList();
+}
+
+window.openCounterSale = function() {
+  _activeRxId = null; _activeRx = null; _activeIpdAdmissionId = null;
+  _setMode('counter');
+  _resetCounter();
+  document.getElementById('welcome').style.display  = 'none';
+  document.getElementById('d-active').style.display = 'flex';
+  document.getElementById('med-search').focus();
+};
+
+// pharmacy-only organisation / cashier: the left panel keeps only what applies (no queue, no register filters)
+function _applyCounterOnlyLayout() {
+  document.getElementById('q-title').textContent = 'Pharmacy Counter';
+  for (const id of ['q-count', 'q-filters', 'q-list', 'register-panel', 'q-foot', 'btn-counter']) document.getElementById(id).hidden = true;
+  if (!_canRx) for (const id of ['btn-ndps', 'btn-h1']) document.getElementById(id).hidden = true;
+  document.getElementById('counter-only-note').hidden = false;
+}
+
+window.counterWalkIn = function() {
+  window.counterClearPatient();
+  document.getElementById('cs-name').value = '';
+  document.getElementById('cs-phone').value = '';
+  document.getElementById('cs-state').textContent = 'Walk-in customer — no details. The bill will say "Walk-in customer".';
+};
+
+function _counterCustomerLabel() {
+  if (_counterPatient) return `${_counterPatient.name} · UHID ${uhidOf(_counterPatient)}`;
+  const name = document.getElementById('cs-name').value.trim();
+  const phone = document.getElementById('cs-phone').value.trim();
+  return [name || 'Walk-in customer', phone || null].filter(Boolean).join(' · ');
+}
+
+// optional: a patient of THIS organisation (RLS + an explicit tenant filter; the server re-checks the organisation)
+let _findTimer = null;
+document.getElementById('cs-find').addEventListener('input', function() {
+  clearTimeout(_findTimer);
+  const q = this.value.trim().replace(/[^\p{L}\p{N} /-]/gu, '');
+  const box = document.getElementById('cs-find-results');
+  if (q.length < 2) { box.replaceChildren(); return; }
+  _findTimer = setTimeout(async () => {
+    const digits = q.replace(/\D/g, '');
+    let qry = supabase.from('patients').select('id, name, uhid, phone').eq('tenant_id', tenantId).limit(8);
+    qry = digits.length >= 4 && digits.length === q.replace(/[\s-]/g, '').length
+      ? qry.ilike('phone', `%${digits}%`)
+      : /\//.test(q) ? qry.ilike('uhid', `${q}%`) : qry.ilike('name', `%${q}%`);
+    const { data, error } = await qry;
+    if (error) { box.replaceChildren(_node('div', { class: 'cs-empty' }, safeErrorMessage(error, 'Could not search patients.'))); return; }
+    if (!data?.length) { box.replaceChildren(_node('div', { class: 'cs-empty' }, 'No patient found in this organisation.')); return; }
+    box.replaceChildren(...data.map(p => {
+      const b = _node('button', { type: 'button', class: 'cs-hit' }, _node('strong', null, p.name || '—'),
+        _node('span', null, ` · UHID ${uhidOf(p)}${p.phone ? ' · ' + p.phone : ''}`));
+      b.addEventListener('click', () => {
+        _counterPatient = p;
+        document.getElementById('cs-patient-text').textContent = `${p.name || '—'} · UHID ${uhidOf(p)}`;
+        document.getElementById('cs-patient').hidden = false;
+        for (const id of ['cs-name', 'cs-phone']) { const e = document.getElementById(id); e.value = ''; e.disabled = true; }
+        document.getElementById('cs-find').value = '';
+        box.replaceChildren();
+        document.getElementById('cs-state').textContent = 'The bill is made out to this patient (their record is used — no name / phone needed).';
+      });
+      return b;
+    }));
+  }, 250);
+});
+window.counterClearPatient = function() {
+  _counterPatient = null;
+  document.getElementById('cs-patient').hidden = true;
+  for (const id of ['cs-name', 'cs-phone']) document.getElementById(id).disabled = false;
+  document.getElementById('cs-state').textContent = 'Walk-in customer — no details (both fields are optional).';
+};
+
+async function sellCounter() {
+  const payable = _cartItems.filter(c => c.qty > 0);
+  if (!payable.length) { _toast('Add at least one medicine to sell', 'error'); return; }
+  const unstocked = payable.filter(c => !c.medicine_id);
+  if (unstocked.length) {
+    _toast(`Not in this pharmacy's stock: ${unstocked.map(c => c.name).join(', ')}. Remove it or receive it through Purchase / GRN first.`, 'error');
+    return;
+  }
+  const payMethod = document.querySelector('.pay-btn.active')?.dataset.method || 'Cash';
+  const payRef    = document.getElementById('pay-ref').value.trim();
+  if (['UPI', 'Card'].includes(payMethod) && !payRef) {
+    _toast('Enter the UPI / card transaction reference.', 'error');
+    document.getElementById('pay-ref').focus();
+    return;
+  }
+  const name  = document.getElementById('cs-name').value.trim();
+  const phone = document.getElementById('cs-phone').value.trim();
+  const args = {
+    p_lines: payable.map(c => ({ medicine_id: c.medicine_id, qty: c.qty })),
+    p_discount_pct: _discountPct(),
+    p_customer: _counterPatient || (!name && !phone) ? null : { name: name || null, phone: phone || null },
+    p_patient: _counterPatient?.id || null,
+  };
+  const who = _counterCustomerLabel();
+  // NABH MOM.3 -- the high-risk second check, shown in the Review panel instead of a native confirm()
+  const cautions = payable.filter(c => _invFor(c)?.is_high_risk)
+    .map(c => `High-risk medicine — double-check the medicine, strength and quantity: ${c.name}`);
+
+  const btn = document.getElementById('btn-dispense');
+  btn.disabled = true;
+  btn.textContent = 'Processing…';
+  const reset = () => { btn.disabled = false; btn.textContent = '✓ Sell & Generate Bill'; };
+  try {
+    const { data: pv, error: pvErr } = await supabase.rpc('preview_counter_sale', args);
+    if (pvErr) throw pvErr;
+    const ok = await _reviewBill(pv, { isIpd: false, payMethod, payRef, patient: who, counter: true, cautions });
+    if (!ok) { reset(); return; }
+    const { data: sale, error: saleErr } = await supabase.rpc('create_counter_sale', {
+      ...args, p_payment_method: payMethod, p_payment_reference: ['UPI', 'Card'].includes(payMethod) ? payRef : null,
+    });
+    if (saleErr) throw saleErr;
+    if (!sale?.bill_id) throw new Error('The sale did not return a bill — please check 🧾 Bills before selling again.');
+    // the server wrote the bill, the stock deduction, the receipt and its audit row in ONE transaction
+    _closeReview();
+    await _showDone(sale, { isIpd: false, payMethod, payRef, billId: sale.bill_id, patient: who, counter: true });
+    _toast(`Counter sale — bill ${sale.document_number || ''} created`, 'info');
+    await loadInventory();
+    _resetCounter();
+    reset();
+  } catch (err) {
+    console.error(err);
+    _closeReview();
+    _toast(safeErrorMessage(err, 'Please try again.'), 'error');
+    reset();
+  }
+}
+
 // ── Print invoice ─────────────────────────────────
 
 // ── Close ─────────────────────────────────────────
 document.getElementById('btn-close').addEventListener('click', _closeRx);
 
 function _closeRx() {
+  // Session 341: ✕ on a counter sale clears it; a counter-only screen stays on the (empty) counter sale
+  if (_mode === 'counter') {
+    _resetCounter();
+    if (_counterOnly) return;
+    _setMode('rx');
+  }
   _activeRxId = null;
   _activeRx   = null;
   _activeIpdAdmissionId = null;
@@ -878,8 +1082,24 @@ function subscribeRealtime() {
 function _toast(msg, type = 'info') { notify(msg, type); }   // Session 323: shared top-layer notify()
 
 // ── Boot ──────────────────────────────────────────
-await Promise.all([loadInventory(), loadQueue()]);
-subscribeRealtime();
+// Session 341: the organisation's counter-sale switch (tenants.modules.counter_sale; not set = ON -- owner decision
+// 5 Oct 2026). The server refuses a counter sale when it is OFF; here it only decides what is shown.
+const { data: _tenantRow } = await supabase.from('tenants').select('modules').eq('id', tenantId).maybeSingle();
+const _counterOn = _tenantRow?.modules?.counter_sale !== false;
+// a counter-only screen (pharmacy-only organisation, or a cashier) has no prescription queue at all
+if (_counterOnly) {
+  await loadInventory();
+  _applyCounterOnlyLayout();
+  if (_counterOn) window.openCounterSale();
+  else {
+    document.getElementById('welcome-title').textContent = 'Counter sale is switched off';
+    document.getElementById('welcome-sub').textContent = 'Counter sale is switched off for this organisation — ask your administrator.';
+  }
+} else {
+  if (!_counterOn) document.getElementById('btn-counter').hidden = true;
+  await Promise.all([loadInventory(), loadQueue()]);
+  subscribeRealtime();
+}
 
 // ── NABH MOM.6 CORE — Medication Label Printing ──────────────────────────────
 window.printMedLabel = function(i) {
@@ -1201,5 +1421,8 @@ window.recordUnregistered = async function(i) {
     _setRecordNote('ndps', `Recording a missed supply: ${who}.`);
   }
 };
-window.addEventListener('focus', () => loadUnregistered());
-loadUnregistered();
+// the H1 / NDPS "not in register" check is a prescription-dispensing duty (a counter sale never sells either)
+if (_canRx) {
+  window.addEventListener('focus', () => loadUnregistered());
+  loadUnregistered();
+}

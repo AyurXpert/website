@@ -97,15 +97,26 @@ async function loadReceipt() {
   } else {
     // Session 324 -- an OPD / investigation bill payment (record_opd_bill_payment) has no
     // admission: show the patient and the bill it settled instead.
+    // Session 341: a counter-sale receipt has no patient -- it shows the customer typed at the counter (or Walk-in)
     const [{ data: opdPt }, { data: opdBill }] = await Promise.all([
-      supabase.from('patients').select('name, uhid').eq('id', pp.patient_id).maybeSingle(),
-      supabase.from('bills').select('bill_type, document_number, created_at').eq('id', pp.bill_id).maybeSingle(),
+      pp.patient_id ? supabase.from('patients').select('name, uhid').eq('id', pp.patient_id).maybeSingle() : Promise.resolve({ data: null }),
+      supabase.from('bills').select('bill_type, document_number, created_at, sale_channel, recipient_name').eq('id', pp.bill_id).maybeSingle(),
     ]);
-    const billLabel = { consultation: 'OPD visit bill', investigation: 'Lab / investigation bill', pharmacy: 'Pharmacy bill' }[String(opdBill?.bill_type || '').toLowerCase()] || 'OPD bill';
-    document.getElementById('patientInfo').innerHTML = `
-      <div><b>Patient:</b> ${_esc(opdPt?.name || '—')}${opdPt?.uhid ? ' · UHID ' + _esc(opdPt.uhid) : ''}</div>
-      <div><b>Against:</b> ${_esc(billLabel)}${opdBill?.document_number ? ' ' + _esc(opdBill.document_number) : ''} · ${_esc(_fmtDateTime(opdBill?.created_at))}</div>
-    `;
+    const billLabel = opdBill?.sale_channel === 'counter' ? 'Pharmacy bill (counter sale)'
+      : { consultation: 'OPD visit bill', investigation: 'Lab / investigation bill', pharmacy: 'Pharmacy bill' }[String(opdBill?.bill_type || '').toLowerCase()] || 'OPD bill';
+    // built from DOM nodes + textContent (names are user-entered text)
+    const line = (label, text) => {
+      const d = document.createElement('div');
+      const b = document.createElement('b');
+      b.textContent = label;
+      d.append(b, ' ' + text);
+      return d;
+    };
+    document.getElementById('patientInfo').replaceChildren(
+      pp.patient_id
+        ? line('Patient:', `${opdPt?.name || '—'}${opdPt?.uhid ? ' · UHID ' + opdPt.uhid : ''}`)
+        : line('Customer:', opdBill?.recipient_name || 'Walk-in customer'),
+      line('Against:', `${billLabel}${opdBill?.document_number ? ' ' + opdBill.document_number : ''} · ${_fmtDateTime(opdBill?.created_at)}`));
   }
 
   // pp.notes is free text a billing user typed (a refund/void reason) -- escape it, same

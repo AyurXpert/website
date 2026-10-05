@@ -286,6 +286,29 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .pos-dialog .kv dd{margin:0;font-weight:600}
 .pos-dialog .msg{margin-top:10px;font-size:13px}
 .pos-dialog .msg.err{color:var(--red);font-weight:600}
+/* Session 341 -- counter (walk-in) sale */
+[hidden]{display:none!important}
+.pos-dialog .warn{background:#fff7e6;border:1.5px solid #e8c068;color:#7a4000;border-radius:8px;padding:10px 12px;margin:10px 0;font-size:13px}
+.pos-dialog .warn ul{margin:4px 0 0 18px;padding:0}
+.btn-counter{min-height:44px;padding:0 12px;font-size:12px;font-weight:600;background:var(--green-deep);color:#fff;border:1.5px solid var(--green-deep);border-radius:8px;cursor:pointer;font-family:inherit}
+.btn-counter:focus-visible,.cs-btn:focus-visible,.cs-hit:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.ctrl-tag{display:inline-block;margin-top:3px;font-size:10.5px;font-weight:700;border-radius:4px;padding:1px 6px;vertical-align:middle}
+.ctrl-no{background:var(--red-light);color:var(--red);border:1px solid #e0b0b0}
+.ctrl-warn{background:#fff7e6;color:#7a4000;border:1px solid #e8c068}
+.cs-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin-top:10px}
+@media(max-width:860px){.cs-grid{grid-template-columns:1fr}}
+.cs-grid label,.cs-find label{display:block;font-size:11px;font-weight:600;color:var(--text-mid);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px}
+.cs-input{width:100%;height:44px;padding:0 10px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;background:var(--white);color:var(--text-dark)}
+.cs-input:focus{border-color:var(--green-mid);outline:none}
+.cs-input:disabled{background:#f0f0f0;color:var(--text-muted)}
+.cs-btn{min-height:44px;padding:0 14px;border:1.5px solid var(--green-mid);background:var(--white);color:var(--green-deep);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.cs-find{margin-top:10px;position:relative}
+.cs-results{display:flex;flex-direction:column;gap:4px;margin-top:4px}
+.cs-hit{min-height:44px;text-align:left;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--cream);cursor:pointer;font-family:inherit;font-size:13px;color:var(--text-dark)}
+.cs-hit:hover{background:var(--green-light);border-color:var(--green-mid)}
+.cs-empty{font-size:12px;color:var(--text-muted);padding:6px 2px}
+.cs-patient{display:flex;align-items:center;gap:10px;margin-top:8px;padding:6px 10px;background:var(--green-light);border-radius:8px;font-size:13px}
+.cs-state{font-size:12px;color:var(--text-mid);margin-top:8px}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
 </head>
@@ -300,13 +323,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div class="q-hdr">
       <div class="q-hdr-top">
         <div>
-          <div class="panel-title">Prescription Queue</div>
+          <div class="panel-title" id="q-title">Prescription Queue</div>
           <div class="panel-sub" id="q-date"></div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <div class="q-count" id="q-count">0</div>
-          <button data-onclick="openNDPSTab" title="NDPS register (narcotic / psychotropic drugs)" style="min-height:32px;font-size:10px;padding:3px 8px;background:#f7e6f2;color:#8b1a6b;border:1px solid #d9a8c9;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:600">NDPS</button>
-          <button data-onclick="openH1Tab" title="Schedule H1 register" style="min-height:32px;font-size:10px;padding:3px 8px;background:#e3f0ff;color:#1a4080;border:1px solid #a8c8f0;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:600">H1</button>
+          <button type="button" class="btn-counter" id="btn-counter" data-onclick="openCounterSale" title="Sell without a prescription (walk-in customer)">＋ Counter sale</button>
+          <button id="btn-ndps" data-onclick="openNDPSTab" title="NDPS register (narcotic / psychotropic drugs)" style="min-height:32px;font-size:10px;padding:3px 8px;background:#f7e6f2;color:#8b1a6b;border:1px solid #d9a8c9;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:600">NDPS</button>
+          <button id="btn-h1" data-onclick="openH1Tab" title="Schedule H1 register" style="min-height:32px;font-size:10px;padding:3px 8px;background:#e3f0ff;color:#1a4080;border:1px solid #a8c8f0;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:600">H1</button>
           <button data-onclick="openBillsTab" title="Find and reprint pharmacy bills and receipts (any date)" style="min-height:32px;font-size:10px;padding:3px 8px;background:#fff;color:var(--green-deep);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-family:inherit;font-weight:600">🧾 Bills</button>
         </div>
       </div>
@@ -317,7 +341,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         </button>
         <div id="unreg-list"></div>
       </div>
-      <div class="q-filters">
+      <div class="q-filters" id="q-filters">
         <button class="q-filter active" data-filter="pending" data-onclick="setFilter" data-onclick-a0="pending" data-onclick-a1="@this">Pending</button>
         <button class="q-filter" data-filter="all" data-onclick="setFilter" data-onclick-a0="all" data-onclick-a1="@this">All Today</button>
         <button class="q-filter" data-filter="register" data-onclick="setFilter" data-onclick-a0="register" data-onclick-a1="@this">📋 Register</button>
@@ -356,7 +380,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       </div>
     </div>
 
-    <div class="q-foot">
+    <!-- Session 341: a pharmacy-only organisation / a cashier has no prescription queue -- counter sales only -->
+    <div class="q-empty" id="counter-only-note" hidden>
+      <div class="q-empty-icon"><img src="assets/AyurXpert_Tree_Only.png" alt=""></div>
+      Counter sales — no prescription queue here.<br>Find past bills and receipts under 🧾 Bills.
+    </div>
+
+    <div class="q-foot" id="q-foot">
       <div class="live-dot"></div>
       Live · real-time updates
     </div>
@@ -367,16 +397,43 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
     <div class="welcome" id="welcome">
       <div class="welcome-icon"><img src="assets/AyurXpert_Tree_Only.png" alt="AyurXpert"></div>
-      <div class="welcome-title">Dispensary</div>
-      <div class="welcome-sub">Select a prescription from the queue to begin dispensing</div>
+      <div class="welcome-title" id="welcome-title">Dispensary</div>
+      <div class="welcome-sub" id="welcome-sub" role="status">Select a prescription from the queue to begin dispensing</div>
     </div>
 
     <div class="d-active" id="d-active" style="display:none">
 
       <div class="print-header" id="print-header"></div>
 
+      <!-- Session 341: Counter sale header -- optional customer, optional patient of this organisation -->
+      <div class="pt-hdr" id="counter-hdr" hidden>
+        <div class="pt-hdr-row1">
+          <div class="pt-token" aria-hidden="true">🛒</div>
+          <div class="pt-name-block">
+            <h2 class="pt-name">Counter sale</h2>
+            <div class="pt-sub">No prescription · NDPS, Schedule H1 and Schedule H medicines cannot be sold here</div>
+          </div>
+        </div>
+        <div class="cs-grid">
+          <div><label for="cs-name">Customer name (optional)</label><input id="cs-name" class="cs-input" type="text" maxlength="100" autocomplete="off"/></div>
+          <div><label for="cs-phone">Phone (optional)</label><input id="cs-phone" class="cs-input" type="tel" inputmode="tel" maxlength="20" autocomplete="off" placeholder="10-digit mobile"/></div>
+          <button type="button" class="cs-btn" data-onclick="counterWalkIn">Walk-in (no details)</button>
+        </div>
+        <div class="cs-find">
+          <label for="cs-find">Find a patient of this organisation (optional)</label>
+          <input id="cs-find" class="cs-input" type="search" maxlength="60" autocomplete="off" placeholder="Name, phone or UHID"/>
+          <div class="cs-results" id="cs-find-results" aria-live="polite"></div>
+          <div class="cs-patient" id="cs-patient" hidden>
+            <span id="cs-patient-text"></span>
+            <button type="button" class="cs-btn" data-onclick="counterClearPatient">✕ Not this patient</button>
+          </div>
+        </div>
+        <div class="cs-state" id="cs-state" role="status">Walk-in customer — no details (both fields are optional).</div>
+        <div class="cs-state">The phone is printed on the bill and used only to find the bill later.</div>
+      </div>
+
       <!-- Patient / Rx header -->
-      <div class="pt-hdr">
+      <div class="pt-hdr" id="rx-hdr">
         <div class="pt-hdr-row1">
           <div class="pt-token" id="pt-token">—</div>
           <div class="pt-name-block">
@@ -403,15 +460,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
         <!-- Prescribed medicines -->
         <div class="section">
-          <div class="section-title">Prescribed Medicines</div>
+          <div class="section-title" id="items-title">Prescribed Medicines</div>
           <div class="rx-list" id="rx-list"></div>
         </div>
 
         <!-- Add extra item -->
         <div class="section">
-          <div class="section-title">Add Item Manually</div>
+          <div class="section-title" id="add-title">Add Item Manually</div>
           <div class="search-wrap">
-            <input id="med-search" type="text" placeholder="Search medicine to add…" autocomplete="off"/>
+            <input id="med-search" type="text" placeholder="Search medicine to add…" autocomplete="off" aria-label="Search medicine to add"/>
             <div class="typeahead" id="med-ta"></div>
           </div>
         </div>
@@ -460,7 +517,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <!-- Action bar -->
       <div class="action-bar">
         <button class="btn-dispense" id="btn-dispense">✓ Dispense &amp; Generate Bill</button>
-        <button class="btn-close-rx" id="btn-close" title="Close">✕</button>
+        <button type="button" class="btn-close-rx" id="btn-close" title="Close" aria-label="Close">✕</button>
       </div>
 
     </div>
@@ -562,7 +619,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap">
       <div>
         <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep)">🧾 Pharmacy Bills &amp; Receipts</div>
-        <div style="font-size:12px;color:var(--text-muted)">Search by bill no. (B/…), receipt no. (RCPT/…), UHID, name or phone · reprints are marked Duplicate copy</div>
+        <div style="font-size:12px;color:var(--text-muted)">Search by bill no. (B/…), receipt no. (RCPT/…), UHID, patient or counter-sale customer name or phone · reprints are marked Duplicate copy</div>
       </div>
       <button data-onclick="closeBillsTab" style="height:44px;padding:0 16px;border:1.5px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px">← Back to Dispensary</button>
     </div>
