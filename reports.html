@@ -131,24 +131,24 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 
     <div class="summary-grid">
       <div class="summary-card">
-        <div class="sc-label">Total Revenue</div>
+        <div class="sc-label">Net Revenue</div>
         <div class="sc-value" id="s-revenue">₹0</div>
         <div class="sc-sub" id="s-rev-sub">in selected range</div>
       </div>
       <div class="summary-card">
         <div class="sc-label">Total Bills</div>
         <div class="sc-value" id="s-bills">0</div>
-        <div class="sc-sub" id="s-bills-sub">paid</div>
+        <div class="sc-sub" id="s-bills-sub">in selected range</div>
       </div>
       <div class="summary-card gold">
         <div class="sc-label">Pending Amount</div>
         <div class="sc-value" id="s-pending">₹0</div>
-        <div class="sc-sub">unpaid / partial</div>
+        <div class="sc-sub">still due now (unpaid / partial)</div>
       </div>
       <div class="summary-card">
         <div class="sc-label">Avg Bill</div>
         <div class="sc-value" id="s-avg">₹0</div>
-        <div class="sc-sub">per paid bill</div>
+        <div class="sc-sub">per bill (gross)</div>
       </div>
     </div>
 
@@ -192,6 +192,7 @@ import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId, g
 import { initNavbar } from './js/components/navbar.js';
 import { supabase } from './js/core/db/supabaseClient.js';
 import { localDateStr } from './js/utils/dateUtils.js';
+import { summarisePeriod, dueAmount } from './js/modules/billing/billCategory.js';
 
 await requireAuth(['lab_tech', 'accountant', 'cashier', 'finance_manager', 'dept_admin', 'super_admin'], 'login.html', { monitoringSafe: true });
 initNavbar();
@@ -253,13 +254,13 @@ async function loadBilling() {
   const to   = document.getElementById('date-to').value;
   if (!from || !to) return;
 
-  const toEnd = to + 'T23:59:59';
+  const toEnd = to + 'T23:59:59.999+05:30';   // Session 344a: IST day boundaries (as the returns / receipts of the period)
 
   const { data: bills, error } = await supabase
     .from('bills')
-    .select('id, total_amount, final_amount, status, bill_type, created_at, patient_id')
+    .select('id, total_amount, final_amount, returned_amount, patient_due, amount_paid, status, bill_type, payer_type, document_status, payment_mode, payment_method, created_at, patient_id')
     .eq('tenant_id', tenantId)
-    .gte('created_at', from + 'T00:00:00')
+    .gte('created_at', from + 'T00:00:00+05:30')
     .lte('created_at', toEnd)
     .order('created_at', { ascending: false });
 
@@ -272,15 +273,20 @@ async function loadBilling() {
   const cancelled = rows.filter(b => b.status === 'cancelled');
   const partial   = rows.filter(b => b.status === 'partial');
 
-  const paidRevenue = paid.reduce((s, b) => s + Number(b.final_amount || b.total_amount || 0), 0);
-  const pendAmt     = [...pending, ...partial].reduce((s, b) => s + Number(b.final_amount || b.total_amount || 0), 0);
+  // Session 344a (owner decision 6 Oct 2026): sales = bills of the range at their ORIGINAL amount; returns /
+  // cancellations count on the day they were completed; net = sales - returns; pending = what is still due now
+  const { data: act, error: aErr } = await supabase.rpc('finance_activity', { p_from: from, p_to: to });
+  if (aErr) console.error(aErr);
+  const fin     = summarisePeriod(rows, act || { returns: [], receipts: [], legacy_collected: {} });
+  const pendAmt = rows.filter(b => ['unpaid', 'pending', 'partial'].includes(b.status)).reduce((s, b) => s + dueAmount(b), 0);
+  const fmt     = n => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
 
-  document.getElementById('s-revenue').textContent  = '₹' + paidRevenue.toLocaleString('en-IN');
-  document.getElementById('s-bills').textContent    = paid.length;
-  document.getElementById('s-pending').textContent  = '₹' + pendAmt.toLocaleString('en-IN');
-  document.getElementById('s-avg').textContent      = paid.length
-    ? '₹' + Math.round(paidRevenue / paid.length).toLocaleString('en-IN')
-    : '₹0';
+  document.getElementById('s-revenue').textContent  = fmt(fin.net);
+  document.getElementById('s-rev-sub').textContent  = `Gross ${fmt(fin.gross)} − Returns ${fmt(fin.returns)} · Collected ${fmt(fin.collected)}`;
+  document.getElementById('s-bills').textContent    = fin.bills;
+  document.getElementById('s-bills-sub').textContent = `${paid.length} paid · ${fin.returnsCount} returns / cancellations`;
+  document.getElementById('s-pending').textContent  = fmt(pendAmt);
+  document.getElementById('s-avg').textContent      = fin.bills ? fmt(Math.round(fin.gross / fin.bills)) : '₹0';
 
   document.getElementById('st-paid').textContent      = paid.length;
   document.getElementById('st-pending').textContent   = pending.length;

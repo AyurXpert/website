@@ -1,6 +1,6 @@
 import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId,
          getCurrentRole, getPendingApprovals, hasModule } from '../core/auth.js';
-import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, collectedAmount } from '../modules/billing/billCategory.js';
+import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, summarisePeriod, isSale, istDate } from '../modules/billing/billCategory.js';
 import { initNavbar } from '../components/navbar.js';
 import { tenantTypeLabel } from '../utils/tenantTypeLabel.js';   // TODO §140: was navbar.js's private _tenantTypeLabel (ReferenceError here)
 import { supabase }   from '../core/db/supabaseClient.js';
@@ -154,7 +154,7 @@ function _showSection(target, sub) {
 window.loadStats = async function() {
   const [patients, revenue, beds, pending, staff, depts, tenantRow] = await Promise.all([
     _countToday('visits'),
-    _sumToday('bills','final_amount'),
+    _netSalesToday(),                                   // Session 344a: gross - returns completed today
     _count('beds',[['tenant_id',tenantId],['status','occupied']]),
     _count('profiles',[['tenant_id',tenantId],['status','pending_approval']]),
     _count('profiles',[['tenant_id',tenantId],['is_active',true]]),
@@ -169,7 +169,7 @@ window.loadStats = async function() {
 
   document.getElementById('stats6').innerHTML = [
     {ico:'🏥',cls:'g',   num:patients,       lbl:'Patients Today',    sub:'OPD visits'},
-    {ico:'₹', cls:'gold',num:_fmt(revenue),  lbl:'Revenue Today',     sub:'collected'},
+    {ico:'₹', cls:'gold',num:_fmt(revenue),  lbl:'Revenue Today',     sub:'net sales (gross − returns)'},
     {ico:'🛏️',cls:'b',   num:beds,           lbl:'Beds Occupied',     sub:'currently'},
     {ico:'⏳',cls:'r',   num:pending,        lbl:'Pending Approvals', sub:'staff awaiting'},
     {ico:'👥',cls:'p',   num:staff,          lbl:'Active Staff',      sub:'total onboarded'},
@@ -285,75 +285,69 @@ window.loadAccounts = async function() {
   const monthStart   = istDayStartUTC(istMonthStr() + '-01');   // IST month start (TODO §59)
   const thirtyDaysAgo = new Date(Date.now() - 30*24*60*60*1000).toISOString();
 
-  const [paidToday, paidMonth, allPending] = await Promise.all([
-    // Session 295 -- 'partial' (e.g. Panchakarma advance) counts what was actually paid.
-    supabase.from('bills').select('final_amount,patient_due,status,payer_type,bill_type')
-      .eq('tenant_id',tenantId).in('status',['paid','partial'])
-      .gte('created_at',todayStart).lte('created_at',todayEnd),
-    supabase.from('bills').select('final_amount,patient_due,status,payer_type,bill_type')
-      .eq('tenant_id',tenantId).in('status',['paid','partial'])
-      .gte('created_at',monthStart),
+  // Session 344a (owner decision 6 Oct 2026): sales at their ORIGINAL amount on the bill's own day; returns /
+  // cancellations on the day they were completed; collected = receipts - refunds of the day (the shift handover's rule)
+  const today = istDate(new Date().toISOString());
+  const [billsMonth, allPending, actRes] = await Promise.all([
+    supabase.from('bills').select('id,final_amount,status,payer_type,bill_type,document_status,payment_mode,payment_method,created_at')
+      .eq('tenant_id',tenantId).gte('created_at',monthStart).lte('created_at',todayEnd),
     supabase.from('bills')
-      .select('id,final_amount,patient_due,created_at,bill_type,payer_type,tpa_name,insurance_provider,insurance_approved_amount,insurance_claim_status,pre_auth_status,status,patients(name)')
+      .select('id,final_amount,patient_due,amount_paid,returned_amount,created_at,bill_type,payer_type,tpa_name,insurance_provider,insurance_approved_amount,insurance_claim_status,pre_auth_status,status,patients(name)')
       .eq('tenant_id',tenantId)
       // Session 295 -- reception writes 'unpaid'; a ₹0 bill owes nothing.
       .in('status',OUTSTANDING_STATUSES).gt('final_amount',0)
       .order('created_at',{ascending:false})
       .limit(100),
+    supabase.rpc('finance_activity', { p_from: istMonthStr() + '-01', p_to: today }),
   ]);
-
-  const todayList = paidToday.data  || [];
-  const monthList = paidMonth.data  || [];
+  if (actRes.error) _toast(safeErrorMessage(actRes.error, 'Could not load the returns and receipts — totals may be incomplete.'), true);
+  const monthList = billsMonth.data || [];
+  const activity  = actRes.data || { returns: [], receipts: [], legacy_collected: {} };
   const pendList  = (allPending.data || []).filter(b => dueAmount(b) > 0);
-
-  const sumAmt = (arr, key='final_amount') => arr.reduce((s,b)=>s+(Number(b[key])||0), 0);
-  const sumCollected = arr => arr.reduce((s,b)=>s+collectedAmount(b), 0);
-  const sumDue       = arr => arr.reduce((s,b)=>s+dueAmount(b), 0);
-
-  const revenueToday   = sumCollected(todayList);
-  const revenueMonth   = sumCollected(monthList);
-  const selfPay        = pendList.filter(b=>b.payer_type==='self_pay');
-  const insClaims      = pendList.filter(b=>b.payer_type!=='self_pay');
-  const overdue30      = pendList.filter(b=>new Date(b.created_at)<new Date(thirtyDaysAgo));
+  const sumDue    = arr => arr.reduce((s,b)=>s+dueAmount(b), 0);
+  const sT = summarisePeriod(monthList, activity, today);
+  const sM = summarisePeriod(monthList, activity);
+  const selfPay   = pendList.filter(b=>b.payer_type==='self_pay');
+  const insClaims = pendList.filter(b=>b.payer_type!=='self_pay');
+  const overdue30 = pendList.filter(b=>new Date(b.created_at)<new Date(thirtyDaysAgo));
 
   // ── KPI Cards ──
   const acGrid = document.getElementById('accounts-stats');
   if(acGrid) acGrid.innerHTML=[
-    {ico:'₹',  cls:'gold', num:_fmt(revenueToday),    lbl:'Revenue Today',     sub:'cash & digital in'},
-    {ico:'📅', cls:'g',    num:_fmt(revenueMonth),     lbl:'This Month',         sub:'total revenue collected'},
+    {ico:'₹',  cls:'gold', num:_fmt(sT.net),           lbl:'Revenue Today',     sub:`gross ${_fmt(sT.gross)} − returns ${_fmt(sT.returns)} · collected ${_fmt(sT.collected)}`},
+    {ico:'📅', cls:'g',    num:_fmt(sM.net),            lbl:'This Month',         sub:`gross ${_fmt(sM.gross)} − returns ${_fmt(sM.returns)} · collected ${_fmt(sM.collected)}`},
     {ico:'👤', cls:'b',    num:_fmt(sumDue(selfPay)),  lbl:'Self-Pay Pending',   sub:selfPay.length+' bills awaiting'},
     {ico:'🏥', cls:'p',    num:insClaims.length,        lbl:'Insurance Claims',   sub:'pending with TPA / PMJAY'},
     {ico:'⚠️', cls:'r',    num:overdue30.length,        lbl:'Outstanding >30d',   sub:_fmt(sumDue(overdue30))+' at risk'},
   ].map(c=>`<div class="sc"><div class="sc-ico ${c.cls}">${c.ico}</div><div class="sc-num">${c.num??'—'}</div><div class="sc-lbl">${c.lbl}</div><div class="sc-sub">${c.sub}</div></div>`).join('');
 
-  // ── Revenue Breakdown table ──
-  // Session 295 -- was bill_type==='OPD' / 'IPD' (exact capitals): real bills are
-  // 'consultation'/'opd'/'OPD' and 'ipd', so both rows were ~always 0.
-  const byCat = (arr, cat) => sumCollected(arr.filter(b=>billCategory(b.bill_type)===cat));
-  const opdT  = byCat(todayList,'opd'),           opdM  = byCat(monthList,'opd');
-  const ipdT  = byCat(todayList,'ipd'),           ipdM  = byCat(monthList,'ipd');
-  const phmT  = byCat(todayList,'pharmacy'),      phmM  = byCat(monthList,'pharmacy');
-  const labT  = byCat(todayList,'investigation'), labM  = byCat(monthList,'investigation');
-  const spT   = sumCollected(todayList.filter(b=>b.payer_type==='self_pay'));
-  const insT  = sumCollected(todayList.filter(b=>b.payer_type!=='self_pay'));
-  const spM   = sumCollected(monthList.filter(b=>b.payer_type==='self_pay'));
-  const insM  = sumCollected(monthList.filter(b=>b.payer_type!=='self_pay'));
-
+  // ── Revenue Breakdown table: sales by category (original amounts), then Gross / Returns / Net and Collected ──
   const bkDiv = document.getElementById('accounts-breakdown');
-  if(bkDiv) bkDiv.innerHTML=`<div class="tw"><table>
-    <thead><tr><th>Category</th><th>Today</th><th>This Month</th></tr></thead>
-    <tbody>
-      <tr><td><span class="chip b">OPD</span> Outpatient</td><td>${_fmt(opdT)}</td><td>${_fmt(opdM)}</td></tr>
-      <tr><td><span class="chip p">IPD</span> Inpatient</td><td>${_fmt(ipdT)}</td><td>${_fmt(ipdM)}</td></tr>
-      <tr><td><span class="chip g">Pharmacy</span> Dispensary</td><td>${_fmt(phmT)}</td><td>${_fmt(phmM)}</td></tr>
-      <tr><td><span class="chip b">Lab</span> Investigation bills</td><td>${_fmt(labT)}</td><td>${_fmt(labM)}</td></tr>
-      <tr style="border-top:2px solid var(--border);font-weight:600">
-        <td>Total Collected</td><td>${_fmt(revenueToday)}</td><td>${_fmt(revenueMonth)}</td>
-      </tr>
-      <tr><td><span class="chip b">Self-Pay</span></td><td>${_fmt(spT)}</td><td>${_fmt(spM)}</td></tr>
-      <tr><td><span class="chip g">Insurance / Govt</span></td><td>${_fmt(insT)}</td><td>${_fmt(insM)}</td></tr>
-    </tbody>
-  </table></div>`;
+  if(bkDiv){
+    const mk=(tag,text,style)=>{const e=document.createElement(tag);if(text!=null)e.textContent=text;if(style)e.style.cssText=style;return e;};
+    const table=mk('table'), thead=mk('thead'), tbody=mk('tbody'), hr=mk('tr');
+    ['Category','Today','This Month'].forEach(h=>hr.append(mk('th',h)));
+    thead.append(hr);
+    const row=(chip,chipCls,label,t,m,style)=>{
+      const tr=mk('tr',null,style); const td=mk('td');
+      if(chip){const c=mk('span',chip);c.className='chip '+chipCls;td.append(c,document.createTextNode(' '));}
+      td.append(document.createTextNode(label)); tr.append(td,mk('td',t),mk('td',m)); tbody.append(tr);
+    };
+    row('OPD','b','Outpatient',_fmt(sT.cat.opd.gross),_fmt(sM.cat.opd.gross));
+    row('IPD','p','Inpatient',_fmt(sT.cat.ipd.gross),_fmt(sM.cat.ipd.gross));
+    row('Pharmacy','g','Dispensary',_fmt(sT.cat.pharmacy.gross),_fmt(sM.cat.pharmacy.gross));
+    row('Lab','b','Investigation bills',_fmt(sT.cat.investigation.gross),_fmt(sM.cat.investigation.gross));
+    row(null,null,'Other',_fmt(sT.cat.other.gross),_fmt(sM.cat.other.gross));
+    row(null,null,'Gross sales',_fmt(sT.gross),_fmt(sM.gross),'border-top:2px solid var(--border);font-weight:600');
+    row(null,null,'Returns / cancellations','− '+_fmt(sT.returns),'− '+_fmt(sM.returns),'color:var(--red)');
+    row(null,null,'Net sales',_fmt(sT.net),_fmt(sM.net),'font-weight:600');
+    row(null,null,'Collected (receipts − refunds)',_fmt(sT.collected),_fmt(sM.collected),'border-top:2px solid var(--border);font-weight:600');
+    row('Self-Pay','b','net sales',_fmt(sT.payer.self_pay.net),_fmt(sM.payer.self_pay.net));
+    row('Insurance / Govt','g','net sales',_fmt(sT.payer.insured.net),_fmt(sM.payer.insured.net));
+    table.append(thead,tbody);
+    const tw=mk('div'); tw.className='tw'; tw.append(table);
+    bkDiv.replaceChildren(tw);
+  }
 
   // ── Pending Bills badge ──
   const badge = document.getElementById('pending-bills-badge');
@@ -5400,16 +5394,18 @@ window.loadMonthlyReport = async function() {
   body.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Generating report…</div></div>';
   document.getElementById('mr-csv-btn').style.display = 'none';
 
-  const [visRes, ipdRes, bedRes, deptRes, billRes, pkRes, labRes, imgRes, tRow] = await Promise.all([
+  const [visRes, ipdRes, bedRes, deptRes, billRes, pkRes, labRes, imgRes, tRow, actRes] = await Promise.all([
     supabase.from('visits').select('id,status,opd_id,created_at').eq('tenant_id',tenantId).gte('created_at',start).lte('created_at',end),
     supabase.from('ipd_admissions').select('id,department_id,status,admitted_at,discharged_at').eq('tenant_id',tenantId).gte('admitted_at',start).lte('admitted_at',end),
     supabase.from('beds').select('id,department_id,status').eq('tenant_id',tenantId),
     supabase.from('departments').select('id,name,ncism_code').eq('tenant_id',tenantId).eq('is_active',true).order('name'),
-    supabase.from('bills').select('final_amount,amount_paid,status').eq('tenant_id',tenantId).gte('created_at',start).lte('created_at',end),
+    supabase.from('bills').select('id,final_amount,status,bill_type,payer_type,document_status,payment_mode,payment_method,created_at').eq('tenant_id',tenantId).gte('created_at',start).lte('created_at',end),
     supabase.from('pk_therapy_sessions').select('id,status,therapy_name').eq('tenant_id',tenantId).gte('created_at',start).lte('created_at',end).then(r=>r.error?{data:[]}:r),
     supabase.from('lab_orders').select('id,priority').eq('tenant_id',tenantId).gte('created_at',start).lte('created_at',end).then(r=>r.error?{data:[]}:r),
     supabase.from('imaging_orders').select('id,modality').eq('tenant_id',tenantId).gte('created_at',start).lte('created_at',end).then(r=>r.error?{data:[]}:r),
     supabase.from('tenants').select('ug_intake,opd_daily_target').eq('id',tenantId).single(),
+    // Session 344a: returns by RETURN date and money by receipt date (a closed month never changes)
+    supabase.rpc('finance_activity', { p_from: `${y}-${String(m).padStart(2, '0')}-01`, p_to: monthEndStr(`${y}-${String(m).padStart(2, '0')}`) }),
   ]);
 
   const visits  = visRes.data  || [];
@@ -5457,8 +5453,10 @@ window.loadMonthlyReport = async function() {
   const occPct = totalBeds > 0 ? Math.round(occupiedBeds / totalBeds * 100) : 0;
 
   // Finance
-  const totalBilled = bills.reduce((s,b) => s + (Number(b.final_amount)||0), 0);
-  const totalCollected = bills.reduce((s,b) => s + (Number(b.amount_paid)||0), 0);
+  // Session 344a: Gross (bills of the month at their original amount) / Returns (completed in the month) / Net; Collected =
+  // receipts - refunds of the month (+ bills paid before receipts existed)
+  const finM = summarisePeriod(bills, actRes.data || { returns: [], receipts: [], legacy_collected: {} });
+  const totalBilled = finM.gross, totalReturns = finM.returns, totalNet = finM.net, totalCollected = finM.collected;
 
   // Summary
   const totalOPD = visits.length;
@@ -5469,7 +5467,7 @@ window.loadMonthlyReport = async function() {
 
   _mrData = { monthLabel, y, m, totalOPD, avgOPD, dailyTgt, workingDays, totalBeds, occPct,
     ipds, depts, opdByDept, ipdByDept, bills, pkCompleted, labs, imgs, labUrgent, imgTotal,
-    totalBilled, totalCollected };
+    totalBilled, totalReturns, totalNet, totalCollected };
 
   const oppctCls = totalOPD/(dailyTgt*workingDays||1)*100 >= 80 ? '#2d7a4f' : totalOPD/(dailyTgt*workingDays||1)*100 >= 50 ? '#c9902a' : '#c0392b';
   const occ30Cls = occPct >= 60 ? '#2d7a4f' : occPct >= 30 ? '#c9902a' : '#c0392b';
@@ -5490,7 +5488,7 @@ window.loadMonthlyReport = async function() {
     <div class="sc"><div class="sc-ico p">📊</div><div class="sc-num" style="color:${occ30Cls}">${occPct}%</div><div class="sc-lbl">Bed Occupancy</div><div class="sc-sub">${occupiedBeds}/${totalBeds} beds (current)</div></div>
     <div class="sc"><div class="sc-ico gold">🌿</div><div class="sc-num">${pkCompleted}</div><div class="sc-lbl">PK Sessions Done</div><div class="sc-sub">therapy completed</div></div>
     <div class="sc"><div class="sc-ico b">🧪</div><div class="sc-num">${labs.length}</div><div class="sc-lbl">Lab Tests</div><div class="sc-sub">${labUrgent} urgent</div></div>
-    <div class="sc"><div class="sc-ico g">₹</div><div class="sc-num">${_fmt(totalCollected)}</div><div class="sc-lbl">Revenue Collected</div><div class="sc-sub">Billed: ${_fmt(totalBilled)}</div></div>
+    <div class="sc"><div class="sc-ico g">₹</div><div class="sc-num">${_fmt(totalNet)}</div><div class="sc-lbl">Net Revenue</div><div class="sc-sub">Gross ${_fmt(totalBilled)} − Returns ${_fmt(totalReturns)} · Collected ${_fmt(totalCollected)}</div></div>
   </div>
 
   <!-- OPD by Dept -->
@@ -5580,8 +5578,8 @@ window.loadMonthlyReport = async function() {
         </div>
         <div style="background:#fdf3f3;border-radius:8px;padding:12px 16px">
           <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px">Revenue</div>
-          <div style="font-size:24px;font-weight:700;color:var(--red);margin:4px 0">${_fmt(totalCollected)}</div>
-          <div style="font-size:11px;color:var(--text-mid)">Billed: ${_fmt(totalBilled)} · ${bills.length} invoices</div>
+          <div style="font-size:24px;font-weight:700;color:var(--red);margin:4px 0">${_fmt(totalNet)}</div>
+          <div style="font-size:11px;color:var(--text-mid)">Gross ${_fmt(totalBilled)} − Returns ${_fmt(totalReturns)} · Collected ${_fmt(totalCollected)} · ${bills.length} invoices</div>
         </div>
       </div>
     </div>
@@ -5594,7 +5592,7 @@ window.loadMonthlyReport = async function() {
 window.exportMonthlyCSV = function() {
   if (!_mrData) return;
   const { monthLabel, totalOPD, avgOPD, dailyTgt, workingDays, ipds, depts, opdByDept, ipdByDept,
-    occPct, pkCompleted, labs, imgs, labUrgent, totalBilled, totalCollected } = _mrData;
+    occPct, pkCompleted, labs, imgs, labUrgent, totalBilled, totalReturns, totalNet, totalCollected } = _mrData;
 
   const rows = [
     ['NCISM Monthly Report — ' + monthLabel],
@@ -5610,8 +5608,10 @@ window.exportMonthlyCSV = function() {
     ['PK Therapy Sessions Completed', pkCompleted],
     ['Lab Tests', labs.length],
     ['Imaging Orders', imgs.length],
-    ['Revenue Collected', totalCollected],
-    ['Revenue Billed', totalBilled],
+    ['Revenue Billed (gross)', totalBilled],
+    ['Returns / cancellations', -totalReturns],
+    ['Net Revenue', totalNet],
+    ['Revenue Collected (receipts - refunds)', totalCollected],
     [''],
     ['OPD BY DEPARTMENT'],
     ['Department','NCISM Code','Total Visits','Avg/Day'],
@@ -5660,15 +5660,15 @@ async function _docDash(){
 }
 async function _rxDash(){
   _bannerBtn('Register Patient','reception.html');
-  const[r,w,p,c]=await Promise.all([_countToday('visits'),_count('visits',[['tenant_id',tenantId],['status','waiting']]),_count('bills',[['tenant_id',tenantId],['status','pending']]),_sumToday('bills','final_amount')]);
-  _rStats([{icon:'🏥',iconClass:'green',number:r,label:'Registered Today',sub:'checked in'},{icon:'⏳',iconClass:'red',number:w,label:'Waiting Now',sub:'in queue'},{icon:'📄',iconClass:'gold',number:p,label:'Pending Bills',sub:'awaiting payment'},{icon:'₹',iconClass:'blue',number:_fmt(c),label:'Collected Today',sub:'total'}]);
+  const[r,w,p,c]=await Promise.all([_countToday('visits'),_count('visits',[['tenant_id',tenantId],['status','waiting']]),_count('bills',[['tenant_id',tenantId],['status','pending']]),_collectedToday()]);
+  _rStats([{icon:'🏥',iconClass:'green',number:r,label:'Registered Today',sub:'checked in'},{icon:'⏳',iconClass:'red',number:w,label:'Waiting Now',sub:'in queue'},{icon:'📄',iconClass:'gold',number:p,label:'Pending Bills',sub:'awaiting payment'},{icon:'₹',iconClass:'blue',number:_fmt(c),label:'Collected Today',sub:'receipts − refunds'}]);
   _rActions([{icon:'➕',label:'New Patient',desc:'Register & queue',href:'reception.html'},{icon:'👁',label:'View Queue',desc:'Waiting patients',href:'doctor.html'},{icon:'📄',label:'Billing',desc:'Bills & payments',href:'reception.html'},{icon:'📊',label:'Today\'s Log',desc:'All visits',href:'reports.html'}]);
   _rCard('🏥','Reception is ready','Register new patients, manage the OPD queue, and collect payments.','Register a Patient','reception.html');
 }
 async function _pharmDash(){
   _bannerBtn('Open POS','dispensaryPOS.html');
-  const[l,s]=await Promise.all([_count('inventory',[['tenant_id',tenantId]],false,['stock_quantity','lte',10]),_sumToday('bills','final_amount')]);
-  _rStats([{icon:'⚠️',iconClass:'red',number:l,label:'Low Stock',sub:'qty ≤ 10'},{icon:'₹',iconClass:'gold',number:_fmt(s),label:'Sales Today',sub:'revenue'},{icon:'💊',iconClass:'green',number:'—',label:'Dispensed',sub:'coming soon'},{icon:'🚚',iconClass:'blue',number:'—',label:'Purchases',sub:'today'}]);
+  const[l,s]=await Promise.all([_count('inventory',[['tenant_id',tenantId]],false,['stock_quantity','lte',10]),_netSalesToday()]);
+  _rStats([{icon:'⚠️',iconClass:'red',number:l,label:'Low Stock',sub:'qty ≤ 10'},{icon:'₹',iconClass:'gold',number:_fmt(s),label:'Sales Today',sub:'net of returns'},{icon:'💊',iconClass:'green',number:'—',label:'Dispensed',sub:'coming soon'},{icon:'🚚',iconClass:'blue',number:'—',label:'Purchases',sub:'today'}]);
   _rActions([{icon:'🛒',label:'POS',desc:'Dispense & bill',href:'dispensaryPOS.html'},{icon:'🚚',label:'Purchase',desc:'Receive stock',href:'purchase.html'},{icon:'📦',label:'Inventory',desc:'Stock levels',href:'inventory.html'},{icon:'📊',label:'Reports',desc:'Sales analytics',href:'reports.html'}]);
   _rCard('💊','Pharmacy is open','Dispense medicines, manage inventory, record purchases.','Open POS','dispensaryPOS.html');
 }
@@ -5713,6 +5713,23 @@ async function _sumToday(table,col){
   try{
     const{data}=await supabase.from(table).select(col).eq('tenant_id',tenantId).gte('created_at',todayStart).lte('created_at',todayEnd);
     return(data||[]).reduce((s,r)=>s+(Number(r[col])||0),0);
+  }catch{return 0;}
+}
+// Session 344a (owner decision 6 Oct 2026): returns count on the RETURN date -- today's net sales = bills made today at
+// their original amount - returns / cancellations completed today; collected = receipts - refunds of today
+async function _netSalesToday(){
+  try{
+    const[{data:b},{data:r}]=await Promise.all([
+      supabase.from('bills').select('final_amount,document_status').eq('tenant_id',tenantId).gte('created_at',todayStart).lte('created_at',todayEnd),
+      supabase.from('pharmacy_returns').select('amount').eq('tenant_id',tenantId).eq('status','completed').gte('completed_at',todayStart).lte('completed_at',todayEnd)]);
+    return (b||[]).filter(isSale).reduce((s,x)=>s+(Number(x.final_amount)||0),0)-(r||[]).reduce((s,x)=>s+(Number(x.amount)||0),0);
+  }catch{return 0;}
+}
+async function _collectedToday(){
+  try{
+    const d=istDate(new Date().toISOString());
+    const{data}=await supabase.rpc('finance_activity',{p_from:d,p_to:d});
+    return summarisePeriod([],data||{}).collected;
   }catch{return 0;}
 }
 function _fmt(n){if(!n)return'₹0';if(n>=100000)return'₹'+(n/100000).toFixed(1)+'L';if(n>=1000)return'₹'+(n/1000).toFixed(1)+'K';return'₹'+Math.round(n);}
@@ -6602,6 +6619,7 @@ window.loadModules = async function() {
   const saved    = t.modules || {};
   const effective = { ...defaults, ...saved };
   _renderCounterSaleSetting(saved.counter_sale !== false);
+  _renderReturnSettings();                                   // Session 344a
 
   el.innerHTML = `
     <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:12.5px;color:#7a5200">
@@ -6700,6 +6718,96 @@ function _renderCounterSaleSetting(on) {
   }
   card.append(row);
   if (!canChange) card.append(mk('div', 'font-size:12px;color:var(--text-muted);margin-top:6px', "Only this organisation's Super Admin can change this."));
+  box.replaceChildren(card);
+}
+
+// Session 344a (owner decisions 6 Oct 2026, TODO §143): the four pharmacy return settings -- like the counter sale switch,
+// not modules (never in the grid); values come from the server (get_pharmacy_return_settings, "not set" = the default);
+// each is saved at once by its own setter, which re-checks that the caller is this organisation's ACTIVE super_admin and
+// audits old -> new; the Feature Modules save never changes them. Built from DOM nodes + textContent only.
+async function _renderReturnSettings() {
+  const box = document.getElementById('returns-settings');
+  if (!box) return;
+  box.hidden = !hasModule('pharmacy');
+  if (box.hidden) return;
+  const { data: st, error } = await supabase.rpc('get_pharmacy_return_settings');
+  const mk = (tag, style, text) => { const e = document.createElement(tag); if (style) e.style.cssText = style; if (text != null) e.textContent = text; return e; };
+  if (error || !st) {
+    box.replaceChildren(mk('div', 'font-size:12.5px;color:var(--red,#c0392b);margin-bottom:18px', safeErrorMessage(error, 'Could not load the pharmacy return settings.')));
+    return;
+  }
+  const canChange = role === 'super_admin';
+  const btnCss = on => "min-height:44px;padding:0 16px;border-radius:8px;font:600 13px 'DM Sans',sans-serif;cursor:pointer;"
+    + (on ? 'background:#fff;color:var(--red,#c0392b);border:1.5px solid var(--red,#c0392b)' : 'background:var(--green-deep);color:#fff;border:1.5px solid var(--green-deep)');
+  const save = async (rpc, args, okText, btn) => {
+    btn.disabled = true;
+    const { error: e } = await supabase.rpc(rpc, args);
+    if (e) { btn.disabled = false; _toast(safeErrorMessage(e, 'Could not save the setting.'), true); return; }
+    _toast(okText);
+    _renderReturnSettings();
+  };
+  const card = mk('div', 'border-radius:8px;padding:14px 16px;margin-bottom:18px;border:1.5px solid #a5d6b8;background:#f0fff4');
+  card.append(mk('div', 'font-weight:600;font-size:14px;color:var(--green-deep);margin-bottom:8px', '↩️ Pharmacy returns'));
+  const row = (title, desc, control) => {
+    const r = mk('div', 'display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--border,#e0e0e0)');
+    const t = mk('div', 'flex:1;min-width:220px');
+    t.append(mk('div', 'font-weight:600;font-size:13px;color:var(--text-dark,#1a1a1a)', title),
+      mk('div', 'font-size:12.5px;color:var(--text-mid);margin-top:2px', desc));
+    r.append(t);
+    if (control) r.append(control);
+    card.append(r);
+  };
+  const toggle = (on, rpc, label) => {
+    if (!canChange) return null;
+    const b = mk('button', btnCss(on), on ? 'Switch OFF' : 'Switch ON');
+    b.type = 'button';
+    b.addEventListener('click', () => save(rpc, { p_on: !on }, `✓ ${label} switched ${on ? 'OFF' : 'ON'}`, b));
+    return b;
+  };
+  row('Accept customer returns', `${st.returns_accept ? 'ON' : 'OFF'} — ${st.returns_accept
+    ? 'customers may return medicines (sealed and good goes back to stock; opened, damaged or expired goes to the disposal register).'
+    : 'customer returns are refused; only a Super Admin or Dept Admin can cancel a wrongly entered bill, with a reason.'}`,
+  toggle(st.returns_accept, 'set_returns_accept', 'Accept customer returns'));
+  row('Returns need a second person’s approval', `${st.returns_need_approval ? 'ON' : 'OFF'} — ${st.returns_need_approval
+    ? 'a return waits until a Dept Admin, Super Admin, Finance Manager or Accountant (never the same person) approves it.'
+    : 'the person recording the return completes it at once (a reason is still required and everything is audited) — for a single-person dispensary.'}`,
+  toggle(st.returns_need_approval, 'set_returns_need_approval', 'Second-person approval'));
+  let winCtl = null;
+  if (canChange) {
+    winCtl = mk('div', 'display:flex;gap:8px;align-items:center');
+    const inp = mk('input', "width:80px;min-height:44px;padding:0 10px;border:1.5px solid var(--border,#ccc);border-radius:8px;font:14px 'DM Sans',sans-serif");
+    inp.type = 'number'; inp.min = '0'; inp.max = '90'; inp.step = '1'; inp.value = String(st.returns_window_days);
+    inp.setAttribute('aria-label', 'Return window in days');
+    const b = mk('button', btnCss(false), 'Save');
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      const n = Number(inp.value);
+      if (!Number.isInteger(n) || n < 0 || n > 90) { _toast('Enter a whole number of days from 0 to 90.', true); return; }
+      save('set_returns_window_days', { p_days: n }, `✓ Return window set to ${n} day(s)`, b);
+    });
+    winCtl.append(inp, mk('span', 'font-size:12.5px;color:var(--text-mid)', 'days'), b);
+  }
+  row('Return window', `${st.returns_window_days} day(s) after the sale for a partial return. A full cancel is always possible on the day of the sale.`, winCtl);
+  const pol = mk('div', 'padding:8px 0;border-top:1px solid var(--border,#e0e0e0)');
+  pol.append(mk('div', 'font-weight:600;font-size:13px;color:var(--text-dark,#1a1a1a)', 'Return policy line (printed only on pharmacy bills)'),
+    mk('div', 'font-size:12.5px;color:var(--text-mid);margin:2px 0 6px', st.return_policy_line ? `Now: “${st.return_policy_line}”` : 'Now: empty — nothing is printed.'));
+  if (canChange) {
+    const wrap = mk('div', 'display:flex;gap:8px;flex-wrap:wrap');
+    const inp = mk('input', "flex:1;min-width:240px;min-height:44px;padding:0 10px;border:1.5px solid var(--border,#ccc);border-radius:8px;font:14px 'DM Sans',sans-serif");
+    inp.type = 'text'; inp.maxLength = 200; inp.value = st.return_policy_line || '';
+    inp.setAttribute('aria-label', 'Return policy line');
+    const b = mk('button', btnCss(false), 'Save');
+    b.type = 'button';
+    b.addEventListener('click', () => save('set_return_policy_line', { p_text: inp.value },
+      inp.value.trim() ? '✓ Return policy line saved' : '✓ Return policy line cleared — nothing will be printed', b));
+    const c = mk('button', btnCss(true), 'Clear');
+    c.type = 'button';
+    c.addEventListener('click', () => save('set_return_policy_line', { p_text: '' }, '✓ Return policy line cleared — nothing will be printed', c));
+    wrap.append(inp, b, c);
+    pol.append(wrap);
+  }
+  card.append(pol);
+  if (!canChange) card.append(mk('div', 'font-size:12px;color:var(--text-muted);margin-top:6px', 'Only this organisation’s Super Admin can change these.'));
   box.replaceChildren(card);
 }
 
@@ -6809,26 +6917,29 @@ window.generateMonthlyStats = async function() {
   const from = month + '-01', to = monthEndStr(month);
   const el = document.getElementById('stat-body');
   el.innerHTML = '<div style="color:var(--text-muted)">Generating…</div>';
-  const [v, adm, bills, del, lab] = await Promise.all([
+  const [v, adm, bills, del, lab, act] = await Promise.all([
     supabase.from('visits').select('id,is_teleconsultation').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30'),
     supabase.from('ipd_admissions').select('id').eq('tenant_id',tenantId).gte('admission_date',from).lte('admission_date',to),
-    supabase.from('bills').select('id,final_amount').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30').eq('status','paid'),
+    supabase.from('bills').select('id,final_amount,status,bill_type,payer_type,document_status,payment_mode,payment_method,created_at').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30'),
     supabase.from('deliveries').select('id').eq('tenant_id',tenantId).is('superseded_by',null).gte('delivery_date',from).lte('delivery_date',to),
     supabase.from('lab_orders').select('id').eq('tenant_id',tenantId).gte('created_at',from+'T00:00:00+05:30').lte('created_at',to+'T23:59:59.999+05:30'),
+    supabase.rpc('finance_activity', { p_from: from, p_to: to }),            // Session 344a: returns by RETURN date
   ]);
   const opdCount  = (v.data||[]).filter(x=>!x.is_teleconsultation).length;
   const ipdCount  = (adm.data||[]).length;
-  const revenue   = (bills.data||[]).reduce((s,b)=>s+(b.final_amount||0),0);
+  // Session 344a: net revenue = bills of the month at their original amount - returns / cancellations completed in the month
+  const finS      = summarisePeriod(bills.data || [], act.data || { returns: [], receipts: [], legacy_collected: {} });
+  const revenue   = finS.net, revGross = finS.gross, revReturns = finS.returns;
   const deliveries= (del.data||[]).length;
   const labCount  = (lab.data||[]).length;
-  _statsData = { month, opdCount, ipdCount, revenue, deliveries, labCount };
+  _statsData = { month, opdCount, ipdCount, revenue, revGross, revReturns, deliveries, labCount };
   el.innerHTML = `<div style="font-weight:600;font-size:14px;color:var(--green-deep);margin-bottom:10px">Hospital Statistics — ${month}</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:12px">
       <div style="padding:10px;background:var(--green-light);border-radius:8px;text-align:center"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">OPD Patients</div><div style="font-size:26px;font-weight:700;color:var(--green-deep)">${opdCount}</div></div>
       <div style="padding:10px;background:#e3f0ff;border-radius:8px;text-align:center"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">IPD Admissions</div><div style="font-size:26px;font-weight:700;color:#1a4080">${ipdCount}</div></div>
       <div style="padding:10px;background:#fdf3e2;border-radius:8px;text-align:center"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Lab Tests</div><div style="font-size:26px;font-weight:700;color:var(--gold)">${labCount}</div></div>
       <div style="padding:10px;background:#f0e8ff;border-radius:8px;text-align:center"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Deliveries</div><div style="font-size:26px;font-weight:700;color:#5a1a8b">${deliveries}</div></div>
-      <div style="padding:10px;background:#fff8e1;border-radius:8px;text-align:center"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Revenue</div><div style="font-size:20px;font-weight:700;color:#6b4c00">₹${Math.round(revenue/1000)}K</div></div>
+      <div style="padding:10px;background:#fff8e1;border-radius:8px;text-align:center"><div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Net Revenue</div><div style="font-size:20px;font-weight:700;color:#6b4c00">₹${Math.round(revenue/1000)}K</div><div style="font-size:10px;color:var(--text-muted)">gross ₹${Math.round(revGross/1000)}K − returns ₹${Math.round(revReturns/1000)}K</div></div>
     </div>
     <div style="font-size:11px;color:var(--text-muted);padding:10px;background:#f5faf7;border-radius:6px">Print PDF to publish on institutional website. NCISM Reg 11(6)(l) requires website publication by 10th of each month.</div>`;
 };

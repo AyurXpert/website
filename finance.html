@@ -194,8 +194,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
 
     <!-- KPI row always visible in this group -->
     <div class="kpi-row" id="kpi-row">
-      <div class="kpi"><div class="kpi-label">Total Revenue</div><div class="kpi-val" id="k-revenue">—</div><div class="kpi-sub" id="k-revenue-sub"></div></div>
-      <div class="kpi"><div class="kpi-label">Collected (Paid)</div><div class="kpi-val" id="k-collected">—</div><div class="kpi-sub" id="k-collected-sub"></div></div>
+      <div class="kpi"><div class="kpi-label">Net Revenue</div><div class="kpi-val" id="k-revenue">—</div><div class="kpi-sub" id="k-revenue-sub"></div></div>
+      <div class="kpi"><div class="kpi-label">Collected (receipts − refunds)</div><div class="kpi-val" id="k-collected">—</div><div class="kpi-sub" id="k-collected-sub"></div></div>
       <div class="kpi red"><div class="kpi-label">Outstanding</div><div class="kpi-val" id="k-outstanding">—</div><div class="kpi-sub" id="k-outstanding-sub"></div></div>
       <div class="kpi gold"><div class="kpi-label">Total Expenses</div><div class="kpi-val" id="k-expenses">—</div><div class="kpi-sub" id="k-expenses-sub"></div></div>
       <div class="kpi"><div class="kpi-label">Total Bills</div><div class="kpi-val" id="k-bills">—</div><div class="kpi-sub" id="k-bills-sub"></div></div>
@@ -217,6 +217,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
         <div class="rev-item"><div class="rev-item-label">Pharmacy / Dispensary</div><div class="rev-item-val" id="r-phm">₹0</div><div class="rev-item-count" id="r-phm-c"></div></div>
         <div class="rev-item"><div class="rev-item-label">Lab / Investigations</div><div class="rev-item-val" id="r-lab">₹0</div><div class="rev-item-count" id="r-lab-c"></div></div>
         <div class="rev-item"><div class="rev-item-label">IPD / Package / Other</div><div class="rev-item-val" id="r-oth">₹0</div><div class="rev-item-count" id="r-oth-c"></div></div>
+        <div class="rev-item"><div class="rev-item-label">Returns / cancellations</div><div class="rev-item-val" id="r-ret" style="color:var(--red)">₹0</div><div class="rev-item-count" id="r-ret-c"></div></div>
+        <div class="rev-item"><div class="rev-item-label">Net sales</div><div class="rev-item-val" id="r-net">₹0</div><div class="rev-item-count" id="r-net-c"></div></div>
       </div>
       <div class="card">
         <div class="card-hdr">
@@ -227,7 +229,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
           <table>
             <thead><tr><th>Date</th><th>Patient</th><th>Bill Type</th><th>Amount</th><th>Discount</th><th>Final</th><th>Payment</th><th>Status</th></tr></thead>
             <tbody id="rev-tbody"></tbody>
-            <tfoot><tr><td colspan="5" style="text-align:right">Total</td><td id="rev-total-final">₹0</td><td colspan="2"></td></tr></tfoot>
+            <tfoot>
+              <tr><td colspan="5" style="text-align:right">Gross sales</td><td id="rev-total-final">₹0</td><td colspan="2"></td></tr>
+              <tr><td colspan="5" style="text-align:right">Returns / cancellations</td><td id="rev-total-returns" style="color:var(--red)">₹0</td><td colspan="2"></td></tr>
+              <tr><td colspan="5" style="text-align:right;font-weight:600">Net</td><td id="rev-total-net" style="font-weight:600">₹0</td><td colspan="2"></td></tr>
+            </tfoot>
           </table>
         </div>
       </div>
@@ -265,9 +271,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
         </div>
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Date</th><th>Bills</th><th>Cash</th><th>UPI / Card</th><th>Credit / Due</th><th>Insurance</th><th>Total Collected</th><th>Outstanding Added</th></tr></thead>
+            <thead><tr><th>Date</th><th>Bills</th><th>Sales (gross)</th><th>Returns</th><th>Net</th><th>Cash</th><th>UPI / Card</th><th>Total Collected</th><th>Outstanding Added</th></tr></thead>
             <tbody id="daily-tbody"></tbody>
-            <tfoot><tr><td style="font-weight:600">Total</td><td id="d-t-bills">—</td><td id="d-t-cash">—</td><td id="d-t-upi">—</td><td id="d-t-credit">—</td><td id="d-t-ins">—</td><td id="d-t-collected">—</td><td id="d-t-pending">—</td></tr></tfoot>
+            <tfoot><tr><td style="font-weight:600">Total</td><td id="d-t-bills">—</td><td id="d-t-sales">—</td><td id="d-t-returns">—</td><td id="d-t-net">—</td><td id="d-t-cash">—</td><td id="d-t-upi">—</td><td id="d-t-collected">—</td><td id="d-t-pending">—</td></tr></tfoot>
           </table>
         </div>
       </div>

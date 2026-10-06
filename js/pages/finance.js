@@ -5,7 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { logAudit } from '../core/auditLogger.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
-import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, collectedAmount } from '../modules/billing/billCategory.js';
+import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, summarisePeriod, isSale, istDate } from '../modules/billing/billCategory.js';
 import { notify } from '../components/notify.js';
 import { canCollectOpd, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt } from '../modules/billing/opdPayments.js';
 import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
@@ -84,6 +84,8 @@ if (_role === 'cashier') {
 
 // ── State ──────────────────────────────────────────
 let _bills = [], _expenses = [], _outstanding = [];
+// Session 344a: the period's returns (by RETURN date), receipts / refunds (by receipt date) and paid-before-receipts bills
+let _activity = { returns: [], receipts: [], legacy_collected: {} };
 
 // ── §21ae CA Audit functions ──────────────────────────────
 let _audits = [];
@@ -196,13 +198,17 @@ window.loadAll = async function() {
 async function loadBills(from, to) {
   const { data, error } = await supabase
     .from('bills')
-    .select('id, created_at, final_amount, total_amount, registration_fee, consultation_fee, on_request_surcharge, patient_due, bill_type, payment_mode, status, patients(name), insurer_name')
+    .select('id, created_at, final_amount, total_amount, registration_fee, consultation_fee, on_request_surcharge, patient_due, amount_paid, returned_amount, bill_type, payment_mode, payment_method, payer_type, document_status, document_number, status, patients(name), insurer_name')
     .eq('tenant_id', tenantId)
     .gte('created_at', from + 'T00:00:00+05:30')
     .lte('created_at', to + 'T23:59:59.999+05:30')
     .order('created_at', { ascending: false });
   if (error) { _toast(safeErrorMessage(error, 'Could not load bills.'), 'error'); return; }
   _bills = data || [];
+  // Session 344a (owner decision 6 Oct 2026): returns count on the RETURN date, collection on the receipt date
+  const { data: act, error: aErr } = await supabase.rpc('finance_activity', { p_from: from, p_to: to });
+  if (aErr) _toast(safeErrorMessage(aErr, 'Could not load the returns and receipts of this period — totals may be incomplete.'), 'error');
+  _activity = act || { returns: [], receipts: [], legacy_collected: {} };
   await _loadLabItemTotals();
   renderRevenue(from, to);
   renderGST();
@@ -210,38 +216,68 @@ async function loadBills(from, to) {
   updateKPIs();
 }
 
+// DOM helpers (Session 344a: rows built from nodes + textContent)
+function _el(tag, text, style, cls) {
+  const e = document.createElement(tag);
+  if (text != null) e.textContent = String(text);
+  if (style) e.style.cssText = style;
+  if (cls) e.className = cls;
+  return e;
+}
+function _setText(id, text) { const e = document.getElementById(id); if (e) e.textContent = text; }
+
 function renderRevenue(from, to) {
   const tbody = document.getElementById('rev-tbody');
-  document.getElementById('rev-period-lbl').textContent = `${_fmtD(from)} to ${_fmtD(to)} · ${_bills.length} bills`;
-
+  const rets = _activity.returns || [];
+  _setText('rev-period-lbl', `${_fmtD(from)} to ${_fmtD(to)} · ${_bills.length} bills · ${rets.length} returns / cancellations`);
   const k = _revenueBuckets(_bills);
-  const grandFinal = _bills.reduce((s, b) => s + collectedAmount(b), 0);
+  const s = summarisePeriod(_bills, _activity);
 
-  tbody.innerHTML = _bills.map(b => {
-    const bt = BILL_CATEGORY_LABEL[billCategory(b.bill_type)];
-    return `<tr>
-      <td style="font-size:12px;white-space:nowrap">${_fmtD(b.created_at?.slice(0,10))}</td>
-      <td>${_esc(b.patients?.name || '—')}</td>
-      <td><span class="badge b-pending" style="font-size:10px">${bt}</span></td>
-      <td>₹${_n(b.total_amount)}</td>
-      <td>₹${_n((parseFloat(b.total_amount)||0)-(parseFloat(b.final_amount)||0))}</td>
-      <td style="font-weight:500">₹${_n(b.final_amount)}</td>
-      <td style="font-size:12px">${b.payment_mode || '—'}${b.insurer_name ? ' · ' + b.insurer_name : ''}</td>
-      <td><span class="badge b-${b.status}">${b.status}</span></td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="8" class="empty">No bills in this period</td></tr>';
+  // every bill of the period at its ORIGINAL amount (a later return / cancel does not change its day), and every
+  // return / cancellation completed in the period as its own row, newest first
+  const rows = [];
+  for (const b of _bills) {
+    const tr = _el('tr');
+    tr.append(_el('td', _fmtD(istDate(b.created_at)), 'font-size:12px;white-space:nowrap'), _el('td', b.patients?.name || '—'));
+    const tdT = _el('td'); tdT.append(_el('span', BILL_CATEGORY_LABEL[billCategory(b.bill_type)], 'font-size:10px', 'badge b-pending')); tr.append(tdT);
+    tr.append(_el('td', '₹' + _n(b.total_amount)), _el('td', '₹' + _n((parseFloat(b.total_amount) || 0) - (parseFloat(b.final_amount) || 0))));
+    const tdF = _el('td', '₹' + _n(b.final_amount), 'font-weight:500');
+    if (!isSale(b)) tdF.append(_el('span', ' (not a sale: GST ' + (b.document_status || '') + ')', 'font-size:11px;color:var(--text-muted)'));
+    tr.append(tdF, _el('td', (b.payment_mode || '—') + (b.insurer_name ? ' · ' + b.insurer_name : ''), 'font-size:12px'));
+    const tdS = _el('td'); tdS.append(_el('span', b.status, null, 'badge b-' + String(b.status || '').replace(/[^a-z_]/g, ''))); tr.append(tdS);
+    rows.push({ ts: b.created_at || '', tr });
+  }
+  for (const r of rets) {
+    const tr = _el('tr', null, 'background:#fff8f6');
+    tr.append(_el('td', _fmtD(r.date), 'font-size:12px;white-space:nowrap'),
+      _el('td', `${r.return_no} — of bill ${r.document_number || '—'} (${_fmtD(r.bill_date)})`, 'font-size:12px'));
+    const tdT = _el('td'); tdT.append(_el('span', r.kind === 'cancel' ? 'Cancellation' : 'Return', 'font-size:10px', 'badge b-cancelled')); tr.append(tdT);
+    tr.append(_el('td', '—'), _el('td', '—'), _el('td', '− ₹' + _n(r.amount), 'font-weight:500;color:var(--red)'),
+      _el('td', r.settlement === 'due' ? 'Due reduced' : r.settlement === 'void' ? 'Receipt voided' : 'Refund ' + String(r.refund_mode || '').toUpperCase(), 'font-size:12px'),
+      _el('td', r.kind === 'cancel' ? 'cancelled' : 'returned'));
+    rows.push({ ts: r.completed_at || '', tr });
+  }
+  rows.sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+  if (rows.length) tbody.replaceChildren(...rows.map(x => x.tr));
+  else { const tr = _el('tr'); const td = _el('td', 'No bills in this period', null, 'empty'); td.colSpan = 8; tr.append(td); tbody.replaceChildren(tr); }
 
-  document.getElementById('rev-total-final').textContent = '₹' + _n(grandFinal);
-  document.getElementById('r-reg').textContent = '₹' + _n(k.reg);
-  document.getElementById('r-con').textContent = '₹' + _n(k.con);
-  document.getElementById('r-phm').textContent = '₹' + _n(k.phm);
-  document.getElementById('r-lab').textContent = '₹' + _n(k.lab);
-  document.getElementById('r-oth').textContent = '₹' + _n(k.oth);
-  document.getElementById('r-reg-c').textContent = k.opdCnt + ' OPD bills';
-  document.getElementById('r-con-c').textContent = k.opdCnt + ' OPD bills';
-  document.getElementById('r-phm-c').textContent = k.phmCnt + ' pharmacy bills';
-  document.getElementById('r-lab-c').textContent = k.labCnt + ' bills with lab charges';
-  document.getElementById('r-oth-c').textContent = k.othCnt + ' IPD / package / other bills';
+  _setText('rev-total-final', '₹' + _n(s.gross));
+  _setText('rev-total-returns', '− ₹' + _n(s.returns));
+  _setText('rev-total-net', '₹' + _n(s.net));
+  _setText('r-reg', '₹' + _n(k.reg));
+  _setText('r-con', '₹' + _n(k.con));
+  _setText('r-phm', '₹' + _n(k.phm));
+  _setText('r-lab', '₹' + _n(k.lab));
+  _setText('r-oth', '₹' + _n(k.oth));
+  _setText('r-ret', '− ₹' + _n(s.returns));
+  _setText('r-net', '₹' + _n(s.net));
+  _setText('r-reg-c', k.opdCnt + ' OPD bills');
+  _setText('r-con-c', k.opdCnt + ' OPD bills');
+  _setText('r-phm-c', k.phmCnt + ' pharmacy bills');
+  _setText('r-lab-c', k.labCnt + ' bills with lab charges');
+  _setText('r-oth-c', k.othCnt + ' IPD / package / other bills');
+  _setText('r-ret-c', s.returnsCount + ' completed in this period');
+  _setText('r-net-c', `gross ₹${_n(s.gross)} − returns ₹${_n(s.returns)}`);
 }
 
 // Session 295 -- lab charges attached to OPD bills (bill_items.item_type='lab') are part of
@@ -265,7 +301,8 @@ async function _loadLabItemTotals() {
 function _revenueBuckets(bills) {
   const k = { reg: 0, con: 0, phm: 0, lab: 0, oth: 0, opdCnt: 0, phmCnt: 0, labCnt: 0, othCnt: 0 };
   bills.forEach(b => {
-    const f = Number(b.final_amount) || 0;
+    if (!isSale(b)) return;                          // Session 344a: a GST draft / cancelled-and-reissued document is not a sale
+    const f = Number(b.final_amount) || 0;           // Session 344a: the ORIGINAL amount (returns are their own line, by return date)
     const cat = billCategory(b.bill_type);
     if (cat === 'opd') {
       const reg = Number(b.registration_fee) || 0;
@@ -286,7 +323,7 @@ function _revenueBuckets(bills) {
 async function loadOutstanding() {
   const { data, error } = await supabase
     .from('bills')
-    .select('id, created_at, final_amount, patient_due, amount_paid, bill_type, payer_type, payment_mode, status, document_status, ipd_admission_id, patients(name)')
+    .select('id, created_at, final_amount, patient_due, amount_paid, returned_amount, bill_type, payer_type, payment_mode, status, document_status, ipd_admission_id, patients(name)')
     .eq('tenant_id', tenantId)
     // Session 295 -- bills are written 'unpaid' (reception) / 'partial' (PK advance);
     // 'pending' kept for legacy rows. A ₹0 bill (free follow-up) owes nothing.
@@ -405,7 +442,8 @@ function renderGST() {
   const rows = [
     { type:'OPD Consultation',     taxable: k.con, rate:0, cnt: k.opdCnt },
     { type:'OPD Registration',     taxable: k.reg, rate:0, cnt: k.opdCnt },
-    { type:'Pharmacy / Medicines', taxable: k.phm, rate:5, cnt: k.phmCnt },
+    // Session 344a: pharmacy sales of the period less the returns completed in the period (by return date)
+    { type:'Pharmacy / Medicines (less returns)', taxable: Math.max(0, k.phm - summarisePeriod(_bills, _activity).cat.pharmacy.returns), rate:5, cnt: k.phmCnt },
     { type:'Lab / Investigations', taxable: k.lab, rate:0, cnt: k.labCnt },
     { type:'IPD / Package / Other', taxable: k.oth, rate:0, cnt: k.othCnt },
   ];
@@ -436,62 +474,59 @@ function renderGST() {
 }
 
 // ── Daily Cash ───────────────────────────────────────
+// Session 344a: per IST day -- sales at their original amount, returns / cancellations completed that day, net,
+// and the money actually received that day (receipts - refunds, the shift handover's rule) by mode.
 function renderDaily(from, to) {
-  document.getElementById('daily-period-lbl').textContent = `${_fmtD(from)} to ${_fmtD(to)}`;
-  const byDay = {};
-  _bills.forEach(b => {
-    const d = b.created_at?.slice(0,10);
-    if (!byDay[d]) byDay[d] = { bills:0, cash:0, upi:0, credit:0, ins:0, collected:0, pending:0 };
-    const f = collectedAmount(b);   // a part-paid bill counts only what was received
-    byDay[d].bills++;
-    if (f > 0) {
-      if (b.payment_mode === 'cash') byDay[d].cash += f;
-      else if (b.payment_mode === 'Insurance / TPA') byDay[d].ins += f;
-      else if (b.payment_mode === 'credit') byDay[d].credit += f;
-      else byDay[d].upi += f;
-      byDay[d].collected += f;
-    }
-    byDay[d].pending += dueAmount(b);
+  _setText('daily-period-lbl', `${_fmtD(from)} to ${_fmtD(to)}`);
+  const days = new Set();
+  _bills.forEach(b => days.add(istDate(b.created_at)));
+  (_activity.returns || []).forEach(r => days.add(r.date));
+  (_activity.receipts || []).forEach(p => days.add(p.date));
+  const list = [...days].filter(Boolean).sort().reverse();
+  const tot = { bills: 0, gross: 0, returns: 0, net: 0, cash: 0, upi: 0, collected: 0, pending: 0 };
+  const rows = list.map(d => {
+    const s = summarisePeriod(_bills, _activity, d);
+    const pending = _bills.filter(b => istDate(b.created_at) === d).reduce((x, b) => x + dueAmount(b), 0);
+    const r = { bills: s.bills, gross: s.gross, returns: s.returns, net: s.net, cash: s.byMode.cash, upi: s.byMode.upi_card, collected: s.collected, pending };
+    Object.keys(tot).forEach(k => { tot[k] += r[k]; });
+    const tr = _el('tr');
+    tr.append(_el('td', _fmtD(d), 'font-size:12px;font-weight:500'), _el('td', r.bills), _el('td', '₹' + _n(r.gross)),
+      _el('td', r.returns ? '− ₹' + _n(r.returns) : '₹0.00', r.returns ? 'color:var(--red)' : null), _el('td', '₹' + _n(r.net), 'font-weight:500'),
+      _el('td', '₹' + _n(r.cash)), _el('td', '₹' + _n(r.upi)), _el('td', '₹' + _n(r.collected), 'font-weight:600;color:var(--green-deep)'),
+      _el('td', '₹' + _n(r.pending), 'color:var(--red)'));
+    return tr;
   });
-  const days = Object.keys(byDay).sort().reverse();
-  let tBills=0,tCash=0,tUpi=0,tCred=0,tIns=0,tCol=0,tPend=0;
   const tbody = document.getElementById('daily-tbody');
-  tbody.innerHTML = days.map(d => {
-    const r = byDay[d];
-    tBills+=r.bills;tCash+=r.cash;tUpi+=r.upi;tCred+=r.credit;tIns+=r.ins;tCol+=r.collected;tPend+=r.pending;
-    return `<tr>
-      <td style="font-size:12px;font-weight:500">${_fmtD(d)}</td>
-      <td>${r.bills}</td>
-      <td>₹${_n(r.cash)}</td>
-      <td>₹${_n(r.upi)}</td>
-      <td>₹${_n(r.credit)}</td>
-      <td>₹${_n(r.ins)}</td>
-      <td style="font-weight:600;color:var(--green-deep)">₹${_n(r.collected)}</td>
-      <td style="color:var(--red)">₹${_n(r.pending)}</td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="8" class="empty">No data</td></tr>';
-  ['d-t-bills','d-t-cash','d-t-upi','d-t-credit','d-t-ins','d-t-collected','d-t-pending'].forEach((id,i) => {
-    document.getElementById(id).textContent = i===0 ? tBills : '₹'+_n([0,tCash,tUpi,tCred,tIns,tCol,tPend][i]);
-  });
+  if (rows.length) tbody.replaceChildren(...rows);
+  else { const tr = _el('tr'); const td = _el('td', 'No data', null, 'empty'); td.colSpan = 9; tr.append(td); tbody.replaceChildren(tr); }
+  _setText('d-t-bills', tot.bills);
+  _setText('d-t-sales', '₹' + _n(tot.gross));
+  _setText('d-t-returns', tot.returns ? '− ₹' + _n(tot.returns) : '₹0.00');
+  _setText('d-t-net', '₹' + _n(tot.net));
+  _setText('d-t-cash', '₹' + _n(tot.cash));
+  _setText('d-t-upi', '₹' + _n(tot.upi));
+  _setText('d-t-collected', '₹' + _n(tot.collected));
+  _setText('d-t-pending', '₹' + _n(tot.pending));
 }
 
 // ── KPI update ────────────────────────────────────────
+// Session 344a: Revenue = net sales (gross - returns completed in the period); Collected = receipts - refunds of the period
 function updateKPIs() {
-  const total    = _bills.reduce((s,b) => s + (parseFloat(b.final_amount)||0), 0);
-  const collected= _bills.reduce((s,b)=>s+collectedAmount(b),0);
-  const outstanding = _outstanding.reduce((s,b)=>s+dueAmount(b),0);
-  const expenses = _expenses.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  const s = summarisePeriod(_bills, _activity);
+  const outstanding = _outstanding.reduce((x,b)=>x+dueAmount(b),0);
+  const expenses = _expenses.reduce((x,e)=>x+(parseFloat(e.amount)||0),0);
 
-  document.getElementById('k-revenue').textContent = '₹' + _n(total);
-  document.getElementById('k-revenue-sub').textContent = _bills.length + ' bills';
-  document.getElementById('k-collected').textContent = '₹' + _n(collected);
-  document.getElementById('k-collected-sub').textContent = total ? Math.round(collected/total*100) + '% collection rate' : '';
-  document.getElementById('k-outstanding').textContent = '₹' + _n(outstanding);
-  document.getElementById('k-outstanding-sub').textContent = _outstanding.length + ' bills pending';
-  document.getElementById('k-expenses').textContent = '₹' + _n(expenses);
-  document.getElementById('k-expenses-sub').textContent = _expenses.length + ' entries';
-  document.getElementById('k-bills').textContent = _bills.length;
-  document.getElementById('k-bills-sub').textContent = 'in selected period';
+  _setText('k-revenue', '₹' + _n(s.net));
+  _setText('k-revenue-sub', `Gross ₹${_n(s.gross)} − Returns ₹${_n(s.returns)}`);
+  _setText('k-collected', '₹' + _n(s.collected));
+  _setText('k-collected-sub', `Receipts ₹${_n(s.receiptsIn + s.legacy)} − Refunds ₹${_n(s.refundsOut)}`
+    + (s.net > 0 ? ` · ${Math.round(s.collected / s.net * 100)}% of net` : ''));
+  _setText('k-outstanding', '₹' + _n(outstanding));
+  _setText('k-outstanding-sub', _outstanding.length + ' bills pending');
+  _setText('k-expenses', '₹' + _n(expenses));
+  _setText('k-expenses-sub', _expenses.length + ' entries');
+  _setText('k-bills', _bills.length);
+  _setText('k-bills-sub', `in selected period · ${s.returnsCount} returns / cancellations`);
 }
 
 // ── Expense modal ─────────────────────────────────────
@@ -536,15 +571,27 @@ window.saveExpense = async function() {
 };
 
 // ── CSV exports ───────────────────────────────────────
-window.exportCSV = window.exportRevCSV = function() { _csvDownload(_bills.map(b => ({
-  Date: b.created_at?.slice(0,10), Patient: b.patients?.name,
-  Type: b.bill_type, Total: b.total_amount, Final: b.final_amount,
-  Payment: b.payment_mode, Status: b.status,
-})), 'revenue'); };
+// Session 344a: sales rows (each bill at its original amount, on its own date) + one row per return / cancellation
+// completed in the period (negative, on the return date) + Gross / Returns / Net totals
+window.exportCSV = window.exportRevCSV = function() {
+  const s = summarisePeriod(_bills, _activity);
+  const rows = _bills.map(b => ({
+    Row: isSale(b) ? 'Sale' : 'Not a sale (GST ' + (b.document_status || '') + ')', Date: istDate(b.created_at), Document: b.document_number || '',
+    'Of bill': '', Patient: b.patients?.name || '', Type: b.bill_type, Total: b.total_amount, Amount: b.final_amount,
+    Payment: b.payment_mode, Status: b.status,
+  })).concat((_activity.returns || []).map(r => ({
+    Row: r.kind === 'cancel' ? 'Cancellation' : 'Return', Date: r.date, Document: r.return_no, 'Of bill': `${r.document_number || ''} (${r.bill_date})`,
+    Patient: '', Type: r.bill_type, Total: '', Amount: -Number(r.amount || 0),
+    Payment: r.settlement === 'due' ? 'due reduced' : r.settlement === 'void' ? 'receipt voided' : 'refund ' + (r.refund_mode || ''), Status: r.kind,
+  })));
+  rows.push({ Row: 'TOTAL Gross sales', Amount: s.gross }, { Row: 'TOTAL Returns / cancellations', Amount: -s.returns },
+            { Row: 'TOTAL Net', Amount: s.net }, { Row: 'TOTAL Collected (receipts - refunds)', Amount: s.collected });
+  _csvDownload(rows, 'revenue');
+};
 
 window.exportOutstandingCSV = function() { _csvDownload(_outstanding.map(b => ({
   Date: b.created_at?.slice(0,10), Patient: b.patients?.name,
-  Type: b.bill_type, Amount: b.final_amount, Status: b.status,
+  Type: b.bill_type, Amount: b.final_amount, Due: dueAmount(b), Status: b.status,
 })), 'outstanding'); };
 
 window.exportExpCSV = function() { _csvDownload(_expenses.map(e => ({
