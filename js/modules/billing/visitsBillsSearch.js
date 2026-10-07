@@ -56,18 +56,42 @@ function reprintButtons(bill) {
   return box
 }
 
-function billRow(bill) {
+// Session 344b: a pharmacy bill's returns / cancellations (search_visits_bills -> _s328_bill_json 'returns'): a completed
+// one reprints its slip (RTN/...) through printPharmacyReturn.html -- the print page decides Original / DUPLICATE COPY No. N;
+// one waiting for approval is only listed. `onReturn(billId)` (the dispensary only) adds a "Return / Cancel" button.
+function returnButtons(bill, onReturn) {
+  const box = el('span', { style: 'display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap' })
+  for (const r of bill.returns || []) {
+    if (r.status === 'completed' && r.return_no) {
+      box.appendChild(printButton(`↩ ${r.return_no}${r.kind === 'cancel' ? ' (cancellation)' : ''}`, r.prints,
+        () => window.open(`printPharmacyReturn.html?returnId=${encodeURIComponent(r.id)}`, '_blank')))
+    } else if (r.status === 'pending') {
+      box.appendChild(el('span', { style: 'font-size:12px;color:var(--text-mid)' }, `↩ ${r.kind === 'cancel' ? 'Cancellation' : 'Return'} waiting for approval`))
+    }
+  }
+  if (onReturn && String(bill.bill_type || '').toLowerCase() === 'pharmacy' && !bill.cancelled) {
+    const b = el('button', { type: 'button', style: BTN, 'data-return-bill': bill.id }, '↩ Return / Cancel')
+    b.addEventListener('click', () => onReturn(bill.id))
+    box.appendChild(b)
+  }
+  return box.childNodes.length ? box : null
+}
+
+function billRow(bill, onReturn) {
   const type = BILL_LABEL[String(bill.bill_type || '').toLowerCase()] || 'Bill'
   const pays = (bill.payments || []).filter(p => !p.voided && p.kind !== 'refund')
   const paidVia = pays.length ? pays.map(p => MODE_LABEL[p.mode] || p.mode).join(' + ') : null
+  const returned = Number(bill.returned_amount || 0)
   return el('div', { style: 'display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 0;border-top:1px solid var(--border)' },
     el('span', { style: 'min-width:130px;font-weight:600' }, bill.document_number || 'Not numbered'),
     el('span', { style: 'min-width:80px;color:var(--text-mid)' }, type),
     el('span', { style: 'min-width:80px;font-weight:600' }, inr(bill.final_amount)),
     el('span', { style: 'min-width:120px;color:var(--text-muted);font-size:12px' },
       // a bill whose net amount is nil (fees were not configured then) reads "No charge", like its print -- never "PAID"
-      Number(bill.final_amount || 0) < 0.005 ? 'NO CHARGE' : `${String(bill.status || '').toUpperCase()}${paidVia ? ' · ' + paidVia : ''}`),
-    reprintButtons(bill))
+      Number(bill.final_amount || 0) < 0.005 ? 'NO CHARGE'
+        : bill.cancelled ? 'CANCELLED'
+        : `${String(bill.status || '').toUpperCase()}${paidVia ? ' · ' + paidVia : ''}${returned > 0 ? ' · returned ' + inr(returned) : ''}`),
+    reprintButtons(bill), returnButtons(bill, onReturn))
 }
 
 // Session 338: a visit's finalised prescriptions, reprinted through record_document_print('prescription') -- the
@@ -104,7 +128,7 @@ function certificateCard(c) {
     certificateRow(c))
 }
 
-function resultCard(row) {
+function resultCard(row, onReturn) {
   const p = row.patient || {}
   const v = row.visit
   // Session 341: a counter (walk-in) sale with no patient shows the customer typed at the counter, or "Walk-in customer"
@@ -129,15 +153,15 @@ function resultCard(row) {
   const card = el('div', { style: 'border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin:0 0 10px;background:#fff' }, head, sub)
   if (v) card.dataset.visitId = v.id
   if (!row.bills || !row.bills.length) card.appendChild(el('div', { style: 'font-size:12px;color:var(--text-muted);padding-top:4px' }, 'No OPD or lab bill on this visit.'))
-  for (const b of row.bills || []) card.appendChild(billRow(b))
+  for (const b of row.bills || []) card.appendChild(billRow(b, onReturn))
   return card
 }
 
-export function mountVisitsBillsSearch(root, { supabase }) {
+export function mountVisitsBillsSearch(root, { supabase, onReturn = null }) {
   const today = todayISTStr()
   const showCerts = CERTIFICATE_ROLES.includes(getCurrentRole())
   const q = el('input', { type: 'text', id: 'vb-q', maxlength: '80', style: INPUT + ';flex:1;min-width:240px',
-    placeholder: showCerts ? 'UHID, patient name, phone, bill no. (B/…), receipt no. (RCPT/…) or certificate no. (MC/…)' : 'UHID, patient name, phone, bill no. (B/…) or receipt no. (RCPT/…)',
+    placeholder: showCerts ? 'UHID, patient name, phone, bill no. (B/…), receipt no. (RCPT/…), return no. (RTN/…) or certificate no. (MC/…)' : 'UHID, patient name, phone, bill no. (B/…), receipt no. (RCPT/…) or return no. (RTN/…)',
     'aria-label': showCerts ? 'Search visits, bills and certificates' : 'Search visits and bills' })
   const from = el('input', { type: 'date', id: 'vb-from', value: today, style: INPUT, 'aria-label': 'From date' })
   const to = el('input', { type: 'date', id: 'vb-to', value: today, style: INPUT, 'aria-label': 'To date' })
@@ -152,15 +176,15 @@ export function mountVisitsBillsSearch(root, { supabase }) {
     el('div', { style: 'padding:12px' },
       el('div', { style: 'font-size:12px;color:var(--text-muted);margin-bottom:8px' },
         (showCerts
-          ? 'Open and completed visits with their OPD / lab bills, receipts, prescriptions and medical certificates. A UHID (AYX/…), bill no. (B/…), receipt no. (RCPT/…) or certificate no. (MC/…) is searched across ALL dates. '
-          : 'Open and completed visits with their bills, receipts and prescriptions. A UHID (AYX/…), bill no. (B/…) or receipt no. (RCPT/…) is searched across ALL dates. ')
+          ? 'Open and completed visits with their OPD / lab bills, receipts, prescriptions and medical certificates. A UHID (AYX/…), bill no. (B/…), receipt no. (RCPT/…), pharmacy return no. (RTN/…) or certificate no. (MC/…) is searched across ALL dates. '
+          : 'Open and completed visits with their bills, receipts, pharmacy returns and prescriptions. A UHID (AYX/…), bill no. (B/…), receipt no. (RCPT/…) or pharmacy return no. (RTN/…) is searched across ALL dates. ')
         + 'A name or phone uses the date range (at most 31 days) unless you tick “All dates”. Newest first, at most 100 shown. '
         + 'Every reprint after the first is marked “Duplicate copy”.'),
       el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, q, from, el('span', null, 'to'), to, allLabel, go, clear),
       status, results))
 
-  // UHID / bill / receipt numbers run only on Enter or the button; a name or phone also runs by itself once typing pauses.
-  const isNumberPattern = v => /^(B|RCPT|MC)\//i.test(v) || /^[A-Za-z]{2,6}\/\d{4}\//.test(v)
+  // UHID / bill / receipt / return numbers run only on Enter or the button; a name or phone also runs by itself once typing pauses.
+  const isNumberPattern = v => /^(B|RCPT|RTN|MC)\//i.test(v) || /^[A-Za-z]{2,6}\/\d{4}\//.test(v)
   let timer = null
   let seq = 0
   // The same rule the server applies: a UHID / bill / receipt number always ignores the dates (dim them as a hint).
@@ -200,7 +224,7 @@ export function mountVisitsBillsSearch(root, { supabase }) {
     status.textContent = `${rows.length} visit / bill result${rows.length === 1 ? '' : 's'}`
       + (certs.length ? ` and ${certs.length} medical certificate${certs.length === 1 ? '' : 's'}` : '') + ` shown ${scope}`
       + ((data.truncated || mc.data?.truncated) ? ' — only the latest are shown; refine your search.' : '.')
-    results.replaceChildren(...rows.map(resultCard))
+    results.replaceChildren(...rows.map(r => resultCard(r, onReturn)))
     // a certificate goes on its visit's card when that visit is shown; otherwise it gets a card of its own
     for (const c of certs) {
       const card = c.visit_id ? [...results.children].find(x => x.dataset.visitId === c.visit_id) : null

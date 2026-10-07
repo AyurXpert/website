@@ -453,6 +453,9 @@ const APPROVAL_ACTION_LABELS = {
   // Session 292: a tenant's own new Panchakarma treatment protocol (pk-protocol-admin.html)
   // -- reuses this exact generic approval list, no separate inbox.
   pk_custom_protocol:      'New Panchakarma treatment protocol',
+  // Session 344a/b: a pharmacy return waiting for a second person -- listed here, decided only on the pharmacy returns
+  // screens (Finance → Pharmacy returns, Dispensary → 🧾 Bills); decide_approval() refuses these rows.
+  pharmacy_return:         'Pharmacy return',
 };
 
 const NURSING_CYCLE_LABELS = { weekly: 'Weekly (7 days)', fortnightly: 'Fortnightly (14 days)', monthly: 'Monthly (30 days)' };
@@ -476,48 +479,29 @@ function _approvalSummary(row){
     case 'pk_roster_cycle':      return `Change to ${_esc(PK_CYCLE_LABELS[p.cycle] || p.cycle || '—')}`;
     case 'pk_shift_times':       return `Shift 1: ${_esc(p.shift1_start || '—')} · Shift 2: ${_esc(p.shift2_start || '—')}`;
     case 'pk_custom_protocol':   return _esc(p.display_name || '—');
+    case 'pharmacy_return':      return `${p.kind === 'cancel' ? 'Full cancellation' : 'Partial return'} of bill ${_esc(p.document_number || '—')}`
+                                   + (p.estimate != null ? ` (about ₹${_esc(Number(p.estimate).toFixed(2))})` : '');
     default: return '—';
   }
 }
 
-// Client-side hint only (see loadPendingDecisions banner comment) -- whether THIS viewer
-// is a plausible decider for a request from a given requester designation. Shared (Session
-// 134) between the full Approvals list and the HR sub-nav's own badge count, so "how many
-// need MY attention" can never disagree between the two.
-function _canDecideApproval(requesterDesig){
-  const iAmSuperAdmin = role === 'super_admin';
-  const iAmDirectorTier = ['medical_director','principal'].includes(profile?.designation)
-    && (role === 'dept_admin' || profile?.secondary_role === 'dept_admin');
-  // Session 138: MS/Deputy MS decide a Nursing Head's roster-cycle request --
-  // designation-only check (no extra role/secondary_role gate), mirrors
-  // decide_approval()'s server-side branch and Session 128's simpler
-  // deputy_medical_superintendent-deciding-intern_roster precedent.
-  // Session 215: pk_incharge's own roster-cycle request joins the same tier --
-  // decide_approval() groups it into the identical IN-list server-side.
-  const iAmMsTier = ['medical_superintendent','deputy_medical_superintendent'].includes(profile?.designation);
-  if (requesterDesig === 'medical_superintendent') return iAmSuperAdmin || iAmDirectorTier;
-  // Session 292 -- real pre-existing gap found while wiring pk_custom_protocol's approval
-  // display (Session 292 lets a Deputy MS author a protocol submission directly, a path
-  // that was always theoretically reachable for pk_roster_cycle/pk_shift_times/
-  // intern_roster too but apparently never actually hit): decide_approval() itself has
-  // always had a real server-side branch for requesterDesig==='deputy_medical_superintendent'
-  // (decided by super_admin or the Medical Superintendent), but this CLIENT-SIDE hint never
-  // had a matching branch, so it would silently fall through to the `iAmSuperAdmin`-only
-  // default -- undercounting the approvals badge/list for the real Medical Superintendent
-  // decider. Mirrors decide_approval()'s server branch exactly.
-  if (requesterDesig === 'deputy_medical_superintendent') return iAmSuperAdmin || profile?.designation === 'medical_superintendent';
-  if (['nursing_superintendent','deputy_nursing_superintendent','pk_incharge'].includes(requesterDesig)) return iAmSuperAdmin || iAmMsTier;
-  return iAmSuperAdmin;
+// Session 344b (TODO §144): who may Approve / Reject is the SERVER's answer, never a copy of the rules kept here.
+// approval_decide_check() (sql/session344b) applies exactly decide_approval()'s rules (session 343: active deciders only,
+// no self-approval except the organisation's ONLY active super_admin, the requester-designation tiers, NULL = refused) --
+// and, for a pharmacy_return row, decide_pharmacy_return()'s (those rows are decided on the pharmacy returns screens, so
+// here they never get buttons and never count in the badge). If the answer cannot be had, nobody gets buttons (fail closed).
+async function _approvalDecideMap(ids){
+  const { data, error } = await supabase.rpc('approval_decide_check', { p_ids: ids === undefined ? null : ids });
+  if (error || !Array.isArray(data)) return null;
+  return new Map(data.map(c => [c.id, c]));
 }
+function _canDecideHere(c){ return !!(c && c.can_decide && c.decided_on === 'approvals'); }
 
-// Lightweight badge-only count, mirrors loadPendingDecisions()'s own filter exactly (see
-// _canDecideApproval above) so it's usable from loadHR() without paying for the full list.
+// Badge-only count: the pending requests THIS viewer may decide on this screen (the server's answer).
 async function _computePendingApprovalsCount(){
-  const { data, error } = await supabase.from('pending_approvals')
-    .select('id,requester:profiles!requested_by(designation)')
-    .eq('tenant_id', tenantId).eq('status','pending');
-  if (error || !data) return 0;
-  return data.filter(r=>_canDecideApproval(r.requester?.designation)).length;
+  const m = await _approvalDecideMap(null);
+  if (!m) return 0;
+  return [...m.values()].filter(_canDecideHere).length;
 }
 
 // Session 219 — real gap found live: a genuine pending_approvals request (e.g. pk_shift_times)
@@ -546,15 +530,28 @@ window.loadPendingDecisions = async function(){
 
   if (error) { wrap.innerHTML = '<div class="empty"><div class="empty-ttl">'+_esc(safeErrorMessage(error,'Could not load requests.'))+'</div></div>'; return; }
 
-  // Badge = requests actually actionable by THIS viewer, not the raw pending count --
-  // avoids showing a nonzero badge to someone who has no way to act on it.
-  _setBadge('hr-tab-decisions-badge', (data||[]).filter(r=>r.status==='pending' && _canDecideApproval(r.requester?.designation)).length);
+  // Badge = requests actually actionable by THIS viewer (the server's answer, TODO §144), not the raw pending count.
+  const pendingIds = (data||[]).filter(r=>r.status==='pending').map(r=>r.id);
+  const decide = pendingIds.length ? await _approvalDecideMap(pendingIds) : new Map();
+  _setBadge('hr-tab-decisions-badge', decide ? [...decide.values()].filter(_canDecideHere).length : 0);
 
   if (!data || !data.length) { wrap.innerHTML = '<div class="empty"><div class="empty-ico">✅</div><div class="empty-ttl">No approval requests yet</div></div>'; return; }
 
+  const iAmSuperAdmin = role === 'super_admin';   // Finish Deletion of an approved staff_delete (was read from another function's scope)
+  const DECIDE_NOTE = {
+    own_request: 'Your own request — another authorised person decides it',
+    inactive: 'Your account is not active',
+    not_authorised: 'Decided by a higher authority',
+  };
   wrap.innerHTML = data.map(row => {
     const requesterDesig = row.requester?.designation;
-    const iCanDecide = _canDecideApproval(requesterDesig);
+    const chk = decide ? decide.get(row.id) : null;
+    const iCanDecide = _canDecideHere(chk);
+    // a pending row with no button says why (the server's reason); a pharmacy return points to where it is decided
+    const whyNot = row.status !== 'pending' || iCanDecide ? ''
+      : row.action_type === 'pharmacy_return'
+        ? (chk?.can_decide ? 'Decide it in Finance → ↩ Pharmacy returns' : (DECIDE_NOTE[chk?.reason] || 'Decided on the pharmacy returns screen'))
+        : (DECIDE_NOTE[chk?.reason] || '—');
     const statusChip = row.status === 'pending' ? '<span class="chip r">Pending</span>'
       : row.status === 'approved' ? '<span class="chip g">Approved'+(row.action_type==='staff_delete'?' — awaiting deletion':'')+'</span>'
       : row.status === 'executed' ? '<span class="chip g">Executed</span>'
@@ -564,7 +561,7 @@ window.loadPendingDecisions = async function(){
          <button class="btn-outline" style="font-size:11px;padding:4px 10px;color:#c0392b;border-color:#e0b0b0" data-onclick="decidePendingApproval" data-onclick-a0="${_esc(row.id)}" data-onclick-a1="@false" data-onclick-a2="${_esc(row.action_type)}">✕ Reject</button>`
       : (row.status==='approved' && row.action_type==='staff_delete' && iAmSuperAdmin)
       ? `<button class="btn-outline" style="font-size:11px;padding:4px 10px;color:#c0392b;border-color:#e0b0b0" data-onclick="finishStaffDeletion" data-onclick-a0="${_esc(row.id)}" data-onclick-a1="${_esc(row.payload?.staff_id||'')}">🗑 Finish Deletion</button>`
-      : '—';
+      : whyNot ? `<span style="font-size:11.5px;color:var(--text-muted)" data-decide-note="1">${_esc(whyNot)}</span>` : '—';
     return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f0f4f2;flex-wrap:wrap">
       <div>
         <div style="font-size:13px;font-weight:600">${_esc(APPROVAL_ACTION_LABELS[row.action_type]||row.action_type)}: ${_approvalSummary(row)}</div>
@@ -574,6 +571,15 @@ window.loadPendingDecisions = async function(){
       <div style="display:flex;align-items:center;gap:8px">${statusChip}${actionsHtml}</div>
     </div>`;
   }).join('');
+  if (!decide) {   // fail closed: no server answer -> no buttons, and say why (DOM node, not markup)
+    const note = document.createElement('div');
+    note.className = 'empty'; note.style.padding = '10px';
+    const t = document.createElement('div');
+    t.className = 'empty-ttl'; t.style.fontSize = '13px';
+    t.textContent = 'Could not check which requests you may decide — reload the page to try again.';
+    note.appendChild(t);
+    wrap.prepend(note);
+  }
 };
 
 window.decidePendingApproval = async function(requestId, approve, actionType){

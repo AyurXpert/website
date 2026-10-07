@@ -1,4 +1,4 @@
-import { requireAuth, hasModule, getCurrentProfile, getCurrentTenantId } from '../core/auth.js';
+import { requireAuth, hasModule, getCurrentProfile, getCurrentTenantId, getCurrentSecondaryRole } from '../core/auth.js';
 import { initNavbar }  from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
@@ -9,6 +9,7 @@ import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, sum
 import { notify } from '../components/notify.js';
 import { canCollectOpd, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt } from '../modules/billing/opdPayments.js';
 import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
+import { mountReturnsQueue } from '../modules/pharmacy/returnsQueue.js';
 
 wireDelegatedEvents();
 
@@ -45,8 +46,30 @@ window.switchSub = function(grp, sub, el) {
   if (sub === 'audit') loadAudits();
   if (sub === 'preauth') renderPreAuth();
   if (sub === 'vbsearch' && !_vbMounted) { _vbMounted = true; mountVisitsBillsSearch(document.getElementById('vb-search-root'), { supabase }); }
+  if (sub === 'pharmreturns') {
+    if (!_prQueue) _prQueue = mountReturnsQueue(document.getElementById('pharmreturns-root'), { supabase, onCount: _setPrBadge, onDecided: () => window.loadAll() });
+    else _prQueue.reload();
+  }
 };
 let _vbMounted = false;   // Visits & Bills search mounts once, on first open (Session 328)
+// Session 344b: Pharmacy returns waiting for approval. The tab is shown to the roles decide_pharmacy_return() accepts
+// (dept_admin / super_admin / finance_manager / accountant, primary or secondary) when the organisation has the pharmacy
+// module; WHICH request this person may decide -- and the badge -- is the server's answer (approval_decide_check()).
+let _prQueue = null;
+function _setPrBadge(n) {
+  const b = document.getElementById('pharmreturns-badge');
+  if (!b) return;
+  b.textContent = String(n || 0);
+  b.hidden = !n;
+  b.setAttribute('aria-label', `${n || 0} waiting for your decision`);
+}
+const _PR_DECIDERS = ['dept_admin', 'super_admin', 'finance_manager', 'accountant'];
+if (hasModule('pharmacy') && (_PR_DECIDERS.includes(_role) || _PR_DECIDERS.includes(getCurrentSecondaryRole()))) {
+  document.getElementById('tab-pharmreturns').hidden = false;
+  supabase.rpc('approval_decide_check', { p_ids: null }).then(({ data, error }) => {
+    if (!error) _setPrBadge((data || []).filter(c => c.action_type === 'pharmacy_return' && c.can_decide).length);
+  });
+}
 
 // Insurance Cycles state — declared here (not further down near the rest of the
 // Insurance Cycles code) since the receptionist-role branch below can call

@@ -1,0 +1,63 @@
+/* Pharmacy Return / Cancel panel + checker queue (Session 344b) -- js/modules/pharmacy/returnPanel.js / returnsQueue.js.
+   Used by dispensaryPOS.html and finance.html; only the brand tokens those pages already define. */
+.rp-card{background:var(--white,#fff);border:1.5px solid var(--border,#d4e6da);border-radius:12px;padding:16px 18px;margin:0 0 16px}
+.rp-h{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--green-deep,#1a4a2e);margin:0 0 4px}
+.rp-sub{font-size:12px;color:var(--text-mid,#4a6352);margin:0 0 10px}
+.rp-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.rq-head{justify-content:space-between}
+.rp-lbl{display:block;font-size:11px;font-weight:600;color:var(--text-mid,#4a6352);text-transform:uppercase;letter-spacing:.3px;margin:4px 0 3px}
+.rp-input,.rp-sel{min-height:44px;border:1.5px solid var(--border,#d4e6da);border-radius:8px;padding:0 10px;font:14px 'DM Sans',sans-serif;background:var(--white,#fff);color:var(--text-dark,#1c2b1f)}
+.rp-input{flex:1;min-width:200px}
+textarea.rp-input{padding:8px 10px;width:100%;resize:vertical}
+.rp-input:focus,.rp-sel:focus{border-color:var(--green-mid,#2d7a4f);outline:none}
+.rp-qty{width:72px;min-height:44px;border:1.5px solid var(--border,#d4e6da);border-radius:8px;text-align:center;font:600 14px 'DM Sans',sans-serif}
+.rp-qty:disabled,.rp-sel:disabled{background:#f0f0f0;color:var(--text-muted,#8a9e90)}
+.rp-btn{min-height:44px;min-width:44px;padding:0 14px;border:1.5px solid var(--green-mid,#2d7a4f);background:var(--white,#fff);color:var(--green-deep,#1a4a2e);border-radius:8px;font:600 13px 'DM Sans',sans-serif;cursor:pointer}
+.rp-btn-go{background:var(--green-deep,#1a4a2e);border-color:var(--green-deep,#1a4a2e);color:#fff}
+.rp-btn-no{color:var(--red,#c0392b);border-color:#e0b0b0}
+.rp-btn:disabled{opacity:.55;cursor:not-allowed}
+.rp-btn:focus-visible,.rp-hit:focus-visible,.rp-qty:focus-visible,.rp-sel:focus-visible,.rp-input:focus-visible{outline:3px solid var(--gold,#c9902a);outline-offset:2px}
+.rp-status{font-size:13px;color:var(--text-mid,#4a6352);margin:6px 0;min-height:1em}
+.rp-status.err,.rp-err{color:var(--red,#c0392b);font-weight:600}
+.rp-muted{font-size:12px;color:var(--text-mid,#4a6352)}
+.rp-ok{font-size:13px;font-weight:600;color:var(--green-deep,#1a4a2e)}
+.rp-list{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow-y:auto}
+.rp-hit{min-height:44px;text-align:left;padding:6px 10px;border:1px solid var(--border,#d4e6da);border-radius:8px;background:var(--cream,#faf8f3);cursor:pointer;font:13px 'DM Sans',sans-serif;color:var(--text-dark,#1c2b1f)}
+.rp-hit:hover{background:var(--green-light,#e8f5ee);border-color:var(--green-mid,#2d7a4f)}
+.rp-form,.rp-done{border-top:1.5px solid var(--border,#d4e6da);margin-top:12px;padding-top:12px}
+.rp-billhead{font-size:13px;line-height:1.6;margin-bottom:8px}
+.rp-tablewrap{overflow-x:auto}
+.rp-table{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0}
+.rp-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid,#4a6352);border-bottom:1.5px solid var(--border,#d4e6da);padding:6px 4px}
+.rp-table td{padding:6px 4px;border-bottom:1px solid var(--border,#d4e6da);vertical-align:middle}
+.rp-table .num{text-align:right;white-space:nowrap}
+.rp-goes{font-size:12px;color:var(--text-mid,#4a6352)}
+.rp-goes.ok{color:var(--green-deep,#1a4a2e);font-weight:600}
+.rp-goes.warn{color:#7a4000;font-weight:600}
+.rp-issues{background:var(--red-light,#fff3f3);border:1.5px solid var(--red,#c0392b);color:var(--red,#c0392b);border-radius:8px;padding:10px 12px;margin:8px 0;font-size:13px}
+.rp-issues ul{margin:4px 0 0 18px;padding:0}
+.rp-summary{margin:10px 0}
+.rp-kind{font-weight:700;color:var(--green-deep,#1a4a2e);font-size:14px;margin-bottom:4px}
+.rp-kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px;margin:6px 0}
+.rp-kv dt{color:var(--text-mid,#4a6352)}
+.rp-kv dd{margin:0;font-weight:600}
+.rp-note{background:var(--green-light,#e8f5ee);border-radius:8px;padding:8px 12px;margin:6px 0;font-size:12px}
+.rp-fieldset{border:1.5px solid var(--border,#d4e6da);border-radius:8px;padding:8px 12px;margin:10px 0}
+.rp-fieldset legend{font-size:12px;font-weight:600;color:var(--text-mid,#4a6352);padding:0 4px}
+.rp-radio{display:inline-flex;align-items:center;gap:6px;min-height:44px;font-size:13px;margin-right:14px;cursor:pointer}
+.rp-radio input{width:18px;height:18px}
+.rp-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 14px}
+.rp-field{display:flex;flex-direction:column}
+.rp-actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px;align-items:center}
+.rp-done-h{font-family:'Cormorant Garamond',serif;font-size:20px;color:var(--green-deep,#1a4a2e);margin:0 0 6px}
+.rp-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.rq-list{display:flex;flex-direction:column;gap:10px}
+.rq-card{border:1.5px solid var(--border,#d4e6da);border-radius:10px;padding:10px 14px;background:var(--cream,#faf8f3)}
+.rq-top{font-size:14px;margin-bottom:2px}
+.rq-meta{font-size:12px;color:var(--text-mid,#4a6352);margin:2px 0}
+.rq-decide{display:flex;flex-direction:column;gap:4px;width:100%}
+[hidden]{display:none!important}
+/* "Returned -- re-dispense" in the dispensing queue */
+.badge-returned{background:#fff7e6;color:#7a4000;border:1px solid #e8c068}
+/* Finance "Pharmacy returns" tab badge: how many THIS person may decide (the server's answer) */
+.pr-badge{display:inline-block;min-width:20px;padding:0 6px;margin-left:4px;border-radius:10px;background:var(--red,#c0392b);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center}

@@ -311,6 +311,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .cs-state{font-size:12px;color:var(--text-mid);margin-top:8px}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
+<link rel="stylesheet" href="css/pharmacy-returns.css"/>
 </head>
 <body>
 
@@ -613,16 +614,31 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   </div>
 </div>
 
+<!-- Session 344b (TODO §137) — in-page question / notice (replaces the native confirm() / alert() of the dispense flow) -->
+<div id="ask-wrap" class="pos-dialog-wrap" hidden>
+  <div class="pos-dialog" role="dialog" aria-modal="true" aria-labelledby="ask-title" aria-describedby="ask-body">
+    <h2 id="ask-title"></h2>
+    <div id="ask-body"></div>
+    <div class="actions">
+      <button type="button" class="btn-back" id="btn-ask-no">Back</button>
+      <button type="button" class="btn-go" id="btn-ask-yes">OK</button>
+    </div>
+  </div>
+</div>
+
 <!-- Session 334 — Pharmacy bills & receipts: find and reprint any past bill / receipt (Visits & Bills search, pharmacy only) -->
 <div id="bills-panel" style="display:none;position:fixed;inset:0;background:var(--cream);z-index:200;overflow-y:auto;padding:20px">
   <div style="max-width:1000px;margin:0 auto">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap">
       <div>
-        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep)">🧾 Pharmacy Bills &amp; Receipts</div>
-        <div style="font-size:12px;color:var(--text-muted)">Search by bill no. (B/…), receipt no. (RCPT/…), UHID, patient or counter-sale customer name or phone · reprints are marked Duplicate copy</div>
+        <div style="font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep)">🧾 Pharmacy Bills, Receipts &amp; Returns</div>
+        <div style="font-size:12px;color:var(--text-muted)">Return or cancel a bill · returns waiting for approval · search by bill no. (B/…), receipt no. (RCPT/…), return no. (RTN/…), UHID, patient or counter-sale customer name or phone · reprints are marked Duplicate copy</div>
       </div>
       <button data-onclick="closeBillsTab" style="height:44px;padding:0 16px;border:1.5px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px">← Back to Dispensary</button>
     </div>
+    <!-- Session 344b: Return / Cancel panel + the returns waiting for approval (js/modules/pharmacy/) -->
+    <div id="return-panel-root"></div>
+    <div id="returns-queue-root"></div>
     <div id="bills-search-root"></div>
   </div>
 </div>

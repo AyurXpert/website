@@ -76,15 +76,22 @@ function buildModel(d, copy) {
     if (isDraft) { title = 'Draft Bill'; watermark = 'DRAFT — NOT A TAX INVOICE' }
     else { title = DOC_TITLE[docType] || 'Bill'; if (b.document_status === 'cancelled') watermark = 'CANCELLED' }
   }
+  // Session 344b: a cancelled bill (session 344a full cancel) is marked CANCELLED; returns are listed by RTN number
+  const cancelled = !!b.cancelled
+  const rets      = (d.returns || []).filter(r => r.return_no)
+  const returned  = num(b.returned_amount)
+  if (cancelled && !watermark) watermark = 'CANCELLED'
   const isDup  = copy.copy !== 'ORIGINAL'
   const copyNo = (Number(copy.print_no) || 1) + (copy.legacy ? 1 : 0)
   if (isDup && !watermark) watermark = 'DUPLICATE COPY'
-  const subtitle = `Pharmacy${counter ? ' · Counter sale' : ''}${combined && !noCharge ? ' · Paid in full' : ''}${noCharge ? ' · No charge' : ''} · ${isDup ? 'DUPLICATE COPY · No. ' + copyNo : 'Original'}`
+  const subtitle = `Pharmacy${counter ? ' · Counter sale' : ''}${cancelled ? ' · CANCELLED' : rets.length ? ' · Items returned' : ''}${combined && !noCharge && !cancelled && !rets.length ? ' · Paid in full' : ''}${noCharge ? ' · No charge' : ''} · ${isDup ? 'DUPLICATE COPY · No. ' + copyNo : 'Original'}`
 
   const meta = [
     { label: isGst && !isDraft && docType === 'TAX_INVOICE' ? 'Invoice No.' : 'Bill No.', value: b.document_number || 'Not numbered', gap: !b.document_number },
     { label: isGst && !isDraft && docType === 'TAX_INVOICE' ? 'Invoice Date' : 'Bill Date', value: fmtDT(b.created_at) },
   ]
+  if (rets.length) meta.push({ label: cancelled ? 'Cancelled' : 'Items returned', value: rets.map(r => r.return_no).join(', '),
+    sub: cancelled ? fmtDT(b.cancelled_at || rets[rets.length - 1].completed_at) : `Value ₹ ${money(returned)}` })
   if (rx?.prescriber) meta.push({ label: 'Prescribed by', value: rx.prescriber,
     sub: rx.prescriber_registration_number ? `Reg. No. ${rx.prescriber_registration_number}` : 'Reg. No. not recorded' })
 
@@ -164,12 +171,17 @@ function buildModel(d, copy) {
     if (Math.abs(roundOff) >= 0.005) summary.push({ label: 'Round off', value: (roundOff > 0 ? '+' : '−') + money(Math.abs(roundOff)) })
     summary.push({ label: 'Net bill amount', value: rupee(b.final_amount), grand: true })
   }
+  // Session 344b: what is owed after returns = bill - returned - (payments - refunds); with no return both are 0 (unchanged)
+  const refunds = live.filter(p => p.kind === 'refund').reduce((s, p) => s + num(p.amount), 0)
+  if (returned > 0) summary.push({ label: cancelled ? 'Less: cancelled' : `Less: items returned (${rets.map(r => r.return_no).join(', ')})`, value: money(returned) })
   if (payments) summary.push({ label: 'Less: payments received', value: money(paid) })
-  const due = Math.max(num(b.final_amount) - paid, 0)
+  if (refunds > 0) summary.push({ label: 'Add: refunded to the customer', value: money(refunds) })
+  const due = Math.max(Math.round((num(b.final_amount) - returned - paid + refunds) * 100) / 100, 0)
   const balance = { label: 'Balance Due', value: rupee(due) }
   const words = [`${amountInWords(b.final_amount)}.`]
   if (noCharge) words.push('No charge.')
-  else if (due < 0.005) words.push(combined ? 'Paid in full — received with thanks.' : 'Paid in full.')
+  else if (cancelled) words.push('Cancelled — nothing is payable on this bill.')
+  else if (due < 0.005) words.push(returned > 0 ? 'Nothing is due on this bill.' : combined ? 'Paid in full — received with thanks.' : 'Paid in full.')
   else words.push(`Balance due: ${amountInWords(due)}.`)
 
   // ── Signatures: the pharmacist who dispensed it (name, qualification, registration no.) ──
@@ -183,7 +195,10 @@ function buildModel(d, copy) {
   const footer = []
   if (isGst && docType === 'TAX_INVOICE' && !isDraft) footer.push('Whether tax is payable on reverse charge: No.')
   if (combined && !noCharge) footer.push('This document serves as both the bill and the payment receipt.')
-  footer.push('Medicines once sold are taken back only as per the pharmacy\'s return policy, with this bill.')
+  if (cancelled) footer.push(`CANCELLED${b.cancelled_at ? ' on ' + fmtDT(b.cancelled_at) : ''} — ${rets.map(r => r.return_no).join(', ') || 'cancellation slip'}.`)
+  else if (rets.length) footer.push(`Items returned — ${rets.map(r => `${r.return_no} (₹ ${money(r.amount)})`).join(', ')}. See the return slip.`)
+  // Session 344b: the organisation's own return-policy line (Admin → Feature Modules); cleared = nothing printed
+  if (d.return_policy_line) footer.push(d.return_policy_line)
   if (isDup) {
     footer.push(`Duplicate copy no. ${copyNo}. ${copy.legacy
       ? 'Issued before print tracking began — an original may already have been given to the patient.'

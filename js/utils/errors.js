@@ -177,6 +177,25 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 344a/b pharmacy returns (preview / request / decide_pharmacy_return, the return slip) -- plain, schema-free
+  // messages written to be shown to staff as-is: the reason (GST bill, role, own request, window, missing witness / UPI
+  // reference ...) is what the person at the counter must act on.
+  const PHARMACY_RETURN_MSGS = ['GST pharmacy returns wait for credit-note rules', 'Your role (', 'Your account is not active',
+    'This organisation does not have the pharmacy module', 'Bill not found in this organisation', 'This is not a pharmacy bill',
+    'The lines to return are not in the expected form', 'This return is not waiting to be completed',
+    'The bill changed since this return was requested', 'Enter the UPI / card refund transaction reference',
+    'Opened, damaged or expired medicines go to the disposal register', 'The batch of "', 'Choose the bill',
+    'Give the reason for the return', 'Say whether this is a customer return', 'Choose at least one medicine to return',
+    'A cashier can return only counter-sale bills', 'This pharmacy does not accept customer returns', 'Refund by cash, UPI or card only',
+    'Refund in the original payment mode', 'Give the reason for refunding a ', 'Enter the name of the witness for the disposal',
+    'Return not found in this organisation', 'This return was already ', 'You cannot decide your own return',
+    'Choose approve or reject', 'This bill has an NDPS or Schedule H1 medicine', 'Returns are accepted only within',
+    'A selected line is not on this bill', 'The same bill line is selected twice', 'Line '];
+  if (['P0001','42501','22023','P0002'].includes(error?.code)
+      && PHARMACY_RETURN_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // A page opened before a billing release still calls the retired function -- say what to do.
   // (PostgREST says "Could not find the function ..." when the signature changed -- Session 327 added a reference argument)
   if (/permission denied for function (add_opd_bill_item|create_opd_bill|create_investigation_bill)|Could not find the function public\.(create_opd_bill|create_investigation_bill)/.test(error?.message || '')) {

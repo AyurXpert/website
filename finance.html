@@ -153,6 +153,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
 .modal-foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
+<link rel="stylesheet" href="css/pharmacy-returns.css"/>
 </head>
 <body>
 <div id="navbar-container"></div>
@@ -206,6 +207,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
       <button class="sub-tab" data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="outstanding" data-onclick-a2="@this">Outstanding</button>
       <button class="sub-tab" data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="daily" data-onclick-a2="@this">Daily Cash</button>
       <button class="sub-tab" data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="vbsearch" data-onclick-a2="@this">🔎 Visits &amp; Bills</button>
+      <!-- Session 344b: pharmacy returns waiting for a second person's approval (shown by finance.js to the deciding roles) -->
+      <button class="sub-tab" id="tab-pharmreturns" hidden data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="pharmreturns" data-onclick-a2="@this">↩ Pharmacy returns <span id="pharmreturns-badge" class="pr-badge" hidden></span></button>
       <a class="sub-tab" href="shift-close.html?tab=review" style="text-decoration:none;display:inline-flex;align-items:center">🤝 Shift handovers</a>
     </div>
 
@@ -255,6 +258,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- Pharmacy returns sub-panel (Session 344b): approve / reject pending returns (js/modules/pharmacy/returnsQueue.js) -->
+    <div class="sub-panel" id="sub-pharmreturns">
+      <div id="pharmreturns-root"></div>
     </div>
 
     <!-- Visits & Bills sub-panel (Session 328): find any past bill / receipt and reprint it as a Duplicate copy -->

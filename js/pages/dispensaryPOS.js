@@ -11,6 +11,8 @@ import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
 import { aggregateByMedicine } from '../modules/inventory/stockByMedicine.js';
 import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
+import { mountReturnPanel } from '../modules/pharmacy/returnPanel.js';
+import { mountReturnsQueue } from '../modules/pharmacy/returnsQueue.js';
 
 // Session 341: + cashier -- counter (walk-in) sales only (owner decision 1, 5 Oct 2026); the server re-checks every role
 await requireAuth(['pharmacist', 'cashier', 'super_admin', 'dept_admin']);
@@ -107,17 +109,19 @@ function _matchInventory(name) {
 }
 
 // ── Load prescription queue ───────────────────────
+const _QUEUE_SELECT = `
+      id, created_at, status,
+      visit:visits(id, token_number, chief_complaint, doctor_id, bills(payer_type)),
+      patient:patients(id, uhid, name, phone, address, abha_number, abha_address),
+      items:prescription_items(id, medicine_name, medicine_id, dosage, frequency, duration)
+    `;
+let _returnedRx = new Map();   // Session 344b: prescription id -> { return_no, returned_at, document_number }
 async function loadQueue() {
   const start = new Date(istDayStartUTC(todayISTStr()));   // IST midnight, any device clock (TODO §59)
 
   const { data, error: qErr } = await supabase
     .from('prescriptions')
-    .select(`
-      id, created_at, status,
-      visit:visits(id, token_number, chief_complaint, doctor_id, bills(payer_type)),
-      patient:patients(id, uhid, name, phone, address, abha_number, abha_address),
-      items:prescription_items(id, medicine_name, medicine_id, dosage, frequency, duration)
-    `)
+    .select(_QUEUE_SELECT)
     .eq('tenant_id', tenantId)
     // Session 127 -- defensive: a trainee doctor never creates a prescriptions
     // row directly in v1 (only a supervising doctor's finalize does, which
@@ -128,7 +132,22 @@ async function loadQueue() {
     .order('created_at', { ascending: true });
 
   if (qErr) console.error('pharmacy loadQueue error:', qErr.message, qErr.details, qErr.hint);
-  const rows = data || [];
+  // Session 344b (TODO §143, owner decision 6): a prescription whose bill was returned IN FULL goes back to 'pending' --
+  // on any day. The queue lists only today's prescriptions, so the server lists the returned ones
+  // (list_returned_prescriptions) and the older ones are added at the top, labelled "Returned — re-dispense".
+  const { data: retList, error: retErr } = await supabase.rpc('list_returned_prescriptions');
+  if (retErr) console.error('pharmacy returned prescriptions error:', retErr.message);
+  _returnedRx = new Map((retErr ? [] : retList || []).map(r => [r.prescription_id, r]));
+  const todayIds = new Set((data || []).map(r => r.id));
+  const olderIds = [..._returnedRx.keys()].filter(id => !todayIds.has(id));
+  let older = [];
+  if (olderIds.length) {
+    const { data: od, error: odErr } = await supabase.from('prescriptions').select(_QUEUE_SELECT)
+      .eq('tenant_id', tenantId).eq('review_status', 'finalized').in('id', olderIds).order('created_at', { ascending: true });
+    if (odErr) console.error('pharmacy returned prescriptions load error:', odErr.message);
+    older = (od || []).filter(r => r.status !== 'dispensed');
+  }
+  const rows = [...older, ...(data || [])];
   const pending = rows.filter(r => r.status !== 'dispensed');
   document.getElementById('q-count').textContent = pending.length;
 
@@ -150,13 +169,16 @@ async function loadQueue() {
     const payerType   = rx.visit?.bills?.[0]?.payer_type || 'self_pay';
     const isIns       = payerType !== 'self_pay';
     _rxPayerMap[rx.id] = payerType;
-    return `<div class="${cardClass}"${isDone ? '' : ` data-onclick="openRx" data-onclick-a0="${rx.id}"`}>
+    const ret = !isDone ? _returnedRx.get(rx.id) : null;   // Session 344b: back in the queue after a full return
+    const isToday = new Date(rx.created_at) >= start;
+    return `<div class="${cardClass}"${isDone ? '' : ` data-onclick="openRx" data-onclick-a0="${rx.id}"`}${ret ? ' data-returned="1"' : ''}>
       <div class="rx-card-top">
         <div class="${tokClass}">${rx.visit?.token_number || '💊'}</div>
         <div class="rx-name">${_esc(rx.patient?.name || '—')}${isIns ? ' <span style="background:#f5f3ff;color:#6d28d9;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600">🏥 Ins</span>' : ''}</div>
-        <div class="rx-time">${_timeAgo(rx.created_at)}</div>
+        <div class="rx-time">${isToday ? _timeAgo(rx.created_at) : _esc(new Date(rx.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }))}</div>
       </div>
       <div class="rx-meta">
+        ${ret ? `<span class="badge badge-returned" title="${_esc('Bill ' + (ret.document_number || '') + ' returned in full — ' + (ret.return_no || ''))}">↩ Returned — re-dispense</span>` : ''}
         ${isDone ? '<span class="badge badge-done">Dispensed</span>' : '<span class="badge badge-pending">Pending</span>'}
         ${isPkTherapy ? '<span class="badge" style="background:#e8f5ee;color:#1a4a2e;border:1px solid #b8ddc6">PK Therapy</span>' : ''}
         ${medCount ? `<span class="badge badge-meds">${medCount} item${medCount>1?'s':''}</span>` : ''}
@@ -213,7 +235,10 @@ window.loadRegisterTable = async function() {
   </tr>`).join('');
 };
 
-window.exportRegisterCSV = function() { alert('Use browser Print (Ctrl+P) to save as PDF for the NCISM register'); };
+// Session 344b (TODO §137): the same message, in an in-page panel (was a native alert())
+window.exportRegisterCSV = function() {
+  _ask({ title: 'Dispensing register', intro: 'Use browser Print (Ctrl+P) to save as PDF for the NCISM register', ok: 'OK', noCancel: true });
+};
 
 // ── Open a prescription ───────────────────────────
 window.openRx = async function(rxId) {
@@ -385,12 +410,14 @@ window.updateQty = function(i, val) {
 // it from the payable total (dispense() already filters qty>0) but leaves it
 // stuck visibly in the list, which isn't an intuitive "remove". This actually
 // deletes the row.
-window.removeCartItem = function(i) {
+window.removeCartItem = async function(i) {
   const item = _cartItems[Number(i)];
   if (!item) return;
   // Session 341: no native confirm() in the counter sale (owner rule) -- the line is simply removed
-  if (_mode !== 'counter' && !confirm(`Remove "${item.name}" from this bill?`)) return;
-  _cartItems.splice(Number(i), 1);
+  // Session 344b (TODO §137): a prescription line is still asked about first -- in an in-page panel, not confirm()
+  if (_mode !== 'counter' && !(await _ask({ title: 'Remove from this bill?', intro: `Remove "${item.name}" from this bill?`, ok: 'Remove', cancel: 'Keep' }))) return;
+  const at = _cartItems.indexOf(item);
+  if (at >= 0) _cartItems.splice(at, 1);
   renderRxList();
 };
 
@@ -486,9 +513,14 @@ async function dispense() {
     const inv = _inventory.find(i => i.id === c.id || i.medicine_id === c.medicine_id);
     return inv?.is_high_risk || inv?.is_schedule_h || inv?.is_schedule_h1 || inv?.is_ndps;
   });
+  // Session 344b (TODO §137): the same double check, in an in-page panel (was a native confirm())
   if (highRiskItems.length) {
-    const names = highRiskItems.map(c => c.name).join(', ');
-    const ok = confirm(`⚠ HIGH-RISK MEDICATION — NABH Double Verification Required\n\nThe following require a second check before dispensing:\n${names}\n\nConfirm:\n✅ Prescription verified against original order\n✅ Patient identity confirmed (2 identifiers)\n✅ Dose and route are correct\n\nProceed with dispensing?`);
+    const ok = await _ask({
+      title: '⚠ High-risk medication — NABH double verification required',
+      intro: 'The following require a second check before dispensing:',
+      items: highRiskItems.map(c => c.name),
+      checks: ['Prescription verified against original order', 'Patient identity confirmed (2 identifiers)', 'Dose and route are correct'],
+      outro: 'Proceed with dispensing?', ok: 'Verified — proceed', cancel: 'Back', warn: true });
     if (!ok) return;
   }
 
@@ -496,7 +528,11 @@ async function dispense() {
   // caution "to be taken under medical supervision"; the pharmacist confirms it was given.
   const e1Items = payable.filter(c => _invFor(c)?.is_schedule_e1);
   if (e1Items.length) {
-    const ok = confirm(`⚠ SCHEDULE E1 — CAUTION: TO BE TAKEN UNDER MEDICAL SUPERVISION\n\n${e1Items.map(c => c.name).join(', ')}\n\nContains a poisonous ingredient. Confirm the patient has been told to take it only under medical supervision (the label carries this caution).\n\nProceed with dispensing?`);
+    const ok = await _ask({
+      title: '⚠ Schedule E1 — caution: to be taken under medical supervision',
+      items: e1Items.map(c => c.name),
+      outro: 'Contains a poisonous ingredient. Confirm the patient has been told to take it only under medical supervision (the label carries this caution). Proceed with dispensing?',
+      ok: 'Patient told — proceed', cancel: 'Back', warn: true });
     if (!ok) return;
   }
 
@@ -708,6 +744,37 @@ function _reviewBill(pv, { isIpd, payMethod, payRef, patient, counter = false, c
 function _closeReview() {
   document.getElementById('review-wrap').hidden = true;
   document.getElementById('btn-review-back').disabled = false;
+}
+
+// Session 344b (TODO §137): an in-page question / notice in place of the native confirm() / alert() of the dispense flow.
+// Resolves true on the OK button, false on Back / Escape (a notice -- noCancel -- has only OK). DOM nodes + textContent only.
+function _ask({ title, intro, items = [], checks = [], outro, ok = 'OK', cancel = 'Back', noCancel = false, warn = false }) {
+  const wrap = document.getElementById('ask-wrap');
+  const yes = document.getElementById('btn-ask-yes');
+  const no = document.getElementById('btn-ask-no');
+  const opener = document.activeElement;
+  document.getElementById('ask-title').textContent = title;
+  const body = [];
+  if (intro) body.push(_node('p', { class: 'sub' }, intro));
+  if (items.length) body.push(_node('div', { class: warn ? 'warn' : 'note', role: 'note' }, _node('ul', null, items.map(t => _node('li', null, t)))));
+  if (checks.length) body.push(_node('div', { class: 'note' }, _node('strong', null, 'Confirm:'), _node('ul', null, checks.map(t => _node('li', null, '✅ ' + t)))));
+  if (outro) body.push(_node('p', { class: 'msg' }, outro));
+  document.getElementById('ask-body').replaceChildren(...body);
+  yes.textContent = ok; no.textContent = cancel; no.hidden = noCancel;
+  wrap.hidden = false;
+  yes.focus();
+  return new Promise(resolve => {
+    const done = v => {
+      yes.removeEventListener('click', onYes); no.removeEventListener('click', onNo); wrap.removeEventListener('keydown', onKey);
+      wrap.hidden = true;
+      if (opener && opener.focus && document.contains(opener)) opener.focus();
+      resolve(v);
+    };
+    const onYes = () => done(true);
+    const onNo = () => done(false);
+    const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); done(noCancel); } else _trapTab(e, no, yes); };
+    yes.addEventListener('click', onYes); no.addEventListener('click', onNo); wrap.addEventListener('keydown', onKey);
+  });
 }
 
 // The sale went through: bill no., receipt no., amount, mode -- and a Print Bill button that opens the bill from its
@@ -1284,22 +1351,38 @@ async function _recordControlledSupplies(payable) {
   }
 
   // The sale itself stands; what didn't reach a register shows in "Dispensed — not in register".
+  // Session 344b (TODO §137): an in-page panel (was a native alert()); the dispense waits for OK, as it did before
   if (problems.length) {
-    alert('Dispensed, but not recorded in the register:\n\n• ' + problems.join('\n• ') +
-      '\n\nIt is listed under "Dispensed — not in register" on this page. Record it there today.');
+    await _ask({ title: 'Dispensed, but not recorded in the register', items: problems,
+      outro: 'It is listed under "Dispensed — not in register" on this page. Record it there today.', ok: 'OK', noCancel: true, warn: true });
   }
 }
 
 // Session 334 -- pharmacy bills & receipts of any date (the server shows a pharmacist pharmacy bills only)
-let _billsMounted = false;
+// Session 344b: + the Return / Cancel panel and the returns waiting for approval (js/modules/pharmacy/); a pharmacy bill
+// found by the search opens the panel on that bill. Who may decide a return is the server's answer, never this page's.
+let _billsMounted = false, _retPanel = null, _retQueue = null;
 window.openBillsTab = function() {
   document.getElementById('bills-panel').style.display = '';
   document.getElementById('main-panel').style.display = 'none';
-  if (!_billsMounted) { mountVisitsBillsSearch(document.getElementById('bills-search-root'), { supabase }); _billsMounted = true; }
+  if (!_billsMounted) {
+    _billsMounted = true;
+    _retQueue = mountReturnsQueue(document.getElementById('returns-queue-root'), { supabase });
+    _retPanel = mountReturnPanel(document.getElementById('return-panel-root'), {
+      supabase, counterOnly: !_canRx, onChanged: () => _retQueue.reload() });
+    mountVisitsBillsSearch(document.getElementById('bills-search-root'), { supabase, onReturn: billId => {
+      _retPanel.openBill(billId);
+      document.getElementById('return-panel-root').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } });
+  } else {
+    _retQueue.reload();
+    _retPanel.reloadToday();
+  }
 };
 window.closeBillsTab = function() {
   document.getElementById('bills-panel').style.display = 'none';
   document.getElementById('main-panel').style.display = '';
+  if (!_counterOnly) { loadQueue(); loadInventory(); }   // a return may have restocked a batch / re-queued a prescription
 };
 
 let _h1Meds = [];

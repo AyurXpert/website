@@ -626,6 +626,17 @@ p:last-child{margin-bottom:0}
     </div>
 
     <div class="tip"><strong>Low stock alerts:</strong> Medicines below their reorder level are highlighted. Use <strong>purchase-order.html</strong> to auto-generate a Purchase Order for all low-stock items grouped by supplier.</div>
+
+    <div class="subsection">
+      <div class="subsection-title">Returns &amp; cancellations (🧾 Bills → ↩ Return / Cancel)</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Find the bill</div><div class="step-desc">Open 🧾 Bills. Type the bill number (B/…) and press Find bill, pick one of today's bills, or press ↩ Return / Cancel on a pharmacy bill found by the search.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Quantity and condition per medicine</div><div class="step-desc">Sealed &amp; good goes back to its exact batch; opened, damaged or expired goes to the disposal register (disposal method + witness name). "Return everything" on the day of the sale is a full cancellation.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Money, refund mode, reason</div><div class="step-desc">The panel shows the value and how it is settled (receipt cancelled / refund in the original mode / amount due reduced). UPI / card refunds need the reference; cash instead of UPI / card needs a reason. Give the reason (at least 5 characters).</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Record it</div><div class="step-desc">If your organisation needs a second person's approval, it shows "Sent for approval" and nothing changes until the administrator, accountant or finance manager approves it (they see it under "Pharmacy returns waiting for approval" and in Finance). Otherwise it completes at once with its RTN number and a Print return slip button.</div></div></div>
+      </div>
+      <div class="tip"><strong>Refused:</strong> bills with NDPS or Schedule H1 medicines, GST pharmacy bills, partial returns after the return window (default 7 days), and customer returns when the organisation has switched returns off. A prescription returned in full comes back to the queue as "↩ Returned — re-dispense". High-risk, Schedule E1 and register messages now appear as in-page panels.</div>
+    </div>
   </div>
 
   <!-- ══════════════════════════════════════════════
