@@ -10,6 +10,7 @@ import { notify } from '../components/notify.js';
 import { canCollectOpd, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt } from '../modules/billing/opdPayments.js';
 import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
 import { mountReturnsQueue } from '../modules/pharmacy/returnsQueue.js';
+import { mountItemTaxApprovals, mountBulkItemTax, isTaxMaker } from '../modules/pharmacy/itemTax.js';
 
 wireDelegatedEvents();
 
@@ -46,6 +47,10 @@ window.switchSub = function(grp, sub, el) {
   if (sub === 'audit') loadAudits();
   if (sub === 'preauth') renderPreAuth();
   if (sub === 'vbsearch' && !_vbMounted) { _vbMounted = true; mountVisitsBillsSearch(document.getElementById('vb-search-root'), { supabase }); }
+  if (sub === 'itemtax') {   // Session 345b
+    mountItemTaxApprovals(document.getElementById('itemtax-approvals-root'), { supabase, onCount: n => _setBadgeEl('itemtax-badge', n) });
+    if (isTaxMaker()) mountBulkItemTax(document.getElementById('itemtax-bulk-root'), { supabase });
+  }
   if (sub === 'pharmreturns') {
     if (!_prQueue) _prQueue = mountReturnsQueue(document.getElementById('pharmreturns-root'), { supabase, onCount: _setPrBadge, onDecided: () => window.loadAll() });
     else _prQueue.reload();
@@ -62,6 +67,19 @@ function _setPrBadge(n) {
   b.textContent = String(n || 0);
   b.hidden = !n;
   b.setAttribute('aria-label', `${n || 0} waiting for your decision`);
+}
+// Session 345b: Medicine tax (item HSN / profile requests) -- shown to the tax makers and approvers when the organisation has
+// the pharmacy module; the badge is how many THIS person may decide (approval_decide_check)
+function _setBadgeEl(id, n) {
+  const b = document.getElementById(id);
+  if (!b) return;
+  b.textContent = String(n || 0); b.hidden = !n; b.setAttribute('aria-label', `${n || 0} waiting for your decision`);
+}
+if (hasModule('pharmacy') && (isTaxMaker() || _role === 'finance_manager' || getCurrentSecondaryRole() === 'finance_manager')) {
+  document.getElementById('tab-itemtax').hidden = false;
+  supabase.rpc('approval_decide_check', { p_ids: null }).then(({ data, error }) => {
+    if (!error) _setBadgeEl('itemtax-badge', (data || []).filter(c => c.action_type === 'item_tax_change' && c.can_decide).length);
+  });
 }
 const _PR_DECIDERS = ['dept_admin', 'super_admin', 'finance_manager', 'accountant'];
 if (hasModule('pharmacy') && (_PR_DECIDERS.includes(_role) || _PR_DECIDERS.includes(getCurrentSecondaryRole()))) {

@@ -209,6 +209,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
       <button class="sub-tab" data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="vbsearch" data-onclick-a2="@this">🔎 Visits &amp; Bills</button>
       <!-- Session 344b: pharmacy returns waiting for a second person's approval (shown by finance.js to the deciding roles) -->
       <button class="sub-tab" id="tab-pharmreturns" hidden data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="pharmreturns" data-onclick-a2="@this">↩ Pharmacy returns <span id="pharmreturns-badge" class="pr-badge" hidden></span></button>
+      <!-- Session 345b: medicine HSN / tax profile requests (approvals + bulk assign) for the tax roles (inventory.html is not theirs) -->
+      <button class="sub-tab" id="tab-itemtax" hidden data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="itemtax" data-onclick-a2="@this">🏷 Medicine tax <span id="itemtax-badge" class="pr-badge" hidden></span></button>
       <a class="sub-tab" href="shift-close.html?tab=review" style="text-decoration:none;display:inline-flex;align-items:center">🤝 Shift handovers</a>
     </div>
 
@@ -258,6 +260,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- Medicine tax sub-panel (Session 345b): item-tax approvals + bulk assign (js/modules/pharmacy/itemTax.js) -->
+    <div class="sub-panel" id="sub-itemtax">
+      <div id="itemtax-approvals-root"></div>
+      <div id="itemtax-bulk-root"></div>
     </div>
 
     <!-- Pharmacy returns sub-panel (Session 344b): approve / reject pending returns (js/modules/pharmacy/returnsQueue.js) -->

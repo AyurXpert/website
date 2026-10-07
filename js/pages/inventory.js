@@ -6,6 +6,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { mountMedicineTaxPanel, mountBulkItemTax, mountItemTaxApprovals, isTaxMaker } from '../modules/pharmacy/itemTax.js';
 
 await requireAuth(['pharmacist', 'dept_admin', 'super_admin']);
 initNavbar();
@@ -435,6 +436,20 @@ document.getElementById('f-image').addEventListener('change', async (e) => {
 // ── Slide panel ──────────────────────────────────────
 document.getElementById('btn-add-med').addEventListener('click', () => openPanel(null));
 
+// Session 345b: Tax & HSN -- bulk assign (tax makers) + the item-tax requests waiting for approval (buttons: server's answer)
+const _itemTaxBtn = document.getElementById('btn-item-tax');
+_itemTaxBtn.style.display = isTaxMaker() ? '' : 'none';   // (.btn sets a display, so the hidden attribute would not hide it)
+_itemTaxBtn.addEventListener('click', () => {
+  document.getElementById('item-tax-overlay').hidden = false;
+  mountItemTaxApprovals(document.getElementById('item-tax-approvals-root'), { supabase });
+  mountBulkItemTax(document.getElementById('item-tax-bulk-root'), { supabase });
+  document.getElementById('btn-item-tax-close').focus();
+});
+document.getElementById('btn-item-tax-close').addEventListener('click', () => {
+  document.getElementById('item-tax-overlay').hidden = true;
+  _itemTaxBtn.focus();
+});
+
 function openPanel(invId) {
   const isEdit = !!invId;
   document.getElementById('panel-title').textContent = isEdit ? 'Edit Medicine' : 'Add Medicine';
@@ -470,6 +485,14 @@ function openPanel(invId) {
   RECEIVED_BATCH_FIELDS.forEach(id => { document.getElementById(id).disabled = receivedBatch; });
   document.getElementById('f-is-student-batch').disabled = isEdit;   // fixed once the row exists
 
+  // Session 345b: the medicine's tax details (HSN + OP / IP profile) -- a change is a request that needs approval
+  const _taxRoot = document.getElementById('item-tax-root');
+  if (isEdit && editItem) {
+    mountMedicineTaxPanel(_taxRoot, { supabase, medicineId: editItem.medicine.id, medicineName: editItem.medicine.name });
+  } else {
+    _taxRoot.replaceChildren(Object.assign(document.createElement('div'), { className: 'rp-muted',
+      textContent: 'A new medicine gets the organisation\u2019s default HSN. Change the HSN or tax profiles after saving, with \u201cSave tax details\u201d (it needs approval).' }));
+  }
   if (isEdit) {
     const item = editItem;
     if (!item) return;

@@ -56,8 +56,15 @@ textarea.rp-input{padding:8px 10px;width:100%;resize:vertical}
 .rq-top{font-size:14px;margin-bottom:2px}
 .rq-meta{font-size:12px;color:var(--text-mid,#4a6352);margin:2px 0}
 .rq-decide{display:flex;flex-direction:column;gap:4px;width:100%}
-[hidden]{display:none!important}
+/* hidden parts of these components only (a page-wide [hidden] rule could hide elements other pages show with an inline display) */
+.rp-card [hidden],.rp-form [hidden],.rp-done [hidden],.pr-badge[hidden],#item-tax-overlay[hidden]{display:none!important}
 /* "Returned -- re-dispense" in the dispensing queue */
 .badge-returned{background:#fff7e6;color:#7a4000;border:1px solid #e8c068}
 /* Finance "Pharmacy returns" tab badge: how many THIS person may decide (the server's answer) */
 .pr-badge{display:inline-block;min-width:20px;padding:0 6px;margin-left:4px;border-radius:10px;background:var(--red,#c0392b);color:#fff;font-size:11px;font-weight:700;line-height:18px;text-align:center}
+/* Session 345b: medicine tax details + bulk assign (js/modules/pharmacy/itemTax.js) */
+.it-panel{border:1.5px solid var(--border,#d4e6da);border-radius:10px;padding:10px 14px;margin:10px 0;background:var(--cream,#faf8f3)}
+.it-head{display:flex;gap:10px;align-items:center;margin-bottom:4px;font-size:14px;color:var(--green-deep,#1a4a2e)}
+.it-pending{display:inline-block;font-size:12px;font-weight:700;color:#7a4000;background:#fff7e6;border:1px solid #e8c068;border-radius:6px;padding:1px 8px}
+.bk-list{max-height:360px;overflow-y:auto;border:1px solid var(--border,#d4e6da);border-radius:8px;margin:6px 0}
+.bk-list input[type=checkbox]{width:20px;height:20px}

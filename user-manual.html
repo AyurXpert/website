@@ -637,6 +637,16 @@ p:last-child{margin-bottom:0}
       </div>
       <div class="tip"><strong>Refused:</strong> bills with NDPS or Schedule H1 medicines, GST pharmacy bills, partial returns after the return window (default 7 days), and customer returns when the organisation has switched returns off. A prescription returned in full comes back to the queue as "↩ Returned — re-dispense". High-risk, Schedule E1 and register messages now appear as in-page panels.</div>
     </div>
+
+    <div class="subsection">
+      <div class="subsection-title">Tax &amp; HSN of a medicine (needs approval)</div>
+      <div class="steps">
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">On the medicine</div><div class="step-desc">Edit a medicine → "Tax &amp; HSN": the HSN (4, 6 or 8 digits) and the OP (sale) and IP (treatment) tax profiles. The lists show only your organisation's approved goods profiles. "Save tax details" sends a request; the medicine shows "⏳ Pending approval" until a Super Admin or Finance Manager decides it (never the person who asked, except a sole Super Admin). Pharmacists see these details read-only.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Many medicines at once</div><div class="step-desc">Inventory → "🏷 Tax &amp; HSN" (or Finance → "🏷 Medicine tax" for the accounts team): select medicines, choose a new HSN and/or profiles ("keep as it is" leaves a field), check the old → new preview, then send ONE request (at most 500 medicines). Medicines already waiting in a request cannot be selected.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Deciding</div><div class="step-desc">The waiting requests appear above the bulk tool, in Finance → "🏷 Medicine tax" and in HR → Approvals, each with its old → new table. Approve applies every line at once (checked again at that moment); Reject needs a reason. Bills already made never change.</div></div></div>
+        <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">New medicines and the default HSN</div><div class="step-desc">A new medicine (item master or GRN "＋ New medicine") gets the organisation's default HSN (30049011 unless the Super Admin changes it in Settings → Feature Modules → "Default HSN for new medicines"). The GRN form has no HSN box any more.</div></div></div>
+      </div>
+    </div>
   </div>
 
   <!-- ══════════════════════════════════════════════

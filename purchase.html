@@ -206,8 +206,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <label style="display:flex;flex-direction:column;gap:4px;font-size:12px">Strength<input id="nm-strength" maxlength="60" placeholder="e.g. 500 mg" style="min-height:44px;padding:0 10px;border:1.5px solid var(--border,#d4e6da);border-radius:8px"/></label>
         <label style="display:flex;flex-direction:column;gap:4px;font-size:12px">Pack / unit *<input id="nm-unit" maxlength="40" placeholder="e.g. 100 Nos, 450 ml" style="min-height:44px;padding:0 10px;border:1.5px solid var(--border,#d4e6da);border-radius:8px"/></label>
         <label style="display:flex;flex-direction:column;gap:4px;font-size:12px">Manufacturer<input id="nm-mfr" maxlength="120" style="min-height:44px;padding:0 10px;border:1.5px solid var(--border,#d4e6da);border-radius:8px"/></label>
-        <label style="display:flex;flex-direction:column;gap:4px;font-size:12px">HSN<input id="nm-hsn" maxlength="8" inputmode="numeric" style="min-height:44px;padding:0 10px;border:1.5px solid var(--border,#d4e6da);border-radius:8px"/></label>
       </div>
+      <!-- Session 345b: a new medicine gets the organisation's default HSN; another HSN / tax profile is requested afterwards (needs approval) -->
+      <div style="font-size:12px;color:var(--text-mid,#4a6352);margin-top:6px">HSN: the organisation’s default is used for a new medicine. An administrator or the accounts team can change it later in Inventory → Tax &amp; HSN (it needs approval).</div>
       <div id="nm-warn" role="alert" style="display:none;margin-top:10px;border:1.5px solid var(--gold,#c9902a);background:#fdf3e2;border-radius:8px;padding:10px 12px;font-size:13px"></div>
       <div id="nm-err" role="alert" style="color:#c0392b;font-size:13px;margin-top:8px"></div>
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">

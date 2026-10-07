@@ -196,6 +196,16 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 345b medicine tax (HSN / profile) requests and their decisions through decide_approval -- plain, staff-actionable
+  const ITEM_TAX_MSGS = ['Only an administrator or the accounts team can change an item', 'At most 500 medicines in one request',
+    'Choose at least one medicine', 'The HSN is changed with', 'A new medicine gets the organisation', 'An HSN code is 4, 6 or 8 digits',
+    'Only this organisation\'s Super Admin can change the default HSN', 'Give the reason for rejecting', 'This tax change request is not pending',
+    'You cannot decide your own request', 'Not authorized to decide this request', 'Request already decided', 'Choose approve or reject'];
+  if (['P0001','42501','22023','P0002'].includes(error?.code)
+      && ITEM_TAX_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // A page opened before a billing release still calls the retired function -- say what to do.
   // (PostgREST says "Could not find the function ..." when the signature changed -- Session 327 added a reference argument)
   if (/permission denied for function (add_opd_bill_item|create_opd_bill|create_investigation_bill)|Could not find the function public\.(create_opd_bill|create_investigation_bill)/.test(error?.message || '')) {

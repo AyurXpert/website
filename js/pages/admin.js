@@ -19,6 +19,7 @@ import {
   _renderComplianceLegend, _designationRollup, _collectStaffClassification, _collectOrganisationStaff,
 } from '../config/ncismStaffCompliance.js';
 import { notify } from '../components/notify.js';
+import { mountItemTaxApprovals } from '../modules/pharmacy/itemTax.js';
 import { printDocument, docHeader } from '../utils/printDocument.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
@@ -456,6 +457,8 @@ const APPROVAL_ACTION_LABELS = {
   // Session 344a/b: a pharmacy return waiting for a second person -- listed here, decided only on the pharmacy returns
   // screens (Finance → Pharmacy returns, Dispensary → 🧾 Bills); decide_approval() refuses these rows.
   pharmacy_return:         'Pharmacy return',
+  // Session 345b: a medicine HSN / tax-profile change (one or many medicines) -- decided in the table above the list
+  item_tax_change:         'Medicine tax change',
 };
 
 const NURSING_CYCLE_LABELS = { weekly: 'Weekly (7 days)', fortnightly: 'Fortnightly (14 days)', monthly: 'Monthly (30 days)' };
@@ -481,6 +484,10 @@ function _approvalSummary(row){
     case 'pk_custom_protocol':   return _esc(p.display_name || '—');
     case 'pharmacy_return':      return `${p.kind === 'cancel' ? 'Full cancellation' : 'Partial return'} of bill ${_esc(p.document_number || '—')}`
                                    + (p.estimate != null ? ` (about ₹${_esc(Number(p.estimate).toFixed(2))})` : '');
+    case 'item_tax_change': {
+      const ls = Array.isArray(p.lines) ? p.lines : [];
+      return `${ls.length} medicine(s)` + (ls.length ? ': ' + ls.slice(0, 3).map(l => _esc(l.name || '—')).join(', ') + (ls.length > 3 ? ' …' : '') : '');
+    }
     default: return '—';
   }
 }
@@ -522,6 +529,8 @@ async function _refreshHrSidebarBadge(){
   _setBadge('badge-pending', pendingLogins + approvalsCount);
 }
 
+// Session 345b follow-up: the last item-tax decision's message, shown again after the list reloads
+let _itDecided = null;
 window.loadPendingDecisions = async function(){
   const wrap = document.getElementById('pending-decisions-body');
   const { data, error } = await supabase.from('pending_approvals')
@@ -548,7 +557,9 @@ window.loadPendingDecisions = async function(){
     const chk = decide ? decide.get(row.id) : null;
     const iCanDecide = _canDecideHere(chk);
     // a pending row with no button says why (the server's reason); a pharmacy return points to where it is decided
-    const whyNot = row.status !== 'pending' || iCanDecide ? ''
+    // Session 345b: an item-tax change is decided in its own table above (old -> new per medicine, reason required to reject)
+    const itemTax = row.action_type === 'item_tax_change';
+    const whyNot = row.status !== 'pending' ? '' : (itemTax && iCanDecide) ? 'Decide it in “Medicine tax changes” above (old → new table)' : iCanDecide ? ''
       : row.action_type === 'pharmacy_return'
         ? (chk?.can_decide ? 'Decide it in Finance → ↩ Pharmacy returns' : (DECIDE_NOTE[chk?.reason] || 'Decided on the pharmacy returns screen'))
         : (DECIDE_NOTE[chk?.reason] || '—');
@@ -556,7 +567,7 @@ window.loadPendingDecisions = async function(){
       : row.status === 'approved' ? '<span class="chip g">Approved'+(row.action_type==='staff_delete'?' — awaiting deletion':'')+'</span>'
       : row.status === 'executed' ? '<span class="chip g">Executed</span>'
       : '<span class="chip grey">Rejected</span>';
-    const actionsHtml = (row.status==='pending' && iCanDecide)
+    const actionsHtml = (row.status==='pending' && iCanDecide && !itemTax)
       ? `<button class="btn-outline" style="font-size:11px;padding:4px 10px" data-onclick="decidePendingApproval" data-onclick-a0="${_esc(row.id)}" data-onclick-a1="@true" data-onclick-a2="${_esc(row.action_type)}">✅ Approve</button>
          <button class="btn-outline" style="font-size:11px;padding:4px 10px;color:#c0392b;border-color:#e0b0b0" data-onclick="decidePendingApproval" data-onclick-a0="${_esc(row.id)}" data-onclick-a1="@false" data-onclick-a2="${_esc(row.action_type)}">✕ Reject</button>`
       : (row.status==='approved' && row.action_type==='staff_delete' && iAmSuperAdmin)
@@ -571,6 +582,18 @@ window.loadPendingDecisions = async function(){
       <div style="display:flex;align-items:center;gap:8px">${statusChip}${actionsHtml}</div>
     </div>`;
   }).join('');
+  // Session 345b: the medicine tax change requests, with their old -> new tables (shown only when one is pending)
+  const _itRoot = document.getElementById('itemtax-hr-root');
+  if (_itRoot) {
+    if ((data || []).some(r => r.status === 'pending' && r.action_type === 'item_tax_change')) mountItemTaxApprovals(_itRoot, { supabase, onDecided: (ok, text) => { _itDecided = { ok, text }; window.loadPendingDecisions(); } });
+    else _itRoot.replaceChildren();
+    // the reload after a decision re-mounts (or clears) this list -- keep the result of that decision on screen
+    if (_itDecided) {
+      _itRoot.prepend(Object.assign(document.createElement('div'), { className: _itDecided.ok ? 'rp-ok' : 'rp-muted', textContent: _itDecided.text }));
+      _itRoot.firstChild.setAttribute('role', 'status'); _itRoot.firstChild.setAttribute('data-decided-notice', '');
+      _itDecided = null;
+    }
+  }
   if (!decide) {   // fail closed: no server answer -> no buttons, and say why (DOM node, not markup)
     const note = document.createElement('div');
     note.className = 'empty'; note.style.padding = '10px';
@@ -6813,6 +6836,27 @@ async function _renderReturnSettings() {
     pol.append(wrap);
   }
   card.append(pol);
+  // Session 345b: the default HSN a new medicine gets (tenants.modules 'default_medicine_hsn', not set = 30049011)
+  const { data: itp } = await supabase.rpc('list_item_tax_profiles');
+  const hsnRow = mk('div', 'padding:8px 0;border-top:1px solid var(--border,#e0e0e0)');
+  hsnRow.append(mk('div', 'font-weight:600;font-size:13px;color:var(--text-dark,#1a1a1a)', 'Default HSN for new medicines'),
+    mk('div', 'font-size:12.5px;color:var(--text-mid);margin:2px 0 6px', `Now: ${itp?.default_hsn || '30049011'} — used for every new medicine; another HSN or a tax profile is requested per medicine (Inventory → Tax & HSN, it needs approval).`));
+  if (canChange) {
+    const w = mk('div', 'display:flex;gap:8px;flex-wrap:wrap;align-items:center');
+    const inp = mk('input', "width:140px;min-height:44px;padding:0 10px;border:1.5px solid var(--border,#ccc);border-radius:8px;font:14px 'DM Sans',sans-serif");
+    inp.type = 'text'; inp.inputMode = 'numeric'; inp.maxLength = 9; inp.value = itp?.default_hsn || '30049011';
+    inp.setAttribute('aria-label', 'Default HSN for new medicines (4, 6 or 8 digits)');
+    const b = mk('button', btnCss(false), 'Save');
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      const v = inp.value.replace(/\s/g, '');
+      if (!/^[0-9]{4}([0-9]{2}){0,2}$/.test(v)) { _toast('An HSN code is 4, 6 or 8 digits.', true); return; }
+      save('set_default_medicine_hsn', { p_hsn: v }, `✓ Default HSN set to ${v}`, b);
+    });
+    w.append(inp, b);
+    hsnRow.append(w);
+  }
+  card.append(hsnRow);
   if (!canChange) card.append(mk('div', 'font-size:12px;color:var(--text-muted);margin-top:6px', 'Only this organisation’s Super Admin can change these.'));
   box.replaceChildren(card);
 }

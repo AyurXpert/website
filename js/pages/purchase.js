@@ -230,7 +230,7 @@ document.getElementById('btn-add-line').addEventListener('click', () => addLine(
 const _nm = id => document.getElementById(id);
 fillFormSelect(_nm('nm-form'));
 function _nmReset() {
-  ['nm-name', 'nm-strength', 'nm-unit', 'nm-mfr', 'nm-hsn'].forEach(id => { _nm(id).value = ''; });
+  ['nm-name', 'nm-strength', 'nm-unit', 'nm-mfr'].forEach(id => { _nm(id).value = ''; });
   _nm('nm-form').value = ''; _nm('nm-err').textContent = '';
   _nm('nm-warn').style.display = 'none'; _nm('nm-warn').replaceChildren(); _nm('nm-save-anyway').style.display = 'none';
 }
@@ -238,7 +238,7 @@ _nm('btn-new-med').addEventListener('click', () => { _nmReset(); _nm('new-med-pa
 _nm('nm-cancel').addEventListener('click', () => { _nm('new-med-panel').style.display = 'none'; });
 function _nmArgs() {
   return { p_name: _nm('nm-name').value, p_form: _nm('nm-form').value || null, p_strength: _nm('nm-strength').value,
-           p_unit: _nm('nm-unit').value, p_manufacturer: _nm('nm-mfr').value, p_hsn: _nm('nm-hsn').value || null, p_gst_percent: null };
+           p_unit: _nm('nm-unit').value, p_manufacturer: _nm('nm-mfr').value, p_hsn: null, p_gst_percent: null };   // Session 345b: the organisation default HSN
 }
 // rebuilds one line's medicine list with DOM nodes (same data-* attributes as medOptions())
 function _refillMedSelect(sel, keep) {
