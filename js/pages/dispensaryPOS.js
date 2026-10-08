@@ -804,6 +804,12 @@ async function _showDone(sale, { isIpd, payMethod, payRef, billId, patient, coun
   }
   document.getElementById('done-kv').replaceChildren(...kv);
   msg.textContent = ''; msg.className = 'msg';
+  // Session 345c2c: an IPD dispense can come back with a tax warning (e.g. the IP-medicines exempt profile is not exempt today) --
+  // the medicines ARE issued; the administrator must fix the setting before the IPD bill can be made. Shown in-page, never alert().
+  if (isIpd && Array.isArray(sale?.warnings) && sale.warnings.length) {
+    msg.className = 'msg err';
+    msg.textContent = '⚠ ' + sale.warnings.join(' ');
+  }
   printBtn.hidden = isIpd || !billId;
   wrap.hidden = false;
   (printBtn.hidden ? closeBtn : printBtn).focus();

@@ -165,7 +165,7 @@ export function mountVisitsBillsSearch(root, { supabase, onReturn = null }) {
   const today = todayISTStr()
   const showCerts = CERTIFICATE_ROLES.includes(getCurrentRole())
   const q = el('input', { type: 'text', id: 'vb-q', maxlength: '80', style: INPUT + ';flex:1;min-width:240px',
-    placeholder: showCerts ? 'UHID, patient name, phone, bill no. (B/…), receipt no. (RCPT/…), return no. (RTN/…) or certificate no. (MC/…)' : 'UHID, patient name, phone, bill no. (B/…), receipt no. (RCPT/…) or return no. (RTN/…)',
+    placeholder: showCerts ? 'UHID, patient name, phone, bill / invoice no. (B/…, TI/…, BS/…), receipt no. (RCPT/…), return no. (RTN/…) or certificate no. (MC/…)' : 'UHID, patient name, phone, bill / invoice no. (B/…, TI/…, BS/…), receipt no. (RCPT/…) or return no. (RTN/…)',
     'aria-label': showCerts ? 'Search visits, bills and certificates' : 'Search visits and bills' })
   const from = el('input', { type: 'date', id: 'vb-from', value: today, style: INPUT, 'aria-label': 'From date' })
   const to = el('input', { type: 'date', id: 'vb-to', value: today, style: INPUT, 'aria-label': 'To date' })
@@ -180,8 +180,8 @@ export function mountVisitsBillsSearch(root, { supabase, onReturn = null }) {
     el('div', { style: 'padding:12px' },
       el('div', { style: 'font-size:12px;color:var(--text-muted);margin-bottom:8px' },
         (showCerts
-          ? 'Open and completed visits with their OPD / lab bills, receipts, prescriptions and medical certificates. A UHID (AYX/…), bill no. (B/…), receipt no. (RCPT/…), pharmacy return no. (RTN/…) or certificate no. (MC/…) is searched across ALL dates. '
-          : 'Open and completed visits with their bills, receipts, pharmacy returns and prescriptions. A UHID (AYX/…), bill no. (B/…), receipt no. (RCPT/…) or pharmacy return no. (RTN/…) is searched across ALL dates. ')
+          ? 'Open and completed visits with their OPD / lab bills, receipts, prescriptions and medical certificates. A UHID (AYX/…), any bill or invoice no. of this organisation (B/…, Tax Invoice TI/…, Bill of Supply BS/…), receipt no. (RCPT/…), pharmacy return no. (RTN/…) or certificate no. (MC/…) is searched across ALL dates. '
+          : 'Open and completed visits with their bills, receipts, pharmacy returns and prescriptions. A UHID (AYX/…), any bill or invoice no. of this organisation (B/…, Tax Invoice TI/…, Bill of Supply BS/…), receipt no. (RCPT/…) or pharmacy return no. (RTN/…) is searched across ALL dates. ')
         + 'A name or phone uses the date range (at most 31 days) unless you tick “All dates”. Newest first, at most 100 shown. '
         + 'Every reprint after the first is marked “Duplicate copy”.'),
       el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, q, from, el('span', null, 'to'), to, allLabel, go, clear),
