@@ -11,6 +11,8 @@ import { canCollectOpd, isCollectableOpdBill, opdCollectControlsHtml, collectOpd
 import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
 import { mountReturnsQueue } from '../modules/pharmacy/returnsQueue.js';
 import { mountItemTaxApprovals, mountBulkItemTax, isTaxMaker } from '../modules/pharmacy/itemTax.js';
+import { mountTaxSettings } from '../modules/tax/taxSettings.js';
+import { mountTaxApprovals, TAX_APPROVAL_TYPES } from '../modules/tax/taxApprovals.js';
 
 wireDelegatedEvents();
 
@@ -51,11 +53,17 @@ window.switchSub = function(grp, sub, el) {
     mountItemTaxApprovals(document.getElementById('itemtax-approvals-root'), { supabase, onCount: n => _setBadgeEl('itemtax-badge', n) });
     if (isTaxMaker()) mountBulkItemTax(document.getElementById('itemtax-bulk-root'), { supabase });
   }
+  if (sub === 'taxsettings') {   // Session 345c2a
+    mountTaxApprovals(document.getElementById('taxappr-root'), { supabase, onCount: () => _refreshTaxBadge(),
+      onDecided: () => { _refreshTaxBadge(); _taxCard?.reload(); } });
+    _taxCard = mountTaxSettings(document.getElementById('taxsettings-root'), { supabase });
+  }
   if (sub === 'pharmreturns') {
     if (!_prQueue) _prQueue = mountReturnsQueue(document.getElementById('pharmreturns-root'), { supabase, onCount: _setPrBadge, onDecided: () => window.loadAll() });
     else _prQueue.reload();
   }
 };
+let _taxCard = null;   // Session 345c2a: the Tax settings card (reloaded after a decision)
 let _vbMounted = false;   // Visits & Bills search mounts once, on first open (Session 328)
 // Session 344b: Pharmacy returns waiting for approval. The tab is shown to the roles decide_pharmacy_return() accepts
 // (dept_admin / super_admin / finance_manager / accountant, primary or secondary) when the organisation has the pharmacy
@@ -80,6 +88,17 @@ if (hasModule('pharmacy') && (isTaxMaker() || _role === 'finance_manager' || get
   supabase.rpc('approval_decide_check', { p_ids: null }).then(({ data, error }) => {
     if (!error) _setBadgeEl('itemtax-badge', (data || []).filter(c => c.action_type === 'item_tax_change' && c.can_decide).length);
   });
+}
+// Session 345c2a: Tax settings -- the accountant / finance manager (primary or secondary) and the other tax makers; the badge
+// counts every tax decision THIS person may take (item tax + IP-medicines choice + default profiles; approval_decide_check)
+function _refreshTaxBadge() {
+  supabase.rpc('approval_decide_check', { p_ids: null }).then(({ data, error }) => {
+    if (!error) _setBadgeEl('taxsettings-badge', (data || []).filter(c => (c.action_type === 'item_tax_change' || TAX_APPROVAL_TYPES.includes(c.action_type)) && c.can_decide).length);
+  });
+}
+if (isTaxMaker() || _role === 'finance_manager' || getCurrentSecondaryRole() === 'finance_manager') {
+  document.getElementById('tab-taxsettings').hidden = false;
+  _refreshTaxBadge();
 }
 const _PR_DECIDERS = ['dept_admin', 'super_admin', 'finance_manager', 'accountant'];
 if (hasModule('pharmacy') && (_PR_DECIDERS.includes(_role) || _PR_DECIDERS.includes(getCurrentSecondaryRole()))) {

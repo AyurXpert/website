@@ -152,6 +152,7 @@ p:last-child{margin-bottom:0}
     <a class="nav-link" href="#setup-staff">2. Add Staff</a>
     <a class="nav-link" href="#setup-opd">3. Configure OPDs</a>
     <a class="nav-link" href="#setup-fees">4. Fee Structures</a>
+    <a class="nav-link" href="#setup-tax">4a. Tax &amp; Invoicing</a>
     <a class="nav-link" href="#setup-inventory">5. Medicine Inventory</a>
     <a class="nav-link" href="#setup-ipd">6. IPD / Bed Setup</a>
 
@@ -438,6 +439,23 @@ p:last-child{margin-bottom:0}
     </div>
 
     <div class="tip"><strong>Shortcut:</strong> Super admin can bypass dept approval and directly activate any fee.</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SETUP — TAX & INVOICING (Session 345c2a)
+       ══════════════════════════════════════════════ -->
+  <div class="section" id="setup-tax">
+    <div class="section-title">4a. Tax &amp; Invoicing</div>
+    <p>Where: <strong>Admin → Settings → 🧾 Tax &amp; Invoicing</strong> (Super Admin, Dept Admin) &nbsp;|&nbsp; <strong>Finance → 🧾 Tax settings</strong> (Accountant, Finance Manager). Cashiers, pharmacists and other staff do not see it.</p>
+    <p>Changes to the IP-medicines choice and the default tax profiles need a <strong>second person's approval</strong> (a Super Admin or Finance Manager — never the person who asked, except an organisation's only Super Admin). Bills already issued never change.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">IP medicines (treatment admissions)</div><div class="step-desc">Shows the choice in force and its history. To change it: choose <strong>EXEMPT</strong> (pick the exempt goods profile) or <strong>CHARGEABLE</strong> (each medicine's own IP profile; optionally a fallback profile for medicines without one), the date it starts (today or later — never back-dated) and a reason, then "Send for approval". While it waits, the card shows "⏳ Pending approval". With no choice for a date, an IPD bill or an IPD dispense with medicines is refused on a GST-live organisation. Under CHARGEABLE, a medicine with no IP profile (and no fallback) is refused at the bill, never at the dispense.</div></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Default tax profiles</div><div class="step-desc">The default profile for OP medicines (goods, HSN), treatment services and wellness services (SAC). Change one or more; the preview shows old → new; "Send for approval" sends one request.</div></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Bill of Supply declaration (Super Admin)</div><div class="step-desc">The line printed at the foot of every Bill of Supply. Up to 300 characters, one line, no &lt; or &gt;; a counter and a live preview show what will print. "Use default" returns to the standard wording ("Bill of Supply under Section 31(3)(c) of the CGST Act, 2017 read with Rule 49 — exempt supply; no GST is charged on this bill."). The text is fixed on each bill when it is issued — later changes never alter issued bills. Other roles see the text read-only.</div></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Pharmacy GST go-live (Super Admin)</div><div class="step-desc">The date your pharmacy starts GST billing. The server refuses it, with the reason shown on the card, until the pharmacy is ready (every stocked medicine has an HSN record and an approved sale profile, the IP-medicines choice is recorded, the date is not before your GST go-live or in the past). Pharmacy GST stays off platform-wide until credit notes (Stage 6) are ready.</div></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><div class="step-title">Deciding a request</div><div class="step-desc">Finance → 🧾 Tax settings (top table) or HR → ⚖️ Approvals (the "Tax settings waiting for approval" table): each request shows who asked, why, and old → new. Approve, or Reject with a reason (at least 5 characters). The badge on the Finance tab counts every tax decision waiting for you (these two kinds and medicine tax changes).</div></div></div>
+    </div>
   </div>
 
   <!-- ══════════════════════════════════════════════

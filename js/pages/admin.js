@@ -20,6 +20,8 @@ import {
 } from '../config/ncismStaffCompliance.js';
 import { notify } from '../components/notify.js';
 import { mountItemTaxApprovals } from '../modules/pharmacy/itemTax.js';
+import { mountTaxSettings } from '../modules/tax/taxSettings.js';
+import { mountTaxApprovals, TAX_APPROVAL_TYPES } from '../modules/tax/taxApprovals.js';
 import { printDocument, docHeader } from '../utils/printDocument.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
@@ -459,6 +461,9 @@ const APPROVAL_ACTION_LABELS = {
   pharmacy_return:         'Pharmacy return',
   // Session 345b: a medicine HSN / tax-profile change (one or many medicines) -- decided in the table above the list
   item_tax_change:         'Medicine tax change',
+  // Session 345c2a: decided in the "Tax settings" table above the list
+  ip_medicine_tax:         'IP-medicines tax choice',
+  tax_defaults_change:     'Default tax profiles',
 };
 
 const NURSING_CYCLE_LABELS = { weekly: 'Weekly (7 days)', fortnightly: 'Fortnightly (14 days)', monthly: 'Monthly (30 days)' };
@@ -487,6 +492,13 @@ function _approvalSummary(row){
     case 'item_tax_change': {
       const ls = Array.isArray(p.lines) ? p.lines : [];
       return `${ls.length} medicine(s)` + (ls.length ? ': ' + ls.slice(0, 3).map(l => _esc(l.name || '—')).join(', ') + (ls.length > 3 ? ' …' : '') : '');
+    }
+    case 'ip_medicine_tax':      return (p.treatment === 'EXEMPT' ? `EXEMPT — ${_esc(p.exempt_profile_name || '—')}`
+                                   : `CHARGEABLE${p.fallback_profile_name ? ' — fallback ' + _esc(p.fallback_profile_name) : ''}`) + ` from ${_esc(p.effective_from || '—')}`;
+    case 'tax_defaults_change': {
+      const o = p.old_names || {}, n = p.new_names || {};
+      const ch = [['OP goods', 'goods_op'], ['treatment', 'treatment'], ['wellness', 'wellness']].filter(([, k]) => (o[k] || null) !== (n[k] || null));
+      return ch.length ? ch.map(([l, k]) => `${l}: ${_esc(o[k] || 'not set')} → ${_esc(n[k] || 'not set')}`).join(' · ') : '—';
     }
     default: return '—';
   }
@@ -531,6 +543,7 @@ async function _refreshHrSidebarBadge(){
 
 // Session 345b follow-up: the last item-tax decision's message, shown again after the list reloads
 let _itDecided = null;
+let _taDecided = null;   // Session 345c2a: the same for the tax settings requests
 window.loadPendingDecisions = async function(){
   const wrap = document.getElementById('pending-decisions-body');
   const { data, error } = await supabase.from('pending_approvals')
@@ -558,8 +571,10 @@ window.loadPendingDecisions = async function(){
     const iCanDecide = _canDecideHere(chk);
     // a pending row with no button says why (the server's reason); a pharmacy return points to where it is decided
     // Session 345b: an item-tax change is decided in its own table above (old -> new per medicine, reason required to reject)
-    const itemTax = row.action_type === 'item_tax_change';
-    const whyNot = row.status !== 'pending' ? '' : (itemTax && iCanDecide) ? 'Decide it in “Medicine tax changes” above (old → new table)' : iCanDecide ? ''
+    const itemTax = row.action_type === 'item_tax_change' || TAX_APPROVAL_TYPES.includes(row.action_type);   // Session 345c2a: + the 2 tax settings types
+    const whyNot = row.status !== 'pending' ? '' : (itemTax && iCanDecide)
+      ? (row.action_type === 'item_tax_change' ? 'Decide it in “Medicine tax changes” above (old → new table)' : 'Decide it in “Tax settings waiting for approval” above (old → new table)')
+      : iCanDecide ? ''
       : row.action_type === 'pharmacy_return'
         ? (chk?.can_decide ? 'Decide it in Finance → ↩ Pharmacy returns' : (DECIDE_NOTE[chk?.reason] || 'Decided on the pharmacy returns screen'))
         : (DECIDE_NOTE[chk?.reason] || '—');
@@ -592,6 +607,17 @@ window.loadPendingDecisions = async function(){
       _itRoot.prepend(Object.assign(document.createElement('div'), { className: _itDecided.ok ? 'rp-ok' : 'rp-muted', textContent: _itDecided.text }));
       _itRoot.firstChild.setAttribute('role', 'status'); _itRoot.firstChild.setAttribute('data-decided-notice', '');
       _itDecided = null;
+    }
+  }
+  // Session 345c2a: the IP-medicines choice / default profile requests, the same way (keep the decision's message after the reload)
+  const _taRoot = document.getElementById('taxappr-hr-root');
+  if (_taRoot) {
+    if ((data || []).some(r => r.status === 'pending' && TAX_APPROVAL_TYPES.includes(r.action_type))) mountTaxApprovals(_taRoot, { supabase, onDecided: (ok, text) => { _taDecided = { ok, text }; window.loadPendingDecisions(); } });
+    else _taRoot.replaceChildren();
+    if (_taDecided) {
+      _taRoot.prepend(Object.assign(document.createElement('div'), { className: _taDecided.ok ? 'rp-ok' : 'rp-muted', textContent: _taDecided.text }));
+      _taRoot.firstChild.setAttribute('role', 'status'); _taRoot.firstChild.setAttribute('data-decided-notice', '');
+      _taDecided = null;
     }
   }
   if (!decide) {   // fail closed: no server answer -> no buttons, and say why (DOM node, not markup)
@@ -6649,6 +6675,7 @@ window.loadModules = async function() {
   const effective = { ...defaults, ...saved };
   _renderCounterSaleSetting(saved.counter_sale !== false);
   _renderReturnSettings();                                   // Session 344a
+  _renderTaxSettings();                                      // Session 345c2a
 
   el.innerHTML = `
     <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:12.5px;color:#7a5200">
@@ -6754,6 +6781,15 @@ function _renderCounterSaleSetting(on) {
 // not modules (never in the grid); values come from the server (get_pharmacy_return_settings, "not set" = the default);
 // each is saved at once by its own setter, which re-checks that the caller is this organisation's ACTIVE super_admin and
 // audits old -> new; the Feature Modules save never changes them. Built from DOM nodes + textContent only.
+// Session 345c2a: 🧾 Tax & Invoicing -- for the super_admin and dept_admin (the server re-checks every change)
+function _renderTaxSettings() {
+  const box = document.getElementById('tax-settings');
+  if (!box) return;
+  box.hidden = !(role === 'super_admin' || role === 'dept_admin');
+  if (box.hidden) return;
+  mountTaxSettings(box, { supabase });
+}
+
 async function _renderReturnSettings() {
   const box = document.getElementById('returns-settings');
   if (!box) return;

@@ -206,6 +206,22 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 345c / 345c2a: the Tax & Invoicing card (IP-medicines choice, default profiles, declaration, pharmacy go-live) --
+  // the server's own plain messages, safe to show as they are
+  const TAX_SETTINGS_MSGS = ['Only an administrator or the accounts team can', 'Choose EXEMPT or CHARGEABLE', 'The effective date',
+    'Choose the exempt goods profile', 'A fallback profile applies only', 'An exempt profile applies only', 'The exempt profile',
+    'The fallback profile', 'The tax profile "', 'An IP-medicines tax request is already waiting', 'Nothing changes',
+    'The OP medicines (goods) default', 'The treatment services default', 'The wellness services default',
+    'A default tax profiles request is already waiting', 'The default tax profiles changed since', 'Only this organisation\'s Super Admin',
+    'Your account is not active', 'The declaration', 'Pharmacy GST cannot go live', 'The pharmacy GST go-live date',
+    'The GST go-live date', 'No IP-medicines tax choice', 'The IP-medicines exempt profile', 'No IP tax profile for',
+    'Medicine charges and tax profiles are added only', 'Give the reason for rejecting', 'You cannot decide your own request',
+    'Not authorized to decide this request', 'Request already decided', 'Choose approve or reject'];
+  if (['P0001','42501','22023','P0002'].includes(error?.code)
+      && TAX_SETTINGS_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // A page opened before a billing release still calls the retired function -- say what to do.
   // (PostgREST says "Could not find the function ..." when the signature changed -- Session 327 added a reference argument)
   if (/permission denied for function (add_opd_bill_item|create_opd_bill|create_investigation_bill)|Could not find the function public\.(create_opd_bill|create_investigation_bill)/.test(error?.message || '')) {

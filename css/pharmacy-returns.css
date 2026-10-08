@@ -30,6 +30,10 @@ textarea.rp-input{padding:8px 10px;width:100%;resize:vertical}
 .rp-table{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0}
 .rp-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid,#4a6352);border-bottom:1.5px solid var(--border,#d4e6da);padding:6px 4px}
 .rp-table td{padding:6px 4px;border-bottom:1px solid var(--border,#d4e6da);vertical-align:middle}
+/* Session 345c2a: header cells and row labels keep these tables' own colours on pages with a global th background (finance.html)
+   -- grey on dark green was below WCAG AA contrast */
+.rp-table thead th{background:none}
+.rp-table tbody th{background:none;color:var(--text-dark,#1a1a1a);font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0;border-bottom:1px solid var(--border,#d4e6da)}
 .rp-table .num{text-align:right;white-space:nowrap}
 .rp-goes{font-size:12px;color:var(--text-mid,#4a6352)}
 .rp-goes.ok{color:var(--green-deep,#1a4a2e);font-weight:600}
@@ -57,7 +61,12 @@ textarea.rp-input{padding:8px 10px;width:100%;resize:vertical}
 .rq-meta{font-size:12px;color:var(--text-mid,#4a6352);margin:2px 0}
 .rq-decide{display:flex;flex-direction:column;gap:4px;width:100%}
 /* hidden parts of these components only (a page-wide [hidden] rule could hide elements other pages show with an inline display) */
-.rp-card [hidden],.rp-form [hidden],.rp-done [hidden],.pr-badge[hidden],#item-tax-overlay[hidden]{display:none!important}
+.rp-card [hidden],.rp-form [hidden],.rp-done [hidden],.pr-badge[hidden],#item-tax-overlay[hidden],#tax-settings[hidden]{display:none!important}
+/* Session 345c2a: the Tax & Invoicing card */
+.ts-sec{border-top:1px solid var(--border,#e0e0e0);padding:12px 0 4px}
+.ts-h4{font:600 14px 'DM Sans',sans-serif;color:var(--green-deep,#1a4a2e);margin:0 0 6px}
+.ts-now{font-size:13px;color:var(--text-dark,#1a1a1a);margin:4px 0 8px}
+.ts-preview{border:1px dashed var(--border,#ccc);border-radius:8px;padding:8px 10px;font-size:12.5px;color:var(--text-dark,#1a1a1a);background:var(--cream,#faf8f3);margin:4px 0 8px;overflow-wrap:anywhere}
 /* "Returned -- re-dispense" in the dispensing queue */
 .badge-returned{background:#fff7e6;color:#7a4000;border:1px solid #e8c068}
 /* Finance "Pharmacy returns" tab badge: how many THIS person may decide (the server's answer) */
