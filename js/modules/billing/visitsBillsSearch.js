@@ -28,12 +28,15 @@ const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractio
 const when = iso => iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
 const day = iso => iso ? new Date(iso).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
-function printedHint(n) {
+// Session 345c2b: a Tax Invoice's reprint is a "REPRINT" (its first print the ORIGINAL FOR RECIPIENT); every other document
+// keeps Original / Duplicate copy. Supplier copies are a separate series and never counted here.
+function printedHint(n, taxInvoice = false) {
+  if (taxInvoice) return n > 0 ? `Printed ${n}× — the next print is a REPRINT` : 'Not printed yet — the first print is the ORIGINAL FOR RECIPIENT'
   return n > 0 ? `Printed ${n}× — the next print is a Duplicate copy` : 'Not printed yet — the first print is the Original'
 }
 
-function printButton(label, hintCount, onClick) {
-  const b = el('button', { type: 'button', style: BTN, title: printedHint(hintCount) }, label)
+function printButton(label, hintCount, onClick, taxInvoice = false) {
+  const b = el('button', { type: 'button', style: BTN, title: printedHint(hintCount, taxInvoice) }, label)
   b.addEventListener('click', onClick)
   return b
 }
@@ -45,11 +48,12 @@ function reprintButtons(bill) {
   const forTest = live.map(p => ({ amount: p.amount, received_at: p.received_at, kind: p.kind, voided_at: null }))
   const combined = isCombinedPayment({ final_amount: bill.final_amount, created_at: bill.created_at }, forTest)
   const box = el('span', { style: 'display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap' })
+  const ti = bill.document_type === 'TAX_INVOICE'   // Session 345c2b (_s328_bill_json returns it)
   if (combined) {
-    box.appendChild(printButton('🖨 Bill cum Receipt', bill.prints, () => openBill(bill.id)))
+    box.appendChild(printButton('🖨 Bill cum Receipt', bill.prints, () => openBill(bill.id), ti))
     return box
   }
-  box.appendChild(printButton('🖨 Bill', bill.prints, () => openBill(bill.id)))
+  box.appendChild(printButton('🖨 Bill', bill.prints, () => openBill(bill.id), ti))
   for (const p of bill.payments || []) {
     box.appendChild(printButton(`🧾 ${p.receipt_no}${p.voided ? ' (void)' : ''}`, p.prints, () => openReceipt(p.id)))
   }

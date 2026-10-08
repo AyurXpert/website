@@ -75,6 +75,13 @@ function _bootMasterControl() {
     });
   });
 
+  // Session 345c2b (TODO §159): the HR header is sticky -- its height goes into --hr-sticky-h so a card scrolled into
+  // view (scroll-margin-top in admin.html) lands BELOW it instead of under it
+  const _hrSticky = document.querySelector('#section-hr .sec-hd-sticky');
+  if (_hrSticky && 'ResizeObserver' in window) {
+    new ResizeObserver(() => { if (_hrSticky.offsetHeight) document.documentElement.style.setProperty('--hr-sticky-h', `${_hrSticky.offsetHeight}px`); }).observe(_hrSticky);
+  }
+
   // ── Hash routing — honour admin.html#stats links from other pages ────────────
   // #target:sub (e.g. #hr:dept) also drives HR's own sub-tabs (.hr-tab, data-sub), which
   // aren't otherwise reachable via a direct link — Session 104: the NCISM Setup Compliance
@@ -6665,6 +6672,10 @@ const _MODULE_META = [
 
 window.loadModules = async function() {
   const el = document.getElementById('modules-body');
+  // Session 345c2b (TODO §162, the 8 Oct 2026 real check): the Tax & Invoicing card does not depend on the modules read --
+  // lock + reload it FIRST, so on a revisit the previous visit's card is never left editable while the tenant read below is
+  // in flight (a late reload used to wipe whatever was typed into it)
+  _renderTaxSettings();                                      // Session 345c2a
   const { data: t, error } = await supabase
     .from('tenants').select('modules, type').eq('id', tenantId).single();
   if (error) { el.innerHTML = `<div class="alert show error">Error loading: ${_esc(safeErrorMessage(error, 'Could not load modules.'))}</div>`; return; }
@@ -6675,7 +6686,6 @@ window.loadModules = async function() {
   const effective = { ...defaults, ...saved };
   _renderCounterSaleSetting(saved.counter_sale !== false);
   _renderReturnSettings();                                   // Session 344a
-  _renderTaxSettings();                                      // Session 345c2a
 
   el.innerHTML = `
     <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:12.5px;color:#7a5200">
@@ -6782,12 +6792,17 @@ function _renderCounterSaleSetting(on) {
 // each is saved at once by its own setter, which re-checks that the caller is this organisation's ACTIVE super_admin and
 // audits old -> new; the Feature Modules save never changes them. Built from DOM nodes + textContent only.
 // Session 345c2a: 🧾 Tax & Invoicing -- for the super_admin and dept_admin (the server re-checks every change)
+// Session 345c2b (TODO §159): ONE Tax & Invoicing card per page. Every visit to Feature Modules calls loadModules() ->
+// here, after its own async load; re-mounting then replaced a card the user could already be typing in. Now the first
+// visit mounts it and every later visit only reloads it (its forms are disabled while it reloads; stale replies ignored).
+let _taxCard = null;
 function _renderTaxSettings() {
   const box = document.getElementById('tax-settings');
   if (!box) return;
   box.hidden = !(role === 'super_admin' || role === 'dept_admin');
   if (box.hidden) return;
-  mountTaxSettings(box, { supabase });
+  if (_taxCard && box.querySelector('[data-tax-settings]')) { _taxCard.reload(); return; }
+  _taxCard = mountTaxSettings(box, { supabase });
 }
 
 async function _renderReturnSettings() {

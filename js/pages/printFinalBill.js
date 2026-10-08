@@ -12,13 +12,16 @@ import { uhidOf } from '../utils/uhid.js'
 import { renderInvoice, el } from '../modules/billing/invoiceLayout.js'
 import { isDemoTenant } from '../modules/billing/demoBanner.js'
 import { ensureSignedIn } from '../utils/signInGate.js'
+import { copyMarking, isSupplierCopy, canPrintSupplierCopy, openSupplierCopy } from '../modules/billing/copyMarking.js'
 
 wireDelegatedEvents()
 
 const admId    = new URLSearchParams(window.location.search).get('adm');
+const supplier = isSupplierCopy();   // Session 345c2b: ?copy=supplier = the supplier copy of a Tax Invoice
 const sheet    = document.getElementById('invoice');
 const statusEl = document.getElementById('status');
 const printBtn = document.getElementById('print-btn');
+const supBtn   = document.getElementById('supplier-btn');
 const adminBar = document.getElementById('admin-bar');
 
 const KIND_LABEL  = { advance: 'Advance', deposit: 'Deposit', payment: 'Payment', refund: 'Refund' };
@@ -109,23 +112,22 @@ function buildModel(d, copy) {
   }
   orgLines = orgLines.filter(Boolean);
 
-  // ── Title + copy marking (Session 342, TODO §141): the SERVER decides Original vs Duplicate (record_document_print);
-  // print 1 keeps this page's label (Tax Invoice "Original for Recipient", otherwise "Original") until the CA confirms;
-  // every reprint = "DUPLICATE COPY · No. N" in header AND footer + the watermark; CANCELLED wins; a draft is not marked.
-  const isDup  = !!copy && copy.copy !== 'ORIGINAL';
-  const copyNo = copy ? (Number(copy.print_no) || 1) + (copy.legacy ? 1 : 0) : null;
+  // ── Title + copy marking (Session 342, TODO §141): the SERVER decides the marking (record_document_print) -- Session
+  // 345c2b: a Tax Invoice "ORIGINAL FOR RECIPIENT" / "REPRINT · ORIGINAL FOR RECIPIENT · No. N" (watermark REPRINT), its
+  // supplier copy the server's supplier label, every other bill "Original" / "DUPLICATE COPY · No. N" -- the same words in
+  // header AND footer (js/modules/billing/copyMarking.js); CANCELLED wins; a draft is not marked.
+  const mk = copy ? copyMarking(copy, { supplier, fmtDT }) : null;
   let title = 'Final Bill', subtitle = 'In-Patient · Original', watermark = null;
   if (isGst) {
     if (isDraft) { title = 'Draft Bill'; subtitle = 'In-Patient'; watermark = 'DRAFT — NOT A TAX INVOICE'; }
     else {
       title = DOC_TITLE[docType] || 'Bill';
-      subtitle = docType === 'TAX_INVOICE' ? 'In-Patient · Original for Recipient' : 'In-Patient · Original';
       if (b.document_status === 'cancelled') watermark = 'CANCELLED';
     }
   }
-  if (isDup && !isDraft) {
-    subtitle = `In-Patient · DUPLICATE COPY · No. ${copyNo}`;
-    if (!watermark) watermark = 'DUPLICATE COPY';
+  if (mk && !isDraft) {
+    subtitle = `In-Patient · ${mk.mark}`;
+    if (mk.watermark && !watermark) watermark = mk.watermark;
   }
 
   // ── Bill To (decision 5): tenant default, per-bill override; GST uses the frozen recipient ──
@@ -212,7 +214,12 @@ function buildModel(d, copy) {
 
   // ── GST tax summary (by rate, from the stored line values) ──
   let taxSummary = null, taxNote = null;
-  if (exemptOnly) {
+  // Session 345c2b: a Bill of Supply prints the declaration frozen on it at issue (footer) INSTEAD of the exempt note;
+  // an older Bill of Supply (none frozen) keeps the note
+  const declaration = isGst && !isDraft && docType === 'BILL_OF_SUPPLY' && b.bos_declaration ? b.bos_declaration : null;
+  if (exemptOnly && declaration) {
+    taxNote = null;
+  } else if (exemptOnly) {
     const cats = [...new Set(d.items.map(it => TAXCAT_LABEL[it.tax_category] || 'Not taxable'))].join(' / ');
     taxNote = `GST: ${cats} — no GST is charged on this bill.`;
   } else if (isGst) {
@@ -289,11 +296,8 @@ function buildModel(d, copy) {
   const footer = [];
   if (isGst && docType === 'TAX_INVOICE' && !isDraft) footer.push('Whether tax is payable on reverse charge: No.');
   const docWord = isDraft ? 'Draft bill — not a tax invoice' : isGst ? `Computer-generated ${(DOC_TITLE[docType] || 'bill').toLowerCase()}` : 'Computer-generated bill — not a tax invoice';
-  if (isDup && !isDraft) {
-    footer.push(`Duplicate copy no. ${copyNo}. ${copy.legacy
-      ? 'Issued before print tracking began — an original may already have been given to the patient.'
-      : `The original was first printed ${fmtDT(copy.first_printed_at)}${copy.first_printed_by ? ' by ' + copy.first_printed_by : ''}.`}`);
-  }
+  if (declaration) footer.push(declaration);
+  if (mk?.footer && !isDraft) footer.push(mk.footer);
   footer.push(`${docWord}. Receipts were issued separately at the time of payment. · Powered by AyurXpert`);
 
   return {
@@ -364,9 +368,12 @@ async function load() {
   // bill-to change, a reload of the data, a future paper-size change -- reuses the recorded copy and logs nothing.
   // A GST draft is not a document: not recorded, not marked.
   const isDraft = data.bill.tax_regime === 'gst_v1' && data.bill.document_status === 'draft';
+  // Session 345c2b: the supplier copy is its own document ('bill_supplier') -- finalised Tax Invoices only, and the answer
+  // must carry the supplier label (fail closed)
+  if (supplier && !canPrintSupplierCopy(data.bill)) { showError('A supplier copy can be printed only for a finalised Tax Invoice.'); return; }
   if (!isDraft && (!_copy || _copyBill !== data.bill.id)) {
-    const rec = await supabase.rpc('record_document_print', { p_doc_type: 'bill', p_doc_id: data.bill.id });
-    if (rec.error || !rec.data) { showError(safeErrorMessage(rec.error, 'Could not record this print. Please try again.')); return; }
+    const rec = await supabase.rpc('record_document_print', { p_doc_type: supplier ? 'bill_supplier' : 'bill', p_doc_id: data.bill.id });
+    if (rec.error || !rec.data || (supplier && !rec.data.label)) { showError(safeErrorMessage(rec.error, 'Could not record this print. Please try again.')); return; }
     _copy = rec.data; _copyBill = data.bill.id;
   }
   render(data);
@@ -378,7 +385,12 @@ function render(data) {
   sheet.querySelector('.logo-img')?.addEventListener('error', e => e.target.remove());
   document.title = `${model.title} ${data.bill.document_number || ''} — ${data.patient?.name || ''}`.replace(/\s+/g, ' ').trim();
   printBtn.disabled = false;
+  // Session 345c2b: the optional supplier copy -- finalised Tax Invoices only, never offered on the supplier copy itself
+  if (supBtn) supBtn.hidden = supplier || !canPrintSupplierCopy(data.bill);
   renderAdminBar(data);
 }
+
+// opened straight from the click (no await first), so the browser never blocks it as a pop-up
+window.printSupplierCopy = () => openSupplierCopy();
 
 load();

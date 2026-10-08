@@ -108,6 +108,8 @@ html,body{min-height:100%;font-family:'DM Sans',sans-serif;background:var(--crea
 /* HR section header — sticky so its sub-nav stays reachable while scrolling long lists */
 .sec-hd-sticky{position:sticky;top:var(--nav-h);z-index:40;background:var(--cream);padding:12px 0;margin:-12px 0 22px;border-bottom:1px solid var(--border)}
 .hr-tabs-row{display:flex;gap:8px;flex-wrap:wrap;max-width:100%}
+/* Session 345c2b (TODO §159): a tax approval card scrolled into view lands below the sticky HR header (--hr-sticky-h: admin.js) */
+#taxappr-hr-root .rq-card,#itemtax-hr-root .rq-card,#taxappr-hr-root [data-tax-approvals],#itemtax-hr-root [data-decided-notice],#taxappr-hr-root [data-decided-notice]{scroll-margin-top:calc(var(--nav-h) + var(--hr-sticky-h,180px) + 12px)}
 @media(max-width:860px){
   .sec-hd-sticky{width:100%}
   .hr-tabs-row{width:100%;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;scrollbar-width:thin}

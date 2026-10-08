@@ -15,13 +15,16 @@ import { isCombinedPayment } from '../modules/billing/opdPayments.js'
 import { renderInvoice, el } from '../modules/billing/invoiceLayout.js'
 import { isDemoTenant } from '../modules/billing/demoBanner.js'
 import { ensureSignedIn } from '../utils/signInGate.js'
+import { copyMarking, isSupplierCopy, canPrintSupplierCopy, openSupplierCopy } from '../modules/billing/copyMarking.js'
 
 wireDelegatedEvents()
 
 const billId   = new URLSearchParams(window.location.search).get('billId')
+const supplier = isSupplierCopy()   // Session 345c2b: ?copy=supplier = the supplier copy of a Tax Invoice
 const sheet    = document.getElementById('invoice')
 const statusEl = document.getElementById('status')
 const printBtn = document.getElementById('print-btn')
+const supBtn   = document.getElementById('supplier-btn')
 
 const tenant = (() => { try { return JSON.parse(sessionStorage.getItem('ayurxpert_tenant') || '{}') } catch { return {} } })()
 
@@ -85,18 +88,19 @@ function buildModel(d, copy) {
     }
   }
   const kind = cat === 'investigation' ? 'Laboratory / Investigations' : 'Out-Patient'
-  // Original or Duplicate copy: decided by the server (record_document_print) from the print audit trail
-  const isDup = copy.copy !== 'ORIGINAL'
-  // ONE copy number for header and footer: a pre-tracking document's assumed original is copy 1, so its first tracked reprint is No. 2
-  const copyNo = (Number(copy.print_no) || 1) + (copy.legacy ? 1 : 0)
-  const subtitle = `${kind}${combined && !(num(b.final_amount) < 0.005) ? ' · Paid in full' : ''}${num(b.final_amount) < 0.005 ? ' · No charge' : ''} · ${isDup ? 'DUPLICATE COPY · No. ' + copyNo : 'Original'}`
-  if (isDup && !watermark) watermark = 'DUPLICATE COPY'
+  // Copy marking: decided by the server (record_document_print) from the print audit trail -- Session 345c2b: a Tax Invoice
+  // says ORIGINAL FOR RECIPIENT / REPRINT · ... · No. N, its supplier copy the server's supplier label (js/modules/billing/copyMarking.js)
+  const mk = copyMarking(copy, { supplier, fmtDT })
+  const subtitle = `${kind}${combined && !(num(b.final_amount) < 0.005) ? ' · Paid in full' : ''}${num(b.final_amount) < 0.005 ? ' · No charge' : ''} · ${mk.mark}`
+  if (mk.watermark && !watermark) watermark = mk.watermark
 
   // ── Header strip ──
   const meta = [
     // "Invoice No." only on a Tax Invoice; a Bill of Supply (and every other bill) carries a Bill No.
     { label: isGst && !isDraft && docType === 'TAX_INVOICE' ? 'Invoice No.' : 'Bill No.', value: b.document_number || 'Not numbered', gap: !b.document_number },
-    { label: 'Bill Date', value: fmtDT(b.created_at) },
+    // Session 345c2b (Rule 49): a finalised GST document shows its document date; anything else the date it was made
+    { label: isGst && !isDraft && docType === 'TAX_INVOICE' ? 'Invoice Date' : 'Bill Date',
+      value: isGst && !isDraft && b.document_date ? fmtD(b.document_date) : fmtDT(b.created_at) },
   ]
   if (v.token_number != null) meta.push({ label: 'Visit', value: `Token ${v.token_number}`, sub: v.created_at ? fmtD(v.created_at) : null })
   if (d.doctor) meta.push({ label: 'Doctor', value: d.doctor, sub: d.opd || null })
@@ -112,6 +116,8 @@ function buildModel(d, copy) {
     { label: 'Payer', value: b.payer_type && b.payer_type !== 'self_pay' ? (PAYER_LABEL[b.payer_type] || b.payer_type) : 'Self-pay' },
   ]
   fields.push({ label: 'Address', value: pt.address || 'Not recorded', gap: !pt.address, wide: true })
+  // Session 345c2b (Rule 49): the recipient's GSTIN, when the bill has one
+  if (isGst && b.recipient_gstin) fields.push({ label: 'Recipient GSTIN', value: b.recipient_gstin })
 
   // ── Charges ──
   let n = 0
@@ -160,7 +166,12 @@ function buildModel(d, copy) {
 
   // ── GST tax summary (by rate, from the stored line values) ──
   let taxSummary = null, taxNote = null
-  if (exemptOnly) {
+  // Session 345c2b: a Bill of Supply prints the declaration frozen on it at issue (footer) INSTEAD of the exempt note;
+  // an older Bill of Supply (none frozen) keeps the note
+  const declaration = isGst && !isDraft && docType === 'BILL_OF_SUPPLY' && b.bos_declaration ? b.bos_declaration : null
+  if (exemptOnly && declaration) {
+    taxNote = null
+  } else if (exemptOnly) {
     const cats = [...new Set(d.items.map(it => TAXCAT_LABEL[it.tax_category] || 'Not taxable'))].join(' / ')
     taxNote = `GST: ${cats} — no GST is charged on this bill.`
   } else if (isGst) {
@@ -221,12 +232,9 @@ function buildModel(d, copy) {
   const left = [`Prepared by: ${preparedBy || '____________________'}`]
   const footer = []
   if (isGst && docType === 'TAX_INVOICE' && !isDraft) footer.push('Whether tax is payable on reverse charge: No.')
-  if (combined) footer.push('This document serves as both the bill and the payment receipt.')
-  if (isDup) {
-    footer.push(`Duplicate copy no. ${copyNo}. ${copy.legacy
-      ? 'Issued before print tracking began — an original may already have been given to the patient.'
-      : `The original was first printed ${fmtDT(copy.first_printed_at)}${copy.first_printed_by ? ' by ' + copy.first_printed_by : ''}.`}`)
-  }
+  if (declaration) footer.push(declaration)
+  if (combined && !supplier) footer.push('This document serves as both the bill and the payment receipt.')
+  if (mk.footer) footer.push(mk.footer)
   const docWord = isDraft ? 'Draft bill — not a tax invoice' : isGst ? `Computer-generated ${(DOC_TITLE[docType] || 'bill').toLowerCase()}` : 'Computer-generated bill — not a tax invoice'
   footer.push(`${docWord}. · Powered by AyurXpert`)
 
@@ -276,14 +284,22 @@ async function load() {
   }
   // Print audit: the SERVER records this print and says whether it is the Original or a Duplicate copy. If that
   // cannot be established the document is not shown at all (an unmarked copy must never be printable).
-  const rec = await supabase.rpc('record_document_print', { p_doc_type: 'bill', p_doc_id: billId })
-  if (rec.error || !rec.data) { showError(safeErrorMessage(rec.error, 'Could not record this print. Please try again.')); return }
+  // Session 345c2b: the supplier copy is recorded as its own document ('bill_supplier'); the server refuses it unless
+  // the bill is a finalised Tax Invoice, and its answer must carry the supplier label (fail closed)
+  if (supplier && !canPrintSupplierCopy(bill)) { showError('A supplier copy can be printed only for a finalised Tax Invoice.'); return }
+  const rec = await supabase.rpc('record_document_print', { p_doc_type: supplier ? 'bill_supplier' : 'bill', p_doc_id: billId })
+  if (rec.error || !rec.data || (supplier && !rec.data.label)) { showError(safeErrorMessage(rec.error, 'Could not record this print. Please try again.')); return }
   const model = buildModel(d, rec.data)
   renderInvoice(sheet, model)
   sheet.querySelector('.logo-img')?.addEventListener('error', e => e.target.remove())
   document.title = `${model.title} ${bill.document_number || ''} — ${d.patient?.name || ''}`.replace(/\s+/g, ' ').trim()
   printBtn.disabled = false
+  // Session 345c2b: the optional supplier copy -- finalised Tax Invoices only, never offered on the supplier copy itself
+  if (supBtn) supBtn.hidden = supplier || !canPrintSupplierCopy(bill)
   setStatus('')
 }
+
+// opened straight from the click (no await first), so the browser never blocks it as a pop-up
+window.printSupplierCopy = () => openSupplierCopy()
 
 load()

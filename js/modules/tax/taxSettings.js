@@ -49,9 +49,17 @@ export function mountTaxSettings(root, { supabase, onChange } = {}) {
     el('p', { class: 'rp-sub' }, 'Changes to the IP-medicines choice and the default tax profiles need a second person\'s approval (a Super Admin or Finance Manager — never the person who asked, except an organisation\'s only Super Admin). Bills already issued never change.'),
     top, body));
 
+  // Session 345c2b (TODO §159): while a reload runs, the current forms are disabled (nothing typed into them can be lost
+  // when they are replaced), and only the LATEST reload's answer is used (a slower, older reply is ignored)
+  let _seq = 0;
   async function reload() {
+    const my = ++_seq;
+    body.setAttribute('aria-busy', 'true');
+    body.querySelectorAll('input, select, textarea, button').forEach(c => { c.disabled = true; });
     say(top, 'Loading…');
     const { data, error } = await supabase.rpc('get_tax_settings_overview');
+    if (my !== _seq) return;                                            // a newer reload has started: this reply is stale
+    body.removeAttribute('aria-busy');
     if (error || !data) { say(top, safeErrorMessage(error, 'Could not load the tax settings.'), true); body.replaceChildren(); return; }
     say(top, '');
     body.replaceChildren(ipSection(data), defaultsSection(data), declarationSection(data), pharmacySection(data));

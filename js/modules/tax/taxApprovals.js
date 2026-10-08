@@ -107,7 +107,10 @@ export function mountTaxApprovals(root, { supabase, onCount, onDecided } = {}) {
     actions.replaceChildren(el('div', { class: 'rq-decide', role: 'group', 'aria-label': approve ? 'Approve this request' : 'Reject this request' },
       el('label', { for: nId, class: 'rp-lbl' }, approve ? 'Approve — note (optional)' : 'Reject — reason (required)'), note,
       el('div', { class: 'rp-actions' }, back, go)));
-    note.focus();
+    // Session 345c2b (TODO §159): bring the WHOLE card (its old -> new table) into view; its scroll-margin-top keeps it
+    // below a sticky page header -- a plain focus() scrolled only the note box into view, the table under the header
+    note.focus({ preventScroll: true });
+    actions.closest('.rq-card')?.scrollIntoView({ block: 'start' });
   }
 
   reload();
