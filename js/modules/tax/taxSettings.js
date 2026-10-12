@@ -1,6 +1,7 @@
-// taxSettings.js -- the "🧾 Tax & Invoicing" card (Session 345c2a, GST Stage 5): the IP-medicines choice, the default tax
-// profiles, the Bill of Supply declaration and the pharmacy GST go-live date. One read (get_tax_settings_overview: own
-// organisation, tax makers / approvers only); every change goes through its own server function, which re-checks the role:
+// taxSettings.js -- the "🧾 Tax & Invoicing" card (Session 345c2a, GST Stage 5): the GST readiness check (Session 345d), the
+// IP-medicines choice, the default tax profiles, the Bill of Supply declaration and the pharmacy GST go-live date. Reads:
+// get_tax_settings_overview and gst_readiness (both: own organisation, active tax makers / approvers only); every change goes
+// through its own server function, which re-checks the role:
 //   * IP-medicines choice  -> request_ip_medicine_tax      (maker-checker, 'ip_medicine_tax')
 //   * default profiles     -> request_tax_defaults_change  (maker-checker, 'tax_defaults_change')
 //   * declaration          -> set_bos_declaration          (active super_admin only)
@@ -62,11 +63,71 @@ export function mountTaxSettings(root, { supabase, onChange } = {}) {
     body.removeAttribute('aria-busy');
     if (error || !data) { say(top, safeErrorMessage(error, 'Could not load the tax settings.'), true); body.replaceChildren(); return; }
     say(top, '');
-    body.replaceChildren(ipSection(data), defaultsSection(data), declarationSection(data), pharmacySection(data));
+    body.replaceChildren(readinessSection(data), ipSection(data), defaultsSection(data), declarationSection(data), pharmacySection(data));
   }
 
   // reload FIRST, then show the result (a reload clears the status line -- the 345b "message kept after reload" lesson)
   const after = async (node, okText) => { onChange?.(); await reload(); say(node, okText); };
+
+  // ── 0. Session 345d: the GST readiness check (gst_readiness) -- what would stop GST billing going live on a date. The SAME
+  // check refuses set_tax_go_live on the server (only when the date is set or changed); this list is read-only.
+  const LEVEL = { block: ['✖', 'Blocks'], warn: ['⚠', 'Warning'], info: ['ℹ', 'Note'], ok: ['✓', 'OK'] };
+  function readinessSection(d) {
+    const g = d.gst || {};
+    const sec = el('section', { class: 'ts-sec', 'data-sec': 'readiness' }, el('h4', { class: 'ts-h4' }, 'GST readiness'));
+    const live = g.go_live_date && g.go_live_date <= d.today;
+    sec.append(el('p', { class: 'rp-muted' }, live
+      ? `GST billing is live since ${fmtD(g.go_live_date)}. This check is for information: it is applied again only when the GST go-live date is set or changed.`
+      : 'Setting the GST go-live date is refused while any line under "GST billing" blocks. Pharmacy lines are shown but never block it.'));
+    const date = el('input', { type: 'date', class: 'rp-input', id: uid('ts-rd'),
+      value: g.go_live_date && g.go_live_date > d.today ? g.go_live_date : d.today });
+    const out = el('div', { 'data-readiness': '', 'aria-live': 'polite' });
+    const msg = status();
+    let seq = 0;
+    const check = btn('Check', 'rp-btn rp-btn-go', () => run(), { 'data-readiness-check': '' });
+    async function run() {
+      const my = ++seq;
+      if (!date.value) { say(msg, 'Choose a date.', true); date.focus(); return; }
+      check.disabled = true; out.setAttribute('aria-busy', 'true'); say(msg, 'Checking…');
+      const { data, error } = await supabase.rpc('gst_readiness', { p_as_of: date.value });
+      if (my !== seq) return;                                           // a newer check has started: this reply is stale
+      check.disabled = false; out.removeAttribute('aria-busy');
+      if (error || !data) { say(msg, safeErrorMessage(error, 'Could not run the readiness check.'), true); out.replaceChildren(); return; }
+      say(msg, '');
+      out.replaceChildren(...readinessResult(data));
+    }
+    sec.append(el('div', { class: 'rp-row' }, field('Check as of', date), el('div', { class: 'rp-actions' }, check)), msg, out);
+    run();
+    return sec;
+  }
+  function readinessResult(r) {
+    const items = r.items || [];
+    const nb = Number(r.counts?.block || 0), nw = Number(r.counts?.warn || 0);
+    const sum = el('p', { class: 'ts-rd-sum ' + (r.ready ? 'ok' : 'no'), 'data-readiness-summary': '' },
+      r.ready ? `✓ Ready for GST billing on ${fmtD(r.as_of)} — nothing blocks.` : `✖ Not ready for GST billing on ${fmtD(r.as_of)} — ${nb} item(s) block go-live.`,
+      nw ? ` ${nw} warning(s).` : '');
+    const group = (section, heading) => {
+      const mine = items.filter(i => i.section === section);
+      const shown = mine.filter(i => i.level !== 'ok'), passed = mine.filter(i => i.level === 'ok');
+      const box = el('div', { class: 'ts-rd-group', 'data-readiness-group': section }, el('div', { class: 'rp-lbl' }, heading));
+      if (shown.length) box.append(el('ul', { class: 'ts-rd-list' }, shown.map(line)));
+      if (passed.length) {
+        box.append(el('details', { class: 'ts-rd-passed' }, el('summary', null, `${passed.length} check(s) passed`),
+          el('ul', { class: 'ts-rd-list' }, passed.map(line))));
+      }
+      return box;
+    };
+    return [sum, group('gst', 'GST billing (decides go-live)'), group('pharmacy', 'Pharmacy (shown; never blocks GST go-live)')];
+  }
+  function line(i) {
+    const [icon, word] = LEVEL[i.level] || ['•', i.level];
+    const ex = Array.isArray(i.examples) ? i.examples : [];
+    const more = Number(i.count || 0) > ex.length ? ` … and ${Number(i.count) - ex.length} more` : '';
+    return el('li', { class: 'ts-rd-item', 'data-code': i.code, 'data-level': i.level },
+      el('span', { class: 'ts-lvl ts-lvl-' + i.level }, `${icon} ${word}`), ' ', el('span', { class: 'ts-rd-title' }, i.title || ''),
+      i.detail ? el('div', { class: 'rp-muted' }, i.detail) : null,
+      ex.length ? el('div', { class: 'rp-muted' }, 'e.g. ' + ex.join(', ') + more) : null);
+  }
 
   // ── 1. the IP-medicines choice ──
   function ipSection(d) {
