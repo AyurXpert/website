@@ -104,6 +104,7 @@
       <a href="#accounts">3. Accounts</a>
       <a href="#hr">4. Human Resources</a>
       <a href="#hr-ncism-invite" class="sub">4.1 NCISM Invite to Fill Position</a>
+      <a href="#hr-credentials" class="sub">4.2 Reg. No. &amp; Licence on Bills</a>
       <a href="#departments">5. Departments</a>
       <a href="#infrastructure">6. Infrastructure</a>
       <a href="#packages">7. Packages</a>
@@ -144,7 +145,7 @@
     </div>
 
     <h3 id="overview-nav">1.2 Sidebar Navigation</h3>
-    <p>The left sidebar is an icon-rail that expands to show labels on hover (52px collapsed → 248px expanded). It's organised into four groups: <strong>Operations</strong> (Statistics, Accounts), <strong>Organisation</strong> (Human Resources, Departments, Infrastructure, Packages), <strong>Account</strong> (Subscription, Feature Modules, ABDM Bridge), and <strong>Quick Links</strong> (shortcuts to reception.html, opd-admin.html, bed-admin.html, ncism-compliance.html, Monthly Report, NCISM Reports).</p>
+    <p>The left sidebar is an icon-rail that expands to show labels on hover (52px collapsed → 248px expanded). It's organised into four groups: <strong>Operations</strong> (Statistics, Accounts), <strong>Organisation</strong> (Human Resources, HR &amp; Credentials, Departments, Infrastructure, Packages), <strong>Account</strong> (Subscription, Feature Modules, ABDM Bridge), and <strong>Quick Links</strong> (shortcuts to reception.html, opd-admin.html, bed-admin.html, ncism-compliance.html, Monthly Report, NCISM Reports).</p>
 
     <hr />
 
@@ -178,6 +179,21 @@
       <li>Copy the link and share it yourself via WhatsApp, SMS or email (there is no automatic email dispatch).</li>
     </ol>
     <p>When the candidate opens the link, their organisation, role and department are already locked in — they only fill in their own name, contact details and password. Their account lands in <strong>Login Access approvals</strong> exactly like any other signup, pending your final approval; once approved, the ladder's gap for that position automatically closes. A small "🔗 N pending" note appears next to a row if an invite has already been sent and is still awaiting signup — so you don't accidentally send a duplicate.</p>
+
+    <h3 id="hr-credentials" style="scroll-margin-top: 10px">4.2 Registration No., Qualification &amp; Licence on Bills</h3>
+    <p>Bills and prescriptions print the prescriber's Registration No., the dispensing pharmacist's qualification and Registration No., and the organisation's drug / pharmacy licence no. They print <strong>only values your organisation has verified</strong>.</p>
+    <ol style="margin: 8px 0 14px 20px; line-height: 2;">
+      <li><strong>Staff enter their own details</strong> — Account → 👤 My Profile → <em>Professional Registration</em>: Registration No., issuing council / board and qualification, then <strong>Submit for verification</strong> (doctors, PG scholars / interns, pharmacists, nurses, lab and therapy staff). They should upload a copy of the certificate under Official Documents. A Registration No. typed at staff signup arrives here as a pending submission too.</li>
+      <li><strong>An admin verifies</strong> — the <strong>🏅 HR &amp; Credentials</strong> icon in the left rail, or Human Resources → <strong>🏅 Credentials (Reg. No.)</strong>, opens <code>hr.html</code>'s Credentials tab. <em>Registration on bills — pending verification</em> shows each submission next to what prints now. <strong>✔ Verify</strong> makes it print from that moment; <strong>✖ Reject…</strong> needs a reason, which the staff member sees in My Profile. Nobody can verify their own submission — another super_admin / dept_admin must.</li>
+      <li><strong>Values on file from before verification</strong> keep printing and are labelled "On file (before verification)". They appear in the same pending list with <strong>✔ Verify as on file</strong> (marks them verified without changing them), or use Correct below if they are wrong.</li>
+      <li><strong>Changes</strong> — a staff member who submits a change goes back to "Pending"; bills keep printing the previously verified value until the change is approved. A prescription keeps the Reg. No. it was stamped with when it was written.</li>
+      <li><strong>Correct</strong> (in <em>Printed on bills now</em>) lets an admin fix a staff member's printed values directly from the original certificate — a reason is required and recorded. You cannot correct your own.</li>
+      <li><strong>HPR ID</strong> (ABDM Healthcare Professional Registry, 14 digits) goes through the same submit → verify flow. A change submitted without an HPR ID keeps the verified one.</li>
+      <li><strong>Medical certificates</strong> are numbered <code>MC/&lt;year&gt;/&lt;n&gt;</code> per organisation when issued (doctors only) and can be reprinted from the patient's visit history, My Patients or the 🧾 Visits &amp; Bills search — every print after the first is marked “Duplicate copy No. N”.</li>
+      <li><strong>Frozen on every signed document</strong> — a pharmacy bill (pharmacist + licence), prescription, medical certificate, discharge summary, MHA consent and OT record keeps the identity that was verified when it was created or signed. A later verification or correction changes new documents only. Documents made before this existed show the current verified details.</li>
+      <li><strong>Drug / pharmacy licence no.</strong> — Organisation Profile → <em>Drug / pharmacy licence no. (optional)</em>. Only a <span class="badge badge-super_admin">super_admin</span> can change it.</li>
+    </ol>
+    <p>Every submission, verification, rejection, correction and licence change is recorded in the audit log (who, when, old → new value).</p>
 
     <hr />
 
@@ -237,6 +253,18 @@
 
     <h2 id="modules">9. Feature Modules</h2>
     <p>Toggle which optional feature modules are visible/enabled for this tenant's staff (tied to the tenant's plan — some modules may be locked on lower plans; see the Plan Features checklist under Section 8.1).</p>
+    <p><strong>Counter sale (walk-in, no prescription)</strong> — shown above the module grid when your organisation has the pharmacy module. It is <strong>ON</strong> unless you switch it off. When ON, the pharmacist, cashier and admins can sell to a walk-in customer from Dispensary POS (NDPS, Schedule H1 and Schedule H medicines are always refused there). When OFF, only prescriptions can be dispensed. Only your organisation's Super Admin can switch it, using its own Switch ON / Switch OFF button (it is saved at once, not with "Save Changes"), and every change is recorded in the audit log.</p>
+
+    <p><strong>🧾 Tax &amp; Invoicing</strong> — also on this page (Super Admin, Dept Admin; Accountant and Finance Manager see it under Finance → 🧾 Tax settings): the IP-medicines choice and the default tax profiles (both need a second person's approval), the <strong>Bill of Supply declaration</strong> (Super Admin; up to 300 characters, one line; empty = the standard Section 31(3)(c) / Rule 49 wording) and the pharmacy GST go-live date. The declaration is fixed on each Bill of Supply when it is issued and printed at its foot (it replaces the old "no GST is charged" note); later changes never alter issued bills.</p>
+    <p><strong>GST readiness</strong> — the first part of the 🧾 Tax &amp; Invoicing card. Pick a date and press <strong>Check</strong>: it lists what would stop GST billing going live on that date. Each line is marked <strong>✖ Blocks</strong>, <strong>⚠ Warning</strong>, <strong>ℹ Note</strong> or <strong>✓ OK</strong> (the OK lines are folded under "N check(s) passed").</p>
+    <ul>
+      <li><strong>GST billing (decides go-live)</strong> — blocks when: the organisation is not marked GST-registered; the GSTIN, legal name, registered address or state code is missing; the state code is not the first two digits of the GSTIN; a demo organisation's legal name does not say DEMO; the default treatment-services profile is missing or not usable; or a tax profile your fee items use is not usable; or <strong>no IP-medicines choice</strong> (exempt or chargeable) is in force on the date, or the choice is EXEMPT but its profile is not exempt on that date (on a GST-live organisation either one stops IPD medicines being dispensed or billed on treatment admissions). "Usable" on the checked date means: your own, active, with a version <em>approved and in force</em> on that date, and <em>not</em> marked "Accounts review required". A fee item without its own tax profile is taxed through the default treatment-services profile, so if that default is not usable, one line under the default says how many fee items depend on it.</li>
+      <li><strong>Warnings</strong> (do not block): no default wellness-services profile; the room-rent rule is on but the room tax profiles are not both set (this will block once the room settings screen is added).</li>
+      <li><strong>Note</strong>: the document-number prefixes in use (TI, BS, B, RCPT, CN, DN by default).</li>
+      <li><strong>Pharmacy</strong> — shown, never blocks GST go-live: stocked medicines without an HSN / tax record or an OP (sale) profile; under a CHARGEABLE choice with no fallback, stocked medicines without an IP profile (only their IPD bills are refused); and the pharmacy go-live date (which has its own check).</li>
+    </ul>
+    <p>The same check runs on the server when the Super Admin <strong>sets or changes</strong> the GST go-live date: the date is refused while any GST line blocks, and the message names the blocking lines. An organisation that is already GST-live is not re-checked when anything else changes. The check is visible only to your own Super Admin, Dept Admin, Finance Manager and Accountant (active accounts).</p>
+    <p><strong>Printed copies of GST documents</strong> — a <strong>Tax Invoice</strong> prints <strong>ORIGINAL FOR RECIPIENT</strong> first and <strong>REPRINT · ORIGINAL FOR RECIPIENT · No. N</strong> after (A4 reprints also carry a "REPRINT" watermark). Its print page has an optional <strong>Print supplier copy</strong> button (finalised Tax Invoices only): the server labels it <strong>TRIPLICATE FOR SUPPLIER</strong> when the invoice has any medicine / goods line, otherwise <strong>DUPLICATE FOR SUPPLIER</strong>; the supplier copy has its own count (its first print is No. 1, later ones "REPRINT · … FOR SUPPLIER · No. N") and never changes the patient's copy number. There is no transporter copy. Every other document — Bills of Supply, plain bills, receipts, slips — keeps "Original" / "DUPLICATE COPY · No. N". GST documents show their document date, a recipient GSTIN when the bill has one, and the pharmacy bill is signed "Registered Pharmacist · Authorised Signatory". Every print is recorded by the server.</p>
 
     <hr />
 
