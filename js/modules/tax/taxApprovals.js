@@ -1,17 +1,17 @@
-// taxApprovals.js -- the IP-medicines choice and default tax profile requests waiting for approval (Session 345c2a; the
-// itemTax.js pattern). Each request shows who asked, why, and an old -> new table; Approve / Reject (a reason of at least 5
+// taxApprovals.js -- the IP-medicines choice, default tax profile and room tax profile (Session 345e) requests waiting for
+// approval (Session 345c2a; the itemTax.js pattern). Each request shows who asked, why, and an old -> new table; Approve / Reject (a reason of at least 5
 // characters to reject) only where the server says this person may decide (approval_decide_check). The decision itself is
 // decide_approval (re-checked on the server). DOM nodes + textContent only; no native confirm() / alert() / prompt().
 import { safeErrorMessage } from '../../utils/errors.js';
 import { el } from '../pharmacy/returnPanel.js';
 
-export const TAX_APPROVAL_TYPES = ['ip_medicine_tax', 'tax_defaults_change'];
+export const TAX_APPROVAL_TYPES = ['ip_medicine_tax', 'tax_defaults_change', 'room_tax_change'];
 const btn = (label, cls, onClick, attrs = {}) => { const b = el('button', { type: 'button', class: cls, ...attrs }, label); b.addEventListener('click', onClick); return b; };
 let _n = 0;
 const uid = p => `${p}-${++_n}`;
 const when = iso => iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 const fmtD = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-const TITLE = { ip_medicine_tax: 'IP-medicines tax choice', tax_defaults_change: 'Default tax profiles' };
+const TITLE = { ip_medicine_tax: 'IP-medicines tax choice', tax_defaults_change: 'Default tax profiles', room_tax_change: 'Room tax profiles (IPD)' };
 const REASON = { own_request: 'You asked for this change — another authorised person decides it.', inactive: 'Your account is not active.',
   not_authorised: 'Waiting for the Super Admin or Finance Manager.' };
 
@@ -26,6 +26,13 @@ function rowsFor(a) {
   if (a.action_type === 'ip_medicine_tax') {
     return [['Choice', choiceText(p.old), choiceText(p)],
             ['Effective from', p.old?.effective_from ? fmtD(p.old.effective_from) : '—', fmtD(p.effective_from)]];
+  }
+  if (a.action_type === 'room_tax_change') {   // Session 345e
+    const o = p.old || {};
+    return [['Taxable rooms', o.taxable_profile_name || 'not set', p.taxable_profile_name || 'not set'],
+            ['Exempt rooms', o.exempt_profile_name || 'not set', p.exempt_profile_name || 'not set'],
+            ['Wellness stays', o.wellness_profile_name || 'not set', p.wellness_profile_name || 'not set'],
+            ['Effective from', o.effective_from ? fmtD(o.effective_from) : '—', fmtD(p.effective_from)]];
   }
   const on = p.old_names || {}, nn = p.new_names || {};
   return [['OP medicines (goods)', on.goods_op || 'not set', nn.goods_op || 'not set'],

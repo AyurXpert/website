@@ -1,9 +1,13 @@
 // taxSettings.js -- the "🧾 Tax & Invoicing" card (Session 345c2a, GST Stage 5): the GST readiness check (Session 345d), the
-// IP-medicines choice, the default tax profiles, the Bill of Supply declaration and the pharmacy GST go-live date. Reads:
+// IP-medicines choice, the default tax profiles, the room-rent tax and the document numbering (Session 345e), the Bill of Supply
+// declaration and the pharmacy GST go-live date. Reads:
 // get_tax_settings_overview and gst_readiness (both: own organisation, active tax makers / approvers only); every change goes
 // through its own server function, which re-checks the role:
 //   * IP-medicines choice  -> request_ip_medicine_tax      (maker-checker, 'ip_medicine_tax')
 //   * default profiles     -> request_tax_defaults_change  (maker-checker, 'tax_defaults_change')
+//   * room-rent tax        -> request_room_tax_change      (maker-checker, 'room_tax_change'; effective-dated, never back-dated;
+//                                                          the Rs 5,000 threshold + ICU exclusion are platform values, shown only)
+//   * document numbering   -> set_document_numbering       (active super_admin only; saving = confirming, also when unchanged)
 //   * declaration          -> set_bos_declaration          (active super_admin only)
 //   * pharmacy go-live     -> set_pharmacy_gst_go_live     (active super_admin only; the server's refusal reason is shown)
 // No GST rate is written here -- the profiles and their rates come from the server. DOM nodes + textContent only; no native
@@ -47,7 +51,7 @@ export function mountTaxSettings(root, { supabase, onChange } = {}) {
   const body = el('div', { class: 'ts-body' });
   root.replaceChildren(el('section', { class: 'rp-card ts-card', 'aria-labelledby': hId, 'data-tax-settings': '' },
     el('div', { class: 'rp-row rq-head' }, el('h3', { class: 'rp-h', id: hId }, '🧾 Tax & Invoicing'), btn('↻ Refresh', 'rp-btn', () => reload())),
-    el('p', { class: 'rp-sub' }, 'Changes to the IP-medicines choice and the default tax profiles need a second person\'s approval (a Super Admin or Finance Manager — never the person who asked, except an organisation\'s only Super Admin). Bills already issued never change.'),
+    el('p', { class: 'rp-sub' }, 'Changes to the IP-medicines choice, the default tax profiles and the room tax profiles need a second person\'s approval (a Super Admin or Finance Manager — never the person who asked, except an organisation\'s only Super Admin). Bills already issued never change.'),
     top, body));
 
   // Session 345c2b (TODO §159): while a reload runs, the current forms are disabled (nothing typed into them can be lost
@@ -63,7 +67,8 @@ export function mountTaxSettings(root, { supabase, onChange } = {}) {
     body.removeAttribute('aria-busy');
     if (error || !data) { say(top, safeErrorMessage(error, 'Could not load the tax settings.'), true); body.replaceChildren(); return; }
     say(top, '');
-    body.replaceChildren(readinessSection(data), ipSection(data), defaultsSection(data), declarationSection(data), pharmacySection(data));
+    body.replaceChildren(readinessSection(data), ipSection(data), defaultsSection(data), roomSection(data), numberingSection(data),
+                         declarationSection(data), pharmacySection(data));
   }
 
   // reload FIRST, then show the result (a reload clears the status line -- the 345b "message kept after reload" lesson)
@@ -223,6 +228,166 @@ export function mountTaxSettings(root, { supabase, onChange } = {}) {
     };
     Object.values(sels).forEach(s => s.addEventListener('change', upd)); upd();
     sec.append(el('div', { class: 'rp-form', 'data-form': 'defaults' }, fields, preview, el('div', { class: 'rp-actions' }, send), msg));
+    return sec;
+  }
+
+  // ── 2b. Session 345e: the room-rent tax -- the platform rule (the law: the threshold and the ICU exclusion, shown only) and
+  // this organisation's room profiles (effective-dated, a second person approves; never back-dated)
+  const inr = n => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+  const bedType = t => String(t || '').replace(/_/g, ' ');
+  function roomSection(d) {
+    const rt = d.room_tax || {}, pl = rt.platform || {};
+    const ccTypes = pl.critical_care_bed_types || [];
+    const cc = ccTypes.map(x => String(x).toUpperCase()).join(', ') || 'no';
+    const sec = el('section', { class: 'ts-sec', 'data-sec': 'room' }, el('h4', { class: 'ts-h4' }, 'Room rent tax (IPD)'),
+      el('p', { class: 'rp-muted', 'data-room-rule': '' },
+        `Room rent above ${inr(pl.threshold)} per day per patient is taxable; ${cc} beds are always exempt. This is the GST rule itself — set by the platform, not by an organisation, and to be confirmed by your CA before IPD GST goes live.`));
+    const rules = rt.rules || [];
+    const cur = rules.find(r => r.state === 'current');
+    sec.append(el('div', { class: 'rp-kv', 'data-room-now': '' },
+      el('div', null, `Taxable rooms (above ${inr(pl.threshold)}): ${cur?.taxable_profile_name || 'not set'}`),
+      el('div', null, `Exempt rooms (up to ${inr(pl.threshold)}, and ${cc}): ${cur?.exempt_profile_name || 'not set'}`),
+      el('div', null, `Wellness / rejuvenation stays: ${cur?.wellness_profile_name || 'not set — they follow the rule above'}`)));
+    if (rules.length) {
+      sec.append(el('div', { class: 'rp-tablewrap' }, el('table', { class: 'rp-table', 'data-room-history': '' },
+        el('thead', null, el('tr', null, ['From', 'Taxable rooms', 'Exempt rooms', 'Wellness', 'State', 'Set by'].map(h => el('th', { scope: 'col' }, h)))),
+        el('tbody', null, rules.map(r => el('tr', null, el('td', null, r.source === 'seed' ? 'Since GST began' : fmtD(r.effective_from)),
+          el('td', null, r.taxable_profile_name || '—'), el('td', null, r.exempt_profile_name || '—'), el('td', null, r.wellness_profile_name || '—'),
+          el('td', null, r.state === 'current' ? 'In force' : r.state === 'future' ? 'From a later date' : 'Earlier'),
+          el('td', null, r.source === 'seed' ? 'Carried over from the earlier settings' : 'Approved request')))))));
+    }
+    const beds = rt.bed_rates || [];
+    if (beds.length) {
+      const taxed = b => Number(b.rates) !== 1 ? (Number(b.rates) === 0 ? '✖ No room rate — the IPD bill is refused' : `✖ ${b.rates} active room rates — keep one`)
+        : ccTypes.includes(b.bed_type) ? 'Exempt (critical care)'
+        : b.above_threshold ? `Taxable (above ${inr(pl.threshold)})` : 'Exempt';
+      sec.append(el('div', { class: 'rp-lbl' }, 'Bed types in use and their room rates (fee-admin → IPD Room Tariff)'),
+        el('div', { class: 'rp-tablewrap' }, el('table', { class: 'rp-table', 'data-room-beds': '' },
+          el('thead', null, el('tr', null, ['Bed type', 'Beds', 'Room rate / day', 'Room rent is'].map(h => el('th', { scope: 'col' }, h)))),
+          el('tbody', null, beds.map(b => el('tr', { 'data-bed-type': b.bed_type, 'data-ok': Number(b.rates) === 1 ? '1' : '0' },
+            el('td', null, bedType(b.bed_type)), el('td', null, String(b.beds)), el('td', null, Number(b.rates) === 1 ? inr(b.amount) : '—'),
+            el('td', null, taxed(b))))))));
+    }
+    const pend = (d.pending || []).find(p => p.action_type === 'room_tax_change');
+    if (pend) {
+      const p = pend.payload || {};
+      sec.append(el('p', { class: 'it-pending', 'data-pending': 'room' },
+        `⏳ Pending approval: taxable rooms ${p.taxable_profile_name || '—'} · exempt rooms ${p.exempt_profile_name || '—'}${p.wellness_profile_name ? ' · wellness ' + p.wellness_profile_name : ''} from ${fmtD(p.effective_from)} · asked by ${pend.requested_by_name || '—'}`));
+      return sec;
+    }
+    if (!d.can?.request) return sec;
+    const sac = (d.profiles || []).filter(p => p.code_type === 'SAC');
+    const msg = status();
+    const txSel = select(uid('ts-rt'), sac.filter(p => p.tax_category === 'TAXABLE'), cur?.taxable_profile_id, { none: '— choose —' });
+    const exSel = select(uid('ts-re'), sac.filter(p => p.tax_category === 'EXEMPT' || p.tax_category === 'NIL_RATED'), cur?.exempt_profile_id, { none: '— choose —' });
+    const wlSel = select(uid('ts-rw'), sac, cur?.wellness_profile_id, { none: 'Not set (wellness stays follow the rule)' });
+    const date = el('input', { type: 'date', class: 'rp-input', min: d.today, value: d.today, id: uid('ts-rdt') });
+    const reason = el('textarea', { class: 'rp-input', rows: '2', maxlength: '500', id: uid('ts-rr'), placeholder: 'Why (optional)' });
+    const send = btn('Send for approval', 'rp-btn rp-btn-go', async () => {
+      if (!txSel.value || !exSel.value) { say(msg, 'Choose both room profiles: one for taxable rooms and one for exempt rooms.', true); (txSel.value ? exSel : txSel).focus(); return; }
+      if (!date.value || date.value < d.today) { say(msg, 'The effective date must be today or later (a room tax change is never back-dated).', true); date.focus(); return; }
+      send.disabled = true;
+      const { error } = await supabase.rpc('request_room_tax_change', {
+        p_taxable_profile: txSel.value, p_exempt_profile: exSel.value, p_wellness_profile: wlSel.value || null,
+        p_effective_from: date.value, p_reason: reason.value.trim() || null });
+      send.disabled = false;
+      if (error) { say(msg, safeErrorMessage(error, 'Could not send the request.'), true); return; }
+      await after(top, '✓ Sent for approval — it applies from the chosen date once a Super Admin or Finance Manager approves it.');
+    }, { 'data-send': 'room' });
+    sec.append(el('div', { class: 'rp-form', 'data-form': 'room' },
+      field('Room profile — taxable rooms (services, taxable)', txSel), field('Room profile — exempt rooms (services, exempt / nil-rated)', exSel),
+      field('Wellness room profile (optional)', wlSel),
+      field('Effective from (today or later)', date, 'Each room-day is taxed by the profiles in force on that day; bills already issued never change.'),
+      field('Reason', reason), el('div', { class: 'rp-actions' }, send), msg));
+    return sec;
+  }
+
+  // ── 2c. Session 345e: the document numbering -- PREFIX/YEAR/NUMBER, at most 16 characters (GST Rule 46(b)); set and confirmed
+  // by the Super Admin; a type that already issued numbers this year keeps its prefix until 31 March (never renumbered).
+  // The checks below mirror set_document_numbering's (the server decides; this only explains before sending).
+  const NUM_TYPES = [['TAX_INVOICE', 'Tax Invoice'], ['BILL_OF_SUPPLY', 'Bill of Supply'], ['BILL', 'Bill'], ['RECEIPT', 'Receipt'],
+                     ['CREDIT_NOTE', 'Credit note'], ['DEBIT_NOTE', 'Debit note']];
+  function numberingProblem(vals, w, lim) {
+    const reserved = lim.reserved || ['RTN', 'MC', 'IP', 'AYX'], max = lim.prefix_max || 5, total = lim.total_max || 16;
+    for (const [k, name] of NUM_TYPES) {
+      const v = vals[k];
+      if (!v) return `Enter a prefix for the ${name}.`;
+      if (!/^[A-Z0-9-]+$/.test(v) || !/[A-Z0-9]/.test(v) || v.length > max) return `The ${name} prefix "${v}" is not allowed: use 1 to ${max} characters — letters A-Z, digits 0-9 and hyphen ("/" is the separator).`;
+      if (reserved.includes(v)) return `The prefix "${v}" is already used by another series (${reserved.join(', ')} are fixed).`;
+      if (NUM_TYPES.filter(([k2]) => vals[k2] === v).length > 1) return `Each document type needs its own prefix: "${v}" is used more than once.`;
+    }
+    if (!(w >= (lim.width_min || 5) && w <= (lim.width_max || 8))) return `The number width must be ${lim.width_min || 5} to ${lim.width_max || 8} digits.`;
+    const [lname, lval] = NUM_TYPES.map(([k, name]) => [name, vals[k]]).sort((a, b) => b[1].length - a[1].length)[0];
+    if (lval.length + w + 6 > total) return `The ${lname} number would be ${lval.length + w + 6} characters (${lval} + "/" + 4-digit year + "/" + ${w} digits) — GST allows at most ${total}. Use a shorter prefix or fewer digits.`;
+    return '';
+  }
+  function numberingSection(d) {
+    const n = d.numbering || {}, lim = n.limits || {}, px = n.prefixes || {}, fy = n.fy_code || '';
+    const series = new Map((n.series || []).map(s => [s.document_type, s]));
+    const sec = el('section', { class: 'ts-sec', 'data-sec': 'numbering' }, el('h4', { class: 'ts-h4' }, 'Document numbering'),
+      el('p', { class: 'rp-muted' }, `Numbers look like PREFIX/${fy}/000001 — at most ${lim.total_max || 16} characters in all (GST). A document type that has already issued numbers this financial year keeps its prefix and width until 31 March; a change applies to it from 1 April. Numbers are never changed or reused.`));
+    sec.append(el('p', { class: 'ts-now', 'data-num-confirmed': n.confirmed_at ? 'yes' : 'no' }, n.confirmed_at
+      ? `✓ Confirmed on ${new Date(n.confirmed_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}${n.confirmed_by_name ? ' by ' + n.confirmed_by_name : ''}.`
+      : '⚠ Not confirmed yet — GST go-live is blocked until the Super Admin confirms the numbering (keeping the defaults is fine).'));
+    const example = (v, w) => `${v}/${fy}/${'1'.padStart(w, '0')}`;
+    const issued = k => { const s = series.get(k); return s && Number(s.issued) > 0 ? `${s.issued} issued this year (${s.prefix}/${fy}/…)` : 'none yet this year'; };
+    if (!d.can?.super_admin) {
+      sec.append(el('div', { class: 'rp-tablewrap' }, el('table', { class: 'rp-table', 'data-num-table': '' },
+        el('thead', null, el('tr', null, ['Document', 'Prefix', 'First number', 'This year'].map(h => el('th', { scope: 'col' }, h)))),
+        el('tbody', null, NUM_TYPES.map(([k, name]) => el('tr', null, el('th', { scope: 'row' }, name), el('td', null, px[k] || '—'),
+          el('td', null, example(px[k] || '', n.pad_width || 6)), el('td', null, issued(k))))))));
+      return sec;
+    }
+    const msg = status();
+    const inputs = {}, previews = {};
+    const width = el('select', { class: 'rp-input', id: uid('ts-nw') });
+    for (let w = lim.width_min || 5; w <= (lim.width_max || 8); w++) width.append(el('option', { value: String(w) }, `${w} digits${w === (lim.width_default || 6) ? ' (default)' : ''}`));
+    width.value = String(n.pad_width || 6);
+    const rows = NUM_TYPES.map(([k, name]) => {
+      const i = el('input', { type: 'text', class: 'rp-input ts-num-in', id: uid('ts-np'), value: px[k] || '', maxlength: String(lim.prefix_max || 5),
+        autocomplete: 'off', spellcheck: 'false', 'aria-label': `${name} prefix`, 'data-num-prefix': k });
+      inputs[k] = i; previews[k] = el('td', { 'data-num-preview': k });
+      return el('tr', null, el('th', { scope: 'row' }, name), el('td', null, i), previews[k], el('td', null, issued(k)));
+    });
+    const warn = el('div', { class: 'rp-muted', 'data-num-warn': '', 'aria-live': 'polite' });
+    const err = el('div', { class: 'rp-status err', 'data-num-error': '', role: 'alert' });
+    const vals = () => Object.fromEntries(NUM_TYPES.map(([k]) => [k, inputs[k].value.trim().toUpperCase()]));
+    const save = btn('Save and confirm numbering', 'rp-btn rp-btn-go', async () => {
+      if (!check()) return;
+      const v = vals(), w = Number(width.value);
+      save.disabled = true;
+      const { data, error } = await supabase.rpc('set_document_numbering', {
+        p_tax_invoice: v.TAX_INVOICE, p_bill_of_supply: v.BILL_OF_SUPPLY, p_bill: v.BILL, p_receipt: v.RECEIPT,
+        p_credit_note: v.CREDIT_NOTE, p_debit_note: v.DEBIT_NOTE, p_pad_width: w });
+      save.disabled = false;
+      if (error) { say(msg, safeErrorMessage(error, 'Could not save the numbering.'), true); return; }
+      const later = (data?.types || []).filter(x => x.applies === 'next_fy');
+      const text = (data?.changed ? '✓ Numbering saved and confirmed.' : '✓ Numbering confirmed (no change).')
+        + (later.length ? ` ${later.map(x => x.name).join(', ')}: already numbered this year — the new prefix / width applies from ${fmtD(data.next_fy_from)}.` : '')
+        + (data?.warning ? ' ' + data.warning : '');
+      await after(top, text);
+    }, { 'data-save': 'numbering' });
+    function check() {
+      const v = vals(), w = Number(width.value);
+      for (const [k] of NUM_TYPES) previews[k].textContent = v[k] ? `${example(v[k], w)} (${v[k].length + w + 6} characters)` : '—';
+      warn.textContent = w === 5 ? 'With 5 digits each document type can issue at most 99,999 numbers in a financial year.' : '';
+      const problem = numberingProblem(v, w, lim);
+      err.textContent = problem; err.hidden = !problem;
+      const changed = NUM_TYPES.some(([k]) => v[k] !== (px[k] || '')) || w !== Number(n.pad_width || 6);
+      save.textContent = changed ? 'Save and confirm numbering' : n.confirmed_at ? 'Confirm again' : 'Confirm numbering';
+      save.disabled = !!problem;
+      return !problem;
+    }
+    Object.values(inputs).forEach(i => i.addEventListener('input', () => {
+      const pos = i.selectionStart; i.value = i.value.toUpperCase(); i.setSelectionRange(pos, pos); check();
+    }));
+    width.addEventListener('change', check);
+    sec.append(el('div', { class: 'rp-form', 'data-form': 'numbering' },
+      el('div', { class: 'rp-tablewrap' }, el('table', { class: 'rp-table', 'data-num-table': '' },
+        el('thead', null, el('tr', null, ['Document', 'Prefix (1–5)', 'First number', 'This year'].map(h => el('th', { scope: 'col' }, h)))),
+        el('tbody', null, rows))),
+      field('Number width', width), warn, err, el('div', { class: 'rp-actions' }, save), msg));
+    check();
     return sec;
   }
 

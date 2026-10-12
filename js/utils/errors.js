@@ -216,7 +216,11 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     'Your account is not active', 'The declaration', 'Pharmacy GST cannot go live', 'The pharmacy GST go-live date',
     'The GST go-live date', 'No IP-medicines tax choice', 'The IP-medicines exempt profile', 'No IP tax profile for',
     'Medicine charges and tax profiles are added only', 'Give the reason for rejecting', 'You cannot decide your own request',
-    'Not authorized to decide this request', 'Request already decided', 'Choose approve or reject'];
+    'Not authorized to decide this request', 'Request already decided', 'Choose approve or reject',
+    // Session 345e: room tax profiles (request_room_tax_change / _room_tax_apply) and the document numbering (set_document_numbering)
+    'Choose both room profiles', 'The room profile for', 'The wellness room profile', 'A room tax request is already waiting',
+    'Enter a prefix for the', 'The prefix "', 'Each document type needs its own prefix', 'The number width must be',
+    'The Tax Invoice ', 'The Bill of Supply ', 'The Bill ', 'The Receipt ', 'The Credit note ', 'The Debit note '];
   if (['P0001','42501','22023','P0002'].includes(error?.code)
       && TAX_SETTINGS_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;

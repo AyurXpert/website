@@ -471,6 +471,8 @@ const APPROVAL_ACTION_LABELS = {
   // Session 345c2a: decided in the "Tax settings" table above the list
   ip_medicine_tax:         'IP-medicines tax choice',
   tax_defaults_change:     'Default tax profiles',
+  // Session 345e: decided in the same "Tax settings" table
+  room_tax_change:         'Room tax profiles (IPD)',
 };
 
 const NURSING_CYCLE_LABELS = { weekly: 'Weekly (7 days)', fortnightly: 'Fortnightly (14 days)', monthly: 'Monthly (30 days)' };
@@ -507,6 +509,8 @@ function _approvalSummary(row){
       const ch = [['OP goods', 'goods_op'], ['treatment', 'treatment'], ['wellness', 'wellness']].filter(([, k]) => (o[k] || null) !== (n[k] || null));
       return ch.length ? ch.map(([l, k]) => `${l}: ${_esc(o[k] || 'not set')} → ${_esc(n[k] || 'not set')}`).join(' · ') : '—';
     }
+    case 'room_tax_change':      return `taxable rooms ${_esc(p.taxable_profile_name || '—')} · exempt rooms ${_esc(p.exempt_profile_name || '—')}`
+                                   + (p.wellness_profile_name ? ` · wellness ${_esc(p.wellness_profile_name)}` : '') + ` from ${_esc(p.effective_from || '—')}`;
     default: return '—';
   }
 }

@@ -91,3 +91,6 @@ textarea.rp-input{padding:8px 10px;width:100%;resize:vertical}
 .ts-lvl-ok{color:var(--green-deep,#1a4a2e);background:var(--green-light,#e8f5ee);border-color:#a5d6b8}
 .ts-rd-passed summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-size:13px;color:var(--text-mid,#4a6352)}
 .ts-rd-passed summary:focus-visible{outline:3px solid var(--gold,#c9902a);outline-offset:2px}
+/* Session 345e: room-rent tax + document numbering in the Tax & Invoicing card (the ✖ text carries the meaning, not colour alone) */
+.ts-num-in{width:7em;min-height:44px;text-transform:uppercase;letter-spacing:.04em}
+.rp-table tr[data-ok="0"] td:last-child{color:var(--red,#c0392b);font-weight:700}
