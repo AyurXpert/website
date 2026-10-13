@@ -13,6 +13,7 @@ import { renderInvoice, el } from '../modules/billing/invoiceLayout.js'
 import { isDemoTenant } from '../modules/billing/demoBanner.js'
 import { ensureSignedIn } from '../utils/signInGate.js'
 import { copyMarking, isSupplierCopy, canPrintSupplierCopy, openSupplierCopy } from '../modules/billing/copyMarking.js'
+import { creditNoteExclusions, balanceBeforeCreditNotes } from '../modules/billing/creditNotePrint.js'
 
 wireDelegatedEvents()
 
@@ -363,6 +364,18 @@ async function load() {
   if (error) { showError(safeErrorMessage(error, 'Could not load the bill.')); return; }
   if (!data?.bill) { showError('No bill has been generated for this admission yet.'); return; }
   data.isDemo = isDemo;
+  // Session 345h (D16): the final bill never shows its credit notes -- their refunds are left out and the balance is the one before
+  // them (cross-checked with the stored bill values; any mismatch or failed read refuses the print). A bill without credit notes is untouched.
+  let ex;
+  try { ex = await creditNoteExclusions(supabase, [data.bill.id]); } catch (e) { showError(safeErrorMessage(e, 'Could not check the credit notes of this bill. Please try again.')); return; }
+  if (ex.credited.size || ex.receiptNos.size) {
+    let bal;
+    try { bal = balanceBeforeCreditNotes(data.account || {}, data.bill, data.payments, ex); } catch (e) { showError(e.message); return; }
+    data.payments = (data.payments || []).filter(p => !ex.receiptNos.has(p.receipt_no));
+    const acc = { ...(data.account || {}), balance: bal };
+    delete acc.credited;
+    data.account = acc;
+  }
   _data = data;
   // Session 342 (TODO §141): RECORD the print once per page load (fail closed), then RENDER. A re-render -- the
   // bill-to change, a reload of the data, a future paper-size change -- reuses the recorded copy and logs nothing.

@@ -6,6 +6,7 @@ import { safeErrorMessage } from '../utils/errors.js'
 import { computeIpdChargesToDate } from '../modules/billing/ipdChargesToDate.js'
 import { isDemoTenant, demoBannerEl } from '../modules/billing/demoBanner.js'
 import { ensureSignedIn } from '../utils/signInGate.js'
+import { creditNoteExclusions, balanceBeforeCreditNotes, creditNoteOfPayment } from '../modules/billing/creditNotePrint.js'
 import { getPaperSize, applyPaperSize, mountPaperSizeSelect, watchPrintPageSize, refreshPrintPageSize } from '../modules/billing/paperSize.js'
 
 // Session 336: A4 / A5 / thermal 80 / 58 mm (css/paper-size.css), remembered per device. Changing it only re-lays
@@ -46,6 +47,24 @@ function _fmtDateTime(iso) {
 }
 
 async function loadReceipt() {
+  // Session 345h (D16): a credit note's refund is documented ONLY on its refund voucher (a cash payout) or its credit note (a non-cash
+  // refund) -- never as a plain receipt. Checked before anything is recorded or shown; a failed check shows nothing (fail closed).
+  let cnOf
+  try { cnOf = await creditNoteOfPayment(supabase, paymentId) } catch (e) {
+    document.getElementById('patientInfo').textContent = safeErrorMessage(e, 'Could not check this receipt. Please try again.'); return
+  }
+  if (cnOf) {
+    // not a receipt: say so, and open its own document from the user's click (nothing is recorded or printed here)
+    const info = document.getElementById('patientInfo')
+    info.textContent = `This is the refund of a credit note. It is documented only on its ${cnOf.voucher ? 'refund voucher' : 'credit note'}, never as a receipt.`
+    const b = document.createElement('button')
+    b.type = 'button'; b.id = 'open-cn-doc'; b.className = 'btn'; b.style.marginTop = '10px'
+    b.textContent = cnOf.voucher ? 'Open the refund voucher' : 'Open the credit note'
+    b.addEventListener('click', () => window.open(cnOf.url, '_blank', 'noopener'))
+    info.appendChild(document.createElement('br')); info.appendChild(b)
+    document.getElementById('docTitle').textContent = 'NOT A RECEIPT'
+    return
+  }
   const { data: pp, error } = await supabase
     .from('patient_payments')
     .select(`id, kind, amount, mode, reference, notes, receipt_no, received_at, received_by, voided_at, void_reason, patient_id, bill_id,
@@ -148,7 +167,7 @@ async function loadReceipt() {
 async function loadInterim() {
   const { data: adm, error } = await supabase
     .from('ipd_admissions')
-    .select('id, admission_date, admitted_at, charges_locked_at, patients(name, phone, age, gender), beds(bed_number, bed_type, ward_name), departments(name)')
+    .select('id, admission_date, admitted_at, charges_locked_at, discharge_bill_id, patients(name, phone, age, gender), beds(bed_number, bed_type, ward_name), departments(name)')
     .eq('id', admId).single();
 
   if (error || !adm) {
@@ -156,6 +175,11 @@ async function loadInterim() {
     return;
   }
 
+  // Session 345h (D16): the credit notes of the final bill (if any) are left out of this statement -- read BEFORE the print is recorded
+  let cnEx = null
+  try { cnEx = await creditNoteExclusions(supabase, [adm.discharge_bill_id]) } catch (e) {
+    document.getElementById('patientInfo').textContent = safeErrorMessage(e, 'Could not check the credit notes of this admission. Please try again.'); return
+  }
   // Session 342 (TODO §141, owner decision 5 Oct 2026): every interim print is logged as 'ipd_interim' (numbered per
   // admission) BEFORE anything is shown -- fail closed. It is a statement whose figures change, so it is never a
   // "DUPLICATE": header and footer both say "Interim statement · print N · as on <date time>".
@@ -215,7 +239,22 @@ async function loadInterim() {
   }
 
   // After a bill exists the server's own balance is authoritative (held is already netted into it).
-  const balance = billRaised ? (Number(acc.balance) || 0) : charges.total - (Number(acc.held) || 0);
+  let balance = billRaised ? (Number(acc.balance) || 0) : charges.total - (Number(acc.held) || 0);
+  // Session 345h (D16): with credit notes on the final bill, the balance before them (cross-checked with the stored bill; else refused)
+  if (billRaised && (cnEx.credited.size || cnEx.receiptNos.size)) {
+    const [bRes, lRes] = await Promise.all([
+      supabase.from('bills').select('id, final_amount, insurance_approved_amount, advance_credited').eq('id', acc.bill_id).single(),
+      supabase.from('patient_payments').select('kind, amount, bill_id, voided_at, receipt_no').eq('ipd_admission_id', admId),
+    ])
+    try {
+      if (bRes.error || lRes.error) throw (bRes.error || lRes.error)
+      balance = balanceBeforeCreditNotes(acc, bRes.data, lRes.data, cnEx)
+    } catch (e) {
+      document.getElementById('lineTable').replaceChildren()
+      document.getElementById('totalAmount').textContent = safeErrorMessage(e, 'The balance could not be checked against the bill -- this statement is refused.')
+      return
+    }
+  }
   document.getElementById('totalAmount').textContent = balance >= 0
     ? `Estimated balance: ₹${_n(balance)}`
     : `Estimated refund due: ₹${_n(-balance)}`;

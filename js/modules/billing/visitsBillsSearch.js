@@ -15,6 +15,7 @@ import { getCurrentRole } from '../../core/auth.js'
 // Session 345h (GST Stage 6c): "Ask for a credit note" on a paid GST document, and the credit notes against each bill
 import { canAskCreditNote, openCreditNoteAsk } from './creditNoteAsk.js'
 import { creditNoteLinks, creditNotesForBills, payoutBox, PAYOUT_ROLES } from './creditNoteList.js'
+import { creditNoteExclusions, creditNoteOfPayment } from './creditNotePrint.js'
 
 // Session 338d: medical certificates are confidential clinical documents -- never listed, searched or printed by a
 // pharmacist or cashier / accountant / finance_manager (the server refuses them too: _certificate_caller()).
@@ -58,7 +59,9 @@ function reprintButtons(bill) {
   }
   box.appendChild(printButton('🖨 Bill', bill.prints, () => openBill(bill.id), ti))
   for (const p of bill.payments || []) {
-    box.appendChild(printButton(`🧾 ${p.receipt_no}${p.voided ? ' (void)' : ''}`, p.prints, () => openReceipt(p.id)))
+    const b = printButton(`🧾 ${p.receipt_no}${p.voided ? ' (void)' : ''}`, p.prints, () => openReceipt(p.id))
+    b.setAttribute('data-pay-id', p.id)
+    box.appendChild(b)
   }
   return box
 }
@@ -249,6 +252,24 @@ export function mountVisitsBillsSearch(root, { supabase, onReturn = null }) {
     // Session 345h: the credit notes against the GST documents shown (a refusal for a role simply shows none)
     const gstIds = rows.flatMap(r => (r.bills || []).filter(b => b.document_type === 'TAX_INVOICE' || b.document_type === 'BILL_OF_SUPPLY').map(b => b.id))
     if (gstIds.length) {
+      // Session 345h (D16): a credit note's refund row stays on screen but opens its refund voucher / credit note, never a plain receipt
+      creditNoteExclusions(supabase, gstIds).then(ex => {
+        if (mine !== seq) return
+        for (const id of ex.paymentIds) {
+          const old = results.querySelector(`[data-pay-id="${CSS.escape(id)}"]`)
+          if (!old) continue
+          const row = ex.rows.find(r => r.id === id)
+          const nb = el('button', { type: 'button', style: BTN, 'data-pay-id': id, 'data-cn-refund': '1', title: 'A credit note refund -- opens its refund voucher / credit note' },
+            `↩ ${row?.receipt_no || 'Refund'} · credit-note refund`)
+          // the page decides which document (opened from the click, before any await)
+          nb.addEventListener('click', () => {
+            const w = window.open('', '_blank')
+            creditNoteOfPayment(supabase, id).then(c => { if (w) w.location = c ? c.url : 'about:blank' })
+              .catch(() => { if (w) w.close() })
+          })
+          old.replaceWith(nb)
+        }
+      }).catch(() => { /* a screen: the plain button stays, and printReceipt itself redirects a credit-note refund */ })
       creditNotesForBills(supabase, gstIds).then(map => {
         if (mine !== seq) return
         for (const [id, entry] of Object.entries(map)) {

@@ -16,6 +16,7 @@ import { renderInvoice, el } from '../modules/billing/invoiceLayout.js'
 import { isDemoTenant } from '../modules/billing/demoBanner.js'
 import { ensureSignedIn } from '../utils/signInGate.js'
 import { copyMarking, isSupplierCopy, canPrintSupplierCopy, openSupplierCopy } from '../modules/billing/copyMarking.js'
+import { creditNoteExclusions } from '../modules/billing/creditNotePrint.js'
 
 wireDelegatedEvents()
 
@@ -272,14 +273,19 @@ async function load() {
     isDemoTenant(supabase, bill.tenant_id),
   ])
   const v = visit.data
-  const ids = [...new Set([bill.created_by, v?.doctor_id, ...(pays.data || []).map(p => p.received_by)].filter(Boolean))]
+  // Session 345h (D16): a bill's print never shows its credit notes' refunds -- they are on the credit note / refund voucher only.
+  // The read must succeed, or the bill is not shown (fail closed).
+  let ex
+  try { ex = await creditNoteExclusions(supabase, [billId]) } catch (e) { showError(safeErrorMessage(e, 'Could not check the credit notes of this bill. Please try again.')); return }
+  const billPays = (pays.data || []).filter(p => !ex.paymentIds.has(p.id))
+  const ids = [...new Set([bill.created_by, v?.doctor_id, ...billPays.map(p => p.received_by)].filter(Boolean))]
   const [profs, opd] = await Promise.all([
     ids.length ? supabase.from('profiles').select('id, full_name').in('id', ids) : { data: [] },
     v?.opd_id ? supabase.from('opds').select('name').eq('id', v.opd_id).maybeSingle() : { data: null },
   ])
   const names = Object.fromEntries((profs.data || []).map(p => [p.id, p.full_name]))
   const d = {
-    bill, isDemo, items: items.data || [], patient: patient.data, visit: v, payments: pays.data || [], tax: taxS.data || {},
+    bill, isDemo, items: items.data || [], patient: patient.data, visit: v, payments: billPays, tax: taxS.data || {},
     names, doctor: v?.doctor_id ? names[v.doctor_id] || null : null, opd: opd.data?.name || null,
   }
   // Print audit: the SERVER records this print and says whether it is the Original or a Duplicate copy. If that
