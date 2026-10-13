@@ -11,10 +11,12 @@
 //   meta:       [{ label, value, sub, wide, gap }],   // header strip (Bill No / Date / Bill To / Payer ...)
 //   party:      { title, fields: [{ label, value, wide, full, gap }] },
 //   demo:       boolean,                              // demo organisation: "TEST DOCUMENT" banner at the top of the sheet
+//   demoText:   text (optional)                       // that banner's words when not DEMO_TEXT (Session 345h: the credit note / voucher)
 //   gst:        boolean,                              // show Disc/Taxable/GST/CGST/SGST columns
 //   exemptOnly: boolean,                              // with gst: no taxable line -- keep SAC + Disc., drop Taxable/GST/CGST/SGST
 //   descLabel:  text (default 'Description'), noCode: boolean -- OPD / lab bills: "Service / Test", no SAC column (Session 327c)
-//   sections:   [{ title, rows: [{ no, description, sub, code, qty, rate, disc, taxable, gstLabel, cgst, sgst, amount }], subtotal }],
+//   sections:   [{ title, rows: [{ no, description, sub, code, qty, rate, disc, taxable, gstLabel, cgst, sgst, amount, part }], subtotal }],
+//               part (optional): a part (amount) credit -- the thermal layout prints the sub line + the amount, not qty x rate
 //   emptyNote:  text | null,
 //   taxNote:    text | null,                          // printed under the charges table (e.g. the all-exempt statement)
 //   taxSummary: [{ label, value, cgst, sgst, tax }] | null,
@@ -127,7 +129,7 @@ function paymentsTable(p) {
 
 export function renderInvoice(sheet, m) {
   sheet.replaceChildren();
-  if (m.demo) sheet.appendChild(h('div', { class: 'demo-banner', role: 'note' }, DEMO_TEXT));
+  if (m.demo) sheet.appendChild(h('div', { class: 'demo-banner', role: 'note' }, m.demoText || DEMO_TEXT));
   if (m.watermark) sheet.appendChild(h('div', { class: 'watermark', 'aria-hidden': 'true' }, m.watermark));
 
   sheet.appendChild(headerBlock(m));

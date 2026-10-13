@@ -14,7 +14,7 @@ import { todayISTStr } from '../../utils/dateUtils.js'
 import { getCurrentRole } from '../../core/auth.js'
 // Session 345h (GST Stage 6c): "Ask for a credit note" on a paid GST document, and the credit notes against each bill
 import { canAskCreditNote, openCreditNoteAsk } from './creditNoteAsk.js'
-import { creditNoteLinks, creditNotesForBills } from './creditNoteList.js'
+import { creditNoteLinks, creditNotesForBills, payoutBox, PAYOUT_ROLES } from './creditNoteList.js'
 
 // Session 338d: medical certificates are confidential clinical documents -- never listed, searched or printed by a
 // pharmacist or cashier / accountant / finance_manager (the server refuses them too: _certificate_caller()).
@@ -244,6 +244,7 @@ export function mountVisitsBillsSearch(root, { supabase, onReturn = null }) {
       + (certs.length ? ` and ${certs.length} medical certificate${certs.length === 1 ? '' : 's'}` : '') + ` shown ${scope}`
       + ((data.truncated || mc.data?.truncated) ? ' — only the latest are shown; refine your search.' : '.')
     const ctx = { supabase, role: getCurrentRole(), refresh: () => run() }
+    const patientOf = new Map(rows.flatMap(r => (r.bills || []).map(b => [b.id, r.patient?.name || r.customer?.name || null])))
     results.replaceChildren(...rows.map(r => resultCard(r, onReturn, ctx)))
     // Session 345h: the credit notes against the GST documents shown (a refusal for a role simply shows none)
     const gstIds = rows.flatMap(r => (r.bills || []).filter(b => b.document_type === 'TAX_INVOICE' || b.document_type === 'BILL_OF_SUPPLY').map(b => b.id))
@@ -254,6 +255,13 @@ export function mountVisitsBillsSearch(root, { supabase, onReturn = null }) {
           const slot = results.querySelector(`[data-cn-bill="${CSS.escape(id)}"]`)
           const links = creditNoteLinks(entry)
           if (slot && links) slot.prepend(links)
+          // Session 345h follow-up: a cash refund still due is paid out right here, from the counter's own shift (D4) -- the same
+          // pay_credit_note_refund + refund voucher as Finance -> Credit notes; only for the roles that may pay out
+          if (slot && PAYOUT_ROLES.includes(ctx.role)) {
+            for (const n of entry.notes || []) {
+              if (n.refund_status === 'due') slot.appendChild(payoutBox(supabase, { ...n, patient: patientOf.get(id) }, () => run()))
+            }
+          }
         }
       })
     }

@@ -85,7 +85,7 @@ export function openCreditNoteAsk({ supabase, billId, onDone } = {}) {
       el('div', null, 'Credit note total: ', el('strong', null, rupee(p.split_total))),
       p.bill.with_tax ? el('div', null, `GST reversed: ${rupee(tax)} (CGST ${rupee(cg)} + SGST ${rupee(sg)}) — at the original bill's own rates`)
                       : el('div', null, 'No GST on this credit note (the original is a Bill of Supply).'),
-      el('div', { class: 'cn-sub' }, `Refunded: ${rupee(p.split_total)} · Can still be refunded on this bill: ${rupee(p.refundable)}`))
+      el('div', { class: 'cn-sub' }, `Refund on this note: ${rupee(p.split_total)} · Can still be refunded on this bill: ${rupee(p.refundable)}`))
     send.disabled = false
   }
   async function refresh() {

@@ -102,7 +102,7 @@ const rule = () => n('div', 'th-rule');
 // (name; then batch · exp · qty × rate = amount), totals, receipts, words, signatures, footer. DOM nodes only.
 export function renderThermal(sheet, m) {
   const doc = n('div', 'th-doc');
-  if (m.demo) doc.appendChild(n('div', 'demo-banner', DEMO_TEXT));
+  if (m.demo) doc.appendChild(n('div', 'demo-banner', m.demoText || DEMO_TEXT));
 
   // header
   doc.appendChild(n('div', 'th-org', m.org?.name || ''));
@@ -131,7 +131,7 @@ export function renderThermal(sheet, m) {
         if (r.code) parts.push(`HSN ${r.code}`);
         if (r.gstLabel && r.gstLabel !== '—') parts.push(`GST ${r.gstLabel}`);
       }
-      parts.push(`${r.qty} × ${r.rate} = ${r.amount}`);
+      parts.push(r.part ? `= ${r.amount}` : `${r.qty} × ${r.rate} = ${r.amount}`);   // Session 345h: a part credit has no qty x rate
       doc.appendChild(n('div', 'th-line2', parts.join(' · ')));
     }
     if (m.sections.length > 1) doc.appendChild(kv(`${s.title} subtotal`, s.subtotal, 'th-small'));

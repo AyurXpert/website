@@ -116,9 +116,12 @@ export function mountTaxApprovals(root, { supabase, onCount, onDecided } = {}) {
         go.disabled = false; back.disabled = false; go.textContent = approve ? 'Confirm approval' : 'Confirm rejection';
         return;
       }
-      const done = approve ? '✓ Approved — the change is applied.' : '✕ Rejected — nothing was changed.';
+      let done = approve ? '✓ Approved — the change is applied.' : '✕ Rejected — nothing was changed.';
+      // Session 345h follow-up: a credit note says which note was issued and what happens to the money (D4)
+      if (approve && a.action_type === 'credit_note') done = await creditNoteDone(a) || done;
       actions.replaceChildren(el('span', { class: approve ? 'rp-ok' : 'rp-muted', 'data-decided': approve ? 'approved' : 'rejected' }, done));
       msg.textContent = '';
+      refreshCount();
       onDecided?.(approve, done);
     }, { 'data-confirm': approve ? 'approve' : 'reject' });
     actions.replaceChildren(el('div', { class: 'rq-decide', role: 'group', 'aria-label': approve ? 'Approve this request' : 'Reject this request' },
@@ -128,6 +131,26 @@ export function mountTaxApprovals(root, { supabase, onCount, onDecided } = {}) {
     // below a sticky page header -- a plain focus() scrolled only the note box into view, the table under the header
     note.focus({ preventScroll: true });
     actions.closest('.rq-card')?.scrollIntoView({ block: 'start' });
+  }
+
+  // the issued note (it gets its number at approval): "Credit note CN/… issued — ₹300.00 cash refund due" / "… refunded by UPI"
+  async function creditNoteDone(a) {
+    const { data } = await supabase.from('credit_notes').select('document_number, total_amount, refund_mode, refund_payment_id')
+      .eq('approval_id', a.id).maybeSingle();
+    if (!data) return null;
+    const amt = inr(data.total_amount);
+    return `✓ Credit note ${data.document_number} issued — ` + (data.refund_mode === 'cash' && !data.refund_payment_id
+      ? `${amt} cash refund due (paid out at the counter)` : `${amt} refunded by ${String(data.refund_mode || '').toUpperCase()}`);
+  }
+  // after a decision: the waiting / you-can-decide line and the badge are counted again (the decided card stays on screen)
+  async function refreshCount() {
+    const { data, error } = await supabase.from('pending_approvals').select('id').in('action_type', TAX_APPROVAL_TYPES).eq('status', 'pending');
+    if (error) return;
+    const chk = data?.length ? await supabase.rpc('approval_decide_check', { p_ids: data.map(x => x.id) }) : { data: [] };
+    const mine = (chk.data || []).filter(c => c.can_decide).length;
+    status.textContent = data?.length ? `${data.length} request(s) waiting · ${mine} you can decide.` : 'No tax settings request is waiting for approval.';
+    status.className = 'rp-status';
+    onCount?.(mine);
   }
 
   reload();
