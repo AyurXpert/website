@@ -13,7 +13,7 @@ import { safeErrorMessage } from '../../utils/errors.js'
 import { todayISTStr } from '../../utils/dateUtils.js'
 import { getCurrentRole } from '../../core/auth.js'
 // Session 345h (GST Stage 6c): "Ask for a credit note" on a paid GST document, and the credit notes against each bill
-import { canAskCreditNote, openCreditNoteAsk } from './creditNoteAsk.js'
+import { canAskCreditNote, openCreditNoteAsk, canStillCredit } from './creditNoteAsk.js'
 import { creditNoteLinks, creditNotesForBills, payoutBox, PAYOUT_ROLES } from './creditNoteList.js'
 import { creditNoteExclusions, creditNoteOfPayment } from './creditNotePrint.js'
 
@@ -109,7 +109,8 @@ function billRow(bill, onReturn, ctx = {}) {
 function creditNoteBits(bill, ctx) {
   const box = el('span', { 'data-cn-bill': bill.id, style: 'display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap' })
   if (ctx.supabase && bill.status === 'paid' && canAskCreditNote(ctx.role, bill)) {
-    const b = el('button', { type: 'button', style: BTN, 'data-cn-ask': bill.id }, '↶ Ask for a credit note')
+    // hidden until the server confirms something can still be credited (shown after the search, below)
+    const b = el('button', { type: 'button', style: BTN, 'data-cn-ask': bill.id, hidden: true }, '↶ Ask for a credit note')
     b.addEventListener('click', () => openCreditNoteAsk({ supabase: ctx.supabase, billId: bill.id, onDone: ctx.refresh }))
     box.appendChild(b)
   }
@@ -251,6 +252,16 @@ export function mountVisitsBillsSearch(root, { supabase, onReturn = null }) {
     results.replaceChildren(...rows.map(r => resultCard(r, onReturn, ctx)))
     // Session 345h: the credit notes against the GST documents shown (a refusal for a role simply shows none)
     const gstIds = rows.flatMap(r => (r.bills || []).filter(b => b.document_type === 'TAX_INVOICE' || b.document_type === 'BILL_OF_SUPPLY').map(b => b.id))
+    // owner, 13 Oct 2026: "Ask" only while the bill can still be credited (eligible + a remainder), whatever its earlier credit notes
+    const asks = [...results.querySelectorAll('[data-cn-ask]')]
+    ;(async () => {
+      for (let i = 0; i < asks.length; i += 4) {
+        const batch = asks.slice(i, i + 4)
+        const oks = await Promise.all(batch.map(b => canStillCredit(supabase, b.getAttribute('data-cn-ask'))))
+        if (mine !== seq) return
+        batch.forEach((b, k) => { if (oks[k]) b.hidden = false; else b.remove() })
+      }
+    })()
     if (gstIds.length) {
       // Session 345h (D16): a credit note's refund row stays on screen but opens its refund voucher / credit note, never a plain receipt
       creditNoteExclusions(supabase, gstIds).then(ex => {

@@ -13,7 +13,7 @@ import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml
 import { bedTypeLabel } from '../config/bedTypes.js';
 import { notify } from '../components/notify.js';
 // Session 345h (GST Stage 6c): credit notes against the final bill -- the list, the cash refund due (paid out here, D4), and the ask panel
-import { canAskCreditNote, openCreditNoteAsk } from '../modules/billing/creditNoteAsk.js';
+import { canAskCreditNote, openCreditNoteAsk, canStillCredit } from '../modules/billing/creditNoteAsk.js';
 import { creditNoteLinks, creditNotesForBills, payoutBox, PAYOUT_ROLES } from '../modules/billing/creditNoteList.js';
 
 /*
@@ -2231,8 +2231,9 @@ async function _renderAccountCreditNotes(acc) {
   const slot = document.getElementById('acct-cn');
   if (!slot) return;
   const bill = { document_type: acc.document_type, bill_type: 'ipd', cancelled: acc.document_status === 'cancelled' };
-  const canAsk = acc.bill_status === 'paid' && canAskCreditNote(myRole, bill);
-  const map = await creditNotesForBills(supabase, [acc.bill_id]);
+  // owner, 13 Oct 2026: "Ask" only while the server says the bill can still be credited (eligible + a remainder)
+  const [map, canAsk] = await Promise.all([creditNotesForBills(supabase, [acc.bill_id]),
+    acc.bill_status === 'paid' && canAskCreditNote(myRole, bill) ? canStillCredit(supabase, acc.bill_id) : false]);
   if (document.getElementById('acct-cn') !== slot) return;          // the drawer was re-rendered meanwhile
   const entry = map[acc.bill_id];
   const sec = document.createElement('div');

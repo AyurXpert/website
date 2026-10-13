@@ -28,6 +28,14 @@ export function canAskCreditNote(role, bill) {
     && ASK_BILLS.includes(String(bill.bill_type || '').toLowerCase()) && !bill.cancelled
 }
 
+// Owner, 13 Oct 2026: "Ask" is offered only while the server says the bill can still be credited -- eligible (paid, self-pay, within the
+// time limit, nothing waiting) AND something is left on its lines (credit_note_preview: the whole remainder splits without an error).
+// Earlier credit notes, paid out or not, do not matter. Any error = not offered (the panel would refuse anyway).
+export async function canStillCredit(supabase, billId) {
+  const { data, error } = await supabase.rpc('credit_note_preview', { p_bill: billId, p_lines: null })
+  return !error && !!data?.eligible && !data.split_error && Number(data.split_total) > 0
+}
+
 /** openCreditNoteAsk({ supabase, billId, onDone }) -- a modal panel; onDone() after a request was sent */
 export function openCreditNoteAsk({ supabase, billId, onDone } = {}) {
   const dlg = el('dialog', { class: 'cn-dialog', 'aria-labelledby': uid('cn-h') })
