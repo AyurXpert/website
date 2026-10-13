@@ -59,11 +59,10 @@ function orgBlock(d) {
   return { name, lines, logoUrl: org.logo_url || null, monogram: monogram(name) }
 }
 
+// Session 345h follow-up (owner, 13 Oct 2026, the D16 principle): a credit note's print never changes after issue -- the refund as fixed
+// at approval (amount + mode), never its later state (due / paid out) or the payout's receipt number
 function refundText(r) {
-  const mode = MODE_LABEL[r.mode] || r.mode || '—'
-  if (r.status === 'paid') return `Refunded ${rupee(r.amount)} by ${mode}${r.reference ? ' · ' + r.reference : ''}${r.receipt_no ? ' · receipt ' + r.receipt_no : ''}`
-  if (r.status === 'due') return `Refund of ${rupee(r.amount)} in cash is due — paid at the counter against a refund voucher`
-  return 'No refund'
+  return `Refund: ${rupee(r.amount)} (${MODE_LABEL[r.mode] || r.mode || '—'})`
 }
 
 // Session 345h follow-up: the banner on a demo organisation's credit note / refund voucher (not a tax invoice)
@@ -140,7 +139,7 @@ export function buildCreditNoteModel(d, copy, { supplierCopy = false, origTotals
     summary.push({ label: 'Value credited', value: money(n.total_amount) })
   }
   summary.push({ label: 'Credit note total', value: rupee(n.total_amount), grand: true })
-  const balance = r.status === 'due' ? { label: 'Refund due (cash)', value: rupee(r.amount) } : { label: `Refunded (${MODE_LABEL[r.mode] || r.mode || '—'})`, value: rupee(r.amount) }
+  const balance = { label: `Refund (${MODE_LABEL[r.mode] || r.mode || '—'})`, value: rupee(r.amount) }   // fixed at approval, never its later state
 
   const footer = []
   if (mk.footer) footer.push(mk.footer)

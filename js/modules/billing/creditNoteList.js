@@ -35,6 +35,8 @@ export function creditNoteLinks(entry) {
   const box = el('span', { class: 'cn-links' })
   for (const n of entry.notes || []) {
     box.append(btn(`🧾 ${n.document_number} · ${rupee(n.total_amount)}`, () => open(creditNoteUrl(n.id)), { title: 'Print the credit note' }), refundPill(n.refund_status))
+    // owner, 13 Oct 2026: once a cash refund is paid out, its refund voucher can be reprinted (the server numbers the copy)
+    if (n.payout_payment_id) box.appendChild(btn('🧾 Refund voucher', () => open(voucherUrl(n.payout_payment_id)), { title: 'Reprint the refund voucher' }))
   }
   if (entry.waiting) box.appendChild(el('span', { class: 'cn-pill wait' }, 'Credit note waiting for approval'))
   return box.childNodes.length ? box : null
@@ -45,7 +47,19 @@ export async function creditNotesForBills(supabase, billIds) {
   const ids = [...new Set((billIds || []).filter(Boolean))]
   if (!ids.length) return {}
   const { data, error } = await supabase.rpc('credit_notes_for_bills', { p_bill_ids: ids })
-  return error || !data ? {} : data
+  if (error || !data) return {}
+  const paid = Object.values(data).flatMap(e => (e.notes || []).filter(n => n.refund_status === 'paid' && n.refund_mode === 'cash').map(n => n.id))
+  const map = await payoutPaymentIds(supabase, paid)
+  for (const e of Object.values(data)) for (const n of e.notes || []) if (map.has(n.id)) n.payout_payment_id = map.get(n.id)
+  return data
+}
+
+// credit note id -> its cash payout's payment (the refund voucher); a failed read simply offers no voucher reprint
+export async function payoutPaymentIds(supabase, noteIds) {
+  const ids = [...new Set((noteIds || []).filter(Boolean))]
+  if (!ids.length) return new Map()
+  const { data, error } = await supabase.from('credit_note_refund_payouts').select('credit_note_id, payment_id').in('credit_note_id', ids)
+  return error || !data ? new Map() : new Map(data.map(x => [x.credit_note_id, x.payment_id]))
 }
 
 // An in-page payout step for one refund due (D4): confirm -> pay_credit_note_refund -> "Print refund voucher" (a fresh click)
@@ -99,6 +113,8 @@ export function mountCreditNoteList(root, { supabase, role } = {}) {
     if (mine !== seq) return
     if (error) { status.textContent = safeErrorMessage(error, 'Could not load the credit notes.'); status.className = 'cn-status err'; table.replaceChildren(); return }
     const rows = data?.notes || []
+    const vouchers = await payoutPaymentIds(supabase, rows.filter(n => n.status === 'issued' && n.refund_status === 'paid' && n.refund_mode === 'cash').map(n => n.id))
+    if (mine !== seq) return
     status.textContent = rows.length ? `${rows.length} shown.` : (show.value === 'refund_due' ? 'No cash refund is waiting to be paid out.' : 'Nothing found.')
     if (!rows.length) { table.replaceChildren(); return }
     table.replaceChildren(el('table', { class: 'cn-table' },
@@ -111,6 +127,7 @@ export function mountCreditNoteList(root, { supabase, role } = {}) {
           actions.append(btn('🖨 Print', () => open(creditNoteUrl(n.id)), { title: 'ORIGINAL FOR RECIPIENT, then REPRINT' }),
                          btn('Supplier copy', () => open(creditNoteUrl(n.id, true)), { title: 'DUPLICATE FOR SUPPLIER' }))
           if (n.refund_status === 'due' && canPay) actions.appendChild(payoutBox(supabase, n, run))
+          if (vouchers.has(n.id)) actions.appendChild(btn('🧾 Refund voucher', () => open(voucherUrl(vouchers.get(n.id))), { title: 'Reprint the refund voucher' }))
         }
         return el('tr', null,
           el('td', null, waiting ? el('span', { class: 'cn-pill wait' }, 'Waiting for approval') : el('strong', null, n.document_number)),
