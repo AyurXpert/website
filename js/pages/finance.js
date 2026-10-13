@@ -9,6 +9,7 @@ import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, sum
 import { notify } from '../components/notify.js';
 import { canCollectOpd, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt } from '../modules/billing/opdPayments.js';
 import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
+import { mountCreditNoteList } from '../modules/billing/creditNoteList.js';   // Session 345h
 import { mountReturnsQueue } from '../modules/pharmacy/returnsQueue.js';
 import { mountItemTaxApprovals, mountBulkItemTax, isTaxMaker } from '../modules/pharmacy/itemTax.js';
 import { mountTaxSettings } from '../modules/tax/taxSettings.js';
@@ -49,6 +50,10 @@ window.switchSub = function(grp, sub, el) {
   if (sub === 'audit') loadAudits();
   if (sub === 'preauth') renderPreAuth();
   if (sub === 'vbsearch' && !_vbMounted) { _vbMounted = true; mountVisitsBillsSearch(document.getElementById('vb-search-root'), { supabase }); }
+  if (sub === 'creditnotes') {   // Session 345h: mounted once, refreshed on every open (a cashier lands on the refunds due)
+    if (!_cnList) _cnList = mountCreditNoteList(document.getElementById('cn-list-root'), { supabase, role: _role });
+    else _cnList.refresh();
+  }
   if (sub === 'itemtax') {   // Session 345b
     mountItemTaxApprovals(document.getElementById('itemtax-approvals-root'), { supabase, onCount: n => _setBadgeEl('itemtax-badge', n) });
     if (isTaxMaker()) mountBulkItemTax(document.getElementById('itemtax-bulk-root'), { supabase });
@@ -65,6 +70,10 @@ window.switchSub = function(grp, sub, el) {
 };
 let _taxCard = null;   // Session 345c2a: the Tax settings card (reloaded after a decision)
 let _vbMounted = false;   // Visits & Bills search mounts once, on first open (Session 328)
+let _cnList = null;      // Session 345h: the credit-note list
+// Session 345h: what a returns row is (finance_activity().returns kind): a pharmacy return / cancellation, or a credit note
+const _RET_KIND = { cancel: 'Cancellation', return: 'Return', credit_note: 'Credit note' };
+const _RET_DONE = { cancel: 'cancelled', return: 'returned', credit_note: 'credited' };
 // Session 344b: Pharmacy returns waiting for approval. The tab is shown to the roles decide_pharmacy_return() accepts
 // (dept_admin / super_admin / finance_manager / accountant, primary or secondary) when the organisation has the pharmacy
 // module; WHICH request this person may decide -- and the badge -- is the server's answer (approval_decide_check()).
@@ -311,10 +320,10 @@ function renderRevenue(from, to) {
     const tr = _el('tr', null, 'background:#fff8f6');
     tr.append(_el('td', _fmtD(r.date), 'font-size:12px;white-space:nowrap'),
       _el('td', `${r.return_no} — of bill ${r.document_number || '—'} (${_fmtD(r.bill_date)})`, 'font-size:12px'));
-    const tdT = _el('td'); tdT.append(_el('span', r.kind === 'cancel' ? 'Cancellation' : 'Return', 'font-size:10px', 'badge b-cancelled')); tr.append(tdT);
+    const tdT = _el('td'); tdT.append(_el('span', _RET_KIND[r.kind] || 'Return', 'font-size:10px', 'badge b-cancelled')); tr.append(tdT);
     tr.append(_el('td', '—'), _el('td', '—'), _el('td', '− ₹' + _n(r.amount), 'font-weight:500;color:var(--red)'),
       _el('td', r.settlement === 'due' ? 'Due reduced' : r.settlement === 'void' ? 'Receipt voided' : 'Refund ' + String(r.refund_mode || '').toUpperCase(), 'font-size:12px'),
-      _el('td', r.kind === 'cancel' ? 'cancelled' : 'returned'));
+      _el('td', _RET_DONE[r.kind] || 'returned'));
     rows.push({ ts: r.completed_at || '', tr });
   }
   rows.sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
@@ -640,7 +649,7 @@ window.exportCSV = window.exportRevCSV = function() {
     'Of bill': '', Patient: b.patients?.name || '', Type: b.bill_type, Total: b.total_amount, Amount: b.final_amount,
     Payment: b.payment_mode, Status: b.status,
   })).concat((_activity.returns || []).map(r => ({
-    Row: r.kind === 'cancel' ? 'Cancellation' : 'Return', Date: r.date, Document: r.return_no, 'Of bill': `${r.document_number || ''} (${r.bill_date})`,
+    Row: _RET_KIND[r.kind] || 'Return', Date: r.date, Document: r.return_no, 'Of bill': `${r.document_number || ''} (${r.bill_date})`,
     Patient: '', Type: r.bill_type, Total: '', Amount: -Number(r.amount || 0),
     Payment: r.settlement === 'due' ? 'due reduced' : r.settlement === 'void' ? 'receipt voided' : 'refund ' + (r.refund_mode || ''), Status: r.kind,
   })));

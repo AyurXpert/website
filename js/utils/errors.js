@@ -225,7 +225,11 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     'A credit note can be issued only', 'A GST pharmacy bill is credited', 'Credit notes are available', 'Credit notes on insured bills',
     'This bill is not fully paid', 'The time for a credit note', 'Give the reason for the credit note', 'Choose how the money is refunded',
     'Enter the refund reference', 'A credit note for ', 'Choose at least one line', 'A chosen line is not', 'Each line can be chosen only once',
-    'Line ', 'Nothing is left to credit', 'At most ₹', 'The bill changed since this credit note'];
+    'Line ', 'Nothing is left to credit', 'At most ₹', 'The bill changed since this credit note',
+    // Session 345h: credit-note screens, the cash payout (D4), the annual-return date (D9), the credit-note prints
+    'Credit note ', 'The refund of ', "The admission's account no longer owes", 'Only ₹', 'Bill not found', 'Document not found',
+    'Unknown status filter', 'Too many bills at once', 'Super Admin or Finance Manager can view', 'Give the financial year as four digits',
+    'The annual return for ', 'Your role ('];
   if (['P0001','42501','22023','P0002'].includes(error?.code)
       && TAX_SETTINGS_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;

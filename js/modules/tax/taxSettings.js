@@ -10,6 +10,9 @@
 //   * document numbering   -> set_document_numbering       (active super_admin only; saving = confirming, also when unchanged)
 //   * declaration          -> set_bos_declaration          (active super_admin only)
 //   * pharmacy go-live     -> set_pharmacy_gst_go_live     (active super_admin only; the server's refusal reason is shown)
+//   * annual return date   -> set_annual_return_date       (Session 345h, rule R3: active super_admin only; the panel itself is
+//                                                          get_annual_return_dates -- super_admin / finance manager; the deadline it
+//                                                          shows is the server's; a date earlier than an issued credit note is refused, D9)
 // No GST rate is written here -- the profiles and their rates come from the server. DOM nodes + textContent only; no native
 // confirm() / alert(); every message in-page.
 import { safeErrorMessage } from '../../utils/errors.js';
@@ -68,7 +71,7 @@ export function mountTaxSettings(root, { supabase, onChange } = {}) {
     if (error || !data) { say(top, safeErrorMessage(error, 'Could not load the tax settings.'), true); body.replaceChildren(); return; }
     say(top, '');
     body.replaceChildren(readinessSection(data), ipSection(data), defaultsSection(data), roomSection(data), numberingSection(data),
-                         declarationSection(data), pharmacySection(data));
+                         annualReturnSection(data), declarationSection(data), pharmacySection(data));
   }
 
   // reload FIRST, then show the result (a reload clears the status line -- the 345b "message kept after reload" lesson)
@@ -388,6 +391,48 @@ export function mountTaxSettings(root, { supabase, onChange } = {}) {
         el('tbody', null, rows))),
       field('Number width', width), warn, err, el('div', { class: 'rp-actions' }, save), msg));
     check();
+    return sec;
+  }
+
+  // ── 2c. Session 345h (rule R3): the GST annual return date per financial year -> the credit-note time limit. Read with its own
+  // call (super_admin / finance manager); for any other role the server refuses and the section is simply not shown.
+  function annualReturnSection(d) {
+    const sec = el('section', { class: 'ts-sec', 'data-sec': 'annual-return' }, el('h4', { class: 'ts-h4' }, 'GST annual return (credit-note time limit)'),
+      el('p', { class: 'rp-muted' }, 'A GST credit note for a bill of a financial year can be issued only up to the EARLIER of 30 November after that year and the date this organisation filed its GST annual return for that year. Record the filing date here once it is filed; without it, 30 November applies. A date earlier than a credit note already issued for that year is refused.'));
+    const msg = status();
+    const box = el('div', { 'data-ar-table': '', 'aria-live': 'polite' }, el('p', { class: 'rp-muted' }, 'Loading…'));
+    sec.append(box, msg);
+    (async () => {
+      const { data, error } = await supabase.rpc('get_annual_return_dates');
+      if (error || !data) { sec.remove(); return; }                         // not a role that sees it
+      const edit = !!data.can_edit;
+      const rows = (data.years || []).map(y => {
+        const cells = [el('th', { scope: 'row' }, y.label), el('td', { 'data-ar-deadline': y.fy_code }, fmtD(y.deadline)),
+          el('td', null, String(y.gst_documents ?? 0)), el('td', null, String(y.credit_notes ?? 0))];
+        if (edit) {
+          const yEnd = String(y.year_end || '');
+          const minD = yEnd ? new Date(Date.parse(yEnd + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10) : '';
+          const date = el('input', { type: 'date', class: 'rp-input', id: uid('ts-ar'), value: y.filed_on || '', min: minD, max: d.today,
+                                     'aria-label': `Annual return for ${y.label} filed on`, 'data-ar-date': y.fy_code });
+          const save = btn('Save', 'rp-btn rp-btn-go', async () => {
+            save.disabled = true;
+            const r = await supabase.rpc('set_annual_return_date', { p_fy_code: y.fy_code, p_filed_on: date.value || null });
+            save.disabled = false;
+            if (r.error) { say(msg, safeErrorMessage(r.error, 'Could not save the annual return date.'), true); return; }
+            await after(top, r.data?.changed === false ? 'No change.'
+              : `✓ ${y.label}: annual return ${r.data?.filed_on ? 'filed on ' + fmtD(r.data.filed_on) : 'date cleared'} — credit notes for that year allowed until ${fmtD(r.data?.credit_note_deadline)}.`);
+          }, { 'data-save': 'annual-return', 'data-ar-save': y.fy_code });
+          cells.splice(1, 0, el('td', null, el('span', { class: 'rp-row', style: 'margin:0' }, date, save)));
+        } else {
+          cells.splice(1, 0, el('td', null, y.filed_on ? fmtD(y.filed_on) : 'not recorded'));
+        }
+        return el('tr', null, cells);
+      });
+      box.replaceChildren(el('div', { class: 'rp-tablewrap' }, el('table', { class: 'rp-table' },
+        el('thead', null, el('tr', null, ['Financial year', 'Annual return filed on', 'Credit notes allowed until', 'GST documents', 'Credit notes'].map(h => el('th', { scope: 'col' }, h)))),
+        el('tbody', null, rows))),
+        edit ? null : el('p', { class: 'rp-muted' }, 'Only the Super Admin records these dates.'));
+    })();
     return sec;
   }
 

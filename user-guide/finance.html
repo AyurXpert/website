@@ -399,6 +399,7 @@
       <a href="#pharmacy">4. Pharmacy Dispensing</a>
       <a href="#pharmacy-normal" class="sub">4.1 Self-Pay</a>
       <a href="#pharmacy-insurance" class="sub">4.2 Insurance Patient</a>
+      <a href="#pharmacy-returns" class="sub">4.3 Returns &amp; Cancellations</a>
 
       <a href="#ipd">5. IPD Discharge</a>
       <a href="#ipd-discharge" class="sub">5.1 Medical Discharge</a>
@@ -406,6 +407,8 @@
       <a href="#ipd-partial" class="sub">5.3 Partial Collection</a>
 
       <a href="#finance-dash">6. Finance Dashboard</a>
+      <a href="#finance-pharmacy-returns" class="sub">6.1a Pharmacy Returns</a>
+      <a href="#finance-credit-notes" class="sub">6.1b Credit Notes &amp; Refunds Due</a>
       <a href="#finance-access" class="sub">6.1 Who Can Access</a>
       <a href="#finance-revenue" class="sub">6.2 Revenue Tracking</a>
       <a href="#finance-ins" class="sub">6.3 Insurance Cycles</a>
@@ -778,6 +781,28 @@
 
     <p>If the page is reloaded mid-session, the <code>_rxPayerMap</code> is rebuilt automatically when <code>loadQueue()</code> runs. If badges are missing after a reload, hard-refresh with Ctrl+Shift+R and wait for the queue to fully load.</p>
 
+    <h3 id="pharmacy-returns">4.3 Returns &amp; Cancellations (🧾 Bills → ↩ Return / Cancel)</h3>
+
+    <p>A pharmacy bill (prescription or counter sale) can be returned in part, or cancelled in full, from the dispensary's <strong>🧾 Bills</strong> screen. The server checks every rule and works out the money; the screen only shows what it says.</p>
+
+    <ol class="steps">
+      <li><span class="step-num">1</span><div class="step-body"><strong>Find the bill</strong> — type its number (B/…) and press <em>Find bill</em>, pick it from <em>Today's pharmacy bills</em>, or press <strong>↩ Return / Cancel</strong> on a pharmacy bill found by the search below.</div></li>
+      <li><span class="step-num">2</span><div class="step-body"><strong>Each medicine line</strong> shows how many were sold, already returned, waiting for approval and can still be returned. Type how many come back and their condition: <strong>Sealed &amp; good</strong> goes back to the exact batch it was sold from; <strong>Opened / Damaged / Expired</strong> always goes to the disposal register (choose the disposal method and enter a witness name). <em>Return everything</em> fills every line — on the day of the sale that is a <strong>full cancellation</strong>.</div></li>
+      <li><span class="step-num">3</span><div class="step-body"><strong>Check the money</strong> the server shows: a same-day full cancel of a just-paid bill cancels its receipt; otherwise a refund is paid in the original mode (UPI / card needs the refund reference; cash instead of UPI / card needs a reason); a credit (due) sale is not paid back — the amount due goes down.</div></li>
+      <li><span class="step-num">4</span><div class="step-body"><strong>Say why</strong> — customer return or wrongly entered bill, and a reason of at least 5 characters.</div></li>
+      <li><span class="step-num">5</span><div class="step-body"><strong>Record it.</strong> With "Returns need a second person's approval" ON (the default) it shows <em>⏳ Sent for approval</em>: nothing changes until another authorised person approves it, and the RTN number is given then. With it OFF the return is completed at once and shows its <strong>RTN/&lt;FY&gt;/000001</strong> number with a <strong>🖨 Print return slip</strong> button.</div></li>
+    </ol>
+
+    <div class="box box-critical">
+      <strong>Refused by the server (shown in red on the panel)</strong>
+      A bill with an NDPS or Schedule H1 medicine; a GST pharmacy bill (waits for credit-note rules); a partial return after the organisation's return window (default 7 days — a full cancel only on the day of the sale); returns switched off for the organisation (then only an administrator can cancel a wrongly entered bill); a cashier returning a prescription bill (counter sales only).
+    </div>
+
+    <div class="box box-tip">
+      <strong>Slip, bill and queue</strong>
+      The return slip prints on A4, A5 or thermal 80 / 58 mm, with the original bill's number and date, the returned lines, the amount, the refund mode and the customer's signature line "Received the refund of ₹…". The first print is the Original; every reprint is "DUPLICATE COPY · No. N". Reprinting the bill afterwards shows <strong>CANCELLED</strong> or <strong>Items returned — RTN/…</strong>, plus the organisation's return-policy line. A prescription returned in full goes back to the dispensing queue, labelled <strong>↩ Returned — re-dispense</strong>, even when it is from an earlier day. Search <strong>RTN/…</strong> in Visits &amp; Bills (any date) to reprint a slip.
+    </div>
+
     <hr />
 
     <!-- ───────────────────────────────────────────────────────────────────── -->
@@ -876,6 +901,22 @@
     <!-- SECTION 6: FINANCE DASHBOARD -->
     <!-- ───────────────────────────────────────────────────────────────────── -->
     <h2 id="finance-dash">6. Finance Dashboard (finance.html)</h2>
+
+
+    <h3 id="finance-pharmacy-returns">6.1a ↩ Pharmacy returns (approve / reject)</h3>
+
+    <p>Under <strong>Revenue Tracking → ↩ Pharmacy returns</strong>, a super_admin, dept_admin, accountant or finance_manager sees every pharmacy return waiting for approval: the bill, the lines, the estimated value, who asked and why. The red number on the tab is how many <em>you</em> may decide. <strong>✅ Approve</strong> completes the return at once (stock, disposal register, refund / void / amount due, RTN number) and offers <strong>🖨 Print slip</strong>; a UPI / card refund needs its reference if the counter did not enter one. <strong>✕ Reject</strong> needs a reason and changes nothing. The person who asked never sees Approve / Reject on their own return — the server decides who may (the same rule as the approval itself). Returns and cancellations count on the day they are completed (Gross / Returns / Net).</p>
+
+    <h3 id="finance-credit-notes">6.1b 🧾 Credit notes (GST) and cash refunds due</h3>
+
+    <p>A finalised GST Tax Invoice or Bill of Supply is never edited or deleted; a mistake on a <strong>paid, self-pay</strong> consultation, investigation or IPD bill is corrected by a <strong>credit note</strong> (pharmacy bills: with the GST pharmacy returns; unpaid and insured bills: later).</p>
+    <ul>
+      <li><strong>Ask</strong> — an accountant, finance_manager or super_admin presses <strong>↶ Ask for a credit note</strong> on the bill in <strong>🔎 Visits &amp; Bills</strong> (IPD: the 💳 Account drawer in ipd.html). Choose the whole bill or an amount per line, the reason (printed) and how the money goes back (cash, UPI, card, cheque or NEFT — a reference for anything but cash). The panel shows "Credit allowed until …" and the tax reversed at the original bill's own rates; it refuses clearly after the GST time limit.</li>
+      <li><strong>Approve</strong> — a second person (super_admin or finance_manager, never the one who asked, except an organisation's only Super Admin) approves it in 🧾 Tax settings → "Tax settings waiting for approval" (or HR → Approvals). The credit note gets its number (CN/2627/…) at approval.</li>
+      <li><strong>Cash refunds due</strong> — a cash refund is <strong>not</strong> counted at approval. Under <strong>Revenue Tracking → 🧾 Credit notes</strong> (a cashier lands on "Cash refunds due"), the person handing over the money presses <strong>Pay out ₹… cash</strong> and confirms on the screen; the payout is recorded in <strong>their own shift</strong> (it shows in their shift handover as cash refunded) and <strong>🖨 Print refund voucher</strong> prints the voucher for the patient's signature. A refund can be paid out only once — a second counter is refused. UPI / card / cheque / NEFT refunds are recorded at approval with their reference; no cash drawer is involved.</li>
+      <li><strong>Find and reprint</strong> — the same tab lists credit notes, requests waiting and refunds due; a CN or original bill number searches all dates. Each bill row in Visits &amp; Bills shows the credit notes against it. The credit note prints ORIGINAL FOR RECIPIENT, then "REPRINT · ORIGINAL FOR RECIPIENT · No. N"; "Supplier copy" prints DUPLICATE FOR SUPPLIER.</li>
+      <li><strong>Totals</strong> — a credit note counts as a <strong>return on the day it is issued</strong> (the receipts list shows it as "Credit note" / "credited"); the refund counts in Collected on the day it is paid out.</li>
+    </ul>
 
     <h3 id="finance-access">6.1 Who Can Access</h3>
 

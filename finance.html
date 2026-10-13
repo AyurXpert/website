@@ -153,6 +153,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
 .modal-foot{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
+<link rel="stylesheet" href="css/credit-notes.css"/>
 <link rel="stylesheet" href="css/pharmacy-returns.css"/>
 </head>
 <body>
@@ -207,6 +208,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
       <button class="sub-tab" data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="outstanding" data-onclick-a2="@this">Outstanding</button>
       <button class="sub-tab" data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="daily" data-onclick-a2="@this">Daily Cash</button>
       <button class="sub-tab" data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="vbsearch" data-onclick-a2="@this">🔎 Visits &amp; Bills</button>
+      <!-- Session 345h: credit notes (list / search, waiting requests, cash refunds due -> paid out from the counter's own shift) -->
+      <button class="sub-tab" data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="creditnotes" data-onclick-a2="@this">🧾 Credit notes</button>
       <!-- Session 344b: pharmacy returns waiting for a second person's approval (shown by finance.js to the deciding roles) -->
       <button class="sub-tab" id="tab-pharmreturns" hidden data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="pharmreturns" data-onclick-a2="@this">↩ Pharmacy returns <span id="pharmreturns-badge" class="pr-badge" hidden></span></button>
       <!-- Session 345b: medicine HSN / tax profile requests (approvals + bulk assign) for the tax roles (inventory.html is not theirs) -->
@@ -283,6 +286,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
     <!-- Visits & Bills sub-panel (Session 328): find any past bill / receipt and reprint it as a Duplicate copy -->
     <div class="sub-panel" id="sub-vbsearch">
       <div class="card" id="vb-search-root"></div>
+    </div>
+
+    <!-- Credit notes sub-panel (Session 345h, GST Stage 6c) -->
+    <div class="sub-panel" id="sub-creditnotes">
+      <div id="cn-list-root"></div>
     </div>
 
     <!-- Daily Cash sub-panel -->

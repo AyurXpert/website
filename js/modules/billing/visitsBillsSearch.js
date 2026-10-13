@@ -12,6 +12,9 @@ import { openBill, openReceipt, isCombinedPayment } from './opdPayments.js'
 import { safeErrorMessage } from '../../utils/errors.js'
 import { todayISTStr } from '../../utils/dateUtils.js'
 import { getCurrentRole } from '../../core/auth.js'
+// Session 345h (GST Stage 6c): "Ask for a credit note" on a paid GST document, and the credit notes against each bill
+import { canAskCreditNote, openCreditNoteAsk } from './creditNoteAsk.js'
+import { creditNoteLinks, creditNotesForBills } from './creditNoteList.js'
 
 // Session 338d: medical certificates are confidential clinical documents -- never listed, searched or printed by a
 // pharmacist or cashier / accountant / finance_manager (the server refuses them too: _certificate_caller()).
@@ -81,7 +84,7 @@ function returnButtons(bill, onReturn) {
   return box.childNodes.length ? box : null
 }
 
-function billRow(bill, onReturn) {
+function billRow(bill, onReturn, ctx = {}) {
   const type = BILL_LABEL[String(bill.bill_type || '').toLowerCase()] || 'Bill'
   const pays = (bill.payments || []).filter(p => !p.voided && p.kind !== 'refund')
   const paidVia = pays.length ? pays.map(p => MODE_LABEL[p.mode] || p.mode).join(' + ') : null
@@ -95,7 +98,19 @@ function billRow(bill, onReturn) {
       Number(bill.final_amount || 0) < 0.005 ? 'NO CHARGE'
         : bill.cancelled ? 'CANCELLED'
         : `${String(bill.status || '').toUpperCase()}${paidVia ? ' · ' + paidVia : ''}${returned > 0 ? ' · returned ' + inr(returned) : ''}`),
-    reprintButtons(bill), returnButtons(bill, onReturn))
+    reprintButtons(bill), returnButtons(bill, onReturn), creditNoteBits(bill, ctx))
+}
+
+// Session 345h: the slot the credit notes against this bill go into (filled after the search, one batched read) and, for the
+// asker roles (D1), "Ask for a credit note" on a paid GST Tax Invoice / Bill of Supply -- the panel shows the server's answer
+function creditNoteBits(bill, ctx) {
+  const box = el('span', { 'data-cn-bill': bill.id, style: 'display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap' })
+  if (ctx.supabase && bill.status === 'paid' && canAskCreditNote(ctx.role, bill)) {
+    const b = el('button', { type: 'button', style: BTN, 'data-cn-ask': bill.id }, '↶ Ask for a credit note')
+    b.addEventListener('click', () => openCreditNoteAsk({ supabase: ctx.supabase, billId: bill.id, onDone: ctx.refresh }))
+    box.appendChild(b)
+  }
+  return box
 }
 
 // Session 338: a visit's finalised prescriptions, reprinted through record_document_print('prescription') -- the
@@ -132,7 +147,7 @@ function certificateCard(c) {
     certificateRow(c))
 }
 
-function resultCard(row, onReturn) {
+function resultCard(row, onReturn, ctx = {}) {
   const p = row.patient || {}
   const v = row.visit
   // Session 341: a counter (walk-in) sale with no patient shows the customer typed at the counter, or "Walk-in customer"
@@ -157,7 +172,7 @@ function resultCard(row, onReturn) {
   const card = el('div', { style: 'border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin:0 0 10px;background:#fff' }, head, sub)
   if (v) card.dataset.visitId = v.id
   if (!row.bills || !row.bills.length) card.appendChild(el('div', { style: 'font-size:12px;color:var(--text-muted);padding-top:4px' }, 'No OPD or lab bill on this visit.'))
-  for (const b of row.bills || []) card.appendChild(billRow(b, onReturn))
+  for (const b of row.bills || []) card.appendChild(billRow(b, onReturn, ctx))
   return card
 }
 
@@ -228,7 +243,20 @@ export function mountVisitsBillsSearch(root, { supabase, onReturn = null }) {
     status.textContent = `${rows.length} visit / bill result${rows.length === 1 ? '' : 's'}`
       + (certs.length ? ` and ${certs.length} medical certificate${certs.length === 1 ? '' : 's'}` : '') + ` shown ${scope}`
       + ((data.truncated || mc.data?.truncated) ? ' — only the latest are shown; refine your search.' : '.')
-    results.replaceChildren(...rows.map(r => resultCard(r, onReturn)))
+    const ctx = { supabase, role: getCurrentRole(), refresh: () => run() }
+    results.replaceChildren(...rows.map(r => resultCard(r, onReturn, ctx)))
+    // Session 345h: the credit notes against the GST documents shown (a refusal for a role simply shows none)
+    const gstIds = rows.flatMap(r => (r.bills || []).filter(b => b.document_type === 'TAX_INVOICE' || b.document_type === 'BILL_OF_SUPPLY').map(b => b.id))
+    if (gstIds.length) {
+      creditNotesForBills(supabase, gstIds).then(map => {
+        if (mine !== seq) return
+        for (const [id, entry] of Object.entries(map)) {
+          const slot = results.querySelector(`[data-cn-bill="${CSS.escape(id)}"]`)
+          const links = creditNoteLinks(entry)
+          if (slot && links) slot.prepend(links)
+        }
+      })
+    }
     // a certificate goes on its visit's card when that visit is shown; otherwise it gets a card of its own
     for (const c of certs) {
       const card = c.visit_id ? [...results.children].find(x => x.dataset.visitId === c.visit_id) : null

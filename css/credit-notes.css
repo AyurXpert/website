@@ -1,0 +1,38 @@
+/* Credit notes (Session 345h, GST Stage 6c) -- js/modules/billing/creditNoteAsk.js / creditNoteList.js / annualReturn section.
+   Used by finance.html, reception.html, ipd.html, admin.html; only the brand tokens those pages already define. */
+.cn-dialog{margin:auto;border:none;border-radius:14px;padding:0;width:min(760px,96vw);max-height:92vh;box-shadow:0 18px 50px rgba(0,0,0,.25);color:var(--text-dark,#1c2b1f);font-family:'DM Sans',sans-serif}
+.cn-dialog::backdrop{background:rgba(10,30,18,.45)}
+.cn-body{padding:18px 20px;overflow-y:auto;max-height:calc(92vh - 10px)}
+.cn-h{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep,#1a4a2e);margin:0 0 4px}
+.cn-sub{font-size:12.5px;color:var(--text-mid,#4a6352);margin:0 0 10px;line-height:1.5}
+.cn-deadline{display:inline-block;font-size:13px;font-weight:600;color:var(--green-deep,#1a4a2e);background:var(--green-light,#e8f5ee);border-radius:8px;padding:6px 10px;margin:4px 0 8px}
+.cn-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
+.cn-lbl{display:block;font-size:11px;font-weight:600;color:var(--text-mid,#4a6352);text-transform:uppercase;letter-spacing:.3px;margin:6px 0 3px}
+.cn-input,.cn-sel{min-height:44px;border:1.5px solid var(--border,#d4e6da);border-radius:8px;padding:0 10px;font:14px 'DM Sans',sans-serif;background:#fff;color:var(--text-dark,#1c2b1f)}
+textarea.cn-input{padding:8px 10px;width:100%;min-height:64px;resize:vertical;box-sizing:border-box}
+.cn-amt{width:110px;min-height:44px;border:1.5px solid var(--border,#d4e6da);border-radius:8px;text-align:right;padding:0 8px;font:600 14px 'DM Sans',sans-serif}
+.cn-amt:disabled{background:#f0f0f0;color:var(--text-muted,#8a9e90)}
+.cn-btn{min-height:44px;min-width:44px;padding:0 14px;border:1.5px solid var(--green-mid,#2d7a4f);background:#fff;color:var(--green-deep,#1a4a2e);border-radius:8px;font:600 13px 'DM Sans',sans-serif;cursor:pointer}
+.cn-btn-go{background:var(--green-deep,#1a4a2e);border-color:var(--green-deep,#1a4a2e);color:#fff}
+.cn-btn:disabled{opacity:.55;cursor:not-allowed}
+.cn-btn:focus-visible,.cn-input:focus-visible,.cn-sel:focus-visible,.cn-amt:focus-visible,.cn-radio:focus-visible{outline:3px solid var(--gold,#c9902a);outline-offset:2px}
+.cn-radio{display:inline-flex;align-items:center;gap:6px;min-height:44px;font-size:14px;cursor:pointer;padding:0 6px}
+.cn-radio input{width:18px;height:18px}
+.cn-tablewrap{overflow-x:auto}
+.cn-table{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0}
+.cn-table thead th{background:none;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-mid,#4a6352);border-bottom:1.5px solid var(--border,#d4e6da);padding:6px 4px}
+.cn-table td{padding:6px 4px;border-bottom:1px solid var(--border,#d4e6da);vertical-align:middle}
+.cn-table .num{text-align:right;white-space:nowrap}
+.cn-sum{font-size:14px;line-height:1.7;background:var(--cream,#faf8f3);border:1px solid var(--border,#d4e6da);border-radius:10px;padding:8px 12px;margin:8px 0}
+.cn-sum strong{color:var(--green-deep,#1a4a2e)}
+.cn-status{font-size:13px;color:var(--text-mid,#4a6352);margin:8px 0;min-height:1em}
+.cn-status.err{color:var(--red,#c0392b);font-weight:600}
+.cn-status.ok{color:var(--green-deep,#1a4a2e);font-weight:600}
+.cn-note{font-size:12.5px;color:#7a4000;background:#fff8ec;border:1px solid #f0d9b0;border-radius:8px;padding:8px 10px;margin:8px 0}
+.cn-pill{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;border:1px solid}
+.cn-pill.due{color:#7a4000;border-color:#e3b768;background:#fff8ec}
+.cn-pill.paid{color:var(--green-deep,#1a4a2e);border-color:var(--green-mid,#2d7a4f);background:var(--green-light,#e8f5ee)}
+.cn-pill.wait{color:var(--text-mid,#4a6352);border-color:var(--border,#d4e6da);background:#fff}
+.cn-links{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
+.cn-card{background:#fff;border:1.5px solid var(--border,#d4e6da);border-radius:12px;padding:16px 18px;margin:0 0 16px}
+@media (max-width:600px){.cn-body{padding:14px}.cn-amt{width:90px}}

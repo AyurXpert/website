@@ -12,6 +12,9 @@ import { todayLocalStr, localDateStr } from '../utils/dateUtils.js';
 import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml, loadDischargeSigner } from '../modules/ipd/dischargePrint.js';
 import { bedTypeLabel } from '../config/bedTypes.js';
 import { notify } from '../components/notify.js';
+// Session 345h (GST Stage 6c): credit notes against the final bill -- the list, the cash refund due (paid out here, D4), and the ask panel
+import { canAskCreditNote, openCreditNoteAsk } from '../modules/billing/creditNoteAsk.js';
+import { creditNoteLinks, creditNotesForBills, payoutBox, PAYOUT_ROLES } from '../modules/billing/creditNoteList.js';
 
 /*
   SQL to run in Supabase (one time) before using this page:
@@ -2170,9 +2173,11 @@ function _renderAccountDrawer(acc, receipts, chargesToDate) {
       <div class="adm-detail-row"><span>Advance / Deposits Credited</span><strong>${_fmtMoney(acc.held)}</strong></div>
       <div class="adm-detail-row"><span>Paid</span><strong>${_fmtMoney(paidTotal)}</strong></div>
       ${refundedTotal > 0 ? `<div class="adm-detail-row"><span>Refunded</span><strong>${_fmtMoney(refundedTotal)}</strong></div>` : ''}
+      ${Number(acc.credited) > 0 ? `<div class="adm-detail-row"><span>Credit Notes</span><strong>− ${_fmtMoney(acc.credited)}</strong></div>` : ''}
       <div class="adm-detail-row"><span>Status</span><strong>${_esc((acc.bill_status || '').toUpperCase())}</strong></div>
     </div>
-    <button class="btn btn-secondary btn-sm" data-onclick="printFinalBillBtn" style="margin-bottom:16px">&#129534; Final Bill</button>`;
+    <button class="btn btn-secondary btn-sm" data-onclick="printFinalBillBtn" style="margin-bottom:16px">&#129534; Final Bill</button>
+    <div id="acct-cn"></div>`;
   }
 
   // ── Actions ──
@@ -2217,6 +2222,40 @@ function _renderAccountDrawer(acc, receipts, chargesToDate) {
     : `<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:12.5px">No receipts yet.</div>`;
 
   document.getElementById('acct-body').innerHTML = html;
+  if (hasBill) _renderAccountCreditNotes(acc);
+}
+
+// Session 345h: "Credit notes against this bill" in the account (screens only -- the final-bill print never changes, D8): each
+// note (print), a cash refund still due with its payout from THIS person's shift (D4), and "Ask for a credit note" (D1)
+async function _renderAccountCreditNotes(acc) {
+  const slot = document.getElementById('acct-cn');
+  if (!slot) return;
+  const bill = { document_type: acc.document_type, bill_type: 'ipd', cancelled: acc.document_status === 'cancelled' };
+  const canAsk = acc.bill_status === 'paid' && canAskCreditNote(myRole, bill);
+  const map = await creditNotesForBills(supabase, [acc.bill_id]);
+  if (document.getElementById('acct-cn') !== slot) return;          // the drawer was re-rendered meanwhile
+  const entry = map[acc.bill_id];
+  const sec = document.createElement('div');
+  if (entry || canAsk) {
+    const h = document.createElement('div'); h.className = 'sec'; h.textContent = 'Credit Notes'; sec.appendChild(h);
+  }
+  const links = creditNoteLinks(entry);
+  if (links) sec.appendChild(links);
+  for (const n of entry?.notes || []) {
+    if (n.refund_status === 'due' && PAYOUT_ROLES.includes(myRole)) {
+      const row = document.createElement('div'); row.style.margin = '6px 0';
+      row.appendChild(payoutBox(supabase, { ...n, patient: null }, () => _refreshAccountDrawer()));
+      sec.appendChild(row);
+    }
+  }
+  if (canAsk) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn btn-secondary btn-sm'; b.style.margin = '6px 0 16px';
+    b.textContent = '↶ Ask for a credit note';
+    b.addEventListener('click', () => openCreditNoteAsk({ supabase, billId: acc.bill_id, onDone: () => _refreshAccountDrawer() }));
+    sec.appendChild(b);
+  }
+  slot.replaceChildren(sec);
 }
 
 window.submitAccountDeposit = async function() {
