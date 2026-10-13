@@ -5,13 +5,15 @@
 import { safeErrorMessage } from '../../utils/errors.js';
 import { el } from '../pharmacy/returnPanel.js';
 
-export const TAX_APPROVAL_TYPES = ['ip_medicine_tax', 'tax_defaults_change', 'room_tax_change'];
+export const TAX_APPROVAL_TYPES = ['ip_medicine_tax', 'tax_defaults_change', 'room_tax_change', 'credit_note'];
 const btn = (label, cls, onClick, attrs = {}) => { const b = el('button', { type: 'button', class: cls, ...attrs }, label); b.addEventListener('click', onClick); return b; };
 let _n = 0;
 const uid = p => `${p}-${++_n}`;
 const when = iso => iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 const fmtD = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-const TITLE = { ip_medicine_tax: 'IP-medicines tax choice', tax_defaults_change: 'Default tax profiles', room_tax_change: 'Room tax profiles (IPD)' };
+const TITLE = { ip_medicine_tax: 'IP-medicines tax choice', tax_defaults_change: 'Default tax profiles', room_tax_change: 'Room tax profiles (IPD)',
+  credit_note: 'Credit note' };
+const inr = n => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const REASON = { own_request: 'You asked for this change — another authorised person decides it.', inactive: 'Your account is not active.',
   not_authorised: 'Waiting for the Super Admin or Finance Manager.' };
 
@@ -26,6 +28,14 @@ function rowsFor(a) {
   if (a.action_type === 'ip_medicine_tax') {
     return [['Choice', choiceText(p.old), choiceText(p)],
             ['Effective from', p.old?.effective_from ? fmtD(p.old.effective_from) : '—', fmtD(p.effective_from)]];
+  }
+  if (a.action_type === 'credit_note') {       // Session 345g: what is credited (per line) and refunded -- the server re-checks at approval
+    const ls = Array.isArray(p.lines) ? p.lines : [];
+    return [['Against', `${p.original_document_number || '—'} (${fmtD(p.original_document_date)})`, p.with_tax ? 'Credit note (with GST)' : 'Credit note (Bill of Supply, no GST)'],
+            ...ls.map(l => [`Line ${l.original_line_no}: ${l.description || '—'}`, '—',
+              `${inr(l.line_total)}${Number(l.cgst_amount) || Number(l.sgst_amount) ? ` (CGST ${inr(l.cgst_amount)} + SGST ${inr(l.sgst_amount)})` : ''}`]),
+            ['Refund', '—', `${inr(p.total)} by ${String(p.refund_mode || '—').toUpperCase()}${p.refund_reference ? ' · ' + p.refund_reference : ''}`],
+            ['Credit allowed until', '—', fmtD(p.deadline)]];
   }
   if (a.action_type === 'room_tax_change') {   // Session 345e
     const o = p.old || {};

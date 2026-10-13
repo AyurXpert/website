@@ -473,6 +473,8 @@ const APPROVAL_ACTION_LABELS = {
   tax_defaults_change:     'Default tax profiles',
   // Session 345e: decided in the same "Tax settings" table
   room_tax_change:         'Room tax profiles (IPD)',
+  // Session 345g: a credit note waiting for the second person -- decided in the same "Tax settings" table
+  credit_note:             'Credit note',
 };
 
 const NURSING_CYCLE_LABELS = { weekly: 'Weekly (7 days)', fortnightly: 'Fortnightly (14 days)', monthly: 'Monthly (30 days)' };
@@ -509,6 +511,7 @@ function _approvalSummary(row){
       const ch = [['OP goods', 'goods_op'], ['treatment', 'treatment'], ['wellness', 'wellness']].filter(([, k]) => (o[k] || null) !== (n[k] || null));
       return ch.length ? ch.map(([l, k]) => `${l}: ${_esc(o[k] || 'not set')} → ${_esc(n[k] || 'not set')}`).join(' · ') : '—';
     }
+    case 'credit_note':          return `against ${_esc(p.original_document_number || '—')} — ₹${_esc(Number(p.total || 0).toFixed(2))} refund by ${_esc(String(p.refund_mode || '—').toUpperCase())}`;
     case 'room_tax_change':      return `taxable rooms ${_esc(p.taxable_profile_name || '—')} · exempt rooms ${_esc(p.exempt_profile_name || '—')}`
                                    + (p.wellness_profile_name ? ` · wellness ${_esc(p.wellness_profile_name)}` : '') + ` from ${_esc(p.effective_from || '—')}`;
     default: return '—';

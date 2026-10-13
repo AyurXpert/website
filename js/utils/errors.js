@@ -220,7 +220,12 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     // Session 345e: room tax profiles (request_room_tax_change / _room_tax_apply) and the document numbering (set_document_numbering)
     'Choose both room profiles', 'The room profile for', 'The wellness room profile', 'A room tax request is already waiting',
     'Enter a prefix for the', 'The prefix "', 'Each document type needs its own prefix', 'The number width must be',
-    'The Tax Invoice ', 'The Bill of Supply ', 'The Bill ', 'The Receipt ', 'The Credit note ', 'The Debit note '];
+    'The Tax Invoice ', 'The Bill of Supply ', 'The Bill ', 'The Receipt ', 'The Credit note ', 'The Debit note ',
+    // Session 345g: credit notes (request_credit_note / _credit_note_apply through decide_approval)
+    'A credit note can be issued only', 'A GST pharmacy bill is credited', 'Credit notes are available', 'Credit notes on insured bills',
+    'This bill is not fully paid', 'The time for a credit note', 'Give the reason for the credit note', 'Choose how the money is refunded',
+    'Enter the refund reference', 'A credit note for ', 'Choose at least one line', 'A chosen line is not', 'Each line can be chosen only once',
+    'Line ', 'Nothing is left to credit', 'At most ₹', 'The bill changed since this credit note'];
   if (['P0001','42501','22023','P0002'].includes(error?.code)
       && TAX_SETTINGS_MSGS.some(m => error?.message?.startsWith(m))) {
     return error.message;
