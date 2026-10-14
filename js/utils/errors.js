@@ -235,6 +235,20 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 345j: the tax profile editor (session-299 functions + the 345j guards and rate rule) -- plain, staff-actionable
+  const TAX_PROFILE_MSGS = ['Tax version not found', 'Only a draft can be submitted', 'Only a draft tax version can be deleted',
+    'This version starts on ', 'Only an approver can', 'You created or submitted this version', 'Choose approve or reject',
+    'Give a reason for rejecting', 'Give a reason for retiring', 'Only an approved version can be retired', 'This tax profile is in use',
+    'A GST rate must be between', 'This version is not pending', 'Only a migration-created version', 'The platform GST rate rule',
+    'Tax version status changes go through', 'Only the fields allowed for this step', 'This version was used on finalized bills'];
+  if (['P0001','42501','22023'].includes(error?.code) && (TAX_PROFILE_MSGS.some(m => error?.message?.startsWith(m))
+      || /^Version \d+ of this profile is already waiting for approval\./.test(error?.message || ''))) {
+    return error.message;
+  }
+  if (error?.code === '42501' && error?.message === 'Not allowed.') {
+    return 'Your role cannot change tax profiles (Super Admin, Dept Admin, Finance Manager or Accountant only).';
+  }
+
   // Session 345c2b: the supplier copy of a bill (record_document_print 'bill_supplier') -- the server's plain refusal
   if (error?.code === '22023' && error?.message?.startsWith('A supplier copy can be printed only for a finalised Tax Invoice')) {
     return error.message;

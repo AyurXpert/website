@@ -21,6 +21,7 @@ import {
 import { notify } from '../components/notify.js';
 import { mountItemTaxApprovals } from '../modules/pharmacy/itemTax.js';
 import { mountTaxSettings } from '../modules/tax/taxSettings.js';
+import { mountTaxProfiles } from '../modules/tax/taxProfiles.js';
 import { mountTaxApprovals, TAX_APPROVAL_TYPES } from '../modules/tax/taxApprovals.js';
 import { printDocument, docHeader } from '../utils/printDocument.js';
 
@@ -6803,13 +6804,18 @@ function _renderCounterSaleSetting(on) {
 // here, after its own async load; re-mounting then replaced a card the user could already be typing in. Now the first
 // visit mounts it and every later visit only reloads it (its forms are disabled while it reloads; stale replies ignored).
 let _taxCard = null;
+let _taxProfiles = null;   // Session 345j
 function _renderTaxSettings() {
   const box = document.getElementById('tax-settings');
   if (!box) return;
   box.hidden = !(role === 'super_admin' || role === 'dept_admin');
   if (box.hidden) return;
-  if (_taxCard && box.querySelector('[data-tax-settings]')) { _taxCard.reload(); return; }
+  if (_taxCard && box.querySelector('[data-tax-settings]')) { _taxCard.reload(); _taxProfiles?.reload(); return; }
   _taxCard = mountTaxSettings(box, { supabase });
+  // Session 345j (TODO §177): 🧮 Tax profiles, right under the card -- mounted once, reloaded on every later visit; a change there
+  // reloads the card (its profile lists and readiness use the profiles)
+  const tp = document.getElementById('tax-profiles');
+  if (tp) { tp.hidden = false; _taxProfiles = mountTaxProfiles(tp, { supabase, onChange: () => _taxCard?.reload() }); }
 }
 
 async function _renderReturnSettings() {

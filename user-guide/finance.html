@@ -409,6 +409,7 @@
       <a href="#finance-dash">6. Finance Dashboard</a>
       <a href="#finance-pharmacy-returns" class="sub">6.1a Pharmacy Returns</a>
       <a href="#finance-credit-notes" class="sub">6.1b Credit Notes &amp; Refunds Due</a>
+      <a href="#finance-tax-profiles" class="sub">6.1c Tax Profiles</a>
       <a href="#finance-access" class="sub">6.1 Who Can Access</a>
       <a href="#finance-revenue" class="sub">6.2 Revenue Tracking</a>
       <a href="#finance-ins" class="sub">6.3 Insurance Cycles</a>
@@ -918,6 +919,17 @@
       <li><strong>Cash refunds due</strong> — a cash refund is <strong>not</strong> counted at approval. Under <strong>Revenue Tracking → 🧾 Credit notes</strong> (a cashier lands on "Cash refunds due"), the person handing over the money presses <strong>Pay out ₹… cash</strong> and confirms on the screen; the payout is recorded in <strong>their own shift</strong> (it shows in their shift handover as cash refunded) and <strong>🖨 Print refund voucher</strong> prints the voucher for the patient's signature. A refund can be paid out only once — a second counter is refused. UPI / card / cheque / NEFT refunds are recorded at approval with their reference; no cash drawer is involved.</li>
       <li><strong>Find and reprint</strong> — the same tab lists credit notes, requests waiting and refunds due; a CN or original bill number searches all dates. Each bill row in Visits &amp; Bills shows the credit notes against it. The credit note prints ORIGINAL FOR RECIPIENT, then "REPRINT · ORIGINAL FOR RECIPIENT · No. N"; "Supplier copy" prints DUPLICATE FOR SUPPLIER.</li>
       <li><strong>Totals</strong> — a credit note counts as a <strong>return on the day it is issued</strong> (the receipts list shows it as "Credit note" / "credited"); the refund counts in Collected on the day it is paid out.</li>
+    </ul>
+
+    <h3 id="finance-tax-profiles">6.1c 🧮 Tax profiles (new profile, rate change, approve)</h3>
+
+    <p>Under <strong>Revenue Tracking → 🧾 Tax settings</strong>, below the Tax settings card (the Super Admin and Dept Admin see the same panel in Admin → Feature Modules). A tax profile is the GST treatment of a group of items, e.g. “Medicines — Taxable 5%”: goods (HSN) or services (SAC); Taxable with its rate, Exempt or Nil-rated.</p>
+    <ul>
+      <li><strong>Make</strong> — an accountant, finance_manager, dept_admin or super_admin presses <strong>＋ New tax profile</strong> (or <strong>New version (rate change)</strong> on an existing one), types the rate as a number — it is split equally (5% = CGST 2.5% + SGST 2.5%) — and the date it starts (today or later, never back-dated), then <strong>Save and send for approval</strong> (or Save as draft to finish later). A rate above 40% is refused; a rate that is not one of the usual GST rates (a platform list: 0.25, 3, 5, 18, 40 — to be confirmed by your CA) must be ticked to confirm.</li>
+      <li><strong>Approve</strong> — under “Waiting for a decision”, a super_admin or finance_manager approves or rejects (with a reason). Never the person who made or sent the version, except an organisation's only Super Admin (recorded as “self-approved (sole administrator)”). A version whose start date has already passed can only be rejected. One version per profile waits at a time. The 🧾 Tax settings badge counts these decisions too.</li>
+      <li><strong>Accounts review</strong> — profiles made by a migration are confirmed by an approver with <strong>Confirm Accounts review</strong>.</li>
+      <li><strong>Retire</strong> — an approver may retire a profile that is not in use (with a reason). While a default, the room-tax rule, the IP-medicines choice, a medicine, a fee item or a package uses it, the screen shows “In use: …” and there is no Retire button.</li>
+      <li><strong>History</strong> — “Versions and history” under each profile lists every version (rate, from, to, state) and every step (who, when, notes). Bills already issued never change.</li>
     </ul>
 
     <h3 id="finance-access">6.1 Who Can Access</h3>

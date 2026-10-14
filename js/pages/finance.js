@@ -14,6 +14,7 @@ import { mountReturnsQueue } from '../modules/pharmacy/returnsQueue.js';
 import { mountItemTaxApprovals, mountBulkItemTax, isTaxMaker } from '../modules/pharmacy/itemTax.js';
 import { mountTaxSettings } from '../modules/tax/taxSettings.js';
 import { mountTaxApprovals, TAX_APPROVAL_TYPES } from '../modules/tax/taxApprovals.js';
+import { mountTaxProfiles } from '../modules/tax/taxProfiles.js';
 
 wireDelegatedEvents();
 
@@ -62,6 +63,8 @@ window.switchSub = function(grp, sub, el) {
     mountTaxApprovals(document.getElementById('taxappr-root'), { supabase, onCount: () => _refreshTaxBadge(),
       onDecided: () => { _refreshTaxBadge(); _taxCard?.reload(); } });
     _taxCard = mountTaxSettings(document.getElementById('taxsettings-root'), { supabase });
+    // Session 345j (TODO §177): 🧮 Tax profiles under the card; a change reloads the card and the badge
+    mountTaxProfiles(document.getElementById('taxprofiles-root'), { supabase, onChange: () => { _taxCard?.reload(); _refreshTaxBadge(); } });
   }
   if (sub === 'pharmreturns') {
     if (!_prQueue) _prQueue = mountReturnsQueue(document.getElementById('pharmreturns-root'), { supabase, onCount: _setPrBadge, onDecided: () => window.loadAll() });
@@ -100,9 +103,13 @@ if (hasModule('pharmacy') && (isTaxMaker() || _role === 'finance_manager' || get
 }
 // Session 345c2a: Tax settings -- the accountant / finance manager (primary or secondary) and the other tax makers; the badge
 // counts every tax decision THIS person may take (item tax + IP-medicines choice + default profiles; approval_decide_check)
+// Session 345j: + the tax-profile versions THIS person may approve / reject / confirm (tax_version_decide_check)
 function _refreshTaxBadge() {
-  supabase.rpc('approval_decide_check', { p_ids: null }).then(({ data, error }) => {
-    if (!error) _setBadgeEl('taxsettings-badge', (data || []).filter(c => (c.action_type === 'item_tax_change' || TAX_APPROVAL_TYPES.includes(c.action_type)) && c.can_decide).length);
+  Promise.all([supabase.rpc('approval_decide_check', { p_ids: null }), supabase.rpc('tax_version_decide_check', { p_ids: null })]).then(([a, t]) => {
+    if (a.error) return;
+    const n = (a.data || []).filter(c => (c.action_type === 'item_tax_change' || TAX_APPROVAL_TYPES.includes(c.action_type)) && c.can_decide).length
+      + (t.error ? 0 : (t.data || []).filter(c => c.can_approve || c.can_reject || c.can_confirm_review).length);
+    _setBadgeEl('taxsettings-badge', n);
   });
 }
 if (isTaxMaker() || _role === 'finance_manager' || getCurrentSecondaryRole() === 'finance_manager') {
