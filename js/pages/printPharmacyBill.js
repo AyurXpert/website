@@ -13,6 +13,7 @@ import { el } from '../modules/billing/invoiceLayout.js'
 import { ensureSignedIn } from '../utils/signInGate.js'
 import { getPaperSize, applyPaperSize, mountPaperSizeSelect, renderDocument, watchPrintPageSize } from '../modules/billing/paperSize.js'
 import { copyMarking, isSupplierCopy, canPrintSupplierCopy, openSupplierCopy } from '../modules/billing/copyMarking.js'
+import { creditNoteExclusions } from '../modules/billing/creditNotePrint.js'
 
 wireDelegatedEvents()
 applyPaperSize(getPaperSize())   // Session 336: A4 / A5 / thermal 80 / 58 mm, remembered per device
@@ -235,6 +236,14 @@ async function load() {
   if (!(await ensureSignedIn(supabase))) return
   const { data, error } = await supabase.rpc('get_pharmacy_bill_print', { p_bill: billId })
   if (error || !data?.bill) { showError(safeErrorMessage(error, 'Could not load the bill.')); return }
+  // Session 345i (P2 / D16), a second guard behind the server's: a GST pharmacy bill prints exactly as issued -- no returns and no
+  // credit-note refund on it (they are on the credit note / refund voucher). A failed check refuses the print (fail closed).
+  if (data.bill.tax_regime === 'gst_v1') {
+    let ex
+    try { ex = await creditNoteExclusions(supabase, [billId]) } catch (e) { showError(safeErrorMessage(e, 'Could not check the credit notes of this bill. Please try again.')); return }
+    data.returns = []
+    data.payments = (data.payments || []).filter(p => !ex.paymentIds.has(p.id))
+  }
   // Print audit first: an unmarked copy must never be printable (fail closed). Session 345c2b: the supplier copy is its own
   // document ('bill_supplier') -- finalised Tax Invoices only, and the answer must carry the supplier label
   if (supplier && !canPrintSupplierCopy(data.bill)) { showError('A supplier copy can be printed only for a finalised Tax Invoice.'); return }

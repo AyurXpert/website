@@ -34,6 +34,7 @@ function istParts(iso) {
   return { d: p.day, m: MON[Number(p.month) - 1], y: p.year, time: `${p.hour}:${p.minute} ${(p.dayPeriod || '').toUpperCase()}` }
 }
 const fmtDT  = iso => { if (!iso) return null; const p = istParts(iso); return `${p.d} ${p.m} ${p.y}, ${p.time}` }
+const fmtDay = d => { if (!d) return null; const p = istParts(String(d).length === 10 ? `${d}T12:00:00+05:30` : d); return `${p.d} ${p.m} ${p.y}` }   // Session 345i: a date (no time)
 const fmtExp = d => { if (!d) return null; const [y, m] = String(d).split('-'); return m && y ? `${MON[Number(m) - 1]} ${y}` : String(d) }
 const monogram = name => (name || '').split(/\s+/).filter(Boolean).slice(0, 3).map(w => w[0].toUpperCase()).join('')
 
@@ -59,6 +60,9 @@ export function buildModel(d, copy) {
     { label: 'Original Bill No.', value: b.document_number || 'Not numbered', gap: !b.document_number },
     { label: 'Bill Date', value: fmtDT(b.created_at) },
   ]
+  // Session 345i (P3): the return of a GST bill names its credit note -- fixed when the return was completed, so the slip never changes
+  const cn = r.credit_note || null
+  if (cn) meta.push({ label: 'Credit Note No.', value: cn.document_number || '—' })
 
   const fields = pt ? [
     { label: 'Patient Name', value: pt.name, wide: true },
@@ -90,6 +94,9 @@ export function buildModel(d, copy) {
   if (r.settlement === 'void') {
     summary.push({ label: `Sale receipt ${r.voided_receipt_no || ''} cancelled`.replace(/\s+/g, ' ').trim(), value: money(r.refund_amount) })
     balance = { label: `Amount returned (${mode})`, value: rupee(r.refund_amount) }
+  } else if (r.settlement === 'refund' && cn && cn.refund_due_at_issue) {
+    summary.push({ label: `Refund due against credit note ${cn.document_number} (${mode})`, value: money(r.refund_amount) })
+    balance = { label: `Refund due (${mode}) — paid out at the counter`, value: rupee(r.refund_amount) }
   } else if (r.settlement === 'refund') {
     summary.push({ label: `Refund${r.refund_receipt_no ? ' — ' + r.refund_receipt_no : ''} (${mode})`, value: money(r.refund_amount) })
     balance = { label: `Refund paid (${mode})`, value: rupee(r.refund_amount) }
@@ -97,7 +104,10 @@ export function buildModel(d, copy) {
     balance = { label: 'Refund paid', value: rupee(0) }
   }
   const refunded = num(r.refund_amount)
-  if (refunded > 0) {
+  if (refunded > 0 && cn && cn.refund_due_at_issue) {
+    words = [`Refund due: ${amountInWords(refunded)}.`]
+    sign = [`Refund of ₹ ${money(refunded)} to be paid out against credit note ${cn.document_number} (refund voucher)`, 'Customer signature: ____________________']
+  } else if (refunded > 0) {
     words = [`Refund: ${amountInWords(refunded)}.`]
     sign = [`Received the refund of ₹ ${money(refunded)}`, 'Customer signature: ____________________']
   } else {
@@ -108,6 +118,7 @@ export function buildModel(d, copy) {
   const footer = []
   if (isDup) footer.push(`Duplicate copy no. ${copyNo}. The original was first printed ${fmtDT(copy.first_printed_at)}${copy.first_printed_by ? ' by ' + copy.first_printed_by : ''}.`)
   footer.push(`Recorded by ${r.completed_by || '—'}. Keep this slip with the original bill.`)
+  if (cn) footer.push(`The tax document for this return is credit note ${cn.document_number} dated ${fmtDay(cn.document_date)}.`)
   footer.push('Computer-generated return slip — not a tax invoice or credit note. · Powered by AyurXpert')
 
   return {
@@ -117,7 +128,7 @@ export function buildModel(d, copy) {
     gst: false, descLabel: 'Medicine', noCode: true,
     sections, emptyNote: rows.length ? null : 'No medicines on this return.', taxNote: null, taxSummary: null, payments: null,
     summary: { rows: summary, balance },
-    words: { label: refunded > 0 ? 'Refund in words' : 'Value in words', lines: words },
+    words: { label: refunded > 0 ? (cn && cn.refund_due_at_issue ? 'Refund due in words' : 'Refund in words') : 'Value in words', lines: words },
     signatures: { left: sign, right: ['Pharmacist / Authorised signatory', `for ${orgName}`] },
     footer,
   }

@@ -3,7 +3,8 @@
 // SERVER's: credit_note_preview() gives the deadline (rule R3), each line with what is already credited and what is left, what can
 // still be refunded, a request already waiting and -- for the lines chosen -- the exact split request_credit_note() will store (the
 // tax of each line at the ORIGINAL's rate, the last credit of a line taking the exact remainder). Nothing is computed here.
-// D1: asked by an accountant / finance manager / super admin; a second person approves (Tax & Invoicing / HR -> Approvals).
+// D1 (amended by the owner, 13 Oct 2026 -- Session 345i): asked by a receptionist, cashier, accountant, finance manager or super admin;
+// a tax approver (super admin / finance manager) other than the asker approves (Tax & Invoicing / HR -> Approvals).
 // D2: an amount per line (rupees and paise, at most what is left) or the whole bill. D3: cash / UPI / card / cheque / NEFT, a
 // reference for anything but cash; the default is the original receipt's mode. D4: a CASH refund becomes "refund due" when approved
 // and is paid out by the counter from its own shift (a refund voucher prints); other modes are recorded at approval.
@@ -11,7 +12,7 @@
 import { safeErrorMessage } from '../../utils/errors.js'
 import { el } from './invoiceLayout.js'
 
-export const ASK_ROLES = ['super_admin', 'finance_manager', 'accountant']
+export const ASK_ROLES = ['super_admin', 'finance_manager', 'accountant', 'receptionist', 'cashier']
 const ASK_TYPES = ['TAX_INVOICE', 'BILL_OF_SUPPLY']
 const ASK_BILLS = ['consultation', 'opd', 'investigation', 'ipd']
 const MODES = [['cash', 'Cash'], ['upi', 'UPI'], ['card', 'Card'], ['cheque', 'Cheque'], ['neft', 'NEFT / bank transfer']]

@@ -6,9 +6,15 @@
 // GST bill, returns switched off, role). request_pharmacy_return() records it: with "Returns need a second person's
 // approval" ON it waits for a checker (the RTN number is given when it is approved); OFF, the maker completes it at once
 // and the slip can be printed from that click. Nothing here is trusted by the server.
+// Session 345i (GST Stage 6b): a GST pharmacy bill (Tax Invoice / Bill of Supply) is returned through the SAME panel; the server
+// issues ONE credit note per return (each line credited at its stored value and tax, the last unit taking the exact remainder) and
+// the panel shows that credit note before it is recorded. A GST bill is never cancelled (no void): a full return is a full credit
+// note. A cash refund with a second person's approval is "refund due" until a counter pays it out (D4); without one, the person at
+// the counter pays it out at once and prints the refund voucher. Unpaid / insured GST bills are refused by the server.
 // DOM nodes + textContent only (medicine and customer names are user-entered text); no native confirm() / alert().
 import { safeErrorMessage } from '../../utils/errors.js';
 import { istDayStartUTC, todayISTStr } from '../../utils/dateUtils.js';
+import { creditNoteUrl, voucherUrl, payoutBox } from '../billing/creditNoteList.js';
 
 const CONDITIONS = [
   { v: 'sealed_good', l: 'Sealed & good' },
@@ -26,6 +32,7 @@ const DISPOSAL = [
 const MODE = { cash: 'Cash', upi: 'UPI', card: 'Card' };
 const rupee = n => '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const when = iso => iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+const fmtD = d => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const fmtExp = d => { if (!d) return null; const [y, m] = String(d).split('-'); return m ? `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(m) - 1]} ${y}` : String(d); };
 
 export function el(tag, attrs, ...kids) {
@@ -45,7 +52,14 @@ let _uid = 0;
 const uid = p => `${p}-${++_uid}`;
 
 // What the settlement means at the counter, in words
-export function settlementText(s, amount, refund, due, mode) {
+// gst = { approval: true / false } for a GST bill (Session 345i): the refund belongs to the credit note
+export function settlementText(s, amount, refund, due, mode, gst = null) {
+  if (gst && s === 'refund') {
+    if (mode === 'cash') return gst.approval
+      ? `Credit note refund ${rupee(refund)} in cash — after approval it is "refund due" and a counter (reception / cashier) pays it out from their own shift, with a refund voucher.`
+      : `Credit note refund ${rupee(refund)} in cash — paid out now by you, from your own shift; print the refund voucher.`;
+    return `Credit note refund ${rupee(refund)} by ${MODE[mode] || mode} — recorded with its reference when the credit note is issued.`;
+  }
   if (s === 'void') return `The sale receipt is cancelled — give back ${rupee(refund)} (${MODE[mode] || mode || 'as paid'}).`;
   if (s === 'refund') return `Refund ${rupee(refund)} by ${MODE[mode] || mode || 'the original mode'}${Number(due) > 0 ? `; the amount due also goes down by ${rupee(due)}` : ''}.`;
   if (s === 'due') return `Credit sale — nothing is paid back; the amount due goes down by ${rupee(due || amount)}.`;
@@ -61,7 +75,7 @@ export function settlementText(s, amount, refund, due, mode) {
  */
 export function mountReturnPanel(root, { supabase, counterOnly = false, onChanged } = {}) {
   const findId = uid('rp-find');
-  const find = el('input', { id: findId, class: 'rp-input', type: 'text', maxlength: '40', autocomplete: 'off', placeholder: 'Bill no., e.g. B/2026-27/000123', 'aria-label': 'Pharmacy bill number' });
+  const find = el('input', { id: findId, class: 'rp-input', type: 'text', maxlength: '40', autocomplete: 'off', placeholder: 'Bill no., e.g. B/2026-27/000123 or TI/2627/000045', 'aria-label': 'Pharmacy bill number' });
   const status = el('div', { class: 'rp-status', role: 'status', 'aria-live': 'polite' });
   const today = el('div', { class: 'rp-today' });
   const work = el('div', { class: 'rp-work' });
@@ -72,7 +86,7 @@ export function mountReturnPanel(root, { supabase, counterOnly = false, onChange
   const hId = uid('rp-h');
   root.replaceChildren(el('section', { class: 'rp-card', 'aria-labelledby': hId },
     el('h3', { class: 'rp-h', id: hId }, '↩ Return / Cancel a pharmacy bill'),
-    el('p', { class: 'rp-sub' }, "Type the bill number, or pick one of today's bills. The server checks every rule (return window, NDPS / Schedule H1, GST bills, the organisation's return settings) and works out the money."),
+    el('p', { class: 'rp-sub' }, "Type the bill number, or pick one of today's bills. The server checks every rule (return window, NDPS / Schedule H1, the GST time limit, the organisation's return settings) and works out the money. A GST bill's return issues a credit note."),
     el('div', { class: 'rp-row' }, el('label', { for: findId, class: 'rp-lbl' }, 'Bill no.'), find, goFind, refresh),
     status, today, work));
 
@@ -107,7 +121,7 @@ export function mountReturnPanel(root, { supabase, counterOnly = false, onChange
 
   async function findByNumber() {
     const v = find.value.trim().toUpperCase();
-    if (!/^B\/[A-Z0-9/-]{3,}$/.test(v)) { setStatus('Type a pharmacy bill number such as B/2026-27/000123.', true); find.focus(); return; }
+    if (!/^(B|TI|BS)\/[A-Z0-9/-]{3,}$/.test(v)) { setStatus('Type a pharmacy bill number such as B/2026-27/000123, TI/2627/000045 or BS/2627/000012.', true); find.focus(); return; }
     setStatus('Looking for the bill…');
     const { data, error } = await supabase.from('bills').select('id').eq('bill_type', 'pharmacy').eq('document_number', v).limit(2);
     if (error) { setStatus(safeErrorMessage(error, 'Could not find the bill.'), true); return; }
@@ -132,7 +146,29 @@ export function mountReturnPanel(root, { supabase, counterOnly = false, onChange
     state = { billId, base: data, pv: data, qty: new Map(), cond: new Map(), result: null };
     for (const l of data.lines || []) { state.qty.set(l.bill_item_id, 0); state.cond.set(l.bill_item_id, 'sealed_good'); }
     render();
+    if (data.gst) loadRefundsDue(billId, mine);
     work.querySelector('input.rp-qty')?.focus();
+  }
+
+  // Session 345i (owner, 13 Oct 2026): cash refunds still due on this GST bill's credit notes, paid out here from the counter's own
+  // shift (the pharmacist too -- pharmacy credit notes only; the server decides). Own organisation's rows (RLS); a failed read shows nothing.
+  async function loadRefundsDue(billId, mine) {
+    const cn = await supabase.from('credit_notes').select('id, document_number, total_amount, refund_mode, refund_payment_id, bill_type')
+      .eq('original_bill_id', billId).order('document_number');
+    if (mine !== seq || cn.error || !cn.data?.length) return;
+    const cash = cn.data.filter(n => n.refund_mode === 'cash' && !n.refund_payment_id);
+    if (!cash.length) return;
+    const po = await supabase.from('credit_note_refund_payouts').select('credit_note_id').in('credit_note_id', cash.map(n => n.id));
+    if (mine !== seq || po.error) return;
+    const paid = new Set((po.data || []).map(x => x.credit_note_id));
+    const due = cash.filter(n => !paid.has(n.id));
+    const slot = work.querySelector('[data-refunds-due]');
+    if (!due.length || !slot) return;
+    const who = state?.base?.bill?.sale_channel === 'counter' ? 'the customer' : 'the patient';
+    slot.replaceChildren(el('div', { class: 'rp-lbl' }, 'Cash refunds due on this bill'),
+      ...due.map(n => el('div', { class: 'rp-row' }, el('span', null, `Credit note ${n.document_number} · ${rupee(n.total_amount)}`),
+        payoutBox(supabase, { ...n, patient: who }, () => openBill(billId)))));
+    slot.hidden = false;
   }
 
   function selectedLines() {
@@ -163,7 +199,9 @@ export function mountReturnPanel(root, { supabase, counterOnly = false, onChange
       el('div', null, el('strong', null, `Bill ${b.document_number || '—'}`), ` · ${when(b.created_at)} · ${b.sale_channel === 'counter' ? 'Counter sale' : 'Prescription'}`),
       el('div', null, `Bill total ${rupee(b.final_amount)} · paid ${rupee(b.paid)}${Number(b.refunded) > 0 ? ` · refunded ${rupee(b.refunded)}` : ''} · paid by ${MODE[b.payment_mode] || b.payment_mode || '—'}`
         + `${Number(b.returned_amount) > 0 ? ` · returned so far ${rupee(b.returned_amount)}` : ''}${b.status === 'cancelled' ? ' · CANCELLED' : ''}`),
-      el('div', { class: 'rp-muted' }, `${state.base.same_day ? 'Sold today — a full cancel is allowed.' : `Sold ${state.base.days_since_sale} day(s) ago.`} Returns are accepted within ${state.base.window_days} day(s) of the sale.`));
+      el('div', { class: 'rp-muted' }, state.base.gst
+        ? `GST ${b.document_number || ''} — a return issues a credit note against it (the bill itself never changes). ${state.base.same_day ? 'Sold today.' : `Sold ${state.base.days_since_sale} day(s) ago.`} Returns are accepted within ${state.base.window_days} day(s) of the sale${state.base.credit_note?.deadline ? `; the GST limit for a credit note is ${fmtD(state.base.credit_note.deadline)}` : ''}.`
+        : `${state.base.same_day ? 'Sold today — a full cancel is allowed.' : `Sold ${state.base.days_since_sale} day(s) ago.`} Returns are accepted within ${state.base.window_days} day(s) of the sale.`));
 
     const rows = (state.base.lines || []).map(l => {
       const qid = uid('rp-q'), cid = uid('rp-c');
@@ -244,6 +282,7 @@ export function mountReturnPanel(root, { supabase, counterOnly = false, onChange
         ? el('div', { class: 'rp-issues', role: 'alert' }, el('strong', null, 'This bill cannot be returned as it is:'),
             el('ul', null, state.base.issues.map(t => el('li', null, t))))
         : null,
+      state.base.gst ? el('div', { class: 'rp-cn', 'data-refunds-due': '', hidden: true }) : null,   // Session 345i: GST bills only
       el('div', { class: 'rp-tablewrap' }, table),
       el('div', { class: 'rp-row' }, all, none),
       summary,
@@ -277,10 +316,13 @@ export function mountReturnPanel(root, { supabase, counterOnly = false, onChange
       kids.push(el('div', { class: 'rp-issues', role: 'alert' }, el('strong', null, 'This cannot be recorded as it is:'),
         el('ul', null, (pv.issues || ['Not allowed.']).map(t => el('li', null, t)))));
     } else {
-      kids.push(el('div', { class: 'rp-kind' }, pv.kind === 'cancel' ? 'FULL CANCELLATION of the bill' : 'Partial return'));
+      kids.push(el('div', { class: 'rp-kind' }, pv.gst ? (pv.whole_bill ? 'Return of the whole bill — a credit note for all of it' : 'Return — a credit note')
+        : pv.kind === 'cancel' ? 'FULL CANCELLATION of the bill' : 'Partial return'));
       kids.push(el('dl', { class: 'rp-kv' },
         el('dt', null, 'Value of the return'), el('dd', null, rupee(pv.amount)),
-        el('dt', null, 'Money'), el('dd', null, settlementText(pv.settlement, pv.amount, pv.refund_amount, pv.due_reduction, chosenMode(pv)))));
+        el('dt', null, 'Money'), el('dd', null, settlementText(pv.settlement, pv.amount, pv.refund_amount, pv.due_reduction, chosenMode(pv),
+          pv.gst ? { approval: !!pv.settings?.returns_need_approval } : null))));
+      if (pv.gst && pv.credit_note) kids.push(creditNotePreview(pv));
       if (pv.completes_bill && pv.bill?.prescription_id) kids.push(el('div', { class: 'rp-note' }, 'Everything on this prescription bill comes back — the prescription goes back to the dispensing queue.'));
       kids.push(el('div', { class: 'rp-note' }, pv.settings?.returns_need_approval
         ? "Returns need a second person's approval here: this is sent for approval, and nothing changes (stock, money, bill) until it is approved."
@@ -306,10 +348,30 @@ export function mountReturnPanel(root, { supabase, counterOnly = false, onChange
     const mrOk = refs.mrWrap.hidden || refs.mreason.value.trim().length >= 5;
     const ready = lines.length && pv.ok !== false && reasonOk && witnessOk && mrOk && !state.result;
     refs.submit.disabled = !ready;
-    refs.submit.textContent = pv.settings?.returns_need_approval ? 'Send for approval' : (pv.kind === 'cancel' ? 'Cancel the bill' : 'Record the return');
+    refs.submit.textContent = pv.settings?.returns_need_approval ? 'Send for approval'
+      : (pv.gst ? 'Record the return + issue the credit note' : pv.kind === 'cancel' ? 'Cancel the bill' : 'Record the return');
     refs.submitMsg.textContent = !lines.length || pv.ok === false ? '' : !reasonOk ? 'Give the reason (at least 5 characters).'
       : !witnessOk ? 'Choose the disposal method and enter the witness name.' : !mrOk ? 'Give the reason for refunding in cash.' : '';
     refs.submitMsg.className = 'rp-status';
+  }
+  // the credit note the server would issue (Session 345i): each line's taxable value, CGST, SGST and amount -- the server's figures
+  function creditNotePreview(pv) {
+    const cn = pv.credit_note || {};
+    const rows = (pv.lines || []).filter(l => l.qty > 0 && l.credit).map(l => el('tr', null,
+      el('td', null, l.medicine || '—', el('br'), el('span', { class: 'rp-muted' }, [l.batch_number ? `Batch ${l.batch_number}` : null,
+        l.credit.hsn_code ? `HSN ${l.credit.hsn_code}` : null, `${Number(l.credit.gst_rate || 0)} % GST`].filter(Boolean).join(' · '))),
+      el('td', { class: 'num' }, `${l.qty} × ${rupee(l.credit.unit_price)}`),
+      el('td', { class: 'num' }, rupee(l.credit.taxable_value)), el('td', { class: 'num' }, rupee(l.credit.cgst_amount)),
+      el('td', { class: 'num' }, rupee(l.credit.sgst_amount)), el('td', { class: 'num' }, rupee(l.credit.line_total))));
+    return el('div', { class: 'rp-cn', role: 'group', 'aria-label': 'Credit note to be issued' },
+      el('div', { class: 'rp-lbl' }, `Credit note to be issued against ${cn.against || '—'} dated ${fmtD(cn.against_date)}: ${rupee(cn.total)}`
+        + (Number(cn.tax) > 0 ? ` (GST ${rupee(cn.tax)} reversed)` : '')),
+      el('div', { class: 'rp-tablewrap' }, el('table', { class: 'rp-table' },
+        el('caption', { class: 'rp-sr' }, 'Credit note lines'),
+        el('thead', null, el('tr', null, ['Medicine', 'Qty × rate', 'Taxable', 'CGST', 'SGST', 'Amount']
+          .map((h, i) => el('th', { scope: 'col', class: i ? 'num' : null }, h)))),
+        el('tbody', null, rows))),
+      el('div', { class: 'rp-muted' }, 'Each line is credited at what it was sold for (its discount included) and its own GST; the return that takes the last unit of a line takes exactly what is left of it.'));
   }
   function chosenMode(pv) {
     return refs.mode && !refs.modeWrap?.hidden ? refs.mode.value : (pv.refund_mode_default || 'cash');
@@ -350,16 +412,19 @@ export function mountReturnPanel(root, { supabase, counterOnly = false, onChange
     let body;
     if (r.status === 'pending') {
       pair('Bill', b.document_number || '—');
-      pair('Request', r.kind === 'cancel' ? 'Full cancellation' : 'Partial return');
+      pair('Request', pv.gst ? 'Return with a credit note' : r.kind === 'cancel' ? 'Full cancellation' : 'Partial return');
       pair('Estimated value', rupee(r.estimate));
       body = [el('h4', { class: 'rp-done-h' }, '⏳ Sent for approval'),
         el('dl', { class: 'rp-kv' }, kv),
-        el('p', { class: 'rp-note' }, 'Nothing changes until another authorised person approves it (Finance → Pharmacy returns, or the queue below). The RTN number is given when it is approved; the slip can then be printed from 🧾 Bills.')];
+        el('p', { class: 'rp-note' }, 'Nothing changes until another authorised person approves it (Finance → Pharmacy returns, or the queue below). The RTN number is given when it is approved; the slip can then be printed from 🧾 Bills.'
+          + (pv.gst ? ' The credit note is issued at the same moment.' : ''))];
     } else {
       pair('Return no.', r.return_no || '—');
       pair('Bill', b.document_number || '—');
       pair('Value', rupee(r.amount));
-      pair('Money', settlementText(r.settlement, r.amount, r.refund_amount, r.due_reduction, r.refund_mode));
+      pair('Money', settlementText(r.settlement, r.amount, r.refund_amount, r.due_reduction, r.refund_mode,
+        r.credit_note_id ? { approval: false } : null));
+      if (r.credit_note_no) pair('Credit note', r.credit_note_no);
       if (r.refund_receipt_no) pair('Refund receipt', r.refund_receipt_no);
       const msg = el('div', { class: 'rp-status', role: 'status', 'aria-live': 'polite' });
       const print = btn('🖨 Print return slip', 'rp-btn rp-btn-go', () => {
@@ -368,8 +433,18 @@ export function mountReturnPanel(root, { supabase, counterOnly = false, onChange
           : `The slip page could not open — the browser blocked it. Allow pop-ups for this site and press the button again, or reprint ${r.return_no} any time from 🧾 Bills.`;
         msg.className = 'rp-status' + (w ? '' : ' err');
       });
-      body = [el('h4', { class: 'rp-done-h' }, r.kind === 'cancel' ? '✓ Bill cancelled' : '✓ Return recorded'),
-        el('dl', { class: 'rp-kv' }, kv), el('div', { class: 'rp-actions' }, print), msg];
+      // Session 345i: the credit note (and, for a cash refund paid out now, its refund voucher) -- each opened straight from its click
+      const opener = (url, what) => () => {
+        window.open(url, '_blank', 'noopener');
+        msg.textContent = `The ${what} opens in a new tab — print it there. If nothing opened, allow pop-ups for this site and press again.`;
+        msg.className = 'rp-status';
+      };
+      const extra = [];
+      if (r.credit_note_id) extra.push(btn(`🧾 Print credit note ${r.credit_note_no || ''}`.trim(), 'rp-btn rp-btn-go', opener(creditNoteUrl(r.credit_note_id), 'credit note')));
+      if (r.credit_note_id && r.refund_status === 'paid' && r.refund_mode === 'cash' && r.refund_payment_id)
+        extra.push(btn('🧾 Print refund voucher', 'rp-btn', opener(voucherUrl(r.refund_payment_id), 'refund voucher')));
+      body = [el('h4', { class: 'rp-done-h' }, r.kind === 'cancel' ? '✓ Bill cancelled' : r.credit_note_id ? '✓ Return recorded — credit note issued' : '✓ Return recorded'),
+        el('dl', { class: 'rp-kv' }, kv), el('div', { class: 'rp-actions' }, print, extra), msg];
     }
     work.replaceChildren(el('div', { class: 'rp-done', role: 'region', 'aria-label': 'Return recorded' }, body,
       el('div', { class: 'rp-actions' }, btn('Done', 'rp-btn', () => { state = null; work.replaceChildren(); loadToday(); }))));

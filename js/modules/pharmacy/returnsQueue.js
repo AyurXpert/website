@@ -2,11 +2,16 @@
 // Mounted on the dispensary's 🧾 Bills screen and on Finance → Pharmacy returns. Shows each pending return: its bill, the
 // lines, the estimated value, who asked and why. Whether THIS viewer may Approve / Reject comes from the SERVER
 // (approval_decide_check(), the same rules as decide_pharmacy_return(): active dept_admin / super_admin / finance_manager /
-// accountant, never the person who asked) -- no screen keeps its own copy of the rules; decide_pharmacy_return() refuses
+// accountant -- since Session 345i (A1): super_admin / finance_manager only, a secondary finance_manager counts; never the person who
+// asked) -- no screen keeps its own copy of the rules; decide_pharmacy_return() refuses
 // anyway. Approve / Reject happen in an in-page panel (reason required to reject); never a native confirm() / prompt().
+// Session 345i: a return of a GST bill issues its credit note when approved (shown here; a cash refund then becomes "refund due"
+// for a counter to pay out). Session 345i (A1): the organisation's ONLY active super_admin may decide their own return (audited) --
+// the server says so through approval_decide_check, nothing is decided here.
 // DOM nodes + textContent only.
 import { safeErrorMessage } from '../../utils/errors.js';
 import { el, settlementText } from './returnPanel.js';
+import { creditNoteUrl } from '../billing/creditNoteList.js';
 
 const CONDITION = { sealed_good: 'Sealed & good', opened: 'Opened', damaged: 'Damaged', expired: 'Expired' };
 const MODE = { cash: 'Cash', upi: 'UPI', card: 'Card' };
@@ -15,7 +20,7 @@ const when = iso => iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asi
 const REASON_TEXT = {
   own_request: 'You asked for this return — another authorised person must decide it.',
   inactive: 'Your account is not active.',
-  not_authorised: 'Waiting for the administrator, accountant or finance manager.',
+  not_authorised: 'Waiting for the Super Admin or Finance Manager.',   // Session 345i (A1, owner 13 Oct 2026)
   already_decided: 'Already decided.',
 };
 const btn = (label, cls, onClick, attrs = {}) => { const b = el('button', { type: 'button', class: cls, ...attrs }, label); b.addEventListener('click', onClick); return b; };
@@ -50,7 +55,7 @@ export function mountReturnsQueue(root, { supabase, onCount, onDecided } = {}) {
     const apprIds = rets.map(r => r.approval_id).filter(Boolean);
     const [linesR, billsR, makersR, apprR, checkR] = await Promise.all([
       supabase.from('pharmacy_return_lines').select('return_id, description, batch_number, qty, unit_price, condition, disposition').in('return_id', ids),
-      supabase.from('bills').select('id, document_number, created_at, final_amount, sale_channel, recipient_name, patient_id, payment_mode').in('id', billIds),
+      supabase.from('bills').select('id, document_number, created_at, final_amount, sale_channel, recipient_name, patient_id, payment_mode, tax_regime').in('id', billIds),
       supabase.from('profiles').select('id, full_name').in('id', makerIds),
       supabase.from('pending_approvals').select('id, payload').in('id', apprIds),
       supabase.rpc('approval_decide_check', { p_ids: apprIds }),
@@ -99,9 +104,12 @@ export function mountReturnsQueue(root, { supabase, onCount, onDecided } = {}) {
     } else {
       actions.append(el('span', { class: 'rp-muted', 'data-decide': 'none' }, REASON_TEXT[c?.reason] || 'Waiting for another authorised person.'));
     }
+    if (c?.can_decide && c.sole_admin_self) {
+      actions.prepend(el('span', { class: 'rp-muted' }, 'You asked for this return. As the organisation\'s only active administrator you may decide it yourself — it is recorded as self-approved.'));
+    }
     return el('article', { class: 'rq-card', 'data-return': r.id },
       el('div', { class: 'rq-top' },
-        el('strong', null, r.kind === 'cancel' ? 'Full cancellation' : 'Partial return'),
+        el('strong', null, b.tax_regime === 'gst_v1' ? 'Return — a credit note will be issued' : r.kind === 'cancel' ? 'Full cancellation' : 'Partial return'),
         el('span', null, ` · Bill ${b.document_number || '—'} (${when(b.created_at)}) · bill total ${rupee(b.final_amount)}`)),
       el('div', { class: 'rq-meta' }, `${who} · estimated value ${rupee(payload?.estimate)} · refund by ${MODE[mode] || mode || '—'}${r.refund_reference ? ' · ref ' + r.refund_reference : ''}`),
       el('div', { class: 'rq-meta' }, `Asked by ${maker || '—'} · ${when(r.requested_at)} · ${r.reason_code === 'wrong_entry' ? 'Wrongly entered bill' : 'Customer return'}: “${r.reason}”`),
@@ -137,7 +145,12 @@ export function mountReturnsQueue(root, { supabase, onCount, onDecided } = {}) {
           msg.textContent = w ? 'The slip opened in a new tab.' : `The browser blocked the slip page — allow pop-ups and press again, or reprint ${data.return_no} from Visits & Bills.`;
           msg.className = 'rp-status' + (w ? '' : ' err');
         });
-        actions.replaceChildren(el('span', { class: 'rp-ok' }, `✓ Approved — ${data.return_no}. ${settlementText(data.settlement, data.amount, data.refund_amount, data.due_reduction, data.refund_mode)}`), print);
+        const cnBtn = data.credit_note_id ? btn(`🧾 Print credit note ${data.credit_note_no || ''}`.trim(), 'rp-btn', () => {
+          window.open(creditNoteUrl(data.credit_note_id), '_blank', 'noopener');
+          msg.textContent = 'The credit note opens in a new tab. If nothing opened, allow pop-ups and press again.'; msg.className = 'rp-status';
+        }) : null;
+        actions.replaceChildren(el('span', { class: 'rp-ok' }, `✓ Approved — ${data.return_no}${data.credit_note_no ? ` · credit note ${data.credit_note_no}` : ''}. `
+          + settlementText(data.settlement, data.amount, data.refund_amount, data.due_reduction, data.refund_mode, data.credit_note_id ? { approval: true } : null)), print, cnBtn);
         msg.textContent = '';
       } else {
         actions.replaceChildren(el('span', { class: 'rp-muted' }, '✕ Rejected — nothing was changed.'));

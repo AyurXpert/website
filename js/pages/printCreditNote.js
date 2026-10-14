@@ -59,6 +59,8 @@ function orgBlock(d) {
   return { name, lines, logoUrl: org.logo_url || null, monogram: monogram(name) }
 }
 
+const fmtExp = d => { if (!d) return null; const [y, m] = String(d).split('-'); return m ? `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(m) - 1]} ${y}` : String(d) }
+
 // Session 345h follow-up (owner, 13 Oct 2026, the D16 principle): a credit note's print never changes after issue -- the refund as fixed
 // at approval (amount + mode), never its later state (due / paid out) or the payout's receipt number
 function refundText(r) {
@@ -75,13 +77,18 @@ export function buildCreditNoteModel(d, copy, { supplierCopy = false, origTotals
   const mk = copyMarking(copy, { supplier: supplierCopy, fmtDT })
   const withTax = !!n.with_tax
   const origLabel = DOC[n.original_document_type] || 'Bill'
+  // Session 345i (Stage 6b): a pharmacy credit note (a return of a GST pharmacy bill) -- per line batch, expiry, HSN, qty x rate
+  const pharmacy = String(n.bill_type || '').toLowerCase() === 'pharmacy'
   const meta = [
     { label: 'Credit Note No.', value: n.document_number || '—' },
     { label: 'Credit Note Date', value: fmtD(n.document_date) },
     { label: `Against ${origLabel} No.`, value: n.original_document_number || '—' },
     { label: `${origLabel} Date`, value: fmtD(n.original_document_date) },
   ]
-  const fields = [
+  if (pharmacy && d.pharmacy_return?.return_no) meta.push({ label: 'Return No.', value: d.pharmacy_return.return_no })
+  const fields = pharmacy && !d.patient ? [
+    { label: 'Recipient', value: n.recipient_name || d.customer?.name || 'Walk-in customer', wide: true },
+  ] : [
     { label: 'Recipient', value: n.recipient_name || pt.name || '—', wide: true },
     { label: 'UHID', value: uhidOf(pt) },
     { label: 'Address', value: n.recipient_address || 'Not recorded', gap: !n.recipient_address, wide: true },
@@ -94,6 +101,14 @@ export function buildCreditNoteModel(d, copy, { supplierCopy = false, origTotals
   const rows = (d.lines || []).map(l => {
     const taxable = l.tax_category === 'TAXABLE'
     sub += num(l.line_total)
+    if (pharmacy) {
+      const subText = [l.batch_number ? `Batch ${l.batch_number}` : null, l.expiry_date ? `Exp ${fmtExp(l.expiry_date)}` : null].filter(Boolean).join(' · ') || null
+      return withTax
+        ? { no: ++i, description: l.description || 'Medicine', sub: subText, code: l.hsn_code || null, qty: String(num(l.quantity)), rate: money(l.unit_price), disc: '—',
+            taxable: taxable ? money(l.taxable_value) : '—', gstLabel: taxable ? `${num(l.gst_rate)}%` : (TAXCAT_LABEL[l.tax_category] || '—'),
+            cgst: taxable ? money(l.cgst_amount) : '—', sgst: taxable ? money(l.sgst_amount) : '—', amount: money(l.line_total) }
+        : { no: ++i, description: l.description || 'Medicine', sub: subText, code: l.hsn_code || null, qty: String(num(l.quantity)), rate: money(l.unit_price), amount: money(l.line_total) }
+    }
     // a part (amount-based) credit: "Part credit ₹300.00 (of ₹500.00)", quantity blank; a whole-line credit keeps qty x rate
     const of = origTotals[l.line_no]
     if (of != null && num(l.line_total) < num(of) - 0.005) {
@@ -148,7 +163,7 @@ export function buildCreditNoteModel(d, copy, { supplierCopy = false, origTotals
   return {
     org, title: n.heading || 'CREDIT NOTE', subtitle: mk.mark, watermark: mk.watermark, meta, demo: !!d.organisation?.is_demo, demoText: DEMO_GST_TEXT,
     party: { title: 'Recipient Details', fields },
-    gst: withTax, exemptOnly: false, descLabel: 'Service / Test', noCode: false,
+    gst: withTax, exemptOnly: false, descLabel: pharmacy ? 'Medicine' : 'Service / Test', noCode: false,
     sections, emptyNote: rows.length ? null : 'No lines on this credit note.', taxNote, taxSummary, payments: null,
     summary: { rows: summary, balance },
     words: { label: 'Amount in words (credit note total)', lines: [`${amountInWords(n.total_amount)}.`] },
@@ -170,8 +185,8 @@ export function buildVoucherModel(d, copy) {
       { label: 'Credit Note No.', value: n.document_number || '—' },
       { label: `Original ${DOC[n.original_document_type] || 'Bill'} No.`, value: n.original_document_number || '—', sub: fmtD(n.original_document_date) },
     ],
-    party: { title: 'Patient Details', fields: [
-      { label: 'Patient Name', value: n.recipient_name || pt.name || '—', wide: true },
+    party: { title: d.patient || String(n.bill_type || '').toLowerCase() !== 'pharmacy' ? 'Patient Details' : 'Customer Details', fields: [
+      { label: d.patient || String(n.bill_type || '').toLowerCase() !== 'pharmacy' ? 'Patient Name' : 'Customer', value: n.recipient_name || pt.name || (d.patient ? '—' : 'Walk-in customer'), wide: true },
       { label: 'UHID', value: uhidOf(pt) },
       { label: 'Mode', value: MODE_LABEL[r.mode] || r.mode || '—' },
       { label: 'Paid by', value: r.paid_by || '—' },

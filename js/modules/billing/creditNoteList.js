@@ -10,6 +10,10 @@ import { todayISTStr } from '../../utils/dateUtils.js'
 import { el } from './invoiceLayout.js'
 
 export const PAYOUT_ROLES = ['receptionist', 'cashier', 'accountant', 'finance_manager', 'dept_admin', 'super_admin']
+// Session 345i (owner, 13 Oct 2026): the pharmacist may also pay out the refund due of a PHARMACY credit note -- never another one
+// (the server's pay_credit_note_refund decides; this only decides whether the button is shown)
+export const canPayOut = (role, note) => PAYOUT_ROLES.includes(role)
+  || (role === 'pharmacist' && String(note?.bill_type || '').toLowerCase() === 'pharmacy')
 const rupee = n => '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmtD = d => d ? new Date(String(d).slice(0, 10) + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 const MODE = { cash: 'Cash', upi: 'UPI', card: 'Card', cheque: 'Cheque', neft: 'NEFT' }
@@ -86,7 +90,6 @@ export function payoutBox(supabase, n, onPaid) {
 
 /** mountCreditNoteList(root, { supabase, role }) -- the finance screen's credit-note panel */
 export function mountCreditNoteList(root, { supabase, role } = {}) {
-  const canPay = PAYOUT_ROLES.includes(role)
   const today = todayISTStr()
   const q = el('input', { type: 'text', class: 'cn-input', maxlength: '80', style: 'flex:1;min-width:220px',
     placeholder: 'CN number (CN/…), original bill number (TI/…, BS/…), patient name or UHID', 'aria-label': 'Search credit notes' })
@@ -126,7 +129,7 @@ export function mountCreditNoteList(root, { supabase, role } = {}) {
         if (!waiting) {
           actions.append(btn('🖨 Print', () => open(creditNoteUrl(n.id)), { title: 'ORIGINAL FOR RECIPIENT, then REPRINT' }),
                          btn('Supplier copy', () => open(creditNoteUrl(n.id, true)), { title: 'DUPLICATE FOR SUPPLIER' }))
-          if (n.refund_status === 'due' && canPay) actions.appendChild(payoutBox(supabase, n, run))
+          if (n.refund_status === 'due' && canPayOut(role, n)) actions.appendChild(payoutBox(supabase, n, run))
           if (vouchers.has(n.id)) actions.appendChild(btn('🧾 Refund voucher', () => open(voucherUrl(vouchers.get(n.id))), { title: 'Reprint the refund voucher' }))
         }
         return el('tr', null,

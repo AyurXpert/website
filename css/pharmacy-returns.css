@@ -94,3 +94,6 @@ textarea.rp-input{padding:8px 10px;width:100%;resize:vertical}
 /* Session 345e: room-rent tax + document numbering in the Tax & Invoicing card (the ✖ text carries the meaning, not colour alone) */
 .ts-num-in{width:7em;min-height:44px;text-transform:uppercase;letter-spacing:.04em}
 .rp-table tr[data-ok="0"] td:last-child{color:var(--red,#c0392b);font-weight:700}
+/* Session 345i: the credit note a GST pharmacy return will issue (server figures) */
+.rp-cn{border:1.5px solid var(--gold,#c9902a);border-radius:10px;background:var(--cream,#faf8f3);padding:10px 12px;margin:8px 0}
+.rp-cn .rp-lbl{color:var(--green-deep,#1a4a2e)}
