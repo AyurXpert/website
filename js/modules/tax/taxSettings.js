@@ -482,7 +482,8 @@ export function mountTaxSettings(root, { supabase, onChange } = {}) {
   function pharmacySection(d) {
     const g = d.gst || {};
     const sec = el('section', { class: 'ts-sec', 'data-sec': 'pharmacy' }, el('h4', { class: 'ts-h4' }, 'Pharmacy GST go-live'),
-      el('p', { class: 'rp-muted', 'data-pharm-note': '' }, 'Pharmacy GST stays off platform-wide until credit notes (Stage 6) are ready.'),
+      // Session 345l (TODO §182): only while the platform switch is off (it is ON since 345k, 14 Oct 2026)
+      g.pharmacy_platform_on ? null : el('p', { class: 'rp-muted', 'data-pharm-note': '' }, 'Pharmacy GST stays off platform-wide until credit notes (Stage 6) are ready.'),
       el('div', { class: 'rp-kv', 'data-pharm-now': '' },
         el('div', null, `GST go-live (this organisation): ${g.go_live_date ? fmtD(g.go_live_date) : 'not set'}`),
         el('div', null, `Pharmacy GST go-live: ${g.pharmacy_go_live_date ? fmtD(g.pharmacy_go_live_date) : 'not set'}`),

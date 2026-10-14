@@ -18,6 +18,7 @@ import { el } from '../modules/billing/invoiceLayout.js'
 import { ensureSignedIn } from '../utils/signInGate.js'
 import { copyMarking, isSupplierCopy, openSupplierCopy } from '../modules/billing/copyMarking.js'
 import { getPaperSize, applyPaperSize, mountPaperSizeSelect, renderDocument, watchPrintPageSize } from '../modules/billing/paperSize.js'
+import { DEMO_TEXT } from '../modules/billing/demoBanner.js'
 
 wireDelegatedEvents()
 applyPaperSize(getPaperSize())
@@ -68,7 +69,8 @@ function refundText(r) {
 }
 
 // Session 345h follow-up: the banner on a demo organisation's credit note / refund voucher (not a tax invoice)
-const DEMO_GST_TEXT = 'DEMO ORGANISATION — TEST DOCUMENT, NOT A VALID GST DOCUMENT'
+// Session 345l (TODO §187): the one demo wording of every document (js/modules/billing/demoBanner.js)
+const DEMO_GST_TEXT = DEMO_TEXT
 
 // origTotals: { [credit-note line_no]: the ORIGINAL line's total } -- a line credited for less than it is a PART credit
 export function buildCreditNoteModel(d, copy, { supplierCopy = false, origTotals = {} } = {}) {

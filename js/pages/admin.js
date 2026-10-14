@@ -499,7 +499,9 @@ function _approvalSummary(row){
     case 'pk_roster_cycle':      return `Change to ${_esc(PK_CYCLE_LABELS[p.cycle] || p.cycle || '—')}`;
     case 'pk_shift_times':       return `Shift 1: ${_esc(p.shift1_start || '—')} · Shift 2: ${_esc(p.shift2_start || '—')}`;
     case 'pk_custom_protocol':   return _esc(p.display_name || '—');
-    case 'pharmacy_return':      return `${p.kind === 'cancel' ? 'Full cancellation' : 'Partial return'} of bill ${_esc(p.document_number || '—')}`
+    // Session 345l (TODO §186): a GST bill is never cancelled -- its return (whole or part) issues a credit note; a legacy return that
+    // is not a cancellation may still be the whole bill (the payload has no lines), so it is just "Return". _docType: read from bills below.
+    case 'pharmacy_return':      return `${p.kind === 'cancel' ? 'Full cancellation' : (p._docType === 'TAX_INVOICE' || p._docType === 'BILL_OF_SUPPLY') ? 'Return with a credit note' : 'Return'} of bill ${_esc(p.document_number || '—')}`
                                    + (p.estimate != null ? ` (about ₹${_esc(Number(p.estimate).toFixed(2))})` : '');
     case 'item_tax_change': {
       const ls = Array.isArray(p.lines) ? p.lines : [];
@@ -562,10 +564,18 @@ let _taDecided = null;   // Session 345c2a: the same for the tax settings reques
 window.loadPendingDecisions = async function(){
   const wrap = document.getElementById('pending-decisions-body');
   const { data, error } = await supabase.from('pending_approvals')
-    .select('id,action_type,payload,reason,status,requested_at,decided_at,decision_notes,requester:profiles!requested_by(full_name,designation)')
+    .select('id,action_type,payload,reason,status,requested_at,decided_at,decision_notes,requester:profiles!requested_by(full_name,designation,role)')
     .eq('tenant_id', tenantId).order('requested_at', { ascending: false }).limit(50);
 
   if (error) { wrap.innerHTML = '<div class="empty"><div class="empty-ttl">'+_esc(safeErrorMessage(error,'Could not load requests.'))+'</div></div>'; return; }
+
+  // Session 345l (TODO §186): the document type of each pharmacy return's bill (GST or legacy) -- wording only; no answer = "Return"
+  const prBillIds = [...new Set((data||[]).filter(r=>r.action_type==='pharmacy_return' && r.payload?.bill_id).map(r=>r.payload.bill_id))];
+  if (prBillIds.length) {
+    const { data: prBills } = await supabase.from('bills').select('id,document_type').eq('tenant_id', tenantId).in('id', prBillIds);
+    const dt = new Map((prBills||[]).map(b=>[b.id, b.document_type]));
+    for (const r of data) if (r.action_type==='pharmacy_return' && r.payload) r.payload._docType = dt.get(r.payload.bill_id) || null;
+  }
 
   // Badge = requests actually actionable by THIS viewer (the server's answer, TODO §144), not the raw pending count.
   const pendingIds = (data||[]).filter(r=>r.status==='pending').map(r=>r.id);
@@ -606,7 +616,7 @@ window.loadPendingDecisions = async function(){
     return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #f0f4f2;flex-wrap:wrap">
       <div>
         <div style="font-size:13px;font-weight:600">${_esc(APPROVAL_ACTION_LABELS[row.action_type]||row.action_type)}: ${_approvalSummary(row)}</div>
-        <div style="font-size:11.5px;color:var(--text-muted)">Requested by ${_esc(row.requester?.full_name||'—')} (${_esc(DESIG_MAP[requesterDesig]?.l||requesterDesig||'—')}) · ${_relDate(row.requested_at)}${row.reason?' · "'+_esc(row.reason)+'"':''}</div>
+        <div style="font-size:11.5px;color:var(--text-muted)">Requested by ${_esc(row.requester?.full_name||'—')} (${_esc(DESIG_MAP[requesterDesig]?.l||requesterDesig||(row.requester?.role ? _roleLabel(row.requester.role) : '—'))}) · ${_relDate(row.requested_at)}${row.reason?' · "'+_esc(row.reason)+'"':''}</div>
         ${row.decision_notes ? `<div style="font-size:11.5px;color:var(--text-muted)">Decision note: ${_esc(row.decision_notes)}</div>` : ''}
       </div>
       <div style="display:flex;align-items:center;gap:8px">${statusChip}${actionsHtml}</div>
@@ -6862,7 +6872,7 @@ async function _renderReturnSettings() {
     : 'customer returns are refused; only a Super Admin or Dept Admin can cancel a wrongly entered bill, with a reason.'}`,
   toggle(st.returns_accept, 'set_returns_accept', 'Accept customer returns'));
   row('Returns need a second person’s approval', `${st.returns_need_approval ? 'ON' : 'OFF'} — ${st.returns_need_approval
-    ? 'a return waits until a Dept Admin, Super Admin, Finance Manager or Accountant (never the same person) approves it.'
+    ? 'a return waits until a Super Admin or Finance Manager (never the person who asked, except an organisation’s only Super Admin) approves it.'
     : 'the person recording the return completes it at once (a reason is still required and everything is audited) — for a single-person dispensary.'}`,
   toggle(st.returns_need_approval, 'set_returns_need_approval', 'Second-person approval'));
   let winCtl = null;
@@ -6880,7 +6890,7 @@ async function _renderReturnSettings() {
     });
     winCtl.append(inp, mk('span', 'font-size:12.5px;color:var(--text-mid)', 'days'), b);
   }
-  row('Return window', `${st.returns_window_days} day(s) after the sale for a partial return. A full cancel is always possible on the day of the sale.`, winCtl);
+  row('Return window', `${st.returns_window_days} day(s) after the sale for a partial return. A full cancel is possible on the day of the sale — except for a GST bill (Tax Invoice / Bill of Supply), which is never cancelled: every GST return issues a credit note.`, winCtl);
   const pol = mk('div', 'padding:8px 0;border-top:1px solid var(--border,#e0e0e0)');
   pol.append(mk('div', 'font-weight:600;font-size:13px;color:var(--text-dark,#1a1a1a)', 'Return policy line (printed only on pharmacy bills)'),
     mk('div', 'font-size:12.5px;color:var(--text-mid);margin:2px 0 6px', st.return_policy_line ? `Now: “${st.return_policy_line}”` : 'Now: empty — nothing is printed.'));

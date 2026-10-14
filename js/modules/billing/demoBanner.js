@@ -5,7 +5,9 @@
 // copy into the print tab -- which is why the banner never appeared on SDM's first Bills of Supply.
 // The banner must be placed INSIDE the page's print root (.sheet / .ax-print-root): print CSS hides
 // every other direct child of <body>.
-export const DEMO_TEXT = 'DEMO ORGANISATION — TEST DOCUMENT, NOT A VALID TAX INVOICE'
+// Session 345l (TODO §187, owner 14 Oct 2026): one wording for every document type (bills, Tax Invoices, Bills of Supply, receipts,
+// credit notes, return slips, handover slips) -- "tax invoice" was wrong on most of them
+export const DEMO_TEXT = 'DEMO ORGANISATION — TEST DOCUMENT, NOT A VALID GST / TAX DOCUMENT'
 
 export async function isDemoTenant(supabase, tenantId) {
   if (tenantId) {

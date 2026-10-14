@@ -145,5 +145,6 @@ export function mountCreditNoteList(root, { supabase, role } = {}) {
   q.addEventListener('keydown', e => { if (e.key === 'Enter') run() })
   show.addEventListener('change', run)
   run()
-  return { refresh: run }
+  // Session 345l (TODO §185): Visits & Bills hands a credit-note number over -- search it here, every status
+  return { refresh: run, search: v => { q.value = String(v || ''); show.value = ''; run() } }
 }

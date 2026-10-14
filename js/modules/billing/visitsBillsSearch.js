@@ -14,7 +14,7 @@ import { todayISTStr } from '../../utils/dateUtils.js'
 import { getCurrentRole } from '../../core/auth.js'
 // Session 345h (GST Stage 6c): "Ask for a credit note" on a paid GST document, and the credit notes against each bill
 import { canAskCreditNote, openCreditNoteAsk, canStillCredit } from './creditNoteAsk.js'
-import { creditNoteLinks, creditNotesForBills, payoutBox, PAYOUT_ROLES } from './creditNoteList.js'
+import { creditNoteLinks, creditNotesForBills, payoutBox, canPayOut } from './creditNoteList.js'
 import { creditNoteExclusions, creditNoteOfPayment } from './creditNotePrint.js'
 
 // Session 338d: medical certificates are confidential clinical documents -- never listed, searched or printed by a
@@ -34,9 +34,10 @@ const day = iso => iso ? new Date(iso).toLocaleDateString('en-IN', { timeZone: '
 
 // Session 345c2b: a Tax Invoice's reprint is a "REPRINT" (its first print the ORIGINAL FOR RECIPIENT); every other document
 // keeps Original / Duplicate copy. Supplier copies are a separate series and never counted here.
+// Session 345l (TODO §184): the hint names the copy number the next print gets (the original = print 1, so the next = n + 1)
 function printedHint(n, taxInvoice = false) {
-  if (taxInvoice) return n > 0 ? `Printed ${n}× — the next print is a REPRINT` : 'Not printed yet — the first print is the ORIGINAL FOR RECIPIENT'
-  return n > 0 ? `Printed ${n}× — the next print is a Duplicate copy` : 'Not printed yet — the first print is the Original'
+  if (taxInvoice) return n > 0 ? `Printed ${n}× — the next print is REPRINT · ORIGINAL FOR RECIPIENT · No. ${n + 1}` : 'Not printed yet — the first print is the ORIGINAL FOR RECIPIENT'
+  return n > 0 ? `Printed ${n}× — the next print is DUPLICATE COPY · No. ${n + 1}` : 'Not printed yet — the first print is the Original'
 }
 
 function printButton(label, hintCount, onClick, taxInvoice = false) {
@@ -180,7 +181,8 @@ function resultCard(row, onReturn, ctx = {}) {
   return card
 }
 
-export function mountVisitsBillsSearch(root, { supabase, onReturn = null }) {
+// onCreditNote(number) (Finance only, Session 345l): a credit-note number searched here is opened in Finance -> 🧾 Credit notes
+export function mountVisitsBillsSearch(root, { supabase, onReturn = null, onCreditNote = null }) {
   const today = todayISTStr()
   const showCerts = CERTIFICATE_ROLES.includes(getCurrentRole())
   const q = el('input', { type: 'text', id: 'vb-q', maxlength: '80', style: INPUT + ';flex:1;min-width:240px',
@@ -202,7 +204,7 @@ export function mountVisitsBillsSearch(root, { supabase, onReturn = null }) {
           ? 'Open and completed visits with their OPD / lab bills, receipts, prescriptions and medical certificates. A UHID (AYX/…), any bill or invoice no. of this organisation (B/…, Tax Invoice TI/…, Bill of Supply BS/…), receipt no. (RCPT/…), pharmacy return no. (RTN/…) or certificate no. (MC/…) is searched across ALL dates. '
           : 'Open and completed visits with their bills, receipts, pharmacy returns and prescriptions. A UHID (AYX/…), any bill or invoice no. of this organisation (B/…, Tax Invoice TI/…, Bill of Supply BS/…), receipt no. (RCPT/…) or pharmacy return no. (RTN/…) is searched across ALL dates. ')
         + 'A name or phone uses the date range (at most 31 days) unless you tick “All dates”. Newest first, at most 100 shown. '
-        + 'Every reprint after the first is marked “Duplicate copy”.'),
+        + 'Every reprint is marked with its copy number — “REPRINT · … No. N” on a Tax Invoice, “DUPLICATE COPY · No. N” on other documents.'),
       el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;align-items:center' }, q, from, el('span', null, 'to'), to, allLabel, go, clear),
       status, results))
 
@@ -237,6 +239,18 @@ export function mountVisitsBillsSearch(root, { supabase, onReturn = null }) {
     const certs = !mc.error && Array.isArray(mc.data?.rows) ? mc.data.rows : []
     if (vb.error && !certs.length) { status.textContent = safeErrorMessage(vb.error, 'Could not search. Please try again.'); return }
     const data = vb.data || {}
+    // Session 345l (TODO §185): a credit note is not a bill -- the server answers a hint for its number
+    if (!vb.error && data.hint === 'credit_note') {
+      const cnNo = q.value.trim()
+      status.replaceChildren(el('span', { 'data-cn-hint': '1' }, `${cnNo} is a credit note — credit notes are under Finance → 🧾 Credit notes`
+        + (onCreditNote ? '.' : ' (and on the bill they were issued against).')))
+      if (onCreditNote) {
+        const open = el('button', { type: 'button', style: BTN + ';margin-left:8px', 'data-cn-open': '1' }, 'Open in 🧾 Credit notes')
+        open.addEventListener('click', () => onCreditNote(cnNo))
+        status.appendChild(open)
+      }
+      return
+    }
     const rows = vb.error ? [] : (data.rows || [])
     if (!rows.length && !certs.length) {
       status.textContent = 'Nothing found. Check the spelling, or tick “All dates”.'
@@ -249,6 +263,7 @@ export function mountVisitsBillsSearch(root, { supabase, onReturn = null }) {
       + ((data.truncated || mc.data?.truncated) ? ' — only the latest are shown; refine your search.' : '.')
     const ctx = { supabase, role: getCurrentRole(), refresh: () => run() }
     const patientOf = new Map(rows.flatMap(r => (r.bills || []).map(b => [b.id, r.patient?.name || r.customer?.name || null])))
+    const billTypeOf = new Map(rows.flatMap(r => (r.bills || []).map(b => [b.id, b.bill_type])))   // Session 345l: who may pay out
     results.replaceChildren(...rows.map(r => resultCard(r, onReturn, ctx)))
     // Session 345h: the credit notes against the GST documents shown (a refusal for a role simply shows none)
     const gstIds = rows.flatMap(r => (r.bills || []).filter(b => b.document_type === 'TAX_INVOICE' || b.document_type === 'BILL_OF_SUPPLY').map(b => b.id))
@@ -288,10 +303,12 @@ export function mountVisitsBillsSearch(root, { supabase, onReturn = null }) {
           const links = creditNoteLinks(entry)
           if (slot && links) slot.prepend(links)
           // Session 345h follow-up: a cash refund still due is paid out right here, from the counter's own shift (D4) -- the same
-          // pay_credit_note_refund + refund voucher as Finance -> Credit notes; only for the roles that may pay out
-          if (slot && PAYOUT_ROLES.includes(ctx.role)) {
+          // pay_credit_note_refund + refund voucher as Finance -> Credit notes; only for the roles that may pay out (Session 345l, TODO §183:
+          // the 345i rule canPayOut -- the pharmacist too, for a PHARMACY bill's credit note; the server decides again)
+          if (slot) {
             for (const n of entry.notes || []) {
-              if (n.refund_status === 'due') slot.appendChild(payoutBox(supabase, { ...n, patient: patientOf.get(id) }, () => run()))
+              const note = { ...n, bill_type: billTypeOf.get(id), patient: patientOf.get(id) }
+              if (n.refund_status === 'due' && canPayOut(ctx.role, note)) slot.appendChild(payoutBox(supabase, note, () => run()))
             }
           }
         }

@@ -56,7 +56,7 @@ const uid = p => `${p}-${++_uid}`;
 export function settlementText(s, amount, refund, due, mode, gst = null) {
   if (gst && s === 'refund') {
     if (mode === 'cash') return gst.approval
-      ? `Credit note refund ${rupee(refund)} in cash — after approval it is "refund due" and a counter (reception / cashier) pays it out from their own shift, with a refund voucher.`
+      ? `Credit note refund ${rupee(refund)} in cash — after approval it is "refund due" and a counter (reception, cashier — or you, the pharmacist: Bills → this bill) pays it out from their own shift, with a refund voucher.`
       : `Credit note refund ${rupee(refund)} in cash — paid out now by you, from your own shift; print the refund voucher.`;
     return `Credit note refund ${rupee(refund)} by ${MODE[mode] || mode} — recorded with its reference when the credit note is issued.`;
   }

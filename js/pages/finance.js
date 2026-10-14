@@ -50,7 +50,14 @@ window.switchSub = function(grp, sub, el) {
   el.classList.add('active');
   if (sub === 'audit') loadAudits();
   if (sub === 'preauth') renderPreAuth();
-  if (sub === 'vbsearch' && !_vbMounted) { _vbMounted = true; mountVisitsBillsSearch(document.getElementById('vb-search-root'), { supabase }); }
+  if (sub === 'vbsearch' && !_vbMounted) {
+    _vbMounted = true;
+    // Session 345l (TODO §185): a credit-note number typed here opens Finance -> 🧾 Credit notes with that number searched
+    mountVisitsBillsSearch(document.getElementById('vb-search-root'), { supabase, onCreditNote: cnNo => {
+      document.querySelector('[data-onclick-a1="creditnotes"]')?.click();
+      _cnList?.search(cnNo);
+    } });
+  }
   if (sub === 'creditnotes') {   // Session 345h: mounted once, refreshed on every open (a cashier lands on the refunds due)
     if (!_cnList) _cnList = mountCreditNoteList(document.getElementById('cn-list-root'), { supabase, role: _role });
     else _cnList.refresh();
