@@ -22,6 +22,10 @@ tr.reg-superseded>td{text-decoration:line-through;opacity:.6}
 .reg-fix{color:var(--blue,#1a4080)}
 .gr-short{font-size:11px;font-weight:700;color:#7a4000}
 .gr-tag{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;border:1px solid var(--border,#d4e6da);border-radius:999px;padding:1px 6px;color:var(--text-mid,#4a6352)}
+/* owner finding F1: the confirmation step */
+.gr-confirm{margin:8px 0}
+.gr-confirm-list{list-style:none;margin:0 0 6px;padding:0;font-size:13px;line-height:1.7}
+.gr-confirm-note{font-weight:600;margin:4px 0 8px}
 .gr-foot{margin-top:14px;word-break:break-all}
 @media print{
   body.gr-printing *{visibility:hidden}

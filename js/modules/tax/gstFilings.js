@@ -5,6 +5,7 @@
 // entry naming the one it corrects, with a reason (the statutory-register rule; the old entry is shown struck through).
 // The shared "Correct entry" UI (js/modules/registers/corrections.js) writes the correcting row straight into its table; these records
 // are written only through the RPCs above (the table is select-only), so the same conventions are followed here instead.
+// Owner finding F1 (15 Oct 2026): "Mark as filed" and "Save filing frequency" go through an in-page confirmation step (confirmStep).
 // DOM nodes + textContent only; no native confirm() / alert().
 import { safeErrorMessage } from '../../utils/errors.js'
 import { todayISTStr } from '../../utils/dateUtils.js'
@@ -20,6 +21,21 @@ function btn(label, onClick, { go = false, title = null } = {}) {
   return b
 }
 const lbl = (text, input) => el('label', { class: 'gr-lbl' }, el('span', null, text), input)
+
+// owner finding F1 (15 Oct 2026): nothing permanent is saved on one click -- an in-page confirmation (never a native confirm()) shows what
+// will be recorded; "Go back" sends nothing; only "Confirm -- ..." calls the server. The inputs are frozen while it is open.
+function confirmStep({ lines, note, confirmLabel, inputs, onConfirm }) {
+  const box = el('div', { class: 'cn-note gr-confirm', role: 'alertdialog', 'aria-label': confirmLabel },
+    el('ul', { class: 'gr-confirm-list' }, lines.map(([k, v]) => el('li', null, el('strong', null, k + ': '), v))),
+    el('p', { class: 'gr-confirm-note' }, note))
+  const go = btn(confirmLabel, async () => { go.disabled = true; back.disabled = true; await onConfirm(); close() }, { go: true })
+  const back = btn('Go back', () => close())
+  box.appendChild(el('div', { class: 'cn-row' }, go, back))
+  inputs.forEach(i => { i.disabled = true })
+  function close() { box.remove(); inputs.forEach(i => { i.disabled = false }) }
+  setTimeout(() => go.focus(), 0)
+  return box
+}
 
 // the returns that fit the period on screen (the server checks the period again)
 function returnChoices(report) {
@@ -49,16 +65,26 @@ export function filingPanel({ supabase, report, canMark, onChange }) {
   const on = el('input', { type: 'date', class: 'cn-input', value: today, max: today, 'aria-label': 'Filed on' })
   const arn = el('input', { type: 'text', class: 'cn-input', maxlength: '20', placeholder: 'ARN (optional)', 'aria-label': 'ARN', autocomplete: 'off' })
   const st = el('div', { class: 'cn-status', role: 'status', 'aria-live': 'polite' })
-  const go = btn('✔ Mark as filed', async () => {
-    go.disabled = true; st.textContent = 'Saving…'; st.className = 'cn-status'
-    const { error } = await supabase.rpc('mark_gst_return_filed', { p_return: ret.value, p_from: p.from, p_to: p.to, p_filed_on: on.value || null,
-      p_arn: arn.value.trim() || null })
-    go.disabled = false
-    if (error) { st.textContent = safeErrorMessage(error, 'Could not mark it filed.'); st.className = 'cn-status err'; return }
-    st.textContent = 'Marked filed.'; st.className = 'cn-status ok'
-    onChange?.()
+  const slot = el('div')
+  const go = btn('✔ Mark as filed', () => {
+    if (!on.value) { st.textContent = 'Choose the filing date.'; st.className = 'cn-status err'; return }
+    st.textContent = ''; st.className = 'cn-status'
+    const v = { ret: ret.value, on: on.value, arn: arn.value.trim() }
+    slot.replaceChildren(confirmStep({
+      lines: [['Return', RETURN_LABEL[v.ret] || v.ret], ['Period', `${gstDate(p.from)} – ${gstDate(p.to)}`], ['Filed on', gstDate(v.on)],
+              ['ARN', v.arn ? v.arn.toUpperCase() : 'ARN not entered']],
+      note: 'This record is permanent (it can be withdrawn with a reason, never deleted) and it locks bill cancellation for this period.',
+      confirmLabel: 'Confirm — mark as filed', inputs: [ret, on, arn, go],
+      onConfirm: async () => {
+        st.textContent = 'Saving…'; st.className = 'cn-status'
+        const { error } = await supabase.rpc('mark_gst_return_filed', { p_return: v.ret, p_from: p.from, p_to: p.to, p_filed_on: v.on, p_arn: v.arn || null })
+        if (error) { st.textContent = safeErrorMessage(error, 'Could not mark it filed.'); st.className = 'cn-status err'; return }
+        st.textContent = 'Marked filed.'; st.className = 'cn-status ok'
+        onChange?.()
+      } }))
   }, { go: true })
   box.appendChild(el('div', { class: 'cn-row' }, lbl('Return', ret), lbl('Filed on', on), lbl('ARN', arn), go))
+  box.appendChild(slot)
   box.appendChild(st)
   return box
 }
@@ -77,16 +103,23 @@ export function mountFilingHistory(root, { supabase, canMark, canFreq, onChange 
     const from = el('select', { class: 'cn-sel', 'aria-label': 'From' }, starts.map(s => el('option', { value: s }, 'from ' + gstDate(s))))
     const why = el('input', { type: 'text', class: 'cn-input', maxlength: '300', placeholder: 'Reason / reference (optional)', 'aria-label': 'Reason' })
     const fst = el('div', { class: 'cn-status', role: 'status', 'aria-live': 'polite' })
-    const save = btn('Save filing frequency', async () => {
-      save.disabled = true
-      const { error } = await supabase.rpc('set_gst_filing_frequency', { p_frequency: f.value, p_effective_from: from.value, p_reason: why.value.trim() || null })
-      save.disabled = false
-      if (error) { fst.textContent = safeErrorMessage(error, 'Could not save the filing frequency.'); fst.className = 'cn-status err'; return }
-      fst.textContent = 'Saved.'; fst.className = 'cn-status ok'; onChange?.()
+    const fslot = el('div')
+    const save = btn('Save filing frequency', () => {
+      fst.textContent = ''; fst.className = 'cn-status'
+      const v = { f: f.value, from: from.value, why: why.value.trim() }
+      fslot.replaceChildren(confirmStep({
+        lines: [['Filing frequency', FREQ_LABEL[v.f] || v.f], ['From', gstDate(v.from) + ' (the first day of the quarter)'], ['Reason / reference', v.why || 'not entered']],
+        note: 'This record is permanent (it takes effect from the quarter start; it is never back-dated or deleted — a later change is a new record from a later quarter).',
+        confirmLabel: 'Confirm — save filing frequency', inputs: [f, from, why, save],
+        onConfirm: async () => {
+          const { error } = await supabase.rpc('set_gst_filing_frequency', { p_frequency: v.f, p_effective_from: v.from, p_reason: v.why || null })
+          if (error) { fst.textContent = safeErrorMessage(error, 'Could not save the filing frequency.'); fst.className = 'cn-status err'; return }
+          fst.textContent = 'Saved.'; fst.className = 'cn-status ok'; onChange?.()
+        } }))
     }, { go: true })
     freq.replaceChildren(el('div', { class: 'gr-sec' }, el('h4', { class: 'gr-h' }, 'Filing frequency (Super Admin)'),
       el('p', { class: 'cn-sub' }, 'GSTR-1 / GSTR-3B monthly, or quarterly under QRMP (aggregate turnover up to ₹5 crore) — from the first day of a quarter, never back-dated. Your CA confirms which.'),
-      el('div', { class: 'cn-row' }, f, from, why, save), fst))
+      el('div', { class: 'cn-row' }, f, from, why, save), fslot, fst))
   }
 
   async function load() {
