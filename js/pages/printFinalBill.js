@@ -96,7 +96,10 @@ function buildModel(d, copy) {
   const docType   = b.document_type;
   const payer     = payerInfo(d);
   // No taxable line at all (e.g. a Bill of Supply for exempt healthcare services): no tax columns / tax summary
-  const exemptOnly = isGst && d.items.length > 0 && !d.items.some(it => it.tax_category === 'TAXABLE');
+  // Session 345f: a composition supplier's Bill of Supply (frozen on the bill) -- the R1 sentence at the top, no tax column / tax line /
+  // tax summary, no exempt-supply declaration (F5); lines keep their category on the server, the print shows none of it
+  const comp = isGst && !isDraft && b.supplier_scheme === 'composition';
+  const exemptOnly = isGst && d.items.length > 0 && (comp || !d.items.some(it => it.tax_category === 'TAXABLE'));
 
   // ── Hospital block: a GST document prints the supplier details frozen on the bill ──
   let orgName, orgLines;
@@ -196,7 +199,7 @@ function buildModel(d, copy) {
       const unit = it.unit || (it.item_type === 'room_tariff' ? 'day' : null);
       const amount = it.line_total ?? it.total;
       sub += num(amount);
-      const taxable = it.tax_category === 'TAXABLE';
+      const taxable = it.tax_category === 'TAXABLE' && !comp;
       return {
         no: ++lineNo, description: it.description, sub: it.charge_date ? fmtD(it.charge_date) : null,
         code: it.sac_code || it.hsn_code || null,
@@ -217,8 +220,8 @@ function buildModel(d, copy) {
   let taxSummary = null, taxNote = null;
   // Session 345c2b: a Bill of Supply prints the declaration frozen on it at issue (footer) INSTEAD of the exempt note;
   // an older Bill of Supply (none frozen) keeps the note
-  const declaration = isGst && !isDraft && docType === 'BILL_OF_SUPPLY' && b.bos_declaration ? b.bos_declaration : null;
-  if (exemptOnly && declaration) {
+  const declaration = isGst && !isDraft && !comp && docType === 'BILL_OF_SUPPLY' && b.bos_declaration ? b.bos_declaration : null;
+  if (comp || (exemptOnly && declaration)) {
     taxNote = null;
   } else if (exemptOnly) {
     const cats = [...new Set(d.items.map(it => TAXCAT_LABEL[it.tax_category] || 'Not taxable'))].join(' / ');
@@ -226,7 +229,7 @@ function buildModel(d, copy) {
   } else if (isGst) {
     const byKey = new Map();
     for (const it of d.items) {
-      const taxable = it.tax_category === 'TAXABLE';
+      const taxable = it.tax_category === 'TAXABLE' && !comp;
       const key = taxable ? `r${num(it.gst_rate)}` : it.tax_category || 'NONE';
       const r = byKey.get(key) || { label: taxable ? `${num(it.gst_rate)}% (${num(it.cgst_rate)}% + ${num(it.sgst_rate)}%)` : (TAXCAT_LABEL[it.tax_category] || 'Other'),
                                     value: 0, cgst: 0, sgst: 0, taxable };
@@ -265,7 +268,7 @@ function buildModel(d, copy) {
     rows.push({ label: 'Gross charges', value: money(b.gross_total) });
     rows.push({ label: 'Less: discount', value: money(num(b.line_discount_total) + num(b.bill_discount_total)) });
     if (!exemptOnly) rows.push({ label: 'Taxable value', value: money(b.taxable_total) });
-    rows.push({ label: 'Exempt / non-taxable value', value: money(num(b.exempt_total) + num(b.nil_rated_total) + num(b.non_gst_total)) });
+    if (!comp) rows.push({ label: 'Exempt / non-taxable value', value: money(num(b.exempt_total) + num(b.nil_rated_total) + num(b.non_gst_total)) });
     if (!exemptOnly) {
       rows.push({ label: 'CGST', value: money(b.cgst_total) });
       rows.push({ label: 'SGST', value: money(b.sgst_total) });
@@ -305,7 +308,7 @@ function buildModel(d, copy) {
     org: { name: orgName, lines: orgLines, logoUrl: t.logo_url || null, monogram: monogram(orgName) },
     title, subtitle, watermark, meta,
     party: { title: 'Patient & Admission', fields },
-    demo: d.isDemo, gst: isGst, exemptOnly, sections, emptyNote: null, taxNote, taxSummary,
+    demo: d.isDemo, composition: comp ? b.composition_text : null, gst: isGst, exemptOnly, sections, emptyNote: null, taxNote, taxSummary,
     payments: { rows: payRows, totalLabel: 'Net received from patient (voided excluded)', total: money(netReceived) },
     summary: { rows, balance },
     words: { label: `Amount in words (${!isGst ? 'net bill amount' : docType === 'TAX_INVOICE' && !isDraft ? 'invoice total' : 'bill total'})`, lines: wordsLines },

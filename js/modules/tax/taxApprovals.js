@@ -5,14 +5,14 @@
 import { safeErrorMessage } from '../../utils/errors.js';
 import { el } from '../pharmacy/returnPanel.js';
 
-export const TAX_APPROVAL_TYPES = ['ip_medicine_tax', 'tax_defaults_change', 'room_tax_change', 'credit_note'];
+export const TAX_APPROVAL_TYPES = ['ip_medicine_tax', 'tax_defaults_change', 'room_tax_change', 'credit_note', 'gst_scheme_change', 'composition_tax_base'];   // Session 345f: + 2
 const btn = (label, cls, onClick, attrs = {}) => { const b = el('button', { type: 'button', class: cls, ...attrs }, label); b.addEventListener('click', onClick); return b; };
 let _n = 0;
 const uid = p => `${p}-${++_n}`;
 const when = iso => iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 const fmtD = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const TITLE = { ip_medicine_tax: 'IP-medicines tax choice', tax_defaults_change: 'Default tax profiles', room_tax_change: 'Room tax profiles (IPD)',
-  credit_note: 'Credit note' };
+  credit_note: 'Credit note', gst_scheme_change: 'Registration type (regular / composition)', composition_tax_base: 'Composition tax base' };
 const inr = n => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const REASON = { own_request: 'You asked for this change — another authorised person decides it.', inactive: 'Your account is not active.',
   not_authorised: 'Waiting for the Super Admin or Finance Manager.' };
@@ -36,6 +36,17 @@ function rowsFor(a) {
               `${inr(l.line_total)}${Number(l.cgst_amount) || Number(l.sgst_amount) ? ` (CGST ${inr(l.cgst_amount)} + SGST ${inr(l.sgst_amount)})` : ''}`]),
             ['Refund', '—', `${inr(p.total)} by ${String(p.refund_mode || '—').toUpperCase()}${p.refund_reference ? ' · ' + p.refund_reference : ''}`],
             ['Credit allowed until', '—', fmtD(p.deadline)]];
+  }
+  if (a.action_type === 'gst_scheme_change') {   // Session 345f: regular <-> composition from a date (the server re-checks every date rule)
+    const S = { regular: 'Regular', composition: 'Composition' };
+    return [['Registration type', S[p.old?.scheme] || 'not recorded', S[p.scheme] || p.scheme || '—'],
+            ['Effective from', p.old?.effective_from ? fmtD(p.old.effective_from) : '—', fmtD(p.effective_from)],
+            ['Reference (CMP-02 / CMP-04)', p.old?.reference || '—', p.reference || '—']];
+  }
+  if (a.action_type === 'composition_tax_base') {   // Session 345f (R7): never changes a bill -- used by the GST reports only
+    const B = { unconfirmed: 'Not confirmed yet', taxable_only: 'Taxable supplies only', taxable_and_exempt: 'Taxable + exempt supplies' };
+    return [['Composition tax base', B[p.old] || 'Not confirmed yet', B[p.base] || p.base || '—'],
+            ['Effective from', '—', fmtD(p.effective_from)], ['CA confirmation', '—', p.reference || '—']];
   }
   if (a.action_type === 'room_tax_change') {   // Session 345e
     const o = p.old || {};

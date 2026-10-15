@@ -119,10 +119,13 @@ function buildModel(d, copy) {
   if (isGst && b.recipient_gstin) fields.push({ label: 'Recipient GSTIN', value: b.recipient_gstin })
 
   // ── Medicines: one row per batch -- batch + expiry under the name; HSN / tax columns on a GST document ──
-  const exemptOnly = isGst && d.lines.length > 0 && !d.lines.some(l => l.tax_category === 'TAXABLE')
+  // Session 345f: a composition supplier's Bill of Supply (frozen on the bill) -- the R1 sentence at the top, no tax column / tax line /
+  // tax summary, no exempt-supply declaration (F5); lines keep their category on the server, the print shows none of it
+  const comp = isGst && !isDraft && b.supplier_scheme === 'composition'
+  const exemptOnly = isGst && d.lines.length > 0 && (comp || !d.lines.some(l => l.tax_category === 'TAXABLE'))
   let n = 0, sub = 0
   const rows = d.lines.map(l => {
-    const taxable = l.tax_category === 'TAXABLE'
+    const taxable = l.tax_category === 'TAXABLE' && !comp
     const amount = isGst ? (l.line_total ?? l.total) : l.total
     sub += num(amount)
     const batchLine = [l.batch_number ? `Batch ${l.batch_number}` : 'Batch not recorded', l.expiry_date ? `Exp ${fmtExp(l.expiry_date)}` : null]
@@ -141,15 +144,15 @@ function buildModel(d, copy) {
   let taxSummary = null, taxNote = null
   // Session 345c2b: a Bill of Supply prints the declaration frozen on it at issue (footer) INSTEAD of the exempt note;
   // an older Bill of Supply (none frozen) keeps the note
-  const declaration = isGst && !isDraft && docType === 'BILL_OF_SUPPLY' && b.bos_declaration ? b.bos_declaration : null
-  if (exemptOnly && declaration) {
+  const declaration = isGst && !isDraft && !comp && docType === 'BILL_OF_SUPPLY' && b.bos_declaration ? b.bos_declaration : null
+  if (comp || (exemptOnly && declaration)) {
     taxNote = null
   } else if (exemptOnly) {
     taxNote = `GST: ${[...new Set(d.lines.map(l => TAXCAT_LABEL[l.tax_category] || 'Not taxable'))].join(' / ')} — no GST is charged on this bill.`
   } else if (isGst) {
     const byKey = new Map()
     for (const l of d.lines) {
-      const taxable = l.tax_category === 'TAXABLE'
+      const taxable = l.tax_category === 'TAXABLE' && !comp
       const key = taxable ? `r${num(l.gst_rate)}` : l.tax_category || 'NONE'
       const r = byKey.get(key) || { label: taxable ? `${num(l.gst_rate)}% (${num(l.cgst_rate)}% + ${num(l.sgst_rate)}%)` : (TAXCAT_LABEL[l.tax_category] || 'Other'),
                                     value: 0, cgst: 0, sgst: 0, taxable }
@@ -174,7 +177,7 @@ function buildModel(d, copy) {
     summary.push({ label: 'Gross (MRP)', value: money(b.gross_total) })
     summary.push({ label: 'Less: discount', value: money(num(b.line_discount_total) + num(b.bill_discount_total)) })
     if (!exemptOnly) summary.push({ label: 'Taxable value', value: money(b.taxable_total) })
-    summary.push({ label: 'Exempt / non-taxable value', value: money(num(b.exempt_total) + num(b.nil_rated_total) + num(b.non_gst_total)) })
+    if (!comp) summary.push({ label: 'Exempt / non-taxable value', value: money(num(b.exempt_total) + num(b.nil_rated_total) + num(b.non_gst_total)) })
     if (!exemptOnly) { summary.push({ label: 'CGST (included in MRP)', value: money(b.cgst_total) }); summary.push({ label: 'SGST (included in MRP)', value: money(b.sgst_total) }) }
     summary.push({ label: docType === 'TAX_INVOICE' ? 'Invoice total' : 'Bill total', value: rupee(b.final_amount), grand: true })
   } else {
@@ -221,7 +224,7 @@ function buildModel(d, copy) {
     org: { name: orgName, lines: orgLines, logoUrl: org.logo_url || null, monogram: monogram(orgName) },
     title, subtitle, watermark, meta, demo: !!org.is_demo,
     party: { title: cust ? 'Customer Details' : 'Patient Details', fields },
-    gst: isGst, exemptOnly, descLabel: 'Medicine', noCode: !isGst,
+    composition: comp ? b.composition_text : null, gst: isGst, exemptOnly, descLabel: 'Medicine', noCode: !isGst,
     sections, emptyNote: rows.length ? null : 'No medicines on this bill.', taxNote, taxSummary, payments,
     summary: { rows: summary, balance },
     words: { label: `Amount in words (${isGst && docType === 'TAX_INVOICE' && !isDraft ? 'invoice total' : 'bill total'})`, lines: words },

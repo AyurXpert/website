@@ -10,6 +10,8 @@
 //   * document numbering   -> set_document_numbering       (active super_admin only; saving = confirming, also when unchanged)
 //   * declaration          -> set_bos_declaration          (active super_admin only)
 //   * pharmacy go-live     -> set_pharmacy_gst_go_live     (active super_admin only; the server's refusal reason is shown)
+//   * registration type    -> request_gst_scheme_change    (Session 345f: maker-checker, 'gst_scheme_change'; regular / composition from a date)
+//   * composition tax base -> request_composition_tax_base (Session 345f, rule R7: maker-checker, 'composition_tax_base'; never affects a bill)
 //   * annual return date   -> set_annual_return_date       (Session 345h, rule R3: active super_admin only; the panel itself is
 //                                                          get_annual_return_dates -- super_admin / finance manager; the deadline it
 //                                                          shows is the server's; a date earlier than an issued credit note is refused, D9)
@@ -54,7 +56,7 @@ export function mountTaxSettings(root, { supabase, onChange } = {}) {
   const body = el('div', { class: 'ts-body' });
   root.replaceChildren(el('section', { class: 'rp-card ts-card', 'aria-labelledby': hId, 'data-tax-settings': '' },
     el('div', { class: 'rp-row rq-head' }, el('h3', { class: 'rp-h', id: hId }, '🧾 Tax & Invoicing'), btn('↻ Refresh', 'rp-btn', () => reload())),
-    el('p', { class: 'rp-sub' }, 'Changes to the IP-medicines choice, the default tax profiles and the room tax profiles need a second person\'s approval (a Super Admin or Finance Manager — never the person who asked, except an organisation\'s only Super Admin). Bills already issued never change.'),
+    el('p', { class: 'rp-sub' }, 'Changes to the registration type, the IP-medicines choice, the default tax profiles and the room tax profiles need a second person\'s approval (a Super Admin or Finance Manager — never the person who asked, except an organisation\'s only Super Admin). Bills already issued never change.'),
     top, body));
 
   // Session 345c2b (TODO §159): while a reload runs, the current forms are disabled (nothing typed into them can be lost
@@ -70,7 +72,7 @@ export function mountTaxSettings(root, { supabase, onChange } = {}) {
     body.removeAttribute('aria-busy');
     if (error || !data) { say(top, safeErrorMessage(error, 'Could not load the tax settings.'), true); body.replaceChildren(); return; }
     say(top, '');
-    body.replaceChildren(readinessSection(data), ipSection(data), defaultsSection(data), roomSection(data), numberingSection(data),
+    body.replaceChildren(readinessSection(data), schemeSection(data), ipSection(data), defaultsSection(data), roomSection(data), numberingSection(data),
                          annualReturnSection(data), declarationSection(data), pharmacySection(data));
   }
 
@@ -135,6 +137,112 @@ export function mountTaxSettings(root, { supabase, onChange } = {}) {
       el('span', { class: 'ts-lvl ts-lvl-' + i.level }, `${icon} ${word}`), ' ', el('span', { class: 'ts-rd-title' }, i.title || ''),
       i.detail ? el('div', { class: 'rp-muted' }, i.detail) : null,
       ex.length ? el('div', { class: 'rp-muted' }, 'e.g. ' + ex.join(', ') + more) : null);
+  }
+
+  // ── 0b. Session 345f (TODO §157): the GST registration type -- regular or composition, from a date (F1 / F2 / F3); a second person
+  // approves (F13). Composition starts only on 1 April or, for a new registrant, on its GST go-live date (the CMP-02 reference);
+  // leaving it is from today or later (the CMP-04 reference). Never back-dated; a date on / before an issued GST document is refused.
+  // The composition tax base (R7) is a CA point -- stored, used only by the GST reports, never by a bill. The server decides everything.
+  const SCHEME = { regular: 'Regular', composition: 'Composition' };
+  const BASE = { unconfirmed: 'Not confirmed yet', taxable_only: 'Taxable supplies only', taxable_and_exempt: 'Taxable + exempt supplies' };
+  const SIGNBOARD = 'Display the words "composition taxable person" on your signboards (Rule 5(1)(g)).';
+  function schemeSection(d) {
+    const g = d.gst_scheme || {};
+    const sec = el('section', { class: 'ts-sec', 'data-sec': 'scheme' }, el('h4', { class: 'ts-h4' }, 'Registration type (regular / composition)'));
+    if (!d.gst?.registered) {
+      sec.append(el('p', { class: 'rp-muted', 'data-scheme-now': '' }, 'Not GST-registered — the registration type is recorded once the organisation is GST-registered.'));
+      return sec;
+    }
+    const cur = g.current;
+    const rows = g.rows || [];
+    const pend = (d.pending || []).find(p => p.action_type === 'gst_scheme_change');
+    const anyComp = cur?.scheme === 'composition' || rows.some(r => r.scheme === 'composition' && r.state === 'future') || pend?.payload?.scheme === 'composition';
+    sec.append(el('p', { class: 'ts-now', 'data-scheme-now': cur?.scheme || 'none' }, cur
+      ? `Now: ${SCHEME[cur.scheme] || cur.scheme} (from ${cur.source === 'seed' ? 'the start of GST' : fmtD(cur.effective_from)})${cur.reference ? ' · reference ' + cur.reference : ''}`
+      : '⚠ Not recorded — GST go-live is blocked until it is (a second person approves).'));
+    sec.append(el('p', { class: 'rp-muted' }, 'A composition organisation issues only Bills of Supply and charges no GST on any bill; each bill prints, at the top: "'
+      + (g.composition_text || 'Composition taxable person, not eligible to collect tax on supplies') + '". Bills already issued never change.'));
+    const help = el('p', { class: 'ts-help', 'data-signboard-help': '' }, '🪧 ' + SIGNBOARD);
+    help.hidden = !anyComp;
+    sec.append(help);
+    if (rows.length) {
+      sec.append(el('div', { class: 'rp-tablewrap' }, el('table', { class: 'rp-table', 'data-scheme-history': '' },
+        el('thead', null, el('tr', null, ['From', 'Registration type', 'Reference', 'State', 'Set by'].map(h => el('th', { scope: 'col' }, h)))),
+        el('tbody', null, rows.map(r => el('tr', null, el('td', null, r.source === 'seed' ? 'Since GST began' : fmtD(r.effective_from)),
+          el('td', null, SCHEME[r.scheme] || r.scheme), el('td', null, r.reference || '—'),
+          el('td', null, r.state === 'current' ? 'In force' : r.state === 'future' ? 'From a later date' : 'Earlier'),
+          el('td', null, r.source === 'seed' ? 'Set by migration (demo organisation)' : (r.set_by_name ? 'Approved by ' + r.set_by_name : 'Approved request'))))))));
+    }
+    if (pend) {
+      const p = pend.payload || {};
+      sec.append(el('p', { class: 'it-pending', 'data-pending': 'scheme' },
+        `⏳ Pending approval: ${SCHEME[p.scheme] || p.scheme} from ${fmtD(p.effective_from)}${p.reference ? ' (reference ' + p.reference + ')' : ''} · asked by ${pend.requested_by_name || '—'}`));
+    } else if (d.can?.request) {
+      const msg = status();
+      const sel = el('select', { class: 'rp-input', id: uid('ts-sc') },
+        el('option', { value: 'composition' }, 'Composition'), el('option', { value: 'regular' }, 'Regular'));
+      sel.value = cur?.scheme === 'composition' ? 'regular' : 'composition';
+      const date = el('input', { type: 'date', class: 'rp-input', min: d.today, value: d.today, id: uid('ts-sd') });
+      const ref = el('input', { type: 'text', class: 'rp-input', maxlength: '60', autocomplete: 'off', id: uid('ts-sr'),
+                                placeholder: 'e.g. the CMP-02 / CMP-04 ARN' });
+      const reason = el('textarea', { class: 'rp-input', rows: '2', maxlength: '500', id: uid('ts-ss'), placeholder: 'Why (optional)' });
+      const hint = el('div', { class: 'rp-muted', 'data-scheme-hint': '', 'aria-live': 'polite' });
+      const sync = () => {
+        const comp = sel.value === 'composition';
+        hint.textContent = comp
+          ? 'Composition can start only on 1 April (the intimation is filed before the financial year) or, for a new registrant with no GST document yet, on its GST go-live date. Your CA confirms that the organisation is eligible.'
+          : 'Leaving composition: from today or later (crossing the turnover limit ends it from that day). A date on or before a GST document already issued is refused.';
+        help.hidden = !(comp || anyComp);
+      };
+      sel.addEventListener('change', sync); sync();
+      const send = btn('Send for approval', 'rp-btn rp-btn-go', async () => {
+        if (!date.value || date.value < d.today) { say(msg, 'The effective date must be today or later (the registration type is never back-dated).', true); date.focus(); return; }
+        if ((sel.value === 'composition' || cur?.scheme === 'composition') && ref.value.trim().length < 5) {
+          say(msg, 'Enter the reference (the CMP-02 / CMP-04 ARN or order number, at least 5 characters).', true); ref.focus(); return;
+        }
+        send.disabled = true;
+        const { error } = await supabase.rpc('request_gst_scheme_change', {
+          p_scheme: sel.value, p_effective_from: date.value, p_reference: ref.value.trim() || null, p_reason: reason.value.trim() || null });
+        send.disabled = false;
+        if (error) { say(msg, safeErrorMessage(error, 'Could not send the request.'), true); return; }
+        await after(top, '✓ Sent for approval — it applies from the chosen date once a Super Admin or Finance Manager (not you) approves it.');
+      }, { 'data-send': 'scheme' });
+      sec.append(el('div', { class: 'rp-form', 'data-form': 'scheme' }, field('Registration type', sel), hint,
+        field('Effective from (today or later)', date), field('Reference (CMP-02 / CMP-04)', ref), field('Reason', reason),
+        el('div', { class: 'rp-actions' }, send), msg));
+    }
+    if (anyComp) sec.append(taxBaseBlock(d, g.tax_base || {}));
+    return sec;
+  }
+  function taxBaseBlock(d, tb) {
+    const box = el('div', { class: 'ts-sub', 'data-sec': 'tax-base' }, el('div', { class: 'rp-lbl' }, 'Composition tax base (for the composition return)'),
+      el('p', { class: 'rp-muted' }, 'Your CA confirms which supplies the composition tax is worked out on. It never changes a bill or a credit note — it is used only by the GST reports, whose composition summary stays blocked while it is not confirmed.'),
+      el('p', { class: 'ts-now', 'data-tax-base-now': tb.current || 'unconfirmed' }, `Now: ${BASE[tb.current] || BASE.unconfirmed}`));
+    const pend = (d.pending || []).find(p => p.action_type === 'composition_tax_base');
+    if (pend) {
+      box.append(el('p', { class: 'it-pending', 'data-pending': 'tax-base' },
+        `⏳ Pending approval: ${BASE[pend.payload?.base] || pend.payload?.base} from ${fmtD(pend.payload?.effective_from)} · asked by ${pend.requested_by_name || '—'}`));
+      return box;
+    }
+    if (!d.can?.request) return box;
+    const msg = status();
+    const sel = el('select', { class: 'rp-input', id: uid('ts-tb') }, Object.entries(BASE).map(([v, l]) => el('option', { value: v }, l)));
+    sel.value = tb.current && tb.current !== 'unconfirmed' ? tb.current : 'taxable_only';
+    const date = el('input', { type: 'date', class: 'rp-input', min: d.today, value: d.today, id: uid('ts-tbd') });
+    const ref = el('input', { type: 'text', class: 'rp-input', maxlength: '120', autocomplete: 'off', id: uid('ts-tbr'), placeholder: 'Your CA\'s confirmation (letter / note reference)' });
+    const send = btn('Send for approval', 'rp-btn rp-btn-go', async () => {
+      if (!date.value || date.value < d.today) { say(msg, 'The effective date must be today or later.', true); date.focus(); return; }
+      if (sel.value !== 'unconfirmed' && ref.value.trim().length < 5) { say(msg, 'Enter your CA\'s confirmation (at least 5 characters).', true); ref.focus(); return; }
+      send.disabled = true;
+      const { error } = await supabase.rpc('request_composition_tax_base', {
+        p_base: sel.value, p_effective_from: date.value, p_reference: ref.value.trim() || null, p_reason: null });
+      send.disabled = false;
+      if (error) { say(msg, safeErrorMessage(error, 'Could not send the request.'), true); return; }
+      await after(top, '✓ Sent for approval.');
+    }, { 'data-send': 'tax-base' });
+    box.append(el('div', { class: 'rp-form', 'data-form': 'tax-base' }, field('Tax base confirmed by your CA', sel), field('Effective from (today or later)', date),
+      field('CA confirmation', ref), el('div', { class: 'rp-actions' }, send), msg));
+    return box;
   }
 
   // ── 1. the IP-medicines choice ──

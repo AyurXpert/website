@@ -12,6 +12,7 @@
 //   party:      { title, fields: [{ label, value, wide, full, gap }] },
 //   demo:       boolean,                              // demo organisation: "TEST DOCUMENT" banner at the top of the sheet
 //   demoText:   text (optional)                       // that banner's words when not DEMO_TEXT (Session 345h: the credit note / voucher)
+//   composition: text | null                          // Session 345f (R1): a composition supplier's sentence, frozen on the document -- printed at the very top
 //   gst:        boolean,                              // show Disc/Taxable/GST/CGST/SGST columns
 //   exemptOnly: boolean,                              // with gst: no taxable line -- keep SAC + Disc., drop Taxable/GST/CGST/SGST
 //   descLabel:  text (default 'Description'), noCode: boolean -- OPD / lab bills: "Service / Test", no SAC column (Session 327c)
@@ -131,6 +132,7 @@ export function renderInvoice(sheet, m) {
   sheet.replaceChildren();
   if (m.demo) sheet.appendChild(h('div', { class: 'demo-banner', role: 'note' }, m.demoText || DEMO_TEXT));
   if (m.watermark) sheet.appendChild(h('div', { class: 'watermark', 'aria-hidden': 'true' }, m.watermark));
+  if (m.composition) sheet.appendChild(h('p', { class: 'composition-line' }, m.composition));   // Session 345f (R1, CGST Rule 5)
 
   sheet.appendChild(headerBlock(m));
   sheet.appendChild(h('section', { class: 'meta', 'aria-label': 'Bill details' }, m.meta.map(f =>

@@ -476,6 +476,8 @@ const APPROVAL_ACTION_LABELS = {
   room_tax_change:         'Room tax profiles (IPD)',
   // Session 345g: a credit note waiting for the second person -- decided in the same "Tax settings" table
   credit_note:             'Credit note',
+  gst_scheme_change:       'Registration type (regular / composition)',   // Session 345f
+  composition_tax_base:    'Composition tax base',
 };
 
 const NURSING_CYCLE_LABELS = { weekly: 'Weekly (7 days)', fortnightly: 'Fortnightly (14 days)', monthly: 'Monthly (30 days)' };
@@ -517,6 +519,10 @@ function _approvalSummary(row){
     case 'credit_note':          return `against ${_esc(p.original_document_number || '—')} — ₹${_esc(Number(p.total || 0).toFixed(2))} refund by ${_esc(String(p.refund_mode || '—').toUpperCase())}`;
     case 'room_tax_change':      return `taxable rooms ${_esc(p.taxable_profile_name || '—')} · exempt rooms ${_esc(p.exempt_profile_name || '—')}`
                                    + (p.wellness_profile_name ? ` · wellness ${_esc(p.wellness_profile_name)}` : '') + ` from ${_esc(p.effective_from || '—')}`;
+    // Session 345f: the registration type (regular / composition) and the composition tax base
+    case 'gst_scheme_change':    return `${_esc(p.old?.scheme || 'not recorded')} → ${_esc(p.scheme || '—')} from ${_esc(p.effective_from || '—')}`
+                                   + (p.reference ? ` (reference ${_esc(p.reference)})` : '');
+    case 'composition_tax_base': return `composition tax base: ${_esc(String(p.old || 'unconfirmed').replace(/_/g, ' '))} → ${_esc(String(p.base || '—').replace(/_/g, ' '))} from ${_esc(p.effective_from || '—')}`;
     default: return '—';
   }
 }

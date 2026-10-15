@@ -78,6 +78,7 @@ export function buildCreditNoteModel(d, copy, { supplierCopy = false, origTotals
   const org = orgBlock(d)
   const mk = copyMarking(copy, { supplier: supplierCopy, fmtDT })
   const withTax = !!n.with_tax
+  const comp = n.supplier_scheme === 'composition'   // Session 345f: a composition supplier's credit note -- the R1 sentence at the top
   const origLabel = DOC[n.original_document_type] || 'Bill'
   // Session 345i (Stage 6b): a pharmacy credit note (a return of a GST pharmacy bill) -- per line batch, expiry, HSN, qty x rate
   const pharmacy = String(n.bill_type || '').toLowerCase() === 'pharmacy'
@@ -142,7 +143,7 @@ export function buildCreditNoteModel(d, copy, { supplierCopy = false, origTotals
     }
     taxSummary = [...byKey.values()].map(x => ({ label: x.label, value: money(x.value), cgst: x.taxable ? money(x.cgst) : '—',
       sgst: x.taxable ? money(x.sgst) : '—', tax: x.taxable ? money(x.cgst + x.sgst) : '—' }))
-  } else {
+  } else if (!comp) {
     taxNote = `Credit note against a Bill of Supply — no GST is credited.`
   }
 
@@ -164,6 +165,7 @@ export function buildCreditNoteModel(d, copy, { supplierCopy = false, origTotals
   footer.push('Computer-generated credit note. · Powered by AyurXpert')
   return {
     org, title: n.heading || 'CREDIT NOTE', subtitle: mk.mark, watermark: mk.watermark, meta, demo: !!d.organisation?.is_demo, demoText: DEMO_GST_TEXT,
+    composition: comp ? n.composition_text : null,
     party: { title: 'Recipient Details', fields },
     gst: withTax, exemptOnly: false, descLabel: pharmacy ? 'Medicine' : 'Service / Test', noCode: false,
     sections, emptyNote: rows.length ? null : 'No lines on this credit note.', taxNote, taxSummary, payments: null,

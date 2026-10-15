@@ -229,9 +229,19 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     // Session 345h: credit-note screens, the cash payout (D4), the annual-return date (D9), the credit-note prints
     'Credit note ', 'The refund of ', "The admission's account no longer owes", 'Only ₹', 'Bill not found', 'Document not found',
     'Unknown status filter', 'Too many bills at once', 'Super Admin or Finance Manager can view', 'Give the financial year as four digits',
-    'The annual return for ', 'Your role ('];
+    'The annual return for ', 'Your role (',
+    // Session 345f: the registration type (request_gst_scheme_change / _gst_scheme_apply) and the composition tax base
+    'Choose the registration type', 'The organisation is not marked GST-registered', 'Enter the reference of your',
+    'Composition can start only', 'The registration type ', 'A registration type request is already waiting',
+    'Choose the tax base', 'Enter your CA', 'A composition tax base request is already waiting',
+    'A composition taxable person', 'The composition tax base'];
   if (['P0001','42501','22023','P0002'].includes(error?.code)
       && TAX_SETTINGS_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+  // Session 345f (F9): a credit note / pharmacy return across a change of registration type -- the message starts with the bill's
+  // own document number, so it is matched by its fixed wording
+  if (['P0001','22023'].includes(error?.code) && error?.message?.includes('across a change of registration type')) {
     return error.message;
   }
 

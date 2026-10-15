@@ -103,6 +103,7 @@ const rule = () => n('div', 'th-rule');
 export function renderThermal(sheet, m) {
   const doc = n('div', 'th-doc');
   if (m.demo) doc.appendChild(n('div', 'demo-banner', m.demoText || DEMO_TEXT));
+  if (m.composition) doc.appendChild(n('div', 'composition-line', m.composition));   // Session 345f (R1): at the very top
 
   // header
   doc.appendChild(n('div', 'th-org', m.org?.name || ''));

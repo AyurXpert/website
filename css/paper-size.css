@@ -52,6 +52,8 @@ html[data-paper="t58"] .th-doc { font-size: 9.5px; }
 .th-doc .th-small { font-size: .85em; }
 .th-doc .demo-banner { display: block; width: 100%; font-size: .9em; padding: 2px 3px; margin: 0 0 4px; letter-spacing: 0; }
 html[data-paper="t58"] .th-doc .demo-banner { border-width: 1.5px; }
+.th-doc .composition-line { text-align: center; font-weight: 700; font-size: .9em; margin: 0 0 4px; overflow-wrap: anywhere; }   /* Session 345f (R1) */
+html[data-paper="a5"] .sheet .composition-line { font-size: 8pt; margin-bottom: 1.5mm; }
 
 /* ── A4 pharmacy bill: a normal bill fits one page (§131 -- spacing tightened, nothing removed) ── */
 @media print {

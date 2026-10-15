@@ -84,6 +84,8 @@ body {
   text-align: center; font-weight: 700; font-size: 10pt; letter-spacing: .5px; color: #000;
 }
 .tax-note { font-size: 9pt; margin: 1.5mm 0 0; }
+/* Session 345f (R1): a composition supplier's sentence at the top of every Bill of Supply / credit note -- plain black, never hidden */
+.composition-line { margin: 0 0 2mm; text-align: center; font-weight: 700; font-size: 10pt; color: #000; }
 
 .watermark {
   position: absolute; top: 90mm; left: 0; right: 0;
