@@ -122,7 +122,6 @@ tfoot td{font-weight:600;background:#f0fff4;border-top:2px solid var(--green-mid
 .aging-fill.red{background:var(--red)}
 
 /* GST table */
-.gst-row-total{font-weight:600;background:#f0fff4}
 
 /* Expense form */
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -155,6 +154,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
 <link rel="stylesheet" href="css/notify.css"/>
 <link rel="stylesheet" href="css/credit-notes.css"/>
 <link rel="stylesheet" href="css/pharmacy-returns.css"/>
+<link rel="stylesheet" href="css/gst-returns.css"/>
 </head>
 <body>
 <div id="navbar-container"></div>
@@ -216,6 +216,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
       <button class="sub-tab" id="tab-itemtax" hidden data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="itemtax" data-onclick-a2="@this">🏷 Medicine tax <span id="itemtax-badge" class="pr-badge" hidden></span></button>
       <!-- Session 345c2a: 🧾 Tax settings (IP-medicines choice, default profiles, declaration, pharmacy go-live + their approvals) -->
       <button class="sub-tab" id="tab-taxsettings" hidden data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="taxsettings" data-onclick-a2="@this">🧾 Tax settings <span id="taxsettings-badge" class="pr-badge" hidden></span></button>
+      <!-- Session 345m (GST Stage 7a): 🧾 GST returns -- super_admin / finance_manager / accountant (primary or secondary), shown by finance.js -->
+      <button class="sub-tab" id="tab-gstreturns" hidden data-onclick="switchSub" data-onclick-a0="revenue" data-onclick-a1="gstreturns" data-onclick-a2="@this">📑 GST returns</button>
       <a class="sub-tab" href="shift-close.html?tab=review" style="text-decoration:none;display:inline-flex;align-items:center">🤝 Shift handovers</a>
     </div>
 
@@ -290,6 +292,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
       <div class="card" id="vb-search-root"></div>
     </div>
 
+    <!-- GST returns sub-panel (Session 345m, GST Stage 7a): js/modules/tax/gstReturns.js -->
+    <div class="sub-panel" id="sub-gstreturns">
+      <div id="gstreturns-root"></div>
+    </div>
+
     <!-- Credit notes sub-panel (Session 345h, GST Stage 6c) -->
     <div class="sub-panel" id="sub-creditnotes">
       <div id="cn-list-root"></div>
@@ -360,7 +367,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
     <div class="sub-tabs">
       <button class="sub-tab active" data-onclick="switchSub" data-onclick-a0="expenses" data-onclick-a1="explog" data-onclick-a2="@this">Expense Log</button>
       <button class="sub-tab" data-onclick="switchSub" data-onclick-a0="expenses" data-onclick-a1="purchases" data-onclick-a2="@this">Purchases</button>
-      <button class="sub-tab" data-onclick="switchSub" data-onclick-a0="expenses" data-onclick-a1="gst" data-onclick-a2="@this">GST Summary</button>
+      <button class="sub-tab" data-onclick="switchSub" data-onclick-a0="expenses" data-onclick-a1="gst" data-onclick-a2="@this">GST</button>
       <button class="sub-tab" data-onclick="switchSub" data-onclick-a0="expenses" data-onclick-a1="audit" data-onclick-a2="@this">CA Audit</button>
     </div>
 
@@ -410,23 +417,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mi
       </div>
     </div>
 
-    <!-- GST Summary sub-panel -->
+    <!-- GST sub-panel: the old fixed-rate "GST Summary" estimate was removed (owner, 15 Oct 2026) -- the real figures are in
+         Revenue Tracking -> 📑 GST returns (Session 345m); the button is shown by finance.js to the roles that see that tab -->
     <div class="sub-panel" id="sub-gst">
       <div class="card">
-        <div class="card-hdr">
-          <div><div class="card-title">GST Summary</div><div class="card-sub">Taxable value and GST collected by rate — for filing reference</div></div>
-          <button class="btn btn-outline btn-sm" data-onclick="exportGSTCSV">Export</button>
-        </div>
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr><th>Bill Type / Category</th><th>Bills</th><th>Taxable Value (₹)</th><th>GST Rate</th><th>CGST (₹)</th><th>SGST (₹)</th><th>Total GST (₹)</th><th>Invoice Value (₹)</th></tr></thead>
-            <tbody id="gst-tbody"></tbody>
-            <tfoot><tr class="gst-row-total"><td>Total</td><td id="gst-t-bills">—</td><td id="gst-t-taxable">—</td><td></td><td id="gst-t-cgst">—</td><td id="gst-t-sgst">—</td><td id="gst-t-gst">—</td><td id="gst-t-invoice">—</td></tr></tfoot>
-          </table>
-        </div>
-        <div style="background:#e3f2fd;border:1px solid #90caf9;border-radius:8px;padding:12px 16px;margin-top:14px;font-size:12px;color:#1565c0">
-          <strong>Note:</strong> Most Ayurveda OPD consultation and registration fees are GST-exempt under Health Care Services (SAC 9993). Pharmacy/medicine sales may attract 0%, 5%, or 12% GST depending on HSN code. Verify with your CA before filing.
-        </div>
+        <div class="card-title">GST</div>
+        <p class="card-sub" style="margin:6px 0 12px">GST figures are in Finance → 📑 GST returns.</p>
+        <p class="card-sub" id="gst-moved-noaccess" hidden style="margin:0">They are seen by the super admin, the finance manager and the accountant.</p>
+        <button class="btn btn-primary" id="gst-moved-open" hidden style="min-height:44px" data-onclick="openGstReturns">Open 📑 GST returns</button>
       </div>
     </div>
 

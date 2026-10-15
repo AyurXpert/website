@@ -410,6 +410,7 @@
       <a href="#finance-pharmacy-returns" class="sub">6.1a Pharmacy Returns</a>
       <a href="#finance-credit-notes" class="sub">6.1b Credit Notes &amp; Refunds Due</a>
       <a href="#finance-tax-profiles" class="sub">6.1c Tax Profiles</a>
+      <a href="#finance-gst-returns" class="sub">6.1d GST Returns</a>
       <a href="#finance-access" class="sub">6.1 Who Can Access</a>
       <a href="#finance-revenue" class="sub">6.2 Revenue Tracking</a>
       <a href="#finance-ins" class="sub">6.3 Insurance Cycles</a>
@@ -931,6 +932,21 @@
       <li><strong>Accounts review</strong> — profiles made by a migration are confirmed by an approver with <strong>Confirm Accounts review</strong>.</li>
       <li><strong>Retire</strong> — an approver may retire a profile that is not in use (with a reason). While a default, the room-tax rule, the IP-medicines choice, a medicine, a fee item or a package uses it, the screen shows “In use: …” and there is no Retire button.</li>
       <li><strong>History</strong> — “Versions and history” under each profile lists every version (rate, from, to, state) and every step (who, when, notes). Bills already issued never change.</li>
+    </ul>
+
+    <h3 id="finance-gst-returns">6.1d 📑 GST returns (GSTR-1, GSTR-3B, composition, registers)</h3>
+
+    <p>Under <strong>Revenue Tracking → 📑 GST returns</strong> — for the super_admin, finance_manager and accountant (also as a second role). Read only: it reads the Tax Invoices, Bills of Supply and credit notes already issued and prepares the figures your CA files on the GST portal. Nothing is filed from here and no bill changes.</p>
+    <ul>
+      <li><strong>Period</strong> — a month (GSTR-1 / GSTR-3B), a quarter (QRMP, CMP-08), a financial year (GSTR-4) or any dates (at most 400 days), then <strong>Show</strong>. A document counts on its own date, a credit note on <em>its</em> date (a closed month never changes). Cancelled documents count only in “Documents issued”.</li>
+      <li><strong>GSTR-1</strong> — 4A B2B (buyers with a GSTIN — none until buyer GSTINs are recorded), 7 B2C small (by place of supply and rate, less the credit notes of the period), “B2C large: check these” (inter-state invoices, if any), 9B credit notes to registered buyers, 8 nil-rated / exempt / non-GST (healthcare services are exempt), 12 the HSN / SAC summary in two tabs (B2B and B2C; goods in NOS, services NA), 13 documents issued (one line per series).</li>
+      <li><strong>GSTR-3B</strong> — 3.1(a)–(e) and 3.2. Purchases and input tax credit (3.1(d), 4) are not in the software — enter them from your purchase records.</li>
+      <li><strong>Composition organisations</strong> — the CMP-08 / GSTR-4 turnover by quarter with both bases (taxable only; taxable + exempt). It stays <strong>blocked</strong> until the composition tax base is confirmed in Tax &amp; Invoicing (your CA's answer). The tax itself is worked out by your CA for now.</li>
+      <li><strong>Checks</strong> — “✔ Reconciled” means documents − credit notes = the lines = the return sections, and GSTR-3B = GSTR-1. If it ever shows ✖, do not file — report it.</li>
+      <li><strong>Export</strong> — <strong>⬇ Excel (.xlsx)</strong>: the Returns Offline Tool's sheets (b2b, b2cl, b2cs, cdnr, cdnur, exemp, hsn(b2b), hsn(b2c), docs) + summary, gstr3b and notes; or one sheet as CSV; or <strong>🖨 Print summary</strong>. Every export is recorded in the audit log with the period. Points marked “Unconfirmed — check with your CA” follow the safe default until your CA confirms.</li>
+      <li><strong>Registers</strong> — 📒 Sales register (every bill of the period, cancelled ones marked, “credited by” the credit-note numbers) and 🧾 Credit-note register (refund mode, refund due / paid, receipt). Both export to Excel / CSV.</li>
+      <li><strong>Expenses &amp; Audits → GST</strong> — the old fixed-rate “GST Summary” estimate is gone; that tab now points here (<strong>Open 📑 GST returns</strong>).</li>
+      <li><strong>Cash refunds due</strong> — the GST returns screen shows how many cash credit-note refunds are still to be paid out; one waiting <strong>7 days or more</strong> also shows a reminder at the top of Finance (cashier, accountant, finance manager, dept admin, super admin). Pay it out from 🧾 Credit notes → “Cash refunds due”.</li>
     </ul>
 
     <h3 id="finance-access">6.1 Who Can Access</h3>

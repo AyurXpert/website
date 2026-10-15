@@ -15,6 +15,7 @@ import { mountItemTaxApprovals, mountBulkItemTax, isTaxMaker } from '../modules/
 import { mountTaxSettings } from '../modules/tax/taxSettings.js';
 import { mountTaxApprovals, TAX_APPROVAL_TYPES } from '../modules/tax/taxApprovals.js';
 import { mountTaxProfiles } from '../modules/tax/taxProfiles.js';
+import { mountGstReturns } from '../modules/tax/gstReturns.js';   // Session 345m (GST Stage 7a)
 
 wireDelegatedEvents();
 
@@ -73,6 +74,11 @@ window.switchSub = function(grp, sub, el) {
     // Session 345j (TODO §177): 🧮 Tax profiles under the card; a change reloads the card and the badge
     mountTaxProfiles(document.getElementById('taxprofiles-root'), { supabase, onChange: () => { _taxCard?.reload(); _refreshTaxBadge(); } });
   }
+  if (sub === 'gstreturns') {   // Session 345m: mounted once; the report is read on "Show"
+    if (!_gstReturns) _gstReturns = mountGstReturns(document.getElementById('gstreturns-root'), { supabase,
+      audit: (action, data) => logAudit(action, 'bills', null, data, _ctx) });
+    else _gstReturns.reload();
+  }
   if (sub === 'pharmreturns') {
     if (!_prQueue) _prQueue = mountReturnsQueue(document.getElementById('pharmreturns-root'), { supabase, onCount: _setPrBadge, onDecided: () => window.loadAll() });
     else _prQueue.reload();
@@ -81,6 +87,7 @@ window.switchSub = function(grp, sub, el) {
 let _taxCard = null;   // Session 345c2a: the Tax settings card (reloaded after a decision)
 let _vbMounted = false;   // Visits & Bills search mounts once, on first open (Session 328)
 let _cnList = null;      // Session 345h: the credit-note list
+let _gstReturns = null;  // Session 345m: the GST returns screen
 // Session 345h: what a returns row is (finance_activity().returns kind): a pharmacy return / cancellation, or a credit note
 const _RET_KIND = { cancel: 'Cancellation', return: 'Return', credit_note: 'Credit note' };
 const _RET_DONE = { cancel: 'cancelled', return: 'returned', credit_note: 'credited' };
@@ -122,6 +129,34 @@ function _refreshTaxBadge() {
 if (isTaxMaker() || _role === 'finance_manager' || getCurrentSecondaryRole() === 'finance_manager') {
   document.getElementById('tab-taxsettings').hidden = false;
   _refreshTaxBadge();
+}
+// Session 345m (GST Stage 7a, G14): GST returns -- super_admin / finance_manager / accountant, primary or secondary role (the server
+// checks the same roles and that the account is active)
+const _GST_REPORT_ROLES = ['super_admin', 'finance_manager', 'accountant'];
+if (_GST_REPORT_ROLES.includes(_role) || _GST_REPORT_ROLES.includes(getCurrentSecondaryRole())) {
+  document.getElementById('tab-gstreturns').hidden = false;
+  document.getElementById('gst-moved-open').hidden = false;
+} else {
+  document.getElementById('gst-moved-noaccess').hidden = false;
+}
+// Expenses & Audits -> GST (owner, 15 Oct 2026: the old fixed-rate estimate removed) -> opens Revenue Tracking -> 📑 GST returns
+window.openGstReturns = function() {
+  const grp = document.querySelector('.grp-tab[data-grp="revenue"]');
+  if (grp) window.switchGrp('revenue', grp);
+  document.getElementById('tab-gstreturns')?.click();
+};
+// Session 345m (TODO §174, G17): cash credit-note refunds due for 7 days or more -> a reminder at the top of Finance for the people who
+// pay them out (the receptionist lands on Insurance Cycles and sees them in reception)
+if (['cashier', 'accountant', 'finance_manager', 'dept_admin', 'super_admin'].includes(_role)) {
+  supabase.rpc('credit_note_refunds_due').then(({ data, error }) => {
+    if (error || !data || !Number(data.overdue)) return;
+    const banner = document.createElement('div');
+    banner.className = 'cn-note';
+    banner.setAttribute('role', 'status');
+    banner.style.margin = '12px 16px 0';
+    banner.textContent = `⏳ ${data.overdue} cash refund(s) due for ${data.alert_days} days or more (₹${Number(data.overdue_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}) — pay them out from 🧾 Credit notes → "Cash refunds due".`;
+    document.querySelector('.grp-nav')?.after(banner);
+  });
 }
 const _PR_DECIDERS = ['dept_admin', 'super_admin', 'finance_manager', 'accountant'];
 if (hasModule('pharmacy') && (_PR_DECIDERS.includes(_role) || _PR_DECIDERS.includes(getCurrentSecondaryRole()))) {
@@ -294,7 +329,6 @@ async function loadBills(from, to) {
   _activity = act || { returns: [], receipts: [], legacy_collected: {} };
   await _loadLabItemTotals();
   renderRevenue(from, to);
-  renderGST();
   renderDaily(from, to);
   updateKPIs();
 }
@@ -519,43 +553,6 @@ function renderExpenses(from, to) {
   document.getElementById('exp-total').textContent = '₹' + _n(total);
 }
 
-// ── GST Summary ───────────────────────────────────────
-function renderGST() {
-  const k = _revenueBuckets(_bills);
-  const rows = [
-    { type:'OPD Consultation',     taxable: k.con, rate:0, cnt: k.opdCnt },
-    { type:'OPD Registration',     taxable: k.reg, rate:0, cnt: k.opdCnt },
-    // Session 344a: pharmacy sales of the period less the returns completed in the period (by return date)
-    { type:'Pharmacy / Medicines (less returns)', taxable: Math.max(0, k.phm - summarisePeriod(_bills, _activity).cat.pharmacy.returns), rate:5, cnt: k.phmCnt },
-    { type:'Lab / Investigations', taxable: k.lab, rate:0, cnt: k.labCnt },
-    { type:'IPD / Package / Other', taxable: k.oth, rate:0, cnt: k.othCnt },
-  ];
-  let tBills=0, tTaxable=0, tCGST=0, tSGST=0, tGST=0, tInvoice=0;
-  const tbody = document.getElementById('gst-tbody');
-  tbody.innerHTML = rows.map(r => {
-    const gst = r.taxable * r.rate / 100;
-    const cgst = gst / 2, sgst = gst / 2;
-    const invoice = r.taxable + gst;
-    const cnt = r.cnt;
-    tTaxable += r.taxable; tCGST += cgst; tSGST += sgst; tGST += gst; tInvoice += invoice;
-    return `<tr>
-      <td>${r.type}</td>
-      <td>—</td>
-      <td>₹${_n(r.taxable)}</td>
-      <td>${r.rate}%${r.rate===0?' (Exempt)':''}</td>
-      <td>₹${_n(cgst)}</td>
-      <td>₹${_n(sgst)}</td>
-      <td>₹${_n(gst)}</td>
-      <td>₹${_n(invoice)}</td>
-    </tr>`;
-  }).join('');
-  document.getElementById('gst-t-taxable').textContent = '₹' + _n(tTaxable);
-  document.getElementById('gst-t-cgst').textContent    = '₹' + _n(tCGST);
-  document.getElementById('gst-t-sgst').textContent    = '₹' + _n(tSGST);
-  document.getElementById('gst-t-gst').textContent     = '₹' + _n(tGST);
-  document.getElementById('gst-t-invoice').textContent = '₹' + _n(tInvoice);
-}
-
 // ── Daily Cash ───────────────────────────────────────
 // Session 344a: per IST day -- sales at their original amount, returns / cancellations completed that day, net,
 // and the money actually received that day (receipts - refunds, the shift handover's rule) by mode.
@@ -682,7 +679,7 @@ window.exportExpCSV = function() { _csvDownload(_expenses.map(e => ({
   Vendor: e.vendor, Amount: e.amount,
 })), 'expenses'); };
 
-window.exportGSTCSV = window.exportDailyCSV = function() { _toast('Use the browser Print to save this view', 'success'); };
+window.exportDailyCSV = function() { _toast('Use the browser Print to save this view', 'success'); };
 
 function _csvDownload(rows, name) {
   if (!rows.length) { _toast('No data to export', 'info'); return; }
