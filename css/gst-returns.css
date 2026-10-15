@@ -11,6 +11,17 @@
 .gr-ok{color:var(--green-deep,#1a4a2e);font-weight:600;margin-top:4px}
 .gr-bad{color:var(--red,#c0392b);font-weight:700;margin-top:4px}
 .gr-overdue{font-weight:600}
+/* Session 345n: filing, history (corrections struck through, like the statutory registers), short codes, own descriptions */
+.gr-lbl{display:inline-flex;flex-direction:column;gap:2px;font-size:11px;font-weight:600;color:var(--text-mid,#4a6352)}
+.gr-filed{list-style:none;margin:4px 0 8px;padding:0;font-size:13px;line-height:1.6}
+.gr-history{margin-top:14px}
+.gr-history summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:600;color:var(--green-deep,#1a4a2e)}
+tr.reg-superseded>td{text-decoration:line-through;opacity:.6}
+.reg-meta{display:inline-block;text-decoration:none;margin-top:4px;font-size:11px;line-height:1.4;font-weight:500}
+.reg-by{color:var(--purple,#8b1a6b);font-weight:700}
+.reg-fix{color:var(--blue,#1a4080)}
+.gr-short{font-size:11px;font-weight:700;color:#7a4000}
+.gr-tag{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;border:1px solid var(--border,#d4e6da);border-radius:999px;padding:1px 6px;color:var(--text-mid,#4a6352)}
 .gr-foot{margin-top:14px;word-break:break-all}
 @media print{
   body.gr-printing *{visibility:hidden}

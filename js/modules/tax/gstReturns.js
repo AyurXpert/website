@@ -4,7 +4,11 @@
 // role checks are the server's (super_admin / finance_manager / accountant, active accounts). Exports: .xlsx in the Returns Offline
 // Tool's sheet layout (gstReturnsExport.js + js/utils/xlsxWriter.js) or one CSV per sheet; every export is written to the audit log
 // with the period and the figures hash (G19 -- a return summary is not a copy-numbered document). Nothing here files anything.
+// Session 345n (GST Stage 7b): B2CL / CDNUR (platform limit), the code descriptions (never an item name; the organisation may set its
+// own -- set_gst_code_description), the HSN-digit warning, the composition turnover (§189), the filing panel + history + filing frequency
+// (gstFilings.js). Who may mark filed / set the frequency is passed in for the buttons only -- the server checks again.
 // DOM nodes + textContent only (names come from documents).
+import { filingPanel, mountFilingHistory } from './gstFilings.js'
 import { safeErrorMessage } from '../../utils/errors.js'
 import { todayISTStr } from '../../utils/dateUtils.js'
 import { el } from '../billing/invoiceLayout.js'
@@ -45,7 +49,9 @@ function periodOf(kind, month, quarter, fy, from, to) {
   return { from, to }
 }
 
-export function mountGstReturns(root, { supabase, audit = null }) {
+export function mountGstReturns(root, { supabase, audit = null, role = null, secondary = null }) {
+  const has = list => list.includes(role) || list.includes(secondary)
+  const canMark = has(['super_admin', 'finance_manager']), canFreq = has(['super_admin']), canDesc = has(['super_admin', 'finance_manager', 'accountant'])
   const today = todayISTStr()
   const fyStart = Number(today.slice(5, 7)) >= 4 ? Number(today.slice(0, 4)) : Number(today.slice(0, 4)) - 1
   const kind = el('select', { class: 'cn-sel', 'aria-label': 'Period type' },
@@ -73,6 +79,7 @@ export function mountGstReturns(root, { supabase, audit = null }) {
     sheetSel, btn('⬇ CSV of this sheet', () => doExport('csv')),
     btn('🖨 Print summary', () => { log('print'); printSummary() }))
   const regs = el('div')
+  const history = el('div')
   root.replaceChildren(el('div', { class: 'cn-card gr-card' },
     el('h3', { class: 'cn-h' }, 'GST returns'),
     el('p', { class: 'cn-sub' }, 'Figures for GSTR-1, GSTR-3B and (for a composition organisation) CMP-08 / GSTR-4, read from the issued Tax Invoices, Bills of Supply and credit notes. A document counts on its own date; a credit note on ITS date. Cancelled documents only count in "Documents issued". These are summaries for your CA to file on the GST portal — nothing is filed from here.'),
@@ -81,7 +88,8 @@ export function mountGstReturns(root, { supabase, audit = null }) {
     status, exportRow, out,
     el('div', { class: 'cn-row gr-regbtns' },
       btn('📒 Sales register', () => register('sales')), btn('🧾 Credit-note register', () => register('cn'))),
-    regs))
+    regs, history))
+  const hist = mountFilingHistory(history, { supabase, canMark, canFreq, onChange: () => { if (current) run() } })
 
   let current = null, seq = 0
   // prints only this card (css/gst-returns.css hides the rest of the page while body has gr-printing)
@@ -143,6 +151,7 @@ export function mountGstReturns(root, { supabase, audit = null }) {
           + (Number(t.out_of_scope) ? ` · Out of scope ${rupee(t.out_of_scope)}` : '')),
         el('div', { class: ok ? 'gr-ok' : 'gr-bad' }, ok ? '✔ Reconciled: documents − credit notes = the lines = the return sections; GSTR-3B 3.1(a) = GSTR-1.'
           : '✖ The figures do not reconcile — do not file; report this to support.'))))
+    parts.push(filingPanel({ supabase, report: r, canMark, onChange: () => { run(); hist.reload() } }))
     // GSTR-1
     parts.push(el('h3', { class: 'gr-h3' }, 'GSTR-1'))
     parts.push(section('4A — B2B (buyers with a GSTIN)', null, table(['GSTIN', 'Buyer', 'Invoice', 'Date', 'Value', 'Place of supply', 'Rate', 'Taxable', 'CGST', 'SGST', 'IGST'],
@@ -150,17 +159,24 @@ export function mountGstReturns(root, { supabase, audit = null }) {
       [4, 7, 8, 9, 10], 'No buyer GSTIN on any document of this period.')))
     parts.push(section('7 — B2C small (net of the credit notes of the period)', 'By place of supply and rate.', table(['Type', 'Place of supply', 'Rate', 'Taxable', 'CGST', 'SGST', 'IGST'],
       (g.b2cs || []).map(x => [x.type, pos(x.pos) + (x.interstate ? ' (inter-state)' : ''), x.rate + ' %', rupee(x.taxable), rupee(x.cgst), rupee(x.sgst), rupee(x.igst)]), [3, 4, 5, 6])))
-    if ((g.b2cl_candidates || []).length) parts.push(section('5 — B2C large: check these', 'Inter-state Tax Invoices to unregistered buyers. They are included in B2C small above; one above the B2CL invoice-value limit must be reported in B2CL instead.',
-      table(['Invoice', 'Date', 'Value', 'Place of supply'], g.b2cl_candidates.map(x => [x.number, gstDate(x.date), rupee(x.value), pos(x.pos)]), [2])))
+    parts.push(section('5 — B2C large (B2CL)', 'Inter-state Tax Invoices to unregistered buyers above the invoice-value limit (a platform value, ₹1 lakh from 1 Aug 2024 — confirm with your CA).',
+      table(['Invoice', 'Date', 'Value', 'Place of supply', 'Rate', 'Taxable', 'CGST', 'SGST', 'IGST'],
+        (g.b2cl || []).flatMap(i => (i.items || []).map(it => [i.number, gstDate(i.date), rupee(i.value), pos(i.pos), it.rate + ' %', rupee(it.taxable), rupee(it.cgst), rupee(it.sgst), rupee(it.igst)])),
+        [2, 5, 6, 7, 8], 'None in this period.')))
     parts.push(section('9B — Credit notes to registered buyers (CDNR)', 'Credit notes on B2C supplies are netted in B2C small above.', table(['GSTIN', 'Note', 'Date', 'Against', 'Value', 'Rate', 'Taxable', 'CGST', 'SGST'],
       (g.cdnr || []).flatMap(n => (n.items || []).map(it => [n.gstin, n.number, gstDate(n.date), `${n.original_number || '—'} (${gstDate(n.original_date)})`, rupee(n.value), it.rate + ' %', rupee(it.taxable), rupee(it.cgst), rupee(it.sgst)])),
       [4, 6, 7, 8])))
+    if ((g.cdnur || []).length) parts.push(section('9B — Credit notes to unregistered buyers (CDNUR)', 'Against B2C large invoices.', table(['Type', 'Note', 'Date', 'Against', 'Value', 'Place of supply', 'Rate', 'Taxable', 'CGST', 'SGST'],
+      g.cdnur.flatMap(n => (n.items || []).map(it => [n.ur_type, n.number, gstDate(n.date), `${n.original_number || '—'} (${gstDate(n.original_date)})`, rupee(n.value), pos(n.pos), it.rate + ' %', rupee(it.taxable), rupee(it.cgst), rupee(it.sgst)])),
+      [4, 7, 8, 9])))
     parts.push(section('8 — Nil rated, exempt and non-GST supplies', 'Healthcare services are exempt. Net of the credit notes of the period.', table(['', 'Nil rated', 'Exempt', 'Non-GST'],
       (g.nil_exempt_non_gst || []).map(x => [x.row, rupee(x.nil_rated), rupee(x.exempt), rupee(x.non_gst)]), [1, 2, 3])))
-    const hsnRows = list => list.map(h => [h.code + (h.digits ? ` (${h.digits} digits)` : ''), h.description || '', h.uqc, h.code_kind === 'HSN' ? qty(h.quantity) : '0', rupee(h.total_value), h.rate + ' %', rupee(h.taxable), rupee(h.cgst), rupee(h.sgst), rupee(h.igst)])
+    const hsnRows = list => list.map(h => [
+      el('span', null, h.code + (h.digits ? ` (${h.digits} digits)` : ''), h.digits_short ? el('div', { class: 'gr-short' }, `⚠ ${h.min_digits} digits required`) : null),
+      descCell(h), h.uqc, h.code_kind === 'HSN' ? qty(h.quantity) : '0', rupee(h.total_value), h.rate + ' %', rupee(h.taxable), rupee(h.cgst), rupee(h.sgst), rupee(h.igst)])
     const hsnHead = ['HSN / SAC', 'Description', 'UQC', 'Quantity', 'Total value', 'Rate', 'Taxable', 'CGST', 'SGST', 'IGST']
     parts.push(section('12 — HSN / SAC summary: B2B', null, table(hsnHead, hsnRows(g.hsn_b2b || []), [3, 4, 6, 7, 8, 9])))
-    parts.push(section('12 — HSN / SAC summary: B2C', 'Goods in NOS, services NA with quantity 0. The codes are printed in full, as on the documents.', table(hsnHead, hsnRows(g.hsn_b2c || []), [3, 4, 6, 7, 8, 9])))
+    parts.push(section('12 — HSN / SAC summary: B2C', 'Goods in NOS, services NA with quantity 0. The codes are printed in full, as on the documents; the description is the code\'s (a platform list, or your own), never an item name.', table(hsnHead, hsnRows(g.hsn_b2c || []), [3, 4, 6, 7, 8, 9])))
     parts.push(section('13 — Documents issued', 'Tax Invoices and Bills of Supply are reported as invoices for outward supply, one line per series.', table(['Nature', 'From', 'To', 'Total', 'Cancelled', 'Net issued'],
       (g.docs || []).map(d => [d.nature, d.from, d.to, String(d.total), String(d.cancelled), String(d.net_issued) + (Number(d.gaps) ? ` (⚠ ${d.gaps} number(s) missing in the range)` : '')]), [3, 4, 5])))
     // GSTR-3B
@@ -177,6 +193,7 @@ export function mountGstReturns(root, { supabase, audit = null }) {
     // composition
     if (c.applicable) {
       parts.push(el('h3', { class: 'gr-h3' }, 'Composition (CMP-08 / GSTR-4)'))
+      if (c.turnover) parts.push(turnoverBox(c.turnover))
       if (c.blocked) parts.push(el('div', { class: 'cn-note' }, `${c.documents} composition document(s) in this period. ${c.reason}`))
       else {
         const q = c.quarters || [], tt = c.totals || {}
@@ -189,6 +206,38 @@ export function mountGstReturns(root, { supabase, audit = null }) {
     }
     parts.push(el('p', { class: 'cn-sub gr-foot' }, `Generated ${new Date(r.generated_at).toLocaleString('en-IN')} · figures check ${r.figures_hash}`))
     out.replaceChildren(...parts)
+  }
+
+  // the code's description (platform list or the organisation's own) + "Edit" for the report roles
+  function descCell(h) {
+    const cell = el('span', null, h.description || '', h.description_source === 'organisation' ? el('span', { class: 'gr-tag' }, 'your own') : null)
+    if (!canDesc || !h.code) return cell
+    const edit = btn('Edit', () => {
+      const inp = el('input', { type: 'text', class: 'cn-input', maxlength: '120', value: h.description_source === 'organisation' ? h.description : '',
+        placeholder: 'Your description (empty = the platform text)', 'aria-label': `Description of ${h.code}` })
+      const st = el('span', { class: 'cn-status', role: 'status', 'aria-live': 'polite' })
+      const save = btn('Save', async () => {
+        save.disabled = true
+        const { error } = await supabase.rpc('set_gst_code_description', { p_code: h.code, p_kind: h.code_kind, p_description: inp.value.trim() || null })
+        save.disabled = false
+        if (error) { st.textContent = safeErrorMessage(error, 'Could not save the description.'); st.className = 'cn-status err'; return }
+        run()
+      }, { go: true })
+      cell.replaceChildren(el('div', { class: 'cn-row' }, inp, save, btn('Cancel', () => run())), st)
+      inp.focus()
+    }, { title: 'Set your own description of this code' })
+    cell.appendChild(edit)
+    return cell
+  }
+  function turnoverBox(tv) {
+    const lv = tv.level || 'ok'
+    const mark = { ok: '', approaching: '(80 % or more)', near: '(90 % or more)', crossed: '(ABOVE the limit)' }
+    return el('div', { class: lv === 'ok' ? 'cn-sum' : 'cn-note' },
+      el('div', null, `Composition turnover this financial year (${gstDate(tv.fy_from)} to ${gstDate(tv.as_of)}): `, el('strong', null, rupee(tv.turnover))),
+      el('ul', { class: 'gr-warn' }, (tv.limits || []).map(l => el('li', null,
+        `${l.label}: limit ${rupee(l.limit)} — ${l.percent ?? 0} % ${mark[l.level] || ''}`))),
+      tv.title ? el('div', { class: 'gr-bad' }, tv.title) : null,
+      el('p', { class: 'cn-sub', style: 'margin:4px 0 0' }, tv.detail || ''))
   }
 
   async function register(which) {
@@ -222,5 +271,5 @@ export function mountGstReturns(root, { supabase, audit = null }) {
   }
 
   loadRefunds()
-  return { reload: () => { loadRefunds(); if (current) run() } }
+  return { reload: () => { loadRefunds(); hist.reload(); if (current) run() } }
 }

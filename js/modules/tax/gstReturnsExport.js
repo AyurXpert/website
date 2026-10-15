@@ -2,6 +2,7 @@
 // Pure functions, no DOM: the screen (gstReturns.js) turns the result into an .xlsx (js/utils/xlsxWriter.js) or one CSV per sheet.
 // Sheet layout = the GSTR-1 Returns Offline Tool's Excel workbook (sheet names b2b, b2cl, b2cs, cdnr, cdnur, exemp, hsn(b2b),
 // hsn(b2c), docs and their column headers), so the CA can copy the rows into the template or check them against the portal.
+// Session 345n: b2cl / cdnur rows (platform limit), the code descriptions (never an item name), short codes + filing status in "notes".
 // Source checked 15 Oct 2026 (owner decision A1): Table 12 is split into B2B and B2C tabs from the February 2025 return period
 // (GSTN advisories of 9 and 22 Jan 2025); the offline-tool template in use is the one shipped with the CA's current Returns Offline
 // Tool (V1.8 workbook seen referenced in July 2026) -- [CA: confirm the version; the headers below are checked against it before filing].
@@ -42,7 +43,8 @@ export function exportSheets(r) {
     ...(g.b2b || []).flatMap(i => (i.items || []).map(it => [i.gstin, i.recipient_name || '', i.number, gstDate(i.date), num(i.value), pos(i.pos),
       i.reverse_charge || 'N', '', i.type || 'Regular B2B', '', num(it.rate), num(it.taxable), num(it.cess)]))] })
   sheets.push({ name: 'b2cl', rows: [['Invoice Number', 'Invoice date', 'Invoice Value', 'Place Of Supply', 'Applicable % of Tax Rate', 'Rate',
-      'Taxable Value', 'Cess Amount', 'E-Commerce GSTIN']] })   // empty in 7a: the candidates are in B2CS + the "notes" sheet (the limit is a 7b platform value)
+      'Taxable Value', 'Cess Amount', 'E-Commerce GSTIN'],
+    ...(g.b2cl || []).flatMap(i => (i.items || []).map(it => [i.number, gstDate(i.date), num(i.value), pos(i.pos), '', num(it.rate), num(it.taxable), num(it.cess), '']))] })   // Session 345n
   sheets.push({ name: 'b2cs', rows: [['Type', 'Place Of Supply', 'Applicable % of Tax Rate', 'Rate', 'Taxable Value', 'Cess Amount', 'E-Commerce GSTIN'],
     ...(g.b2cs || []).filter(x => num(x.taxable) !== 0 || num(x.cgst) !== 0 || num(x.sgst) !== 0 || num(x.igst) !== 0)
       .map(x => [x.type || 'OE', pos(x.pos), '', num(x.rate), num(x.taxable), num(x.cess), ''])] })
@@ -51,7 +53,8 @@ export function exportSheets(r) {
     ...(g.cdnr || []).flatMap(n => (n.items || []).map(it => [n.gstin, n.recipient_name || '', n.number, gstDate(n.date), n.note_type || 'C', pos(n.pos),
       n.reverse_charge || 'N', 'Regular B2B', num(n.value), '', num(it.rate), num(it.taxable), num(it.cess)]))] })
   sheets.push({ name: 'cdnur', rows: [['UR Type', 'Note Number', 'Note Date', 'Note Type', 'Place Of Supply', 'Note Value', 'Applicable % of Tax Rate',
-      'Rate', 'Taxable Value', 'Cess Amount']] })
+      'Rate', 'Taxable Value', 'Cess Amount'],
+    ...(g.cdnur || []).flatMap(n => (n.items || []).map(it => [n.ur_type || 'B2CL', n.number, gstDate(n.date), n.note_type || 'C', pos(n.pos), num(n.value), '', num(it.rate), num(it.taxable), num(it.cess)]))] })
   sheets.push({ name: 'exemp', rows: [['Description', 'Nil Rated Supplies', 'Exempted(other than nil rated/non GST supply)', 'Non-GST Supplies'],
     ...(g.nil_exempt_non_gst || []).map(x => [x.row, num(x.nil_rated), num(x.exempt), num(x.non_gst)])] })
   const hsnHead = ['HSN', 'Description', 'UQC', 'Total Quantity', 'Total Value', 'Rate', 'Taxable Value', 'Integrated Tax Amount', 'Central Tax Amount',
@@ -85,7 +88,8 @@ export function exportSheets(r) {
   }
   sheets.push({ name: 'notes', rows: [['Level', 'Note'],
     ...(r?.warnings || []).map(w => [w.level, w.text]),
-    ...(g.b2cl_candidates || []).map(x => ['check', `B2CL candidate (inter-state, unregistered buyer): ${x.number} ${gstDate(x.date)} value ${num(x.value)} POS ${pos(x.pos)}`])] })
+    ...(g.hsn_b2b || []).concat(g.hsn_b2c || []).filter(h => h.digits_short).map(h => ['check', `HSN / SAC ${h.code}: ${h.min_digits} digits required (the code on the documents is not changed)`]),
+    ...(r?.filing || []).map(f => [f.matches ? 'info' : 'warn', `${f.return_type} marked filed on ${gstDate(f.filed_on)}${f.arn ? ' ARN ' + f.arn : ''}: ${f.matches ? 'figures match' : 'figures DIFFER from what was filed'}`])] })
   return sheets
 }
 

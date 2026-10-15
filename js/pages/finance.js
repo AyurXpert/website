@@ -76,7 +76,7 @@ window.switchSub = function(grp, sub, el) {
   }
   if (sub === 'gstreturns') {   // Session 345m: mounted once; the report is read on "Show"
     if (!_gstReturns) _gstReturns = mountGstReturns(document.getElementById('gstreturns-root'), { supabase,
-      audit: (action, data) => logAudit(action, 'bills', null, data, _ctx) });
+      audit: (action, data) => logAudit(action, 'bills', null, data, _ctx), role: _role, secondary: getCurrentSecondaryRole() });   // Session 345n: who sees the filing buttons
     else _gstReturns.reload();
   }
   if (sub === 'pharmreturns') {
