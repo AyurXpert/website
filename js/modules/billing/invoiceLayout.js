@@ -8,6 +8,7 @@
 // model = {
 //   org:        { name, lines: [text], logoUrl, monogram },
 //   title, subtitle, watermark,                       // watermark: null | 'DRAFT' | 'CANCELLED' ...
+//   cancelled:  text | null                           // Session 345p (F2): a cancelled document's banner at the top ("CANCELLED — <when> · Replaced by <no.>")
 //   meta:       [{ label, value, sub, wide, gap }],   // header strip (Bill No / Date / Bill To / Payer ...)
 //   party:      { title, fields: [{ label, value, wide, full, gap }] },
 //   demo:       boolean,                              // demo organisation: "TEST DOCUMENT" banner at the top of the sheet
@@ -131,6 +132,7 @@ function paymentsTable(p) {
 export function renderInvoice(sheet, m) {
   sheet.replaceChildren();
   if (m.demo) sheet.appendChild(h('div', { class: 'demo-banner', role: 'note' }, m.demoText || DEMO_TEXT));
+  if (m.cancelled) sheet.appendChild(h('div', { class: 'cancel-banner', role: 'note' }, m.cancelled));   // Session 345p (F2)
   if (m.watermark) sheet.appendChild(h('div', { class: 'watermark', 'aria-hidden': 'true' }, m.watermark));
   if (m.composition) sheet.appendChild(h('p', { class: 'composition-line' }, m.composition));   // Session 345f (R1, CGST Rule 5)
 

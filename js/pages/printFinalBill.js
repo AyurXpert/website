@@ -136,6 +136,10 @@ function buildModel(d, copy) {
     subtitle = `In-Patient · ${mk.mark}`;
     if (mk.watermark && !watermark) watermark = mk.watermark;
   }
+  // Session 345p (F2, owner 16 Oct 2026): a cancelled GST bill also gets a red banner at the top -- when it was cancelled and the bill
+  // that replaced it; the cancel reason is NOT printed (it stays in the Account drawer and the Cancelled Bills list)
+  const cx = isGst && b.document_status === 'cancelled' ? d.cancelInfo : null;
+  const cancelled = cx ? `CANCELLED — ${fmtDT(cx.cancelled_at) || '—'}${cx.replaced_by ? ` · Replaced by ${cx.replaced_by}` : ''}` : null;
 
   // ── Bill To (decision 5): tenant default, per-bill override; GST uses the frozen recipient ──
   const addressee = b.invoice_addressee || tax.invoice_addressee || 'patient';
@@ -309,7 +313,7 @@ function buildModel(d, copy) {
 
   return {
     org: { name: orgName, lines: orgLines, logoUrl: t.logo_url || null, monogram: monogram(orgName) },
-    title, subtitle, watermark, meta,
+    title, subtitle, watermark, cancelled, meta,
     party: { title: 'Patient & Admission', fields },
     demo: d.isDemo, composition: comp ? b.composition_text : null, gst: isGst, exemptOnly, sections, emptyNote: null, taxNote, taxSummary,
     payments: { rows: payRows, totalLabel: 'Net received from patient (voided excluded)', total: money(netReceived) },
@@ -370,6 +374,14 @@ async function load() {
   if (error) { showError(safeErrorMessage(error, 'Could not load the bill.')); return; }
   if (!data?.bill) { showError('No bill has been generated for this admission yet.'); return; }
   data.isDemo = isDemo;
+  // Session 345p (F2): a cancelled GST bill's banner needs when it was cancelled and its replacement -- read BEFORE the print is
+  // recorded; any failure refuses the print (fail closed)
+  if (data.bill.tax_regime === 'gst_v1' && data.bill.document_status === 'cancelled') {
+    const cx = await supabase.rpc('get_ipd_cancelled_bills', { p_adm: admId });
+    const row = Array.isArray(cx.data) ? cx.data.find(r => r.id === data.bill.id) : null;
+    if (cx.error || !row) { showError(safeErrorMessage(cx.error, 'Could not read the cancellation details of this bill. Please try again.')); return; }
+    data.cancelInfo = { cancelled_at: row.cancelled_at, replaced_by: row.replaced_by || null };
+  }
   // Session 345h (D16): the final bill never shows its credit notes -- their refunds are left out and the balance is the one before
   // them (cross-checked with the stored bill values; any mismatch or failed read refuses the print). A bill without credit notes is untouched.
   let ex;
