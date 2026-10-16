@@ -5,6 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { getOpdWorkflow, screeningOpdId } from '../modules/opd/screeningOpd.js';
 
 await requireAuth(['doctor','nurse','super_admin','dept_admin']);
 initNavbar();
@@ -39,21 +40,22 @@ async function _initScreeningQueue() {
   document.getElementById('q-date').textContent = new Date(today + 'T00:00:00').toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short'});
   document.getElementById('ss-date').textContent = new Date(today + 'T00:00:00').toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
 
-  // Get Screening OPD id for this tenant. Two ncism_code conventions exist side by side:
-  // 'SCREEN' (short-form, current default seeding) and 'SCREENING_OPD' (long-form, legacy
-  // tenants like Srishti Ayurveda) — check both rather than assuming one.
-  const { data: screenOpds } = await supabase
-    .from('opds')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .in('ncism_code', ['SCREEN', 'SCREENING_OPD']);
-  const screenOpd = screenOpds?.[0];
+  // Session 347 (TODO §198): the organisation's OPD workflow and its explicitly marked Screening OPD (opds.is_screening) --
+  // the same shared lookup reception uses; no code / name guessing.
+  const wf = await getOpdWorkflow(supabase);
+  const screenOpd = screeningOpdId(wf) ? { id: screeningOpdId(wf) } : null;
 
-  if (!screenOpd) {
+  if (!wf.screening_opd) {
+    document.getElementById('queue-list').innerHTML = `
+      <div class="queue-empty">
+        <strong>Screening OPD is switched off for this organisation.</strong><br><br>
+        Reception sends patients straight to the OPD / doctor. A Super Admin can switch it on in Admin → Feature Modules → OPD workflow.
+      </div>`;
+  } else if (!screenOpd) {
     document.getElementById('queue-list').innerHTML = `
       <div class="queue-empty">
         <strong>Screening OPD not configured.</strong><br><br>
-        Go to OPD Admin and ensure the Screening OPD (NCISM code: SCREEN) is active for your organisation.
+        Go to OPD Management and make sure the organisation's Screening OPD exists and is active.
       </div>`;
   } else {
     _screeningOpdId = screenOpd.id;

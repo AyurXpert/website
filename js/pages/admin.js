@@ -24,6 +24,7 @@ import { mountTaxSettings } from '../modules/tax/taxSettings.js';
 import { mountTaxProfiles } from '../modules/tax/taxProfiles.js';
 import { mountTaxApprovals, TAX_APPROVAL_TYPES } from '../modules/tax/taxApprovals.js';
 import { printDocument, docHeader } from '../utils/printDocument.js';
+import { renderOpdWorkflowSettings } from '../modules/opd/opdWorkflowSettings.js';
 
 await requireAuth(['super_admin','dept_admin'], 'index.html');
 initNavbar();
@@ -6710,6 +6711,7 @@ window.loadModules = async function() {
   const effective = { ...defaults, ...saved };
   _renderCounterSaleSetting(saved.counter_sale !== false);
   _renderReturnSettings();                                   // Session 344a
+  renderOpdWorkflowSettings(document.getElementById('opd-workflow-setting'), { supabase, role, toast: m => _toast(m) });   // Session 347
 
   el.innerHTML = `
     <div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:12px 16px;margin-bottom:18px;font-size:12.5px;color:#7a5200">

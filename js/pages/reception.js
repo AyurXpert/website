@@ -14,6 +14,7 @@ import { canCollectOpd, canReprintDocs, canPrintOwnDocs, isCollectableOpdBill, o
 import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
 import { billCategory } from '../modules/billing/billCategory.js';
 import { renderPromoBanner } from '../components/promoBanner.js';
+import { getOpdWorkflow, screeningOpdId } from '../modules/opd/screeningOpd.js';
 import { localDateStr, todayLocalStr, todayISTStr, istDayStartUTC } from '../utils/dateUtils.js';
 import { uhidOf } from '../utils/uhid.js';
 import { notify, dismissNotify } from '../components/notify.js';
@@ -483,7 +484,13 @@ function _waitTime(createdAt) {
 }
 
 // ── Load OPDs ─────────────────────────────────────
+// Session 347 (TODO §198): whether this organisation routes new patients through a Screening OPD comes from the server
+// (get_opd_workflow: not set = ON for a teaching hospital / college, OFF otherwise), and the Screening OPD is the explicitly
+// marked one (opds.is_screening) -- no code / name guessing. OFF -> reception chooses the OPD / department and the doctor.
+let _screeningOn = true;
 async function loadOPDs() {
+  const wf = await getOpdWorkflow(supabase);
+  _screeningOn = !!wf.screening_opd;
   const { data } = await supabase
     .from('opds')
     .select('id, name, ncism_code')
@@ -496,14 +503,10 @@ async function loadOPDs() {
   _kaumarOpdId    = null;
   _opdListFull    = data || [];
 
+  const wfScreeningId = screeningOpdId(wf);
   (data || []).forEach(o => {
     _opdMap[o.id] = o.name;
-    if (!_screeningOpdId && (
-      o.ncism_code?.toUpperCase() === 'SCR' ||
-      o.name?.toLowerCase().includes('screening')
-    )) {
-      _screeningOpdId = o.id;
-    }
+    if (o.id === wfScreeningId) _screeningOpdId = o.id;
     if (!_kaumarOpdId && (
       o.ncism_code?.toUpperCase() === 'KAU' ||
       o.name?.toLowerCase().includes('kaumar')
@@ -679,6 +682,27 @@ function _applyOpdRule() {
   // Reception only shows what was determined:
   //   followup + returning patient → previous specialty OPD + doctor (locked)
   //   all other categories         → Screening OPD (locked), doctor selectable
+
+  // Session 347 (TODO §198): no Screening OPD for this organisation -- reception chooses the OPD / department and the doctor
+  // (a department-tagged Scan & Share QR or a follow-up pre-fills them; both can still be changed). Choosing loads the doctors
+  // and the fees (the 'change' handler below); a visit with no OPD is refused at "Register".
+  if (!_screeningOn) {
+    sel.disabled = false;
+    docSel.disabled = false;
+    const pre = _scanDeptOpdId || (cat === 'followup' ? _prevOpdId : null);
+    if (pre && sel.value !== pre) {
+      sel.value = pre;
+      loadDoctors(pre).then(() => { if (!_scanDeptOpdId && _prevDoctorId && cat === 'followup') docSel.value = _prevDoctorId; });
+      loadFees(pre);
+    }
+    if (hint) {
+      hint.textContent = _scanDeptOpdId ? `🔍 Routed via ABHA Scan & Share to ${_scanDeptOpdName || 'this department'}`
+        : (cat === 'followup' && _prevOpdName) ? `↩ Follow-up · ${_prevOpdName}${_prevDoctorName ? ' · ' + _prevDoctorName : ''} (can be changed)`
+        : 'Choose the OPD / department and the doctor for this visit.';
+      hint.style.cssText = 'display:block;color:var(--text-muted);font-size:11px;margin-top:4px;font-weight:500';
+    }
+    return;
+  }
 
   sel.disabled = true;
 
@@ -1570,6 +1594,9 @@ async function handleSubmit() {
   if (!phone)     return _alert('error', 'Please enter the patient\'s phone number.');
   if (!name)      return _alert('error', 'Please enter the patient\'s name.');
   if (!complaint) return _alert('error', 'Please enter the chief complaint.');
+  // Session 347 (TODO §198): never a visit without an OPD (it would reach no queue and no fee could be billed)
+  if (!opdId)     return _alert('error', _screeningOn ? 'This organisation has no active Screening OPD — ask the Super Admin to set it up (or switch screening off).'
+                                                      : 'Choose the OPD / department for this visit.');
   // Session 327: every rupee received at registration gets a receipt -- say how it was paid
   const payRef = document.getElementById('payment-ref').value.trim();
   if (payStatus === 'paid' && total > 0) {

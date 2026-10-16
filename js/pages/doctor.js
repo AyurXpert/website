@@ -22,6 +22,7 @@ import { notify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
 import { aggregateByMedicine } from '../modules/inventory/stockByMedicine.js';
 import { identityLines } from '../utils/signerIdentity.js';
+import { getOpdWorkflow, screeningOpdId } from '../modules/opd/screeningOpd.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -96,6 +97,10 @@ if (_isTrainee) {   // Session 305: trainees cannot send admission advice (docto
   const advBtn = document.getElementById('btn-save-advice');
   if (advBtn) advBtn.style.display = 'none';
 }
+// Session 347 (TODO §198): intern / PG verification is a per-organisation setting (get_opd_workflow: not set = ON for a teaching
+// hospital / college, OFF otherwise). OFF -> no "Submit for Review" for a trainee and no Pending Review tab.
+const _opdWf          = await getOpdWorkflow(supabase);
+const _traineeVerify  = !!_opdWf.trainee_verification;
 let _activeDraftId    = null;  // consultation_notes.id of the draft being reviewed, if any
 let _activeDraftedBy  = null;  // that draft's original trainee author (profile.id) -- credited on finalize
 
@@ -435,7 +440,7 @@ let _queueTab = 'opd';
 
 // Session 127 -- only reviewer-capable roles get the Pending Review tab at all;
 // a trainee has no one to review, and hiding it for them avoids any confusion.
-if (_canReview) document.getElementById('q-tab-review').style.display = '';
+if (_canReview && _traineeVerify) document.getElementById('q-tab-review').style.display = '';   // Session 347: only with verification ON
 
 window.switchQueueTab = function(tab) {
   _queueTab = tab;
@@ -645,7 +650,7 @@ async function loadQueue() {
 
   let query = supabase
     .from('visits')
-    .select('id, token_number, status, chief_complaint, created_at, is_on_request, visit_category, is_teleconsultation, meeting_url, patients(id, uhid, name, phone, abha_number, abha_address)')
+    .select('id, token_number, status, chief_complaint, created_at, is_on_request, visit_category, is_teleconsultation, meeting_url, doctor_id, patients(id, uhid, name, phone, abha_number, abha_address)')
     .eq('tenant_id', tenantId)
     .in('status', ['waiting', 'in_progress'])
     .gte('created_at', start.toISOString())
@@ -664,7 +669,13 @@ async function loadQueue() {
     }
     query = query.in('opd_id', opdIds);
   } else {
-    query = query.eq('doctor_id', userId);
+    // Session 347 (TODO §198): own visits + the SHARED queue of every OPD this doctor is on duty in today -- a visit registered
+    // with "No preference" (no doctor) is visible to all of them (never the Screening OPD's triage visits); opening one claims it
+    const { data: duty } = await supabase.from('opd_doctors').select('opd_id')
+      .eq('tenant_id', tenantId).eq('doctor_id', userId).eq('is_active_today', true);
+    const shared = [...new Set((duty || []).map(d => d.opd_id).filter(id => id && id !== screeningOpdId(_opdWf)))];
+    query = shared.length ? query.or(`doctor_id.eq.${userId},and(doctor_id.is.null,opd_id.in.(${shared.join(',')}))`)
+                          : query.eq('doctor_id', userId);
   }
 
   const { data, error } = await query;
@@ -727,7 +738,7 @@ async function loadQueue() {
         <div class="q-wait">${_wait(v.created_at)}</div>
       </div>
       <div class="q-meta">
-        <span class="badge badge-cat">${_esc(cat)}</span>
+        <span class="badge badge-cat">${_esc(cat)}</span>${!v.doctor_id && !_isTrainee ? '<span class="badge badge-cat" title="No doctor chosen at reception — the first doctor to open it takes it">OPD queue</span>' : ''}
         ${v.is_on_request ? '<span class="badge badge-onreq">ON REQ</span>' : ''}
         ${inProgress ? '<span class="badge badge-active">IN PROGRESS</span>' : ''}
         ${isEmergency ? '<span class="badge badge-emerg">EMERGENCY</span>' : ''}
@@ -1409,6 +1420,29 @@ window.startConsultation = async function(visitId) {
   _activeDraftedBy = null;
   document.getElementById('draft-review-panel').style.display = 'none';
   document.getElementById('btn-complete').textContent = _isTrainee ? '📝 Submit for Review' : '✓ Complete & Send to Pharmacy';
+  // Session 347 (TODO §198): intern / PG verification OFF -> a trainee cannot send anything for verification
+  document.getElementById('btn-complete').style.display = (_isTrainee && !_traineeVerify) ? 'none' : '';
+  if (_isTrainee && !_traineeVerify) notify('Intern / PG verification is switched off for this organisation — a consultant completes this consultation.', 'warning');
+
+  // Session 347: a visit from the shared OPD queue (no doctor chosen at reception) is claimed by the doctor who opens it -- the
+  // update only succeeds while it is still unassigned, so two doctors can never both take it
+  if (!_isTrainee) {
+    const { data: claimed } = await supabase.from('visits').update({ doctor_id: userId }).eq('id', visitId).eq('tenant_id', tenantId)
+      .is('doctor_id', null).select('id');
+    if (!claimed?.length) {
+      const { data: cur } = await supabase.from('visits').select('doctor_id').eq('id', visitId).maybeSingle();
+      // (a trainee's draft waiting for review is opened by its reviewer whoever the visit's doctor is)
+      const { count: drafts } = cur?.doctor_id && cur.doctor_id !== userId
+        ? await supabase.from('consultation_notes').select('id', { count: 'exact', head: true }).eq('visit_id', visitId).eq('review_status', 'pending_review')
+        : { count: 0 };
+      if (cur?.doctor_id && cur.doctor_id !== userId && !drafts && !['super_admin', 'dept_admin'].includes(profile.role)) {
+        _activeVisitId = null;
+        notify('Another doctor has already taken this patient.', 'warning');
+        loadQueue();
+        return;
+      }
+    }
+  }
 
   await supabase.from('visits').update({ status: 'in_progress' }).eq('id', visitId);
 

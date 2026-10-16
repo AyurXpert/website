@@ -259,6 +259,13 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return 'Your role cannot change tax profiles (Super Admin, Dept Admin, Finance Manager or Accountant only).';
   }
 
+  // Session 347 (TODO §198): the OPD workflow setter -- plain, staff-actionable
+  const OPD_WF_MSGS = ["Only this organisation's Super Admin can change the OPD workflow", 'Unknown OPD workflow setting', 'Choose on or off',
+    'This organisation has no active Screening OPD', 'The Screening OPD is set by the system only'];
+  if (['P0001','42501','22023'].includes(error?.code) && OPD_WF_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // Session 345o (TODO §191): cancelling an IPD bill (cancel_bill) and the cancelled bill's reprint -- the server's plain refusals; which
   // one it is (a payment, a credit note, the insurance stage, a filed month) decides what the person does next
   const IPD_CANCEL_MSGS = ['Give a cancellation reason', 'Only a finalised GST bill can be cancelled', 'Only IPD bills can be cancelled',
