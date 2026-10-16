@@ -18,6 +18,9 @@ import { creditNoteExclusions, balanceBeforeCreditNotes } from '../modules/billi
 wireDelegatedEvents()
 
 const admId    = new URLSearchParams(window.location.search).get('adm');
+// Session 345o (TODO §191): &bill=<id> = a CANCELLED bill of this admission, reprinted as it stood when cancelled (the server checks it
+// belongs to the admission); the page is otherwise the same -- the CANCELLED banner + the copy number are the only differences (D16)
+const billId   = new URLSearchParams(window.location.search).get('bill');
 const supplier = isSupplierCopy();   // Session 345c2b: ?copy=supplier = the supplier copy of a Tax Invoice
 const sheet    = document.getElementById('invoice');
 const statusEl = document.getElementById('status');
@@ -361,7 +364,7 @@ async function load() {
   if (!(await ensureSignedIn(supabase))) return;
   // get_ipd_final_bill only answers for the caller's own organisation, so that is the document's tenant
   const [{ data, error }, isDemo] = await Promise.all([
-    supabase.rpc('get_ipd_final_bill', { p_adm: admId }),
+    billId ? supabase.rpc('get_ipd_final_bill_by_id', { p_adm: admId, p_bill: billId }) : supabase.rpc('get_ipd_final_bill', { p_adm: admId }),
     isDemoTenant(supabase, getCurrentTenantId()),
   ]);
   if (error) { showError(safeErrorMessage(error, 'Could not load the bill.')); return; }

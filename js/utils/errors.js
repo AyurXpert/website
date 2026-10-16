@@ -259,6 +259,16 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return 'Your role cannot change tax profiles (Super Admin, Dept Admin, Finance Manager or Accountant only).';
   }
 
+  // Session 345o (TODO §191): cancelling an IPD bill (cancel_bill) and the cancelled bill's reprint -- the server's plain refusals; which
+  // one it is (a payment, a credit note, the insurance stage, a filed month) decides what the person does next
+  const IPD_CANCEL_MSGS = ['Give a cancellation reason', 'Only a finalised GST bill can be cancelled', 'Only IPD bills can be cancelled',
+    'The admission is no longer at the bill-generated stage', 'A payment or refund is recorded against bill', 'A credit note exists or is waiting',
+    'An insurance write-off is recorded', 'The insurance claim on bill', 'This bill does not belong to this admission'];
+  if (['P0001','42501','22023','P0002'].includes(error?.code) && (IPD_CANCEL_MSGS.some(m => error?.message?.startsWith(m))
+      || /^Bill \S+ is (in a period already reported in GSTR-1|\S+ -- it cannot be cancelled)/.test(error?.message || ''))) {
+    return error.message;
+  }
+
   // Session 345c2b: the supplier copy of a bill (record_document_print 'bill_supplier') -- the server's plain refusal
   if (error?.code === '22023' && error?.message?.startsWith('A supplier copy can be printed only for a finalised Tax Invoice')) {
     return error.message;

@@ -51,7 +51,7 @@ function periodOf(kind, month, quarter, fy, from, to) {
 
 export function mountGstReturns(root, { supabase, audit = null, role = null, secondary = null }) {
   const has = list => list.includes(role) || list.includes(secondary)
-  const canMark = has(['super_admin', 'finance_manager']), canFreq = has(['super_admin']), canDesc = has(['super_admin', 'finance_manager', 'accountant'])
+  const canMark = has(['super_admin', 'finance_manager']), canFreq = has(['super_admin']), canDesc = has(['super_admin', 'finance_manager'])   // Session 345o (F2): not the accountant
   const today = todayISTStr()
   const fyStart = Number(today.slice(5, 7)) >= 4 ? Number(today.slice(0, 4)) : Number(today.slice(0, 4)) - 1
   const kind = el('select', { class: 'cn-sel', 'aria-label': 'Period type' },

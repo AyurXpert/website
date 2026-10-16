@@ -1,4 +1,4 @@
-import { requireAuth, getCurrentTenantId, getCurrentProfile, getCurrentRole } from '../core/auth.js';
+import { requireAuth, getCurrentTenantId, getCurrentProfile, getCurrentRole, getCurrentSecondaryRole } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
@@ -15,6 +15,7 @@ import { notify } from '../components/notify.js';
 // Session 345h (GST Stage 6c): credit notes against the final bill -- the list, the cash refund due (paid out here, D4), and the ask panel
 import { canAskCreditNote, openCreditNoteAsk, canStillCredit } from '../modules/billing/creditNoteAsk.js';
 import { creditNoteLinks, creditNotesForBills, payoutBox, PAYOUT_ROLES } from '../modules/billing/creditNoteList.js';
+import { canOfferCancel, renderCancelBill, renderCancelledBills } from '../modules/ipd/ipdBillCancel.js';
 
 /*
   SQL to run in Supabase (one time) before using this page:
@@ -2212,6 +2213,9 @@ function _renderAccountDrawer(acc, receipts, chargesToDate) {
     }
   }
 
+  // Session 345o (TODO §191): cancel an unpaid / deposit-settled GST bill (super admin / finance manager) + the cancelled bills
+  html += `<div id="acct-cancel"></div><div id="acct-cancelled"></div>`;
+
   // ── Receipts list ──
   html += `<div class="sec">Receipts</div>`;
   html += receipts.length
@@ -2223,6 +2227,17 @@ function _renderAccountDrawer(acc, receipts, chargesToDate) {
 
   document.getElementById('acct-body').innerHTML = html;
   if (hasBill) _renderAccountCreditNotes(acc);
+  const admId = _acctAdmId;
+  if (canOfferCancel(myRole, getCurrentSecondaryRole(), acc)) {
+    renderCancelBill(document.getElementById('acct-cancel'), { supabase, acc, onDone: async () => {
+      _alert('success', `${acc.document_number || 'The bill'} cancelled — the admission is back at "charges locked"; generate the corrected bill.`);
+      await loadAll();
+      await _refreshAccountDrawer();
+    } });
+  }
+  renderCancelledBills(document.getElementById('acct-cancelled'), { supabase, admId,
+    // opened straight from the click (no await first), so the browser never blocks it as a pop-up
+    onReprint: billId => window.open(`printFinalBill.html?adm=${encodeURIComponent(admId)}&bill=${encodeURIComponent(billId)}`, '_blank') });
 }
 
 // Session 345h: "Credit notes against this bill" in the account (screens only -- the final-bill print never changes, D8): each
