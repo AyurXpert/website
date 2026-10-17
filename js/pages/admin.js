@@ -1,6 +1,6 @@
 import { requireAuth, getCurrentProfile, getCurrentTenant, getCurrentTenantId,
          getCurrentRole, getPendingApprovals, hasModule } from '../core/auth.js';
-import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, summarisePeriod, isSale, istDate } from '../modules/billing/billCategory.js';
+import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, summarisePeriod, istDate } from '../modules/billing/billCategory.js';
 import { initNavbar } from '../components/navbar.js';
 import { tenantTypeLabel } from '../utils/tenantTypeLabel.js';   // TODO §140: was navbar.js's private _tenantTypeLabel (ReferenceError here)
 import { supabase }   from '../core/db/supabaseClient.js';
@@ -5803,13 +5803,18 @@ async function _sumToday(table,col){
   }catch{return 0;}
 }
 // Session 344a (owner decision 6 Oct 2026): returns count on the RETURN date -- today's net sales = bills made today at
-// their original amount - returns / cancellations completed today; collected = receipts - refunds of today
+// their original amount - returns / cancellations completed today; collected = receipts - refunds of today.
+// Session 345r (TODO §194, D3): through the ONE shared calculation (finance_activity + summarisePeriod) -- this tile used to
+// subtract every pharmacy_returns row itself, so it missed credit notes (reproduced: SDM 13 Oct 2026, OPD credit notes 300.00)
+// and now also takes a cancelled bill's reversal on its cancel day.
 async function _netSalesToday(){
   try{
-    const[{data:b},{data:r}]=await Promise.all([
-      supabase.from('bills').select('final_amount,document_status').eq('tenant_id',tenantId).gte('created_at',todayStart).lte('created_at',todayEnd),
-      supabase.from('pharmacy_returns').select('amount').eq('tenant_id',tenantId).eq('status','completed').gte('completed_at',todayStart).lte('completed_at',todayEnd)]);
-    return (b||[]).filter(isSale).reduce((s,x)=>s+(Number(x.final_amount)||0),0)-(r||[]).reduce((s,x)=>s+(Number(x.amount)||0),0);
+    const d=istDate(new Date().toISOString());
+    const[{data:b,error:be},{data:a,error:ae}]=await Promise.all([
+      supabase.from('bills').select('id,final_amount,status,bill_type,payer_type,document_status,payment_mode,payment_method,created_at').eq('tenant_id',tenantId).gte('created_at',todayStart).lte('created_at',todayEnd),
+      supabase.rpc('finance_activity',{p_from:d,p_to:d})]);
+    if(be||ae) return 0;
+    return summarisePeriod(b||[],a||{},d).net;
   }catch{return 0;}
 }
 async function _collectedToday(){

@@ -5,7 +5,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { logAudit } from '../core/auditLogger.js';
 import { localDateStr, todayLocalStr } from '../utils/dateUtils.js';
-import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, summarisePeriod, isSale, istDate } from '../modules/billing/billCategory.js';
+import { billCategory, BILL_CATEGORY_LABEL, OUTSTANDING_STATUSES, dueAmount, summarisePeriod, isSale, isCancelledBill, istDate } from '../modules/billing/billCategory.js';
 import { notify } from '../components/notify.js';
 import { canCollectOpd, isCollectableOpdBill, opdCollectControlsHtml, collectOpdBill, openReceipt } from '../modules/billing/opdPayments.js';
 import { mountVisitsBillsSearch } from '../modules/billing/visitsBillsSearch.js';
@@ -89,8 +89,12 @@ let _vbMounted = false;   // Visits & Bills search mounts once, on first open (S
 let _cnList = null;      // Session 345h: the credit-note list
 let _gstReturns = null;  // Session 345m: the GST returns screen
 // Session 345h: what a returns row is (finance_activity().returns kind): a pharmacy return / cancellation, or a credit note
-const _RET_KIND = { cancel: 'Cancellation', return: 'Return', credit_note: 'Credit note' };
-const _RET_DONE = { cancel: 'cancelled', return: 'returned', credit_note: 'credited' };
+// Session 345r (TODO §194): a cancelled bill, reversed for its full amount on its cancel day
+const _RET_KIND = { cancel: 'Cancellation', return: 'Return', credit_note: 'Credit note', bill_cancelled: 'Bill cancelled' };
+const _RET_DONE = { cancel: 'cancelled', return: 'returned', credit_note: 'credited', bill_cancelled: 'cancelled' };
+// how a returns row was settled (the bills list and the CSV)
+const _retSettle = r => r.settlement === 'due' ? 'Due reduced' : r.settlement === 'void' ? 'Receipt voided'
+  : r.settlement === 'cancelled' ? 'Bill cancelled — no refund' : 'Refund ' + String(r.refund_mode || '').toUpperCase();
 // Session 344b: Pharmacy returns waiting for approval. The tab is shown to the roles decide_pharmacy_return() accepts
 // (dept_admin / super_admin / finance_manager / accountant, primary or secondary) when the organisation has the pharmacy
 // module; WHICH request this person may decide -- and the badge -- is the server's answer (approval_decide_check()).
@@ -316,7 +320,7 @@ window.loadAll = async function() {
 async function loadBills(from, to) {
   const { data, error } = await supabase
     .from('bills')
-    .select('id, created_at, final_amount, total_amount, registration_fee, consultation_fee, on_request_surcharge, patient_due, amount_paid, returned_amount, bill_type, payment_mode, payment_method, payer_type, document_status, document_number, status, patients(name), insurer_name')
+    .select('id, created_at, final_amount, total_amount, registration_fee, consultation_fee, on_request_surcharge, patient_due, amount_paid, returned_amount, bill_type, payment_mode, payment_method, payer_type, document_status, document_number, status, cancelled_at, patients(name), insurer_name')
     .eq('tenant_id', tenantId)
     .gte('created_at', from + 'T00:00:00+05:30')
     .lte('created_at', to + 'T23:59:59.999+05:30')
@@ -360,6 +364,8 @@ function renderRevenue(from, to) {
     tr.append(_el('td', '₹' + _n(b.total_amount)), _el('td', '₹' + _n((parseFloat(b.total_amount) || 0) - (parseFloat(b.final_amount) || 0))));
     const tdF = _el('td', '₹' + _n(b.final_amount), 'font-weight:500');
     if (!isSale(b)) tdF.append(_el('span', ' (not a sale: GST ' + (b.document_status || '') + ')', 'font-size:11px;color:var(--text-muted)'));
+    // Session 345r: a cancelled bill stays a sale of its own day; its reversal is its own row on the cancel day
+    else if (isCancelledBill(b)) tdF.append(_el('span', ' (cancelled ' + (_fmtD(istDate(b.cancelled_at)) || '') + ' — reversed that day)', 'font-size:11px;color:var(--text-muted)'));
     tr.append(tdF, _el('td', (b.payment_mode || '—') + (b.insurer_name ? ' · ' + b.insurer_name : ''), 'font-size:12px'));
     const tdS = _el('td'); tdS.append(_el('span', b.status, null, 'badge b-' + String(b.status || '').replace(/[^a-z_]/g, ''))); tr.append(tdS);
     rows.push({ ts: b.created_at || '', tr });
@@ -370,7 +376,7 @@ function renderRevenue(from, to) {
       _el('td', `${r.return_no} — of bill ${r.document_number || '—'} (${_fmtD(r.bill_date)})`, 'font-size:12px'));
     const tdT = _el('td'); tdT.append(_el('span', _RET_KIND[r.kind] || 'Return', 'font-size:10px', 'badge b-cancelled')); tr.append(tdT);
     tr.append(_el('td', '—'), _el('td', '—'), _el('td', '− ₹' + _n(r.amount), 'font-weight:500;color:var(--red)'),
-      _el('td', r.settlement === 'due' ? 'Due reduced' : r.settlement === 'void' ? 'Receipt voided' : 'Refund ' + String(r.refund_mode || '').toUpperCase(), 'font-size:12px'),
+      _el('td', _retSettle(r), 'font-size:12px'),
       _el('td', _RET_DONE[r.kind] || 'returned'));
     rows.push({ ts: r.completed_at || '', tr });
   }
@@ -418,7 +424,7 @@ async function _loadLabItemTotals() {
 function _revenueBuckets(bills) {
   const k = { reg: 0, con: 0, phm: 0, lab: 0, oth: 0, opdCnt: 0, phmCnt: 0, labCnt: 0, othCnt: 0 };
   bills.forEach(b => {
-    if (!isSale(b)) return;                          // Session 344a: a GST draft / cancelled-and-reissued document is not a sale
+    if (!isSale(b)) return;                          // Session 344a / 345r: a GST draft is not a sale (a cancelled bill is -- reversed on its cancel day)
     const f = Number(b.final_amount) || 0;           // Session 344a: the ORIGINAL amount (returns are their own line, by return date)
     const cat = billCategory(b.bill_type);
     if (cat === 'opd') {
@@ -656,13 +662,14 @@ window.saveExpense = async function() {
 window.exportCSV = window.exportRevCSV = function() {
   const s = summarisePeriod(_bills, _activity);
   const rows = _bills.map(b => ({
-    Row: isSale(b) ? 'Sale' : 'Not a sale (GST ' + (b.document_status || '') + ')', Date: istDate(b.created_at), Document: b.document_number || '',
+    Row: !isSale(b) ? 'Not a sale (GST ' + (b.document_status || '') + ')' : isCancelledBill(b) ? 'Sale (cancelled ' + istDate(b.cancelled_at) + ')' : 'Sale',
+    Date: istDate(b.created_at), Document: b.document_number || '',
     'Of bill': '', Patient: b.patients?.name || '', Type: b.bill_type, Total: b.total_amount, Amount: b.final_amount,
     Payment: b.payment_mode, Status: b.status,
   })).concat((_activity.returns || []).map(r => ({
     Row: _RET_KIND[r.kind] || 'Return', Date: r.date, Document: r.return_no, 'Of bill': `${r.document_number || ''} (${r.bill_date})`,
     Patient: '', Type: r.bill_type, Total: '', Amount: -Number(r.amount || 0),
-    Payment: r.settlement === 'due' ? 'due reduced' : r.settlement === 'void' ? 'receipt voided' : 'refund ' + (r.refund_mode || ''), Status: r.kind,
+    Payment: _retSettle(r).toLowerCase(), Status: r.kind,
   })));
   rows.push({ Row: 'TOTAL Gross sales', Amount: s.gross }, { Row: 'TOTAL Returns / cancellations', Amount: -s.returns },
             { Row: 'TOTAL Net', Amount: s.net }, { Row: 'TOTAL Collected (receipts - refunds)', Amount: s.collected });

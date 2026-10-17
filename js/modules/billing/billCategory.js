@@ -48,16 +48,20 @@ export function dueAmount(b) {
 // Returns and cancellations count on the RETURN date, never on the original bill's date, so a closed day or
 // month never changes:
 //   Sales (gross) = bills dated in the period at their ORIGINAL amount (a bill cancelled or returned on a later
-//                   day still counts in its own day; a GST draft / cancelled-and-reissued document is not a sale);
-//   Returns       = returns / cancellations COMPLETED in the period (finance_activity().returns);
+//                   day still counts in its own day; only a GST DRAFT is not a sale);
+//   Returns       = returns / cancellations COMPLETED in the period (finance_activity().returns) -- since Session 345r
+//                   (TODO §194, owner 17 Oct 2026) also every cancelled bill, reversed for its full amount on its cancel
+//                   day ('bill_cancelled'), same-day cancels too. This is the finance / management view only: the GST
+//                   returns keep a cancelled document out of the values (Table 13 counts it as cancelled);
 //   Net           = Sales - Returns;
 //   Collected     = receipts received in the period - refunds paid in the period (the shift handover's rule),
 //                   + bills of the period that were paid before receipts existed (finance_activity().legacy_collected).
 // A same-day cancel therefore nets to 0 on that same day.
 export function isSale(b) {
-  const ds = b.document_status || '';
-  return ds !== 'draft' && ds !== 'cancelled';
+  return (b.document_status || '') !== 'draft';   // Session 345r: a cancelled bill stays a sale of its own day (reversed on its cancel day)
 }
+// a cancelled GST bill (still a sale of its own day; its reversal is a 'bill_cancelled' row of finance_activity().returns)
+export function isCancelledBill(b) { return (b.document_status || '') === 'cancelled'; }
 export function grossAmount(b) { return Number(b.final_amount) || 0; }
 
 // the IST calendar date (YYYY-MM-DD) of a timestamp
