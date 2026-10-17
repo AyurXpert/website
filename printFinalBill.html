@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-page="final-bill">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -9,12 +9,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=DM+Sans:wght@400;600;700&display=swap"/>
   <link rel="stylesheet" href="css/print-final-bill.css"/>
+  <link rel="stylesheet" href="css/paper-size.css"/>
 </head>
 <body>
 
 <div class="toolbar">
   <button type="button" class="btn" id="print-btn" data-onclick="print" disabled>Print / Save PDF</button>
   <button type="button" class="btn btn-secondary" id="supplier-btn" data-onclick="printSupplierCopy" hidden>Print supplier copy</button>
+  <span id="paper-slot"></span>
   <span id="status" class="status-msg" role="status" aria-live="polite"></span>
 </div>
 

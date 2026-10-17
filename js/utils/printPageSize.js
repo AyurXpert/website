@@ -14,6 +14,7 @@
 // 72 mm, 58 mm paper prints 48 mm -- centred; css/paper-size.css uses the same widths for the screen preview.
 const PAGES = {
   a5:  { w: 148, h: 210, margin: '8mm 8mm 10mm' },
+  letter: { w: 215.9, h: 279.4, margin: '8mm 10mm 12mm' },   // Session 345q (IPD Final Bill): the A4 margins of print-final-bill.css
   t80: { w: 80, side: 4, top: 2, bottom: 2 },
   t58: { w: 58, side: 5, top: 1.5, bottom: 1.5 },
 };
@@ -50,7 +51,7 @@ function measureMm(el, widthMm) {
   return px * PX_TO_MM;
 }
 
-// size: 'a4' | 'a5' | 't80' | 't58'; el: the element that prints (needed for thermal)
+// size: 'a4' | 'a5' | 'letter' | 't80' | 't58'; el: the element that prints (needed for thermal)
 export function setPrintPageSize(size, el) {
   const p = PAGES[size];
   if (!p) { if (_sheet) _sheet.replaceSync(''); return; }

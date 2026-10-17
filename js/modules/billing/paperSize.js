@@ -14,15 +14,19 @@ export const PAPER_SIZES = [
   { key: 'a5',  label: 'A5' },
   { key: 't80', label: 'Thermal 80 mm' },
   { key: 't58', label: 'Thermal 58 mm' },
+  { key: 'letter', label: 'Letter' },   // Session 345q: offered only where a page asks for it (the IPD Final Bill); never remembered
 ];
 const KEY = 'ax_paper_size';
 const VALID = new Set(PAPER_SIZES.map(s => s.key));
+// the sizes a page gets when it does not choose its own list, and the only ones ever remembered per device
+const DEFAULT_SIZES = ['a4', 'a5', 't80', 't58'];
+const REMEMBERED = new Set(DEFAULT_SIZES);
 
 export function getPaperSize() {
-  try { const v = localStorage.getItem(KEY); return VALID.has(v) ? v : 'a4'; } catch { return 'a4'; }
+  try { const v = localStorage.getItem(KEY); return REMEMBERED.has(v) ? v : 'a4'; } catch { return 'a4'; }
 }
 export function setPaperSize(v) {
-  if (!VALID.has(v)) return;
+  if (!REMEMBERED.has(v)) return;
   try { localStorage.setItem(KEY, v); } catch { /* private mode etc. -- still applies to this page */ }
 }
 export const isThermal = size => size === 't80' || size === 't58';
@@ -52,8 +56,10 @@ export function watchPrintPageSize(getEl) {
 }
 
 // An accessible <select> (44 px) placed in `container`; onChange(size) after the choice is stored + applied.
-// opts.sizes limits the choices (keys of PAPER_SIZES); default = all four.
-export function mountPaperSizeSelect(container, onChange, { sizes } = {}) {
+// opts.sizes limits the choices (keys of PAPER_SIZES); default = A4 / A5 / the two thermal rolls.
+// opts.remember = false: the page always opens on its first size and the choice is not stored (Session 345q, the IPD Final Bill:
+// A4 every time, so a size chosen on a pharmacy counter never carries over to an in-patient bill).
+export function mountPaperSizeSelect(container, onChange, { sizes = DEFAULT_SIZES, remember = true } = {}) {
   if (!container) return null;
   const id = `ax-paper-${Math.random().toString(36).slice(2, 8)}`;
   const wrap = document.createElement('label');
@@ -63,14 +69,15 @@ export function mountPaperSizeSelect(container, onChange, { sizes } = {}) {
   const sel = document.createElement('select');
   sel.id = id;
   sel.setAttribute('aria-label', 'Paper size');
-  for (const s of PAPER_SIZES.filter(p => !sizes || sizes.includes(p.key))) {
+  for (const s of PAPER_SIZES.filter(p => sizes.includes(p.key))) {
     const o = document.createElement('option');
     o.value = s.key; o.textContent = s.label;
     sel.appendChild(o);
   }
-  sel.value = getPaperSizeFrom(sizes);
+  sel.value = remember ? getPaperSizeFrom(sizes) : sizes[0];
   sel.addEventListener('change', () => {
-    setPaperSize(sel.value); applyPaperSize(sel.value);
+    if (remember) setPaperSize(sel.value);
+    applyPaperSize(sel.value);
     if (onChange) onChange(sel.value);
     refreshPrintPageSize();   // printed page follows the new layout (no-op where watchPrintPageSize wasn't called)
   });

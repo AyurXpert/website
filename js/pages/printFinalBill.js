@@ -14,8 +14,15 @@ import { isDemoTenant } from '../modules/billing/demoBanner.js'
 import { ensureSignedIn } from '../utils/signInGate.js'
 import { copyMarking, isSupplierCopy, canPrintSupplierCopy, openSupplierCopy } from '../modules/billing/copyMarking.js'
 import { creditNoteExclusions, balanceBeforeCreditNotes } from '../modules/billing/creditNotePrint.js'
+import { applyPaperSize, mountPaperSizeSelect, watchPrintPageSize } from '../modules/billing/paperSize.js'
 
 wireDelegatedEvents()
+// Session 345q (owner, 17 Oct 2026): paper size on the page -- A4 every time the page opens, Letter on request (no A5: the shared A5
+// layout is too small for an IPD bill -- TODO §204). Changing it only re-lays out the sheet (no re-render, no new copy number); the
+// printed page size follows (printPageSize.js).
+const FINAL_BILL_SIZES = ['a4', 'letter'];
+applyPaperSize(FINAL_BILL_SIZES[0]);
+mountPaperSizeSelect(document.getElementById('paper-slot'), null, { sizes: FINAL_BILL_SIZES, remember: false });
 
 const admId    = new URLSearchParams(window.location.search).get('adm');
 // Session 345o (TODO §191): &bill=<id> = a CANCELLED bill of this admission, reprinted as it stood when cancelled (the server checks it
@@ -27,6 +34,7 @@ const statusEl = document.getElementById('status');
 const printBtn = document.getElementById('print-btn');
 const supBtn   = document.getElementById('supplier-btn');
 const adminBar = document.getElementById('admin-bar');
+watchPrintPageSize(() => sheet);   // Session 345q: Letter sets the printed page; A4 = the @page rule in print-final-bill.css
 
 const KIND_LABEL  = { advance: 'Advance', deposit: 'Deposit', payment: 'Payment', refund: 'Refund' };
 const MODE_LABEL  = { cash: 'Cash', upi: 'UPI', card: 'Card', cheque: 'Cheque', neft: 'NEFT' };

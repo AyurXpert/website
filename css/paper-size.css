@@ -6,7 +6,8 @@
    js/utils/printPageSize.js sets one @page rule from script instead (A5 148 × 210 mm; thermal = width × the
    document's measured height, one continuous page) and it overrides the A4 rules in print.css / print-final-bill.css.
    Only pages that set html[data-paper] (the pharmacy bill and the receipt) are affected by the rules below -- the OPD
-   and IPD bills share print-final-bill.css but never set it, so their A4 layout is unchanged.
+   bill shares print-final-bill.css but never sets it, so its A4 layout is unchanged. The IPD Final Bill sets it since
+   Session 345q (A4 / Letter only -- no A5, TODO §204) and is kept out of the pharmacy A4 rules.
 
    Thermal printable width (Session 336c): the paper stays 80 / 58 mm but the content is 72 / 48 mm, centred (side
    margins 4 / 5 mm -- the same numbers as printPageSize.js), and nothing may sit outside it: every box is
@@ -55,36 +56,37 @@ html[data-paper="t58"] .th-doc .demo-banner { border-width: 1.5px; }
 .th-doc .composition-line { text-align: center; font-weight: 700; font-size: .9em; margin: 0 0 4px; overflow-wrap: anywhere; }   /* Session 345f (R1) */
 html[data-paper="a5"] .sheet .composition-line { font-size: 8pt; margin-bottom: 1.5mm; }
 
-/* ── A4 pharmacy bill: a normal bill fits one page (§131 -- spacing tightened, nothing removed) ── */
+/* ── A4 pharmacy bill: a normal bill fits one page (§131 -- spacing tightened, nothing removed) ──
+   Session 345q: not the IPD Final Bill (it has its own A4 / Letter print rules in print-final-bill.css, no text made smaller) */
 @media print {
-  html[data-paper="a4"] .sheet { font-size: 9pt; line-height: 1.28; }
-  html[data-paper="a4"] .sheet .demo-banner { padding: 1mm 3mm; margin-bottom: 2mm; font-size: 9pt; }
-  html[data-paper="a4"] .sheet .hdr { grid-template-columns: 16mm 1fr auto; gap: 4mm; padding-bottom: 2mm; }
-  html[data-paper="a4"] .sheet .logo-box, html[data-paper="a4"] .sheet .logo-img { width: 16mm; height: 16mm; font-size: 12pt; }
-  html[data-paper="a4"] .sheet .org-name { font-size: 17pt; }
-  html[data-paper="a4"] .sheet .org-lines { font-size: 8.5pt; margin-top: .5mm; }
-  html[data-paper="a4"] .sheet .org-lines div { margin-top: 0; }
-  html[data-paper="a4"] .sheet .doc-title { font-size: 15pt; }
-  html[data-paper="a4"] .sheet .meta > div { padding: 1.2mm 2.5mm; }
-  html[data-paper="a4"] .sheet .sec-title { margin: 2mm 0 .6mm; font-size: 10.5pt; padding-bottom: .4mm; }
-  html[data-paper="a4"] .sheet .pt-grid { grid-template-columns: repeat(6, auto); justify-content: space-between; gap: 1mm 4mm; }
-  html[data-paper="a4"] .sheet .pt-grid .wide { grid-column: auto; }
-  html[data-paper="a4"] .sheet .items td > br { display: none; }
-  html[data-paper="a4"] .sheet .items td > .muted::before { content: " · "; }
-  html[data-paper="a4"] .sheet th, html[data-paper="a4"] .sheet td { padding: .5mm 1.6mm; }
-  html[data-paper="a4"] .sheet table.gst th, html[data-paper="a4"] .sheet table.gst td { padding: .5mm 1.2mm; }
-  html[data-paper="a4"] .sheet td .muted { font-size: 8pt; }
-  html[data-paper="a4"] .sheet .cat-row td { padding-top: 1mm; }
-  html[data-paper="a4"] .sheet .totals-wrap { margin-top: 1.5mm; gap: 5mm; }
-  html[data-paper="a4"] .sheet .totals-wrap .sec-title { margin-top: 0; }
-  html[data-paper="a4"] .sheet .words-col { padding-bottom: 1mm; }
-  html[data-paper="a4"] .sheet .totals .grand td { font-size: 10.5pt; }
-  html[data-paper="a4"] .sheet .balance-box { margin-top: 1.5mm; padding: 1.2mm 3mm; font-size: 11pt; }
-  html[data-paper="a4"] .sheet .sign-row { margin-top: 8mm; }
-  html[data-paper="a4"] .sheet .foot { margin-top: 1.5mm; padding-top: 1mm; font-size: 7.5pt; }
-  html[data-paper="a4"] .sheet .foot p { margin: .3mm 0; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet { font-size: 9pt; line-height: 1.28; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .demo-banner { padding: 1mm 3mm; margin-bottom: 2mm; font-size: 9pt; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .hdr { grid-template-columns: 16mm 1fr auto; gap: 4mm; padding-bottom: 2mm; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .logo-box, html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .logo-img { width: 16mm; height: 16mm; font-size: 12pt; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .org-name { font-size: 17pt; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .org-lines { font-size: 8.5pt; margin-top: .5mm; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .org-lines div { margin-top: 0; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .doc-title { font-size: 15pt; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .meta > div { padding: 1.2mm 2.5mm; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .sec-title { margin: 2mm 0 .6mm; font-size: 10.5pt; padding-bottom: .4mm; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .pt-grid { grid-template-columns: repeat(6, auto); justify-content: space-between; gap: 1mm 4mm; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .pt-grid .wide { grid-column: auto; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .items td > br { display: none; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .items td > .muted::before { content: " · "; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet th, html[data-paper="a4"]:not([data-page="final-bill"]) .sheet td { padding: .5mm 1.6mm; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet table.gst th, html[data-paper="a4"]:not([data-page="final-bill"]) .sheet table.gst td { padding: .5mm 1.2mm; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet td .muted { font-size: 8pt; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .cat-row td { padding-top: 1mm; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .totals-wrap { margin-top: 1.5mm; gap: 5mm; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .totals-wrap .sec-title { margin-top: 0; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .words-col { padding-bottom: 1mm; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .totals .grand td { font-size: 10.5pt; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .balance-box { margin-top: 1.5mm; padding: 1.2mm 3mm; font-size: 11pt; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .sign-row { margin-top: 8mm; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .foot { margin-top: 1.5mm; padding-top: 1mm; font-size: 7.5pt; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .foot p { margin: .3mm 0; }
   /* a page break never leaves the signatures or the footer on their own */
-  html[data-paper="a4"] .sheet .totals-wrap, html[data-paper="a4"] .sheet .sign-row { break-after: avoid; }
+  html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .totals-wrap, html[data-paper="a4"]:not([data-page="final-bill"]) .sheet .sign-row { break-after: avoid; }
 }
 
 /* ── A5 pharmacy bill: its own compact layout (screen preview and print) ──
@@ -92,6 +94,7 @@ html[data-paper="a5"] .sheet .composition-line { font-size: 8pt; margin-bottom: 
    the document title + Original / Duplicate as a full-width row under the header · tight tables · summary, words,
    signatures and footer kept together. Up to ~6 medicine lines fit one A5 page; a longer bill continues on page 2
    with the table header repeated and the footer never alone. */
+@media screen { html[data-paper="letter"] .sheet { width: 215.9mm; min-height: 279.4mm; } }   /* Session 345q (Final Bill): screen preview only */
 html[data-paper="a5"] .sheet { width: 148mm; min-height: 210mm; padding: 8mm 8mm 10mm; font-size: 8pt; line-height: 1.25; }
 html[data-paper="a5"] .sheet .demo-banner { padding: .8mm 2mm; margin: 0 0 1.5mm; font-size: 7.5pt; border-width: 1.5px; letter-spacing: 0; }
 html[data-paper="a5"] .sheet .watermark { top: 70mm; font-size: 28pt; }

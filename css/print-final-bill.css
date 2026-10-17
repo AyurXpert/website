@@ -284,4 +284,26 @@ table.gst th, table.gst td { font-size: 8.5pt; padding: 1.2mm 1.4mm; }
   .sign-row { margin-top: 4mm; }
   .cancel-banner { padding: 1.2mm 3mm; margin-bottom: 2mm; font-size: 10.5pt; }
   .foot { margin-top: 2mm; }
+  /* Session 345q (owner, 17 Oct 2026): the signatures and the footer are ONE block -- a long bill moves them to the next page
+     together, the footer is never alone on a page */
+  .sign-row { break-after: avoid; }
+}
+/* Session 345q: the IPD Final Bill on A4 / Letter -- a short bill (both banners, one line, one receipt, a reprint) keeps >= 10 mm
+   spare on A4. Only gaps, the logo box and the patient-grid columns change: NO font size is made smaller (bill no., amounts and
+   totals unchanged). The Final Bill offers no A5 (owner, 17 Oct 2026 -- TODO §204); the :not(a5) guard keeps these rules off a future A5. */
+@media print {
+  html[data-page="final-bill"]:not([data-paper="a5"]) .demo-banner { padding: 1mm 3mm; margin-bottom: 1.5mm; }
+  html[data-page="final-bill"]:not([data-paper="a5"]) .cancel-banner { padding: .8mm 3mm; margin-bottom: 1mm; }
+  html[data-page="final-bill"]:not([data-paper="a5"]) .hdr { grid-template-columns: 16mm 1fr auto; gap: 4mm; padding-bottom: 1.5mm; }
+  html[data-page="final-bill"]:not([data-paper="a5"]) .logo-box,
+  html[data-page="final-bill"]:not([data-paper="a5"]) .logo-img { width: 16mm; height: 16mm; }
+  html[data-page="final-bill"]:not([data-paper="a5"]) .org-lines div { margin-top: .2mm; }
+  html[data-page="final-bill"]:not([data-paper="a5"]) .meta > div { padding: 1mm 3mm; }
+  html[data-page="final-bill"]:not([data-paper="a5"]) .pt-grid { grid-template-columns: repeat(6, auto); justify-content: space-between; gap: .6mm 3mm; }
+  html[data-page="final-bill"]:not([data-paper="a5"]) .sec-title { margin: 1.5mm 0 .6mm; }
+  html[data-page="final-bill"]:not([data-paper="a5"]) .totals-wrap { margin-top: 1.5mm; }
+  html[data-page="final-bill"]:not([data-paper="a5"]) .words-col { padding-bottom: 1mm; }
+  html[data-page="final-bill"]:not([data-paper="a5"]) .balance-box { margin-top: 1.5mm; padding: 1.2mm 3mm; }
+  html[data-page="final-bill"]:not([data-paper="a5"]) .foot { margin-top: 1.5mm; padding-top: 1mm; }
+  html[data-page="final-bill"]:not([data-paper="a5"]) .foot p { margin: .3mm 0; }
 }
