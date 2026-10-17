@@ -208,6 +208,7 @@ if (_role === 'cashier') {
 let _bills = [], _expenses = [], _outstanding = [];
 // Session 344a: the period's returns (by RETURN date), receipts / refunds (by receipt date) and paid-before-receipts bills
 let _activity = { returns: [], receipts: [], legacy_collected: {} };
+let _revPeriod = null;   // (C, 17 Oct 2026) the period the revenue figures on screen belong to -- names the revenue CSV
 
 // ── §21ae CA Audit functions ──────────────────────────────
 let _audits = [];
@@ -327,6 +328,7 @@ async function loadBills(from, to) {
     .order('created_at', { ascending: false });
   if (error) { _toast(safeErrorMessage(error, 'Could not load bills.'), 'error'); return; }
   _bills = data || [];
+  _revPeriod = { from, to };
   // Session 344a (owner decision 6 Oct 2026): returns count on the RETURN date, collection on the receipt date
   const { data: act, error: aErr } = await supabase.rpc('finance_activity', { p_from: from, p_to: to });
   if (aErr) _toast(safeErrorMessage(aErr, 'Could not load the returns and receipts of this period — totals may be incomplete.'), 'error');
@@ -701,7 +703,7 @@ window.exportCSV = window.exportRevCSV = function() {
   })));
   rows.push({ Row: 'TOTAL Gross sales', Amount: s.gross }, { Row: 'TOTAL Returns / cancellations', Amount: -s.returns },
             { Row: 'TOTAL Net', Amount: s.net }, { Row: 'TOTAL Collected (receipts - refunds)', Amount: s.collected });
-  _csvDownload(rows, 'revenue');
+  _csvDownload(rows, 'revenue', _revPeriod ? `revenue_${_revPeriod.from}_to_${_revPeriod.to}.csv` : null);   // (C) named after the period, not the export day
 };
 
 window.exportOutstandingCSV = function() { _csvDownload(_outstanding.map(b => ({
@@ -716,12 +718,12 @@ window.exportExpCSV = function() { _csvDownload(_expenses.map(e => ({
 
 window.exportDailyCSV = function() { _toast('Use the browser Print to save this view', 'success'); };
 
-function _csvDownload(rows, name) {
+function _csvDownload(rows, name, fileName) {
   if (!rows.length) { _toast('No data to export', 'info'); return; }
   const keys = Object.keys(rows[0]);
   const csv = [keys.join(','), ...rows.map(r => keys.map(k => `"${String(r[k]||'').replace(/"/g,'""')}"`).join(','))].join('\n');
   const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
-  a.download = `${name}_${todayLocalStr()}.csv`; a.click();
+  a.download = fileName || `${name}_${todayLocalStr()}.csv`; a.click();
 }
 
 // ── Helpers ───────────────────────────────────────────
