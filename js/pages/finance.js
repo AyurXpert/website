@@ -320,7 +320,7 @@ window.loadAll = async function() {
 async function loadBills(from, to) {
   const { data, error } = await supabase
     .from('bills')
-    .select('id, created_at, final_amount, total_amount, registration_fee, consultation_fee, on_request_surcharge, patient_due, amount_paid, returned_amount, bill_type, payment_mode, payment_method, payer_type, document_status, document_number, status, cancelled_at, patients(name), insurer_name')
+    .select('id, created_at, final_amount, total_amount, registration_fee, consultation_fee, on_request_surcharge, patient_due, amount_paid, returned_amount, bill_type, payment_mode, payment_method, payer_type, document_status, document_number, status, cancelled_at, patients(name), recipient_name, insurer_name')
     .eq('tenant_id', tenantId)
     .gte('created_at', from + 'T00:00:00+05:30')
     .lte('created_at', to + 'T23:59:59.999+05:30')
@@ -331,7 +331,7 @@ async function loadBills(from, to) {
   const { data: act, error: aErr } = await supabase.rpc('finance_activity', { p_from: from, p_to: to });
   if (aErr) _toast(safeErrorMessage(aErr, 'Could not load the returns and receipts of this period — totals may be incomplete.'), 'error');
   _activity = act || { returns: [], receipts: [], legacy_collected: {} };
-  await _loadLabItemTotals();
+  await Promise.all([_loadLineTotals(), _loadReturnNames()]);
   renderRevenue(from, to);
   renderDaily(from, to);
   updateKPIs();
@@ -372,9 +372,12 @@ function renderRevenue(from, to) {
   }
   for (const r of rets) {
     const tr = _el('tr', null, 'background:#fff8f6');
-    tr.append(_el('td', _fmtD(r.date), 'font-size:12px;white-space:nowrap'),
-      _el('td', `${r.return_no} — of bill ${r.document_number || '—'} (${_fmtD(r.bill_date)})`, 'font-size:12px'));
-    const tdT = _el('td'); tdT.append(_el('span', _RET_KIND[r.kind] || 'Return', 'font-size:10px', 'badge b-cancelled')); tr.append(tdT);
+    // (C) the Patient column = the original bill's patient; the document numbers go under the Type badge
+    tr.append(_el('td', _fmtD(r.date), 'font-size:12px;white-space:nowrap'), _el('td', _billNames[r.bill_id] || '—'));
+    const tdT = _el('td'); tdT.append(_el('span', _RET_KIND[r.kind] || 'Return', 'font-size:10px', 'badge b-cancelled'),
+      _el('div', (r.return_no === r.document_number ? `${r.return_no || '—'} · bill of ${_fmtD(r.bill_date)}`
+        : `${r.return_no || '—'} · of ${r.document_number || '—'} (${_fmtD(r.bill_date)})`), 'font-size:11px;color:var(--text-muted);margin-top:2px'));
+    tr.append(tdT);
     tr.append(_el('td', '—'), _el('td', '—'), _el('td', '− ₹' + _n(r.amount), 'font-weight:500;color:var(--red)'),
       _el('td', _retSettle(r), 'font-size:12px'),
       _el('td', _RET_DONE[r.kind] || 'returned'));
@@ -405,16 +408,39 @@ function renderRevenue(from, to) {
 
 // Session 295 -- lab charges attached to OPD bills (bill_items.item_type='lab') are part of
 // those bills' final_amount but belong under Lab / Investigations, not "Other".
-let _labByBill = {};
-async function _loadLabItemTotals() {
-  _labByBill = {};
+// TODO §205 (17 Oct 2026) -- a GST bill keeps registration_fee / consultation_fee / on_request_surcharge at 0
+// ("GST bills carry every charge as a line", Session 323): its registration / consultation (+ on-request surcharge)
+// LINES are read here too. A line's amount is what it adds to the bill: line_total (after the line + bill discount,
+// plus tax) on a GST line; a legacy line has no line_total and keeps total + gst_amount.
+let _lineByBill = {};
+const _LINE_BUCKET = { lab: 'lab', registration: 'reg', consultation: 'con', on_request_surcharge: 'con' };
+async function _loadLineTotals() {
+  _lineByBill = {};
   const ids = _bills.map(b => b.id);
   for (let i = 0; i < ids.length; i += 200) {
-    const { data } = await supabase.from('bill_items').select('bill_id, total, gst_amount')
-      .in('bill_id', ids.slice(i, i + 200)).eq('item_type', 'lab');
+    const { data } = await supabase.from('bill_items').select('bill_id, item_type, total, gst_amount, line_total')
+      .in('bill_id', ids.slice(i, i + 200)).in('item_type', Object.keys(_LINE_BUCKET));
     (data || []).forEach(r => {
-      _labByBill[r.bill_id] = (_labByBill[r.bill_id] || 0) + (Number(r.total) || 0) + (Number(r.gst_amount) || 0);
+      const amt = r.line_total !== null && r.line_total !== undefined ? Number(r.line_total) || 0
+        : (Number(r.total) || 0) + (Number(r.gst_amount) || 0);
+      const t = _lineByBill[r.bill_id] || (_lineByBill[r.bill_id] = { lab: 0, reg: 0, con: 0 });
+      t[_LINE_BUCKET[r.item_type]] += amt;
     });
+  }
+}
+
+// (C, 17 Oct 2026) a return / cancellation row shows the ORIGINAL bill's patient. The bill is usually in the period
+// already; one that is not (a return of an earlier bill) is read once here.
+let _billNames = {};
+const _billName = b => b?.patients?.name || b?.recipient_name || '';
+async function _loadReturnNames() {
+  _billNames = {};
+  _bills.forEach(b => { _billNames[b.id] = _billName(b); });
+  const missing = [...new Set((_activity.returns || []).map(r => r.bill_id).filter(id => id && !(id in _billNames)))];
+  for (let i = 0; i < missing.length; i += 200) {
+    const { data } = await supabase.from('bills').select('id, recipient_name, patients(name)')
+      .eq('tenant_id', tenantId).in('id', missing.slice(i, i + 200));
+    (data || []).forEach(b => { _billNames[b.id] = _billName(b); });
   }
 }
 
@@ -428,9 +454,11 @@ function _revenueBuckets(bills) {
     const f = Number(b.final_amount) || 0;           // Session 344a: the ORIGINAL amount (returns are their own line, by return date)
     const cat = billCategory(b.bill_type);
     if (cat === 'opd') {
-      const reg = Number(b.registration_fee) || 0;
-      const con = (Number(b.consultation_fee) || 0) + (Number(b.on_request_surcharge) || 0);
-      const lab = _labByBill[b.id] || 0;
+      const L = _lineByBill[b.id] || { lab: 0, reg: 0, con: 0 };
+      // TODO §205: the bill's fee columns (old-style bills); 0 on a GST bill -> its registration / consultation lines
+      const reg = Number(b.registration_fee) || L.reg;
+      const con = ((Number(b.consultation_fee) || 0) + (Number(b.on_request_surcharge) || 0)) || L.con;
+      const lab = L.lab;
       const rest = Math.max(0, f - reg - con - lab);
       k.reg += reg; k.con += con; k.lab += lab; k.oth += rest; k.opdCnt++;
       if (lab) k.labCnt++;
@@ -668,7 +696,7 @@ window.exportCSV = window.exportRevCSV = function() {
     Payment: b.payment_mode, Status: b.status,
   })).concat((_activity.returns || []).map(r => ({
     Row: _RET_KIND[r.kind] || 'Return', Date: r.date, Document: r.return_no, 'Of bill': `${r.document_number || ''} (${r.bill_date})`,
-    Patient: '', Type: r.bill_type, Total: '', Amount: -Number(r.amount || 0),
+    Patient: _billNames[r.bill_id] || '', Type: r.bill_type, Total: '', Amount: -Number(r.amount || 0),
     Payment: _retSettle(r).toLowerCase(), Status: r.kind,
   })));
   rows.push({ Row: 'TOTAL Gross sales', Amount: s.gross }, { Row: 'TOTAL Returns / cancellations', Amount: -s.returns },
