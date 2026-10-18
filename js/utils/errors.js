@@ -290,6 +290,16 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 348 (TODO §209 / §211 / §212): OPD Management (opd_doctor_*) and the HOD functions (hod_*) -- the server's plain refusals;
+  // who may change an OPD's doctors / which department / which organisation decides what the person does next
+  const OPD_DOCTOR_MSGS = ["Only an active super admin, or the department admin (HOD) of this OPD's department, can change its doctors",
+    'Not authorized for this department', 'This OPD does not belong to your department', 'Doctor not found in your organisation',
+    'Assignment not found', 'Choose active or not active', 'NCISM §7 mandates dedicated consultants', 'Staff member not found in your organisation',
+    'Shift not found in your department', 'Trainee not found in your organisation', 'This profile is not a Trainee Doctor'];
+  if (error?.code === 'P0001' && OPD_DOCTOR_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // Session 345c2b: the supplier copy of a bill (record_document_print 'bill_supplier') -- the server's plain refusal
   if (error?.code === '22023' && error?.message?.startsWith('A supplier copy can be printed only for a finalised Tax Invoice')) {
     return error.message;

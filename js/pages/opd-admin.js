@@ -513,10 +513,8 @@ function _addDoctorRow(unassigned) {
 
 // ── Toggle active today ────────────────────────────
 async function toggleActiveToday(opdDocId, active) {
-  const { error } = await supabase
-    .from('opd_doctors')
-    .update({ is_active_today: active })
-    .eq('id', opdDocId);
+  // Session 348 (TODO §211): opd_doctors is read-only from the browser -- changes go through the server functions
+  const { error } = await supabase.rpc('opd_doctor_set_today', { p_opd_doctor_id: opdDocId, p_active: !!active });
 
   if (error) { _alert('error', safeErrorMessage(error, 'Failed to update.')); return; }
 
@@ -527,11 +525,7 @@ async function toggleActiveToday(opdDocId, active) {
 // ── Mark all active today ──────────────────────────
 document.getElementById('btn-mark-all').addEventListener('click', async () => {
   if (!_selectedOpd) return;
-  const { error } = await supabase
-    .from('opd_doctors')
-    .update({ is_active_today: true })
-    .eq('opd_id', _selectedOpd.id)
-    .eq('tenant_id', tenantId);
+  const { error } = await supabase.rpc('opd_doctor_set_today_all', { p_opd_id: _selectedOpd.id, p_active: true });
 
   if (error) { _alert('error', safeErrorMessage(error, 'Action failed. Please try again.')); return; }
   _alert('success', 'All doctors marked active today.');
@@ -541,11 +535,7 @@ document.getElementById('btn-mark-all').addEventListener('click', async () => {
 // ── Clear all today ────────────────────────────────
 document.getElementById('btn-clear-all').addEventListener('click', async () => {
   if (!_selectedOpd) return;
-  const { error } = await supabase
-    .from('opd_doctors')
-    .update({ is_active_today: false })
-    .eq('opd_id', _selectedOpd.id)
-    .eq('tenant_id', tenantId);
+  const { error } = await supabase.rpc('opd_doctor_set_today_all', { p_opd_id: _selectedOpd.id, p_active: false });
 
   if (error) { _alert('error', safeErrorMessage(error, 'Action failed. Please try again.')); return; }
   _alert('success', 'All doctors cleared for today.');
@@ -580,9 +570,7 @@ async function addDoctor(doctorId) {
     }
   }
 
-  const { error } = await supabase
-    .from('opd_doctors')
-    .insert({ opd_id: _selectedOpd.id, doctor_id: doctorId, tenant_id: tenantId, is_active_today: true });
+  const { error } = await supabase.rpc('opd_doctor_add', { p_opd_id: _selectedOpd.id, p_doctor_id: doctorId });
 
   if (error) { _alert('error', safeErrorMessage(error, 'Failed to add doctor.')); return; }
   _alert('success', 'Doctor added and marked active today.');
@@ -592,10 +580,7 @@ async function addDoctor(doctorId) {
 // ── Remove doctor from OPD ────────────────────────
 async function removeDoctor(opdDocId) {
   if (!confirm('Remove this doctor from the OPD?')) return;
-  const { error } = await supabase
-    .from('opd_doctors')
-    .delete()
-    .eq('id', opdDocId);
+  const { error } = await supabase.rpc('opd_doctor_remove', { p_opd_doctor_id: opdDocId });
 
   if (error) { _alert('error', safeErrorMessage(error, 'Failed to remove.')); return; }
   _alert('success', 'Doctor removed from OPD.');
