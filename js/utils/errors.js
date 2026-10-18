@@ -276,6 +276,20 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 349 (TODO §213): staff signup (register_staff_profile), invites (create / revoke_position_invite) and the approval
+  // (dept_admin_approve_staff) -- the server's plain refusals; which one it is decides what the person does next
+  const SIGNUP_INVITE_MSGS = ['This invite link', 'This invite belongs to another organisation', 'This role cannot be requested at signup',
+    'Your staff profile already exists', 'Please enter your full name', 'Department not found in this organisation',
+    'Organisation code not found', 'Only an active Super Admin or Dept Admin can create an invite', 'This role cannot be invited',
+    'Choose the position (designation) for the invite', 'Secondary role must be different from HMS Login Role',
+    'Only the Super Admin can create an invite for', 'A Dept Admin can scope an invite only to his own department',
+    'Enter a phone number or email to invite', 'Invite not found', 'Only a pending invite can be cancelled',
+    'You cannot approve your own account', 'This account is not waiting for approval', 'Only the Super Admin can approve a request for',
+    'Staff member not found in your organisation'];
+  if (error?.code === 'P0001' && SIGNUP_INVITE_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // Session 345c2b: the supplier copy of a bill (record_document_print 'bill_supplier') -- the server's plain refusal
   if (error?.code === '22023' && error?.message?.startsWith('A supplier copy can be printed only for a finalised Tax Invoice')) {
     return error.message;

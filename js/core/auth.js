@@ -140,8 +140,7 @@ export async function registerTenant({
 
 export async function registerStaff({
   fullName, email, password, phone, gender = null, dateOfBirth = null,
-  role, tenantCode, hprId = null, stateRegId = null, departmentId = null, designation = null, secondaryRole = null,
-  hasMonitoringAccess = false, scopeDepartmentId = null
+  role, tenantCode, hprId = null, stateRegId = null, departmentId = null, inviteToken = null
 }) {
   try {
     const { data: subRows, error: tenantError } = await supabase
@@ -184,36 +183,14 @@ export async function registerStaff({
         : safeErrorMessage(authError, 'Could not create account. Please try again.'));
     }
 
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        id:        authData.user.id,
-        tenant_id: tenant.id,
-        role,
-        full_name: fullName,
-        phone,
-        status:    'pending_approval',
-        is_active: false,
-        ...(gender       ? { gender:              gender     } : {}),
-        ...(dateOfBirth  ? { date_of_birth:        dateOfBirth } : {}),
-        ...(hprId        ? { hpr_id:              hprId      } : {}),
-        // 27 Aug 2026 — real bug, present since the very first commit: this wrote to
-        // 'state_reg_id', a column that has never existed on `profiles` (the real
-        // column is `registration_number`, correctly used everywhere else in the
-        // codebase — doctor.js/hr.js/printPrescription.js). Any HPR-role signup
-        // (doctor/nurse/pharmacist/lab_tech/therapist) that filled in the State
-        // Registration No. field got a 400 from PostgREST on this insert — but by then
-        // auth.signUp() had already created the auth.users row, so the signup was left
-        // stuck: the profile never got created, and retrying with the same email then
-        // fails with "already registered" (Supabase Auth emails are unique, independent
-        // of whether a profile exists). Found live via a real nurse-signup report.
-        ...(stateRegId   ? { registration_number: stateRegId } : {}),
-        ...(departmentId ? { department_id:  departmentId } : {}),
-        ...(designation  ? { designation:    designation  } : {}),
-        ...(secondaryRole ? { secondary_role: secondaryRole } : {}),
-        ...(hasMonitoringAccess ? { has_monitoring_access: true } : {}),
-        ...(scopeDepartmentId ? { scope_department_id: scopeDepartmentId } : {}),
-      });
+    // Session 349 (TODO §213): the profile is created on the server -- the browser can no longer insert one (or choose its own rights).
+    // Without an invite: the role from the signup list, no designation / second role / monitoring / department scope. With an invite
+    // (signup.html?pinv=): everything comes from the invite row, which the server marks used in the same step.
+    const { error: profileError } = await supabase.rpc('register_staff_profile', {
+      p_tenant_code: tenantCode, p_role: role, p_full_name: fullName, p_phone: phone || null, p_gender: gender || null,
+      p_date_of_birth: dateOfBirth || null, p_hpr_id: hprId || null, p_registration_number: stateRegId || null,
+      p_department_id: departmentId || null, p_invite_token: inviteToken || null,
+    });
     if (profileError) {
       // registerStaff() has no tenant row of its own to clean up (it joins an
       // existing tenant) — only the just-created auth account, via the shared
@@ -409,7 +386,7 @@ export async function logout() {
 export async function getPendingApprovals() {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, role, phone, created_at')
+    .select('id, full_name, role, phone, created_at, designation, department_id, secondary_role, has_monitoring_access, scope_department_id')   // Session 349: everything requested
     .eq('tenant_id', getCurrentTenantId())
     .eq('status', 'pending_approval')
     .order('created_at', { ascending: true });

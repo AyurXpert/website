@@ -755,17 +755,42 @@ window.loadStaffAccess = async function() {
     wrap.innerHTML=`<div class="empty"><div class="empty-ico">✅</div><div class="empty-ttl">All clear — no pending approvals</div></div>`;
     return;
   }
+  // Session 349 (TODO §213): show EVERYTHING the request carries -- position, department, a second role, monitoring access, a department
+  // scope, and whether it came from an invite; a request for Super Admin / Dept Admin / a second role / monitoring is approved only by
+  // the Super Admin (the server refuses anyone else)
+  const ids = approvals.map(r => r.id);
+  const deptIds = [...new Set(approvals.flatMap(r => [r.department_id, r.scope_department_id]).filter(Boolean))];
+  const [{ data: deptRows }, { data: invRows }] = await Promise.all([
+    deptIds.length ? supabase.from('departments').select('id,name').eq('tenant_id', tenantId).in('id', deptIds) : Promise.resolve({ data: [] }),
+    supabase.from('position_invites').select('joined_profile_id').eq('tenant_id', tenantId).in('joined_profile_id', ids),
+  ]);
+  const deptName = id => (deptRows || []).find(d => d.id === id)?.name || 'a department';
+  const viaInvite = new Set((invRows || []).map(i => i.joined_profile_id));
+  const viewerIsSuper = profile?.role === 'super_admin';
+  const isElevated = r => ['super_admin', 'dept_admin'].includes(r.role) || !!r.secondary_role || !!r.has_monitoring_access;
+  const requested = r => [
+    r.designation ? `Position: ${_esc(DESIG_MAP[r.designation]?.l || r.designation)}` : '',
+    r.department_id ? `Department: ${_esc(deptName(r.department_id))}` : '',
+    r.secondary_role ? `<strong>Second role: ${_esc(_roleLabel(r.secondary_role))}</strong>` : '',
+    r.has_monitoring_access ? '<strong>Monitoring access</strong>' : '',
+    r.scope_department_id ? `<strong>Department admin of: ${_esc(deptName(r.scope_department_id))}</strong>` : '',
+    viaInvite.has(r.id) ? 'From an invite link' : 'Self sign-up (no invite)',
+  ].filter(Boolean).map(t => `<div style="font-size:11.5px;color:var(--text-mid);margin-top:3px">${t}</div>`).join('');
   wrap.innerHTML=`<div class="tw"><table>
-    <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Applied</th><th>Actions</th></tr></thead>
-    <tbody>${approvals.map(r=>`<tr id="arow-${r.id}"${r.role==='dept_admin'?' style="background:#fff0f0"':''}>
+    <thead><tr><th>Name</th><th>Requested</th><th>Phone</th><th>Applied</th><th>Actions</th></tr></thead>
+    <tbody>${approvals.map(r=>`<tr id="arow-${r.id}"${isElevated(r)?' style="background:#fff0f0"':''}>
       <td><strong>${_esc(r.full_name||'—')}</strong></td>
       <td>${r.role==='dept_admin'
         ?'<span class="chip" style="background:#fdecea;color:#8b1a1a;border:1px solid #f5c6c6;font-weight:700">⚠️ Dept. Admin — Full Access Requested</span>'
-        :`<span class="chip g">${_roleLabel(r.role)}</span>`}</td>
+        :r.role==='super_admin'
+        ?'<span class="chip" style="background:#fdecea;color:#8b1a1a;border:1px solid #f5c6c6;font-weight:700">⚠️ Super Admin Requested</span>'
+        :`<span class="chip g">${_roleLabel(r.role)}</span>`}${requested(r)}</td>
       <td>${_esc(r.phone||'—')}</td>
       <td>${_relDate(r.created_at)}</td>
       <td>
-        <button class="btn-approve" data-id="${r.id}">Approve</button>
+        ${isElevated(r) && !viewerIsSuper
+          ? '<span style="font-size:11.5px;color:var(--text-muted)" title="Only the Super Admin can approve a request for Super Admin, Dept Admin, a second role or monitoring access.">Super Admin approves</span>'
+          : `<button class="btn-approve" data-id="${r.id}">Approve</button>`}
         <button class="btn-reject"  data-id="${r.id}">Reject</button>
       </td>
     </tr>`).join('')}</tbody>
@@ -2208,14 +2233,15 @@ window.submitPositionInvite = async function(){
   if(secondaryRoleVal && secondaryRoleVal===roleVal){ _toast('Secondary role must be different from HMS Login Role.', true); return; }
   if(isDeptScoped && !deptId){ _toast('This position has no specific department to scope to.', true); return; }
 
-  const { data, error } = await supabase.from('position_invites').insert({
-    tenant_id: tenantId, department_id: deptId, designation, role: roleVal,
-    secondary_role: secondaryRoleVal || null,
-    has_monitoring_access: hasMonitoringAccess,
-    scope_department_id: isDeptScoped ? deptId : null,
-    candidate_name: name || null, phone: phone || null, email: email || null,
-    created_by: profile.id,
-  }).select('token').single();
+  // Session 349 (TODO §213): invites are created on the server -- it refuses an invite for Super Admin, and an invite for Dept Admin /
+  // a second role / monitoring access unless the caller is the Super Admin; a Dept Admin scopes only to his own department
+  const { data, error } = await supabase.rpc('create_position_invite', {
+    p_department_id: deptId, p_designation: designation, p_role: roleVal,
+    p_secondary_role: secondaryRoleVal || null,
+    p_has_monitoring_access: hasMonitoringAccess,
+    p_scope_department_id: isDeptScoped ? deptId : null,
+    p_candidate_name: name || null, p_phone: phone || null, p_email: email || null,
+  });
 
   if(error){
     // A 403/RLS-denied insert here almost always means the browser's login
@@ -2298,7 +2324,7 @@ window.cancelPendingInvite = async function(idxStr, subIdxStr){
   const who = inv.candidate_name || inv.phone || inv.email || 'this candidate';
   if(!confirm('Cancel the invite for '+who+'? They will no longer be able to join using this link.')) return;
 
-  const { error } = await supabase.from('position_invites').update({ status:'revoked' }).eq('id', inv.id);
+  const { error } = await supabase.rpc('revoke_position_invite', { p_invite_id: inv.id });   // Session 349: no browser edit of an invite
   if(error){ _toast(safeErrorMessage(error,'Could not cancel invite.'), true); return; }
 
   entry.pending.splice(Number(subIdxStr), 1);

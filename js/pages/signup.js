@@ -36,9 +36,6 @@ let _prefillRole   = _urlParams.get('role') || '';
 // Position-invite state, populated by _loadPositionInvite() below when ?pinv= is present
 let _pinvDeptId = null;
 let _pinvDesignation = null;
-let _pinvSecondaryRole = null;
-let _pinvHasMonitoringAccess = false;
-let _pinvScopeDepartmentId = null;
 
 window.upperizeInput = function(el) {
   el.value = el.value.toUpperCase();
@@ -144,9 +141,6 @@ async function _loadPositionInvite() {
   _prefillRole      = row.role || '';
   _pinvDeptId       = row.department_id || null;
   _pinvDesignation  = row.designation || null;
-  _pinvSecondaryRole = row.secondary_role || null;
-  _pinvHasMonitoringAccess = !!row.has_monitoring_access;
-  _pinvScopeDepartmentId = row.scope_department_id || null;
   _positionInviteValid = true;
 
   // Hide the generic role/department pickers entirely — this join is pre-scoped
@@ -286,10 +280,8 @@ window.handleSignup = async function() {
     hprId:        hprId    || null,
     stateRegId:   stateReg || null,
     departmentId: deptId   || null,
-    designation:  _positionInviteValid ? _pinvDesignation : null,
-    secondaryRole: _positionInviteValid ? _pinvSecondaryRole : null,
-    hasMonitoringAccess: _positionInviteValid ? _pinvHasMonitoringAccess : false,
-    scopeDepartmentId: _positionInviteValid ? _pinvScopeDepartmentId : null,
+    // Session 349: with an invite the server takes the role / designation / department / rights from the invite row itself
+    inviteToken:  _positionInviteValid ? _pinvToken : null,
   });
 
   if (!result.success) {
@@ -307,15 +299,7 @@ window.handleSignup = async function() {
     } catch (_) { /* non-critical — silent fail */ }
   }
 
-  // If arrived via NCISM position invite, mark it joined so the admin's ladder
-  // stops showing this slot as "pending" and it can't be reused
-  if (_pinvToken && _positionInviteValid) {
-    try {
-      await supabase.from('position_invites')
-        .update({ status: 'joined', joined_at: new Date().toISOString(), joined_profile_id: result.userId })
-        .eq('token', _pinvToken);
-    } catch (_) { /* non-critical — silent fail */ }
-  }
+  // NCISM position invite: the server marked it joined (used once) when it created the profile -- Session 349
 
   document.getElementById('form-view').style.display = 'none';
   document.getElementById('success-screen').style.display = 'block';
