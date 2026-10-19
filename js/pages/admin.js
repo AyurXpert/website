@@ -10,6 +10,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS, ncismRequiredBeds, PK_THERAPY_ROOM_COUNT } from '../config/ncism.js';
 import { SUPABASE_URL, SESSION_KEYS } from '../config/constants.js';
 import { DESIGS, DESIG_MAP, DESIG_CATS, isPowerfulPosition } from '../config/designations.js';
+import { RELIEVE_REASON_TYPES, canActOnStaff, relievedLabel, callStaffStatus } from '../utils/staffActions.js';   // Session 351 (TODO §233)
 import { localDateStr, todayLocalStr, monthEndStr, todayISTStr, istMonthStr, istDayStartUTC, istDayEndUTC } from '../utils/dateUtils.js';
 import {
   NCISM_XX_ROWS, ORG_TREE_DEF, OPD_CHILD_NCISM_CODES,
@@ -742,7 +743,7 @@ window.loadStaffAccess = async function() {
       {ico:'✅',cls:'g',   num:active,    lbl:'Active',            sub:'can log in'},
       {ico:'⏳',cls:'r',   num:pending,   lbl:'Pending Approval',  sub:'awaiting review'},
       {ico:'🚫',cls:'p',   num:suspended, lbl:'Suspended',         sub:'access revoked'},
-      {ico:'⛔',cls:'p',   num:terminated,lbl:'Terminated',        sub:'see Terminated Staff tab'},
+      {ico:'⛔',cls:'p',   num:terminated,lbl:'Relieved / inactive', sub:'see Relieved Staff tab'},
     ].map(c=>`<div class="sc"><div class="sc-ico ${c.cls}">${c.ico}</div><div class="sc-num">${c.num??'—'}</div><div class="sc-lbl">${c.lbl}</div><div class="sc-sub">${c.sub}</div></div>`).join('');
   }
 
@@ -1338,7 +1339,7 @@ async function _renderOrganisationStaff(){
     const staffHtml = (r.staff||[]).map(s=>{
       const actions = hasDesignation
         ? '<button class="btn-outline" style="font-size:10.5px;padding:2px 7px" data-onclick="openDeputeModal" data-onclick-a0="'+_esc(s.id)+'" data-onclick-a1="'+_esc(s.full_name||'this staff member')+'" data-onclick-a2="'+_esc(r.deptId||'')+'">🔄 Depute</button>'
-          +'<button class="btn-outline" style="font-size:10.5px;padding:2px 7px;color:#c0392b;border-color:#e0b0b0" data-onclick="openTerminateModal" data-onclick-a0="'+_esc(s.id)+'" data-onclick-a1="'+_esc(s.full_name||'this staff member')+'">🗑 Terminate</button>'
+          +(canActOnStaff(profile, (window._staffAll||[]).find(x => x.id === s.id)) ? '<button class="btn-outline" style="font-size:10.5px;padding:2px 7px;color:#c0392b;border-color:#e0b0b0" data-onclick="openTerminateModal" data-onclick-a0="'+_esc(s.id)+'" data-onclick-a1="'+_esc(s.full_name||'this staff member')+'">📤 Relieve</button>' : '')   // Session 351: only those allowed (role / scope / status from the All Staff list loadHR fetched)
         : '<span style="font-size:10.5px;color:var(--text-muted)">Manage via Login Access</span>';
       return '<div style="display:flex;align-items:center;gap:6px;padding:2px 0;flex-wrap:wrap"><span style="font-size:12px">'+_esc(s.full_name||'—')+'</span>'+actions+'</div>';
     }).join('') || '<span style="font-size:11px;color:var(--text-muted)">—</span>';
@@ -1362,9 +1363,8 @@ async function _renderOrganisationStaff(){
 // Depute reuses dept_admin_update_department() (Session 133) unchanged. Terminate/
 // Reactivate are new (terminate_staff()/reactivate_staff() RPCs, sql/session153_*) --
 // soft-deactivate (status='inactive', is_active=false), never a hard delete, so it's
-// always reversible. Gated designations (medical_director/principal/medical_superintendent)
-// can't terminate directly -- same request_approval() detour deleteRejectedStaff already
-// uses, re-checked server-side inside terminate_staff() itself.
+// always reversible. Session 351 (TODO §233): Terminate is now Relieve (relieve_staff, below) --
+// no approval detour any more; the MD / MS relieve directly under the one server rule.
 window.openDeputeModal = function(staffId, staffName, currentDeptId){
   document.getElementById('depute-staff-id').value = staffId;
   document.getElementById('depute-staff-name').textContent = staffName;
@@ -1396,102 +1396,130 @@ window.submitDepute = async function(){
   if (_panelVisible('hr-plan-panel')) _renderStaffingPlan();
 };
 
-// Session 154: Terminate now goes through a modal that requires a reason (terminate_staff()'s
-// RPC itself also enforces this server-side -- a reason isn't just a UI nicety, the record is
-// meaningless without it once it lands on the Terminated Staff tab). Reachable from the Extra
-// Staff tab's per-staff row.
+// Session 154: Terminate went through a modal that requires a reason. Session 351 (TODO §233, owner 19 Oct 2026): it is RELIEVE now --
+// a required reason type + reason; only an active Super Admin, Medical Director or Medical Superintendent (admin / senior / scoped
+// accounts: the Super Admin only); no approval request any more. It goes through the set-staff-status Edge Function: the database
+// decides (relieve_staff, with the viewer's own token), then the sign-in is locked. Reachable from HR → All Staff and Organisation Staff.
+let _relieveTarget = null;   // { id, name } -- kept here, not read back from the page, for the message after the save
 window.openTerminateModal = function(staffId, staffName){
+  _relieveTarget = { id: staffId, name: staffName };
   document.getElementById('terminate-staff-id').value = staffId;
   document.getElementById('terminate-staff-name').textContent = staffName;
   document.getElementById('terminate-reason').value = '';
+  const sel = document.getElementById('relieve-reason-type');
+  sel.replaceChildren(new Option('— Choose the reason type —', ''), ...RELIEVE_REASON_TYPES.map(r => new Option(r.l, r.v)));
   document.getElementById('terminate-modal').style.display = 'flex';
+  sel.focus();
 };
 window.closeTerminateModal = function(){
   document.getElementById('terminate-modal').style.display = 'none';
 };
 window.submitTerminate = async function(){
-  const staffId = document.getElementById('terminate-staff-id').value;
-  const staffName = document.getElementById('terminate-staff-name').textContent;
+  const target = _relieveTarget;
+  if (!target) return;
+  const reasonType = document.getElementById('relieve-reason-type').value;
   const reason = document.getElementById('terminate-reason').value.trim();
-  if (!reason) { _toast('A reason for termination is required.', true); return; }
-
-  if (_isGatedForApproval()) {
-    if(!confirm(`Submit a request to terminate ${staffName}? This needs sign-off before it takes effect.`)) return;
-    const { error } = await supabase.rpc('request_approval', {
-      p_action_type: 'staff_terminate', p_payload: { staff_id: staffId, staff_name: staffName, reason }, p_reason: null,
-    });
-    if (error) { _toast(safeErrorMessage(error, 'Could not submit request.'), true); return; }
-    closeTerminateModal();
-    _toast('Submitted for approval.');
-    return;
-  }
-  if(!confirm(`Terminate ${staffName}? This revokes their login and removes them from every staffing count in the HMS. Reversible any time from the Terminated Staff tab.`)) return;
-  const { error } = await supabase.rpc('terminate_staff', { p_staff_id: staffId, p_reason: reason });
-  if (error) { _toast(safeErrorMessage(error, 'Could not terminate staff.'), true); return; }
-  await logAudit('terminate_staff', 'profiles', staffId, { staff_name: staffName, reason }, {tenantId, userId: profile.id, userName: profile.full_name});
+  if (!reasonType) { _toast('Choose the reason type.', true); return; }
+  if (!reason) { _toast('Give the reason for relieving.', true); return; }
+  const btn = document.getElementById('relieve-submit-btn');
+  btn.disabled = true;
+  const { error } = await callStaffStatus(supabase, { targetUserId: target.id, action: 'relieve', reasonType, reason });
+  btn.disabled = false;
+  if (error) { _toast(error, true); return; }   // the server's own plain message (set-staff-status shows only P0001 refusals)
   closeTerminateModal();
-  _toast(staffName+' terminated.');
-  _renderOrganisationStaff();
-  window.loadHR && window.loadHR('staff');
+  const typeLabel = (RELIEVE_REASON_TYPES.find(r => r.v === reasonType) || {}).l || reasonType;
+  _toast(`${target.name} has been relieved (${typeLabel}).`);
+  _relieveTarget = null;
+  if (document.getElementById('hr-orgstaff-panel')?.style.display !== 'none') _renderOrganisationStaff();
+  else window.loadHR && window.loadHR('staff');
   _count('profiles',[['tenant_id',tenantId],['status','inactive']]).then(n => _setBadge('hr-tab-terminated-badge', n));
 };
 
+// Session 351: Reactivate goes through set-staff-status too (the database decides with reactivate_staff, then the sign-in is unlocked)
 window.reactivateStaff = async function(staffId, staffName){
-  if(!confirm(`Reactivate ${staffName}? Restores their login and counts them again in every staffing view.`)) return;
-  const { error } = await supabase.rpc('reactivate_staff', { p_staff_id: staffId });
-  if (error) { _toast(safeErrorMessage(error, 'Could not reactivate staff.'), true); return; }
-  await logAudit('reactivate_staff', 'profiles', staffId, { staff_name: staffName }, {tenantId, userId: profile.id, userName: profile.full_name});
-  _toast(staffName+' reactivated.');
+  if(!confirm(`Reactivate ${staffName}? Restores their sign-in and counts them again in every staffing view.`)) return;
+  const { error } = await callStaffStatus(supabase, { targetUserId: staffId, action: 'reactivate' });
+  if (error) { _toast(error, true); return; }
+  _toast(`${staffName} has been reactivated.`);
   _renderTerminatedStaff();
-  window.loadHR && window.loadHR('staff');
   _count('profiles',[['tenant_id',tenantId],['status','inactive']]).then(n => _setBadge('hr-tab-terminated-badge', n));
 };
 
-// ── Terminated Staff tab (Session 154) — the only place a terminated account is visible;
-// excluded from All Staff/Login Access/every headcount elsewhere. Recruited/Joined date is
-// profiles.created_at (no separate HR "date of joining" field exists yet) -- the account's
-// creation date is the closest real proxy the schema has today.
+// ── Relieved Staff tab (Session 154; Session 351 = TODO §233) — the only place a relieved account is visible; excluded from All
+// Staff/Login Access/every headcount elsewhere. Two lists: RELIEVED (terminated_at set; the reason type from the latest
+// staff_exit_events 'relieved' row -- older records have none: "Relieved – reason not recorded", their free-text reason still shown)
+// and INACTIVE (NOT RELIEVED) -- accounts set "inactive" by the old Mark Inactive (removed in 351), never relieved.
+// Recruited/Joined date is profiles.created_at (no separate HR "date of joining" field exists yet).
+// built from DOM nodes + textContent (no HTML strings with data in them)
+function _el(tag, props = {}, ...kids){
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'style') e.style.cssText = v;
+    else if (k === 'dataset') Object.assign(e.dataset, v);
+    else if (k === 'text') e.textContent = v;
+    else e.setAttribute(k, v);
+  }
+  for (const c of kids) if (c != null) e.append(c);
+  return e;
+}
+function _relievedTable(rows, dById, exitById, relieved){
+  const TH = 'padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)';
+  const heads = ['Name', 'Designation', 'Department', 'Recruited / Joined', ...(relieved ? ['Relieved', 'Reason type', 'Reason'] : []), 'Actions'];
+  const tbody = _el('tbody');
+  for (const s of rows) {
+    const ev = exitById[s.id];
+    const action = canActOnStaff(profile, s)
+      ? _el('button', { class: 'btn-outline', style: 'font-size:11px;padding:4px 8px;min-height:44px', text: '✅ Reactivate',
+                        dataset: { onclick: 'reactivateStaff', onclickA0: s.id, onclickA1: s.full_name || 'this staff member' } })
+      : _el('span', { style: 'font-size:11px;color:var(--text-muted)', text: 'Super Admin / MD / MS' });
+    const muted = 'font-size:12px;color:var(--text-muted)';
+    tbody.append(_el('tr', {},
+      _el('td', { style: 'font-weight:600', text: s.full_name || '—' }),
+      _el('td', { text: DESIG_MAP[s.designation]?.l || s.designation || '—' }),
+      _el('td', { text: dById[s.department_id] || '—' }),
+      _el('td', { style: muted, text: _relDate(s.created_at) }),
+      relieved ? _el('td', { style: muted, text: s.terminated_at ? _relDate(s.terminated_at) : '—' }) : null,
+      relieved ? _el('td', { style: 'font-size:12.5px' },
+        _el('span', { class: 'chip ' + (ev?.reason_type === 'terminated_disciplinary' ? 'r' : 'grey'), text: relievedLabel(ev?.reason_type) })) : null,
+      relieved ? _el('td', { style: 'font-size:12.5px;max-width:260px', text: s.termination_reason || '—' }) : null,
+      _el('td', {}, action)));
+  }
+  return _el('div', { style: 'overflow-x:auto' },
+    _el('table', { style: 'width:100%;border-collapse:collapse' },
+      _el('thead', {}, _el('tr', { style: 'background:#f5faf7' }, ...heads.map(h => _el('th', { style: TH, text: h })))),
+      tbody));
+}
 async function _renderTerminatedStaff(){
   const wrap = document.getElementById('terminated-staff-wrap');
-  wrap.innerHTML = '<div class="empty"><div class="empty-ico">⏳</div><div class="empty-ttl">Loading…</div></div>';
+  const empty = (ico, ttl) => _el('div', { class: 'empty' }, ico ? _el('div', { class: 'empty-ico', text: ico }) : null, _el('div', { class: 'empty-ttl', text: ttl }));
+  wrap.replaceChildren(empty('⏳', 'Loading…'));
 
-  const [{ data:staff }, { data:depts }] = await Promise.all([
-    supabase.from('profiles').select('id,full_name,designation,department_id,created_at,terminated_at,termination_reason')
+  const [{ data:staff }, { data:depts }, { data:exits }] = await Promise.all([
+    supabase.from('profiles').select('id,full_name,role,secondary_role,designation,department_id,scope_department_id,status,is_active,created_at,terminated_at,termination_reason')
       .eq('tenant_id',tenantId).eq('status','inactive').order('terminated_at',{ascending:false}),
     supabase.from('departments').select('id,name').eq('tenant_id',tenantId),
+    supabase.from('staff_exit_events').select('profile_id,reason_type,done_at').eq('tenant_id',tenantId).eq('event','relieved').order('done_at',{ascending:false}),
   ]);
   _setBadge('hr-tab-terminated-badge', (staff||[]).length);
 
   if (!staff?.length){
-    wrap.innerHTML = '<div class="empty"><div class="empty-ico">✅</div><div class="empty-ttl">No terminated staff.</div></div>';
+    wrap.replaceChildren(empty('✅', 'No relieved or inactive staff.'));
     return;
   }
   const dById={}; (depts||[]).forEach(d=>{ dById[d.id]=d.name; });
-  const rows = staff.map(s => `<tr>
-    <td style="font-weight:600">${_esc(s.full_name||'—')}</td>
-    <td>${_esc(DESIG_MAP[s.designation]?.l||s.designation||'—')}</td>
-    <td>${_esc(dById[s.department_id]||'—')}</td>
-    <td style="font-size:12px;color:var(--text-muted)">${_relDate(s.created_at)}</td>
-    <td style="font-size:12px;color:var(--text-muted)">${s.terminated_at?_relDate(s.terminated_at):'—'}</td>
-    <td style="font-size:12.5px;max-width:260px">${_esc(s.termination_reason||'—')}</td>
-    <td><button class="btn-outline" style="font-size:11px;padding:4px 8px" data-onclick="reactivateStaff" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">✅ Reactivate</button></td>
-  </tr>`).join('');
+  const exitById={}; (exits||[]).forEach(e=>{ if (!exitById[e.profile_id]) exitById[e.profile_id]=e; });   // the latest Relieve per account
+  const relieved = staff.filter(s => s.terminated_at);
+  const inactive = staff.filter(s => !s.terminated_at);
+  const head = (title, sub, bg) => _el('div', { style: 'background:' + bg + ';color:#fff;border-radius:var(--radius) var(--radius) 0 0;padding:12px 18px' },
+    _el('div', { style: 'font-weight:600;font-size:14px', text: title }), _el('div', { style: 'font-size:11px;opacity:.85;margin-top:2px', text: sub }));
 
-  wrap.innerHTML =
-    '<div style="background:#c0392b;color:#fff;border-radius:var(--radius) var(--radius) 0 0;padding:12px 18px">'
-      +'<div style="font-weight:600;font-size:14px">🚫 Terminated Staff</div>'
-      +'<div style="font-size:11px;opacity:.85;margin-top:2px">'+staff.length+' account(s). Not counted anywhere else in the HMS — visible here only, reversible via Reactivate.</div>'
-    +'</div>'
-    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
-      +'<thead><tr style="background:#f5faf7">'
-      +'<th style="padding:6px 12px 6px 16px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Name</th>'
-      +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Designation</th>'
-      +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Department</th>'
-      +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Recruited / Joined</th>'
-      +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Terminated</th>'
-      +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Reason</th>'
-      +'<th style="padding:6px 10px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);font-weight:700;border-bottom:1.5px solid var(--border)">Actions</th>'
-      +'</tr></thead><tbody>'+rows+'</tbody></table></div>';
+  wrap.replaceChildren(
+    head('📤 Relieved Staff', relieved.length + ' account(s). Not counted anywhere else in the HMS — visible here only. Reactivate: Super Admin, Medical Director or Medical Superintendent (an admin, a senior position or a department-scoped account: the Super Admin only).', '#c0392b'),
+    relieved.length ? _relievedTable(relieved, dById, exitById, true) : empty(null, 'No relieved staff.'),
+    ...(inactive.length ? [
+      _el('div', { style: 'height:18px' }),
+      head('Inactive (not relieved)', inactive.length + ' account(s) set inactive by the old "Mark Inactive" (removed) — never relieved, so no reason was recorded.', 'var(--text-mid)'),
+      _relievedTable(inactive, dById, exitById, false)] : []));
 }
 
 // ── Leave & Holidays (Session 137, Nursing Roster Phase 1) ──────────────
@@ -3108,6 +3136,9 @@ function renderStaffTable(staff){
     if (showScopeDept) actionCell += `<button class="btn-outline" ${_actBtn} data-onclick="scopeToDepartment" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}" data-onclick-a2="${_esc(s.department_id)}">🏥 Scope to Dept</button>`;
     if (showUnscopeDept) actionCell += `<button class="btn-outline" ${_actBtnDanger} data-onclick="unscopeFromDepartment" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">⬇ Remove Scope</button>`;
     if (showDelete) actionCell += `<button class="btn-outline" ${_actBtnDanger} data-onclick="deleteRejectedStaff" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">🗑 Delete</button>`;
+    // Session 351 (TODO §233, owner 19 Oct): Relieve on every row -- shown only to an active Super Admin / MD / MS, and for an admin,
+    // a senior position or a department-scoped account only to the Super Admin (the server decides; this only hides the button)
+    if (canActOnStaff(profile, s)) actionCell += `<button class="btn-outline" ${_actBtnDanger} data-onclick="openTerminateModal" data-onclick-a0="${_esc(s.id)}" data-onclick-a1="${_esc(s.full_name||'this staff member')}">📤 Relieve</button>`;
     actionCell = actionCell ? `<div style="display:flex;flex-direction:column;gap:4px;width:168px">${actionCell}</div>` : '—';
     return groupHeader + `<tr>
     <td><strong>${_esc(s.full_name||'—')}</strong></td>

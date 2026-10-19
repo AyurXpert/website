@@ -7,6 +7,7 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { localDateStr, todayLocalStr, istMonthStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { canActOnStaff } from '../utils/staffActions.js';   // Session 351 (TODO §233): who sees the account actions (display only)
 
 const ALLOWED = ['super_admin','dept_admin'];
 await requireAuth(ALLOWED);
@@ -53,7 +54,7 @@ async function init() {
 async function loadStaff() {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, role, phone, status, is_active, created_at, department_id')
+    .select('id, full_name, role, secondary_role, designation, scope_department_id, phone, status, is_active, terminated_at, created_at, department_id')   // Session 351: + the fields the account-action rule needs
     .eq('tenant_id', tenantId)
     .order('full_name');
   if (error) { _toast(safeErrorMessage(error, 'Error. Please try again.'), 'error'); return; }
@@ -150,15 +151,30 @@ window.openStaffModal = function(id) {
   // restricting sensitive account actions to super_admin, not dept_admin too)
   document.getElementById('sm-reset-mfa-btn').style.display = sess.role === 'super_admin' ? '' : 'none';
 
-  // Status action buttons — show relevant action for each status
+  // Status action buttons — show relevant action for each status.
+  // Session 351 (TODO §233, owner 19 Oct): one rule for every account action -- an ACTIVE Super Admin, Medical Director or Medical
+  // Superintendent; an admin, a senior position or a department-scoped account: the Super Admin only (the server decides through the
+  // set-staff-status Edge Function; this only hides what the viewer may not do). "Mark Inactive" is gone (Relieve, with a reason, on
+  // admin.html HR → All Staff). A relieved account is reactivated only from admin.html HR → Relieved Staff.
   const btn = document.getElementById('sm-suspend-btn');
-  const isActive = ['active','approved'].includes(s.status);
-  if (isActive) {
-    btn.innerHTML = `<select id="sm-status-change" style="padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;margin-right:6px">
+  const note = document.getElementById('sm-status-note');
+  if (note) note.remove();
+  const isActive = s.status === 'active' && !s.terminated_at;
+  const allowed = canActOnStaff(sess, s);
+  if (s.terminated_at) {
+    btn.style.display = 'none';
+    const n = document.createElement('span');
+    n.id = 'sm-status-note';
+    n.style.cssText = 'font-size:12px;color:var(--text-muted);margin-right:8px';
+    n.textContent = 'Relieved — reactivate from Admin → HR → Relieved Staff.';
+    btn.insertAdjacentElement('beforebegin', n);
+  } else if (!allowed) {
+    btn.style.display = 'none';
+  } else if (isActive) {
+    btn.innerHTML = `<select id="sm-status-change" aria-label="Change account status" style="padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;margin-right:6px;min-height:44px">
       <option value="">— Change status —</option>
       <option value="suspended">Suspend (temp block)</option>
       <option value="on_leave">Mark On Leave</option>
-      <option value="inactive">Mark Inactive</option>
       <option value="blocked">Block (permanent)</option>
     </select>`;
     btn.onclick = _applyStatusChange;
@@ -203,7 +219,7 @@ async function _applyStatusChange() {
   const sel = document.getElementById('sm-status-change');
   const newStatus = sel?.value;
   if (!newStatus) { _toast('Select a status to apply', 'error'); return; }
-  const labels = { suspended:'Suspend', on_leave:'Mark On Leave', inactive:'Mark Inactive', blocked:'Block' };
+  const labels = { suspended:'Suspend', on_leave:'Mark On Leave', blocked:'Block' };   // Session 351: Mark Inactive removed (use Relieve)
   if (!confirm(`${labels[newStatus] || 'Change status of'} ${_viewingStaff.full_name}?`)) return;
   const { error } = await _callSetStaffStatus(_viewingStaff.id, newStatus);
   // error here is already a safe, human-readable string straight from the Edge

@@ -563,7 +563,7 @@ tr:hover td{background:#fafff8}
           <button class="btn-outline hr-tab" data-sub="dept">🏥 Dept. Staff</button>
           <button class="btn-outline hr-tab" data-sub="decisions">⚖️ Approvals<span class="badge-count red" id="hr-tab-decisions-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="orgstaff">🏢 Organisation Staff<span class="badge-count" id="hr-tab-orgstaff-badge" style="display:none;margin-left:6px">0</span></button>
-          <button class="btn-outline hr-tab" data-sub="terminated">🚫 Terminated Staff<span class="badge-count" id="hr-tab-terminated-badge" style="display:none;margin-left:6px">0</span></button>
+          <button class="btn-outline hr-tab" data-sub="terminated">🚫 Relieved Staff<span class="badge-count" id="hr-tab-terminated-badge" style="display:none;margin-left:6px">0</span></button>
           <button class="btn-outline hr-tab" data-sub="leave" id="hr-tab-leave-btn" style="display:none">📅 Leave &amp; Holidays</button>
           <!-- Session 337 (TODO §132): Reg. No. / qualification verification lives on hr.html, not in these tabs -->
           <a class="btn-outline" id="hr-credentials-link" href="hr.html#credentials" style="text-decoration:none;display:inline-flex;align-items:center">🏅 Credentials (Reg. No.) ↗</a>
@@ -657,8 +657,8 @@ tr:hover td{background:#fafff8}
         <div id="org-staff-wrap"></div>
       </div>
 
-      <!-- Terminated Staff panel (Session 154) — the ONLY place terminated staff appear; they're
-           excluded from All Staff/Login Access/every headcount elsewhere in the HMS. -->
+      <!-- Relieved Staff panel (Session 154; renamed Session 351, TODO §233) — the ONLY place relieved staff (and the old
+           "Mark Inactive" accounts) appear; they're excluded from All Staff/Login Access/every headcount elsewhere in the HMS. -->
       <div id="hr-terminated-panel" style="display:none">
         <div id="terminated-staff-wrap"></div>
       </div>
@@ -1234,21 +1234,24 @@ tr:hover td{background:#fafff8}
   </div>
 </div>
 
-<!-- Session 154 -- Terminate modal (captures a required reason), used by the Organisation Staff tab and the NCISM Requirements/Staffing Plan "Who, and why?" banner -->
-<div id="terminate-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:14px;padding:24px;max-width:420px;width:100%;margin:16px">
+<!-- Session 154 / 351 (TODO §233) -- Relieve modal (a required reason type + reason), used by HR → All Staff and HR → Organisation Staff.
+     Only an active Super Admin, Medical Director or Medical Superintendent sees the button; the server decides (set-staff-status). -->
+<div id="terminate-modal" role="dialog" aria-modal="true" aria-labelledby="relieve-title" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:24px;max-width:440px;width:100%;margin:16px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <span style="font-weight:600;font-size:15px">Terminate Staff</span>
-      <button data-onclick="closeTerminateModal" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted)">&times;</button>
+      <span id="relieve-title" style="font-weight:600;font-size:15px">Relieve Staff</span>
+      <button data-onclick="closeTerminateModal" aria-label="Close" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted);min-width:44px;min-height:44px">&times;</button>
     </div>
     <div style="font-size:12.5px;color:var(--text-muted);margin-bottom:16px">
-      Terminating <strong id="terminate-staff-name"></strong>. This revokes their login and removes them from every staffing count in the HMS — they'll move to the Terminated Staff tab. Reversible any time from there (Reactivate).
+      Relieving <strong id="terminate-staff-name"></strong>. This locks their sign-in and removes them from every staffing count in the HMS — they'll move to the Relieved Staff tab. Reversible from there (Reactivate).
     </div>
     <input type="hidden" id="terminate-staff-id"/>
-    <label style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Reason for Termination <span style="font-weight:400;text-transform:none">(required)</span></label>
-    <textarea id="terminate-reason" rows="3" placeholder="e.g. Resigned, end of contract, disciplinary action…" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;box-sizing:border-box;resize:vertical"></textarea>
+    <label for="relieve-reason-type" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Reason type <span style="font-weight:400;text-transform:none">(required)</span></label>
+    <select id="relieve-reason-type" style="width:100%;min-height:44px;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;box-sizing:border-box;margin-bottom:12px;background:#fff"></select>
+    <label for="terminate-reason" style="font-size:11px;font-weight:600;color:var(--text-mid);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px">Reason <span style="font-weight:400;text-transform:none">(required)</span></label>
+    <textarea id="terminate-reason" rows="3" maxlength="500" placeholder="e.g. Resignation letter dated …, last working day …" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;box-sizing:border-box;resize:vertical"></textarea>
     <div style="display:flex;gap:10px;margin-top:16px">
-      <button data-onclick="submitTerminate" style="flex:1;height:44px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">Terminate</button>
+      <button id="relieve-submit-btn" data-onclick="submitTerminate" style="flex:1;height:44px;background:#c0392b;color:#fff;border:none;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">Relieve</button>
       <button data-onclick="closeTerminateModal" style="height:44px;padding:0 20px;border:1.5px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:13px">Cancel</button>
     </div>
   </div>
