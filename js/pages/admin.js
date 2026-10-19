@@ -9,7 +9,7 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { isNCISMType, NCISM_DEPTS, CLINICAL_CODES, UG_BED_RATIOS, ncismRequiredBeds, PK_THERAPY_ROOM_COUNT } from '../config/ncism.js';
 import { SUPABASE_URL, SESSION_KEYS } from '../config/constants.js';
-import { DESIGS, DESIG_MAP, DESIG_CATS } from '../config/designations.js';
+import { DESIGS, DESIG_MAP, DESIG_CATS, isPowerfulPosition } from '../config/designations.js';
 import { localDateStr, todayLocalStr, monthEndStr, todayISTStr, istMonthStr, istDayStartUTC, istDayEndUTC } from '../utils/dateUtils.js';
 import {
   NCISM_XX_ROWS, ORG_TREE_DEF, OPD_CHILD_NCISM_CODES,
@@ -767,7 +767,9 @@ window.loadStaffAccess = async function() {
   const deptName = id => (deptRows || []).find(d => d.id === id)?.name || 'a department';
   const viaInvite = new Set((invRows || []).map(i => i.joined_profile_id));
   const viewerIsSuper = profile?.role === 'super_admin';
-  const isElevated = r => ['super_admin', 'dept_admin'].includes(r.role) || !!r.secondary_role || !!r.has_monitoring_access;
+  // Session 350 (TODO §214 + owner addition A): also a powerful position (the server's single list) or a department scope
+  const isElevated = r => ['super_admin', 'dept_admin'].includes(r.role) || !!r.secondary_role || !!r.has_monitoring_access
+    || isPowerfulPosition(r.role, r.designation) || !!r.scope_department_id;
   const requested = r => [
     r.designation ? `Position: ${_esc(DESIG_MAP[r.designation]?.l || r.designation)}` : '',
     r.department_id ? `Department: ${_esc(deptName(r.department_id))}` : '',
@@ -789,7 +791,7 @@ window.loadStaffAccess = async function() {
       <td>${_relDate(r.created_at)}</td>
       <td>
         ${isElevated(r) && !viewerIsSuper
-          ? '<span style="font-size:11.5px;color:var(--text-muted)" title="Only the Super Admin can approve a request for Super Admin, Dept Admin, a second role or monitoring access.">Super Admin approves</span>'
+          ? '<span style="font-size:11.5px;color:var(--text-muted)" title="Only the Super Admin can approve a request for Super Admin, Dept Admin, a second role, monitoring access, a powerful position or a department scope.">Super Admin approves</span>'
           : `<button class="btn-approve" data-id="${r.id}">Approve</button>`}
         <button class="btn-reject"  data-id="${r.id}">Reject</button>
       </td>
@@ -2165,8 +2167,17 @@ function _effectiveRoleLabel(roleVal, desig){
 function _populatePinvRoleOptions(desig){
   const roleSel = document.getElementById('pinv-role-select');
   const defaultRole = DESIG_ROLE_DEFAULT[desig] || 'doctor';
-  roleSel.innerHTML = INVITE_ROLES.map(r=>'<option value="'+_esc(r)+'">'+_esc(_effectiveRoleLabel(r,desig))+'</option>').join('');
-  roleSel.value = INVITE_ROLES.includes(defaultRole) ? defaultRole : INVITE_ROLES[0];
+  // Session 350 (TODO §214): a Dept Admin cannot invite a powerful role -- shown, greyed out (the server refuses it anyway)
+  const viewerIsSuper = role === 'super_admin';
+  const roleLocked = r => !viewerIsSuper && isPowerfulPosition(r, null);
+  roleSel.replaceChildren(...INVITE_ROLES.map(r=>{
+    const o = document.createElement('option');
+    o.value = r;
+    o.disabled = roleLocked(r);
+    o.textContent = _effectiveRoleLabel(r,desig)+(roleLocked(r)?' (Super Admin only)':'');
+    return o;
+  }));
+  roleSel.value = INVITE_ROLES.includes(defaultRole) && !roleLocked(defaultRole) ? defaultRole : (INVITE_ROLES.find(r=>!roleLocked(r)) || INVITE_ROLES[0]);
   roleSel.disabled = false;
 
   // Secondary role -- optional, for designations that genuinely need two hats
@@ -2208,9 +2219,20 @@ window.openPositionInvite = function(idxStr){
   // Professor/HOD default to department-scoped (Session 120, Phase 3) --
   // admin as well as doctor of that OPD only, per Dr. Venkatesh's original ask.
   document.getElementById('pinv-deptscope-check').checked = ['professor','hod'].includes(desig);
+  // Session 350 (TODO §214 + owner addition A): a department scope (= HOD access) and a powerful position are given only by the
+  // Super Admin -- a Dept Admin sees why, and cannot generate that link
+  const viewerIsSuper = role === 'super_admin';
+  const scopeBox = document.getElementById('pinv-deptscope-check');
+  scopeBox.disabled = !viewerIsSuper;
+  if (!viewerIsSuper) scopeBox.checked = false;
+  const lockedPosition = !viewerIsSuper && isPowerfulPosition(null, desig);
+  const note = document.getElementById('pinv-super-note');
+  note.textContent = lockedPosition ? 'Only the Super Admin can invite for this position.'
+    : (!viewerIsSuper ? 'A department scope (My Department) is given only by the Super Admin.' : '');
+  note.style.display = note.textContent ? '' : 'none';
   document.getElementById('pinv-link-box').style.display = 'none';
   document.getElementById('pinv-form-fields').style.display = '';
-  document.getElementById('pinv-submit-btn').style.display = '';
+  document.getElementById('pinv-submit-btn').style.display = lockedPosition ? 'none' : '';
   document.getElementById('pinv-copy-btn').style.display = 'none';
   document.getElementById('position-invite-modal').style.display = 'flex';
 };
@@ -2810,9 +2832,12 @@ async function _renderDeptStaff() {
     // via the picker (restricted to the org's designated approvers, per
     // Dr. Venkatesh's explicit instruction).
     const canAssignDeptAdmin = role==='super_admin' || APEX_DESIGS.includes(profile?.designation);
+    // Session 350 (owner addition A): the Dept Admin picker sets the department SCOPE (= HOD access under rule D), which only an
+    // active Super Admin may change -- for Medical Director / Principal the database matched 0 rows while the page said "assigned"
+    const canAssignScope = role==='super_admin';
     const adminCell=(admin?badge(admin):emptyChip('Dept Admin'))
       +(adminIsAutoHod?'<span style="font-size:10.5px;color:var(--text-muted);margin-left:2px">(default — HOD)</span>':'')
-      +(canAssignDeptAdmin?_deptAdminPickerHtml(dept.id,domKey,pickerPool,explicitAdmin):'');
+      +(canAssignScope?_deptAdminPickerHtml(dept.id,domKey,pickerPool,explicitAdmin):'');
     rows+='<div style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f0f4f2">'
       +'<div style="min-width:120px;font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;padding-top:3px">Dept Admin</div>'
       +'<div style="flex:1">'+adminCell+'</div></div>';
@@ -3023,6 +3048,23 @@ window.filterStaff = function(){
   ));
 };
 
+// Session 350 (TODO §214): for a Dept Admin, grey out what only the Super Admin may change -- the whole row (own row, an admin, a
+// powerful position, another department) or the powerful options -- with the reason as the tooltip. A mirror of
+// dept_admin_update_designation(); the server decides (a scoped account's trainee <-> not change is refused there, with its reason).
+function _lockDesigSelect(sel, s){
+  if (role === 'super_admin') return;
+  const myScope = profile?.scope_department_id || null;
+  const why = s.id === profile?.id ? 'Only the Super Admin can change your own designation.'
+    : (['super_admin','dept_admin'].includes(s.role) || s.secondary_role === 'dept_admin') ? 'Only the Super Admin can change the designation of an admin.'
+    : isPowerfulPosition(s.role, s.designation) ? 'Only the Super Admin can give or remove this position.'
+    : (myScope && s.department_id !== myScope) ? 'A Dept Admin can change designations only in their own department.'
+    : '';
+  if (why) { sel.disabled = true; sel.title = why; sel.setAttribute('aria-label', 'Designation (locked): ' + why); return; }
+  sel.querySelectorAll('option').forEach(o=>{
+    if (o.value && isPowerfulPosition(null, o.value)) { o.disabled = true; o.textContent = o.textContent + ' (Super Admin only)'; }
+  });
+}
+
 function renderStaffTable(staff){
   const tbody=document.getElementById('staff-tbody');
   if(!staff.length){tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-ico">👥</div><div class="empty-ttl">No staff found</div></div></td></tr>`;return;}
@@ -3084,6 +3126,7 @@ function renderStaffTable(staff){
   staff.forEach(s=>{
     const desigSel=tbody.querySelector(`select.desig-sel[data-id="${s.id}"]`);
     if(desigSel&&s.designation)desigSel.value=s.designation;
+    if(desigSel) _lockDesigSelect(desigSel, s);
     const deptSel=tbody.querySelector(`select.dept-sel[data-id="${s.id}"]`);
     if(deptSel&&s.department_id)deptSel.value=s.department_id;
   });
@@ -3138,10 +3181,13 @@ window.revokeMonitoringAccess = async function(staffId, staffName){
 // keeps this a 1-click action matching their existing department assignment.
 // Grants a dept-admin.html landing (read-only snapshot + roster editing for
 // that one department only, via the hod_* RPCs -- never org-wide access).
+const SCOPE_SUPER_ONLY = 'Only the Super Admin can change a department scope (My Department).';
 window.scopeToDepartment = async function(staffId, staffName, deptId){
   if(!confirm(`Scope ${staffName} to their department only? They'll get a department dashboard + roster editing limited to it -- no other department, no org-wide admin.`)) return;
-  const {error} = await supabase.from('profiles').update({scope_department_id:deptId}).eq('id',staffId).eq('tenant_id',tenantId);
+  // Session 350 (owner addition A): only an active Super Admin may change a department scope -- 0 rows changed = refused
+  const {data:scoped, error} = await supabase.from('profiles').update({scope_department_id:deptId}).eq('id',staffId).eq('tenant_id',tenantId).select('id');
   if(error){ _toast(safeErrorMessage(error,'Could not update.'), true); return; }
+  if(!scoped?.length){ _toast(SCOPE_SUPER_ONLY, true); return; }
   await logAudit('scope_to_department', 'profiles', staffId, {staff_name: staffName, department_id: deptId}, {tenantId, userId: profile.id, userName: profile.full_name});
   _toast('Department scope granted to '+staffName+'.');
   window.loadHR && window.loadHR('staff');
@@ -3149,8 +3195,10 @@ window.scopeToDepartment = async function(staffId, staffName, deptId){
 
 window.unscopeFromDepartment = async function(staffId, staffName){
   if(!confirm(`Remove department scope from ${staffName}?`)) return;
-  const {error} = await supabase.from('profiles').update({scope_department_id:null}).eq('id',staffId).eq('tenant_id',tenantId);
+  // Session 350 (owner addition A): only an active Super Admin may change a department scope -- 0 rows changed = refused
+  const {data:unscoped, error} = await supabase.from('profiles').update({scope_department_id:null}).eq('id',staffId).eq('tenant_id',tenantId).select('id');
   if(error){ _toast(safeErrorMessage(error,'Could not update.'), true); return; }
+  if(!unscoped?.length){ _toast(SCOPE_SUPER_ONLY, true); return; }
   await logAudit('unscope_from_department', 'profiles', staffId, {staff_name: staffName}, {tenantId, userId: profile.id, userName: profile.full_name});
   _toast('Department scope removed from '+staffName+'.');
   window.loadHR && window.loadHR('staff');
@@ -3182,8 +3230,10 @@ window.assignDeptAdminFromCard = async function(deptId, selId){
   // since-fixed display bug).
   const {error: clearErr} = await supabase.from('profiles').update({scope_department_id:null}).eq('tenant_id',tenantId).eq('scope_department_id',deptId).neq('id',staffId);
   if(clearErr){ _toast(safeErrorMessage(clearErr,'Could not update.'), true); return; }
-  const {error} = await supabase.from('profiles').update({scope_department_id:deptId}).eq('id',staffId).eq('tenant_id',tenantId);
+  // Session 350 (owner addition A): only an active Super Admin may change a department scope -- 0 rows changed = refused
+  const {data:assigned, error} = await supabase.from('profiles').update({scope_department_id:deptId}).eq('id',staffId).eq('tenant_id',tenantId).select('id');
   if(error){ _toast(safeErrorMessage(error,'Could not assign Dept Admin.'), true); return; }
+  if(!assigned?.length){ _toast(SCOPE_SUPER_ONLY, true); return; }
   await logAudit('assign_dept_admin_via_card', 'profiles', staffId, {department_id: deptId, staff_name: staffName}, {tenantId, userId: profile.id, userName: profile.full_name});
   _toast(staffName+' assigned as Dept Admin.');
   window.loadHR && window.loadHR('dept');
@@ -3191,8 +3241,10 @@ window.assignDeptAdminFromCard = async function(deptId, selId){
 
 window.resetDeptAdminToDefault = async function(staffId, staffName){
   if(!confirm(`Remove ${staffName}'s explicit Dept Admin assignment? A clinical department falls back to its HOD/Professor automatically; a non-clinical one will show as unassigned again.`)) return;
-  const {error} = await supabase.from('profiles').update({scope_department_id:null}).eq('id',staffId).eq('tenant_id',tenantId);
+  // Session 350 (owner addition A): only an active Super Admin may change a department scope -- 0 rows changed = refused
+  const {data:reset, error} = await supabase.from('profiles').update({scope_department_id:null}).eq('id',staffId).eq('tenant_id',tenantId).select('id');
   if(error){ _toast(safeErrorMessage(error,'Could not update.'), true); return; }
+  if(!reset?.length){ _toast(SCOPE_SUPER_ONLY, true); return; }
   await logAudit('reset_dept_admin_to_default', 'profiles', staffId, {staff_name: staffName}, {tenantId, userId: profile.id, userName: profile.full_name});
   _toast('Reset to default for '+staffName+'.');
   window.loadHR && window.loadHR('dept');
@@ -3260,12 +3312,42 @@ window.deleteRejectedStaff = async function(staffId, staffName){
 // role='super_admin' -- profiles' UPDATE RLS only ever allowed self-edit or
 // super_admin. Routed through a SECURITY DEFINER RPC that properly accepts
 // primary OR secondary dept_admin instead.
-window.saveDesig = async function(sel){
-  const id=sel.dataset.id, val=sel.value;
-  const{error}=await supabase.rpc('dept_admin_update_designation', {p_staff_id:id, p_designation:val||null});
-  if(error)_toast(safeErrorMessage(error,'Could not save designation.'),true);
-  else{_toast('Designation updated.');const s=(window._staffAll||[]).find(x=>x.id===id);if(s)s.designation=val||null;}
+// Session 350 (TODO §214, owner Q6): the dropdown no longer saves on change -- an in-page "Save designation?" panel shows
+// old -> new first; Save writes, Cancel (or Esc) puts the old value back with no call at all. The server decides who may make
+// the change; the profiles audit trigger records it (old, new, who, when).
+let _desigPending = null;
+const _desigLabel = v => v ? (DESIG_MAP[v]?.l || v) : '— Not Set —';
+window.saveDesig = function(sel){
+  const id = sel.dataset.id;
+  const s = (window._staffAll||[]).find(x=>x.id===id);
+  const oldVal = s?.designation || '';
+  const newVal = sel.value;
+  if (newVal === oldVal) return;
+  _desigPending = { sel, id, oldVal, newVal };
+  document.getElementById('desig-confirm-name').textContent = s?.full_name || 'this staff member';
+  document.getElementById('desig-confirm-old').textContent = _desigLabel(oldVal);
+  document.getElementById('desig-confirm-new').textContent = _desigLabel(newVal);
+  document.getElementById('desig-confirm-modal').style.display = 'flex';
+  document.getElementById('desig-confirm-save').focus();
 };
+function _closeDesigConfirm(revert){
+  const p = _desigPending; _desigPending = null;
+  document.getElementById('desig-confirm-modal').style.display = 'none';
+  if (p && revert) p.sel.value = p.oldVal;
+  if (p) p.sel.focus();
+}
+window.cancelDesigSave = function(){ _closeDesigConfirm(true); };
+window.confirmDesigSave = async function(){
+  const p = _desigPending; if (!p) return;
+  const btn = document.getElementById('desig-confirm-save'); btn.disabled = true;
+  const { error } = await supabase.rpc('dept_admin_update_designation', { p_staff_id: p.id, p_designation: p.newVal || null });
+  btn.disabled = false;
+  if (error) { _toast(safeErrorMessage(error, 'Could not save designation.'), true); _closeDesigConfirm(true); return; }
+  const s = (window._staffAll||[]).find(x=>x.id===p.id); if (s) s.designation = p.newVal || null;
+  _closeDesigConfirm(false);
+  _toast('Designation updated.');
+};
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && _desigPending) window.cancelDesigSave(); });
 
 // Session 133 -- the department column was previously plain read-only text; the only
 // way to set it at all was via signup/invite time. Surfaced by the Medical/Surgical

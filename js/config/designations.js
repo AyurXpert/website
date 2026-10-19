@@ -124,3 +124,16 @@ export const ROLE_DUTY_FALLBACK = {
   diet_staff:      'Ayurvedic Pathya-Apathya diet planning and kitchen indent fulfilment.',
   mrd_staff:       'Medical records filing, retrieval and MLC register upkeep.',
 };
+
+// Session 350 (TODO §214): a DISPLAY copy of the server's single list _is_powerful_position()
+// (sql/session350_hod_gate_and_designation_rights.sql) -- roles / designations that give a power by
+// themselves, so only the Super Admin gives or removes them. The server decides; this copy only
+// greys out what a Dept Admin cannot choose. Change both together (scripts/check-350-lists.mjs
+// compares them).
+export const POWERFUL_ROLES = ['super_admin', 'dept_admin', 'finance_manager', 'nurse_manager'];
+export const POWERFUL_DESIGS = ['medical_director', 'principal', 'medical_superintendent', 'deputy_medical_superintendent',
+  'nursing_superintendent', 'deputy_nursing_superintendent', 'pk_incharge', 'finance_manager'];
+export function isPowerfulPosition(role, designation) {
+  const norm = v => String(v ?? '').trim().toLowerCase();
+  return POWERFUL_ROLES.includes(norm(role)) || POWERFUL_DESIGS.includes(norm(designation));
+}

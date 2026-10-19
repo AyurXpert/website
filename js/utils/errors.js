@@ -290,6 +290,18 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 350 (TODO §214 + owner addition A): designations (dept_admin_update_designation), invites and the approval -- who may give
+  // a powerful position or a department scope; the server's plain refusals, which one it is decides what the person does next
+  const DESIG_RIGHTS_MSGS = ['You cannot change your own designation', 'Only the Super Admin can change the designation of an admin',
+    'Only the Super Admin can give or remove this position', 'Only the Super Admin can make this change',
+    'A Dept Admin can change designations only in their own department', 'Only the Super Admin can give a department scope',
+    'Only the Super Admin can create an invite for', 'Only the Super Admin can approve a request for',
+    'You cannot reactivate your own account', 'This account has not been approved yet', 'Only the Super Admin can reactivate',
+    'A Dept Admin can reactivate only staff of their own department'];
+  if (error?.code === 'P0001' && DESIG_RIGHTS_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // Session 348 (TODO §209 / §211 / §212): OPD Management (opd_doctor_*) and the HOD functions (hod_*) -- the server's plain refusals;
   // who may change an OPD's doctors / which department / which organisation decides what the person does next
   const OPD_DOCTOR_MSGS = ["Only an active super admin, or the department admin (HOD) of this OPD's department, can change its doctors",

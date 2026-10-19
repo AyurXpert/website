@@ -4,6 +4,7 @@
 import { getCurrentProfile, getCurrentTenant, getCurrentRole, getCurrentSecondaryRole, getCurrentHasMonitoringAccess, logout, hasModule } from '../core/auth.js';
 import { DESIG_MAP, ROLE_DUTY_FALLBACK } from '../config/designations.js';
 import { escapeHtml } from '../utils/validators.js';
+import { isRuleDHod } from '../utils/hodAccess.js';   // Session 350 (TODO §231): "My Department" = rule D
 import { tenantTypeLabel } from '../utils/tenantTypeLabel.js';   // TODO §140: shared with admin.js
 
 export function initNavbar() {
@@ -12,7 +13,7 @@ export function initNavbar() {
   const role    = getCurrentRole();
   const secondaryRole = getCurrentSecondaryRole();
   const hasMonitoringAccess = getCurrentHasMonitoringAccess();
-  const isDeptScoped = !!profile?.scope_department_id;
+  const isDeptScoped = isRuleDHod(profile);   // Session 350 (TODO §231): was any department scope -- now rule D, as the server
   const designation = profile?.designation || null;
   if (!profile || !tenant) return;
   _injectStyles();

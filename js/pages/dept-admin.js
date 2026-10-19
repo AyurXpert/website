@@ -16,22 +16,30 @@ import { isNCISMType, UG_BED_RATIOS } from '../config/ncism.js';
 import { ROLE_HOME } from '../config/constants.js';
 import { localDateStr, todayLocalStr, istDayStartUTC, istDayEndUTC } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { isRuleDHod } from '../utils/hodAccess.js';
 
-// Session 137: widened from doctor-only to any active staff member -- access
-// is gated purely by scope_department_id below, not by primary role. This lets
-// a non-clinical Dept Admin (Finance Manager, Front-Office Supervisor, etc.)
-// use the exact same scoped dashboard a clinical HOD already used, instead of
-// needing the much broader secondary_role='dept_admin' org-wide grant.
+// Session 137 widened this from doctor-only to any active staff member with a
+// department scope. Session 350 (TODO §231): the page now follows rule D exactly,
+// the same test as the server's HOD functions -- an active super_admin / dept_admin
+// with a scope, or a scoped doctor who is not a trainee (isRuleDHod below, then the
+// server's my_hod_department_ok()). requireAuth([]) still admits any active role.
 await requireAuth([]);
 initNavbar();
 wireDelegatedEvents();
 
 const profile  = getCurrentProfile();
 const tenantId = getCurrentTenantId();
-const deptId   = profile?.scope_department_id || null;
+// Session 350 (TODO §231): rule D -- the quick check first (no scope / a trainee / a
+// scoped accountant leave at once), then the server's answer for the caller's own scope
+let _hodOk = isRuleDHod(profile);
+if (_hodOk) {
+  const { data: hodOk, error: hodErr } = await supabase.rpc('my_hod_department_ok');
+  _hodOk = !hodErr && hodOk === true;
+}
+const deptId   = _hodOk ? (profile?.scope_department_id || null) : null;
 
 if (!deptId) {
-  // Not actually scoped -- this page is meaningless without it.
+  // Not an HOD under rule D -- back to this account's own home page.
   window.location.replace(ROLE_HOME[profile?.role] || 'index.html');
 }
 
