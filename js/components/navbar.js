@@ -395,7 +395,8 @@ function _injectAdminSidebarOverlay(tenant, profile, role) {
     { ico:'👥', label:'Human Resources',  href:'admin.html#hr' },
     // Session 337 (TODO §132): hr.html (Credentials = Reg. No. verification) had no rail link -- the two
     // "HR" places were being confused. Same module gate as the top navbar's HR item.
-    { ico:'🏅', label:'HR & Credentials', href:'hr.html#credentials', module:'hr' },
+    // Session 352 (owner 19 Oct): opens the staff list (Staff Directory → View Profile); 🏅 Credentials is a tab on the same page.
+    { ico:'🏅', label:'HR & Credentials', href:'hr.html', module:'hr' },
     { ico:'🏥', label:'Departments',      href:'admin.html#departments' },
     { ico:'🏗️', label:'Infrastructure',   href:'admin.html#infrastructure' },
     { group:'Account' },

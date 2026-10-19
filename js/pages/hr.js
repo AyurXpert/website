@@ -8,6 +8,8 @@ import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { localDateStr, todayLocalStr, istMonthStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 import { canActOnStaff } from '../utils/staffActions.js';   // Session 351 (TODO §233): who sees the account actions (display only)
+// Session 352: the statuses "Reactivate Staff" applies to (never an active or a relieved account -- relieved: admin.html Relieved Staff)
+const _REACTIVATABLE = ['suspended', 'on_leave', 'inactive', 'blocked'];
 
 const ALLOWED = ['super_admin','dept_admin'];
 await requireAuth(ALLOWED);
@@ -156,39 +158,26 @@ window.openStaffModal = function(id) {
   // Superintendent; an admin, a senior position or a department-scoped account: the Super Admin only (the server decides through the
   // set-staff-status Edge Function; this only hides what the viewer may not do). "Mark Inactive" is gone (Relieve, with a reason, on
   // admin.html HR → All Staff). A relieved account is reactivated only from admin.html HR → Relieved Staff.
-  const btn = document.getElementById('sm-suspend-btn');
+  // Session 352: three separate footer elements (hr.html), shown / hidden only -- each keeps its ONE data-onclick handler.
   const note = document.getElementById('sm-status-note');
-  if (note) note.remove();
+  const changeWrap = document.getElementById('sm-status-change-wrap');
+  const reactivateBtn = document.getElementById('sm-reactivate-btn');
+  note.style.display = 'none';
+  note.textContent = '';
+  changeWrap.style.display = 'none';
+  reactivateBtn.style.display = 'none';
+  document.getElementById('sm-status-change').value = '';
   const isActive = s.status === 'active' && !s.terminated_at;
   const allowed = canActOnStaff(sess, s);
   if (s.terminated_at) {
-    btn.style.display = 'none';
-    const n = document.createElement('span');
-    n.id = 'sm-status-note';
-    n.style.cssText = 'font-size:12px;color:var(--text-muted);margin-right:8px';
-    n.textContent = 'Relieved — reactivate from Admin → HR → Relieved Staff.';
-    btn.insertAdjacentElement('beforebegin', n);
+    note.textContent = 'Relieved — reactivate from Admin → HR → Relieved Staff.';
+    note.style.display = '';
   } else if (!allowed) {
-    btn.style.display = 'none';
+    // no status action for this viewer
   } else if (isActive) {
-    btn.innerHTML = `<select id="sm-status-change" aria-label="Change account status" style="padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;margin-right:6px;min-height:44px">
-      <option value="">— Change status —</option>
-      <option value="suspended">Suspend (temp block)</option>
-      <option value="on_leave">Mark On Leave</option>
-      <option value="blocked">Block (permanent)</option>
-    </select>`;
-    btn.onclick = _applyStatusChange;
-    btn.style.display = '';
-    btn.style.background = 'none';
-    btn.style.border = 'none';
-    btn.style.padding = '0';
-  } else if (['suspended','on_leave','inactive','blocked'].includes(s.status)) {
-    btn.textContent = 'Reactivate Staff';
-    btn.style.cssText = '';
-    btn.onclick = toggleSuspend;
-    btn.style.display = '';
-  } else {
-    btn.style.display = 'none';
+    changeWrap.style.display = 'inline-flex';
+  } else if (_REACTIVATABLE.includes(s.status)) {
+    reactivateBtn.style.display = '';
   }
   document.getElementById('staff-modal').classList.add('show');
 };
@@ -215,7 +204,8 @@ async function _callSetStaffStatus(targetUserId, newStatus) {
   return { success: true };
 }
 
-async function _applyStatusChange() {
+window.applyStatusChange = async function() {
+  if (!_viewingStaff) return;
   const sel = document.getElementById('sm-status-change');
   const newStatus = sel?.value;
   if (!newStatus) { _toast('Select a status to apply', 'error'); return; }
@@ -231,10 +221,11 @@ async function _applyStatusChange() {
   closeStaffModal();
   await loadStaff();
   _toast(`${_viewingStaff.full_name} — status set to ${newStatus.replace(/_/g,' ')}`, 'success');
-}
+};
 
 window.toggleSuspend = async function() {
   if (!_viewingStaff) return;
+  if (_viewingStaff.terminated_at || !_REACTIVATABLE.includes(_viewingStaff.status)) return;   // Session 352: never on an active / relieved account
   if (!confirm(`Reactivate ${_viewingStaff.full_name}?`)) return;
   const { error } = await _callSetStaffStatus(_viewingStaff.id, 'active');
   if (error) { _toast(error, 'error'); return; }
