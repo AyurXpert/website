@@ -639,6 +639,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   font-family:inherit;outline:none;width:100%;box-sizing:border-box
 }
 .qe-field select:focus,.qe-field input:focus{border-color:var(--green-mid)}
+.qe-note{font-size:12px;color:var(--text-muted);margin:0 0 10px;line-height:1.4}
+.qe-field select:disabled{background:var(--cream);color:var(--text-muted)}
 .qe-actions{display:flex;gap:10px;margin-top:14px}
 .qe-save{flex:1;background:var(--green-deep);color:var(--white);border:none;
   border-radius:10px;padding:11px;font-size:14px;font-weight:600;cursor:pointer}
@@ -788,6 +790,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
    css/print.css) as its own document. The old hide-list here printed the whole screen. */
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
+<link rel="stylesheet" href="css/correct-patient.css"/>
 <link rel="stylesheet" href="css/credit-notes.css"/>
 <link rel="stylesheet" href="css/print.css"/>
 </head>
@@ -847,6 +850,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
             </div>
             <div id="pt-prakriti" class="pt-prakriti none" style="display:none"></div>
             <div id="pt-bills"></div>
+            <button id="btn-correct-patient" type="button" class="cpd-open-btn" hidden>✎ Correct patient details</button>
             <button id="btn-diff-family" type="button" class="pt-family-btn">+ Different family member with same number</button>
           </div>
         </div>
@@ -1653,6 +1657,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         </select>
       </div>
     </div>
+    <p class="qe-note" id="qe-note" aria-live="polite"></p>
     <div class="qe-field" style="margin-bottom:0">
       <label>Chief Complaint</label>
       <input id="qe-complaint" type="text" placeholder="Chief complaint / reason for visit">

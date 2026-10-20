@@ -8,6 +8,7 @@ import { logAudit } from '../core/auditLogger.js';
 import { localDateStr, todayLocalStr, istMonthStr } from '../utils/dateUtils.js';
 import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
+import { canCorrectPatient, openCorrectPatientDetails } from '../modules/patient/correctPatientDetails.js';
 
 const ALLOWED = ['super_admin','dept_admin','mrd_staff'];
 await requireAuth(ALLOWED);
@@ -133,6 +134,7 @@ window.openPatientFile = async function(patientId) {
       <div style="flex:1">
         <div class="pf-name">${_esc(pat.name)}</div>
         <div class="pf-sub">UHID: ${_esc(uhidOf(pat))} &nbsp;·&nbsp; Registered: ${joined}</div>
+        ${canCorrectPatient(profile, pat) ? `<button type="button" class="cpd-open-btn" style="margin-top:8px" data-onclick="openCorrectPatient" data-onclick-a0="${pat.id}">✎ Correct patient details</button>` : ''}
       </div>
       <div style="text-align:right">
         <div style="font-size:20px;font-weight:700;font-family:'Cormorant Garamond',serif">${(visits||[]).length}</div>
@@ -189,6 +191,15 @@ window.openPatientFile = async function(patientId) {
         </div>
       </div>
     </div>`;
+};
+
+// Session 353C (TODO §216, D11): "Correct patient details" -- MRD / the Super Admin, with a reason, audited (patient_change_log)
+window.openCorrectPatient = async function(patientId) {
+  const { data: row, error } = await supabase.from('patients')
+    .select('id, uhid, name, phone, gender, date_of_birth, age, blood_group, address, has_allergies, abha_number, created_at')
+    .eq('id', patientId).eq('tenant_id', tenantId).single();
+  if (error || !row) { _toast(safeErrorMessage(error, 'Could not load the patient.'), 'error'); return; }
+  openCorrectPatientDetails({ supabase, patient: row, uhidText: uhidOf(row), notify, onSaved: () => window.openPatientFile(patientId) });
 };
 
 window.loadVisitDetail = async function(visitId, patientId, el) {

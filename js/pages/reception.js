@@ -17,6 +17,7 @@ import { renderPromoBanner } from '../components/promoBanner.js';
 import { getOpdWorkflow, screeningOpdId } from '../modules/opd/screeningOpd.js';
 import { localDateStr, todayLocalStr, todayISTStr, istDayStartUTC } from '../utils/dateUtils.js';
 import { uhidOf } from '../utils/uhid.js';
+import { canCorrectPatient, openCorrectPatientDetails } from '../modules/patient/correctPatientDetails.js';
 import { notify, dismissNotify } from '../components/notify.js';
 import { printDocument } from '../utils/printDocument.js';
 import {
@@ -874,7 +875,7 @@ async function _searchPhone(phone) {
   _confirmNewDespiteName = false;
   const { data } = await supabase
     .from('patients')
-    .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
+    .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at, created_at')
     .eq('tenant_id', tenantId)
     .eq('phone', phone)
     .limit(6);
@@ -896,7 +897,7 @@ async function _searchName(query) {
   _confirmNewDespiteName = false;
   const { data } = await supabase
     .from('patients')
-    .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
+    .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at, created_at')
     .eq('tenant_id', tenantId)
     .ilike('name', `%${query}%`)
     .limit(8);
@@ -982,6 +983,8 @@ async function _selectPatient(patient, chosenCombo) {
 
   document.getElementById('pt-name').textContent = patient.name;
   document.getElementById('pt-uhid').textContent = uhidOf(patient);
+  // Session 353C (D11): MRD / the Super Admin always; reception only on the registration day (the server decides)
+  document.getElementById('btn-correct-patient').hidden = !canCorrectPatient(profile, patient);
   document.getElementById('pt-visits').textContent = count || 0;
   document.getElementById('pt-lastvisit').textContent = lastVisit;
   document.getElementById('pt-balance').textContent = balance > 0 ? `₹${balance.toLocaleString('en-IN')}` : '₹0';
@@ -1489,6 +1492,30 @@ function _startNewFamilyMember() {
 }
 
 document.getElementById('btn-diff-family').addEventListener('click', _startNewFamilyMember);
+
+// Session 353C (TODO §216, D11): "Correct patient details" -- the only way to change a recorded name / phone / demographics
+document.getElementById('btn-correct-patient').addEventListener('click', async () => {
+  if (!_patient?.id) return;
+  const { data: row, error } = await supabase.from('patients')
+    .select('id, uhid, name, phone, gender, date_of_birth, age, blood_group, address, has_allergies, abha_number, created_at')
+    .eq('id', _patient.id).single();
+  if (error || !row) { _alert('error', safeErrorMessage(error, 'Could not load the patient.')); return; }
+  openCorrectPatientDetails({
+    supabase, patient: row, uhidText: uhidOf(row), notify,
+    onSaved: saved => {
+      Object.assign(_patient, saved);
+      document.getElementById('pt-name').textContent = _patient.name;
+      if ('name' in saved) document.getElementById('name').value = _patient.name;
+      if ('phone' in saved && _patient.phone) document.getElementById('phone').value = _patient.phone;
+      if ('age' in saved) document.getElementById('f-age').value = _patient.age ?? '';
+      if ('gender' in saved) document.getElementById('f-gender').value = _patient.gender || '';
+      if ('date_of_birth' in saved) document.getElementById('f-dob').value = _patient.date_of_birth || '';
+      if ('blood_group' in saved) document.getElementById('f-blood').value = _patient.blood_group || '';
+      const gLabel = { M: 'Male', F: 'Female', other: 'Other', male: 'Male', female: 'Female' }[_patient.gender] || '—';
+      document.getElementById('pt-demog').textContent = _patient.age ? `${_patient.age} yrs · ${gLabel}` : (_patient.gender ? gLabel : '—');
+    },
+  });
+});
 
 window.togglePkgUse = function() {
   const checked = document.getElementById('pkg-use-chk').checked;
@@ -2262,7 +2289,7 @@ async function loadQueue() {
       <div class="q-right">
         <span class="q-time">${t}</span>
         <span class="q-wait">${wait}</span>
-        <button class="q-edit-btn" data-visit-id="${v.id}" data-doctor-id="${v.doctor_id || ''}" data-complaint="${_esc(v.chief_complaint || '')}" data-category="${v.visit_category || 'opd'}" title="Edit this queue entry" type="button">✎</button>
+        <button class="q-edit-btn" data-visit-id="${v.id}" data-doctor-id="${v.doctor_id || ''}" data-complaint="${_esc(v.chief_complaint || '')}" data-category="${v.visit_category || 'opd'}" data-opd-id="${v.opd_id || ''}" data-status="${_esc(v.status || '')}" title="Edit this queue entry" type="button">✎</button>
       </div>
     </div>`;
   }).join('');
@@ -2271,34 +2298,56 @@ async function loadQueue() {
   list.querySelectorAll('.q-edit-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      _openQueueEdit(btn.dataset.visitId, btn.dataset.doctorId, btn.dataset.complaint, btn.dataset.category);
+      _openQueueEdit(btn.dataset.visitId, btn.dataset.doctorId, btn.dataset.complaint, btn.dataset.category, btn.dataset.opdId, btn.dataset.status);
     });
   });
 }
 
 // ── Queue Edit ────────────────────────────────────
-async function _openQueueEdit(visitId, doctorId, complaint, category) {
+// Session 353C (F-347-1, owner D13): before the consultation starts, the doctor can be changed only to a doctor ON DUTY TODAY in
+// this visit's OPD (the server refuses anything else) -- so a Screening-OPD visit is never given a specialty doctor here. Once the
+// consultation has started, only the complaint can be changed.
+let _qeEditable = true;
+async function _openQueueEdit(visitId, doctorId, complaint, category, opdId, status) {
   document.getElementById('qe-visit-id').value   = visitId;
   document.getElementById('qe-complaint').value  = complaint || '';
   document.getElementById('qe-category').value   = category  || 'opd';
+  _qeEditable = status === 'waiting';
 
-  // Load all active doctors for this tenant
-  const sel = document.getElementById('qe-doctor');
+  const sel  = document.getElementById('qe-doctor');
+  const note = document.getElementById('qe-note');
   sel.innerHTML = '<option value="">— No preference —</option>';
-  const { data: docs } = await supabase
-    .from('profiles')
-    .select('id, full_name')
-    .eq('tenant_id', tenantId)
-    .eq('role', 'doctor')
-    .eq('status', 'active')
-    .order('full_name');
+  let ids = [];
+  if (_qeEditable && opdId) {
+    const { data: onDuty } = await supabase.from('opd_doctors').select('doctor_id')
+      .eq('tenant_id', tenantId).eq('opd_id', opdId).eq('is_active_today', true);
+    ids = (onDuty || []).map(d => d.doctor_id);
+  }
+  const { data: docs } = ids.length
+    ? await supabase.from('profiles').select('id, full_name').eq('tenant_id', tenantId).eq('status', 'active').in('id', ids).order('full_name')
+    : { data: [] };
   (docs || []).forEach(d => {
     const o = document.createElement('option');
     o.value = d.id;
     o.textContent = d.full_name || 'Doctor';
-    if (d.id === doctorId) o.selected = true;
     sel.appendChild(o);
   });
+  // the visit's current doctor stays selectable as it is (an unchanged doctor is never refused)
+  if (doctorId && !(docs || []).some(d => d.id === doctorId)) {
+    const o = document.createElement('option');
+    o.value = doctorId;
+    o.textContent = (_doctorMap[doctorId] || 'Doctor') + ' (current)';
+    sel.appendChild(o);
+  }
+  sel.value = doctorId || '';
+  sel.disabled = !_qeEditable;
+  document.getElementById('qe-category').disabled = !_qeEditable;
+
+  let msg = '';
+  if (!_qeEditable) msg = 'The consultation has started — only the complaint can be changed.';
+  else if (opdId && opdId === _screeningOpdId) msg = 'This visit is in the Screening OPD — the specialty doctor is chosen at the Screening desk. Only doctors on duty today in the Screening OPD are listed.';
+  else msg = "Only doctors on duty today in this visit's OPD are listed.";
+  note.textContent = msg;
 
   document.getElementById('queue-edit-modal').classList.add('open');
 }
@@ -2317,11 +2366,9 @@ async function _saveQueueEdit() {
   btn.disabled = true;
   btn.textContent = 'Saving…';
 
-  const { error } = await supabase.from('visits').update({
-    doctor_id:      doctorId,
-    chief_complaint: complaint || null,
-    visit_category: category,
-  }).eq('id', visitId);
+  const upd = { chief_complaint: complaint || null };
+  if (_qeEditable) { upd.doctor_id = doctorId; upd.visit_category = category; }
+  const { error } = await supabase.from('visits').update(upd).eq('id', visitId);
 
   btn.disabled = false;
   btn.textContent = 'Save Changes';
@@ -5176,7 +5223,7 @@ async function checkIn(apptId) {
 
   const { data: patient } = await supabase
     .from('patients')
-    .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at')
+    .select('id, uhid, name, abha_number, abha_address, age, gender, date_of_birth, blood_group, phone, prakriti_data, prakriti_assessed_at, created_at')
     .eq('id', appt.patient_id).single();
 
   if (patient) {

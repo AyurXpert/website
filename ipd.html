@@ -424,7 +424,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
         <div class="field-row">
           <div class="field">
             <label>Admission Date <span class="req">*</span></label>
-            <input id="adm-date" type="date"/>
+            <input id="adm-date" type="date" aria-describedby="adm-date-note"/>
+            <div id="adm-date-note" class="field-note" style="font-size:12px;color:var(--text-muted);margin-top:4px" aria-live="polite"></div>
           </div>
           <div class="field">
             <label>Diet Type</label>
@@ -438,6 +439,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
               <option value="nil_by_mouth">Nil by Mouth</option>
             </select>
           </div>
+        </div>
+
+        <div class="field" id="adm-late-row" hidden>
+          <label for="adm-late-reason">Reason for the late entry <span class="req">*</span></label>
+          <textarea id="adm-late-reason" maxlength="500" placeholder="Why is this admission being entered more than 3 days after the admission date?"></textarea>
         </div>
 
         <div class="field">

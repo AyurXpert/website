@@ -1,0 +1,27 @@
+/* "Correct patient details" panel (Session 353C, js/modules/patient/correctPatientDetails.js) -- reception.html + mrd.html */
+.cpd-overlay{position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px}
+.cpd-panel{background:#fff;border-radius:14px;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;padding:22px 22px 18px;
+  box-shadow:0 8px 40px rgba(0,0,0,.25);font-family:'DM Sans',sans-serif;color:var(--text-dark,#1c2b22)}
+.cpd-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green-deep,#1a4a2e);margin:0 0 2px}
+.cpd-sub{font-size:13px;font-weight:600;color:var(--text-mid,#3d5446);margin:0 0 6px}
+.cpd-help{font-size:12px;color:var(--text-muted,#5f6f66);margin:0 0 14px;line-height:1.45}
+.cpd-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cpd-field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.cpd-field label{font-size:12px;font-weight:500;color:var(--text-muted,#5f6f66)}
+.cpd-field input,.cpd-field select,.cpd-field textarea{border:1px solid var(--border,#d8e2dc);border-radius:8px;padding:9px 10px;font-size:14px;
+  font-family:inherit;min-height:44px;box-sizing:border-box;width:100%;background:#fff}
+.cpd-field textarea{min-height:60px;resize:vertical}
+.cpd-field input:focus,.cpd-field select:focus,.cpd-field textarea:focus{outline:2px solid var(--gold,#c9902a);outline-offset:1px}
+.cpd-check{display:flex;align-items:center;gap:10px;margin:2px 0 10px;font-size:13px}
+.cpd-check input{width:20px;height:20px;accent-color:var(--green-deep,#1a4a2e)}
+.cpd-warn{background:var(--cream,#faf8f3);border:1px solid var(--gold,#c9902a);border-radius:8px;padding:9px 11px;font-size:12.5px;margin-bottom:10px;line-height:1.45}
+.cpd-msg{min-height:18px;font-size:13px;color:var(--red,#c0392b);margin:2px 0 8px}
+.cpd-actions{display:flex;gap:10px;justify-content:flex-end}
+.cpd-actions button{min-height:44px;padding:0 18px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+.cpd-cancel{background:none;border:1px solid var(--border,#d8e2dc);color:var(--text-mid,#3d5446)}
+.cpd-save{background:var(--green-deep,#1a4a2e);color:#fff;border:none}
+.cpd-save:disabled{opacity:.6;cursor:wait}
+.cpd-open-btn{min-height:44px;padding:0 14px;border-radius:8px;border:1px solid var(--green-deep,#1a4a2e);background:#fff;color:var(--green-deep,#1a4a2e);
+  font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+.cpd-open-btn:focus-visible{outline:2px solid var(--gold,#c9902a);outline-offset:2px}
+@media (max-width:520px){.cpd-grid{grid-template-columns:1fr}}

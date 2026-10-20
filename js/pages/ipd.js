@@ -8,7 +8,7 @@ import { isNCISMType, ncismRequiredBeds } from '../config/ncism.js';
 import { logAudit } from '../core/auditLogger.js';
 import { computeRoomTariff } from '../modules/billing/roomTariff.js';
 import { computeIpdChargesToDate } from '../modules/billing/ipdChargesToDate.js';
-import { todayLocalStr, localDateStr } from '../utils/dateUtils.js';
+import { todayLocalStr, localDateStr, todayISTStr } from '../utils/dateUtils.js';
 import { fetchSamsarjanaHomeChart, buildDischargeSummaryHtml, printDischargeHtml, loadDischargeSigner } from '../modules/ipd/dischargePrint.js';
 import { bedTypeLabel } from '../config/bedTypes.js';
 import { notify } from '../components/notify.js';
@@ -75,6 +75,29 @@ const tenantId = getCurrentTenantId();
 const myProfile = getCurrentProfile();
 const myRole    = getCurrentRole();
 const _ctx      = { tenantId, userId: myProfile.id, userName: myProfile.full_name };
+
+// Session 353C (owner D12): the admission date -- today or up to 3 days back; never in the future; older only by the ACTIVE Super
+// Admin with a reason (create_ipd_admission decides; this is the display copy). Returns 'ok' / 'future' / 'late' / 'old'.
+function _admDateRule() {
+  const el = document.getElementById('adm-date');
+  const today = todayISTStr();
+  el.max = today;
+  const v = el.value;
+  const row = document.getElementById('adm-late-row');
+  const note = document.getElementById('adm-date-note');
+  let rule = 'ok';
+  if (v && v > today) rule = 'future';
+  else if (v) {
+    const days = Math.round((Date.parse(today + 'T00:00:00Z') - Date.parse(v + 'T00:00:00Z')) / 86400000);
+    if (days > 3) rule = myRole === 'super_admin' ? 'late' : 'old';
+  }
+  row.hidden = rule !== 'late';
+  note.textContent = rule === 'late' ? 'More than 3 days back — a late entry: give the reason below (recorded).'
+    : rule === 'old' ? 'More than 3 days back — only the Super Admin can record this admission.'
+    : rule === 'future' ? 'The admission date cannot be in the future.' : '';
+  return rule;
+}
+document.getElementById('adm-date').addEventListener('change', _admDateRule);
 // Session 114 -- who may actually trigger a discharge/exit. The page itself
 // still allows receptionist (billing-clerk designation needs page access for
 // the later billing step), but the discharge TRIGGER is doctor/nurse/admin
@@ -97,7 +120,8 @@ const WARD_ROUND_ROLES = ['doctor','trainee_doctor','super_admin','dept_admin'];
 const DISCHARGE_PRINT_ROLES = ['doctor','trainee_doctor','nurse','mrd_staff','super_admin','dept_admin'];
 // Session 205 (cont.) -- who may actually CREATE an admission. Real hospital process:
 // a doctor advises admission (doctor.html), reception collects the advance and admits
-// -- never a doctor/nurse directly. Matches _ipd_admissions_insert_ok() server-side.
+// -- never a doctor/nurse directly. Session 353C (TODO §238): every admission only through
+// create_ipd_admission (no direct INSERT right), which also requires an ACTIVE, non-trainee caller.
 const ADMIT_ROLES = ['receptionist','super_admin','dept_admin'];
 // Session 315 -- the button used to be shown to everyone (a doctor/nurse/finance role could
 // open the whole Admit form only to be told "only reception or admin" at the very last step).
@@ -518,6 +542,8 @@ window.openAdmitDrawer = async function() {
   document.getElementById('adm-is-mlc').checked = false;
   document.getElementById('mlc-fields').style.display = 'none';
   document.getElementById('adm-date').value    = todayLocalStr();
+  document.getElementById('adm-late-reason').value = '';
+  _admDateRule();
   document.getElementById('bed-picker').innerHTML = '<span class="bed-picker-empty">Select a department first</span>';
   const rateWarnEl = document.getElementById('bed-rate-warning');
   if (rateWarnEl) rateWarnEl.style.display = 'none';
@@ -929,6 +955,7 @@ window.saveAdmission = async function() {
   const doctorId  = document.getElementById('adm-doctor').value;
   const diagnosis = document.getElementById('adm-diagnosis').value.trim();
   const admDate   = document.getElementById('adm-date').value;
+  const lateReason = _admDateRule() === 'late' ? document.getElementById('adm-late-reason').value.trim() : '';
   const diet      = document.getElementById('adm-diet').value;
   const notes     = document.getElementById('adm-notes').value.trim();
   const isMlc     = document.getElementById('adm-is-mlc').checked;
@@ -953,6 +980,10 @@ window.saveAdmission = async function() {
   if (!bedId)    { _alert('error','Select a bed.'); return; }
   if (!doctorId) { _alert('error','Select an admitting doctor.'); return; }
   if (!admDate)  { _alert('error','Enter admission date.'); return; }
+  const dateRule = _admDateRule();
+  if (dateRule === 'future') { _alert('error','The admission date cannot be in the future.'); return; }
+  if (dateRule === 'old') { _alert('error','The admission date is more than 3 days back. Only the Super Admin can record a late admission, with a reason.'); return; }
+  if (dateRule === 'late' && lateReason.length < 5) { _alert('error','Give a reason for the late admission entry (at least 5 characters).'); return; }
   if (!payerType) { _alert('error','Select a payer type.'); return; }
   // Session 313 -- a scheme payer never asks this (server forces cashless=true); only
   // insurance/corporate genuinely need the explicit choice.
@@ -1017,6 +1048,8 @@ window.saveAdmission = async function() {
     p_consent_risks:         document.getElementById('adm-consent-risks').checked,
     p_consent_alternatives:  document.getElementById('adm-consent-alts').checked,
     p_consent_questions:     document.getElementById('adm-consent-questions').checked,
+    // Session 353C (D12): an admission dated more than 3 days back -- the active Super Admin only, with a reason (audited)
+    ...(lateReason ? { p_late_entry_reason: lateReason } : {}),
   });
 
   if (admErr) {

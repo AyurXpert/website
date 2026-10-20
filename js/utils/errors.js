@@ -312,6 +312,26 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 353C (TODO §216, F-347-1): patients / visits / admissions -- the server's plain refusals (who may change what, the
+  // correction rule, the queue-edit doctor rule, the admission-date bounds); each says what the person does next
+  const PATIENT_VISIT_MSGS = ["Your role cannot change a patient", 'A recorded ', 'Your role cannot link an ABHA', 'The allergy flag is cleared only',
+    'Only a doctor can record the Prakriti', "A patient's ", 'Only MRD staff or the Super Admin', 'Patient not found in your organisation',
+    'Reception can correct', 'Give a reason for the correction', 'Nothing to change', "Enter the patient's name", 'Enter a valid phone',
+    'Choose the gender', 'Enter a valid date of birth', 'Enter a valid age', 'Choose a valid blood group', 'The address is too long',
+    'The allergy flag must be', 'This detail cannot be changed here', 'A new visit starts in the queue', 'The patient or OPD of this visit',
+    'The chosen doctor is not an active doctor', 'This visit was deleted', 'Only a doctor can start', 'Only a doctor completes',
+    'Your role cannot close a visit', 'Give a reason for closing the visit', 'A completed visit cannot be reopened', 'A visit cannot move from',
+    'The incomplete reason is set only', 'The doctor can be changed only', 'Your role cannot change this visit', 'The visit type can be changed only',
+    'Only a doctor can record the consultation', 'A visit is deleted only through', "A visit's ", 'Visit not found in your organisation',
+    'This visit is already deleted', 'Only a visit not yet seen', 'This visit has a bill', 'Give a reason for deleting the visit',
+    'Enter the admission date', 'The admission date cannot be in the future', 'The admission date is more than 3 days back',
+    'Give a reason for the late admission entry', 'The admission date must be today', 'Only reception or admin can admit',
+    'Bed not found in your organisation', 'Department not found in your organisation', 'The admitting doctor is not a staff member',
+    'The visit is not this patient', 'The assigned screener is not a staff member'];
+  if (['P0001','42501','22023','P0002'].includes(error?.code) && PATIENT_VISIT_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+
   // Session 345c2b: the supplier copy of a bill (record_document_print 'bill_supplier') -- the server's plain refusal
   if (error?.code === '22023' && error?.message?.startsWith('A supplier copy can be printed only for a finalised Tax Invoice')) {
     return error.message;
