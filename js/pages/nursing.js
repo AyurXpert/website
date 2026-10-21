@@ -894,7 +894,8 @@ window.saveIo = async function() {
   const tin = intake.reduce((s,r)=>s+r.volume,0), tout = output.reduce((s,r)=>s+r.volume,0);
   const today = todayLocalStr();
 
-  await supabase.from('nursing_io').upsert({
+  // Session 353A: the result is checked (a shift row is saved again only by its own nurse or the nurse manager)
+  const { error } = await supabase.from('nursing_io').upsert({
     tenant_id:      tenantId,
     admission_id:   _activeAdm.id,
     patient_id:     _activeAdm.patients?.id,
@@ -907,6 +908,7 @@ window.saveIo = async function() {
     total_output_ml:tout,
     net_balance_ml: tin - tout,
   }, { onConflict: 'admission_id,record_date,shift' });
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not save the I/O chart.')); return; }
   _alert('success', 'I/O chart saved.');
 };
 

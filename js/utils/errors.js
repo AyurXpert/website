@@ -332,6 +332,63 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 353B (TODO §232): the shared-row tables (lab results / sign-off, PK sessions / clearance, Kriya Kalpa, blood bank, Palha diet) --
+  // the server's plain refusals are shown as they are
+  const SHARED_ROW_MSGS = ['A new lab order', 'Lab collection, results', 'Payment is still pending for this order', 'Lab results are signed off',
+    'This lab order is already signed off', 'From this page a pending payment', "A trainee's draft lab order", 'An outside-lab result',
+    'Payments are recorded by the billing counter', 'This part of the lab order', 'A lab result is signed off later', 'Lab results are entered',
+    'A signed lab result is frozen', 'This result is verified', 'A result with a value', 'Only the lab or the pathologist', 'You entered this result',
+    'A lab result goes pending', 'The sign-off is recorded', 'The test of a lab order', 'A new PK session', 'PK fitness clearance is given',
+    'PK sessions are updated', 'The clearance is recorded', 'The PK schedule', 'A Kriya Kalpa session is cancelled', 'Kriya Kalpa sessions are carried out',
+    'The Kriya Kalpa fitness clearance', 'The Kriya Kalpa prescription', 'A new blood request', 'Blood is issued', 'The cross-match is recorded',
+    'A blood request is cancelled', 'The transfusion is recorded', 'A transfusion reaction', 'This blood request cannot go back', 'The blood request itself',
+    'A bag is marked issued', 'An issued bag', 'A new diet indent', 'A served or cancelled diet indent', 'A diet indent is', 'The diet indent is prepared',
+    'A diet indent only moves', 'Serving is recorded', 'The patient / admission of a diet indent', 'Only a request with a compatible',
+    'Blood request not found', 'Only the pathologist or the lab in-charge', 'Give the reason for re-opening', 'Lab result not found', 'Only a signed result',
+    'A PK session is rescheduled', 'PK session not found', 'Only a skipped session', 'Pick today or a later date'];
+  if (['P0001','42501','P0002','22023'].includes(error?.code) && (SHARED_ROW_MSGS.some(m => error?.message?.startsWith(m))
+      || /^Bag \S+ (is not available in your blood bank stock\.|has expired \(.+\)\.|is .+, the request is for .+\.)$/.test(error?.message || ''))) {
+    return error.message;
+  }
+  const SHARED_ROW_TABLES = ['lab_orders', 'lab_order_items', 'pk_therapy_sessions', 'pk_therapy_session_therapists', 'kriyakalpa_sessions',
+    'blood_bank_requests', 'blood_bank_inventory', 'palha_diet_indents'];
+  const rlsB = /violates row-level security policy for table "([a-z_]+)"/.exec(error?.message || '');
+  if (error?.code === '42501' && rlsB && SHARED_ROW_TABLES.includes(rlsB[1])) {
+    return 'Your role can view this record but not save it here -- lab orders by doctors, results by the lab, sign-off by the pathologist / lab in-charge, PK sessions by their therapist (planned by the PK in-charge), clearance by a doctor, blood stock and issue by the blood bank technician, diet orders by doctors / nurses and serving by the diet kitchen.';
+  }
+  const deniedB = /^permission denied for table ([a-z_]+)$/.exec(error?.message || '');
+  if (error?.code === '42501' && deniedB && SHARED_ROW_TABLES.includes(deniedB[1])) {
+    return 'This record cannot be deleted. Record a correction or change its status instead.';
+  }
+
+  // Session 353A (TODO §232): the role record locks on the clinical tables -- the server's plain refusals (author / organisation fixed,
+  // the case team, the nurse / therapist columns, a link to another organisation, the department change rule)
+  const RECORD_LOCK_MSGS = ['The recorded by of a record', 'The created by of a record', 'The created at of a record', 'The tenant id of a record',
+    'The done by of a record', 'The assessed by of a record', 'The reported by of a record', 'The audited by of a record', 'The inserted by of a record',
+    'The marked by of a record', 'The detected by of a record', 'The tech id of a record',
+    'The linked ', 'Only the surgeon team or the Shalya HOD', 'Only the case doctor or the', 'Only the session doctor or the Shalya HOD',
+    'A nurse records the ANC vitals', 'You cannot change your own department', 'Only the Super Admin can change the department',
+    'Only the Super Admin or the HOD of both departments',
+    // A4 (owner 21 Oct 2026): a NABL non-conformance is reviewed / closed only by the lab in-charge or pathologist
+    'A non-conformance is raised as open', 'A closed non-conformance'];
+  if (['P0001','42501','P0002'].includes(error?.code) && (RECORD_LOCK_MSGS.some(m => error?.message?.startsWith(m))
+      || /^The [a-z ]+ is not a staff member of your organisation\.$/.test(error?.message || ''))) {
+    return error.message;
+  }
+  // ... and a refused insert / update on one of those tables (row-level security): say who writes it, not a generic failure
+  const LOCKED_TABLES = ['nursing_vitals', 'nursing_notes', 'nursing_io', 'nursing_handovers', 'risk_assessments', 'ward_procedures', 'icu_flowsheets',
+    'patient_devices', 'hai_events', 'emergency_kit_audits', 'nursing_zone_assignments', 'lab_qc_runs', 'lab_instruments', 'reagent_batches',
+    'lab_nc_reports', 'yoga_sessions', 'yoga_attendance', 'physiotherapy_sessions', 'ot_cases', 'minor_ot_procedures', 'ks_sessions',
+    'ks_thread_changes', 'anushastra_sessions', 'ot_procedures', 'anc_visits', 'partograph_entries', 'deliveries', 'lab_reports', 'lab_samples'];
+  const rls = /violates row-level security policy for table "([a-z_]+)"/.exec(error?.message || '');
+  if (error?.code === '42501' && rls && LOCKED_TABLES.includes(rls[1])) {
+    return 'Your role can view this record but not save it here -- it is written by the staff who own it (e.g. nursing charts by nurses, lab entries by the lab, OT / Kshara Sutra / Anushastra by the Shalya team, IPD OT procedures by Shalya or Prasuti & Stri Roga, ANC / Labour Room by Prasuti & Stri Roga).';
+  }
+  const denied = /^permission denied for table ([a-z_]+)$/.exec(error?.message || '');
+  if (error?.code === '42501' && denied && LOCKED_TABLES.includes(denied[1])) {
+    return 'This record cannot be deleted. Record a correction or change its status instead.';
+  }
+
   // Session 345c2b: the supplier copy of a bill (record_document_print 'bill_supplier') -- the server's plain refusal
   if (error?.code === '22023' && error?.message?.startsWith('A supplier copy can be printed only for a finalised Tax Invoice')) {
     return error.message;

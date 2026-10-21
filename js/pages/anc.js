@@ -1,4 +1,4 @@
-import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth.js';
+import { requireAuth, getCurrentProfile, getCurrentTenantId, getCurrentRole, getCurrentSecondaryRole } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
@@ -19,6 +19,14 @@ window.closeDetailModal = function() { document.getElementById('detail-overlay')
 const profile    = getCurrentProfile();
 const tenantId   = getCurrentTenantId();
 const userId     = profile?.id;
+
+// Session 353A (D3): a nurse records the ANC vitals / lab values only; these are the PSR doctor's (the server enforces it)
+const ANC_DOCTOR_FIELDS = { 'v-fh': 'fundal_height', 'v-presentation': 'presentation', 'v-lie': 'lie', 'v-engagement': 'engagement',
+  'v-risk': 'risk_category', 'v-risk-factors': 'risk_factors', 'v-supplements': 'supplements', 'v-tt': 'tt_status',
+  'v-referral': 'referral', 'v-next-visit': 'next_visit_date' };
+function _ancNurseOnly() {
+  return getCurrentRole() === 'nurse' && !['doctor', 'dept_admin', 'super_admin'].includes(getCurrentSecondaryRole());
+}
 
 let _patient      = null;
 let _ancVisits     = [];
@@ -158,6 +166,9 @@ window.openVisitModal = function() {
   document.getElementById('v-date').value  = todayLocalStr();
   document.getElementById('v-visit-no').value = _ancVisits.length + 1;
   document.getElementById('risk-alert').classList.remove('show');
+  const nurseOnly = _ancNurseOnly();
+  document.getElementById('anc-nurse-note').hidden = !nurseOnly;
+  Object.keys(ANC_DOCTOR_FIELDS).forEach(id => { const el = document.getElementById(id); if (el) el.disabled = nurseOnly; });
   document.getElementById('visit-overlay').style.display = 'flex';
 };
 
@@ -226,6 +237,10 @@ window.saveVisit = async function() {
     remarks:         document.getElementById('v-remarks').value.trim() || null,
   };
 
+  if (_ancNurseOnly()) {
+    Object.values(ANC_DOCTOR_FIELDS).forEach(k => { delete payload[k]; });
+    delete payload.doctor_id;
+  }
   const { error } = await supabase.from('anc_visits').insert(payload);
   if (error) { _alert('error', safeErrorMessage(error, 'Could not save ANC visit.')); return; }
   _alert('success', 'ANC visit saved.');

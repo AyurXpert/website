@@ -48,7 +48,7 @@ async function loadSessions() {
   const ids = _sessions.map(s => s.id);
   _attCounts = {};
   if (ids.length) {
-    const { data: att } = await supabase.from('yoga_attendance').select('session_id').in('session_id', ids);
+    const { data: att } = await supabase.from('yoga_attendance').select('session_id').in('session_id', ids).eq('attended', true);
     (att || []).forEach(a => { _attCounts[a.session_id] = (_attCounts[a.session_id] || 0) + 1; });
   }
 
@@ -185,6 +185,7 @@ async function _loadAttendees() {
   const { data, error } = await supabase.from('yoga_attendance')
     .select('id,patient_id,marked_at,patients(name,phone)')
     .eq('session_id', _activeSess)
+    .eq('attended', true)
     .order('marked_at');
   if (error) { _alert('error', safeErrorMessage(error, 'Load error. Please try again.')); return; }
   _attendees = data || [];
@@ -204,7 +205,7 @@ function _renderAttendees() {
         <div class="attendee-name">${_esc(a.patients?.name || '—')}</div>
         <div class="attendee-meta">${_esc(a.patients?.phone || '—')}</div>
       </div>
-      <button class="remove-btn" data-onclick="removeAttendee" data-onclick-a0="${a.id}" title="Remove">✕</button>
+      <button class="remove-btn" data-onclick="removeAttendee" data-onclick-a0="${a.id}" title="Mark absent" aria-label="Mark absent">✕</button>
     </div>`).join('');
 }
 
@@ -230,7 +231,12 @@ async function _searchPatients(q) {
 
 window.addAttendee = async function(patientId) {
   if (_attendees.some(a => a.patient_id === patientId)) { _alert('error', 'Already marked present for this session.'); return; }
-  const { error } = await supabase.from('yoga_attendance').insert({
+  // Session 353A: attendance is never deleted -- a patient marked absent earlier is marked present again on the same row
+  const { data: absent } = await supabase.from('yoga_attendance').select('id')
+    .eq('session_id', _activeSess).eq('patient_id', patientId).eq('attended', false).limit(1).maybeSingle();
+  const { error } = absent
+    ? await supabase.from('yoga_attendance').update({ attended: true, marked_at: new Date().toISOString() }).eq('id', absent.id)
+    : await supabase.from('yoga_attendance').insert({
     tenant_id:  tenantId,
     session_id: _activeSess,
     patient_id: patientId,
@@ -244,8 +250,9 @@ window.addAttendee = async function(patientId) {
   await _loadAttendees();
 };
 
+// Session 353A (TODO §232): attendance is never deleted -- "remove" records the patient as absent (kept in the record)
 window.removeAttendee = async function(attendanceId) {
-  const { error } = await supabase.from('yoga_attendance').delete().eq('id', attendanceId);
+  const { error } = await supabase.from('yoga_attendance').update({ attended: false, marked_at: new Date().toISOString() }).eq('id', attendanceId);
   if (error) { _alert('error', safeErrorMessage(error, 'Error. Please try again.')); return; }
   await _loadAttendees();
 };
@@ -257,6 +264,7 @@ window.loadRegister = async function() {
   let q = supabase.from('yoga_attendance')
     .select('marked_at,patients(name),marked_by:profiles!marked_by(full_name),session:yoga_sessions(session_date,session_time,session_type,instructor:profiles!instructor_id(full_name))')
     .eq('tenant_id', tenantId)
+    .eq('attended', true)
     .order('marked_at', { ascending: false });
   const { data, error } = await q;
   if (error) { _alert('error', safeErrorMessage(error, 'Load error. Please try again.')); return; }

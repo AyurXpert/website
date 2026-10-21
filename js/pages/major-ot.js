@@ -1,4 +1,4 @@
-import { requireAuth, getCurrentProfile, getCurrentTenantId } from '../core/auth.js';
+import { requireAuth, getCurrentProfile, getCurrentTenantId, getCurrentRole, getCurrentSecondaryRole } from '../core/auth.js';
 import { initNavbar } from '../components/navbar.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
@@ -37,11 +37,13 @@ async function init() {
   _doctors = data || [];
   const surgSel  = document.getElementById('n-surgeon');
   const anaesSel = document.getElementById('n-anaes-dr');
+  const asstSel  = document.getElementById('n-asst-ids');
   _doctors.forEach(d => {
     const o1 = new Option(d.full_name, d.id);
     const o2 = new Option(d.full_name, d.id);
     surgSel.appendChild(o1);
     anaesSel.appendChild(o2);
+    asstSel.appendChild(new Option(d.full_name, d.id));
   });
   // default surgeon to logged-in doctor
   if (profile?.role === 'doctor') surgSel.value = userId;
@@ -168,6 +170,7 @@ window.openNewCase = function() {
   document.getElementById('n-time').value        = '08:00';
   document.getElementById('n-pre-diag').value    = '';
   document.getElementById('n-asst').value        = '';
+  [...document.getElementById('n-asst-ids').options].forEach(o => { o.selected = false; });
   document.getElementById('n-anaes-type').value  = 'general';
   document.getElementById('n-notes').value       = '';
   if (profile?.role==='doctor') document.getElementById('n-surgeon').value = userId;
@@ -229,6 +232,8 @@ window.saveNewCase = async function() {
     pre_op_diagnosis: document.getElementById('n-pre-diag').value.trim() || null,
     surgeon_id:      surgId,
     assistant_surgeon: document.getElementById('n-asst').value.trim() || null,
+    // Session 353A (D4): assistants from the staff list -- part of the surgeon team (who may edit the case)
+    assistant_surgeon_ids: [...document.getElementById('n-asst-ids').selectedOptions].map(o => o.value).filter(v => v && v !== surgId),
     anaesthetist_id: document.getElementById('n-anaes-dr').value || null,
     anaesthesia_type: document.getElementById('n-anaes-type').value,
     ot_table:        document.getElementById('n-ot-table').value,
@@ -287,6 +292,9 @@ window.openIntra = function(id) {
   if (!c) return;
   document.getElementById('intra-title').textContent = c.procedure_name;
   document.getElementById('intra-sub').textContent   = `${c.patients?.name||'—'} · ${c.ot_table||''}`;
+  // Session 353A (D3): a nurse records the nursing part only -- counts and post-op condition (the server enforces it)
+  document.getElementById('intra-nurse-note').hidden = !_nurseOnly();
+  document.getElementById('btn-intra-save').textContent = _nurseOnly() ? 'Save nursing record' : 'Save & Mark Completed';
   const now = new Date(); const later = new Date(now.getTime()+90*60000);
   const fmtDt = d => istDateTimeLocalStr(d);
   document.getElementById('i-start').value = c.actual_start ? istDateTimeLocalStr(new Date(c.actual_start)) : istDateTimeLocalStr(now);
@@ -314,8 +322,25 @@ window.openIntra = function(id) {
 };
 window.closeIntra = () => { document.getElementById('intra-overlay').style.display='none'; };
 
+// a nurse (primary role, no doctor / admin second role) saves the OT nursing columns only -- D3
+function _nurseOnly() {
+  return getCurrentRole() === 'nurse' && !['doctor', 'dept_admin', 'super_admin'].includes(getCurrentSecondaryRole());
+}
+
 window.saveIntra = async function() {
   if (!_activeId) return;
+  if (_nurseOnly()) {
+    const { error: nErr } = await supabase.from('ot_cases').update({
+      swab_count_correct:       document.getElementById('i-swab').checked,
+      instrument_count_correct: document.getElementById('i-inst').checked,
+      post_op_condition:        document.getElementById('i-condition').value,
+    }).eq('id', _activeId);
+    if (nErr) { alert(safeErrorMessage(nErr, 'Could not save the nursing record.')); return; }
+    closeIntra();
+    _alert('success', 'Nursing record saved (counts and post-op condition).');
+    loadCases();
+    return;
+  }
   const findings = document.getElementById('i-findings').value.trim();
   if (!findings) { alert('Please enter operative findings.'); return; }
   const start = document.getElementById('i-start').value;

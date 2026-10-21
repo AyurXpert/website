@@ -282,8 +282,9 @@ window.saveSample = async function() {
   // Get patient_id from order
   let patientId = null;
   if (orderId) {
-    const { data: o } = await supabase.from('lab_orders').select('patient_id').eq('id',orderId).maybeSingle();
-    patientId = o?.patient_id || null;
+    // Session 353A: lab_orders has no patient_id -- the patient comes through the order's visit
+    const { data: o } = await supabase.from('lab_orders').select('visits(patient_id)').eq('id',orderId).maybeSingle();
+    patientId = o?.visits?.patient_id || null;
   }
 
   const { error } = await supabase.from('lab_samples').insert({

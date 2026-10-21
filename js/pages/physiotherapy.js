@@ -63,7 +63,9 @@ window.loadQueue = async function() {
 };
 
 window.markComplete = async function(id) {
-  await supabase.from('physiotherapy_sessions').update({ status:'completed' }).eq('id', id).eq('tenant_id', tenantId);
+  // Session 353A: the result is checked (a session is completed by the therapist)
+  const { error } = await supabase.from('physiotherapy_sessions').update({ status:'completed' }).eq('id', id).eq('tenant_id', tenantId);
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not complete the session.')); return; }
   loadQueue();
 };
 

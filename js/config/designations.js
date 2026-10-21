@@ -129,10 +129,12 @@ export const ROLE_DUTY_FALLBACK = {
 // (sql/session350_hod_gate_and_designation_rights.sql) -- roles / designations that give a power by
 // themselves, so only the Super Admin gives or removes them. The server decides; this copy only
 // greys out what a Dept Admin cannot choose. Change both together (scripts/check-350-lists.mjs
-// compares them).
+// compares them). Session 353A: + yoga_instructor (the yoga write right comes from it; sql/session353a_*.sql).
+// Session 353A (A4, owner 21 Oct 2026): + pathologist, lab_incharge (NABL NC review / close).
 export const POWERFUL_ROLES = ['super_admin', 'dept_admin', 'finance_manager', 'nurse_manager'];
 export const POWERFUL_DESIGS = ['medical_director', 'principal', 'medical_superintendent', 'deputy_medical_superintendent',
-  'nursing_superintendent', 'deputy_nursing_superintendent', 'pk_incharge', 'finance_manager'];
+  'nursing_superintendent', 'deputy_nursing_superintendent', 'pk_incharge', 'finance_manager', 'yoga_instructor',
+  'pathologist', 'lab_incharge'];
 export function isPowerfulPosition(role, designation) {
   const norm = v => String(v ?? '').trim().toLowerCase();
   return POWERFUL_ROLES.includes(norm(role)) || POWERFUL_DESIGS.includes(norm(designation));
