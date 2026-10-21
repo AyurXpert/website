@@ -1,7 +1,7 @@
 // js/components/navbar.js
 // White-label grouped-dropdown navbar — runs on every protected page.
 
-import { getCurrentProfile, getCurrentTenant, getCurrentRole, getCurrentSecondaryRole, getCurrentHasMonitoringAccess, logout, hasModule } from '../core/auth.js';
+import { getCurrentProfile, getCurrentTenant, getCurrentRole, getCurrentSecondaryRole, getCurrentHasMonitoringAccess, logout, hasModule, isPageDeniedForDesignation } from '../core/auth.js';
 import { DESIG_MAP, ROLE_DUTY_FALLBACK } from '../config/designations.js';
 import { escapeHtml } from '../utils/validators.js';
 import { isRuleDHod } from '../utils/hodAccess.js';   // Session 350 (TODO §231): "My Department" = rule D
@@ -213,7 +213,8 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
       (item.roles.includes(role) || (secondaryRole && item.roles.includes(secondaryRole)) || (item.monitoringSafe && hasMonitoringAccess) || (item.deptScoped && isDeptScoped) || (item.designations && designation && item.designations.includes(designation))) &&
       (item.types === null || item.types.includes(type)) &&
       (!item.platformOnly || isPlatformAdmin) &&
-      (!item.module || hasModule(item.module))
+      (!item.module || hasModule(item.module)) &&
+      !isPageDeniedForDesignation(getCurrentProfile(), item.href)   // Session 354b: e.g. no Therapy Sessions for the yoga instructor
     // §253: the yoga instructor works on Yoga Sessions -- list it first in its group
     ).sort((a, b) => designation === 'yoga_instructor' ? (b.href === 'yoga.html') - (a.href === 'yoga.html') : 0)
   })).filter(g => g.items.length > 0);

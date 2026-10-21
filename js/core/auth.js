@@ -31,6 +31,19 @@ export function getHomePage(profile) {
   return ROLE_HOME[profile?.role] || 'admin.html';
 }
 
+// Session 354b (owner, 21 Oct 2026): pages a designation may not open although its role may.
+// The yoga instructor has no Panchakarma, Kriya Kalpa or Anushastra work (owner, 21 Oct 2026).
+// One list for both the menu (navbar.js hides the link) and requireAuth (redirects to the
+// designation's home). A second role grants its own access on top, so it lifts the restriction.
+const DESIGNATION_DENIED_PAGES = {
+  yoga_instructor: ['therapist.html', 'kriyakalpa.html', 'anushastra.html'],
+};
+
+export function isPageDeniedForDesignation(profile, page) {
+  if (profile?.role !== ROLES.THERAPIST || profile?.secondary_role) return false;
+  return (DESIGNATION_DENIED_PAGES[profile?.designation] || []).includes(page);
+}
+
 
 // 27 Aug 2026 — shared safety net for every signup flow below. Both
 // registerTenant() and registerStaff() call auth.signUp() BEFORE writing the
@@ -761,6 +774,14 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
   // Session 331: modules come from the server on EVERY protected page load, in every tab -- this block
   // used to skip them when it re-fetched the profile, and hasModule() then treated every module as on.
   await _loadModules();
+
+  // Session 354b: e.g. the yoga instructor opening therapist.html directly -> yoga.html.
+  // The promise never resolves, so the page's own code (its data loads) never runs meanwhile.
+  if (isPageDeniedForDesignation(getCurrentProfile(), currentPage)) {
+    document.documentElement.style.visibility = '';
+    window.location.replace(getHomePage(getCurrentProfile()));
+    return new Promise(() => {});
+  }
 
   if (allowedRoles.length > 0) {
     const role = getCurrentRole();
