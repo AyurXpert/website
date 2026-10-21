@@ -214,7 +214,8 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
       (item.types === null || item.types.includes(type)) &&
       (!item.platformOnly || isPlatformAdmin) &&
       (!item.module || hasModule(item.module))
-    )
+    // §253: the yoga instructor works on Yoga Sessions -- list it first in its group
+    ).sort((a, b) => designation === 'yoga_instructor' ? (b.href === 'yoga.html') - (a.href === 'yoga.html') : 0)
   })).filter(g => g.items.length > 0);
 }
 

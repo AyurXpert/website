@@ -3709,5 +3709,11 @@ window.saveKitAudit = async function() {
   document.getElementById('kit-audit-overdue-banner').style.display = 'none';
 };
 
+// §253: PK scheduling (Auto-Assign, + Schedule Session) only for the PK in-charge / roster admin -- e.g. the yoga instructor sees neither
+// (the server refuses Auto-Assign to anyone else; a new session's insert lock comes with 353B)
+if (!_isPkRosterAdmin()) {
+  document.getElementById('btn-open-sched')?.style.setProperty('display', 'none');
+  document.getElementById('btn-auto-assign')?.style.setProperty('display', 'none');
+}
 await loadAll();
 renderPromoBanner('promo-banner', { supabase, tenantId });

@@ -15,6 +15,21 @@ import {
 import { logAudit } from './auditLogger.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { RETURN_KEY, safeReturnPath } from '../utils/signInGate.js';
+import { getTabUser, setTabUser, clearTabUser, blockTab, isTabBlocked, onTabBlocked } from './tabUser.js';
+
+// TODO §253: a designation that has its own landing page (role home otherwise).
+// The yoga instructor is role 'therapist' + designation 'yoga_instructor' and works on
+// yoga.html, not on the Panchakarma sessions page that every other therapist lands on.
+const DESIGNATION_HOME = {
+  yoga_instructor: 'yoga.html',
+};
+
+export function getHomePage(profile) {
+  if (profile?.role === ROLES.THERAPIST && DESIGNATION_HOME[profile?.designation]) {
+    return DESIGNATION_HOME[profile.designation];
+  }
+  return ROLE_HOME[profile?.role] || 'admin.html';
+}
 
 
 // 27 Aug 2026 — shared safety net for every signup flow below. Both
@@ -230,6 +245,7 @@ async function _finalizeLogin(user, profile) {
   sessionStorage.setItem(SESSION_KEYS.ROLE,      profile.role);
   sessionStorage.setItem(SESSION_KEYS.SECONDARY_ROLE, profile.secondary_role || '');
   sessionStorage.setItem(SESSION_KEYS.MONITORING_ACCESS, profile.has_monitoring_access ? '1' : '');
+  setTabUser(profile.id); // §250: this tab now belongs to this user
 
   // §7h — the organisation's modules, decided by the server (type defaults + overrides, Session 331)
   await _loadModules();
@@ -242,11 +258,14 @@ async function _finalizeLogin(user, profile) {
   // §118 -- signed in from a print page's "Sign in" button: go back to that document (our own print pages only)
   let back = null;
   try { back = safeReturnPath(sessionStorage.getItem(RETURN_KEY)); sessionStorage.removeItem(RETURN_KEY); } catch { back = null; }
-  const destination = back || ROLE_HOME[profile.role] || 'admin.html';
+  const destination = back || getHomePage(profile);
   window.location.href = destination;
 }
 
 export async function login({ email, password }) {
+  // §250: signing in on this tab makes it the new user's tab -- forget the old one first,
+  // or the request guard would refuse the new user's own sign-in requests
+  clearTabUser();
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
       email, password
@@ -616,6 +635,8 @@ function _resetInactivity() {
   clearTimeout(_inactivityTimer);
   clearTimeout(_inactivityWarnTimer);
   _hideInactivityWarning();
+  // §250: a blocked tab must not sign the OTHER person out 15 minutes later
+  if (isTabBlocked()) return;
   _inactivityWarnTimer = setTimeout(_showInactivityWarning, _INACTIVITY_MS - _INACTIVITY_WARN_MS);
   _inactivityTimer = setTimeout(() => logout(), _INACTIVITY_MS);
 }
@@ -625,6 +646,36 @@ function _startInactivityWatch() {
     document.addEventListener(ev, _resetInactivity, { passive: true })
   );
   _resetInactivity();
+}
+
+// ── §250: one sign-in per browser, one user per tab ──────────────────────────────
+// Checks the browser's signed-in user against the user this tab was opened as.
+// Run on every auth change (also fired for other tabs), on the cross-tab `storage`
+// event and whenever the tab comes back to the front.
+async function _checkTabUser() {
+  const pinned = getTabUser();
+  if (!pinned || isTabBlocked()) return;
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) blockTab('');
+  else if (session.user.id !== pinned) blockTab(session.user.email || 'another account');
+}
+
+let _tabUserWatching = false;
+function _watchTabUser() {
+  if (_tabUserWatching) return;
+  _tabUserWatching = true;
+  onTabBlocked(() => {
+    clearTimeout(_inactivityTimer);
+    clearTimeout(_inactivityWarnTimer);
+    _hideInactivityWarning();
+    try { supabase.removeAllChannels(); } catch { /* realtime may not be in use */ }
+  });
+  supabase.auth.onAuthStateChange(() => { setTimeout(_checkTabUser, 0); }); // never await inside the callback
+  window.addEventListener('storage', e => {
+    if (e.key === null || (e.key.startsWith('sb-') && e.key.endsWith('-auth-token'))) _checkTabUser();
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) _checkTabUser(); });
+  window.addEventListener('focus', _checkTabUser);
 }
 
 export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', { monitoringSafe = false } = {}) {
@@ -646,6 +697,15 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
     sessionStorage.clear();
     window.location.replace(redirectTo);
     return;
+  }
+
+  // §250: this tab was opened as someone else, who has since been replaced in another tab --
+  // never switch the page over to the new user silently: block, and stop the page's own code
+  // (this promise never resolves, so nothing after `await requireAuth(...)` runs).
+  const pinnedUser = getTabUser();
+  if (pinnedUser && pinnedUser !== session.user.id) {
+    blockTab(session.user.email || 'another account');
+    return new Promise(() => {});
   }
 
   // Check if cached profile belongs to the current session user.
@@ -718,7 +778,7 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
       || (secondaryRole && allowedRoles.includes(secondaryRole))
       || (monitoringSafe && getCurrentHasMonitoringAccess());
     if (!hasAccess) {
-      window.location.replace(ROLE_HOME[role] || 'admin.html');
+      window.location.replace(getHomePage(getCurrentProfile()));
       return;
     }
   }
@@ -745,6 +805,8 @@ export async function requireAuth(allowedRoles = [], redirectTo = 'login.html', 
     }
   }
 
+  setTabUser(session.user.id); // §250: remember who this tab was opened as
+  _watchTabUser();
   document.documentElement.style.visibility = ''; // show page — auth confirmed
   _startInactivityWatch(); // auto-logout after 30 min inactivity
 }

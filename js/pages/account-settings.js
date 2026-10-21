@@ -1,10 +1,10 @@
-import { requireAuth, getCurrentProfile, getCurrentRole, getCurrentTenantId } from '../core/auth.js';
+import { requireAuth, getCurrentProfile, getCurrentRole, getCurrentTenantId, getHomePage } from '../core/auth.js';
 import { supabase } from '../core/db/supabaseClient.js';
 import { initNavbar } from '../components/navbar.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
 import { safeErrorMessage } from '../utils/errors.js';
 import { escapeHtml as _esc } from '../utils/validators.js';
-import { MFA_MANDATORY_ROLES, ROLE_HOME } from '../config/constants.js';
+import { MFA_MANDATORY_ROLES } from '../config/constants.js';
 import { notify } from '../components/notify.js';
 
 await requireAuth([]); // any authenticated role can manage their own account
@@ -183,7 +183,7 @@ window.confirmEnroll = async function () {
   await loadFactorState();
 
   if (_cameFromMfaGate) {
-    const home = ROLE_HOME[getCurrentRole()] || 'index.html';
+    const home = getHomePage(getCurrentProfile()); // §253: designation homes too
     setTimeout(() => { window.location.href = home; }, 1200);
   }
 };
