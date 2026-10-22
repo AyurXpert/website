@@ -345,7 +345,8 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     'A bag is marked issued', 'An issued bag', 'A new diet indent', 'A served or cancelled diet indent', 'A diet indent is', 'The diet indent is prepared',
     'A diet indent only moves', 'Serving is recorded', 'The patient / admission of a diet indent', 'Only a request with a compatible',
     'Blood request not found', 'Only the pathologist or the lab in-charge', 'Give the reason for re-opening', 'Lab result not found', 'Only a signed result',
-    'A PK session is rescheduled', 'PK session not found', 'Only a skipped session', 'Pick today or a later date'];
+    'A PK session is rescheduled', 'PK session not found', 'Only a skipped session', 'Pick today or a later date',
+    'A blood request needs the patient'];
   if (['P0001','42501','P0002','22023'].includes(error?.code) && (SHARED_ROW_MSGS.some(m => error?.message?.startsWith(m))
       || /^Bag \S+ (is not available in your blood bank stock\.|has expired \(.+\)\.|is .+, the request is for .+\.)$/.test(error?.message || ''))) {
     return error.message;
@@ -367,7 +368,7 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     'The done by of a record', 'The assessed by of a record', 'The reported by of a record', 'The audited by of a record', 'The inserted by of a record',
     'The marked by of a record', 'The detected by of a record', 'The tech id of a record',
     'The linked ', 'Only the surgeon team or the Shalya HOD', 'Only the case doctor or the', 'Only the session doctor or the Shalya HOD',
-    'A nurse records the ANC vitals', 'You cannot change your own department', 'Only the Super Admin can change the department',
+    'A nurse records the ANC vitals', 'A nurse adds the vitals only', 'You cannot change your own department', 'Only the Super Admin can change the department',
     'Only the Super Admin or the HOD of both departments',
     // A4 (owner 21 Oct 2026): a NABL non-conformance is reviewed / closed only by the lab in-charge or pathologist
     'A non-conformance is raised as open', 'A closed non-conformance'];

@@ -8,6 +8,7 @@ import { isNCISMType, ncismUgTier, PK_THERAPY_ROOM_COUNT } from '../config/ncism
 import { NCISM_XX_ROWS } from '../config/ncismStaffCompliance.js';
 import { localDateStr, todayLocalStr, istDateStr, todayISTStr } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
+import { givePkClearance } from '../modules/panchakarma/pkClearance.js';
 
 /*
   SQL to run once in Supabase:
@@ -929,6 +930,11 @@ window.bulkLogWaste = async function() {
 
 // ── Therapist Duty Roster (Session 206 piece 3) ─────────────────────────────────
 // Deliberately separate from roster.html/duty_roster -- see therapist.html's comment.
+// Session 353B (D8): the PK fitness clearance is a DOCTOR's action (server-enforced) -- the therapist's tick is gone
+function _canGiveClearance() {
+  return role === 'doctor' || role === 'super_admin';
+}
+
 function _isPkRosterAdmin() {
   // Session 240 -- Dr. Venkatesh: Medical Director/Principal/Medical Superintendent stay
   // view-only here even when their role or secondary_role would otherwise qualify as
@@ -2025,7 +2031,15 @@ function _sessionAllTherapists(s) {
 function renderTable(rows) {
   const tbody = document.getElementById('sessions-tbody');
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="table-empty">No sessions for this date.<br>Use "+ Schedule Session" to add one.</td></tr>`;
+    // TODO §257 (a): the "+ Schedule Session" hint only for those who have the button (the PK roster admin -- 353B)
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 11;
+    td.className = 'table-empty';
+    td.textContent = 'No sessions for this date.';
+    if (_isPkRosterAdmin()) td.append(document.createElement('br'), 'Use "+ Schedule Session" to add one.');
+    tr.append(td);
+    tbody.replaceChildren(tr);
     return;
   }
 
@@ -2147,6 +2161,7 @@ function renderTable(rows) {
                bump another therapist off a session. Restricted to _isPkRosterAdmin() here,
                same check the Duty Roster/Rooms admin panels already gate on. -->
           ${s.status !== 'skipped' && _isPkRosterAdmin() ? `<button class="icon-btn" data-onclick="openAssignDrawer" data-onclick-a0="${s.id}" title="${(!s.room_id || !therapist.id) ? 'Assign Room & Therapist' : 'Edit Room / Therapists'}" style="color:#1a4080">🏠</button>` : ''}
+          ${_canGiveClearance() && !s.doctor_clearance && s.status !== 'skipped' && s.status !== 'completed' ? `<button class="icon-btn" data-onclick="giveClearance" data-onclick-a0="${s.id}" title="Give PK fitness clearance (doctor, NCISM §47(vii))" style="color:var(--green-mid)">🩺</button>` : ''}
           ${canStart ? `<button class="icon-btn start" data-onclick="quickStart" data-onclick-a0="${s.id}" title="Mark In Progress">&#9654;</button>` : ''}
           ${canComplete ? `<button class="icon-btn complete" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@false" title="Complete">&#10003;</button>` : ''}
           ${canSkip ? `<button class="icon-btn skip" data-onclick="openCompleteDrawer" data-onclick-a0="${s.id}" data-onclick-a1="@true" title="Skip">&#10007;</button>` : ''}
@@ -2208,6 +2223,7 @@ window.openSchedDrawer = function(prefillAdmId) {
   document.getElementById('sched-therapy').value   = '';
   document.getElementById('sched-therapist').value = '';
   document.getElementById('sched-clearance').checked = false;
+  document.getElementById('sched-clearance-field').style.display = _canGiveClearance() ? '' : 'none';
   document.getElementById('sched-room').value      = '';
   document.getElementById('sched-date').value      = _viewDate;
   document.getElementById('sched-time').value      = '';
@@ -2419,7 +2435,7 @@ window.saveSession = async function() {
   const deptId    = document.getElementById('sched-dept').value;
   const date      = document.getElementById('sched-date').value;
   const time      = document.getElementById('sched-time').value;
-  const clearance = document.getElementById('sched-clearance').checked;
+  const clearance = _canGiveClearance() && document.getElementById('sched-clearance').checked;
 
   if (!therapy)   { _alert('error','Enter therapy name.'); return; }
   if (!therapist) { _alert('error','Select a therapist.'); return; }
@@ -2844,6 +2860,15 @@ window.saveAssignment = async function() {
   await loadAll();
 };
 
+// ── Give clearance (Session 353B, D8: a doctor's action) ─────────────────────────
+window.giveClearance = async function(id) {
+  if (!_canGiveClearance()) return;
+  const r = await givePkClearance(supabase, id);   // the one clearance call (also doctor.html's 🌸 PK tab -- B17)
+  if (!r.ok) { _alert('error', r.message); return; }
+  _alert('success', r.message);
+  await loadAll();
+};
+
 // ── Quick start ───────────────────────────────────────────────────────────────
 window.quickStart = async function(id) {
   const session = _sessions.find(s => s.id === id);
@@ -3002,7 +3027,6 @@ window.saveCompletion = async function() {
   const start   = document.getElementById('comp-start').value;
   const end     = document.getElementById('comp-end').value;
   const notes   = document.getElementById('comp-notes').value.trim();
-  const clear   = document.getElementById('comp-clearance').checked;
   const today   = _viewDate;
   // Session 231 -- real bug found live: this field has existed since the drawer was built but
   // was never actually persisted anywhere (pk_therapy_sessions had no column for it) -- every
@@ -3012,10 +3036,10 @@ window.saveCompletion = async function() {
   const session = _sessions.find(s => s.id === id);
   const isPaschatkarma = session?.therapy_phase === 'paschatkarma';
 
+  // Session 353B (D8): no doctor_clearance here -- a doctor gives it (giveClearance)
   const patch = {
     status:           isSkip ? 'skipped' : 'completed',
     therapist_notes:  notes || null,
-    doctor_clearance: clear,
   };
   if (isSkip) patch.skip_reason = skipReason || null;
   if (!isSkip) {
@@ -3060,29 +3084,11 @@ window.saveCompletion = async function() {
   // fitness confirmation, same as any newly created session).
   const rescheduleDate = isSkip ? document.getElementById('comp-reschedule-date').value : '';
   if (rescheduleDate && session) {
-    const { data: newSession, error: reErr } = await supabase.from('pk_therapy_sessions').insert({
-      tenant_id:            tenantId,
-      patient_id:           session.patients?.id || null,
-      ipd_admission_id:     session.ipd_admission_id || null,
-      therapist_id:         session.profiles?.id || null,
-      department_id:        session.departments?.id || null,
-      therapy_phase:        session.therapy_phase,
-      therapy_name:         session.therapy_name,
-      scheduled_date:       rescheduleDate,
-      room_id:              session.room_id || null,
-      status:               'scheduled',
-      doctor_clearance:     false,
-      planned_duration_minutes: session.planned_duration_minutes || null,
-      ordering_doctor_id:   session.ordering_doctor?.id || null,
-      special_instructions: session.special_instructions || null,
-    }).select('id').single();
+    // Session 353B: one server step (reschedule_skipped_pk_session) -- the skipped session copied to the new date with its therapists,
+    // clearance reset; a new session is otherwise created only by the PK in-charge
+    const { error: reErr } = await supabase.rpc('reschedule_skipped_pk_session', { p_session: id, p_date: rescheduleDate });
     if (reErr) {
       _alert('error', safeErrorMessage(reErr, 'Session skipped, but the reschedule could not be created — reschedule it manually.'));
-    } else if (newSession) {
-      const extras = (session.pk_therapy_session_therapists || []).map(r => r.profiles?.id).filter(Boolean);
-      if (extras.length) {
-        await supabase.from('pk_therapy_session_therapists').insert(extras.map(id => ({ session_id: newSession.id, therapist_id: id })));
-      }
     }
   }
 
@@ -3709,8 +3715,8 @@ window.saveKitAudit = async function() {
   document.getElementById('kit-audit-overdue-banner').style.display = 'none';
 };
 
-// §253: PK scheduling (Auto-Assign, + Schedule Session) only for the PK in-charge / roster admin -- e.g. the yoga instructor sees neither
-// (the server refuses Auto-Assign to anyone else; a new session's insert lock comes with 353B)
+// Session 353B: a new session is planned by the PK in-charge / roster admin (server-enforced)
+// §253: Auto-Assign the same (the server refuses it to anyone else) -- e.g. the yoga instructor sees neither
 if (!_isPkRosterAdmin()) {
   document.getElementById('btn-open-sched')?.style.setProperty('display', 'none');
   document.getElementById('btn-auto-assign')?.style.setProperty('display', 'none');

@@ -52,6 +52,7 @@ export const DESIGS = [
   {v:'radiologist',                 l:'Radiologist (Part-time)',          cat:'Diagnostics',    lv:1, d:'Part-time specialist reporting X-ray/USG/imaging studies.'},
   {v:'sonologist',                  l:'Sonologist (Part-time)',           cat:'Diagnostics',    lv:1, d:'Part-time specialist performing/reporting ultrasound studies (PCPNDT registered).'},
   {v:'microbiologist',              l:'Microbiologist (Part-time)',       cat:'Diagnostics',    lv:1, d:'Part-time specialist overseeing culture/sensitivity and infection-control testing (Sch XX/26).'},
+  {v:'blood_bank_technician',       l:'Blood Bank Technician',           cat:'Diagnostics',    lv:2, d:'Blood bank stock, cross-match and issue (role Lab Tech; Session 353B -- only the Super Admin gives this designation).'},
   {v:'lab_technician',              l:'Lab Technician',                   cat:'Diagnostics',    lv:2, d:'DMLT-qualified — sample collection, processing and routine test performance (Sch XX/21).'},
   {v:'radiographer',                l:'Radiographer / X-ray Technician',  cat:'Diagnostics',    lv:2, d:'Operates X-ray/imaging equipment and AERB safety logs (Sch XX/23).'},
   {v:'lab_attendant',               l:'Lab Attendant',                    cat:'Diagnostics',    lv:3, d:'Assists lab technicians — specimen handling and housekeeping of the lab (Sch XX/22).'},
@@ -130,11 +131,11 @@ export const ROLE_DUTY_FALLBACK = {
 // themselves, so only the Super Admin gives or removes them. The server decides; this copy only
 // greys out what a Dept Admin cannot choose. Change both together (scripts/check-350-lists.mjs
 // compares them). Session 353A: + yoga_instructor (the yoga write right comes from it; sql/session353a_*.sql).
-// Session 353A (A4, owner 21 Oct 2026): + pathologist, lab_incharge (NABL NC review / close).
+// Session 353B: + pathologist, lab_incharge (lab sign-off), blood_bank_technician (blood bank) -- D5, sql/session353b_*.sql.
 export const POWERFUL_ROLES = ['super_admin', 'dept_admin', 'finance_manager', 'nurse_manager'];
 export const POWERFUL_DESIGS = ['medical_director', 'principal', 'medical_superintendent', 'deputy_medical_superintendent',
   'nursing_superintendent', 'deputy_nursing_superintendent', 'pk_incharge', 'finance_manager', 'yoga_instructor',
-  'pathologist', 'lab_incharge'];
+  'pathologist', 'lab_incharge', 'blood_bank_technician'];
 export function isPowerfulPosition(role, designation) {
   const norm = v => String(v ?? '').trim().toLowerCase();
   return POWERFUL_ROLES.includes(norm(role)) || POWERFUL_DESIGS.includes(norm(designation));

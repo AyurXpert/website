@@ -902,7 +902,7 @@ const DESIG_ROLE_DEFAULT = {
   receptionist:'receptionist', registration_clerk:'receptionist', billing_clerk:'receptionist',
   medical_record_officer:'mrd_staff', medical_record_technician:'mrd_staff',
   pharmacist:'pharmacist', chief_pharmacist:'pharmacist', pharmacy_assistant:'pharmacist',
-  lab_technician:'lab_tech', lab_attendant:'lab_tech', radiographer:'lab_tech', microbiologist:'lab_tech',
+  lab_technician:'lab_tech', blood_bank_technician:'lab_tech', lab_attendant:'lab_tech', radiographer:'lab_tech', microbiologist:'lab_tech',
   dark_room_assistant:'lab_tech', ecg_technician:'lab_tech', microbiology_lab_assistant:'lab_tech',
   ot_technician:'nurse', cssd_technician:'nurse', cssd_incharge:'nurse',
   ot_attendant:'nurse', anushastra_technician:'nurse', cssd_aya:'nurse',

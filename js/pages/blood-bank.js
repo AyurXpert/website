@@ -7,7 +7,8 @@ import { safeErrorMessage } from '../utils/errors.js';
 import { todayLocalStr, istDayStartUTC } from '../utils/dateUtils.js';
 import { notify } from '../components/notify.js';
 
-await requireAuth(['super_admin','dept_admin','doctor','nurse']);
+// Session 353B (D5): + lab_tech -- the blood bank technician (designation blood_bank_technician) records stock, cross-match and issue
+await requireAuth(['super_admin','dept_admin','doctor','nurse','lab_tech']);
 initNavbar();
 wireDelegatedEvents();
 
@@ -143,32 +144,91 @@ window.loadCrossmatch = async () => {
   </tr>`).join('');
 };
 
+// TODO §247 (a), owner 21 Oct 2026: a blood request is filed for the patient CHOSEN here -- a UHID (exact), or one of the listed
+// name / phone matches picked by a click -- never the first name match (the server also refuses a request with no patient)
+let _reqPatient = null;
+let _reqMatches = [];
+function _ptLine(p) {
+  const meta = [p.uhid || 'no UHID', [p.age ? 'Age ' + p.age : '', (p.gender || '').charAt(0).toUpperCase()].filter(Boolean).join(' '),
+    p.phone ? 'Ph …' + String(p.phone).slice(-4) : ''].filter(Boolean).join(' · ');
+  return { name: p.name || '—', meta };
+}
+function _showChosen() {
+  const el = document.getElementById('r-patient-chosen');
+  el.replaceChildren();
+  if (!_reqPatient) { el.hidden = true; return; }
+  const l = _ptLine(_reqPatient);
+  el.textContent = '✓ ' + l.name + ' — ' + l.meta;
+  el.hidden = false;
+}
+function _showMatches(list, note) {
+  const el = document.getElementById('r-patient-matches');
+  el.replaceChildren();
+  list.forEach(p => {
+    const l = _ptLine(p);
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'pt-match';
+    b.dataset.onclick = 'chooseReqPatient'; b.dataset.onclickA0 = p.id;
+    b.textContent = l.name;
+    const m = document.createElement('span'); m.className = 'pt-match-meta'; m.textContent = l.meta;
+    b.appendChild(m);
+    el.appendChild(b);
+  });
+  if (note) { const n = document.createElement('div'); n.className = 'pt-note'; n.textContent = note; el.appendChild(n); }
+  el.hidden = !list.length && !note;
+}
+window.clearReqPatient = () => { _reqPatient = null; _reqMatches = []; _showChosen(); _showMatches([], ''); };
+window.findReqPatient = async () => {
+  const q = document.getElementById('r-patient').value.trim();
+  window.clearReqPatient();
+  if (!q) { showToast('Type the UHID, a name or a phone number first.', 'error'); return; }
+  let hits = [];
+  if (/^AYX[\s\-\/]*\d/i.test(q)) {
+    // Session 321: a UHID must resolve to exactly one patient (stored UHID, tenant server-side)
+    const { data, error } = await supabase.rpc('find_patient_by_uhid', { p_uhid: q });
+    if (error) { showToast(safeErrorMessage(error, 'Could not look up that UHID.'), 'error'); return; }
+    if (data?.length === 1) { _reqPatient = data[0]; _showChosen(); return; }
+    _showMatches([], data?.length ? 'That UHID matches more than one patient — type the full UHID.' : 'No patient found with that UHID.');
+    return;
+  }
+  const digits = q.replace(/\D/g, '');
+  let req = supabase.from('patients').select('id,uhid,name,phone,age,gender').eq('tenant_id', tenantId).order('name').limit(21);
+  if (/^\d{10}$/.test(digits) && digits.length === q.replace(/[\s\-+]/g, '').length) req = req.eq('phone', digits);
+  else {
+    const name = q.replace(/[%_,()*\\]/g, ' ').trim();
+    if (name.length < 2) { showToast('Type at least 2 letters of the name.', 'error'); return; }
+    req = req.ilike('name', '%' + name + '%');
+  }
+  const { data, error } = await req;
+  if (error) { showToast(safeErrorMessage(error, 'Could not search patients.'), 'error'); return; }
+  hits = data || [];
+  _reqMatches = hits.slice(0, 20);
+  _showMatches(_reqMatches, !hits.length ? 'No patient found — check the spelling, or use the UHID.'
+    : hits.length > 20 ? 'More than 20 matches — type more of the name, or use the UHID.' : 'Choose the patient.');
+};
+window.chooseReqPatient = (id) => {
+  const p = _reqMatches.find(x => x.id === id);
+  if (!p) return;
+  _reqPatient = p; _reqMatches = [];
+  _showMatches([], ''); _showChosen();
+};
+
 window.openRequestModal = () => {
   ['r-patient','r-ipd','r-indication'].forEach(id=>document.getElementById(id).value='');
+  window.clearReqPatient();
   ['r-group','r-component'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('r-urgency').value='routine';
   document.getElementById('req-modal').classList.add('show');
 };
 
 window.saveRequest = async () => {
-  const patient_name = document.getElementById('r-patient').value.trim();
   const blood_group = document.getElementById('r-group').value;
   const component = document.getElementById('r-component').value;
   const units = parseInt(document.getElementById('r-units').value)||1;
   const urgency = document.getElementById('r-urgency').value;
-  if (!patient_name||!blood_group||!component){showToast('Fill patient, blood group and component','error');return;}
-
-  let patient_id = null;
-  if (/^AYX[\s\-\/]*\d/i.test(patient_name)) {
-    // Session 321: a UHID must resolve to exactly one patient (stored UHID, tenant server-side)
-    const {data:hits, error:uErr} = await supabase.rpc('find_patient_by_uhid', { p_uhid: patient_name });
-    if (uErr) { showToast(safeErrorMessage(uErr, 'Could not look up that UHID.'),'error'); return; }
-    if (hits?.length !== 1) { showToast(hits?.length ? 'That UHID matches more than one patient — use the full UHID.' : 'No patient found with that UHID.','error'); return; }
-    patient_id = hits[0].id;
-  } else {
-    const {data:pts} = await supabase.from('patients').select('id').eq('tenant_id',tenantId).ilike('name','%'+patient_name+'%').limit(1);
-    if (pts?.length) patient_id = pts[0].id;
-  }
+  if (!_reqPatient) { showToast('Choose the patient first: type the UHID, a name or a phone number, press 🔍 Find, then pick the patient.','error'); return; }
+  if (!blood_group||!component){showToast('Fill blood group and component','error');return;}
+  const patient_id = _reqPatient.id;
 
   const {error} = await supabase.from('blood_bank_requests').insert({
     tenant_id:tenantId, patient_id, blood_group, component,
@@ -236,28 +296,32 @@ window.saveCrossmatch = async () => {
 
 window.issueBlood = async (id) => {
   if (!confirm('Mark this blood unit as issued to patient?')) return;
-  const {error} = await supabase.from('blood_bank_requests').update({status:'issued',issued_at:new Date().toISOString(),issued_by:profile.id}).eq('id',id).eq('tenant_id',tenantId);
+  // Session 353B: ONE server step -- the request's own bag (same organisation, available, not expired, same group / component) and the
+  // request are marked issued together (the old page marked EVERY reserved bag of the organisation issued, and never this one)
+  const {error} = await supabase.rpc('issue_blood_unit', { p_request: id });
   if (error){showToast(safeErrorMessage(error, 'Could not issue blood.'),'error');return;}
-  await supabase.from('blood_bank_inventory').update({status:'issued'}).eq('tenant_id',tenantId).eq('status','reserved');
   showToast('Blood issued','success');
   loadRequests(); loadKPIs();
 };
 
 window.markTransfused = async (id) => {
   const {error} = await supabase.from('blood_bank_requests').update({status:'transfused',transfusion_completed_at:new Date().toISOString()}).eq('id',id).eq('tenant_id',tenantId);
-  if (!error) { showToast('Marked as transfused','success'); loadRequests(); }
+  if (error) { showToast(safeErrorMessage(error, 'Could not mark as transfused.'),'error'); return; }
+  showToast('Marked as transfused','success'); loadRequests();
 };
 
 window.reportReaction = async (id) => {
   const details = prompt('Describe the transfusion reaction:');
   if (details===null) return;
   const {error} = await supabase.from('blood_bank_requests').update({status:'reaction_reported',reaction_observed:true,reaction_details:details}).eq('id',id).eq('tenant_id',tenantId);
-  if (!error) { showToast('Reaction reported','success'); loadRequests(); loadKPIs(); }
+  if (error) { showToast(safeErrorMessage(error, 'Could not report the reaction.'),'error'); return; }
+  showToast('Reaction reported','success'); loadRequests(); loadKPIs();
 };
 
 window.discardBag = async (id) => {
   if (!confirm('Mark this blood bag as discarded?')) return;
-  await supabase.from('blood_bank_inventory').update({status:'discarded'}).eq('id',id).eq('tenant_id',tenantId);
+  const {error} = await supabase.from('blood_bank_inventory').update({status:'discarded'}).eq('id',id).eq('tenant_id',tenantId);
+  if (error) { showToast(safeErrorMessage(error, 'Could not discard the bag.'),'error'); return; }
   showToast('Bag discarded','success');
   loadInventory(); loadStockSummary(); loadKPIs();
 };

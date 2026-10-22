@@ -315,7 +315,13 @@ window.setFilter = function(el, f) {
 };
 
 // ── Select order → load result entry ─────────────────────────────────────────
+// 353B B2 (owner 21 / 22 Oct 2026): "✅ Release Report" marks each released result Tech Verified -- the step the pathologist / lab
+// in-charge's sign-off (lab-nabl.html) needs; a verified result is locked, "↩ Back to pending" lets the lab fix it before the sign-off.
+// _stored = the values as saved (only a CHANGED row is sent again, so the person who entered a result stays its entrant -- B1).
+let _stored = {};
+let _backToPending = new Set();
 window.selectOrder = async function(id) {
+  if (_activeOrder?.id !== id) _backToPending = new Set();
   _activeOrder = _orders.find(o => o.id === id);
   if (!_activeOrder) return;
 
@@ -326,6 +332,7 @@ window.selectOrder = async function(id) {
     .eq('order_id', id)
     .order('created_at');
   _activeItems = items || [];
+  _stored = Object.fromEntries(_activeItems.map(i => [i.id, { v: i.result_value || null, r: i.remarks || null }]));
 
   renderOrderDetail();
   renderQueue(); // update selected state
@@ -445,7 +452,12 @@ function renderTestRow(item) {
   const flag  = item.is_critical ? 'critical' : item.is_abnormal ? 'abnormal' : 'normal';
   const flagLabel = item.is_critical ? '⚠ CRITICAL' : item.is_abnormal ? 'Abnormal' : 'Normal';
   const inputCls  = item.is_critical ? 'critical-val' : item.is_abnormal ? 'abnormal-val' : '';
-  const isComplete = _activeOrder?.status === 'completed';
+  const auth = item.authorisation_status || 'pending';
+  const isComplete = (_activeOrder?.status === 'completed' && !_backToPending.has(item.id)) || auth !== 'pending';
+  const authNote = auth === 'tech_verified'
+    ? `<span class="flag-badge flag-normal" title="Released; the pathologist / lab in-charge signs it off on lab-nabl.html">Tech verified · awaiting pathologist sign-off</span>
+       <button type="button" class="btn btn-secondary btn-sm" data-onclick="backToPending" data-onclick-a0="${item.id}" title="Unlock this result to correct it (before the sign-off)">↩ Back to pending</button>`
+    : auth === 'pathologist_signed' ? '<span class="flag-badge flag-normal">✓ Signed off</span>' : '';
   return `<div class="test-row ${rowCls}" id="tr-${item.id}">
     <div class="test-name">${_esc(item.test_name)}</div>
     <input class="test-input ${inputCls}" id="val-${item.id}" type="text" value="${_esc(item.result_value||'')}"
@@ -456,8 +468,18 @@ function renderTestRow(item) {
     <span class="flag-badge flag-${flag}" id="flag-${item.id}">${flagLabel}</span>
     <input class="test-remarks" id="rem-${item.id}" type="text" value="${_esc(item.remarks||'')}" placeholder="Remarks"
       ${isComplete?'readonly style="background:#f5f5f5"':''}/>
+    ${authNote ? `<div class="test-auth">${authNote}</div>` : ''}
   </div>`;
 }
+
+// B2: a verified (not yet signed) result back to pending, so the lab can correct it; the server allows the lab tech / the signer
+window.backToPending = async function(itemId) {
+  const { data, error } = await supabase.from('lab_order_items').update({ authorisation_status: 'pending' }).eq('id', itemId).select('id');
+  if (error || !data?.length) { _alert('error', safeErrorMessage(error, 'Could not set this result back to pending.')); return; }
+  _backToPending.add(itemId);
+  _alert('success', 'Result unlocked -- correct it, then press ✅ Release Report again.');
+  if (_activeOrder) await selectOrder(_activeOrder.id);
+};
 
 // ── Auto-evaluate result ──────────────────────────────────────────────────────
 window.evalResult = function(id, testName, val) {
@@ -524,21 +546,35 @@ window.markSampleCollected = async function() {
 // ── Save results ──────────────────────────────────────────────────────────────
 window.saveResults = async function(status) {
   if (!_activeOrder) return;
+  const releasing = status === 'completed';   // B2: only "✅ Release Report" passes 'completed' -- it also marks the results Tech Verified
   if (!status) status = _activeOrder.status === 'completed' ? 'completed' : 'in_progress';
+  const _val = item => document.getElementById(`val-${item.id}`)?.value?.trim() || null;
+  const _rem = item => document.getElementById(`rem-${item.id}`)?.value?.trim() || null;
 
-  const updates = _activeItems.map(item => ({
+  // Session 353B: a verified / signed result is locked on the server -- only pending rows are sent; an edit to a locked row is refused here
+  const locked = _activeItems.filter(item => (item.authorisation_status || 'pending') !== 'pending'
+    && (_val(item) || _stored[item.id]?.v || null) !== (_stored[item.id]?.v || null));
+  if (locked.length) {
+    _alert('error', 'These results are already verified / signed off and cannot be changed here: ' + locked.map(i => i.test_name).join(', ') + '. Ask the pathologist / lab in-charge to re-open them first.');
+    return;
+  }
+  // B2: only a pending row whose value / remarks CHANGED is sent (an unchanged row keeps its entrant)
+  const updates = _activeItems.filter(item => (item.authorisation_status || 'pending') === 'pending'
+      && ((_val(item) || _stored[item.id]?.v || null) !== (_stored[item.id]?.v || null) || _rem(item) !== (_stored[item.id]?.r || null))).map(item => ({
     id:            item.id,
-    result_value:  document.getElementById(`val-${item.id}`)?.value?.trim() || item.result_value || null,
-    remarks:       document.getElementById(`rem-${item.id}`)?.value?.trim() || null,
+    result_value:  _val(item) || _stored[item.id]?.v || null,
+    remarks:       _rem(item),
     is_abnormal:   item.is_abnormal || false,
     is_critical:   item.is_critical || false,
     entered_by:    userId,
     entered_at:    new Date().toISOString(),
   }));
 
-  // Upsert items
+  // Upsert items -- Session 353B: every row's answer is checked (a refused row -- e.g. a signed, frozen result -- is shown, never a false
+  // "saved"); entered_by / entered_at are set by the server
   for (const u of updates) {
-    await supabase.from('lab_order_items').update(u).eq('id', u.id);
+    const { error: iErr } = await supabase.from('lab_order_items').update(u).eq('id', u.id);
+    if (iErr) { _alert('error', safeErrorMessage(iErr, 'Could not save the result for ' + (_activeItems.find(i => i.id === u.id)?.test_name || 'a test') + '.')); return; }
   }
 
   // Update order status
@@ -554,6 +590,19 @@ window.saveResults = async function(status) {
   };
   const { error } = await supabase.from('lab_orders').update(orderUpdate).eq('id', _activeOrder.id);
   if (error) { _alert('error', safeErrorMessage(error, 'Could not update lab order.')); return; }
+
+  // B2: on release every pending result WITH a value becomes Tech Verified (a separate step -- the server refuses a value change and a
+  // status change in one update); a result with no value stays pending and is listed; every answer is checked (no false "saved")
+  let unverified = [];
+  if (releasing) {
+    const withValue = _activeItems.filter(i => (i.authorisation_status || 'pending') === 'pending' && (_val(i) || _stored[i.id]?.v));
+    unverified = _activeItems.filter(i => (i.authorisation_status || 'pending') === 'pending' && !(_val(i) || _stored[i.id]?.v)).map(i => i.test_name);
+    for (const i of withValue) {
+      const { data: vd, error: vErr } = await supabase.from('lab_order_items').update({ authorisation_status: 'tech_verified' }).eq('id', i.id).select('id');
+      if (vErr || !vd?.length) { _alert('error', safeErrorMessage(vErr, 'The report was released, but ' + i.test_name + ' could not be marked Tech Verified.')); await loadOrders(); return; }
+    }
+    _backToPending = new Set();
+  }
 
   // Fire critical alerts to ordering doctor
   const criticals = _activeItems.filter(i => i.is_critical && i.result_value);
@@ -590,7 +639,9 @@ window.saveResults = async function(status) {
     else if (staged.unmatched?.length) console.warn('[lab] stageIpdLabCharges unmatched:', staged.unmatched);
   }
 
-  _alert('success', status === 'completed' ? 'Report released. Doctor notified of critical values.' : 'Results saved as in-progress.');
+  _alert('success', releasing
+    ? 'Report released and Tech Verified -- awaiting the pathologist / lab in-charge sign-off.' + (criticals.length ? ' Doctor notified of critical values.' : '') + (unverified.length ? ' No result yet (still pending): ' + unverified.join(', ') + '.' : '')
+    : status === 'completed' ? 'Results saved.' : 'Results saved as in-progress.');
   await loadOrders();
   if (_activeOrder) selectOrder(_activeOrder.id);
 };

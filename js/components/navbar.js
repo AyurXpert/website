@@ -93,7 +93,7 @@ function _buildGroups(role, type, secondaryRole, hasMonitoringAccess, isDeptScop
         // and nursing.html") already grants it on the destination; nav just never caught up.
         { href:'nursing.html',       label:'Nursing',         roles:CLINICAL.concat(['nurse_manager']),       types:HOSP, module:'nursing'    },
         { href:'icu-flowsheet.html', label:'ICU Flowsheet',   roles:CLINICAL.concat(['nurse']),               types:HOSP, module:'ipd'        },
-        { href:'blood-bank.html',    label:'Blood Bank',      roles:CLINICAL.concat(['nurse']),               types:HOSP, module:'ipd'        },
+        { href:'blood-bank.html',    label:'Blood Bank',      roles:CLINICAL.concat(['nurse','lab_tech']),    types:HOSP, module:'ipd'        },
         { href:'bed-admin.html',     label:'Bed Setup',       roles:ADMIN_ROLES,                             types:HOSP, module:'ipd'        },
         { href:'major-ot.html',      label:'Major OT',        roles:CLINICAL.concat(ADMIN_ROLES),            types:HOSP, module:'ipd'        },
         { href:'minor-ot.html',      label:'Minor OT',        roles:CLINICAL.concat(ADMIN_ROLES),            types:HOSP, module:'ipd'        },

@@ -82,6 +82,14 @@ tr:hover td{background:#f9fdfb}
 .empty{text-align:center;padding:36px 20px;color:var(--text-muted);font-size:13px}
 .toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;color:#fff;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
 .toast.show{opacity:1}.toast.success{background:#2d7a4f}.toast.error{background:var(--red)}
+.pt-find-row{display:flex;gap:6px}
+.pt-find-btn{min-height:44px;white-space:nowrap}
+.pt-matches{margin-top:6px;border:1.5px solid var(--border);border-radius:7px;max-height:220px;overflow-y:auto;background:#fff}
+.pt-match{display:block;width:100%;min-height:44px;text-align:left;padding:8px 10px;border:none;border-bottom:1px solid var(--border);background:none;font-family:inherit;font-size:13px;cursor:pointer}
+.pt-match:hover,.pt-match:focus-visible{background:var(--cream)}
+.pt-match-meta{display:block;font-size:11px;color:var(--text-mid)}
+.pt-note{padding:8px 10px;font-size:12px;color:var(--text-mid)}
+.pt-chosen{margin-top:6px;padding:8px 10px;border-radius:7px;background:var(--green-light);border:1.5px solid var(--green-deep);font-size:13px;color:var(--green-deep);font-weight:600}
 @media(max-width:600px){.field-row,.field-row.col3{grid-template-columns:1fr}}
 </style>
 <link rel="stylesheet" href="css/notify.css"/>
@@ -196,8 +204,13 @@ tr:hover td{background:#f9fdfb}
     <h2>New Blood Request</h2>
     <div class="field-row">
       <div class="field">
-        <label>Patient Name *</label>
-        <input id="r-patient" type="text" placeholder="Patient name, or UHID (AYX/…)"/>
+        <label for="r-patient">Patient (UHID, name or phone) *</label>
+        <div class="pt-find-row">
+          <input id="r-patient" type="text" placeholder="UHID (AYX/…), name or 10-digit phone" data-oninput="clearReqPatient"/>
+          <button type="button" class="btn btn-outline pt-find-btn" data-onclick="findReqPatient">🔍 Find</button>
+        </div>
+        <div id="r-patient-matches" class="pt-matches" hidden></div>
+        <div id="r-patient-chosen" class="pt-chosen" role="status" hidden></div>
       </div>
       <div class="field">
         <label>Patient Blood Group *</label>

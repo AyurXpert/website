@@ -1,4 +1,5 @@
 import { todayISTStr } from '../../utils/dateUtils.js';
+import { AWAITING_SIGNOFF, isAwaitingSignOff } from '../lab/signOff.js';
 // Follow-up consultation layout, phase 4b (Session 295) -- "⏳ Investigations advised
 // last visit" card on doctor.html's History tab + outside-lab result entry.
 //
@@ -38,7 +39,7 @@ export async function loadInvestigationsDue(ctx) {
   if (!prevVisits?.length) { card.hidden = true; return; }
   const last = prevVisits[0];
   const ids = prevVisits.map(v => v.id);
-  const SEL = 'id, visit_id, status, order_date, due_timing, due_by, payment_status, performed_outside, outside_lab_name, outside_report_date, outside_report_path, review_status, lab_order_items(id, test_name, panel_label, result_value, result_unit, reference_range, is_abnormal, is_critical)';
+  const SEL = 'id, visit_id, status, order_date, due_timing, due_by, payment_status, performed_outside, outside_lab_name, outside_report_date, outside_report_path, review_status, lab_order_items(id, test_name, panel_label, result_value, result_unit, reference_range, is_abnormal, is_critical, authorisation_status)';
   const IMG = 'id, visit_id, modality, study_name, status, order_date, due_timing, due_by, is_outside_referral, outside_centre_name, performed_date, findings, impression, outside_report_path, outside_entered_at';
   const [oR, nR, tR, iR, itR] = await Promise.all([
     supabase.from('lab_orders').select(SEL)
@@ -83,7 +84,7 @@ function _testsSummary(o, esc) {
   const items = o.lab_order_items || [];
   const withResult = items.filter(i => i.result_value !== null && i.result_value !== '');
   if (withResult.length) {
-    return withResult.map(i => `<span class="inv-res${i.is_critical ? ' crit' : i.is_abnormal ? ' abn' : ''}">${esc(i.test_name)} <strong>${esc(i.result_value)}</strong>${i.result_unit ? ' ' + esc(i.result_unit) : ''}${i.is_critical ? ' ⚠ critical' : i.is_abnormal ? ' ⚠' : ''}</span>`).join(' · ');
+    return withResult.map(i => `<span class="inv-res${i.is_critical ? ' crit' : i.is_abnormal ? ' abn' : ''}">${esc(i.test_name)} <strong>${esc(i.result_value)}</strong>${i.result_unit ? ' ' + esc(i.result_unit) : ''}${i.is_critical ? ' ⚠ critical' : i.is_abnormal ? ' ⚠' : ''}${isAwaitingSignOff(i, o) ? ' · ⏳ ' + esc(AWAITING_SIGNOFF) : ''}</span>`).join(' · ');
   }
   const byPanel = {}, single = [];
   items.forEach(i => i.panel_label ? (byPanel[i.panel_label] = 1) : single.push(i.test_name));

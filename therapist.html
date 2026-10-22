@@ -448,7 +448,7 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
         <textarea id="sched-instructions" rows="2" placeholder="e.g. gentle pressure only, patient has lower back sensitivity…" style="width:100%;border:1.5px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical"></textarea>
       </div>
 
-      <div class="field">
+      <div class="field" id="sched-clearance-field">
         <label class="check-label">
           <input type="checkbox" id="sched-clearance"/>
           PK Fitness Clearance given (NCISM §47(vii))
@@ -573,9 +573,10 @@ input[type="checkbox"]{width:16px;height:16px;accent-color:var(--green-deep);ver
            should touch. -->
       <div class="field" id="comp-clearance-field">
         <label class="check-label">
-          <input type="checkbox" id="comp-clearance"/>
-          PK Fitness Clearance confirmed (NCISM §47(vii))
+          <input type="checkbox" id="comp-clearance" disabled/>
+          PK Fitness Clearance (NCISM §47(vii)) — given by a doctor
         </label>
+        <div class="field-note">Shown for information only: the clearance is given by a doctor (🩺 Give clearance), not recorded here.</div>
       </div>
 
       <!-- Samsarjana Krama — shown only for Paschatkarma sessions -->

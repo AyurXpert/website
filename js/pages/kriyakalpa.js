@@ -142,9 +142,11 @@ function renderSessions() {
         ${s.side && s.side !== 'na' ? `<span class="sess-eye">${{bilateral:'Both sides',right:'Right',left:'Left'}[s.side]||_esc(s.side)}</span>` : ''}
         ${s.course_label ? `<span style="font-size:11px;color:var(--text-muted);margin-left:6px">${_esc(s.course_label)}</span>` : ''}
         ${s.post_observations ? `<div style="font-size:11px;color:var(--text-mid);margin-top:4px">${_esc(s.post_observations)}</div>` : ''}
+        <div style="font-size:11px;margin-top:4px;color:${s.doctor_clearance ? 'var(--green-mid)' : 'var(--text-muted)'}">${s.doctor_clearance ? '✓ Doctor clearance given' : 'Doctor clearance not yet given'}</div>
       </div>
       <div class="sess-actions">
         <span class="status-pill pill-${s.status}">${{scheduled:'Scheduled',in_progress:'In Progress',completed:'Done',cancelled:'Cancelled',skipped:'Skipped'}[s.status]||_esc(s.status)}</span>
+        ${_canGiveClearance() && !s.doctor_clearance && s.status === 'scheduled' ? `<button class="btn btn-secondary btn-sm" data-onclick="giveClearance" data-onclick-a0="${s.id}" title="Doctor's fitness clearance">🩺 Give clearance</button>` : ''}
         ${s.status === 'scheduled' ? `<button class="btn btn-complete btn-sm" data-onclick="openCompleteModal" data-onclick-a0="${s.id}">✓ Complete</button>` : ''}
         ${s.status === 'scheduled' ? `<button class="btn btn-secondary btn-sm" data-onclick="cancelSession" data-onclick-a0="${s.id}">✕</button>` : ''}
       </div>
@@ -240,6 +242,16 @@ window.confirmComplete = async function() {
   if (error) { _alert('error', safeErrorMessage(error, 'Could not mark session completed.')); return; }
   _alert('success', 'Session marked completed.');
   closeCompleteModal();
+  await loadSessions();
+};
+
+// Session 353B (D8): the Kriya Kalpa clearance is a doctor's action; the execution (✓ Complete) is the therapist's (server-enforced)
+function _canGiveClearance() { return profile?.role === 'doctor' || profile?.role === 'super_admin'; }
+window.giveClearance = async function(id) {
+  if (!_canGiveClearance()) return;
+  const { error } = await supabase.from('kriyakalpa_sessions').update({ doctor_clearance: true }).eq('id', id);
+  if (error) { _alert('error', safeErrorMessage(error, 'Could not record the clearance.')); return; }
+  _alert('success', 'Clearance recorded.');
   await loadSessions();
 };
 

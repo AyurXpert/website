@@ -178,6 +178,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
 .q-card.active{border-color:var(--green-deep);background:var(--green-light)}
 .q-card.in-progress{border-color:var(--gold);background:var(--gold-light)}
 .q-card-top{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+/* Session 353B B17: the "🌸 PK" queue tab (js/modules/panchakarma/myPkSessions.js) */
+.pk-tab-bar{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--cream)}
+.pk-tab-range{min-height:44px;flex:1;font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:var(--white);color:var(--text-mid);cursor:pointer;font-family:inherit}
+.pk-tab-range.active{border-color:var(--green-mid);background:var(--green-light);color:var(--green-deep);font-weight:600}
+.pk-tab-summary{font-size:11px;color:var(--text-muted);padding:8px 12px 2px}
+.pk-tab-card{cursor:default}
+.pk-tab-time{min-width:52px;font-size:10px}
+.pk-tab-meta{font-size:11px;color:var(--text-muted)}
+.pk-tab-line{font-size:11.5px;color:var(--text-mid);margin-top:4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pk-tab-status{font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;background:var(--cream);border:1px solid var(--border)}
+.pk-st-completed{background:var(--green-light);color:var(--green-deep)}
+.pk-st-skipped,.pk-st-cancelled{color:var(--text-muted)}
+.pk-tab-cleared{color:var(--green-deep);font-weight:600}
+.pk-tab-notcleared{color:#7a4a00;font-weight:600}
+.pk-tab-clear-btn{min-height:44px;font-size:12px;padding:4px 12px;border-radius:6px;border:1px solid var(--green-mid);background:var(--green-light);color:var(--green-deep);font-weight:600;cursor:pointer;font-family:inherit}
 .q-token{
   min-width:36px;height:36px;border-radius:8px;flex-shrink:0;
   display:flex;align-items:center;justify-content:center;
@@ -1179,6 +1194,7 @@ body.vh-split .vh-panel{width:480px;box-shadow:none}
       <button id="q-tab-review" data-onclick="switchQueueTab" data-onclick-a0="review" style="display:none;flex:1;padding:8px 2px;font-size:10.5px;font-weight:500;border:none;background:none;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent">📝 Review <span id="q-review-count" style="background:#fff4e5;color:#7a4a00;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:2px">0</span></button>
       <button id="q-tab-abdm" data-onclick="switchQueueTab" data-onclick-a0="abdm" title="Consent requests you raised — track their status" style="flex:1;padding:8px 2px;font-size:10.5px;font-weight:500;border:none;background:none;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent">🔗 ABDM <span id="q-abdm-count" style="background:#e6f0e6;color:#1a6a34;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:2px">0</span></button>
       <button id="q-tab-mine" data-onclick="switchQueueTab" data-onclick-a0="mine" title="Your own finalized consultations, read-only" style="flex:1;padding:8px 2px;font-size:10.5px;font-weight:500;border:none;background:none;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent">👥 My Patients</button>
+      <button id="q-tab-pk" data-onclick="switchQueueTab" data-onclick-a0="pk" title="Panchakarma sessions of your own patients -- status, therapist and clearance" style="flex:1;padding:8px 2px;font-size:10.5px;font-weight:500;border:none;background:none;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent">🌸 PK</button>
     </div>
 
     <div class="q-list" id="q-list">

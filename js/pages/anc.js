@@ -27,6 +27,14 @@ const ANC_DOCTOR_FIELDS = { 'v-fh': 'fundal_height', 'v-presentation': 'presenta
 function _ancNurseOnly() {
   return getCurrentRole() === 'nurse' && !['doctor', 'dept_admin', 'super_admin'].includes(getCurrentSecondaryRole());
 }
+// TODO §252 (owner rule (a), 21 Oct 2026): the Prasuti & Stri Roga doctor opens the ANC visit; a nurse never creates one -- she adds the
+// vitals / lab values to TODAY's visit (an UPDATE of these columns only; the server refuses anything else)
+const ANC_VITALS_FIELDS = { 'v-weight': 'weight', 'v-bp-sys': 'bp_systolic', 'v-bp-dia': 'bp_diastolic', 'v-pulse': 'pulse',
+  'v-temp': 'temperature', 'v-edema': 'edema', 'v-pallor': 'pallor', 'v-fhr': 'fhr', 'v-fetal-mov': 'fetal_movements',
+  'v-hb': 'haemoglobin', 'v-bs': 'blood_sugar', 'v-urine-albumin': 'urine_albumin', 'v-urine-sugar': 'urine_sugar' };
+const ANC_VISIT_FIELDS = ['v-date', 'v-poa', 'v-visit-no', 'v-remarks'];
+const ANC_NUMERIC = { weight: parseFloat, bp_systolic: parseInt, bp_diastolic: parseInt, pulse: parseInt, temperature: parseFloat, fhr: parseInt, haemoglobin: parseFloat };
+let _vitalsVisitId = null;
 
 let _patient      = null;
 let _ancVisits     = [];
@@ -75,6 +83,7 @@ window.selectPatient = async function(id) {
   document.getElementById('bar-meta').textContent = `${p.phone||'—'} · Age ${p.age||'—'} · ${(p.gender||'').charAt(0).toUpperCase()}`;
   document.getElementById('patient-bar').classList.add('show');
   document.getElementById('new-visit-btn').disabled = false;
+  document.getElementById('new-visit-btn').style.display = _ancNurseOnly() ? 'none' : '';   // §252: a nurse never creates an ANC visit
   await loadAncVisits();
   document.getElementById('garbha-card').style.display = '';
   loadGarbhaSessions();
@@ -128,7 +137,8 @@ function renderAncTable() {
       <td>${v.urine_albumin || '—'} / ${v.urine_sugar || '—'}</td>
       <td><span class="risk-badge risk-${v.risk_category||'normal'}">${_riskLabel(v.risk_category)}</span></td>
       <td>${v.next_visit_date ? _fmtDate(v.next_visit_date) : '—'}</td>
-      <td class="no-print"><button class="btn btn-secondary btn-sm" data-onclick="viewVisit" data-onclick-a0="${v.id}">View</button></td>
+      <td class="no-print"><button class="btn btn-secondary btn-sm" data-onclick="viewVisit" data-onclick-a0="${v.id}">View</button>${
+        _ancNurseOnly() && v.visit_date === todayLocalStr() ? ` <button class="btn btn-primary btn-sm" data-onclick="openVitalsModal" data-onclick-a0="${v.id}">Add vitals</button>` : ''}</td>
     </tr>`).join('');
 
   // Risk factors
@@ -162,6 +172,11 @@ function updateStats() {
 // ── New visit modal ───────────────────────────────────────────────────────────
 window.openVisitModal = function() {
   if (!_patient) return;
+  if (_ancNurseOnly()) { _alert('error', 'A Prasuti & Stri Roga doctor opens the ANC visit; add the vitals to today\'s visit with "Add vitals".'); return; }
+  _vitalsVisitId = null;
+  document.getElementById('visit-modal-title').textContent = 'New ANC Visit';
+  document.getElementById('visit-save-btn').textContent = 'Save ANC Visit';
+  ANC_VISIT_FIELDS.forEach(id => { document.getElementById(id).disabled = false; });
   document.getElementById('modal-pt-label').textContent = _patient.name + ' — Visit ' + (_ancVisits.length + 1);
   document.getElementById('v-date').value  = todayLocalStr();
   document.getElementById('v-visit-no').value = _ancVisits.length + 1;
@@ -174,6 +189,28 @@ window.openVisitModal = function() {
 
 window.closeVisitModal = function() {
   document.getElementById('visit-overlay').style.display = 'none';
+  _vitalsVisitId = null;
+};
+
+// §252: the nurse's "Add vitals" -- the same form, only the vitals / lab values editable, saved as an UPDATE of today's visit
+window.openVitalsModal = function(id) {
+  const v = _ancVisits.find(x => x.id === id);
+  if (!v || !_patient) return;
+  if (v.visit_date !== todayLocalStr()) { _alert('error', 'Vitals are added only to today\'s ANC visit.'); return; }
+  _vitalsVisitId = v.id;
+  document.getElementById('visit-modal-title').textContent = 'Add vitals';
+  document.getElementById('visit-save-btn').textContent = 'Save vitals';
+  document.getElementById('modal-pt-label').textContent = _patient.name + ' — Visit ' + (v.visit_number || '') + ' · ' + _fmtDate(v.visit_date);
+  document.getElementById('v-date').value = v.visit_date || '';
+  document.getElementById('v-visit-no').value = v.visit_number || '';
+  document.getElementById('v-poa').value = v.gestational_age || '';
+  document.getElementById('v-remarks').value = v.remarks || '';
+  Object.entries(ANC_VITALS_FIELDS).forEach(([el, col]) => { const f = document.getElementById(el); if (f) f.value = v[col] ?? ''; });
+  document.getElementById('risk-alert').classList.remove('show');
+  document.getElementById('anc-nurse-note').hidden = false;
+  Object.keys(ANC_DOCTOR_FIELDS).concat(ANC_VISIT_FIELDS).forEach(i => { const el = document.getElementById(i); if (el) el.disabled = true; });
+  window.assessRisk();
+  document.getElementById('visit-overlay').style.display = 'flex';
 };
 
 window.assessRisk = function() {
@@ -204,6 +241,21 @@ window.assessRisk = function() {
 
 window.saveVisit = async function() {
   if (!_patient) return;
+  if (_vitalsVisitId) {
+    const upd = {};
+    Object.entries(ANC_VITALS_FIELDS).forEach(([el, col]) => {
+      const raw = (document.getElementById(el)?.value ?? '').trim();
+      upd[col] = raw === '' ? null : ANC_NUMERIC[col] ? (ANC_NUMERIC[col](raw) || null) : raw;
+    });
+    // no false "saved" (353A): the update must come back with the row, else it was refused
+    const { data, error } = await supabase.from('anc_visits').update(upd).eq('id', _vitalsVisitId).eq('tenant_id', tenantId).select('id');
+    if (error || !data?.length) { _alert('error', safeErrorMessage(error, 'The vitals were not saved (the visit may not be today\'s, or your role cannot change it).')); return; }
+    _alert('success', 'Vitals saved.');
+    closeVisitModal();
+    await loadAncVisits();
+    return;
+  }
+  if (_ancNurseOnly()) { _alert('error', 'A Prasuti & Stri Roga doctor opens the ANC visit; add the vitals to today\'s visit with "Add vitals".'); return; }
   const payload = {
     tenant_id:       tenantId,
     patient_id:      _patient.id,

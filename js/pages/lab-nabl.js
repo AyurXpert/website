@@ -1224,6 +1224,7 @@ window.loadAuthorization = async function() {
       id, test_name, result_value, result_unit, is_critical, is_abnormal,
       authorisation_status, previous_result, previous_result_date,
       tech:profiles!entered_by(full_name),
+      authorised_at, signer:profiles!authorised_by(full_name),
       lab_orders!inner(
         id, created_at, tenant_id,
         visits(patients(id, name, age, gender))
@@ -1264,7 +1265,8 @@ function renderAuthTable() {
     const authBadge = isPending
       ? '<span class="badge b-warning">Tech Verified</span>'
       : isSigned
-        ? '<span class="badge b-received">Signed ✓</span>'
+        // Session 353B (D5): the signer is recorded on the result; results signed before 353B show "signer not recorded"
+        ? `<span class="badge b-received">Signed ✓</span><br><span style="font-size:10px;color:var(--text-muted)">${item.signer?.full_name ? 'by ' + _esc(item.signer.full_name) : 'signer not recorded'}</span>`
         : '<span class="badge b-collected">Pending</span>';
     return `<tr style="${item.is_critical ? 'background:#fff8f8' : ''}">
       <td style="font-weight:500">${_esc(pat?.name||'—')}<br>
@@ -1278,6 +1280,7 @@ function renderAuthTable() {
       <td>${authBadge}</td>
       <td>
         ${isPending ? `<button class="btn btn-primary btn-sm" data-onclick="signOffResult" data-onclick-a0="${item.id}">Sign Off</button>` : ''}
+        ${isSigned ? `<button class="btn btn-outline btn-sm" data-onclick="reopenResult" data-onclick-a0="${item.id}" title="Pathologist / Lab In-charge only">Re-open</button>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -1301,12 +1304,25 @@ window.signOffResult = async function(itemId) {
   // Also update the parent order's authorised_at if not already set
   const item = _authItems.find(i => i.id === itemId);
   if (item?.lab_orders?.id) {
-    await supabase.from('lab_orders').update({
+    // Session 353B: the server stamps the signer and the time itself; a refusal is shown, never a silent "signed"
+    const { error: oErr } = await supabase.from('lab_orders').update({
       authorised_at: new Date().toISOString(), authorised_by: sess.id,
     }).eq('id', item.lab_orders.id).is('authorised_at', null);
+    if (oErr) { _toast(safeErrorMessage(oErr, 'The result is signed, but the order sign-off stamp could not be saved.'), 'error'); loadAuthorization(); return; }
   }
 
   _toast('Result signed off ✓', 'success');
+  loadAuthorization();
+};
+
+// Session 353B: a signed result is frozen on the server; the pathologist / lab in-charge re-opens it with a reason (audited)
+window.reopenResult = async function(itemId) {
+  const reason = prompt('Reason for re-opening this signed result (required):');
+  if (reason === null) return;
+  if (!reason.trim()) { _toast('A reason is required to re-open a signed result.', 'error'); return; }
+  const { error } = await supabase.rpc('reopen_lab_result', { p_item: itemId, p_reason: reason.trim() });
+  if (error) { _toast(safeErrorMessage(error), 'error'); return; }
+  _toast('Result re-opened — it is pending again', 'success');
   loadAuthorization();
 };
 

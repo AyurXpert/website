@@ -23,6 +23,8 @@ import { printDocument } from '../utils/printDocument.js';
 import { aggregateByMedicine } from '../modules/inventory/stockByMedicine.js';
 import { identityLines } from '../utils/signerIdentity.js';
 import { getOpdWorkflow, screeningOpdId } from '../modules/opd/screeningOpd.js';
+import { AWAITING_SIGNOFF, isAwaitingSignOff, anyAwaitingSignOff } from '../modules/lab/signOff.js';
+import { loadMyPkSessions, resetMyPkSessions } from '../modules/panchakarma/myPkSessions.js';
 
 // Auth + navbar first — page must always be visible and navigable even if proforma module is absent
 await requireAuth(['doctor', 'trainee_doctor', 'super_admin', 'dept_admin']);
@@ -466,10 +468,12 @@ window.switchQueueTab = function(tab) {
   const review = document.getElementById('q-tab-review');
   const abdm   = document.getElementById('q-tab-abdm');
   const mine   = document.getElementById('q-tab-mine');
-  [opd, tele, ipd, review, abdm, mine].forEach(b => { if (!b) return; b.style.background = 'none'; b.style.color = 'var(--text-muted)'; b.style.borderBottom = '2px solid transparent'; b.style.fontWeight = '500'; });
+  const pk     = document.getElementById('q-tab-pk');
+  [opd, tele, ipd, review, abdm, mine, pk].forEach(b => { if (!b) return; b.style.background = 'none'; b.style.color = 'var(--text-muted)'; b.style.borderBottom = '2px solid transparent'; b.style.fontWeight = '500'; });
   // Leaving the ABDM tab stops its auto-refresh poll.
   if (tab !== 'abdm' && _abdmReqTimer) { clearInterval(_abdmReqTimer); _abdmReqTimer = null; }
   if (tab !== 'mine') resetMyPatients();
+  if (tab !== 'pk') resetMyPkSessions();
   if (tab === 'opd') {
     opd.style.background = 'var(--green-light)'; opd.style.color = 'var(--green-deep)'; opd.style.borderBottom = '2px solid var(--green-mid)'; opd.style.fontWeight = '600';
     loadQueue();
@@ -487,6 +491,11 @@ window.switchQueueTab = function(tab) {
   } else if (tab === 'mine') {
     mine.style.background = '#f3f4f6'; mine.style.color = '#4b5563'; mine.style.borderBottom = '2px solid #9ca3af'; mine.style.fontWeight = '600';
     loadMyPatients({ supabase, esc: _esc, tenantId, userId });
+  } else if (tab === 'pk') {
+    // Session 353B B17: my patients' Panchakarma sessions; the clearance button for a non-trainee doctor (the server decides -- B5)
+    pk.style.background = 'var(--gold-light)'; pk.style.color = 'var(--green-deep)'; pk.style.borderBottom = '2px solid var(--gold)'; pk.style.fontWeight = '600';
+    loadMyPkSessions({ supabase, tenantId, userId,
+      canClear: !_isTrainee && (['doctor', 'super_admin'].includes(profile.role) || profile.secondary_role === 'doctor') });
   } else {
     ipd.style.background = '#fce7f3'; ipd.style.color = '#be185d'; ipd.style.borderBottom = '2px solid #db2777'; ipd.style.fontWeight = '600';
     loadIPDPatients();
@@ -8645,7 +8654,7 @@ async function loadLabResults() {
   const orderIds = orders.map(o => o.id);
   const { data: allItems } = await supabase
     .from('lab_order_items')
-    .select('order_id,test_name,result_value,is_abnormal,is_critical')
+    .select('order_id,test_name,result_value,is_abnormal,is_critical,authorisation_status')
     .in('order_id', orderIds);
   const itemsByOrder = {};
   (allItems || []).forEach(i => { (itemsByOrder[i.order_id] = itemsByOrder[i.order_id] || []).push(i); });
@@ -8666,8 +8675,9 @@ async function loadLabResults() {
         ${nextVisitOpen && o.due_by ? `<span style="font-size:10px;color:var(--text-muted)">due by ${_fmtDate(o.due_by)}</span>` : ''}
         ${o.payment_status === 'pending' && !nextVisitOpen && !o.performed_outside ? '<span style="color:#7a4a00;font-size:10px;font-weight:700">⏳ PAYMENT PENDING</span>' : ''}
         ${criticals.length ? '<span style="color:var(--red);font-size:11px;font-weight:700">⚠ CRITICAL</span>' : ''}
+        ${anyAwaitingSignOff(items, o) ? `<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;background:var(--gold-light,#fdf3e2);color:#7a4a00" title="Released by the lab; the pathologist / lab in-charge has not signed it off yet">⏳ ${_esc(AWAITING_SIGNOFF.toUpperCase())}</span>` : ''}
       </div>
-      <div style="line-height:1.8">${items.map(i => `<span style="font-size:11px;${i.is_critical?'color:var(--red);font-weight:700':i.is_abnormal?'color:#7a5c00':''}">${_esc(i.test_name)}${i.result_value?' = <strong>'+_esc(i.result_value)+'</strong>':''}</span>`).join(' · ')}</div>
+      <div style="line-height:1.8">${items.map(i => `<span style="font-size:11px;${i.is_critical?'color:var(--red);font-weight:700':i.is_abnormal?'color:#7a5c00':''}">${_esc(i.test_name)}${i.result_value?' = <strong>'+_esc(i.result_value)+'</strong>':''}${isAwaitingSignOff(i, o) ? ' <span title="' + _esc(AWAITING_SIGNOFF) + '">⏳</span>' : ''}</span>`).join(' · ')}</div>
     </div>`;
   }).join('');
   document.getElementById('lab-results-body').innerHTML = html;

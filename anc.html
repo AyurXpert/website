@@ -216,7 +216,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
   <div class="modal">
     <div class="modal-hdr">
       <div>
-        <div class="modal-hdr-title">New ANC Visit</div>
+        <div class="modal-hdr-title" id="visit-modal-title">New ANC Visit</div>
         <div class="modal-hdr-sub" id="modal-pt-label">—</div>
       </div>
       <button data-onclick="closeVisitModal" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer">✕</button>
@@ -375,7 +375,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
     </div>
     <div class="modal-foot">
       <button class="btn btn-secondary btn-sm" data-onclick="closeVisitModal">Cancel</button>
-      <button class="btn btn-primary btn-sm" data-onclick="saveVisit">Save ANC Visit</button>
+      <button class="btn btn-primary btn-sm" id="visit-save-btn" data-onclick="saveVisit">Save ANC Visit</button>
     </div>
   </div>
 </div>

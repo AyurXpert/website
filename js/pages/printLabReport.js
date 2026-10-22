@@ -1,5 +1,6 @@
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
+import { AWAITING_SIGNOFF, isAwaitingSignOff, anyAwaitingSignOff } from '../modules/lab/signOff.js';
 
 wireDelegatedEvents();
 
@@ -76,7 +77,7 @@ async function loadReport() {
     .from('lab_orders')
     .select(`
       id, created_at, collected_at, authorised_at, authorised_by,
-      status, clinical_notes,
+      status, clinical_notes, performed_outside,
       visits(patients(id, name, age, gender, phone, abha_number)),
       ordering_doctor:profiles!ordered_by(full_name),
       authorising_doctor:profiles!authorised_by(full_name),
@@ -145,7 +146,9 @@ async function loadReport() {
           const valClass = isCrit ? 'result-critical' : (item.is_abnormal || flag.flag.includes('Low')||flag.flag.includes('High')) ? 'result-abnormal' : 'result-normal';
           const authBadge= item.authorisation_status === 'pathologist_signed'
             ? '<span style="font-size:10px;color:#2d7a4f;font-weight:600">✓ Authorised</span>'
-            : '<span style="font-size:10px;color:#c9902a">Pending</span>';
+            : isAwaitingSignOff(item, order)
+              ? `<span style="font-size:10px;color:#7a4a00;font-weight:600">${_esc(AWAITING_SIGNOFF)}</span>`
+              : '<span style="font-size:10px;color:#c9902a">Pending</span>';
           return `<tr style="${isCrit ? 'background:#fff8f8' : ''}">
             <td style="font-weight:500">${_esc(item.test_name)}</td>
             <td style="text-align:right;font-size:14px;font-weight:700" class="${valClass}">${item.result_value ? _esc(item.result_value) : '<span class="no-result">Pending</span>'}</td>
@@ -160,6 +163,7 @@ async function loadReport() {
   });
 
   const hasCritical = items.some(i => i.is_critical || _flagResult(i.result_value, _getRef(i.test_name, pat.age, pat.gender)).cls === 'flag-crit');
+  const awaitingSignOff = anyAwaitingSignOff(items, order);   // 353B B2
 
   const collectedAt = order.collected_at
     ? new Date(order.collected_at).toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})
@@ -205,6 +209,10 @@ async function loadReport() {
       <span class="rpt-barcode">${reportId}</span>
     </div>
 
+    ${awaitingSignOff ? `
+    <div style="background:#fdf3e2;color:#7a4a00;border-bottom:1px solid #c9902a;padding:6px 24px;font-size:12px;font-weight:600">
+      ⏳ ${_esc(AWAITING_SIGNOFF)} — results released by the laboratory; not yet authorised by the pathologist / lab in-charge.
+    </div>` : ''}
     ${hasCritical ? `
     <div style="background:#c0392b;color:#fff;padding:6px 24px;font-size:12px;font-weight:600">
       ⚠ CRITICAL VALUE(S) DETECTED — Treating clinician has been notified. Immediate action required.

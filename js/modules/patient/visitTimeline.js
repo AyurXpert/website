@@ -14,6 +14,7 @@
 // trainee drafts that were never finalized.
 
 import { loadInvestigationsDue, resetInvestigationsDue } from './investigationsDue.js';
+import { AWAITING_SIGNOFF, isAwaitingSignOff } from '../lab/signOff.js';
 
 let _sb = null, _esc = s => String(s ?? '');
 let _entries = [];          // merged visit + admission entries, newest first
@@ -237,7 +238,7 @@ window.openVhVisit = async function(visitId) {
   const [cnR, rxR, labR, imgR, pkR] = await Promise.all([
     _sb.from('consultation_notes').select('*').eq('visit_id', visitId).order('created_at', { ascending: false }),
     _sb.from('prescriptions').select('id, review_status, is_deleted, advice_diet, prescription_items(medicine_name, dosage, frequency, duration, anupana, timing)').eq('visit_id', visitId),
-    _sb.from('lab_orders').select('id, test_name, status, order_date, review_status, due_timing, performed_outside, outside_lab_name, outside_report_date, outside_report_path, lab_order_items(test_name, result_value, result_unit, reference_range, is_abnormal, is_critical, remarks)').eq('visit_id', visitId),
+    _sb.from('lab_orders').select('id, test_name, status, order_date, review_status, due_timing, performed_outside, outside_lab_name, outside_report_date, outside_report_path, lab_order_items(test_name, result_value, result_unit, reference_range, is_abnormal, is_critical, remarks, authorisation_status)').eq('visit_id', visitId),
     _sb.from('imaging_orders').select('study_name, modality, status, order_date, findings, impression, due_timing, is_outside_referral, outside_centre_name, outside_report_path, outside_entered_at, performed_date').eq('visit_id', visitId),
     _sb.from('pk_care_plans').select('status, setting, instructions_patient, pk_care_plan_protocols(protocol_label, start_date, status)').eq('visit_id', visitId),
   ]);
@@ -344,7 +345,7 @@ function _labHtml(l) {
     ${l.performed_outside ? `<div class="vh-muted" style="margin-bottom:4px">🔗 ${_esc(l.outside_lab_name || 'Outside lab')}${l.outside_report_date ? ', ' + _fmtD(l.outside_report_date) : ''}${l.outside_report_path ? ` · <button type="button" class="vh-link" data-onclick="openLabReportFile" data-onclick-a0="${_esc(l.outside_report_path)}">📄 View report</button>` : ''}</div>` : ''}
     ${l.due_timing === 'next_visit' && l.status !== 'completed' ? '<div class="vh-muted" style="margin-bottom:4px">📅 Advised before next visit — not done yet</div>' : ''}
     ${items.length ? `<table class="vh-res"><tbody>${items.map(i => `<tr>
-      <td>${_esc(i.test_name)}</td><td><strong>${_esc(i.result_value)}</strong> ${_esc(i.result_unit || '')} ${flag(i)}</td>
+      <td>${_esc(i.test_name)}</td><td><strong>${_esc(i.result_value)}</strong> ${_esc(i.result_unit || '')} ${flag(i)}${isAwaitingSignOff(i, l) ? ' ' + `<span class="vh-flag" title="Released by the lab; the pathologist / lab in-charge has not signed it off yet">⏳ ${AWAITING_SIGNOFF}</span>` : ''}</td>
       <td class="vh-muted">${_esc(i.reference_range || '')}</td></tr>`).join('')}</tbody></table>`
       : '<div class="vh-muted">Report not available yet.</div>'}
   </div>`;
