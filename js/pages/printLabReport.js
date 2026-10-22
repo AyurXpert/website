@@ -1,6 +1,6 @@
 import { supabase } from '../core/db/supabaseClient.js';
 import { wireDelegatedEvents } from '../utils/domEvents.js';
-import { AWAITING_SIGNOFF, isAwaitingSignOff, anyAwaitingSignOff } from '../modules/lab/signOff.js';
+import { AWAITING_SIGNOFF, PROVISIONAL_REPORT, isAwaitingSignOff, anyAwaitingSignOff } from '../modules/lab/signOff.js';
 
 wireDelegatedEvents();
 
@@ -210,7 +210,8 @@ async function loadReport() {
     </div>
 
     ${awaitingSignOff ? `
-    <div style="background:#fdf3e2;color:#7a4a00;border-bottom:1px solid #c9902a;padding:6px 24px;font-size:12px;font-weight:600">
+    <div style="background:#fdf3e2;color:#7a4a00;border:2px solid #c9902a;padding:8px 24px;font-size:12px;font-weight:600">
+      <div style="font-size:14px;font-weight:800;letter-spacing:.5px">${_esc(PROVISIONAL_REPORT)}</div>
       ⏳ ${_esc(AWAITING_SIGNOFF)} — results released by the laboratory; not yet authorised by the pathologist / lab in-charge.
     </div>` : ''}
     ${hasCritical ? `

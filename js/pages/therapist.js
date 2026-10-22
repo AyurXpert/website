@@ -68,6 +68,19 @@ let _viewDate    = todayLocalStr();
 // (flagged elsewhere as a standing platform-wide gap around midnight IST, not fixed here).
 const _prepToday = todayLocalStr();
 
+// TODO §262 (22 Oct 2026): patients.gender is stored as 'male' / 'female' (reception, labour room) or 'M' / 'F' (older rows); every
+// check on this page compares 'M' / 'F'. ONE page twin of the server's _pk_gender_norm: m / male -> 'M', f / female -> 'F', else null.
+// Applied where patients and therapists are loaded, so every comparison below sees M / F only.
+function _normGender(g) {
+  const v = String(g ?? '').trim().toLowerCase();
+  return v === 'm' || v === 'male' ? 'M' : v === 'f' || v === 'female' ? 'F' : null;
+}
+function _normGenderOf(obj) { if (obj) obj.gender = _normGender(obj.gender); return obj; }
+// The Schedule Session department list (owner, 22 Oct 2026): clinical departments + Kriyakalpa + Swasthavritta & Yoga
+function _isSchedDept(d) {
+  return d?.category === 'clinical' || d?.category === 'KRIYAKALPA' || d?.ncism_code === 'SW' || /^swasthavritta/i.test(d?.name || '');
+}
+
 // Session 207: Monday-start "this week" bounds for a plain therapist's read-only shifts
 // card. Uses toLocaleDateString('en-CA') for "today" rather than the toISOString().slice
 // idiom used elsewhere in this file -- that idiom silently rolls back to yesterday's date
@@ -122,7 +135,7 @@ async function loadAll() {
       .order('full_name'),
     supabase
       .from('departments')
-      .select('id,name')
+      .select('id,name,category,ncism_code')
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .order('name'),
@@ -240,6 +253,10 @@ async function loadAll() {
   _sessions   = sessRes.data || [];
   _admissions = admRes.data  || [];
   _therapists = thRes.data   || [];
+  // §262: M / F everywhere on this page (patients, the session's therapists, the therapist list)
+  _sessions.forEach(s => { _normGenderOf(s.patients); _normGenderOf(s.profiles); (s.pk_therapy_session_therapists || []).forEach(r => _normGenderOf(r.profiles)); });
+  _admissions.forEach(a => _normGenderOf(a.patients));
+  _therapists.forEach(_normGenderOf);
   _depts      = deptRes.data || [];
   // Session 213 -- the Duty Roster (Shift 1/2 + Prep Room In-charge) is scoped to the real
   // Panchakarma department, not the platform-wide role='therapist' pool _therapists itself is
@@ -264,6 +281,7 @@ async function loadAll() {
   _pkCyclePending   = pkCyclePendingRes.data?.[0] || null;
   _pkShiftPending   = pkShiftPendingRes.data?.[0] || null;
   _pkRosterDuty     = pkDutyRes.data     || [];
+  _pkRosterDuty.forEach(r => _normGenderOf(r.profiles));   // §262
   _pkPrepRoomDuty   = pkPrepRes.data     || [];
   _pkPrepLeaveIds   = new Set((pkPrepLeaveRes.data || []).map(r => r.profile_id));
   // Real bug caught live this session: an ambiguous-FK embed silently returned no data
@@ -315,7 +333,7 @@ function _renderPkInchargePanel() {
   const prevVal = sel.value;
   sel.innerHTML = '<option value="">— Select —</option>' +
     _pkTherapists.map(t => `<option value="${t.id}">${_esc(t.full_name)}${t.id === current?.id ? ' (current)' : ''}</option>`).join('');
-  if (prevVal && pkTherapists.some(t => t.id === prevVal)) sel.value = prevVal;
+  if (prevVal && _pkTherapists.some(t => t.id === prevVal)) sel.value = prevVal;   // was pkTherapists -- a ReferenceError once a value was picked (TODO §264 note)
 }
 
 window.savePkIncharge = async function() {
@@ -1119,6 +1137,7 @@ async function _loadPkWeekView() {
   if (dutyRes.error) console.error('pk week view duty load failed:', dutyRes.error);
   if (prepRes.error) console.error('pk week view prep load failed:', prepRes.error);
   const dutyRows = dutyRes.data || [];
+  dutyRows.forEach(r => _normGenderOf(r.profiles));   // §262
   const prepRows = prepRes.data || [];
 
   const names = (list) => list.map(x => _esc(x.profiles?.full_name || 'Unknown')).join(', ') || '—';
@@ -1782,7 +1801,7 @@ async function _renderRoomOccupancyGrid() {
     .eq('tenant_id', tenantId)
     .eq('duty_date', _viewDate);
   if (token !== _roomOccupancyToken) return; // a newer render has since started -- discard this one
-  const dutyByShift = (dutyRows || []).filter(r => r.profiles);
+  const dutyByShift = (dutyRows || []).filter(r => r.profiles).map(r => (_normGenderOf(r.profiles), r));   // §262
   const { byShift } = _pkShiftWindows();
   // Which shift(s) actually cover a given slot -- both, if the tenant's 2 shifts overlap.
   const activeShiftsAt = (slotStart, slotEnd) =>
@@ -1880,7 +1899,7 @@ function _populateSchedSelects() {
   // Depts
   const sd = document.getElementById('sched-dept');
   sd.innerHTML = '<option value="">— Select department —</option>';
-  _depts.forEach(d => {
+  _depts.filter(_isSchedDept).forEach(d => {   // §262: clinical + Kriyakalpa + Swasthavritta & Yoga
     const o = document.createElement('option');
     o.value = d.id; o.textContent = d.name;
     sd.appendChild(o);
@@ -1904,6 +1923,7 @@ function _populateSchedSelects() {
 // checked when actually booking a patient into a room -- a real, previously-unknown gap found
 // live when a test patient landed in a cross-gender room. 'any'/null rooms always match.
 function _roomMatchesGender(room, patientGender) {
+  patientGender = _normGender(patientGender);   // §262
   if (!patientGender || !room.gender_restriction || room.gender_restriction === 'any') return true;
   return (patientGender === 'M' && room.gender_restriction === 'male')
       || (patientGender === 'F' && room.gender_restriction === 'female');
@@ -1946,7 +1966,7 @@ function _populateRoomSelect(patientGender) {
   });
   note.style.display = active.length ? 'none' : '';
   note.textContent = allActive.length
-    ? `No ${patientGender === 'M' ? 'male' : 'female'}-designated treatment room available — assign this patient once one is set up.`
+    ? `No ${_normGender(patientGender) === 'M' ? 'male' : 'female'}-designated treatment room available — assign this patient once one is set up.`
     : 'No treatment rooms configured yet — set them up in the 🛏 Treatment Rooms panel above.';
 }
 
@@ -2227,7 +2247,7 @@ window.openSchedDrawer = function(prefillAdmId) {
   document.getElementById('sched-room').value      = '';
   document.getElementById('sched-date').value      = _viewDate;
   document.getElementById('sched-time').value      = '';
-  document.getElementById('sched-dept').value      = '';
+  document.getElementById('sched-dept').value      = _depts.find(d => d.ncism_code === 'PK' && _isSchedDept(d))?.id || '';   // §262: Panchakarma pre-selected
   document.getElementById('sched-admission').value = '';
   document.getElementById('sched-duration').value  = '';
   document.getElementById('sched-doctor').value    = '';
@@ -2269,7 +2289,7 @@ async function _resolveSchedPatientContext() {
     try {
       const obj = JSON.parse(raw);
       const adm = _admissions.find(a => a.id === obj.admId);
-      return { patientId: obj.patientId || null, admId: obj.admId || null, gender: adm?.patients?.gender || null };
+      return { patientId: obj.patientId || null, admId: obj.admId || null, gender: _normGender(adm?.patients?.gender) };
     } catch {
       return { patientId: null, admId: null, gender: null };
     }
@@ -2277,7 +2297,7 @@ async function _resolveSchedPatientContext() {
   const patientId = document.getElementById('sched-opd-patient').value;
   if (!patientId) return { patientId: null, admId: null, gender: null };
   const { data: pt } = await supabase.from('patients').select('gender').eq('id', patientId).single();
-  return { patientId, admId: null, gender: pt?.gender || null };
+  return { patientId, admId: null, gender: _normGender(pt?.gender) };   // §262
 }
 
 // Session 214 -- automates the Schedule Session Therapist field. Priority order, checked with
@@ -2341,7 +2361,7 @@ async function _autoAssignSchedTherapist() {
   if (token !== _schedAutoAssignToken) return;
 
   const onDutyMap = new Map();
-  (dutyRows || []).forEach(r => { if (r.profiles) onDutyMap.set(r.profiles.id, r.profiles); });
+  (dutyRows || []).forEach(r => { if (r.profiles) onDutyMap.set(r.profiles.id, _normGenderOf(r.profiles)); });   // §262
   const onDuty = [...onDutyMap.values()];
 
   let priorQuery = supabase.from('pk_therapy_sessions')
@@ -2398,10 +2418,13 @@ async function _autoAssignSchedTherapist() {
   const poolEligible = ctx.gender ? _pkTherapists.filter(t => !t.gender || t.gender === ctx.gender) : _pkTherapists;
   const genderWord = ctx.gender === 'F' ? 'female' : ctx.gender === 'M' ? 'male' : 'matching';
 
+  // §262 (owner, 22 Oct 2026): the message names the real reason -- nobody on the roster on this date, no therapist of the patient's
+  // gender on it, or (only then "exists at all") no such Panchakarma therapist in the organisation
   if (onDutyEligible.length) {
     showPicker(onDutyEligible, null, `⚠️ No same-gender therapist among today's least-loaded pick — choose manually from who's on duty.`);
   } else if (poolEligible.length) {
-    showPicker(poolEligible, null, `⚠️ No ${genderWord} therapist on duty this date — showing all ${genderWord} Panchakarma therapists (none rostered today).`);
+    const why = onDuty.length ? `No ${genderWord} therapist on duty on this date` : 'No therapist on duty on this date';
+    showPicker(poolEligible, null, `⚠️ ${why} — showing all ${genderWord} Panchakarma therapists (none rostered on this date).`);
   } else {
     sel.value = ''; // saveSession()'s own "Select a therapist" check catches this if submitted anyway
     showAuto(`🚫 No ${genderWord} Panchakarma therapist exists at all — this session cannot be scheduled until one is added.`, 'var(--red)');

@@ -11,6 +11,7 @@ import { initCorrections, defineCorrection, corrRowClass, corrCell } from '../mo
 import { uhidOf } from '../utils/uhid.js';
 import { notify } from '../components/notify.js';
 import { printDocument, docHeader } from '../utils/printDocument.js';
+import { AWAITING_SIGNOFF, PROVISIONAL_REPORT, anyAwaitingSignOff } from '../modules/lab/signOff.js';
 
 // Session 113 -- receptionist added so front-desk staff can check whether a patient's
 // report is ready when they call in (Dr. Venkatesh's ask). Deliberately read-only and
@@ -41,6 +42,13 @@ defineCorrection('aerb_log', { title: 'AERB entry', fields: _AERB_FIELDS, reload
   canWrite: canWriteRegister(profile, ['lab_tech','dept_admin','super_admin']) });
 const userId    = profile?.id;
 const _isReceptionist = profile?.role === 'receptionist';
+// TODO §261 (owner 22 Oct 2026): results are entered, saved and released only by the lab (role lab_tech, primary or second) or the
+// super_admin -- the server's own rule (_lab_item_columns / _lab_order_columns). Everyone else (doctor, nurse, dept_admin) sees the
+// results read-only: no 💾 Save Results / Save as In-Progress / ✅ Release Report, no result inputs. A nurse keeps ✓ Mark Collected.
+// "↩ Back to pending" = the lab or the pathologist / lab in-charge (the server's _lab_signer_ok).
+const _isLabWriter = profile?.role === 'lab_tech' || profile?.secondary_role === 'lab_tech' || profile?.role === 'super_admin';
+const _isLabSigner = _isLabWriter || ['pathologist', 'lab_incharge'].includes(profile?.designation);
+const LAB_ONLY_MSG = 'Only lab staff can enter or change results.';
 
 let _orders      = [];
 let _activeOrder = null;
@@ -414,6 +422,17 @@ function renderOrderDetail() {
   document.getElementById('ph-rdate').textContent  = new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
 
   if (_isReceptionist) _applyReceptionistOrderView();
+  else _applyResultWriteAccess();
+}
+
+// §261: the result controls follow who may write them (shown again for the lab after a reselect -- the same DOM serves every order)
+function _applyResultWriteAccess() {
+  document.querySelectorAll('[data-onclick="saveResults"]').forEach(el => { el.style.display = _isLabWriter ? '' : 'none'; });
+  const ai = document.getElementById('lab-ayurveda'), sig = document.getElementById('lab-signed-by');
+  if (ai) ai.readOnly = !_isLabWriter;
+  if (sig) sig.disabled = !_isLabWriter;
+  const note = document.getElementById('r-readonly-note');
+  if (note) note.style.display = _isLabWriter ? 'none' : '';
 }
 
 // Reception's Clinical Lab access is read-only status-checking only ("is the patient's
@@ -453,10 +472,11 @@ function renderTestRow(item) {
   const flagLabel = item.is_critical ? '⚠ CRITICAL' : item.is_abnormal ? 'Abnormal' : 'Normal';
   const inputCls  = item.is_critical ? 'critical-val' : item.is_abnormal ? 'abnormal-val' : '';
   const auth = item.authorisation_status || 'pending';
-  const isComplete = (_activeOrder?.status === 'completed' && !_backToPending.has(item.id)) || auth !== 'pending';
+  const isComplete = !_isLabWriter || (_activeOrder?.status === 'completed' && !_backToPending.has(item.id)) || auth !== 'pending';   // §261: read-only for non-lab roles
+  // §263 (e): amber, not green -- the result is NOT authorised yet
   const authNote = auth === 'tech_verified'
-    ? `<span class="flag-badge flag-normal" title="Released; the pathologist / lab in-charge signs it off on lab-nabl.html">Tech verified · awaiting pathologist sign-off</span>
-       <button type="button" class="btn btn-secondary btn-sm" data-onclick="backToPending" data-onclick-a0="${item.id}" title="Unlock this result to correct it (before the sign-off)">↩ Back to pending</button>`
+    ? `<span class="flag-badge flag-awaiting" title="Released; the pathologist / lab in-charge signs it off on lab-nabl.html">⏳ Tech verified · awaiting pathologist sign-off</span>
+       ${_isLabSigner ? `<button type="button" class="btn btn-secondary btn-sm" data-onclick="backToPending" data-onclick-a0="${item.id}" title="Unlock this result to correct it (before the sign-off)">↩ Back to pending</button>` : ''}`
     : auth === 'pathologist_signed' ? '<span class="flag-badge flag-normal">✓ Signed off</span>' : '';
   return `<div class="test-row ${rowCls}" id="tr-${item.id}">
     <div class="test-name">${_esc(item.test_name)}</div>
@@ -474,6 +494,7 @@ function renderTestRow(item) {
 
 // B2: a verified (not yet signed) result back to pending, so the lab can correct it; the server allows the lab tech / the signer
 window.backToPending = async function(itemId) {
+  if (!_isLabSigner) { _alert('error', LAB_ONLY_MSG); return; }
   const { data, error } = await supabase.from('lab_order_items').update({ authorisation_status: 'pending' }).eq('id', itemId).select('id');
   if (error || !data?.length) { _alert('error', safeErrorMessage(error, 'Could not set this result back to pending.')); return; }
   _backToPending.add(itemId);
@@ -546,6 +567,7 @@ window.markSampleCollected = async function() {
 // ── Save results ──────────────────────────────────────────────────────────────
 window.saveResults = async function(status) {
   if (!_activeOrder) return;
+  if (!_isLabWriter) { _alert('error', LAB_ONLY_MSG); return; }   // §261: the buttons are hidden; the entry point refuses too
   const releasing = status === 'completed';   // B2: only "✅ Release Report" passes 'completed' -- it also marks the results Tech Verified
   if (!status) status = _activeOrder.status === 'completed' ? 'completed' : 'in_progress';
   const _val = item => document.getElementById(`val-${item.id}`)?.value?.trim() || null;
@@ -572,9 +594,22 @@ window.saveResults = async function(status) {
 
   // Upsert items -- Session 353B: every row's answer is checked (a refused row -- e.g. a signed, frozen result -- is shown, never a false
   // "saved"); entered_by / entered_at are set by the server
+  // §261: nothing changed at all (no result, no order field, nothing to verify) -> say so; never a "Success" for a click that changed nothing
+  const _orderNow = {
+    status,
+    ayurveda_interpretation:  document.getElementById('lab-ayurveda').value.trim() || null,
+    signed_by:                document.getElementById('lab-signed-by').value        || null,
+  };
+  const orderUpdate = Object.fromEntries(Object.entries(_orderNow).filter(([k, v]) => v !== (_activeOrder[k] ?? null)));
+  const toVerify = releasing ? _activeItems.filter(i => (i.authorisation_status || 'pending') === 'pending' && (_val(i) || _stored[i.id]?.v)) : [];
+  if (!updates.length && !Object.keys(orderUpdate).length && !toVerify.length) {
+    _alert('info', 'Nothing to save -- no result changed.');
+    return;
+  }
+
   for (const u of updates) {
-    const { error: iErr } = await supabase.from('lab_order_items').update(u).eq('id', u.id);
-    if (iErr) { _alert('error', safeErrorMessage(iErr, 'Could not save the result for ' + (_activeItems.find(i => i.id === u.id)?.test_name || 'a test') + '.')); return; }
+    const { data: iData, error: iErr } = await supabase.from('lab_order_items').update(u).eq('id', u.id).select('id');
+    if (iErr || !iData?.length) { _alert('error', safeErrorMessage(iErr, 'Could not save the result for ' + (_activeItems.find(i => i.id === u.id)?.test_name || 'a test') + '.')); return; }
   }
 
   // Update order status
@@ -583,19 +618,17 @@ window.saveResults = async function(status) {
   // (those belong to lab-nabl.html's NABL sign-off workflow, which checks authorised_at IS NULL
   // before setting it -- writing it here would misattribute the NABL authorisation to whoever
   // clicked Release Report on this page, not the actual pathologist who signed off).
-  const orderUpdate = {
-    status,
-    ayurveda_interpretation:  document.getElementById('lab-ayurveda').value.trim() || null,
-    signed_by:                document.getElementById('lab-signed-by').value        || null,
-  };
-  const { error } = await supabase.from('lab_orders').update(orderUpdate).eq('id', _activeOrder.id);
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not update lab order.')); return; }
+  // §261: only the order fields that differ are sent, and the answer must name the row (0 rows = refused, never "saved")
+  if (Object.keys(orderUpdate).length) {
+    const { data: oData, error } = await supabase.from('lab_orders').update(orderUpdate).eq('id', _activeOrder.id).select('id');
+    if (error || !oData?.length) { _alert('error', safeErrorMessage(error, 'Could not update lab order.')); return; }
+  }
 
   // B2: on release every pending result WITH a value becomes Tech Verified (a separate step -- the server refuses a value change and a
   // status change in one update); a result with no value stays pending and is listed; every answer is checked (no false "saved")
   let unverified = [];
   if (releasing) {
-    const withValue = _activeItems.filter(i => (i.authorisation_status || 'pending') === 'pending' && (_val(i) || _stored[i.id]?.v));
+    const withValue = toVerify;
     unverified = _activeItems.filter(i => (i.authorisation_status || 'pending') === 'pending' && !(_val(i) || _stored[i.id]?.v)).map(i => i.test_name);
     for (const i of withValue) {
       const { data: vd, error: vErr } = await supabase.from('lab_order_items').update({ authorisation_status: 'tech_verified' }).eq('id', i.id).select('id');
@@ -604,9 +637,13 @@ window.saveResults = async function(status) {
     _backToPending = new Set();
   }
 
+  // §261: the follow-ups of a release (doctor alert, ABDM care context, IPD lab charges) run only when this click really released
+  // something -- the order moved to completed, or a result was saved / verified -- never for an order field edit alone
+  const realRelease = status === 'completed' && (orderUpdate.status === 'completed' || updates.length > 0 || toVerify.length > 0);
+
   // Fire critical alerts to ordering doctor
   const criticals = _activeItems.filter(i => i.is_critical && i.result_value);
-  if (criticals.length && status === 'completed') {
+  if (criticals.length && realRelease) {
     await supabase.from('doctor_alerts').insert({
       tenant_id:    tenantId,
       doctor_id:    _activeOrder.ordered_by,
@@ -624,13 +661,13 @@ window.saveResults = async function(status) {
   // (visit -> patient -> derived-from-number -> null) already handles a fully-
   // absent ABHA identifier correctly server-side, so there was never a real reason
   // to gate the call itself on having a number specifically.
-  if (status === 'completed') {
+  if (realRelease) {
     _abdmCareContextLabReport(_activeOrder).catch(() => {});
   }
 
   // Session 297 -- an IPD order (doctor.html's IPD Orders panel) is charged to the stay
   // once its report is actually released, not at order time -- see stageIpdLabCharges().
-  if (status === 'completed' && _activeOrder.ipd_admission_id) {
+  if (realRelease && _activeOrder.ipd_admission_id) {
     const staged = await stageIpdLabCharges({
       supabase, tenantId, ipdAdmissionId: _activeOrder.ipd_admission_id,
       labOrderId: _activeOrder.id, items: _activeItems, userId,
@@ -732,6 +769,19 @@ window.printReport = function() {
   bottom.append(...[...top.children].slice(2));          // ph-ayurveda-wrap + signature row
   const crit   = document.getElementById('critical-banner');
   const parts  = [top];
+  // §263 (e): a result not yet signed off by the pathologist / lab in-charge -> the whole print is PROVISIONAL (DOM nodes + textContent)
+  if (anyAwaitingSignOff(_activeItems, _activeOrder)) {
+    const prov = document.createElement('div');
+    prov.className = 'lab-provisional';
+    prov.style.cssText = 'background:#fdf3e2;color:#7a4a00;border:2px solid #c9902a;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:12px;font-weight:600';
+    const h = document.createElement('div');
+    h.style.cssText = 'font-size:14px;font-weight:800;letter-spacing:.5px';
+    h.textContent = PROVISIONAL_REPORT;
+    const sub = document.createElement('div');
+    sub.textContent = '⏳ ' + AWAITING_SIGNOFF + ' — not yet authorised by the pathologist / lab in-charge.';
+    prov.append(h, sub);
+    parts.push(prov);
+  }
   if (crit.classList.contains('show')) parts.push(crit);
   parts.push(document.getElementById('test-categories'), bottom);
   const ptName = document.getElementById('ph-pt').textContent;

@@ -332,6 +332,13 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // TODO §261 (C, owner 22 Oct 2026): the server's refusals of result entry / release by a non-lab role, in one plain sentence
+  const LAB_ONLY_MSGS = ['Lab collection, results and the report are recorded by the lab', 'Lab results are entered by the lab',
+    'A result with a value is verified by the lab'];
+  if (['P0001','42501'].includes(error?.code) && LAB_ONLY_MSGS.some(m => error?.message?.startsWith(m))) {
+    return 'Only lab staff can enter or change results.';
+  }
+
   // Session 353B (TODO §232): the shared-row tables (lab results / sign-off, PK sessions / clearance, Kriya Kalpa, blood bank, Palha diet) --
   // the server's plain refusals are shown as they are
   const SHARED_ROW_MSGS = ['A new lab order', 'Lab collection, results', 'Payment is still pending for this order', 'Lab results are signed off',

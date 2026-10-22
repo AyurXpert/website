@@ -3,6 +3,8 @@
 // ONE wording and ONE rule for every page. An outside lab's report (entered by a doctor) is signed by that lab -- never flagged.
 
 export const AWAITING_SIGNOFF = 'Awaiting pathologist sign-off';
+// §263 (e): the banner of a printed report with any such result
+export const PROVISIONAL_REPORT = 'PROVISIONAL REPORT — not yet signed off';
 
 export function isAwaitingSignOff(item, order) {
   if (!item || order?.performed_outside) return false;
