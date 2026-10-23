@@ -40,7 +40,7 @@ const _fmtD = d => d ? new Date(d.length === 10 ? d + 'T00:00:00' : d)
 const _fmtDT = d => d ? new Date(d).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 const _okReview = r => !r || r === 'finalized';
 const _NICE = {
-  pending: 'Pending', converted: 'Converted (Admitted)', declined: 'Declined', expired: 'Expired',
+  pending: 'Pending', converted: 'Converted (Admitted)', declined: 'Refused admission against medical advice', expired: 'Expired',   // Session 356 (D13)
   sample_collected: 'Sample Collected', in_progress: 'In Progress', completed: 'Completed', ordered: 'Ordered',
   paid: 'Fee Paid', waived: 'Fee Waived', ipd_credit: 'IPD Credit', day_care: 'Day Care',
   opd: 'OPD', admission: 'Admission', draft: 'Draft', finalized: 'Finalized', active: 'Active', cancelled: 'Cancelled',

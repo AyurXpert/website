@@ -4706,6 +4706,7 @@ async function loadAdmissionRequests() {
   const list = document.getElementById('admission-requests-list');
   if (!rows.length) {
     list.innerHTML = `<div class="q-empty"><div class="q-empty-icon">🛏️</div><div class="q-empty-text">No pending admission advice right now.</div></div>`;
+    _admReqAfterRender(list);
     return;
   }
 
@@ -4741,23 +4742,138 @@ async function loadAdmissionRequests() {
       </div>
       <div class="q-right" style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
         <button class="q-edit-btn" data-onclick="openAdmissionFromAdvice" data-onclick-a0="${r.id}" style="width:auto;padding:0 10px;font-size:11px;background:var(--green-mid);color:#fff">🛏️ Collect Advance &amp; Admit →</button>
-        <button class="q-edit-btn" data-onclick="declineAdmissionAdvice" data-onclick-a0="${r.id}" style="width:auto;padding:0 8px;font-size:11px;background:#a01a1a;color:#fff">✕ Decline</button>
+        <button class="q-edit-btn" data-onclick="openRefuseAdmission" data-onclick-a0="${r.id}" style="width:auto;padding:0 8px;font-size:11px;background:#a01a1a;color:#fff">✕ Patient refuses admission</button>
       </div>
     </div>`;
   }).join('');
+  _admReqAfterRender(list);
 }
 
 window.openAdmissionFromAdvice = function(adviceId) {
   window.open(`ipd.html?advice_id=${encodeURIComponent(adviceId)}`, '_blank');
 };
 
-window.declineAdmissionAdvice = async function(adviceId) {
-  if (!confirm('Decline this admission advice? The patient/attendant decided not to proceed — this removes it from the queue.')) return;
-  const { error } = await supabase.from('admission_advice').update({ status: 'declined' }).eq('id', adviceId);
-  if (error) { _alert('error', safeErrorMessage(error, 'Could not decline this advice.')); return; }
-  _alert('success', 'Admission advice declined.');
+// Session 356 (TODO §265-A, D13): "Refused admission against medical advice" -- an in-page panel (no native
+// confirm), a required reason; the server records it (refuse_admission_advice) and alerts the advising doctor;
+// then the printable signature form (printAdmissionRefusal.html -- record_document_print decides Original /
+// DUPLICATE COPY). The panel node and the "last 30 days" list survive the 30-second queue refresh.
+let _refuseAdviceId = null;
+let _refusePanel = null;
+function _admReqAfterRender(list) {
+  if (_refusePanel && _refuseAdviceId) list.prepend(_refusePanel);
+  _renderRecentRefusals(list);
+}
+function _refuseBtn(label, onclick, primary) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.dataset.onclick = onclick;
+  b.style.cssText = primary
+    ? `min-height:44px;padding:0 14px;background:${primary};color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer`
+    : 'min-height:44px;padding:0 14px;background:#fff;border:1px solid var(--border);border-radius:8px;cursor:pointer';
+  b.textContent = label;
+  return b;
+}
+function _buildRefusePanel() {
+  const panel = document.createElement('div');
+  panel.style.cssText = 'margin:8px;padding:12px 14px;border:1.5px solid #a01a1a;border-radius:8px;background:#fff7f7';
+  const title = document.createElement('div');
+  title.dataset.part = 'title';
+  title.style.cssText = 'font-size:13px;font-weight:700;color:#7a1f1f;margin-bottom:6px';
+  const form = document.createElement('div');
+  form.dataset.part = 'form';
+  const lab = document.createElement('label');
+  lab.htmlFor = 'refuse-reason';
+  lab.style.cssText = 'display:block;font-size:12px;font-weight:600;color:var(--text-mid);margin-bottom:4px';
+  lab.textContent = 'Reason the patient / relative gives (required — printed on the form)';
+  const ta = document.createElement('textarea');
+  ta.id = 'refuse-reason';
+  ta.maxLength = 500;
+  ta.style.cssText = "width:100%;min-height:60px;box-sizing:border-box;font-family:'DM Sans',sans-serif";
+  ta.placeholder = 'e.g. family wants to consult another hospital; cannot stay due to work';
+  const fBtns = document.createElement('div');
+  fBtns.style.cssText = 'display:flex;gap:8px;margin-top:8px;flex-wrap:wrap';
+  const go = _refuseBtn('Record refusal', 'confirmRefuseAdmission', '#a01a1a');
+  go.dataset.part = 'go';
+  fBtns.append(go, _refuseBtn('Back', 'closeRefuseAdmission'));
+  form.append(lab, ta, fBtns);
+  const done = document.createElement('div');
+  done.dataset.part = 'done';
+  done.hidden = true;
+  const msg = document.createElement('div');
+  msg.setAttribute('role', 'status');
+  msg.style.cssText = 'font-size:12.5px;color:var(--green-deep);font-weight:600;margin-bottom:8px';
+  msg.textContent = '✓ Recorded as "Refused admission against medical advice". The advising doctor has been alerted.';
+  const dBtns = document.createElement('div');
+  dBtns.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
+  const pr = _refuseBtn('🖨 Print the form for signature', 'printAdmissionRefusal', 'var(--green-deep)');
+  pr.dataset.part = 'print';
+  dBtns.append(pr, _refuseBtn('Done', 'closeRefuseAdmission'));
+  done.append(msg, dBtns);
+  panel.append(title, form, done);
+  return panel;
+}
+const _rp = part => _refusePanel.querySelector(`[data-part="${part}"]`);
+window.openRefuseAdmission = function(adviceId) {
+  if (!_refusePanel) _refusePanel = _buildRefusePanel();
+  _refuseAdviceId = adviceId;
+  const row = [...document.querySelectorAll('[data-onclick="openRefuseAdmission"]')].find(b => b.dataset.onclickA0 === adviceId)?.closest('.q-item');
+  const who = row?.querySelector('.q-name')?.textContent?.trim() || 'this patient';
+  _rp('title').textContent = `Patient refuses admission against medical advice — ${who}`;
+  _rp('form').hidden = false;
+  _rp('done').hidden = true;
+  _refusePanel.querySelector('textarea').value = '';
+  _rp('print').dataset.onclickA0 = adviceId;
+  document.getElementById('admission-requests-list').prepend(_refusePanel);
+  _refusePanel.querySelector('textarea').focus();
+};
+window.closeRefuseAdmission = function() {
+  _refuseAdviceId = null;
+  _refusePanel?.remove();
   loadAdmissionRequests();
 };
+window.confirmRefuseAdmission = async function() {
+  const reason = _refusePanel.querySelector('textarea').value.trim();
+  if (reason.length < 5) { _alert('error', 'Give the reason the patient refused admission (at least 5 characters).'); return; }
+  const btn = _rp('go');
+  btn.disabled = true;
+  const { data, error } = await supabase.rpc('refuse_admission_advice', { p_advice_id: _refuseAdviceId, p_reason: reason });
+  btn.disabled = false;
+  if (error || !data) { _alert('error', safeErrorMessage(error, 'Could not record the refusal.')); return; }
+  _rp('form').hidden = true;
+  _rp('done').hidden = false;
+  loadAdmissionRequests();
+};
+// opened straight from the click (a window.open after an await is blocked as a pop-up)
+window.printAdmissionRefusal = function(adviceId) {
+  window.open(`printAdmissionRefusal.html?adviceId=${encodeURIComponent(adviceId)}`, '_blank');
+};
+async function _renderRecentRefusals(list) {
+  const since = new Date(Date.now() - 30 * 86400000).toISOString();
+  const { data, error } = await supabase.from('admission_advice')
+    .select('id, refused_at, patients(name, uhid), profiles!doctor_id(full_name)')
+    .eq('tenant_id', tenantId).eq('status', 'declined').not('refused_at', 'is', null).gte('refused_at', since)
+    .order('refused_at', { ascending: false }).limit(20);
+  list.querySelector('[data-part="refusals"]')?.remove();
+  if (error || !data?.length) return;
+  const wrap = document.createElement('div');
+  wrap.dataset.part = 'refusals';
+  wrap.style.cssText = 'margin:10px 8px;padding-top:8px;border-top:1px solid var(--border)';
+  const h = document.createElement('div');
+  h.style.cssText = 'font-size:11.5px;font-weight:700;color:var(--text-mid);margin-bottom:4px';
+  h.textContent = 'Refused admission against medical advice — last 30 days';
+  wrap.append(h);
+  for (const r of data) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;font-size:11.5px';
+    const t = document.createElement('span');
+    t.textContent = `${r.patients?.name || '—'} (${r.patients?.uhid || '—'}) · advised by ${r.profiles?.full_name || '—'} · ${new Date(r.refused_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' })}`;
+    const b = _refuseBtn('🖨 Form', 'printAdmissionRefusal');
+    b.dataset.onclickA0 = r.id;
+    row.append(t, b);
+    wrap.append(row);
+  }
+  list.append(wrap);
+}
 
 function _initAdmissionRequests() {
   document.getElementById('tab-admreq').style.display = '';

@@ -412,5 +412,28 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return error.message;
   }
 
+  // Session 356 (TODO §265-A / §265-B): admission advice, admission without advice, refused admission, emergency admission --
+  // the server's plain refusals are shown as they are
+  const ADMISSION_MSGS = ['Only an active consultant doctor can', 'Patient not found in your organisation', 'An admission is advised during the consultation',
+    'Select the department for the admission', 'The field ', 'The admission advice is missing', 'The planned procedures must be', 'Too many planned procedures',
+    'A planned procedure line', 'Enter the clinical indication', 'A field of the admission advice', 'The expected duration must',
+    'The estimate of the admission advice', 'This patient already has a pending admission advice', 'This patient is already admitted',
+    'The Panchakarma care plan is not', 'Only the doctor who wrote the Panchakarma', 'Admission advice not found', 'Only the doctor who advised',
+    'This admission advice is already', 'Give a reason for cancelling the advice', 'Only the admission counter can record', 'Give the reason the patient refused',
+    'Admission advice record not found', 'This admission advice has already been', 'The admitting doctor is the doctor who advised',
+    'The department is the one the doctor advised', 'The visit is the one the admission', 'The doctor who advised this admission no longer',
+    'An admission needs a doctor', 'Give the reason for admitting without', 'The admitting doctor must be an active', "This consultation's disposition is Admission",
+    'This visit is already completed and has no admission advice', 'Only the RMO / CMO on duty', 'Only an active Resident Medical Officer',
+    'Select a bed of your organisation', 'The consultant must be an active', "Choose today's on-call consultant", 'Give the reason for the emergency admission',
+    'This patient already has an open IPD admission', 'Admission not found in your organisation', 'Only an emergency admission is confirmed',
+    'Only the consultant the patient was admitted under', 'This emergency admission is already confirmed', 'Your role cannot see the emergency admissions',
+    'Your role cannot print this form', 'There is no recorded refusal of admission'];
+  if (['P0001','42501','22023','P0002','23505','23514'].includes(error?.code) && ADMISSION_MSGS.some(m => error?.message?.startsWith(m))) {
+    return error.message;
+  }
+  if (error?.code === '42501' && /^permission denied for table admission_advice(_items)?$/.test(error?.message || '')) {
+    return 'An admission advice is sent and changed only by the advising doctor (doctor.html → Admission tab).';
+  }
+
   return fallback;
 }

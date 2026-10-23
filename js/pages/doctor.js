@@ -1240,6 +1240,53 @@ async function loadAlerts() {
   }
 }
 
+// ── Session 356 (TODO §265-B) — emergency admissions waiting for the consultant's confirmation ──
+// The server lists them (list_unconfirmed_emergency_admissions): a consultant sees their own and may
+// confirm; the MS / Super Admin see every one of the organisation (read-only unless it is their own).
+// Over 24 h = flagged "overdue" (flag only -- the daily alert job is 265-C). Trainees: the box stays hidden.
+async function loadEmergencyConfirmations() {
+  const box = document.getElementById('er-confirm-box');
+  const list = document.getElementById('er-confirm-list');
+  if (!box || !list || _isTrainee) return;
+  const { data, error } = await supabase.rpc('list_unconfirmed_emergency_admissions');
+  if (error || !data?.length) { box.hidden = true; list.replaceChildren(); return; }
+  const fmt = iso => new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const rows = data.map(r => {
+    const row = document.createElement('div');
+    row.style.cssText = 'padding:6px 0;border-top:1px dashed #f0d9c0;font-size:11.5px;line-height:1.45';
+    const name = document.createElement('div');
+    name.style.fontWeight = '600';
+    name.textContent = `${r.patient_name || '—'} · ${r.uhid || '—'} · ${r.department_name || ''}`;
+    const meta = document.createElement('div');
+    meta.style.color = 'var(--text-mid)';
+    meta.textContent = `Admitted ${fmt(r.admitted_at)} by ${r.admitted_by_name || 'RMO'} under ${r.consultant_name || '—'} — ${r.reason || ''}`;
+    row.append(name, meta);
+    const tags = document.createElement('div');
+    if (r.overdue) { const t = document.createElement('span'); t.className = 'badge'; t.style.cssText = 'background:#fdecea;color:#a01a1a;margin-right:4px'; t.textContent = '⚠ Over 24 h'; tags.append(t); }
+    if (r.not_on_roster) { const t = document.createElement('span'); t.className = 'badge'; t.style.cssText = 'background:#fff1e0;color:#7a3a00'; t.textContent = 'Consultant not on roster'; tags.append(t); }
+    if (tags.childElementCount) row.append(tags);
+    if (r.consultant_id === userId) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.onclick = 'confirmEmergencyAdmission';
+      b.dataset.onclickA0 = r.admission_id;
+      b.style.cssText = 'margin-top:4px;min-height:44px;padding:0 12px;background:var(--green-deep);color:#fff;border:none;border-radius:6px;font-family:\'DM Sans\',sans-serif;font-size:12px;font-weight:600;cursor:pointer';
+      b.textContent = '✓ I have seen the patient — confirm';
+      row.append(b);
+    }
+    return row;
+  });
+  list.replaceChildren(...rows);
+  box.hidden = false;
+}
+
+window.confirmEmergencyAdmission = async function(admissionId) {
+  const { data, error } = await supabase.rpc('confirm_emergency_admission', { p_admission_id: admissionId });
+  if (error || !data) { _toast(safeErrorMessage(error, 'Could not confirm the admission.'), 'error'); return; }
+  _toast('Emergency admission confirmed.', 'info');
+  loadEmergencyConfirmations();
+};
+
 // ── §18l — OPD list (for internal referral target) ───
 async function loadOpdList() {
   const { data } = await supabase.from('opds')
@@ -1356,6 +1403,7 @@ function subscribeRealtime() {
       filter: `doctor_id=eq.${userId}`
     }, payload => {
       loadAlerts();
+      loadEmergencyConfirmations();   // Session 356: an emergency admission under this doctor arrives as an alert
       _toast(`New on-request: ${payload.new.patient_name} — ${payload.new.message}`, 'alert');
     })
     .subscribe();
@@ -1480,7 +1528,8 @@ window.startConsultation = async function(visitId) {
 
   // Session 294 -- default Target Department to the doctor's own currently-consulting
   // department (still freely changeable for a genuine cross-department referral).
-  if (_hasAdm) _setAdmDeptDefault();
+  // Session 356 -- then this doctor's own pending advice (if any) is loaded into the form for editing.
+  if (_hasAdm) _setAdmDeptDefault().then(_loadMyPendingAdvice);
 
   // NCISM — Swasthya Rakshana OPD: advisory + Swasthya Card button
   const allowsRx = visit?.opds?.allows_prescription ?? true;
@@ -1887,40 +1936,103 @@ window.recomputeAdviceEstimate = async function() {
     Suggested advance (${pct}%, ${payer === 'insurance' ? 'insurance' : 'self-pay'}): <strong>₹${advance.toLocaleString('en-IN')}</strong>`;
 };
 
+// Session 356 (TODO §265-A): the advice is written only through the server functions
+// create_admission_advice / update_admission_advice / cancel_admission_advice -- the doctor's
+// own name, server-set; one pending advice per patient. _admAdviceId = this doctor's pending
+// advice for the open patient (loaded on open, or just sent), so a second send UPDATES it.
+let _admAdviceId = null;
+const ADV_SEND_LABEL   = '📤 Send Admission Advice to Reception';
+const ADV_UPDATE_LABEL = '📤 Update Admission Advice';
+
+function _admStatus(msg, kind = 'ok') {
+  const status = document.getElementById('adm-save-status');
+  if (!status) return;
+  status.style.display = msg ? '' : 'none';
+  status.style.color = kind === 'error' ? 'var(--red, #c0392b)' : kind === 'info' ? 'var(--text-mid)' : 'var(--green-deep)';
+  status.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+  status.textContent = msg || '';
+}
+
+function _admSetMode() {
+  const btn = document.getElementById('btn-save-advice');
+  if (btn) btn.textContent = _admAdviceId ? ADV_UPDATE_LABEL : ADV_SEND_LABEL;
+  const cancelBtn = document.getElementById('btn-cancel-advice');
+  if (cancelBtn) cancelBtn.hidden = !_admAdviceId;
+  const panel = document.getElementById('adm-cancel-panel');
+  if (panel && !_admAdviceId) panel.hidden = true;
+}
+
 function _resetAdmissionAdvice() {
   _admItems = [];
   _admLastEstimate = null;
   _admAdviceSaved  = false;
+  _admAdviceId     = null;
   _renderAdmProcList();
   const el = document.getElementById('adm-estimate-body');
   if (el) el.textContent = 'Fill in department, room type and duration above to see an estimate.';
-  const status = document.getElementById('adm-save-status');
-  if (status) status.style.display = 'none';
+  _admStatus('');
+  _admSetMode();
 }
 
+// The open patient's pending advice: this doctor's own -> loaded into the form for editing (G5);
+// another doctor's -> a note (only they can change it; the server refuses a second one).
+async function _loadMyPendingAdvice() {
+  if (!_activePatient?.id || _isTrainee) return;
+  const patientId = _activePatient.id;
+  const { data: rows, error } = await supabase.from('admission_advice')
+    .select('id, doctor_id, visit_id, department_id, clinical_indication, expected_duration_days, duration_note, room_type_preference, nursing_care_notes, diet_type, payer_type, created_at, profiles!doctor_id(full_name), admission_advice_items(fee_type, description, sessions_count, unit_price_snapshot, line_total)')
+    .eq('tenant_id', tenantId).eq('patient_id', patientId).eq('status', 'pending')
+    .order('created_at', { ascending: false }).limit(1);
+  if (error || _activePatient?.id !== patientId) return;
+  const a = rows?.[0];
+  if (!a) return;
+  if (a.doctor_id !== userId) {
+    _admStatus(`A pending admission advice by ${a.profiles?.full_name || 'another doctor'} already exists for this patient — only that doctor can change or cancel it.`, 'info');
+    return;
+  }
+  _admAdviceId = a.id;
+  _admAdviceSaved = a.visit_id === _activeVisitId;
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.value = v; };
+  set('adm-dept', a.department_id);
+  set('adm-room-type', a.room_type_preference);
+  set('adm-duration-days', a.expected_duration_days);
+  set('adm-duration-note', a.duration_note);
+  set('adm-indication', a.clinical_indication);
+  set('adm-nursing', a.nursing_care_notes);
+  set('adm-diet', a.diet_type);
+  set('adm-payer', a.payer_type === 'insurance' ? 'insurance' : 'self_pay');
+  _admItems = (a.admission_advice_items || []).map(it => ({
+    fee_type: it.fee_type, description: it.description || it.fee_type, sessions_count: Number(it.sessions_count) || 1,
+    unit_price: Number(it.unit_price_snapshot) || 0, line_total: Number(it.line_total) || 0,
+  }));
+  _renderAdmProcList();
+  recomputeAdviceEstimate();
+  _admSetMode();
+  _admStatus(`Your pending admission advice (sent ${new Date(a.created_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' })}) is loaded below — edit and press "Update", or cancel it.`, 'info');
+}
+
+// Sends (or updates) the advice from the Admission tab. Returns true only when the SERVER saved it.
+// Also called by Complete under the Admission disposition (D1: one click), before anything else is saved.
 window.saveAdmissionAdvice = async function() {
-  // Session 305: admission advice is doctor-only in the database (_admission_advice_write_ok);
-  // the button is hidden for trainees below, this is the backstop.
-  if (_isTrainee) { alert('Admission advice is sent by the consultant doctor.'); return; }
-  if (!_activePatient || !_activeVisitId) { alert('Select a patient first.'); return; }
+  // Session 305 / 356: admission advice is consultant-only on the server; the button is hidden for trainees, this is the backstop.
+  if (_isTrainee) { _admStatus('Admission advice is sent by the consultant doctor.', 'error'); return false; }
+  if (!_activePatient || !_activeVisitId) { _admStatus('Select a patient first.', 'error'); return false; }
   const deptId       = document.getElementById('adm-dept').value;
   const indication   = document.getElementById('adm-indication').value.trim();
   const days         = parseInt(document.getElementById('adm-duration-days').value) || 0;
   const roomType     = document.getElementById('adm-room-type').value;
   const payer        = document.getElementById('adm-payer').value;
 
-  if (!deptId)     { alert('Select a target department.'); return; }
-  if (!indication) { alert('Enter the clinical indication for admission.'); return; }
-  if (!days)       { alert('Enter the expected duration (days).'); return; }
+  if (!deptId)     { _admStatus('Select a target department.', 'error'); return false; }
+  if (!indication) { _admStatus('Enter the clinical indication for admission.', 'error'); return false; }
+  if (!days)       { _admStatus('Enter the expected duration (days).', 'error'); return false; }
   await recomputeAdviceEstimate();
-  if (!_admLastEstimate) { alert('Fix the room-tariff issue shown above before sending this advice.'); return; }
+  if (!_admLastEstimate) { _admStatus('Fix the room-tariff issue shown above before sending this advice.', 'error'); return false; }
 
   const btn = document.getElementById('btn-save-advice');
   btn.disabled = true; btn.textContent = 'Sending…';
 
-  const { data: advice, error } = await supabase.from('admission_advice').insert({
-    tenant_id: tenantId, patient_id: _activePatient.id, visit_id: _activeVisitId, doctor_id: userId,
-    department_id: deptId,
+  const advice = {
     clinical_indication: indication,
     expected_duration_days: days,
     duration_note: document.getElementById('adm-duration-note').value.trim() || null,
@@ -1933,34 +2045,55 @@ window.saveAdmissionAdvice = async function() {
     estimated_total: _admLastEstimate.total,
     advance_pct_applied: _admLastEstimate.advancePct,
     advance_amount_suggested: _admLastEstimate.advanceSuggested,
-    created_by: userId,
-  }).select('id').single();
+  };
+  const items = _admItems.map(it => ({
+    fee_type: it.fee_type, description: it.description, sessions_count: it.sessions_count,
+    unit_price_snapshot: it.unit_price, line_total: it.line_total,
+  }));
+  const wasUpdate = !!_admAdviceId;
+  const { data: adviceId, error } = wasUpdate
+    ? await supabase.rpc('update_admission_advice', { p_advice_id: _admAdviceId, p_department_id: deptId, p_advice: advice, p_items: items, p_visit_id: _activeVisitId })
+    : await supabase.rpc('create_admission_advice', { p_patient_id: _activePatient.id, p_visit_id: _activeVisitId, p_department_id: deptId, p_advice: advice, p_items: items });
 
-  if (error) {
-    btn.disabled = false; btn.textContent = '📤 Send Admission Advice to Reception';
-    alert(safeErrorMessage(error, 'Could not save admission advice.')); return;
+  btn.disabled = false;
+  if (error || !adviceId) {
+    _admSetMode();
+    _admStatus(safeErrorMessage(error, 'Could not save the admission advice.'), 'error');
+    return false;
   }
-
-  if (_admItems.length) {
-    const { error: itemsErr } = await supabase.from('admission_advice_items').insert(
-      _admItems.map(it => ({
-        tenant_id: tenantId, admission_advice_id: advice.id, fee_type: it.fee_type,
-        description: it.description, sessions_count: it.sessions_count,
-        unit_price_snapshot: it.unit_price, line_total: it.line_total,
-      }))
-    );
-    if (itemsErr) console.warn('[doctor] admission_advice_items insert:', itemsErr.message);
-  }
-
-  await logAudit('admission_advice_created', 'admission_advice', advice.id, {
-    patient_name: _activePatient?.name, department_id: deptId, estimated_total: _admLastEstimate.total,
-  }, _ctx);
-
+  _admAdviceId = adviceId;
   _admAdviceSaved = true;
-  btn.disabled = false; btn.textContent = '📤 Send Admission Advice to Reception';
-  const status = document.getElementById('adm-save-status');
-  status.style.display = '';
-  status.textContent = `✓ Sent — ${_activePatient?.name} will now appear in Reception's Admission Requests queue.`;
+  _admSetMode();
+  _admStatus(wasUpdate
+    ? `✓ Updated — Reception's Admission Requests queue shows the new advice for ${_activePatient?.name}.`
+    : `✓ Sent — ${_activePatient?.name} will now appear in Reception's Admission Requests queue.`);
+  return true;
+};
+
+// Cancel this doctor's own pending advice -- an in-page panel with a required reason (no native confirm)
+window.openCancelAdvice = function() {
+  const panel = document.getElementById('adm-cancel-panel');
+  if (!panel || !_admAdviceId) return;
+  panel.hidden = false;
+  document.getElementById('adm-cancel-reason').value = '';
+  document.getElementById('adm-cancel-reason').focus();
+};
+window.closeCancelAdvice = function() {
+  const panel = document.getElementById('adm-cancel-panel');
+  if (panel) panel.hidden = true;
+};
+window.confirmCancelAdvice = async function() {
+  const reason = document.getElementById('adm-cancel-reason').value.trim();
+  if (reason.length < 5) { _admStatus('Give a reason for cancelling the advice (at least 5 characters).', 'error'); return; }
+  const btn = document.getElementById('btn-cancel-advice-go');
+  btn.disabled = true;
+  const { data, error } = await supabase.rpc('cancel_admission_advice', { p_advice_id: _admAdviceId, p_reason: reason });
+  btn.disabled = false;
+  if (error || !data) { _admStatus(safeErrorMessage(error, 'Could not cancel the advice.'), 'error'); return; }
+  _admAdviceId = null;
+  _admAdviceSaved = false;
+  _admSetMode();
+  _admStatus('✓ Advice cancelled — it is no longer in Reception\'s Admission Requests queue.');
 };
 
 // ── Panchakarma Care Plan (Session 208, Phase 1) ──
@@ -4865,7 +4998,6 @@ window.savePkCarePlan = async function() {
     const pkDept = _admDepts.find(d => d.name === 'Panchakarma') || null;
     const protocolNames = _pkProtocols.map(p => p.protocol_label).join(', ');
     const adviceFields = {
-      department_id: pkDept?.id || null,
       clinical_indication: `Panchakarma Care Plan: ${protocolNames}`,
       expected_duration_days: roomEst?.days || _pkPlanSpanDays().days || null,
       room_type_preference: roomTypePreference,
@@ -4880,42 +5012,28 @@ window.savePkCarePlan = async function() {
     // Session 268 -- editing a plan that already has an admission_advice row (from its
     // first save) updates that same row instead of creating a second, duplicate
     // Reception queue entry.
-    let advice, adviceErr;
-    if (existingAdmissionAdviceId) {
-      ({ data: advice, error: adviceErr } = await supabase.from('admission_advice').update(adviceFields).eq('id', existingAdmissionAdviceId).select('id').single());
-      if (!adviceErr) await supabase.from('admission_advice_items').delete().eq('admission_advice_id', existingAdmissionAdviceId);
-    } else {
-      ({ data: advice, error: adviceErr } = await supabase.from('admission_advice').insert({
-        tenant_id: tenantId, patient_id: _activePatient.id, visit_id: _activeVisitId, doctor_id: userId,
-        // Session 210: lets create_ipd_admission() find its way back to this plan and
-        // activate it (+ generate real sessions) the moment the admission actually happens.
-        pk_care_plan_id: plan.id,
-        payer_type: 'self_pay',
-        created_by: userId,
-        ...adviceFields,
-      }).select('id').single());
-    }
+    // Session 356 (TODO §265-A, G5): through the server functions -- the advice and its cost lines are saved
+    // in one call (or not at all), the plan <-> advice link is set by the server (create_admission_advice), and an
+    // edit of the plan now really updates its advice (the browser could not UPDATE it before -- a silent console warning).
+    const items = est.lines.filter(l => l.priced).map(l => ({
+      fee_type: l.code, description: l.label, sessions_count: l.days, unit_price_snapshot: l.unitPrice, line_total: l.lineTotal,
+    }));
+    const { data: adviceId, error: adviceErr } = existingAdmissionAdviceId
+      ? await supabase.rpc('update_admission_advice', { p_advice_id: existingAdmissionAdviceId, p_department_id: pkDept?.id || null,
+          p_advice: adviceFields, p_items: items, p_visit_id: _activeVisitId || null })
+      : await supabase.rpc('create_admission_advice', { p_patient_id: _activePatient.id, p_visit_id: _activeVisitId,
+          p_department_id: pkDept?.id || null, p_advice: { ...adviceFields, payer_type: 'self_pay' }, p_items: items,
+          // Session 210: lets create_ipd_admission() find its way back to this plan and
+          // activate it (+ generate real sessions) the moment the admission actually happens.
+          p_pk_care_plan_id: plan.id });
 
-    if (adviceErr) {
-      console.warn('[doctor] admission_advice save (from PK plan):', adviceErr.message);
-      handoffMsg = `could not be sent to Reception automatically (${safeErrorMessage(adviceErr, 'error')}) — please use the Admission Advice tab instead`;
+    if (adviceErr || !adviceId) {
+      handoffMsg = `could NOT be sent to Reception (${safeErrorMessage(adviceErr, 'error')}) — the care plan is saved; fix this and save again, or use the Admission tab`;
     } else {
-      const items = est.lines.filter(l => l.priced).map(l => ({
-        tenant_id: tenantId, admission_advice_id: advice.id, fee_type: l.code,
-        description: l.label, sessions_count: l.days, unit_price_snapshot: l.unitPrice, line_total: l.lineTotal,
-      }));
-      let itemsErr = null;
-      if (items.length) {
-        ({ error: itemsErr } = await supabase.from('admission_advice_items').insert(items));
-        if (itemsErr) console.warn('[doctor] admission_advice_items insert (from PK plan):', itemsErr.message);
-      }
-      if (!existingAdmissionAdviceId) await supabase.from('pk_care_plans').update({ admission_advice_id: advice.id }).eq('id', plan.id);
-      // Session 293 -- found live: this used to unconditionally report success even when
-      // the line-items insert above failed, silently handing Reception an admission
-      // request with a blank/incomplete cost breakdown and no signal to the doctor at all.
-      handoffMsg = itemsErr
-        ? `sent to Reception, but its cost breakdown could not be saved (${safeErrorMessage(itemsErr, 'error')}) — please check the Admission Advice tab`
-        : (existingAdmissionAdviceId ? `updated in Reception's Admission Requests queue` : `sent to Reception's Admission Requests queue`);
+      _admAdviceId = adviceId;
+      _admAdviceSaved = true;
+      _admSetMode();
+      handoffMsg = existingAdmissionAdviceId ? `updated in Reception's Admission Requests queue` : `sent to Reception's Admission Requests queue`;
     }
   } else if (setting === 'ipd_admission' && _pkForAdmissionId) {
     // Session 297 -- no reception hand-off, no advance: the patient is already admitted,
@@ -5670,6 +5788,20 @@ async function completeConsultation() {
   try {
     const { notes, disposition } = await _collectConsultationFields();
 
+    // Session 356 (TODO §265-A, D1): under the Admission disposition, Complete sends the advice in the
+    // SAME click, before the consultation is saved -- if the advice cannot be saved, nothing is saved and
+    // the doctor is taken to the Admission tab (the server also refuses to complete such a visit without it).
+    if (disposition === 'admission' && !_admAdviceSaved) {
+      const sent = await window.saveAdmissionAdvice();
+      if (!sent) {
+        if (_hasAdm) _switchTab('adm');
+        _toast('Admission advice could not be sent — check the Admission tab, then press Complete again.', 'error');
+        btn.disabled = false;
+        onDispChange(disposition);
+        return;
+      }
+    }
+
     // Session 127 -- finalizing a trainee's draft credits the original
     // author permanently, even though this consultation_notes row is a brand
     // new one written by the reviewing doctor (v1 deliberately doesn't hydrate
@@ -5747,8 +5879,15 @@ async function completeConsultation() {
       });
     }
 
-    // Mark visit completed
-    await supabase.from('visits').update({ status: 'completed' }).eq('id', _activeVisitId);
+    // Mark visit completed -- Session 356: checked (a refused or zero-row update is an error, never a false "complete")
+    const { data: doneRows, error: vErr } = await supabase.from('visits').update({ status: 'completed' }).eq('id', _activeVisitId).select('id');
+    if (vErr || !doneRows?.length) {
+      _toast(vErr ? safeErrorMessage(vErr, 'The visit could not be marked completed.') + ' The consultation note is saved.'
+                  : 'The consultation note is saved, but the visit could not be marked completed. Please try again.', 'error');
+      btn.disabled = false;
+      onDispChange(disposition);
+      return;
+    }
 
     await logAudit('complete_consultation', 'visits', _activeVisitId, {
       patient_name: _activePatient?.name,
@@ -5803,7 +5942,7 @@ async function completeConsultation() {
     // Session 205 (cont.): honest reflection of whether the advice was actually
     // sent -- previously said "Admission order created" unconditionally even
     // though the Admission tab's fields were never saved anywhere at all.
-    const dispMsg = disposition === 'admission' ? (_admAdviceSaved ? 'Admission advice sent to reception' : 'Admission advice not sent — open the Admission tab and send it')
+    const dispMsg = disposition === 'admission' ? 'admission advice sent to reception'
       : disposition === 'referral'  ? (refSaved ? 'Referral sent — target OPD alerted' : 'Referral noted')
       : 'sent to pharmacy';
     // Session 294 -- 'pk' is no longer a disposition value (the Panchakarma tab is
@@ -5844,7 +5983,7 @@ async function completeConsultation() {
     console.error('completeConsultation caught:', err?.message, err?.details, err?.hint);
     _toast(safeErrorMessage(err, 'Error saving consultation. Please try again.'), 'error');
     btn.disabled = false;
-    btn.textContent = '✓ Complete & Send to Pharmacy';
+    onDispChange(document.querySelector('input[name=disposition]:checked')?.value || 'opd');   // Session 356: the label of the chosen disposition
   }
 }
 
@@ -8167,7 +8306,7 @@ window.saveVishaCase = async function() {
 // ── Boot ──────────────────────────────────────────
 _initNamaste();
 _initIcd10();
-await Promise.all([loadQueue(), loadAlerts(), loadInventory(), _loadOpdAttendanceBanner(), loadOpdList(), loadDoctorOpds(), renderPromoBanner('promo-banner', { supabase, tenantId })]);
+await Promise.all([loadQueue(), loadAlerts(), loadEmergencyConfirmations(), loadInventory(), _loadOpdAttendanceBanner(), loadOpdList(), loadDoctorOpds(), renderPromoBanner('promo-banner', { supabase, tenantId })]);
 
 async function _loadOpdAttendanceBanner() {
   const { data: t } = await supabase.from('tenants').select('ug_intake,opd_daily_target,type').eq('id', tenantId).single();

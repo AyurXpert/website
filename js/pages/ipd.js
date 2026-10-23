@@ -123,10 +123,21 @@ const DISCHARGE_PRINT_ROLES = ['doctor','trainee_doctor','nurse','mrd_staff','su
 // -- never a doctor/nurse directly. Session 353C (TODO §238): every admission only through
 // create_ipd_admission (no direct INSERT right), which also requires an ACTIVE, non-trainee caller.
 const ADMIT_ROLES = ['receptionist','super_admin','dept_admin'];
-// Session 315 -- the button used to be shown to everyone (a doctor/nurse/finance role could
-// open the whole Admit form only to be told "only reception or admin" at the very last step).
-// Matches create_ipd_admission()'s own role check exactly -- same ADMIT_ROLES constant.
-document.getElementById('btn-admit-patient').style.display = ADMIT_ROLES.includes(myRole) ? '' : 'none';
+// Session 356 (TODO §265-A / §265-B, owner D2 / D3 / D11): an admission starts from a doctor's advice
+// (Reception -> 🛏️ Admission Requests -> ipd.html?advice_id=); the advice's doctor and department are fixed.
+// Without an advice: only the Super Admin, with a reason ("+ Admit without advice"), or -- in an emergency --
+// the RMO / CMO (designation) under the on-call consultant ("🚑 Emergency admission"). The server decides
+// (create_ipd_admission / create_emergency_admission); these buttons are the display copy.
+const _isSuperAdmin = myRole === 'super_admin';
+const _isEmergencyAdmitter = ['resident_medical_officer', 'cmo'].includes(myProfile.designation)
+  && !['trainee_doctor', 'student'].includes(myRole) && !['trainee_doctor', 'student'].includes(myProfile.secondary_role);
+let _admitMode = 'advice';   // 'advice' | 'direct' (Super Admin, reason) | 'emergency' (RMO / CMO)
+let _currentAdvice = null;   // the doctor's advice this admission comes from (declared here: read by the drawer code above its old place)
+document.getElementById('btn-admit-patient').style.display = _isSuperAdmin ? '' : 'none';
+document.getElementById('btn-emergency-admit').style.display = _isEmergencyAdmitter ? '' : 'none';
+document.getElementById('admit-from-advice-note').style.display = ADMIT_ROLES.includes(myRole) && !_isSuperAdmin ? '' : 'none';
+const _canSaveInMode = () => _admitMode === 'emergency' ? _isEmergencyAdmitter
+  : _admitMode === 'direct' ? _isSuperAdmin : ADMIT_ROLES.includes(myRole);
 
 let _admissions  = [];
 let _depts       = [];
@@ -187,6 +198,7 @@ window.loadAll = async function loadAll() {
       .select(`
         id, tenant_id, admission_date, admitted_at, discharged_at, charges_locked_at,
         status, disposition, diagnosis_primary, diet_type, notes, advance_amount_collected, payer_type,
+        admission_route, emergency_confirmed_at, consultant_not_on_roster,
         discharge_diagnosis_ayurveda, discharge_diagnosis_icd10, discharge_medications,
         discharge_pathya_apathya, discharge_pk_procedures, discharge_followup_date, discharge_condition,
         discharge_course, discharge_treatment_given, discharge_investigations, discharge_advice,
@@ -399,6 +411,9 @@ function _getAuthorisedDoctors(deptId) {
 function _filterDoctorsByDept(deptId) {
   const sel  = document.getElementById('adm-doctor');
   const note = document.getElementById('adm-doctor-note');
+  // Session 356: from an advice the doctor is the advising doctor (fixed); in an emergency the server's on-call list
+  if (_admitMode === 'advice' && _currentAdvice) { _showAdviceDoctor(); return; }
+  if (_admitMode === 'emergency') { _loadEmergencyConsultants(deptId); return; }
   sel.value  = '';
 
   if (!deptId) {
@@ -429,6 +444,54 @@ function _filterDoctorsByDept(deptId) {
     </span>`;
   } else {
     note.innerHTML = `<span style="color:var(--text-muted);font-size:11px">Showing all doctors (non-clinical ward)</span>`;
+  }
+}
+
+// Session 356 (D3): the advising doctor, read-only -- the counter cannot choose or change the doctor
+function _showAdviceDoctor() {
+  const sel  = document.getElementById('adm-doctor');
+  const note = document.getElementById('adm-doctor-note');
+  const name = _currentAdvice?.profiles?.full_name || _doctors.find(d => d.id === _currentAdvice?.doctor_id)?.full_name || 'the advising doctor';
+  sel.innerHTML = '';
+  const o = document.createElement('option');
+  o.value = _currentAdvice?.doctor_id || '';
+  o.textContent = name;
+  sel.appendChild(o);
+  sel.value = o.value;
+  sel.disabled = true;
+  if (note) note.innerHTML = `<span style="color:var(--text-mid);font-size:11px">The doctor who advised the admission — it cannot be changed here.</span>`;
+}
+
+// Session 356 (D11 + owner 23 Oct 2026): today's on-call consultant first; when none is rostered, a consultant of the
+// department or the Medical Superintendent -- the admission is then marked "consultant not on roster" (MS + HOD alerted)
+async function _loadEmergencyConsultants(deptId) {
+  const sel  = document.getElementById('adm-doctor');
+  const note = document.getElementById('adm-doctor-note');
+  sel.disabled = false;
+  sel.innerHTML = '<option value="">— Select department first —</option>';
+  if (note) note.innerHTML = '';
+  if (!deptId) return;
+  const { data, error } = await supabase.rpc('list_emergency_consultants', { p_department_id: deptId });
+  if (document.getElementById('adm-dept').value !== deptId) return;   // the department changed meanwhile
+  if (error) { if (note) note.textContent = safeErrorMessage(error, 'Could not load the consultants.'); return; }
+  sel.innerHTML = '<option value="">— Select the consultant —</option>';
+  const rows = data || [];
+  for (const d of rows) {
+    const o = document.createElement('option');
+    o.value = d.doctor_id;
+    o.textContent = d.full_name + (d.on_call ? ' — on call today'
+      : d.is_medical_superintendent && !d.in_department ? ' — Medical Superintendent (not on roster)' : ' — not on roster');
+    sel.appendChild(o);
+  }
+  const onCall = rows.filter(d => d.on_call);
+  if (onCall.length === 1) sel.value = onCall[0].doctor_id;
+  if (note) {
+    const span = document.createElement('span');
+    span.style.cssText = `color:${onCall.length ? '#1a4a2e' : '#c9902a'};font-size:11px;font-weight:600`;
+    span.textContent = onCall.length
+      ? `✓ On-call consultant today: ${onCall.map(d => d.full_name).join(', ')}`
+      : '⚠ No on-call consultant rostered today for this department — choosing another consultant marks the admission "consultant not on roster" and alerts the Medical Superintendent and the HOD.';
+    note.replaceChildren(span);
   }
 }
 
@@ -489,6 +552,7 @@ function renderTable(rows) {
       <td>
         <div class="pt-name">${_esc(pt.name || '—')}</div>
         <div class="pt-meta">${_esc(pt.phone || '')}${genderAge ? ' · ' + genderAge : ''}</div>
+        ${a.admission_route === 'emergency' ? `<div style="font-size:10px;font-weight:700;margin-top:3px;color:#a01a1a">🚑 Emergency${a.emergency_confirmed_at ? ' · confirmed' : ' · awaiting confirmation by the consultant'}${a.consultant_not_on_roster ? ' · consultant not on roster' : ''}</div>` : ''}
       </td>
       <td>
         <span class="bed-chip">${_esc(bed.bed_number || '—')}</span>
@@ -523,7 +587,28 @@ function renderTable(rows) {
 
 // ── Admit drawer ──────────────────────────────────────────────────────────────
 let _tenantDefaultInsuranceAdvance = null;
-window.openAdmitDrawer = async function() {
+window.openDirectAdmit = () => openAdmitDrawer('direct');
+window.openEmergencyAdmit = () => openAdmitDrawer('emergency');
+window.openAdmitDrawer = async function(mode = 'advice') {
+  _admitMode = ['advice', 'direct', 'emergency'].includes(mode) ? mode : 'advice';
+  // Session 356: the route reason (direct / emergency), the payer block (not at an emergency admission -- reception
+  // completes the payer / deposit later on the open admission, D11), the department / doctor pickers unlocked again
+  document.getElementById('adm-route-row').hidden = _admitMode === 'advice';
+  document.getElementById('adm-route-reason').value = '';
+  const req = document.createElement('span');
+  req.className = 'req';
+  req.textContent = '*';
+  document.getElementById('adm-route-label').replaceChildren(
+    (_admitMode === 'emergency' ? 'Reason for the emergency admission' : 'Reason for admitting without a doctor\'s advice') + ' ', req);
+  document.getElementById('adm-route-reason').placeholder = _admitMode === 'emergency'
+    ? 'e.g. road traffic accident, unconscious — needs admission now' : 'e.g. on behalf of Dr X (on leave)';
+  document.getElementById('adm-route-note').textContent = _admitMode === 'emergency'
+    ? 'Recorded and audited. The consultant is alerted and must confirm the admission within 24 hours. Reception adds the payer / deposit later.'
+    : _admitMode === 'direct' ? 'Recorded and audited (Super Admin only).' : '';
+  document.getElementById('adm-payer-section').hidden = _admitMode === 'emergency';
+  document.getElementById('adm-dept').disabled = false;
+  document.getElementById('adm-doctor').disabled = false;
+  document.getElementById('btn-admit-save').textContent = _admitMode === 'emergency' ? 'Admit (emergency)' : 'Admit Patient';
   _selectedPatient = null;
   _selectedVisitId = null;
   document.getElementById('pt-search').value = '';
@@ -658,7 +743,7 @@ window.goStep = function(n) {
   // admin only -- matches the RLS INSERT gate (_ipd_admissions_insert_ok()) and the
   // create_ipd_admission() RPC's own server-side check. A clear note, not a silent
   // disable.
-  const canAdmit = n === 2 && ADMIT_ROLES.includes(myRole);
+  const canAdmit = n === 2 && _canSaveInMode();   // Session 356: per admission route
   document.getElementById('btn-admit-save').style.display  = canAdmit ? '' : 'none';
   document.getElementById('admit-role-note').style.display = (n === 2 && !canAdmit) ? '' : 'none';
 
@@ -949,7 +1034,15 @@ window.toggleMlcFields = function(show) {
 // sql/session205_admission_advice.sql.
 window.saveAdmission = async function() {
   if (!_selectedPatient) { _alert('error','Select a patient first.'); return; }
-  if (!ADMIT_ROLES.includes(myRole)) { _alert('error','Only reception or admin can complete an admission.'); return; }
+  if (!_canSaveInMode()) {
+    _alert('error', _admitMode === 'emergency' ? 'Only the RMO / CMO makes an emergency admission.'
+      : _admitMode === 'direct' ? 'Only the Super Admin can admit without a doctor\'s advice.' : 'Only reception or admin can complete an admission.');
+    return;
+  }
+  if (_admitMode === 'emergency') { await _saveEmergencyAdmission(); return; }
+  if (_admitMode === 'advice' && !_currentAdvice) { _alert('error', 'Open the admission from Reception → 🛏️ Admission Requests (a doctor\'s advice).'); return; }
+  const routeReason = document.getElementById('adm-route-reason').value.trim();
+  if (_admitMode === 'direct' && routeReason.length < 5) { _alert('error', 'Give the reason for admitting without a doctor\'s advice (at least 5 characters).'); return; }
   const deptId    = document.getElementById('adm-dept').value;
   const bedId     = document.getElementById('adm-bed-id').value;
   const doctorId  = document.getElementById('adm-doctor').value;
@@ -1050,6 +1143,8 @@ window.saveAdmission = async function() {
     p_consent_questions:     document.getElementById('adm-consent-questions').checked,
     // Session 353C (D12): an admission dated more than 3 days back -- the active Super Admin only, with a reason (audited)
     ...(lateReason ? { p_late_entry_reason: lateReason } : {}),
+    // Session 356 (D2 (b)): the Super Admin's reason for an admission without a doctor's advice
+    ...(_admitMode === 'direct' ? { p_direct_reason: routeReason } : {}),
   });
 
   if (admErr) {
@@ -1062,6 +1157,43 @@ window.saveAdmission = async function() {
   _alert('success', `${_selectedPatient.name} admitted successfully.`);
   await loadAll();
 };
+
+// Session 356 (TODO §265-B, D11): the RMO / CMO admits directly under a consultant -- reason required, no deposit
+// (self-pay, Rs 0; reception completes the payer / deposit later with the existing payer switch + 💳 Account drawer)
+async function _saveEmergencyAdmission() {
+  const deptId = document.getElementById('adm-dept').value;
+  const bedId  = document.getElementById('adm-bed-id').value;
+  const consultantId = document.getElementById('adm-doctor').value;
+  const reason = document.getElementById('adm-route-reason').value.trim();
+  const isMlc  = document.getElementById('adm-is-mlc').checked;
+  if (!deptId)       { _alert('error','Select a department.'); return; }
+  if (!bedId)        { _alert('error','Select a bed.'); return; }
+  if (!consultantId) { _alert('error','Select the consultant the patient is admitted under.'); return; }
+  if (reason.length < 5) { _alert('error','Give the reason for the emergency admission (at least 5 characters).'); return; }
+  const btn = document.getElementById('btn-admit-save');
+  btn.disabled = true; btn.textContent = 'Admitting…';
+  const { data: newId, error } = await supabase.rpc('create_emergency_admission', {
+    p_patient_id: _selectedPatient.id, p_department_id: deptId, p_bed_id: bedId, p_consultant_id: consultantId, p_reason: reason,
+    p_diagnosis_primary: document.getElementById('adm-diagnosis').value.trim() || null,
+    p_notes: document.getElementById('adm-notes').value.trim() || null,
+    p_is_mlc: isMlc,
+    p_mlc_number:            isMlc ? (document.getElementById('adm-mlc-no').value.trim() || null) : null,
+    p_mlc_police_station:    isMlc ? (document.getElementById('adm-mlc-ps').value.trim() || null) : null,
+    p_mlc_nature:            isMlc ? (document.getElementById('adm-mlc-nature').value.trim() || null) : null,
+    p_mlc_police_intimation: isMlc ? document.getElementById('adm-mlc-police').value : null,
+    p_mlc_intimation_at:     isMlc && document.getElementById('adm-mlc-time').value ? new Date(document.getElementById('adm-mlc-time').value).toISOString() : null,
+    p_consent_by:            document.getElementById('adm-consent-by').value.trim() || null,
+    p_consent_relationship:  document.getElementById('adm-consent-rel').value,
+    p_consent_risks:         document.getElementById('adm-consent-risks').checked,
+    p_consent_alternatives:  document.getElementById('adm-consent-alts').checked,
+    p_consent_questions:     document.getElementById('adm-consent-questions').checked,
+  });
+  btn.disabled = false; btn.textContent = 'Admit (emergency)';
+  if (error || !newId) { _alert('error', safeErrorMessage(error, 'Emergency admission failed.')); return; }
+  closeAdmitDrawer();
+  _alert('success', `${_selectedPatient.name} admitted (emergency). The consultant has been alerted to confirm within 24 hours.`);
+  await loadAll();
+}
 
 // ── Discharge drawer ──────────────────────────────────────────────────────────
 // Session 114 -- this drawer now only ORDERS a discharge (normal path,
@@ -2765,8 +2897,9 @@ if (_qPatientId) {
     .select('id,name,phone,gender,age,abha_number')
     .eq('id', _qPatientId)
     .single();
-  if (_qPt) {
-    openAdmitDrawer();
+  // Session 356: without an advice only the Super Admin admits (with a reason) -- this old link opens that route only for them
+  if (_qPt && _isSuperAdmin) {
+    openAdmitDrawer('direct');
     selectPatient(_qPt, _qp.get('visit_id') || null);
   }
 }
@@ -2776,18 +2909,21 @@ if (_qPatientId) {
 // the doctor's advice and shows its cost estimate as reference; the actual bed and
 // admitting doctor are still picked fresh here (a real bed may not match the
 // preference by the time reception acts). See sql/session205_admission_advice.sql.
-let _currentAdvice = null;
 const _qAdviceId = _qp.get('advice_id');
 if (_qAdviceId) {
   const { data: advice } = await supabase
     .from('admission_advice')
-    .select('id, patient_id, visit_id, department_id, clinical_indication, diet_type, nursing_care_notes, room_type_preference, payer_type, estimated_total, advance_amount_suggested, status, patients(id,name,phone,gender,age,abha_number)')
+    .select('id, patient_id, visit_id, doctor_id, department_id, clinical_indication, diet_type, nursing_care_notes, room_type_preference, payer_type, estimated_total, advance_amount_suggested, status, patients(id,name,phone,gender,age,abha_number), profiles!doctor_id(full_name)')
     .eq('id', _qAdviceId).eq('tenant_id', tenantId).maybeSingle();
   if (advice && advice.status === 'pending' && advice.patients) {
-    openAdmitDrawer();  // resets _currentAdvice to null first -- set it AFTER, not before
+    await openAdmitDrawer('advice');  // resets _currentAdvice to null first -- set it AFTER, not before (Session 356: awaited -- its
+                                      // doctor-list reset used to land after the advice's doctor was shown)
     _currentAdvice = advice;
-    selectPatient(advice.patients, null);
+    selectPatient(advice.patients, advice.visit_id || null);
+    // Session 356 (D3): the advised department and the advising doctor are fixed (read-only); the bed may still be an
+    // overflow ward (the existing overflow confirmation) -- the admission keeps the advice's department
     document.getElementById('adm-dept').value = advice.department_id || '';
+    document.getElementById('adm-dept').disabled = true;
     loadVacantBeds();
     document.getElementById('adm-diagnosis').value = advice.clinical_indication || '';
     if (advice.diet_type) document.getElementById('adm-diet').value = advice.diet_type;
@@ -2808,7 +2944,9 @@ if (_qAdviceId) {
       sugg.innerHTML = `💡 Doctor's advice suggested: <strong>${_esc(advice.payer_type === 'self_pay' ? 'Self-Pay' : advice.payer_type.toUpperCase())}</strong> — confirm the payer below, it is not applied automatically.`;
     }
   } else if (advice) {
-    alert(`This admission advice has already been ${advice.status} — it cannot be used again.`);
+    // Session 356: no native alert; the stored 'declined' = "refused admission against medical advice"
+    const word = advice.status === 'declined' ? 'refused by the patient (against medical advice)' : advice.status;
+    _alert('error', `This admission advice has already been ${word} — it cannot be used again.`);
   }
 }
 

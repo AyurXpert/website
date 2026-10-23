@@ -446,6 +446,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
           <textarea id="adm-late-reason" maxlength="500" placeholder="Why is this admission being entered more than 3 days after the admission date?"></textarea>
         </div>
 
+        <!-- Session 356 (TODO §265-A / §265-B): the reason for an admission WITHOUT a doctor's advice (Super Admin, D2 (b)) or for an
+             EMERGENCY admission (RMO / CMO, D11) -- required, recorded and audited by the server -->
+        <div class="field" id="adm-route-row" hidden>
+          <label for="adm-route-reason" id="adm-route-label">Reason <span class="req">*</span></label>
+          <textarea id="adm-route-reason" maxlength="500"></textarea>
+          <div id="adm-route-note" class="field-note" style="font-size:12px;color:var(--text-muted);margin-top:4px"></div>
+        </div>
+
         <div class="field">
           <label>Notes</label>
           <textarea id="adm-notes" placeholder="Special instructions, referring doctor…"></textarea>
@@ -455,7 +463,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
              create_ipd_admission() server-side (no default). The doctor's admission
              advice may SUGGEST a payer (adm-payer-suggestion banner below) but it is
              never auto-applied to the dropdown -- reception/admin always confirms it. -->
-        <div style="background:#eef4fb;border:1.5px solid #a8c8f0;border-radius:8px;padding:12px 14px;margin-top:4px">
+        <div id="adm-payer-section" style="background:#eef4fb;border:1.5px solid #a8c8f0;border-radius:8px;padding:12px 14px;margin-top:4px">
           <div style="font-weight:600;font-size:13px;color:#1a4080;margin-bottom:8px">💳 Payer <span style="font-size:10px;font-weight:400;color:var(--text-muted)">(required to admit)</span></div>
           <div id="adm-payer-suggestion" style="display:none;font-size:11.5px;color:var(--text-mid);margin-bottom:8px;background:#fff;border-radius:6px;padding:6px 8px"></div>
           <div class="field">
@@ -994,7 +1002,13 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--text-d
       <div class="page-title">In-Patient Department (IPD)</div>
       <div class="page-subtitle">Admissions, discharges, and bed occupancy</div>
     </div>
-    <button class="btn btn-primary" id="btn-admit-patient" data-onclick="openAdmitDrawer" style="display:none">+ Admit Patient</button>
+    <!-- Session 356 (TODO §265-A / §265-B): an admission starts from a doctor's advice (Reception → 🛏️ Admission Requests);
+         without one only the Super Admin (with a reason) or, in an emergency, the RMO / CMO -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span id="admit-from-advice-note" style="display:none;font-size:12px;color:var(--text-mid);max-width:340px">Admissions start from a doctor's advice: Reception → 🛏️ Admission Requests → Collect Advance &amp; Admit.</span>
+      <button class="btn btn-primary" id="btn-emergency-admit" data-onclick="openEmergencyAdmit" style="display:none;background:#a01a1a">🚑 Emergency admission</button>
+      <button class="btn btn-primary" id="btn-admit-patient" data-onclick="openDirectAdmit" style="display:none">+ Admit without advice (Super Admin)</button>
+    </div>
   </div>
 
 
