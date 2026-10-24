@@ -2049,6 +2049,7 @@ window.saveAdmissionAdvice = async function() {
   if (!indication) return _admFieldError('adm-indication', 'Enter the clinical indication for admission.');
   if (!days || days < 1 || days > 365) return _admFieldError('adm-duration-days', 'Enter the expected duration (1 to 365 days).');
   if (!roomType)   return _admFieldError('adm-room-type', 'Choose a room type preference.');
+  if (payer !== 'self_pay' && payer !== 'insurance') return _admFieldError('adm-payer', 'Choose the expected payer (Self-Pay or Insurance).');
   await recomputeAdviceEstimate();
   if (!_admLastEstimate) { _admStatus('Fix the room-tariff issue shown above before sending this advice.', 'error'); return false; }
 
@@ -2095,7 +2096,7 @@ window.saveAdmissionAdvice = async function() {
 };
 
 // Session 357 (TODO §275): mark one Admission-tab field as the missing one (focus + red border + aria-invalid + the message)
-const _ADM_REQUIRED = ['adm-dept', 'adm-indication', 'adm-duration-days', 'adm-room-type'];
+const _ADM_REQUIRED = ['adm-dept', 'adm-indication', 'adm-duration-days', 'adm-room-type', 'adm-payer'];
 function _admClearInvalid() {
   for (const id of _ADM_REQUIRED) {
     const f = document.getElementById(id);
@@ -5839,7 +5840,9 @@ async function completeConsultation() {
       const sent = await window.saveAdmissionAdvice();
       if (!sent) {
         if (_hasAdm) _switchTab('adm');
-        _toast('Admission advice could not be sent — check the Admission tab, then press Complete again.', 'error');
+        // Session 357b: the toast repeats the reason the Admission tab shows (never only "could not be sent")
+        const why = (document.getElementById('adm-save-status')?.textContent || '').trim();
+        _toast(`Admission advice could not be sent${why ? ': ' + why : ''} — fix it on the Admission tab, then press Complete again.`, 'error');
         btn.disabled = false;
         onDispChange(disposition);
         return;
@@ -8077,12 +8080,16 @@ function _clearForm() {
     'a-nadi','a-mala','a-mutra','a-jihwa','a-shabda','a-sparsha','a-druk','a-akriti',
     'd-vata','d-pitta','d-kapha','d-agni','d-ama',
     'dasha-sara','dasha-samhanana','dasha-pramana','dasha-satmya','dasha-satva','dasha-vaya','dasha-ahara','dasha-vyayama',
-    'd-certainty','adm-room-type','adm-payer','fu-quick','ref-type','ref-urgency','ref-target-opd'
+    'd-certainty','adm-room-type','fu-quick','ref-type','ref-urgency','ref-target-opd'
   ];
   selects.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  // Session 357b: the expected payer has no empty choice -- '' left the box blank and sent payer_type '' (refused by
+  // admission_advice_payer_type_check, 23514), so every advice failed unless the payer was picked by hand. Back to its default.
+  const admPayer = document.getElementById('adm-payer');
+  if (admPayer) admPayer.value = 'self_pay';
   // adm-dept intentionally left alone here -- _loadAdmDepts() repopulates it fresh
   // (its own default option) each time the Admission tab actually loads, same
   // pattern as _populateDoctorSelect() on ipd.js.

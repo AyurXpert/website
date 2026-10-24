@@ -449,5 +449,39 @@ export function safeErrorMessage(error, fallback = 'Something went wrong. Please
     return 'An admission advice is sent and changed only by the advising doctor (doctor.html → Admission tab).';
   }
 
-  return fallback;
+  // Session 357b: anything not shown as written above never ends as the bare fallback -- the cause in plain words
+  // + the SQLSTATE code (safe to show). Database wording, table and constraint names stay hidden.
+  if (error?.message === 'This page was opened as another user. Reload to continue.') return error.message;
+  const cause = _errorCause(error);
+  const code = error?.code ? String(error.code) : '';
+  if (!cause && !code) return fallback;
+  return `${String(fallback).replace(/[.\s]+$/, '')}${cause ? ' — ' + cause : ''}${code ? ` (error code ${code})` : ''}.`;
+}
+
+// Session 357b: a check rule the browser can break, named by its form field (never the constraint name)
+const CHECK_RULE_FIELDS = {
+  admission_advice_payer_type_check: 'the expected payer is not one of the allowed choices',
+  admission_advice_service_nature_chk: 'the nature of the service is not one of the allowed choices',
+  ipd_admissions_payer_type_check: 'the payer is not one of the allowed choices',
+};
+function _errorCause(error) {
+  const code = String(error?.code || '');
+  const msg = String(error?.message || '');
+  if (!code && /failed to fetch|networkerror|load failed|network request failed/i.test(msg)) {
+    return 'the server could not be reached; check the internet connection and try again';
+  }
+  if (code === 'PGRST301' || code === 'PGRST303' || /jwt expired|invalid jwt/i.test(msg)) return 'your sign-in has expired; sign in again';
+  if (code === 'PGRST202' || code === '42883') return 'this page and the server do not match; reload the page';
+  if (code === '57014') return 'the server took too long; try again';
+  if (code === '40001' || code === '40P01' || code === '55P03') return 'the record was busy; try again';
+  if (code === '23514') {
+    const rule = (msg.match(/check constraint "([^"]+)"/) || [])[1];
+    return CHECK_RULE_FIELDS[rule] || 'a value on this form is not allowed';
+  }
+  if (code === '23502') return 'a required value is missing';
+  if (code === '23503') return 'it refers to a record that does not exist or is not allowed';
+  if (code === '23505') return 'this record already exists';
+  if (['22P02', '22003', '22007', '22008', '22001'].includes(code)) return 'a value has the wrong format or is too long';
+  if (code === '42501') return 'your role is not allowed to do this';
+  return '';
 }

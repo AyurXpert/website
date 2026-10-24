@@ -101,7 +101,7 @@ function _buildHTML(p) {
 
 function _section(s) {
   return `<div class="pf-section">
-    <div class="pf-sec-title" onclick="this.parentElement.classList.toggle('pf-collapsed')">
+    <div class="pf-sec-title" data-onclick="_pfToggleSection" data-onclick-a0="@this">
       ${s.title}<span class="pf-chev">▾</span>
     </div>
     <div class="pf-sec-body">
@@ -191,26 +191,26 @@ function _pasiCalculator(f) {
     <div class="pf-calc-region-label">${r.label} <span style="font-weight:400;font-size:10px;color:var(--text-muted)">(weight ×${r.weight})</span></div>
     <div class="pf-calc-field">
       <label>Area %</label>
-      <select data-calc-id="pasi_${r.id}_area" onchange="_pfPasiCalc(this)">
+      <select data-calc-id="pasi_${r.id}_area" data-onchange="_pfPasiCalc" data-onchange-a0="@this">
         <option value="0">0</option>
         ${areaOpts.map((o,i) => `<option value="${i}">${o}</option>`).join('')}
       </select>
     </div>
     <div class="pf-calc-field">
       <label>Erythema (E)</label>
-      <select data-calc-id="pasi_${r.id}_e" onchange="_pfPasiCalc(this)">
+      <select data-calc-id="pasi_${r.id}_e" data-onchange="_pfPasiCalc" data-onchange-a0="@this">
         ${sevOpts.map((o,i) => `<option value="${i}">${o}</option>`).join('')}
       </select>
     </div>
     <div class="pf-calc-field">
       <label>Induration (I)</label>
-      <select data-calc-id="pasi_${r.id}_i" onchange="_pfPasiCalc(this)">
+      <select data-calc-id="pasi_${r.id}_i" data-onchange="_pfPasiCalc" data-onchange-a0="@this">
         ${sevOpts.map((o,i) => `<option value="${i}">${o}</option>`).join('')}
       </select>
     </div>
     <div class="pf-calc-field">
       <label>Scaling (S)</label>
-      <select data-calc-id="pasi_${r.id}_s" onchange="_pfPasiCalc(this)">
+      <select data-calc-id="pasi_${r.id}_s" data-onchange="_pfPasiCalc" data-onchange-a0="@this">
         ${sevOpts.map((o,i) => `<option value="${i}">${o}</option>`).join('')}
       </select>
     </div>
@@ -256,7 +256,7 @@ function _iief5Calculator(f) {
     <div class="pf-iief-q">
       <label>${q.label}</label>
       <div class="pf-iief-opts">
-        ${q.opts.map((o,i) => `<label class="pf-iief-opts"><input type="radio" name="iief_${q.id}" data-calc-id="iief_${q.id}" value="${i}" onchange="_pfIief5Calc(this)"> ${o}</label>`).join('')}
+        ${q.opts.map((o,i) => `<label class="pf-iief-opts"><input type="radio" name="iief_${q.id}" data-calc-id="iief_${q.id}" value="${i}" data-onchange="_pfIief5Calc" data-onchange-a0="@this"> ${o}</label>`).join('')}
       </div>
     </div>`).join('');
 
@@ -282,7 +282,8 @@ function _iief5Calculator(f) {
 // ── Calculation logic (attached to window for inline handlers) ──
 
 function _attachCalcListeners(containerEl) {
-  // Expose calculators globally for inline onchange handlers
+  // Session 357b: called through domEvents.js (data-onclick / data-onchange) -- inline handlers are blocked by the page CSP
+  window._pfToggleSection = function(title) { title.parentElement.classList.toggle('pf-collapsed'); };
   window._pfPasiCalc = function(changed) {
     const box = changed.closest('[data-calc-type="pasi"]');
     if (!box) return;
